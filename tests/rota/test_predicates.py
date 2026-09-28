@@ -2059,6 +2059,37 @@ def test_constraint_zero_cannot_be_violated(tmp_path):
                    status="satisfied", grain="split_bill.py")["status"] == "satisfied"
 
 
+def test_a_k0_finding_ends_the_review_and_a_bound_violation_goes_to_the_critic(tmp_path):
+    """Night 95's shape (2026-09-28): `k0` has no binding, the other
+    constraint binds files away from the diff. Frame 90's design, change 5."""
+    conn = init_db(tmp_path / "r.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES ('i1','echo JSON','in_scope','approved',1,1)")
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+                 "VALUES ('b1','i1','running','abc')")
+    conn.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+                 "VALUES ('critic:b1:abc','b1','abc','pass')")
+    for k in ("k0", "sentinel"):
+        conn.execute("INSERT INTO constraints (id, headline) VALUES (?, ?)", (k, k))
+        seed_provenance(conn, "constraints", k, "observed")
+    conn.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind, "
+                 "resolves) VALUES ('sentinel','src/click/_utils.py','path',1)")
+    conn.commit()
+    assert _wakes(conn, "structural_review") == \
+        [("architect", "tick:structural_review", ("b1",))]
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+                 "VALUES ('f1','b1','k0','abc','satisfied','src/click/utils.py')")
+    conn.commit()
+    assert _wakes(conn, "structural_review") == []
+    assert _wakes(conn, "finding_review") == []
+    # A violated finding on a constraint that binds the changed file.
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+                 "VALUES ('f2','b1','sentinel','abc','violated','src/click/_utils.py')")
+    conn.commit()
+    assert _wakes(conn, "finding_review") == \
+        [("critic", "tick:finding_review", ("b1", "f2"))]
+
+
 def test_the_agenda_wake_carries_the_rows_a_page_may_hold(db):
     """clickI night 20 (2026-09-12): 66 open rows, and the Liaison counted
     its own ids up, none of them rows. The wake carries the first seven

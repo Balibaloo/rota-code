@@ -102,6 +102,73 @@
     writes: [criteria, items, constraints]
     calls: [code.write]
 
+# Night 95 (2026-09-28): no constraint bound the diff, only k0 was in range,
+# and the Architect copied a test id and a criterion id into its finding.
+# Frame 90's design, change 5: the exit is one k0 row, satisfied, and no
+# message to anyone.
+- id: L1-AR-a-diff-no-constraint-binds-files-k0
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 4
+  tick: structural_review
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    message: "export invoices as compact JSON"
+    edit:
+      src/billing/invoices.py: |
+        import json
+
+        from ..store import load
+
+
+        def export_json(account_id):
+            rows = load("invoices", account_id)
+            data = [{"id": r.id, "amount_cents": r.amount_cents} for r in rows or []]
+            return json.dumps(data, separators=(",", ":")) + "\n"
+  fixture:
+    items:
+      - {id: <i1>, text: "invoices can be exported as compact JSON", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "export invoices as JSON"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "the export is JSON with no spaces between items, ending in a newline",
+         term_refs: '[]'}
+    constraints:
+      - {id: k0, headline: "not yet surveyed",
+         text: "everything in this repository no survey has reached",
+         provenance: observed}
+      - {id: <k1>, headline: "a record write goes through one connection",
+         text: "every write to the store opens its connection through
+                store.connection, so a migration sees every writer",
+         provenance: observed}
+      - {id: <k2>, headline: "a session expires after thirty minutes idle",
+         text: "auth.sessions ends a session after thirty idle minutes",
+         provenance: observed}
+    constraint_bindings:
+      - {constraint_id: <k1>, grain: "src/store/records.py", grain_kind: path}
+      - {constraint_id: <k2>, grain: "src/auth/sessions.py", grain_kind: path}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - {id: <t1>, batch_id: <b1>, criterion_id: <c1>, path: tests/test_export_json.py,
+         body: "def test_compact(): pass"}
+    verdicts:
+      - {id: <v1>, batch_id: <b1>, commit_sha: abc123, result: pass}
+  expect:
+    calls: [findings.find]
+    writes:
+      findings: {count: "1..1", text_includes: ["k0", "satisfied"]}
+    messages: []
+  forbidden:
+    writes: [criteria, items, constraints]
+    calls: [code.write]
+
 - id: L1-AR-route-an-escalation
   tier: T1
   role: architect

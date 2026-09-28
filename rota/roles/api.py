@@ -2524,6 +2524,50 @@ def findings_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     return out
 
 
+def _capped_ids(ids: list[str], cap: int = 20) -> str:
+    """A list of ids a refusal can hold. The six-row cap of `_must_exist`
+    hid half the constraints on night 95 (2026-09-28)."""
+    more = f", and {len(ids) - cap} more" if len(ids) > cap else ""
+    return f"{ids[:cap]}{more}"
+
+
+def _binding_grains(files: list[str]) -> list[str]:
+    """The grains a binding can name for `files`. A binding can name a
+    directory, as `src/billing` does in L1-AR-find-against-a-constraint, so
+    each file's parent directories count too. The wake's push and the door
+    both use this list, so the two constraint lists agree."""
+    grains: set[str] = set()
+    for f in files:
+        parts = f.replace(chr(92), "/").split("/")
+        grains.update("/".join(parts[:n]) for n in range(1, len(parts) + 1))
+    return sorted(grains)
+
+
+def _bound_constraints(conn: sqlite3.Connection, files: list[str]) -> list[str]:
+    """The constraints that bind `files`, globals and unbound rows included."""
+    from ..core.scheduler import constraints_for_grains
+    return constraints_for_grains(conn, _binding_grains(files))
+
+
+def _bound_exit(ctx: "Ctx", files: list[str] | None, grain: str | None) -> str:
+    """The sentence that tells the Architect which constraint ids to send.
+    Night 95 (2026-09-28): no constraint bound the diff, no text said so,
+    and the Architect filled the gap with a criterion id."""
+    from ..onboarding.boot import ZERO
+    if files is None:
+        have = [r["id"] for r in ctx.conn.execute(
+            "SELECT id FROM constraints ORDER BY id")]
+        return f"The constraints rows are {_capped_ids(have)}."
+    bound = [k for k in _bound_constraints(ctx.conn, files) if k != ZERO]
+    if not bound:
+        example = grain if grain in files else (files[0] if files else None)
+        like = f", for example {example!r}" if example else ""
+        return (f"No constraint binds this diff. File {ZERO!r} satisfied, "
+                f"with a changed file as the grain{like}.")
+    return (f"The constraints that bind this diff are {_capped_ids(bound)}. "
+            f"File one finding for each one you checked.")
+
+
 @op("findings", "find")
 def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
                status: str, grain: str) -> dict:
@@ -2547,27 +2591,48 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     # the tool said OK, the foreign key refused the session at commit,
     # three sessions, the night stuck.
     _must_exist(ctx, "batches", batch_id)
-    if constraint_id != ZERO:
-        _must_exist(ctx, "constraints", constraint_id)
+    from ..core import worktrees as _wt
+    files = _wt.batch_files(ctx.conn, batch_id)
+    # A grain is a path, a path::symbol, or a bare symbol; only a path
+    # can be checked against the diff (L1-AR-find-against-a-constraint
+    # names bare symbols and passed before this door).
+    grain_file = grain.split("::", 1)[0]
+    path_shaped = "/" in grain_file or grain_file.endswith(".py")
+    # The check sits here and not in `_must_exist`, because only this door
+    # knows the batch. Night 95 (2026-09-28): the Architect sent a criterion
+    # id as the constraint, and the refusal named 6 of 12 rows and no exit.
+    if constraint_id != ZERO and ctx.conn.execute(
+            "SELECT 1 FROM constraints WHERE id = ?", (constraint_id,)).fetchone() is None:
+        held = [t for t in ("criteria", "tests") if ctx.conn.execute(
+            f"SELECT 1 FROM {t} WHERE id = ?", (constraint_id,)).fetchone()]
+        what = (f"{constraint_id!r} is a row of {held[0]}, not a constraint"
+                if held else f"no constraints row has id={constraint_id!r}")
+        raise ValueError(
+            f"{what}. A finding names a constraint from model.consult. "
+            f"{_bound_exit(ctx, files, grain_file if path_shaped else None)}")
     # A finding says what the batch's diff broke, so its grain is a file
     # the diff changed. Night 65 (2026-09-14): three findings against one
     # constraint, two on test files the diff never touched; the Developer
     # read them, found nothing to fix, and looped. The list of changed
     # files is a fact of the worktree.
     if status == "violated":
-        from ..core import worktrees as _wt
-        files = _wt.batch_files(ctx.conn, batch_id)
-        # A grain is a path, a path::symbol, or a bare symbol; only a path
-        # can be checked against the diff (L1-AR-find-against-a-constraint
-        # names bare symbols and passed before this door).
-        grain_file = grain.split("::", 1)[0]
-        path_shaped = "/" in grain_file or grain_file.endswith(".py")
         if files is not None and path_shaped and grain_file not in files:
             raise ValueError(
                 f"the batch's diff does not touch {grain_file!r}; it changed "
                 f"{files}. A finding names what the diff broke, on a file the "
                 f"diff changed. A constraint the diff did not reach is not "
                 f"violated by this batch")
+        # A diff breaks only a constraint that binds what it changed. The
+        # design review of frame 90 (2026-09-28): a violated finding on an
+        # unbound constraint was accepted and woke the Critic for nothing.
+        reach = ([grain_file] if path_shaped
+                 else files if files is not None else None)
+        if constraint_id != ZERO and reach is not None \
+                and constraint_id not in _bound_constraints(ctx.conn, reach):
+            where = repr(grain_file) if path_shaped else "this diff's files"
+            raise ValueError(
+                f"{constraint_id!r} does not bind {where}, so this diff cannot "
+                f"violate it. {_bound_exit(ctx, files, grain_file if path_shaped else None)}")
     if constraint_id == ZERO and status == "violated":
         raise ValueError(
             f"{ZERO} is constraint zero, the area no survey has read. It is "

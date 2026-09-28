@@ -1389,3 +1389,56 @@ def test_a_ticket_is_its_text(db):
     sb.call("tickets.slice", id="t1", item_id="i1",
             text="add the delete-account endpoint")
     assert [w[1] for w in sb.ctx.writes] == ["t1"]
+
+
+def test_the_finding_door_names_the_constraint_ids_to_send(db, monkeypatch):
+    """
+    Night 95 (2026-09-28): the Architect sent a criterion id as the
+    constraint and a test id as the finding. The refusal named 6 of 12
+    constraints and no exit. Frame 90's design, change 1.
+    """
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i1','echo JSON','in_scope','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','echo JSON')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('echo_json_compact','tk1','the JSON is compact')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+               "VALUES ('b1','i1','running','abc')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('inh_023c4d92','b1','echo_json_compact','tests/test_x.py','assert 1')")
+    for k in ("k0", "sentinel"):
+        db.execute("INSERT INTO constraints (id, headline) VALUES (?, ?)", (k, k))
+        seed_provenance(db, "constraints", k, "observed")
+    for grain in ("src/click/_utils.py", "src/click/__init__.py"):
+        db.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
+                   "grain_kind, resolves) VALUES ('sentinel', ?, 'path', 1)", (grain,))
+    db.commit()
+    from rota.roles import prompts
+    monkeypatch.setattr("rota.core.worktrees.batch_files",
+                        lambda conn, bid: ["src/click/utils.py"])
+    sb = build("architect", db, batch_id="b1", mode="normal",
+               allow=prompts.mode_tools("architect", "structural_review"))
+
+    def refused(**kw):
+        with pytest.raises(ValueError) as e:
+            sb.call("findings.find", id="f1", batch_id="b1", grain="src/click/utils.py", **kw)
+        return str(e.value)
+
+    said = refused(constraint_id="echo_json_compact", status="violated")
+    assert "is a row of criteria" in said
+    assert "No constraint binds this diff. File 'k0' satisfied" in said
+    assert "'src/click/utils.py'" in said
+    said = refused(constraint_id="inh_023c4d92", status="satisfied")
+    assert "is a row of tests" in said and "'k0'" in said
+    said = refused(constraint_id="sentinel", status="violated")
+    assert "does not bind 'src/click/utils.py'" in said and "'k0' satisfied" in said
+    assert sb.call("findings.find", id="f1", batch_id="b1", constraint_id="k0",
+                   status="satisfied", grain="src/click/utils.py")["status"] == "satisfied"
+
+    # Change 2: the wake shows the bound set, and no test id to copy.
+    from rota.core.runner import push_working_set
+    from rota.core.scheduler import Wake
+    pushed = push_working_set("architect", sb, Wake("architect", "tick:structural_review",
+                                                   refs=("b1",)))
+    assert [r["id"] for r in pushed["model.consult"]] == ["k0"]
+    assert "tests" not in pushed["batches.expect"]

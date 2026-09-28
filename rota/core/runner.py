@@ -1773,6 +1773,24 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 # its-criterion went 5/5 to 0/5: with its diff in view the
                 # Developer wrote code and challenged, both (2026-09-14).
                 pushed.pop("code.diff", None)
+    # The structural review sees the constraints that bind the diff, and no
+    # test ids. Night 95 (2026-09-28): the push listed all 12 constraints
+    # with no bindings, and the Architect copied a test id and its
+    # criterion id from `batches.expect` into its finding.
+    if wake is not None and wake.kind == "tick:structural_review":
+        expect = pushed.get("batches.expect")
+        if isinstance(expect, dict):
+            expect.pop("tests", None)
+        if "model.consult" in have:
+            from . import worktrees as _wt
+            bid = sb.ctx.batch_id or (wake.refs[0] if wake.refs else None)
+            files = _wt.batch_files(sb.ctx.conn, bid) if bid else None
+            if files is not None:
+                try:
+                    pushed["model.consult"] = sb.call(
+                        "model.consult", grains=api._binding_grains(files))
+                except Exception:                          # noqa: BLE001
+                    pass
     probe = pushed.get("code.probe")
     if isinstance(probe, list) and probe and isinstance(probe[0], dict) and "note" in probe[0]:
         pushed.pop("code.probe")
