@@ -280,6 +280,15 @@ a different question and the night is then opened once.
   goes to one Opus agent: `findings.find` and its two refusals, the 6 against
   12 constraint lists, `msg.answer_developer` on an empty body, and the
   Architect's `structural_review` brief. Estimate 40k.
+- Status 2026-09-28 02:17 (rota-66): **the read is done by this session in one-line doors,
+  the design record is at `c9e08eb`, and the design review runs on Opus**
+  (observed: the record `plans/frame90-design-2026-09-28.md`, this session,
+  2026-09-28). Meta workflow. Two doors and one brief name no exit for a
+  diff that no constraint binds, and constraint zero wakes the Architect on
+  every passed batch. Four changes, one pass. One clause of the ends-when,
+  `tick:finding_review` in a night, depends on a fixture where a constraint
+  binds the ticket's file, and the record's section 3 puts that to Roman at
+  the night's plan. Read: about 45k, this session. Review estimate 100k.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
