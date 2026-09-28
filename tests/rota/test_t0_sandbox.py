@@ -1464,6 +1464,35 @@ def test_the_finding_door_names_the_constraint_ids_to_send(db, monkeypatch):
     assert sb.call("findings.find", id="f4", batch_id="b1", constraint_id="users_table",
                    status="violated", grain="src/click/utils.py")["status"] == "violated"
 
+    # The second diff review, 6a: a symbol binding on another file does not
+    # reach this diff, so the door refuses the violation.
+    db.execute("INSERT INTO constraints (id, headline) VALUES ('other_foo', 'foo')")
+    seed_provenance(db, "constraints", "other_foo", "observed")
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind, "
+               "resolves) VALUES ('other_foo', 'src/other.py::foo', 'path', 1)")
+    db.commit()
+    said = refused(constraint_id="other_foo", status="violated")
+    assert "does not bind 'src/click/utils.py'" in said
+    # 6b: the symbol binding on the changed file shows in the push and in
+    # the exit's list, and the other file's binding shows in neither.
+    shown = [r["id"] for r in push_working_set("architect", sb, wake)["model.consult"]]
+    assert "echo_writes" in shown and "other_foo" not in shown
+    said = refused(constraint_id="echo_json_compact", status="satisfied")
+    assert "The constraints that bind this diff are" in said
+    assert "'echo_writes'" in said and "'other_foo'" not in said
+
+    # Point 4: with no changed files known, the push drops the list, and
+    # the refusal names every constraints row.
+    monkeypatch.setattr("rota.core.worktrees.batch_files", lambda conn, bid: None)
+    sb.ctx.diff_files.clear()
+    assert "model.consult" not in push_working_set("architect", sb, wake)
+    said = refused(constraint_id="echo_json_compact", status="satisfied")
+    assert ("The constraints rows are ['echo_writes', 'k0', 'other_foo', "
+            "'sentinel', 'users_table']") in said
+    monkeypatch.setattr("rota.core.worktrees.batch_files",
+                        lambda conn, bid: ["src/click/_utils.py", "src/click/utils.py"])
+    sb.ctx.diff_files.clear()
+
     # Finding 4: k0 bound away from this diff still shows in the push.
     db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind, "
                "resolves) VALUES ('k0', 'src/elsewhere.py', 'path', 1)")

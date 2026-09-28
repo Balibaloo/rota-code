@@ -1793,13 +1793,14 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 files = api._diff_files(sb.ctx, bid) if bid else None
                 if files is None:
                     raise ValueError(f"no changed files for batch {bid!r}")
-                rows = sb.call("model.consult", grains=api._binding_grains(files))
-                # The brief's exit names k0, so the list always shows it,
-                # also when k0 binds areas away from this diff (finding 4).
-                if not any(isinstance(r, dict) and r.get("id") == ZERO for r in rows):
-                    rows = sorted(rows + api._zero_row(sb.ctx.conn),
-                                  key=lambda r: r.get("id", ""))
-                pushed["model.consult"] = rows
+                # The door's helper decides the set, so the push and the
+                # refusal show one list (the second diff review, 6b). The
+                # brief's exit names k0, so the list always shows it, also
+                # when k0 binds areas away from this diff (finding 4).
+                keep = api._reaching_constraints(sb.ctx.conn, files) | {ZERO}
+                pushed["model.consult"] = [
+                    r for r in sb.call("model.consult")
+                    if isinstance(r, dict) and r.get("id") in keep]
             except Exception:                              # noqa: BLE001
                 pushed.pop("model.consult", None)
                 _log.warning("structural_review push: model.consult not "

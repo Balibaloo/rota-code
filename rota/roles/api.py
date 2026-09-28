@@ -2537,22 +2537,42 @@ def _capped_ids(ids: list[str], cap: int = 20) -> str:
     return f"{ids[:cap]}{more}"
 
 
-def _binding_grains(files: list[str]) -> list[str]:
+def _binding_grains(files: list[str]) -> set[str]:
     """The grains a binding can name for `files`. A binding can name a
     directory, as `src/billing` does in L1-AR-find-against-a-constraint, so
-    each file's parent directories count too. The wake's push and the door
-    both use this list, so the two constraint lists agree."""
+    each file's parent directories count too."""
     grains: set[str] = set()
     for f in files:
         parts = f.replace(chr(92), "/").split("/")
         grains.update("/".join(parts[:n]) for n in range(1, len(parts) + 1))
-    return sorted(grains)
+    return grains
 
 
-def _bound_constraints(conn: sqlite3.Connection, files: list[str]) -> list[str]:
-    """The constraints that bind `files`, globals and unbound rows included."""
-    from ..core.scheduler import constraints_for_grains
-    return constraints_for_grains(conn, _binding_grains(files))
+def _reaching_constraints(conn: sqlite3.Connection, files: list[str]) -> set[str]:
+    """
+    The constraints whose bindings reach `files`. This is the one place that
+    decides it, so the push, the door and the refusal show one list. Frame
+    90's second diff review, findings 6a and 6b: equality on the grain hid
+    `src/click/utils.py::echo` from a diff on `src/click/utils.py`.
+
+    A binding reaches the files when its grain, or the part before "::",
+    is a file or a parent directory of one. A binding that is not a path,
+    such as a table or a route, cannot be judged, so it reaches. So does a
+    binding that no longer resolves, as in `constraints_for_grains`. A
+    constraint with no binding, or marked global, reaches every diff.
+    """
+    grains = _binding_grains(files)
+    hits = {r["id"] for r in conn.execute(
+        "SELECT c.id AS id FROM constraints c "
+        "LEFT JOIN constraint_bindings b ON b.constraint_id = c.id "
+        "GROUP BY c.id HAVING COUNT(b.grain) = 0 OR MAX(c.is_global) = 1")}
+    for r in conn.execute(
+            "SELECT constraint_id, grain, grain_kind, resolves FROM constraint_bindings"):
+        grain = (r["grain"] or "").replace(chr(92), "/")
+        if (r["grain_kind"] != "path" or not r["resolves"]
+                or grain.split("::", 1)[0] in grains):
+            hits.add(r["constraint_id"])
+    return hits
 
 
 def _diff_files(ctx: "Ctx", batch_id: str) -> list[str] | None:
@@ -2561,36 +2581,6 @@ def _diff_files(ctx: "Ctx", batch_id: str) -> list[str] | None:
         from ..core import worktrees as _wt
         ctx.diff_files[batch_id] = _wt.batch_files(ctx.conn, batch_id)
     return ctx.diff_files[batch_id]
-
-
-def _binds_file(conn: sqlite3.Connection, constraint_id: str,
-                reach: list[str]) -> bool:
-    """
-    True when the constraint binds a file in `reach`, or when the door
-    cannot tell. `constraints_for_grains` matches a grain by equality, so
-    only plain path bindings can be judged. Frame 90's diff review, finding
-    2: a symbol binding `src/click/utils.py::echo` and a table binding
-    `users` refused legitimate violated findings. A binding that holds
-    "::" is let through here, so `path::symbol` under the grain's file
-    binds that file.
-    """
-    rows = conn.execute(
-        "SELECT grain, grain_kind FROM constraint_bindings WHERE constraint_id = ?",
-        (constraint_id,)).fetchall()
-    if any(r["grain_kind"] != "path" or "::" in r["grain"] for r in rows):
-        return True
-    return constraint_id in _bound_constraints(conn, reach)
-
-
-def _zero_row(conn: sqlite3.Connection) -> list[dict]:
-    """The `k0` row in the shape `model.consult` returns. The structural
-    review's push always shows it, because the brief's exit names it
-    (frame 90's diff review, finding 4)."""
-    from ..onboarding.boot import ZERO
-    return _shown_rows(conn.execute(
-        "SELECT c.id, c.headline, p.provenance, c.is_global, p.basis "
-        "FROM constraints c JOIN constraint_provenance p ON p.id = c.id "
-        "WHERE c.id = ?", (ZERO,)))
 
 
 def _bound_exit(ctx: "Ctx", files: list[str] | None, grain: str | None) -> str:
@@ -2602,7 +2592,7 @@ def _bound_exit(ctx: "Ctx", files: list[str] | None, grain: str | None) -> str:
         have = [r["id"] for r in ctx.conn.execute(
             "SELECT id FROM constraints ORDER BY id")]
         return f"The constraints rows are {_capped_ids(have)}."
-    bound = [k for k in _bound_constraints(ctx.conn, files) if k != ZERO]
+    bound = sorted(k for k in _reaching_constraints(ctx.conn, files) if k != ZERO)
     if not bound:
         example = grain if grain in files else (files[0] if files else None)
         like = f", for example {example!r}" if example else ""
@@ -2671,7 +2661,7 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
         reach = ([grain_file] if path_shaped
                  else files if files is not None else None)
         if constraint_id != ZERO and reach is not None \
-                and not _binds_file(ctx.conn, constraint_id, reach):
+                and constraint_id not in _reaching_constraints(ctx.conn, reach):
             where = repr(grain_file) if path_shaped else "this diff's files"
             raise ValueError(
                 f"{constraint_id!r} does not bind {where}, so this diff cannot "
