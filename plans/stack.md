@@ -350,6 +350,12 @@ a different question and the night is then opened once.
   constraints, so the brief steers the model to k0 past a constraint that
   binds the diff. Pass 3 builds one binding matcher for the door, the push
   and the exit. Estimate 50k, then a third diff review.
+- Status 2026-09-28 09:12 (rota-66): **pass 3 is in the tree, uncommitted, one matcher
+  `_reaching_constraints` for the door, the push and the exit, and the gate
+  runs** (observed: the pass report, the harness line reads 162k for the
+  resumed agent, 15 tool uses; 3 files; 234 touched tests pass; the pushed
+  rows of both Architect cases did not move, so no re-record, 2026-09-28).
+  Meta workflow. Next: the commit, the third diff review, then night 96.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
