@@ -224,7 +224,7 @@ a different question and the night is then opened once.
 - Status 2026-09-27 19:45 (rota-f8): pushed by 213e58fd, unclaimed, priced. Meta
   workflow.
 
-### 90. The Architect cannot file a finding, and its empty answer cycles the Developer (2026-09-28)
+### 90. The Architect cannot file a finding, and its empty answer cycles the Developer (2026-09-28) (b4768744)
 
 - **Batch C, the night's stall, found by night 95's read. It is the wall
   that stands before frame 88's route can run.** Two sites: the doors of
@@ -274,6 +274,12 @@ a different question and the night is then opened once.
   and the stack at `3ee470e`** (observed: `hand` exit 0 at 02:11, confirmed
   7 s after the claim). Meta workflow. Session 213e58fd stops here, holding
   nothing.
+- Status 2026-09-28 02:12 (rota-66): **claimed by b4768744 from the hand-off of
+  02:11, and the read of the two doors starts** (ruled: Roman, 2026-09-28 02:12,
+  in the terminal, the hand-off is the assignment). Meta workflow. The read
+  goes to one Opus agent: `findings.find` and its two refusals, the 6 against
+  12 constraint lists, `msg.answer_developer` on an empty body, and the
+  Architect's `structural_review` brief. Estimate 40k.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
