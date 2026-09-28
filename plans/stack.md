@@ -393,6 +393,14 @@ a different question and the night is then opened once.
   gone from the mode; the night owes the k0 row and the merge. Passes: 1
   cold 100k, 2 resumed 139k, 3 resumed 162k on the harness line, all Opus;
   reviews 107k, 60k, 58k, 40k. Register lines: none yet.
+- Status 2026-09-28 09:25 (rota-66): **night 96 runs detached from 09:25, after a first
+  launch as a tool call at 09:24 was killed in onboarding** (observed: the
+  register's line on detached launches, read after the launch; the kill at
+  09:25 found five bash processes and no database yet; `Start-Process` with
+  the full Git Bash path and the two redirect flags; the log shows onboard
+  at 09:25 and two gauntlet processes). Meta workflow. The night ends in
+  about 80 minutes. Then the read: the k0 row in `findings`, the merge, and
+  no empty answer in `messages`.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
