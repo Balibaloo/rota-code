@@ -204,6 +204,24 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 91. Every model-written binding is stamped a path (2026-09-28)
+
+- **No batch. A small repair found by frame 90's third diff review.** It
+  touches `model.amend` in `rota/roles/api.py`, and no seat, no brief and no
+  predicate, so one pass, one diff review, no walk.
+- Rota workflow. `model.amend` stamps `grain_kind = "path"` on every binding,
+  also on `users` and on `x.py::sym`, so the matcher of frame 90 treats a
+  table binding as a path that binds nothing and refuses a violated finding
+  on it (observed: the third diff review of `f933f25`, a probe on a copy of
+  night 95's database, 2026-09-28). No recorded night holds such a binding.
+- Ends when: `model.amend` stamps `symbol` for a grain with `::`, and `table`
+  or `route` for a grain that is not a path in `code_index`; a unit test
+  holds it; the gate is clean. Priced: one pass, about 30k on Opus; one diff
+  review, about 30k.
+- Waits on: Roman's order. Recommended: with frame 89, before batch B.
+- Reasoning: the third diff review of frame 90, finding 1.
+- Status 2026-09-28 09:24 (rota-66): pushed by b4768744, unclaimed, priced. Meta workflow.
+
 ### 89. The gate re-records its own stale set (2026-09-27)
 
 - **No batch. An instrument repair, ruled before batch B's repairs.** It
@@ -364,6 +382,17 @@ a different question and the night is then opened once.
   finding, `f933f25` is the closing commit and night 96 launches from
   `C:/Users/roman/rota_night95` moved to it, with `.rota/launch_night95.sh`
   renamed for night 96.
+- Status 2026-09-28 09:24 (rota-66): **validating at `f933f25`: the third diff review
+  returned 1 low, and night 96 runs from `C:/Users/roman/rota_night96` at
+  that commit** (observed: the review's report, 40k on Opus, 2026-09-28;
+  `.rota/launch_night96.sh`, log `.rota/night96.log`). Meta workflow. The low
+  finding, `model.amend` stamps every binding as a path so the matcher's
+  non-path rule never fires on model-written rows, is frame 91. Ends-when
+  check: the finding lands first try in the recorded case, 5 of 5; the door
+  names the bound set and the push shows the same set; the answer tool is
+  gone from the mode; the night owes the k0 row and the merge. Passes: 1
+  cold 100k, 2 resumed 139k, 3 resumed 162k on the harness line, all Opus;
+  reviews 107k, 60k, 58k, 40k. Register lines: none yet.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
