@@ -270,6 +270,10 @@ a different question and the night is then opened once.
   `C:/Users/roman/rota_night95` and `.rota/launch_night95.sh` serve the next
   night with the commit changed. The review worktree `wt-86` in this
   session's scratchpad can go.
+- Status 2026-09-28 02:11 (rota-f8): **session `b4768744`, rota-9c, holds frame 90
+  and the stack at `3ee470e`** (observed: `hand` exit 0 at 02:11, confirmed
+  7 s after the claim). Meta workflow. Session 213e58fd stops here, holding
+  nothing.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
