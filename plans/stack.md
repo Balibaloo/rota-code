@@ -461,6 +461,15 @@ a different question and the night is then opened once.
   `.rota/night95-aborted.log`). Meta workflow. Done expected near 04:00.
   Copy `.rota/clickI.db` to `.rota/clickI_night95.db` at `GAUNTLET-DONE`,
   then the read for frames 86, 59 and 88.
+- Status 2026-09-28 02:00 (rota-f8): **night 95 ended at 01:59 in 82 minutes, and its
+  read runs on Opus** (observed: `.rota/night95.log`, `GAUNTLET-DONE 01:59`,
+  219 sessions, 791 turns, 0 repeats; the database copied to
+  `.rota/clickI_night95.db` at 02:0x, 12 MB). Meta workflow. The log's
+  shape: a CYCLE of period 2 between the Architect's `structural_review`
+  and a Developer message answer on `bg_1` in walk 1, quarantined; no
+  `finding_review`, `do:park` or `do:preempt` line, so the routes of frames
+  86 and 88 may not have run. The read says which. Record
+  `plans/archive/night95-walk-2026-09-28.md`, cap 120k.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
