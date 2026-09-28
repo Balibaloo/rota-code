@@ -356,6 +356,14 @@ a different question and the night is then opened once.
   resumed agent, 15 tool uses; 3 files; 234 touched tests pass; the pushed
   rows of both Architect cases did not move, so no re-record, 2026-09-28).
   Meta workflow. Next: the commit, the third diff review, then night 96.
+- Status 2026-09-28 09:22 (rota-66): **pass 3 is committed at `f933f25`, the gate is
+  clean but for frame 84's case, and the third diff review runs on the
+  worktree at the commit** (observed: the gate at 6308a7a, new reds 1,
+  `L1-DV-give-the-new-parameters-defaults`, stale 1, the same case,
+  2026-09-28). Meta workflow. Review estimate 35k. If it returns no high
+  finding, `f933f25` is the closing commit and night 96 launches from
+  `C:/Users/roman/rota_night95` moved to it, with `.rota/launch_night95.sh`
+  renamed for night 96.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
