@@ -289,6 +289,15 @@ a different question and the night is then opened once.
   `tick:finding_review` in a night, depends on a fixture where a constraint
   binds the ticket's file, and the record's section 3 puts that to Roman at
   the night's plan. Read: about 45k, this session. Review estimate 100k.
+- Status 2026-09-28 02:30 (rota-66): **the design review returned 11 confirmed and 1
+  plausible, revision 2 is at `907a1bf`, and pass 1 runs on Opus** (observed:
+  the review's report, 107k, 72 tool uses, 2026-09-28). Meta workflow. Three
+  findings changed the design: the answer door is dropped, because the
+  Architect's exhausted mode answers from a tick on purpose; the wake's push
+  list carried the test-and-criterion pair the model copied and hid the
+  bindings; and a violated finding on an unbound constraint passes the door
+  today. Five changes. Pass 1 estimate 80k. The re-records and the diff
+  review follow the pass.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
