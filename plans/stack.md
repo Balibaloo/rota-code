@@ -401,6 +401,15 @@ a different question and the night is then opened once.
   at 09:25 and two gauntlet processes). Meta workflow. The night ends in
   about 80 minutes. Then the read: the k0 row in `findings`, the merge, and
   no empty answer in `messages`.
+- Status 2026-09-28 09:42 (rota-66): **GPU work paused: night 96 is killed in its intake,
+  and the frame stays validating with no night** (ruled: Roman, {t}, in the
+  terminal, "pause gpu work"; observed: the kill found four bash and two
+  python processes, the log ended at the intake's first present, and no
+  process named the night after 3 s). Meta workflow. The database
+  `.rota/clickI_night96.db` is contaminated by the kill and goes before the
+  next launch. The next launch is the same command from
+  `.rota/launch_night96.sh`, detached, at `f933f25`, when Roman lifts the
+  pause.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
