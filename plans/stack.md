@@ -315,6 +315,14 @@ a different question and the night is then opened once.
   row three times, because `findings.load` does not show staged writes; the
   diff review judges a door for it. Worktree `wt-90` in this session's
   scratchpad. Review estimate 50k.
+- Status 2026-09-28 03:07 (rota-66): **the diff review of `9609e93` returned 5 confirmed
+  and 1 plausible, and pass 2 runs as a resume of the pass 1 agent** (observed:
+  the review's report, 60k on Opus, 26 tool uses, 2026-09-28). Meta workflow.
+  Confirmed: `batch_files` runs on every finding call; the unbound refusal
+  refuses symbol and table bindings; the push keeps the unfiltered list on a
+  fault; the pushed list can be empty where the brief says k0 alone; the unit
+  test accepts no violated finding. Plausible: a door on a repeated finding in
+  one session. Pass 2 carries all six. Estimate 60k.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
