@@ -323,6 +323,15 @@ a different question and the night is then opened once.
   fault; the pushed list can be empty where the brief says k0 alone; the unit
   test accepts no violated finding. Plausible: a door on a repeated finding in
   one session. Pass 2 carries all six. Estimate 60k.
+- Status 2026-09-28 03:24 (rota-66): **pass 2 is in the tree, uncommitted, all six findings
+  fixed, and the two Architect cases re-record again** (observed: the pass
+  report, the harness line reads 139k for the resumed agent against 100k
+  cold; 4 files; 234 touched tests pass; the gate at 95645ec read the two
+  Architect cases STALE because the brief moved again, frame 84's case, and
+  one flaky handover test that passed on the re-run, 2026-09-28). Meta
+  workflow. The resume cost more than the cold pass on the harness line, so
+  the resume rule is not confirmed by this frame. Next: the gate, the
+  commit, the second diff review.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
