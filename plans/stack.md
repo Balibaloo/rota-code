@@ -298,6 +298,14 @@ a different question and the night is then opened once.
   bindings; and a violated finding on an unbound constraint passes the door
   today. Five changes. Pass 1 estimate 80k. The re-records and the diff
   review follow the pass.
+- Status 2026-09-28 02:51 (rota-66): **pass 1 is in the tree, uncommitted, and the two
+  Architect cases re-record on the 3080** (observed: the pass report, 100k on
+  Opus, 63 tool uses; 7 files, 174 touched tests pass; the gate read 3 STALE
+  and no other red, through a pipe the brief forbade, 2026-09-28). Meta
+  workflow. The third STALE case, `L1-DV-give-the-new-parameters-defaults`,
+  was stale at the hand-off and is frame 84's. The Titan port answers
+  nothing, so the recorder runs on the default port. Next: the gate unpiped,
+  the commit, and the diff review on a worktree.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
