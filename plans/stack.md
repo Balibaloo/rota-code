@@ -255,6 +255,21 @@ a different question and the night is then opened once.
 - Reasoning: `plans/archive/night95-walk-2026-09-28.md`, section 2.
 - Status 2026-09-28 02:04 (rota-f8): pushed by 213e58fd, unclaimed, priced. Meta
   workflow.
+- Status 2026-09-28 02:10 (rota-f8): **handed with the stack by 213e58fd at Roman's
+  word, past the 300k mark; what the holder inherits** (ruled: Roman, in
+  the terminal, "hand off now to a standby"). Meta workflow. This frame is
+  the next work, unclaimed, recommended before frame 87. Held frames that
+  hand with the stack: 88 validating at `4840fda`, its route unproven until
+  a finding is filed; 86 validating at `321af4c`, its park unproven until a
+  batch reaches its cap; 59 validating at `48329b1` on the unfounded case;
+  61 parked, revision 3 ruled, fourth in Roman's order of 2026-09-25. Roman's
+  order from 2026-09-25 14:34 stands, with the rulings of 2026-09-27 in the
+  batch section. The gate's baseline is `658abb6` with the cite red stored.
+  The parameters-defaults case records fresh on run 5, frame 84's. Night
+  95's database is `.rota/clickI_night95.db`; the worktree
+  `C:/Users/roman/rota_night95` and `.rota/launch_night95.sh` serve the next
+  night with the commit changed. The review worktree `wt-86` in this
+  session's scratchpad can go.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
