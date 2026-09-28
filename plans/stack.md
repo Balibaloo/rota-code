@@ -306,6 +306,15 @@ a different question and the night is then opened once.
   was stale at the hand-off and is frame 84's. The Titan port answers
   nothing, so the recorder runs on the default port. Next: the gate unpiped,
   the commit, and the diff review on a worktree.
+- Status 2026-09-28 03:04 (rota-66): **pass 1 is committed at `9609e93`, the gate is
+  clean but for frame 84's case, and the diff review runs on a worktree at
+  the commit** (observed: the recorder, the new case 4 of 5 and
+  `L1-AR-find-against-a-constraint` 5 of 5 on qwen3:8b at 02:53; the gate at
+  ebc8481, new reds 1, `L1-DV-give-the-new-parameters-defaults`, stale 1, the
+  same case, 508 s, 2026-09-28). Meta workflow. The failed run filed the k0
+  row three times, because `findings.load` does not show staged writes; the
+  diff review judges a door for it. Worktree `wt-90` in this session's
+  scratchpad. Review estimate 50k.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
