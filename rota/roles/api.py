@@ -121,6 +121,10 @@ class Ctx:
     # Session-scoped like `refusals`: the reason only has to outlive the session
     # that made the cut.
     cuts: list = None
+    # The files each batch's diff changed, by batch id, read once per session.
+    # `batch_files` runs three git calls, about 230 ms, and `findings.find`
+    # needs the list on every refusal path (frame 90's diff review, finding 1).
+    diff_files: dict = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -143,6 +147,8 @@ class Ctx:
             self.verdict_claims = {}
         if self.cuts is None:
             self.cuts = []
+        if self.diff_files is None:
+            self.diff_files = {}
 
 
 # What a role can do about words a row did not keep: nothing, and the habit
@@ -2549,6 +2555,44 @@ def _bound_constraints(conn: sqlite3.Connection, files: list[str]) -> list[str]:
     return constraints_for_grains(conn, _binding_grains(files))
 
 
+def _diff_files(ctx: "Ctx", batch_id: str) -> list[str] | None:
+    """The batch's changed files, read once per session and batch."""
+    if batch_id not in ctx.diff_files:
+        from ..core import worktrees as _wt
+        ctx.diff_files[batch_id] = _wt.batch_files(ctx.conn, batch_id)
+    return ctx.diff_files[batch_id]
+
+
+def _binds_file(conn: sqlite3.Connection, constraint_id: str,
+                reach: list[str]) -> bool:
+    """
+    True when the constraint binds a file in `reach`, or when the door
+    cannot tell. `constraints_for_grains` matches a grain by equality, so
+    only plain path bindings can be judged. Frame 90's diff review, finding
+    2: a symbol binding `src/click/utils.py::echo` and a table binding
+    `users` refused legitimate violated findings. A binding that holds
+    "::" is let through here, so `path::symbol` under the grain's file
+    binds that file.
+    """
+    rows = conn.execute(
+        "SELECT grain, grain_kind FROM constraint_bindings WHERE constraint_id = ?",
+        (constraint_id,)).fetchall()
+    if any(r["grain_kind"] != "path" or "::" in r["grain"] for r in rows):
+        return True
+    return constraint_id in _bound_constraints(conn, reach)
+
+
+def _zero_row(conn: sqlite3.Connection) -> list[dict]:
+    """The `k0` row in the shape `model.consult` returns. The structural
+    review's push always shows it, because the brief's exit names it
+    (frame 90's diff review, finding 4)."""
+    from ..onboarding.boot import ZERO
+    return _shown_rows(conn.execute(
+        "SELECT c.id, c.headline, p.provenance, c.is_global, p.basis "
+        "FROM constraints c JOIN constraint_provenance p ON p.id = c.id "
+        "WHERE c.id = ?", (ZERO,)))
+
+
 def _bound_exit(ctx: "Ctx", files: list[str] | None, grain: str | None) -> str:
     """The sentence that tells the Architect which constraint ids to send.
     Night 95 (2026-09-28): no constraint bound the diff, no text said so,
@@ -2591,8 +2635,6 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     # the tool said OK, the foreign key refused the session at commit,
     # three sessions, the night stuck.
     _must_exist(ctx, "batches", batch_id)
-    from ..core import worktrees as _wt
-    files = _wt.batch_files(ctx.conn, batch_id)
     # A grain is a path, a path::symbol, or a bare symbol; only a path
     # can be checked against the diff (L1-AR-find-against-a-constraint
     # names bare symbols and passed before this door).
@@ -2609,13 +2651,14 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
                 if held else f"no constraints row has id={constraint_id!r}")
         raise ValueError(
             f"{what}. A finding names a constraint from model.consult. "
-            f"{_bound_exit(ctx, files, grain_file if path_shaped else None)}")
+            f"{_bound_exit(ctx, _diff_files(ctx, batch_id), grain_file if path_shaped else None)}")
     # A finding says what the batch's diff broke, so its grain is a file
     # the diff changed. Night 65 (2026-09-14): three findings against one
     # constraint, two on test files the diff never touched; the Developer
     # read them, found nothing to fix, and looped. The list of changed
     # files is a fact of the worktree.
     if status == "violated":
+        files = _diff_files(ctx, batch_id)
         if files is not None and path_shaped and grain_file not in files:
             raise ValueError(
                 f"the batch's diff does not touch {grain_file!r}; it changed "
@@ -2628,7 +2671,7 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
         reach = ([grain_file] if path_shaped
                  else files if files is not None else None)
         if constraint_id != ZERO and reach is not None \
-                and constraint_id not in _bound_constraints(ctx.conn, reach):
+                and not _binds_file(ctx.conn, constraint_id, reach):
             where = repr(grain_file) if path_shaped else "this diff's files"
             raise ValueError(
                 f"{constraint_id!r} does not bind {where}, so this diff cannot "
@@ -2639,6 +2682,24 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
             f"a fact about the register, not a rule the code can break, and "
             f"a file this batch wrote is read by this review. Record it "
             f"satisfied, or check the constraints that bind {grain!r}")
+    # One finding per constraint and grain in a session. `findings.load`
+    # does not show staged writes, so the seat cannot see its own row.
+    # Frame 90's diff review, finding 5: one recorded run filed the k0 row
+    # three times. The same pattern as `statements.segment`.
+    same = [w for w in ctx.writes
+            if w[0] == "findings"
+            and w[2].get("batch_id") == batch_id
+            and w[2].get("constraint_id") == constraint_id
+            and w[2].get("grain") == grain]
+    if same and same[0][2].get("status") == status:
+        return {"id": same[0][1], "unchanged": True,
+                "note": f"this finding is already filed, as {same[0][1]}; "
+                        f"nothing was written. Your review is done."}
+    if same:
+        raise ValueError(
+            f"you have already filed {constraint_id} "
+            f"{same[0][2].get('status')} on {grain} in this session; decide, "
+            f"and send the one")
     ctx.writes.append(("findings", id, {
         "batch_id": batch_id, "constraint_id": constraint_id,
         "commit_sha": _head_commit(ctx, batch_id),

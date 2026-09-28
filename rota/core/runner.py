@@ -17,6 +17,7 @@ iteration cap trips. Then commit everything at once, or nothing.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -32,6 +33,8 @@ from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
 from .db import OutboundMessage, SessionResult, Turn, Write, session_commit, session_fail, session_note
 from .scheduler import Wake, claim, release
+
+_log = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 12
 
@@ -1782,15 +1785,26 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         if isinstance(expect, dict):
             expect.pop("tests", None)
         if "model.consult" in have:
-            from . import worktrees as _wt
+            # The unfiltered list is night 95's shape, so a fault drops the
+            # push and never keeps that list (frame 90's diff review, finding 3).
+            from ..onboarding.boot import ZERO
             bid = sb.ctx.batch_id or (wake.refs[0] if wake.refs else None)
-            files = _wt.batch_files(sb.ctx.conn, bid) if bid else None
-            if files is not None:
-                try:
-                    pushed["model.consult"] = sb.call(
-                        "model.consult", grains=api._binding_grains(files))
-                except Exception:                          # noqa: BLE001
-                    pass
+            try:
+                files = api._diff_files(sb.ctx, bid) if bid else None
+                if files is None:
+                    raise ValueError(f"no changed files for batch {bid!r}")
+                rows = sb.call("model.consult", grains=api._binding_grains(files))
+                # The brief's exit names k0, so the list always shows it,
+                # also when k0 binds areas away from this diff (finding 4).
+                if not any(isinstance(r, dict) and r.get("id") == ZERO for r in rows):
+                    rows = sorted(rows + api._zero_row(sb.ctx.conn),
+                                  key=lambda r: r.get("id", ""))
+                pushed["model.consult"] = rows
+            except Exception:                              # noqa: BLE001
+                pushed.pop("model.consult", None)
+                _log.warning("structural_review push: model.consult not "
+                             "filtered for batch %r, so it is not pushed",
+                             bid, exc_info=True)
     probe = pushed.get("code.probe")
     if isinstance(probe, list) and probe and isinstance(probe[0], dict) and "note" in probe[0]:
         pushed.pop("code.probe")

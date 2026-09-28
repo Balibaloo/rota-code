@@ -19,7 +19,7 @@ field for why, and that is not an oversight — your reasoning belongs in
 gate needs is whether anything is violated, and that question has no interesting
 prose answer.
 
-When the constraints in range are `k0` alone, no constraint binds this diff.
+When no constraint other than `k0` is in range, no constraint binds this diff.
 File one finding: `k0`, `satisfied`, with a changed file as the grain. That row
 is the record that the review ran.
 

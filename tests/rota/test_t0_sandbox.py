@@ -1438,7 +1438,69 @@ def test_the_finding_door_names_the_constraint_ids_to_send(db, monkeypatch):
     # Change 2: the wake shows the bound set, and no test id to copy.
     from rota.core.runner import push_working_set
     from rota.core.scheduler import Wake
-    pushed = push_working_set("architect", sb, Wake("architect", "tick:structural_review",
-                                                   refs=("b1",)))
+    wake = Wake("architect", "tick:structural_review", refs=("b1",))
+    pushed = push_working_set("architect", sb, wake)
     assert [r["id"] for r in pushed["model.consult"]] == ["k0"]
     assert "tests" not in pushed["batches.expect"]
+
+    # The door lets a violation through where the constraint binds the file.
+    # A door that refused every violated finding would pass the lines above.
+    monkeypatch.setattr("rota.core.worktrees.batch_files",
+                        lambda conn, bid: ["src/click/_utils.py", "src/click/utils.py"])
+    sb.ctx.diff_files.clear()
+    assert sb.call("findings.find", id="f2", batch_id="b1", constraint_id="sentinel",
+                   status="violated", grain="src/click/_utils.py")["status"] == "violated"
+    # Frame 90's diff review, finding 2: a symbol binding and a table binding
+    # cannot be matched by equality, so the door lets the finding through.
+    for k, grain, kind in (("echo_writes", "src/click/utils.py::echo", "path"),
+                           ("users_table", "users", "table")):
+        db.execute("INSERT INTO constraints (id, headline) VALUES (?, ?)", (k, k))
+        seed_provenance(db, "constraints", k, "observed")
+        db.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
+                   "grain_kind, resolves) VALUES (?, ?, ?, 1)", (k, grain, kind))
+    db.commit()
+    assert sb.call("findings.find", id="f3", batch_id="b1", constraint_id="echo_writes",
+                   status="violated", grain="src/click/utils.py::echo")["status"] == "violated"
+    assert sb.call("findings.find", id="f4", batch_id="b1", constraint_id="users_table",
+                   status="violated", grain="src/click/utils.py")["status"] == "violated"
+
+    # Finding 4: k0 bound away from this diff still shows in the push.
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind, "
+               "resolves) VALUES ('k0', 'src/elsewhere.py', 'path', 1)")
+    db.commit()
+    pushed = push_working_set("architect", sb, wake)
+    assert "k0" in [r["id"] for r in pushed["model.consult"]]
+    # Finding 3: a fault drops the list, and never keeps the unfiltered one.
+    sb.ctx.diff_files.clear()
+
+    def broken(conn, bid):
+        raise OSError("git is gone")
+    monkeypatch.setattr("rota.core.worktrees.batch_files", broken)
+    assert "model.consult" not in push_working_set("architect", sb, wake)
+
+
+def test_a_finding_filed_twice_in_a_session_is_written_once(db):
+    """
+    Frame 90's diff review, finding 5: one recorded run filed the k0 row
+    three times, because `findings.load` does not show staged writes.
+    """
+    from rota.roles import prompts
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i1','x','in_scope','approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+               "VALUES ('b1','i1','running','abc')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES ('k1','no data loss')")
+    seed_provenance(db, "constraints", "k1", "observed")
+    db.commit()
+    sb = build("architect", db, batch_id="b1", mode="normal",
+               allow=prompts.mode_tools("architect", "structural_review"))
+    sb.call("findings.find", id="f1", batch_id="b1", constraint_id="k1",
+            status="satisfied", grain="src/x.py")
+    again = sb.call("findings.find", id="f9", batch_id="b1", constraint_id="k1",
+                    status="satisfied", grain="src/x.py")
+    assert again["id"] == "f1" and again["unchanged"] is True
+    assert "Your review is done" in again["note"]
+    with pytest.raises(ValueError, match="already filed k1 satisfied on src/x.py"):
+        sb.call("findings.find", id="f9", batch_id="b1", constraint_id="k1",
+                status="violated", grain="src/x.py")
+    assert [w[1] for w in sb.ctx.writes if w[0] == "findings"] == ["f1"]
