@@ -332,6 +332,14 @@ a different question and the night is then opened once.
   workflow. The resume cost more than the cold pass on the harness line, so
   the resume rule is not confirmed by this frame. Next: the gate, the
   commit, the second diff review.
+- Status 2026-09-28 03:35 (rota-66): **pass 2 is committed at `f9f6edc`, the gate is
+  clean but for frame 84's case, and the second diff review runs on the
+  worktree at the commit** (observed: the recorder at 03:25, both Architect
+  cases 5 of 5 on qwen3:8b; the gate at 46a2696, new reds 1,
+  `L1-DV-give-the-new-parameters-defaults`, stale 1, the same case, 511 s,
+  2026-09-28). Meta workflow. Review estimate 40k. After it: the night plan
+  for the walk, shared with frames 88 and 86, and the ruling in the design
+  record's section 3.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
