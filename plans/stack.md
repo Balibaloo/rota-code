@@ -224,6 +224,38 @@ a different question and the night is then opened once.
 - Status 2026-09-27 19:45 (rota-f8): pushed by 213e58fd, unclaimed, priced. Meta
   workflow.
 
+### 90. The Architect cannot file a finding, and its empty answer cycles the Developer (2026-09-28)
+
+- **Batch C, the night's stall, found by night 95's read. It is the wall
+  that stands before frame 88's route can run.** Two sites: the doors of
+  `findings.find`, which refused eight calls whose constraint id was a
+  criterion's and whose finding id was a test's, and `msg.answer_developer`,
+  which accepted an empty answer that woke the Developer four times. It
+  touches the Architect's brief and two doors, so it carries a diff review
+  and a walk.
+- Rota workflow. On night 95 `bg_1` was green and passed by the Critic at
+  attempts 3 and 4; the Architect's `structural_review` sessions s144, s147,
+  s149 and s151 each called `findings.find` with `echo_json_compact` as the
+  constraint and `inh_023c4d92` or its own `fnd_001` as the finding id, the
+  runner refused each, and each session ended on an empty
+  `msg.answer_developer`; the CYCLE of period 2 quarantined
+  `structural_review` at 3, and the batch never merged (observed:
+  `plans/archive/night95-walk-2026-09-28.md`, section 2, 2026-09-28). The refusal listed 6 constraint rows
+  where `model.consult` showed 12, cause unknown.
+- Ends when: the Architect's finding call lands on the first try in a
+  recorded case on night 95's shape, or the door names the ids it wants in
+  a way the recorded case shows the model follows; an empty answer is
+  refused with the reason; the two constraint lists agree; and a night at
+  the closing commit shows a finding filed and `tick:finding_review` in
+  `sessions`. Priced from the anchors: one read of the four sessions and
+  the doors, 40k; one pass, 60k on Opus; one diff review per pass, 50k;
+  one night, shared with frames 86 and 88.
+- Waits on: Roman's order. Recommended: next, before frame 87, because
+  frames 88 and 86 both wait on a night that passes this wall.
+- Reasoning: `plans/archive/night95-walk-2026-09-28.md`, section 2.
+- Status 2026-09-28 02:04 (rota-f8): pushed by 213e58fd, unclaimed, priced. Meta
+  workflow.
+
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
 - **Batch C, the night's stall, found by night 94's read, and it is the wall
@@ -461,6 +493,11 @@ a different question and the night is then opened once.
   `.rota/night95-aborted.log`). Meta workflow. Done expected near 04:00.
   Copy `.rota/clickI.db` to `.rota/clickI_night95.db` at `GAUNTLET-DONE`,
   then the read for frames 86, 59 and 88.
+- Status 2026-09-28 02:04 (rota-f8): **night 95 did not reach this frame's path:
+  `bg_1` stopped at attempt 4 of 10 green, `bg_2` never started, no
+  `do:park` or `do:preempt` key; still validating** (observed: `plans/archive/night95-walk-2026-09-28.md`,
+  section 3). Meta workflow. The walk needs a night where a batch reaches
+  its cap, after frame 90 clears the Architect's wall.
 - Status 2026-09-28 02:00 (rota-f8): **night 95 ended at 01:59 in 82 minutes, and its
   read runs on Opus** (observed: `.rota/night95.log`, `GAUNTLET-DONE 01:59`,
   219 sessions, 791 turns, 0 repeats; the database copied to
@@ -470,6 +507,19 @@ a different question and the night is then opened once.
   `finding_review`, `do:park` or `do:preempt` line, so the routes of frames
   86 and 88 may not have run. The read says which. Record
   `plans/archive/night95-walk-2026-09-28.md`, cap 120k.
+- Status 2026-09-28 02:04 (rota-f8): **night 95's read: the Critic route did not run
+  because no finding was filed, the format fault is gone, and the night's
+  wall is the Architect's refused finding call, pushed as frame 90; this
+  frame stays validating on a night where a finding is filed** (observed:
+  the read agent on Opus 5.5, 102.9k on the harness line against 120k, 18
+  tool calls, 3 minutes, record `plans/archive/night95-walk-2026-09-28.md`, sections 2 and 5). Meta workflow.
+  `findings` and `finding_rulings` hold 0 rows; the Architect made 8
+  `findings.find` calls in s144 to s151 and the runner refused each, the
+  constraint id a criterion's and the finding id a test's; its empty
+  `msg.answer_developer` woke the Developer four times, a CYCLE of period
+  2, quarantined at 3. The ticket, the criterion and the test agree on
+  compact JSON and `bg_1` is green at both attempts, so the second part
+  holds. Not this frame's code: the predicate and the brief did not change.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
@@ -930,6 +980,11 @@ a different question and the night is then opened once.
   falsified one takes the challenge row's 460; the Critic's cut notice says
   nothing returns the words, which is now false for the ledger row, and a
   notice change moves prompts, so it waits for a frame that re-records.
+- Status 2026-09-28 02:04 (rota-f8): **night 95: the fix holds for 3 of 3 falsified
+  rows, and no unfounded row came to test; still validating on the
+  unfounded case** (observed: `plans/archive/night95-walk-2026-09-28.md`, section 4: 9 sessions with a cut
+  line, 4 of them Critic sessions on `stands` verdicts, which write no
+  ledger row). Meta workflow.
 
 ### 85. A read cut of the candidate symbols names no call for the rest (2026-09-25)
 
