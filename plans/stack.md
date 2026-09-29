@@ -204,6 +204,30 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
+
+- **Batch C, the night's stall, found by night 97's read.** One site: the
+  result of `code.write` when the merged file equals the file on disk. It
+  touches a door on the write path, so it carries a diff review and shares
+  the night with frame 87.
+- Rota workflow. On night 97 s214 took the span door's exit and wrote a tail
+  of `confirm` that ends at `continue`, which lost the return. The commit
+  `c94c38c8` landed. s215 and s216 then sent the same text again. Each write
+  returned `"written, not committed": []`, and each commit returned "nothing
+  changed". Attempts 5 to 7 ran on one commit, and `tst_cr1` failed on
+  `assert None == True` each time. No seat saw that the edit had landed
+  already, and none saw the missing return (observed: `.rota/clickI_night97.db`,
+  `turns` and `tool_calls` of s214 to s216, 2026-09-29; the cause of the lost
+  return is reasoned from s229's `code.diff`).
+- Ends when: `code.write` on a merged text equal to the file says so, names the
+  commit that holds it, and points the seat at the failing test's assertion
+  instead of the write; two unit tests hold it; a night at the closing commit
+  shows a repeated write answered by that message. Priced: one pass, about 30k
+  on Opus; one diff review, about 40k; the night shared with frame 87.
+- Waits on: Roman's order. Recommended: after frame 87, on the same night.
+- Reasoning: `plans/archive/night97-walk-2026-09-29.md`, the new wall.
+- Status 2026-09-29 12:02 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
+
 ### 92. A broken indent folds the next function into the write span, and the door names the wrong exit (2026-09-29) (36d4fbef)
 
 - **Batch C, the night's stall, found by night 96's walk 2 while it ran.** One
@@ -367,6 +391,20 @@ a different question and the night is then opened once.
   86 and 59 validating and 61 parked as the hand-off carries them** (observed:
   `take` exit 0 at 11:55). Meta workflow. Next: the state to Roman, then night
   97's read for frames 92, 88 and 86.
+
+- Status 2026-09-29 12:02 (rota-16): **night 97's read: the door fired in six sessions and
+  two landed a commit after it, `bg_3` did not climb, and two of the door's
+  exits named the wrong line; the frame stays validating and takes pass 4 for
+  the exits** (observed: the read agent on Opus 5.5, 105.1k on the harness line
+  against 120k, 32 tool calls, 4.6 minutes, record `plans/archive/night97-walk-2026-09-29.md`). Meta workflow. 19
+  refused calls carried `falls inside`; s213 landed `c2c833ad`, s214 landed
+  `0eccaa94` and `c94c38c8`; s215 and s216 committed "nothing changed". Tests
+  passing across attempts 1 to 7: 37, 37, 35, 35, 35, 35, 35. Two defects: in
+  s215 the exit offered `start=357` for `echo_via_pager` and 357 is where
+  `get_pager_file` starts; in s217 the offered `start=357` still cuts a
+  docstring. 5 refused calls had `end=-1`, 4 had `start` in one def and `end`
+  in a later one. The silent no-op write is a new wall, frame 93. Pass 4
+  prices at about 15k on Opus, one diff review, and the night that proves 87.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
@@ -671,6 +709,14 @@ a different question and the night is then opened once.
   compact JSON and `bg_1` is green at both attempts, so the second part
   holds. Not this frame's code: the predicate and the brief did not change.
 
+- Status 2026-09-29 12:02 (rota-16): **held by 36d4fbef from the hand-off at `1baeb69`;
+  night 97 did not reach this path, still validating** (observed: the read of
+  night 97, `plans/archive/night97-walk-2026-09-29.md`, section on frame 88). Meta workflow. `bg_1` merged at
+  attempt 3 with a Critic pass, three `k0` findings landed and all were
+  satisfied, `finding_rulings` holds no row, and no test uses `indent=2`. The
+  grouping refusals in s171 and s195 blocked nothing. The path needs a night
+  where a finding is filed against a green batch.
+
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
 - **Batch C, the night's stall, found by night 93's walk, and it is the wall
@@ -974,6 +1020,14 @@ a different question and the night is then opened once.
   Roman, in the grill, asked as a story with this option recommended and
   "leave the list alone" as the other). Meta workflow. Frame 84 takes the
   red off the list when it lands.
+
+- Status 2026-09-29 12:02 (rota-16): **held by 36d4fbef from the hand-off at `1baeb69`;
+  night 97 did not reach this path, still validating** (observed: the read of
+  night 97, `plans/archive/night97-walk-2026-09-29.md`, section on frame 86). Meta workflow. The highest attempt was
+  7, no `do:park`, `do:preempt`, `tick:exhausted` or `vision_keeper` key
+  appeared, and no deferral or resume ran. The quarantine stopped `bg_3` before
+  its cap. The path needs a night where a batch reaches attempt 10, or a lower
+  cap for one night.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
