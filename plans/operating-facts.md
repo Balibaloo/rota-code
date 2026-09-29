@@ -223,6 +223,7 @@ Cost anchors (frame 28, written 2026-09-17 from frames 24, 26, 29 and 30; re-der
 - The night launcher leaves the run as `.rota/clickI.db` when the night ends stuck. Night 90 ended at 12:20 on 2026-09-23 and was not renamed `clickI_night90.db` (observed: `.rota/night90.log` and the directory).
 
 - A recorded case cannot force a seat through a span door (observed: frame 92's case `L1-DV-edit-the-def-that-ends-where-the-next-begins`, 0/5 on qwen3:8b, 2026-09-29 06:5x). On a 30-line fixture the Developer wrote the whole file as one `def` line, edited the test file, or challenged the Tester, and never sent a span. The live seat used spans only because `termui.py` has 1011 lines. A door on the span path is held by unit tests on the message and proved on a night, not by an L1 case.
+- A re-record by exact id without the case's environment records under the wrong key, and the gate still reads `STALE <case>: no recording for the current prompt` (observed: frame 92, 2026-09-29 06:49, `L1-DV-give-the-new-parameters-defaults` 5/5 in `case_runs` and red in the gate). The suite prints the re-earn line with `ROTA_MODEL` and `ROTA_NUM_CTX` for a case whose model or window is not the default. Copy that line and add `-k "<case id>"`. One wasted re-record and one wasted gate.
 
 ## The cockpit
 
