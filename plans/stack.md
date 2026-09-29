@@ -540,6 +540,13 @@ a different question and the night is then opened once.
   Opus in all, about 130k against the 60k priced; the frame's price was one
   pass for one message and it became the door's rule.
 
+- Status 2026-09-29 14:21 (rota-16): **pass 8 is committed at `928b2dc`, its diff review
+  runs on the worktree, and the gate's own re-record of the one stale case runs
+  detached** (observed: the gate here at 14:1x with `--no-rerecord`, 491.2 s: suite 23 failed and 2384 passed against the stored 23 and 2324; new reds 1, `L1-DV-give-the-new-parameters-defaults` stale by its failure because pass 8 moved the door's text again; reds gone 1, `L1-AR-annotate-a-batch`; warnings 19 against 16). Meta workflow. Log `.rota/gate89b.log`, launched 14:20 at
+  `36b1a96`. Review on Opus, cap 30k, seven points, the first a rerun of the
+  previous reviewer's probes. On a pass the frame goes back to validating at
+  `928b2dc` for the next night.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -633,6 +640,10 @@ a different question and the night is then opened once.
   loop, so a dotfile keeps its dot at all 24 callers; the seven that compare
   with raw index grains now match dotfiles, and the read-check pairs fold the
   same on both sides. The stored grain is the index row's own spelling.
+
+- Status 2026-09-29 14:21 (rota-16): **pass 3 is committed at `36b1a96`, and its diff
+  review runs on the worktree** (observed: the gate here at 14:1x with `--no-rerecord`, 491.2 s: suite 23 failed and 2384 passed against the stored 23 and 2324; new reds 1, `L1-DV-give-the-new-parameters-defaults` stale by its failure because pass 8 moved the door's text again; reds gone 1, `L1-AR-annotate-a-batch`; warnings 19 against 16). Meta workflow. Review on Opus, cap 20k,
+  five points. On a pass the frame closes.
 
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
@@ -793,6 +804,11 @@ a different question and the night is then opened once.
   The three real reds belong to frame 84's kind. Register lines this frame: 2,
   the gate's GPU sentence and the flaky map test's sign. The three patches are
   applied to the checkout and the gate runs on them.
+
+- Status 2026-09-29 14:21 (rota-16): **pass 6 is committed at `53b091f`, and its diff
+  review runs on the worktree** (observed: the gate here at 14:1x with `--no-rerecord`, 491.2 s: suite 23 failed and 2384 passed against the stored 23 and 2324; new reds 1, `L1-DV-give-the-new-parameters-defaults` stale by its failure because pass 8 moved the door's text again; reds gone 1, `L1-AR-annotate-a-batch`; warnings 19 against 16). Meta workflow. Review on Opus, cap 20k,
+  five points, one on the mark a re-recorded red keeps. On a pass the frame
+  closes.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
