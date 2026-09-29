@@ -554,8 +554,9 @@ def test_a_red_that_failed_stale_is_rerecorded_and_its_red_clears(
         f"FAILED {_node('case-a')} - Failed: STALE case-a: no recording for "
         "the current prompt\n"
         f"FAILED {_node('case-b')} - AssertionError: wrong verb\n"
-        "2 failed, 2 passed in 1.00s\n")
-    stage["failed"] = {_node("case-a"), _node("case-b")}
+        f"FAILED {_node('case-c')} - AssertionError: said STALE too early\n"
+        "3 failed, 2 passed in 1.00s\n")
+    stage["failed"] = {_node("case-a"), _node("case-b"), _node("case-c")}
 
     assert _run(stage, "--baseline", rerecord=True) == 0
     assert stage["rerecorded"] == [("qwen3:8b", "case-a")]
@@ -567,7 +568,8 @@ def test_a_red_that_failed_stale_is_rerecorded_and_its_red_clears(
         "note: 1 reds cleared by re-record. The suite line still counts them."]
     assert out[6] == "stale (0): none"
     stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
-    assert stored["failed"] == [_node("case-b")]
+    assert stored["failed"] == [_node("case-b"), _node("case-c")], (
+        "a message that quotes the word later is a red, not a stale case")
 
     # Under the flag nothing runs, and the stale line names the case and why.
     capsys.readouterr()
@@ -617,13 +619,15 @@ def test_a_rerecord_that_raises_still_prints_the_five_lines(
         raise RuntimeError("database is locked")
 
     monkeypatch.setattr(gate, "_rerecord", broken)
-    stage["stale"] = {"case-a"}
+    stage["stale"] = {"case-a", "case-b"}
 
     assert _run(stage, "--baseline", rerecord=True) == 0
     out = _lines(capsys)
-    assert out[1] == "note: re-record stopped: RuntimeError('database is locked')"
-    assert out[2].startswith("suite: ")
-    assert out[5] == "stale (1): case-a"
+    assert out[1:3] == [
+        "note: re-record stopped: RuntimeError('database is locked')",
+        "note: not rerecorded: case-a, case-b"]
+    assert out[3].startswith("suite: ")
+    assert out[6] == "stale (2): case-a, case-b"
 
 
 def test_the_real_rerecord_runs_refresh_then_plain(tmp_path, monkeypatch):

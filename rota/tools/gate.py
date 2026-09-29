@@ -127,7 +127,10 @@ def stale_by_failure(text: str, failed: set[str]) -> set[str]:
         if case_id is None:
             continue
         head = f"FAILED {node} - "
-        if any(line.startswith(head) and "STALE" in line[len(head):]
+        # The message must open with the tiers' own `pytest.fail` text. An
+        # assertion that quotes the word would otherwise cost five live runs.
+        if any(line.startswith(head)
+               and line[len(head):].startswith("Failed: STALE ")
                for line in text.splitlines()):
             out.add(case_id)
     return out
@@ -438,6 +441,9 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
             except Exception as exc:
                 print(f"note: re-record stopped: {exc!r}")
                 break
+        skipped = [case_id for case_id in ids if case_id not in passed_nodes]
+        if skipped:
+            print(f"note: not rerecorded: {', '.join(skipped)}")
         try:
             stale_after = _stale(model)
             after = _states(model)
