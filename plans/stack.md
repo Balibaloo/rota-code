@@ -592,6 +592,16 @@ a different question and the night is then opened once.
   cap 30k, seven points. On a pass the frame closes: its ends-when holds on a
   stub, and the first real re-record is observed on the next stale tree.
 
+- Status 2026-09-29 13:09 (rota-16): **the diff review of pass 3 lands four low findings
+  and no high one, and pass 4 builds on Opus for all four** (observed: the
+  reviewer on Opus 5.5, 34.0k on the harness line against 30k, 8 tool calls,
+  1.3 minutes). Meta workflow. Findings: a raise in the register read after the
+  loop loses every re-record's result; the announce line and the register line
+  say one live call where a case samples five; the `cleared` note pushes
+  `suite:` out of the last five lines; the real-body test asserts no argument.
+  The register line is corrected here. Pass 4 cap 20k, then the gate, the
+  commit, one review.
+
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
 - **Batch C, the night's stall, found by night 94's read, and it is the wall
