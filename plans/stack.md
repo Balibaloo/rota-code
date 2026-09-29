@@ -517,6 +517,24 @@ a different question and the night is then opened once.
   cap 35k, seven points, two of them the directory kind and the unnormalised
   path lookup.
 
+- Status 2026-09-29 13:11 (rota-16): **the diff review of pass 1 lands three high findings,
+  one a regression, and pass 2 follows when frame 92's writer leaves `api.py`**
+  (observed: the reviewer on Opus 5.5, 40.0k on the harness line against 35k,
+  16 tool calls, 2.7 minutes; a probe through `model.amend` on the `project`
+  fixture). Meta workflow. High 1: the matcher's `grain_kind != "path"` now
+  lets every `symbol` binding reach every diff, where before the part before
+  `::` scoped it. High 2: the read check folds `srcilling\charges.py` and
+  `./src/...` through `_grain_path`, the kind line reads the raw grain, and
+  both become `route`. High 3: the `table` and `route` branches cannot fire
+  with an index, because the indexer writes only `path` and `symbol` rows and
+  `model.amend` refuses a grain the index lacks; frame 90's refused table
+  finding came from seeded rows. Pass 2: stamp the kind from the matching
+  `code_index` row, `path` as the fallback, normalise the grain first, scope a
+  `symbol` binding in the matcher as a `path`, one matcher test, and drop
+  `table` and `route`. Ruling owed, not blocking the pass: whether an indexed
+  engagement must accept a table binding. Recommended no, the refusal stands,
+  and a constraint on a table binds nothing until the index holds tables.
+
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
 - **No batch. An instrument repair, ruled before batch B's repairs.** It
