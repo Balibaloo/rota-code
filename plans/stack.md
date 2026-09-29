@@ -469,6 +469,13 @@ a different question and the night is then opened once.
   refused with no word about the decorators; a test docstring says the old
   code offered a moved start. Pass 6, cap 30k, then one review.
 
+- Status 2026-09-29 13:08 (rota-16): **pass 6 builds on Opus, cap 35k, for the one
+  field-list rule** (observed: the gate here, 502.2 s, clean, before frames 89
+  and 91 committed at `fdf8cf1` and `5266642`). Meta workflow. The rule: both
+  boundaries sit on statement boundaries of one field list of one parent, and
+  every offered boundary lands in that list. The reviewer's probes become
+  tests. Then the gate, the commit, one review.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -503,6 +510,12 @@ a different question and the night is then opened once.
   because nothing sets it to 0 on these rows. Two readings for the review: a
   directory binding is `route` now; the path lookup does not normalise a
   backslash or a leading `./`. The gate says whether the red is a known one.
+
+- Status 2026-09-29 13:08 (rota-16): **pass 1 is committed at `5266642` on a clean gate,
+  and its diff review runs on the worktree** (observed: the same gate; the
+  onboarding red is a known one, new reds 0). Meta workflow. Review on Opus,
+  cap 35k, seven points, two of them the directory kind and the unnormalised
+  path lookup.
 
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
@@ -571,6 +584,13 @@ a different question and the night is then opened once.
   `subprocess.run`. No repository sentence said the gate uses no GPU, so the
   register gains one line in its gate paragraph instead. Register lines this
   frame: 1.
+
+- Status 2026-09-29 13:08 (rota-16): **pass 3 is committed at `fdf8cf1` on a clean gate,
+  and its diff review runs on the worktree** (observed: the gate here, 502.2 s,
+  with `--no-rerecord`: suite 23 failed and 2372 passed against the stored 23
+  and 2324; new reds 0; reds gone 0; stale 0). Meta workflow. Review on Opus,
+  cap 30k, seven points. On a pass the frame closes: its ends-when holds on a
+  stub, and the first real re-record is observed on the next stale tree.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
