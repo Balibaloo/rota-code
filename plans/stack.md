@@ -357,6 +357,12 @@ a different question and the night is then opened once.
   night worktree `C:/Users/roman/rota_night96` is at `7d31f20`, and
   `.rota/launch_night97.sh` serves the next night with the number changed.
   Session 00aea66b stops here at about 345k, holding nothing after the hand.
+- Status 2026-09-29 11:54 (rota-ba): **handed with the stack at `1baeb69`:
+  session `36d4fbef`, rota-16, holds frame 92 and the stack** (observed:
+  `hand` exit 0, confirmed 13 s after the claim at 11:54). Meta workflow. The
+  held frames that hand with it: 88 validating at `4840fda`, 86 validating at
+  `321af4c`, 59 validating at `48329b1`, 61 parked. Session 00aea66b stops
+  here.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
