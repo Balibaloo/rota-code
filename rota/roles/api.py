@@ -2496,7 +2496,9 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     kinds: dict[str, str] = {}
     raw: dict[str, str] = {}
     for r in ctx.conn.execute("SELECT grain, grain_kind FROM code_index"):
-        kinds[_fold(r["grain"])] = r["grain_kind"]
+        # Both from the same row, so a fold collision of two seeded rows
+        # pairs one row's grain with that row's kind (the review of pass 3).
+        kinds.setdefault(_fold(r["grain"]), r["grain_kind"])
         raw.setdefault(_fold(r["grain"]), r["grain"])
     for grain in map(_fold, bindings or []):
         # A symbol the indexer never emitted still passed the read check on
