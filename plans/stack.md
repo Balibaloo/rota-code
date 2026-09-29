@@ -631,6 +631,16 @@ a different question and the night is then opened once.
   and 0 here; frames pushed from its reviews: 93 and 94. The frame's price was
   one message, and the work became the door's rule.
 
+- Status 2026-09-29 16:41 (rota-16): **night 98 ended at 16:40 in 112 minutes, and its read
+  runs on Opus** (observed: `.rota/night98.log`, `GAUNTLET-DONE 16:40`, launcher
+  exit 0; 244 sessions, 1001 turns; walk 1 merged `bg_1` at 15:4x, walks 2 and
+  3 each printed `Done: 1 change built, tested and merged`; the page's gave-up
+  line names `tests_failing for bg_2` and `grouping for
+  tk_1_version_option_show_python`; made up 75 turns in 38 sessions; the
+  database kept as `.rota/clickI_night98.db`, 19 MB). Meta workflow. The read
+  covers frames 92, 88, 86 and 87's quarantine path, and whether frames 93 or
+  94 appeared; record `plans/archive/night98-walk-2026-09-29.md`, cap 100k.
+
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
 - **Batch C, the night's stall, found by night 94's read, and it is the wall
