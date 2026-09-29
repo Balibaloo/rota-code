@@ -317,6 +317,18 @@ a different question and the night is then opened once.
   now at `7d31f20`, with `.rota/launch_night97.sh`, when the review passes.
   The night proves frames 92, 88 and 86. Frame 87 is not built, so its night
   is later.
+- Status 2026-09-29 07:48 (rota-ba): **validating at `7d31f20`: the diff
+  review of pass 3 passes all five points with no finding, and night 97 runs
+  detached from `C:/Users/roman/rota_night96` at that commit** (observed: the
+  reviewer on Opus 5.5, 26.4k on the harness line against 30k, 4 tool calls;
+  `.rota/night97.log` at 07:48 reads launched, click restored to `2c8cd3a`,
+  onboard). Meta workflow. Night 96's database is kept as
+  `.rota/clickI_night96.db`. Left for the close: the night's read, whether a
+  batch that meets the span refusal commits between attempts; frames 88 and 86
+  read the same night. Actual so far, walls apart: design review 45.5k against
+  60k; passes 78.7k on Opus in three against 60k; diff reviews 37.3k and 26.4k
+  against 50k; five gates here, two spent on a run-5 cassette; register lines
+  2; one wall, the recorded case, dropped.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
