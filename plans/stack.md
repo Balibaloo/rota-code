@@ -225,16 +225,20 @@ a different question and the night is then opened once.
   run once each (observed: `.rota/clickI.db`, `turns` of s241 and s243,
   `tool_calls`, `tick_attempts`, `batches`; `.rota/night96.log` line 106,
   2026-09-29).
-- Ends when: the span door, on a span inside a function whose body no
-  longer parses as one statement, names the enclosing definition by its
-  `def` line and offers the whole-function span as the exit; a recorded case
-  on this shape shows the Developer take that exit; and a night at the
-  closing commit shows a broken batch recover or reach its cap with commits
-  between attempts. Priced from the anchors: one read of the door and the
-  map, 30k; one pass, 60k on Opus; one diff review per pass, 50k; one night.
+- Ends when: the span door, on a boundary that falls inside a top-level
+  statement, names that statement by its `def` line, says which boundary
+  fell, and offers the boundary moved to that statement's edge before the
+  whole-statement span; a unit test holds it; a recorded case on the s241
+  shape shows the Developer take that exit; and a night at the closing
+  commit shows a batch that meets the refusal commit between attempts.
+  Priced from the anchors: one read of the door and the turns, 30k; one
+  design review, 60k on Opus; one pass, 60k on Opus; one diff review,
+  50k; one night. (Corrected by 00aea66b on 2026-09-29, see the status of
+  that date: the file parsed at every commit, so the first ends-when named
+  a fault that does not exist.)
 - Waits on: Roman's order. Recommended: after frame 87, because both are
   batch C stalls and 87 is older.
-- Reasoning: this status line, and night 96's read when it is written.
+- Reasoning: `plans/frame92-span-door-design-2026-09-29.md`, and night 96's read.
 - Status 2026-09-29 05:30 (rota-66): pushed by b4768744 during night 96, unclaimed, priced.
   Meta workflow. Frame 86's park ran on this batch, which is the first
   observation of its path since frame 86 closed to validating.
@@ -254,6 +258,19 @@ a different question and the night is then opened once.
   (observed: `take` exit 0 at 05:46). Meta workflow. Next: the state to Roman,
   and his order between frame 92, frame 87 and the two small repairs 89 and
   91.
+- Status 2026-09-29 05:55 (rota-ba): **the diagnosis is corrected and the
+  design record is at revision 1, committed at `6bedb4e`** (observed: `git
+  show` of `src/click/termui.py` at the batch's three commits in
+  `.rota/worktrees/bg_3`, and `turns` of s225 and s241, 2026-09-29 06:0x).
+  Meta workflow. The file parsed at every commit, and `confirm` and
+  `get_pager_file` kept their lines, 286 to 344 and 344 to 361. The Developer
+  counted lines in a `code.source` slice with no line numbers and no blank
+  line between the two defs, and sent `end=345`, one line late. The door named
+  `get_pager_file` and offered only that function's spans. In s225 it named
+  `expr`, the docstring, and the seat took that exit and hit the next door.
+  The fix is one message: name the top-level def, say which boundary fell,
+  offer the moved boundary first. Design review on Opus next, then one
+  implementer pass, one diff review, the gate, the commit, and the night.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
