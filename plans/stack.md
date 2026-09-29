@@ -445,6 +445,13 @@ a different question and the night is then opened once.
   for a later frame: `_cut` still reads an `else:` header as aligned, and
   `excepthandler` is the AST name the seat reads.
 
+- Status 2026-09-29 12:53 (rota-16): **pass 5 is committed at `550f1d4` on a clean gate,
+  and its diff review runs on a worktree** (observed: the gate here, 531.6 s,
+  shared with frame 89's pass: suite 23 failed and 2367 passed against the
+  stored 23 and 2324; new reds 0; reds gone 0; stale 0). Meta workflow. Review
+  on Opus, cap 35k, seven points. On a pass, the frame goes back to validating
+  at `550f1d4` for the night that proves frame 87.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -499,6 +506,16 @@ a different question and the night is then opened once.
   five. The gap: a stale case fails its replay and sits in `failed`, so a good
   re-record still reads as a red. Pass 2, cap 25k: clear the red on a green
   plain run, and append both runs to the gate log.
+
+- Status 2026-09-29 12:53 (rota-16): **pass 2 is committed at `141f5e9` on a clean gate,
+  and its diff review runs on a worktree** (observed: the same gate, run with
+  `--no-rerecord` on a stale-free tree; `test_gate.py` 35 passed; pass 2 on
+  Opus, 79.0k on the harness line in total after 65.9k, so about 13k, 41 tool
+  calls). Meta workflow. A green plain run clears the case's red and the line
+  says `red cleared`; both runs append to the gate log. One open reading for
+  the review: the summary's `N failed` still counts a cleared red. Review on
+  Opus, cap 45k, nine points. The first real re-record through the gate is the
+  acceptance, on the next stale tree.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
