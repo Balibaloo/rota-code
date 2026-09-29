@@ -285,6 +285,19 @@ a different question and the night is then opened once.
   every `code.source` cassette, so it is a follow-up frame if the night shows
   the seat loop again. One implementer on Opus, cap 80k, no recorded case
   until this session reads the message.
+- Status 2026-09-29 07:33 (rota-ba): **pass 1 is committed at `b1db60a` on a
+  clean gate, and the diff review runs on a worktree at that commit**
+  (observed: the gate here at 07:3x, 487 s: suite 23 failed and 2357 passed
+  against the stored 23 and 2324; new reds 0; reds gone 0; stale 0). Meta
+  workflow. Pass 1 on Opus: 53.6k on the harness line against 60k, 19 tool
+  calls, 23 minutes; pass 2, the recorded case, 68.8k in total after pass 1,
+  so about 15k, and the case is dropped, see the record's section 7. Two
+  register lines this frame: the case that cannot force a span door, and the
+  stale-after-re-record sign, both in the register section of
+  `plans/operating-facts.md`. Three gates here, two of them spent on a run-5
+  cassette the refresh runs did not write. Diff review on Opus, cap 50k, eight
+  points, then the night from a worktree at this commit for frames 92, 88, 87
+  and 86.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
