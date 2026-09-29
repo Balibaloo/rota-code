@@ -271,6 +271,19 @@ a different question and the night is then opened once.
   The fix is one message: name the top-level def, say which boundary fell,
   offer the moved boundary first. Design review on Opus next, then one
   implementer pass, one diff review, the gate, the commit, and the night.
+- Status 2026-09-29 05:59 (rota-ba): **the design review lands seven findings,
+  the record is at revision 2 at `68768e9`, and pass 1 builds on Opus**
+  (observed: the reviewer on Opus 5.5, 45.5k on the harness line against 60k,
+  12 tool calls, 2.1 minutes). Meta workflow. Corrected: the seat was one line
+  late on both boundaries, so a moved boundary alone repeats the `if` header
+  and the merged file fails to parse. The door now echoes the file's lines at
+  `start`, `end - 1` and `end`, names the corrected boundary when the text's
+  first line is a file line nearby, and takes the moved boundary from the
+  sibling level, never the whole function when both boundaries sit in one def.
+  Root cause named: `code.source` prints no line numbers. That change moves
+  every `code.source` cassette, so it is a follow-up frame if the night shows
+  the seat loop again. One implementer on Opus, cap 80k, no recorded case
+  until this session reads the message.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
