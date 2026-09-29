@@ -92,11 +92,45 @@ def child_env(model: str, temp_root: Path | None = None) -> dict[str, str]:
 
 def _run_suite(env: dict[str, str], log: Path) -> int:
     """Run the whole tree as a child. Write the log. Return the child's code."""
+    # `CI` makes pytest print each `FAILED` line whole. Without it the line is
+    # cut to 80 columns, and a case node id alone fills them, so the `STALE`
+    # text never reaches the log (reasoned: `_get_line_with_reprcrash_message`
+    # in `_pytest/terminal.py`). No code in this repository reads `CI`.
     with log.open("w", encoding="utf-8", errors="replace", newline="") as out:
         child = subprocess.run(
             [sys.executable, "-m", "pytest", SUITE, "--tb=no", "-rfE", "-q"],
-            cwd=str(repo_root()), env=env, stdout=out, stderr=subprocess.STDOUT)
+            cwd=str(repo_root()), env={**env, "CI": "1"}, stdout=out,
+            stderr=subprocess.STDOUT)
     return child.returncode
+
+
+def case_of(node: str) -> str | None:
+    """The case id of a case node, or None for any other node."""
+    for _, _, test in CASE_TESTS:
+        if node.startswith(f"{test}[") and node.endswith("]"):
+            return node[len(test) + 1:-1]
+    return None
+
+
+def stale_by_failure(text: str, failed: set[str]) -> set[str]:
+    """
+    The case ids whose red in the log says `STALE`.
+
+    `casestatus.status` counts the rows a case wrote. The suite fails a case
+    when one run finds no cassette. So a case can read green in `status` and
+    fail `STALE` in the suite (observed: frame 89, 2026-09-29,
+    `L1-DV-give-the-new-parameters-defaults`).
+    """
+    out = set()
+    for node in failed:
+        case_id = case_of(node)
+        if case_id is None:
+            continue
+        head = f"FAILED {node} - "
+        if any(line.startswith(head) and "STALE" in line[len(head):]
+               for line in text.splitlines()):
+            out.add(case_id)
+    return out
 
 
 def _rerun(env: dict[str, str], ids: list[str]) -> str:
@@ -375,41 +409,72 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
             return 1
         failed = set()
     stale = _stale(model)
-    cleared = 0
+    # A case that failed `STALE` in the suite is stale, whatever `status`
+    # reads. It joins the set only when the register is here to re-record.
+    by_failure = set()
+    if stale is not None:
+        by_failure = stale_by_failure(text, failed) - stale
+        stale = stale | by_failure
+    failed_stale = set(by_failure)
     if stale and not args.no_rerecord:
         # One case at a time, after the suite ends. Two writers on the
         # cassette file lost a run to `database is locked` (observed:
         # `plans/operating-facts.md`, frame 86, 2026-09-25).
         ids = sorted(stale)
-        print(f"rerecording {len(ids)} stale cases, one live call each, "
+        print(f"rerecording {len(ids)} stale cases, five live runs each, "
               f"on {model}")
+        # The suite run is already spent. A failed step here must not take
+        # the five lines and the baseline with it. Each step keeps what the
+        # steps before it earned.
+        before = after = None
         try:
             before = _states(model)
-            passed_nodes = {case_id: _rerecord(env, case_id, log)
-                            for case_id in ids}
+        except Exception as exc:
+            print(f"note: re-record stopped: {exc!r}")
+        passed_nodes = {}
+        for case_id in ids:
+            try:
+                passed_nodes[case_id] = _rerecord(env, case_id, log)
+            except Exception as exc:
+                print(f"note: re-record stopped: {exc!r}")
+                break
+        try:
             stale_after = _stale(model)
             after = _states(model)
         except Exception as exc:
-            # The suite run is already spent. A failed re-record must not
-            # take the five lines and the baseline with it, so the gate
-            # reports the stale set from before the re-records.
+            # The stale set from before the re-records stays on the stale
+            # line.
             print(f"note: re-record stopped: {exc!r}")
         else:
             stale = stale_after
-            # These lines come before the five, so the last five lines stay
-            # the gate.
-            for case_id in ids:
-                line = (f"rerecorded {case_id}: {before.get(case_id, 'absent')}"
-                        f" -> {after.get(case_id, 'absent')}")
-                # A stale case fails its replay in the suite run. A plain run
-                # that passes after the re-record clears that red. A case that
-                # still fails stays in the red set like any other red.
-                node = passed_nodes[case_id]
-                if node is not None and node in failed:
-                    failed.discard(node)
-                    cleared += 1
-                    line += ", red cleared"
-                print(line)
+        # A case stale by its failure stays stale until its plain run passes,
+        # because `status` never listed it.
+        by_failure = {case_id for case_id in by_failure
+                      if passed_nodes.get(case_id) is None}
+        if stale is not None:
+            stale = stale | by_failure
+        # These lines come before the five, so the last five lines stay the
+        # gate.
+        cleared = 0
+        for case_id, node in passed_nodes.items():
+            was = "unread" if before is None else before.get(case_id, "absent")
+            now = "unread" if after is None else after.get(case_id, "absent")
+            line = f"rerecorded {case_id}: {was} -> {now}"
+            if case_id in failed_stale:
+                line += ", stale by its failure"
+            # A stale case fails its replay in the suite run. A plain run that
+            # passes after the re-record clears that red. A case that still
+            # fails stays in the red set like any other red.
+            if node is not None and node in failed:
+                failed.discard(node)
+                cleared += 1
+                line += ", red cleared"
+            print(line)
+        if cleared:
+            # The counts come from the suite run, and a re-record does not
+            # rerun the suite.
+            print(f"note: {cleared} reds cleared by re-record. "
+                  "The suite line still counts them.")
 
     head = _head()
     record = {
@@ -447,7 +512,10 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     if stale is None:
         print(f"stale: the register is absent ({register_path()})")
     else:
-        line = f"stale ({len(stale)}): {_listed(sorted(stale))}"
+        # The mark tells a reader why a case that `status` reads green is here.
+        shown = [f"{case_id} (stale by its failure)" if case_id in by_failure
+                 else case_id for case_id in sorted(stale)]
+        line = f"stale ({len(stale)}): {_listed(shown)}"
         base_stale = base.get("stale")
         if base_stale is None:
             # The baseline was taken with no register, so the delta has nothing
@@ -464,11 +532,6 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     print(f"time: {seconds:.1f}s, model {model}, temp root {temp_root}, "
           f"baseline {_short(base.get('commit', ''))} {base.get('when', '')}")
 
-    if cleared:
-        # The counts come from the suite run, and a re-record does not rerun
-        # the suite. So the summary and the red list can disagree.
-        print(f"note: {cleared} reds cleared by re-record, and the summary "
-              "still counts them")
     if wrote:
         print(f"note: baseline stored at {_short(record['commit'])}")
     if head != base.get("commit"):

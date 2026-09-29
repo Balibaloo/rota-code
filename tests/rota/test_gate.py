@@ -505,7 +505,7 @@ def test_the_gate_rerecords_each_stale_case_in_order(stage, capsys):
     assert stage["rerecorded"] == [("qwen3:8b", "case-a"), ("qwen3:8b", "case-b"),
                                    ("qwen3:8b", "case-c")]
     out = _lines(capsys)
-    assert out[:4] == ["rerecording 3 stale cases, one live call each, on qwen3:8b",
+    assert out[:4] == ["rerecording 3 stale cases, five live runs each, on qwen3:8b",
                        "rerecorded case-a: STALE -> green 5/5",
                        "rerecorded case-b: STALE -> STALE",
                        "rerecorded case-c: STALE -> green 5/5"]
@@ -530,18 +530,89 @@ def test_a_green_rerecord_clears_the_red_of_its_case(stage, capsys):
 
     assert _run(stage, "--baseline", rerecord=True) == 0
     out = _lines(capsys)
-    assert out[:3] == ["rerecording 2 stale cases, one live call each, on qwen3:8b",
+    assert out[:4] == ["rerecording 2 stale cases, five live runs each, on qwen3:8b",
                        "rerecorded case-a: STALE -> green 5/5, red cleared",
-                       "rerecorded case-b: STALE -> STALE"]
-    assert ("note: 1 reds cleared by re-record, and the summary still counts "
-            "them") in out[8:]
+                       "rerecorded case-b: STALE -> STALE",
+                       "note: 1 reds cleared by re-record. "
+                       "The suite line still counts them."]
+    # The note comes before the five lines, so `suite:` stays in the last five.
+    assert out[4].startswith("suite: ")
     stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
     assert stored["failed"] == [_node("case-b")]
 
 
+def test_a_red_that_failed_stale_is_rerecorded_and_its_red_clears(
+        stage, capsys):
+    """
+    `status` can read a case green while the suite fails it `STALE`.
+
+    The failure text in the log names it (observed: frame 89, 2026-09-29,
+    `L1-DV-give-the-new-parameters-defaults`). A red without `STALE` is a red.
+    """
+    stage["log"] = (
+        "..FF\n"
+        f"FAILED {_node('case-a')} - Failed: STALE case-a: no recording for "
+        "the current prompt\n"
+        f"FAILED {_node('case-b')} - AssertionError: wrong verb\n"
+        "2 failed, 2 passed in 1.00s\n")
+    stage["failed"] = {_node("case-a"), _node("case-b")}
+
+    assert _run(stage, "--baseline", rerecord=True) == 0
+    assert stage["rerecorded"] == [("qwen3:8b", "case-a")]
+    out = _lines(capsys)
+    assert out[:3] == [
+        "rerecording 1 stale cases, five live runs each, on qwen3:8b",
+        "rerecorded case-a: green 5/5 -> green 5/5, stale by its failure, "
+        "red cleared",
+        "note: 1 reds cleared by re-record. The suite line still counts them."]
+    assert out[6] == "stale (0): none"
+    stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
+    assert stored["failed"] == [_node("case-b")]
+
+    # Under the flag nothing runs, and the stale line names the case and why.
+    capsys.readouterr()
+    stage["rerecorded"].clear()
+    assert _run(stage, "--baseline") == 0
+    assert stage["rerecorded"] == []
+    assert _lines(capsys)[3] == "stale (1): case-a (stale by its failure)"
+
+
+def test_a_read_that_raises_after_the_rerecords_keeps_what_they_earned(
+        stage, capsys, monkeypatch):
+    """
+    The suite run is spent, so a broken read keeps the gate's report.
+
+    Every re-record already ran, so its cleared red stays cleared.
+    """
+    first_read = gate._states
+    reads = []
+
+    def states(model):
+        reads.append(model)
+        if len(reads) > 1:
+            raise RuntimeError("database is locked")
+        return first_read(model)
+
+    monkeypatch.setattr(gate, "_states", states)
+    stage["log"] = "..F\n1 failed, 2 passed in 1.00s\n"
+    stage["failed"] = {_node("case-a")}
+    stage["stale"] = {"case-a"}
+
+    assert _run(stage, "--baseline", rerecord=True) == 0
+    out = _lines(capsys)
+    assert out[1:4] == [
+        "note: re-record stopped: RuntimeError('database is locked')",
+        "rerecorded case-a: STALE -> unread, red cleared",
+        "note: 1 reds cleared by re-record. The suite line still counts them."]
+    assert out[4].startswith("suite: ")
+    assert out[7] == "stale (1): case-a", "the set from before the re-record"
+    stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
+    assert stored["stale"] == ["case-a"]
+    assert stored["failed"] == [], "the red the re-record earned stays cleared"
+
+
 def test_a_rerecord_that_raises_still_prints_the_five_lines(
         stage, capsys, monkeypatch):
-    """The suite run is spent, so a broken re-record keeps the gate's report."""
     def broken(env, case_id, log):
         raise RuntimeError("database is locked")
 
@@ -552,9 +623,7 @@ def test_a_rerecord_that_raises_still_prints_the_five_lines(
     out = _lines(capsys)
     assert out[1] == "note: re-record stopped: RuntimeError('database is locked')"
     assert out[2].startswith("suite: ")
-    assert out[5] == "stale (1): case-a", "the set from before the re-record"
-    stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
-    assert stored["stale"] == ["case-a"]
+    assert out[5] == "stale (1): case-a"
 
 
 def test_the_real_rerecord_runs_refresh_then_plain(tmp_path, monkeypatch):
@@ -562,6 +631,7 @@ def test_the_real_rerecord_runs_refresh_then_plain(tmp_path, monkeypatch):
     node = _node("case-a")
     runs = []
     codes = []
+    cwds = []
 
     class Done:
         def __init__(self, code):
@@ -569,7 +639,8 @@ def test_the_real_rerecord_runs_refresh_then_plain(tmp_path, monkeypatch):
 
     def run(argv, cwd, env, stdout, stderr):
         runs.append((list(argv), dict(env)))
-        stdout.write("pytest output\n")
+        cwds.append(cwd)
+        stdout.write(f"pytest output {len(runs)}\n")
         return Done(codes.pop(0))
 
     monkeypatch.delenv("ROTA_PROFILE", raising=False)
@@ -585,13 +656,19 @@ def test_the_real_rerecord_runs_refresh_then_plain(tmp_path, monkeypatch):
     assert len(runs) == 2
     (first_argv, first), (second_argv, second) = runs
     assert first_argv == second_argv and node in first_argv
+    # One process, and the suite's `lastfailed` stays for the flaky check.
+    assert "-n0" in first_argv
+    assert first_argv[first_argv.index("-p") + 1] == "no:cacheprovider"
+    assert cwds == [str(gate.repo_root())] * 2
     assert first["ROTA_REFRESH"] == "1"
     assert "ROTA_REFRESH" not in second
     for run_env in (first, second):
         assert run_env["ROTA_L1"] == "1" and run_env["ROTA_MODEL"] == "qwen3:8b"
         assert "ROTA_NUM_CTX" in run_env and run_env["KEEP"] == "1"
     text = log.read_text("utf-8")
-    assert text.index("case-a: refresh run") < text.index("case-a: plain run")
+    assert text.index("case-a: refresh run") < text.index("pytest output 1")
+    assert text.index("case-a: plain run") < text.index("pytest output 2")
+    assert text.index("pytest output 1") < text.index("case-a: plain run")
 
     runs.clear()
     codes[:] = [0, 1]
