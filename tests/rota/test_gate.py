@@ -63,7 +63,8 @@ def stage(tmp_path, monkeypatch):
     """The gate with every external call replaced, and a dial for each."""
     state = {"root": tmp_path, "log": LOG_GREEN, "code": 0, "failed": set(),
              "stale": set(), "head": HEAD, "dirty": False, "stale_model": None,
-             "rerun": "", "after": None, "env": None, "reran": []}
+             "rerun": "", "after": None, "env": None, "reran": [],
+             "rerecorded": [], "keeps": set()}
 
     def run_suite(env, log):
         state["env"] = env
@@ -85,7 +86,24 @@ def stage(tmp_path, monkeypatch):
         state["stale_model"] = model
         return None if state["stale"] is None else set(state["stale"])
 
+    def rerecord(env, case_id, log):
+        # A re-record greens its case, unless the dial `keeps` holds the case.
+        # The suite's log exists already, because the re-records append to it.
+        assert log.exists(), "the re-records append to the suite's log"
+        state["rerecorded"].append((env["ROTA_MODEL"], case_id))
+        if case_id in state["keeps"]:
+            return None
+        state["stale"].discard(case_id)
+        return _node(case_id)
+
+    def states(model):
+        stale_now = state["stale"] or set()
+        return {case: "STALE" if case in stale_now else "green 5/5"
+                for case in ("case-a", "case-b", "case-c")}
+
     monkeypatch.setattr(gate, "TEMP_ROOT", tmp_path / "gatetmp")
+    monkeypatch.setattr(gate, "_rerecord", rerecord)
+    monkeypatch.setattr(gate, "_states", states)
     monkeypatch.setattr(gate, "_run_suite", run_suite)
     monkeypatch.setattr(gate, "_rerun", rerun)
     monkeypatch.setattr(gate, "_stale", stale)
@@ -94,8 +112,15 @@ def stage(tmp_path, monkeypatch):
     return state
 
 
-def _run(stage, *argv):
-    return gate.main(list(argv), root=stage["root"])
+def _node(case_id):
+    return f"tests/rota/test_l1.py::test_l1_case[{case_id}]"
+
+
+def _run(stage, *argv, rerecord=False):
+    # The compare tests read the five lines by index. The re-record lines come
+    # before them, so only the re-record tests turn the flow on.
+    extra = [] if rerecord else ["--no-rerecord"]
+    return gate.main(list(argv) + extra, root=stage["root"])
 
 
 def _lines(capsys):
@@ -464,3 +489,75 @@ def test_the_stale_set_is_read_under_the_model_the_run_used(stage, monkeypatch):
 
     _run(stage, "--model", "qwen3:14b")
     assert stage["stale_model"] == "qwen3:14b"
+
+
+def test_the_gate_rerecords_each_stale_case_in_order(stage, capsys):
+    """
+    One case at a time, in sorted order, and the baseline holds the set after.
+
+    Two writers on the cassette file lost a run to `database is locked`
+    (observed: frame 86, 2026-09-25), so no call overlaps another.
+    """
+    stage["stale"] = {"case-c", "case-a", "case-b"}
+    stage["keeps"] = {"case-b"}
+
+    assert _run(stage, "--baseline", rerecord=True) == 0
+    assert stage["rerecorded"] == [("qwen3:8b", "case-a"), ("qwen3:8b", "case-b"),
+                                   ("qwen3:8b", "case-c")]
+    out = _lines(capsys)
+    assert out[:3] == ["rerecorded case-a: STALE -> green 5/5",
+                       "rerecorded case-b: STALE -> STALE",
+                       "rerecorded case-c: STALE -> green 5/5"]
+    # The five lines stay last, after the re-record lines.
+    assert out[3].startswith("suite: ")
+    assert out[6] == "stale (1): case-b"
+    stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
+    assert stored["stale"] == ["case-b"], "the baseline stores the set after"
+
+
+def test_a_green_rerecord_clears_the_red_of_its_case(stage, capsys):
+    """
+    A stale case fails its replay, so the suite run counts it as a red.
+
+    A re-record that greens the case clears that red. A case whose plain run
+    still fails stays a red like any other.
+    """
+    stage["log"] = "..F.F\n2 failed, 3 passed in 1.00s\n"
+    stage["failed"] = {_node("case-a"), _node("case-b")}
+    stage["stale"] = {"case-a", "case-b"}
+    stage["keeps"] = {"case-b"}
+
+    assert _run(stage, "--baseline", rerecord=True) == 0
+    out = _lines(capsys)
+    assert out[:2] == ["rerecorded case-a: STALE -> green 5/5, red cleared",
+                       "rerecorded case-b: STALE -> STALE"]
+    stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
+    assert stored["failed"] == [_node("case-b")]
+
+
+def test_the_flag_turns_the_rerecord_off(stage, capsys):
+    stage["stale"] = {"case-a"}
+
+    assert _run(stage, "--baseline") == 0
+    assert stage["rerecorded"] == []
+    assert not any(line.startswith("rerecorded") for line in _lines(capsys))
+
+
+def test_an_absent_register_makes_no_rerecord(stage, capsys):
+    stage["stale"] = None
+
+    assert _run(stage, "--baseline", rerecord=True) == 0
+    assert stage["rerecorded"] == []
+    assert not any(line.startswith("rerecorded") for line in _lines(capsys))
+
+
+def test_the_rerecord_command_is_the_one_casestatus_prints(monkeypatch):
+    """The gate runs the reader's line, so the key it records is the key shown."""
+    monkeypatch.delenv("ROTA_PROFILE", raising=False)
+    node = "tests/rota/test_l1.py::test_l1_case[L1-DV-a-case]"
+    names, argv = gate.rerecord_argv(
+        f"ROTA_L1=1 ROTA_MODEL=qwen3:8b ROTA_NUM_CTX=8192 python -m pytest "
+        f"'{node}' -q")
+    assert names == {"ROTA_L1": "1", "ROTA_MODEL": "qwen3:8b",
+                     "ROTA_NUM_CTX": "8192"}
+    assert argv[1:] == ["-m", "pytest", node, "-q"]

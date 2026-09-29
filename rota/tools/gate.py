@@ -3,6 +3,10 @@ The suite in five lines, with a traceback for a new red only.
 
     python -m rota.tools.gate              # compare this run against the baseline
     python -m rota.tools.gate --baseline   # store this run as the baseline
+    python -m rota.tools.gate --no-rerecord  # leave the stale cases stale
+
+A stale case is re-recorded after the run, one case at a time, and the gate
+prints one `rerecorded` line per case before the five lines.
 
 Twelve suite runs inside agents cost about 25k tokens each. Every agent read the
 tracebacks of the same 22 known reds, and one FAILED-list compare still missed a
@@ -23,6 +27,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -132,6 +137,97 @@ def _stale(model: str) -> set[str] | None:
             if row["state"] in ("STALE", "NEW")}
 
 
+def _states(model: str) -> dict[str, str]:
+    """Each case's state as the report prints it, for example `green 5/5`."""
+    from . import casestatus
+
+    return {row["id"]: row["state"] if row["passed"] is None
+            else f"{row['state']} {row['passed']}/{row['of']}"
+            for row in casestatus.status(model)}
+
+
+#: Which test holds a case. An `l` case with `first` is a chain and runs in the
+#: L3 tier. The gauntlet takes every `g` case, `first` or not, so its chain
+#: value is None (observed: `tests/rota/test_l1.py:74`,
+#: `tests/rota/test_l3.py:67`, `tests/rota/test_gauntlet.py:60`).
+CASE_TESTS = (("l*.yaml", False, "tests/rota/test_l1.py::test_l1_case"),
+              ("l*.yaml", True, "tests/rota/test_l3.py::test_l3_chain"),
+              ("g*.yaml", None,
+               "tests/rota/test_gauntlet.py::test_seat_flow_segment"))
+
+
+def node_of(case_id: str) -> str | None:
+    """The exact node id of the case, or None when no test holds the case."""
+    from .. import paths
+    from ..testkit import fixtures
+
+    for pattern, chain, test in CASE_TESTS:
+        for path in sorted(paths.CASES.glob(pattern)):
+            for case in fixtures.load_case(path) or []:
+                if case.get("id") != case_id:
+                    continue
+                if chain is None or bool(case.get("first")) == chain:
+                    return f"{test}[{case_id}]"
+    return None
+
+
+def rerecord_argv(command: str) -> tuple[dict[str, str], list[str]]:
+    """
+    Split the re-earn command into its variables and its arguments.
+
+    The command is the one line `casestatus` prints. The gate runs that line,
+    so the key it records under is the key a reader sees.
+    """
+    words = shlex.split(command)
+    names = {}
+    while words and re.fullmatch(r"[A-Z_][A-Z0-9_]*=.*", words[0]):
+        name, _, value = words.pop(0).partition("=")
+        names[name] = value
+    if words and words[0] == "python":
+        words[0] = sys.executable
+    return names, words
+
+
+def _rerecord(env: dict[str, str], case_id: str, log: Path) -> str | None:
+    """
+    Re-earn one case, then replay the case once. Append both runs to the log.
+
+    Return the node id when the plain run passed, and None when it failed or
+    no test holds the case. The caller clears that node from the red set.
+
+    The second run carries no `ROTA_REFRESH`. A refresh run can leave run 5
+    unwritten, and a plain run then records run 5 live (observed:
+    `plans/operating-facts.md`, frame 92, 2026-09-29).
+    """
+    from ..llm.llm import DEFAULT_NUM_CTX, Pins
+    from ..testkit import fixtures
+
+    node = node_of(case_id)
+    with log.open("a", encoding="utf-8", errors="replace", newline="") as out:
+        if node is None:
+            out.write(f"\n== rerecord {case_id}: no test holds the case\n")
+            return None
+        command = fixtures.rerecord_command(
+            Pins(model=env["ROTA_MODEL"], num_ctx=DEFAULT_NUM_CTX),
+            shlex.quote(node))
+        names, argv = rerecord_argv(command)
+        # `-n0` keeps one process. The cache stays off, so the red set of the
+        # suite run stays in `lastfailed` for the flaky check. The exit code of
+        # the plain run gives this case's red instead.
+        argv += ["-n0", "-p", "no:cacheprovider"]
+        code = 1
+        for refresh in (True, False):
+            run_env = {**env, **names}
+            run = "refresh run" if refresh else "plain run"
+            if refresh:
+                run_env["ROTA_REFRESH"] = "1"
+            out.write(f"\n== rerecord {case_id}: {run}: {command}\n")
+            out.flush()
+            code = subprocess.run(argv, cwd=str(repo_root()), env=run_env,
+                                  stdout=out, stderr=subprocess.STDOUT).returncode
+    return node if code == 0 else None
+
+
 def _head() -> str:
     out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(repo_root()),
                          capture_output=True, text=True)
@@ -224,6 +320,8 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
                     help="store this run as the baseline")
     ap.add_argument("--model", default=None,
                     help=f"the model the replay is held by (default {FALLBACK_MODEL})")
+    ap.add_argument("--no-rerecord", action="store_true",
+                    help="do not re-record the stale cases")
     args = ap.parse_args(argv)
 
     root = Path(root) if root is not None else repo_root()
@@ -276,6 +374,27 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
             return 1
         failed = set()
     stale = _stale(model)
+    if stale and not args.no_rerecord:
+        # One case at a time, after the suite ends. Two writers on the
+        # cassette file lost a run to `database is locked` (observed:
+        # `plans/operating-facts.md`, frame 86, 2026-09-25).
+        before = _states(model)
+        ids = sorted(stale)
+        passed_nodes = {case_id: _rerecord(env, case_id, log) for case_id in ids}
+        stale = _stale(model)
+        after = _states(model)
+        # These lines come before the five, so the last five lines stay the gate.
+        for case_id in ids:
+            line = (f"rerecorded {case_id}: {before.get(case_id, 'absent')} -> "
+                    f"{after.get(case_id, 'absent')}")
+            # A stale case fails its replay in the suite run. A plain run that
+            # passes after the re-record clears that red. A case that still
+            # fails stays in the red set like any other red.
+            node = passed_nodes[case_id]
+            if node is not None and node in failed:
+                failed.discard(node)
+                line += ", red cleared"
+            print(line)
 
     head = _head()
     record = {
