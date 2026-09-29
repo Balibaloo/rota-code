@@ -637,30 +637,33 @@ def test_reading_a_file_covers_the_symbols_inside_it(project):
     assert any(t == "constraint_bindings" for t, _, _ in sb.ctx.writes)
 
 
-def test_each_binding_is_stamped_its_own_kind(project):
-    """A binding takes its kind from the index row, folded as the read check
-    folds it. A table stamped `path` bound nothing, and a violated finding
-    on it was refused (observed: frame 90's third diff review, 2026-09-28)."""
+def test_a_binding_takes_its_kind_from_a_seeded_index_row(project):
+    """A binding takes its kind and its spelling from the index row, folded
+    as the read check folds it. The `table` and `route` rows are seeded,
+    because no indexer writes them. A table stamped `path` bound nothing
+    (observed: frame 90's third diff review, 2026-09-28)."""
     from rota.core import sandbox as sandbox_mod
 
     db, repo = project
     boot.onboard(db, repo.root)
     db.execute("INSERT INTO code_index (grain, grain_kind) VALUES "
-               "('users', 'table'), ('/api/v1/things', 'route')")
+               "('users', 'table'), ('/api/v1/things', 'route'), "
+               "('.github/x.py', 'path')")
     sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
     sb.call("code.source", path="src/billing/charges.py")
     # The read check folds a leading "/" away, as `_grain_path` does.
-    sb.ctx.opened |= {"users", "api/v1/things"}
+    sb.ctx.opened |= {"users", "api/v1/things", ".github/x.py"}
     sb.call("model.amend", headline="Refunds keep the client ledger whole",
             text="A client outside this repository reads the ledger and breaks "
                  "when a refund leaves it short.",
             bindings=["./src/billing/charges.py", "src/billing/charges.py::refund",
-                      "users", "/api/v1/things"])
+                      "users", "/api/v1/things", ".github/x.py"])
     kinds = {v["grain"]: v["grain_kind"] for t, _, v in sb.ctx.writes
              if t == "constraint_bindings"}
     assert kinds == {"src/billing/charges.py": "path",
                      "src/billing/charges.py::refund": "symbol",
-                     "users": "table", "api/v1/things": "route"}
+                     "users": "table", "/api/v1/things": "route",
+                     ".github/x.py": "path"}
 
 
 def test_a_binding_reaches_a_diff_by_its_file_or_its_kind(project):

@@ -2488,16 +2488,21 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     # stamped `table` with no change here. Every binding stamped `path` made
     # a table bind nothing (observed: frame 90's third diff review,
     # 2026-09-28). The grain is folded as the read check folds it, so
-    # `./x.py` and `x.py` are one binding.
+    # `./x.py` and `x.py` are one binding. The row stores the index's own
+    # spelling, because every reader compares grains with the index.
     def _fold(g: str) -> str:
         head, _, sym = str(g).partition("::")
         return _grain_path(head) + (f"::{sym.strip()}" if sym else "")
-    kinds = {_fold(r["grain"]): r["grain_kind"] for r in ctx.conn.execute(
-        "SELECT grain, grain_kind FROM code_index")}
+    kinds: dict[str, str] = {}
+    raw: dict[str, str] = {}
+    for r in ctx.conn.execute("SELECT grain, grain_kind FROM code_index"):
+        kinds[_fold(r["grain"])] = r["grain_kind"]
+        raw.setdefault(_fold(r["grain"]), r["grain"])
     for grain in map(_fold, bindings or []):
         # A symbol the indexer never emitted still passed the read check on
         # its file. With no index, a binding is a file the session read.
         kind = kinds.get(grain, "symbol" if "::" in grain else "path")
+        grain = raw.get(grain, grain)
         ctx.writes.append(("constraint_bindings", f"{id}:{grain}", {
             "constraint_id": id, "grain": grain, "grain_kind": kind}))
     # What the constraint rests on: the clause it cites, and the code an
@@ -2570,8 +2575,8 @@ def _reaching_constraints(conn: sqlite3.Connection, files: list[str]) -> set[str
 
     A binding reaches the files when its grain, or the part before "::",
     is a file or a parent directory of one. A symbol is judged by its file.
-    A binding that is neither, such as a table or a route, cannot be
-    judged, so it reaches. So does a
+    A binding that is not a path or a symbol, such as a table, cannot be
+    judged against a diff. That binding reaches every diff. So does a
     binding that no longer resolves, as in `constraints_for_grains`. A
     constraint with no binding, or marked global, reaches every diff.
     """
@@ -8370,7 +8375,12 @@ def _grain_path(grain: str) -> str:
     has read the symbol. Backslashes fold to forward, because the index is built
     on one platform and read on another.
     """
-    return grain.split("::", 1)[0].replace("\\", "/").strip().lstrip("./")
+    g = grain.split("::", 1)[0].replace("\\", "/").strip()
+    # Prefixes, not a character set: `lstrip("./")` made `.github/ci.py`
+    # into `github/ci.py`, which no index row holds (frame 91's diff review).
+    while g.startswith(("./", "/")):
+        g = g[2:] if g.startswith("./") else g[1:]
+    return g
 
 
 def _dotted_module(path: str, keep_root: bool = False) -> str:
