@@ -490,6 +490,15 @@ a different question and the night is then opened once.
   reads AST type names such as `excepthandler`; an insert on a clause header
   is not checked.
 
+- Status 2026-09-29 13:26 (rota-16): **the shared gate lands two new reds, one of them the
+  door's older test, and pass 7 fixes it** (observed: the gate here at 13:2x,
+  490.5 s: suite 25 failed and 2377 passed against the stored 23 and 2324; new
+  reds 2; stale 0). Meta workflow. `test_night46_context.py:496` expects "tail
+  of the try statement at lines 2 to 6; send that whole statement", and pass
+  6's cross-block refusal fires first with both moved edges. Pass 7, cap 12k:
+  the test expects the new whole-statement exit, and every older door wording
+  in `tests/rota` is checked once.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -652,6 +661,17 @@ a different question and the night is then opened once.
   state it could not read; the announce line says five live runs; the cleared
   note prints before the five lines in two sentences; the real-body test
   asserts `-n0`, the cache flag, `cwd` and the log's content.
+
+- Status 2026-09-29 13:26 (rota-16): **the shared gate shows a case stale by its own
+  failure and absent from the stale line, so pass 5 catches that case**
+  (observed: the same gate: `L1-DV-give-the-new-parameters-defaults` failed
+  with `STALE ... no recording for the current prompt` while `stale (0)`; the
+  register's line of 06:33 saw the same sign). Meta workflow. Reasoned cause,
+  to be read by the pass: `casestatus.status` compares one turn's prompt hash
+  and the replay finds no cassette for a later turn whose prompt moved, here
+  by pass 6's door text. The case re-records now by exact id, refresh then
+  plain, with the model up. Pass 5, cap 20k: a new red whose failure text
+  carries `STALE` joins the re-record set and its line says so.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
