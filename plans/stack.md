@@ -204,6 +204,35 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29)
+
+- **Batch C, the night's stall, found by frame 92's last diff review.** Two
+  sites in `code.write` before the span door: the whole-file test at
+  `rota/roles/api.py:8557` and the empty-text branch at `:8544-8551`. It
+  touches the write path, so it carries a diff review and a walk.
+- Rota workflow. `span = (start, end) not in ((0, -1), (0, 0))` makes an insert
+  at `start=0, end=0` a whole-file write, so an insert before a module
+  docstring on line 0 replaces the file with the seat's text; the fuzz
+  accepted `(0, 0)` and `test_r4`'s `mod_doc 0 0` left only `import os`. The
+  `not text.strip()` branch runs before the span check, so a seat that deletes
+  lines with `text=""` and a span removes the file; fuzz spans 1..2, 4..5,
+  18..19 and 24..25 with text `"\n"` removed `m.py` (observed: the review of
+  `d03b35c`, 2026-09-29, from a read of the two lines and the fuzz; no night
+  shows either yet).
+- Ends when: only `(0, -1)` means a whole-file write and `(0, 0)` goes through
+  the door as an insert; a span with empty text replaces those lines with
+  nothing and never removes the file; the seat reads `expression`,
+  `assignment` and plain words for every bare statement name in the door; the
+  walk back to a `case` line matches `case` as a word; four unit tests hold
+  it; a night at the closing commit runs the delivery path. Priced: one pass,
+  about 30k on Opus; one diff review, about 40k; the night shared with frames
+  87 and 93.
+- Waits on: Roman's order. Recommended: with frame 93, before frame 87,
+  because both are one-line doors on the write path and a seat can lose a
+  file today.
+- Reasoning: frame 92's status of 14:44 and the fuzz in the scratchpad.
+- Status 2026-09-29 14:44 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
+
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
 - **Batch C, the night's stall, found by night 97's read.** One site: the
@@ -578,6 +607,18 @@ a different question and the night is then opened once.
   moved the door's text and the same case re-records. Review on Opus, cap
   25k. On a pass and a clean gate: validating at `d03b35c`, and the night
   launches from `C:/Users/roman/rota_night96` moved to `60cc23f`.
+
+- Status 2026-09-29 14:44 (rota-16): **the last diff review passes the door: a fuzz of 861
+  spans on a 40-line file raised nothing, 76 accepted and 785 refused, every
+  accepted span parsed, and the fallback sentences are unreachable; two high
+  findings are older write-path defects outside the door and become frame 94**
+  (observed: the reviewer on Opus 5.5, 42.5k on the harness line against 25k,
+  16 tool calls, 3.4 minutes; fuzz in the scratchpad `p92r9/test_fuzz.py`). Meta
+  workflow. Low, left for frame 94: the seat still reads `expr`, `assign` and
+  other bare statement names; the walk back to a `case` line stops on a name
+  that starts with `case`. Validating at `d03b35c` on the detached gate's
+  read, and the night proves it. Reviews this frame: nine on Opus, about 380k
+  against the 50k priced.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
