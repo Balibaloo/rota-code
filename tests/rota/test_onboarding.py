@@ -637,6 +637,32 @@ def test_reading_a_file_covers_the_symbols_inside_it(project):
     assert any(t == "constraint_bindings" for t, _, _ in sb.ctx.writes)
 
 
+def test_each_binding_is_stamped_its_own_kind(project):
+    """The matcher lets a binding that is not a path reach every diff. A
+    table stamped `path` bound nothing, and a violated finding on it was
+    refused (observed: frame 90's third diff review, 2026-09-28)."""
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    db.execute("INSERT INTO code_index (grain, grain_kind) VALUES "
+               "('users', 'table'), ('/api/v1/things', 'route')")
+    sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
+    sb.call("code.source", path="src/billing/charges.py")
+    # The read check folds a leading "/" away, as `_grain_path` does.
+    sb.ctx.opened |= {"users", "api/v1/things"}
+    sb.call("model.amend", headline="Refunds keep the client ledger whole",
+            text="A client outside this repository reads the ledger and breaks "
+                 "when a refund leaves it short.",
+            bindings=["src/billing/charges.py", "src/billing/charges.py::refund",
+                      "users", "/api/v1/things"])
+    kinds = {v["grain"]: v["grain_kind"] for t, _, v in sb.ctx.writes
+             if t == "constraint_bindings"}
+    assert kinds == {"src/billing/charges.py": "path",
+                     "src/billing/charges.py::refund": "symbol",
+                     "users": "table", "/api/v1/things": "route"}
+
+
 def test_sourcing_an_area_names_its_files_instead_of_dead_ending(project):
     """
     A survey session is woken *for an area*, and the area is a directory. So the

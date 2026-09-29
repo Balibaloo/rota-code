@@ -2484,9 +2484,18 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     ctx.writes.append(("constraints", id, {
         "headline": headline, "text": text,
         "is_global": 0 if bindings else 1}))
+    # The matcher judges a `path` binding against the diff and lets any other
+    # kind reach it. A table stamped `path` bound nothing, so a violated
+    # finding on it was refused (observed: frame 90's third diff review,
+    # 2026-09-28). With no index, a binding passed the read check as a file.
+    paths = {r["grain"] for r in ctx.conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
     for grain in bindings or []:
+        kind = ("symbol" if "::" in grain
+                else "path" if grain in paths or not indexed
+                else "table" if grain.isidentifier() else "route")
         ctx.writes.append(("constraint_bindings", f"{id}:{grain}", {
-            "constraint_id": id, "grain": grain, "grain_kind": "path"}))
+            "constraint_id": id, "grain": grain, "grain_kind": kind}))
     # What the constraint rests on: the clause it cites, and the code an
     # onboarding wake read.
     for ref in cited:
