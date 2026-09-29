@@ -602,6 +602,15 @@ a different question and the night is then opened once.
   The register line is corrected here. Pass 4 cap 20k, then the gate, the
   commit, one review.
 
+- Status 2026-09-29 13:10 (rota-16): **pass 4 fixes the four findings and waits on one
+  gate shared with frame 92's pass 6** (observed: `test_gate.py` 38 passed; pass
+  4 on Opus, 104.9k on the harness line in total after 90.8k, so about 14k, 14
+  tool calls). Meta workflow. Each register read has its own guard, so a raise
+  after the loop keeps every re-record's result and prints `unread` for the
+  state it could not read; the announce line says five live runs; the cleared
+  note prints before the five lines in two sentences; the real-body test
+  asserts `-n0`, the cache flag, `cwd` and the log's content.
+
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
 - **Batch C, the night's stall, found by night 94's read, and it is the wall
