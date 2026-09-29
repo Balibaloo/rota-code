@@ -558,6 +558,19 @@ a different question and the night is then opened once.
   one line late; a module docstring insert passes; any bare string is named
   docstring. Pass 9 cap 15k, then the last review, then the night.
 
+- Status 2026-09-29 14:28 (rota-16): **pass 9's patch is at `C:/Users/roman/rota_impl91/p92b.patch`
+  and waits on the detached gate** (observed: `test_desk_guards.py` and
+  `test_night46_context.py` 157 passed in the worktree; the reviewer's
+  `test_r4.py` passes and `else_span4_6` is refused with `start=5` offered;
+  pass 9 on Opus, 146.8k in total after 129.5k, so about 17k, 26 tool calls).
+  Meta workflow. The gap check runs one field list at a time, every `[0]` and
+  `[-1]` in the offer helpers is guarded, a bracketed `case` starts at its
+  `case` line, a module docstring takes no insert, and only a body's first
+  string is a docstring. Nine passes on Opus in all, about 147k against the
+  60k priced. Next: the patch lands with frames 89 and 91's, one gate, the
+  commits, one last review of the door, then the night from
+  `C:/Users/roman/rota_night96` moved to the closing commit.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
