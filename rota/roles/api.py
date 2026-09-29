@@ -8622,22 +8622,22 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 # innermost statement.
                 named = inner if one_def or not getattr(top[0], "name", None) else top
                 name, lo, hi = _kind(named[0]), named[1], named[2]
-                head = (f"start={start}, end={end}: {label} falls inside {name} "
-                        f"(lines {lo} to {hi} in code.source numbering)")
+                # One fact per sentence: the refusal is read by a small model.
+                parts = [f"start={start}, end={end}: {label} falls inside {name} "
+                         f"(lines {lo} to {hi} in code.source numbering)."]
                 if named is not inner:
                     parent = path[-2][0]
                     first = getattr(parent, "body", [None])[0]
                     doc = (inner[0] is first and isinstance(inner[0], _ast.Expr)
                            and isinstance(getattr(inner[0].value, "value", None), str))
-                    head += (f", in its {'docstring' if doc else _kind(inner[0])} "
-                             f"at lines {inner[1]} to {inner[2]}")
+                    parts.append(f"{label} is in its {'docstring' if doc else _kind(inner[0])} "
+                                 f"at lines {inner[1]} to {inner[2]}.")
+                o_cut = cuts[stop if at_start else start]
                 if other and not one_def:
                     o_label = f"end={end}" if at_start else f"start={start}"
-                    o_cut = cuts[stop if at_start else start]
                     verb = "also falls inside" if isinstance(o_cut, list) else "is inside"
                     on, olo, ohi = other[0]
-                    head += f"; {o_label} {verb} {_kind(on)} (lines {olo} to {ohi})"
-                parts = [head + "."]
+                    parts.append(f"{o_label} {verb} {_kind(on)} (lines {olo} to {ohi}).")
                 for i in sorted({start, stop - 1, stop}):
                     if 0 <= i < len(lines):
                         parts.append(f"Line {i} is '{lines[i].rstrip()[:60]}'.")
@@ -8671,24 +8671,39 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 d = 0
                 while d < len(ps) and d < len(pe) and ps[d][0] is pe[d][0]:
                     d += 1
-                if start < stop and not at_start and d < len(pe) and start < pe[d][1]:
+
+                def _side(path_, depth):
+                    # Only a definition is a thing to edit alone. The diff
+                    # review of pass 1 saw "To edit err alone" from an
+                    # except handler's bound name.
+                    if depth >= len(path_):
+                        return None
+                    n = path_[depth][0]
+                    defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
+                    return n.name if isinstance(n, defs) else None
+
+                # A moved boundary helps only when the other boundary is
+                # whole. Otherwise the moved span is refused again at the
+                # other end.
+                movable = start < stop and not isinstance(o_cut, list)
+                if movable and not at_start and d < len(pe) and start < pe[d][1]:
                     n, nlo = pe[d][0], pe[d][1]
-                    side = getattr(ps[d][0], "name", None) if d < len(ps) else None
+                    side = _side(ps, d)
                     parts.append(f"To edit {side} alone send end={nlo}, which stops "
                                  f"before {_kind(n)}." if side else
                                  f"To stop before {_kind(n)} send end={nlo}.")
-                elif start < stop and at_start and d < len(ps) and ps[d][2] < stop:
+                elif movable and at_start and d < len(ps) and ps[d][2] < stop:
                     n, nhi = ps[d][0], ps[d][2]
-                    side = getattr(pe[d][0], "name", None) if d < len(pe) else None
+                    side = _side(pe, d)
                     parts.append(f"To edit {side} alone send start={nhi}, which starts "
                                  f"after {_kind(n)}." if side else
                                  f"To start after {_kind(n)} send start={nhi}.")
                 if start == stop:
-                    parts.append(f"An insert goes between whole statements: to add "
-                                 f"after {name} send start={hi}, end={hi}")
+                    parts.append("An insert goes between whole statements.")
+                    parts.append(f"To add after {name} send start={hi}, end={hi}.")
                 else:
-                    parts.append(f"To replace {name} whole send start={lo}, end={hi}; "
-                                 f"to add after it send start={hi}, end={hi}")
+                    parts.append(f"To replace {name} whole send start={lo}, end={hi}.")
+                    parts.append(f"To add after it send start={hi}, end={hi}.")
                 raise ValueError(" ".join(parts))
         nl = chr(10)
         fragment = text

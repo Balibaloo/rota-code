@@ -2031,6 +2031,27 @@ def test_a_span_from_the_top_into_the_first_statement_gets_no_moved_boundary(db,
     assert "To replace a whole send start=0, end=4" in msg
 
 
+def test_a_moved_boundary_names_only_a_definition_as_the_thing_to_edit(db, tmp_path):
+    """Frame 92's diff review (2026-09-29): an except handler's bound name
+    gave "To edit err alone", and err is not a thing to edit."""
+    src = ("def f():\n    try:\n        pass\n    except ValueError as err:\n        pass\n"
+           "    finally:\n        y = h(\n            2)\n    return 1\n")
+    msg = _span_refusal(db, tmp_path, src, 4, 7, "        pass\n")
+    assert "end=7 falls inside assign (lines 6 to 8" in msg
+    assert "err alone" not in msg
+    assert "To stop before assign send end=6." in msg
+
+
+def test_two_boundaries_that_both_fall_get_no_moved_boundary(db, tmp_path):
+    """Frame 92's diff review (2026-09-29): a moved start with an end still
+    inside a statement is refused again at the other end."""
+    src = "def a(\n    x,\n):\n    return x\ndef b(\n    y,\n):\n    return y\n"
+    msg = _span_refusal(db, tmp_path, src, 1, 5, "    x,\n")
+    assert "start=1 falls inside a (lines 0 to 4" in msg
+    assert "end=5 also falls inside b (lines 4 to 8)" in msg
+    assert "alone" not in msg and "start after" not in msg
+
+
 def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):
     """clickI night 37 (2026-09-13): one ratified statement, one item read
     from it through the Liaison's deliver, and an empty `item_statements`."""
