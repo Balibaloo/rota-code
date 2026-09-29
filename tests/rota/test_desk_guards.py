@@ -1997,7 +1997,7 @@ def test_a_span_one_line_late_is_shown_the_file_at_its_boundaries(db, tmp_path):
     assert "start=2 is inside confirm (lines 0 to 4)" in msg
     assert "Line 2 is '        return 1'" in msg and "Line 4 is 'def pager('" in msg
     assert "start=1" in msg
-    assert "To edit confirm alone send end=4, which stops before pager" in msg
+    assert "To edit confirm alone send end=4, which is where confirm ends." in msg
 
 
 def test_a_boundary_in_a_docstring_names_the_def_and_the_docstring(db, tmp_path):
@@ -2050,6 +2050,42 @@ def test_two_boundaries_that_both_fall_get_no_moved_boundary(db, tmp_path):
     assert "start=1 falls inside a (lines 0 to 4" in msg
     assert "end=5 also falls inside b (lines 4 to 8)" in msg
     assert "alone" not in msg and "start after" not in msg
+
+
+_THREE_DEFS = ("def confirm(x):\n    y = f(\n        x)\n    return y\n"
+               "def get_pager_file(a):\n    \"\"\"Doc.\"\"\"\n    return a\n"
+               "def echo_via_pager(t):\n    \"\"\"Doc.\"\"\"\n    z = 1\n    return z\n")
+
+
+def _write(db, tmp_path, start, end, text):
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    return sb.call("code.write", path="m.py", start=start, end=end, text=text)
+
+
+def test_a_moved_start_comes_from_the_def_the_end_sits_in(db, tmp_path):
+    """Click night 97 (2026-09-29): s215's start fell in confirm and its end
+    in echo_via_pager. The door offered the end of confirm, and that span
+    took get_pager_file whole and cut echo_via_pager."""
+    msg = _span_refusal(db, tmp_path, _THREE_DEFS, 2, 10, "    z = 2\n")
+    assert "To edit inside echo_via_pager send start=8, which is where the body of echo_via_pager starts." in msg
+    assert "start=4, which" not in msg
+    out = _write(db, tmp_path, 8, 10, "    \"\"\"Doc.\"\"\"\n    z = 2\n")
+    assert out["bytes"]
+    assert "def get_pager_file(a):" in (tmp_path / "wt" / "m.py").read_text()
+
+
+def test_an_end_on_a_docstring_gets_the_whole_def_and_no_moved_start(db, tmp_path):
+    """Click night 97 (2026-09-29): s217's end sat on get_pager_file's
+    docstring. The moved start at the def's header replaced the signature
+    and left the body."""
+    msg = _span_refusal(db, tmp_path, _THREE_DEFS, 2, 5, "    return 0\n")
+    assert "To replace get_pager_file whole send start=4, end=7." in msg
+    assert "alone" not in msg and "start=4, which" not in msg
+    out = _write(db, tmp_path, 4, 7, "def get_pager_file(a):\n    return None\n")
+    assert out["bytes"]
+    assert "def echo_via_pager(t):" in (tmp_path / "wt" / "m.py").read_text()
 
 
 def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):

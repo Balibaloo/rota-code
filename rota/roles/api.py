@@ -8686,18 +8686,31 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 # whole. Otherwise the moved span is refused again at the
                 # other end.
                 movable = start < stop and not isinstance(o_cut, list)
-                if movable and not at_start and d < len(pe) and start < pe[d][1]:
-                    n, nlo = pe[d][0], pe[d][1]
-                    side = _side(ps, d)
-                    parts.append(f"To edit {side} alone send end={nlo}, which stops "
-                                 f"before {_kind(n)}." if side else
-                                 f"To stop before {_kind(n)} send end={nlo}.")
-                elif movable and at_start and d < len(ps) and ps[d][2] < stop:
-                    n, nhi = ps[d][0], ps[d][2]
-                    side = _side(pe, d)
-                    parts.append(f"To edit {side} alone send start={nhi}, which starts "
-                                 f"after {_kind(n)}." if side else
-                                 f"To start after {_kind(n)} send start={nhi}.")
+                # Click night 97 (2026-09-29): s215 and s217 got a moved
+                # start from the end of confirm. That start cut the def the
+                # end sat in, so the moved span came from the wrong def. An
+                # aligned boundary is whole only inside its own def. A span
+                # from that def's header to a line inside it cuts the def,
+                # so the moved start is the first line of the def's body.
+                # When no body line comes before the end, only the whole
+                # def is offered (observed: turns of s215 and s217).
+                if movable and not at_start and d < len(ps) and _side(ps, d):
+                    side, nhi = _side(ps, d), ps[d][2]
+                    parts.append(f"To edit {side} alone send end={nhi}, "
+                                 f"which is where {side} ends.")
+                elif movable and not at_start and d < len(pe) and start < pe[d][1]:
+                    parts.append(f"To stop before {_kind(pe[d][0])} send end={pe[d][1]}.")
+                elif movable and at_start and d < len(pe) and _side(pe, d):
+                    side, n = _side(pe, d), pe[d][0]
+                    first = n.body[0].lineno - 1
+                    if start < first < stop:
+                        parts.append(f"To edit inside {side} send start={first}, "
+                                     f"which is where the body of {side} starts.")
+                    else:
+                        parts.append(f"To replace {side} whole send "
+                                     f"start={pe[d][1]}, end={pe[d][2]}.")
+                elif movable and at_start and d == len(pe) and d < len(ps) and ps[d][2] < stop:
+                    parts.append(f"To start after {_kind(ps[d][0])} send start={ps[d][2]}.")
                 if start == stop:
                     parts.append("An insert goes between whole statements.")
                     parts.append(f"To add after {name} send start={hi}, end={hi}.")
