@@ -410,6 +410,11 @@ a different question and the night is then opened once.
   next launch. The next launch is the same command from
   `.rota/launch_night96.sh`, detached, at `f933f25`, when Roman lifts the
   pause.
+- Status 2026-09-29 02:49 (rota-66): **night 96 runs again, detached from 02:49 at
+  `f933f25`** (ruled: Roman, {t}, in the terminal, "resume"; observed: the
+  Ollama server was down and came back in 20 s with `Start-Process ollama`;
+  the log shows onboard at 02:49 and two gauntlet processes). Meta workflow.
+  The night ends in about 80 minutes. Then the read.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
