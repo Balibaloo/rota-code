@@ -414,6 +414,16 @@ a different question and the night is then opened once.
   workflow. Then one diff review, the gate, the commit. Frame 89 waits for the
   gate, because its pass edits `rota/tools/gate.py`.
 
+- Status 2026-09-29 12:27 (rota-16): **pass 4 is committed at `3766e2b` on a clean gate,
+  and its diff review runs on a worktree at that commit** (observed: the gate
+  here, 580.6 s: suite 23 failed and 2361 passed against the stored 23 and
+  2324; new reds 0; reds gone 0; stale 0; pass 4 on Opus, 42.7k on the harness
+  line against 60k, 9 tool calls, 11.7 minutes). Meta workflow. The moved start
+  is the first body line of the def the end sits in, not the def's header, and
+  the whole def is offered when no body line falls before the end. One open
+  reading for a later pass: the "stop before" exit for a non-def statement
+  takes the next statement's header. Review on Opus, cap 40k, seven points.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -432,7 +442,7 @@ a different question and the night is then opened once.
 - Reasoning: the third diff review of frame 90, finding 1.
 - Status 2026-09-28 09:24 (rota-66): pushed by b4768744, unclaimed, priced. Meta workflow.
 
-### 89. The gate re-records its own stale set (2026-09-27)
+### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
 - **No batch. An instrument repair, ruled before batch B's repairs.** It
   touches `rota/tools/gate.py` and no seat, no brief and no predicate, so no
@@ -451,6 +461,12 @@ a different question and the night is then opened once.
 - Reasoning: the grill of 2026-09-27, the re-record question.
 - Status 2026-09-27 19:45 (rota-f8): pushed by 213e58fd, unclaimed, priced. Meta
   workflow.
+
+- Status 2026-09-29 12:27 (rota-16): **taken by 36d4fbef while frame 92's review runs on
+  a worktree; one implementer on Opus, cap 60k** (reasoned: the frames touch
+  different files, `rota/tools/gate.py` and `rota/roles/api.py`, and the gate
+  runs once, after the pass). Meta workflow. No design review: the frame's own
+  block scopes it to the per-pass review, and the ends-when names the flow.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
