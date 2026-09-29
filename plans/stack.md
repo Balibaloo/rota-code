@@ -406,6 +406,14 @@ a different question and the night is then opened once.
   in a later one. The silent no-op write is a new wall, frame 93. Pass 4
   prices at about 15k on Opus, one diff review, and the night that proves 87.
 
+- Status 2026-09-29 12:04 (rota-16): **pass 4 builds on Opus, cap 60k, for the two exits**
+  (reasoned: both defects are in the moved-boundary branch at
+  `rota/roles/api.py:8690-8701`; the `start` exit takes the edge of the def
+  the other boundary leaves, not the edge of the def it enters, and an
+  "aligned" end inside a def lets the moved span cut that def's header). Meta
+  workflow. Then one diff review, the gate, the commit. Frame 89 waits for the
+  gate, because its pass edits `rota/tools/gate.py`.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
