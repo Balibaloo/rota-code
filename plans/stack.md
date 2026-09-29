@@ -645,6 +645,18 @@ a different question and the night is then opened once.
   review runs on the worktree** (observed: the gate here at 14:1x with `--no-rerecord`, 491.2 s: suite 23 failed and 2384 passed against the stored 23 and 2324; new reds 1, `L1-DV-give-the-new-parameters-defaults` stale by its failure because pass 8 moved the door's text again; reds gone 1, `L1-AR-annotate-a-batch`; warnings 19 against 16). Meta workflow. Review on Opus, cap 20k,
   five points. On a pass the frame closes.
 
+- Status 2026-09-29 14:23 (rota-16): **the diff review of pass 3 holds all five points
+  with one low plausible finding, and the frame closes on the next gate after a
+  one-word fix** (observed: the reviewer on Opus 5.5, 30.0k on the harness line
+  against 20k, 9 tool calls, 2.0 minutes; the test fails with the old
+  `_grain_path` patched in under `-n 0`). Meta workflow. Finding: on a fold
+  collision the kind comes from the last index row and the grain from the
+  first; `kinds.setdefault` pairs them. Only seeded rows can collide. A register
+  reading from the review: a `pytest.main` probe that monkeypatches under the
+  suite's `-n auto` passes green because the patch never reaches the workers,
+  so a probe passes `-n 0`. Three passes on Opus, about 70k against the 30k
+  priced; three reviews, about 105k against 30k.
+
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
 - **No batch. An instrument repair, ruled before batch B's repairs.** It
