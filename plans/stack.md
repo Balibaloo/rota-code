@@ -424,6 +424,17 @@ a different question and the night is then opened once.
   reading for a later pass: the "stop before" exit for a non-def statement
   takes the next statement's header. Review on Opus, cap 40k, seven points.
 
+- Status 2026-09-29 12:29 (rota-16): **the diff review of pass 4 holds the fix and lands
+  one high and three low findings, and pass 5 builds on Opus for all four**
+  (observed: the reviewer on Opus 5.5, 35.1k on the harness line against 40k, 5
+  tool calls, 1.9 minutes). Meta workflow. High: the "stop before" exit for a
+  non-def statement sends `end=pe[d][1]` and deletes a block header such as
+  `finally:`; the test at `test_desk_guards.py:2042` asserts the wrong exit.
+  Low: no moved start for a non-def end; whole-def spans leave decorators
+  above the def; the moved start on a docstring does not say the text replaces
+  it. Pass 5 cap 30k, no gate until frame 89's pass ends, then one gate, one
+  diff review.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
