@@ -2484,16 +2484,20 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     ctx.writes.append(("constraints", id, {
         "headline": headline, "text": text,
         "is_global": 0 if bindings else 1}))
-    # The matcher judges a `path` binding against the diff and lets any other
-    # kind reach it. A table stamped `path` bound nothing, so a violated
-    # finding on it was refused (observed: frame 90's third diff review,
-    # 2026-09-28). With no index, a binding passed the read check as a file.
-    paths = {r["grain"] for r in ctx.conn.execute(
-        "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
-    for grain in bindings or []:
-        kind = ("symbol" if "::" in grain
-                else "path" if grain in paths or not indexed
-                else "table" if grain.isidentifier() else "route")
+    # The kind comes from the index row, so a future `table` row there is
+    # stamped `table` with no change here. Every binding stamped `path` made
+    # a table bind nothing (observed: frame 90's third diff review,
+    # 2026-09-28). The grain is folded as the read check folds it, so
+    # `./x.py` and `x.py` are one binding.
+    def _fold(g: str) -> str:
+        head, _, sym = str(g).partition("::")
+        return _grain_path(head) + (f"::{sym.strip()}" if sym else "")
+    kinds = {_fold(r["grain"]): r["grain_kind"] for r in ctx.conn.execute(
+        "SELECT grain, grain_kind FROM code_index")}
+    for grain in map(_fold, bindings or []):
+        # A symbol the indexer never emitted still passed the read check on
+        # its file. With no index, a binding is a file the session read.
+        kind = kinds.get(grain, "symbol" if "::" in grain else "path")
         ctx.writes.append(("constraint_bindings", f"{id}:{grain}", {
             "constraint_id": id, "grain": grain, "grain_kind": kind}))
     # What the constraint rests on: the clause it cites, and the code an
@@ -2565,8 +2569,9 @@ def _reaching_constraints(conn: sqlite3.Connection, files: list[str]) -> set[str
     `src/click/utils.py::echo` from a diff on `src/click/utils.py`.
 
     A binding reaches the files when its grain, or the part before "::",
-    is a file or a parent directory of one. A binding that is not a path,
-    such as a table or a route, cannot be judged, so it reaches. So does a
+    is a file or a parent directory of one. A symbol is judged by its file.
+    A binding that is neither, such as a table or a route, cannot be
+    judged, so it reaches. So does a
     binding that no longer resolves, as in `constraints_for_grains`. A
     constraint with no binding, or marked global, reaches every diff.
     """
@@ -2578,7 +2583,7 @@ def _reaching_constraints(conn: sqlite3.Connection, files: list[str]) -> set[str
     for r in conn.execute(
             "SELECT constraint_id, grain, grain_kind, resolves FROM constraint_bindings"):
         grain = (r["grain"] or "").replace(chr(92), "/")
-        if (r["grain_kind"] != "path" or not r["resolves"]
+        if (r["grain_kind"] not in ("path", "symbol") or not r["resolves"]
                 or grain.split("::", 1)[0] in grains):
             hits.add(r["constraint_id"])
     return hits

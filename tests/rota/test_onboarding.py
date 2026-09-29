@@ -638,9 +638,9 @@ def test_reading_a_file_covers_the_symbols_inside_it(project):
 
 
 def test_each_binding_is_stamped_its_own_kind(project):
-    """The matcher lets a binding that is not a path reach every diff. A
-    table stamped `path` bound nothing, and a violated finding on it was
-    refused (observed: frame 90's third diff review, 2026-09-28)."""
+    """A binding takes its kind from the index row, folded as the read check
+    folds it. A table stamped `path` bound nothing, and a violated finding
+    on it was refused (observed: frame 90's third diff review, 2026-09-28)."""
     from rota.core import sandbox as sandbox_mod
 
     db, repo = project
@@ -654,13 +654,32 @@ def test_each_binding_is_stamped_its_own_kind(project):
     sb.call("model.amend", headline="Refunds keep the client ledger whole",
             text="A client outside this repository reads the ledger and breaks "
                  "when a refund leaves it short.",
-            bindings=["src/billing/charges.py", "src/billing/charges.py::refund",
+            bindings=["./src/billing/charges.py", "src/billing/charges.py::refund",
                       "users", "/api/v1/things"])
     kinds = {v["grain"]: v["grain_kind"] for t, _, v in sb.ctx.writes
              if t == "constraint_bindings"}
     assert kinds == {"src/billing/charges.py": "path",
                      "src/billing/charges.py::refund": "symbol",
-                     "users": "table", "/api/v1/things": "route"}
+                     "users": "table", "api/v1/things": "route"}
+
+
+def test_a_binding_reaches_a_diff_by_its_file_or_its_kind(project):
+    """A path or a symbol reaches a diff on its file only. A table cannot be
+    judged against a diff, so it reaches every diff (frame 91's diff review:
+    every symbol reached every diff)."""
+    from rota.roles.api import _reaching_constraints
+
+    db, _ = project
+    for cid, grain, kind in [("on_path", "src/x.py", "path"),
+                             ("on_sym", "src/x.py::sym", "symbol"),
+                             ("elsewhere", "src/y.py::sym", "symbol"),
+                             ("on_table", "users", "table")]:
+        db.execute("INSERT INTO constraints (id, headline) VALUES (?, ?)",
+                   (cid, cid))
+        db.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
+                   "grain_kind) VALUES (?, ?, ?)", (cid, grain, kind))
+    assert _reaching_constraints(db, ["src/x.py"]) == {
+        "on_path", "on_sym", "on_table"}
 
 
 def test_sourcing_an_area_names_its_files_instead_of_dead_ending(project):
