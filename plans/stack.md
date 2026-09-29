@@ -549,6 +549,16 @@ a different question and the night is then opened once.
   engagement must accept a table binding. Recommended no, the refusal stands,
   and a constraint on a table binds nothing until the index holds tables.
 
+- Status 2026-09-29 13:15 (rota-16): **pass 2 fixes the four findings and waits on one
+  gate shared with frames 92 and 89** (observed: `test_onboarding.py -k "kind
+  or reach"` 6 passed; pass 2 on Opus, 58.8k on the harness line in total after
+  48.1k, so about 11k, 4 tool calls). Meta workflow. The kind comes from the
+  matching `code_index` row, the grain is folded as the read check folds it,
+  and the fallback is `symbol` for `::` and `path` otherwise; the matcher
+  judges a `symbol` row by its file; one matcher test. One reading for the
+  review: the fold strips a leading `/`, so an indexed route would be stored
+  without it, and no index holds a route today.
+
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
 - **No batch. An instrument repair, ruled before batch B's repairs.** It
