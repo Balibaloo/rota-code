@@ -2248,6 +2248,42 @@ def test_the_refusal_names_statements_with_the_words_of_the_source(db, tmp_path)
     assert "start=2, end=2" in str(err.value)
 
 
+def test_a_span_from_a_blank_line_before_else_is_refused_with_an_offer(db, tmp_path):
+    """Frame 92's diff review of 928b2dc (2026-09-29): body and orelse read
+    as one list, and the span 4 to 6 raised IndexError in the door."""
+    src = "def a():\n    if x:\n        y = 1\n\n    else:\n        y = 3\n    return y\n"
+    msg = _span_refusal(db, tmp_path, src, 4, 6, "    else:\n        y = 4\n")
+    assert "To edit inside if send start=5, which is where the else block of if starts." in msg
+    assert "To replace if whole send start=1, end=6." in msg
+    for s, e in ((5, 6), (1, 6)):
+        assert _passes(db, tmp_path, src, s, e)
+
+
+def test_a_bracketed_case_pattern_starts_at_its_case_line(db, tmp_path):
+    """Frame 92's diff review of 928b2dc (2026-09-29): a case whose pattern
+    starts below `case (` began at the pattern's line."""
+    src = ("def d(v):\n    match v:\n        case (\n            2 | 3\n        ):\n"
+           "            r = 2\n        case _:\n            r = 0\n    return r\n")
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    assert _passes(db, tmp_path, src, 2, 6)
+
+
+def test_a_module_docstring_takes_no_insert_and_a_bare_string_is_no_docstring(db, tmp_path):
+    """Frame 92's diff review of 928b2dc (2026-09-29): an insert before the
+    module docstring passed, and any bare string was named a docstring."""
+    src = "# head\n'''Mod.'''\ndef f():\n    x = 1\n    '''n\n    m'''\n    y = 2\n"
+    msg = _span_refusal(db, tmp_path, src, 1, 1, "import os\n")
+    assert "line 1 is the docstring of the module." in msg
+    assert "start=2, end=2" in msg
+    (tmp_path / "wt" / "m.py").write_text(src)
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 3, 5, "    x = 2\n")
+    assert "end=5 falls inside expr" in str(err.value)
+    assert "docstring" not in str(err.value)
+
+
 def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):
     """clickI night 37 (2026-09-13): one ratified statement, one item read
     from it through the Liaison's deliver, and an empty `item_statements`."""

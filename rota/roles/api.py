@@ -8617,7 +8617,11 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 # diff review of pass 4 (2026-09-29): a whole-def span began
                 # at the def line and left the decorators above it.
                 if isinstance(n, _ast.match_case):
-                    return n.pattern.lineno - 1
+                    # A bracketed pattern can start below its `case (` line.
+                    k = n.pattern.lineno - 1
+                    while k > 0 and not lines[k].lstrip().startswith("case"):
+                        k -= 1
+                    return k
                 decs = getattr(n, "decorator_list", None) or []
                 return min([n.lineno] + [x.lineno for x in decs]) - 1
 
@@ -8636,7 +8640,10 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     lo, hi = _lo(n), _end(n)
                     if lo < b < hi:
                         kids = _children(n)
-                        if _gap(kids, b):
+                        # One field list at a time. The review of 928b2dc
+                        # (2026-09-29): body and orelse joined read a blank
+                        # line before else: as aligned, and the door raised.
+                        if any(_gap(_stmts(getattr(n, f, None)), b) for f in _fields):
                             return "aligned"     # on a child's boundary: whole statements
                         inner = _cut(kids, b)
                         if inner == "aligned":
@@ -8660,7 +8667,19 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             # 6e993d0 (2026-09-29) saw an elif named if and a docstring expr.
             _plain = {"excepthandler": "except block", "asyncfor": "async for",
                       "asyncwith": "async with", "trystar": "try",
-                      "augassign": "assignment", "match_case": "case"}
+                      "augassign": "assignment", "match_case": "case",
+                      "annassign": "annotated assignment", "importfrom": "import",
+                      "nonlocal": "nonlocal"}
+            # The review of 928b2dc (2026-09-29): any bare string was named a
+            # docstring. Only the first statement of a module, def or class
+            # body is one.
+            _docs = set()
+            for _h in ([original] + [x for x in _ast.walk(original) if isinstance(x, _defs)]
+                       if original else []):
+                _b0 = _h.body[0] if _h.body else None
+                if (isinstance(_b0, _ast.Expr)
+                        and isinstance(getattr(_b0.value, "value", None), str)):
+                    _docs.add(id(_b0))
 
             def _what(n):
                 # Only a definition is a thing to edit alone. The diff
@@ -8671,7 +8690,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 if (isinstance(n, _ast.If) and 0 < n.lineno <= len(lines)
                         and lines[n.lineno - 1].lstrip().startswith("elif")):
                     return "elif"
-                if isinstance(n, _ast.Expr) and isinstance(getattr(n.value, "value", None), str):
+                if id(n) in _docs:
                     return "docstring"
                 word = type(n).__name__.lower()
                 return _plain.get(word, word)
@@ -8728,7 +8747,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
 
             def _end_offer(m):
                 p, f, ns, x = m
-                if p is not None and x == _end(ns[-1]):
+                if p is not None and ns and x == _end(ns[-1]):
                     if x == _end(p) and isinstance(p, _defs):
                         return f"To edit {p.name} alone send end={x}, which is where {p.name} ends."
                     if x == _end(p):
@@ -8738,11 +8757,13 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 if nxt:
                     return f"To stop before {_what(nxt[0])} send end={x}."
                 prev = [s for s in ns if _end(s) == x]
-                return f"To stop after {_what(prev[-1])} send end={x}."
+                if prev:
+                    return f"To stop after {_what(prev[-1])} send end={x}."
+                return f"To stop there send end={x}."
 
             def _start_offer(m):
                 p, f, ns, x = m
-                if p is not None and x == _lo(ns[0]):
+                if p is not None and ns and x == _lo(ns[0]):
                     what, b0 = _what(p), ns[0]
                     out = (f"To edit inside {what} send start={x}, "
                            f"which is where the {_block[f]} of {what} starts.")
@@ -8754,7 +8775,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 if prev:
                     return f"To start after {_what(prev[-1])} send start={x}."
                 nxt = [s for s in ns if _lo(s) == x]
-                return f"To start before {_what(nxt[0])} send start={x}."
+                if nxt:
+                    return f"To start before {_what(nxt[0])} send start={x}."
+                return f"To start there send start={x}."
 
             def _whole_parent(b):
                 # The statement that holds the list b sits in, whole.
@@ -8861,12 +8884,14 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             # A refusal here is smaller than a note in the write's result.
             if start == stop:
                 for p, f, ns in _at(start):
-                    if (isinstance(p, _defs) and f == "body" and _lo(ns[0]) == start
-                            and _what(ns[0]) == "docstring"):
+                    # The module's own docstring counts too (review of 928b2dc).
+                    if (f == "body" and ns and _lo(ns[0]) == start
+                            and id(ns[0]) in _docs):
                         after = _end(ns[0])
+                        owner = "the module" if p is None else p.name
                         raise ValueError(
                             f"start={start}, end={end}: line {start} is the docstring "
-                            f"of {p.name}. Your text goes before it. Then the docstring "
+                            f"of {owner}. Your text goes before it. Then the docstring "
                             f"is no longer a docstring. To add after the docstring "
                             f"send start={after}, end={after}.")
             sl, el = _at(start), _at(stop)
@@ -8880,8 +8905,8 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                             else f"the {_block[f]} of {_what(p)}")
 
                 parts = [f"start={start}, end={end} crosses from one block to another.",
-                         f"start={start} is in {_where(sl[-1])}.",
-                         f"end={end} is in {_where(el[-1])}.",
+                         f"start={start} is in {_where(sl[-1]) if sl else 'no block'}.",
+                         f"end={end} is in {_where(el[-1]) if el else 'no block'}.",
                          "A span replaces whole statements of one block."]
                 for i in sorted({start, stop - 1, stop}):
                     if 0 <= i < len(lines):
