@@ -204,7 +204,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 92. A broken indent folds the next function into the write span, and the door names the wrong exit (2026-09-29) (00aea66b)
+### 92. A broken indent folds the next function into the write span, and the door names the wrong exit (2026-09-29) (36d4fbef)
 
 - **Batch C, the night's stall, found by night 96's walk 2 while it ran.** One
   site: the span door of `code.write`. It touches a door on the write path, so
@@ -363,6 +363,10 @@ a different question and the night is then opened once.
   held frames that hand with it: 88 validating at `4840fda`, 86 validating at
   `321af4c`, 59 validating at `48329b1`, 61 parked. Session 00aea66b stops
   here.
+- Status 2026-09-29 11:55 (rota-16): **taken by 36d4fbef at `1baeb69`, with frames 88,
+  86 and 59 validating and 61 parked as the hand-off carries them** (observed:
+  `take` exit 0 at 11:55). Meta workflow. Next: the state to Roman, then night
+  97's read for frames 92, 88 and 86.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
