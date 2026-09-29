@@ -589,6 +589,17 @@ a different question and the night is then opened once.
   25k, six points. On a pass the frame closes; the ruling on a table binding
   under an index stays owed and does not block.
 
+- Status 2026-09-29 13:51 (rota-16): **the diff review of pass 2 lands one high finding, a
+  regression, and pass 3 builds in the worktree `C:/Users/roman/rota_impl91`**
+  (observed: the reviewer on Opus 5.5, 34.7k on the harness line against 25k,
+  12 tool calls, 2.2 minutes; both tests fail on the parent). Meta workflow.
+  High: `_grain_path` at `api.py:8373` strips the character set `./`, so
+  `.github/ci.py` folds to `github/ci.py`, the stored grain matches no index
+  row, and every reader misses the binding. Pass 3, cap 15k: strip the
+  prefixes only, store the index row's raw grain, and a dot-path test. Low:
+  the matcher docstring's "neither", the kinds test's name hides the seeded
+  rows.
+
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
 - **No batch. An instrument repair, ruled before batch B's repairs.** It
@@ -717,6 +728,16 @@ a different question and the night is then opened once.
   caps at ten minutes and four re-records take about forty. Register line
   owed on its read: the ten-minute cap holds for a re-recording gate as for
   a night. Review on Opus, cap 30k, eight points.
+
+- Status 2026-09-29 13:51 (rota-16): **the diff review of passes 4 and 5 holds all eight
+  points with two low findings, and pass 6 builds in the worktree
+  `C:/Users/roman/rota_impl91`** (observed: the reviewer on Opus 5.5, 39.6k on
+  the harness line against 30k, 10 tool calls, 2.6 minutes; `CI=1` changes
+  three pytest outputs and nothing in rota). Meta workflow. Findings: the
+  stale-by-failure predicate matches `STALE` anywhere in the message; a raise
+  in the loop leaves the later ids unnamed. Pass 6 cap 12k, in the worktree
+  because the detached gate runs against the checkout; its patch lands after
+  that gate ends.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
