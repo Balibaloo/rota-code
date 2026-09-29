@@ -238,6 +238,17 @@ a different question and the night is then opened once.
 - Status 2026-09-29 05:30 (rota-66): pushed by b4768744 during night 96, unclaimed, priced.
   Meta workflow. Frame 86's park ran on this batch, which is the first
   observation of its path since frame 86 closed to validating.
+- Status 2026-09-29 05:45 (rota-48): **handed with the stack at `310f727` to session
+  `00aea66b`, rota-ba, which holds frame 92 now** (observed: `hand` exit 0,
+  confirmed 12 s after the claim at 05:45). Meta workflow. Held frames that
+  hand with the stack: 88 validating at `4840fda`, unproven until a night on
+  a ticket a constraint binds; 86 validating at `321af4c`, its park observed
+  on night 96 and its resume not; 59 validating at `48329b1`; 61 parked. 89
+  and 91 are small repairs ruled before batch B. Night 96's read is
+  `plans/archive/night96-walk-2026-09-29.md`. The worktree
+  `C:/Users/roman/rota_night96` at `f933f25` and `.rota/launch_night96.sh`
+  serve the next night with the commit changed; `.rota/clickI_warm.db` is
+  the warm start. Session b4768744 stops here, holding nothing.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
