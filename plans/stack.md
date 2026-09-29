@@ -571,6 +571,14 @@ a different question and the night is then opened once.
   commits, one last review of the door, then the night from
   `C:/Users/roman/rota_night96` moved to the closing commit.
 
+- Status 2026-09-29 14:40 (rota-16): **pass 9 is committed at `d03b35c` on the clean gate of
+  the previous tree, its last diff review runs with a fuzz of every span, and a
+  re-recording gate runs detached on the new tree** (observed: the detached gate `.rota/gate89b.log`, 14:20 to 14:38 at `36b1a96`: new reds 0, reds gone 1, stale 0 after the gate re-recorded `L1-DV-give-the-new-parameters-defaults` and cleared its red). Meta workflow. The
+  gate on `60cc23f` is `.rota/gate89c.log`, launched 14:39, because pass 9
+  moved the door's text and the same case re-records. Review on Opus, cap
+  25k. On a pass and a clean gate: validating at `d03b35c`, and the night
+  launches from `C:/Users/roman/rota_night96` moved to `60cc23f`.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -680,6 +688,11 @@ a different question and the night is then opened once.
   suite's `-n auto` passes green because the patch never reaches the workers,
   so a probe passes `-n 0`. Three passes on Opus, about 70k against the 30k
   priced; three reviews, about 105k against 30k.
+
+- Status 2026-09-29 14:40 (rota-16): **pass 4, the one-word fix, is committed at `60cc23f`
+  by this session with the Edit tool, and the frame closes on the detached
+  gate** (observed: the detached gate `.rota/gate89b.log`, 14:20 to 14:38 at `36b1a96`: new reds 0, reds gone 1, stale 0 after the gate re-recorded `L1-DV-give-the-new-parameters-defaults` and cleared its red). Meta workflow. Ruling still owed and not blocking: whether an
+  indexed engagement accepts a table binding; recommended no.
 
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
@@ -860,6 +873,12 @@ a different question and the night is then opened once.
   open sessions unarmed, Roman told by push** (observed: `handover.py peers`,
   14:2x). Meta workflow. This session takes no new frame. Frames 87 and 93
   travel with the hand-off at 400k.
+
+- Status 2026-09-29 14:40 (rota-16): **pass 7 is committed at `4ac7500`, and the frame
+  closes on the detached gate of `60cc23f`** (observed: the detached gate `.rota/gate89b.log`, 14:20 to 14:38 at `36b1a96`: new reds 0, reds gone 1, stale 0 after the gate re-recorded `L1-DV-give-the-new-parameters-defaults` and cleared its red). Meta workflow. Three
+  re-recording gates ran through the tool today, 13:45, 14:20 and 14:39; each
+  re-recorded in the foreground and printed its lines. Ends-when observed
+  except the last gate's read.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
