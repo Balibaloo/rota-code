@@ -523,7 +523,7 @@ a different question and the night is then opened once.
   16 tool calls, 2.7 minutes; a probe through `model.amend` on the `project`
   fixture). Meta workflow. High 1: the matcher's `grain_kind != "path"` now
   lets every `symbol` binding reach every diff, where before the part before
-  `::` scoped it. High 2: the read check folds `srcilling\charges.py` and
+  `::` scoped it. High 2: the read check folds `src\billing\charges.py` and
   `./src/...` through `_grain_path`, the kind line reads the raw grain, and
   both become `route`. High 3: the `table` and `route` branches cannot fire
   with an index, because the indexer writes only `path` and `symbol` rows and
