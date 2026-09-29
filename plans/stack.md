@@ -452,6 +452,23 @@ a different question and the night is then opened once.
   on Opus, cap 35k, seven points. On a pass, the frame goes back to validating
   at `550f1d4` for the night that proves frame 87.
 
+- Status 2026-09-29 12:56 (rota-16): **the diff review of pass 5 confirms three of four
+  fixes and lands two high findings, so pass 6 follows when frame 91's writer
+  leaves `api.py`** (observed: the reviewer on Opus 5.5, 44.8k on the harness
+  line against 35k, 7 tool calls, 3.3 minutes; probes in the scratchpad
+  `p92/`). Meta workflow. High 1: the older "stop before" exit at
+  `api.py:8718` offers `end=pe[d][1]`, and the span holds an `else:` or
+  `finally:` header; three probes passed the door. High 2, older than this
+  frame: `_cut` reads each boundary alone, so a span from an aligned line in
+  one block to an aligned line in another passes and removes a def header or
+  a `finally:`; the design record's section 8 named it finding 3. One rule
+  covers both (reasoned: a whole-statement span is whole only inside one
+  field list): both boundaries must sit in one `body`, `orelse`, `finalbody`
+  or `handlers` list of one parent, and every moved boundary is offered
+  inside that list. Low: a start on the `def` line under decorators is
+  refused with no word about the decorators; a test docstring says the old
+  code offered a moved start. Pass 6, cap 30k, then one review.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -522,6 +539,16 @@ a different question and the night is then opened once.
   the review: the summary's `N failed` still counts a cleared red. Review on
   Opus, cap 45k, nine points. The first real re-record through the gate is the
   acceptance, on the next stale tree.
+
+- Status 2026-09-29 12:56 (rota-16): **the diff review of pass 2 holds all nine points
+  with five low findings, and pass 3 builds on Opus for all five** (observed:
+  the reviewer on Opus 5.5, 46.9k on the harness line against 45k, 18 tool
+  calls, 2.6 minutes; `node_of` mapped all 134 register cases and pytest
+  collected all 134 nodes). Meta workflow. Findings: no test of the real
+  `_rerecord` body; the `suite:` count keeps a cleared red; the docstring says
+  replay; no line before the first live run and a doc still says the gate
+  uses no GPU; an exception in the re-record block loses the five lines. Pass
+  3 cap 25k, then the gate, the commit and one review.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
