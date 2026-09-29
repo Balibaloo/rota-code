@@ -329,6 +329,19 @@ a different question and the night is then opened once.
   60k; passes 78.7k on Opus in three against 60k; diff reviews 37.3k and 26.4k
   against 50k; five gates here, two spent on a run-5 cassette; register lines
   2; one wall, the recorded case, dropped.
+- Status 2026-09-29 09:50 (rota-ba): **night 97's walk 2 meets the new refusal
+  and commits between attempts, which is the night's ends-when line**
+  (observed: `.rota/clickI.db` at 09:49, `turns` and `tool_calls`: six
+  Developer sessions s209 to s217 on `bg_3` read `falls inside` at least once,
+  and s213, s214, s215 and s216 each committed two or three times after it,
+  against night 96's five sessions with no commit; walk 1 merged `bg_1` at
+  08:4x, `bg_2` abandoned as on night 96, `bg_3` running). Meta workflow. Two
+  low readings for a later frame, not defects the night shows: with `end=-1`
+  the door echoes the file's last line, which says nothing; and when `start`
+  falls inside one def and `end` sits whole inside a later def, the
+  moved-boundary sentence names the later def as the thing edited alone while
+  the span between them covers another def. Close waits on walk 2's end:
+  merge, park or cap.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
