@@ -342,6 +342,21 @@ a different question and the night is then opened once.
   moved-boundary sentence names the later def as the thing edited alone while
   the span between them covers another def. Close waits on walk 2's end:
   merge, park or cap.
+- Status 2026-09-29 11:54 (rota-ba): **night 97 ended at 10:08 with `bg_3`
+  running at attempt 7 and `bg_4` pending, and the stack hands to rota-16 at
+  Roman's word** (observed: `.rota/clickI_night97.db`, `batches` and
+  `test_runs`, 10:1x; `.rota/night97.log`: walk 1 merged `bg_1`, walk 2 ended
+  with `bg_3` running, walk 3 ran 10:03 to 10:08 and ended quiet; 256
+  sessions). Meta workflow. Frame 92 stays validating at `7d31f20`: the door
+  fired in six Developer sessions and four committed after it, so the night
+  line's first half holds; whether `bg_3` recovers or reaches its cap is not
+  shown, because the night ended at attempt 7. What the holder does: read
+  night 97 for frames 92, 88 and 86 and write
+  `plans/archive/night97-walk-2026-09-29.md`; close frame 92 on that read or
+  leave it validating for one more night; then frames 89 and 91, then 87. The
+  night worktree `C:/Users/roman/rota_night96` is at `7d31f20`, and
+  `.rota/launch_night97.sh` serves the next night with the number changed.
+  Session 00aea66b stops here at about 345k, holding nothing after the hand.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
