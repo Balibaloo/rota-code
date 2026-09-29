@@ -190,7 +190,8 @@ def rerecord_argv(command: str) -> tuple[dict[str, str], list[str]]:
 
 def _rerecord(env: dict[str, str], case_id: str, log: Path) -> str | None:
     """
-    Re-earn one case, then replay the case once. Append both runs to the log.
+    Re-earn one case, then run the case once more without ROTA_REFRESH.
+    Append both runs to the log.
 
     Return the node id when the plain run passed, and None when it failed or
     no test holds the case. The caller clears that node from the red set.
@@ -374,27 +375,41 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
             return 1
         failed = set()
     stale = _stale(model)
+    cleared = 0
     if stale and not args.no_rerecord:
         # One case at a time, after the suite ends. Two writers on the
         # cassette file lost a run to `database is locked` (observed:
         # `plans/operating-facts.md`, frame 86, 2026-09-25).
-        before = _states(model)
         ids = sorted(stale)
-        passed_nodes = {case_id: _rerecord(env, case_id, log) for case_id in ids}
-        stale = _stale(model)
-        after = _states(model)
-        # These lines come before the five, so the last five lines stay the gate.
-        for case_id in ids:
-            line = (f"rerecorded {case_id}: {before.get(case_id, 'absent')} -> "
-                    f"{after.get(case_id, 'absent')}")
-            # A stale case fails its replay in the suite run. A plain run that
-            # passes after the re-record clears that red. A case that still
-            # fails stays in the red set like any other red.
-            node = passed_nodes[case_id]
-            if node is not None and node in failed:
-                failed.discard(node)
-                line += ", red cleared"
-            print(line)
+        print(f"rerecording {len(ids)} stale cases, one live call each, "
+              f"on {model}")
+        try:
+            before = _states(model)
+            passed_nodes = {case_id: _rerecord(env, case_id, log)
+                            for case_id in ids}
+            stale_after = _stale(model)
+            after = _states(model)
+        except Exception as exc:
+            # The suite run is already spent. A failed re-record must not
+            # take the five lines and the baseline with it, so the gate
+            # reports the stale set from before the re-records.
+            print(f"note: re-record stopped: {exc!r}")
+        else:
+            stale = stale_after
+            # These lines come before the five, so the last five lines stay
+            # the gate.
+            for case_id in ids:
+                line = (f"rerecorded {case_id}: {before.get(case_id, 'absent')}"
+                        f" -> {after.get(case_id, 'absent')}")
+                # A stale case fails its replay in the suite run. A plain run
+                # that passes after the re-record clears that red. A case that
+                # still fails stays in the red set like any other red.
+                node = passed_nodes[case_id]
+                if node is not None and node in failed:
+                    failed.discard(node)
+                    cleared += 1
+                    line += ", red cleared"
+                print(line)
 
     head = _head()
     record = {
@@ -449,6 +464,11 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     print(f"time: {seconds:.1f}s, model {model}, temp root {temp_root}, "
           f"baseline {_short(base.get('commit', ''))} {base.get('when', '')}")
 
+    if cleared:
+        # The counts come from the suite run, and a re-record does not rerun
+        # the suite. So the summary and the red list can disagree.
+        print(f"note: {cleared} reds cleared by re-record, and the summary "
+              "still counts them")
     if wrote:
         print(f"note: baseline stored at {_short(record['commit'])}")
     if head != base.get("commit"):

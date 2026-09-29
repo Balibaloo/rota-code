@@ -505,12 +505,13 @@ def test_the_gate_rerecords_each_stale_case_in_order(stage, capsys):
     assert stage["rerecorded"] == [("qwen3:8b", "case-a"), ("qwen3:8b", "case-b"),
                                    ("qwen3:8b", "case-c")]
     out = _lines(capsys)
-    assert out[:3] == ["rerecorded case-a: STALE -> green 5/5",
+    assert out[:4] == ["rerecording 3 stale cases, one live call each, on qwen3:8b",
+                       "rerecorded case-a: STALE -> green 5/5",
                        "rerecorded case-b: STALE -> STALE",
                        "rerecorded case-c: STALE -> green 5/5"]
-    # The five lines stay last, after the re-record lines.
-    assert out[3].startswith("suite: ")
-    assert out[6] == "stale (1): case-b"
+    # The five lines come after the re-record lines.
+    assert out[4].startswith("suite: ")
+    assert out[7] == "stale (1): case-b"
     stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
     assert stored["stale"] == ["case-b"], "the baseline stores the set after"
 
@@ -529,10 +530,77 @@ def test_a_green_rerecord_clears_the_red_of_its_case(stage, capsys):
 
     assert _run(stage, "--baseline", rerecord=True) == 0
     out = _lines(capsys)
-    assert out[:2] == ["rerecorded case-a: STALE -> green 5/5, red cleared",
+    assert out[:3] == ["rerecording 2 stale cases, one live call each, on qwen3:8b",
+                       "rerecorded case-a: STALE -> green 5/5, red cleared",
                        "rerecorded case-b: STALE -> STALE"]
+    assert ("note: 1 reds cleared by re-record, and the summary still counts "
+            "them") in out[8:]
     stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
     assert stored["failed"] == [_node("case-b")]
+
+
+def test_a_rerecord_that_raises_still_prints_the_five_lines(
+        stage, capsys, monkeypatch):
+    """The suite run is spent, so a broken re-record keeps the gate's report."""
+    def broken(env, case_id, log):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(gate, "_rerecord", broken)
+    stage["stale"] = {"case-a"}
+
+    assert _run(stage, "--baseline", rerecord=True) == 0
+    out = _lines(capsys)
+    assert out[1] == "note: re-record stopped: RuntimeError('database is locked')"
+    assert out[2].startswith("suite: ")
+    assert out[5] == "stale (1): case-a", "the set from before the re-record"
+    stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
+    assert stored["stale"] == ["case-a"]
+
+
+def test_the_real_rerecord_runs_refresh_then_plain(tmp_path, monkeypatch):
+    """The body of `_rerecord`, with `subprocess.run` and `node_of` stubbed."""
+    node = _node("case-a")
+    runs = []
+    codes = []
+
+    class Done:
+        def __init__(self, code):
+            self.returncode = code
+
+    def run(argv, cwd, env, stdout, stderr):
+        runs.append((list(argv), dict(env)))
+        stdout.write("pytest output\n")
+        return Done(codes.pop(0))
+
+    monkeypatch.delenv("ROTA_PROFILE", raising=False)
+    monkeypatch.setattr(gate.subprocess, "run", run)
+    monkeypatch.setattr(gate, "node_of",
+                        lambda case_id: node if case_id == "case-a" else None)
+    log = tmp_path / "gate.log"
+    _write(log, "suite\n")
+    env = {"ROTA_MODEL": "qwen3:8b", "KEEP": "1"}
+
+    codes[:] = [1, 0]
+    assert gate._rerecord(env, "case-a", log) == node
+    assert len(runs) == 2
+    (first_argv, first), (second_argv, second) = runs
+    assert first_argv == second_argv and node in first_argv
+    assert first["ROTA_REFRESH"] == "1"
+    assert "ROTA_REFRESH" not in second
+    for run_env in (first, second):
+        assert run_env["ROTA_L1"] == "1" and run_env["ROTA_MODEL"] == "qwen3:8b"
+        assert "ROTA_NUM_CTX" in run_env and run_env["KEEP"] == "1"
+    text = log.read_text("utf-8")
+    assert text.index("case-a: refresh run") < text.index("case-a: plain run")
+
+    runs.clear()
+    codes[:] = [0, 1]
+    assert gate._rerecord(env, "case-a", log) is None, "the plain run decides"
+
+    runs.clear()
+    assert gate._rerecord(env, "case-z", log) is None
+    assert runs == []
+    assert "== rerecord case-z: no test holds the case" in log.read_text("utf-8")
 
 
 def test_the_flag_turns_the_rerecord_off(stage, capsys):
