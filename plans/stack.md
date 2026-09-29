@@ -810,6 +810,21 @@ a different question and the night is then opened once.
   five points, one on the mark a re-recorded red keeps. On a pass the frame
   closes.
 
+- Status 2026-09-29 14:23 (rota-16): **the diff review of pass 6 holds four points and
+  confirms one low defect, and pass 7's patch is at
+  `C:/Users/roman/rota_impl91/p89b.patch`** (observed: the reviewer on Opus
+  5.5, 27.2k on the harness line against 20k, 6 tool calls; pass 7 on Opus,
+  139.6k in total after 134.6k, so about 5k; `test_gate.py` 40 passed). Meta
+  workflow. A case whose re-record ran and whose plain run still fails is a
+  measured red now and leaves the stale set, so the next gate does not spend
+  five live runs on it again. The patch lands after the detached gate, with
+  one gate and one commit, and the frame closes on that gate. Seven passes on
+  Opus in all, about 140k against the 40k priced.
+- Status 2026-09-29 14:23 (rota-16): **reserve check at about 290k: 0 free standby, 29
+  open sessions unarmed, Roman told by push** (observed: `handover.py peers`,
+  14:2x). Meta workflow. This session takes no new frame. Frames 87 and 93
+  travel with the hand-off at 400k.
+
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
 - **Batch C, the night's stall, found by night 94's read, and it is the wall
