@@ -2039,7 +2039,10 @@ def test_a_moved_boundary_names_only_a_definition_as_the_thing_to_edit(db, tmp_p
     msg = _span_refusal(db, tmp_path, src, 4, 7, "        pass\n")
     assert "end=7 falls inside assign (lines 6 to 8" in msg
     assert "err alone" not in msg
-    assert "To stop before assign send end=6." in msg
+    assert "To stop where excepthandler ends send end=5." in msg
+    assert "end=6" not in msg
+    out = _write(db, tmp_path, 4, 5, "        pass\n")
+    assert out["bytes"]
 
 
 def test_two_boundaries_that_both_fall_get_no_moved_boundary(db, tmp_path):
@@ -2070,6 +2073,7 @@ def test_a_moved_start_comes_from_the_def_the_end_sits_in(db, tmp_path):
     took get_pager_file whole and cut echo_via_pager."""
     msg = _span_refusal(db, tmp_path, _THREE_DEFS, 2, 10, "    z = 2\n")
     assert "To edit inside echo_via_pager send start=8, which is where the body of echo_via_pager starts." in msg
+    assert "Your text replaces the docstring too." in msg
     assert "start=4, which" not in msg
     out = _write(db, tmp_path, 8, 10, "    \"\"\"Doc.\"\"\"\n    z = 2\n")
     assert out["bytes"]
@@ -2086,6 +2090,30 @@ def test_an_end_on_a_docstring_gets_the_whole_def_and_no_moved_start(db, tmp_pat
     out = _write(db, tmp_path, 4, 7, "def get_pager_file(a):\n    return None\n")
     assert out["bytes"]
     assert "def echo_via_pager(t):" in (tmp_path / "wt" / "m.py").read_text()
+
+
+def test_an_end_inside_a_loop_gets_a_start_at_the_loop_body(db, tmp_path):
+    """Frame 92's diff review of pass 4 (2026-09-29): an end inside a for
+    loop got no moved start, and the old code offered one."""
+    src = ("def a(x):\n    y = f(\n        x)\n    return y\n"
+           "for i in r:\n    p = 1\n    q = 2\nz = 3\n")
+    msg = _span_refusal(db, tmp_path, src, 2, 6, "    p = 9\n")
+    assert "To edit inside for send start=5, which is where the body of for starts." in msg
+    assert "alone" not in msg and "docstring" not in msg
+    out = _write(db, tmp_path, 5, 6, "    p = 9\n")
+    assert out["bytes"]
+
+
+def test_a_whole_decorated_def_starts_at_its_first_decorator(db, tmp_path):
+    """Frame 92's diff review of pass 4 (2026-09-29): the whole-def span
+    started at the def line and left the decorator above it."""
+    src = ("def a(x):\n    y = f(\n        x)\n    return y\n"
+           "@dec\ndef b():\n    return 1\n")
+    msg = _span_refusal(db, tmp_path, src, 2, 6, "    return 0\n")
+    assert "To replace b whole send start=4, end=7." in msg
+    out = _write(db, tmp_path, 4, 7, "@dec\ndef b():\n    return 2\n")
+    assert out["bytes"]
+    assert (tmp_path / "wt" / "m.py").read_text().count("@dec") == 1
 
 
 def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):

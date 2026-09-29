@@ -8576,14 +8576,21 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             def _end(n):
                 return getattr(n, "end_lineno", n.lineno)
 
+            def _lo(n):
+                # A decorated def starts at its first decorator. Frame 92's
+                # diff review of pass 4 (2026-09-29): a whole-def span began
+                # at the def line and left the decorators above it.
+                decs = getattr(n, "decorator_list", None) or []
+                return min([n.lineno] + [x.lineno for x in decs]) - 1
+
             def _cut(nodes, b):
                 # The path of (node, lo, hi) from the top-level statement to
                 # the innermost statement the boundary falls inside.
                 for n in nodes:
-                    lo, hi = n.lineno - 1, _end(n)
+                    lo, hi = _lo(n), _end(n)
                     if lo < b < hi:
                         kids = _children(n)
-                        if any(k.lineno - 1 == b or _end(k) == b for k in kids):
+                        if any(_lo(k) == b or _end(k) == b for k in kids):
                             return "aligned"     # on a child's boundary: whole statements
                         inner = _cut(kids, b)
                         if inner == "aligned":
@@ -8595,7 +8602,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 # The same path for a boundary that falls on a child's
                 # boundary, so the message can say where that boundary is.
                 for n in nodes:
-                    lo, hi = n.lineno - 1, _end(n)
+                    lo, hi = _lo(n), _end(n)
                     if lo < b < hi:
                         return [(n, lo, hi)] + _inside(_children(n), b)
                 return []
@@ -8694,20 +8701,35 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 # so the moved start is the first line of the def's body.
                 # When no body line comes before the end, only the whole
                 # def is offered (observed: turns of s215 and s217).
-                if movable and not at_start and d < len(ps) and _side(ps, d):
-                    side, nhi = _side(ps, d), ps[d][2]
+                # Frame 92's diff review of pass 4 (2026-09-29): the same
+                # rule holds for any statement with a body. A block header
+                # such as finally: or else: has no node of its own, so a
+                # moved end stops where the statement of the start ends, and
+                # a moved start stays inside the body list.
+                def _what(n):
+                    return _side([(n,)], 0) or type(n).__name__.lower()
+
+                if movable and not at_start and d < len(ps):
+                    n, nhi = ps[d][0], ps[d][2]
+                    side = _side(ps, d)
                     parts.append(f"To edit {side} alone send end={nhi}, "
-                                 f"which is where {side} ends.")
+                                 f"which is where {side} ends." if side else
+                                 f"To stop where {_what(n)} ends send end={nhi}.")
                 elif movable and not at_start and d < len(pe) and start < pe[d][1]:
                     parts.append(f"To stop before {_kind(pe[d][0])} send end={pe[d][1]}.")
-                elif movable and at_start and d < len(pe) and _side(pe, d):
-                    side, n = _side(pe, d), pe[d][0]
-                    first = n.body[0].lineno - 1
-                    if start < first < stop:
-                        parts.append(f"To edit inside {side} send start={first}, "
-                                     f"which is where the body of {side} starts.")
+                elif (movable and at_start and d < len(pe)
+                      and getattr(pe[d][0], "body", None)):
+                    n = pe[d][0]
+                    what, first = _what(n), _lo(n.body[0])
+                    if start < first < stop <= _end(n.body[-1]):
+                        parts.append(f"To edit inside {what} send start={first}, "
+                                     f"which is where the body of {what} starts.")
+                        b0 = n.body[0]
+                        if (_side([(n,)], 0) and isinstance(b0, _ast.Expr)
+                                and isinstance(getattr(b0.value, "value", None), str)):
+                            parts.append("Your text replaces the docstring too.")
                     else:
-                        parts.append(f"To replace {side} whole send "
+                        parts.append(f"To replace {what} whole send "
                                      f"start={pe[d][1]}, end={pe[d][2]}.")
                 elif movable and at_start and d == len(pe) and d < len(ps) and ps[d][2] < stop:
                     parts.append(f"To start after {_kind(ps[d][0])} send start={ps[d][2]}.")
