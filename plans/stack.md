@@ -452,7 +452,7 @@ a different question and the night is then opened once.
   on Opus, cap 35k, seven points. On a pass, the frame goes back to validating
   at `550f1d4` for the night that proves frame 87.
 
-### 91. Every model-written binding is stamped a path (2026-09-28)
+### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
   touches `model.amend` in `rota/roles/api.py`, and no seat, no brief and no
@@ -469,6 +469,12 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended: with frame 89, before batch B.
 - Reasoning: the third diff review of frame 90, finding 1.
 - Status 2026-09-28 09:24 (rota-66): pushed by b4768744, unclaimed, priced. Meta workflow.
+
+- Status 2026-09-29 12:54 (rota-16): **taken by 36d4fbef while the reviews of frames 92
+  and 89 run on the worktree; one implementer on Opus, cap 40k** (reasoned:
+  the site is `model_amend` at `rota/roles/api.py:2488`, one literal, and the
+  matcher at `:2570` reads the kind; no design review, the frame scopes one
+  pass and one review). Meta workflow.
 
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
