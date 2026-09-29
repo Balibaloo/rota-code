@@ -435,6 +435,16 @@ a different question and the night is then opened once.
   it. Pass 5 cap 30k, no gate until frame 89's pass ends, then one gate, one
   diff review.
 
+- Status 2026-09-29 12:42 (rota-16): **pass 5 fixes the four findings and waits on one
+  gate shared with frame 89** (observed: the door's test file, 113 passed;
+  pass 5 on Opus, 56.5k on the harness line in total after 42.7k, so about
+  14k, 12 tool calls). Meta workflow. A node starts at its first decorator in
+  `_cut` and `_inside`; the moved end stops where the start's statement ends;
+  the moved start applies to any statement with a body and stays inside the
+  body list; a docstring start says the text replaces it. Two readings left
+  for a later frame: `_cut` still reads an `else:` header as aligned, and
+  `excepthandler` is the AST name the seat reads.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -478,6 +488,17 @@ a different question and the night is then opened once.
   different files, `rota/tools/gate.py` and `rota/roles/api.py`, and the gate
   runs once, after the pass). Meta workflow. No design review: the frame's own
   block scopes it to the per-pass review, and the ends-when names the flow.
+
+- Status 2026-09-29 12:42 (rota-16): **pass 1 builds the flow and finds one gap, and pass
+  2 builds on Opus for it** (observed: pass 1 on Opus, 65.9k on the harness
+  line against 60k, 32 tool calls, 13.3 minutes; `test_gate.py` 34 passed; the
+  agent's gate with `--no-rerecord`, 518 s, 0 new reds, 0 stale). Meta workflow.
+  The flow: `_rerecord(env, case_id)` runs the case's own re-earn command once
+  with `ROTA_REFRESH=1` and once plain, in the foreground, by exact node id
+  from `node_of`; `rerecorded <id>: <before> -> <after>` lines print before the
+  five. The gap: a stale case fails its replay and sits in `failed`, so a good
+  re-record still reads as a red. Pass 2, cap 25k: clear the red on a green
+  plain run, and append both runs to the gate log.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
