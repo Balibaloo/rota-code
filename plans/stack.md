@@ -499,6 +499,17 @@ a different question and the night is then opened once.
   the test expects the new whole-statement exit, and every older door wording
   in `tests/rota` is checked once.
 
+- Status 2026-09-29 13:28 (rota-16): **pass 7 finds and fixes a defect in pass 6's
+  whole-statement exit, and waits on the gate** (observed: the try case was
+  offered the enclosing `while`, `start=1, end=7`, because `_inside` counts a
+  boundary on a statement's last line as outside it; now the exit keeps the
+  innermost statement whose lines hold the span, `start=2, end=6`;
+  `test_night46_context.py` and `test_desk_guards.py` 150 passed; pass 7 on
+  Opus, 104.9k in total after 96.7k, so about 8k, 7 tool calls). Meta
+  workflow. No other test in `tests/rota` asserts the older door wording. The
+  older "tail of the try statement" branch stays reachable from the
+  merged-parse door for a whole-file write.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -672,6 +683,18 @@ a different question and the night is then opened once.
   by pass 6's door text. The case re-records now by exact id, refresh then
   plain, with the model up. Pass 5, cap 20k: a new red whose failure text
   carries `STALE` joins the re-record set and its line says so.
+
+- Status 2026-09-29 13:28 (rota-16): **pass 5 lets a red whose failure text carries
+  `STALE` join the re-record, and waits on the gate** (observed: `test_gate.py`
+  39 passed; pass 5 on Opus, 127.6k in total after 104.9k, so about 23k, 16
+  tool calls). Meta workflow. The suite child now runs with `CI=1`, because
+  pytest cuts a `FAILED` line to 80 columns without it and the node id alone is
+  77; the next gate is the check. The cause of a case stale by its failure is
+  reasoned, not observed: `casestatus.status` counts the newest five matching
+  `case_runs` rows and a run that died for want of a cassette writes no row,
+  so a refresh re-record's rows keep the case green while run 5 has no
+  cassette. Read of the cassette key owed, as its own frame if the sign
+  repeats.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
