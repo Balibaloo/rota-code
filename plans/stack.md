@@ -527,6 +527,19 @@ a different question and the night is then opened once.
   a docstring, `excepthandler`. Pass 8 cap 25k, Edit tool only, because a
   second writer is in `api.py` in that worktree.
 
+- Status 2026-09-29 13:57 (rota-16): **pass 8's patch is at `C:/Users/roman/rota_impl91/p92.patch`
+  and waits on the detached gate, which is in its first re-record at 13:5x**
+  (observed: `test_desk_guards.py` and `test_night46_context.py` 154 passed in
+  the worktree; the reviewer's five refused legal probes now pass and parse;
+  pass 8 on Opus, 129.5k in total after 104.9k, so about 25k, 27 tool calls).
+  Meta workflow. `match_case` is a statement, a blank or comment line between
+  two statements of one list is a boundary of that list, the moved boundary is
+  the nearest over every list with the outermost on a tie, and the seat reads
+  `elif`, `docstring`, `except block`, `case`. An insert on the first line of a
+  def's docstring is refused with the line after it offered. Eight passes on
+  Opus in all, about 130k against the 60k priced; the frame's price was one
+  pass for one message and it became the door's rule.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
