@@ -779,6 +779,21 @@ a different question and the night is then opened once.
   calls). Meta workflow. The stale-by-failure prefix is `Failed: STALE `, the
   form pytest writes, and the gate names the ids a stopped loop left.
 
+- Status 2026-09-29 14:11 (rota-16): **the first re-recording gate ran to its end, and the
+  frame's ends-when is observed: four stale cases re-recorded one at a time in
+  the foreground, one known red cleared, three measured as real reds** (observed:
+  `.rota/gate89.log`, 13:45 to 14:09, 618.7 s of suite plus four re-records;
+  `L1-AR-annotate-a-batch` PROV 5/5 to green 5/5 and its red cleared, so
+  `reds gone (1)`; `L1-DV-fix-what-the-verdict-names` 0/5 to 1/5;
+  `L1-VK-answer-a-refactor-proposal` 0/5 to 2/5;
+  `L3-a-challenge-reaches-the-role-that-can-answer-it` 0/5 to 0/5; new reds 1,
+  the flaky map test again). Meta workflow. One low reading for the review of
+  pass 6: a case that re-recorded and still fails keeps the mark `stale by its
+  failure` in the stale line, and it is now a measured red, not a stale case.
+  The three real reds belong to frame 84's kind. Register lines this frame: 2,
+  the gate's GPU sentence and the flaky map test's sign. The three patches are
+  applied to the checkout and the gate runs on them.
+
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
 - **Batch C, the night's stall, found by night 94's read, and it is the wall
