@@ -453,10 +453,11 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
             print(f"note: re-record stopped: {exc!r}")
         else:
             stale = stale_after
-        # A case stale by its failure stays stale until its plain run passes,
-        # because `status` never listed it.
+        # A case stale by its failure stays stale only when it got no run.
+        # After a run it is a measured red, and a second gate must not spend
+        # five more live runs on it (ruled: frame 89's diff review, pass 7).
         by_failure = {case_id for case_id in by_failure
-                      if passed_nodes.get(case_id) is None}
+                      if case_id not in passed_nodes}
         if stale is not None:
             stale = stale | by_failure
         # These lines come before the five, so the last five lines stay the

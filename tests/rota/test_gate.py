@@ -579,6 +579,27 @@ def test_a_red_that_failed_stale_is_rerecorded_and_its_red_clears(
     assert _lines(capsys)[3] == "stale (1): case-a (stale by its failure)"
 
 
+def test_a_stale_failure_whose_plain_run_fails_is_a_measured_red(stage, capsys):
+    """After a re-record ran, the case is a red, so the next gate spends nothing."""
+    stage["log"] = (
+        "..F\n"
+        f"FAILED {_node('case-a')} - Failed: STALE case-a: no recording for "
+        "the current prompt\n"
+        "1 failed, 2 passed in 1.00s\n")
+    stage["failed"] = {_node("case-a")}
+    stage["keeps"] = {"case-a"}
+
+    assert _run(stage, "--baseline", rerecord=True) == 0
+    assert stage["rerecorded"] == [("qwen3:8b", "case-a")]
+    out = _lines(capsys)
+    assert out[1] == ("rerecorded case-a: green 5/5 -> green 5/5, "
+                      "stale by its failure")
+    assert out[5] == "stale (0): none"
+    stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
+    assert stored["failed"] == [_node("case-a")]
+    assert stored["stale"] == []
+
+
 def test_a_read_that_raises_after_the_rerecords_keeps_what_they_earned(
         stage, capsys, monkeypatch):
     """
