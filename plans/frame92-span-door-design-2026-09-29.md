@@ -169,3 +169,18 @@ reach its cap with commits between attempts.
 One design review, 45.5k on Opus, done. One implementer pass on Opus,
 about 60k. One diff review, about 50k. One recorded case, one live call.
 One night.
+
+## 7. Revision 2, amended after pass 2
+
+The recorded case of section 4 is dropped (reasoned: session 00aea66b,
+2026-09-29). Pass 2 wrote `L1-DV-edit-the-def-that-ends-where-the-next-begins`
+on a 30-line fixture with two adjacent defs, and the seat recorded 0/5: it
+wrote the whole file as one `def` line three times, wrote the test file,
+or challenged the Tester, and never sent a span (observed: the five
+transcripts in `case_runs`, 2026-09-29 06:5x, deleted after the read). The
+live seat on night 96 chose spans because the file has 1011 lines and a
+whole-file write does not fit a reply. A case cannot force that choice, and
+a case that passes on a first-try correct span proves nothing about the
+door. The door is held by the four unit tests and proved on the night. The
+frame's ends-when loses its case line. The register line is in
+`plans/operating-facts.md`, the register section.

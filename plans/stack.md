@@ -228,9 +228,10 @@ a different question and the night is then opened once.
 - Ends when: the span door, on a boundary that falls inside a top-level
   statement, names that statement by its `def` line, says which boundary
   fell, and offers the boundary moved to that statement's edge before the
-  whole-statement span; a unit test holds it; a recorded case on the s241
-  shape shows the Developer take that exit; and a night at the closing
-  commit shows a batch that meets the refusal commit between attempts.
+  whole-statement span; four unit tests hold it; and a night at the closing
+  commit shows a batch that meets the refusal commit between attempts. (The
+  case line is dropped, see the record's section 7: a case cannot force a
+  span write on a small fixture, 0/5 observed 2026-09-29.)
   Priced from the anchors: one read of the door and the turns, 30k; one
   design review, 60k on Opus; one pass, 60k on Opus; one diff review,
   50k; one night. (Corrected by 00aea66b on 2026-09-29, see the status of
