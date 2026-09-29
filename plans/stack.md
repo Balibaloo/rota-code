@@ -612,6 +612,15 @@ a different question and the night is then opened once.
   the matcher docstring's "neither", the kinds test's name hides the seeded
   rows.
 
+- Status 2026-09-29 13:54 (rota-16): **pass 3's patch is at `C:/Users/roman/rota_impl91/p91.patch`
+  and waits on the detached gate** (observed: `-k "kind or reach"` 6 passed in
+  the worktree; the two files that use `_grain_path`, 131 passed and the one
+  known red; pass 3 on Opus, 70.6k in total after 58.8k, so about 12k, 6 tool
+  calls). Meta workflow. `_grain_path` strips the prefixes `./` and `/` in a
+  loop, so a dotfile keeps its dot at all 24 callers; the seven that compare
+  with raw index grains now match dotfiles, and the read-check pairs fold the
+  same on both sides. The stored grain is the index row's own spelling.
+
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
 - **No batch. An instrument repair, ruled before batch B's repairs.** It
