@@ -204,7 +204,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 92. A broken indent folds the next function into the write span, and the door names the wrong exit (2026-09-29)
+### 92. A broken indent folds the next function into the write span, and the door names the wrong exit (2026-09-29) (00aea66b)
 
 - **Batch C, the night's stall, found by night 96's walk 2 while it ran.** One
   site: the span door of `code.write`. It touches a door on the write path, so
@@ -249,6 +249,11 @@ a different question and the night is then opened once.
   `C:/Users/roman/rota_night96` at `f933f25` and `.rota/launch_night96.sh`
   serve the next night with the commit changed; `.rota/clickI_warm.db` is
   the warm start. Session b4768744 stops here, holding nothing.
+- Status 2026-09-29 05:46 (rota-ba): **taken by 00aea66b at `310f727`, with
+  frames 88, 86 and 59 validating and 61 parked as the hand-off carries them**
+  (observed: `take` exit 0 at 05:46). Meta workflow. Next: the state to Roman,
+  and his order between frame 92, frame 87 and the two small repairs 89 and
+  91.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
