@@ -8573,31 +8573,123 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                         out.extend(x for x in part if hasattr(x, "lineno"))
                 return out
 
+            def _end(n):
+                return getattr(n, "end_lineno", n.lineno)
+
             def _cut(nodes, b):
+                # The path of (node, lo, hi) from the top-level statement to
+                # the innermost statement the boundary falls inside.
                 for n in nodes:
-                    lo, hi = n.lineno - 1, getattr(n, "end_lineno", n.lineno)
+                    lo, hi = n.lineno - 1, _end(n)
                     if lo < b < hi:
                         kids = _children(n)
-                        if any(k.lineno - 1 == b or getattr(k, "end_lineno", k.lineno) == b
-                               for k in kids):
+                        if any(k.lineno - 1 == b or _end(k) == b for k in kids):
                             return "aligned"     # on a child's boundary: whole statements
                         inner = _cut(kids, b)
                         if inner == "aligned":
                             return "aligned"
-                        return inner or (n, lo, hi)
+                        return [(n, lo, hi)] + (inner or [])
                 return None
 
-            for b in (start, stop):
-                hit = _cut(original.body if original else [], b)
-                if hit and hit != "aligned":
-                    n, lo, hi = hit
-                    name = getattr(n, "name", None) or type(n).__name__.lower()
-                    raise ValueError(
-                        f"start={start}, end={end} cuts through {name} "
-                        f"(lines {lo} to {hi} in code.source numbering). A span "
-                        f"replaces whole statements: to replace {name} send "
-                        f"start={lo}, end={hi}; to add after it send "
-                        f"start={hi}, end={hi}")
+            def _inside(nodes, b):
+                # The same path for a boundary that falls on a child's
+                # boundary, so the message can say where that boundary is.
+                for n in nodes:
+                    lo, hi = n.lineno - 1, _end(n)
+                    if lo < b < hi:
+                        return [(n, lo, hi)] + _inside(_children(n), b)
+                return []
+
+            def _kind(n):
+                return getattr(n, "name", None) or type(n).__name__.lower()
+
+            tops = original.body if original else []
+            cuts = {b: _cut(tops, b) for b in (start, stop)}
+            if any(isinstance(c, list) for c in cuts.values()):
+                # Click night 96 (2026-09-29): s241 sent both boundaries one
+                # line late. The refusal named only get_pager_file and its
+                # exits, and the seat was editing confirm. The seat needs
+                # the file's own lines at its boundaries, which code.source
+                # does not number (observed: turns of s241).
+                at_start = isinstance(cuts[start], list)
+                path = cuts[start] if at_start else cuts[stop]
+                label = f"start={start}" if at_start else f"end={end}"
+                other = _inside(tops, stop if at_start else start)
+                one_def = bool(other) and other[0][0] is path[0][0]
+                top, inner = path[0], path[-1]
+                # Night 52's loop came from offering the whole function
+                # for an edit inside it, so one definition names the
+                # innermost statement.
+                named = inner if one_def or not getattr(top[0], "name", None) else top
+                name, lo, hi = _kind(named[0]), named[1], named[2]
+                head = (f"start={start}, end={end}: {label} falls inside {name} "
+                        f"(lines {lo} to {hi} in code.source numbering)")
+                if named is not inner:
+                    parent = path[-2][0]
+                    first = getattr(parent, "body", [None])[0]
+                    doc = (inner[0] is first and isinstance(inner[0], _ast.Expr)
+                           and isinstance(getattr(inner[0].value, "value", None), str))
+                    head += (f", in its {'docstring' if doc else _kind(inner[0])} "
+                             f"at lines {inner[1]} to {inner[2]}")
+                if other and not one_def:
+                    o_label = f"end={end}" if at_start else f"start={start}"
+                    o_cut = cuts[stop if at_start else start]
+                    verb = "also falls inside" if isinstance(o_cut, list) else "is inside"
+                    on, olo, ohi = other[0]
+                    head += f"; {o_label} {verb} {_kind(on)} (lines {olo} to {ohi})"
+                parts = [head + "."]
+                for i in sorted({start, stop - 1, stop}):
+                    if 0 <= i < len(lines):
+                        parts.append(f"Line {i} is '{lines[i].rstrip()[:60]}'.")
+                body = text.splitlines()
+
+                def _near(want, at):
+                    # A fact, not a guess: the text's line is in the file
+                    # within three lines of the boundary.
+                    if not want.strip():
+                        return None
+                    if 0 <= at < len(lines) and lines[at].rstrip() == want.rstrip():
+                        return None
+                    for k in sorted(range(at - 3, at + 4), key=lambda k: (abs(k - at), k)):
+                        if 0 <= k < len(lines) and lines[k].rstrip() == want.rstrip():
+                            return k
+                    return None
+
+                if body:
+                    k = _near(body[0], start)
+                    if k is not None:
+                        parts.append(f"Your text's first line is line {k} of the file, "
+                                     f"so a span that replaces it starts at start={k}.")
+                    k = _near(body[-1], stop - 1)
+                    if k is not None:
+                        parts.append(f"Your text's last line is line {k} of the file, "
+                                     f"so a span that replaces it ends at end={k + 1}.")
+                # The moved boundary comes from the shallowest level where
+                # the two boundaries part. At the top level, s241's exit
+                # would be the file's defs, not confirm's inner statements.
+                ps, pe = _inside(tops, start), _inside(tops, stop)
+                d = 0
+                while d < len(ps) and d < len(pe) and ps[d][0] is pe[d][0]:
+                    d += 1
+                if start < stop and not at_start and d < len(pe) and start < pe[d][1]:
+                    n, nlo = pe[d][0], pe[d][1]
+                    side = getattr(ps[d][0], "name", None) if d < len(ps) else None
+                    parts.append(f"To edit {side} alone send end={nlo}, which stops "
+                                 f"before {_kind(n)}." if side else
+                                 f"To stop before {_kind(n)} send end={nlo}.")
+                elif start < stop and at_start and d < len(ps) and ps[d][2] < stop:
+                    n, nhi = ps[d][0], ps[d][2]
+                    side = getattr(pe[d][0], "name", None) if d < len(pe) else None
+                    parts.append(f"To edit {side} alone send start={nhi}, which starts "
+                                 f"after {_kind(n)}." if side else
+                                 f"To start after {_kind(n)} send start={nhi}.")
+                if start == stop:
+                    parts.append(f"An insert goes between whole statements: to add "
+                                 f"after {name} send start={hi}, end={hi}")
+                else:
+                    parts.append(f"To replace {name} whole send start={lo}, end={hi}; "
+                                 f"to add after it send start={hi}, end={hi}")
+                raise ValueError(" ".join(parts))
         nl = chr(10)
         fragment = text
         text = nl.join(lines[:start] + text.splitlines() + lines[stop:]) + nl

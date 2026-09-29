@@ -1966,11 +1966,69 @@ def test_a_span_that_cuts_a_statement_is_told_where_the_boundaries_are(db, tmp_p
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="batch_start",
                allow=prompts.mode_tools("developer", "batch_start"))
-    with pytest.raises(ValueError, match=r"cuts through echo \(lines 3 to 8.*start=8, end=8"):
+    with pytest.raises(ValueError, match=r"falls inside echo \(lines 3 to 8.*start=8, end=8"):
         sb.call("code.write", path="m.py", start=5, end=8, text="def echo_json(o):\n    print(json.dumps(o))\n")
     out = sb.call("code.write", path="m.py", start=8, end=8, text="\n\ndef echo_json(o):\n    print(json.dumps(o))\n")
     assert out["bytes"]
     assert "def echo_json" in (root / "m.py").read_text() and "def other" in (root / "m.py").read_text()
+
+
+def _span_refusal(db, tmp_path, src, start, end, text):
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_text(src)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError) as err:
+        sb.call("code.write", path="m.py", start=start, end=end, text=text)
+    return str(err.value)
+
+
+def test_a_span_one_line_late_is_shown_the_file_at_its_boundaries(db, tmp_path):
+    """Click night 96 (2026-09-29): s241 sent both boundaries one line late
+    across two defs with no blank line between them. The refusal named only
+    the second def, and the seat was editing the first."""
+    src = ("def confirm(x):\n    if x:\n        return 1\n    return 0\n"
+           "def pager(\n    a,\n):\n    return a\n")
+    msg = _span_refusal(db, tmp_path, src, 2, 5, "    if x:\n        return 2\n")
+    assert "end=5 falls inside pager (lines 4 to 8" in msg
+    assert "start=2 is inside confirm (lines 0 to 4)" in msg
+    assert "Line 2 is '        return 1'" in msg and "Line 4 is 'def pager('" in msg
+    assert "start=1" in msg
+    assert "To edit confirm alone send end=4, which stops before pager" in msg
+
+
+def test_a_boundary_in_a_docstring_names_the_def_and_the_docstring(db, tmp_path):
+    """Click night 96 (2026-09-29): s225's end fell in get_pager_file's
+    docstring, the door offered `expr`, and the seat wrote over the docstring."""
+    src = ("def a():\n    x = 1\n    return x\n"
+           "def b():\n    \"\"\"Doc\n    more.\n    \"\"\"\n    return 2\n")
+    msg = _span_refusal(db, tmp_path, src, 2, 5, "    return 3\n")
+    assert "end=5 falls inside b (lines 3 to 8" in msg
+    assert "in its docstring at lines 4 to 7" in msg
+    assert "expr" not in msg
+
+
+def test_two_boundaries_inside_one_def_name_the_innermost_statement(db, tmp_path):
+    """Click night 52 (2026-09-14): offering the whole function for an edit
+    inside it looped three sessions."""
+    src = "def confirm(text):\n    x = 1\n    value = f(\n        text)\n    return value\n"
+    msg = _span_refusal(db, tmp_path, src, 1, 3, "    x = 2\n")
+    assert "end=3 falls inside assign (lines 2 to 4" in msg
+    assert "falls inside confirm" not in msg
+    assert "To replace assign whole send start=2, end=4" in msg
+
+
+def test_a_span_from_the_top_into_the_first_statement_gets_no_moved_boundary(db, tmp_path):
+    """An end inside the first statement with start=0 has no moved end:
+    end=0 is an empty span."""
+    src = "def a(\n    x,\n):\n    return x\n\n\ndef b():\n    return 1\n"
+    msg = _span_refusal(db, tmp_path, src, 0, 1, "def a(x):\n")
+    assert "end=1 falls inside a (lines 0 to 4" in msg
+    assert "alone" not in msg and "stop before" not in msg
+    assert "To replace a whole send start=0, end=4" in msg
 
 
 def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):
