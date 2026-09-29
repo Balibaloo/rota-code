@@ -510,6 +510,11 @@ a different question and the night is then opened once.
   older "tail of the try statement" branch stays reachable from the
   merged-parse door for a whole-file write.
 
+- Status 2026-09-29 13:47 (rota-16): **passes 6 and 7 are committed at `6e993d0`, and the
+  diff review runs on the worktree** (observed: the gate here at 13:4x with `--no-rerecord`, 511.3 s: suite 24 failed and 2379 passed against the stored 23 and 2324; new reds 1, `test_map.py::test_the_fixture_project_contributes_no_table`, flaky: its captured output held a handover standby's `no claim in 10s` line and it passed alone; reds gone 0; stale 4, all known reds marked stale by their failure). Meta workflow. Review on Opus, cap
+  40k, seven points, the first on over-refusal of a legal span. On a pass the
+  frame goes back to validating at `6e993d0` for the next night.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -578,6 +583,11 @@ a different question and the night is then opened once.
   judges a `symbol` row by its file; one matcher test. One reading for the
   review: the fold strips a leading `/`, so an indexed route would be stored
   without it, and no index holds a route today.
+
+- Status 2026-09-29 13:47 (rota-16): **pass 2 is committed at `634779f`, and its diff
+  review runs on the worktree** (observed: the gate here at 13:4x with `--no-rerecord`, 511.3 s: suite 24 failed and 2379 passed against the stored 23 and 2324; new reds 1, `test_map.py::test_the_fixture_project_contributes_no_table`, flaky: its captured output held a handover standby's `no claim in 10s` line and it passed alone; reds gone 0; stale 4, all known reds marked stale by their failure). Meta workflow. Review on Opus, cap
+  25k, six points. On a pass the frame closes; the ruling on a table binding
+  under an index stays owed and does not block.
 
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
@@ -695,6 +705,18 @@ a different question and the night is then opened once.
   so a refresh re-record's rows keep the case green while run 5 has no
   cassette. Read of the cassette key owed, as its own frame if the sign
   repeats.
+
+- Status 2026-09-29 13:47 (rota-16): **passes 4 and 5 are committed at `bd8a6f8`, the diff
+  review runs on the worktree, and the first re-recording gate runs detached
+  as the acceptance** (observed: the gate here at 13:4x with `--no-rerecord`, 511.3 s: suite 24 failed and 2379 passed against the stored 23 and 2324; new reds 1, `test_map.py::test_the_fixture_project_contributes_no_table`, flaky: its captured output held a handover standby's `no claim in 10s` line and it passed alone; reds gone 0; stale 4, all known reds marked stale by their failure). Meta workflow. The four stale known reds are
+  `L1-AR-annotate-a-batch`, `L1-DV-fix-what-the-verdict-names`,
+  `L1-VK-answer-a-refactor-proposal` and
+  `L3-a-challenge-reaches-the-role-that-can-answer-it`; the gate's own
+  re-record of them is `.rota/launch_gate89.sh`, log `.rota/gate89.log`,
+  launched 13:45 at `634779f` with `Start-Process`, because a tool call
+  caps at ten minutes and four re-records take about forty. Register line
+  owed on its read: the ten-minute cap holds for a re-recording gate as for
+  a night. Review on Opus, cap 30k, eight points.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
