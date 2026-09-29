@@ -2040,7 +2040,7 @@ def test_a_moved_boundary_names_only_a_definition_as_the_thing_to_edit(db, tmp_p
     msg = _span_refusal(db, tmp_path, src, 4, 7, "        pass\n")
     assert "end=7 falls inside assign (lines 6 to 8" in msg
     assert "err alone" not in msg
-    assert "To stop where excepthandler ends send end=5." in msg
+    assert "To stop where except block ends send end=5." in msg
     assert "end=6" not in msg
     out = _write(db, tmp_path, 4, 5, "        pass\n")
     assert out["bytes"]
@@ -2132,7 +2132,7 @@ def test_a_moved_end_in_an_elif_body_stops_before_the_else_header(db, tmp_path):
     """Frame 92's diff review of pass 5 (2026-09-29): end=14 took the else:
     header, and the else body joined the elif body."""
     msg = _span_refusal(db, tmp_path, _TRY, 12, 15, "        e = 7\n")
-    assert "To stop where the body of if ends send end=13." in msg
+    assert "To stop where the body of elif ends send end=13." in msg
     assert "end=14" not in msg
     assert _passes(db, tmp_path, _TRY, 12, 13)
 
@@ -2179,7 +2179,7 @@ def test_a_span_that_ends_on_a_finally_header_is_refused(db, tmp_path):
     on the finally: header and passed."""
     msg = _span_refusal(db, tmp_path, _TRY, 6, 8, "        c = 4\n")
     assert "end=8 is in the finally block of try." in msg
-    assert "To stop where excepthandler ends send end=7." in msg
+    assert "To stop where except block ends send end=7." in msg
     assert "To replace try whole send start=1, end=9." in msg
     for s, e in ((6, 7), (1, 9)):
         assert _passes(db, tmp_path, _TRY, s, e)
@@ -2193,6 +2193,59 @@ def test_a_start_on_a_decorated_def_line_names_the_decorators(db, tmp_path):
     assert "start=3 is below the decorators of f, which start at line 0." in msg
     assert "To replace f whole send start=0, end=6." in msg
     assert _passes(db, tmp_path, src, 0, 6)
+
+
+_MATCH = ("def a():\n    x = 1\n    # note\n    y = 2\n\n\n    z = 3\n"
+          "def d(v):\n    match v:\n        case 1:\n            r = 1\n            s = 2\n"
+          "        case _:\n            r = 0\n    return r\n")
+
+
+def test_an_edit_inside_a_case_body_is_accepted(db, tmp_path):
+    """Frame 92's diff review of 6e993d0 (2026-09-29): every edit inside a
+    case body was refused as falling inside match."""
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    for s, e in ((10, 11), (9, 12)):
+        assert _passes(db, tmp_path, _MATCH, s, e)
+    (root / "m.py").write_text(_MATCH)
+    assert _write(db, tmp_path, 11, 11, "            t = 1\n")["bytes"]
+
+
+def test_a_boundary_on_a_blank_line_between_statements_is_accepted(db, tmp_path):
+    """Frame 92's diff review of 6e993d0 (2026-09-29): an insert on the
+    blank lines inside a def was refused as a cut of the def."""
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    (root / "m.py").write_text(_MATCH)
+    assert _write(db, tmp_path, 5, 5, "    w = 0\n")["bytes"]
+    assert _passes(db, tmp_path, _MATCH, 4, 7)
+
+
+def test_an_elif_clause_span_is_offered_the_elif_from_its_own_line(db, tmp_path):
+    """Frame 92's diff review of 6e993d0 (2026-09-29): the span 9 to 11 was
+    offered start=10, and the elif header was dropped."""
+    src = ("def b():\n    if x:\n        y = 1\n    elif z:\n        y = 2\n"
+           "    else:\n        y = 3\n    return y\n")
+    msg = _span_refusal(db, tmp_path, src, 3, 5, "    elif z:\n        y = 5\n")
+    assert "To replace elif whole send start=3, end=7." in msg
+    assert _passes(db, tmp_path, src, 3, 7)
+
+
+def test_the_refusal_names_statements_with_the_words_of_the_source(db, tmp_path):
+    """Frame 92's diff review of 6e993d0 (2026-09-29): the seat read an
+    elif as if, a docstring as expr and an except handler as excepthandler."""
+    src = ("def f():\n    '''Doc.'''\n    try:\n        a = 1\n    except E as err:\n"
+           "        b = 2\n    if p:\n        c = 3\n    elif q:\n        d = (\n            4)\n")
+    msg = _span_refusal(db, tmp_path, src, 5, 10, "        b = 3\n")
+    assert "To stop where except block ends send end=6." in msg
+    assert "excepthandler" not in msg and "err" not in msg
+    (tmp_path / "wt" / "m.py").write_text(src)
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 1, 1, "    w = 0\n")
+    assert "line 1 is the docstring of f. Your text goes before it." in str(err.value)
+    assert "start=2, end=2" in str(err.value)
 
 
 def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):

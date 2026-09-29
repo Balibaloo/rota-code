@@ -8579,23 +8579,45 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             # with only the whole-function spans offered, and the loop
             # never landed a line. The refusal names the innermost
             # statement a boundary falls inside.
+            # Frame 92's diff review of 6e993d0 (2026-09-29): every edit
+            # inside a case body was refused as "falls inside match". A
+            # match_case has no line numbers of its own, so it runs from its
+            # pattern to the end of its body.
+            _fields = ("body", "orelse", "finalbody", "handlers", "cases")
+
+            def _stmts(part):
+                if not isinstance(part, list):
+                    return []
+                return [x for x in part
+                        if hasattr(x, "lineno") or isinstance(x, _ast.match_case)]
+
             def _children(n):
                 out = []
-                for field in ("body", "orelse", "finalbody", "handlers"):
-                    part = getattr(n, field, None)
-                    if isinstance(part, list):
-                        out.extend(x for x in part if hasattr(x, "lineno"))
+                for field in _fields:
+                    out.extend(_stmts(getattr(n, field, None)))
                 return out
 
             def _end(n):
+                if isinstance(n, _ast.match_case):
+                    return _end(n.body[-1])
                 return getattr(n, "end_lineno", n.lineno)
 
             def _lo(n):
                 # A decorated def starts at its first decorator. Frame 92's
                 # diff review of pass 4 (2026-09-29): a whole-def span began
                 # at the def line and left the decorators above it.
+                if isinstance(n, _ast.match_case):
+                    return n.pattern.lineno - 1
                 decs = getattr(n, "decorator_list", None) or []
                 return min([n.lineno] + [x.lineno for x in decs]) - 1
+
+            def _gap(ns, b):
+                # A boundary on a statement's edge, or on a blank or comment
+                # line between two statements of one list, is whole in that
+                # list. The review saw 5..5 in a def's blank lines refused.
+                if any(_lo(s) == b or _end(s) == b for s in ns):
+                    return True
+                return any(_end(x) < b < _lo(y) for x, y in zip(ns, ns[1:]))
 
             def _cut(nodes, b):
                 # The path of (node, lo, hi) from the top-level statement to
@@ -8604,7 +8626,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     lo, hi = _lo(n), _end(n)
                     if lo < b < hi:
                         kids = _children(n)
-                        if any(_lo(k) == b or _end(k) == b for k in kids):
+                        if _gap(kids, b):
                             return "aligned"     # on a child's boundary: whole statements
                         inner = _cut(kids, b)
                         if inner == "aligned":
@@ -8621,18 +8643,30 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                         return [(n, lo, hi)] + _inside(_children(n), b)
                 return []
 
-            def _kind(n):
-                return getattr(n, "name", None) or type(n).__name__.lower()
-
             _defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
-            _block = {"body": "body", "orelse": "else block",
+            _block = {"body": "body", "orelse": "else block", "cases": "cases",
                       "finalbody": "finally block", "handlers": "except blocks"}
+            # The seat reads the word the source shows. The review of
+            # 6e993d0 (2026-09-29) saw an elif named if and a docstring expr.
+            _plain = {"excepthandler": "except block", "asyncfor": "async for",
+                      "asyncwith": "async with", "trystar": "try",
+                      "augassign": "assignment", "match_case": "case"}
 
             def _what(n):
                 # Only a definition is a thing to edit alone. The diff
                 # review of pass 1 saw "To edit err alone" from an except
                 # handler's bound name.
-                return n.name if isinstance(n, _defs) else type(n).__name__.lower()
+                if isinstance(n, _defs):
+                    return n.name
+                if (isinstance(n, _ast.If) and 0 < n.lineno <= len(lines)
+                        and lines[n.lineno - 1].lstrip().startswith("elif")):
+                    return "elif"
+                if isinstance(n, _ast.Expr) and isinstance(getattr(n.value, "value", None), str):
+                    return "docstring"
+                word = type(n).__name__.lower()
+                return _plain.get(word, word)
+
+            _kind = _what
 
             def _lists(nodes, parent, field, b, top=False):
                 # Frame 92's diff review of pass 5 (2026-09-29): each
@@ -8643,15 +8677,13 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 # sits in, the outermost first. The top level also takes
                 # the lines between statements.
                 out = []
-                if (any(_lo(s) == b or _end(s) == b for s in nodes)
+                if (_gap(nodes, b)
                         or (top and not any(_lo(s) < b < _end(s) for s in nodes))):
                     out.append((parent, field, nodes))
                 for s in nodes:
                     if _lo(s) < b <= _end(s):
-                        for f in ("body", "orelse", "finalbody", "handlers"):
-                            part = getattr(s, f, None)
-                            kids = [x for x in part if hasattr(x, "lineno")] \
-                                if isinstance(part, list) else []
+                        for f in _fields:
+                            kids = _stmts(getattr(s, f, None))
                             if kids:
                                 out.extend(_lists(kids, s, f, b))
                 return out
@@ -8662,21 +8694,27 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             def _bounds(ns):
                 return {_lo(s) for s in ns} | {_end(s) for s in ns}
 
+            # The review of 6e993d0 (2026-09-29): the innermost list first
+            # moved a start past def n when the outer list had def n's own
+            # line. The nearest boundary over all lists wins. On a tie the
+            # outermost list wins, because its span keeps the header.
             def _moved_end(a, b):
-                # The last boundary before b in a list that a sits in.
-                for p, f, ns in reversed(_at(a)):
+                # The last boundary at or before b in a list that a sits in.
+                best = None
+                for p, f, ns in _at(a):
                     ok = [x for x in _bounds(ns) if a < x <= b]
-                    if ok:
-                        return p, f, ns, max(ok)
-                return None
+                    if ok and (best is None or max(ok) > best[3]):
+                        best = (p, f, ns, max(ok))
+                return best
 
             def _moved_start(a, b):
-                # The first boundary after a in a list that b sits in.
-                for p, f, ns in reversed(_at(b)):
+                # The first boundary at or after a in a list that b sits in.
+                best = None
+                for p, f, ns in _at(b):
                     ok = [x for x in _bounds(ns) if a <= x < b]
-                    if ok:
-                        return p, f, ns, min(ok)
-                return None
+                    if ok and (best is None or min(ok) < best[3]):
+                        best = (p, f, ns, min(ok))
+                return best
 
             def _end_offer(m):
                 p, f, ns, x = m
@@ -8808,6 +8846,19 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     parts.append(f"To replace {name} whole send start={lo}, end={hi}.")
                     parts.append(f"To add after it send start={hi}, end={hi}.")
                 raise ValueError(" ".join(parts))
+            # The review of 6e993d0 (2026-09-29): an insert on a docstring's
+            # first line passed and turned the docstring into an expression.
+            # A refusal here is smaller than a note in the write's result.
+            if start == stop:
+                for p, f, ns in _at(start):
+                    if (isinstance(p, _defs) and f == "body" and _lo(ns[0]) == start
+                            and _what(ns[0]) == "docstring"):
+                        after = _end(ns[0])
+                        raise ValueError(
+                            f"start={start}, end={end}: line {start} is the docstring "
+                            f"of {p.name}. Your text goes before it. Then the docstring "
+                            f"is no longer a docstring. To add after the docstring "
+                            f"send start={after}, end={after}.")
             sl, el = _at(start), _at(stop)
             if start < stop and not any(a[0] is b[0] and a[1] == b[1] for a in sl for b in el):
                 # Frame 92's diff review of pass 5 (2026-09-29): both
