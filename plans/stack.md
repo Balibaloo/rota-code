@@ -476,6 +476,20 @@ a different question and the night is then opened once.
   every offered boundary lands in that list. The reviewer's probes become
   tests. Then the gate, the commit, one review.
 
+- Status 2026-09-29 13:14 (rota-16): **pass 6 builds the one field-list rule and waits on
+  one gate shared with frames 89 and 91** (observed: `test_desk_guards.py` 119
+  passed; the reviewer's two probe files run unchanged and every span but the
+  one whole span is now refused; pass 6 on Opus, 96.7k on the harness line in
+  total after 56.5k, so about 40k against 35k, 19 tool calls, 5.3 minutes).
+  Meta workflow. `_lists` names every statement list a boundary sits in, a
+  moved end stops at the last boundary of the start's list at or before the
+  end, a moved start begins at the first boundary of the end's list at or
+  after the start, and a span whose two whole boundaries share no list is
+  refused with both moved edges and the innermost statement whole. The
+  branches of passes 4 and 5 are gone. Two readings for the review: the seat
+  reads AST type names such as `excepthandler`; an insert on a clause header
+  is not checked.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
