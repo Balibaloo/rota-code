@@ -1997,7 +1997,8 @@ def test_a_span_one_line_late_is_shown_the_file_at_its_boundaries(db, tmp_path):
     assert "start=2 is inside confirm (lines 0 to 4)" in msg
     assert "Line 2 is '        return 1'" in msg and "Line 4 is 'def pager('" in msg
     assert "start=1" in msg
-    assert "To edit confirm alone send end=4, which is where confirm ends." in msg
+    assert "To stop where if ends send end=3." in msg
+    assert "end=4, which" not in msg
 
 
 def test_a_boundary_in_a_docstring_names_the_def_and_the_docstring(db, tmp_path):
@@ -2094,7 +2095,7 @@ def test_an_end_on_a_docstring_gets_the_whole_def_and_no_moved_start(db, tmp_pat
 
 def test_an_end_inside_a_loop_gets_a_start_at_the_loop_body(db, tmp_path):
     """Frame 92's diff review of pass 4 (2026-09-29): an end inside a for
-    loop got no moved start, and the old code offered one."""
+    loop got no moved start, and the old code offered none."""
     src = ("def a(x):\n    y = f(\n        x)\n    return y\n"
            "for i in r:\n    p = 1\n    q = 2\nz = 3\n")
     msg = _span_refusal(db, tmp_path, src, 2, 6, "    p = 9\n")
@@ -2114,6 +2115,84 @@ def test_a_whole_decorated_def_starts_at_its_first_decorator(db, tmp_path):
     out = _write(db, tmp_path, 4, 7, "@dec\ndef b():\n    return 2\n")
     assert out["bytes"]
     assert (tmp_path / "wt" / "m.py").read_text().count("@dec") == 1
+
+
+def _passes(db, tmp_path, src, start, end):
+    (tmp_path / "wt" / "m.py").write_text(src)
+    lines = src.splitlines(keepends=True)
+    return _write(db, tmp_path, start, end, "".join(lines[start:end]))["bytes"]
+
+
+_TRY = ("def g():\n    try:\n        a = 1\n    except E:\n        b = (\n            2)\n"
+        "        c = 3\n    finally:\n        d = 4\n    if x:\n        e = 5\n    elif y:\n"
+        "        e = 6\n    else:\n        h = (\n            6)\n        k = 7\n")
+
+
+def test_a_moved_end_in_an_elif_body_stops_before_the_else_header(db, tmp_path):
+    """Frame 92's diff review of pass 5 (2026-09-29): end=14 took the else:
+    header, and the else body joined the elif body."""
+    msg = _span_refusal(db, tmp_path, _TRY, 12, 15, "        e = 7\n")
+    assert "To stop where the body of if ends send end=13." in msg
+    assert "end=14" not in msg
+    assert _passes(db, tmp_path, _TRY, 12, 13)
+
+
+def test_a_moved_end_in_a_loop_body_stops_before_the_else_header(db, tmp_path):
+    """Frame 92's diff review of pass 5 (2026-09-29): end=7 took the loop's
+    else: header."""
+    src = ("def g():\n    u = (\n        1)\n    for i in r:\n        p = 1\n        q = 2\n"
+           "    else:\n        w = (\n            3)\n        v = 4\n    z = 5\n")
+    msg = _span_refusal(db, tmp_path, src, 4, 8, "        p = 2\n")
+    assert "To stop where the body of for ends send end=6." in msg
+    assert "end=7" not in msg
+    assert _passes(db, tmp_path, src, 4, 6)
+
+
+def test_a_moved_end_in_a_try_body_stops_before_the_finally_header(db, tmp_path):
+    """Frame 92's diff review of pass 5 (2026-09-29): end=4 took the
+    finally: header."""
+    src = "def g():\n    try:\n        a = 1\n    finally:\n        d = (\n            4)\n"
+    msg = _span_refusal(db, tmp_path, src, 2, 5, "        a = 2\n")
+    assert "To stop where the body of try ends send end=3." in msg
+    assert "end=4" not in msg
+    assert _passes(db, tmp_path, src, 2, 3)
+
+
+def test_a_span_from_one_def_into_the_next_is_refused_with_both_edges(db, tmp_path):
+    """Frame 92's diff review of pass 5 (2026-09-29): each boundary was
+    whole alone, and the span removed the header of async def h."""
+    src = ("x = (\n    1)\nclass C:\n    '''Doc.'''\n    a = 1\n    b = 2\n"
+           "async def h():\n    '''D.'''\n    await y\n    return 1\n")
+    msg = _span_refusal(db, tmp_path, src, 4, 8, "    a = 2\n")
+    assert "crosses from one block to another" in msg
+    assert "start=4 is in the body of C." in msg and "end=8 is in the body of h." in msg
+    assert "To edit C alone send end=6, which is where C ends." in msg
+    assert "To edit inside h send start=7, which is where the body of h starts." in msg
+    assert "Your text replaces the docstring too." in msg
+    assert "To replace the whole top-level statements send start=2, end=10." in msg
+    for s, e in ((4, 6), (7, 8), (2, 10)):
+        assert _passes(db, tmp_path, src, s, e)
+
+
+def test_a_span_that_ends_on_a_finally_header_is_refused(db, tmp_path):
+    """Frame 92's diff review of pass 5 (2026-09-29): the span 6 to 8 ended
+    on the finally: header and passed."""
+    msg = _span_refusal(db, tmp_path, _TRY, 6, 8, "        c = 4\n")
+    assert "end=8 is in the finally block of try." in msg
+    assert "To stop where excepthandler ends send end=7." in msg
+    assert "To replace try whole send start=1, end=9." in msg
+    for s, e in ((6, 7), (1, 9)):
+        assert _passes(db, tmp_path, _TRY, s, e)
+
+
+def test_a_start_on_a_decorated_def_line_names_the_decorators(db, tmp_path):
+    """Frame 92's diff review of pass 5 (2026-09-29): a start on the def
+    line was refused with no word about the decorators."""
+    src = "@dec\n@dec2(\n    1)\ndef f():\n    a = 1\n    return a\nx = 1\n"
+    msg = _span_refusal(db, tmp_path, src, 3, 6, "def f():\n    return 1\n")
+    assert "start=3 is below the decorators of f, which start at line 0." in msg
+    assert "To replace f whole send start=0, end=6." in msg
+    assert _passes(db, tmp_path, src, 0, 6)
 
 
 def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):

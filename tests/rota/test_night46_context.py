@@ -493,7 +493,7 @@ def test_a_fragment_that_is_the_tail_of_a_try_names_the_whole_statement(tmp_path
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
     tail = '        except (EOFError, OSError):\n            return None\n'
-    with pytest.raises(ValueError, match=r"tail of the try statement at lines 2 to 6; send that whole statement"):
+    with pytest.raises(ValueError, match=r"To replace try whole send start=2, end=6\."):
         sb.call("code.write", path="src/termui.py", text=tail, start=3, end=6)  # leaves `try:` with no body: the merge fails
 
 

@@ -8619,6 +8619,98 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             def _kind(n):
                 return getattr(n, "name", None) or type(n).__name__.lower()
 
+            _defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
+            _block = {"body": "body", "orelse": "else block",
+                      "finalbody": "finally block", "handlers": "except blocks"}
+
+            def _what(n):
+                # Only a definition is a thing to edit alone. The diff
+                # review of pass 1 saw "To edit err alone" from an except
+                # handler's bound name.
+                return n.name if isinstance(n, _defs) else type(n).__name__.lower()
+
+            def _lists(nodes, parent, field, b, top=False):
+                # Frame 92's diff review of pass 5 (2026-09-29): each
+                # boundary passed alone, and a span from class C into
+                # async def h removed the header of h. A span is whole only
+                # when both boundaries sit in one field list of one parent.
+                # This gives each (parent, field, statements) list that b
+                # sits in, the outermost first. The top level also takes
+                # the lines between statements.
+                out = []
+                if (any(_lo(s) == b or _end(s) == b for s in nodes)
+                        or (top and not any(_lo(s) < b < _end(s) for s in nodes))):
+                    out.append((parent, field, nodes))
+                for s in nodes:
+                    if _lo(s) < b <= _end(s):
+                        for f in ("body", "orelse", "finalbody", "handlers"):
+                            part = getattr(s, f, None)
+                            kids = [x for x in part if hasattr(x, "lineno")] \
+                                if isinstance(part, list) else []
+                            if kids:
+                                out.extend(_lists(kids, s, f, b))
+                return out
+
+            def _at(b):
+                return _lists(tops, None, "body", b, True)
+
+            def _bounds(ns):
+                return {_lo(s) for s in ns} | {_end(s) for s in ns}
+
+            def _moved_end(a, b):
+                # The last boundary before b in a list that a sits in.
+                for p, f, ns in reversed(_at(a)):
+                    ok = [x for x in _bounds(ns) if a < x <= b]
+                    if ok:
+                        return p, f, ns, max(ok)
+                return None
+
+            def _moved_start(a, b):
+                # The first boundary after a in a list that b sits in.
+                for p, f, ns in reversed(_at(b)):
+                    ok = [x for x in _bounds(ns) if a <= x < b]
+                    if ok:
+                        return p, f, ns, min(ok)
+                return None
+
+            def _end_offer(m):
+                p, f, ns, x = m
+                if p is not None and x == _end(ns[-1]):
+                    if x == _end(p) and isinstance(p, _defs):
+                        return f"To edit {p.name} alone send end={x}, which is where {p.name} ends."
+                    if x == _end(p):
+                        return f"To stop where {_what(p)} ends send end={x}."
+                    return f"To stop where the {_block[f]} of {_what(p)} ends send end={x}."
+                nxt = [s for s in ns if _lo(s) == x]
+                if nxt:
+                    return f"To stop before {_what(nxt[0])} send end={x}."
+                prev = [s for s in ns if _end(s) == x]
+                return f"To stop after {_what(prev[-1])} send end={x}."
+
+            def _start_offer(m):
+                p, f, ns, x = m
+                if p is not None and x == _lo(ns[0]):
+                    what, b0 = _what(p), ns[0]
+                    out = (f"To edit inside {what} send start={x}, "
+                           f"which is where the {_block[f]} of {what} starts.")
+                    if (isinstance(p, _defs) and f == "body" and isinstance(b0, _ast.Expr)
+                            and isinstance(getattr(b0.value, "value", None), str)):
+                        out += " Your text replaces the docstring too."
+                    return out
+                prev = [s for s in ns if _end(s) == x]
+                if prev:
+                    return f"To start after {_what(prev[-1])} send start={x}."
+                nxt = [s for s in ns if _lo(s) == x]
+                return f"To start before {_what(nxt[0])} send start={x}."
+
+            def _whole_parent(b):
+                # The statement that holds the list b sits in, whole.
+                for p, f, ns in reversed(_at(b)):
+                    if p is not None:
+                        return (f"To replace {_what(p)} whole send "
+                                f"start={_lo(p)}, end={_end(p)}.")
+                return None
+
             tops = original.body if original else []
             cuts = {b: _cut(tops, b) for b in (start, stop)}
             if any(isinstance(c, list) for c in cuts.values()):
@@ -8648,6 +8740,15 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                            and isinstance(getattr(inner[0].value, "value", None), str))
                     parts.append(f"{label} is in its {'docstring' if doc else _kind(inner[0])} "
                                  f"at lines {inner[1]} to {inner[2]}.")
+                # Frame 92's diff review of pass 5 (2026-09-29): a start on
+                # the def line of a decorated def was refused with no word
+                # about the decorators above it.
+                cut_b = start if at_start else stop
+                for n, nlo, _hi in path:
+                    if getattr(n, "decorator_list", None) and nlo < cut_b < n.lineno:
+                        where = "below" if cut_b == n.lineno - 1 else "inside"
+                        parts.append(f"{label} is {where} the decorators of {_what(n)}, "
+                                     f"which start at line {nlo}.")
                 o_cut = cuts[stop if at_start else start]
                 if other and not one_def:
                     o_label = f"end={end}" if at_start else f"start={start}"
@@ -8680,74 +8781,70 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     if k is not None:
                         parts.append(f"Your text's last line is line {k} of the file, "
                                      f"so a span that replaces it ends at end={k + 1}.")
-                # The moved boundary comes from the shallowest level where
-                # the two boundaries part. At the top level, s241's exit
-                # would be the file's defs, not confirm's inner statements.
-                ps, pe = _inside(tops, start), _inside(tops, stop)
-                d = 0
-                while d < len(ps) and d < len(pe) and ps[d][0] is pe[d][0]:
-                    d += 1
-
-                def _side(path_, depth):
-                    # Only a definition is a thing to edit alone. The diff
-                    # review of pass 1 saw "To edit err alone" from an
-                    # except handler's bound name.
-                    if depth >= len(path_):
-                        return None
-                    n = path_[depth][0]
-                    defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
-                    return n.name if isinstance(n, defs) else None
-
-                # A moved boundary helps only when the other boundary is
-                # whole. Otherwise the moved span is refused again at the
-                # other end.
-                movable = start < stop and not isinstance(o_cut, list)
                 # Click night 97 (2026-09-29): s215 and s217 got a moved
-                # start from the end of confirm. That start cut the def the
-                # end sat in, so the moved span came from the wrong def. An
-                # aligned boundary is whole only inside its own def. A span
-                # from that def's header to a line inside it cuts the def,
-                # so the moved start is the first line of the def's body.
-                # When no body line comes before the end, only the whole
-                # def is offered (observed: turns of s215 and s217).
-                # Frame 92's diff review of pass 4 (2026-09-29): the same
-                # rule holds for any statement with a body. A block header
-                # such as finally: or else: has no node of its own, so a
-                # moved end stops where the statement of the start ends, and
-                # a moved start stays inside the body list.
-                def _what(n):
-                    return _side([(n,)], 0) or type(n).__name__.lower()
-
-                if movable and not at_start and d < len(ps):
-                    n, nhi = ps[d][0], ps[d][2]
-                    side = _side(ps, d)
-                    parts.append(f"To edit {side} alone send end={nhi}, "
-                                 f"which is where {side} ends." if side else
-                                 f"To stop where {_what(n)} ends send end={nhi}.")
-                elif movable and not at_start and d < len(pe) and start < pe[d][1]:
-                    parts.append(f"To stop before {_kind(pe[d][0])} send end={pe[d][1]}.")
-                elif (movable and at_start and d < len(pe)
-                      and getattr(pe[d][0], "body", None)):
-                    n = pe[d][0]
-                    what, first = _what(n), _lo(n.body[0])
-                    if start < first < stop <= _end(n.body[-1]):
-                        parts.append(f"To edit inside {what} send start={first}, "
-                                     f"which is where the body of {what} starts.")
-                        b0 = n.body[0]
-                        if (_side([(n,)], 0) and isinstance(b0, _ast.Expr)
-                                and isinstance(getattr(b0.value, "value", None), str)):
-                            parts.append("Your text replaces the docstring too.")
+                # start from the end of confirm, and the span cut the def
+                # the end sat in. A moved boundary helps only when the other
+                # boundary is whole, and it lands in the other boundary's
+                # own list. A block header such as else: or finally: has no
+                # node, so a list edge never takes one in (observed: turns
+                # of s215 and s217, the probes of pass 5's review).
+                if start < stop and not isinstance(o_cut, list):
+                    m = _moved_start(start, stop) if at_start else _moved_end(start, stop)
+                    if m:
+                        parts.append(_start_offer(m) if at_start else _end_offer(m))
                     else:
-                        parts.append(f"To replace {what} whole send "
-                                     f"start={pe[d][1]}, end={pe[d][2]}.")
-                elif movable and at_start and d == len(pe) and d < len(ps) and ps[d][2] < stop:
-                    parts.append(f"To start after {_kind(ps[d][0])} send start={ps[d][2]}.")
+                        w = _whole_parent(stop if at_start else start)
+                        if w:
+                            parts.append(w)
                 if start == stop:
                     parts.append("An insert goes between whole statements.")
                     parts.append(f"To add after {name} send start={hi}, end={hi}.")
                 else:
                     parts.append(f"To replace {name} whole send start={lo}, end={hi}.")
                     parts.append(f"To add after it send start={hi}, end={hi}.")
+                raise ValueError(" ".join(parts))
+            sl, el = _at(start), _at(stop)
+            if start < stop and not any(a[0] is b[0] and a[1] == b[1] for a in sl for b in el):
+                # Frame 92's diff review of pass 5 (2026-09-29): both
+                # boundaries were whole, and the span still removed the
+                # header of async def h or ended on a finally: header.
+                def _where(x):
+                    p, f = x[0], x[1]
+                    return ("the top level of the file" if p is None
+                            else f"the {_block[f]} of {_what(p)}")
+
+                parts = [f"start={start}, end={end} crosses from one block to another.",
+                         f"start={start} is in {_where(sl[-1])}.",
+                         f"end={end} is in {_where(el[-1])}.",
+                         "A span replaces whole statements of one block."]
+                for i in sorted({start, stop - 1, stop}):
+                    if 0 <= i < len(lines):
+                        parts.append(f"Line {i} is '{lines[i].rstrip()[:60]}'.")
+                m = _moved_end(start, stop)
+                if m:
+                    parts.append(_end_offer(m))
+                m = _moved_start(start, stop)
+                if m:
+                    parts.append(_start_offer(m))
+                # The innermost statement that holds the whole span. A
+                # boundary on a statement's last line is still in that
+                # statement. Frame 92 pass 7 (2026-09-29): night46's try
+                # tail ended where the try ends and was offered the while.
+                n, level = None, tops
+                while True:
+                    hit = [s for s in level if _lo(s) <= start and stop <= _end(s)]
+                    if not hit:
+                        break
+                    n, level = hit[0], _children(hit[0])
+                if n is not None:
+                    parts.append(f"To replace {_what(n)} whole send "
+                                 f"start={_lo(n)}, end={_end(n)}.")
+                else:
+                    ps, pe = _inside(tops, start), _inside(tops, stop)
+                    a = ps[0][1] if ps else start
+                    b = pe[0][2] if pe else stop
+                    parts.append(f"To replace the whole top-level statements "
+                                 f"send start={a}, end={b}.")
                 raise ValueError(" ".join(parts))
         nl = chr(10)
         fragment = text
