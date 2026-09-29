@@ -184,3 +184,25 @@ a case that passes on a first-try correct span proves nothing about the
 door. The door is held by the four unit tests and proved on the night. The
 frame's ends-when loses its case line. The register line is in
 `plans/operating-facts.md`, the register section.
+
+## 8. The diff review of pass 1, at `b1db60a`
+
+Observed: the reviewer on Opus 5.5, 37.3k on the harness line against 50k,
+10 tool calls, 1.9 minutes, 2026-09-29 07:4x. Probes in the scratchpad's
+`probe92/`. Eight points read CONFIRMED correct or NOT FOUND: the sibling
+level, the `_near` tie toward the nearer line, the insert, `start=0`, the
+three-deep nesting, the echoed lines, the edge inputs. Three findings:
+
+1. `side` is taken from any node with a `name`, so `except E as err:` gave
+   "To edit err alone". Pass 3 limits it to defs and classes.
+2. When both boundaries fall inside statements the door moves one, and the
+   moved span is refused again. Pass 3 offers the move only when the other
+   boundary is not a cut.
+3. Older than this frame: `_cut` counts a clause header such as `else:` as
+   aligned, because the header's index equals the previous child's
+   `end_lineno`, so a span may start on `else:`. Left for a later frame
+   (reasoned: the merged-parse door catches the write, and the fix touches
+   the aligned test that the night46 case holds).
+
+STE: the head sentence ran to about 30 words with a ";", and the last
+sentence joined two exits. Pass 3 splits them.

@@ -298,6 +298,16 @@ a different question and the night is then opened once.
   cassette the refresh runs did not write. Diff review on Opus, cap 50k, eight
   points, then the night from a worktree at this commit for frames 92, 88, 87
   and 86.
+- Status 2026-09-29 07:36 (rota-ba): **the diff review passes all eight points
+  with three low findings, and pass 3 fixes two of them plus the message's
+  STE** (observed: the reviewer on Opus 5.5, 37.3k on the harness line against
+  50k, 10 tool calls). Meta workflow. Findings: `side` named an exception
+  variable; a move with both boundaries cut is refused again; and an older
+  `_cut` rule lets a span start on `else:`, left for a later frame. Detail in
+  the record's section 8. Then one gate, the pass 3 commit, one diff review,
+  and night 97 from `C:/Users/roman/rota_night96` moved to the closing commit,
+  launcher `.rota/launch_night97.sh`. This session reads past 300k: it
+  finishes this frame and takes no new one. One standby is free, rota-16.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
