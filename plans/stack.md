@@ -415,6 +415,17 @@ a different question and the night is then opened once.
   Ollama server was down and came back in 20 s with `Start-Process ollama`;
   the log shows onboard at 02:49 and two gauntlet processes). Meta workflow.
   The night ends in about 80 minutes. Then the read.
+- Status 2026-09-29 03:51 (rota-66): **night 96, walk 1: `bg_1` merged at 03:50 after 39
+  steps, the Architect filed three `k0` satisfied findings in one session,
+  one per changed file, and sent no answer** (observed: `.rota/clickI.db`,
+  `batches` merged at `ac990f7b`, `findings` f1 to f3, one `tick:structural_review`
+  session, no Architect message to the Developer, one Critic pass; the log,
+  `MERGED (1 total) after 39 steps, 4 asks`, walk 1 03:27 to 03:50,
+  2026-09-29). Rota workflow. No CYCLE line in the log. One quarantine,
+  `-|tick:constraint_zero|` at 3, a boot tick, for the read. The brief says
+  one finding and the model filed one per file; the repeat door allows
+  different grains, so the three rows are legal and harmless. Walks 2 and 3
+  run. The read follows `GAUNTLET-DONE`.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
