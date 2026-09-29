@@ -204,6 +204,41 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 92. A broken indent folds the next function into the write span, and the door names the wrong exit (2026-09-29)
+
+- **Batch C, the night's stall, found by night 96's walk 2 while it ran.** One
+  site: the span door of `code.write`. It touches a door on the write path, so
+  it carries a diff review and a walk.
+- Rota workflow. On night 96 the Developer's commit at s225 broke the
+  indentation of `confirm` in `src/click/termui.py`. From then on the
+  runner's statement map read the tail of `confirm` as part of
+  `get_pager_file`. Every write to lines 340 to 356 was refused with "cuts
+  through get_pager_file" or "this write changes get_pager_file, and no
+  criterion names it", and the exit offered, replace lines 344 to 361 or
+  insert at 361, was not the fix. Sessions s226, s229, s241, s242 and s243
+  each wrote the same hunk up to four times, committed no code, and ended on
+  the iteration cap. The wake's attempt is `MAX(test_runs.attempt)`, which
+  moves only after a commit, so the key stood at attempt 7 and then 8, and
+  the cycle line fired at period 1, rounds 3. The quarantine at 3 caught it
+  at s230 and s244, the Architect took two escalations, and `bg_3` is now
+  deferred at `6f8394d` with `vision_keeper|tick:exhausted` and `do:park`
+  run once each (observed: `.rota/clickI.db`, `turns` of s241 and s243,
+  `tool_calls`, `tick_attempts`, `batches`; `.rota/night96.log` line 106,
+  2026-09-29).
+- Ends when: the span door, on a span inside a function whose body no
+  longer parses as one statement, names the enclosing definition by its
+  `def` line and offers the whole-function span as the exit; a recorded case
+  on this shape shows the Developer take that exit; and a night at the
+  closing commit shows a broken batch recover or reach its cap with commits
+  between attempts. Priced from the anchors: one read of the door and the
+  map, 30k; one pass, 60k on Opus; one diff review per pass, 50k; one night.
+- Waits on: Roman's order. Recommended: after frame 87, because both are
+  batch C stalls and 87 is older.
+- Reasoning: this status line, and night 96's read when it is written.
+- Status 2026-09-29 05:30 (rota-66): pushed by b4768744 during night 96, unclaimed, priced.
+  Meta workflow. Frame 86's park ran on this batch, which is the first
+  observation of its path since frame 86 closed to validating.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
