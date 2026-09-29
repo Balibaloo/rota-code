@@ -515,6 +515,18 @@ a different question and the night is then opened once.
   40k, seven points, the first on over-refusal of a legal span. On a pass the
   frame goes back to validating at `6e993d0` for the next night.
 
+- Status 2026-09-29 13:52 (rota-16): **the diff review of passes 6 and 7 finds no legal
+  span newly refused, 18 legal shapes pass and parse, and pass 8 builds in the
+  worktree for three findings** (observed: the reviewer on Opus 5.5, 50.1k on
+  the harness line against 40k, 15 tool calls, 4.7 minutes; probes in the
+  scratchpad `p92r/`). Meta workflow. High, older than the frame: `_children`
+  never reads `Match.cases`, so a `case` body edit is refused whole, and a
+  blank line between two statements reads as a cut. Low, new in pass 6:
+  `_moved_start` searches the innermost list first and drops an `elif`
+  header, one extra refusal. Low: the seat reads `if` for an elif, `expr` for
+  a docstring, `excepthandler`. Pass 8 cap 25k, Edit tool only, because a
+  second writer is in `api.py` in that worktree.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
@@ -738,6 +750,12 @@ a different question and the night is then opened once.
   in the loop leaves the later ids unnamed. Pass 6 cap 12k, in the worktree
   because the detached gate runs against the checkout; its patch lands after
   that gate ends.
+
+- Status 2026-09-29 13:52 (rota-16): **pass 6's patch is at `C:/Users/roman/rota_impl91/p89.patch`
+  and waits on the detached gate** (observed: `test_gate.py` 39 passed in the
+  worktree; pass 6 on Opus, 134.6k in total after 127.6k, so about 7k, 11 tool
+  calls). Meta workflow. The stale-by-failure prefix is `Failed: STALE `, the
+  form pytest writes, and the gate names the ids a stopped loop left.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
