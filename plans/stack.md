@@ -308,6 +308,15 @@ a different question and the night is then opened once.
   and night 97 from `C:/Users/roman/rota_night96` moved to the closing commit,
   launcher `.rota/launch_night97.sh`. This session reads past 300k: it
   finishes this frame and takes no new one. One standby is free, rota-16.
+- Status 2026-09-29 07:46 (rota-ba): **pass 3 is committed at `7d31f20` on a
+  clean gate, and its diff review runs on a worktree at that commit**
+  (observed: the gate here at 08:0x, 492 s: suite 23 failed and 2359 passed
+  against the stored 23 and 2324; new reds 0; reds gone 0; stale 0; pass 3 on
+  Opus, 78.7k in total on the harness line after 68.8k, so about 10k, 5 tool
+  calls). Meta workflow. Night 97 launches from `C:/Users/roman/rota_night96`,
+  now at `7d31f20`, with `.rota/launch_night97.sh`, when the review passes.
+  The night proves frames 92, 88 and 86. Frame 87 is not built, so its night
+  is later.
 
 ### 91. Every model-written binding is stamped a path (2026-09-28)
 
