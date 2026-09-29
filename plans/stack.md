@@ -493,6 +493,17 @@ a different question and the night is then opened once.
   matcher at `:2570` reads the kind; no design review, the frame scopes one
   pass and one review). Meta workflow.
 
+- Status 2026-09-29 12:58 (rota-16): **pass 1 stamps each binding its kind and waits on
+  the gate** (observed: pass 1 on Opus, 48.1k on the harness line against 40k,
+  16 tool calls, 3.9 minutes; `test_onboarding.py` 51 passed and 1 failed,
+  `test_the_same_constraint_written_twice_is_one_gate`, which fails the same
+  way with the change stashed). Meta workflow. `::` is `symbol`; a grain the
+  index holds as a path, or any grain when the index is empty, is `path`; a
+  bare identifier is `table`; the rest is `route`. `resolves` needs no change,
+  because nothing sets it to 0 on these rows. Two readings for the review: a
+  directory binding is `route` now; the path lookup does not normalise a
+  backslash or a leading `./`. The gate says whether the red is a known one.
+
 ### 89. The gate re-records its own stale set (2026-09-27) (36d4fbef)
 
 - **No batch. An instrument repair, ruled before batch B's repairs.** It
@@ -549,6 +560,17 @@ a different question and the night is then opened once.
   replay; no line before the first live run and a doc still says the gate
   uses no GPU; an exception in the re-record block loses the five lines. Pass
   3 cap 25k, then the gate, the commit and one review.
+
+- Status 2026-09-29 12:58 (rota-16): **pass 3 fixes the five findings and waits on one
+  gate shared with frame 91** (observed: `test_gate.py` 37 passed; pass 3 on
+  Opus, 90.8k on the harness line in total after 79.0k, so about 12k, 11 tool
+  calls). Meta workflow. The gate now prints `rerecording <n> stale cases` before
+  the first live run, a `note:` with the cleared count after the five lines,
+  and `note: re-record stopped: <error>` when the block raises, and the five
+  lines still print. A test runs the real `_rerecord` on a stubbed
+  `subprocess.run`. No repository sentence said the gate uses no GPU, so the
+  register gains one line in its gate paragraph instead. Register lines this
+  frame: 1.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
