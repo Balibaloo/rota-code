@@ -547,6 +547,17 @@ a different question and the night is then opened once.
   previous reviewer's probes. On a pass the frame goes back to validating at
   `928b2dc` for the next night.
 
+- Status 2026-09-29 14:25 (rota-16): **the diff review of pass 8 reruns every earlier probe
+  clean and lands one high regression, so pass 9 builds in the worktree**
+  (observed: the reviewer on Opus 5.5, 41.2k on the harness line against 30k, 7
+  tool calls, 3.5 minutes; probes `test_r3.py` and `test_r4.py`). Meta
+  workflow. High: `_cut` runs `_gap` over `_children`, which joins `body` with
+  `orelse`, so a blank line before `else:` reads as aligned, `_at` finds no
+  list, and `sl[-1]` raises `IndexError`; span 4..6 on a seven-line file
+  crashed where 6e993d0 refused. Low: a bracketed `case` pattern starts `_lo`
+  one line late; a module docstring insert passes; any bare string is named
+  docstring. Pass 9 cap 15k, then the last review, then the night.
+
 ### 91. Every model-written binding is stamped a path (2026-09-28) (36d4fbef)
 
 - **No batch. A small repair found by frame 90's third diff review.** It
