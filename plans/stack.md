@@ -647,6 +647,19 @@ a different question and the night is then opened once.
   new ask; the line "I ask you about it next." shows while the wake is quarantined; the
   brief asks what to change and `cmd_sign` prints "ruling recorded" on a reply. Pass 6
   takes all three, then the merge and the gate.
+- Status 2026-09-30 10:26 (rota-4c): **pass 6 committed at `60fc5b2`, `f87` merged at `4cde741`, a
+  short review runs, validating on the gate and the night** (observed: the fresh
+  implementer resumed on Opus, 164.4k cumulative on the harness line, 30 tool calls, 3.3
+  minutes; 59 tests pass; each fix's test fails with its source stashed). Meta workflow.
+  After an approve on the park ask a new ask opens on the next tick, so a parked batch
+  always has a gate (reasoned: the ruling says it waits for the principal). `park_ask`
+  skips a batch whose item is no longer schedulable, or a second ask opened between a
+  contest and its cancel. Known low, left: with the `park_ask` wake itself quarantined,
+  the older gave-up line says "nothing moves" while siblings run. Actual, walls apart: six
+  passes on two agents, 261k and 164.4k on the harness line against 40k; six reviews,
+  52.1k, 38.4k, 43.8k, 53.1k, 52.4k and one running, against 60k; one ruling; register
+  lines 0. The walk: a night from a worktree at the closing commit, which must reach a
+  quarantine park to prove the path.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
