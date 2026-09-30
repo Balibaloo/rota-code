@@ -2840,3 +2840,88 @@ def test_a_whole_write_over_a_file_that_does_not_decode_lands_with_no_note(db, t
     assert "dropped" not in out
     assert "return 2" in (root / "m.py").read_text()
 
+
+def _committed_close(db, tmp_path):
+    """A worktree whose one commit holds script.py, and a red run of tst1 on
+    that commit, the shape night 97 left behind."""
+    import subprocess
+    root = tmp_path / "wt"; root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    body = chr(10).join(["def close_account(x):", "    if x:", "        pass", ""])
+    (root / "script.py").write_bytes(body.encode("utf-8"))
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t",
+                    "commit", "-q", "-m", "a"], check=True)
+    sha = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
+                         capture_output=True, text=True, check=True).stdout.strip()
+    said = chr(10).join(["    def test_close():",
+                         ">       assert close_account('a1') is not None",
+                         "E       assert None is not None",
+                         "E        +  where None = close_account('a1')", "",
+                         "test_close.py:2: AssertionError", "1 failed in 0.01s"])
+    db.execute("UPDATE batches SET worktree = ?, head_commit = ? WHERE id = 'b1'",
+               (str(root), sha))
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "attempt, output) VALUES ('r1','b1','tst1',?,'fail',5,?)", (sha, said))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    return root, body, sha, sb
+
+
+def test_a_write_the_file_already_holds_says_so_and_quotes_the_red_assertion(db, tmp_path):
+    """Frame 93. Night 97 (2026-09-29): s215 and s216 sent the landed text of
+    `confirm` again, read `"written, not committed": []`, and the test failed
+    on one commit from attempt 5 to 7."""
+    import os
+    root, body, sha, sb = _committed_close(db, tmp_path)
+    before = os.stat(root / "script.py").st_mtime_ns
+    out = sb.call("code.write", path="script.py", text=body)
+    assert out["unchanged"] == (
+        f"script.py already holds this text, so this write changed nothing. "
+        f"Commit {sha[:8]} holds it. tst1 fails at {sha[:8]} on "
+        f"`assert close_account('a1') is not None`, and pytest said "
+        f"`assert None is not None`. Read what this assertion needs before the next write.")
+    assert out["written, not committed"] == []
+    assert os.stat(root / "script.py").st_mtime_ns == before
+    assert (root / "script.py").read_bytes() == body.encode("utf-8")
+    # The same fields a landed write returns (frame 93's review, 2026-09-30).
+    assert out["lands with"] == "code.commit"
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst2','b1','c1','test_bill.py','import billing' || char(10) || "
+               "'def test_b():' || char(10) || '    assert billing')")
+    db.commit()
+    out = sb.call("code.write", path="script.py", text=body)
+    assert out["note"] == ("the batch's tests import billing and no such module "
+                           "exists in the worktree yet")
+
+
+def test_an_unchanged_write_names_the_first_red_test_of_the_latest_attempt(db, tmp_path):
+    """Frame 93's review (2026-09-30): with two red tests, `rowid DESC` named
+    the test the harness ran last. The first by rowid is named, and the
+    sentence counts the rest."""
+    root, body, sha, sb = _committed_close(db, tmp_path)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst2','b1','c1','test_two.py','assert 0')")
+    said = chr(10).join([">       assert 0", "E       assert 0", "", "test_two.py:1: AssertionError"])
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "attempt, output) VALUES ('r2','b1','tst2',?,'fail',5,?)", (sha, said))
+    db.commit()
+    out = sb.call("code.write", path="script.py", text=body)
+    assert out["unchanged"] == (
+        f"script.py already holds this text, so this write changed nothing. "
+        f"Commit {sha[:8]} holds it. tst1 fails at {sha[:8]} on "
+        f"`assert close_account('a1') is not None`, and pytest said "
+        f"`assert None is not None`, and 1 more fail; tests.load lists them. "
+        f"Read what this assertion needs before the next write.")
+
+
+def test_a_write_that_changes_one_line_carries_no_unchanged_sentence(db, tmp_path):
+    """Frame 93: a text that differs by one line is a write, and lands."""
+    root, body, sha, sb = _committed_close(db, tmp_path)
+    text = body.replace("        pass", "        return x")
+    out = sb.call("code.write", path="script.py", text=text)
+    assert "unchanged" not in out
+    assert "return x" in (root / "script.py").read_text()
+
