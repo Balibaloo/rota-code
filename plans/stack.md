@@ -282,6 +282,14 @@ a different question and the night is then opened once.
   2026-09-24 with 254 of 355 passes, and today's live runs at 18:05 on load `qwen3:8b@248720` gave 0, so
   the prompt did not move with this change). Meta workflow. Per the register's rule, one refresh re-record
   and one plain run of that case run now, then the gate again at the pass's commit.
+- Status 2026-09-30 18:43 (rota-c6): **the case stays 0/5 live on this load with the same prompt and system hash, so
+  it is a load flip and not this frame's red** (observed: the refresh re-record at 18:43, 15 recorded, 0/5;
+  the plain run 0/5; `case_runs` for prompt `d7d75dda` and system `5d8c13dd`: 0 of 25 on load
+  `qwen3:8b@248720` since 18:05, and 16 of 20, 4 of 5, 8 of 10, 20 of 25 on the four loads before it
+  today; the seat's first call moved from `findings.load` to `msg.answer_developer` on identical bytes).
+  Meta workflow. The gate's new-reds line cannot hold for this case on this load, and the frame's
+  acceptance names it as the one red beside the flaky map test. It goes to frame 84's list of reds that
+  outlive the baseline if it holds on a second load.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
