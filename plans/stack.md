@@ -223,6 +223,7 @@ a different question and the night is then opened once.
   that fails one review, and frame 88's newline criterion is the one the Critic failed here.
 - Reasoning: frame 97's status of this hour and night 101's read.
 - Status 2026-09-30 21:41 (rota-c6): pushed by 7448850f, unclaimed, priced. Meta workflow.
+- Status 2026-09-30 22:24 (rota-c6): **cause confirmed: `verdict_failed` at `predicates.py:1256-1259` compares no `commit_sha` with the head, although its docstring says with no newer commit, and its band `fix` (10) sorts before `review`'s band `gate` (20), so the stale fail verdict wakes a Developer before every review; the `review` predicate itself returned bg_1 at head `1a895b5`, every clause passing; `tick_attempts` holds no verdict_failed key because each head move resets the count** (observed: night 101's read on Opus, 85.0k on the harness line against 80k, from `.rota/clickI_night101.db`, 2026-09-30). Meta workflow. A second high rides with it: the `verdicts` table has no column for the Critic's reason, so the thirteen Developers saw `failed_criterion` alone and never the newline objection, and their edits went nowhere. Ends-when gains: the verdict's reason is stored and shown on the verdict-failed wake. Priced up: one pass about 40k.
 
 ### 101. The Critic's wake puts the diff first, and a long diff cuts the criteria and the tests out (2026-09-30)
 
@@ -278,112 +279,6 @@ a different question and the night is then opened once.
 - Reasoning: frame 95's status of the diagnosis above.
 - Status 2026-09-30 10:37 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
 - Status 2026-09-30 16:32 (rota-c6): **confirmed on night 100: s210 ran 15 turns after its completion line at t9, and its writes and the commit `3ffe8acc` landed after it** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow.
-
-### 97. A later session never sees the lines an earlier commit of the batch dropped (2026-09-30) (7448850f)
-
-- **Batch C, the night's stall, found by frame 95's design note.** Two sites: `code_read`
-  at `rota/roles/api.py:8458`, which diffs `HEAD~1..HEAD`, and the Developer's
-  `code.diff` in the `tests_failing` mode. It touches a seat's view, so it carries a
-  diff review and shares the night with frame 95.
-- Rota workflow. On night 98 the sessions after s183 saw the diff of the last commit
-  only, so the 13 lines `d8d87beb` dropped were out of every later seat's view and no
-  session put them back (observed: `plans/archive/night98-walk-2026-09-29.md`, section
-  6, 2026-09-29; the site is reasoned from the read in frame 95's design note,
-  2026-09-30). Frame 95's note reaches the session that made the write and no other.
-- Ends when: the Critic's `code.read` and the Developer's `code.diff` show the diff
-  against the batch's base commit, not the last commit alone, and carry a list of
-  removed lines whose text no added line carries; two unit tests; the Critic cases
-  whose diff removes a line re-record; a night shared with frame 95. Priced: one
-  pass, about 40k on Opus; one diff review, about 40k; the re-records by count.
-- Waits on: frame 95's commit, because both change what a seat reads of a write.
-- Reasoning: `plans/archive/frame95-design-2026-09-30.md`, section 4 and the open
-  questions.
-- Status 2026-09-30 04:33 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
-- Status 2026-09-30 16:32 (rota-c6): **cause of night 100's walk 2 stall, confirmed: `code.diff` runs `git diff HEAD~1`, and after s210's tidy-up commit the tree equalled HEAD~1, so s213 to s215 each read an empty diff, never saw the change in `confirm` that breaks click's own test, and spent three attempts without a write** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Recommended first now: it stopped the night, and frame 100's re-reads were the seat looking for a diff it was never shown.
-- Status 2026-09-30 17:29 (rota-c6): **held by 7448850f, first on Roman's order** (ruled: Roman, asked with frames 100,
-  87 and 93 as the other options; it stopped night 100's walk 2). Meta workflow. Next: read the two sites and
-  the design note, then one implementer pass on Opus.
-- Status 2026-09-30 17:30 (rota-c6): **pass 1 runs on Opus** (reasoned: the base is `git merge-base HEAD <root HEAD sha>`,
-  which needs no schema change and survives a root that moved on after the fork; `HEAD~1` is the fallback;
-  both `code.diff` and `code.read` gain `removed lines`, a per-file list of `-` lines no `+` line carries;
-  design B's Critic brief step is not built, because it is a judgement and not in the ends-when). Meta
-  workflow. The brief is in the scratchpad, `frame97-brief.md`, with four tests. Critic re-records go to the
-  gate's stale set.
-- Status 2026-09-30 18:42 (rota-c6): **pass 1 committed at `4876aae`; its gate shows one real new red that is a load
-  flip and not this frame's; the diff review runs on Opus from `C:/Users/roman/rota_review97`** (observed:
-  the implementer on Opus, 70.2k on the harness line against 40k priced, 34 tool calls, 70 minutes; 61 and
-  179 tests pass, 4 of 4 new tests fail with the change stashed; its gate, 938s, exit 1: new reds 2, one the
-  known flaky map test, one `L1-AR-a-dead-end-is-reported-not-sat-on` 0/5, reds gone 1, stale 0, five reds
-  cleared by re-record; `tests/rota/cassettes.db`: that case's prompt hash `d7d75dda` is unchanged since
-  2026-09-24 with 254 of 355 passes, and today's live runs at 18:05 on load `qwen3:8b@248720` gave 0, so
-  the prompt did not move with this change). Meta workflow. Per the register's rule, one refresh re-record
-  and one plain run of that case run now, then the gate again at the pass's commit.
-- Status 2026-09-30 18:43 (rota-c6): **the case stays 0/5 live on this load with the same prompt and system hash, so
-  it is a load flip and not this frame's red** (observed: the refresh re-record at 18:43, 15 recorded, 0/5;
-  the plain run 0/5; `case_runs` for prompt `d7d75dda` and system `5d8c13dd`: 0 of 25 on load
-  `qwen3:8b@248720` since 18:05, and 16 of 20, 4 of 5, 8 of 10, 20 of 25 on the four loads before it
-  today; the seat's first call moved from `findings.load` to `msg.answer_developer` on identical bytes).
-  Meta workflow. The gate's new-reds line cannot hold for this case on this load, and the frame's
-  acceptance names it as the one red beside the flaky map test. It goes to frame 84's list of reds that
-  outlive the baseline if it holds on a second load.
-- Status 2026-09-30 18:56 (rota-c6): **the diff review at `4876aae` finds one high and four low, pass 2 runs**
-  (observed: the reviewer on Opus, 94.0k on the harness line against 40k, 43 tool calls, 13.8 minutes;
-  the fork base holds on a root that moved on, after `integrate`, and with no ancestor; 10 register cases
-  gain the key and 107 cassettes already hold it, so none goes stale). Meta workflow. High: the key is a
-  dict, so it renders on the head line before `[diff]`, and 45k characters of it pushed the diff out at
-  both render caps. Taken: render it after the diff as text, capped at 2,000 characters; compare lines
-  with `rstrip` and count added lines; a note on a batch with no commit. Known lows, not taken:
-  `code.commit` reads `touched` from `HEAD~1` and can wake the Architect on a reverted path; a root
-  reset under a running batch moves the merge-base, and a stored fork sha at create would hold it.
-- Status 2026-09-30 19:08 (rota-c6): **pass 2 committed at `a6bed3b`, the gate and a short review run at it**
-  (observed: the implementer resumed on Opus, 93.8k cumulative on the harness line, 19 tool calls, 11.6
-  minutes; 64 and 179 tests pass, 5 of 7 frame tests fail with `api.py` stashed; this session read the
-  whole `api.py` diff). Meta workflow. The removed lines are now text after the diff, capped at 2,000
-  characters. Passes on one agent: 70.2k and 93.8k cumulative against 40k priced.
-- Status 2026-09-30 19:18 (rota-c6): **the short review at `a6bed3b` finds one high and three low, pass 3 runs**
-  (observed: the reviewer on Opus, 45.7k on the harness line, 15 tool calls, 9.8 minutes; 33 developer
-  tests pass). Meta workflow. High: the result sets `diff` before `removed lines`, so the block renders
-  after the diff and a 62k diff cuts it at both caps. Taken: the key goes before `diff` in both ops, a
-  trailing tab on a spaced path, and a tail that names its file. Known low, not taken: a non-ASCII
-  path arrives quoted by git and gets no entry. Reviews on this frame: 94.0k and 45.7k against 40k.
-- Status 2026-09-30 19:26 (rota-c6): **pass 3 committed at `ff0f692`, a short review runs at it, the gate at `a6bed3b`
-  still runs and a gate at `ff0f692` follows** (observed: the implementer resumed on Opus, 106.4k
-  cumulative on the harness line, 10 tool calls, 7 minutes; 34 developer tests pass, 2 of 2 changed tests
-  fail with `api.py` stashed; this session read the whole diff). Meta workflow. Passes on one agent:
-  70.2k, 93.8k and 106.4k cumulative against 40k priced. This session is near its 300k mark and finishes
-  this frame: gate, night 101 at the closing commit, and the read.
-- Status 2026-09-30 19:34 (rota-c6): **the short review at `ff0f692` finds three low at the cut's edges and one older
-  high outside the frame, and the pass loop stops** (observed: the reviewer on Opus, 49.3k on the harness
-  line, 28 tool calls, 8 minutes; the block renders at both caps and survives `_fit`; 34 developer tests
-  pass; 19 recorded Critic prompts change order and go stale, the gate re-records them). Meta workflow.
-  Known lows, not taken: a path longer than the cap leaves an empty entry; a cut entry carries no mark and
-  the text can reach 2,020 characters; the tail names no hidden file. The older high is frame 101. The
-  closing commit is `ff0f692` if its gate is clean. Reviews on this frame: 94.0k, 45.7k and 49.3k.
-- Status 2026-09-30 19:55 (rota-c6): **gate at `a6bed3b`: new reds 1, the load-flip case only, and six re-records;
-  the gate runs at `ff0f692` now and the night worktree stands at it** (observed: the gate, 560s, exit 1:
-  suite 28 failed and 2461 passed against the stored 23 and 2324, new reds 1, reds gone 1, stale 0; five
-  Architect and Critic cases re-recorded green 5/5, `L3-a-failed-verdict-turns-into-a-fix` 0/5 and it was
-  red in the baseline). Meta workflow. Night 101 launches on the gate's five lines.
-- Status 2026-09-30 20:06 (rota-c6): **gate at `ff0f692`: new reds 2, the load-flip case and the known flaky map test,
-  stale 0; night 101 runs detached from `C:/Users/roman/rota_night101` at `ff0f692`, launched 20:05, cold**
-  (observed: the gate, 565s, exit 1: suite 24 failed and 2466 passed against the stored 23 and 2324, reds
-  gone 1; `.rota/night101.log` reads launched, click restored to `2c8cd3a`, onboard 20:05). Meta workflow.
-  The night proves this frame on bg_2's shape: a Developer after a tidy-up commit sees the batch's whole
-  change and its removed lines, and the Critic sees the whole batch. Frames 93, 88, 87 and 86 ride on it.
-  Actual so far, walls apart: three passes on one agent, 106.4k cumulative against 40k; three reviews,
-  189.0k against 40k; three gates; register lines 0.
-- Status 2026-09-30 21:41 (rota-c6): **walk 1 since 20:45: bg_1 green at 37 tests, the Critic failed it once on the
-  newline criterion, and five fixed commits ran green with no second review, which is frame 102**
-  (observed: `.rota/night101.log`, five `0 not passing` lines after the verdict; `.rota/clickI.db`, one
-  Critic session s145, verdict fail at `04588017`, head `dc0f5ffb`; s145's prompt holds the whole batch
-  `[diff]` at offset 219 and no removed-lines block, because bg_1 removes nothing). Meta workflow. The
-  night runs on to its step cap; the read after GAUNTLET-DONE judges this frame's ends-when.
-- Status 2026-09-30 22:20 (rota-c6): **night 101 stopped by this session at 22:19, at step 51 of walk 1, after eleven
-  green runs in frame 102's loop; its read runs on Opus with an 80k cap** (observed: `.rota/night101.log`,
-  eleven `0 not passing` lines; `probes/walk.py` caps a walk at 250 steps, about six hours more on a
-  recorded wall; the process tree stopped clean, 0 left; the database kept as `.rota/clickI_night101.db`,
-  169 sessions, 879 turns, 13 verdict-failed Developer sessions). Meta workflow. Frames 93, 88, 87 and 86
-  are read on the same night.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
@@ -522,6 +417,7 @@ a different question and the night is then opened once.
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 - Status 2026-09-30 16:32 (rota-c6): **reached on night 100 and half failed: the unchanged sentence appeared at s210 t17, and the seat repeated the write four times; for an empty text at a zero-width span the sentence says the file already holds this text, while the seat meant to delete lines** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Stays open for one sentence: an empty text at start == end inserted nothing, and the refusal offers the delete span. One pass, about 20k.
+- Status 2026-09-30 22:24 (rota-c6): **reached on night 101 and failed again: the unchanged sentence appeared in six sessions, and s169 sent the same write three times right after it, s156 once** (observed: night 101's read on Opus, 85.0k on the harness line against 80k, from `.rota/clickI_night101.db`, 2026-09-30). Meta workflow. The sentence does not stop the repeat on a real unchanged write either. The one-sentence fix for the empty text stays priced; the repeat itself is the seat's judgement and belongs with frame 100's re-read shape.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
@@ -714,6 +610,7 @@ a different question and the night is then opened once.
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 - Status 2026-09-30 16:32 (rota-c6): **reached on night 100 and failed: bg_2 was quarantined at attempt 3, and the Liaison's quarantined wake, s216, presented a build plan page, m108, with no park or stop option; the scripted go-ahead changed nothing, no park was asked and no resume fired** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. The frame reopens: the quarantine needs its own page that names the given-up key and offers park or resume. Waits on Roman's order.
+- Status 2026-09-30 22:24 (rota-c6): **not reached on night 101: the only quarantine was `constraint_zero` at run start, no park and no resume** (observed: night 101's read on Opus, 85.0k on the harness line against 80k, from `.rota/clickI_night101.db`, 2026-09-30). Meta workflow. Still open on its own finding from night 100.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
@@ -976,6 +873,7 @@ a different question and the night is then opened once.
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 - Status 2026-09-30 16:32 (rota-c6): **half reached on night 100: the Tester named the trailing newline at s135 and s141, bg_1's review passed and bg_1 merged; no turn named an indent** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Still validating on a night that reaches an indent criterion.
+- Status 2026-09-30 22:24 (rota-c6): **reached on night 101: the Critic failed bg_1 on `echo_json_compact` for the trailing newline the criterion asks for, calling it a failure of intent over letter; the Developer asked the Vision Keeper four times and never about the newline, because the reason never reached it** (observed: night 101's read on Opus, 85.0k on the harness line against 80k, from `.rota/clickI_night101.db`, 2026-09-30). Meta workflow. This is the ruling the frame waits for: does a criterion's letter bind the Critic, or its intent? Recommended: the letter binds, and an intent objection is a challenge to the criterion, not a fail. Blocked on Roman.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (532b3429)
 
@@ -1312,6 +1210,7 @@ a different question and the night is then opened once.
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 - Status 2026-09-30 16:32 (rota-c6): **not reached on night 100: no deferral and no resume fired after either Stuck line** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Still validating, and it now waits on frame 87's page, because a resume needs the park ask first.
+- Status 2026-09-30 22:24 (rota-c6): **not reached on night 101, the same facts as frame 87** (observed: night 101's read on Opus, 85.0k on the harness line against 80k, from `.rota/clickI_night101.db`, 2026-09-30). Meta workflow. Still validating.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
