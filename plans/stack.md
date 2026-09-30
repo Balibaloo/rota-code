@@ -540,6 +540,14 @@ a different question and the night is then opened once.
   workflow. Actual, walls apart: two passes, about 36k of the agent's 211.6k cumulative;
   two reviews, 40k and 23.4k against 40k; register lines 0. The gate at the merge follows
   the one at `ea3b823` that still runs.
+- Status 2026-09-30 11:20 (rota-4c): **the gate at the merge finds one new red on this frame:
+  `test_a_repeated_write_is_the_same_act_and_is_answered_as_one` reads the unchanged
+  sentence where it expects the runner's short repeat answer; one pass runs on frame 95's
+  fresh agent** (observed: the gate at `7808f3a`, 540s: suite 2427 passed against the stored 2324,
+  new reds 2, reds gone 1, stale 0; the Developer case `ACT-DV-edit-inside-the-function`
+  re-recorded green in the main register). Meta workflow. Both rules hold after the pass: one act for a
+  repeated identical write, and the seat reads the sentence that names the commit and
+  the assertion.
 - Status 2026-09-30 10:33 (rota-4c): **the gate at `ea3b823` reports one new red, not flaky, on frame
   95's merge; a diagnosis runs on Opus** (observed: the gate, 640s: suite 2416 passed against
   the stored 2324, new reds 1, `ACT-DV-edit-inside-the-function`, reds gone 1, stale 0;
@@ -736,6 +744,10 @@ a different question and the night is then opened once.
   question again on the next tick, one Liaison session per approve, for as long as the
   batch is parked. Recommended: an approve means "ask me no more until the batch changes",
   so a new ask opens only when the head or the keys change. Left for the walk's read.
+- Status 2026-09-30 11:20 (rota-4c): **the gate at the merge finds one new red on this frame: the
+  `park_ask` mode has no L1 case; pass 7 records one** (observed: the gate at `7808f3a`, 540s: suite 2427 passed against the stored 2324,
+  new reds 2, reds gone 1, stale 0; the Developer case `ACT-DV-edit-inside-the-function`
+  re-recorded green in the main register). Meta workflow.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
