@@ -11,6 +11,8 @@ or supplied where the state already says what is right.
 """
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from rota.core.db import init_db
@@ -2017,9 +2019,9 @@ def test_two_boundaries_inside_one_def_name_the_innermost_statement(db, tmp_path
     inside it looped three sessions."""
     src = "def confirm(text):\n    x = 1\n    value = f(\n        text)\n    return value\n"
     msg = _span_refusal(db, tmp_path, src, 1, 3, "    x = 2\n")
-    assert "end=3 falls inside assign (lines 2 to 4" in msg
+    assert "end=3 falls inside assignment (lines 2 to 4" in msg
     assert "falls inside confirm" not in msg
-    assert "To replace assign whole send start=2, end=4" in msg
+    assert "To replace assignment whole send start=2, end=4" in msg
 
 
 def test_a_span_from_the_top_into_the_first_statement_gets_no_moved_boundary(db, tmp_path):
@@ -2038,7 +2040,7 @@ def test_a_moved_boundary_names_only_a_definition_as_the_thing_to_edit(db, tmp_p
     src = ("def f():\n    try:\n        pass\n    except ValueError as err:\n        pass\n"
            "    finally:\n        y = h(\n            2)\n    return 1\n")
     msg = _span_refusal(db, tmp_path, src, 4, 7, "        pass\n")
-    assert "end=7 falls inside assign (lines 6 to 8" in msg
+    assert "end=7 falls inside assignment (lines 6 to 8" in msg
     assert "err alone" not in msg
     assert "To stop where except block ends send end=5." in msg
     assert "end=6" not in msg
@@ -2280,8 +2282,57 @@ def test_a_module_docstring_takes_no_insert_and_a_bare_string_is_no_docstring(db
     (tmp_path / "wt" / "m.py").write_text(src)
     with pytest.raises(ValueError) as err:
         _write(db, tmp_path, 3, 5, "    x = 2\n")
-    assert "end=5 falls inside expr" in str(err.value)
+    assert "end=5 falls inside expression" in str(err.value)
     assert "docstring" not in str(err.value)
+
+
+def test_a_docstring_sent_at_start_0_end_0_goes_above_the_file(db, tmp_path):
+    """Frame 94 (2026-09-30): start=0, end=0 was read as the whole file,
+    so a module docstring sent there replaced every line below it."""
+    src = "import os\n\n\ndef f():\n    return os.sep\n"
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_text(src)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    assert _write(db, tmp_path, 0, 0, '"""Mod."""\n')["bytes"]
+    assert (root / "m.py").read_text() == '"""Mod."""\n' + src
+
+
+def test_an_empty_span_removes_its_lines_and_an_empty_whole_write_removes_the_file(db, tmp_path):
+    """Frame 94 (2026-09-30): an empty text with a span removed the whole
+    file the batch added. An empty span removes only its lines."""
+    src = "def a():\n    return 1\n\n\ndef b():\n    return 2\n\n\ndef c():\n    return 3\n"
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_text(src)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    assert _write(db, tmp_path, 7, 10, "")["bytes"]
+    assert (root / "m.py").read_text() == "def a():\n    return 1\n\n\ndef b():\n    return 2\n\n"
+    assert _write(db, tmp_path, 4, 6, "\n")["bytes"]
+    assert (root / "m.py").read_text() == "def a():\n    return 1\n\n\n\n"
+    out = _write(db, tmp_path, 0, -1, "")
+    assert out["removed"] == "m.py" and not (root / "m.py").exists()
+
+
+def test_a_bare_expression_statement_is_named_an_expression(db, tmp_path):
+    """Frame 94 (2026-09-30): the refusal named a bare call statement
+    with the class name expr, a word the source never shows."""
+    src = "def f():\n    x = 1\n    g(\n        x)\n    return x\n"
+    msg = _span_refusal(db, tmp_path, src, 1, 3, "    x = 2\n")
+    assert "end=3 falls inside expression (lines 2 to 4" in msg
+    assert re.search(r"\bexpr\b", msg) is None
+
+
+def test_a_case_pattern_line_that_starts_with_case_underscore_is_no_case_header(db, tmp_path):
+    """Frame 94 (2026-09-30): the walk back to a case header stopped on
+    any line that starts with the letters case, such as `case_ids.A`."""
+    src = ("def d(v):\n    match v:\n        case (\n            case_ids.A\n"
+           "            | 2\n        ):\n            r = (\n                2)\n"
+           "        case _:\n            r = 0\n    return r\n")
+    msg = _span_refusal(db, tmp_path, src, 3, 6, "            r = 3\n")
+    assert "start=3 falls inside case (lines 2 to 8" in msg
+    assert "To replace case whole send start=2, end=8." in msg
+    assert _passes(db, tmp_path, src, 2, 8)
 
 
 def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):

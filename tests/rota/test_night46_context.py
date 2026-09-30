@@ -455,7 +455,7 @@ def test_a_span_that_covers_whole_inner_statements_is_a_legal_edit(tmp_path):
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
     # line 4 is inside the two-line assignment (lines 3 to 5): a cut, named at its own depth
-    with pytest.raises(ValueError, match=r"falls inside assign .*lines 3 to 5"):
+    with pytest.raises(ValueError, match=r"falls inside assignment .*lines 3 to 5"):
         sb.call("code.write", path="src/termui.py", text="            pass", start=3, end=4)
     # the try statement is lines 2 to 7: whole inner statements, a legal edit of confirm
     fix = '        try:\n            value = input(text)\n        except (EOFError, OSError):\n            return None\n'

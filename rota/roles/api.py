@@ -8536,12 +8536,18 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         raise ValueError(
             f"{path!r} is the name of the argument, not a file. Send the file's "
             f"path, the one code.source shows")
+    # Only start=0, end=-1 is the whole file. Frame 94 (2026-09-30):
+    # start=0, end=0 was read as whole, so an import or a docstring sent
+    # to the top replaced the file. The drops refusal offers that span as
+    # an insert before the first line.
+    span = (start, end) != (0, -1) and end is not None
     # An empty write is a removal of a file this batch added, and nothing
     # else. tipsBG (2026-09-14): told to take a mistake out, the Developer
     # wrote the file empty; an empty module is still a module, and the
     # stray stayed. A file the tree had before the batch is not removed
-    # this way: change it, or say why it should go.
-    if not text.strip():
+    # this way: change it, or say why it should go. Frame 94 (2026-09-30):
+    # an empty span removed a whole file. An empty span removes its lines.
+    if not span and not text.strip():
         in_tree = ctx.conn.execute(
             "SELECT 1 FROM code_index WHERE grain = ? AND grain_kind = 'path'",
             (path.replace("\\", "/"),)).fetchone()
@@ -8554,7 +8560,6 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             f"out a file this batch added, an empty write removes it; a file "
             f"the tree had before the batch stays, and what it should hold is "
             f"the change to send")
-    span = (start, end) not in ((0, -1), (0, 0)) and end is not None
     if span:
         # A span, the lines `code.source` showed, replaced by `text`. clickI
         # night 16 (2026-09-12): a 688-line module does not fit one reply,
@@ -8621,7 +8626,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 if isinstance(n, _ast.match_case):
                     # A bracketed pattern can start below its `case (` line.
                     k = n.pattern.lineno - 1
-                    while k > 0 and not lines[k].lstrip().startswith("case"):
+                    # A word match: a continuation line such as `case_id,`
+                    # is not a case header (frame 94, 2026-09-30).
+                    while k > 0 and not re.match(r"\s*case\b", lines[k]):
                         k -= 1
                     return k
                 decs = getattr(n, "decorator_list", None) or []
@@ -8671,7 +8678,10 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                       "asyncwith": "async with", "trystar": "try",
                       "augassign": "assignment", "match_case": "case",
                       "annassign": "annotated assignment", "importfrom": "import",
-                      "nonlocal": "nonlocal"}
+                      "nonlocal": "nonlocal", "expr": "expression",
+                      "assign": "assignment", "delete": "del statement",
+                      "typealias": "type alias", "functiondef": "def",
+                      "asyncfunctiondef": "async def", "classdef": "class"}
             # The review of 928b2dc (2026-09-29): any bare string was named a
             # docstring. Only the first statement of a module, def or class
             # body is one.
@@ -8941,7 +8951,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 raise ValueError(" ".join(parts))
         nl = chr(10)
         fragment = text
-        text = nl.join(lines[:start] + text.splitlines() + lines[stop:]) + nl
+        # A blank text, "" or a lone newline, replaces the span with no lines.
+        new = text.splitlines() if text.strip() else []
+        text = nl.join(lines[:start] + new + lines[stop:]) + nl
     from ..core import fence as _fence
     _fence.check_manifest(path, _criteria_texts(ctx))
     # A file at the root named like a standard-library module shadows it
