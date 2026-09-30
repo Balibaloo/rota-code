@@ -294,6 +294,12 @@ a different question and the night is then opened once.
   note read 4 lines from `break`, one too many, because the branch `break`s sit above the
   leaf. Pass 3: a line is kept when it appears anywhere inside the statement that holds
   the leaf. Then the last review at the pass 3 commit.
+- Status 2026-09-30 05:06 (rota-4c): **pass 3 committed at `ea82dcd`, the last review runs** (observed:
+  the implementer resumed on Opus, 154.8k cumulative on the harness line, 37 tool calls, 9
+  minutes; 149 door tests pass; night 97 reads 3 from `if abort and not rv:`, the two-block
+  shapes 6 and 4, s183 13). Meta workflow. The kept rule as this session wrote it changed a
+  two-block count to 5, so the agent added one condition: the copy must sit at a deeper
+  indent than the dropped line, which tells a moved `break` from a like block.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
