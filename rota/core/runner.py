@@ -2679,6 +2679,14 @@ def run_session(
                     # decides the line below, so read-after-write needs no case
                     # of its own.
                     would_repeat = repeat and answered.get(key) == shown
+                    # A repeated write of the text the file holds is one act.
+                    # Frame 93 answers it with a sentence that differs from
+                    # the first answer, so equality alone paid full freight
+                    # (the gate at 7808f3a). The sentence rides in the line.
+                    same_write = (call.name == "code.write" and not withheld
+                                  and isinstance(result, dict)
+                                  and isinstance(result.get("unchanged"), str))
+                    would_repeat = would_repeat or (repeat and same_write)
                     # And the answer is above only while the block that carried
                     # it is still in this prompt. The middle eviction takes
                     # blocks, and the repeat line then sent a seat to read a
@@ -2845,6 +2853,9 @@ def run_session(
                             f"started. What {call.name} returned then still "
                             f"stands."
                             if key in pushed_keys else
+                            f"OK {call.name} -> unchanged since you asked "
+                            f"earlier this session. {result['unchanged']}"
+                            if same_write else
                             f"OK {call.name} -> unchanged since you asked "
                             f"earlier this session. What {call.name} returned "
                             f"then still stands.")

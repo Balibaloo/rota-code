@@ -1513,6 +1513,8 @@ def test_a_repeated_write_is_the_same_act_and_is_answered_as_one(db, worktree):
     assert "bytes" in backend.calls[1][1], "the first write was not served in full"
     assert "unchanged since you asked" in backend.calls[2][1], \
         "the second write paid full freight for an answer that had not changed"
+    # Frame 93's sentence rides in the repeat line: the file holds the text.
+    assert "already holds this text, so this write changed nothing" in backend.calls[2][1]
 
 
 def test_two_spans_of_one_file_are_both_served_in_full(db, worktree):
