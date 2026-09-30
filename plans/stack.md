@@ -501,6 +501,14 @@ a different question and the night is then opened once.
   that holds the text. The check sits after every door, so a resent text that trips a door
   gets the door's refusal. Recorded cases where a seat re-sent the text on disk go stale;
   the gate counts them.
+- Status 2026-09-30 10:09 (rota-4c): **the diff review finds four lows, pass 2 runs on three** (observed:
+  the reviewer on Opus, 40k on the harness line against 40k, 19 tool calls, 6 minutes; CRLF
+  on disk compares equal to LF text; 180 tests pass; 19 recorded qwen3:8b prompts hold a
+  repeated identical `code.write`, and none joins to a case run, so the gate's stale line
+  decides). Meta workflow. Low: no length cap on the quoted lines; several red tests name
+  the last run, not the first; the unchanged result lacks `lands with` and the missing
+  note; an identical resend that trips a door gets the door's refusal, accepted as the
+  design. Pass 2 takes the first three.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
