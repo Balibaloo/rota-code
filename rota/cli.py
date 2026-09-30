@@ -846,7 +846,7 @@ def cmd_sign(args: argparse.Namespace) -> int:
     # A reply rules nothing, and the ask stays open. "ruling recorded" told
     # the principal the park ask was settled (observed: frame 87's review
     # of 4a0ab5c, 2026-09-30).
-    what = "reply sent" if sent == ["reply"] else "ruling recorded"
+    what = "reply sent" if sent else "ruling recorded"
     print(f"{what}: {created[0]}  (next: rota run {args.name})")
     return 0
 
