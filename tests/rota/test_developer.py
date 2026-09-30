@@ -429,9 +429,13 @@ def test_a_long_removal_leaves_the_diff_in_the_rendered_result(project):
     assert len(seen["diff"]) >= 60000, len(seen["diff"])
     removed = seen["removed lines"]
     assert len(removed) <= 2100 and removed.endswith(" more lines"), removed[-200:]
-    shown = _render(seen, 20000)
-    assert "[diff]" in shown, shown[:300]
-    assert len(shown.splitlines()[0]) < 1000, shown.splitlines()[0][:300]
+    # The review of a6bed3b: the block after a long diff was cut at both
+    # limits, so the removed lines render first.
+    for limit in (6000, 20000):
+        shown = _render(seen, limit)
+        assert "[removed lines]" in shown, (limit, shown[:300])
+        assert len(shown.splitlines()[0]) < 1000, shown.splitlines()[0][:300]
+    assert "[diff]" in _render(seen, 20000)
 
 
 _DEDENT_AND_DOUBLE = """diff --git a/src/f.py b/src/f.py
@@ -455,6 +459,23 @@ def test_a_dedent_and_a_double_removal_are_removed_lines():
 
     assert _removed_lines(_DEDENT_AND_DOUBLE) == (
         "src/f.py:\n-     if x:\n-         do()\n-     y = 1")
+
+
+def test_a_removed_line_names_its_file_whatever_its_path_or_length():
+    """The review of a6bed3b: git ends a header path that holds a space with
+    a tab, and one long first line left a tail that named no file."""
+    from rota.roles.api import _removed_lines
+
+    spaced = ("diff --git a/src/my file.py b/src/my file.py\n"
+              "--- a/src/my file.py\t\n+++ b/src/my file.py\t\n"
+              "@@ -1,1 +0,0 @@\n-x = 1\n")
+    assert _removed_lines(spaced) == "src/my file.py:\n- x = 1"
+
+    long = ("diff --git a/src/g.py b/src/g.py\n--- a/src/g.py\n+++ b/src/g.py\n"
+            "@@ -1,2 +0,0 @@\n-" + "x" * 3000 + "\n-y = 2\n")
+    text = _removed_lines(long)
+    assert (text.startswith("src/g.py:\n- xxx") and len(text) <= 2100
+            and text.endswith("\n... and 1 more line")), text[:40] + text[-40:]
 
 
 def test_a_batch_with_no_commit_says_so(project):

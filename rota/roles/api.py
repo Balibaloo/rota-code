@@ -8286,11 +8286,12 @@ def _removed_lines(diff_text: str, cap: int = 2000) -> str:
             continue
         if not in_hunk:
             # The file's name comes from its own header lines. A path that
-            # holds " b/" broke a split of the `diff --git` line.
+            # holds " b/" broke a split of the `diff --git` line. Git ends a
+            # header path that holds a space with a tab.
             if line.startswith("--- a/"):
-                old_path = line[6:]
+                old_path = line[6:].rstrip(chr(9))
             elif line.startswith("+++ b/"):
-                path = line[6:]
+                path = line[6:].rstrip(chr(9))
             elif line.startswith("+++ /dev/null"):
                 path = old_path
             elif line.startswith("@@") and path:
@@ -8313,16 +8314,26 @@ def _removed_lines(diff_text: str, cap: int = 2000) -> str:
     out: list[str] = []
     size, shown, current = 0, 0, None
     for f, text in entries:
-        add = ([f + ":"] if f != current else []) + ["- " + text]
-        cost = sum(len(a) + 1 for a in add)
+        head = [f + ":"] if f != current else []
+        entry = "- " + text
+        cost = sum(len(a) + 1 for a in head) + len(entry) + 1
         if size + cost > cap:
+            if not shown:
+                # A tail alone names no file. The review of a6bed3b: one long
+                # first line made the whole text "... and 1 more lines".
+                room = cap - size - sum(len(a) + 1 for a in head) - 1
+                out.extend(head)
+                out.append(entry[:max(room, 2)])
+                shown = 1
             break
-        out.extend(add)
+        out.extend(head)
+        out.append(entry)
         size += cost
         shown += 1
         current = f
-    if shown < len(entries):
-        out.append(f"... and {len(entries) - shown} more lines")
+    left = len(entries) - shown
+    if left:
+        out.append(f"... and {left} more {'line' if left == 1 else 'lines'}")
     return chr(10).join(out)
 
 
@@ -8349,10 +8360,14 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
             [*GIT, "-C", row["worktree"], "diff", _batch_base(ctx, row["worktree"]),
              "--unified=3"],
             capture_output=True, text=True, timeout=30)
-        result = {"batch": bid, "diff": out.stdout[:20000]}
+        # The removed lines go in before the diff. The runner writes body
+        # blocks in key order, and a long diff cut the block after it
+        # (the review of a6bed3b: offset 62,479, cut at 6000 and 20000).
+        result = {"batch": bid}
         removed = _removed_lines(out.stdout)
         if removed:
             result["removed lines"] = removed
+        result["diff"] = out.stdout[:20000]
         # Silent until now, and pushed to the wake a seat uses to restore what
         # its diff broke (frame 46's design record, section 2.7). A seat reading
         # 20,000 characters of a longer diff cannot tell which files it is not
@@ -8673,11 +8688,13 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
         # The whole batch since its fork. Frame 97: HEAD~1 hid every commit
         # but the last, and night 98's s183 lost 13 lines that way.
         fork = _batch_base(ctx, row["worktree"])
-        out["diff"] = worktrees.diff(row["worktree"], fork)
-        out["touched"] = worktrees.touched(row["worktree"], fork)
-        removed = _removed_lines(out["diff"])
+        text = worktrees.diff(row["worktree"], fork)
+        # Before the diff, so a long diff's cut never reaches the block.
+        removed = _removed_lines(text)
         if removed:
             out["removed lines"] = removed
+        out["diff"] = text
+        out["touched"] = worktrees.touched(row["worktree"], fork)
         # An empty diff with no word reads as a batch that changed nothing.
         # A fork equal to HEAD means the batch holds no commit yet.
         if fork == worktrees.head(row["worktree"]):
