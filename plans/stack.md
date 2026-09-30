@@ -267,6 +267,12 @@ a different question and the night is then opened once.
 - Status 2026-09-30 17:29 (rota-c6): **held by 7448850f, first on Roman's order** (ruled: Roman, asked with frames 100,
   87 and 93 as the other options; it stopped night 100's walk 2). Meta workflow. Next: read the two sites and
   the design note, then one implementer pass on Opus.
+- Status 2026-09-30 17:30 (rota-c6): **pass 1 runs on Opus** (reasoned: the base is `git merge-base HEAD <root HEAD sha>`,
+  which needs no schema change and survives a root that moved on after the fork; `HEAD~1` is the fallback;
+  both `code.diff` and `code.read` gain `removed lines`, a per-file list of `-` lines no `+` line carries;
+  design B's Critic brief step is not built, because it is a judgement and not in the ends-when). Meta
+  workflow. The brief is in the scratchpad, `frame97-brief.md`, with four tests. Critic re-records go to the
+  gate's stale set.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
