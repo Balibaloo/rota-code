@@ -630,6 +630,16 @@ a different question and the night is then opened once.
   change re-parks under the same hash and gets no ask. Pass 5 takes all four and builds
   the words-reply design: a words answer leaves the ask open, `landing` reads it, a commit
   or a contest closes it.
+- Status 2026-09-30 10:14 (rota-4c): **pass 5 committed at `4a0ab5c` on `f87`, the last review runs**
+  (observed: a fresh implementer on Opus, 138.2k on the harness line, 76 tool calls, 9.8
+  minutes; 217 tests pass in seven files, one red older than the branch; each fix's test
+  fails with its source stashed). Meta workflow. A words answer on a park ask is a reply
+  that leaves the ask open, `landing` reads it with no row to rule, and a commit or a
+  contest closes it. The hash counts the parks a move ended, because no table holds a park
+  time and the `do:park` count never moves on a quarantine park. Open for Roman, not
+  blocking: the principal's words on a park ask reach the Liaison only, and no seat acts on
+  "what to change"; recommended: no change in this frame, a later frame carries the words
+  to the Developer as the note on the next resume.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
