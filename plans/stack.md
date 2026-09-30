@@ -230,6 +230,7 @@ a different question and the night is then opened once.
   frame** (ruled: Roman, hand off now; a session past 300k with no frame never idles, and `CLAUDE.md`
   carries the rule from this commit). Meta workflow. Open for the next session: 102 first, then 100, 101,
   98, 93's one sentence, 88's brief line, 87 reopened; 86 validating.
+- Status 2026-09-30 23:48 (rota-0f): **taken by 104efdb6 from the claim of 7448850f at c628193** (observed: the take command, exit 0, 2026-09-30 23:48). Meta workflow. First read: the two predicate sites and night 101's rows.
 - Status 2026-09-30 23:47 (rota-c6): **handed off: session 104efdb6 (rota-0f) holds frame 102 and the stack from
   `c628193`** (observed: `handover.py hand`, exit 0, CONFIRMED 7s after the claim at 23:47:18). Meta
   workflow. This session, 7448850f, stops here at about 358k.
