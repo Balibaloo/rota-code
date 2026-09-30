@@ -268,6 +268,15 @@ a different question and the night is then opened once.
   counts a dropped line only when its text is absent from the new text. The count 13
   for s183 is reasoned by hand and the pass tests it against click's `confirm`. Two
   gaps from the note go to frame 97 below.
+- Status 2026-09-30 04:51 (rota-4c): **design A built and committed at `3b4b923` on `f95`, the diff
+  review runs** (observed: the implementer resumed on Opus, 116.7k on the harness line
+  cumulative, 72 tool calls, 26 minutes; 145 door tests pass; the s183 case gives 13 lines
+  from `if value in ("y", "yes"):`, so the hand count is now observed in a test; night 97's
+  shape gives 3 from `if abort and not rv:`). Meta workflow. A pure helper, `_tail_drop`,
+  runs after the span merge and before a whole-file write of an existing .py, and the
+  result carries the sentence under `dropped`. A test through `code.write` found that the
+  drops door's local of the same name overwrote the note, fixed in the pass. A `match`
+  block gives no note. The gate in the worktree compared the run with itself again.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
