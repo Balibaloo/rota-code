@@ -341,6 +341,13 @@ a different question and the night is then opened once.
   note call gains the try the whole-file call has, and the entry-point door's two strict
   line counts read with replace. Actual, walls apart: one design note and four passes on
   one agent, 175.8k cumulative against 40k; four reviews, 40.5k, 38.8k, 33.2k against 40k.
+- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
+  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
+  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
+  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
+  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
+  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
+  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
@@ -395,6 +402,13 @@ a different question and the night is then opened once.
   apart: read and pass 51.4k against 50k, review 48.5k against 30k, register lines 1.
 - Status 2026-09-30 05:03 (rota-4c): **gate clean at `4df551b`, validating until the night** (observed: the gate, 569s: suite 2404 passed against the stored 2324, new reds 1, the
   known flaky map test with the register's sign, green on its rerun, reds gone 1, stale 0). Meta workflow.
+- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
+  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
+  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
+  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
+  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
+  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
+  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
 
 ### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (532b3429)
 
@@ -487,6 +501,13 @@ a different question and the night is then opened once.
   known flaky map test with the register's sign, green on its rerun, reds gone 1, stale 0). Meta workflow. Actual, walls apart: five passes on one agent, 112.1k cumulative on the
   harness line against 30k; three reviews, 54.2k, 54.8k and 38.6k against 40k; two of
   this session's own one-line edits; register lines 0 here, 1 for frame 96's gate.
+- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
+  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
+  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
+  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
+  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
+  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
+  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
@@ -610,6 +631,13 @@ a different question and the night is then opened once.
   write equal to disk is never a repeat; 234 tests). Meta workflow. Known low, left: a
   dropped top-level shadow of a builtin, such as `def open`, passes silently and the call
   reaches the builtin. Validating on the gate and the night.
+- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
+  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
+  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
+  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
+  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
+  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
+  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
@@ -772,6 +800,13 @@ a different question and the night is then opened once.
   `text_includes_any` on a message spec, against its docstring's "never on prose"; the
   words checked are an id and a key name (reasoned: the case could not say "the item
   alone" without it). This gate is the one before the night.
+- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
+  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
+  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
+  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
+  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
+  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
+  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
@@ -1019,6 +1054,13 @@ a different question and the night is then opened once.
   without a filed finding against a green batch.
 - Status 2026-09-30 03:20 (rota-4c): **held by 532b3429 on Roman's word, validating; the next
   night at frame 94's closing commit is the one that proves it.** Meta workflow.
+- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
+  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
+  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
+  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
+  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
+  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
+  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (532b3429)
 
@@ -1340,6 +1382,13 @@ a different question and the night is then opened once.
   night is the way to reach both, recommended to Roman.
 - Status 2026-09-30 03:20 (rota-4c): **held by 532b3429 on Roman's word, validating; the next
   night at frame 94's closing commit is the one that proves it.** Meta workflow.
+- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
+  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
+  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
+  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
+  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
+  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
+  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
