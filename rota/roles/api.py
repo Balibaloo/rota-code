@@ -10472,7 +10472,7 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | 
                 while kids(n):
                     parent, n = n, max(kids(n), key=lambda p: end(p[1][-1]))[1][-1]
                 break
-            dropped += [x for x in pool if lo(x) >= end(o)]
+            dropped += [(x, n) for x in pool if lo(x) >= end(o)]
             if not kids(n):
                 break
             f, mine = max(kids(n), key=lambda p: end(p[1][-1]))
@@ -10485,8 +10485,21 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | 
         # A line the text still holds at or below its leaf moved there, and
         # is not a loss. A line above the leaf is a different line (review).
         kept = {x.strip() for x in new[max(n.lineno - 1 - start, 0):]}
-        gone = sorted({i for x in dropped for i in range(lo(x), end(x))
-                       if old_lines[i].strip() and old_lines[i].strip() not in kept})
+
+        def moved(i, s):
+            # Frame 95 pass 3: a line the seat moved into the text statement
+            # that holds the leaf, at the level the line was dropped from.
+            # Night 97 moved the loop's `break` into each branch. The copy
+            # sits deeper than the line, or a like block's own header and
+            # body would hide the second block (the two-block test).
+            line, deep = old_lines[i].strip(), len(old_lines[i]) - len(old_lines[i].lstrip())
+            return any(merged[k].strip() == line
+                       and len(merged[k]) - len(merged[k].lstrip()) > deep
+                       for k in range(lo(s, merged), end(s)))
+
+        gone = sorted({i for x, s in dropped for i in range(lo(x), end(x))
+                       if old_lines[i].strip() and old_lines[i].strip() not in kept
+                       and not moved(i, s)})
         if not gone:
             return None
         word = "line" if len(gone) == 1 else "lines"

@@ -2774,12 +2774,11 @@ def test_night97_tail_loop_that_ends_at_continue_drops_the_return():
         "            break",
         "        else:", '            echo(_("Error: invalid input"), err=err)',
         "            continue"]
-    # The loop's own `break` moved into each branch, above the leaf, so the
-    # kept rule counts it. The note overcounts by that one line (observed:
-    # frame 95 pass 2, 2026-09-30). The three lines of the wall still count.
+    # The loop's own `break` moved into each branch, deeper, so it is kept
+    # (frame 95 pass 3, 2026-09-30).
     note = _tail_drop(lines, w, len(lines), chr(10).join(loop) + chr(10))
-    assert note == ("This write drops 4 lines that came after `continue`, "
-                    "from `break`.")
+    assert note == ("This write drops 3 lines that came after `continue`, "
+                    "from `if abort and not rv:`.")
 
 
 def test_a_span_write_that_stops_short_lands_and_says_what_it_drops(db, tmp_path):

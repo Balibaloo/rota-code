@@ -55,10 +55,9 @@ The helper computes the loss from two ASTs:
    span's list and not the def.
 9. "Statements after that branch at the same level" are the drops of step 6,
    at every level from the span's list down to the parent of the leaf.
-10. A dropped line counts only when its stripped text is absent from the
-    text's lines at or below the leaf. The count can still undercount when
-    the same line appears below the leaf. It overcounts a line that the seat
-    moved above the leaf, such as night 97's `break`.
+10. A dropped line is kept when its stripped text is at or below the leaf, or
+    is deeper inside the text statement that holds the leaf at its level.
+    The count can still undercount when the same line appears in those places.
 11. Count the lines, and name the lowest one.
 
 The sentence: "This write drops 13 lines that came after
@@ -70,9 +69,8 @@ What it buys:
 
 - s183: the write lands, and s183 reads "13 lines" before `code.commit`. The
   note is a chance, not a refusal. Later sessions never see the note.
-- Night 97: s214, s215 and s216 each read "drops 4 lines that came after
-  `continue`, from `break`" (observed: the test, 2026-09-30). The loop's own
-  `break` moved into each branch, and step 10 counts it.
+- Night 97: s214, s215 and s216 each read "drops 3 lines that came after
+  `continue`, from `if abort and not rv:`" (observed: the test, 2026-09-30).
 
 False positives, and the way past:
 
