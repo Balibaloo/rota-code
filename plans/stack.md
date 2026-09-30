@@ -204,6 +204,48 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 99. A newline escape inside a string literal becomes a line break, and the parse door refuses the write (2026-09-30)
+
+- **Batch C, the night's stall, found by night 99's read of walk 1.** One site: the parse
+  door of `code.write` at `rota/roles/api.py:9214` and the argument decoder before it. It
+  touches the write path, so it carries a diff review and a walk.
+- Rota workflow. On night 99 the Developer's three sessions on `bg_1`'s batch_start each
+  wrote `out += "
+"` with one escape, the decoder made it a real newline, the parse door
+  refused "unterminated string literal", and the batch was quarantined at attempt 3. Night
+  98's s133 passed at turn 21 only after the model doubled the escape (observed: night 99's
+  s132 to s134 and night 98's s133, 2026-09-30).
+- Ends when: the parse door, on an unterminated string literal whose broken line ends inside
+  a quote and whose next line closes it, retries the fragment with that one decoded newline
+  restored as the two characters, takes the repaired text when it compiles and says so in
+  one sentence, and otherwise adds to the refusal "inside a string literal write the
+  newline escape as two characters"; a `\"\"\"` at the start of a fragment line gets its
+  own sentence; a desk test built from s134's turn 21 lands as a valid insert; the bg_1
+  Developer case re-records; a night at the closing commit starts bg_1. Priced: one pass,
+  about 40k on Opus; one diff review, about 40k; one re-record; the night shared.
+- Waits on: Roman's order. Recommended: first, because it stops every batch whose fix
+  writes a string with a newline.
+- Reasoning: frame 87's status above, and the read's report in the session transcript.
+- Status 2026-09-30 12:55 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
+
+### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
+
+- **Batch C, the night's stall, found by night 99's read of walk 1.** Two sites: the
+  eviction at `rota/core/runner.py:570` and the repeat refusal at `:2760`. It touches the
+  runner's window, so it carries a diff review and a walk.
+- Rota workflow. On night 99 s132 spent about 20 of its 25 turns on `code.source` reads of
+  the same spans, because "[2 earlier exchange(s) dropped to fit the window]" removed each
+  result, until "code.source served three times this session ... not served again"; with
+  the turns left, a wrong write was not repaired (observed: night 99's s132, 2026-09-30;
+  night 98 shows the eviction phrase 216 times).
+- Ends when: a span a seat read this session and lost to eviction is served again in a
+  form that fits, or the eviction keeps the last read of each file; one runner test; a
+  night at the closing commit shows a Developer session that reads a span once. Priced:
+  one design read, 30k; one pass, 40k on Opus; one diff review, 40k; the night shared.
+- Waits on: Roman's order. Recommended: after frame 99.
+- Reasoning: the same read.
+- Status 2026-09-30 12:55 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
+
 ### 98. A seat sends a second message after its session is complete, and a case passes on a broken file (2026-09-30)
 
 - **Batch C, the night's stall, found by frame 95's diagnosis of the gate's red.** Two sites:
@@ -813,6 +855,16 @@ a different question and the night is then opened once.
   workflow. Five frames changed the scheduler, the scans and the write path since night
   98, and the last change is the first suspect; the cause goes on the stack after the
   batch_start sessions' turns are read.
+- Status 2026-09-30 12:55 (rota-4c): **the wall is older than the five frames: the Developer writes
+  the newline escape in a string literal as one escape, the argument decoder turns it into
+  a line break, and the parse door refuses; night 98 passed the same wall by chance at
+  attempt 2** (observed: the read on Opus, 94.2k on the harness line against 60k, on a copy
+  of night 99's database: s132, s133 and s134 each ran 25 turns and wrote nothing; s134
+  turns 19 and 21 hold `out += "
+"` refused as an unterminated string literal; `git log -S`
+  finds none of the refusal texts in `60cc23f..0bd5f3b`; night 98's s133 passed at turn 21
+  with the escape doubled). Meta workflow. Not this frame's wall. Frame 99 carries the
+  repair and frame 100 the re-read loop that eats the turn budget.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
