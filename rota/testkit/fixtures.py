@@ -383,7 +383,7 @@ def capture(conn: sqlite3.Connection, session_id: str,
     # boundary is drawn by what existed before the session started.
     before = messages_before if messages_before is not None else set()
     messages = [dict(r) for r in conn.execute(
-        "SELECT id, to_role, verb, body_refs, cause_id, status FROM messages "
+        "SELECT id, to_role, verb, body_refs, body_text, cause_id, status FROM messages "
         "WHERE from_role = (SELECT role FROM sessions WHERE id = ?) "
         "ORDER BY seq", (session_id,),
     ) if r["id"] not in before]
@@ -581,6 +581,22 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
             need = set(spec.get("refs_include") or [])
             if need and not need <= set(json.loads(m["body_refs"])):
                 problems.append(f"message {m['id']} missing refs {need}")
+            # The refs whole, when a door fixes them: the park ask carries
+            # the item alone (frame 87).
+            if "refs_equal" in spec and json.loads(m["body_refs"]) != spec["refs_equal"]:
+                problems.append(f"message {m['id']} carries refs "
+                                f"{json.loads(m['body_refs'])}, not {spec['refs_equal']}")
+            # A fact the words must name, as for written rows: an id or a
+            # key the reader needs, never a phrasing (frame 87, the park ask).
+            said = m.get("body_text") or ""
+            missing = [w for w in spec.get("text_includes") or [] if w not in said]
+            if missing:
+                problems.append(f"message {m['id']} does not name {missing}: "
+                                f"{said[:200]!r}")
+            anyw = spec.get("text_includes_any") or []
+            if anyw and not any(w in said for w in anyw):
+                problems.append(f"message {m['id']} names none of {anyw}: "
+                                f"{said[:200]!r}")
 
     # A judgement is only as good as what it was grounded in. Two thirds of the
     # L1 obligation set are reads — `code.read`, `criteria.load`, `model.load` —
