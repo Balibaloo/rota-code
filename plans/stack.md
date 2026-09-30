@@ -876,6 +876,13 @@ a different question and the night is then opened once.
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 - Status 2026-09-30 16:32 (rota-c6): **half reached on night 100: the Tester named the trailing newline at s135 and s141, bg_1's review passed and bg_1 merged; no turn named an indent** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Still validating on a night that reaches an indent criterion.
 - Status 2026-09-30 22:24 (rota-c6): **reached on night 101: the Critic failed bg_1 on `echo_json_compact` for the trailing newline the criterion asks for, calling it a failure of intent over letter; the Developer asked the Vision Keeper four times and never about the newline, because the reason never reached it** (observed: night 101's read on Opus, 85.0k on the harness line against 80k, from `.rota/clickI_night101.db`, 2026-09-30). Meta workflow. This is the ruling the frame waits for: does a criterion's letter bind the Critic, or its intent? Recommended: the letter binds, and an intent objection is a challenge to the criterion, not a fail. Blocked on Roman.
+- Status 2026-09-30 22:29 (rota-c6): **ruled: the Critic reads the whole work and the criteria beside it; work outside
+  the criteria gets a remark; a fail is only for a criterion the work does not meet as written; a doubt
+  about a criterion is a challenge to the Architect; and the Critic's reason must reach the Developer**
+  (ruled: Roman, in the terminal, from the story of the builder and the inspector; night 101's fail rested
+  on a purpose the Critic read from the builder's own docstring). Meta workflow. The reason's route is
+  frame 102's second half. The Critic's brief line and its re-record are this frame's remaining work,
+  unclaimed, about 30k plus the re-records by count. Ruling recorded, no longer blocked.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (532b3429)
 
