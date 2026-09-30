@@ -269,6 +269,11 @@ a different question and the night is then opened once.
 - Status 2026-09-30 13:49 (rota-c6): **gate clean at `85f7c4f`** (observed: the gate, 494s, exit 0: suite 22 failed and
   2454 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0). Meta workflow. Pass 3
   still runs; the gate runs again at its commit, then the third diff review.
+- Status 2026-09-30 13:50 (rota-c6): **pass 3 committed at `5d54e9a`, the gate and the third diff review run at it**
+  (observed: the implementer resumed on Opus, 103.2k cumulative on the harness line, 11 tool calls, 2.4
+  minutes; 177 door tests and 58 parser tests pass, 4 tests fail with `api.py` stashed). Meta workflow.
+  Passes on one agent: 66.6k, 92.9k and 103.2k cumulative on the harness line against 40k priced. The
+  third review is the last before the night.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
