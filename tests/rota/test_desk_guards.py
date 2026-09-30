@@ -2925,3 +2925,75 @@ def test_a_write_that_changes_one_line_carries_no_unchanged_sentence(db, tmp_pat
     assert "unchanged" not in out
     assert "return x" in (root / "script.py").read_text()
 
+
+# `src/ui.py` from ACT-DV-edit-inside-the-function, tests/rota/cases/l1_acts.yaml.
+_UI = '''import sys
+
+visible_prompt_func = input
+
+
+def _readline_prompt(func, text):
+    return func(text)
+
+
+def confirm(text, default=None):
+    while True:
+        try:
+            value = _readline_prompt(visible_prompt_func, text).lower().strip()
+        except (KeyboardInterrupt, EOFError):
+            raise SystemExit(1)
+        if value in ("y", "yes"):
+            return True
+        if value in ("n", "no"):
+            return False
+        if default is not None and value == "":
+            return default
+
+
+def style(text, fg=None):
+    return text if fg is None else f"<{fg}>{text}</{fg}>"
+
+
+def echo(message):
+    sys.stdout.write(str(message) + chr(10))
+'''
+
+
+def _ui_worktree(db, tmp_path, name, body):
+    root = tmp_path / "wt"; (root / "src").mkdir(parents=True)
+    (root / "src" / name).write_bytes(body.encode("utf-8"))
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    return root, build("developer", db, batch_id="b1", mode="tests_failing",
+                       allow=prompts.mode_tools("developer", "tests_failing"))
+
+
+def test_a_whole_write_of_one_def_that_uses_the_dropped_helpers_is_refused(db, tmp_path):
+    """ACT-DV-edit-inside-the-function (2026-09-30): every run wrote `ui.py`
+    whole with `confirm` alone. `confirm` calls `_readline_prompt`, which the
+    write dropped, and no door refused, because nothing imported it."""
+    root, sb = _ui_worktree(db, tmp_path, "ui.py", _UI)
+    lines = _UI.splitlines()
+    new = chr(10).join([lines[9].replace("default=None", "default=None, default_on_eof=False")]
+                       + lines[10:21]) + chr(10)
+    with pytest.raises(ValueError, match=r"drops .*_readline_prompt.* your text still uses "
+                                         r"them\. To change confirm alone, write only "
+                                         r"confirm with start=9, end=21"):
+        sb.call("code.write", path="src/ui.py", text=chr(10) * 2 + new)
+    out = sb.call("code.write", path="src/ui.py", text=new, start=9, end=21)
+    assert "dropped" not in out
+    held = (root / "src" / "ui.py").read_text()
+    assert "default_on_eof=False" in held and "def echo" in held and "import sys" in held
+
+
+def test_a_whole_write_that_drops_an_unused_helper_names_the_lines_and_the_span(db, tmp_path):
+    """Frame 95 pass 5: a whole-file write that keeps `keep` and drops a helper
+    nothing uses lands, and the sentence counts the dropped lines."""
+    old = "def keep(x):\n    return x\n\n\ndef helper():\n    return 2\n"
+    root, sb = _ui_worktree(db, tmp_path, "m.py", old)
+    out = sb.call("code.write", path="src/m.py", text="def keep(x):\n    return x + 1\n")
+    assert out["dropped"] == ("This write drops 2 lines of the old file, from "
+                              "`def helper():`; write only keep with start=0, end=2 "
+                              "to keep them.")
+
