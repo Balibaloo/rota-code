@@ -204,7 +204,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 95. A whole-function rewrite that stops short is accepted by every door (2026-09-29)
+### 95. A whole-function rewrite that stops short is accepted by every door (2026-09-29) (532b3429)
 
 - **Batch C, the night's stall, found by night 98's read.** One site: the
   parse and span doors of `code.write` accept a text that replaces a whole
@@ -229,8 +229,16 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended: after 94 and 93, before 87.
 - Reasoning: `plans/archive/night98-walk-2026-09-29.md`, the new walls.
 - Status 2026-09-29 16:46 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
+- Status 2026-09-30 04:24 (rota-4c): **held by 532b3429 beside frame 94, on Roman's word to run more frames at once in
+  this session** (ruled: Roman, 2026-09-30, in the terminal: parallelise with sub-agents
+  in one session, and hand off when full). Meta workflow. Each frame has its own
+  implementer on Opus in its own worktree and branch from `f63767f`. The gate and the
+  merge into `rota/foundation` stay one at a time. Worktree `C:/Users/roman/rota_f95`, branch
+  `f95`. The agent writes the design note for the two designs first, and this session
+  judges it before any code. Frame 93 follows on the same agent and tree, because both
+  sit in `code.write`.
 
-### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29)
+### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
 - **Batch C, the night's stall, found by night 98's read.** One site:
   `tickets_scan` at `rota/roles/api.py:3394` and the grouping wake. It touches
@@ -254,6 +262,12 @@ a different question and the night is then opened once.
   night 98's second batch.
 - Reasoning: `plans/archive/night98-walk-2026-09-29.md`, the new walls.
 - Status 2026-09-29 16:46 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
+- Status 2026-09-30 04:24 (rota-4c): **held by 532b3429 beside frame 94, on Roman's word to run more frames at once in
+  this session** (ruled: Roman, 2026-09-30, in the terminal: parallelise with sub-agents
+  in one session, and hand off when full). Meta workflow. Each frame has its own
+  implementer on Opus in its own worktree and branch from `f63767f`. The gate and the
+  merge into `rota/foundation` stay one at a time. Worktree `C:/Users/roman/rota_f96`, branch
+  `f96`. The agent reads the wake and `tickets_scan` first, then one pass.
 
 ### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (532b3429)
 
@@ -352,7 +366,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/archive/night97-walk-2026-09-29.md`, the new wall.
 - Status 2026-09-29 12:02 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
 
-### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
+### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
 - **Batch C, the night's stall, found by night 94's read, and it is the wall
   that stands after frame 86.** One site: the quarantine of a batch's
@@ -384,6 +398,12 @@ a different question and the night is then opened once.
   start meanwhile. The ends-when above is read with that ruling: the parked
   path, not a new budget. Order: after frame 88, placed by the assistant
   until Roman names another place.
+- Status 2026-09-30 04:24 (rota-4c): **held by 532b3429 beside frame 94, on Roman's word to run more frames at once in
+  this session** (ruled: Roman, 2026-09-30, in the terminal: parallelise with sub-agents
+  in one session, and hand off when full). Meta workflow. Each frame has its own
+  implementer on Opus in its own worktree and branch from `f63767f`. The gate and the
+  merge into `rota/foundation` stay one at a time. Worktree `C:/Users/roman/rota_f87`, branch
+  `f87`. The agent builds the parked path the ruling of 2026-09-27 names.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
