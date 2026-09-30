@@ -468,7 +468,8 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     ctx = api.Ctx(conn=conn, role=role, mode=mode, session_id=session_id,
                   batch_id=batch_id, area=area, entry_id=entry_id,
                   onboarding=onboarding,
-                  wake_refs=tuple(getattr(wake, "refs", ()) or ()))
+                  wake_refs=tuple(getattr(wake, "refs", ()) or ()),
+                  wake_kind=getattr(wake, "kind", "") or "")
 
     grouped: dict[str, dict[str, Callable]] = {}
     available: dict[str, list[str]] = {}
@@ -939,6 +940,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # that a guard threw out must be in the log or a landed send
         # scores as none (qwen2.5:14b, 2026-09-14, the forbidden challenge).
         _CALL_LOG.setdefault(id(ctx), []).append((label, f"refs={refs or []}"))
+        # A park ask carries the item alone, whatever the session typed. A
+        # batch ref would make `rulings.rule` log an unaddressed answer
+        # against the batch (observed: frame 87's pass 3 review,
+        # 2026-09-30). The wake's first ref is the item.
+        park = (getattr(ctx, "wake_kind", "") == "tick:park_ask"
+                and recipient == "principal" and verb == "clarify"
+                and len(ctx.wake_refs or ()) == 2)
+        if park:
+            refs = [ctx.wake_refs[0]]
         # Required, not defaulted. A message carries refs and nothing else —
         # there is no prose field on purpose — so `refs=None` advertised a
         # legal call that communicates the fact that something happened and
@@ -1088,9 +1098,18 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"principal answers this one")
         if recipient == "principal" and verb == "clarify" and text:
             words = " ".join(text.split())
+            from .scheduler import park_ask_batch
+
             for row in ctx.conn.execute(
-                    "SELECT id, body_text FROM messages WHERE to_role = 'principal' "
+                    "SELECT id, body_text, status FROM messages WHERE to_role = 'principal' "
                     "AND verb = 'clarify' AND body_text IS NOT NULL ORDER BY seq"):
+                # A closed park ask was about an earlier park. A re-park states
+                # the same facts, so its words match, and the refusal ran the
+                # wake to its cap (observed: frame 87's review of b23d17b,
+                # 2026-09-30).
+                if (park and row["status"] != "open"
+                        and park_ask_batch(row["id"])):
+                    continue
                 if " ".join((row["body_text"] or "").split()) == words:
                     raise ValueError(
                         f"you have already put these words to the principal, in "
@@ -1802,6 +1821,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             recipients = sorted(split)
 
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
+        if park:
+            # The id marks the park and names the batch, so the predicate
+            # asks once per park and a commit closes this ask.
+            from .scheduler import park_ask_id
+
+            msg_id = park_ask_id(ctx.conn, ctx.wake_refs[1])
         for n, to_role in enumerate(recipients):
             ctx.outbound.append({
                 "id": msg_id if n == 0

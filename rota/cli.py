@@ -800,13 +800,15 @@ def cmd_sign(args: argparse.Namespace) -> int:
     records a ruling the same way, so the CLI cannot invent a second one.
     """
     from .core.db import connect
-    from .roles.principal import Answer, pump
+    from .roles.principal import Answer, pump, words_keep_open
 
     approve = [x for x in (args.approve or "").split(",") if x]
     contest = [x for x in (args.contest or "").split(",") if x]
     if not (approve or contest or args.say):
         raise SystemExit("say what you rule: --approve ids, --contest ids, "
                          "or --say 'words'")
+
+    sent: list[str] = []
 
     class OneShot:
         name = "cli"
@@ -819,7 +821,9 @@ def cmd_sign(args: argparse.Namespace) -> int:
             # its reason were two commands and two unrelated acts.
             if args.say and not (approve or contest):
                 # Words on a page are a reply the Liaison reads (landing).
-                verb = "reply" if ask.verb in ("confirm", "present") else "converse"
+                # Words on a park ask are one too, so its contest stays open.
+                verb = "reply" if words_keep_open(ask) else "converse"
+                sent.append(verb)
                 return Answer(verb=verb, text=args.say)
             per_item = {i: "approve" for i in approve}
             per_item.update({i: "contest" for i in contest})
@@ -839,7 +843,11 @@ def cmd_sign(args: argparse.Namespace) -> int:
     if not created:
         raise SystemExit(f"{args.ask} is not an open gate; `rota agenda "
                          f"{args.name}` lists them")
-    print(f"ruling recorded: {created[0]}  (next: rota run {args.name})")
+    # A reply rules nothing, and the ask stays open. "ruling recorded" told
+    # the principal the park ask was settled (observed: frame 87's review
+    # of 4a0ab5c, 2026-09-30).
+    what = "reply sent" if sent == ["reply"] else "ruling recorded"
+    print(f"{what}: {created[0]}  (next: rota run {args.name})")
     return 0
 
 

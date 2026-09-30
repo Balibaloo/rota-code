@@ -86,7 +86,7 @@ Liaison's work.
 (relay), and the principal (clarify, confirm, present).
 
 **Woken by** agenda, awaiting_confirm, blindspot, contradiction, observed_entries,
-quarantined, round_close, touch_note.
+park_ask, quarantined, round_close, touch_note.
 
 **A touch note is read, not ruled on.** `touch_note` puts a batch's predicted
 touch to the principal as a sense check before it builds (P4, ruled 2026-09-03):

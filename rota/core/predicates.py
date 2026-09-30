@@ -221,9 +221,14 @@ def contradiction(conn) -> list[Wake]:
         "SELECT id FROM statements WHERE status = 'contradicted'").fetchall()
     if not rows:
         return []
+    # A park ask can stay open all night, and it is not this question
+    # (observed: frame 87's pass 3 review, 2026-09-30).
+    from .scheduler import PARK_ASK
+
     asked = conn.execute(
         "SELECT COUNT(*) n FROM messages WHERE status='open' AND to_role='principal' "
-        "AND verb='clarify'").fetchone()["n"]
+        "AND verb='clarify' AND substr(id, 1, ?) != ?",
+        (len(PARK_ASK), PARK_ASK)).fetchone()["n"]
     return [] if asked else [
         Wake("liaison", "tick:contradiction", refs=tuple(r["id"] for r in rows))]
 
@@ -1508,6 +1513,48 @@ def quarantined(conn) -> list[Wake]:
                  detail=detail)] if n else []
 
 
+@predicate("park_ask", wakes="liaison", band="fix")
+def park_ask(conn) -> list[Wake]:
+    """
+    A deferred batch the team gave up on, owed one ask to the principal.
+
+    A given-up batch put back in the chair waits for the principal (ruled:
+    Roman, 2026-09-27). The principal answers through a gate, and the
+    Liaison writes the gate (ruled: Roman, 2026-09-30). One open ask per
+    park: the ask's id comes from the batch, its head commit, its keys and
+    the count of its closed asks. Words leave the ask open. A ruling that
+    closes it and leaves the batch parked opens the next ask, so a parked
+    batch always has a gate. The refs are
+    the item and the batch. The door keeps the item alone on the ask.
+    """
+    from .scheduler import given_up, open_park_ask, park_ask_id
+
+    out = []
+    for b in conn.execute(
+            "SELECT b.id, b.item_id, i.approval, i.approval_ver, i.version "
+            "FROM batches b JOIN items i ON i.id = b.item_id "
+            "WHERE b.status = 'deferred' ORDER BY b.id").fetchall():
+        keys = given_up(conn, b["id"])
+        # A contested item's batch goes to `do:cancel`, so nothing is asked.
+        # A contest closes the ask before the cancel runs, and the next id
+        # would open a second ask on a batch that is going.
+        # The test is `cancel`'s own, where a NULL compares false.
+        unschedulable = ((b["approval"] is not None
+                          and b["approval"] != "approved")
+                         or (b["approval_ver"] is not None
+                             and b["version"] is not None
+                             and b["approval_ver"] < b["version"]))
+        if not keys or unschedulable or open_park_ask(conn, b["id"]) or conn.execute(
+                "SELECT 1 FROM messages WHERE id = ?",
+                (park_ask_id(conn, b["id"]),)).fetchone():
+            continue
+        what = ", ".join(f"{k.split('|')[1].replace('tick:', '')} for {b['id']}"
+                         for k in keys)
+        out.append(Wake("liaison", "tick:park_ask", refs=(b["item_id"], b["id"]),
+                        detail=f"{b['id']} is parked. The team gave up on: {what}."))
+    return out
+
+
 @predicate("agenda", wakes="liaison", band="gate", needs_principal=True,
            drains=[("ledger", "status", "open")])
 def agenda(conn) -> list[Wake]:
@@ -1680,6 +1727,9 @@ REGISTER_ENTRIES = frozenset({
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
     "orient", "define", "boundary", "frame", "reorient", "challenge",
     "blindspot", "criterion_repair", "touch_note",
+    # A parked batch is owed one ask to the principal until it is written
+    # (frame 87, ruled 2026-09-30).
+    "park_ask",
 })
 
 

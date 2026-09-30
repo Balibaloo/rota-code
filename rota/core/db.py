@@ -571,6 +571,11 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
     if w.table == "batches" and "head_commit" in fields:
         conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
                      (f"%|tick:tests_failing|{w.row_id}",))
+        # The commit is the way out the park ask names, so the ask closes
+        # with the keys it asked about (frame 87).
+        from .scheduler import close_park_asks
+
+        close_park_asks(conn, w.row_id)
         # A missing test is not the code's debt, so a commit keeps its count.
         # A moved test of the batch resets it below. The park keeps its count
         # too: a commit is the park's own exit, so a reset would let park,

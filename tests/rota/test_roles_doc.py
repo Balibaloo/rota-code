@@ -177,7 +177,9 @@ def test_every_predicate_is_either_spine_or_register():
     # pass, drained by the ruling, and the merge gate holds until then --
     # frame 88, 2026-09-27). 45 with `findings_exhausted` (spine: the
     # findings loop's end, on the same ladder as `exhausted` -- frame 88).
-    assert len(every) == 45, (
+    # 46 with `park_ask` (register: a parked batch is owed one ask to the
+    # principal until the Liaison writes it -- frame 87, 2026-09-30).
+    assert len(every) == 46, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 

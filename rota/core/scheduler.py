@@ -1203,6 +1203,10 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     # happens. The bound was always doing its job; the answer to "what is ready"
     # was computed against the state before it did.
     quarantine_overrun(conn)
+    # A batch that left its park owes no answer, so its ask closes in the
+    # same pass. The Liaison writes the ask, woken by `park_ask` (ruled:
+    # Roman, 2026-09-30).
+    close_stale_park_asks(conn)
     # And the other kind of overrun, which that one cannot see: a chain of
     # *distinct* messages whose edge keeps causing itself. `attempts` stays at
     # one along the whole of it, so the bound above is satisfied at every link
@@ -1370,6 +1374,8 @@ def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     # cannot end it. Night 93 resumed `b_1` at attempt 11 of 10, nothing woke
     # on it, and three ready batches waited all night (observed: night 93,
     # 2026-09-25). The batch stays deferred, and `exhausted` climbs the ladder.
+    # A deferred batch with a quarantined key stays out too, so its siblings
+    # start while the principal decides (frame 87, ruled 2026-09-27).
     rows = [r for r in rows if not parked(conn, r["id"])]
     order = schedule_order(conn)
     place = {b: n for n, b in enumerate(order)}
@@ -1388,10 +1394,113 @@ def failing_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
     return int(row["att"] or 0)
 
 
+def given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """The quarantined keys of the seats' wakes that name this batch alone."""
+    # A key with two refs is about a pair, such as a touch note and its item.
+    # A scheduler key (`-|do:park|b`) is the scheduler's own bound, not a seat.
+    return [r["tick_key"] for r in conn.execute(
+        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 ORDER BY tick_key")
+        if not r["tick_key"].startswith("-|")
+        and r["tick_key"].split("|", 2)[-1] == batch_id]
+
+
+# The id prefix of a park ask, then ten hex characters, `_` and the batch id.
+# The ask's refs hold the item only, so the batch rides in the id. A prefix
+# match on the batch would take `b_1_b_1` for `b_1`, so the batch is read
+# at a fixed offset and compared whole (frame 87).
+PARK_ASK = "m_park_"
+_PARK_BATCH_AT = len(PARK_ASK) + 11          # 0-based start of the batch id
+
+
+def park_ask_id(conn: sqlite3.Connection, batch_id: str) -> str:
+    """
+    The id of the one park ask a batch's park owes, from its head, its keys
+    and the parks that ended before it.
+    """
+    import hashlib
+
+    row = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    head = row["head_commit"] if row else None
+    keys = ",".join(given_up(conn, batch_id))
+    # A lift with no new head, such as a criterion move, can park again on
+    # the same key. Head and keys alone then gave the old id, and no ask
+    # opened (observed: frame 87's review of b23d17b, 2026-09-30). Every
+    # closed ask is a past park. A count that left out an approved ask gave
+    # the old id after an approve, a lift and a re-park (observed: frame 87's
+    # review of 4a0ab5c, 2026-09-30). The `-|do:park|` count does not move on
+    # a quarantine park.
+    ended = conn.execute(
+        "SELECT COUNT(*) n FROM messages WHERE status != 'open' "
+        "AND substr(id, 1, ?) = ? AND substr(id, ?) = ?",
+        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchone()["n"]
+    digest = hashlib.sha256(
+        f"{batch_id}|{head}|{keys}|{ended}".encode()).hexdigest()[:10]
+    return f"{PARK_ASK}{digest}_{batch_id}"
+
+
+def park_ask_batch(message_id: str) -> str | None:
+    """The batch a park ask is about, or None for any other message."""
+    if not message_id.startswith(PARK_ASK) or len(message_id) <= _PARK_BATCH_AT:
+        return None
+    return message_id[_PARK_BATCH_AT:]
+
+
+def open_park_ask(conn: sqlite3.Connection, batch_id: str) -> str | None:
+    """The batch's open park ask, if one is open."""
+    row = conn.execute(
+        "SELECT id FROM messages WHERE status = 'open' AND substr(id, 1, ?) = ? "
+        "AND substr(id, ?) = ?",
+        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchone()
+    return row["id"] if row else None
+
+
+def close_park_asks(conn: sqlite3.Connection, batch_id: str) -> int:
+    """Close the open park ask of a batch. Returns how many closed."""
+    return conn.execute(
+        "UPDATE messages SET status = 'answered' WHERE status = 'open' "
+        "AND substr(id, 1, ?) = ? AND substr(id, ?) = ?",
+        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).rowcount or 0
+
+
+def close_stale_park_asks(conn: sqlite3.Connection) -> int:
+    """
+    Close the open park ask of every batch that left the park.
+
+    A commit closes its batch's ask in `db._lift_quarantines`, and a contest
+    closes it in `principal.land`. An abandonment by another gate closes
+    neither, and an ask about a batch that is gone owes no answer.
+    """
+    n = 0
+    for r in conn.execute(
+            "SELECT id FROM messages WHERE status = 'open' AND substr(id, 1, ?) = ?",
+            (len(PARK_ASK), PARK_ASK)).fetchall():
+        batch = park_ask_batch(r["id"])
+        row = conn.execute("SELECT status FROM batches WHERE id = ?",
+                           (batch,)).fetchone()
+        if row is None or row["status"] != "deferred" or not given_up(conn, batch):
+            n += conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
+                              (r["id"],)).rowcount or 0
+    return n
+
+
 def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
-    """A batch at or past `loop_cap` whose head commit is the one that failed."""
+    """
+    A deferred batch the team gave up on, or a batch at or past `loop_cap`
+    whose head commit is the one that failed.
+    """
     from . import config
 
+    # A given-up batch put back in the chair waits for the principal (ruled:
+    # Roman, 2026-09-27). Night 94 resumed `bg_1` with its `tests_failing` key
+    # quarantined, nothing woke on it, and `bg_2` never started (observed:
+    # night 94, 2026-09-25). A head commit lifts the key in
+    # `db._lift_quarantines`, and that ends the park. A running batch keeps the
+    # old test, so this changes no preempt of a running batch.
+    status = conn.execute("SELECT status FROM batches WHERE id = ?",
+                          (batch_id,)).fetchone()
+    if status and status["status"] == "deferred" and given_up(conn, batch_id):
+        return True
     if failing_attempt(conn, batch_id) < config.get(conn, "loop_cap"):
         return False
     # A head commit newer than the failing runs is a fix nobody has tested.

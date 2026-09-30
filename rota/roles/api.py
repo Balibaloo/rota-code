@@ -64,6 +64,9 @@ class Ctx:
     # `glossary.synthesise(ids=['tick', 'tock'], sense_short='a unit of time')`.
     # It defined `tick`, off the wake kind, forty-two times.
     wake_refs: tuple = ()
+    # The wake kind. The park ask's door reads it: the ask's id and refs are
+    # facts of the wake, and never the session's to type (frame 87).
+    wake_kind: str = ""
     entry_id: str | None = None
     writes: list = None          # populated by the sandbox; committed atomically
     outbound: list = None        # messages staged this session
@@ -5550,7 +5553,8 @@ def _ask_of(ctx: Ctx):
     A clarify is already answered, always: `parse_reply` turns a reply to a
     clarify into a `converse` and `land` closes the ask on the keypress. The
     Liaison still has to read the words, so the page is the clarify and the
-    status check cannot apply to it.
+    status check cannot apply to it. A park ask is the one clarify that stays
+    open after words (frame 87).
     """
     trigger = getattr(ctx, "trigger", None)
     if not trigger:
@@ -5616,6 +5620,18 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "body_refs": refs, "body_text": ask.strip(), "round_no": 0,
             "cause_id": ctx.trigger})
         return {"id": mid, "to": "principal", "said": ask.strip()}
+    # A park ask closes on a commit or a contest, and never on a reading of
+    # words. A ruling here would close it and cancel the batch on the
+    # Liaison's reading (ruled: Roman, 2026-09-27: the principal decides).
+    from ..core.scheduler import park_ask_batch
+
+    if park_ask_batch(page["id"]):
+        refs = json.loads(page["body_refs"] or "[]")
+        raise ValueError(
+            f"this page is a park ask, and it has no line to rule. A new commit "
+            f"starts the change again, and a contest of "
+            f"{refs[0] if refs else 'the item'} stops it. Answer the reply in "
+            f"one sentence with `ask`")
     ask = page
     refs = json.loads(ask["body_refs"] or "[]")
     order = render_page(ctx.conn, ask["verb"], refs, ask["body_text"])[1] or []

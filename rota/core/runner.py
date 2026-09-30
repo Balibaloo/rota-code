@@ -203,9 +203,15 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
         if (verb == "converse" and wake.role == "liaison" and conn is not None
                 and wake.message_id):
             row = conn.execute(
-                "SELECT c.verb AS cause_verb FROM messages m "
+                "SELECT c.verb AS cause_verb, c.id AS cause_id FROM messages m "
                 "LEFT JOIN messages c ON c.id = m.cause_id WHERE m.id = ?",
                 (wake.message_id,)).fetchone()
+            # A reply to a park ask is words on a page that stays open. It
+            # has no desk to relay to, so it is not `answering` (frame 87).
+            from .scheduler import park_ask_batch
+
+            if row and row["cause_id"] and park_ask_batch(row["cause_id"]):
+                return "landing"
             if row and row["cause_verb"] == "clarify":
                 return "answering"
             # And a reply to a confirm or a present is a ruling to read
@@ -244,7 +250,9 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 # finding passed the Critic (frame 88, 2026-09-27).
                 "tick:finding_violated",
                 # Which upheld finding exhausted the loop (frame 88).
-                "tick:findings_exhausted"}
+                "tick:findings_exhausted",
+                # Which batch is parked and on which key (frame 87).
+                "tick:park_ask"}
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
@@ -1103,7 +1111,10 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             clarify = conn.execute(
                 "SELECT id, verb, body_text, body_refs, cause_id FROM messages "
                 "WHERE id = ?", (row["cause_id"],)).fetchone()
-            if clarify and clarify["verb"] == "clarify":
+            from .scheduler import park_ask_batch
+
+            park = bool(clarify and park_ask_batch(clarify["id"]))
+            if clarify and clarify["verb"] == "clarify" and not park:
                 answering: dict[str, Any] = {"question": clarify["body_text"]}
                 asker = conn.execute(
                     "SELECT from_role, body_refs FROM messages WHERE id = ?",
@@ -1136,7 +1147,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             # page and records the ruling. It needs the page as the person
             # saw it, the numbered lines in order, the words, and what was
             # said back and forth on this page before.
-            if clarify and clarify["verb"] in ("confirm", "present"):
+            if clarify and (clarify["verb"] in ("confirm", "present") or park):
                 from ..roles.principal import render_page
 
                 page_refs = json.loads(clarify["body_refs"] or "[]")
@@ -1147,6 +1158,18 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     "lines": {str(i + 1): ref for i, ref in enumerate(order)},
                     "reply": row["body_text"] or "",
                 }
+                # A park ask numbers no line, and words move nothing on the
+                # batch: a commit or a contest does (ruled: Roman,
+                # 2026-09-27). The note rides in the payload, so the
+                # `landing` brief and its recordings stay as they are.
+                if park:
+                    item = page_refs[0] if page_refs else "the item"
+                    landing["no_row_to_rule"] = (
+                        f"this page is a park ask, and it has no line to rule. "
+                        f"Words do not move the parked change. A new commit on "
+                        f"the change starts it again. A contest of {item} stops "
+                        f"it. Answer the reply in one sentence with `ask`, and "
+                        f"name those two ways")
                 # The rows, while they fit. A present of 77 lines sent every
                 # row twice -- `resolved_refs` and `landing.line_rows` were the
                 # same 21,402 characters -- in a 17,220 token wake against a
