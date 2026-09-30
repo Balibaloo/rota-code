@@ -493,6 +493,14 @@ a different question and the night is then opened once.
 - Status 2026-09-30 09:53 (rota-4c): **held by 532b3429, one pass runs on frame 95's agent and tree**
   (ruled: Roman, 2026-09-30, more frames at once in this session). Meta workflow. Branch
   `f95` reset to `ea3b823`, so the pass sits on frame 95's merge. One diff review follows.
+- Status 2026-09-30 10:02 (rota-4c): **one pass committed at `9c3592f` on `f95`, the diff review runs**
+  (observed: the implementer resumed on Opus, 201.2k cumulative on the harness line, 22
+  tool calls, 8.7 minutes; 154 door tests and 26 Developer tests pass). Meta workflow. The
+  sentence quotes the failing test's id, the line pytest marked and its first `E` line,
+  from the latest red run of the batch on HEAD in `test_runs.output`, and names the commit
+  that holds the text. The check sits after every door, so a resent text that trips a door
+  gets the door's refusal. Recorded cases where a seat re-sent the text on disk go stale;
+  the gate counts them.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
