@@ -318,6 +318,15 @@ a different question and the night is then opened once.
   line for the pass, 34 tool calls, 6.7 minutes; 136 and 31 tests pass, the two new
   tests fail with the change stashed). Meta workflow. Three passes on one agent so far,
   59.5k, 79.5k and 93.2k on the harness line, 232k in all against 30k priced.
+- Status 2026-09-30 04:08 (rota-4c): **the second diff review at `04e49c1` finds four low and one
+  older hole, pass 4 runs** (observed: the reviewer on Opus, 54.8k on the harness line
+  against 50k, 18 tool calls, 6 minutes; 167 tests pass; no loop between the doors,
+  every offer lands a file that compiles). Meta workflow. Pass 4 fixes: a blank insert
+  into an empty file removes it; a blank span that leaves only blank lines keeps the
+  file; the docstring door refuses a comment above the docstring; the merge path runs
+  `ast.parse` and never `compile`, so a late `from __future__` import lands. Left as
+  a known low: the case walk stops on a continuation line that holds the capture name
+  `case` alone.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
