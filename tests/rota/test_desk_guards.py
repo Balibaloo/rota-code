@@ -2441,6 +2441,90 @@ def test_a_file_that_parses_and_does_not_compile_is_refused(db, tmp_path):
     assert f.read_text() == "import os\nx = 1\n"
 
 
+def test_a_newline_escape_the_decoder_broke_is_written_back(db, tmp_path):
+    """Night 99 (2026-09-30): s134 wrote `out += "\\n"`, the decoder made
+    the escape a line break, and the parse door refused the text."""
+    f = _empty_tree(db, tmp_path, "import os\n")
+    out = _write(db, tmp_path, 1, 1,
+                 "def f(out):\n    out += \"\n\"\n    return out\n")
+    assert 'out += "\\n"\n' in f.read_text()
+    compile(f.read_text(), "m.py", "exec")
+    assert out["repaired"] == (
+        "Line 2 of your text, counting from 1, ended inside a string literal, "
+        "so its line break is written as the two characters \\n.")
+
+
+def test_two_broken_newline_escapes_are_both_written_back(db, tmp_path):
+    """Night 99 (2026-09-30): the Developer's sessions on bg_1 wrote the
+    escape more than once in one text, so every break is named."""
+    f = _empty_tree(db, tmp_path, "import os\n")
+    out = _write(db, tmp_path, 1, 1,
+                 "def f(out):\n    out += \"\n\"\n    out += 'a\n'\n    return out\n")
+    text = f.read_text()
+    assert 'out += "\\n"\n' in text and "out += 'a\\n'\n" in text
+    assert out["repaired"].startswith("Lines 2 and 4 of your text, counting from 1,")
+
+
+def test_a_broken_string_the_next_line_does_not_close_is_refused(db, tmp_path):
+    """Night 99 (2026-09-30): a repair joins a break only when the next line
+    closes the same quote, so this text is refused with the escape form."""
+    f = _empty_tree(db, tmp_path, "import os\n")
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 1, 1, "def f(out):\n    out += \"\n    return out\n")
+    msg = str(err.value)
+    assert "Your text itself does not parse: line 2 of it, counting from 1" in msg
+    assert ("Inside a string literal write the newline escape as two characters, "
+            "\\n, because the tool reads one newline escape as a line break.") in msg
+    assert f.read_text() == "import os\n"
+
+
+def test_escaped_docstring_quotes_are_refused_with_the_plain_form(db, tmp_path):
+    """Night 99 (2026-09-30): s133 wrote the docstring quotes as `\\"\\"\\"`
+    at turns 14 and 15, and a backslash outside a string does not parse."""
+    f = _empty_tree(db, tmp_path, "import os\n")
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 1, 1,
+               'def f():\n    \\"\\"\\"Doc.\\"\\"\\"\n    return 1\n')
+    msg = str(err.value)
+    assert ('Line 2 of your text starts with \\"\\"\\"; write the docstring '
+            'quotes as three plain quotes.') in msg
+    assert "Inside a string literal" not in msg
+    assert f.read_text() == "import os\n"
+
+
+# The text of s134's call at turn 21 of night 99, decoded by rota.llm.toolproto.
+_S134_T21 = (
+    'def echo_json(\n    obj: object,\n    nl: bool = True,\n    err: bool = False,\n'
+    ') -> None:\n    """Print a JSON representation of an object to stdout or a file.\n\n'
+    '    This function uses :func:`json.dumps` with compact separators and\n'
+    '    no formatting characters, ensuring the output is pure JSON text\n'
+    '    suitable for piping.\n\n    :param obj: The object to serialize as JSON.\n'
+    '    :param nl: Print a newline after the JSON. Enabled by default.\n'
+    '    :param err: Write to ``stderr`` instead of ``stdout``.\n\n'
+    '    .. versionadded:: 8.17.0\n    """\n    import json\n\n    if file is None:\n'
+    '        if err:\n            file = _default_text_stderr()\n        else:\n'
+    '            file = _default_text_stdout()\n\n'
+    '        # There are no standard streams attached to write to. For example,\n'
+    '        # pythonw on Windows.\n        if file is None:\n            return\n\n'
+    '    try:\n        out = json.dumps(obj, separators=(",", ":"))\n'
+    '    except (TypeError, ValueError) as e:\n'
+    '        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable") from e\n\n'
+    '    if nl:\n        out += "\n"\n\n    file.write(out)  # type: ignore\n    file.flush()\n')
+
+
+def test_the_s134_text_of_night_99_lands_with_its_escape(db, tmp_path):
+    """Night 99 (2026-09-30): s134's text at turn 21 was refused at the
+    parse door for `out += "\\n"`, and batch bg_1 was quarantined."""
+    src = "import sys\n\n\ndef echo(m):\n    print(m)\n"
+    f = _empty_tree(db, tmp_path, src)
+    out = _write(db, tmp_path, 5, 5, _S134_T21)
+    text = f.read_text()
+    compile(text, "m.py", "exec")
+    assert '        out += "\\n"\n' in text
+    assert text.startswith(src)
+    assert out["repaired"].startswith("Line 37 of your text, counting from 1,")
+
+
 def test_a_blank_span_over_every_line_is_an_empty_write_of_the_file(db, tmp_path):
     """Frame 94's diff review of 44e156a (2026-09-30): 0..3 with an empty
     text left a file that holds one newline."""

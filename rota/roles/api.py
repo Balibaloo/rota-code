@@ -8670,6 +8670,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     if not span and not text.strip():
         return _empty_write()
     tail_note = None
+    repair_note = None
     if span:
         # A span, the lines `code.source` showed, replaced by `text`. clickI
         # night 16 (2026-09-12): a 688-line module does not fit one reply,
@@ -9181,21 +9182,51 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     # runs at import; the shape that works is the main guard.
     if path.endswith(".py"):
         import ast as _ast
-        stage = "parse"
-        try:
-            tree = _ast.parse(text)
-            # compile refuses some files that ast.parse takes. Frame 94's
-            # second diff review (2026-09-30): a `from __future__` import
-            # after another statement landed, and the file failed at import.
-            # dont_inherit keeps this module's own future flags out.
-            stage = "compile"
-            # compile warns where ast.parse does not, and a run with warnings
-            # as errors would refuse a valid file (frame 94's last review).
-            import warnings as _warnings
-            with _warnings.catch_warnings():
-                _warnings.simplefilter("ignore")
-                compile(text, path, "exec", dont_inherit=True)
-        except SyntaxError as exc:
+        if not span:
+            fragment = text                 # a whole-file write sends the file
+
+        def _parse_compile(src: str):
+            stage = "parse"
+            try:
+                tree = _ast.parse(src)
+                # compile refuses some files that ast.parse takes. Frame 94's
+                # second diff review (2026-09-30): a `from __future__` import
+                # after another statement landed, and the file failed at import.
+                # dont_inherit keeps this module's own future flags out.
+                stage = "compile"
+                # compile warns where ast.parse does not, and a run with warnings
+                # as errors would refuse a valid file (frame 94's last review).
+                import warnings as _warnings
+                with _warnings.catch_warnings():
+                    _warnings.simplefilter("ignore")
+                    compile(src, path, "exec", dont_inherit=True)
+                return tree, None
+            except SyntaxError as exc:
+                return None, (stage, exc)
+
+        tree, fail = _parse_compile(text)
+        # The call decoder reads the two characters \n as one line break.
+        # Night 99 (2026-09-30): s134's `out += "\n"` reached the door as
+        # two lines, and three sessions were refused at attempt 3.
+        if fail is not None and fail[0] == "parse":
+            fixed, joined = _repair_broken_strings(fragment)
+            if joined:
+                if span:
+                    new = fixed.splitlines() if fixed.strip() else []
+                    merged = chr(10).join(lines[:start] + new + lines[stop:]) + chr(10)
+                else:
+                    merged = fixed
+                tree2, fail2 = _parse_compile(merged)
+                if fail2 is None:
+                    text, fragment, tree, fail = merged, fixed, tree2, None
+                    repair_note = _repair_sentence(joined)
+                    if span:
+                        try:
+                            tail_note = _tail_drop(lines, start, stop, fragment)
+                        except Exception:                  # noqa: BLE001
+                            tail_note = None    # a note never refuses a write
+        if fail is not None:
+            stage, exc = fail
             if stage == "compile":
                 raise ValueError(
                     f"{path} is not valid Python ({exc.msg}, line "
@@ -9237,6 +9268,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                             frag_note += (f" `{tail_kw}` is the tail of the {kind} statement at lines "
                                           f"{lo} to {hi}; send that whole statement, with your "
                                           f"change in it: start={lo}, end={hi}.")
+            frag_note += _escape_note(fragment, exc if not span else None)
             raise ValueError(
                 f"{path} is not valid Python ({exc.msg}, line {(exc.lineno or 1) - 1} "
                 f"in code.source numbering); the harness imports it and would die at "
@@ -9754,6 +9786,8 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         out = {"path": path, "bytes": len(text.encode("utf-8")), "created": False,
                "unchanged": _unchanged_note(ctx, root, path, dirty),
                "written, not committed": dirty, "lands with": "code.commit"}
+        if repair_note:
+            out["repaired"] = repair_note
         if missing and stem not in missing:
             out["note"] = (f"the batch's tests import {', '.join(missing)} and no "
                            f"such module exists in the worktree yet")
@@ -9778,6 +9812,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     # A fact, not an order: the seat decides whether the tail goes.
     if tail_note:
         out["dropped"] = tail_note
+    # A fact about the text the seat sent, so the seat can send the escape.
+    if repair_note:
+        out["repaired"] = repair_note
     # A landed write is not a commit, and the result says so. Night 62
     # (2026-09-14, finding 68): the Developer implemented confirm() at
     # turn 9, spent fifteen turns on a test file, and the cap ended the
@@ -10617,6 +10654,117 @@ def _span_offer(spans) -> str:
     if len(order) > 1:
         offer += " (write them in this order, last first)"
     return offer
+
+
+def _open_quote(line: str) -> str | None:
+    """The quote of a short string that `line` leaves open, or None."""
+    i, n = 0, len(line)
+    while i < n:
+        c = line[i]
+        if c == "#":
+            return None
+        if c in "'\"":
+            if line[i:i + 3] == c * 3:
+                # A triple-quoted string that runs past the line is not a
+                # short string, and its line breaks are the seat's own.
+                close = line.find(c * 3, i + 3)
+                if close < 0:
+                    return None
+                i = close + 3
+                continue
+            j = i + 1
+            while j < n and line[j] != c:
+                j += 2 if line[j] == "\\" else 1
+            if j >= n:
+                return c
+            i = j + 1
+            continue
+        i += 1
+    return None
+
+
+def _closes(line: str, quote: str) -> bool:
+    """True when `line`, read from inside a string, closes `quote`."""
+    j = 0
+    while j < len(line):
+        if line[j] == quote:
+            return True
+        j += 2 if line[j] == "\\" else 1
+    return False
+
+
+def _repair_broken_strings(fragment: str) -> tuple[str, list[int]]:
+    """
+    Join each line break that the call decoder put inside a short string.
+
+    The decoder reads the two characters \\n as one line break, and that is
+    right for the lines of the text. Night 99 (2026-09-30): s134 wrote
+    `out += "\\n"`, and the text reached the parse door as two lines. Return
+    the repaired text and the text's line numbers, from 1, that were joined.
+    """
+    import ast as _ast
+    parts = fragment.split("\n")
+    origin = list(range(1, len(parts) + 1))
+    joined: list[int] = []
+    last = 0
+    for _ in range(20):
+        try:
+            _ast.parse("\n".join(parts))
+            break
+        except SyntaxError as exc:
+            if not (exc.msg or "").startswith("unterminated string literal"):
+                break
+            i = (exc.lineno or 1) - 1
+            if i < last or i + 1 >= len(parts):
+                break
+            quote = _open_quote(parts[i])
+            if quote is None or not _closes(parts[i + 1], quote):
+                break
+            parts[i] = parts[i].removesuffix("\r") + "\\n" + parts.pop(i + 1)
+            joined.append(origin[i])
+            origin.pop(i + 1)
+            last = i
+    return "\n".join(parts), joined
+
+
+def _repair_sentence(joined: list[int]) -> str:
+    """The one sentence that names each line the repair joined."""
+    if len(joined) == 1:
+        return (f"Line {joined[0]} of your text, counting from 1, ended inside a "
+                f"string literal, so its line break is written as the two "
+                f"characters \\n.")
+    names = ", ".join(str(n) for n in joined[:-1]) + f" and {joined[-1]}"
+    return (f"Lines {names} of your text, counting from 1, ended inside string "
+            f"literals, so their line breaks are written as the two characters \\n.")
+
+
+def _escape_note(fragment: str, exc: SyntaxError | None) -> str:
+    """
+    The sentences a refusal gains when the text holds a decoded escape.
+
+    `exc` is the text's own parse error, or None to parse the text here.
+    """
+    import ast as _ast
+    if exc is None:
+        try:
+            _ast.parse(fragment)
+            return ""
+        except SyntaxError as fexc:
+            exc = fexc
+    note = ""
+    if (exc.msg or "").startswith("unterminated string literal"):
+        note += (" Inside a string literal write the newline escape as two "
+                 "characters, \\n, because the tool reads one newline escape "
+                 "as a line break.")
+    # Night 99 (2026-09-30): s133 sent `\"\"\"` at turns 14 and 15, and a
+    # backslash outside a string does not parse.
+    for k, line in enumerate(fragment.splitlines(), 1):
+        head = line.strip()[:6]
+        if head in ('\\"\\"\\"', "\\'\\'\\'"):
+            note += (f" Line {k} of your text starts with {head}; write the "
+                     f"docstring quotes as three plain quotes.")
+            break
+    return note
 
 
 def _whole_drop(old_lines: list[str], text: str) -> str | None:
