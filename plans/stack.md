@@ -807,6 +807,12 @@ a different question and the night is then opened once.
   Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
   their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
   new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
+- Status 2026-09-30 12:52 (rota-4c): **night 99's page in walk 1: "The team gave up on: batch_start for
+  bg_1", a wall night 98 did not have; a read runs on Opus while the night goes on**
+  (observed: `.rota/night99.log`, walk 1 from 12:28, the Stuck line before 13:2x). Meta
+  workflow. Five frames changed the scheduler, the scans and the write path since night
+  98, and the last change is the first suspect; the cause goes on the stack after the
+  batch_start sessions' turns are read.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
