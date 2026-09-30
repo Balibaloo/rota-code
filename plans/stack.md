@@ -389,6 +389,13 @@ a different question and the night is then opened once.
   Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
   their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
   new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
+- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
+  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
+  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
+  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
+  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
+  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
+  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
@@ -450,6 +457,13 @@ a different question and the night is then opened once.
   Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
   their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
   new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
+- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
+  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
+  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
+  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
+  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
+  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
+  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 
 ### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (532b3429)
 
@@ -549,6 +563,13 @@ a different question and the night is then opened once.
   Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
   their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
   new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
+- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
+  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
+  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
+  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
+  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
+  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
+  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
@@ -679,6 +700,13 @@ a different question and the night is then opened once.
   Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
   their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
   new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
+- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
+  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
+  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
+  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
+  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
+  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
+  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
@@ -863,6 +891,13 @@ a different question and the night is then opened once.
   finds none of the refusal texts in `60cc23f..0bd5f3b`; night 98's s133 passed at turn 21
   with the escape doubled). Meta workflow. Not this frame's wall. Frame 99 carries the
   repair and frame 100 the re-read loop that eats the turn budget.
+- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
+  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
+  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
+  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
+  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
+  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
+  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
@@ -1117,6 +1152,13 @@ a different question and the night is then opened once.
   Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
   their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
   new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
+- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
+  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
+  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
+  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
+  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
+  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
+  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (532b3429)
 
@@ -1445,6 +1487,13 @@ a different question and the night is then opened once.
   Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
   their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
   new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
+- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
+  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
+  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
+  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
+  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
+  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
+  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
