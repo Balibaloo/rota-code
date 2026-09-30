@@ -204,7 +204,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 99. A newline escape inside a string literal becomes a line break, and the parse door refuses the write (2026-09-30)
+### 99. A newline escape inside a string literal becomes a line break, and the parse door refuses the write (2026-09-30) (7448850f)
 
 - **Batch C, the night's stall, found by night 99's read of walk 1.** One site: the parse
   door of `code.write` at `rota/roles/api.py:9214` and the argument decoder before it. It
@@ -226,6 +226,9 @@ a different question and the night is then opened once.
   writes a string with a newline.
 - Reasoning: frame 87's status above, and the read's report in the session transcript.
 - Status 2026-09-30 12:55 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
+- Status 2026-09-30 13:10 (rota-c6): **held by 7448850f, first on Roman's order** (ruled: Roman, asked with
+  frames 100, 98 and 97 as the other options; 99 unblocks the night that seven frames wait on). Meta
+  workflow. Next: read the door and the decoder, then one implementer pass on Opus.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
