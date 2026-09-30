@@ -321,6 +321,15 @@ a different question and the night is then opened once.
   span 291 to the end nine times, each `OK`, one commit, the test still red; no door refused). Meta
   workflow. A judgement stall on an inherited test, on the attempt-cap path frames 86 and 87 validate.
   No action while the night runs; the read after GAUNTLET-DONE names whether the cap and the resume fire.
+- Status 2026-09-30 16:15 (rota-c6): **CYCLE on bg_2: the Developer's attempt 6 ran three times, s213 to s215, 25
+  turns each, and none committed** (observed: `.rota/night100.log`, `CYCLE: period 1, rounds 3, wakes:
+  developer|tick:tests_failing|attempt 6|["bg_2"]`; `.rota/clickI.db`: each session read `termui.py`
+  and `test_termui.py` spans, the window dropped them, the seat read them again until `served three
+  times ... not served again`, then challenged the Tester on an inherited test and was told it has no
+  criterion; s215's two writes were refused, one inside a docstring and one on an indent; s212 before them
+  was refused for undoing its own commit). Meta workflow. This is frame 100's shape, the window drops
+  earlier reads, on a second night and a second batch, and it holds the frame's evidence now. Frame 99's
+  door refused nothing here. The night runs on.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
