@@ -312,6 +312,102 @@ def test_what_critic_sees_is_the_same_twice(project):
         f"never replay a recording made by any other.")
 
 
+# ---------------------------------------------------------------------------
+# Frame 97: the batch's diff runs from its fork, and names what it removed
+# ---------------------------------------------------------------------------
+
+_WRAP = "def wrap(v):\n    rv = [v]\n    return rv\n"
+
+
+def _batch_with_wrap(project):
+    """The root holds `src/wrap.py` before the batch forks, so the batch can
+    remove a line of the project's own."""
+    db, repo = project
+    (repo.root / "src" / "wrap.py").write_text(_WRAP, encoding="utf-8")
+    gitfixture.git(repo.root, "add", "src/wrap.py")
+    gitfixture.git(repo.root, "commit", "-q", "-m", "wrap")
+    lifecycle.start(db, "b1")
+    tree = worktrees.Path(db.execute(
+        "SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"])
+    return db, repo, tree
+
+
+def _add_unrelated_line(tree):
+    """One added line and no removed one, so only `src/wrap.py` can remove."""
+    target = tree / "src" / "notify" / "formatting.py"
+    target.write_text(target.read_text(encoding="utf-8") + "\nUNRELATED = 1\n",
+                      encoding="utf-8")
+
+
+def test_critic_sees_every_commit_since_the_fork_and_the_removed_line(project):
+    """Night 98 (2026-09-29): s183 lost 13 lines to an earlier commit, and
+    HEAD~1 hid that commit from every later reader."""
+    db, _, tree = _batch_with_wrap(project)
+    (tree / "src" / "wrap.py").write_text("def wrap(v):\n    rv = [v]\n", encoding="utf-8")
+    worktrees.commit(tree, "drop the return")
+    _add_unrelated_line(tree)
+    worktrees.commit(tree, "an unrelated change")
+
+    seen = build("critic", db, batch_id="b1").call("code.read")
+    assert "-    return rv" in seen["diff"], seen["diff"]
+    assert "src/notify/formatting.py" in seen["diff"]
+    assert "src/wrap.py" in seen["touched"]
+    assert [t.strip() for t in seen["removed lines"]["src/wrap.py"]] == ["return rv"], seen
+
+
+def test_a_moved_line_is_not_a_removed_line(project):
+    db, _, tree = _batch_with_wrap(project)
+    (tree / "src" / "wrap.py").write_text(
+        "def wrap(v):\n    return rv\n    rv = [v]\n", encoding="utf-8")
+    worktrees.commit(tree, "move a line")
+    _add_unrelated_line(tree)
+    worktrees.commit(tree, "an unrelated change")
+
+    seen = build("critic", db, batch_id="b1").call("code.read")
+    assert "src/wrap.py" in seen["touched"], "the move is in the batch's diff"
+    assert "removed lines" not in seen, seen["removed lines"]
+
+
+def test_the_developer_diff_is_not_empty_when_the_tree_equals_head_1(project):
+    """Night 100 (2026-09-30): bg_2's tidy-up commit added a stray line and
+    the next write removed it. Three sessions read `"diff": ""`."""
+    db, _, tree = _batch_with_wrap(project)
+    (tree / "src" / "wrap.py").write_text("def wrap(v):\n    rv = [v]\n", encoding="utf-8")
+    worktrees.commit(tree, "the batch's real change")
+    (tree / "src" / "wrap.py").write_text(
+        "def wrap(v):\n    rv = [v]\n# stray\n", encoding="utf-8")
+    worktrees.commit(tree, "tidy up")
+    (tree / "src" / "wrap.py").write_text("def wrap(v):\n    rv = [v]\n", encoding="utf-8")
+
+    out = build("developer", db, batch_id="b1").call("code.diff")
+    assert out["diff"], out
+    assert "-    return rv" in out["diff"], out["diff"]
+    assert "# stray" not in out["diff"]
+    assert [t.strip() for t in out["removed lines"]["src/wrap.py"]] == ["return rv"], out
+
+
+def test_a_root_that_moved_on_is_not_the_batch_s_removal(project):
+    """The base is the fork, so a later commit on the root never reads as
+    a line the batch removed."""
+    db, repo, tree = _batch_with_wrap(project)
+    fork = gitfixture.git(repo.root, "rev-parse", "HEAD").strip()
+    (tree / "src" / "wrap.py").write_text(_WRAP + "\n\ndef unwrap(v):\n    return v[0]\n",
+                                          encoding="utf-8")
+    worktrees.commit(tree, "add unwrap")
+    _add_unrelated_line(tree)
+    worktrees.commit(tree, "an unrelated change")
+    # The root moves on after the fork: a line the batch never touched goes.
+    (repo.root / "src" / "wrap.py").write_text("def wrap(v):\n    return [v]\n", encoding="utf-8")
+    gitfixture.git(repo.root, "commit", "-q", "-am", "the root moves on")
+
+    assert worktrees.base(tree, repo.root) == fork
+    seen = build("critic", db, batch_id="b1").call("code.read")
+    assert "def unwrap" in seen["diff"], "the batch's first commit is in its diff"
+    assert "removed lines" not in seen, seen["removed lines"]
+    out = build("developer", db, batch_id="b1").call("code.diff")
+    assert "def unwrap" in out["diff"] and "removed lines" not in out, out
+
+
 def test_the_harness_runs_in_the_batch_worktree(project):
     """The tests Tester wrote, against the code Developer committed, in the
     worktree that holds both."""

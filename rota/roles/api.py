@@ -8249,6 +8249,54 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
     return out
 
 
+def _batch_base(ctx, tree) -> str:
+    """The commit a batch worktree forked from, or HEAD~1 with no root."""
+    from ..core import worktrees as _wt
+    try:
+        root = _wt.project_root(ctx.conn)
+    except _wt.WorktreeError:
+        root = None
+    return _wt.base(tree, root)
+
+
+def _removed_lines(diff_text: str, cap: int = 40) -> dict[str, list[str]]:
+    """
+    Per file, the removed lines whose stripped text no added line of that
+    file carries. A moved line is not a removal.
+
+    Frame 97. Night 98's s183 lost 13 lines to an earlier commit, and no
+    later session saw the loss inside a long diff.
+    """
+    minus: dict[str, list[str]] = {}
+    plus: dict[str, set[str]] = {}
+    path, in_hunk = None, False
+    for line in diff_text.splitlines():
+        if line.startswith("diff --git "):
+            # The b/ side names the file. A deleted file keeps its a/ name.
+            path = line.split(" b/", 1)[-1] if " b/" in line else None
+            in_hunk = False
+            continue
+        if path is None:
+            continue
+        if line.startswith("@@"):
+            in_hunk = True
+            continue
+        if not in_hunk:
+            continue
+        if line.startswith("-") and line[1:].strip():
+            minus.setdefault(path, []).append(line[1:].rstrip())
+        elif line.startswith("+") and line[1:].strip():
+            plus.setdefault(path, set()).add(line[1:].strip())
+    out: dict[str, list[str]] = {}
+    for f, lines in minus.items():
+        gone = [t for t in lines if t.strip() not in plus.get(f, set())]
+        if len(gone) > cap:
+            gone = gone[:cap] + [f"... and {len(gone) - cap} more"]
+        if gone:
+            out[f] = gone
+    return out
+
+
 @op("code", "diff")
 def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
     """
@@ -8265,10 +8313,17 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
     if not row or not row["worktree"]:
         return {"batch": bid, "error": "no worktree"}
     try:
+        # The batch's fork, not HEAD~1. Frame 97, night 100 (2026-09-30):
+        # a commit and its undo left the tree equal to HEAD~1, and three
+        # Developer sessions read an empty diff.
         out = subprocess.run(
-            [*GIT, "-C", row["worktree"], "diff", "HEAD~1", "--unified=3"],
+            [*GIT, "-C", row["worktree"], "diff", _batch_base(ctx, row["worktree"]),
+             "--unified=3"],
             capture_output=True, text=True, timeout=30)
         result = {"batch": bid, "diff": out.stdout[:20000]}
+        removed = _removed_lines(out.stdout)
+        if removed:
+            result["removed lines"] = removed
         # Silent until now, and pushed to the wake a seat uses to restore what
         # its diff broke (frame 46's design record, section 2.7). A seat reading
         # 20,000 characters of a longer diff cannot tell which files it is not
@@ -8283,7 +8338,7 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
                    "part above.", stored=False)
         if cut:
             result["not_shown"] = cut
-        # The diff above is HEAD~1 against the working tree, so it shows an
+        # The diff above is the fork against the working tree, so it shows an
         # edit that no commit holds as if it were committed. Night 62
         # (2026-09-14, finding 68): a Developer session ended at the cap
         # with confirm() written and nothing committed. The next session
@@ -8586,8 +8641,14 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
         return {}
     out = {"batch": row["id"]}
     if row["worktree"]:
-        out["diff"] = worktrees.diff(row["worktree"])
-        out["touched"] = worktrees.touched(row["worktree"])
+        # The whole batch since its fork. Frame 97: HEAD~1 hid every commit
+        # but the last, and night 98's s183 lost 13 lines that way.
+        fork = _batch_base(ctx, row["worktree"])
+        out["diff"] = worktrees.diff(row["worktree"], fork)
+        out["touched"] = worktrees.touched(row["worktree"], fork)
+        removed = _removed_lines(out["diff"])
+        if removed:
+            out["removed lines"] = removed
     else:
         out["diff"] = ""
         out["note"] = "the batch has no worktree yet"

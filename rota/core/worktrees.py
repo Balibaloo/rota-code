@@ -246,6 +246,31 @@ def batch_files(conn: sqlite3.Connection, batch_id: str) -> list[str] | None:
     return sorted(f for f in files if f.replace(chr(92), "/") not in furniture)
 
 
+def base(path: str | Path, root: str | Path | None) -> str:
+    """
+    The commit the batch forked from: its merge base with the project root.
+
+    Frame 97. Night 100 (2026-09-30): bg_2's Developer committed a stray line
+    and then removed it. The tree equalled HEAD~1, so three sessions read an
+    empty diff and never saw the batch's real change. A batch holds several
+    commits, so HEAD~1 is not the batch. The root can be a detached HEAD, so
+    the base comes from its sha and never from a branch name. A path that is
+    the root itself has no fork, and HEAD~1 stays the answer there.
+    """
+    if root is None:
+        return "HEAD~1"
+    try:
+        if Path(path).resolve() == Path(root).resolve():
+            return "HEAD~1"
+        sha = _git(Path(root), "rev-parse", "HEAD").strip()
+        fork = _git(Path(path), "merge-base", "HEAD", sha).strip() if sha else ""
+    except (WorktreeError, OSError):
+        return "HEAD~1"
+    # A fork equal to the batch's HEAD means no commit yet. The diff of the
+    # working tree against it is still the batch's change.
+    return fork or "HEAD~1"
+
+
 def diff(path: str | Path, against: str = "HEAD~1") -> str:
     out = subprocess.run([*GIT, "-C", str(path), "diff", against, "HEAD"],
                          capture_output=True, text=True)
