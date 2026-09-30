@@ -10392,7 +10392,7 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | 
     a refusal (ruled: frame 95's coordinator, 2026-09-30).
     """
     import ast as _ast
-    fields = ("body", "handlers", "orelse", "finalbody")
+    fields = ("body", "handlers", "orelse", "finalbody", "cases")
     ends = (_ast.Return, _ast.Raise, _ast.Continue, _ast.Break)
     defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
     try:
@@ -10401,26 +10401,42 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | 
         old_tree = _ast.parse(chr(10).join(old_lines))
         new_tree = _ast.parse(chr(10).join(merged))
 
-        def lo(n):
-            # A match_case has no lineno, so it raises here and the note is None.
+        def lo(n, src=old_lines):
+            # A match_case has no line numbers. It starts at its `case`
+            # header, the rule `code_write`'s own `_lo` uses.
+            if isinstance(n, _ast.match_case):
+                k = n.pattern.lineno - 1
+                while k > 0 and not re.match(r"\s*case(?![\w.])", src[k]):
+                    k -= 1
+                return k
             decs = getattr(n, "decorator_list", None) or []
             return min([n.lineno] + [d.lineno for d in decs]) - 1
 
+        def end(n):
+            if isinstance(n, _ast.match_case):
+                return end(n.body[-1])
+            return n.end_lineno
+
         def head(src, n):
+            if isinstance(n, _ast.match_case):
+                return src[lo(n, src)].strip()
             return src[n.lineno - 1].strip()
+
+        def kids(n):
+            return [(f, getattr(n, f)) for f in fields if getattr(n, f, None)]
 
         # The outermost list that holds whole statements of the span, and
         # the index path to it, so the merged tree gives the same list.
         route, level = [], old_tree.body
         while True:
-            pool = [x for x in level if start <= lo(x) and x.end_lineno <= stop]
+            pool = [x for x in level if start <= lo(x) and end(x) <= stop]
             if pool:
                 break
-            host = [i for i, x in enumerate(level) if lo(x) <= start and stop <= x.end_lineno]
+            host = [i for i, x in enumerate(level) if lo(x) <= start and stop <= end(x)]
             if not host:
                 return None
             subs = [f for f in fields
-                    if any(lo(x) < stop and x.end_lineno > start
+                    if any(lo(x) < stop and end(x) > start
                            for x in getattr(level[host[0]], f, None) or [])]
             if not subs:
                 return None
@@ -10429,36 +10445,47 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | 
         level_new = new_tree.body
         for i, f in route:
             level_new = getattr(level_new[i], f)
-        mine = [x for x in level_new if start <= lo(x) < start + len(new)]
+        mine = [x for x in level_new if start <= lo(x, merged) < start + len(new)]
         # `theirs` is the list a text statement pairs in. `pool` is every
         # statement at that level, so a dropped else block counts too.
         theirs, dropped, parent = pool, [], None
         while True:
             if not mine:
                 return None
-            n = mine[-1]
-            same = [x for x in theirs if head(old_lines, x) == head(merged, n)]
-            k = len(mine) - 1
-            if same:
-                o = same[-1]
-            elif k < len(theirs) and type(theirs[k]) is type(n):
+            # Pair in order. Frame 95's diff review (2026-09-30): the last
+            # match of a first line paired the second of two `if value is
+            # None:` blocks when the text stopped in the first one. The
+            # cursor keeps each pair after the one before it.
+            j, o = 0, None
+            for m in mine:
+                hits = [x for x in range(j, len(theirs))
+                        if head(old_lines, theirs[x]) == head(merged, m)]
+                if hits:
+                    j = hits[0] + 1
+                    o = theirs[hits[0]] if m is mine[-1] else None
+            n, k = mine[-1], len(mine) - 1
+            if o is None and j <= k < len(theirs) and type(theirs[k]) is type(n):
                 o = theirs[k]
-            else:
-                return None
-            dropped += [x for x in pool if lo(x) >= o.end_lineno]
-            subs = [(f, getattr(n, f)) for f in fields if getattr(n, f, None)]
-            if not subs:
+            if o is None:
+                # No pair: count the drops found so far (the same review).
+                # The leaf below still decides the gate.
+                while kids(n):
+                    parent, n = n, max(kids(n), key=lambda p: end(p[1][-1]))[1][-1]
                 break
-            f, mine = max(subs, key=lambda p: p[1][-1].end_lineno)
+            dropped += [x for x in pool if lo(x) >= end(o)]
+            if not kids(n):
+                break
+            f, mine = max(kids(n), key=lambda p: end(p[1][-1]))
             theirs = getattr(o, f, None) or []
             pool = [x for g in fields for x in getattr(o, g, None) or []]
             parent = n
         # The gate: a terminator inside a branch, not a def's own return.
         if not isinstance(n, ends) or parent is None or isinstance(parent, defs):
             return None
-        # A line the text still holds moved, and is not a loss.
-        kept = {x.strip() for x in new}
-        gone = sorted({i for x in dropped for i in range(lo(x), x.end_lineno)
+        # A line the text still holds at or below its leaf moved there, and
+        # is not a loss. A line above the leaf is a different line (review).
+        kept = {x.strip() for x in new[max(n.lineno - 1 - start, 0):]}
+        gone = sorted({i for x in dropped for i in range(lo(x), end(x))
                        if old_lines[i].strip() and old_lines[i].strip() not in kept})
         if not gone:
             return None

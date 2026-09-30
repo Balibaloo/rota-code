@@ -2604,10 +2604,42 @@ def _lines(*rows):
     return list(rows)
 
 
-def _termui_lines():
-    import click.termui
-    with open(click.termui.__file__, encoding="utf-8") as f:
-        return f.read().splitlines()
+# `confirm` from click 8.5.0's termui.py, lines 288 to 345 in code.source
+# numbering, without its docstring. A copy, so a click upgrade does not move
+# the lines (frame 95's diff review, 2026-09-30).
+_CONFIRM = '''def confirm(
+    text: str,
+    default: bool | None = False,
+    abort: bool = False,
+    prompt_suffix: str = ": ",
+    show_default: bool = True,
+    err: bool = False,
+) -> bool:
+    prompt = _build_prompt(
+        text,
+        prompt_suffix,
+        show_default,
+        "y/n" if default is None else ("Y/n" if default else "y/N"),
+    )
+
+    while True:
+        try:
+            value = _readline_prompt(visible_prompt_func, prompt, err).lower().strip()
+        except (KeyboardInterrupt, EOFError):
+            raise Abort() from None
+        if value in ("y", "yes"):
+            rv = True
+        elif value in ("n", "no"):
+            rv = False
+        elif default is not None and value == "":
+            rv = default
+        else:
+            echo(_("Error: invalid input"), err=err)
+            continue
+        break
+    if abort and not rv:
+        raise Abort()
+    return rv'''
 
 
 def test_a_def_cut_after_a_raise_in_a_branch_names_what_it_drops():
@@ -2630,9 +2662,24 @@ def test_a_def_cut_after_a_raise_in_a_branch_names_what_it_drops():
                     "`raise ValueError() from None`, from `if v:`.")
 
 
-def test_a_tail_the_text_moves_is_not_a_loss():
-    """Frame 95: `return x` moved above the loop is still in the text, so a
-    text that ends at a `raise` in a branch drops nothing."""
+def test_a_tail_the_text_moves_into_the_branch_is_not_a_loss():
+    """Frame 95: `return rv` moved into the loop's branch is the text's leaf,
+    so the old `return rv` below the loop is not a loss."""
+    from rota.roles.api import _tail_drop
+    old = _lines("def f(x):",
+                 "    rv = None",
+                 "    for i in x:",
+                 "        if i:",
+                 "            rv = i",
+                 "            break",
+                 "    return rv")
+    text = chr(10).join(old[:5] + ["            return rv"]) + chr(10)
+    assert _tail_drop(old, 0, len(old), text) is None
+
+
+def test_a_line_above_the_leaf_does_not_hide_a_loss():
+    """Frame 95's diff review (2026-09-30): `return x` above the loop is a
+    different line from the `return x` the write drops below it."""
     from rota.roles.api import _tail_drop
     old = _lines("def f(x):",
                  "    for i in x:",
@@ -2642,31 +2689,84 @@ def test_a_tail_the_text_moves_is_not_a_loss():
     text = chr(10).join(["def f(x):", "    if not x:", "        return x",
                          "    for i in x:", "        if not i:",
                          "            raise ValueError(i)"]) + chr(10)
-    assert _tail_drop(old, 0, len(old), text) is None
+    assert _tail_drop(old, 0, len(old), text) == (
+        "This write drops 1 line that came after `raise ValueError(i)`, from `return x`.")
+
+
+_TWO_BLOCKS = _lines("def f(value):",
+                     "    if value is None:",
+                     "        log(value)",
+                     "        return 0",
+                     "    value = norm(value)",
+                     "    if value is None:",
+                     "        log(value)",
+                     "        return 0")
+
+
+def test_a_text_that_stops_in_the_first_of_two_like_blocks_pairs_the_first():
+    """Frame 95's diff review (2026-09-30): the last old `if value is None:`
+    took the pair, and a text that stopped in the first block read nothing.
+    The pairs now run in order."""
+    from rota.roles.api import _tail_drop
+    old = _TWO_BLOCKS + ["    warn(value)", "    return value"]
+    text = chr(10).join(old[:2] + ["        raise ValueError(value)"]) + chr(10)
+    assert _tail_drop(old, 0, len(old), text) == (
+        "This write drops 6 lines that came after `raise ValueError(value)`, "
+        "from `value = norm(value)`.")
+    old = _TWO_BLOCKS + ["    return value"]
+    text = chr(10).join(old[:4]) + chr(10)
+    assert _tail_drop(old, 0, len(old), text) == (
+        "This write drops 4 lines that came after `return 0`, from `value = norm(value)`.")
+
+
+def test_a_leaf_with_no_pair_still_counts_the_drops_above_it():
+    """Frame 95's diff review (2026-09-30): a whole-file write lost `return y`
+    and all of `def c`, and the unpaired `raise` gave no note."""
+    from rota.roles.api import _tail_drop
+    old = _lines("def b(x):", "    if x:", "        y = 1", "    return y", "", "",
+                 "def c():", "    pass")
+    text = chr(10).join(["def b(x):", "    if x:", "        raise ValueError(x)"]) + chr(10)
+    assert _tail_drop(old, 0, len(old), text) == (
+        "This write drops 3 lines that came after `raise ValueError(x)`, from `return y`.")
+
+
+def test_a_match_case_cut_short_names_the_cases_it_drops():
+    """Frame 95's diff review (2026-09-30): `cases` was not a field of the
+    walk, so a text that stopped in `case 1:` gave no note."""
+    from rota.roles.api import _tail_drop
+    old = _lines("def f(v):",
+                 "    match v:",
+                 "        case 1:",
+                 "            return 1",
+                 "        case _:",
+                 "            r = v",
+                 "    log(r)",
+                 "    return r")
+    text = chr(10).join(old[:4]) + chr(10)
+    assert _tail_drop(old, 0, len(old), text) == (
+        "This write drops 4 lines that came after `return 1`, from `case _:`.")
 
 
 def test_night98_s183_confirm_cut_at_raise_abort_drops_13_lines():
     """Night 98 (2026-09-29): s183 sent span 288,345, all of `confirm`, with a
     text that stopped at `raise Abort() from None`. Commit d8d87beb deleted 13
-    lines. The installed click holds `confirm` at the same lines."""
+    lines."""
     from rota.roles.api import _tail_drop
-    lines = _termui_lines()
-    assert lines[288].startswith("def confirm(") and lines[344].strip() == "return rv"
-    span = lines[288:345]
-    cut = [i for i, x in enumerate(span) if x.strip() == "raise Abort() from None"][0]
-    note = _tail_drop(lines, 288, 345, chr(10).join(span[:cut + 1]) + chr(10))
-    assert note == ("This write drops 13 lines that came after `raise Abort() from None`, "
-                    "from `if value in (\"y\", \"yes\"):`.")
+    lines = _CONFIRM.splitlines()
+    cut = [i for i, x in enumerate(lines) if x.strip() == "raise Abort() from None"][0]
+    note = _tail_drop(lines, 0, len(lines), chr(10).join(lines[:cut + 1]) + chr(10))
+    assert note == ('This write drops 13 lines that came after `raise Abort() from None`, '
+                    'from `if value in ("y", "yes"):`.')
 
 
 def test_night97_tail_loop_that_ends_at_continue_drops_the_return():
     """Night 97 (2026-09-29): s214 replaced the tail of `confirm` with a loop
     that ends at `continue`, and `if abort and not rv:` to `return rv` went.
-    Night 97's span was 340,352 in its own file. The installed click holds
-    the same tail from `while True:` to the end of `confirm`."""
+    Night 97's span was 340,352 in its own file. The span here runs from
+    `while True:` to the end of `confirm`."""
     from rota.roles.api import _tail_drop
-    lines = _termui_lines()
-    w = [i for i in range(288, 345) if lines[i].strip() == "while True:"][0]
+    lines = _CONFIRM.splitlines()
+    w = [i for i, x in enumerate(lines) if x.strip() == "while True:"][0]
     loop = lines[w:w + 5] + [
         '        if value in ("y", "yes"):', "            rv = True", "            break",
         '        elif value in ("n", "no"):', "            rv = False", "            break",
@@ -2674,9 +2774,12 @@ def test_night97_tail_loop_that_ends_at_continue_drops_the_return():
         "            break",
         "        else:", '            echo(_("Error: invalid input"), err=err)',
         "            continue"]
-    note = _tail_drop(lines, w, 345, chr(10).join(loop) + chr(10))
-    assert note == ("This write drops 3 lines that came after `continue`, "
-                    "from `if abort and not rv:`.")
+    # The loop's own `break` moved into each branch, above the leaf, so the
+    # kept rule counts it. The note overcounts by that one line (observed:
+    # frame 95 pass 2, 2026-09-30). The three lines of the wall still count.
+    note = _tail_drop(lines, w, len(lines), chr(10).join(loop) + chr(10))
+    assert note == ("This write drops 4 lines that came after `continue`, "
+                    "from `break`.")
 
 
 def test_a_span_write_that_stops_short_lands_and_says_what_it_drops(db, tmp_path):
