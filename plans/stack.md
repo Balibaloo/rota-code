@@ -310,6 +310,12 @@ a different question and the night is then opened once.
   after the diff and a 62k diff cuts it at both caps. Taken: the key goes before `diff` in both ops, a
   trailing tab on a spaced path, and a tail that names its file. Known low, not taken: a non-ASCII
   path arrives quoted by git and gets no entry. Reviews on this frame: 94.0k and 45.7k against 40k.
+- Status 2026-09-30 19:26 (rota-c6): **pass 3 committed at `ff0f692`, a short review runs at it, the gate at `a6bed3b`
+  still runs and a gate at `ff0f692` follows** (observed: the implementer resumed on Opus, 106.4k
+  cumulative on the harness line, 10 tool calls, 7 minutes; 34 developer tests pass, 2 of 2 changed tests
+  fail with `api.py` stashed; this session read the whole diff). Meta workflow. Passes on one agent:
+  70.2k, 93.8k and 106.4k cumulative against 40k priced. This session is near its 300k mark and finishes
+  this frame: gate, night 101 at the closing commit, and the read.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
