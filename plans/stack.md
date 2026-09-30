@@ -467,6 +467,15 @@ a different question and the night is then opened once.
   implementer on Opus in its own worktree and branch from `f63767f`. The gate and the
   merge into `rota/foundation` stay one at a time. Worktree `C:/Users/roman/rota_f87`, branch
   `f87`. The agent builds the parked path the ruling of 2026-09-27 names.
+- Status 2026-09-30 04:49 (rota-4c): **one pass committed at `0564c87` on `f87`, the diff review runs**
+  (observed: the implementer on Opus, 102k on the harness line against 40k, 50 tool calls,
+  24 minutes; 21 tests pass in the touched files, 301 in the 16 related files with one
+  red older than the branch). Meta workflow. `parked` now holds for a deferred batch with
+  a quarantined seat key, so `next_batch` skips it and a sibling starts; the page prints a
+  parked line with the way out, a new commit on the change; two night 92 pins that
+  resumed a quarantined batch change. Outside the ruling, left open: a running batch
+  below its cap with a quarantined key still holds the seat, and a pending batch with one
+  does not park.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
