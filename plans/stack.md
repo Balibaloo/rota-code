@@ -514,6 +514,12 @@ a different question and the night is then opened once.
   9 tool calls, 2 minutes; 155 door tests pass). Meta workflow. This agent has carried frame
   95's note and four passes and frame 93's two passes. Any further pass on either frame goes
   to a fresh agent.
+- Status 2026-09-30 10:13 (rota-4c): **review clean, `f95` merged, validating on the gate and the night**
+  (observed: the reviewer on Opus, 23.4k on the harness line against 20k, 6 tool calls; the
+  latest attempt on HEAD alone is read, a duplicate row counts once, 155 tests). Meta
+  workflow. Actual, walls apart: two passes, about 36k of the agent's 211.6k cumulative;
+  two reviews, 40k and 23.4k against 40k; register lines 0. The gate at the merge follows
+  the one at `ea3b823` that still runs.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
