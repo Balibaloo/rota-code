@@ -204,6 +204,22 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 101. The Critic's wake puts the diff first, and a long diff cuts the criteria and the tests out (2026-09-30)
+
+- **Batch C, the night's stall, found by frame 97's last review.** One site: the order of the pushed results
+  in the Critic's wake, `rota/core/runner.py:692-694` and the push at `:415`. It touches a seat's view, so
+  it carries a diff review and a walk.
+- Rota workflow. At num_ctx 12288 with a 5,039-character system prompt, `_fit` keeps 13,018 of a
+  20,254-character Critic wake; `[code.read]` comes first, so `[criteria.load]` and `[tests.load]` are cut,
+  and the Critic judges a long diff with no criteria (observed: the review of `ff0f692`, probe p3, 2026-09-30;
+  the fault is older than frame 97).
+- Ends when: the Critic's wake keeps the criteria and the tests whatever the diff's length, by pushing
+  `code.read` last or by capping the pushed diff below the wake's room; one runner test; the Critic cases
+  re-record by count; a night shared. Priced: one pass, about 30k on Opus; one diff review, about 40k.
+- Waits on: Roman's order. Recommended: with frame 100, because both are the window's cut of a seat's view.
+- Reasoning: frame 97's status of this hour.
+- Status 2026-09-30 19:34 (rota-c6): pushed by 7448850f, unclaimed, priced. Meta workflow.
+
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
 - **Batch C, the night's stall, found by night 99's read of walk 1.** Two sites: the
@@ -316,6 +332,13 @@ a different question and the night is then opened once.
   fail with `api.py` stashed; this session read the whole diff). Meta workflow. Passes on one agent:
   70.2k, 93.8k and 106.4k cumulative against 40k priced. This session is near its 300k mark and finishes
   this frame: gate, night 101 at the closing commit, and the read.
+- Status 2026-09-30 19:34 (rota-c6): **the short review at `ff0f692` finds three low at the cut's edges and one older
+  high outside the frame, and the pass loop stops** (observed: the reviewer on Opus, 49.3k on the harness
+  line, 28 tool calls, 8 minutes; the block renders at both caps and survives `_fit`; 34 developer tests
+  pass; 19 recorded Critic prompts change order and go stale, the gate re-records them). Meta workflow.
+  Known lows, not taken: a path longer than the cap leaves an empty entry; a cut entry carries no mark and
+  the text can reach 2,020 characters; the tail names no hidden file. The older high is frame 101. The
+  closing commit is `ff0f692` if its gate is clean. Reviews on this frame: 94.0k, 45.7k and 49.3k.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
