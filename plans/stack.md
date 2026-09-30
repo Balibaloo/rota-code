@@ -338,6 +338,8 @@ a different question and the night is then opened once.
   walk should add a running batch to a copy of the `L1-AR-group-into-batches` fixture.
   The gate at `4df551b` covers this merge and frame 94's `f414b18` together. Actual, walls
   apart: read and pass 51.4k against 50k, review 48.5k against 30k, register lines 1.
+- Status 2026-09-30 05:03 (rota-4c): **gate clean at `4df551b`, validating until the night** (observed: the gate, 569s: suite 2404 passed against the stored 2324, new reds 1, the
+  known flaky map test with the register's sign, green on its rerun, reds gone 1, stale 0). Meta workflow.
 
 ### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (532b3429)
 
@@ -426,6 +428,10 @@ a different question and the night is then opened once.
   suite 22 failed and 2403 passed against the stored 23 and 2324, new reds 0, reds gone 1,
   stale 0). Meta workflow. The gate now runs at `4df551b`, which holds pass 5 at `f414b18`
   and frame 96's merge. The frame validates on that gate and the night.
+- Status 2026-09-30 05:03 (rota-4c): **gate clean at `4df551b`, validating until the night** (observed: the gate, 569s: suite 2404 passed against the stored 2324, new reds 1, the
+  known flaky map test with the register's sign, green on its rerun, reds gone 1, stale 0). Meta workflow. Actual, walls apart: five passes on one agent, 112.1k cumulative on the
+  harness line against 30k; three reviews, 54.2k, 54.8k and 38.6k against 40k; two of
+  this session's own one-line edits; register lines 0 here, 1 for frame 96's gate.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
