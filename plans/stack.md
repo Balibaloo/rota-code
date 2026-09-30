@@ -413,6 +413,10 @@ a different question and the night is then opened once.
   door exists to judge it (observed: `test_the_refusal_names_statements_with_the_words_of_the_source`
   failed with the exemption). The gate at `f63767f` still runs, then one at `f414b18`.
   Passes on one agent: 59.5k, 79.5k, 93.2k, 112.1k cumulative on the harness line.
+- Status 2026-09-30 04:53 (rota-4c): **gate clean at `f63767f`** (observed: the gate, 756s, exit 0:
+  suite 22 failed and 2403 passed against the stored 23 and 2324, new reds 0, reds gone 1,
+  stale 0). Meta workflow. The gate now runs at `4df551b`, which holds pass 5 at `f414b18`
+  and frame 96's merge. The frame validates on that gate and the night.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
