@@ -8947,7 +8947,11 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             # A text with no statements, such as a comment, leaves the
             # docstring a docstring (frame 94's second diff review,
             # 2026-09-30). `own` comes from the `__future__` door above. It
-            # is None for a text that does not parse, such as indented lines.
+            # is None for a text that does not parse alone, such as the
+            # indented lines of an insert inside a def, and that insert is
+            # judged here (frame 94's last review asked to exempt it, and
+            # `test_the_refusal_names_statements_with_the_words_of_the_source`
+            # shows why not).
             if start == stop and own != []:
                 for p, f, ns in _at(start):
                     # The module's own docstring counts too (review of 928b2dc).
@@ -9078,7 +9082,12 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             # after another statement landed, and the file failed at import.
             # dont_inherit keeps this module's own future flags out.
             stage = "compile"
-            compile(text, path, "exec", dont_inherit=True)
+            # compile warns where ast.parse does not, and a run with warnings
+            # as errors would refuse a valid file (frame 94's last review).
+            import warnings as _warnings
+            with _warnings.catch_warnings():
+                _warnings.simplefilter("ignore")
+                compile(text, path, "exec", dont_inherit=True)
         except SyntaxError as exc:
             if stage == "compile":
                 raise ValueError(
@@ -9096,7 +9105,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 except SyntaxError as fexc:
                     bad = (fragment.splitlines() + [""])[max((fexc.lineno or 1) - 1, 0)]
                     frag_note = (f" Your text itself does not parse: line {fexc.lineno} "
-                                 f"of it is {bad.strip()!r}. Send only the lines you add, "
+                                 f"of it, counting from 1, is {bad.strip()!r}. Send only the lines you add, "
                                  f"whole statements; the file's own lines stay where they are.")
                     # A fragment that begins with the tail of a compound
                     # statement. Click night 53 (2026-09-14): `except ...:`
