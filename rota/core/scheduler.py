@@ -1370,6 +1370,8 @@ def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     # cannot end it. Night 93 resumed `b_1` at attempt 11 of 10, nothing woke
     # on it, and three ready batches waited all night (observed: night 93,
     # 2026-09-25). The batch stays deferred, and `exhausted` climbs the ladder.
+    # A deferred batch with a quarantined key stays out too, so its siblings
+    # start while the principal decides (frame 87, ruled 2026-09-27).
     rows = [r for r in rows if not parked(conn, r["id"])]
     order = schedule_order(conn)
     place = {b: n for n, b in enumerate(order)}
@@ -1388,10 +1390,33 @@ def failing_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
     return int(row["att"] or 0)
 
 
+def given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """The quarantined keys of the seats' wakes that name this batch alone."""
+    # A key with two refs is about a pair, such as a touch note and its item.
+    # A scheduler key (`-|do:park|b`) is the scheduler's own bound, not a seat.
+    return [r["tick_key"] for r in conn.execute(
+        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 ORDER BY tick_key")
+        if not r["tick_key"].startswith("-|")
+        and r["tick_key"].split("|", 2)[-1] == batch_id]
+
+
 def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
-    """A batch at or past `loop_cap` whose head commit is the one that failed."""
+    """
+    A deferred batch the team gave up on, or a batch at or past `loop_cap`
+    whose head commit is the one that failed.
+    """
     from . import config
 
+    # A given-up batch put back in the chair waits for the principal (ruled:
+    # Roman, 2026-09-27). Night 94 resumed `bg_1` with its `tests_failing` key
+    # quarantined, nothing woke on it, and `bg_2` never started (observed:
+    # night 94, 2026-09-25). A head commit lifts the key in
+    # `db._lift_quarantines`, and that ends the park. A running batch keeps the
+    # old test, so this changes no preempt of a running batch.
+    status = conn.execute("SELECT status FROM batches WHERE id = ?",
+                          (batch_id,)).fetchone()
+    if status and status["status"] == "deferred" and given_up(conn, batch_id):
+        return True
     if failing_attempt(conn, batch_id) < config.get(conn, "loop_cap"):
         return False
     # A head commit newer than the failing runs is a fix nobody has tested.

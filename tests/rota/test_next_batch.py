@@ -22,10 +22,19 @@ def _status(conn, batch_id: str, status: str) -> None:
     conn.execute("UPDATE batches SET status = ? WHERE id = ?", (status, batch_id))
 
 
+def _lift(conn, batch_id: str) -> None:
+    """Remove the batch's quarantined `tests_failing` key."""
+    # Night 92 ended with this key quarantined. Frame 87 parks a deferred
+    # batch that holds one, so a pin of the order or the cap lifts it first.
+    conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
+                 (f"developer|tick:tests_failing|{batch_id}",))
+
+
 def test_priority_chooses_and_a_deferred_batch_resumes():
     """Pin 5. `b_3` outranks `b_2`, so the start offers `b_3`. With `b_3`
     merged, `b_2` comes back as a resume that names its attempt and tests."""
     conn = load(92)
+    _lift(conn, "b_2")
 
     assert [r["id"] for r in next_batch(conn)] == ["b_3", "b_2"]
     wakes = tick_batch_start(conn)
@@ -136,6 +145,7 @@ def test_a_preempted_batch_past_its_cap_resumes_exhausted():
     batch_start = P.REGISTRY["batch_start"].fn
     exhausted = P.REGISTRY["exhausted"].fn
     preempt = P.REGISTRY["preempt"].fn
+    _lift(conn, "b_2")
     _status(conn, "b_3", "merged")
 
     _attempt(conn, "b_2", 11)
@@ -156,6 +166,59 @@ def test_a_preempted_batch_past_its_cap_resumes_exhausted():
     assert (wake.kind, wake.refs) == ("tick:batch_start", ("b_2",))
     assert wake.detail.startswith("resume after attempt 3:")
     assert exhausted(conn) == []
+
+
+def test_a_quarantined_batch_resumed_after_a_preempt_waits_for_the_principal():
+    """Frame 87. Night 94 quarantined `bg_1` on `tests_failing` at attempt 7,
+    deferred it for a higher priority, and resumed it when that batch
+    stopped. Nothing woke on it, and `bg_2` never started. A deferred batch
+    with a quarantined key is parked: no seat wakes for it, the page names it
+    with the way out, and a sibling starts (ruled: Roman, 2026-09-27)."""
+    from rota.core.loop import _perform
+    from rota.core.scheduler import frontier
+    from rota.roles.principal import render_state
+
+    conn = load(93)
+    preempt = P.REGISTRY["preempt"].fn
+    batch_start = P.REGISTRY["batch_start"].fn
+    # Night 94's shape: below the cap, the key quarantined and reported.
+    _attempt(conn, "b_1", 7)
+    key = "developer|tick:tests_failing|b_1"
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                 "reported) VALUES (?, 3, 1, 1)", (key,))
+    # A batch that ran was annotated, and the principal answered its touch
+    # note. The fixture keeps neither, so the start phase would wake on `b_1`.
+    conn.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) "
+                 "VALUES ('b_1', 'src/click/utils.py', 'path')")
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, status, seq) VALUES ('m_touch', 't', 'liaison', "
+                 "'principal', 'present', '[\"b_1\", \"echo_json\"]', 'answered', 0)")
+    conn.execute("UPDATE items SET priority = 9 WHERE id = 'version_option_show_python'")
+
+    (wake,) = preempt(conn)
+    assert (wake.kind, wake.refs) == ("do:preempt", ("b_1", "b_1_version"))
+    _perform(conn, wake)
+    assert [w.refs for w in batch_start(conn)] == [("b_1_version",)]
+
+    # The challenger stops. The seat is free, and the resume would come now.
+    _status(conn, "b_1_version", "merged")
+    assert [w.refs for w in batch_start(conn)] == [("b_1_b_1",)], "a sibling starts"
+    assert not [w for w in frontier(conn) if "b_1" in w.refs], "no wake for b_1"
+    assert conn.execute("SELECT quarantined FROM tick_attempts WHERE tick_key = ?",
+                        (key,)).fetchone()["quarantined"] == 1, "the mark stays"
+
+    _status(conn, "b_1_b_1", "running")
+    page = render_state(conn)
+    assert ("Stuck: b_1 is parked. The team gave up on: tests_failing for b_1. "
+            "The other changes go on. A new commit on the change starts it "
+            "again. Tell me what to change, or tell me to give it up.") in page
+    assert "nothing moves until" not in page
+    assert "Building: 2 changes in progress." in page
+
+    # The principal's change arrives as a commit, which lifts the key.
+    _commit_head(conn, "b_1", "f1x")
+    _status(conn, "b_1_b_1", "merged")
+    assert [w.refs for w in batch_start(conn)] == [("b_1",)]
 
 
 def test_a_running_batch_past_its_cap_with_a_spent_ladder_is_deferred():
