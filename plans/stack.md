@@ -252,6 +252,12 @@ a different question and the night is then opened once.
   refusal names the form the seat already sent, and the `__future__` door reads the unrepaired fragment.
   Declined: a join across a lone quote in a comment, accepted as a risk because the file must compile and
   the landed sentence names the line. Seven taken, one test each.
+- Status 2026-09-30 13:40 (rota-c6): **pass 2 committed at `85f7c4f`, the gate and the second diff review run at it**
+  (observed: the implementer resumed on Opus, 92.9k on the harness line for the pass, 22 tool calls, 4.3
+  minutes; 173 door tests and 58 parser tests pass, 8 tests fail with `api.py` stashed). Meta workflow.
+  The pass reads the indent as a view that keeps column-0 lines, looks ahead five lines for the closing
+  quote, takes f-strings, and re-runs the `__future__` door on the repaired text. Passes on one agent:
+  66.6k and 92.9k on the harness line, 159.5k in all against 40k priced.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
