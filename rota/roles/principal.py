@@ -248,7 +248,7 @@ def render_state(conn: sqlite3.Connection) -> str:
     # A parked batch is an open obligation, so the page counts it until a
     # commit discharges it. After night 93's park the page read "Done: 3"
     # only (observed: frame 86's pass 3 review, 2026-09-25).
-    from ..core.scheduler import given_up, park_ask_id, parked
+    from ..core.scheduler import given_up, parked
     deferred = [r["id"] for r in conn.execute(
         "SELECT id FROM batches WHERE status = 'deferred' ORDER BY id")]
     held = [b for b in deferred if parked(conn, b)]
@@ -265,18 +265,22 @@ def render_state(conn: sqlite3.Connection) -> str:
     capped = [b for b in held if not keyed[b]]
 
     # The line shows only while no ask is open: before the Liaison writes
-    # the park ask, or after a ruling closed it. No gate is open then, so
-    # the line names no contest (observed: frame 87's review of b23d17b,
-    # 2026-09-30). A park ask not yet written is the next thing to come.
-    def asked(b):
-        return conn.execute("SELECT 1 FROM messages WHERE id = ?",
-                            (park_ask_id(conn, b),)).fetchone() is not None
+    # the park ask, or when its wake is quarantined. No gate is open then,
+    # so the line names no contest (observed: frame 87's review of b23d17b,
+    # 2026-09-30). The ask comes next only while `park_ask` owes it and its
+    # wake is live. A quarantined wake writes nothing (observed: frame 87's
+    # review of 4a0ab5c, 2026-09-30).
+    from ..core.predicates import park_ask as _park_ask
+    from ..core.scheduler import tick_key
 
+    coming = {w.refs[1] for w in _park_ask(conn) if not conn.execute(
+        "SELECT 1 FROM tick_attempts WHERE tick_key = ? AND quarantined = 1",
+        (tick_key(w),)).fetchone()}
     parked_lines = [
         f"Stuck: {b} is parked. The team gave up on: {gave_up_on(keys)}."
         + (" The other changes go on." if running or pending else "")
         + " A new commit on the change starts it again."
-        + ("" if asked(b) else " I ask you about it next.")
+        + (" I ask you about it next." if b in coming else "")
         for b, keys in keyed.items() if keys]
     if capped:
         parked_lines.append(

@@ -808,6 +808,8 @@ def cmd_sign(args: argparse.Namespace) -> int:
         raise SystemExit("say what you rule: --approve ids, --contest ids, "
                          "or --say 'words'")
 
+    sent: list[str] = []
+
     class OneShot:
         name = "cli"
 
@@ -821,6 +823,7 @@ def cmd_sign(args: argparse.Namespace) -> int:
                 # Words on a page are a reply the Liaison reads (landing).
                 # Words on a park ask are one too, so its contest stays open.
                 verb = "reply" if words_keep_open(ask) else "converse"
+                sent.append(verb)
                 return Answer(verb=verb, text=args.say)
             per_item = {i: "approve" for i in approve}
             per_item.update({i: "contest" for i in contest})
@@ -840,7 +843,11 @@ def cmd_sign(args: argparse.Namespace) -> int:
     if not created:
         raise SystemExit(f"{args.ask} is not an open gate; `rota agenda "
                          f"{args.name}` lists them")
-    print(f"ruling recorded: {created[0]}  (next: rota run {args.name})")
+    # A reply rules nothing, and the ask stays open. "ruling recorded" told
+    # the principal the park ask was settled (observed: frame 87's review
+    # of 4a0ab5c, 2026-09-30).
+    what = "reply sent" if sent == ["reply"] else "ruling recorded"
+    print(f"{what}: {created[0]}  (next: rota run {args.name})")
     return 0
 
 

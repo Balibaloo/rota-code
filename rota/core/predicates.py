@@ -1520,21 +1520,31 @@ def park_ask(conn) -> list[Wake]:
 
     A given-up batch put back in the chair waits for the principal (ruled:
     Roman, 2026-09-27). The principal answers through a gate, and the
-    Liaison writes the gate (ruled: Roman, 2026-09-30). Once per park: the
-    ask's id comes from the batch, its head commit, its keys and the parks
-    that ended before it, so a ruling that leaves the park as it was is not
-    asked again. Words leave the ask open, so they are not asked again
-    either. The refs are
+    Liaison writes the gate (ruled: Roman, 2026-09-30). One open ask per
+    park: the ask's id comes from the batch, its head commit, its keys and
+    the count of its closed asks. Words leave the ask open. A ruling that
+    closes it and leaves the batch parked opens the next ask, so a parked
+    batch always has a gate. The refs are
     the item and the batch. The door keeps the item alone on the ask.
     """
     from .scheduler import given_up, open_park_ask, park_ask_id
 
     out = []
     for b in conn.execute(
-            "SELECT id, item_id FROM batches WHERE status = 'deferred' "
-            "ORDER BY id").fetchall():
+            "SELECT b.id, b.item_id, i.approval, i.approval_ver, i.version "
+            "FROM batches b JOIN items i ON i.id = b.item_id "
+            "WHERE b.status = 'deferred' ORDER BY b.id").fetchall():
         keys = given_up(conn, b["id"])
-        if not keys or open_park_ask(conn, b["id"]) or conn.execute(
+        # A contested item's batch goes to `do:cancel`, so nothing is asked.
+        # A contest closes the ask before the cancel runs, and the next id
+        # would open a second ask on a batch that is going.
+        # The test is `cancel`'s own, where a NULL compares false.
+        unschedulable = ((b["approval"] is not None
+                          and b["approval"] != "approved")
+                         or (b["approval_ver"] is not None
+                             and b["version"] is not None
+                             and b["approval_ver"] < b["version"]))
+        if not keys or unschedulable or open_park_ask(conn, b["id"]) or conn.execute(
                 "SELECT 1 FROM messages WHERE id = ?",
                 (park_ask_id(conn, b["id"]),)).fetchone():
             continue

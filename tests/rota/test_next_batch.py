@@ -201,7 +201,7 @@ def _night_94_parked():
 _PARK_QUESTION = (
     "The change b_1 is parked. The team gave up on its failing tests. A new "
     "commit on the change starts it again. A contest of echo_json stops it. "
-    "What do you want changed?")
+    "Do you want to commit a fix, or contest echo_json?")
 
 
 def _liaison_asks(conn) -> str:
@@ -332,10 +332,12 @@ def test_a_words_answer_leaves_the_park_ask_open_and_wakes_landing_once():
     assert render_state(conn).startswith("Waiting on you.")
 
 
-def test_a_contest_after_a_words_answer_still_abandons_the_batch(monkeypatch, tmp_path):
+def test_a_contest_after_a_words_answer_still_abandons_the_batch(
+        monkeypatch, tmp_path, capsys):
     """Frame 87, pass 5. The route the page names stays open after words:
     `rota sign --say` leaves the ask open, and `rota sign --contest` on it
-    then contests the item, and `do:cancel` abandons the batch."""
+    then contests the item, and `do:cancel` abandons the batch. Pass 6: the
+    reply prints "reply sent", and no second ask opens before the cancel."""
     import argparse
 
     from rota import cli
@@ -359,10 +361,13 @@ def test_a_contest_after_a_words_answer_still_abandons_the_batch(monkeypatch, tm
         name="x", ask=mid, approve=None, contest=None,
         say="Try a smaller change first.")) == 0
     assert [r["id"] for r in _park_asks(conn)] == [mid], "words leave it open"
+    assert capsys.readouterr().out.startswith("reply sent: ")
 
     assert cli.cmd_sign(argparse.Namespace(
         name="x", ask=mid, approve=None, contest="echo_json", say=None)) == 0
+    assert capsys.readouterr().out.startswith("ruling recorded: ")
     assert _park_asks(conn) == [], "the contest closed the ask"
+    assert P.REGISTRY["park_ask"].fn(conn) == [], "a batch going to cancel"
     (wake,) = [w for w in P.REGISTRY["cancel"].fn(conn) if w.refs == ("b_1",)]
     _perform(conn, wake)
     assert conn.execute("SELECT status FROM batches WHERE id = 'b_1'"
@@ -374,8 +379,11 @@ def test_the_parked_line_names_only_what_the_principal_can_do():
     """Frame 87, pass 5. The parked line shows only while no ask is open.
     No gate is open then, so it names no contest (observed: frame 87's
     review of b23d17b, 2026-09-30). Before the Liaison asks, the line says
-    the ask comes next. After a ruling closed the ask, it says the commit."""
-    from rota.roles.principal import Answer, Ask, land, render_state
+    the ask comes next. Pass 6: a quarantined `park_ask` wake writes no ask,
+    so the line then says the commit only (observed: frame 87's review of
+    4a0ab5c, 2026-09-30)."""
+    from rota.core.scheduler import tick_key
+    from rota.roles.principal import render_state
 
     conn = _night_94_parked()
     page = render_state(conn)
@@ -383,19 +391,17 @@ def test_the_parked_line_names_only_what_the_principal_can_do():
             "The other changes go on. A new commit on the change starts it "
             "again. I ask you about it next.") in page
     assert "contest" not in page
+    assert "nothing moves" not in page and "Nothing waits on you" not in page
+    assert "Building: 2 changes in progress." in page
 
-    mid = _liaison_asks(conn)
-    land(conn, Ask(message_id=mid, verb="clarify", refs=["echo_json"]),
-         Answer(verb="verdict", per_item={"echo_json": "approve"},
-                text="Keep it."))
-    assert _park_asks(conn) == [] and P.REGISTRY["park_ask"].fn(conn) == []
+    (wake,) = P.REGISTRY["park_ask"].fn(conn)
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                 "reported) VALUES (?, 3, 1, 1)", (tick_key(wake),))
     page = render_state(conn)
     assert ("Stuck: b_1 is parked. The team gave up on: tests_failing for b_1. "
             "The other changes go on. A new commit on the change starts it "
             "again.") in page
     assert "I ask you" not in page and "contest" not in page
-    assert "nothing moves" not in page and "Nothing waits on you" not in page
-    assert "Building: 2 changes in progress." in page
 
     # With every sibling merged, no other change goes on.
     for sibling in ("b_1_b_1", "b_1_confirm"):
@@ -445,6 +451,29 @@ def test_a_lift_with_no_head_change_asks_again_on_the_re_park():
     assert conn.execute("SELECT head_commit FROM batches WHERE id = 'b_1'"
                         ).fetchone()["head_commit"] == head
     assert park_ask_id(conn, "b_1") != first
+    second = _liaison_asks(conn)
+    assert second != first
+
+
+def test_an_approve_then_a_lift_with_no_head_change_asks_again():
+    """Frame 87, pass 6. The id counted only the closed asks with no
+    verdict, so an approve, a lift with no head change and a re-park on the
+    same key gave the old id, and no ask opened (observed: frame 87's review
+    of 4a0ab5c, 2026-09-30). Every closed ask counts now."""
+    from rota.core.scheduler import close_stale_park_asks
+    from rota.roles.principal import Answer, Ask, land
+
+    conn = _night_94_parked()
+    first = _liaison_asks(conn)
+    land(conn, Ask(message_id=first, verb="clarify", refs=["echo_json"]),
+         Answer(verb="verdict", per_item={"echo_json": "approve"}, text="Keep it."))
+    assert _park_asks(conn) == []
+
+    _lift(conn, "b_1")
+    assert P.REGISTRY["park_ask"].fn(conn) == [], "a batch out of the park"
+    assert close_stale_park_asks(conn) == 0
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                 "reported) VALUES ('developer|tick:tests_failing|b_1', 3, 1, 1)")
     second = _liaison_asks(conn)
     assert second != first
 
