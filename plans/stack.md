@@ -509,6 +509,11 @@ a different question and the night is then opened once.
   the last run, not the first; the unchanged result lacks `lands with` and the missing
   note; an identical resend that trips a door gets the door's refusal, accepted as the
   design. Pass 2 takes the first three.
+- Status 2026-09-30 10:11 (rota-4c): **pass 2 committed at `2918621`, a short review runs before the
+  merge** (observed: the implementer resumed on Opus, 211.6k cumulative on the harness line,
+  9 tool calls, 2 minutes; 155 door tests pass). Meta workflow. This agent has carried frame
+  95's note and four passes and frame 93's two passes. Any further pass on either frame goes
+  to a fresh agent.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
