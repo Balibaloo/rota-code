@@ -283,6 +283,12 @@ a different question and the night is then opened once.
 - Status 2026-09-30 14:00 (rota-c6): **gate clean at `5d54e9a`** (observed: the gate, 552s, exit 0: suite 22 failed and
   2458 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0). Meta workflow. Pass 4
   still runs. Register lines so far: 0 here, 1 strike in memory for a status-line script.
+- Status 2026-09-30 14:01 (rota-c6): **pass 4 committed at `bdefec9`, the gate and a short review of its diff run**
+  (observed: the implementer resumed on Opus, 117.1k cumulative on the harness line, 12 tool calls, 2.3
+  minutes; 179 door tests and 58 parser tests pass, 2 tests fail with `api.py` stashed; this session read
+  the whole diff, two helpers and one call site). Meta workflow. Passes on one agent: 66.6k, 92.9k,
+  103.2k and 117.1k cumulative against 40k priced. The night runs from a worktree at the commit the
+  review and the gate pass, cold, because the write path moved.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
