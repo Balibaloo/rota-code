@@ -273,6 +273,15 @@ a different question and the night is then opened once.
   design B's Critic brief step is not built, because it is a judgement and not in the ends-when). Meta
   workflow. The brief is in the scratchpad, `frame97-brief.md`, with four tests. Critic re-records go to the
   gate's stale set.
+- Status 2026-09-30 18:42 (rota-c6): **pass 1 committed at `4876aae`; its gate shows one real new red that is a load
+  flip and not this frame's; the diff review runs on Opus from `C:/Users/roman/rota_review97`** (observed:
+  the implementer on Opus, 70.2k on the harness line against 40k priced, 34 tool calls, 70 minutes; 61 and
+  179 tests pass, 4 of 4 new tests fail with the change stashed; its gate, 938s, exit 1: new reds 2, one the
+  known flaky map test, one `L1-AR-a-dead-end-is-reported-not-sat-on` 0/5, reds gone 1, stale 0, five reds
+  cleared by re-record; `tests/rota/cassettes.db`: that case's prompt hash `d7d75dda` is unchanged since
+  2026-09-24 with 254 of 355 passes, and today's live runs at 18:05 on load `qwen3:8b@248720` gave 0, so
+  the prompt did not move with this change). Meta workflow. Per the register's rule, one refresh re-record
+  and one plain run of that case run now, then the gate again at the pass's commit.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
