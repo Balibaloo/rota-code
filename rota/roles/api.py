@@ -9217,7 +9217,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         # Night 99 (2026-09-30): s134's `out += "\n"` reached the door as
         # two lines, and three sessions were refused at attempt 3.
         if fail is not None and fail[0] == "parse":
-            fixed, joined = _repair_broken_strings(fragment)
+            fixed, joined, crlf = _repair_broken_strings(fragment)
             if joined:
                 if future_door is not None:
                     future_door(fixed)
@@ -9229,7 +9229,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 tree2, fail2 = _parse_compile(merged)
                 if fail2 is None:
                     text, fragment, tree, fail = merged, fixed, tree2, None
-                    repair_note = _repair_sentence(joined)
+                    repair_note = _repair_sentence(joined, crlf)
                     if span:
                         try:
                             tail_note = _tail_drop(lines, start, stop, fragment)
@@ -10725,11 +10725,13 @@ def _indent_view(fragment: str) -> tuple[str, list[str], list[bool], str]:
     shallower indent inside an indented text can be the rest of a broken
     string, so it keeps its place, and the prefix comes from the first
     line alone (the review of 85f7c4f). textwrap.dedent would shrink it.
+    A comment at column 0 does not set the indent of a span, so the first
+    line of code sets the prefix (the review of 5d54e9a).
     Return the view, the original lines, which lines lose the prefix, and
     the prefix.
     """
     parts = fragment.split("\n")
-    first = next((p for p in parts if p.strip()), "")
+    first = next((p for p in parts if p.strip() and not p.lstrip().startswith("#")), "")
     prefix = first[:len(first) - len(first.lstrip())]
     cut = [bool(prefix) and p.startswith(prefix) for p in parts]
     view = "\n".join(p[len(prefix):] if c else p for p, c in zip(parts, cut))
@@ -10746,19 +10748,21 @@ def _parse_view(fragment: str) -> SyntaxError | None:
         return exc
 
 
-def _repair_broken_strings(fragment: str) -> tuple[str, list[int]]:
+def _repair_broken_strings(fragment: str) -> tuple[str, list[int], set[int]]:
     """
     Join each line break that the call decoder put inside a short string.
 
     The decoder reads the two characters \\n as one line break, and that is
     right for the lines of the text. Night 99 (2026-09-30): s134 wrote
     `out += "\\n"`, and the text reached the parse door as two lines. Return
-    the repaired text and the text's line numbers, from 1, that were joined.
+    the repaired text, the text's line numbers, from 1, that were joined,
+    and the numbers of the lines that were joined with \\r\\n.
     """
     import ast as _ast
     _, parts, cut, prefix = _indent_view(fragment)
     origin = list(range(1, len(parts) + 1))
     joined: list[int] = []
+    crlf: set[int] = set()
     last = 0
     # Each join takes one line or more, so the loop ends. A cap of 20 cut
     # a whole file with more breaks short (the review of 85f7c4f).
@@ -10787,6 +10791,8 @@ def _repair_broken_strings(fragment: str) -> tuple[str, list[int]]:
             # The merged file must still compile, and the result names the line.
             # The decoder reads \r\n as CR LF, so a line that ends in CR
             # keeps both escapes (the review of 85f7c4f).
+            if any(p.endswith("\r") for p in parts[i:close]):
+                crlf.add(origin[i])
             parts[i] = "".join(p[:-1] + "\\r\\n" if p.endswith("\r") else p + "\\n"
                                for p in parts[i:close]) + parts[close]
             del parts[i + 1:close + 1], origin[i + 1:close + 1], cut[i + 1:close + 1]
@@ -10794,18 +10800,35 @@ def _repair_broken_strings(fragment: str) -> tuple[str, list[int]]:
             if not joined or joined[-1] != origin[i]:
                 joined.append(origin[i])
             last = i
-    return "\n".join(parts), joined
+    return "\n".join(parts), joined, crlf
 
 
-def _repair_sentence(joined: list[int]) -> str:
-    """The one sentence that names each line the repair joined."""
+def _repair_sentence(joined: list[int], crlf: set[int] = frozenset()) -> str:
+    """
+    The one sentence that names each line the repair joined.
+
+    A CR join writes the four characters \\r\\n, and the sentence says so
+    (the review of 5d54e9a).
+    """
+    def _names(ns):
+        ns = sorted(ns)
+        return str(ns[0]) if len(ns) == 1 else (
+            ", ".join(str(n) for n in ns[:-1]) + f" and {ns[-1]}")
+
+    lf = [n for n in joined if n not in crlf]
+    cr = [n for n in joined if n in crlf]
     if len(joined) == 1:
-        return (f"Line {joined[0]} of your text, counting from 1, ended inside a "
-                f"string literal, so its line break is written as the two "
-                f"characters \\n.")
-    names = ", ".join(str(n) for n in joined[:-1]) + f" and {joined[-1]}"
-    return (f"Lines {names} of your text, counting from 1, ended inside string "
-            f"literals, so their line breaks are written as the two characters \\n.")
+        head = (f"Line {joined[0]} of your text, counting from 1, ended inside a "
+                f"string literal, so its line break is written as")
+    else:
+        head = (f"Lines {_names(joined)} of your text, counting from 1, ended inside "
+                f"string literals, so their line breaks are written as")
+    if not cr:
+        return f"{head} the two characters \\n."
+    if not lf:
+        return f"{head} the four characters \\r\\n."
+    return (f"{head} the two characters \\n, and as the four characters \\r\\n "
+            f"on line{'s' if len(cr) > 1 else ''} {_names(cr)}.")
 
 
 def _escape_note(fragment: str, exc: SyntaxError | None) -> str:

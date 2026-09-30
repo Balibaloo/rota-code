@@ -2560,6 +2560,25 @@ def test_a_broken_crlf_escape_keeps_both_escapes(db, tmp_path):
     assert f.read_text() == "import os\nsep = \"\\r\\n\"\n"
 
 
+def test_a_crlf_join_is_named_as_four_characters(db, tmp_path):
+    """Frame 99's third diff review of 5d54e9a (2026-09-30): the file held
+    \\r\\n, and the landed sentence named the two characters \\n."""
+    _empty_tree(db, tmp_path, "import os\n")
+    out = _write(db, tmp_path, 1, 1, "sep = \"\r\n\"\n")
+    assert out["repaired"] == (
+        "Line 1 of your text, counting from 1, ended inside a string literal, "
+        "so its line break is written as the four characters \\r\\n.")
+
+
+def test_a_span_that_starts_with_a_comment_at_column_0_is_repaired(db, tmp_path):
+    """Frame 99's third diff review of 5d54e9a (2026-09-30): a comment at
+    column 0 set an empty prefix, and the view failed with an indent error."""
+    f = _empty_tree(db, tmp_path, "def f(out):\n    out = ''\n    return out\n")
+    _write(db, tmp_path, 2, 2, "# note\n    out += \"\n\"\n")
+    assert f.read_text() == ("def f(out):\n    out = ''\n# note\n    out += \"\\n\"\n"
+                             "    return out\n")
+
+
 def test_a_whole_file_with_25_broken_escapes_is_written_back(db, tmp_path):
     """Frame 99's second diff review of 85f7c4f (2026-09-30): a cap of 20
     joins left five breaks, and the refusal discarded every join."""
