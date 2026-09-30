@@ -508,6 +508,15 @@ a different question and the night is then opened once.
   either. Low: "The other changes go on" prints when none is left; the night 92 pin
   loses its unlifted assertion. Pass 2 lifts on the reconcile, conditions the sentence,
   pins night 92 before the lift, and names the give-up verb the page has.
+- Status 2026-09-30 04:57 (rota-4c): **pass 2 committed at `4ae68ea` on `f87`, the last review runs**
+  (observed: the implementer resumed on Opus, 124.6k cumulative on the harness line, 16
+  tool calls, 4.6 minutes; 22 and 109 tests pass; the new boot test fails with `boot.py`
+  stashed). Meta workflow. `reconcile_worktrees` lifts the quarantined keys after its
+  UPDATE; the page names `contest <item>` as the way to give up, the CLI's own verb; the
+  night 92 pin asserts `["b_3"]` before the lift. Accepted as is: a hand commit made
+  mid-night ends the park at the next boot, because `reconcile_worktrees` runs at boot
+  only, and the principal acts between nights (reasoned: a tick that reads every
+  worktree head is a new cost for a case no night has shown).
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
