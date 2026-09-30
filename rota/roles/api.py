@@ -8570,6 +8570,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
 
     if not span and not text.strip():
         return _empty_write()
+    tail_note = None
     if span:
         # A span, the lines `code.source` showed, replaced by `text`. clickI
         # night 16 (2026-09-12): a 688-line module does not fit one reply,
@@ -9008,6 +9009,10 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         # A blank text, "" or a lone newline, replaces the span with no lines.
         new = text.splitlines() if text.strip() else []
         text = nl.join(lines[:start] + new + lines[stop:]) + nl
+        # Frame 95: a text that stops short still parses. The result names
+        # the lines the write drops, and the write lands.
+        if path.endswith(".py"):
+            tail_note = _tail_drop(lines, start, stop, fragment)
     from ..core import fence as _fence
     _fence.check_manifest(path, _criteria_texts(ctx))
     # A file at the root named like a standard-library module shadows it
@@ -9587,11 +9592,18 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             f"{path} is not where `import {stem}` looks: the import path is "
             f"the worktree root, so the module is {stem}.py at the top level "
             f"(or {stem}/__init__.py)")
+    # A whole-file write is a span of the whole old file (frame 95).
+    if not span and path.endswith(".py") and target.is_file():
+        old = target.read_text(encoding="utf-8").splitlines()
+        tail_note = _tail_drop(old, 0, len(old), text)
     target.parent.mkdir(parents=True, exist_ok=True)
     existed = target.exists()
     target.write_text(text, encoding="utf-8")
     out = {"path": path, "bytes": len(text.encode("utf-8")),
            "created": not existed}
+    # A fact, not an order: the seat decides whether the tail goes.
+    if tail_note:
+        out["dropped"] = tail_note
     # A landed write is not a commit, and the result says so. Night 62
     # (2026-09-14, finding 68): the Developer implemented confirm() at
     # turn 9, spent fifteen turns on a test file, and the cap ended the
@@ -10362,6 +10374,99 @@ def _changed_unnamed_defs(ctx: Ctx, path: str, old_text: str, new_text: str) -> 
             continue                                       # restored
         changed.append(name)
     return changed
+
+
+def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | None:
+    """
+    One sentence that names the lines a write drops after the text's last
+    terminator, or None.
+
+    Night 98 (2026-09-29): s183 replaced all of `confirm` with a text that
+    stopped at `raise Abort() from None`. The shorter function parsed, every
+    door accepted it, and 13 lines went. Night 97 lost the same tail to a
+    loop that ended at `continue`. The steps are in frame 95's design note,
+    `plans/archive/frame95-design-2026-09-30.md`, section 3.
+
+    A note and never a refusal, because a rewrite may mean to drop a tail.
+    So a shape this walk does not expect returns None: a crash in a note is
+    a refusal (ruled: frame 95's coordinator, 2026-09-30).
+    """
+    import ast as _ast
+    fields = ("body", "handlers", "orelse", "finalbody")
+    ends = (_ast.Return, _ast.Raise, _ast.Continue, _ast.Break)
+    defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
+    try:
+        new = text.splitlines() if text.strip() else []
+        merged = old_lines[:start] + new + old_lines[stop:]
+        old_tree = _ast.parse(chr(10).join(old_lines))
+        new_tree = _ast.parse(chr(10).join(merged))
+
+        def lo(n):
+            # A match_case has no lineno, so it raises here and the note is None.
+            decs = getattr(n, "decorator_list", None) or []
+            return min([n.lineno] + [d.lineno for d in decs]) - 1
+
+        def head(src, n):
+            return src[n.lineno - 1].strip()
+
+        # The outermost list that holds whole statements of the span, and
+        # the index path to it, so the merged tree gives the same list.
+        route, level = [], old_tree.body
+        while True:
+            pool = [x for x in level if start <= lo(x) and x.end_lineno <= stop]
+            if pool:
+                break
+            host = [i for i, x in enumerate(level) if lo(x) <= start and stop <= x.end_lineno]
+            if not host:
+                return None
+            subs = [f for f in fields
+                    if any(lo(x) < stop and x.end_lineno > start
+                           for x in getattr(level[host[0]], f, None) or [])]
+            if not subs:
+                return None
+            route.append((host[0], subs[0]))
+            level = getattr(level[host[0]], subs[0])
+        level_new = new_tree.body
+        for i, f in route:
+            level_new = getattr(level_new[i], f)
+        mine = [x for x in level_new if start <= lo(x) < start + len(new)]
+        # `theirs` is the list a text statement pairs in. `pool` is every
+        # statement at that level, so a dropped else block counts too.
+        theirs, dropped, parent = pool, [], None
+        while True:
+            if not mine:
+                return None
+            n = mine[-1]
+            same = [x for x in theirs if head(old_lines, x) == head(merged, n)]
+            k = len(mine) - 1
+            if same:
+                o = same[-1]
+            elif k < len(theirs) and type(theirs[k]) is type(n):
+                o = theirs[k]
+            else:
+                return None
+            dropped += [x for x in pool if lo(x) >= o.end_lineno]
+            subs = [(f, getattr(n, f)) for f in fields if getattr(n, f, None)]
+            if not subs:
+                break
+            f, mine = max(subs, key=lambda p: p[1][-1].end_lineno)
+            theirs = getattr(o, f, None) or []
+            pool = [x for g in fields for x in getattr(o, g, None) or []]
+            parent = n
+        # The gate: a terminator inside a branch, not a def's own return.
+        if not isinstance(n, ends) or parent is None or isinstance(parent, defs):
+            return None
+        # A line the text still holds moved, and is not a loss.
+        kept = {x.strip() for x in new}
+        gone = sorted({i for x in dropped for i in range(lo(x), x.end_lineno)
+                       if old_lines[i].strip() and old_lines[i].strip() not in kept})
+        if not gone:
+            return None
+        word = "line" if len(gone) == 1 else "lines"
+        return (f"This write drops {len(gone)} {word} that came after "
+                f"`{head(merged, n)}`, from `{old_lines[gone[0]].strip()}`.")
+    except Exception:                                      # noqa: BLE001
+        return None
 
 
 def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:

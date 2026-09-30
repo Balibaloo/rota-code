@@ -2599,3 +2599,101 @@ def test_a_name_the_body_defines_is_not_an_unimported_one(db):
     except ValueError as exc:
         assert "never imports it" not in str(exc), exc
 
+
+def _lines(*rows):
+    return list(rows)
+
+
+def _termui_lines():
+    import click.termui
+    with open(click.termui.__file__, encoding="utf-8") as f:
+        return f.read().splitlines()
+
+
+def test_a_def_cut_after_a_raise_in_a_branch_names_what_it_drops():
+    """Frame 95: a whole-def text that stops at a `raise` inside an except
+    inside a loop drops the lines after it, and the note names them."""
+    from rota.roles.api import _tail_drop
+    old = _lines("def f(x):",
+                 "    while True:",
+                 "        try:",
+                 "            v = x()",
+                 "        except OSError:",
+                 "            raise ValueError() from None",
+                 "        if v:",
+                 "            rv = v",
+                 "        break",
+                 "    return rv")
+    text = chr(10).join(old[:6]) + chr(10)
+    note = _tail_drop(old, 0, len(old), text)
+    assert note == ("This write drops 4 lines that came after "
+                    "`raise ValueError() from None`, from `if v:`.")
+
+
+def test_a_tail_the_text_moves_is_not_a_loss():
+    """Frame 95: `return x` moved above the loop is still in the text, so a
+    text that ends at a `raise` in a branch drops nothing."""
+    from rota.roles.api import _tail_drop
+    old = _lines("def f(x):",
+                 "    for i in x:",
+                 "        if not i:",
+                 "            raise ValueError(i)",
+                 "    return x")
+    text = chr(10).join(["def f(x):", "    if not x:", "        return x",
+                         "    for i in x:", "        if not i:",
+                         "            raise ValueError(i)"]) + chr(10)
+    assert _tail_drop(old, 0, len(old), text) is None
+
+
+def test_night98_s183_confirm_cut_at_raise_abort_drops_13_lines():
+    """Night 98 (2026-09-29): s183 sent span 288,345, all of `confirm`, with a
+    text that stopped at `raise Abort() from None`. Commit d8d87beb deleted 13
+    lines. The installed click holds `confirm` at the same lines."""
+    from rota.roles.api import _tail_drop
+    lines = _termui_lines()
+    assert lines[288].startswith("def confirm(") and lines[344].strip() == "return rv"
+    span = lines[288:345]
+    cut = [i for i, x in enumerate(span) if x.strip() == "raise Abort() from None"][0]
+    note = _tail_drop(lines, 288, 345, chr(10).join(span[:cut + 1]) + chr(10))
+    assert note == ("This write drops 13 lines that came after `raise Abort() from None`, "
+                    "from `if value in (\"y\", \"yes\"):`.")
+
+
+def test_night97_tail_loop_that_ends_at_continue_drops_the_return():
+    """Night 97 (2026-09-29): s214 replaced the tail of `confirm` with a loop
+    that ends at `continue`, and `if abort and not rv:` to `return rv` went.
+    Night 97's span was 340,352 in its own file. The installed click holds
+    the same tail from `while True:` to the end of `confirm`."""
+    from rota.roles.api import _tail_drop
+    lines = _termui_lines()
+    w = [i for i in range(288, 345) if lines[i].strip() == "while True:"][0]
+    loop = lines[w:w + 5] + [
+        '        if value in ("y", "yes"):', "            rv = True", "            break",
+        '        elif value in ("n", "no"):', "            rv = False", "            break",
+        '        elif default is not None and value == "":', "            rv = default",
+        "            break",
+        "        else:", '            echo(_("Error: invalid input"), err=err)',
+        "            continue"]
+    note = _tail_drop(lines, w, 345, chr(10).join(loop) + chr(10))
+    assert note == ("This write drops 3 lines that came after `continue`, "
+                    "from `if abort and not rv:`.")
+
+
+def test_a_span_write_that_stops_short_lands_and_says_what_it_drops(db, tmp_path):
+    """Frame 95: the write lands, and the result carries the note under
+    `dropped`."""
+    root = tmp_path / "wt"; root.mkdir()
+    old = _lines("def f(x):", "    for i in x:", "        if not i:",
+                 "            raise ValueError(i)", "        i.go()", "    return x")
+    (root / "m.py").write_text(chr(10).join(old) + chr(10))
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.write", path="m.py", start=0, end=6,
+                  text=chr(10).join(old[:4]) + chr(10))
+    assert out["dropped"] == ("This write drops 2 lines that came after "
+                              "`raise ValueError(i)`, from `i.go()`.")
+    assert "return x" not in (root / "m.py").read_text()
+
