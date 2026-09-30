@@ -9642,9 +9642,16 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             # still uses. ACT-DV-edit-inside-the-function (2026-09-30): the
             # write kept `confirm` alone, `confirm` calls `_readline_prompt`,
             # and no door refused, because nothing imported the helpers.
+            # A star import can bind any name, so the check stays silent
+            # (frame 95 pass 6). A builtin still resolves after the
+            # file's own shadow goes, so the file is not broken.
             used = []
-            if not span:
-                used = sorted((set(_top_binds(old_tree)) - _bound_anywhere(tree))
+            star = any(isinstance(x, _ast.ImportFrom) and any(a.name == "*" for a in x.names)
+                       for x in _ast.walk(tree))
+            if not span and not star:
+                import builtins as _builtins
+                used = sorted((set(_top_binds(old_tree)) - _bound_anywhere(tree)
+                               - set(dir(_builtins)))
                               & {x.id for x in _ast.walk(tree)
                                  if isinstance(x, _ast.Name) and isinstance(x.ctx, _ast.Load)})
             if gone or used:
@@ -9660,12 +9667,15 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 spans = _kept_spans(old_tree, tree) if not span else []
                 if spans:
                     # The kept definition's own span edits it in place and
-                    # keeps every other line of the file.
+                    # keeps every other line of the file. The offer runs
+                    # bottom-up: a span write moves every line below it
+                    # (frame 95 pass 6).
                     names = ", ".join(n for n, _lo, _hi in spans)
                     raise ValueError(
                         f"this rewrite of {path} drops {', '.join(sorted(set(gone) | set(used)))}, "
                         f"and {why}. To change {names} alone, write only "
-                        f"{_span_offer(spans)}: that span replaces the lines "
+                        f"{_span_offer(spans)}: "
+                        f"{'each' if len(spans) > 1 else 'that'} span replaces the lines "
                         f"it holds now and keeps the rest of {path}")
                 # tipsAT (2026-09-12): ten refusals in one session, the
                 # same whole-file write of only the new functions each
@@ -10577,6 +10587,10 @@ def _bound_anywhere(tree) -> set[str]:
             out.add(x.asname or x.name.split(".")[0])
         elif isinstance(x, _ast.ExceptHandler) and x.name:
             out.add(x.name)
+        elif isinstance(x, (_ast.MatchAs, _ast.MatchStar)) and x.name:
+            out.add(x.name)
+        elif isinstance(x, _ast.MatchMapping) and x.rest:
+            out.add(x.rest)
     return out
 
 
@@ -10595,7 +10609,14 @@ def _kept_spans(old_tree, new_tree) -> list[tuple[str, int, int]]:
 
 
 def _span_offer(spans) -> str:
-    return ", and ".join(f"{n} with start={lo}, end={hi}" for n, lo, hi in spans)
+    """The spans, last first. A span write moves the lines below it, so a
+    span above stays true only while the writes run bottom-up (frame 95
+    pass 6)."""
+    order = sorted(spans, key=lambda s: s[1], reverse=True)
+    offer = ", and then ".join(f"{n} with start={lo}, end={hi}" for n, lo, hi in order)
+    if len(order) > 1:
+        offer += " (write them in this order, last first)"
+    return offer
 
 
 def _whole_drop(old_lines: list[str], text: str) -> str | None:
@@ -10605,8 +10626,10 @@ def _whole_drop(old_lines: list[str], text: str) -> str | None:
 
     Frame 95 pass 5. `ACT-DV-edit-inside-the-function` (2026-09-30): the
     write kept `confirm` alone. The tail note named 4 lines after it and
-    missed the 5 lines above it. This sentence counts both, and names the
-    span that edits the kept definition in place.
+    missed the 5 lines above it. This sentence counts both.
+
+    The note arrives after the file is replaced, so a span in it would
+    point into the new file. The note names no span (frame 95 pass 6).
     """
     import ast as _ast
     try:
@@ -10629,7 +10652,7 @@ def _whole_drop(old_lines: list[str], text: str) -> str | None:
         first = old_lines[min(gone)].strip()
         word = "line" if len(gone) == 1 else "lines"
         return (f"This write drops {len(gone)} {word} of the old file, from `{first}`; "
-                f"write only {_span_offer(spans)} to keep them.")
+                f"write the whole file again with those lines kept.")
     except Exception:                                      # noqa: BLE001
         return None
 
