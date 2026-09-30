@@ -42,8 +42,8 @@ The helper computes the loss from two ASTs:
    A whole-file write uses `start=0` and the old length.
 5. Pair the statements of `N` with those of `O` in order, by the stripped first
    line. A cursor keeps each pair after the one before it, so each takes the
-   earliest match. An unmatched last statement pairs with `O[len(N)-1]` when
-   the type is the same and the index is at or after the cursor.
+   earliest match. An unmatched last statement pairs with the first unpaired
+   statement of `O` of the same type, at or after the cursor.
 6. The statements of `O` after the pair of the last statement of `N` are the
    drops of this level. When the last statement has no pair, the walk stops
    and keeps the drops found so far. The leaf of the text still decides step 8.
@@ -55,9 +55,12 @@ The helper computes the loss from two ASTs:
    span's list and not the def.
 9. "Statements after that branch at the same level" are the drops of step 6,
    at every level from the span's list down to the parent of the leaf.
-10. A dropped line is kept when its stripped text is at or below the leaf, or
-    is deeper inside the text statement that holds the leaf at its level.
-    The count can still undercount when the same line appears in those places.
+10. A dropped line is kept when its text is at or below the leaf. It is also
+    kept when the text statement that holds the leaf at its level has it at
+    the same indent or deeper, and the paired old statement does not have it.
+    An `elif` compares as an `if`. The count can undercount, when the same
+    line appears in those places. It can overcount, when a moved line also
+    changes its words, such as an `if` that becomes an `elif` with a new test.
 11. Count the lines, and name the lowest one.
 
 The sentence: "This write drops 13 lines that came after

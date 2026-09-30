@@ -1972,6 +1972,7 @@ def test_a_span_that_cuts_a_statement_is_told_where_the_boundaries_are(db, tmp_p
         sb.call("code.write", path="m.py", start=5, end=8, text="def echo_json(o):\n    print(json.dumps(o))\n")
     out = sb.call("code.write", path="m.py", start=8, end=8, text="\n\ndef echo_json(o):\n    print(json.dumps(o))\n")
     assert out["bytes"]
+    assert "dropped" not in out
     assert "def echo_json" in (root / "m.py").read_text() and "def other" in (root / "m.py").read_text()
 
 
@@ -2798,4 +2799,44 @@ def test_a_span_write_that_stops_short_lands_and_says_what_it_drops(db, tmp_path
     assert out["dropped"] == ("This write drops 2 lines that came after "
                               "`raise ValueError(i)`, from `i.go()`.")
     assert "return x" not in (root / "m.py").read_text()
+
+
+def test_an_insert_before_the_pair_takes_the_first_old_statement_of_its_type():
+    """Frame 95's third review (2026-09-30): after an insert, the text's index
+    paired `if y:` and read 1 line from `return 1`. The truth is 3 from `if y:`."""
+    from rota.roles.api import _tail_drop
+    old = _lines("def f(x, y):", "    a = 0", "    if x:", "        raise E",
+                 "    if y:", "        pass", "    return 1")
+    text = chr(10).join(["def f(x, y):", "    n0 = 0", "    a = 1",
+                         "    if x is not None:", "        raise E"]) + chr(10)
+    assert _tail_drop(old, 0, len(old), text) == (
+        "This write drops 3 lines that came after `raise E`, from `if y:`.")
+
+
+def test_an_if_that_becomes_an_elif_is_moved_not_dropped():
+    """Frame 95's third review (2026-09-30): a second `if` turned into an
+    `elif` read 3 lines from `if i < 0:`, and only `return x` went."""
+    from rota.roles.api import _tail_drop
+    old = _lines("def f(i, x):", "    if i > 0:", "        raise ValueError(i)",
+                 "    if i < 0:", "        x = -i", "    return x")
+    text = chr(10).join(["def f(i, x):", "    if i > 0:", "        raise ValueError(i)",
+                         "    elif i < 0:", "        x = -i",
+                         "        raise ValueError(x)"]) + chr(10)
+    assert _tail_drop(old, 0, len(old), text) == (
+        "This write drops 1 line that came after `raise ValueError(x)`, from `return x`.")
+
+
+def test_a_whole_write_over_a_file_that_does_not_decode_lands_with_no_note(db, tmp_path):
+    """Frame 95's third review (2026-09-30): the whole-file read of the old
+    file ran outside the note's guard, so a latin-1 byte refused the write."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_bytes(b"# caf" + bytes([0xE9]) + b"\ndef f():\n    return 1\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.write", path="m.py", text="def f():\n    return 2\n")
+    assert "dropped" not in out
+    assert "return 2" in (root / "m.py").read_text()
 

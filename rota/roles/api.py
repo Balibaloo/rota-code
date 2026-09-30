@@ -9455,7 +9455,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     if path.endswith(".py") and target.exists():
         try:
             old_tree = _ast.parse(target.read_text(encoding="utf-8"))
-        except (SyntaxError, OSError):
+        # A file that does not decode has no names to keep. Frame 95's third
+        # review (2026-09-30): a latin-1 byte refused the whole write here.
+        except (SyntaxError, OSError, UnicodeDecodeError):
             old_tree = None
         if old_tree is not None:
             new_defs = {n.name for n in tree.body
@@ -9593,9 +9595,14 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             f"the worktree root, so the module is {stem}.py at the top level "
             f"(or {stem}/__init__.py)")
     # A whole-file write is a span of the whole old file (frame 95).
+    # A note never refuses a write, so a file that does not decode gives no
+    # note (frame 95's third review, 2026-09-30).
     if not span and path.endswith(".py") and target.is_file():
-        old = target.read_text(encoding="utf-8").splitlines()
-        tail_note = _tail_drop(old, 0, len(old), text)
+        try:
+            old = target.read_text(encoding="utf-8").splitlines()
+            tail_note = _tail_drop(old, 0, len(old), text)
+        except Exception:                                  # noqa: BLE001
+            tail_note = None
     target.parent.mkdir(parents=True, exist_ok=True)
     existed = target.exists()
     target.write_text(text, encoding="utf-8")
@@ -10463,16 +10470,19 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | 
                 if hits:
                     j = hits[0] + 1
                     o = theirs[hits[0]] if m is mine[-1] else None
-            n, k = mine[-1], len(mine) - 1
-            if o is None and j <= k < len(theirs) and type(theirs[k]) is type(n):
-                o = theirs[k]
+            n = mine[-1]
+            # The first unpaired old statement of the same type, never the
+            # one at the text's index. Frame 95's third review (2026-09-30):
+            # after an insert, the index took a later `if` and read 1 line.
+            if o is None:
+                o = next((x for x in theirs[j:] if type(x) is type(n)), None)
             if o is None:
                 # No pair: count the drops found so far (the same review).
                 # The leaf below still decides the gate.
                 while kids(n):
                     parent, n = n, max(kids(n), key=lambda p: end(p[1][-1]))[1][-1]
                 break
-            dropped += [(x, n) for x in pool if lo(x) >= end(o)]
+            dropped += [(x, n, o) for x in pool if lo(x) >= end(o)]
             if not kids(n):
                 break
             f, mine = max(kids(n), key=lambda p: end(p[1][-1]))
@@ -10486,20 +10496,30 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | 
         # is not a loss. A line above the leaf is a different line (review).
         kept = {x.strip() for x in new[max(n.lineno - 1 - start, 0):]}
 
-        def moved(i, s):
-            # Frame 95 pass 3: a line the seat moved into the text statement
-            # that holds the leaf, at the level the line was dropped from.
-            # Night 97 moved the loop's `break` into each branch. The copy
-            # sits deeper than the line, or a like block's own header and
-            # body would hide the second block (the two-block test).
-            line, deep = old_lines[i].strip(), len(old_lines[i]) - len(old_lines[i].lstrip())
-            return any(merged[k].strip() == line
-                       and len(merged[k]) - len(merged[k].lstrip()) > deep
+        def norm(t):
+            # An `if` that became an `elif` is the same test (third review).
+            t = t.strip()
+            return t[2:] if t.startswith("elif ") else t
+
+        def indent(t):
+            return len(t) - len(t.lstrip())
+
+        def moved(i, s, o):
+            # A line the seat moved into the text statement `s` that holds
+            # the leaf, at the level the line was dropped from. Night 97
+            # moved the loop's `break` into each branch. The copy sits at the
+            # same indent or deeper. The paired old statement `o` must not
+            # hold the line, or a like block's header and body would hide
+            # the second block (the two-block test, frame 95's third review).
+            line = norm(old_lines[i])
+            if any(norm(old_lines[k]) == line for k in range(lo(o), end(o))):
+                return False
+            return any(norm(merged[k]) == line and indent(merged[k]) >= indent(old_lines[i])
                        for k in range(lo(s, merged), end(s)))
 
-        gone = sorted({i for x, s in dropped for i in range(lo(x), end(x))
+        gone = sorted({i for x, s, o in dropped for i in range(lo(x), end(x))
                        if old_lines[i].strip() and old_lines[i].strip() not in kept
-                       and not moved(i, s)})
+                       and not moved(i, s, o)})
         if not gone:
             return None
         word = "line" if len(gone) == 1 else "lines"
