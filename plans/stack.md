@@ -300,6 +300,12 @@ a different question and the night is then opened once.
   shapes 6 and 4, s183 13). Meta workflow. The kept rule as this session wrote it changed a
   two-block count to 5, so the agent added one condition: the copy must sit at a deeper
   indent than the dropped line, which tells a moved `break` from a like block.
+- Status 2026-09-30 09:43 (rota-4c): **the last review finds four lows, pass 4 runs** (observed: the
+  reviewer on Opus, 38.8k on the harness line against 40k, 10 tool calls; the earlier
+  review's shapes rerun against both commits, four results changed and each change is
+  right; 149 tests). Meta workflow. Low: the positional fallback pairs a later statement
+  after an insert; a block turned into an `elif` counts as dropped; the whole-file read
+  runs outside the try; step 10 of the note says undercount only. Pass 4 takes all four.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
@@ -547,6 +553,18 @@ a different question and the night is then opened once.
   open ask with the item and the batch in its refs and the parked facts in its text; a
   contest on it cancels the batch, a hand commit at boot closes it (reasoned: the ruling
   says the batch waits for the principal, and a gate is how the principal answers today).
+- Status 2026-09-30 09:43 (rota-4c): **ruled: the Liaison writes the park ask, woken to write it**
+  (ruled: Roman, 2026-09-30, asked on the phone with three options and this one
+  recommended, after pass 3 at `0c6e54e` had the scheduler write a clarify in the
+  Liaison's name; the composition says every record has one writer and the Liaison
+  originates questions). Meta workflow. The review of `0c6e54e` (observed: the reviewer on
+  Opus, 43.8k against 40k, 17 tool calls; 267 tests pass) found one high: after a words
+  answer the page reads "Nothing waits on you, and nothing moves", both false, and the
+  contest route is gone; and three lows: the park ask hides the `contradiction` wake, the
+  refs `[item, batch]` give the Liaison a batch to rule on, and the page's early return
+  hides the held and running lines. Pass 4 rebuilds on the ruling: a Liaison wake and a
+  mode brief, refs `[item]`, a true parked line after a words answer, the contradiction
+  count excludes the park ask. The frame now touches a brief, so it ends on a walk.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
