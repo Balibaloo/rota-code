@@ -378,6 +378,12 @@ a different question and the night is then opened once.
   Critic session s145, verdict fail at `04588017`, head `dc0f5ffb`; s145's prompt holds the whole batch
   `[diff]` at offset 219 and no removed-lines block, because bg_1 removes nothing). Meta workflow. The
   night runs on to its step cap; the read after GAUNTLET-DONE judges this frame's ends-when.
+- Status 2026-09-30 22:20 (rota-c6): **night 101 stopped by this session at 22:19, at step 51 of walk 1, after eleven
+  green runs in frame 102's loop; its read runs on Opus with an 80k cap** (observed: `.rota/night101.log`,
+  eleven `0 not passing` lines; `probes/walk.py` caps a walk at 250 steps, about six hours more on a
+  recorded wall; the process tree stopped clean, 0 left; the database kept as `.rota/clickI_night101.db`,
+  169 sessions, 879 turns, 13 verdict-failed Developer sessions). Meta workflow. Frames 93, 88, 87 and 86
+  are read on the same night.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
