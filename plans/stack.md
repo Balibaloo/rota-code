@@ -289,6 +289,13 @@ a different question and the night is then opened once.
   the whole diff, two helpers and one call site). Meta workflow. Passes on one agent: 66.6k, 92.9k,
   103.2k and 117.1k cumulative against 40k priced. The night runs from a worktree at the commit the
   review and the gate pass, cold, because the write path moved.
+- Status 2026-09-30 14:05 (rota-c6): **the short review at `bdefec9` finds three low and no high, and the pass loop
+  stops** (observed: the reviewer on Opus, 40.7k on the harness line, 13 tool calls, 3.6 minutes; 179
+  door tests pass in the worktree; the mixed-form probe lands both literals right). Meta workflow. Known
+  lows, not taken: a line with both an LF join and a CR join is named under the four characters only;
+  the mixed sentence lists every line under the two characters before it names the CR lines; the tail
+  keyword check near line 9263 reads a leading comment as the first line. Four reviews on this frame:
+  63.3k, 76.8k, 67.0k and 40.7k against 40k priced. The closing commit is `bdefec9` if its gate is clean.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
