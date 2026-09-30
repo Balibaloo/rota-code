@@ -580,6 +580,14 @@ a different question and the night is then opened once.
   test that pins the wrong sentence. Low: a star import, a `match` capture and a shadowed
   builtin give false refusals. The merge at `7808f3a` holds the two highs until pass 6
   merges; the gate at `7808f3a` runs for the re-record.
+- Status 2026-09-30 11:01 (rota-4c): **pass 6 committed at `ebbaaf5` on `f95`, merge waits for the gate at
+  `7808f3a` to end, because the gate reads the checkout** (observed: a fresh implementer on
+  Opus, 43.8k on the harness line, 12 tool calls, 5 minutes; 161 door tests pass; the five
+  new or changed tests fail on the old `api.py`). Meta workflow. The spans are offered last
+  first; the post-write note names no span; a star import silences the used check; `match`
+  captures bind; builtins are not drops. Left as is: the note fires only when the write
+  keeps an old definition (reasoned: a write that keeps none is a new file's worth of text,
+  and the drops door already judges it).
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
