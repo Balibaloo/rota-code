@@ -344,6 +344,14 @@ a different question and the night is then opened once.
   suite 28 failed and 2461 passed against the stored 23 and 2324, new reds 1, reds gone 1, stale 0; five
   Architect and Critic cases re-recorded green 5/5, `L3-a-failed-verdict-turns-into-a-fix` 0/5 and it was
   red in the baseline). Meta workflow. Night 101 launches on the gate's five lines.
+- Status 2026-09-30 20:06 (rota-c6): **gate at `ff0f692`: new reds 2, the load-flip case and the known flaky map test,
+  stale 0; night 101 runs detached from `C:/Users/roman/rota_night101` at `ff0f692`, launched 20:05, cold**
+  (observed: the gate, 565s, exit 1: suite 24 failed and 2466 passed against the stored 23 and 2324, reds
+  gone 1; `.rota/night101.log` reads launched, click restored to `2c8cd3a`, onboard 20:05). Meta workflow.
+  The night proves this frame on bg_2's shape: a Developer after a tidy-up commit sees the batch's whole
+  change and its removed lines, and the Critic sees the whole batch. Frames 93, 88, 87 and 86 ride on it.
+  Actual so far, walls apart: three passes on one agent, 106.4k cumulative against 40k; three reviews,
+  189.0k against 40k; three gates; register lines 0.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
