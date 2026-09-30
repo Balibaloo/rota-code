@@ -299,6 +299,16 @@ a different question and the night is then opened once.
   implementer on Opus in its own worktree and branch from `f63767f`. The gate and the
   merge into `rota/foundation` stay one at a time. Worktree `C:/Users/roman/rota_f96`, branch
   `f96`. The agent reads the wake and `tickets_scan` first, then one pass.
+- Status 2026-09-30 04:42 (rota-4c): **cause confirmed from the code, one pass committed at `e111b84`
+  on `f96`, the diff review runs** (observed: the implementer on Opus, 51.4k on the harness
+  line against 50k, 25 tool calls, 14 minutes; `test_push_scope.py` 8 passed). Meta
+  workflow. The grouping wake carries ticket refs and no batch; `_batch_of` at
+  `rota/core/loop.py:395` falls back to the single running batch; both scans scoped by
+  `ctx.batch_id` first. Now the batch scope applies only when the wake names that
+  batch or names no ticket. The confirm ticket no longer shows beside the woken one.
+  The gate in the worktree compared the run with itself, one register line written in
+  `plans/operating-facts.md`; the real gate runs from the main checkout after the merge.
+  Left alone: `_batch_of`'s fallback, because the scan fix clears the wall.
 
 ### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (532b3429)
 
@@ -372,6 +382,17 @@ a different question and the night is then opened once.
   `ast.parse` and never `compile`, so a late `from __future__` import lands. Left as
   a known low: the case walk stops on a continuation line that holds the capture name
   `case` alone.
+- Status 2026-09-30 04:42 (rota-4c): **pass 4 at `f63767f`, the last review finds three lows, pass 5
+  at `f414b18` takes two and declines one** (observed: the implementer resumed on Opus,
+  112.1k on the harness line for the pass; the reviewer on Opus, 38.6k against 50k, 15
+  tool calls; `compile` costs 22 ms against `ast.parse` at 20 ms on a 3097-line module;
+  171 door tests pass at `f414b18`). Meta workflow. Pass 5 is this session's own two
+  edits, the one-line exception: the fragment line says it counts from 1, and `compile`
+  runs with warnings off. Declined: exempt a text that does not parse alone from the
+  docstring door, because an indented insert inside a def does not parse alone and the
+  door exists to judge it (observed: `test_the_refusal_names_statements_with_the_words_of_the_source`
+  failed with the exemption). The gate at `f63767f` still runs, then one at `f414b18`.
+  Passes on one agent: 59.5k, 79.5k, 93.2k, 112.1k cumulative on the harness line.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
