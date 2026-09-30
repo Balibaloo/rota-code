@@ -204,6 +204,24 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 98. A seat sends a second message after its session is complete, and a case passes on a broken file (2026-09-30)
+
+- **Batch C, the night's stall, found by frame 95's diagnosis of the gate's red.** Two sites:
+  the message door after "Your work for this session is complete", and the L1 case
+  `ACT-DV-edit-inside-the-function`, which passes on the calls alone.
+- Rota workflow. In the re-record of that case, run 5 sent `msg.escalate_architect`, then
+  `msg.challenge_tester` after the session had said its work was complete, and the tool
+  took it (observed: cassette 43916, 2026-09-30). Every green recording of the case left
+  `src/ui.py` holding `confirm` alone, and the case counted them as passes (observed:
+  cassettes 39413 and 39425, 498 and 522 bytes, 2026-09-30).
+- Ends when: a second `msg.*` of another verb after the session's completion line is
+  refused, with a unit test; the case asserts that the committed `src/ui.py` still defines
+  `_readline_prompt`; the case re-records. Priced: one pass, about 30k on Opus; one diff
+  review, about 30k; one re-record.
+- Waits on: frame 95's close, because the door and the case share the write path.
+- Reasoning: frame 95's status of the diagnosis above.
+- Status 2026-09-30 10:37 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
+
 ### 97. A later session never sees the lines an earlier commit of the batch dropped (2026-09-30)
 
 - **Batch C, the night's stall, found by frame 95's design note.** Two sites: `code_read`
@@ -528,6 +546,18 @@ a different question and the night is then opened once.
   changed in frames 94 and 95 before this gate, so one of them moved the Developer's prompt
   on this case. The cause goes on the stack after the runs' turns are read, not before.
   Frames 95 and 93 are not validating until this red is understood.
+- Status 2026-09-30 10:37 (rota-4c): **cause named from the turns: a whole-file write of one definition
+  drops the helpers the new text calls, no door refuses it, and every green recording passed
+  on the broken file; pass 5 runs** (observed: the diagnosis on Opus, 92.3k on the harness
+  line against 60k, 24 tool calls; every run sends `code.write(src/ui.py, text=confirm alone,
+  start=0, end=-1)`; old cassettes 39413 and 39425 left the file at 498 and 522 bytes; the
+  system text is byte-equal and the only new text is the `dropped` sentence; run 5, cassettes
+  43910 to 43916, reads the note, finds the helpers gone, invents stubs, escalates and
+  challenges; run 4 sets the note aside and challenges on a stale `tests.load`). Meta
+  workflow. The note revealed a loss older than frame 94 and gave no way back. Pass 5: the
+  drops door refuses a whole-file write whose text references a name the old file defined
+  and the text drops, with the span offer; the note names the lines above and below with
+  the span. Then the case re-records. Two items go to frame 98.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
