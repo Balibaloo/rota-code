@@ -243,6 +243,15 @@ a different question and the night is then opened once.
   with the change stashed; the s134 text lands at every door). Meta workflow. Two open questions go to
   the review as points 11 and 12: an indented span fails on `unexpected indent` before the repair, and an
   f-string reports `unterminated f-string literal`.
+- Status 2026-09-30 13:35 (rota-c6): **the diff review at `edd3638` finds two high and six low, pass 2 runs**
+  (observed: the reviewer on Opus, 63.3k on the harness line against 40k, 19 tool calls, 5.4 minutes;
+  166 door tests pass in the worktree). Meta workflow. High: an indented span fails on `unexpected
+  indent` before the repair, so an edit inside a def is never repaired, and the older line-naming
+  sentence misnames every indented span; a literal with two escapes arrives as three lines and the loop
+  stops. Low: f-strings, a doubled line number, the docstring sentence inside a triple-quoted string, the
+  refusal names the form the seat already sent, and the `__future__` door reads the unrepaired fragment.
+  Declined: a join across a lone quote in a comment, accepted as a risk because the file must compile and
+  the landed sentence names the line. Seven taken, one test each.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
