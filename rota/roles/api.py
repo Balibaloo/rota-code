@@ -8588,10 +8588,13 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             raise ValueError(
                 f"start={start}, end={end} is not a span of {path}, which "
                 f"has {len(lines)} lines")
-        # A blank span over every line is an empty write of the file.
-        # Frame 94's diff review of 44e156a (2026-09-30): 0..3 with "" left
-        # a file that holds one newline.
-        if start == 0 and stop == len(lines) and not text.strip():
+        # A blank span that leaves only blank lines is an empty write of the
+        # file. Frame 94's diff reviews of 44e156a and f986adb (2026-09-30):
+        # 0..3 with "" left one newline, and 0..1 left two. An insert is
+        # never an empty write, because a blank insert into an empty
+        # `__init__.py` removed the file.
+        if (start < stop and not text.strip()
+                and not any(x.strip() for x in lines[:start] + lines[stop:])):
             return _empty_write()
         # A span replaces whole statements. clickI night 37 (2026-09-13):
         # the Developer's span ended inside a multi-line signature, the
@@ -8928,8 +8931,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 try:
                     own = _ast.parse(text).body
                 except SyntaxError:
-                    own = []
-                own_fut = all(
+                    # The parse door below names a text that does not parse.
+                    own = None
+                own_fut = own is None or all(
                     isinstance(s, _ast.ImportFrom) and s.module == "__future__" for s in own)
                 if futs and start <= _lo(futs[-1]) and not own_fut:
                     after = _end(futs[-1])
@@ -8940,7 +8944,11 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             # The review of 6e993d0 (2026-09-29): an insert on a docstring's
             # first line passed and turned the docstring into an expression.
             # A refusal here is smaller than a note in the write's result.
-            if start == stop:
+            # A text with no statements, such as a comment, leaves the
+            # docstring a docstring (frame 94's second diff review,
+            # 2026-09-30). `own` comes from the `__future__` door above. It
+            # is None for a text that does not parse, such as indented lines.
+            if start == stop and own != []:
                 for p, f, ns in _at(start):
                     # The module's own docstring counts too (review of 928b2dc).
                     if (f == "body" and ns and _lo(ns[0]) == start
@@ -9062,9 +9070,21 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     # runs at import; the shape that works is the main guard.
     if path.endswith(".py"):
         import ast as _ast
+        stage = "parse"
         try:
             tree = _ast.parse(text)
+            # compile refuses some files that ast.parse takes. Frame 94's
+            # second diff review (2026-09-30): a `from __future__` import
+            # after another statement landed, and the file failed at import.
+            # dont_inherit keeps this module's own future flags out.
+            stage = "compile"
+            compile(text, path, "exec", dont_inherit=True)
         except SyntaxError as exc:
+            if stage == "compile":
+                raise ValueError(
+                    f"{path} is not valid Python ({exc.msg}, line "
+                    f"{(exc.lineno or 1) - 1} in code.source numbering); the harness "
+                    f"imports it and would die at collection.") from None
             # A span whose own lines do not parse: clickI night 40
             # (2026-09-13), the fragment ended with a dangling `def echo(`
             # copied from the file to show where it goes, and the refusal
@@ -9102,8 +9122,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                                           f"{lo} to {hi}; send that whole statement, with your "
                                           f"change in it: start={lo}, end={hi}.")
             raise ValueError(
-                f"{path} is not valid Python ({exc.msg}, line {exc.lineno}); "
-                f"the harness imports it and would die at collection.{frag_note}") from None
+                f"{path} is not valid Python ({exc.msg}, line {(exc.lineno or 1) - 1} "
+                f"in code.source numbering); the harness imports it and would die at "
+                f"collection.{frag_note}") from None
         # One name, one definition. tipsS (2026-09-09): the Developer put a
         # second `calculate_tip(total, people)` above the tip function, the
         # later definition won, the test got the tip instead of the share,

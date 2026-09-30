@@ -2391,6 +2391,55 @@ def test_a_case_header_is_found_by_its_shape_and_not_by_its_letters(db, tmp_path
         assert _passes(db, tmp_path, src, 2, 5), header
 
 
+def _empty_tree(db, tmp_path, src):
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_text(src)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    return root / "m.py"
+
+
+def test_a_blank_insert_into_an_empty_file_keeps_the_file(db, tmp_path):
+    """Frame 94's second diff review (2026-09-30): a blank insert at 0..0
+    into an empty `__init__.py` the batch added removed the file."""
+    f = _empty_tree(db, tmp_path, "")
+    assert "removed" not in _write(db, tmp_path, 0, 0, "")
+    assert f.exists()
+    assert "removed" not in _write(db, tmp_path, 0, 0, "\n")
+    assert f.exists()
+
+
+def test_a_blank_span_that_leaves_only_blank_lines_removes_the_file(db, tmp_path):
+    """Frame 94's second diff review (2026-09-30): 0..1 with an empty text
+    on `x = 1` and two blank lines left a file of two newlines."""
+    f = _empty_tree(db, tmp_path, "x = 1\n\n\n")
+    assert _write(db, tmp_path, 0, 1, "")["removed"] == "m.py"
+    assert not f.exists()
+
+
+def test_a_comment_inserted_above_a_module_docstring_passes(db, tmp_path):
+    """Frame 94's second diff review (2026-09-30): a comment at 0..0 above
+    the module docstring was refused, and a comment leaves the docstring
+    a docstring."""
+    f = _empty_tree(db, tmp_path, '"""Mod."""\nx = 1\n')
+    assert _write(db, tmp_path, 0, 0, "# head\n")["bytes"]
+    assert f.read_text() == '# head\n"""Mod."""\nx = 1\n'
+    with pytest.raises(ValueError, match="line 1 is the docstring of the module"):
+        _write(db, tmp_path, 1, 1, "import os\n")
+
+
+def test_a_file_that_parses_and_does_not_compile_is_refused(db, tmp_path):
+    """Frame 94's second diff review (2026-09-30): a `from __future__`
+    import after another statement passed ast.parse and failed at import."""
+    f = _empty_tree(db, tmp_path, "import os\nx = 1\n")
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 1, 1, "from __future__ import annotations\n")
+    msg = str(err.value)
+    assert "m.py is not valid Python (from __future__ imports must occur" in msg
+    assert "line 1 in code.source numbering" in msg
+    assert f.read_text() == "import os\nx = 1\n"
+
+
 def test_a_blank_span_over_every_line_is_an_empty_write_of_the_file(db, tmp_path):
     """Frame 94's diff review of 44e156a (2026-09-30): 0..3 with an empty
     text left a file that holds one newline."""
