@@ -27,7 +27,7 @@ from pathlib import Path
 
 from . import config
 from ..design import graph as graph_mod
-from .db import init_db
+from .db import Write, _lift_quarantines, init_db
 from .scheduler import sweep_checkpoints
 
 
@@ -161,6 +161,12 @@ def reconcile_worktrees(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
             diverged.append((r["id"], r["head_commit"] or "<none>", actual))
             conn.execute("UPDATE batches SET head_commit = ? WHERE id = ?",
                          (actual, r["id"]))
+            # A new head is the batch moving, as it is for `code.commit`. The
+            # raw write skipped the lift, so a hand commit left a quarantined
+            # batch parked for ever (observed: frame 87's diff review,
+            # 2026-09-30). Law 6: only a move revives a quarantine.
+            _lift_quarantines(conn, Write("batches", r["id"], {"head_commit": actual},
+                                          op="update", amends=False), True)
     return diverged
 
 

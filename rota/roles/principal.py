@@ -251,13 +251,18 @@ def render_state(conn: sqlite3.Connection) -> str:
             "parked. The tests failed past the attempt cap, and the team has "
             "run out of things to try. A new commit on the change starts it "
             "again. Tell me what to change.")
+    # Giving up on a batch is contesting its item: `do:cancel` then abandons
+    # the batch. No verb abandons one batch alone (frame 87's diff review).
+    items = {r["id"]: r["item_id"] for r in conn.execute(
+        "SELECT id, item_id FROM batches")}
     for b in held:
         if abandoned[b]:
             parked_lines.append(
                 f"Stuck: {b} is parked. The team gave up on: "
-                f"{gave_up_on(abandoned[b])}. The other changes go on. A new "
-                "commit on the change starts it again. Tell me what to "
-                "change, or tell me to give it up.")
+                f"{gave_up_on(abandoned[b])}."
+                + (" The other changes go on." if running or pending else "")
+                + " A new commit on the change starts it again. Tell me what "
+                f"to change, or contest {items.get(b) or 'its item'} to stop it.")
     parked_keys = {k for keys in abandoned.values() for k in keys}
     # A tick tried past its cap and quarantined is the team giving up. It
     # outranks "building": on tipsH (2026-09-09) the Critic reviewed six times

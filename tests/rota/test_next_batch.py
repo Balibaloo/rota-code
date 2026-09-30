@@ -34,6 +34,9 @@ def test_priority_chooses_and_a_deferred_batch_resumes():
     """Pin 5. `b_3` outranks `b_2`, so the start offers `b_3`. With `b_3`
     merged, `b_2` comes back as a resume that names its attempt and tests."""
     conn = load(92)
+    # The night's own rows: `b_2` holds its quarantined key, so it is parked
+    # and only `b_3` is offered (frame 87, ruled 2026-09-27).
+    assert [r["id"] for r in next_batch(conn)] == ["b_3"]
     _lift(conn, "b_2")
 
     assert [r["id"] for r in next_batch(conn)] == ["b_3", "b_2"]
@@ -211,14 +214,49 @@ def test_a_quarantined_batch_resumed_after_a_preempt_waits_for_the_principal():
     page = render_state(conn)
     assert ("Stuck: b_1 is parked. The team gave up on: tests_failing for b_1. "
             "The other changes go on. A new commit on the change starts it "
-            "again. Tell me what to change, or tell me to give it up.") in page
+            "again. Tell me what to change, or contest echo_json to stop "
+            "it.") in page
     assert "nothing moves until" not in page
     assert "Building: 2 changes in progress." in page
 
+    # With every sibling merged, no other change goes on.
+    for sibling in ("b_1_b_1", "b_1_confirm"):
+        _status(conn, sibling, "merged")
+    page = render_state(conn)
+    assert "Done: 3 changes" in page
+    assert "Stuck: b_1 is parked." in page
+    assert "The other changes go on." not in page
+
     # The principal's change arrives as a commit, which lifts the key.
     _commit_head(conn, "b_1", "f1x")
-    _status(conn, "b_1_b_1", "merged")
     assert [w.refs for w in batch_start(conn)] == [("b_1",)]
+
+
+def test_a_hand_commit_found_at_boot_ends_a_quarantine_park(monkeypatch):
+    """Frame 87, pass 2. A commit made by hand in the worktree reaches the
+    row through `reconcile_worktrees`. Its raw write skipped the lift, so the
+    batch stayed parked after the way out the page names (observed: frame
+    87's diff review, 2026-09-30). The boot's write lifts the key, and the
+    batch is offered again below its cap."""
+    from rota.core import boot
+    from rota.core.scheduler import parked
+
+    conn = load(93)
+    _attempt(conn, "b_1", 7)
+    _status(conn, "b_1", "deferred")
+    conn.execute("UPDATE batches SET worktree = 'wt_b_1' WHERE id = 'b_1'")
+    key = "developer|tick:tests_failing|b_1"
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                 "reported) VALUES (?, 3, 1, 1)", (key,))
+    assert parked(conn, "b_1")
+    assert "b_1" not in [r["id"] for r in next_batch(conn)]
+
+    monkeypatch.setattr(boot, "_git_head", lambda wt: "h4nd" if wt == "wt_b_1" else None)
+    assert [d[0] for d in boot.reconcile_worktrees(conn)] == ["b_1"]
+    assert conn.execute("SELECT 1 FROM tick_attempts WHERE tick_key = ?",
+                        (key,)).fetchone() is None
+    assert not parked(conn, "b_1")
+    assert [r["id"] for r in next_batch(conn)][0] == "b_1"
 
 
 def test_a_running_batch_past_its_cap_with_a_spent_ladder_is_deferred():
