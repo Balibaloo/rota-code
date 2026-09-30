@@ -296,6 +296,14 @@ a different question and the night is then opened once.
   the mixed sentence lists every line under the two characters before it names the CR lines; the tail
   keyword check near line 9263 reads a leading comment as the first line. Four reviews on this frame:
   63.3k, 76.8k, 67.0k and 40.7k against 40k priced. The closing commit is `bdefec9` if its gate is clean.
+- Status 2026-09-30 14:11 (rota-c6): **gate clean at `bdefec9`, and night 100 runs detached from
+  `C:/Users/roman/rota_night100` at `bdefec9`, launched 14:11, cold** (observed: the gate, 572s, exit 0:
+  suite 22 failed and 2460 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0;
+  `.rota/night100.log` reads launched, click restored to `2c8cd3a`, onboard 14:11). Meta workflow. The
+  frame validates on this night: bg_1's batch_start must pass the parse door, and a Developer write with
+  a newline escape must land with the repair sentence. Frames 94, 96, 95, 93, 87, 88 and 86 validate on
+  the same night. Actual, walls apart: four passes on one agent, 117.1k cumulative against 40k; four
+  reviews, 247.8k against 40k; two gates and a night; register lines 0, memory 1.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
@@ -648,6 +656,8 @@ a different question and the night is then opened once.
   night after frame 99's repair** (observed: `handover.py take`, exit 0, frame 94 from 532b3429). Meta
   workflow. Frames 96, 95, 93, 87, 88 and 86 validate on the same night. Frames 99, 100, 98 and 97 are
   unclaimed and wait on Roman's order, frame 99 recommended first.
+- Status 2026-09-30 14:11 (rota-c6): **night 100 runs at `bdefec9`, which holds frame 99's repair, launched 14:11**
+  (observed: `.rota/night100.log`, onboard 14:11). Meta workflow. Still validating on its read.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
