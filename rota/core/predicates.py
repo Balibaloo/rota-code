@@ -1521,8 +1521,10 @@ def park_ask(conn) -> list[Wake]:
     A given-up batch put back in the chair waits for the principal (ruled:
     Roman, 2026-09-27). The principal answers through a gate, and the
     Liaison writes the gate (ruled: Roman, 2026-09-30). Once per park: the
-    ask's id comes from the batch, its head commit and its keys, so an
-    answer that leaves the park as it was is not asked again. The refs are
+    ask's id comes from the batch, its head commit, its keys and the parks
+    that ended before it, so a ruling that leaves the park as it was is not
+    asked again. Words leave the ask open, so they are not asked again
+    either. The refs are
     the item and the batch. The door keeps the item alone on the ask.
     """
     from .scheduler import given_up, open_park_ask, park_ask_id

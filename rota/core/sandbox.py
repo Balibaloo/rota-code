@@ -1098,9 +1098,18 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"principal answers this one")
         if recipient == "principal" and verb == "clarify" and text:
             words = " ".join(text.split())
+            from .scheduler import park_ask_batch
+
             for row in ctx.conn.execute(
-                    "SELECT id, body_text FROM messages WHERE to_role = 'principal' "
+                    "SELECT id, body_text, status FROM messages WHERE to_role = 'principal' "
                     "AND verb = 'clarify' AND body_text IS NOT NULL ORDER BY seq"):
+                # A closed park ask was about an earlier park. A re-park states
+                # the same facts, so its words match, and the refusal ran the
+                # wake to its cap (observed: frame 87's review of b23d17b,
+                # 2026-09-30).
+                if (park and row["status"] != "open"
+                        and park_ask_batch(row["id"])):
+                    continue
                 if " ".join((row["body_text"] or "").split()) == words:
                     raise ValueError(
                         f"you have already put these words to the principal, in "

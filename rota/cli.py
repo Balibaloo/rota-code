@@ -800,7 +800,7 @@ def cmd_sign(args: argparse.Namespace) -> int:
     records a ruling the same way, so the CLI cannot invent a second one.
     """
     from .core.db import connect
-    from .roles.principal import Answer, pump
+    from .roles.principal import Answer, pump, words_keep_open
 
     approve = [x for x in (args.approve or "").split(",") if x]
     contest = [x for x in (args.contest or "").split(",") if x]
@@ -819,7 +819,8 @@ def cmd_sign(args: argparse.Namespace) -> int:
             # its reason were two commands and two unrelated acts.
             if args.say and not (approve or contest):
                 # Words on a page are a reply the Liaison reads (landing).
-                verb = "reply" if ask.verb in ("confirm", "present") else "converse"
+                # Words on a park ask are one too, so its contest stays open.
+                verb = "reply" if words_keep_open(ask) else "converse"
                 return Answer(verb=verb, text=args.say)
             per_item = {i: "approve" for i in approve}
             per_item.update({i: "contest" for i in contest})

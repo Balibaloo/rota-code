@@ -132,15 +132,32 @@ def parse_reply(ask: Ask, text: str) -> Answer:
     a person "no" is not a reply. A reply to a confirm or a present lands as
     a `reply`: the ask stays open, the words go to the Liaison in `landing`
     mode, and the Liaison records the ruling it read (`rulings.rule`) or
-    asks back. A reply to a clarify is the answer, as before.
+    asks back. A reply to a park ask is a `reply` too. A reply to any other
+    clarify is the answer, as before.
 
     Scripts do not come through here. A scripted principal builds a verdict
     `Answer` with `per_item` and lands it through the same door.
     """
     raw = text.strip()
-    if ask.verb not in ("confirm", "present"):
+    if not words_keep_open(ask):
         return Answer(verb="converse", text=raw)
     return Answer(verb="reply", text=raw)
+
+
+def words_keep_open(ask: Ask) -> bool:
+    """
+    Whether words alone leave this ask open: a confirm, a present or a park ask.
+
+    A park ask waits for a commit or a contest (ruled: Roman, 2026-09-27: a
+    given-up batch waits for the principal). Words change nothing on the
+    batch. A words answer closed the ask, and the contest the page named then
+    had no gate to go through (observed: frame 87's review of b23d17b,
+    2026-09-30).
+    """
+    from ..core.scheduler import park_ask_batch
+
+    return (ask.verb in ("confirm", "present")
+            or bool(park_ask_batch(ask.message_id or "")))
 
 
 # ---------------------------------------------------------------------------
@@ -231,7 +248,7 @@ def render_state(conn: sqlite3.Connection) -> str:
     # A parked batch is an open obligation, so the page counts it until a
     # commit discharges it. After night 93's park the page read "Done: 3"
     # only (observed: frame 86's pass 3 review, 2026-09-25).
-    from ..core.scheduler import given_up, parked
+    from ..core.scheduler import given_up, park_ask_id, parked
     deferred = [r["id"] for r in conn.execute(
         "SELECT id FROM batches WHERE status = 'deferred' ORDER BY id")]
     held = [b for b in deferred if parked(conn, b)]
@@ -246,13 +263,20 @@ def render_state(conn: sqlite3.Connection) -> str:
     # pass 3 review, 2026-09-30). One line per batch, even at the cap too.
     keyed = {b: given_up(conn, b) for b in held}
     capped = [b for b in held if not keyed[b]]
-    items = {r["id"]: r["item_id"] for r in conn.execute(
-        "SELECT id, item_id FROM batches")}
+
+    # The line shows only while no ask is open: before the Liaison writes
+    # the park ask, or after a ruling closed it. No gate is open then, so
+    # the line names no contest (observed: frame 87's review of b23d17b,
+    # 2026-09-30). A park ask not yet written is the next thing to come.
+    def asked(b):
+        return conn.execute("SELECT 1 FROM messages WHERE id = ?",
+                            (park_ask_id(conn, b),)).fetchone() is not None
+
     parked_lines = [
         f"Stuck: {b} is parked. The team gave up on: {gave_up_on(keys)}."
         + (" The other changes go on." if running or pending else "")
-        + " A new commit on the change starts it again. A contest of "
-        f"{items.get(b) or 'its item'} stops it. Tell me what to change."
+        + " A new commit on the change starts it again."
+        + ("" if asked(b) else " I ask you about it next.")
         for b, keys in keyed.items() if keys]
     if capped:
         parked_lines.append(

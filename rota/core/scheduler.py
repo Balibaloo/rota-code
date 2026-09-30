@@ -1413,14 +1413,30 @@ _PARK_BATCH_AT = len(PARK_ASK) + 11          # 0-based start of the batch id
 
 
 def park_ask_id(conn: sqlite3.Connection, batch_id: str) -> str:
-    """The id of the one park ask a batch's park owes, from its head and keys."""
+    """
+    The id of the one park ask a batch's park owes, from its head, its keys
+    and the parks that ended before it.
+    """
     import hashlib
 
     row = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                        (batch_id,)).fetchone()
     head = row["head_commit"] if row else None
     keys = ",".join(given_up(conn, batch_id))
-    digest = hashlib.sha256(f"{batch_id}|{head}|{keys}".encode()).hexdigest()[:10]
+    # A lift with no new head, such as a criterion move, can park again on
+    # the same key. Head and keys alone then gave the old id, and no ask
+    # opened (observed: frame 87's review of b23d17b, 2026-09-30). A closed
+    # ask with no verdict on it is a park that a move ended. A closed ask
+    # with a verdict is a park the principal ruled on, and it is not asked
+    # again. The `-|do:park|` count does not move on a quarantine park.
+    ended = conn.execute(
+        "SELECT COUNT(*) n FROM messages a WHERE a.status != 'open' "
+        "AND substr(a.id, 1, ?) = ? AND substr(a.id, ?) = ? "
+        "AND NOT EXISTS (SELECT 1 FROM messages v WHERE v.cause_id = a.id "
+        "                AND v.from_role = 'principal' AND v.verb = 'verdict')",
+        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchone()["n"]
+    digest = hashlib.sha256(
+        f"{batch_id}|{head}|{keys}|{ended}".encode()).hexdigest()[:10]
     return f"{PARK_ASK}{digest}_{batch_id}"
 
 

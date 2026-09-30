@@ -269,24 +269,131 @@ def test_a_quarantined_batch_resumed_after_a_preempt_waits_for_the_principal():
     assert park_ask(conn) == [], "a batch out of the park is asked nothing"
 
 
-def test_a_words_answer_to_the_park_ask_leaves_the_page_true():
-    """Frame 87, pass 4. A words answer closes the ask, and the batch stays
-    parked. The page said "Nothing waits on you, and nothing moves", both
-    false (observed: frame 87's pass 3 review, 2026-09-30). The parked line
-    names the key and the two ways out, and no second ask opens."""
-    from rota.roles.principal import Answer, Ask, land, render_state
+def _words(conn, mid: str, text: str) -> str:
+    """The principal's words to the park ask, through `parse_reply` and
+    `land`. Returns the id of the reply."""
+    from rota.roles.principal import land, parse_reply, pending_asks
+
+    (ask,) = [a for a in pending_asks(conn) if a.message_id == mid]
+    answer = parse_reply(ask, text)
+    assert answer.verb == "reply", "words on a park ask are a reply"
+    reply = land(conn, ask, answer)
+    assert reply
+    conn.commit()
+    return reply
+
+
+def test_a_words_answer_leaves_the_park_ask_open_and_wakes_landing_once():
+    """Frame 87, pass 5. A words answer closed the ask, and the contest the
+    page named then had no gate (observed: frame 87's review of b23d17b,
+    2026-09-30). Words are a reply now, as on a confirm or a present: the ask
+    stays open, the Liaison reads the words in `landing` once, it has no row
+    to rule, and `park_ask` does not fire again. The page still waits."""
+    from rota.core.runner import _mode_key, resolve_inbound, run_session
+    from rota.core.scheduler import open_tips
+    from rota.llm.llm import Pins, ScriptedBackend
+    from rota.roles.principal import render_state
 
     conn = _night_94_parked()
     mid = _liaison_asks(conn)
-    land(conn, Ask(message_id=mid, verb="clarify", refs=["echo_json"]),
-         Answer(verb="converse", text="Try a smaller change first."))
-    assert _park_asks(conn) == [] and P.REGISTRY["park_ask"].fn(conn) == []
+    reply = _words(conn, mid, "Try a smaller change first.")
 
+    assert [r["id"] for r in _park_asks(conn)] == [mid], "the ask stays open"
+    assert P.REGISTRY["park_ask"].fn(conn) == []
+    page = render_state(conn)
+    assert page.startswith("Waiting on you.")
+    assert "nothing moves" not in page and "Nothing waits on you" not in page
+
+    (wake,) = [w for w in open_tips(conn) if w.message_id == reply]
+    assert (wake.role, _mode_key(wake, conn)) == ("liaison", "landing")
+    inbound = resolve_inbound(conn, wake)
+    assert "answering" not in inbound
+    assert inbound["landing"]["lines"] == {}
+    assert inbound["landing"]["reply"] == "Try a smaller change first."
+    assert "A contest of echo_json stops it" in inbound["landing"]["no_row_to_rule"]
+    # A ruling map is refused: the park ask has no line to rule. The one
+    # sentence back is the session's act.
+    calls = ['TOOL: rulings.rule(rulings={"echo_json": "contest"}, '
+             'words="Try a smaller change first.")',
+             'TOOL: rulings.rule(ask="The change stays parked. A new commit '
+             'starts it again, and a contest of echo_json stops it.")',
+             "done"]
+    out = run_session(conn, wake, backend=ScriptedBackend(calls),
+                      pins=Pins(model="stub", temperature=0.0), instructions="land")
+    assert out.committed, out.errors
+    assert conn.execute("SELECT COUNT(*) n FROM rulings").fetchone()["n"] == 0
+    assert conn.execute(
+        "SELECT COUNT(*) n FROM messages WHERE cause_id = ? AND to_role = 'principal' "
+        "AND verb = 'converse'", (reply,)).fetchone()["n"] == 1
+
+    assert [r["id"] for r in _park_asks(conn)] == [mid]
+    assert [w for w in open_tips(conn) if w.message_id == reply] == [], "landing once"
+    assert P.REGISTRY["park_ask"].fn(conn) == []
+    assert render_state(conn).startswith("Waiting on you.")
+
+
+def test_a_contest_after_a_words_answer_still_abandons_the_batch(monkeypatch, tmp_path):
+    """Frame 87, pass 5. The route the page names stays open after words:
+    `rota sign --say` leaves the ask open, and `rota sign --contest` on it
+    then contests the item, and `do:cancel` abandons the batch."""
+    import argparse
+
+    from rota import cli
+    from rota.core import db
+    from rota.core.loop import _perform
+
+    conn = _night_94_parked()
+    mid = _liaison_asks(conn)
+
+    class Kept:
+        """The test's connection, which `cmd_sign` may not close."""
+        def __getattr__(self, name):
+            return getattr(conn, name)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(cli, "require", lambda name: tmp_path / "x.db")
+    monkeypatch.setattr(db, "connect", lambda path: Kept())
+    assert cli.cmd_sign(argparse.Namespace(
+        name="x", ask=mid, approve=None, contest=None,
+        say="Try a smaller change first.")) == 0
+    assert [r["id"] for r in _park_asks(conn)] == [mid], "words leave it open"
+
+    assert cli.cmd_sign(argparse.Namespace(
+        name="x", ask=mid, approve=None, contest="echo_json", say=None)) == 0
+    assert _park_asks(conn) == [], "the contest closed the ask"
+    (wake,) = [w for w in P.REGISTRY["cancel"].fn(conn) if w.refs == ("b_1",)]
+    _perform(conn, wake)
+    assert conn.execute("SELECT status FROM batches WHERE id = 'b_1'"
+                        ).fetchone()["status"] == "abandoned"
+    assert P.REGISTRY["park_ask"].fn(conn) == []
+
+
+def test_the_parked_line_names_only_what_the_principal_can_do():
+    """Frame 87, pass 5. The parked line shows only while no ask is open.
+    No gate is open then, so it names no contest (observed: frame 87's
+    review of b23d17b, 2026-09-30). Before the Liaison asks, the line says
+    the ask comes next. After a ruling closed the ask, it says the commit."""
+    from rota.roles.principal import Answer, Ask, land, render_state
+
+    conn = _night_94_parked()
     page = render_state(conn)
     assert ("Stuck: b_1 is parked. The team gave up on: tests_failing for b_1. "
             "The other changes go on. A new commit on the change starts it "
-            "again. A contest of echo_json stops it. Tell me what to "
-            "change.") in page
+            "again. I ask you about it next.") in page
+    assert "contest" not in page
+
+    mid = _liaison_asks(conn)
+    land(conn, Ask(message_id=mid, verb="clarify", refs=["echo_json"]),
+         Answer(verb="verdict", per_item={"echo_json": "approve"},
+                text="Keep it."))
+    assert _park_asks(conn) == [] and P.REGISTRY["park_ask"].fn(conn) == []
+    page = render_state(conn)
+    assert ("Stuck: b_1 is parked. The team gave up on: tests_failing for b_1. "
+            "The other changes go on. A new commit on the change starts it "
+            "again.") in page
+    assert "I ask you" not in page and "contest" not in page
     assert "nothing moves" not in page and "Nothing waits on you" not in page
     assert "Building: 2 changes in progress." in page
 
@@ -296,6 +403,50 @@ def test_a_words_answer_to_the_park_ask_leaves_the_page_true():
     page = render_state(conn)
     assert "Stuck: b_1 is parked." in page
     assert "The other changes go on." not in page
+
+
+def test_a_re_park_after_a_commit_asks_again_in_the_same_words():
+    """Frame 87, pass 5. The repeat-words guard refused a re-park's ask,
+    because its words equal the closed ask's words, and the wake ran to its
+    cap (observed: frame 87's review of b23d17b, 2026-09-30). A closed park
+    ask does not count against a park ask."""
+    conn = _night_94_parked()
+    first = _liaison_asks(conn)
+    _commit_head(conn, "b_1", "f1x")
+    assert _park_asks(conn) == []
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                 "reported) VALUES ('developer|tick:tests_failing|b_1', 3, 1, 1)")
+
+    second = _liaison_asks(conn)
+    assert second != first
+    assert [r["body_text"] for r in _park_asks(conn)] == [_PARK_QUESTION]
+
+
+def test_a_lift_with_no_head_change_asks_again_on_the_re_park():
+    """Frame 87, pass 5. The ask's id came from the batch, its head and its
+    keys. A lift with no new head, such as a criterion move, that parks
+    again on the same key got the old id, and no ask opened (observed:
+    frame 87's review of b23d17b, 2026-09-30)."""
+    from rota.core.scheduler import close_stale_park_asks, park_ask_id
+
+    conn = _night_94_parked()
+    head = conn.execute("SELECT head_commit FROM batches WHERE id = 'b_1'"
+                        ).fetchone()["head_commit"]
+    first = _liaison_asks(conn)
+    # The scheduler's park count never moves on a quarantine park, so it
+    # cannot tell two parks apart.
+    assert conn.execute("SELECT 1 FROM tick_attempts WHERE tick_key = "
+                        "'-|do:park|b_1'").fetchone() is None
+
+    _lift(conn, "b_1")
+    assert close_stale_park_asks(conn) == 1
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                 "reported) VALUES ('developer|tick:tests_failing|b_1', 3, 1, 1)")
+    assert conn.execute("SELECT head_commit FROM batches WHERE id = 'b_1'"
+                        ).fetchone()["head_commit"] == head
+    assert park_ask_id(conn, "b_1") != first
+    second = _liaison_asks(conn)
+    assert second != first
 
 
 def test_a_park_ask_does_not_hide_a_contradiction():
