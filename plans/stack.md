@@ -548,6 +548,12 @@ a different question and the night is then opened once.
   re-recorded green in the main register). Meta workflow. Both rules hold after the pass: one act for a
   repeated identical write, and the seat reads the sentence that names the commit and
   the assertion.
+- Status 2026-09-30 11:24 (rota-4c): **fixed in the runner at `06a16c9`, merged at `fb8b584` with frame
+  95's pass 6, a short review runs** (observed: the fresh implementer on Opus, 62.2k
+  cumulative on the harness line, 14 tool calls, 3.3 minutes; 234 tests pass in the two
+  files). Meta workflow. The runner counts a repeated `code.write` whose result holds the
+  unchanged sentence as one act, and its repeat line carries the sentence. Recordings of
+  a seat that sent one write twice may read stale at the next gate.
 - Status 2026-09-30 10:33 (rota-4c): **the gate at `ea3b823` reports one new red, not flaky, on frame
   95's merge; a diagnosis runs on Opus** (observed: the gate, 640s: suite 2416 passed against
   the stored 2324, new reds 1, `ACT-DV-edit-inside-the-function`, reds gone 1, stale 0;
@@ -596,6 +602,8 @@ a different question and the night is then opened once.
   captures bind; builtins are not drops. Left as is: the note fires only when the write
   keeps an old definition (reasoned: a write that keeps none is a new file's worth of text,
   and the drops door already judges it).
+- Status 2026-09-30 11:24 (rota-4c): **pass 6 merged at `fb8b584`, a short review runs, then the gate
+  after frame 87's case lands.** Meta workflow.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
