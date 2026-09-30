@@ -280,6 +280,9 @@ a different question and the night is then opened once.
   `\n` form, and a CR inside an earlier triple-quoted string moves the error line off the broken line
   because the repair splits on LF alone. The gate at `5d54e9a` still runs; pass 4's commit gets the
   gate and one short review of its diff, and the night follows.
+- Status 2026-09-30 14:00 (rota-c6): **gate clean at `5d54e9a`** (observed: the gate, 552s, exit 0: suite 22 failed and
+  2458 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0). Meta workflow. Pass 4
+  still runs. Register lines so far: 0 here, 1 strike in memory for a status-line script.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
