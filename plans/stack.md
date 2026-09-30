@@ -304,6 +304,12 @@ a different question and the night is then opened once.
   minutes; 64 and 179 tests pass, 5 of 7 frame tests fail with `api.py` stashed; this session read the
   whole `api.py` diff). Meta workflow. The removed lines are now text after the diff, capped at 2,000
   characters. Passes on one agent: 70.2k and 93.8k cumulative against 40k priced.
+- Status 2026-09-30 19:18 (rota-c6): **the short review at `a6bed3b` finds one high and three low, pass 3 runs**
+  (observed: the reviewer on Opus, 45.7k on the harness line, 15 tool calls, 9.8 minutes; 33 developer
+  tests pass). Meta workflow. High: the result sets `diff` before `removed lines`, so the block renders
+  after the diff and a 62k diff cuts it at both caps. Taken: the key goes before `diff` in both ops, a
+  trailing tab on a spaced path, and a tail that names its file. Known low, not taken: a non-ASCII
+  path arrives quoted by git and gets no entry. Reviews on this frame: 94.0k and 45.7k against 40k.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
