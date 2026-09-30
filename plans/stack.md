@@ -290,6 +290,15 @@ a different question and the night is then opened once.
   Meta workflow. The gate's new-reds line cannot hold for this case on this load, and the frame's
   acceptance names it as the one red beside the flaky map test. It goes to frame 84's list of reds that
   outlive the baseline if it holds on a second load.
+- Status 2026-09-30 18:56 (rota-c6): **the diff review at `4876aae` finds one high and four low, pass 2 runs**
+  (observed: the reviewer on Opus, 94.0k on the harness line against 40k, 43 tool calls, 13.8 minutes;
+  the fork base holds on a root that moved on, after `integrate`, and with no ancestor; 10 register cases
+  gain the key and 107 cassettes already hold it, so none goes stale). Meta workflow. High: the key is a
+  dict, so it renders on the head line before `[diff]`, and 45k characters of it pushed the diff out at
+  both render caps. Taken: render it after the diff as text, capped at 2,000 characters; compare lines
+  with `rstrip` and count added lines; a note on a batch with no commit. Known lows, not taken:
+  `code.commit` reads `touched` from `HEAD~1` and can wake the Architect on a reverted path; a root
+  reset under a running batch moves the merge-base, and a stored fork sha at create would hold it.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
