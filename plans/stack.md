@@ -582,6 +582,17 @@ a different question and the night is then opened once.
   hides the held and running lines. Pass 4 rebuilds on the ruling: a Liaison wake and a
   mode brief, refs `[item]`, a true parked line after a words answer, the contradiction
   count excludes the park ask. The frame now touches a brief, so it ends on a walk.
+- Status 2026-09-30 09:59 (rota-4c): **pass 4 committed at `b23d17b` on `f87`, the review runs, and the
+  next pass goes to a fresh agent** (observed: the implementer resumed on Opus, 261k
+  cumulative on the harness line, 61 tool calls, 15.5 minutes; 18 tests in the touched
+  file, 982 in 41 files with three reds older than the branch). Meta workflow. A predicate
+  `park_ask` wakes the Liaison once per park; a mode brief and a door keep the ask's refs to
+  the item and mark its id with the batch; the page's parked line returns when no ask is
+  open; the contradiction count excludes the park ask; a register entry and two count pins
+  change. Open, for pass 5: a words answer closes the ask, so the contest route closes with
+  it. Recommended: a words reply leaves the park ask open until a commit or a contest
+  closes it, the way a reply to a confirm or a present does (reasoned: the ruling says the
+  batch waits for the principal, and words alone change nothing on the batch).
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
