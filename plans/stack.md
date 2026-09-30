@@ -229,6 +229,13 @@ a different question and the night is then opened once.
 - Status 2026-09-30 13:10 (rota-c6): **held by 7448850f, first on Roman's order** (ruled: Roman, asked with
   frames 100, 98 and 97 as the other options; 99 unblocks the night that seven frames wait on). Meta
   workflow. Next: read the door and the decoder, then one implementer pass on Opus.
+- Status 2026-09-30 13:15 (rota-c6): **pass 1 runs on Opus; the decoder is not the fault and stays** (reasoned:
+  `toolproto.parse_args` decodes the text with `literal_eval`, so `
+` in a single-quoted argument must
+  become a line break, and after the decode a meant break and an escaped one are the same character;
+  the repair belongs to the parse door alone, on the fragment). Meta workflow. The brief is in the
+  scratchpad, `frame99-brief.md`, with five tests. The re-record goes to the gate's own stale set, because
+  the door moves no prompt.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
