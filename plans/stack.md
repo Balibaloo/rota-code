@@ -465,7 +465,7 @@ a different question and the night is then opened once.
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
 
-### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (532b3429)
+### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (7448850f)
 
 - **Batch C, the night's stall, found by frame 92's last diff review.** Two
   sites in `code.write` before the span door: the whole-file test at
@@ -574,6 +574,10 @@ a different question and the night is then opened once.
   from `e696803`, with frames 96, 95, 93, 87, 88 and 86 validating and frames 97, 98, 99 and
   100 pushed** (observed: `handover.py hand`, exit 0, CONFIRMED 10s after the claim at
   13:08:39). Meta workflow. This session, 532b3429, stops here at about 378k.
+- Status 2026-09-30 13:09 (rota-c6): **taken by 7448850f from `e696803`, still validating, waits on the next
+  night after frame 99's repair** (observed: `handover.py take`, exit 0, frame 94 from 532b3429). Meta
+  workflow. Frames 96, 95, 93, 87, 88 and 86 validate on the same night. Frames 99, 100, 98 and 97 are
+  unclaimed and wait on Roman's order, frame 99 recommended first.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
