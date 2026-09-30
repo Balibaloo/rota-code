@@ -2335,6 +2335,54 @@ def test_a_case_pattern_line_that_starts_with_case_underscore_is_no_case_header(
     assert _passes(db, tmp_path, src, 2, 8)
 
 
+def test_a_case_pattern_line_that_starts_with_case_dot_is_no_case_header(db, tmp_path):
+    """Frame 94's diff review of 44e156a (2026-09-30): a word match still
+    stopped the walk on `case.A`, because a dot ends a word."""
+    src = ("def d(v):\n    match v:\n        case (\n            case.A\n"
+           "            | 2\n        ):\n            r = (\n                2)\n"
+           "        case _:\n            r = 0\n    return r\n")
+    msg = _span_refusal(db, tmp_path, src, 3, 6, "            r = 3\n")
+    assert "start=3 falls inside case (lines 2 to 8" in msg
+    assert "To replace case whole send start=2, end=8." in msg
+    assert _passes(db, tmp_path, src, 2, 8)
+
+
+def test_an_insert_above_a_future_import_is_refused_with_the_line_after_it(db, tmp_path):
+    """Frame 94's diff review of 44e156a (2026-09-30): 0..0 put an import
+    above `from __future__`, and compile refused the file at import."""
+    src = '"""Mod."""\nfrom __future__ import annotations\n\nimport os\n'
+    msg = _span_refusal(db, tmp_path, src, 0, 0, "import sys\n")
+    assert "above the `from __future__` import at line 1." in msg
+    assert "To add after it send start=2, end=2." in msg
+    assert _write(db, tmp_path, 2, 2, "import sys\n")["bytes"]
+    (tmp_path / "wt" / "m.py").write_text("from __future__ import annotations\nimport os\n")
+    assert _write(db, tmp_path, 0, 0, "from __future__ import division\n")["bytes"]
+    assert (tmp_path / "wt" / "m.py").read_text().startswith("from __future__ import division\n")
+
+
+def test_a_blank_span_over_every_line_is_an_empty_write_of_the_file(db, tmp_path):
+    """Frame 94's diff review of 44e156a (2026-09-30): 0..3 with an empty
+    text left a file that holds one newline."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_text("def a():\n    return 1\n\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    assert _write(db, tmp_path, 0, 3, "")["removed"] == "m.py"
+    assert not (root / "m.py").exists()
+    (root / "m.py").write_text("def a():\n    return 1\n")
+    assert _write(db, tmp_path, 0, -2, "   ")["removed"] == "m.py"
+    assert not (root / "m.py").exists()
+
+
+def test_a_start_with_no_end_is_refused(db, tmp_path):
+    """Frame 94's diff review of 44e156a (2026-09-30): start=3 with no end
+    took the whole-file path, and the fragment became the file."""
+    src = "def a():\n    return 1\n\n\ndef b():\n    return 2\n"
+    msg = _span_refusal(db, tmp_path, src, 4, None, "def b():\n    return 3\n")
+    assert "start=4 came with no end. Send end=-1 for the whole file" in msg
+    assert (tmp_path / "wt" / "m.py").read_text() == src
+
+
 def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):
     """clickI night 37 (2026-09-13): one ratified statement, one item read
     from it through the Liaison's deliver, and an empty `item_statements`."""

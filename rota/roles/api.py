@@ -8541,13 +8541,20 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     # to the top replaced the file. The drops refusal offers that span as
     # an insert before the first line.
     span = (start, end) != (0, -1) and end is not None
+    # Frame 94's diff review of 44e156a (2026-09-30): a start with no end
+    # went to the whole-file path, and the fragment became the file.
+    if end is None and start != 0:
+        raise ValueError(
+            f"start={start} came with no end. Send end=-1 for the whole file, "
+            f"or the end of the span")
+
     # An empty write is a removal of a file this batch added, and nothing
     # else. tipsBG (2026-09-14): told to take a mistake out, the Developer
     # wrote the file empty; an empty module is still a module, and the
     # stray stayed. A file the tree had before the batch is not removed
     # this way: change it, or say why it should go. Frame 94 (2026-09-30):
     # an empty span removed a whole file. An empty span removes its lines.
-    if not span and not text.strip():
+    def _empty_write():
         in_tree = ctx.conn.execute(
             "SELECT 1 FROM code_index WHERE grain = ? AND grain_kind = 'path'",
             (path.replace("\\", "/"),)).fetchone()
@@ -8560,6 +8567,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             f"out a file this batch added, an empty write removes it; a file "
             f"the tree had before the batch stays, and what it should hold is "
             f"the change to send")
+
+    if not span and not text.strip():
+        return _empty_write()
     if span:
         # A span, the lines `code.source` showed, replaced by `text`. clickI
         # night 16 (2026-09-12): a 688-line module does not fit one reply,
@@ -8578,6 +8588,11 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             raise ValueError(
                 f"start={start}, end={end} is not a span of {path}, which "
                 f"has {len(lines)} lines")
+        # A blank span over every line is an empty write of the file.
+        # Frame 94's diff review of 44e156a (2026-09-30): 0..3 with "" left
+        # a file that holds one newline.
+        if start == 0 and stop == len(lines) and not text.strip():
+            return _empty_write()
         # A span replaces whole statements. clickI night 37 (2026-09-13):
         # the Developer's span ended inside a multi-line signature, the
         # merged file failed to parse at line 366, and the same write came
@@ -8626,9 +8641,10 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 if isinstance(n, _ast.match_case):
                     # A bracketed pattern can start below its `case (` line.
                     k = n.pattern.lineno - 1
-                    # A word match: a continuation line such as `case_id,`
-                    # is not a case header (frame 94, 2026-09-30).
-                    while k > 0 and not re.match(r"\s*case\b", lines[k]):
+                    # A header shape only: `case_id,` or `case.A` on a
+                    # continuation line is not a case header (frame 94's
+                    # diff review of 44e156a, 2026-09-30).
+                    while k > 0 and not re.match(r"\s*case(\s|[(\[])", lines[k]):
                         k -= 1
                     return k
                 decs = getattr(n, "decorator_list", None) or []
@@ -8891,6 +8907,30 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     parts.append(f"To replace {name} whole send start={lo}, end={hi}.")
                     parts.append(f"To add after it send start={hi}, end={hi}.")
                 raise ValueError(" ".join(parts))
+            # Frame 94's diff review of 44e156a (2026-09-30): an insert at
+            # 0..0 landed above `from __future__ import`. ast.parse took it,
+            # compile refused it, and every test failed at import. The drops
+            # refusal sends the seat to 0..0 for an import.
+            if start == stop == 0:
+                futs = []
+                for i, s in enumerate(tops):
+                    if i == 0 and id(s) in _docs:
+                        continue
+                    if not (isinstance(s, _ast.ImportFrom) and s.module == "__future__"):
+                        break
+                    futs.append(s)
+                try:
+                    own = _ast.parse(text).body
+                except SyntaxError:
+                    own = []
+                own_fut = bool(own) and all(
+                    isinstance(s, _ast.ImportFrom) and s.module == "__future__" for s in own)
+                if futs and not own_fut:
+                    after = _end(futs[-1])
+                    raise ValueError(
+                        f"start={start}, end={end}: Python refuses any statement "
+                        f"above the `from __future__` import at line {_lo(futs[-1])}. "
+                        f"To add after it send start={after}, end={after}.")
             # The review of 6e993d0 (2026-09-29): an insert on a docstring's
             # first line passed and turned the docstring into an expression.
             # A refusal here is smaller than a note in the write's result.
