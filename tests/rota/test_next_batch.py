@@ -198,41 +198,67 @@ def _night_94_parked():
     return conn
 
 
+_PARK_QUESTION = (
+    "The change b_1 is parked. The team gave up on its failing tests. A new "
+    "commit on the change starts it again. A contest of echo_json stops it. "
+    "What do you want changed?")
+
+
+def _liaison_asks(conn) -> str:
+    """The `park_ask` wake, run as a Liaison session with a scripted model.
+    Returns the id of the ask it wrote."""
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    (wake,) = P.REGISTRY["park_ask"].fn(conn)
+    conn.commit()
+    # The session types the batch into the refs. The door keeps the item.
+    call = ('TOOL: msg.clarify_principal(refs=["echo_json", "b_1"], '
+            f'question="{_PARK_QUESTION}")')
+    out = run_session(conn, wake, backend=ScriptedBackend([call, "done"]),
+                      pins=Pins(model="stub", temperature=0.0), instructions="ask")
+    assert out.committed, out.errors
+    (row,) = _park_asks(conn)
+    return row["id"]
+
+
 def _park_asks(conn, status: str = "open") -> list:
     return conn.execute(
         "SELECT id, verb, body_refs, body_text FROM messages "
-        "WHERE id LIKE 'm_park_%' AND status = ?", (status,)).fetchall()
+        "WHERE substr(id, 1, 7) = 'm_park_' AND status = ?", (status,)).fetchall()
 
 
 def test_a_quarantined_batch_resumed_after_a_preempt_waits_for_the_principal():
     """Frame 87. Night 94 quarantined `bg_1` on `tests_failing` at attempt 7,
     deferred it for a higher priority, and resumed it when that batch
     stopped. Nothing woke on it, and `bg_2` never started. A deferred batch
-    with a quarantined key is parked: no seat wakes for it, one ask waits on
-    the principal with the way out, and a sibling starts (ruled: Roman,
-    2026-09-27)."""
+    with a quarantined key is parked: no seat works on it, the Liaison is
+    woken once to ask the principal, and a sibling starts (ruled: Roman,
+    2026-09-27 and 2026-09-30)."""
     from rota.core.scheduler import frontier
     from rota.roles.principal import pending_asks, render_state
 
     conn = _night_94_parked()
     batch_start = P.REGISTRY["batch_start"].fn
+    park_ask = P.REGISTRY["park_ask"].fn
     key = "developer|tick:tests_failing|b_1"
 
     assert [w.refs for w in batch_start(conn)] == [("b_1_b_1",)], "a sibling starts"
-    assert not [w for w in frontier(conn) if "b_1" in w.refs], "no wake for b_1"
+    assert [(w.role, w.kind, w.refs, w.detail) for w in frontier(conn)
+            if "b_1" in w.refs] == [
+        ("liaison", "tick:park_ask", ("echo_json", "b_1"),
+         "b_1 is parked. The team gave up on: tests_failing for b_1.")]
     assert conn.execute("SELECT quarantined FROM tick_attempts WHERE tick_key = ?",
                         (key,)).fetchone()["quarantined"] == 1, "the mark stays"
 
-    # The frontier opened one ask, and a second pass opens no other.
-    frontier(conn)
+    mid = _liaison_asks(conn)
+    assert mid.startswith("m_park_") and mid.endswith("_b_1")
+    assert park_ask(conn) == [], "one wake per park"
     (ask,) = pending_asks(conn)
-    assert (ask.verb, ask.refs) == ("clarify", ["echo_json", "b_1"])
-    assert ("b_1 is parked. The team gave up on: tests_failing for b_1. A new "
-            "commit on the change starts it again. Tell me what to change, or "
-            "contest echo_json to stop it.") in ask.rendered
+    assert (ask.message_id, ask.verb, ask.refs) == (mid, "clarify", ["echo_json"])
+    assert _PARK_QUESTION in ask.rendered
     page = render_state(conn)
-    assert page.startswith("Waiting on you.")
-    assert "b_1 is parked." in page and page.count("parked") == 1, "one message"
+    assert page.startswith("Waiting on you.") and page.count("parked") == 1
 
     # The principal's change arrives as a commit. The key lifts, the ask
     # closes, and the batch is offered again.
@@ -240,25 +266,67 @@ def test_a_quarantined_batch_resumed_after_a_preempt_waits_for_the_principal():
     assert _park_asks(conn) == []
     _status(conn, "b_1_b_1", "merged")
     assert [w.refs for w in batch_start(conn)] == [("b_1",)]
-    frontier(conn)
-    assert _park_asks(conn) == [], "a batch out of the park is asked nothing"
+    assert park_ask(conn) == [], "a batch out of the park is asked nothing"
+
+
+def test_a_words_answer_to_the_park_ask_leaves_the_page_true():
+    """Frame 87, pass 4. A words answer closes the ask, and the batch stays
+    parked. The page said "Nothing waits on you, and nothing moves", both
+    false (observed: frame 87's pass 3 review, 2026-09-30). The parked line
+    names the key and the two ways out, and no second ask opens."""
+    from rota.roles.principal import Answer, Ask, land, render_state
+
+    conn = _night_94_parked()
+    mid = _liaison_asks(conn)
+    land(conn, Ask(message_id=mid, verb="clarify", refs=["echo_json"]),
+         Answer(verb="converse", text="Try a smaller change first."))
+    assert _park_asks(conn) == [] and P.REGISTRY["park_ask"].fn(conn) == []
+
+    page = render_state(conn)
+    assert ("Stuck: b_1 is parked. The team gave up on: tests_failing for b_1. "
+            "The other changes go on. A new commit on the change starts it "
+            "again. A contest of echo_json stops it. Tell me what to "
+            "change.") in page
+    assert "nothing moves" not in page and "Nothing waits on you" not in page
+    assert "Building: 2 changes in progress." in page
+
+    # With every sibling merged, no other change goes on.
+    for sibling in ("b_1_b_1", "b_1_confirm"):
+        _status(conn, sibling, "merged")
+    page = render_state(conn)
+    assert "Stuck: b_1 is parked." in page
+    assert "The other changes go on." not in page
+
+
+def test_a_park_ask_does_not_hide_a_contradiction():
+    """Frame 87, pass 4. `contradiction` waited while any clarify to the
+    principal was open, so a park ask open all night hid a contradiction
+    (observed: frame 87's pass 3 review, 2026-09-30)."""
+    conn = _night_94_parked()
+    _liaison_asks(conn)
+    conn.execute("INSERT INTO entries (id, author, text, ts_order) "
+                 "VALUES ('e_c', 'principal', 'x and not x', 1)")
+    for sid in ("s_a", "s_b"):
+        conn.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+                     "text, status) VALUES (?, 'e_c', 0, 1, 'x', 'contradicted')",
+                     (sid,))
+    assert [w.kind for w in P.REGISTRY["contradiction"].fn(conn)] == [
+        "tick:contradiction"]
 
 
 def test_a_contest_on_the_park_ask_abandons_the_batch(monkeypatch, tmp_path):
     """Frame 87, pass 3. The page named a contest that no gate could carry
-    (observed: frame 87's pass 2 review, 2026-09-30). The park opens a gate,
-    and `rota sign --contest <item>` on it contests the item. `do:cancel`
-    then abandons the batch, and the ask is closed."""
+    (observed: frame 87's pass 2 review, 2026-09-30). The park ask is a
+    gate, and `rota sign --contest <item>` on it contests the item.
+    `do:cancel` then abandons the batch, and the ask is closed."""
     import argparse
 
     from rota import cli
     from rota.core import db
     from rota.core.loop import _perform
-    from rota.core.scheduler import ask_parked
 
     conn = _night_94_parked()
-    (mid,) = ask_parked(conn)
-    assert ask_parked(conn) == [], "an open ask is not opened again"
+    mid = _liaison_asks(conn)
 
     class Kept:
         """The test's connection, which `cmd_sign` may not close."""
@@ -280,7 +348,7 @@ def test_a_contest_on_the_park_ask_abandons_the_batch(monkeypatch, tmp_path):
     _perform(conn, wake)
     assert conn.execute("SELECT status FROM batches WHERE id = 'b_1'"
                         ).fetchone()["status"] == "abandoned"
-    assert ask_parked(conn) == []
+    assert P.REGISTRY["park_ask"].fn(conn) == []
 
 
 def test_a_hand_commit_found_at_boot_ends_a_quarantine_park(monkeypatch):
@@ -290,14 +358,14 @@ def test_a_hand_commit_found_at_boot_ends_a_quarantine_park(monkeypatch):
     87's diff review, 2026-09-30). The boot's write lifts the key, closes
     the ask, and the batch is offered again below its cap."""
     from rota.core import boot
-    from rota.core.scheduler import ask_parked, parked
+    from rota.core.scheduler import parked
 
     conn = _night_94_parked()
     conn.execute("UPDATE batches SET worktree = 'wt_b_1' WHERE id = 'b_1'")
     key = "developer|tick:tests_failing|b_1"
     assert parked(conn, "b_1")
     assert "b_1" not in [r["id"] for r in next_batch(conn)]
-    (mid,) = ask_parked(conn)
+    mid = _liaison_asks(conn)
 
     monkeypatch.setattr(boot, "_git_head", lambda wt: "h4nd" if wt == "wt_b_1" else None)
     assert [d[0] for d in boot.reconcile_worktrees(conn)] == ["b_1"]

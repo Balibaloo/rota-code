@@ -244,7 +244,9 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 # finding passed the Critic (frame 88, 2026-09-27).
                 "tick:finding_violated",
                 # Which upheld finding exhausted the loop (frame 88).
-                "tick:findings_exhausted"}
+                "tick:findings_exhausted",
+                # Which batch is parked and on which key (frame 87).
+                "tick:park_ask"}
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,

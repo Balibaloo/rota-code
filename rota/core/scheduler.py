@@ -1203,9 +1203,10 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     # happens. The bound was always doing its job; the answer to "what is ready"
     # was computed against the state before it did.
     quarantine_overrun(conn)
-    # A quarantine can park a deferred batch, so its ask opens in the same
-    # pass (frame 87).
-    ask_parked(conn)
+    # A batch that left its park owes no answer, so its ask closes in the
+    # same pass. The Liaison writes the ask, woken by `park_ask` (ruled:
+    # Roman, 2026-09-30).
+    close_stale_park_asks(conn)
     # And the other kind of overrun, which that one cannot see: a chain of
     # *distinct* messages whose edge keeps causing itself. `attempts` stays at
     # one along the whole of it, so the bound above is satisfied at every link
@@ -1403,79 +1404,69 @@ def given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
         and r["tick_key"].split("|", 2)[-1] == batch_id]
 
 
-# The id prefix of the ask a quarantine park opens. `close_park_asks` and
-# `ask_parked` find the ask by it, because the ask names no batch column.
+# The id prefix of a park ask, then ten hex characters, `_` and the batch id.
+# The ask's refs hold the item only, so the batch rides in the id. A prefix
+# match on the batch would take `b_1_b_1` for `b_1`, so the batch is read
+# at a fixed offset and compared whole (frame 87).
 PARK_ASK = "m_park_"
+_PARK_BATCH_AT = len(PARK_ASK) + 11          # 0-based start of the batch id
+
+
+def park_ask_id(conn: sqlite3.Connection, batch_id: str) -> str:
+    """The id of the one park ask a batch's park owes, from its head and keys."""
+    import hashlib
+
+    row = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    head = row["head_commit"] if row else None
+    keys = ",".join(given_up(conn, batch_id))
+    digest = hashlib.sha256(f"{batch_id}|{head}|{keys}".encode()).hexdigest()[:10]
+    return f"{PARK_ASK}{digest}_{batch_id}"
+
+
+def park_ask_batch(message_id: str) -> str | None:
+    """The batch a park ask is about, or None for any other message."""
+    if not message_id.startswith(PARK_ASK) or len(message_id) <= _PARK_BATCH_AT:
+        return None
+    return message_id[_PARK_BATCH_AT:]
+
+
+def open_park_ask(conn: sqlite3.Connection, batch_id: str) -> str | None:
+    """The batch's open park ask, if one is open."""
+    row = conn.execute(
+        "SELECT id FROM messages WHERE status = 'open' AND substr(id, 1, ?) = ? "
+        "AND substr(id, ?) = ?",
+        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchone()
+    return row["id"] if row else None
 
 
 def close_park_asks(conn: sqlite3.Connection, batch_id: str) -> int:
     """Close the open park ask of a batch. Returns how many closed."""
     return conn.execute(
         "UPDATE messages SET status = 'answered' WHERE status = 'open' "
-        "AND substr(id, 1, ?) = ? AND body_refs LIKE ?",
-        (len(PARK_ASK), PARK_ASK, f'%"{batch_id}"%')).rowcount or 0
+        "AND substr(id, 1, ?) = ? AND substr(id, ?) = ?",
+        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).rowcount or 0
 
 
-def ask_parked(conn: sqlite3.Connection) -> list[str]:
+def close_stale_park_asks(conn: sqlite3.Connection) -> int:
     """
-    Open one ask to the principal for each batch parked on a quarantined key.
+    Close the open park ask of every batch that left the park.
 
-    A given-up batch put back in the chair waits for the principal (ruled:
-    Roman, 2026-09-27). The principal answers through a gate, and
-    `render_state` shows a gate only. So a parked line alone asked for a
-    contest that no route could carry (observed: frame 87's pass 2 review,
-    2026-09-30). The ask is a Liaison clarify whose refs hold the item, so
-    `rota sign --contest <item>` reaches `do:cancel`. Returns the ids opened.
+    A commit closes its batch's ask in `db._lift_quarantines`, and a contest
+    closes it in `principal.land`. An abandonment by another gate closes
+    neither, and an ask about a batch that is gone owes no answer.
     """
-    import hashlib
-    import json
-
+    n = 0
     for r in conn.execute(
-            "SELECT id, body_refs FROM messages WHERE status = 'open' "
-            "AND substr(id, 1, ?) = ?", (len(PARK_ASK), PARK_ASK)).fetchall():
-        # A batch that left the park, by a commit or an abandonment, owes no
-        # answer. The row stays as the record of what was asked.
-        batch = next((row for b in json.loads(r["body_refs"] or "[]")
-                      if (row := conn.execute(
-                          "SELECT id, status FROM batches WHERE id = ?",
-                          (b,)).fetchone())), None)
-        if batch is None:
-            conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
-                         (r["id"],))
-        elif batch["status"] != "deferred" or not given_up(conn, batch["id"]):
-            close_park_asks(conn, batch["id"])
-    opened: list[str] = []
-    for b in conn.execute(
-            "SELECT id, item_id, head_commit FROM batches "
-            "WHERE status = 'deferred' ORDER BY id").fetchall():
-        keys = given_up(conn, b["id"])
-        if not keys:
-            continue
-        # Once per park: the id is the batch, its head and its keys. An
-        # answer that leaves the park as it was does not open a second ask.
-        mid = PARK_ASK + hashlib.sha256(
-            f"{b['id']}|{b['head_commit']}|{','.join(keys)}".encode()).hexdigest()[:10]
-        if conn.execute("SELECT 1 FROM messages WHERE id = ?", (mid,)).fetchone():
-            continue
-        if conn.execute(
-                "SELECT 1 FROM messages WHERE status = 'open' "
-                "AND substr(id, 1, ?) = ? AND body_refs LIKE ?",
-                (len(PARK_ASK), PARK_ASK, f'%"{b["id"]}"%')).fetchone():
-            continue
-        what = ", ".join(f"{k.split('|')[1].replace('tick:', '')} for {b['id']}"
-                         for k in keys)
-        text = (f"{b['id']} is parked. The team gave up on: {what}. A new commit "
-                f"on the change starts it again. Tell me what to change, or "
-                f"contest {b['item_id']} to stop it.")
-        seq = conn.execute(
-            "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM messages").fetchone()["n"]
-        conn.execute(
-            "INSERT INTO messages (id, cause_kind, thread_id, from_role, to_role, "
-            "verb, body_refs, body_text, seq) "
-            "VALUES (?, 'tick', ?, 'liaison', 'principal', 'clarify', ?, ?, ?)",
-            (mid, mid, json.dumps([b["item_id"], b["id"]]), text, seq))
-        opened.append(mid)
-    return opened
+            "SELECT id FROM messages WHERE status = 'open' AND substr(id, 1, ?) = ?",
+            (len(PARK_ASK), PARK_ASK)).fetchall():
+        batch = park_ask_batch(r["id"])
+        row = conn.execute("SELECT status FROM batches WHERE id = ?",
+                           (batch,)).fetchone()
+        if row is None or row["status"] != "deferred" or not given_up(conn, batch):
+            n += conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
+                              (r["id"],)).rowcount or 0
+    return n
 
 
 def parked(conn: sqlite3.Connection, batch_id: str) -> bool:

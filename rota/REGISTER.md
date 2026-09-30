@@ -29,7 +29,7 @@ the predicate exists to keep offering it until it is not.
     checkpoint_invalid               survey            term_collision
     unresolved      orient           reconcile         define
     boundary        frame            reorient          challenge
-    blindspot       criterion_repair touch_note
+    blindspot       criterion_repair touch_note       park_ask
 
 `agenda` is the tell — its docstring is "on principal presence, present what is
 blocked on them", which is an open-obligations query with no other name.

@@ -64,6 +64,9 @@ class Ctx:
     # `glossary.synthesise(ids=['tick', 'tock'], sense_short='a unit of time')`.
     # It defined `tick`, off the wake kind, forty-two times.
     wake_refs: tuple = ()
+    # The wake kind. The park ask's door reads it: the ask's id and refs are
+    # facts of the wake, and never the session's to type (frame 87).
+    wake_kind: str = ""
     entry_id: str | None = None
     writes: list = None          # populated by the sandbox; committed atomically
     outbound: list = None        # messages staged this session

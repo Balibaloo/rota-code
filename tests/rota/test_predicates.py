@@ -824,8 +824,9 @@ def test_the_register_set_is_the_one_the_document_names():
         "the register names a predicate that does not exist"
     # Sixteen, plus the onboarding phases, plus `criterion_repair` 2026-08-26,
     # plus `touch_note` 2026-09-03 (P4: a batch's predicted touch is owed to
-    # the principal until presented).
-    assert len(P.REGISTER_ENTRIES) == 27
+    # the principal until presented), plus `park_ask` 2026-09-30 (frame 87: a
+    # parked batch is owed one ask to the principal until it is written).
+    assert len(P.REGISTER_ENTRIES) == 28
 
 
 def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):

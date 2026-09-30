@@ -222,27 +222,16 @@ def render_state(conn: sqlite3.Connection) -> str:
         looping = _cycle(conn)
     except Exception:                   # noqa: BLE001 -- a state page never fails on an alert
         looping = None
-    # A tick tried past its cap and quarantined is the team giving up. It
-    # outranks "building": on tipsH (2026-09-09) the Critic reviewed six times
-    # without a verdict, was quarantined, the batch stayed running, and the
-    # seat said "Building" because nothing else was pending.
-    gave_up = [r["tick_key"] for r in conn.execute(
-        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
-        "AND tick_key NOT LIKE '%tick:constraint_zero%'")]
-    if gave_up:
-        what = ", ".join(
+
+    def gave_up_on(keys):
+        return ", ".join(
             f"{k.split('|')[1].replace('tick:', '')} for "
-            f"{k.split('|')[2] or 'the whole project'}" for k in gave_up)
-        out.append(f"Stuck. The team gave up on: {what}. Nothing waits on you, "
-                   "and nothing moves until that is cleared. Tell me what to "
-                   "change.")
-        if looping is not None:
-            out.append(looping.line())
-        return chr(10).join(out)
+            f"{k.split('|')[2] or 'the whole project'}" for k in keys)
+
     # A parked batch is an open obligation, so the page counts it until a
     # commit discharges it. After night 93's park the page read "Done: 3"
     # only (observed: frame 86's pass 3 review, 2026-09-25).
-    from ..core.scheduler import parked
+    from ..core.scheduler import given_up, parked
     deferred = [r["id"] for r in conn.execute(
         "SELECT id FROM batches WHERE status = 'deferred' ORDER BY id")]
     held = [b for b in deferred if parked(conn, b)]
@@ -251,12 +240,44 @@ def render_state(conn: sqlite3.Connection) -> str:
     # until `batch_start` resumed it (observed: frame 86's pass 4 review,
     # 2026-09-25).
     pending += len(deferred) - len(held)
-    if held:
-        out.append(
-            f"Stuck: {', '.join(held)} {'is' if len(held) == 1 else 'are'} "
+    # A batch parked on a quarantined key has its own line, and its keys
+    # leave the gave-up line: its siblings still run. After a words answer
+    # to the park ask the page said "nothing moves" (observed: frame 87's
+    # pass 3 review, 2026-09-30). One line per batch, even at the cap too.
+    keyed = {b: given_up(conn, b) for b in held}
+    capped = [b for b in held if not keyed[b]]
+    items = {r["id"]: r["item_id"] for r in conn.execute(
+        "SELECT id, item_id FROM batches")}
+    parked_lines = [
+        f"Stuck: {b} is parked. The team gave up on: {gave_up_on(keys)}."
+        + (" The other changes go on." if running or pending else "")
+        + " A new commit on the change starts it again. A contest of "
+        f"{items.get(b) or 'its item'} stops it. Tell me what to change."
+        for b, keys in keyed.items() if keys]
+    if capped:
+        parked_lines.append(
+            f"Stuck: {', '.join(capped)} {'is' if len(capped) == 1 else 'are'} "
             "parked. The tests failed past the attempt cap, and the team has "
             "run out of things to try. A new commit on the change starts it "
             "again. Tell me what to change.")
+    parked_keys = {k for keys in keyed.values() for k in keys}
+    # A tick tried past its cap and quarantined is the team giving up. It
+    # outranks "building": on tipsH (2026-09-09) the Critic reviewed six times
+    # without a verdict, was quarantined, the batch stayed running, and the
+    # seat said "Building" because nothing else was pending.
+    gave_up = [r["tick_key"] for r in conn.execute(
+        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
+        "AND tick_key NOT LIKE '%tick:constraint_zero%'")
+        if r["tick_key"] not in parked_keys]
+    if gave_up:
+        out.append(f"Stuck. The team gave up on: {gave_up_on(gave_up)}. "
+                   "Nothing waits on you, and nothing moves until that is "
+                   "cleared. Tell me what to change.")
+        out.extend(parked_lines)
+        if looping is not None:
+            out.append(looping.line())
+        return chr(10).join(out)
+    out.extend(parked_lines)
     if running or pending:
         # At the batch's head commit, the harness's own notion of "now". The
         # first version picked the latest run by MAX(id), and ids are strings:
