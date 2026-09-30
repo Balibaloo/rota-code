@@ -236,6 +236,13 @@ a different question and the night is then opened once.
   the repair belongs to the parse door alone, on the fragment). Meta workflow. The brief is in the
   scratchpad, `frame99-brief.md`, with five tests. The re-record goes to the gate's own stale set, because
   the door moves no prompt.
+- Status 2026-09-30 13:29 (rota-c6): **pass 1 committed at `edd3638`, the gate clean on the agent's run, the diff
+  review runs on Opus from `C:/Users/roman/rota_review99`** (observed: the implementer on Opus, 66.6k on
+  the harness line against 40k priced, 31 tool calls, 13.4 minutes; its gate, 494s: suite 22 failed and
+  2447 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0; five tests, all five fail
+  with the change stashed; the s134 text lands at every door). Meta workflow. Two open questions go to
+  the review as points 11 and 12: an indented span fails on `unexpected indent` before the repair, and an
+  f-string reports `unterminated f-string literal`.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
