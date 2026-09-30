@@ -2473,8 +2473,9 @@ def test_a_broken_string_the_next_line_does_not_close_is_refused(db, tmp_path):
         _write(db, tmp_path, 1, 1, "def f(out):\n    out += \"\n    return out\n")
     msg = str(err.value)
     assert "Your text itself does not parse: line 2 of it, counting from 1" in msg
-    assert ("Inside a string literal write the newline escape as two characters, "
-            "\\n, because the tool reads one newline escape as a line break.") in msg
+    assert ("In your call write the newline escape inside a string as a backslash, "
+            "a backslash and n, \\\\n, because the tool decodes one \\n into a line "
+            "break.") in msg
     assert f.read_text() == "import os\n"
 
 
@@ -2488,7 +2489,7 @@ def test_escaped_docstring_quotes_are_refused_with_the_plain_form(db, tmp_path):
     msg = str(err.value)
     assert ('Line 2 of your text starts with \\"\\"\\"; write the docstring '
             'quotes as three plain quotes.') in msg
-    assert "Inside a string literal" not in msg
+    assert "In your call write the newline escape" not in msg
     assert f.read_text() == "import os\n"
 
 
@@ -2523,6 +2524,74 @@ def test_the_s134_text_of_night_99_lands_with_its_escape(db, tmp_path):
     assert '        out += "\\n"\n' in text
     assert text.startswith(src)
     assert out["repaired"].startswith("Line 37 of your text, counting from 1,")
+
+
+def test_a_broken_escape_in_an_indented_span_is_written_back(db, tmp_path):
+    """Frame 99's diff review of edd3638 (2026-09-30): a span inside a def
+    failed with `unexpected indent` before the repair started."""
+    f = _empty_tree(db, tmp_path, "def f(out):\n    out = ''\n    return out\n")
+    out = _write(db, tmp_path, 2, 2, "    out += \"\n\"\n")
+    assert f.read_text() == "def f(out):\n    out = ''\n    out += \"\\n\"\n    return out\n"
+    assert out["repaired"].startswith("Line 1 of your text, counting from 1,")
+
+
+def test_an_indented_span_that_does_not_parse_is_told_its_own_line(db, tmp_path):
+    """Frame 99's diff review of edd3638 (2026-09-30): every indented span
+    was told line 1, `unexpected indent`, and not the line at fault."""
+    f = _empty_tree(db, tmp_path, "def f(out):\n    out = ''\n    return out\n")
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 2, 2, "    x = 1\n    y = 2\n    z = (\n")
+    assert "Your text itself does not parse: line 3 of it, counting from 1, is 'z = ('" in str(err.value)
+    assert f.read_text() == "def f(out):\n    out = ''\n    return out\n"
+
+
+def test_a_literal_with_two_escapes_is_joined_across_three_lines(db, tmp_path):
+    """Frame 99's diff review of edd3638 (2026-09-30): two escapes in one
+    literal arrive as three lines, and the middle line closes no quote."""
+    f = _empty_tree(db, tmp_path, "def f():\n    return 1\n")
+    out = _write(db, tmp_path, 1, 2, "    return \"a\nb\n\"\n")
+    assert f.read_text() == "def f():\n    return \"a\\nb\\n\"\n"
+    assert out["repaired"].startswith("Line 1 of your text, counting from 1,")
+
+
+def test_a_broken_f_string_is_written_back(db, tmp_path):
+    """Frame 99's diff review of edd3638 (2026-09-30): Python names a broken
+    f-string `unterminated f-string literal`, and the repair skipped it."""
+    f = _empty_tree(db, tmp_path, "def f(x):\n    return 1\n")
+    _write(db, tmp_path, 1, 2, "    return f\"{x}\n\"\n")
+    assert f.read_text() == "def f(x):\n    return f\"{x}\\n\"\n"
+
+
+def test_two_joins_on_one_line_name_the_line_once(db, tmp_path):
+    """Frame 99's diff review of edd3638 (2026-09-30): a second join on the
+    same line named it twice, as "Lines 2 and 2"."""
+    f = _empty_tree(db, tmp_path, "import os\n")
+    out = _write(db, tmp_path, 1, 1, "def f():\n    return \"a\n\" + \"b\n\"\n")
+    assert '    return "a\\n" + "b\\n"\n' in f.read_text()
+    assert out["repaired"] == (
+        "Line 2 of your text, counting from 1, ended inside a string literal, "
+        "so its line break is written as the two characters \\n.")
+
+
+def test_escaped_quotes_inside_a_docstring_get_no_docstring_sentence(db, tmp_path):
+    """Frame 99's diff review of edd3638 (2026-09-30): a line inside a
+    docstring may start with `\\"\\"\\"` as its own text."""
+    _empty_tree(db, tmp_path, "import os\n")
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 1, 1,
+               'def f():\n    """Doc.\n    \\"\\"\\" is text here.\n    """\n    return (\n')
+    assert "docstring quotes as three plain quotes" not in str(err.value)
+    assert "Your text itself does not parse" in str(err.value)
+
+
+def test_a_repaired_insert_above_a_future_import_is_refused(db, tmp_path):
+    """Frame 99's diff review of edd3638 (2026-09-30): the `__future__` door
+    read the broken text, passed it, and the refusal named the string."""
+    f = _empty_tree(db, tmp_path, "from __future__ import annotations\nx = 1\n")
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 0, 0, "y = \"a\n\"\n")
+    assert "Python refuses any statement above the `from __future__` import at line 0" in str(err.value)
+    assert f.read_text() == "from __future__ import annotations\nx = 1\n"
 
 
 def test_a_blank_span_over_every_line_is_an_empty_write_of_the_file(db, tmp_path):

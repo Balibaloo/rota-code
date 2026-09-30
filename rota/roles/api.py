@@ -8671,6 +8671,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         return _empty_write()
     tail_note = None
     repair_note = None
+    future_door = None
     if span:
         # A span, the lines `code.source` showed, replaced by `text`. clickI
         # night 16 (2026-09-12): a 688-line module does not fit one reply,
@@ -9021,7 +9022,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             # Ruled: frame 94's coordinator (2026-09-30). A text of only
             # `__future__` imports passes, and so does a text of no
             # statements, such as comments.
-            if start == stop:
+            def _future_door(src):
                 futs = []
                 for i, s in enumerate(tops):
                     if i == 0 and id(s) in _docs:
@@ -9030,7 +9031,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                         break
                     futs.append(s)
                 try:
-                    own = _ast.parse(text).body
+                    own = _ast.parse(src).body
                 except SyntaxError:
                     # The parse door below names a text that does not parse.
                     own = None
@@ -9042,6 +9043,13 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                         f"start={start}, end={end}: Python refuses any statement "
                         f"above the `from __future__` import at line {_lo(futs[-1])}. "
                         f"To add after it send start={after}, end={after}.")
+                return own
+
+            if start == stop:
+                own = _future_door(text)
+                # The parse door repairs a broken string, and the repaired
+                # text meets this door again (the review of edd3638, point 8).
+                future_door = _future_door
             # The review of 6e993d0 (2026-09-29): an insert on a docstring's
             # first line passed and turned the docstring into an expression.
             # A refusal here is smaller than a note in the write's result.
@@ -9211,6 +9219,8 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         if fail is not None and fail[0] == "parse":
             fixed, joined = _repair_broken_strings(fragment)
             if joined:
+                if future_door is not None:
+                    future_door(fixed)
                 if span:
                     new = fixed.splitlines() if fixed.strip() else []
                     merged = chr(10).join(lines[:start] + new + lines[stop:]) + chr(10)
@@ -9239,7 +9249,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             frag_note = ""
             if span:
                 try:
-                    _ast.parse(fragment)
+                    # An indented span parses at the top level (the review
+                    # of edd3638), so the note names the real line.
+                    _ast.parse(_indent_view(fragment)[0])
                 except SyntaxError as fexc:
                     bad = (fragment.splitlines() + [""])[max((fexc.lineno or 1) - 1, 0)]
                     frag_note = (f" Your text itself does not parse: line {fexc.lineno} "
@@ -10656,41 +10668,88 @@ def _span_offer(spans) -> str:
     return offer
 
 
-def _open_quote(line: str) -> str | None:
-    """The quote of a short string that `line` leaves open, or None."""
+_BROKEN_STRING = ("unterminated string literal", "unterminated f-string literal",
+                  "unterminated t-string literal")
+
+
+def _find_close(line: str, quote: str, i: int) -> int:
+    """Where `quote` closes a string in `line` from `i`, or -1."""
+    while i < len(line):
+        if line.startswith(quote, i):
+            return i
+        i += 2 if line[i] == "\\" else 1
+    return -1
+
+
+def _scan_line(line: str, triple: str | None = None) -> tuple[str | None, str | None]:
+    """
+    Read one line of source from the state `triple`, an open triple quote.
+
+    Return the quote of a short string the line leaves open, and the triple
+    quote still open at the end of the line.
+    """
     i, n = 0, len(line)
+    if triple:
+        close = _find_close(line, triple, 0)
+        if close < 0:
+            return None, triple
+        i = close + 3
     while i < n:
         c = line[i]
         if c == "#":
-            return None
+            break
         if c in "'\"":
-            if line[i:i + 3] == c * 3:
+            if line.startswith(c * 3, i):
                 # A triple-quoted string that runs past the line is not a
                 # short string, and its line breaks are the seat's own.
-                close = line.find(c * 3, i + 3)
+                close = _find_close(line, c * 3, i + 3)
                 if close < 0:
-                    return None
+                    return None, c * 3
                 i = close + 3
                 continue
-            j = i + 1
-            while j < n and line[j] != c:
-                j += 2 if line[j] == "\\" else 1
-            if j >= n:
-                return c
-            i = j + 1
+            close = _find_close(line, c, i + 1)
+            if close < 0:
+                return c, None
+            i = close + 1
             continue
         i += 1
-    return None
+    return None, None
 
 
-def _closes(line: str, quote: str) -> bool:
-    """True when `line`, read from inside a string, closes `quote`."""
-    j = 0
-    while j < len(line):
-        if line[j] == quote:
-            return True
-        j += 2 if line[j] == "\\" else 1
-    return False
+def _indent_view(fragment: str) -> tuple[str, list[str], list[bool], str]:
+    """
+    The fragment moved to the top level, line for line, for ast.parse.
+
+    A span inside a def sends indented lines, and ast.parse refuses them
+    with `unexpected indent` (frame 99's diff review of edd3638). A line at
+    column 0 inside an indented text is the rest of a broken string, so it
+    keeps its place. textwrap.dedent would find no common prefix then.
+    Return the view, the original lines, which lines lose the prefix, and
+    the prefix.
+    """
+    parts = fragment.split("\n")
+    first = next((p for p in parts if p.strip()), "")
+    prefix = first[:len(first) - len(first.lstrip())]
+    if prefix:
+        indents = [p[:len(p) - len(p.lstrip())] for p in parts
+                   if p.strip() and p[:1] in " \t"]
+        k = 0
+        while k < len(prefix) and all(len(s) > k and s[k] == prefix[k] for s in indents):
+            k += 1
+        prefix = prefix[:k]
+    cut = [bool(prefix) and p.startswith(prefix) for p in parts]
+    view = "\n".join(p[len(prefix):] if c else p for p, c in zip(parts, cut))
+    return view, parts, cut, prefix
+
+
+def _parse_view(fragment: str) -> SyntaxError | None:
+    """The parse error of the fragment at the top level, or None."""
+    import ast as _ast
+    try:
+        _ast.parse(_indent_view(fragment)[0])
+        return None
+    except SyntaxError as exc:
+        return exc
 
 
 def _repair_broken_strings(fragment: str) -> tuple[str, list[int]]:
@@ -10703,26 +10762,40 @@ def _repair_broken_strings(fragment: str) -> tuple[str, list[int]]:
     the repaired text and the text's line numbers, from 1, that were joined.
     """
     import ast as _ast
-    parts = fragment.split("\n")
+    _, parts, cut, prefix = _indent_view(fragment)
     origin = list(range(1, len(parts) + 1))
     joined: list[int] = []
     last = 0
     for _ in range(20):
+        view = "\n".join(p[len(prefix):] if k else p for p, k in zip(parts, cut))
         try:
-            _ast.parse("\n".join(parts))
+            _ast.parse(view)
             break
         except SyntaxError as exc:
-            if not (exc.msg or "").startswith("unterminated string literal"):
+            if not (exc.msg or "").startswith(_BROKEN_STRING):
                 break
             i = (exc.lineno or 1) - 1
             if i < last or i + 1 >= len(parts):
                 break
-            quote = _open_quote(parts[i])
-            if quote is None or not _closes(parts[i + 1], quote):
+            quote = _scan_line(parts[i])[0]
+            if quote is None:
                 break
-            parts[i] = parts[i].removesuffix("\r") + "\\n" + parts.pop(i + 1)
-            joined.append(origin[i])
-            origin.pop(i + 1)
+            # A literal with more escapes arrives as more lines, and only
+            # the last of them closes the quote (the review of edd3638).
+            close = next((k for k in range(i + 1, min(i + 6, len(parts)))
+                          if _find_close(parts[k], quote, 0) >= 0), None)
+            if close is None:
+                break
+            # Accepted risk (the review of edd3638, point 5): a missing close
+            # quote can join to a later quote and parse with another meaning.
+            # The merged file must still compile, and the result names the line.
+            parts[i] = "\\n".join([parts[i].removesuffix("\r")]
+                                  + [p.removesuffix("\r") for p in parts[i + 1:close]]
+                                  + [parts[close]])
+            del parts[i + 1:close + 1], origin[i + 1:close + 1], cut[i + 1:close + 1]
+            # A second join on the same line is the same line of the text.
+            if not joined or joined[-1] != origin[i]:
+                joined.append(origin[i])
             last = i
     return "\n".join(parts), joined
 
@@ -10744,26 +10817,28 @@ def _escape_note(fragment: str, exc: SyntaxError | None) -> str:
 
     `exc` is the text's own parse error, or None to parse the text here.
     """
-    import ast as _ast
     if exc is None:
-        try:
-            _ast.parse(fragment)
+        exc = _parse_view(fragment)
+        if exc is None:
             return ""
-        except SyntaxError as fexc:
-            exc = fexc
     note = ""
-    if (exc.msg or "").startswith("unterminated string literal"):
-        note += (" Inside a string literal write the newline escape as two "
-                 "characters, \\n, because the tool reads one newline escape "
-                 "as a line break.")
+    if (exc.msg or "").startswith(_BROKEN_STRING):
+        # The seat wrote \n in its call already, and the tool decoded it.
+        # The form that passes is the escaped backslash (the review of edd3638).
+        note += (" In your call write the newline escape inside a string as a "
+                 "backslash, a backslash and n, \\\\n, because the tool decodes "
+                 "one \\n into a line break.")
     # Night 99 (2026-09-30): s133 sent `\"\"\"` at turns 14 and 15, and a
-    # backslash outside a string does not parse.
+    # backslash outside a string does not parse. A line inside a
+    # triple-quoted string may hold the same characters as its own text.
+    triple = None
     for k, line in enumerate(fragment.splitlines(), 1):
         head = line.strip()[:6]
-        if head in ('\\"\\"\\"', "\\'\\'\\'"):
+        if triple is None and head in ('\\"\\"\\"', "\\'\\'\\'"):
             note += (f" Line {k} of your text starts with {head}; write the "
                      f"docstring quotes as three plain quotes.")
             break
+        triple = _scan_line(line, triple)[1]
     return note
 
 
