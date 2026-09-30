@@ -640,6 +640,13 @@ a different question and the night is then opened once.
   blocking: the principal's words on a park ask reach the Liaison only, and no seat acts on
   "what to change"; recommended: no change in this frame, a later frame carries the words
   to the Developer as the note on the next resume.
+- Status 2026-09-30 10:22 (rota-4c): **the last review finds three lows and nothing that blocks the
+  walk, pass 6 runs** (observed: the reviewer on Opus, 52.4k on the harness line against
+  40k, 21 tool calls, 7.7 minutes; both exits pass end to end on the night 94 fixture; 209
+  tests). Meta workflow. Low: an approved park ask and a lift with no head change give no
+  new ask; the line "I ask you about it next." shows while the wake is quarantined; the
+  brief asks what to change and `cmd_sign` prints "ruling recorded" on a reply. Pass 6
+  takes all three, then the merge and the gate.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
