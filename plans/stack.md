@@ -299,6 +299,11 @@ a different question and the night is then opened once.
   with `rstrip` and count added lines; a note on a batch with no commit. Known lows, not taken:
   `code.commit` reads `touched` from `HEAD~1` and can wake the Architect on a reverted path; a root
   reset under a running batch moves the merge-base, and a stored fork sha at create would hold it.
+- Status 2026-09-30 19:08 (rota-c6): **pass 2 committed at `a6bed3b`, the gate and a short review run at it**
+  (observed: the implementer resumed on Opus, 93.8k cumulative on the harness line, 19 tool calls, 11.6
+  minutes; 64 and 179 tests pass, 5 of 7 frame tests fail with `api.py` stashed; this session read the
+  whole `api.py` diff). Meta workflow. The removed lines are now text after the diff, capped at 2,000
+  characters. Passes on one agent: 70.2k and 93.8k cumulative against 40k priced.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
