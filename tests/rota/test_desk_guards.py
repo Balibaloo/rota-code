@@ -2535,6 +2535,44 @@ def test_a_broken_escape_in_an_indented_span_is_written_back(db, tmp_path):
     assert out["repaired"].startswith("Line 1 of your text, counting from 1,")
 
 
+def test_a_broken_string_that_goes_on_at_a_smaller_indent_is_written_back(db, tmp_path):
+    """Frame 99's second diff review of 85f7c4f (2026-09-30): the rest of
+    the string at indent 2 shrank the prefix, and the view did not parse."""
+    f = _empty_tree(db, tmp_path, "def f(out):\n    out = ''\n    return out\n")
+    _write(db, tmp_path, 2, 2, "    out += \"a\n  b\"\n")
+    assert f.read_text() == "def f(out):\n    out = ''\n    out += \"a\\n  b\"\n    return out\n"
+
+
+def test_a_closing_quote_at_indent_4_under_a_span_at_indent_8_is_written_back(db, tmp_path):
+    """Frame 99's second diff review of 85f7c4f (2026-09-30): the line that
+    closes the string sits at a smaller indent than the span."""
+    src = "def f(out):\n    if out:\n        out = ''\n    return out\n"
+    f = _empty_tree(db, tmp_path, src)
+    _write(db, tmp_path, 3, 3, "        out += \"a\n    b\"\n")
+    assert "        out = ''\n        out += \"a\\n    b\"\n    return out\n" in f.read_text()
+
+
+def test_a_broken_crlf_escape_keeps_both_escapes(db, tmp_path):
+    """Frame 99's second diff review of 85f7c4f (2026-09-30): the decoder
+    reads "\\r\\n" as CR LF, and the join wrote only \\n."""
+    f = _empty_tree(db, tmp_path, "import os\n")
+    _write(db, tmp_path, 1, 1, "sep = \"\r\n\"\n")
+    assert f.read_text() == "import os\nsep = \"\\r\\n\"\n"
+
+
+def test_a_whole_file_with_25_broken_escapes_is_written_back(db, tmp_path):
+    """Frame 99's second diff review of 85f7c4f (2026-09-30): a cap of 20
+    joins left five breaks, and the refusal discarded every join."""
+    f = _empty_tree(db, tmp_path, "import os\n")
+    text = "import os\n" + "".join(f"x{k} = \"a\n\"\n" for k in range(25))
+    out = _write(db, tmp_path, 0, -1, text)
+    body = f.read_text()
+    compile(body, "m.py", "exec")
+    assert body.count("\"a\\n\"\n") == 25
+    assert out["repaired"].startswith("Lines 2, 4, 6,")
+    assert "48 and 50 of your text" in out["repaired"]
+
+
 def test_an_indented_span_that_does_not_parse_is_told_its_own_line(db, tmp_path):
     """Frame 99's diff review of edd3638 (2026-09-30): every indented span
     was told line 1, `unexpected indent`, and not the line at fault."""

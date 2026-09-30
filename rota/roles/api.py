@@ -10722,21 +10722,15 @@ def _indent_view(fragment: str) -> tuple[str, list[str], list[bool], str]:
 
     A span inside a def sends indented lines, and ast.parse refuses them
     with `unexpected indent` (frame 99's diff review of edd3638). A line at
-    column 0 inside an indented text is the rest of a broken string, so it
-    keeps its place. textwrap.dedent would find no common prefix then.
+    shallower indent inside an indented text can be the rest of a broken
+    string, so it keeps its place, and the prefix comes from the first
+    line alone (the review of 85f7c4f). textwrap.dedent would shrink it.
     Return the view, the original lines, which lines lose the prefix, and
     the prefix.
     """
     parts = fragment.split("\n")
     first = next((p for p in parts if p.strip()), "")
     prefix = first[:len(first) - len(first.lstrip())]
-    if prefix:
-        indents = [p[:len(p) - len(p.lstrip())] for p in parts
-                   if p.strip() and p[:1] in " \t"]
-        k = 0
-        while k < len(prefix) and all(len(s) > k and s[k] == prefix[k] for s in indents):
-            k += 1
-        prefix = prefix[:k]
     cut = [bool(prefix) and p.startswith(prefix) for p in parts]
     view = "\n".join(p[len(prefix):] if c else p for p, c in zip(parts, cut))
     return view, parts, cut, prefix
@@ -10766,7 +10760,9 @@ def _repair_broken_strings(fragment: str) -> tuple[str, list[int]]:
     origin = list(range(1, len(parts) + 1))
     joined: list[int] = []
     last = 0
-    for _ in range(20):
+    # Each join takes one line or more, so the loop ends. A cap of 20 cut
+    # a whole file with more breaks short (the review of 85f7c4f).
+    for _ in range(len(parts)):
         view = "\n".join(p[len(prefix):] if k else p for p, k in zip(parts, cut))
         try:
             _ast.parse(view)
@@ -10789,9 +10785,10 @@ def _repair_broken_strings(fragment: str) -> tuple[str, list[int]]:
             # Accepted risk (the review of edd3638, point 5): a missing close
             # quote can join to a later quote and parse with another meaning.
             # The merged file must still compile, and the result names the line.
-            parts[i] = "\\n".join([parts[i].removesuffix("\r")]
-                                  + [p.removesuffix("\r") for p in parts[i + 1:close]]
-                                  + [parts[close]])
+            # The decoder reads \r\n as CR LF, so a line that ends in CR
+            # keeps both escapes (the review of 85f7c4f).
+            parts[i] = "".join(p[:-1] + "\\r\\n" if p.endswith("\r") else p + "\\n"
+                               for p in parts[i:close]) + parts[close]
             del parts[i + 1:close + 1], origin[i + 1:close + 1], cut[i + 1:close + 1]
             # A second join on the same line is the same line of the text.
             if not joined or joined[-1] != origin[i]:
