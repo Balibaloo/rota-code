@@ -571,6 +571,15 @@ a different question and the night is then opened once.
   recordings are not in the main register, so the gate at the merge re-records the case
   itself. Open, added to frame 98: a span that covers more old top-level definitions than
   its text keeps carries the sentence with the span offer.
+- Status 2026-09-30 10:56 (rota-4c): **the review of `791da68` finds two high and four low, pass 6 runs
+  on a fresh agent** (observed: the reviewer on Opus, 31.1k on the harness line against 30k,
+  8 tool calls; the door refuses only the true drop on fourteen rewrite shapes; 183 tests
+  pass). Meta workflow. High: a refusal with more than one kept definition offers spans
+  top-down, and the first write moves the later ones; the post-write note offers a span
+  computed from the old file, and a seat that follows it overwrites the wrong lines, with a
+  test that pins the wrong sentence. Low: a star import, a `match` capture and a shadowed
+  builtin give false refusals. The merge at `7808f3a` holds the two highs until pass 6
+  merges; the gate at `7808f3a` runs for the re-record.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
