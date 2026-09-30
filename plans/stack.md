@@ -296,6 +296,16 @@ a different question and the night is then opened once.
   fixed in the commit, reds gone 1, stale 0). Meta workflow. Three files, four
   tests. The gate runs again at `44e156a` and the diff review runs on Opus from
   `C:/Users/roman/rota_review94`.
+- Status 2026-09-30 03:54 (rota-4c): **gate clean at `44e156a`, the diff review finds one high and
+  three low, pass 2 runs** (observed: the gate, 514s: suite 2392 passed against the
+  stored 2324, new reds 1, the known flaky map test, green on its rerun, reds gone 1,
+  stale 0; the reviewer on Opus, 54.2k on the harness line against 40k, 28 tool calls,
+  7.9 minutes, seven probed tests fail on the parent). Meta workflow. High: an insert
+  at (0, 0) lands above a `from __future__` import, `ast.parse` accepts it and
+  `compile` refuses it, and the drops refusal sends the seat to that call. Low: an
+  all-lines blank span leaves a one-newline file; the case walk stops on `case.A`;
+  `end=None` with `start != 0` is a whole-file write, older than the frame. All four
+  go to pass 2 with one test each.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
