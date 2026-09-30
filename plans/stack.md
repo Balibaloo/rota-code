@@ -289,6 +289,13 @@ a different question and the night is then opened once.
   watcher, unreachable by message). Meta workflow. Order: 94, then 93 on the same
   tree, then 95, 96 and 87. One implementer pass on Opus starts now; one diff review
   follows it; the night at the closing commit validates 94, 93, 88 and 86 together.
+- Status 2026-09-30 03:46 (rota-4c): **pass 1 committed at `44e156a`, the gate and the diff review
+  run** (observed: the implementer on Opus, 59.5k on the harness line against 30k
+  priced, 35 tool calls, 23.5 minutes; its own gate run at the pass: suite 2392
+  passed against the stored 2324, new reds 1, an old assertion on the word `assign`,
+  fixed in the commit, reds gone 1, stale 0). Meta workflow. Three files, four
+  tests. The gate runs again at `44e156a` and the diff review runs on Opus from
+  `C:/Users/roman/rota_review94`.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
