@@ -339,6 +339,11 @@ a different question and the night is then opened once.
   Known lows, not taken: a path longer than the cap leaves an empty entry; a cut entry carries no mark and
   the text can reach 2,020 characters; the tail names no hidden file. The older high is frame 101. The
   closing commit is `ff0f692` if its gate is clean. Reviews on this frame: 94.0k, 45.7k and 49.3k.
+- Status 2026-09-30 19:55 (rota-c6): **gate at `a6bed3b`: new reds 1, the load-flip case only, and six re-records;
+  the gate runs at `ff0f692` now and the night worktree stands at it** (observed: the gate, 560s, exit 1:
+  suite 28 failed and 2461 passed against the stored 23 and 2324, new reds 1, reds gone 1, stale 0; five
+  Architect and Critic cases re-recorded green 5/5, `L3-a-failed-verdict-turns-into-a-fix` 0/5 and it was
+  red in the baseline). Meta workflow. Night 101 launches on the gate's five lines.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
