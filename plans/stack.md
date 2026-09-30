@@ -204,7 +204,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 102. After a failed verdict the fixed commit runs green and no review fires again (2026-09-30)
+### 102. After a failed verdict the fixed commit runs green and no review fires again (2026-09-30) (104efdb6)
 
 - **Batch C, the night's stall, found by this session's watch of night 101.** Two sites: the `review`
   predicate at `rota/core/predicates.py:1155` and `verdict_failed` at `:1254`. It touches a predicate, so
