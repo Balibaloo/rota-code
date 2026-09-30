@@ -309,6 +309,17 @@ a different question and the night is then opened once.
   The gate in the worktree compared the run with itself, one register line written in
   `plans/operating-facts.md`; the real gate runs from the main checkout after the merge.
   Left alone: `_batch_of`'s fallback, because the scan fix clears the wall.
+- Status 2026-09-30 04:45 (rota-4c): **the diff review finds no defect, and `f96` is merged at `4df551b`;
+  validating on the gate and the night** (observed: the reviewer on Opus, 48.5k on the
+  harness line against 40k, 21 tool calls, 3 minutes; on a copy of `.rota/clickI_night98.db`
+  the wake of s227 with `batch_id=bg_2` and the ticket ref returns that ticket and its three
+  criteria at `e111b84`, and the confirm ticket at `f63767f`; the first new test fails on
+  the old `api.py`). Meta workflow. Two lows, no fix: a grouping wake with no running
+  batch now reads the woken tickets and not every ticket, which fits the scope rule and
+  makes no case stale; no recorded case covers a grouping wake while a batch runs, so the
+  walk should add a running batch to a copy of the `L1-AR-group-into-batches` fixture.
+  The gate at `4df551b` covers this merge and frame 94's `f414b18` together. Actual, walls
+  apart: read and pass 51.4k against 50k, review 48.5k against 30k, register lines 1.
 
 ### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (532b3429)
 
