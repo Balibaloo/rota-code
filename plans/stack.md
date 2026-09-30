@@ -277,6 +277,15 @@ a different question and the night is then opened once.
   result carries the sentence under `dropped`. A test through `code.write` found that the
   drops door's local of the same name overwrote the note, fixed in the pass. A `match`
   block gives no note. The gate in the worktree compared the run with itself again.
+- Status 2026-09-30 04:57 (rota-4c): **the diff review finds one high and four low, pass 2 runs**
+  (observed: the reviewer on Opus, 40.5k on the harness line against 50k, 14 tool calls,
+  5 minutes; 14 of 17 built shapes right, the write lands every time; the ten false-note
+  shapes are silent, the five missed-note shapes all note). Meta workflow. High: the
+  pairing takes the last old statement with the same first line, so two `if value is
+  None:` blocks give a silent miss of six lines or a wrong count. Low: a type mismatch
+  returns None instead of the drops found; `cases` is missing from the fields; the
+  kept rule matches against the whole text; the s183 tests read the installed click at
+  a fixed line. All five go to pass 2 with the design note updated to the code.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
@@ -489,6 +498,16 @@ a different question and the night is then opened once.
   resumed a quarantined batch change. Outside the ruling, left open: a running batch
   below its cap with a quarantined key still holds the seat, and a pending batch with one
   does not park.
+- Status 2026-09-30 04:57 (rota-4c): **the diff review finds one high and two low, pass 2 runs**
+  (observed: the reviewer on Opus, 52.1k on the harness line against 50k, 14 tool calls,
+  2.6 minutes; quarantined key shapes read from nights 90 to 98; 45 tests pass, one red
+  older than the branch). Meta workflow. High: the way out the page names does not work,
+  because a hand commit reaches the database through `reconcile_worktrees`, a raw UPDATE
+  of `head_commit` that never runs `_lift_quarantines`, so `parked` stays true after the
+  commit; and no seat wakes on a quarantine-parked batch, so no Developer commit comes
+  either. Low: "The other changes go on" prints when none is left; the night 92 pin
+  loses its unlifted assertion. Pass 2 lifts on the reconcile, conditions the sentence,
+  pins night 92 before the lift, and names the give-up verb the page has.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
