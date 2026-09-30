@@ -255,7 +255,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/archive/night98-walk-2026-09-29.md`, the new walls.
 - Status 2026-09-29 16:46 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
 
-### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29)
+### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (532b3429)
 
 - **Batch C, the night's stall, found by frame 92's last diff review.** Two
   sites in `code.write` before the span door: the whole-file test at
@@ -283,6 +283,12 @@ a different question and the night is then opened once.
   file today.
 - Reasoning: frame 92's status of 14:44 and the fuzz in the scratchpad.
 - Status 2026-09-29 14:44 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
+- Status 2026-09-30 03:20 (rota-4c): **held by 532b3429 on Roman's word, after the peers
+  table named b4452094 as handed this frame and that session wrote nothing to the
+  stack** (observed: `handover.py peers`, 2026-09-30 02:50, row b4452094 at 55k, no
+  watcher, unreachable by message). Meta workflow. Order: 94, then 93 on the same
+  tree, then 95, 96 and 87. One implementer pass on Opus starts now; one diff review
+  follows it; the night at the closing commit validates 94, 93, 88 and 86 together.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
@@ -341,7 +347,7 @@ a different question and the night is then opened once.
   path, not a new budget. Order: after frame 88, placed by the assistant
   until Roman names another place.
 
-### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (213e58fd)
+### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
 - **Roman's second step, ruled 2026-09-25 14:34: a small frame so frame 33
   gets its merge.** It touches a criterion's wording or a test's assertion
@@ -585,8 +591,10 @@ a different question and the night is then opened once.
   (observed: the read agent on Opus 5.5, 119.6k on the harness line against 100k, 28 tool calls, 4.0 minutes, record `plans/archive/night98-walk-2026-09-29.md`). Meta workflow. No finding row beyond three satisfied `k0` rows on
   `bg_1`, `finding_rulings` empty, no Critic finding review. Four nights now
   without a filed finding against a green batch.
+- Status 2026-09-30 03:20 (rota-4c): **held by 532b3429 on Roman's word, validating; the next
+  night at frame 94's closing commit is the one that proves it.** Meta workflow.
 
-### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
+### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (532b3429)
 
 - **Batch C, the night's stall, found by night 93's walk, and it is the wall
   that stands after frame 83.** One site: the resume that `do:preempt`'s
@@ -904,6 +912,8 @@ a different question and the night is then opened once.
   was quarantined at s191 and s209 and never deferred or resumed. Frame 87's
   path was not reached either, because no deferral ran. A lower cap for one
   night is the way to reach both, recommended to Roman.
+- Status 2026-09-30 03:20 (rota-4c): **held by 532b3429 on Roman's word, validating; the next
+  night at frame 94's closing commit is the one that proves it.** Meta workflow.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
