@@ -258,6 +258,14 @@ a different question and the night is then opened once.
   The pass reads the indent as a view that keeps column-0 lines, looks ahead five lines for the closing
   quote, takes f-strings, and re-runs the `__future__` door on the repaired text. Passes on one agent:
   66.6k and 92.9k on the harness line, 159.5k in all against 40k priced.
+- Status 2026-09-30 13:47 (rota-c6): **the second diff review at `85f7c4f` finds one high and three low, pass 3
+  runs** (observed: the reviewer on Opus, 76.8k on the harness line against 40k, 19 tool calls, 6.9
+  minutes; 173 door tests pass in the worktree). Meta workflow. High: the indent view takes its prefix
+  over every indented line, so a string continuation indented less than the span blocks the repair and
+  the escape sentence. Low: a CR LF inside a string lands as `
+` without a word; the 20-join cap refuses
+  a whole-file write with 25 breaks. Known low, older than the frame and not taken: `write_text` writes
+  CR LF on Windows and the result's `bytes` counts the LF text. Three taken, one test each.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
