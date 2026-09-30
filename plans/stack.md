@@ -315,6 +315,12 @@ a different question and the night is then opened once.
   harness lines before it read 34 of 34, then 37 with 3, 1 and 0 not passing). Meta workflow. The
   delivery path ran end to end with every door of frames 93 to 99 in place. Walk 1 goes on to the next
   sentence.
+- Status 2026-09-30 15:58 (rota-c6): **walk 2 started 15:24; bg_2 passed 38 tests, then stuck at 43 with 1 failing
+  through attempts 2 to 5** (observed: `.rota/clickI.db`, s204, s209, s210: the failing test is click's
+  own `tests/test_termui.py`, id `inh_51d478df`, broken by the seat's rewrite of `confirm`; s210 wrote the
+  span 291 to the end nine times, each `OK`, one commit, the test still red; no door refused). Meta
+  workflow. A judgement stall on an inherited test, on the attempt-cap path frames 86 and 87 validate.
+  No action while the night runs; the read after GAUNTLET-DONE names whether the cap and the resume fire.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
