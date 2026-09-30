@@ -8641,10 +8641,11 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 if isinstance(n, _ast.match_case):
                     # A bracketed pattern can start below its `case (` line.
                     k = n.pattern.lineno - 1
-                    # A header shape only: `case_id,` or `case.A` on a
-                    # continuation line is not a case header (frame 94's
-                    # diff review of 44e156a, 2026-09-30).
-                    while k > 0 and not re.match(r"\s*case(\s|[(\[])", lines[k]):
+                    # `case_id,` or `case.A` on a continuation line is a
+                    # name, not a case header. `case{`, `case-1` and
+                    # `case"x"` are headers (frame 94's diff reviews of
+                    # 44e156a and f986adb, 2026-09-30).
+                    while k > 0 and not re.match(r"\s*case(?![\w.])", lines[k]):
                         k -= 1
                     return k
                 decs = getattr(n, "decorator_list", None) or []
@@ -8910,8 +8911,13 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             # Frame 94's diff review of 44e156a (2026-09-30): an insert at
             # 0..0 landed above `from __future__ import`. ast.parse took it,
             # compile refused it, and every test failed at import. The drops
-            # refusal sends the seat to 0..0 for an import.
-            if start == stop == 0:
+            # refusal sends the seat to 0..0 for an import. Any insert at or
+            # before the last leading `__future__` import breaks the same way,
+            # and the docstring door offers the line after a docstring.
+            # Ruled: frame 94's coordinator (2026-09-30). A text of only
+            # `__future__` imports passes, and so does a text of no
+            # statements, such as comments.
+            if start == stop:
                 futs = []
                 for i, s in enumerate(tops):
                     if i == 0 and id(s) in _docs:
@@ -8923,9 +8929,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     own = _ast.parse(text).body
                 except SyntaxError:
                     own = []
-                own_fut = bool(own) and all(
+                own_fut = all(
                     isinstance(s, _ast.ImportFrom) and s.module == "__future__" for s in own)
-                if futs and not own_fut:
+                if futs and start <= _lo(futs[-1]) and not own_fut:
                     after = _end(futs[-1])
                     raise ValueError(
                         f"start={start}, end={end}: Python refuses any statement "

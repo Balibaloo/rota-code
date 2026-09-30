@@ -2360,6 +2360,37 @@ def test_an_insert_above_a_future_import_is_refused_with_the_line_after_it(db, t
     assert (tmp_path / "wt" / "m.py").read_text().startswith("from __future__ import division\n")
 
 
+def test_an_insert_after_a_docstring_above_a_future_import_is_refused(db, tmp_path):
+    """Frame 94's diff review of f986adb (2026-09-30): the docstring door
+    offers the line after the docstring, and an insert there still lands
+    above `from __future__`. A comment is no statement and passes."""
+    src = '"""Mod."""\nfrom __future__ import annotations\n\nimport os\n'
+    msg = _span_refusal(db, tmp_path, src, 1, 1, "import sys\n")
+    assert "above the `from __future__` import at line 1." in msg
+    assert "To add after it send start=2, end=2." in msg
+    with pytest.raises(ValueError, match="To add after it send start=2, end=2."):
+        _write(db, tmp_path, 1, 1, '"""Another."""\n')
+    assert _write(db, tmp_path, 1, 1, "# a note\n")["bytes"]
+    assert (tmp_path / "wt" / "m.py").read_text() == (
+        '"""Mod."""\n# a note\nfrom __future__ import annotations\n\nimport os\n')
+    (tmp_path / "wt" / "m.py").write_text("from __future__ import annotations\nimport os\n")
+    assert _write(db, tmp_path, 0, 0, "# head\n\n")["bytes"]
+    with pytest.raises(ValueError, match="To add after it send start=3, end=3."):
+        _write(db, tmp_path, 0, 0, '"""Mod."""\n')
+
+
+def test_a_case_header_is_found_by_its_shape_and_not_by_its_letters(db, tmp_path):
+    """Frame 94's diff review of f986adb (2026-09-30): `case{`, `case-1`
+    and `case"x"` are headers with no space after the word."""
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    for header in ('case{"a": 1}:', "case-1:", 'case"x":'):
+        src = ("def d(v):\n    match v:\n        " + header + "\n            r = (\n"
+               "                2)\n        case _:\n            r = 0\n    return r\n")
+        assert _passes(db, tmp_path, src, 2, 5), header
+
+
 def test_a_blank_span_over_every_line_is_an_empty_write_of_the_file(db, tmp_path):
     """Frame 94's diff review of 44e156a (2026-09-30): 0..3 with an empty
     text left a file that holds one newline."""
@@ -2375,7 +2406,7 @@ def test_a_blank_span_over_every_line_is_an_empty_write_of_the_file(db, tmp_path
 
 
 def test_a_start_with_no_end_is_refused(db, tmp_path):
-    """Frame 94's diff review of 44e156a (2026-09-30): start=3 with no end
+    """Frame 94's diff review of 44e156a (2026-09-30): start=4 with no end
     took the whole-file path, and the fragment became the file."""
     src = "def a():\n    return 1\n\n\ndef b():\n    return 2\n"
     msg = _span_refusal(db, tmp_path, src, 4, None, "def b():\n    return 3\n")
