@@ -660,6 +660,14 @@ a different question and the night is then opened once.
   52.1k, 38.4k, 43.8k, 53.1k, 52.4k and one running, against 60k; one ruling; register
   lines 0. The walk: a night from a worktree at the closing commit, which must reach a
   quarantine park to prove the path.
+- Status 2026-09-30 10:28 (rota-4c): **the short review finds two lows, one fixed at `a482fd8`, one is a
+  question for Roman that does not block** (observed: the reviewer on Opus, 32.1k on the
+  harness line against 20k, 13 tool calls; 127 tests pass; three approve-and-tick rounds
+  gave three distinct asks, one at a time). Meta workflow. Fixed: `cmd_sign` prints
+  "reply sent" for every words answer. Question: an approve on the park ask asks the same
+  question again on the next tick, one Liaison session per approve, for as long as the
+  batch is parked. Recommended: an approve means "ask me no more until the batch changes",
+  so a new ask opens only when the head or the keys change. Left for the walk's read.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
