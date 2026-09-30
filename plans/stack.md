@@ -601,6 +601,16 @@ a different question and the night is then opened once.
   it. Recommended: a words reply leaves the park ask open until a commit or a contest
   closes it, the way a reply to a confirm or a present does (reasoned: the ruling says the
   batch waits for the principal, and words alone change nothing on the batch).
+- Status 2026-09-30 10:04 (rota-4c): **the review of `b23d17b` finds two high and two low, pass 5 runs
+  on a fresh agent** (observed: the reviewer on Opus, 53.1k on the harness line against
+  45k, 20 tool calls, 4.7 minutes; the mode run six ways with `ScriptedBackend`; 178 tests
+  pass, one red older than the branch). Meta workflow. High: the repeat-words guard
+  refuses a re-park's clarify because it equals the answered ask's words, and the wake
+  then runs to its cap; after a words answer the page names a contest no command can
+  carry. Low: the brief says "above the refs" and the line is below; a lift with no head
+  change re-parks under the same hash and gets no ask. Pass 5 takes all four and builds
+  the words-reply design: a words answer leaves the ask open, `landing` reads it, a commit
+  or a contest closes it.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
