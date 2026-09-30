@@ -204,137 +204,6 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 99. A newline escape inside a string literal becomes a line break, and the parse door refuses the write (2026-09-30) (7448850f)
-
-- **Batch C, the night's stall, found by night 99's read of walk 1.** One site: the parse
-  door of `code.write` at `rota/roles/api.py:9214` and the argument decoder before it. It
-  touches the write path, so it carries a diff review and a walk.
-- Rota workflow. On night 99 the Developer's three sessions on `bg_1`'s batch_start each
-  wrote `out += "\n"` with one escape, the decoder made it a real newline, the parse door
-  refused "unterminated string literal", and the batch was quarantined at attempt 3. Night
-  98's s133 passed at turn 21 only after the model doubled the escape (observed: night 99's
-  s132 to s134 and night 98's s133, 2026-09-30).
-- Ends when: the parse door, on an unterminated string literal whose broken line ends inside
-  a quote and whose next line closes it, retries the fragment with that one decoded newline
-  restored as the two characters, takes the repaired text when it compiles and says so in
-  one sentence, and otherwise adds to the refusal "inside a string literal write the
-  newline escape as two characters"; a `\"\"\"` at the start of a fragment line gets its
-  own sentence; a desk test built from s134's turn 21 lands as a valid insert; the bg_1
-  Developer case re-records; a night at the closing commit starts bg_1. Priced: one pass,
-  about 40k on Opus; one diff review, about 40k; one re-record; the night shared.
-- Waits on: Roman's order. Recommended: first, because it stops every batch whose fix
-  writes a string with a newline.
-- Reasoning: frame 87's status above, and the read's report in the session transcript.
-- Status 2026-09-30 12:55 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
-- Status 2026-09-30 13:10 (rota-c6): **held by 7448850f, first on Roman's order** (ruled: Roman, asked with
-  frames 100, 98 and 97 as the other options; 99 unblocks the night that seven frames wait on). Meta
-  workflow. Next: read the door and the decoder, then one implementer pass on Opus.
-- Status 2026-09-30 13:15 (rota-c6): **pass 1 runs on Opus; the decoder is not the fault and stays** (reasoned:
-  `toolproto.parse_args` decodes the text with `literal_eval`, so `\n` in a single-quoted argument must
-  become a line break, and after the decode a meant break and an escaped one are the same character;
-  the repair belongs to the parse door alone, on the fragment). Meta workflow. The brief is in the
-  scratchpad, `frame99-brief.md`, with five tests. The re-record goes to the gate's own stale set, because
-  the door moves no prompt.
-- Status 2026-09-30 13:29 (rota-c6): **pass 1 committed at `edd3638`, the gate clean on the agent's run, the diff
-  review runs on Opus from `C:/Users/roman/rota_review99`** (observed: the implementer on Opus, 66.6k on
-  the harness line against 40k priced, 31 tool calls, 13.4 minutes; its gate, 494s: suite 22 failed and
-  2447 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0; five tests, all five fail
-  with the change stashed; the s134 text lands at every door). Meta workflow. Two open questions go to
-  the review as points 11 and 12: an indented span fails on `unexpected indent` before the repair, and an
-  f-string reports `unterminated f-string literal`.
-- Status 2026-09-30 13:35 (rota-c6): **the diff review at `edd3638` finds two high and six low, pass 2 runs**
-  (observed: the reviewer on Opus, 63.3k on the harness line against 40k, 19 tool calls, 5.4 minutes;
-  166 door tests pass in the worktree). Meta workflow. High: an indented span fails on `unexpected
-  indent` before the repair, so an edit inside a def is never repaired, and the older line-naming
-  sentence misnames every indented span; a literal with two escapes arrives as three lines and the loop
-  stops. Low: f-strings, a doubled line number, the docstring sentence inside a triple-quoted string, the
-  refusal names the form the seat already sent, and the `__future__` door reads the unrepaired fragment.
-  Declined: a join across a lone quote in a comment, accepted as a risk because the file must compile and
-  the landed sentence names the line. Seven taken, one test each.
-- Status 2026-09-30 13:40 (rota-c6): **pass 2 committed at `85f7c4f`, the gate and the second diff review run at it**
-  (observed: the implementer resumed on Opus, 92.9k on the harness line for the pass, 22 tool calls, 4.3
-  minutes; 173 door tests and 58 parser tests pass, 8 tests fail with `api.py` stashed). Meta workflow.
-  The pass reads the indent as a view that keeps column-0 lines, looks ahead five lines for the closing
-  quote, takes f-strings, and re-runs the `__future__` door on the repaired text. Passes on one agent:
-  66.6k and 92.9k on the harness line, 159.5k in all against 40k priced.
-- Status 2026-09-30 13:47 (rota-c6): **the second diff review at `85f7c4f` finds one high and three low, pass 3
-  runs** (observed: the reviewer on Opus, 76.8k on the harness line against 40k, 19 tool calls, 6.9
-  minutes; 173 door tests pass in the worktree). Meta workflow. High: the indent view takes its prefix
-  over every indented line, so a string continuation indented less than the span blocks the repair and
-  the escape sentence. Low: a CR LF inside a string lands as `\n` without a word; the 20-join cap refuses
-  a whole-file write with 25 breaks. Known low, older than the frame and not taken: `write_text` writes
-  CR LF on Windows and the result's `bytes` counts the LF text. Three taken, one test each.
-- Status 2026-09-30 13:49 (rota-c6): **gate clean at `85f7c4f`** (observed: the gate, 494s, exit 0: suite 22 failed and
-  2454 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0). Meta workflow. Pass 3
-  still runs; the gate runs again at its commit, then the third diff review.
-- Status 2026-09-30 13:50 (rota-c6): **pass 3 committed at `5d54e9a`, the gate and the third diff review run at it**
-  (observed: the implementer resumed on Opus, 103.2k cumulative on the harness line, 11 tool calls, 2.4
-  minutes; 177 door tests and 58 parser tests pass, 4 tests fail with `api.py` stashed). Meta workflow.
-  Passes on one agent: 66.6k, 92.9k and 103.2k cumulative on the harness line against 40k priced. The
-  third review is the last before the night.
-- Status 2026-09-30 13:59 (rota-c6): **the third diff review at `5d54e9a` finds four low and no high, pass 4 takes
-  two** (observed: the reviewer on Opus, 67.0k on the harness line against 40k, 19 tool calls, 7.7
-  minutes; 177 door tests and 19 end-to-end probes pass in the worktree). Meta workflow. Taken: a span
-  whose first line is a column-0 comment gets an empty prefix and no repair; the landed sentence after a
-  CR join names `\n` for a `\r\n` file. Known lows, not taken: a bare CR with no LF is refused with the
-  `\n` form, and a CR inside an earlier triple-quoted string moves the error line off the broken line
-  because the repair splits on LF alone. The gate at `5d54e9a` still runs; pass 4's commit gets the
-  gate and one short review of its diff, and the night follows.
-- Status 2026-09-30 14:00 (rota-c6): **gate clean at `5d54e9a`** (observed: the gate, 552s, exit 0: suite 22 failed and
-  2458 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0). Meta workflow. Pass 4
-  still runs. Register lines so far: 0 here, 1 strike in memory for a status-line script.
-- Status 2026-09-30 14:01 (rota-c6): **pass 4 committed at `bdefec9`, the gate and a short review of its diff run**
-  (observed: the implementer resumed on Opus, 117.1k cumulative on the harness line, 12 tool calls, 2.3
-  minutes; 179 door tests and 58 parser tests pass, 2 tests fail with `api.py` stashed; this session read
-  the whole diff, two helpers and one call site). Meta workflow. Passes on one agent: 66.6k, 92.9k,
-  103.2k and 117.1k cumulative against 40k priced. The night runs from a worktree at the commit the
-  review and the gate pass, cold, because the write path moved.
-- Status 2026-09-30 14:05 (rota-c6): **the short review at `bdefec9` finds three low and no high, and the pass loop
-  stops** (observed: the reviewer on Opus, 40.7k on the harness line, 13 tool calls, 3.6 minutes; 179
-  door tests pass in the worktree; the mixed-form probe lands both literals right). Meta workflow. Known
-  lows, not taken: a line with both an LF join and a CR join is named under the four characters only;
-  the mixed sentence lists every line under the two characters before it names the CR lines; the tail
-  keyword check near line 9263 reads a leading comment as the first line. Four reviews on this frame:
-  63.3k, 76.8k, 67.0k and 40.7k against 40k priced. The closing commit is `bdefec9` if its gate is clean.
-- Status 2026-09-30 14:11 (rota-c6): **gate clean at `bdefec9`, and night 100 runs detached from
-  `C:/Users/roman/rota_night100` at `bdefec9`, launched 14:11, cold** (observed: the gate, 572s, exit 0:
-  suite 22 failed and 2460 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0;
-  `.rota/night100.log` reads launched, click restored to `2c8cd3a`, onboard 14:11). Meta workflow. The
-  frame validates on this night: bg_1's batch_start must pass the parse door, and a Developer write with
-  a newline escape must land with the repair sentence. Frames 94, 96, 95, 93, 87, 88 and 86 validate on
-  the same night. Actual, walls apart: four passes on one agent, 117.1k cumulative against 40k; four
-  reviews, 247.8k against 40k; two gates and a night; register lines 0, memory 1.
-- Status 2026-09-30 15:13 (rota-c6): **night 100 proves the door: s134's write with the escape landed on the
-  first call with the repair sentence, was committed, and bg_1's harness ran 34 tests with 0 failing**
-  (observed: `.rota/clickI.db`, s134 turn 21, `OK code.write` with `repaired` naming line 37, then
-  `code.commit` at turn 22; `.rota/night100.log`, `do:harness: bg_1: 34 test(s), 0 not passing`, about
-  15:20; three Developer sessions so far against night 99's three refusals). Meta workflow. The night runs
-  on, walk 1 since 14:48. The frame closes on GAUNTLET-DONE and the read.
-- Status 2026-09-30 15:25 (rota-c6): **night 100 merged bg_1, the first merge since the write-path frames, after
-  48 steps and 4 asks** (observed: `.rota/night100.log`, `MERGED (1 total) after 48 steps, 4 asks`; the
-  harness lines before it read 34 of 34, then 37 with 3, 1 and 0 not passing). Meta workflow. The
-  delivery path ran end to end with every door of frames 93 to 99 in place. Walk 1 goes on to the next
-  sentence.
-- Status 2026-09-30 15:58 (rota-c6): **walk 2 started 15:24; bg_2 passed 38 tests, then stuck at 43 with 1 failing
-  through attempts 2 to 5** (observed: `.rota/clickI.db`, s204, s209, s210: the failing test is click's
-  own `tests/test_termui.py`, id `inh_51d478df`, broken by the seat's rewrite of `confirm`; s210 wrote the
-  span 291 to the end nine times, each `OK`, one commit, the test still red; no door refused). Meta
-  workflow. A judgement stall on an inherited test, on the attempt-cap path frames 86 and 87 validate.
-  No action while the night runs; the read after GAUNTLET-DONE names whether the cap and the resume fire.
-- Status 2026-09-30 16:15 (rota-c6): **CYCLE on bg_2: the Developer's attempt 6 ran three times, s213 to s215, 25
-  turns each, and none committed** (observed: `.rota/night100.log`, `CYCLE: period 1, rounds 3, wakes:
-  developer|tick:tests_failing|attempt 6|["bg_2"]`; `.rota/clickI.db`: each session read `termui.py`
-  and `test_termui.py` spans, the window dropped them, the seat read them again until `served three
-  times ... not served again`, then challenged the Tester on an inherited test and was told it has no
-  criterion; s215's two writes were refused, one inside a docstring and one on an indent; s212 before them
-  was refused for undoing its own commit). Meta workflow. This is frame 100's shape, the window drops
-  earlier reads, on a second night and a second batch, and it holds the frame's evidence now. Frame 99's
-  door refused nothing here. The night runs on.
-- Status 2026-09-30 16:26 (rota-c6): **night 100 ended at 16:25 in 134 minutes: walk 1 merged bg_1, walks 2 and 3
-  stopped on bg_2's tests_failing at the cap** (observed: `.rota/night100.log`, `GAUNTLET-DONE 16:25`,
-  launcher exit 0; 249 sessions, 1089 turns; the database kept as `.rota/clickI_night100.db`, 20 MB).
-  Meta workflow. The read runs on Opus with a 100k cap, for frames 99, 94, 96, 95, 93, 87, 88 and 86.
-
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
 - **Batch C, the night's stall, found by night 99's read of walk 1.** Two sites: the
@@ -372,6 +241,7 @@ a different question and the night is then opened once.
 - Waits on: frame 95's close, because the door and the case share the write path.
 - Reasoning: frame 95's status of the diagnosis above.
 - Status 2026-09-30 10:37 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
+- Status 2026-09-30 16:32 (rota-c6): **confirmed on night 100: s210 ran 15 turns after its completion line at t9, and its writes and the commit `3ffe8acc` landed after it** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow.
 
 ### 97. A later session never sees the lines an earlier commit of the batch dropped (2026-09-30)
 
@@ -393,301 +263,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/archive/frame95-design-2026-09-30.md`, section 4 and the open
   questions.
 - Status 2026-09-30 04:33 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
-
-### 95. A whole-function rewrite that stops short is accepted by every door (2026-09-29) (532b3429)
-
-- **Batch C, the night's stall, found by night 98's read.** One site: the
-  parse and span doors of `code.write` accept a text that replaces a whole
-  function and ends before the function's tail, when the shortened function
-  still parses. It touches the write path, so it carries a diff review and a
-  walk.
-- Rota workflow. On night 98 s183 replaced lines 288 to 345 of
-  `src/click/termui.py`, all of `confirm`, with a text that stopped at `raise
-  Abort() from None`. Commit `d8d87beb` deleted 13 lines from `if value in
-  ("y", "yes"):` to `return rv`, every door accepted it, no later session put
-  the lines back, and `bg_2` stayed at 40 tests with 5 failing until the team
-  gave up on `tests_failing`. Night 97 lost `return rv` from the same function
-  by a different route (observed: `plans/archive/night98-walk-2026-09-29.md`, the new walls, 2026-09-29).
-- Ends when: a whole-statement replacement whose text ends with a `raise` or
-  a `return` inside a branch, and whose original ended with statements after
-  that branch at the same level, gets one sentence naming the count and the
-  first of the lines the text drops, so the seat sees the loss; or the Critic
-  reads the diff's deleted lines against the criterion; the smaller design
-  wins at the design review; two unit tests; a night at the closing commit.
-  Priced: one design review, 40k on Opus; one pass, 40k; one diff review,
-  40k; the night shared with frames 87, 93 and 94.
-- Waits on: Roman's order. Recommended: after 94 and 93, before 87.
-- Reasoning: `plans/archive/night98-walk-2026-09-29.md`, the new walls.
-- Status 2026-09-29 16:46 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
-- Status 2026-09-30 04:24 (rota-4c): **held by 532b3429 beside frame 94, on Roman's word to run more frames at once in
-  this session** (ruled: Roman, 2026-09-30, in the terminal: parallelise with sub-agents
-  in one session, and hand off when full). Meta workflow. Each frame has its own
-  implementer on Opus in its own worktree and branch from `f63767f`. The gate and the
-  merge into `rota/foundation` stay one at a time. Worktree `C:/Users/roman/rota_f95`, branch
-  `f95`. The agent writes the design note for the two designs first, and this session
-  judges it before any code. Frame 93 follows on the same agent and tree, because both
-  sit in `code.write`.
-- Status 2026-09-30 04:33 (rota-4c): **design A approved, the note in `code.write`, and the pass
-  runs** (observed: the implementer's design note on Opus, 75.1k on the harness line
-  against 40k, `plans/archive/frame95-design-2026-09-30.md` on branch `f95`). Meta
-  workflow. Design B, the Critic judges the deleted lines, buys nothing on either
-  night: the Critic wakes on `tick:review` only, on a green harness, and both nights
-  stayed red (reasoned: the note, section 4). A takes four terminators, `return`,
-  `raise`, `continue`, `break`, because night 97's text ended at `continue`, and
-  counts a dropped line only when its text is absent from the new text. The count 13
-  for s183 is reasoned by hand and the pass tests it against click's `confirm`. Two
-  gaps from the note go to frame 97 below.
-- Status 2026-09-30 04:51 (rota-4c): **design A built and committed at `3b4b923` on `f95`, the diff
-  review runs** (observed: the implementer resumed on Opus, 116.7k on the harness line
-  cumulative, 72 tool calls, 26 minutes; 145 door tests pass; the s183 case gives 13 lines
-  from `if value in ("y", "yes"):`, so the hand count is now observed in a test; night 97's
-  shape gives 3 from `if abort and not rv:`). Meta workflow. A pure helper, `_tail_drop`,
-  runs after the span merge and before a whole-file write of an existing .py, and the
-  result carries the sentence under `dropped`. A test through `code.write` found that the
-  drops door's local of the same name overwrote the note, fixed in the pass. A `match`
-  block gives no note. The gate in the worktree compared the run with itself again.
-- Status 2026-09-30 04:57 (rota-4c): **the diff review finds one high and four low, pass 2 runs**
-  (observed: the reviewer on Opus, 40.5k on the harness line against 50k, 14 tool calls,
-  5 minutes; 14 of 17 built shapes right, the write lands every time; the ten false-note
-  shapes are silent, the five missed-note shapes all note). Meta workflow. High: the
-  pairing takes the last old statement with the same first line, so two `if value is
-  None:` blocks give a silent miss of six lines or a wrong count. Low: a type mismatch
-  returns None instead of the drops found; `cases` is missing from the fields; the
-  kept rule matches against the whole text; the s183 tests read the installed click at
-  a fixed line. All five go to pass 2 with the design note updated to the code.
-- Status 2026-09-30 05:03 (rota-4c): **pass 2 committed at `64c7657`, pass 3 runs on one rule**
-  (observed: the implementer resumed on Opus, 142k cumulative on the harness line, 24 tool
-  calls, 6.5 minutes; 149 door tests pass). Meta workflow. The pairing walks in order
-  behind a cursor; a leaf with no pair keeps the drops found; `match` cases count; the
-  `confirm` fixture is copied into the test file. The narrower kept rule made night 97's
-  note read 4 lines from `break`, one too many, because the branch `break`s sit above the
-  leaf. Pass 3: a line is kept when it appears anywhere inside the statement that holds
-  the leaf. Then the last review at the pass 3 commit.
-- Status 2026-09-30 05:06 (rota-4c): **pass 3 committed at `ea82dcd`, the last review runs** (observed:
-  the implementer resumed on Opus, 154.8k cumulative on the harness line, 37 tool calls, 9
-  minutes; 149 door tests pass; night 97 reads 3 from `if abort and not rv:`, the two-block
-  shapes 6 and 4, s183 13). Meta workflow. The kept rule as this session wrote it changed a
-  two-block count to 5, so the agent added one condition: the copy must sit at a deeper
-  indent than the dropped line, which tells a moved `break` from a like block.
-- Status 2026-09-30 09:43 (rota-4c): **the last review finds four lows, pass 4 runs** (observed: the
-  reviewer on Opus, 38.8k on the harness line against 40k, 10 tool calls; the earlier
-  review's shapes rerun against both commits, four results changed and each change is
-  right; 149 tests). Meta workflow. Low: the positional fallback pairs a later statement
-  after an insert; a block turned into an `elif` counts as dropped; the whole-file read
-  runs outside the try; step 10 of the note says undercount only. Pass 4 takes all four.
-- Status 2026-09-30 09:46 (rota-4c): **pass 4 committed at `4961fde`, a short review runs before the
-  merge** (observed: the implementer resumed on Opus, 175.8k cumulative on the harness
-  line, 19 tool calls, 3 minutes; 152 door tests pass). Meta workflow. Two edits past the
-  brief, both accepted: the drops door also catches `UnicodeDecodeError`, an older fault
-  the latin-1 test hit; `moved` reads `elif X:` as `if X:`, or the elif shape cannot read
-  1. The agent's own estimate of its total is 350k and the harness line says 175.8k, so
-  the agent stays for frame 93.
-- Status 2026-09-30 09:53 (rota-4c): **review clean, `f95` merged at `b6a7707`, two lows outside the
-  diff fixed at `ea3b823`, validating on the gate and the night** (observed: the reviewer
-  on Opus, 33.2k on the harness line against 25k, 15 tool calls; seven probe results
-  changed since `ea82dcd` and each moved to the right count; 152 door tests pass at
-  `ea3b823`). Meta workflow. The two lows are this session's own edits: the span path's
-  note call gains the try the whole-file call has, and the entry-point door's two strict
-  line counts read with replace. Actual, walls apart: one design note and four passes on
-  one agent, 175.8k cumulative against 40k; four reviews, 40.5k, 38.8k, 33.2k against 40k.
-- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
-  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
-  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
-  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
-  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
-  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
-  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
-- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
-  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
-  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
-  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
-  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
-  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
-  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
-
-### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
-
-- **Batch C, the night's stall, found by night 98's read.** One site:
-  `tickets_scan` at `rota/roles/api.py:3394` and the grouping wake. It touches
-  a seat's view, so it carries a diff review and a walk.
-- Rota workflow. On night 98 the wake on `tk_1_version_option_show_python`
-  showed the Architect, in its pre-run `tickets.scan` and `criteria.scan`,
-  only the confirm ticket and its criteria; the woken ticket appeared in the
-  "Refs:" line alone. s227, s231 and s236 each regrouped the confirm ticket,
-  each was refused "not among the tickets you were woken to group", and s239
-  quarantined the key, so the page gave up on `grouping for
-  tk_1_version_option_show_python`. Night 97's s171 and s195 met the same
-  refusal and the batch still formed (observed: `plans/archive/night98-walk-2026-09-29.md`, the new walls,
-  2026-09-29). Cause reasoned, not observed: `tickets_scan` scopes by
-  `ctx.batch_id` first, and a grouping wake names a ticket and no batch.
-- Ends when: a grouping wake's pre-run scans show the woken ticket and its
-  criteria; a unit test holds it; a night at the closing commit shows a
-  grouping wake on a second ticket form a batch. Priced: one read of the wake
-  and the scan, 20k; one pass, 30k on Opus; one diff review, 30k; the night
-  shared with the batch C frames.
-- Waits on: Roman's order. Recommended: with frame 95, because both stalled
-  night 98's second batch.
-- Reasoning: `plans/archive/night98-walk-2026-09-29.md`, the new walls.
-- Status 2026-09-29 16:46 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
-- Status 2026-09-30 04:24 (rota-4c): **held by 532b3429 beside frame 94, on Roman's word to run more frames at once in
-  this session** (ruled: Roman, 2026-09-30, in the terminal: parallelise with sub-agents
-  in one session, and hand off when full). Meta workflow. Each frame has its own
-  implementer on Opus in its own worktree and branch from `f63767f`. The gate and the
-  merge into `rota/foundation` stay one at a time. Worktree `C:/Users/roman/rota_f96`, branch
-  `f96`. The agent reads the wake and `tickets_scan` first, then one pass.
-- Status 2026-09-30 04:42 (rota-4c): **cause confirmed from the code, one pass committed at `e111b84`
-  on `f96`, the diff review runs** (observed: the implementer on Opus, 51.4k on the harness
-  line against 50k, 25 tool calls, 14 minutes; `test_push_scope.py` 8 passed). Meta
-  workflow. The grouping wake carries ticket refs and no batch; `_batch_of` at
-  `rota/core/loop.py:395` falls back to the single running batch; both scans scoped by
-  `ctx.batch_id` first. Now the batch scope applies only when the wake names that
-  batch or names no ticket. The confirm ticket no longer shows beside the woken one.
-  The gate in the worktree compared the run with itself, one register line written in
-  `plans/operating-facts.md`; the real gate runs from the main checkout after the merge.
-  Left alone: `_batch_of`'s fallback, because the scan fix clears the wall.
-- Status 2026-09-30 04:45 (rota-4c): **the diff review finds no defect, and `f96` is merged at `4df551b`;
-  validating on the gate and the night** (observed: the reviewer on Opus, 48.5k on the
-  harness line against 40k, 21 tool calls, 3 minutes; on a copy of `.rota/clickI_night98.db`
-  the wake of s227 with `batch_id=bg_2` and the ticket ref returns that ticket and its three
-  criteria at `e111b84`, and the confirm ticket at `f63767f`; the first new test fails on
-  the old `api.py`). Meta workflow. Two lows, no fix: a grouping wake with no running
-  batch now reads the woken tickets and not every ticket, which fits the scope rule and
-  makes no case stale; no recorded case covers a grouping wake while a batch runs, so the
-  walk should add a running batch to a copy of the `L1-AR-group-into-batches` fixture.
-  The gate at `4df551b` covers this merge and frame 94's `f414b18` together. Actual, walls
-  apart: read and pass 51.4k against 50k, review 48.5k against 30k, register lines 1.
-- Status 2026-09-30 05:03 (rota-4c): **gate clean at `4df551b`, validating until the night** (observed: the gate, 569s: suite 2404 passed against the stored 2324, new reds 1, the
-  known flaky map test with the register's sign, green on its rerun, reds gone 1, stale 0). Meta workflow.
-- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
-  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
-  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
-  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
-  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
-  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
-  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
-- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
-  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
-  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
-  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
-  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
-  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
-  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
-
-### 94. A zero span or an empty text through code.write replaces or removes the whole file (2026-09-29) (7448850f)
-
-- **Batch C, the night's stall, found by frame 92's last diff review.** Two
-  sites in `code.write` before the span door: the whole-file test at
-  `rota/roles/api.py:8557` and the empty-text branch at `:8544-8551`. It
-  touches the write path, so it carries a diff review and a walk.
-- Rota workflow. `span = (start, end) not in ((0, -1), (0, 0))` makes an insert
-  at `start=0, end=0` a whole-file write, so an insert before a module
-  docstring on line 0 replaces the file with the seat's text; the fuzz
-  accepted `(0, 0)` and `test_r4`'s `mod_doc 0 0` left only `import os`. The
-  `not text.strip()` branch runs before the span check, so a seat that deletes
-  lines with `text=""` and a span removes the file; fuzz spans 1..2, 4..5,
-  18..19 and 24..25 with text `"\n"` removed `m.py` (observed: the review of
-  `d03b35c`, 2026-09-29, from a read of the two lines and the fuzz; no night
-  shows either yet).
-- Ends when: only `(0, -1)` means a whole-file write and `(0, 0)` goes through
-  the door as an insert; a span with empty text replaces those lines with
-  nothing and never removes the file; the seat reads `expression`,
-  `assignment` and plain words for every bare statement name in the door; the
-  walk back to a `case` line matches `case` as a word; four unit tests hold
-  it; a night at the closing commit runs the delivery path. Priced: one pass,
-  about 30k on Opus; one diff review, about 40k; the night shared with frames
-  87 and 93.
-- Waits on: Roman's order. Recommended: with frame 93, before frame 87,
-  because both are one-line doors on the write path and a seat can lose a
-  file today.
-- Reasoning: frame 92's status of 14:44 and the fuzz in the scratchpad.
-- Status 2026-09-29 14:44 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
-- Status 2026-09-30 03:20 (rota-4c): **held by 532b3429 on Roman's word, after the peers
-  table named b4452094 as handed this frame and that session wrote nothing to the
-  stack** (observed: `handover.py peers`, 2026-09-30 02:50, row b4452094 at 55k, no
-  watcher, unreachable by message). Meta workflow. Order: 94, then 93 on the same
-  tree, then 95, 96 and 87. One implementer pass on Opus starts now; one diff review
-  follows it; the night at the closing commit validates 94, 93, 88 and 86 together.
-- Status 2026-09-30 03:46 (rota-4c): **pass 1 committed at `44e156a`, the gate and the diff review
-  run** (observed: the implementer on Opus, 59.5k on the harness line against 30k
-  priced, 35 tool calls, 23.5 minutes; its own gate run at the pass: suite 2392
-  passed against the stored 2324, new reds 1, an old assertion on the word `assign`,
-  fixed in the commit, reds gone 1, stale 0). Meta workflow. Three files, four
-  tests. The gate runs again at `44e156a` and the diff review runs on Opus from
-  `C:/Users/roman/rota_review94`.
-- Status 2026-09-30 03:54 (rota-4c): **gate clean at `44e156a`, the diff review finds one high and
-  three low, pass 2 runs** (observed: the gate, 514s: suite 2392 passed against the
-  stored 2324, new reds 1, the known flaky map test, green on its rerun, reds gone 1,
-  stale 0; the reviewer on Opus, 54.2k on the harness line against 40k, 28 tool calls,
-  7.9 minutes, seven probed tests fail on the parent). Meta workflow. High: an insert
-  at (0, 0) lands above a `from __future__` import, `ast.parse` accepts it and
-  `compile` refuses it, and the drops refusal sends the seat to that call. Low: an
-  all-lines blank span leaves a one-newline file; the case walk stops on `case.A`;
-  `end=None` with `start != 0` is a whole-file write, older than the frame. All four
-  go to pass 2 with one test each.
-- Status 2026-09-30 03:58 (rota-4c): **pass 2 committed at `f986adb`, pass 3 runs on its three open
-  questions** (observed: the implementer resumed on Opus, 79.5k on the harness line for
-  the pass, 20 tool calls, 3.6 minutes; 134 and 31 tests pass, the four new tests fail
-  with the change stashed). Meta workflow. Pass 3: the __future__ door covers any
-  insert at or before the last leading such import, a no-statement text passes it,
-  and the case header matches `case(?![\w.])`. Then one diff review at the pass 3
-  commit and the gate.
-- Status 2026-09-30 04:01 (rota-4c): **pass 3 committed at `04e49c1`, the gate and the second diff
-  review run at it** (observed: the implementer resumed on Opus, 93.2k on the harness
-  line for the pass, 34 tool calls, 6.7 minutes; 136 and 31 tests pass, the two new
-  tests fail with the change stashed). Meta workflow. Three passes on one agent so far,
-  59.5k, 79.5k and 93.2k on the harness line, 232k in all against 30k priced.
-- Status 2026-09-30 04:08 (rota-4c): **the second diff review at `04e49c1` finds four low and one
-  older hole, pass 4 runs** (observed: the reviewer on Opus, 54.8k on the harness line
-  against 50k, 18 tool calls, 6 minutes; 167 tests pass; no loop between the doors,
-  every offer lands a file that compiles). Meta workflow. Pass 4 fixes: a blank insert
-  into an empty file removes it; a blank span that leaves only blank lines keeps the
-  file; the docstring door refuses a comment above the docstring; the merge path runs
-  `ast.parse` and never `compile`, so a late `from __future__` import lands. Left as
-  a known low: the case walk stops on a continuation line that holds the capture name
-  `case` alone.
-- Status 2026-09-30 04:42 (rota-4c): **pass 4 at `f63767f`, the last review finds three lows, pass 5
-  at `f414b18` takes two and declines one** (observed: the implementer resumed on Opus,
-  112.1k on the harness line for the pass; the reviewer on Opus, 38.6k against 50k, 15
-  tool calls; `compile` costs 22 ms against `ast.parse` at 20 ms on a 3097-line module;
-  171 door tests pass at `f414b18`). Meta workflow. Pass 5 is this session's own two
-  edits, the one-line exception: the fragment line says it counts from 1, and `compile`
-  runs with warnings off. Declined: exempt a text that does not parse alone from the
-  docstring door, because an indented insert inside a def does not parse alone and the
-  door exists to judge it (observed: `test_the_refusal_names_statements_with_the_words_of_the_source`
-  failed with the exemption). The gate at `f63767f` still runs, then one at `f414b18`.
-  Passes on one agent: 59.5k, 79.5k, 93.2k, 112.1k cumulative on the harness line.
-- Status 2026-09-30 04:53 (rota-4c): **gate clean at `f63767f`** (observed: the gate, 756s, exit 0:
-  suite 22 failed and 2403 passed against the stored 23 and 2324, new reds 0, reds gone 1,
-  stale 0). Meta workflow. The gate now runs at `4df551b`, which holds pass 5 at `f414b18`
-  and frame 96's merge. The frame validates on that gate and the night.
-- Status 2026-09-30 05:03 (rota-4c): **gate clean at `4df551b`, validating until the night** (observed: the gate, 569s: suite 2404 passed against the stored 2324, new reds 1, the
-  known flaky map test with the register's sign, green on its rerun, reds gone 1, stale 0). Meta workflow. Actual, walls apart: five passes on one agent, 112.1k cumulative on the
-  harness line against 30k; three reviews, 54.2k, 54.8k and 38.6k against 40k; two of
-  this session's own one-line edits; register lines 0 here, 1 for frame 96's gate.
-- Status 2026-09-30 11:51 (rota-4c): **gate clean at `0bd5f3b`, and night 99 runs detached from
-  `C:/Users/roman/rota_night99` at `0bd5f3b`, launched 11:50** (observed: the gate, 550s, exit
-  0: suite 25 failed and 2438 passed against the stored 23 and 2324, new reds 0, reds gone 1,
-  stale 0; `.rota/night99.log` reads launched, click restored to `2c8cd3a`, onboard 11:50).
-  Meta workflow. The night proves frames 94, 96, 95, 93 and 87, and 88 and 86 if it reaches
-  their paths. Its read, on Opus with a 100k cap, covers each frame's path and whether the
-  new sentences, the refusal with the span, the park ask and the unchanged sentence appear.
-- Status 2026-09-30 13:08 (rota-4c): **night 99 ended at 13:08 in 78 minutes and proved no path: every
-  walk stopped on `bg_1` quarantined at batch_start, the wall frame 99 carries** (observed:
-  `.rota/night99.log`, `GAUNTLET-DONE 13:08`, launcher exit 0; walks 1, 2 and 3 each ended
-  on the Stuck line; 198 sessions, 716 turns; quarantined keys `constraint_zero` and
-  `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
-  12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
-  99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
-- Status 2026-09-30 13:08 (rota-4c): **handed off: session 7448850f (rota-c6) holds frame 94 and the stack
-  from `e696803`, with frames 96, 95, 93, 87, 88 and 86 validating and frames 97, 98, 99 and
-  100 pushed** (observed: `handover.py hand`, exit 0, CONFIRMED 10s after the claim at
-  13:08:39). Meta workflow. This session, 532b3429, stops here at about 378k.
-- Status 2026-09-30 13:09 (rota-c6): **taken by 7448850f from `e696803`, still validating, waits on the next
-  night after frame 99's repair** (observed: `handover.py take`, exit 0, frame 94 from 532b3429). Meta
-  workflow. Frames 96, 95, 93, 87, 88 and 86 validate on the same night. Frames 99, 100, 98 and 97 are
-  unclaimed and wait on Roman's order, frame 99 recommended first.
-- Status 2026-09-30 14:11 (rota-c6): **night 100 runs at `bdefec9`, which holds frame 99's repair, launched 14:11**
-  (observed: `.rota/night100.log`, onboard 14:11). Meta workflow. Still validating on its read.
+- Status 2026-09-30 16:32 (rota-c6): **cause of night 100's walk 2 stall, confirmed: `code.diff` runs `git diff HEAD~1`, and after s210's tidy-up commit the tree equalled HEAD~1, so s213 to s215 each read an empty diff, never saw the change in `confirm` that breaks click's own test, and spent three attempts without a write** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Recommended first now: it stopped the night, and frame 100's re-reads were the seat looking for a diff it was never shown.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
@@ -825,6 +401,7 @@ a different question and the night is then opened once.
   `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
+- Status 2026-09-30 16:32 (rota-c6): **reached on night 100 and half failed: the unchanged sentence appeared at s210 t17, and the seat repeated the write four times; for an empty text at a zero-width span the sentence says the file already holds this text, while the seat meant to delete lines** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Stays open for one sentence: an empty text at start == end inserted nothing, and the refusal offers the delete span. One pass, about 20k.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
@@ -1016,6 +593,7 @@ a different question and the night is then opened once.
   `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
+- Status 2026-09-30 16:32 (rota-c6): **reached on night 100 and failed: bg_2 was quarantined at attempt 3, and the Liaison's quarantined wake, s216, presented a build plan page, m108, with no park or stop option; the scripted go-ahead changed nothing, no park was asked and no resume fired** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. The frame reopens: the quarantine needs its own page that names the given-up key and offers park or resume. Waits on Roman's order.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
@@ -1277,6 +855,7 @@ a different question and the night is then opened once.
   `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
+- Status 2026-09-30 16:32 (rota-c6): **half reached on night 100: the Tester named the trailing newline at s135 and s141, bg_1's review passed and bg_1 merged; no turn named an indent** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Still validating on a night that reaches an indent criterion.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (532b3429)
 
@@ -1612,6 +1191,7 @@ a different question and the night is then opened once.
   `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
+- Status 2026-09-30 16:32 (rota-c6): **not reached on night 100: no deferral and no resume fired after either Stuck line** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Still validating, and it now waits on frame 87's page, because a resume needs the park ask first.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
