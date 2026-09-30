@@ -310,6 +310,11 @@ a different question and the night is then opened once.
   `code.commit` at turn 22; `.rota/night100.log`, `do:harness: bg_1: 34 test(s), 0 not passing`, about
   15:20; three Developer sessions so far against night 99's three refusals). Meta workflow. The night runs
   on, walk 1 since 14:48. The frame closes on GAUNTLET-DONE and the read.
+- Status 2026-09-30 15:25 (rota-c6): **night 100 merged bg_1, the first merge since the write-path frames, after
+  48 steps and 4 asks** (observed: `.rota/night100.log`, `MERGED (1 total) after 48 steps, 4 asks`; the
+  harness lines before it read 34 of 34, then 37 with 3, 1 and 0 not passing). Meta workflow. The
+  delivery path ran end to end with every door of frames 93 to 99 in place. Walk 1 goes on to the next
+  sentence.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
