@@ -570,6 +570,10 @@ a different question and the night is then opened once.
   `developer|tick:batch_start|bg_1` at 3; the database kept as `.rota/clickI_night99.db`,
   12 MB). Meta workflow. Still validating. The next night at a commit that holds frame
   99's repair proves this frame. Handed off with the stack by 532b3429 at this line.
+- Status 2026-09-30 13:08 (rota-4c): **handed off: session 7448850f (rota-c6) holds frame 94 and the stack
+  from `e696803`, with frames 96, 95, 93, 87, 88 and 86 validating and frames 97, 98, 99 and
+  100 pushed** (observed: `handover.py hand`, exit 0, CONFIRMED 10s after the claim at
+  13:08:39). Meta workflow. This session, 532b3429, stops here at about 378k.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
