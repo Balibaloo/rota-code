@@ -266,6 +266,9 @@ a different question and the night is then opened once.
 ` without a word; the 20-join cap refuses
   a whole-file write with 25 breaks. Known low, older than the frame and not taken: `write_text` writes
   CR LF on Windows and the result's `bytes` counts the LF text. Three taken, one test each.
+- Status 2026-09-30 13:49 (rota-c6): **gate clean at `85f7c4f`** (observed: the gate, 494s, exit 0: suite 22 failed and
+  2454 passed against the stored 23 and 2324, new reds 0, reds gone 1, stale 0). Meta workflow. Pass 3
+  still runs; the gate runs again at its commit, then the third diff review.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
