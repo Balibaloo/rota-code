@@ -304,6 +304,12 @@ a different question and the night is then opened once.
   a newline escape must land with the repair sentence. Frames 94, 96, 95, 93, 87, 88 and 86 validate on
   the same night. Actual, walls apart: four passes on one agent, 117.1k cumulative against 40k; four
   reviews, 247.8k against 40k; two gates and a night; register lines 0, memory 1.
+- Status 2026-09-30 15:13 (rota-c6): **night 100 proves the door: s134's write with the escape landed on the
+  first call with the repair sentence, was committed, and bg_1's harness ran 34 tests with 0 failing**
+  (observed: `.rota/clickI.db`, s134 turn 21, `OK code.write` with `repaired` naming line 37, then
+  `code.commit` at turn 22; `.rota/night100.log`, `do:harness: bg_1: 34 test(s), 0 not passing`, about
+  15:20; three Developer sessions so far against night 99's three refusals). Meta workflow. The night runs
+  on, walk 1 since 14:48. The frame closes on GAUNTLET-DONE and the read.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
