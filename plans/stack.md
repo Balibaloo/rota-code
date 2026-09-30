@@ -216,8 +216,10 @@ a different question and the night is then opened once.
   cassettes 39413 and 39425, 498 and 522 bytes, 2026-09-30).
 - Ends when: a second `msg.*` of another verb after the session's completion line is
   refused, with a unit test; the case asserts that the committed `src/ui.py` still defines
-  `_readline_prompt`; the case re-records. Priced: one pass, about 30k on Opus; one diff
-  review, about 30k; one re-record.
+  `_readline_prompt`; a span that covers more old top-level definitions than its text
+  keeps carries frame 95's sentence with the span offer (observed: run 1 of the re-record,
+  `start=7, end=-1`, 2026-09-30); the case re-records. Priced: one pass, about 40k on
+  Opus; one diff review, about 30k; one re-record.
 - Waits on: frame 95's close, because the door and the case share the write path.
 - Reasoning: frame 95's status of the diagnosis above.
 - Status 2026-09-30 10:37 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
@@ -558,6 +560,17 @@ a different question and the night is then opened once.
   drops door refuses a whole-file write whose text references a name the old file defined
   and the text drops, with the span offer; the note names the lines above and below with
   the span. Then the case re-records. Two items go to frame 98.
+- Status 2026-09-30 10:50 (rota-4c): **pass 5 committed at `791da68`, the case re-records 4 of 5, the
+  branch is merged and the gate runs at the merge, a short review runs** (observed: the
+  implementer resumed on Opus, 250.2k cumulative on the harness line, 27 tool calls, 12
+  minutes; 157 door tests pass; the re-record in the worktree, 449s, 52 cassettes: runs 2 to
+  5 get the refusal "drops _readline_prompt, visible_prompt_func, and your text still uses
+  them ... write only confirm with start=9, end=21", send that span and commit; run 2 then
+  challenges the tester on a stale `tests.load`; run 1 sends a span from line 7 to the end,
+  which drops `style` and `echo` unrefused, and passes). Meta workflow. The worktree's
+  recordings are not in the main register, so the gate at the merge re-records the case
+  itself. Open, added to frame 98: a span that covers more old top-level definitions than
+  its text keeps carries the sentence with the span offer.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
