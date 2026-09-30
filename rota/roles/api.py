@@ -9048,7 +9048,10 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         # Frame 95: a text that stops short still parses. The result names
         # the lines the write drops, and the write lands.
         if path.endswith(".py"):
-            tail_note = _tail_drop(lines, start, stop, fragment)
+            try:
+                tail_note = _tail_drop(lines, start, stop, fragment)
+            except Exception:
+                tail_note = None    # a note never refuses a write
     from ..core import fence as _fence
     _fence.check_manifest(path, _criteria_texts(ctx))
     # A file at the root named like a standard-library module shadows it
@@ -9300,7 +9303,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             except SyntaxError:
                 old_tree = None
             if old_tree is not None and _guarded(old_tree) and not _guarded(tree):
-                n_old = len(target.read_text(encoding="utf-8").splitlines())
+                n_old = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
                 raise ValueError(
                     f"{path} is the program's entry point: it has an "
                     f"`if __name__ == \"__main__\":` block today and this "
@@ -9576,7 +9579,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 # same whole-file write of only the new functions each
                 # time. The way out is a fact about the file, so say it:
                 # the line count, and the span that appends.
-                n_old = len(target.read_text(encoding="utf-8").splitlines())
+                n_old = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
                 raise ValueError(
                     f"this rewrite of {path} drops {', '.join(gone)}, and "
                     f"{why}. Either write the whole file with every existing "
