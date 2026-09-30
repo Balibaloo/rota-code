@@ -306,6 +306,13 @@ a different question and the night is then opened once.
   all-lines blank span leaves a one-newline file; the case walk stops on `case.A`;
   `end=None` with `start != 0` is a whole-file write, older than the frame. All four
   go to pass 2 with one test each.
+- Status 2026-09-30 03:58 (rota-4c): **pass 2 committed at `f986adb`, pass 3 runs on its three open
+  questions** (observed: the implementer resumed on Opus, 79.5k on the harness line for
+  the pass, 20 tool calls, 3.6 minutes; 134 and 31 tests pass, the four new tests fail
+  with the change stashed). Meta workflow. Pass 3: the __future__ door covers any
+  insert at or before the last leading such import, a no-statement text passes it,
+  and the case header matches `case(?![\w.])`. Then one diff review at the pass 3
+  commit and the gate.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
