@@ -226,6 +226,10 @@ a different question and the night is then opened once.
 - Status 2026-09-30 22:24 (rota-c6): **cause confirmed: `verdict_failed` at `predicates.py:1256-1259` compares no `commit_sha` with the head, although its docstring says with no newer commit, and its band `fix` (10) sorts before `review`'s band `gate` (20), so the stale fail verdict wakes a Developer before every review; the `review` predicate itself returned bg_1 at head `1a895b5`, every clause passing; `tick_attempts` holds no verdict_failed key because each head move resets the count** (observed: night 101's read on Opus, 85.0k on the harness line against 80k, from `.rota/clickI_night101.db`, 2026-09-30). Meta workflow. A second high rides with it: the `verdicts` table has no column for the Critic's reason, so the thirteen Developers saw `failed_criterion` alone and never the newline objection, and their edits went nowhere. Ends-when gains: the verdict's reason is stored and shown on the verdict-failed wake. Priced up: one pass about 40k.
 - Status 2026-09-30 22:26 (rota-c6): **first for the next session** (ruled: Roman, asked with frames 100 and 87 as the
   other options). Meta workflow. Unclaimed: session 7448850f is past 300k and takes no new frame.
+- Status 2026-09-30 23:46 (rota-c6): **the stack is handed off from this commit by 7448850f at about 356k, holding no
+  frame** (ruled: Roman, hand off now; a session past 300k with no frame never idles, and `CLAUDE.md`
+  carries the rule from this commit). Meta workflow. Open for the next session: 102 first, then 100, 101,
+  98, 93's one sentence, 88's brief line, 87 reopened; 86 validating.
 
 ### 101. The Critic's wake puts the diff first, and a long diff cuts the criteria and the tests out (2026-09-30)
 

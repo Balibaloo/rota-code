@@ -17,6 +17,11 @@ three warnings only:
   tell Roman now, in one line, and name the count. This is the
   only warning he gets before the hand-off needs a session, and it costs
   one command.
+  **A session past 300k that closes its last frame hands off at once**
+  (ruled: Roman, 2026-09-30, after session 7448850f sat idle at 356k with
+  no frame and asked whether to wait for 400k: "you should never be idle
+  like this, the rule is hand off"). The 400k line protects a held frame.
+  It never keeps an empty session alive.
 - 400k: write the status line, commit the stack, then hand the frame off
   with one command. Never hand off below 400k (ruled: Roman, 2026-09-27: a
   hand-off at about 300k landed with a review owed, and the last 100k
