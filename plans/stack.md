@@ -313,6 +313,14 @@ a different question and the night is then opened once.
   the latin-1 test hit; `moved` reads `elif X:` as `if X:`, or the elif shape cannot read
   1. The agent's own estimate of its total is 350k and the harness line says 175.8k, so
   the agent stays for frame 93.
+- Status 2026-09-30 09:53 (rota-4c): **review clean, `f95` merged at `b6a7707`, two lows outside the
+  diff fixed at `ea3b823`, validating on the gate and the night** (observed: the reviewer
+  on Opus, 33.2k on the harness line against 25k, 15 tool calls; seven probe results
+  changed since `ea82dcd` and each moved to the right count; 152 door tests pass at
+  `ea3b823`). Meta workflow. The two lows are this session's own edits: the span path's
+  note call gains the try the whole-file call has, and the entry-point door's two strict
+  line counts read with replace. Actual, walls apart: one design note and four passes on
+  one agent, 175.8k cumulative against 40k; four reviews, 40.5k, 38.8k, 33.2k against 40k.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
@@ -460,7 +468,7 @@ a different question and the night is then opened once.
   harness line against 30k; three reviews, 54.2k, 54.8k and 38.6k against 40k; two of
   this session's own one-line edits; register lines 0 here, 1 for frame 96's gate.
 
-### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
+### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
 - **Batch C, the night's stall, found by night 97's read.** One site: the
   result of `code.write` when the merged file equals the file on disk. It
@@ -482,7 +490,9 @@ a different question and the night is then opened once.
   on Opus; one diff review, about 40k; the night shared with frame 87.
 - Waits on: Roman's order. Recommended: after frame 87, on the same night.
 - Reasoning: `plans/archive/night97-walk-2026-09-29.md`, the new wall.
-- Status 2026-09-29 12:02 (rota-16): pushed by 36d4fbef, unclaimed, priced. Meta workflow.
+- Status 2026-09-30 09:53 (rota-4c): **held by 532b3429, one pass runs on frame 95's agent and tree**
+  (ruled: Roman, 2026-09-30, more frames at once in this session). Meta workflow. Branch
+  `f95` reset to `ea3b823`, so the pass sits on frame 95's merge. One diff review follows.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
