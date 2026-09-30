@@ -330,6 +330,10 @@ a different question and the night is then opened once.
   was refused for undoing its own commit). Meta workflow. This is frame 100's shape, the window drops
   earlier reads, on a second night and a second batch, and it holds the frame's evidence now. Frame 99's
   door refused nothing here. The night runs on.
+- Status 2026-09-30 16:26 (rota-c6): **night 100 ended at 16:25 in 134 minutes: walk 1 merged bg_1, walks 2 and 3
+  stopped on bg_2's tests_failing at the cap** (observed: `.rota/night100.log`, `GAUNTLET-DONE 16:25`,
+  launcher exit 0; 249 sessions, 1089 turns; the database kept as `.rota/clickI_night100.db`, 20 MB).
+  Meta workflow. The read runs on Opus with a 100k cap, for frames 99, 94, 96, 95, 93, 87, 88 and 86.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
