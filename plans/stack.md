@@ -230,8 +230,7 @@ a different question and the night is then opened once.
   frames 100, 98 and 97 as the other options; 99 unblocks the night that seven frames wait on). Meta
   workflow. Next: read the door and the decoder, then one implementer pass on Opus.
 - Status 2026-09-30 13:15 (rota-c6): **pass 1 runs on Opus; the decoder is not the fault and stays** (reasoned:
-  `toolproto.parse_args` decodes the text with `literal_eval`, so `
-` in a single-quoted argument must
+  `toolproto.parse_args` decodes the text with `literal_eval`, so `\n` in a single-quoted argument must
   become a line break, and after the decode a meant break and an escaped one are the same character;
   the repair belongs to the parse door alone, on the fragment). Meta workflow. The brief is in the
   scratchpad, `frame99-brief.md`, with five tests. The re-record goes to the gate's own stale set, because
@@ -262,8 +261,7 @@ a different question and the night is then opened once.
   runs** (observed: the reviewer on Opus, 76.8k on the harness line against 40k, 19 tool calls, 6.9
   minutes; 173 door tests pass in the worktree). Meta workflow. High: the indent view takes its prefix
   over every indented line, so a string continuation indented less than the span blocks the repair and
-  the escape sentence. Low: a CR LF inside a string lands as `
-` without a word; the 20-join cap refuses
+  the escape sentence. Low: a CR LF inside a string lands as `\n` without a word; the 20-join cap refuses
   a whole-file write with 25 breaks. Known low, older than the frame and not taken: `write_text` writes
   CR LF on Windows and the result's `bytes` counts the LF text. Three taken, one test each.
 - Status 2026-09-30 13:49 (rota-c6): **gate clean at `85f7c4f`** (observed: the gate, 494s, exit 0: suite 22 failed and
@@ -278,11 +276,8 @@ a different question and the night is then opened once.
   two** (observed: the reviewer on Opus, 67.0k on the harness line against 40k, 19 tool calls, 7.7
   minutes; 177 door tests and 19 end-to-end probes pass in the worktree). Meta workflow. Taken: a span
   whose first line is a column-0 comment gets an empty prefix and no repair; the landed sentence after a
-  CR join names `
-` for a `
-` file. Known lows, not taken: a bare CR with no LF is refused with the
-  `
-` form, and a CR inside an earlier triple-quoted string moves the error line off the broken line
+  CR join names `\n` for a `\r\n` file. Known lows, not taken: a bare CR with no LF is refused with the
+  `\n` form, and a CR inside an earlier triple-quoted string moves the error line off the broken line
   because the repair splits on LF alone. The gate at `5d54e9a` still runs; pass 4's commit gets the
   gate and one short review of its diff, and the night follows.
 
