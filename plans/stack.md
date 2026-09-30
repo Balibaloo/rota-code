@@ -313,6 +313,11 @@ a different question and the night is then opened once.
   insert at or before the last leading such import, a no-statement text passes it,
   and the case header matches `case(?![\w.])`. Then one diff review at the pass 3
   commit and the gate.
+- Status 2026-09-30 04:01 (rota-4c): **pass 3 committed at `04e49c1`, the gate and the second diff
+  review run at it** (observed: the implementer resumed on Opus, 93.2k on the harness
+  line for the pass, 34 tool calls, 6.7 minutes; 136 and 31 tests pass, the two new
+  tests fail with the change stashed). Meta workflow. Three passes on one agent so far,
+  59.5k, 79.5k and 93.2k on the harness line, 232k in all against 30k priced.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29)
 
