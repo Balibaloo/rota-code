@@ -204,6 +204,26 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 102. After a failed verdict the fixed commit runs green and no review fires again (2026-09-30)
+
+- **Batch C, the night's stall, found by this session's watch of night 101.** Two sites: the `review`
+  predicate at `rota/core/predicates.py:1155` and `verdict_failed` at `:1254`. It touches a predicate, so
+  it carries a diff review and a walk.
+- Rota workflow. On night 101 the Critic s145 failed bg_1 on `echo_json_compact` at `04588017`; five
+  Developer sessions on `tick:verdict_failed` each committed, the head moved to `dc0f5ffb`, the harness ran
+  green five times, and no `tick:review` fired; `tick_attempts` holds `developer|tick:verdict_failed|bg_1`
+  at 1, so no cap ends it (observed: `.rota/clickI.db` and `.rota/night101.log`, 21:50, 2026-09-30). The
+  `review` predicate is per commit and needs a test run at the head, no verdict at the head, and two more
+  clauses on `batch_tickets` and `tests`; one of those holds bg_1 back, unread.
+- Ends when: a green head commit after a failed verdict wakes the Critic once and the Developer never;
+  the clause that held bg_1 is named from night 101's rows; one predicate test; the Critic and Developer
+  cases on the verdict path re-record; a night at the closing commit merges bg_1 after a failed verdict.
+  Priced: one read of the rows, 20k; one pass, about 30k on Opus; one diff review, about 40k.
+- Waits on: Roman's order. Recommended: first, before frames 100 and 101, because it holds every batch
+  that fails one review, and frame 88's newline criterion is the one the Critic failed here.
+- Reasoning: frame 97's status of this hour and night 101's read.
+- Status 2026-09-30 21:41 (rota-c6): pushed by 7448850f, unclaimed, priced. Meta workflow.
+
 ### 101. The Critic's wake puts the diff first, and a long diff cuts the criteria and the tests out (2026-09-30)
 
 - **Batch C, the night's stall, found by frame 97's last review.** One site: the order of the pushed results
@@ -352,6 +372,12 @@ a different question and the night is then opened once.
   change and its removed lines, and the Critic sees the whole batch. Frames 93, 88, 87 and 86 ride on it.
   Actual so far, walls apart: three passes on one agent, 106.4k cumulative against 40k; three reviews,
   189.0k against 40k; three gates; register lines 0.
+- Status 2026-09-30 21:41 (rota-c6): **walk 1 since 20:45: bg_1 green at 37 tests, the Critic failed it once on the
+  newline criterion, and five fixed commits ran green with no second review, which is frame 102**
+  (observed: `.rota/night101.log`, five `0 not passing` lines after the verdict; `.rota/clickI.db`, one
+  Critic session s145, verdict fail at `04588017`, head `dc0f5ffb`; s145's prompt holds the whole batch
+  `[diff]` at offset 219 and no removed-lines block, because bg_1 removes nothing). Meta workflow. The
+  night runs on to its step cap; the read after GAUNTLET-DONE judges this frame's ends-when.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
