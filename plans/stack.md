@@ -604,6 +604,12 @@ a different question and the night is then opened once.
   and the drops door already judges it).
 - Status 2026-09-30 11:24 (rota-4c): **pass 6 merged at `fb8b584`, a short review runs, then the gate
   after frame 87's case lands.** Meta workflow.
+- Status 2026-09-30 11:27 (rota-4c): **the short review of `7808f3a..06a16c9` finds no defect** (observed:
+  the reviewer on Opus, 33.5k on the harness line against 25k, 18 tool calls; the three-span
+  offer applied last first gives the right file and first first gives a wrong one; a first
+  write equal to disk is never a repeat; 234 tests). Meta workflow. Known low, left: a
+  dropped top-level shadow of a builtin, such as `def open`, passes silently and the call
+  reaches the builtin. Validating on the gate and the night.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
