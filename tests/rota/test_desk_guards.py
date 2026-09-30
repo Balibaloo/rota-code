@@ -2987,13 +2987,98 @@ def test_a_whole_write_of_one_def_that_uses_the_dropped_helpers_is_refused(db, t
     assert "default_on_eof=False" in held and "def echo" in held and "import sys" in held
 
 
-def test_a_whole_write_that_drops_an_unused_helper_names_the_lines_and_the_span(db, tmp_path):
+def test_a_whole_write_that_drops_an_unused_helper_names_the_lines_and_no_span(db, tmp_path):
     """Frame 95 pass 5: a whole-file write that keeps `keep` and drops a helper
     nothing uses lands, and the sentence counts the dropped lines."""
     old = "def keep(x):\n    return x\n\n\ndef helper():\n    return 2\n"
     root, sb = _ui_worktree(db, tmp_path, "m.py", old)
     out = sb.call("code.write", path="src/m.py", text="def keep(x):\n    return x + 1\n")
     assert out["dropped"] == ("This write drops 2 lines of the old file, from "
-                              "`def helper():`; write only keep with start=0, end=2 "
-                              "to keep them.")
+                              "`def helper():`; write the whole file again with "
+                              "those lines kept.")
+    assert "start=" not in out["dropped"]
 
+
+def test_a_refusal_with_two_kept_defs_offers_the_spans_last_first(db, tmp_path):
+    """Frame 95 pass 6: a span write moves every line below it, so the offer
+    runs bottom-up and says so."""
+    old = """def a(x):
+    return helper(x)
+
+
+def helper(x):
+    return x
+
+
+def b(x):
+    return helper(x) + 1
+"""
+    root, sb = _ui_worktree(db, tmp_path, "m.py", old)
+    new = """def a(x):
+    return helper(x) * 2
+
+
+def b(x):
+    return helper(x) + 2
+"""
+    with pytest.raises(ValueError) as e:
+        sb.call("code.write", path="src/m.py", text=new)
+    msg = str(e.value)
+    assert ("write only b with start=8, end=10, and then a with start=0, end=2 "
+            "(write them in this order, last first): each span") in msg
+
+
+def test_a_star_import_silences_the_used_check(db, tmp_path):
+    """Frame 95 pass 6: a star import can bind any name, so a dropped name
+    the new text uses is not a sure break."""
+    old = """def helper(x):
+    return x
+
+
+def keep(x):
+    return helper(x)
+"""
+    root, sb = _ui_worktree(db, tmp_path, "m.py", old)
+    sb.call("code.write", path="src/m.py",
+            text="from os.path import *" + chr(10) * 3
+                 + "def keep(x):" + chr(10) + "    return helper(x) + 1" + chr(10))
+    assert "helper(x) + 1" in (root / "src" / "m.py").read_text()
+
+
+def test_a_match_capture_binds_the_name_it_uses(db, tmp_path):
+    """Frame 95 pass 6: a match capture, a star capture and a mapping rest
+    bind names, so their use is not a use of the old top-level name."""
+    old = """value = 1
+rest = 2
+tail = 3
+
+
+def keep(v):
+    return v
+"""
+    root, sb = _ui_worktree(db, tmp_path, "m.py", old)
+    new = """def keep(v):
+    match v:
+        case {"k": value, **rest}:
+            return value, rest
+        case [_, *tail]:
+            return tail
+    return v
+"""
+    sb.call("code.write", path="src/m.py", text=new)
+    assert "match v:" in (root / "src" / "m.py").read_text()
+
+
+def test_a_dropped_shadow_of_a_builtin_is_not_refused(db, tmp_path):
+    """Frame 95 pass 6: the builtin still resolves after the file's own
+    shadow goes, so the file is not broken."""
+    old = """def input(p):
+    return p
+
+
+def ask():
+    return input("?")
+"""
+    root, sb = _ui_worktree(db, tmp_path, "m.py", old)
+    sb.call("code.write", path="src/m.py", text="def ask():" + chr(10) + "    return input('x')" + chr(10))
+    assert "input('x')" in (root / "src" / "m.py").read_text()
