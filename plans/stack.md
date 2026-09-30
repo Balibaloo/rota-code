@@ -306,6 +306,13 @@ a different question and the night is then opened once.
   right; 149 tests). Meta workflow. Low: the positional fallback pairs a later statement
   after an insert; a block turned into an `elif` counts as dropped; the whole-file read
   runs outside the try; step 10 of the note says undercount only. Pass 4 takes all four.
+- Status 2026-09-30 09:46 (rota-4c): **pass 4 committed at `4961fde`, a short review runs before the
+  merge** (observed: the implementer resumed on Opus, 175.8k cumulative on the harness
+  line, 19 tool calls, 3 minutes; 152 door tests pass). Meta workflow. Two edits past the
+  brief, both accepted: the drops door also catches `UnicodeDecodeError`, an older fault
+  the latin-1 test hit; `moved` reads `elif X:` as `if X:`, or the elif shape cannot read
+  1. The agent's own estimate of its total is 350k and the harness line says 175.8k, so
+  the agent stays for frame 93.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
