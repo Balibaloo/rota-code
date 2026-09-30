@@ -210,8 +210,7 @@ a different question and the night is then opened once.
   door of `code.write` at `rota/roles/api.py:9214` and the argument decoder before it. It
   touches the write path, so it carries a diff review and a walk.
 - Rota workflow. On night 99 the Developer's three sessions on `bg_1`'s batch_start each
-  wrote `out += "
-"` with one escape, the decoder made it a real newline, the parse door
+  wrote `out += "\n"` with one escape, the decoder made it a real newline, the parse door
   refused "unterminated string literal", and the batch was quarantined at attempt 3. Night
   98's s133 passed at turn 21 only after the model doubled the escape (observed: night 99's
   s132 to s134 and night 98's s133, 2026-09-30).
@@ -860,8 +859,7 @@ a different question and the night is then opened once.
   a line break, and the parse door refuses; night 98 passed the same wall by chance at
   attempt 2** (observed: the read on Opus, 94.2k on the harness line against 60k, on a copy
   of night 99's database: s132, s133 and s134 each ran 25 turns and wrote nothing; s134
-  turns 19 and 21 hold `out += "
-"` refused as an unterminated string literal; `git log -S`
+  turns 19 and 21 hold `out += "\n"` refused as an unterminated string literal; `git log -S`
   finds none of the refusal texts in `60cc23f..0bd5f3b`; night 98's s133 passed at turn 21
   with the escape doubled). Meta workflow. Not this frame's wall. Frame 99 carries the
   repair and frame 100 the re-read loop that eats the turn budget.
