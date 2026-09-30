@@ -520,6 +520,14 @@ a different question and the night is then opened once.
   workflow. Actual, walls apart: two passes, about 36k of the agent's 211.6k cumulative;
   two reviews, 40k and 23.4k against 40k; register lines 0. The gate at the merge follows
   the one at `ea3b823` that still runs.
+- Status 2026-09-30 10:33 (rota-4c): **the gate at `ea3b823` reports one new red, not flaky, on frame
+  95's merge; a diagnosis runs on Opus** (observed: the gate, 640s: suite 2416 passed against
+  the stored 2324, new reds 1, `ACT-DV-edit-inside-the-function`, reds gone 1, stale 0;
+  `.rota-gate.log`: the case read STALE under the new prompt, re-recorded 2/5 then 3/5
+  against 4, the failing runs call `msg.challenge_tester`). Meta workflow. The write path
+  changed in frames 94 and 95 before this gate, so one of them moved the Developer's prompt
+  on this case. The cause goes on the stack after the runs' turns are read, not before.
+  Frames 95 and 93 are not validating until this red is understood.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25) (532b3429)
 
