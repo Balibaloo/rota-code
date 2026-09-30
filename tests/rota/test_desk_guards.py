@@ -2886,6 +2886,35 @@ def test_a_write_the_file_already_holds_says_so_and_quotes_the_red_assertion(db,
     assert out["written, not committed"] == []
     assert os.stat(root / "script.py").st_mtime_ns == before
     assert (root / "script.py").read_bytes() == body.encode("utf-8")
+    # The same fields a landed write returns (frame 93's review, 2026-09-30).
+    assert out["lands with"] == "code.commit"
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst2','b1','c1','test_bill.py','import billing' || char(10) || "
+               "'def test_b():' || char(10) || '    assert billing')")
+    db.commit()
+    out = sb.call("code.write", path="script.py", text=body)
+    assert out["note"] == ("the batch's tests import billing and no such module "
+                           "exists in the worktree yet")
+
+
+def test_an_unchanged_write_names_the_first_red_test_of_the_latest_attempt(db, tmp_path):
+    """Frame 93's review (2026-09-30): with two red tests, `rowid DESC` named
+    the test the harness ran last. The first by rowid is named, and the
+    sentence counts the rest."""
+    root, body, sha, sb = _committed_close(db, tmp_path)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst2','b1','c1','test_two.py','assert 0')")
+    said = chr(10).join([">       assert 0", "E       assert 0", "", "test_two.py:1: AssertionError"])
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "attempt, output) VALUES ('r2','b1','tst2',?,'fail',5,?)", (sha, said))
+    db.commit()
+    out = sb.call("code.write", path="script.py", text=body)
+    assert out["unchanged"] == (
+        f"script.py already holds this text, so this write changed nothing. "
+        f"Commit {sha[:8]} holds it. tst1 fails at {sha[:8]} on "
+        f"`assert close_account('a1') is not None`, and pytest said "
+        f"`assert None is not None`, and 1 more fail; tests.load lists them. "
+        f"Read what this assertion needs before the next write.")
 
 
 def test_a_write_that_changes_one_line_carries_no_unchanged_sentence(db, tmp_path):

@@ -8397,14 +8397,23 @@ def _unchanged_note(ctx, root, path, dirty) -> str:
     if not sha:
         return said
     short = sha[:8]
+    # The latest attempt on this commit, in the order the harness ran it.
+    # Frame 93's review (2026-09-30): `rowid DESC` named the last test run.
     rows = ctx.conn.execute(
-        "SELECT test_id, commit_sha, output FROM test_runs "
+        "SELECT test_id, commit_sha, output, attempt FROM test_runs "
         "WHERE batch_id = ? AND result != 'pass' "
-        "ORDER BY attempt DESC, rowid DESC", (ctx.batch_id,)).fetchall()
-    for test_id, run_sha, output in rows:
-        # A run records the sha the harness read. Either form may be short.
-        if not run_sha or not (sha.startswith(run_sha) or run_sha.startswith(sha)):
-            continue
+        "ORDER BY attempt DESC, rowid ASC", (ctx.batch_id,)).fetchall()
+    # A run records the sha the harness read. Either form may be short.
+    rows = [r for r in rows
+            if r[1] and (sha.startswith(r[1]) or r[1].startswith(sha))]
+    rows = [r for r in rows if r[3] == rows[0][3]] if rows else []
+    red = list(dict.fromkeys(r[0] for r in rows))
+
+    def _cut(s):
+        # A long assert made a sentence of 1915 characters (the same review).
+        return s if len(s) <= 200 else s[:197] + "..."
+
+    for test_id, _sha, output, _attempt in rows:
         lines = (output or "").splitlines()
         # pytest marks the failing source line with `>` and its error with
         # `E` below it. The last `>` is the frame that raised.
@@ -8412,9 +8421,11 @@ def _unchanged_note(ctx, root, path, dirty) -> str:
         err = [x[1:].strip() for x in lines[marks[-1]:] if x.startswith("E ")] if marks else []
         if err:
             src = lines[marks[-1]][1:].strip()
+            more = (f", and {len(red) - 1} more fail; tests.load lists them"
+                    if len(red) > 1 else "")
             return (f"{said} Commit {short} holds it. {test_id} fails at {short} on "
-                    f"`{src}`, and pytest said `{err[0]}`. Read what this "
-                    f"assertion needs before the next write.")
+                    f"`{_cut(src)}`, and pytest said `{_cut(err[0])}`{more}. Read what "
+                    f"this assertion needs before the next write.")
     return (f"{said} Commit {short} holds it. tests.load shows what the harness "
             f"said about each failing test.")
 
@@ -9688,9 +9699,14 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         same = False
     if same:
         dirty = _uncommitted(ctx, root)
-        return {"path": path, "bytes": len(text.encode("utf-8")), "created": False,
-                "unchanged": _unchanged_note(ctx, root, path, dirty),
-                "written, not committed": dirty}
+        # The same fields a landed write returns (frame 93's review).
+        out = {"path": path, "bytes": len(text.encode("utf-8")), "created": False,
+               "unchanged": _unchanged_note(ctx, root, path, dirty),
+               "written, not committed": dirty, "lands with": "code.commit"}
+        if missing and stem not in missing:
+            out["note"] = (f"the batch's tests import {', '.join(missing)} and no "
+                           f"such module exists in the worktree yet")
+        return out
     # A whole-file write is a span of the whole old file (frame 95).
     # A note never refuses a write, so a file that does not decode gives no
     # note (frame 95's third review, 2026-09-30).
