@@ -243,7 +243,7 @@ a different question and the night is then opened once.
 - Status 2026-09-30 10:37 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
 - Status 2026-09-30 16:32 (rota-c6): **confirmed on night 100: s210 ran 15 turns after its completion line at t9, and its writes and the commit `3ffe8acc` landed after it** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow.
 
-### 97. A later session never sees the lines an earlier commit of the batch dropped (2026-09-30)
+### 97. A later session never sees the lines an earlier commit of the batch dropped (2026-09-30) (7448850f)
 
 - **Batch C, the night's stall, found by frame 95's design note.** Two sites: `code_read`
   at `rota/roles/api.py:8458`, which diffs `HEAD~1..HEAD`, and the Developer's
@@ -264,6 +264,9 @@ a different question and the night is then opened once.
   questions.
 - Status 2026-09-30 04:33 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
 - Status 2026-09-30 16:32 (rota-c6): **cause of night 100's walk 2 stall, confirmed: `code.diff` runs `git diff HEAD~1`, and after s210's tidy-up commit the tree equalled HEAD~1, so s213 to s215 each read an empty diff, never saw the change in `confirm` that breaks click's own test, and spent three attempts without a write** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. Recommended first now: it stopped the night, and frame 100's re-reads were the seat looking for a diff it was never shown.
+- Status 2026-09-30 17:29 (rota-c6): **held by 7448850f, first on Roman's order** (ruled: Roman, asked with frames 100,
+  87 and 93 as the other options; it stopped night 100's walk 2). Meta workflow. Next: read the two sites and
+  the design note, then one implementer pass on Opus.
 
 ### 93. A write that changes nothing is accepted silently, and the seat repeats it (2026-09-29) (532b3429)
 
