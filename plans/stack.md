@@ -517,6 +517,16 @@ a different question and the night is then opened once.
   mid-night ends the park at the next boot, because `reconcile_worktrees` runs at boot
   only, and the principal acts between nights (reasoned: a tick that reads every
   worktree head is a new cost for a case no night has shown).
+- Status 2026-09-30 05:01 (rota-4c): **the last review finds one high, pass 3 runs: the park opens a
+  gate** (observed: the reviewer on Opus, 38.4k on the harness line against 30k, 14 tool
+  calls; the lift at boot runs only for a batch whose head moved; frame 86's cap park
+  resumes the same way after a hand commit as after `code.commit`; 103 tests pass). Meta
+  workflow. High: the parked line says `contest <item>`, and `rota sign --contest` needs
+  an open gate whose refs hold the item, while the parked line shows only when no gate is
+  open, so the principal can answer neither way. Pass 3: a quarantine park records one
+  open ask with the item and the batch in its refs and the parked facts in its text; a
+  contest on it cancels the batch, a hand commit at boot closes it (reasoned: the ruling
+  says the batch waits for the principal, and a gate is how the principal answers today).
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
