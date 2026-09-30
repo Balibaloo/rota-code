@@ -3390,6 +3390,26 @@ def _woken_items(ctx: Ctx) -> list[str]:
         f"SELECT id FROM items WHERE id IN ({marks}) ORDER BY id", refs)]
 
 
+def _woken_tickets(ctx: Ctx) -> list[str]:
+    """The wake's refs, kept only where they name a ticket row."""
+    refs = [r for r in ctx.wake_refs if isinstance(r, str)]
+    if not refs:
+        return []
+    marks = ",".join("?" * len(refs))
+    return [r["id"] for r in ctx.conn.execute(
+        f"SELECT id FROM tickets WHERE id IN ({marks}) ORDER BY id", refs)]
+
+
+def _batch_is_subject(ctx: Ctx, tickets: list[str]) -> bool:
+    """True when the session's batch, not the woken tickets, is the subject."""
+    # A grouping wake names the tickets with no live batch. The scheduler
+    # still gives the session the running batch as a fallback. Night 98's
+    # push then showed only that batch's ticket, and three Architect
+    # sessions grouped it again (observed: night98 walk, section 5,
+    # 2026-09-29). A wake that names its batch keeps the batch.
+    return bool(ctx.batch_id) and (ctx.batch_id in ctx.wake_refs or not tickets)
+
+
 @op("tickets", "scan")
 def tickets_scan(ctx: Ctx, item_id: str | None = None) -> list[dict]:
     if item_id:
@@ -3402,11 +3422,17 @@ def tickets_scan(ctx: Ctx, item_id: str | None = None) -> list[dict]:
     # role's -- a delivery session reads its batch, a session woken about an
     # item reads that item, and only a wake with no subject (a survey has no
     # item to scope by) still reads the world.
-    if ctx.batch_id:
+    tickets = _woken_tickets(ctx)
+    if _batch_is_subject(ctx, tickets):
         return _rows(ctx.conn.execute(
             "SELECT t.id, t.item_id, substr(t.text,1,120) AS headline "
             "FROM tickets t JOIN batch_tickets bt ON bt.ticket_id = t.id "
             "WHERE bt.batch_id = ? ORDER BY t.id", (ctx.batch_id,)))
+    if tickets:
+        marks = ",".join("?" * len(tickets))
+        return _rows(ctx.conn.execute(
+            f"SELECT id, item_id, substr(text,1,120) AS headline FROM tickets "
+            f"WHERE id IN ({marks}) ORDER BY id", tickets))
     woken = _woken_items(ctx)
     if woken:
         marks = ",".join("?" * len(woken))
@@ -3966,11 +3992,17 @@ def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
 def criteria_consult(ctx: Ctx) -> list[dict]:
     # Same scope rule as `tickets.scan`: the wake's batch, then its items,
     # and only a subjectless wake reads the world.
-    if ctx.batch_id:
+    tickets = _woken_tickets(ctx)
+    if _batch_is_subject(ctx, tickets):
         return _rows(ctx.conn.execute(
             "SELECT c.id, c.ticket_id, substr(c.text,1,120) AS headline "
             "FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
             "WHERE bt.batch_id = ? ORDER BY c.id", (ctx.batch_id,)))
+    if tickets:
+        marks = ",".join("?" * len(tickets))
+        return _rows(ctx.conn.execute(
+            f"SELECT id, ticket_id, substr(text,1,120) AS headline FROM criteria "
+            f"WHERE ticket_id IN ({marks}) ORDER BY id", tickets))
     woken = _woken_items(ctx)
     if woken:
         marks = ",".join("?" * len(woken))

@@ -79,3 +79,19 @@ def test_both_spellings_scope_the_same(world):
     ctx = Ctx(conn=world, role="developer", batch_id="b1")
     assert tickets_consult(ctx) == tickets_scan(ctx)
     assert criteria_scan(ctx) == criteria_consult(ctx)
+
+
+def test_a_grouping_wake_reads_its_tickets_not_the_running_batch(world):
+    # Night 98: the grouping wake named a second ticket, the scheduler gave
+    # the session the running batch, and the push showed only that batch's
+    # ticket (observed: night98 walk, section 5, 2026-09-29).
+    ctx = Ctx(conn=world, role="architect", batch_id="b1", wake_refs=("t2",))
+    assert [r["id"] for r in tickets_scan(ctx)] == ["t2"]
+    assert [r["id"] for r in criteria_scan(ctx)] == ["c2"]
+
+
+def test_a_wake_that_names_its_batch_still_reads_the_batch(world):
+    ctx = Ctx(conn=world, role="architect", batch_id="b1",
+              wake_refs=("b1", "t2"))
+    assert [r["id"] for r in tickets_scan(ctx)] == ["t1"]
+    assert [r["id"] for r in criteria_scan(ctx)] == ["c1"]
