@@ -286,6 +286,14 @@ a different question and the night is then opened once.
   returns None instead of the drops found; `cases` is missing from the fields; the
   kept rule matches against the whole text; the s183 tests read the installed click at
   a fixed line. All five go to pass 2 with the design note updated to the code.
+- Status 2026-09-30 05:03 (rota-4c): **pass 2 committed at `64c7657`, pass 3 runs on one rule**
+  (observed: the implementer resumed on Opus, 142k cumulative on the harness line, 24 tool
+  calls, 6.5 minutes; 149 door tests pass). Meta workflow. The pairing walks in order
+  behind a cursor; a leaf with no pair keeps the drops found; `match` cases count; the
+  `confirm` fixture is copied into the test file. The narrower kept rule made night 97's
+  note read 4 lines from `break`, one too many, because the branch `break`s sit above the
+  leaf. Pass 3: a line is kept when it appears anywhere inside the statement that holds
+  the leaf. Then the last review at the pass 3 commit.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
