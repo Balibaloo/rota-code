@@ -8259,42 +8259,71 @@ def _batch_base(ctx, tree) -> str:
     return _wt.base(tree, root)
 
 
-def _removed_lines(diff_text: str, cap: int = 40) -> dict[str, list[str]]:
+def _removed_lines(diff_text: str, cap: int = 2000) -> str:
     """
-    Per file, the removed lines whose stripped text no added line of that
-    file carries. A moved line is not a removal.
+    The removed lines that no added line of the same file carries, as text.
 
     Frame 97. Night 98's s183 lost 13 lines to an earlier commit, and no
-    later session saw the loss inside a long diff.
+    later session saw the loss inside a long diff. The comparison keeps the
+    indentation, because a dedent changes what a Python line means. Each
+    added line matches one removed line only, so a line removed twice and
+    added once still lists once.
+
+    The result is text with a line break, and never a dict. The runner puts
+    every short value on one head line before the `[diff]` block. A dict of
+    fifteen deleted files made a 45,415-character head line, and the cut at
+    20,000 characters then showed no diff (the diff review of 4876aae). The
+    text stops at `cap` characters across all files.
     """
+    from collections import Counter
+
     minus: dict[str, list[str]] = {}
-    plus: dict[str, set[str]] = {}
-    path, in_hunk = None, False
+    plus: dict[str, Counter] = {}
+    path, old_path, in_hunk = None, None, False
     for line in diff_text.splitlines():
         if line.startswith("diff --git "):
-            # The b/ side names the file. A deleted file keeps its a/ name.
-            path = line.split(" b/", 1)[-1] if " b/" in line else None
-            in_hunk = False
-            continue
-        if path is None:
-            continue
-        if line.startswith("@@"):
-            in_hunk = True
+            path, old_path, in_hunk = None, None, False
             continue
         if not in_hunk:
+            # The file's name comes from its own header lines. A path that
+            # holds " b/" broke a split of the `diff --git` line.
+            if line.startswith("--- a/"):
+                old_path = line[6:]
+            elif line.startswith("+++ b/"):
+                path = line[6:]
+            elif line.startswith("+++ /dev/null"):
+                path = old_path
+            elif line.startswith("@@") and path:
+                in_hunk = True
             continue
         if line.startswith("-") and line[1:].strip():
             minus.setdefault(path, []).append(line[1:].rstrip())
         elif line.startswith("+") and line[1:].strip():
-            plus.setdefault(path, set()).add(line[1:].strip())
-    out: dict[str, list[str]] = {}
+            plus.setdefault(path, Counter())[line[1:].rstrip()] += 1
+    entries: list[tuple[str, str]] = []
     for f, lines in minus.items():
-        gone = [t for t in lines if t.strip() not in plus.get(f, set())]
-        if len(gone) > cap:
-            gone = gone[:cap] + [f"... and {len(gone) - cap} more"]
-        if gone:
-            out[f] = gone
-    return out
+        left = plus.get(f, Counter())
+        for text in lines:
+            if left[text] > 0:
+                left[text] -= 1
+            else:
+                entries.append((f, text))
+    if not entries:
+        return ""
+    out: list[str] = []
+    size, shown, current = 0, 0, None
+    for f, text in entries:
+        add = ([f + ":"] if f != current else []) + ["- " + text]
+        cost = sum(len(a) + 1 for a in add)
+        if size + cost > cap:
+            break
+        out.extend(add)
+        size += cost
+        shown += 1
+        current = f
+    if shown < len(entries):
+        out.append(f"... and {len(entries) - shown} more lines")
+    return chr(10).join(out)
 
 
 @op("code", "diff")
@@ -8649,6 +8678,10 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
         removed = _removed_lines(out["diff"])
         if removed:
             out["removed lines"] = removed
+        # An empty diff with no word reads as a batch that changed nothing.
+        # A fork equal to HEAD means the batch holds no commit yet.
+        if fork == worktrees.head(row["worktree"]):
+            out["note"] = "no commit yet on this batch"
     else:
         out["diff"] = ""
         out["note"] = "the batch has no worktree yet"

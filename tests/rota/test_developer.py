@@ -352,7 +352,7 @@ def test_critic_sees_every_commit_since_the_fork_and_the_removed_line(project):
     assert "-    return rv" in seen["diff"], seen["diff"]
     assert "src/notify/formatting.py" in seen["diff"]
     assert "src/wrap.py" in seen["touched"]
-    assert [t.strip() for t in seen["removed lines"]["src/wrap.py"]] == ["return rv"], seen
+    assert seen["removed lines"] == "src/wrap.py:\n-     return rv", seen
 
 
 def test_a_moved_line_is_not_a_removed_line(project):
@@ -383,7 +383,7 @@ def test_the_developer_diff_is_not_empty_when_the_tree_equals_head_1(project):
     assert out["diff"], out
     assert "-    return rv" in out["diff"], out["diff"]
     assert "# stray" not in out["diff"]
-    assert [t.strip() for t in out["removed lines"]["src/wrap.py"]] == ["return rv"], out
+    assert out["removed lines"] == "src/wrap.py:\n-     return rv", out
 
 
 def test_a_root_that_moved_on_is_not_the_batch_s_removal(project):
@@ -406,6 +406,67 @@ def test_a_root_that_moved_on_is_not_the_batch_s_removal(project):
     assert "removed lines" not in seen, seen["removed lines"]
     out = build("developer", db, batch_id="b1").call("code.diff")
     assert "def unwrap" in out["diff"] and "removed lines" not in out, out
+
+
+def test_a_long_removal_leaves_the_diff_in_the_rendered_result(project):
+    """The diff review of 4876aae: a dict of removed lines went on the
+    runner's head line, 45,415 characters, and the cut showed no diff."""
+    from rota.core.runner import _render
+
+    db, repo = project
+    big = "".join(f"VALUE_{i:04d} = 'a line long enough to fill the whole diff past sixty thousand characters'\n"
+                  for i in range(700))
+    (repo.root / "src" / "big.py").write_text(big, encoding="utf-8")
+    gitfixture.git(repo.root, "add", "src/big.py")
+    gitfixture.git(repo.root, "commit", "-q", "-m", "big")
+    lifecycle.start(db, "b1")
+    tree = worktrees.Path(db.execute(
+        "SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"])
+    (tree / "src" / "big.py").unlink()
+    worktrees.commit(tree, "drop big")
+
+    seen = build("critic", db, batch_id="b1").call("code.read")
+    assert len(seen["diff"]) >= 60000, len(seen["diff"])
+    removed = seen["removed lines"]
+    assert len(removed) <= 2100 and removed.endswith(" more lines"), removed[-200:]
+    shown = _render(seen, 20000)
+    assert "[diff]" in shown, shown[:300]
+    assert len(shown.splitlines()[0]) < 1000, shown.splitlines()[0][:300]
+
+
+_DEDENT_AND_DOUBLE = """diff --git a/src/f.py b/src/f.py
+--- a/src/f.py
++++ b/src/f.py
+@@ -1,6 +1,4 @@
+ def f(x):
+-    if x:
+-        do()
++    do()
+-    y = 1
+-    y = 1
++    y = 1
+     return x
+"""
+
+
+def test_a_dedent_and_a_double_removal_are_removed_lines():
+    """Indentation counts, and one added line answers one removed line."""
+    from rota.roles.api import _removed_lines
+
+    assert _removed_lines(_DEDENT_AND_DOUBLE) == (
+        "src/f.py:\n-     if x:\n-         do()\n-     y = 1")
+
+
+def test_a_batch_with_no_commit_says_so(project):
+    db, _ = project
+    lifecycle.start(db, "b1")
+    seen = build("critic", db, batch_id="b1").call("code.read")
+    assert seen["diff"] == "" and seen["note"] == "no commit yet on this batch", seen
+
+    dev = build("developer", db, batch_id="b1")
+    dev.call("code.write", path="src/notify/formatting.py", text="# emptied\n")
+    dev.call("code.commit", message="empty formatting")
+    assert "note" not in build("critic", db, batch_id="b1").call("code.read")
 
 
 def test_the_harness_runs_in_the_batch_worktree(project):
