@@ -8379,6 +8379,46 @@ def _uncommitted(ctx, root, batch_id=None) -> list[str]:
             if _grain_path(f) not in furniture]
 
 
+def _unchanged_note(ctx, root, path, dirty) -> str:
+    """
+    What a write that changes nothing tells the seat: the commit that holds
+    the text, and the assertion of a test that fails on that commit.
+
+    Frame 93. Night 97 (2026-09-29): two seats sent the landed text of
+    `confirm` again, and each read only `"written, not committed": []`.
+    The harness output of the red run is in `test_runs`, so the sentence
+    quotes the failing line and the error pytest printed for it.
+    """
+    from ..core import worktrees as _wt
+    said = f"{path} already holds this text, so this write changed nothing."
+    if _grain_path(path) in {_grain_path(f) for f in dirty}:
+        return f"{said} No commit holds it yet. code.commit records it."
+    sha = _wt.head(root) or ""
+    if not sha:
+        return said
+    short = sha[:8]
+    rows = ctx.conn.execute(
+        "SELECT test_id, commit_sha, output FROM test_runs "
+        "WHERE batch_id = ? AND result != 'pass' "
+        "ORDER BY attempt DESC, rowid DESC", (ctx.batch_id,)).fetchall()
+    for test_id, run_sha, output in rows:
+        # A run records the sha the harness read. Either form may be short.
+        if not run_sha or not (sha.startswith(run_sha) or run_sha.startswith(sha)):
+            continue
+        lines = (output or "").splitlines()
+        # pytest marks the failing source line with `>` and its error with
+        # `E` below it. The last `>` is the frame that raised.
+        marks = [i for i, x in enumerate(lines) if x.startswith(">")]
+        err = [x[1:].strip() for x in lines[marks[-1]:] if x.startswith("E ")] if marks else []
+        if err:
+            src = lines[marks[-1]][1:].strip()
+            return (f"{said} Commit {short} holds it. {test_id} fails at {short} on "
+                    f"`{src}`, and pytest said `{err[0]}`. Read what this "
+                    f"assertion needs before the next write.")
+    return (f"{said} Commit {short} holds it. tests.load shows what the harness "
+            f"said about each failing test.")
+
+
 def _worktree_of(ctx, batch_id=None) -> "Path":
     """
     The batch's worktree, or the project root when there is no batch.
@@ -9638,6 +9678,19 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             f"{path} is not where `import {stem}` looks: the import path is "
             f"the worktree root, so the module is {stem}.py at the top level "
             f"(or {stem}/__init__.py)")
+    # A write the file already holds changes nothing, and the result says so.
+    # Night 97 (2026-09-29): s215 and s216 sent the landed text again, read
+    # `"written, not committed": []`, and the test failed on one commit from
+    # attempt 5 to 7. The red run of that commit is the thing to read.
+    try:
+        same = target.is_file() and target.read_text(encoding="utf-8") == text
+    except (OSError, UnicodeDecodeError):
+        same = False
+    if same:
+        dirty = _uncommitted(ctx, root)
+        return {"path": path, "bytes": len(text.encode("utf-8")), "created": False,
+                "unchanged": _unchanged_note(ctx, root, path, dirty),
+                "written, not committed": dirty}
     # A whole-file write is a span of the whole old file (frame 95).
     # A note never refuses a write, so a file that does not decode gives no
     # note (frame 95's third review, 2026-09-30).
