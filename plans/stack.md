@@ -762,6 +762,16 @@ a different question and the night is then opened once.
   `park_ask` mode has no L1 case; pass 7 records one** (observed: the gate at `7808f3a`, 540s: suite 2427 passed against the stored 2324,
   new reds 2, reds gone 1, stale 0; the Developer case `ACT-DV-edit-inside-the-function`
   re-recorded green in the main register). Meta workflow.
+- Status 2026-09-30 11:29 (rota-4c): **pass 7 committed at `a8dbe10`, the case records 5 of 5, merged at
+  `0bd5f3b`, the gate runs there and re-records the case in the main register** (observed:
+  the implementer resumed on Opus, 202.2k cumulative on the harness line, 35 tool calls, 9
+  minutes; `L1-LI-a-parked-batch-is-put-to-the-principal-once` on qwen3:8b, 5 cassettes in
+  16.7s, one `msg.clarify_principal` per run with the item alone in the refs; two of five
+  runs call the key "the batch" in their first sentence and name the batch right in the
+  next). Meta workflow. The grader gains `refs_equal`, `text_includes` and
+  `text_includes_any` on a message spec, against its docstring's "never on prose"; the
+  words checked are an id and a key name (reasoned: the case could not say "the item
+  alone" without it). This gate is the one before the night.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
 
