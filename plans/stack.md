@@ -204,6 +204,27 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 97. A later session never sees the lines an earlier commit of the batch dropped (2026-09-30)
+
+- **Batch C, the night's stall, found by frame 95's design note.** Two sites: `code_read`
+  at `rota/roles/api.py:8458`, which diffs `HEAD~1..HEAD`, and the Developer's
+  `code.diff` in the `tests_failing` mode. It touches a seat's view, so it carries a
+  diff review and shares the night with frame 95.
+- Rota workflow. On night 98 the sessions after s183 saw the diff of the last commit
+  only, so the 13 lines `d8d87beb` dropped were out of every later seat's view and no
+  session put them back (observed: `plans/archive/night98-walk-2026-09-29.md`, section
+  6, 2026-09-29; the site is reasoned from the read in frame 95's design note,
+  2026-09-30). Frame 95's note reaches the session that made the write and no other.
+- Ends when: the Critic's `code.read` and the Developer's `code.diff` show the diff
+  against the batch's base commit, not the last commit alone, and carry a list of
+  removed lines whose text no added line carries; two unit tests; the Critic cases
+  whose diff removes a line re-record; a night shared with frame 95. Priced: one
+  pass, about 40k on Opus; one diff review, about 40k; the re-records by count.
+- Waits on: frame 95's commit, because both change what a seat reads of a write.
+- Reasoning: `plans/archive/frame95-design-2026-09-30.md`, section 4 and the open
+  questions.
+- Status 2026-09-30 04:33 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
+
 ### 95. A whole-function rewrite that stops short is accepted by every door (2026-09-29) (532b3429)
 
 - **Batch C, the night's stall, found by night 98's read.** One site: the
@@ -237,6 +258,16 @@ a different question and the night is then opened once.
   `f95`. The agent writes the design note for the two designs first, and this session
   judges it before any code. Frame 93 follows on the same agent and tree, because both
   sit in `code.write`.
+- Status 2026-09-30 04:33 (rota-4c): **design A approved, the note in `code.write`, and the pass
+  runs** (observed: the implementer's design note on Opus, 75.1k on the harness line
+  against 40k, `plans/archive/frame95-design-2026-09-30.md` on branch `f95`). Meta
+  workflow. Design B, the Critic judges the deleted lines, buys nothing on either
+  night: the Critic wakes on `tick:review` only, on a green harness, and both nights
+  stayed red (reasoned: the note, section 4). A takes four terminators, `return`,
+  `raise`, `continue`, `break`, because night 97's text ended at `continue`, and
+  counts a dropped line only when its text is absent from the new text. The count 13
+  for s183 is reasoned by hand and the pass tests it against click's `confirm`. Two
+  gaps from the note go to frame 97 below.
 
 ### 96. The Architect is shown the wrong ticket when a grouping wake names a ticket (2026-09-29) (532b3429)
 
