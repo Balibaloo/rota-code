@@ -274,6 +274,17 @@ a different question and the night is then opened once.
   minutes; 177 door tests and 58 parser tests pass, 4 tests fail with `api.py` stashed). Meta workflow.
   Passes on one agent: 66.6k, 92.9k and 103.2k cumulative on the harness line against 40k priced. The
   third review is the last before the night.
+- Status 2026-09-30 13:59 (rota-c6): **the third diff review at `5d54e9a` finds four low and no high, pass 4 takes
+  two** (observed: the reviewer on Opus, 67.0k on the harness line against 40k, 19 tool calls, 7.7
+  minutes; 177 door tests and 19 end-to-end probes pass in the worktree). Meta workflow. Taken: a span
+  whose first line is a column-0 comment gets an empty prefix and no repair; the landed sentence after a
+  CR join names `
+` for a `
+` file. Known lows, not taken: a bare CR with no LF is refused with the
+  `
+` form, and a CR inside an earlier triple-quoted string moves the error line off the broken line
+  because the repair splits on LF alone. The gate at `5d54e9a` still runs; pass 4's commit gets the
+  gate and one short review of its diff, and the night follows.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
