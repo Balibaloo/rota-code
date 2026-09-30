@@ -9638,17 +9638,42 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                                 for c in n.test.comparators) for n in old_tree.body)
             dropped = old_defs - new_defs
             gone = sorted(dropped if entry else dropped & imported)
-            if gone:
-                why = ("the program's entry point keeps every definition it has"
-                       if entry else
-                       "the batch's tests, its criteria or other files use them")
+            # A whole-file write that drops a top-level name its own text
+            # still uses. ACT-DV-edit-inside-the-function (2026-09-30): the
+            # write kept `confirm` alone, `confirm` calls `_readline_prompt`,
+            # and no door refused, because nothing imported the helpers.
+            used = []
+            if not span:
+                used = sorted((set(_top_binds(old_tree)) - _bound_anywhere(tree))
+                              & {x.id for x in _ast.walk(tree)
+                                 if isinstance(x, _ast.Name) and isinstance(x.ctx, _ast.Load)})
+            if gone or used:
+                whys = []
+                if gone:
+                    whys.append("the program's entry point keeps every definition it has"
+                                if entry else
+                                "the batch's tests, its criteria or other files use them")
+                if used:
+                    whys.append("your text still uses "
+                                + (", ".join(used) if gone else "them"))
+                why = ", and ".join(whys)
+                spans = _kept_spans(old_tree, tree) if not span else []
+                if spans:
+                    # The kept definition's own span edits it in place and
+                    # keeps every other line of the file.
+                    names = ", ".join(n for n, _lo, _hi in spans)
+                    raise ValueError(
+                        f"this rewrite of {path} drops {', '.join(sorted(set(gone) | set(used)))}, "
+                        f"and {why}. To change {names} alone, write only "
+                        f"{_span_offer(spans)}: that span replaces the lines "
+                        f"it holds now and keeps the rest of {path}")
                 # tipsAT (2026-09-12): ten refusals in one session, the
                 # same whole-file write of only the new functions each
                 # time. The way out is a fact about the file, so say it:
                 # the line count, and the span that appends.
                 n_old = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
                 raise ValueError(
-                    f"this rewrite of {path} drops {', '.join(gone)}, and "
+                    f"this rewrite of {path} drops {', '.join(sorted(set(gone) | set(used)))}, and "
                     f"{why}. Either write the whole file with every existing "
                     f"definition kept and your change added, or write only "
                     f"the new definitions with start={n_old}, end={n_old}: "
@@ -9729,7 +9754,10 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     if not span and path.endswith(".py") and target.is_file():
         try:
             old = target.read_text(encoding="utf-8").splitlines()
-            tail_note = _tail_drop(old, 0, len(old), text)
+            # A write that keeps some definitions counts the lines it drops
+            # above and below them (frame 95 pass 5). The tail note covers
+            # a write that keeps the whole shape and stops short.
+            tail_note = _whole_drop(old, text) or _tail_drop(old, 0, len(old), text)
         except Exception:                                  # noqa: BLE001
             tail_note = None
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -10510,6 +10538,100 @@ def _changed_unnamed_defs(ctx: Ctx, path: str, old_text: str, new_text: str) -> 
             continue                                       # restored
         changed.append(name)
     return changed
+
+
+def _top_binds(tree) -> dict:
+    """The names a module binds at its top level, each with its statement.
+    An import binds a name too: `import sys` binds `sys` (frame 95 pass 5)."""
+    import ast as _ast
+    out: dict = {}
+    for n in tree.body:
+        names: list[str] = []
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+            names = [n.name]
+        elif isinstance(n, _ast.Import):
+            names = [a.asname or a.name.split(".")[0] for a in n.names]
+        elif isinstance(n, _ast.ImportFrom):
+            names = [a.asname or a.name for a in n.names if a.name != "*"]
+        elif isinstance(n, (_ast.Assign, _ast.AnnAssign, _ast.AugAssign)):
+            for t in (n.targets if isinstance(n, _ast.Assign) else [n.target]):
+                names += [x.id for x in _ast.walk(t) if isinstance(x, _ast.Name)]
+        for name in names:
+            out.setdefault(name, n)
+    return out
+
+
+def _bound_anywhere(tree) -> set[str]:
+    """Every name a module binds at any depth: a local or a parameter of the
+    same name is not a use of the old top-level one."""
+    import ast as _ast
+    out: set[str] = set()
+    for x in _ast.walk(tree):
+        if isinstance(x, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+            out.add(x.name)
+        elif isinstance(x, _ast.arg):
+            out.add(x.arg)
+        elif isinstance(x, _ast.Name) and not isinstance(x.ctx, _ast.Load):
+            out.add(x.id)
+        elif isinstance(x, _ast.alias):
+            out.add(x.asname or x.name.split(".")[0])
+        elif isinstance(x, _ast.ExceptHandler) and x.name:
+            out.add(x.name)
+    return out
+
+
+def _kept_spans(old_tree, new_tree) -> list[tuple[str, int, int]]:
+    """The old top-level definitions the new text defines again, each with
+    its span in code.source numbering, decorators included."""
+    import ast as _ast
+    defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
+    names = {n.name for n in new_tree.body if isinstance(n, defs)}
+    out = []
+    for n in old_tree.body:
+        if isinstance(n, defs) and n.name in names:
+            lo = min([n.lineno] + [d.lineno for d in n.decorator_list]) - 1
+            out.append((n.name, lo, n.end_lineno))
+    return out
+
+
+def _span_offer(spans) -> str:
+    return ", and ".join(f"{n} with start={lo}, end={hi}" for n, lo, hi in spans)
+
+
+def _whole_drop(old_lines: list[str], text: str) -> str | None:
+    """
+    One sentence for a whole-file write that keeps some old top-level
+    definitions and drops other top-level lines, or None.
+
+    Frame 95 pass 5. `ACT-DV-edit-inside-the-function` (2026-09-30): the
+    write kept `confirm` alone. The tail note named 4 lines after it and
+    missed the 5 lines above it. This sentence counts both, and names the
+    span that edits the kept definition in place.
+    """
+    import ast as _ast
+    try:
+        old_tree, new_tree = _ast.parse(chr(10).join(old_lines)), _ast.parse(text)
+        spans = _kept_spans(old_tree, new_tree)
+        if not spans:
+            return None
+        new_binds = set(_top_binds(new_tree))
+        new_heads = {x.strip() for x in text.splitlines()}
+        gone: set[int] = set()
+        for n in old_tree.body:
+            binds = [k for k, v in _top_binds(_ast.Module(body=[n], type_ignores=[])).items()]
+            kept = (any(b in new_binds for b in binds) if binds
+                    else old_lines[n.lineno - 1].strip() in new_heads)
+            if not kept:
+                lo = min([n.lineno] + [d.lineno for d in getattr(n, "decorator_list", [])]) - 1
+                gone |= {i for i in range(lo, n.end_lineno) if old_lines[i].strip()}
+        if not gone:
+            return None
+        first = old_lines[min(gone)].strip()
+        word = "line" if len(gone) == 1 else "lines"
+        return (f"This write drops {len(gone)} {word} of the old file, from `{first}`; "
+                f"write only {_span_offer(spans)} to keep them.")
+    except Exception:                                      # noqa: BLE001
+        return None
 
 
 def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | None:
