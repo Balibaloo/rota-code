@@ -23,6 +23,7 @@ the old run database back.
     python probes/seam_start.py pair .rota/clickI_night101.db
     python probes/seam_start.py restore clickI <db> <commit> <click_root> [--no-env]
 """
+import gc
 import os
 import shutil
 import sqlite3
@@ -32,7 +33,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
-from rota.core.db import init_db  # noqa: E402
 from rota.core.worktrees import GIT, WorktreeError  # noqa: E402
 
 LIVE = ("running", "deferred")
@@ -94,11 +94,13 @@ def _door(conn, commit: str, root: Path, home: Path) -> tuple[str | None, list]:
     # `lifecycle.start` leaves the head NULL until the first `code.commit`.
     # Such a batch has no commits to lose, so it comes back at the
     # checkout's HEAD.
-    tip = _git(root, "rev-parse", "HEAD").stdout.strip()
-    picked = [(bid, head or tip, not head) for bid, _, head in rows]
-    if not any(head and (head == commit or head.startswith(commit)) for _, head, _ in picked):
+    # The door reads the snapshot's own heads. The tip stands in for a
+    # missing head only at the restore, so it never opens the door.
+    if not any(head and (head == commit or head.startswith(commit)) for _, _, head in rows):
         held = ", ".join(f"{bid}@{head or 'none'}" for bid, _, head in rows)
         return f"no running or deferred batch heads at {commit}; the snapshot holds {held}", []
+    tip = _git(root, "rev-parse", "HEAD").stdout.strip()
+    picked = [(bid, head or tip, not head) for bid, _, head in rows]
     # Every running or deferred batch comes back at its own head. A batch
     # left out keeps the old night's path, and `worktrees.create` then cuts
     # its branch from main and loses its commits.
@@ -156,17 +158,40 @@ def _aside(target: Path) -> list[tuple[Path, Path]]:
                 old.rename(side)
                 moved.append((old, side))
     except PermissionError:
-        _back(target, moved)
+        # The files that did not move are still the old ones. Only the
+        # moved files go back, and nothing is deleted.
+        _back(target, moved, created=False)
         raise
     return moved
 
 
-def _back(target: Path, moved: list[tuple[Path, Path]]) -> None:
-    """Put the old run database back where it was."""
-    for suffix in SUFFIXES:
-        Path(f"{target}{suffix}").unlink(missing_ok=True)
+def _back(target: Path, moved: list[tuple[Path, Path]], created: bool = True) -> None:
+    """Put the old run database back where it was. With `created`, the
+    restore wrote the files at the target path, because `_aside` moved
+    every old file away first. Those files go."""
+    if created:
+        for suffix in SUFFIXES:
+            Path(f"{target}{suffix}").unlink(missing_ok=True)
     for old, side in moved:
         side.rename(old)
+
+
+def _reopen(target: Path) -> None:
+    """Open the target once through `init_db`, which adds the columns the
+    schema mark does not cover. A failure is raised again with no
+    traceback. A traceback keeps the failed frame's connection open, and
+    Windows then refuses the delete in `_back` (WinError 32)."""
+    from rota.core import db as rota_db
+    failed = None
+    try:
+        fresh = rota_db.init_db(target)
+        fresh.commit()
+        fresh.close()
+    except BaseException as exc:                           # noqa: BLE001
+        failed = exc.with_traceback(None)
+    if failed is not None:
+        gc.collect()
+        raise failed
 
 
 def restore(run: str, db_path, commit: str, click_root, env: bool = True) -> int:
@@ -212,9 +237,7 @@ def restore(run: str, db_path, commit: str, click_root, env: bool = True) -> int
             # The schema mark does not cover the columns that `init_db` adds
             # in place. Night 103 run 1 (2026-10-01) failed its first Critic
             # session on `verdicts.reason`. One open through `init_db` adds them.
-            fresh = init_db(target)
-            fresh.commit()
-            fresh.close()
+            _reopen(target)
             dst.execute("UPDATE config SET value = ? WHERE key = 'project_root'", (str(root),))
             for bid, _, _ in rows:
                 dst.execute("UPDATE batches SET worktree = ? WHERE id = ?", (str(home / bid), bid))

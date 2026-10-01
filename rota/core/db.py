@@ -208,31 +208,37 @@ def open_for_viewing(path: str | Path) -> tuple[sqlite3.Connection, str | None]:
 
 def init_db(path: str | Path) -> sqlite3.Connection:
     conn = connect(path)
-    stale = schema_stale(conn)
-    if stale:
+    # A failure part way closes the file. An open connection that lives on in
+    # the traceback holds the file on Windows (frame 104, pass 4).
+    try:
+        stale = schema_stale(conn)
+        if stale:
+            conn.close()
+            raise RuntimeError(stale)
+        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        # `executescript` adds a table, never a column, and a run database under
+        # `.rota/` outlives the schema. The symbol spans are added in place rather
+        # than behind `SCHEMA_MARK`, because the mark refuses a database outright
+        # and these two columns need no decision: the next refresh fills them, and
+        # 0 and 0 until then means the same as a path grain's default, no span.
+        for column in ("line_start", "line_end"):
+            if not _has_column(conn, "code_index", column):
+                conn.execute(f"ALTER TABLE code_index ADD COLUMN {column} "
+                             f"INTEGER NOT NULL DEFAULT 0")
+        # The same for the description flag: 0 is every older item's truth, since
+        # no seat could describe an item before the column existed.
+        if not _has_column(conn, "items", "is_description"):
+            conn.execute("ALTER TABLE items ADD COLUMN is_description "
+                         "INTEGER NOT NULL DEFAULT 0")
+        # The same for the verdict's reason: NULL is every older verdict's truth,
+        # since no Critic could give a reason before the column existed.
+        if not _has_column(conn, "verdicts", "reason"):
+            conn.execute("ALTER TABLE verdicts ADD COLUMN reason TEXT")
+        conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
+                     (SCHEMA_KEY, SCHEMA_MARK))
+    except BaseException:
         conn.close()
-        raise RuntimeError(stale)
-    conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-    # `executescript` adds a table, never a column, and a run database under
-    # `.rota/` outlives the schema. The symbol spans are added in place rather
-    # than behind `SCHEMA_MARK`, because the mark refuses a database outright
-    # and these two columns need no decision: the next refresh fills them, and
-    # 0 and 0 until then means the same as a path grain's default, no span.
-    for column in ("line_start", "line_end"):
-        if not _has_column(conn, "code_index", column):
-            conn.execute(f"ALTER TABLE code_index ADD COLUMN {column} "
-                         f"INTEGER NOT NULL DEFAULT 0")
-    # The same for the description flag: 0 is every older item's truth, since
-    # no seat could describe an item before the column existed.
-    if not _has_column(conn, "items", "is_description"):
-        conn.execute("ALTER TABLE items ADD COLUMN is_description "
-                     "INTEGER NOT NULL DEFAULT 0")
-    # The same for the verdict's reason: NULL is every older verdict's truth,
-    # since no Critic could give a reason before the column existed.
-    if not _has_column(conn, "verdicts", "reason"):
-        conn.execute("ALTER TABLE verdicts ADD COLUMN reason TEXT")
-    conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
-                 (SCHEMA_KEY, SCHEMA_MARK))
+        raise
     return conn
 
 

@@ -164,6 +164,9 @@ def test_a_run_database_held_open_is_refused(tmp_path, monkeypatch, capsys):
 
 def test_a_failed_add_removes_what_the_restore_added(tmp_path, monkeypatch, capsys):
     repo, sha, db, old = _setup(tmp_path, monkeypatch)
+    runs = tmp_path / "runs"
+    (runs / "clickI.db-wal").write_bytes(b"old wal")
+    (runs / "clickI.db-shm").write_bytes(b"old shm")
     _with_bg_2(db, sha)
     mod = _mod()
     real = mod._add
@@ -177,7 +180,38 @@ def test_a_failed_add_removes_what_the_restore_added(tmp_path, monkeypatch, caps
     assert mod.restore("clickI", db, sha, repo, env=False) == 1
     assert "SEAM REFUSED: git worktree add batch/bg_2" in capsys.readouterr().out
     _unchanged(tmp_path, repo, old)
+    assert (runs / "clickI.db-wal").read_bytes() == b"old wal"
+    assert (runs / "clickI.db-shm").read_bytes() == b"old shm"
     assert "bg_1" not in _git(repo, "worktree", "list")
+
+
+def test_a_failed_reopen_puts_the_old_database_back(tmp_path, monkeypatch, capsys):
+    """Pass 4 of frame 104: a connection that `init_db` left open in the
+    traceback held the new file, and the old one stayed at `.seam-old`."""
+    import pytest
+    from rota.core import db as rota_db
+    repo, sha, db, old = _setup(tmp_path, monkeypatch)
+
+    def broken(path):
+        rota_db.connect(path)
+        raise sqlite3.OperationalError("broken by the test")
+
+    monkeypatch.setattr(rota_db, "init_db", broken)
+    with pytest.raises(sqlite3.OperationalError, match="broken by the test"):
+        _mod().restore("clickI", db, sha, repo, env=False)
+    _unchanged(tmp_path, repo, old)
+    assert [p.name for p in (tmp_path / "runs").iterdir()] == ["clickI.db"]
+
+
+def test_a_commit_only_the_tip_matches_is_refused(tmp_path, monkeypatch, capsys):
+    """A batch with no head comes back at the tip. The tip still never
+    opens the door."""
+    repo, sha1, db, old = _setup(tmp_path, monkeypatch)
+    tip = _commit(repo, "b.txt")
+    _with_bg_2(db, None)
+    assert _mod().restore("clickI", db, tip, repo, env=False) == 1
+    assert "SEAM REFUSED: no running or deferred batch heads at" in capsys.readouterr().out
+    _unchanged(tmp_path, repo, old)
 
 
 def test_the_restore_rebuilds_the_batch_at_its_head(tmp_path, monkeypatch, capsys):
@@ -224,6 +258,9 @@ def test_a_batch_with_no_head_comes_back_at_the_checkout_head(tmp_path, monkeypa
     assert "bg_2@HEAD" in capsys.readouterr().out
     assert _git(repo / ".rota" / "worktrees" / "bg_2", "rev-parse", "HEAD") == tip
     assert _git(repo / ".rota" / "worktrees" / "bg_1", "rev-parse", "HEAD") == sha1
+    conn = sqlite3.connect(tmp_path / "runs" / "clickI.db")
+    assert conn.execute("SELECT head_commit FROM batches WHERE id = 'bg_2'").fetchone()[0] is None
+    conn.close()
 
 
 def test_the_restore_adds_the_columns_init_db_adds_in_place(tmp_path, monkeypatch, capsys):
