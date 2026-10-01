@@ -518,8 +518,17 @@
     test_runs:
       # At the loop cap: what makes the batch exhausted rather than bouncing.
       # `HEAD` so the fixture names the edit's commit as the failed attempt.
-      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: HEAD,
-         result: fail, attempt: 10}
+      # The output is the measured peak. The streamed attempt still holds the set.
+      - id: <r1>
+        batch_id: <b1>
+        test_id: <tst1>
+        commit_sha: HEAD
+        result: fail
+        attempt: 10
+        output: |
+          E       assert 2039480320 < 67108864
+          E        +  where 2039480320 = peak_memory(export_csv, 'all')
+          1 failed in 41.73s
     sessions:
       # The rung is derived from the sessions the exhaustion opened (frame 79,
       # 2026-09-24). The message stays because the prompt reads it.
