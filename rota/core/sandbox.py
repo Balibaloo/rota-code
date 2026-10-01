@@ -1741,9 +1741,10 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 carries = ("an answer to the Critic carries the criterion"
                            if recipient == "critic"
                            else "an answer from the glossary carries a term")
+                source = "The criteria do" if recipient == "critic" else "The glossary does"
                 raise ValueError(
                     f"{carries}, and "
-                    f"refs={list(refs or [])} names none. The glossary does "
+                    f"refs={list(refs or [])} names none. {source} "
                     f"not carry this: send msg.report_liaison"
                     f"(refs={list(refs or [])}) with the same refs.")
 
