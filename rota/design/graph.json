@@ -1242,6 +1242,16 @@
       "depth": "body"
     },
     {
+      "s": "architect",
+      "t": "tests",
+      "type": "reads",
+      "v": "load",
+      "n": "tests for batch",
+      "label": "exhausted: the failing run is the rung's evidence, and the diff alone does not show it (frame 106, ruled: Roman, 2026-10-01)",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
       "s": "developer",
       "t": "tester",
       "type": "messages",
