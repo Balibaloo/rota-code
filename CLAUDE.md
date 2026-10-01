@@ -23,9 +23,16 @@ three warnings only:
   like this, the rule is hand off"). The 400k line protects a held frame.
   It never keeps an empty session alive.
 - 400k: write the status line, commit the stack, then hand the frame off
-  with one command. Never hand off below 400k (ruled: Roman, 2026-09-27: a
-  hand-off at about 300k landed with a review owed, and the last 100k
-  belongs to the session's own frame):
+  with one command. Never hand off below 400k while a frame you hold can
+  still move (ruled: Roman, 2026-09-27: a hand-off at about 300k landed
+  with a review owed, and the last 100k belongs to the session's own
+  frame). **Past 300k, a session that is idle hands off at once** (ruled:
+  Roman, 2026-10-01, after this session sat at 299k holding one validating
+  frame while frames 106 and 100 waited unclaimed). Idle means every frame
+  you hold waits on something outside this session, a night, a ruling or
+  another frame, and the rule above forbids a new one. An idle session's
+  last 100k buys nothing, and a standby's clean context buys the next
+  frame. Write the status line, commit, and run the same command:
 
   ```
   python rota/tools/handover.py hand --frame <n> --commit <sha> --sender <your session id>
