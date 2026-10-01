@@ -6159,12 +6159,12 @@ def verdicts_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     The verdicts at the batch's head commit, or the whole history when none
     is at the head.
 
-    The Developer on `tick:verdict_failed` reads the head's verdict only.
-    Night 101 (2026-09-30) left five fails with five reasons on one batch,
-    and the seat could not tell which was current. The exhausted modes also
-    hold `verdicts.load`, and they still read the history when nothing is at
-    the head. The history comes newest first: each commit's verdict is its
-    own row, so the rowid orders the commits.
+    The rule holds in every mode that holds `verdicts.load`, not only for
+    the Developer on `tick:verdict_failed`. Night 101 (2026-09-30) left five
+    fails with five reasons on one batch, and the seat could not tell which
+    was current. A mode woken with nothing at the head, such as an exhausted
+    mode, still reads the history. The history comes newest first: each
+    commit's verdict is its own row, so the rowid orders the commits.
     """
     bid = batch_id or ctx.batch_id
     cols = ("SELECT v.id, v.batch_id, v.commit_sha, v.result, "

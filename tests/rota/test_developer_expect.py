@@ -48,3 +48,24 @@ def test_the_batch_start_wake_pushes_it_without_being_asked(tmp_path):
     pushed = push_working_set("developer", sb, Wake("developer", "tick:batch_start", refs=("b1",)))
     assert "batches.expect" in pushed, sorted(pushed)
     assert pushed["batches.expect"]["expected to touch"] == ["main.py"]
+
+
+def test_verdicts_load_returns_the_head_verdict_and_the_history_only_without_one(tmp_path):
+    """Night 101 (2026-09-30): five fails with five reasons reached the
+    Developer, and the seat could not tell which one was current."""
+    db = init_db(tmp_path / "rota.db"); _seed(db)
+    db.execute("UPDATE batches SET head_commit = 'c2' WHERE id = 'b1'")
+    db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result, failed_criterion, "
+               "reason) VALUES ('critic:b1:c1','b1','c1','fail','c1','the first objection')")
+    db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result, failed_criterion, "
+               "reason) VALUES ('critic:b1:c2','b1','c2','fail','c1','the second objection')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="verdict_failed",
+               allow=prompts.mode_tools("developer", "verdict_failed"))
+    out = sb.call("verdicts.load")
+    assert [(v["commit_sha"], v["reason"]) for v in out] == [("c2", "the second objection")]
+    # A new commit with no verdict yet: the history, newest commit first.
+    db.execute("UPDATE batches SET head_commit = 'c3' WHERE id = 'b1'")
+    db.commit()
+    out = sb.call("verdicts.load")
+    assert [v["commit_sha"] for v in out] == ["c2", "c1"]
