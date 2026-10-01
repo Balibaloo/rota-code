@@ -462,7 +462,7 @@
   forbidden:
     recipients: [tester, developer]
 
-- id: L1-AR-a-dead-end-is-reported-not-sat-on
+- id: L1-AR-a-dead-end-leaves-the-desk-to-a-named-seat
   tier: T1
   role: architect
   runs: 5
@@ -538,12 +538,15 @@
       - {id: <me1>, thread_id: <te1>, from_role: developer, to_role: architect,
          verb: escalate, body_refs: '["<b1>"]', seq: 1, status: answered}
   expect:
-    # The second rung, and none of its three shapes fit: the constraints are
-    # coherent, the structure carries the ask, the criteria assume nothing
-    # undecided. The remaining honest act is the door the graph always drew
-    # and the mode never offered -- report the stall so it reaches the seat.
-    messages:
-      - {to: liaison, verb: report, count: 1, refs_include: [<b1>]}
+    # The second rung. The stall leaves the Architect's desk to a named next
+    # seat, with the batch in refs. A proposal or a challenge goes to the
+    # Vision Keeper. A report goes to the Liaison. The Liaison exit alone has
+    # no case, and it is in the coverage backlog (frame 106, ruled: Roman,
+    # 2026-10-01).
+    any_of:
+      - messages: [{to: vision_keeper, verb: propose, count: ">=1", refs_include: [<b1>]}]
+      - messages: [{to: vision_keeper, verb: challenge, count: ">=1", refs_include: [<b1>]}]
+      - messages: [{to: liaison, verb: report, count: ">=1", refs_include: [<b1>]}]
   forbidden:
     # Reporting is not amending: a dead end you cannot name is not a licence
     # to reshape the model until you can.
