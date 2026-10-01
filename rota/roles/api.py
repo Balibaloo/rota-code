@@ -5473,6 +5473,10 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     Only the latest run per test, and only when it is not passing. A green test
     has nothing to say and its output is noise in a context that is already the
     scarcest thing here.
+
+    The batch's own tests come first, then the inherited tests, each group in
+    insertion order. An inherited test that passes or has no run shows its
+    length and its file, not its body. A red inherited test keeps its body.
     """
     bid = batch_id or ctx.batch_id
     if not bid:
@@ -5486,7 +5490,8 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
         "LEFT JOIN test_runs r ON r.id = ("
         "    SELECT id FROM test_runs WHERE test_id = t.id "
         "    ORDER BY attempt DESC, rowid DESC LIMIT 1) "
-        "WHERE t.batch_id = ?", (bid,)))
+        "WHERE t.batch_id = ? "
+        "ORDER BY t.criterion_id IS NULL, t.rowid", (bid,)))
     # A run is a statement about one commit. Finding 66 (2026-09-14): the
     # 9B wrote the fix, loaded the tests, read the old red as its fix
     # failing, and started over until the loop cut it. The files that
@@ -5514,6 +5519,12 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     for row in rows:
         sha = row.pop("run_sha", None)
         if row.get("last_result") in (None, "pass"):
+            # Night 103, s170: 34 inherited bodies, 460,000 characters, put the
+            # batch's own tests behind the push cap. A green inherited body
+            # tells the reader nothing, so the row names its file (frame 101).
+            if row.get("criterion_id") is None:
+                row["body"] = (f"{len(row.get('body') or '')} characters, passing, "
+                               f"not shown; the file is at {row.get('path')}")
             continue
         if sha not in seen:
             seen[sha] = [p for p in (_wt.changed_since(root, sha) if root else [])

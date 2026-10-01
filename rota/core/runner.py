@@ -1617,6 +1617,11 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             pushed[name] = sb.call(name)
         except (TypeError, sandbox_mod.ArgumentError):
             continue     # needs to be told something; leave it to the model
+    # The cut keeps the front of the wake, so the criteria and the tests go
+    # before the diff. The diff is the push that scales with the work
+    # (frame 101, night 103).
+    if "code.read" in pushed:
+        pushed["code.read"] = pushed.pop("code.read")
 
     # One read needs an argument the *wake* already knows, and leaving it to
     # the model cost the whole inquiry route.

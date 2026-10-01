@@ -1004,6 +1004,44 @@ def test_the_pushed_working_set_obeys_the_same_cap_as_a_fetched_one(db):
     assert "CUT the result" in user, "it was cut without saying so"
 
 
+def test_the_critic_wake_keeps_the_criteria_and_tests_in_front_of_the_diff(db):
+    """
+    Frame 101. The cut keeps the front of the wake, and the push rendered
+    `code.read` first. A long diff then pushed the criteria and the tests
+    behind the cut (frame 97's review of `ff0f692`, probe p3).
+    """
+    from types import SimpleNamespace
+
+    from rota.core import runner
+    from rota.core.sandbox import build as build_sandbox
+
+    diff = "d" * (runner.PUSH_CHARS + 5000)
+    results = {"code.read": diff, "criteria.load": [{"id": "c1"}],
+               "tests.load": [{"id": "t1"}]}
+
+    class Stub:
+        def functions(self):
+            return ["code.read", "criteria.load", "tests.load"]
+
+        def call(self, name, **kw):
+            return results[name]
+
+    graph = SimpleNamespace(of_type=lambda _t: [
+        SimpleNamespace(s="critic", t=k.split(".")[0], v=k.split(".")[1])
+        for k in results])
+    pushed = runner.push_working_set("critic", Stub(), None, g=graph)
+    assert list(pushed) == ["criteria.load", "tests.load", "code.read"]
+
+    sb = build_sandbox("vision_keeper", db)
+    _, user = runner.build_prompt("vision_keeper", sb, wake_vision_keeper(),
+                                  pushed, "brief")
+    at = {k: user.index(f"[{k}]") for k in pushed}
+    assert at["criteria.load"] < at["code.read"]
+    assert at["tests.load"] < at["code.read"]
+    kept = runner._render_cut(user, len(user) // 2)
+    assert "[criteria.load]" in kept and "[tests.load]" in kept
+
+
 def test_a_wake_too_big_for_the_window_is_cut_rather_than_protected(db):
     """
     `_fit` kept `transcript[0]` whole unconditionally — and the wake is where

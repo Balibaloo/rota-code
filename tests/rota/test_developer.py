@@ -700,6 +700,43 @@ def test_a_passing_test_says_nothing(project):
     loaded = build("developer", db, batch_id="b1").call("tests.load")
     assert loaded[0]["last_result"] == "pass" and loaded[0]["said"] is None
 
+
+def test_the_batch_own_tests_come_first_and_green_inherited_bodies_stay_out(project):
+    """
+    Night 103, s170: 34 inherited bodies, 460,000 characters, came before
+    the batch's own three tests, and the push cap cut the own tests off.
+    The frame 101 rule puts the own tests first and leaves out green
+    inherited bodies.
+    """
+    db, _ = project
+    lifecycle.start(db, "b1")
+    big = "x" * 10_000
+    for i in range(30):
+        db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                   "VALUES (?, 'b1', NULL, ?, ?)", (f"f101_g{i:02d}", f"tests/test_g{i}.py", big))
+        db.execute("INSERT INTO test_runs (id, batch_id, test_id, result, output) "
+                   "VALUES (?, 'b1', ?, 'pass', '')", (f"f101_rg{i:02d}", f"f101_g{i:02d}"))
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('f101_red', 'b1', NULL, 'tests/test_red.py', 'def test_red(): RED_BODY')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, result, output) "
+               "VALUES ('f101_rr', 'b1', 'f101_red', 'fail', 'assert 1 == 2')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('f101_own', 'b1', 'c1', 'test_own.py', 'def test_own(): OWN_BODY')")
+    db.commit()
+
+    loaded = build("critic", db, batch_id="b1").call("tests.load")
+    assert loaded[0]["id"] == "f101_own"
+    assert loaded[0]["body"] == "def test_own(): OWN_BODY"
+    red = next(r for r in loaded if r["id"] == "f101_red")
+    assert red["body"] == "def test_red(): RED_BODY"
+    green = [r for r in loaded if r["id"].startswith("f101_g")]
+    assert len(green) == 30
+    for r in green:
+        assert r["body"] == (f"10000 characters, passing, not shown; "
+                             f"the file is at {r['path']}"), r["body"]
+        assert "xxxx" not in r["body"]
+
+
 def test_a_finding_names_a_file_the_diff_changed(project):
     """
     Night 65 (2026-09-14): the structural review filed violated findings on
