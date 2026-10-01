@@ -236,6 +236,7 @@ a different question and the night is then opened once.
 - Reasoning: frame 102's pass 1 status.
 - Status 2026-10-01 01:08 (rota-0f): pushed by 104efdb6, unclaimed, priced. Meta workflow.
 - Status 2026-10-01 10:43 (rota-d0): claimed by d2cc277a beside frames 101 and 105, on its own agent, because the files are disjoint (ruled: Roman, "Ok" to the recommendation in the terminal, 2026-10-01 10:43). Meta workflow. Route chosen: the test compares the newest row with the tree's composition, and the narrow key stays. Pass 1 on Opus, touched tests only; the gate runs once for the three frames.
+- Status 2026-10-01 10:45 (rota-d0): **pass 1 on Opus, 31.1k on the harness line against 20k, committed at 5ddf7f8: the test asserts the newest narrow row is in the wide match, compared by `seq` because the rows carry no system hash, and a new test on a tmp register proves the pass and the fail; 129 pass on the file's two tests** (observed: the agent's report, 2026-10-01 10:45). Meta workflow. One diff review runs on a worktree at 5ddf7f8.
 
 ### 101. The Critic's wake puts the diff first, and a long diff cuts the criteria and the tests out (2026-09-30) (d2cc277a)
 
