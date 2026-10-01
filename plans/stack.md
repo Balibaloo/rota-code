@@ -213,7 +213,7 @@ a different question and the night is then opened once.
 - Reasoning: frame 88's status of 2026-10-01 in `plans/archive/stack-2026-10-01.md`.
 - Status 2026-10-01 12:40 (rota-d0): pushed by d2cc277a, unclaimed, priced, blocked on Roman. Meta workflow.
 
-### 106. The Architect's dead-end case stopped reporting to the Liaison (2026-10-01)
+### 106. The Architect's dead-end case stopped reporting to the Liaison (2026-10-01) (10885dab)
 
 - **Batch C, the night's stall, found by this session's gates.** One site: the Architect's brief or the `tick:grouping` route that `L1-AR-a-dead-end-is-reported-not-sat-on` exercises, `tests/rota/cases/l1_judgement.yaml` or `l1_acts.yaml`.
 - Meta workflow. The case reads 0 of 5 against a need of 3 on every gate of 2026-10-01 from 9f21851 on, each run `expected message {'to': 'liaison', 'verb': 'report', 'count': 1}, got 0 match(es)`; the baseline 658abb6 of 2026-09-27 held it green, and no frame of this session touched the Architect (observed: the gates at 9f21851, bac99a9 and a8ab7ff, 2026-10-01). The commits between the baseline and 9f21851 are frames 97, 98's confirmation and 102 by earlier sessions, so the cause is read from them.
@@ -221,6 +221,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended: first in the next session, because the red is in every gate and hides the next one.
 - Reasoning: the gate lines on frames 101, 103 and 88 of this date.
 - Status 2026-10-01 12:38 (rota-d0): pushed by d2cc277a, unclaimed, priced. Meta workflow.
+- Status 2026-10-01 14:29 (rota-06): **claimed by 10885dab on Roman's choice; the red is the load flip frame 97 recorded on 2026-09-30, not a commit** (observed: `case_runs` for the case, 2026-10-01 14:27: prompt hash `d7d75dda` and system hash `5d8c13dd` unchanged since 2026-09-24; 4 of 5 on every replay to 2026-09-30 14:06; a `no cassette` key miss at 17:55 and a live re-record at 18:05 on load `qwen3:8b@248720` gave 0 of 5; every gate since replays that recording; the only other live runs are 18:42 on the same load, 0 of 5; the per-load history holds 0 of 5 on load 248653 and 2 of 5 on 248654 on 2026-09-25 too). Meta workflow. The commit read is not needed, because the bytes the model saw did not move. Frame 97's status of 18:43 in `plans/archive/stack-2026-09-30.md` names the first call's move from `findings.load` to `msg.answer_developer`, and says the case goes to frame 84's list if the red holds on a second load. One live re-record on a fresh load runs now, refresh then plain, on the gate's own command, with no night on the GPU.
 
 ### 105. A night report tool prints the cycle facts, and the Opus read starts from them (2026-10-01) (10885dab)
 
