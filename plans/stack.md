@@ -239,7 +239,7 @@ a different question and the night is then opened once.
   `c628193`** (observed: `handover.py hand`, exit 0, CONFIRMED 7s after the claim at 23:47:18). Meta
   workflow. This session, 7448850f, stops here at about 358k.
 
-### 105. A night report tool prints the cycle facts, and the Opus read starts from them (2026-10-01)
+### 105. A night report tool prints the cycle facts, and the Opus read starts from them (2026-10-01) (104efdb6)
 
 - **No batch. The second of the three levers Roman ruled on 2026-10-01** (ruled: Roman, "prioritize 1-3 now, skip 4", to the four levers the assistant put for faster nights; the Opus read stays, so the holder's context stays clean). One site: a new `rota/tools/nightreport.py`, started from `tests/rota/fixtures/extract_night.py`.
 - Meta workflow. Every night's read asks the same questions: which predicate woke whom per batch and in what order, each verdict with its commit and reason, each head move, `tick_attempts`, the quarantines, the cut and eviction phrases by count, and the sessions that ran past their completion line. Each read costs 85k to 103k on Opus (observed: nights 98 to 101's status lines) and the facts are rows.
@@ -247,6 +247,7 @@ a different question and the night is then opened once.
 - Waits on: nothing. Ruled first of the three levers, before frame 104 and before frames 100 and 101.
 - Reasoning: this session's answer on iteration speed, 2026-10-01, and the ruling in the terminal.
 - Status 2026-10-01 02:46 (rota-0f): pushed by 104efdb6, unclaimed, priced. Meta workflow.
+- Status 2026-10-01 02:46 (rota-0f): claimed by 104efdb6 beside frame 102, on its own agent, because the two touch different files (ruled: Roman, "implement and continue", 2026-10-01). Pass 1 starts on Opus.
 
 ### 104. A night starts from a snapshot at the seam under test, with the checkout at its commit (2026-10-01)
 
