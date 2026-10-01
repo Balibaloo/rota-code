@@ -236,7 +236,7 @@ a different question and the night is then opened once.
 - Reasoning: frame 102's pass 1 status.
 - Status 2026-10-01 01:08 (rota-0f): pushed by 104efdb6, unclaimed, priced. Meta workflow.
 
-### 101. The Critic's wake puts the diff first, and a long diff cuts the criteria and the tests out (2026-09-30)
+### 101. The Critic's wake puts the diff first, and a long diff cuts the criteria and the tests out (2026-09-30) (d2cc277a)
 
 - **Batch C, the night's stall, found by frame 97's last review.** One site: the order of the pushed results
   in the Critic's wake, `rota/core/runner.py:692-694` and the push at `:415`. It touches a seat's view, so
@@ -252,6 +252,7 @@ a different question and the night is then opened once.
 - Reasoning: frame 97's status of this hour.
 - Status 2026-09-30 19:34 (rota-c6): pushed by 7448850f, unclaimed, priced. Meta workflow.
 - Status 2026-10-01 09:57 (rota-d0): **confirmed on night 103 with a second cut: the Critic s170's wake at `e1f99723` is 22,729 characters, `[code.read]` first, the criteria complete, and the `tests.load` result cut by the result cap, `CUT the result: 448,106 of 468,106 characters are not shown`; the batch's own three `echo_json` tests are not in the visible part, and the Critic claimed all three criteria encode and passed the batch** (observed: night 103's read on Opus from the print, `plans/night103-read.md`, 2026-10-01 09:57). Meta workflow. So two cuts reach the Critic: the window's, which this frame names, and the result cap on a `tests.load` of 37 inherited tests, which hides the batch's own tests behind the inherited ones. The fix puts the batch's own tests first in the result, or loads them alone.
+- Status 2026-10-01 10:30 (rota-d0): claimed by d2cc277a beside frame 105, validating only (ruled: Roman, asked on the phone with this frame recommended first, widened to both cuts, 2026-10-01 10:30). Meta workflow. Ends-when widened: the Critic's wake keeps the criteria and the batch's own tests whatever the diff's length and whatever the inherited tests' count, both the window's cut and the result cap; one runner test per cut; the Critic cases re-record by count; a seam night from night 101's pair shows the Critic's first prompt holding the three `echo_json` test rows. Frames 100 and 88 follow on the same seam. The design read starts on the push order and the result cap.
 
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
