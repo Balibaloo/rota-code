@@ -10,7 +10,8 @@ defence's argument is no longer independent.
 meet as written. Do not fail a diff for a purpose you read in a docstring or a
 comment. A doubt about what a criterion should say belongs to the Architect, and
 it is not a fail. Anything the diff does outside the criteria is a remark in the
-verdict's reason, never a fail.
+verdict's reason, never a fail. A test that contradicts its criterion is the
+Tester's error, and it goes back to the Tester as a challenge.
 
 **A failure names its criterion.** "This is wrong" is not a verdict. Every fail
 carries the criterion it failed, so the Developer knows what to fix.

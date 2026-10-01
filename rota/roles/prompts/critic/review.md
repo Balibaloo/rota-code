@@ -11,7 +11,12 @@ Work through it in this order:
    does this criterion's own test actually encode it? `True` and the code is
    what's wrong; `False` and the test is. A fail you have not claimed for
    does not land — the tool refuses it.
-2. **Is there anything here nobody asked for?** One judgement about the change as
+2. **Does each test encode its criterion?** Read the test's assertion against
+   the criterion's words. The assertion may not encode those words, or it may
+   assert what the code does instead of what the criterion says. Then claim
+   `encodes=False` and send `msg.challenge_tester`. Quote the test's line and
+   the criterion's words, and stop. Emit no verdict in that session
+3. **Is there anything here nobody asked for?** One judgement about the change as
    a whole, not a line-by-line audit. Work outside the criteria is a remark,
    never a fail
 
