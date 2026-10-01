@@ -6155,11 +6155,28 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
 
 @op("verdicts", "load")
 def verdicts_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
+    """
+    The verdicts at the batch's head commit, or the whole history when none
+    is at the head.
+
+    The Developer on `tick:verdict_failed` reads the head's verdict only.
+    Night 101 (2026-09-30) left five fails with five reasons on one batch,
+    and the seat could not tell which was current. The exhausted modes also
+    hold `verdicts.load`, and they still read the history when nothing is at
+    the head. The history comes newest first: each commit's verdict is its
+    own row, so the rowid orders the commits.
+    """
     bid = batch_id or ctx.batch_id
+    cols = ("SELECT v.id, v.batch_id, v.commit_sha, v.result, "
+            "v.failed_criterion, v.reason FROM verdicts v ")
+    at_head = _rows(ctx.conn.execute(
+        cols + "JOIN batches b ON b.id = v.batch_id "
+        "WHERE v.batch_id = ? AND v.commit_sha = b.head_commit "
+        "ORDER BY v.rowid DESC", (bid,)))
+    if at_head:
+        return at_head
     return _rows(ctx.conn.execute(
-        "SELECT id, batch_id, result, failed_criterion, reason FROM verdicts "
-        "WHERE batch_id = ?",
-        (bid,)))
+        cols + "WHERE v.batch_id = ? ORDER BY v.rowid DESC", (bid,)))
 
 
 @op("verdicts", "rule")
