@@ -400,12 +400,14 @@
             query = "SELECT id, name, ingredients FROM recipes"
             if scope != "all":
                 query += " WHERE collection = ?"
-            rows = conn.execute(query, () if scope == "all" else (scope,)).fetchall()
+            cursor = conn.execute(query, () if scope == "all" else (scope,))
             writer = csv.writer(out)
             writer.writerow(["id", "name", "ingredients"])
-            for row in rows:
+            count = 0
+            for row in cursor:
                 writer.writerow([row["id"], row["name"], row["ingredients"]])
-            return len(rows)
+                count += 1
+            return count
   fixture:
     items:
       - {id: <i1>, text: "exports stream in constant memory", kind: in_scope,
