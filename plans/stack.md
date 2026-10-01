@@ -248,6 +248,7 @@ a different question and the night is then opened once.
 - Reasoning: this session's answer on iteration speed, 2026-10-01, and the ruling in the terminal.
 - Status 2026-10-01 02:46 (rota-0f): pushed by 104efdb6, unclaimed, priced. Meta workflow.
 - Status 2026-10-01 02:46 (rota-0f): claimed by 104efdb6 beside frame 102, on its own agent, because the two touch different files (ruled: Roman, "implement and continue", 2026-10-01). Pass 1 starts on Opus.
+- Status 2026-10-01 02:52 (rota-0f): **pass 1 on Opus, 88.3k on the harness line against 40k, committed at 0e65692: `rota/tools/nightreport.py` prints night 101 in 169 lines and night 100 in 241, three tests pass** (observed: the agent's run on `.rota/clickI_night101.db`, 2026-10-01). Meta workflow. Accepted as built: runs of same-kind wakes outside a batch collapse to one line, `--full` expands them; the commit history is read from the `OK code.commit` lines in the turns, because `code.commit` writes only `batches.head_commit`, so a commit in a session's last turn is missed. The ledger count is skipped. The print already shows two facts for frame 102's night: night 101 has no test run at its head `e1f99723`, and eight sessions ran past their completion line, frame 98. One diff review runs on a worktree at the commit. The frame closes when the next night's read starts from the print under 40k.
 
 ### 104. A night starts from a snapshot at the seam under test, with the checkout at its commit (2026-10-01)
 
