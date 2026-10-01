@@ -573,8 +573,9 @@ _EVICTED_PHRASE = "dropped to fit the window"
 # serves an answer the window took, so that no line ever points at a block the
 # seat cannot see. A result larger than the room the exchange leaves is evicted
 # on every turn, and serving it on every turn is night 88's s137 again, so the
-# fourth asking is refused and the refusal says the room is the limit (the
-# design review of frame 77, finding 3, 2026-09-23).
+# fourth asking is refused (the design review of frame 77, finding 3,
+# 2026-09-23). The refusal names the window, because night 99's s132 had
+# room for its results (frame 100).
 SERVE_CAP = 3
 
 
@@ -662,7 +663,83 @@ def _fit_budget(num_ctx: int, system_chars: int) -> int:
     return max(2000, int(num_ctx / 2 * 3.97) - system_chars)
 
 
-def _fit(transcript: list[str], budget: int) -> list[str]:
+# The kind of each transcript block. The runner names the kind when it
+# appends the block, and `_fit` reads the kind. Parity by position is false
+# after the first eviction: night 99, s132, held a results block after the
+# notice at turns 9, 10, 11 and 13 (frame 100's design review).
+_WAKE, _REPLY, _RESULTS, _NOTICE = "wake", "reply", "results", "notice"
+
+# A stub keeps each call line of an old reply, cut to this length. Night 99,
+# s132: replies of 7,373 to 21,121 characters took the room, and the source
+# results of 2,186 to 8,642 characters went (frame 100).
+_STUB_CALL_CHARS = 200
+_STUB_EMPTY = "[your reply of an earlier turn]"
+
+# A `code.source` result as the runner writes it into a results block, served
+# the first time or served again after an eviction. `_as_block` puts the
+# scalars on the head line, so path, start and end are legible (frame 100).
+_SOURCE_RESULT = re.compile(
+    r"^OK code\.source -> (?:the earlier answer was .*?ran again: )?"
+    r"path: ([^,\n]+), start: (\d+), end: (\d+)", re.MULTILINE)
+# `_render` names the line where it cut a span. Night 99, s132, turn 12: the
+# read of 0-688 was cut at line 457, so it did not hold 457-688 (frame 100).
+_SOURCE_CUT_AT = re.compile(r"The cut fell at line (\d+): code\.source\(")
+# `_exchange_cut` names no line, so a block it cut covers no span.
+_EXCHANGE_CUT = "CUT this exchange"
+
+
+def _append(transcript: list[str], kinds: list[str], kind: str,
+            block: str) -> None:
+    """
+    Append one block and its kind together. Every append goes through here,
+    so a new append site cannot put the two lists out of step (frame 100).
+    """
+    transcript.append(block)
+    kinds.append(kind)
+
+
+def _stub(reply: str) -> str:
+    """
+    An old reply as its call lines only. The results of the turn say what ran,
+    so the call lines are enough to read them by (frame 100, night 99, s132).
+
+    The calls are the ones the parser finds, because the parser finds `TOOL:`
+    anywhere in a line. A call in a list item or in backticks ran, so its
+    stub keeps it (the diff review of frame 100's pass 1, finding 2). Each
+    call is its first line, cut to `_STUB_CALL_CHARS`.
+    """
+    calls = [(f"{toolproto.MARKER} {call.raw}".splitlines() or [""])[0]
+             [:_STUB_CALL_CHARS]
+             for call in toolproto.extract(reply)
+             if isinstance(call, toolproto.ToolCall)]
+    return chr(10).join(calls) or _STUB_EMPTY
+
+
+def _source_spans(block: str) -> list[tuple[str, int, int]]:
+    """
+    The (path, start, end) of each `code.source` result in a results block.
+    The end is the line where `_render` cut the span, when it cut one.
+
+    A result with no `[text]` marker holds no source. `_render` cuts before
+    the marker when a long `defs` head takes the cap, and the head still
+    names the whole span (the diff review of frame 100's pass 1, finding 1).
+    """
+    found = list(_SOURCE_RESULT.finditer(block))
+    spans = []
+    for i, match in enumerate(found):
+        stop = found[i + 1].start() if i + 1 < len(found) else len(block)
+        if block.find("[text]", match.end(), stop) < 0:
+            continue
+        end = int(match.group(3))
+        cut = _SOURCE_CUT_AT.search(block, match.end(), stop)
+        if cut:
+            end = min(end, int(cut.group(1)))
+        spans.append((match.group(1).strip(), int(match.group(2)), end))
+    return spans
+
+
+def _fit(transcript: list[str], kinds: list[str],
+         budget: int) -> tuple[list[str], list[str]]:
     """
     Keep the session inside its window, evicting the middle rather than the front.
 
@@ -678,9 +755,26 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     So the wake survives, the latest exchange survives, and what goes is the
     middle -- older tool results the session has already acted on. Announced
     rather than silently dropped, for the same reason a cut result says so.
+
+    The middle goes by kind, in tiers, and oldest first inside a tier (frame
+    100). Age alone dropped the reads and kept the replies. Night 99, s132:
+    the replies took the room, and the seat read span 346-390 eight times.
+
+    1. An old reply becomes a stub of its call lines.
+    2. A results block goes when newer blocks hold all of its source spans.
+       Then the other results blocks go, except the newest read of each
+       distinct span.
+    3. The newest read of each distinct span goes, oldest first.
+    4. Whatever is left goes, so the budget holds.
+
+    A results block that goes takes the reply of its turn with it.
+
+    `kinds` names the kind of each block, and the two lists come back aligned.
     """
+    if len(kinds) != len(transcript):
+        raise ValueError(f"{len(kinds)} kinds for {len(transcript)} blocks")
     if sum(len(t) + 2 for t in transcript) <= budget:
-        return transcript
+        return transcript, kinds
 
     # The wake is kept whole *unless it alone will not fit*, which it can be:
     # the pushed working set lives in it, and on a 1,357-grain area that was
@@ -700,27 +794,121 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     # 12,288 window, ollama kept the tail, and each seat answered as a generic
     # assistant with no tool call. Only the middle eviction below needs four.
     if len(transcript) < 4:
-        return _cap_exchange(transcript, budget)
+        return _cap_exchange(transcript, budget), kinds
 
     head, tail = transcript[:1], transcript[-2:]
+    # Each middle block as [text, kind, kept]. A stub changes the text, and
+    # a drop clears `kept`.
+    middle = [[block, kind, True]
+              for block, kind in zip(transcript[1:-2], kinds[1:-2])]
+    fixed = sum(len(t) + 2 for t in head + tail)
     # The notice is part of the prompt, so the packing pays for it. Unreserved,
     # the transcript came back up to 116 characters over the budget and
     # `_cap_exchange` read the deficit as room it could lend (the diff review
     # of 34c3e72, F5). Reserved at the longest it can be, which is the notice
     # for every block dropping.
-    room = (budget - sum(len(t) + 2 for t in head + tail)
-            - len(_dropped_note(len(transcript))) - 2)
-    middle: list[str] = []
-    for block in reversed(transcript[1:-2]):
-        if room - len(block) - 2 < 0:
-            break
-        middle.insert(0, block)
-        room -= len(block) + 2
+    note_room = len(_dropped_note(len(transcript))) + 2
+    old_notices = sum(1 for _, kind, _ in middle if kind == _NOTICE)
+    dropped = 0
 
-    dropped = len(transcript) - len(head) - len(middle) - len(tail)
+    def over() -> bool:
+        held = sum(len(block) + 2 for block, kind, kept in middle
+                   if kept and kind != _NOTICE)
+        noted = note_room if (dropped or old_notices) else 0
+        return fixed + held + noted > budget
+
+    def drop(at: int) -> None:
+        # A results block takes the reply of its turn with it. A stub left
+        # alone shows a call with no answer, and the seat can then believe a
+        # refused write landed (the diff review of frame 100's pass 1,
+        # finding 3). N counts both blocks.
+        nonlocal dropped
+        middle[at][2] = False
+        dropped += 1
+        if (middle[at][1] == _RESULTS and at > 0
+                and middle[at - 1][1] == _REPLY and middle[at - 1][2]):
+            middle[at - 1][2] = False
+            dropped += 1
+
+    # Tier 1: old replies become stubs. A stub drops no block, so N stays.
+    for entry in middle:
+        if not over():
+            break
+        if entry[1] == _REPLY:
+            stub = _stub(entry[0])
+            if len(stub) < len(entry[0]):
+                entry[0] = stub
+
+    # The results blocks the eviction can still see, oldest first. The tail's
+    # results stay, so they count as the newer reads.
+    def reads() -> list[tuple[int, list[tuple[str, int, int]], bool]]:
+        found = [(i, _source_spans(block), _EXCHANGE_CUT not in block)
+                 for i, (block, kind, kept) in enumerate(middle)
+                 if kept and kind == _RESULTS]
+        found += [(len(middle) + i, _source_spans(block),
+                   _EXCHANGE_CUT not in block)
+                  for i, (block, kind) in enumerate(zip(tail, kinds[-2:]))
+                  if kind == _RESULTS]
+        return found
+
+    def covered(at: int, spans: list[tuple[str, int, int]]) -> bool:
+        newer = [span for i, held, whole in reads() if i > at and whole
+                 for span in held]
+        return bool(spans) and all(
+            any(path == p and start >= s and end <= e for p, s, e in newer)
+            for path, start, end in spans)
+
+    # Tier 2, first half: a span that a newer block holds is a copy. Night
+    # 99, s132, held span 346-390 more than once, and a distinct span went
+    # first (frame 100's design review).
+    for i, entry in enumerate(middle):
+        if not over():
+            break
+        if entry[2] and entry[1] == _RESULTS and covered(
+                i, _source_spans(entry[0])):
+            drop(i)
+
+    # The newest read of each distinct span, which tier 3 drops last. A pin
+    # per path let one file's distinct spans go by age. Night 99, s132, turn
+    # 8: every read held a distinct span, so the pins were all of them, and
+    # spans 390-450 and 450-688 went by age under both rules. The re-reads
+    # at turns 16 to 18 follow turn 13, whose 30,894-character reply in the
+    # last two blocks was larger than the budget, so the whole middle went.
+    # Only a cap on the tail saves those reads, and that is its own frame
+    # (the diff review of frame 100's pass 2, finding 1).
+    newest: dict[tuple[str, int, int], int] = {}
+    for i, held, _ in reads():
+        for span in held:
+            newest[span] = i
+    pinned = set(newest.values())
+
+    # Tier 2, second half, and tier 3. Tier 3 drops the pinned reads, oldest
+    # first.
+    for keep_pinned in (True, False):
+        for i, entry in enumerate(middle):
+            if not over():
+                break
+            if (entry[2] and entry[1] == _RESULTS
+                    and (i not in pinned or not keep_pinned)):
+                drop(i)
+
+    # Tier 4: the stubs and any block of another kind, so the budget holds.
+    for i, entry in enumerate(middle):
+        if not over():
+            break
+        if entry[2] and entry[1] != _NOTICE:
+            drop(i)
+
     if not dropped:
-        return _cap_exchange(transcript, budget)
-    return _cap_exchange(head + [_dropped_note(dropped)] + middle + tail, budget)
+        kept = [(block, kind) for block, kind, keep in middle if keep]
+    else:
+        # An earlier notice counts as a dropped block, as before frame 100.
+        kept = ([(_dropped_note(dropped + old_notices), _NOTICE)]
+                + [(block, kind) for block, kind, keep in middle
+                   if keep and kind != _NOTICE])
+    out = head + [block for block, _ in kept] + tail
+    out_kinds = kinds[:1] + [kind for _, kind in kept] + kinds[-2:]
+    return _cap_exchange(out, budget), out_kinds
 
 
 def _prompt_overrun(system: str, user: str, budget: int, num_ctx: int) -> str:
@@ -2170,6 +2358,8 @@ def run_session(
         pins = pins.with_prompt(system + user)
 
         transcript = [user]
+        # The kind of each block, beside it. `_fit` evicts by kind (frame 100).
+        kinds = [_WAKE]
         held_calls: list = []
         fence_warned = False
         intent_warned = False
@@ -2306,7 +2496,7 @@ def run_session(
                 outcome.errors.append(stop_reason)
                 break
             outcome.iterations = iteration
-            transcript = _fit(transcript, budget)
+            transcript, kinds = _fit(transcript, kinds, budget)
             user = "\n\n".join(transcript)
             # Above every backend, because the only whole-prompt measurement ran
             # on the reply and `truncated` is an Ollama field: replayed cases
@@ -2373,9 +2563,11 @@ def run_session(
                 # 98 minutes. A cut reply with no call is not the end: the
                 # model reads what it sent, bounded, and the cut, once.
                 cut_retried = True
-                transcript.append(_render_cut(completion.text, 4000))
-                transcript.append(f"ERROR reply cut: {cut_note} Send calls, "
-                                  f"or end with one sentence.")
+                _append(transcript, kinds, _REPLY,
+                        _render_cut(completion.text, 4000))
+                _append(transcript, kinds, _RESULTS,
+                        f"ERROR reply cut: {cut_note} Send calls, "
+                        f"or end with one sentence.")
                 continue
             if ("```" in completion.text and not calls
                     and "code.write" in allowed and not fence_warned):
@@ -2385,8 +2577,9 @@ def run_session(
                 # the session's real stop.
                 fence_warned = True
                 outcome.errors.append("wrote code into its reply")
-                transcript.append(completion.text)
-                transcript.append(
+                _append(transcript, kinds, _REPLY, completion.text)
+                _append(
+                    transcript, kinds, _RESULTS,
                     "You wrote code into your reply, and a reply is not a "
                     "file -- nothing landed. Send it as a call: "
                     "code.write(path='...', text='...') and then code.commit.")
@@ -2406,8 +2599,9 @@ def run_session(
                 # prose turn is the real stop.
                 intent_warned = True
                 outcome.errors.append("named an act and did not perform it")
-                transcript.append(completion.text)
-                transcript.append(
+                _append(transcript, kinds, _REPLY, completion.text)
+                _append(
+                    transcript, kinds, _RESULTS,
                     "You said what you would do and did not do it -- a reply "
                     "is not a call. Send the call you named, as TOOL: ..., "
                     "or end by saying nothing is owed.")
@@ -2423,8 +2617,9 @@ def run_session(
                 # Told once; the next prose turn is the real stop.
                 noop_warned = True
                 outcome.errors.append("ended a tick with nothing done")
-                transcript.append(completion.text)
-                transcript.append(
+                _append(transcript, kinds, _REPLY, completion.text)
+                _append(
+                    transcript, kinds, _RESULTS,
                     "You were woken because something is owed here, and this "
                     "session has written nothing and sent nothing -- the same "
                     "wake will fire again with the same material. Act on your "
@@ -2457,8 +2652,9 @@ def run_session(
                     # gets to answer it.
                     stoodby_retried = True
                     held_calls = []
-                    transcript.append(completion.text)
-                    transcript.append(
+                    _append(transcript, kinds, _REPLY, completion.text)
+                    _append(
+                        transcript, kinds, _RESULTS,
                         "The calls you stood by ran, and these were "
                         "refused:\n" + "\n".join(refused)
                         + "\nAnswer the refusals with corrected calls, "
@@ -2755,15 +2951,19 @@ def run_session(
                     # keeps the s71 shape closed.
                     stormed = key in served_keys and served.get(key, 0) >= 2
                     if would_repeat and evicted and served.get(key, 0) >= SERVE_CAP:
-                        # The room is the limit, so the seat is asked for a
-                        # span that fits. Night 88's s137 was served in full at
+                        # The seat is asked for a narrower span, which the
+                        # window can hold. Night 88's s137 was served in full at
                         # turns 7, 8 and 9 and died with nothing written: a
                         # result bigger than the exchange comes back for ever
                         # and buys nothing. Frames 53 and 56 own the fitting
                         # itself; this line only stops the loop.
-                        why = ("served three times this session and the result "
-                               "does not fit the room this seat has; not "
-                               "served again")
+                        #
+                        # The reason names the window, not the room. Night
+                        # 99, s132: results of 2,186 to 8,642 characters in a
+                        # 26,309 budget, and the other blocks took the room
+                        # (frame 100). `nightreport` greps both phrases.
+                        why = ("served three times this session, and the "
+                               "window took it each time; not served again")
                         repeated[key] = repeated.get(key, 0) + 1
                         if key not in refused_keys:
                             refused_keys.add(key)
@@ -2932,7 +3132,7 @@ def run_session(
                     "results of the calls that did run follow. Send the rest "
                     "again with those results in view.")
 
-            transcript.append(completion.text)
+            _append(transcript, kinds, _REPLY, completion.text)
 
             # One wake, one completion: once the reply has committed to
             # something -- a write, a message, a terminal act -- that is the
@@ -2983,7 +3183,7 @@ def run_session(
                     "You have sent your message. Your work for this session is "
                     "complete — emit no further tool calls."
                 )
-            transcript.append("\n".join(feedback))
+            _append(transcript, kinds, _RESULTS, "\n".join(feedback))
 
             # Liaison's intake mode is documented as one answer per message --
             # chat, an inquiry, or work, never two -- so once it has actually
