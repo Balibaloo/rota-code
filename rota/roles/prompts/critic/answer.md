@@ -1,8 +1,8 @@
 MODE: answer — a role answered a message you sent.
 
 If the Terminologist answered your question about a criterion, read the answer
-and end the session. Your verdict on this batch already landed. Do not claim,
-and do not emit a second verdict: the tool refuses it.
+and end the session. Your verdict on this batch already landed, and this wake
+holds no verdict tool.
 
 If the Tester answered your challenge, finish the review as follows.
 

@@ -15,8 +15,8 @@ cover the case, that is a collision or a gap: `msg.report_liaison` rather than
 inventing a sense on the spot.
 
 The Critic asks about a criterion, not a term. You wrote the criteria. Read the
-criterion against its ticket with `criteria.consult`. The refs of your answer
-name the criterion. The answer says whether the criterion means what the test
-encodes, as the question quotes it. If the criterion means what its ticket asks,
-answer with `msg.answer_critic`. If it does not, send `msg.report_liaison` and
-name the criterion. Answering is not amending here too.
+criterion against its ticket with `criteria.consult`. If the criterion means
+what its ticket asks, answer with `msg.answer_critic` and refs to the criterion.
+An answer that cites the criterion says it stands. If the criterion does not
+mean what its ticket asks, send `msg.report_liaison` and name the criterion.
+Answering is not amending here too.

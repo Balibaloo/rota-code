@@ -442,6 +442,14 @@ def situational(conn: sqlite3.Connection, role: str, mode: str, wake,
             asker = row["from_role"]
             keep -= {k for k in keep
                      if k.startswith("msg.answer_") and k != f"msg.answer_{asker}"}
+            # Frame 107. The Critic's verdict landed before its question to
+            # the Terminologist. The Developer can commit a new head before
+            # the answer arrives. Then a verdict from this wake judges a diff
+            # nobody reviewed, so the wake holds no verdicts (ruled: Roman,
+            # 2026-10-01: the Critic's doubt about a criterion goes to the
+            # Terminologist, the writer of the criteria).
+            if role == "critic" and asker == "terminologist":
+                keep -= {k for k in keep if k.startswith("verdicts.")}
 
     return keep
 
@@ -1723,15 +1731,20 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 "SELECT 1 FROM glossary_terms WHERE id = ? UNION ALL "
                 "SELECT 1 FROM criteria WHERE id = ?", (r, r)).fetchone()]
             if not cited:
-                # Frame 107. The Terminologist holds no report edge to the
-                # Critic, so the door names the Liaison (ruled: Roman,
-                # 2026-10-01: the Critic's doubt about a criterion goes to
-                # the Terminologist, the writer of the criteria).
-                to = "liaison" if recipient == "critic" else recipient
+                # The Terminologist holds one report edge, to the Liaison.
+                # The door named msg.report_<recipient>, a tool that does not
+                # exist. That defect is older than frame 107, and frame 107's
+                # review found it (ruled: Roman, 2026-10-01: the Critic's
+                # doubt about a criterion goes to the Terminologist, the
+                # writer of the criteria). An answer to the Critic cites the
+                # criterion, not a term.
+                carries = ("an answer to the Critic carries the criterion"
+                           if recipient == "critic"
+                           else "an answer from the glossary carries a term")
                 raise ValueError(
-                    f"an answer from the glossary carries a term, and "
+                    f"{carries}, and "
                     f"refs={list(refs or [])} names none. The glossary does "
-                    f"not carry this: send msg.report_{to}"
+                    f"not carry this: send msg.report_liaison"
                     f"(refs={list(refs or [])}) with the same refs.")
 
         # A confirmation points at what is being ratified, and the only

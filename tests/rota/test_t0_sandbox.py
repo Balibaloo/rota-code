@@ -70,6 +70,27 @@ def test_s9_critic_namespace_is_review_plus_challenge(db):
     }
 
 
+def test_s9_a_terminologist_answer_wakes_a_critic_with_no_verdict(db):
+    # Frame 107. The verdict landed before the question, and the Developer
+    # can commit a new head before the answer arrives. So the answer wake
+    # holds no verdicts. A Tester's answer still ends in a verdict (ruled:
+    # Roman, 2026-10-01: the Critic's doubt about a criterion goes to the
+    # Terminologist, the writer of the criteria).
+    from rota.core.scheduler import Wake
+    for mid, sender in (("m1", "terminologist"), ("m2", "tester")):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, body_refs, body_text, seq, status) VALUES "
+                   "(?, 't1', ?, 'critic', 'answer', '[]', 'it stands', 1, "
+                   "'open')", (mid, sender))
+    db.commit()
+    by_term = build("critic", db, mode="answer",
+                    wake=Wake(role="critic", kind="message", message_id="m1"))
+    assert not {f for f in by_term.functions() if f.startswith("verdicts.")}
+    by_tester = build("critic", db, mode="answer",
+                      wake=Wake(role="critic", kind="message", message_id="m2"))
+    assert "verdicts.emit" in by_tester.functions()
+
+
 def test_s9_out_of_edge_access_raises(db):
     sb = build("critic", db)
     with pytest.raises(NotInWorkingSet):
@@ -652,7 +673,7 @@ def test_a_terminologist_answer_with_no_term_is_sent_to_the_report(db):
     with pytest.raises(ValueError) as exc:
         sb.call("msg.answer_architect", refs=["i1"])
     assert "refs=['i1'] names none" in str(exc.value)
-    assert "send msg.report_architect(refs=['i1']) with the same refs" in str(exc.value)
+    assert "send msg.report_liaison(refs=['i1']) with the same refs" in str(exc.value)
     sb.call("msg.answer_architect", refs=["i1", "g1"])
     assert sb.ctx.outbound, "an answer that cites a term is sent"
 
