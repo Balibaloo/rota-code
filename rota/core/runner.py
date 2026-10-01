@@ -870,8 +870,12 @@ def _fit(transcript: list[str], kinds: list[str],
 
     # The newest read of each distinct span, which tier 3 drops last. A pin
     # per path let one file's distinct spans go by age. Night 99, s132, turn
-    # 8: spans 390-450 and 450-688 went, and turns 16 to 18 read them again
-    # (the diff review of frame 100's pass 1, finding 4).
+    # 8: every read held a distinct span, so the pins were all of them, and
+    # spans 390-450 and 450-688 went by age under both rules. The re-reads
+    # at turns 16 to 18 follow turn 13, whose 30,894-character reply in the
+    # last two blocks was larger than the budget, so the whole middle went.
+    # Only a cap on the tail saves those reads, and that is its own frame
+    # (the diff review of frame 100's pass 2, finding 1).
     newest: dict[tuple[str, int, int], int] = {}
     for i, held, _ in reads():
         for span in held:
