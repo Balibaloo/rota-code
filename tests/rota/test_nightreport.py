@@ -147,7 +147,7 @@ def test_a_receipt_session_joins_its_batch(tmp_path):
     s5 = next(i for i, l in enumerate(wakes) if l.startswith("s5 tester"))
     assert s3 < loose and s5 < loose
     # s3 wrote the batch row with no commit line, so the history keeps it.
-    assert "  s3 sha=?" in _section(lines, "batches")
+    assert "  s3 no commit line" in _section(lines, "batches")
 
 
 def test_a_run_never_hides_a_session_between(tmp_path):
@@ -175,6 +175,8 @@ def test_an_absent_table_or_column_prints_as_absent(tmp_path):
     conn.close()
     lines = _report(path)
     assert lines[0].startswith("night report: 8 sessions, ? turns")
+    # Without turns, the history cannot say whether a commit line exists.
+    assert "  s3 sha=?" in _section(lines, "batches")
     assert "absent: turns" in _section(lines, "window and door phrases")
     assert "'CUT the result': turns=? sessions=?" in lines
     assert "absent: finding_rulings" in _section(lines, "findings and rulings")
@@ -183,6 +185,31 @@ def test_an_absent_table_or_column_prints_as_absent(tmp_path):
     assert any(l.startswith("s1 developer ? [bg_1] t=? c=1") for l in wakes)
     # Without the wake kind, no run collapses.
     assert not any(".." in l.split(" ")[0] for l in wakes)
+
+
+def test_the_eviction_notice_counts_when_its_count_is_new(tmp_path):
+    """
+    `_fit` writes the notice before the newest feedback, so only its count shows a new cut.
+
+    Turn 2 holds the notice first, and turn 3 holds the same count. Turn 4's
+    prompt holds no copy of turn 3's completion, so its phrase counts nothing.
+    """
+    conn = init_db(tmp_path / "evict.db")
+    _session(conn, "s1", "developer", 1, "tick:batch_start")
+    notice = "[2 earlier exchange(s) dropped to fit the window. Re-read anything you need.]"
+    u2 = f"wake\n\n{notice}\n\nTOOL: a()\n\nOK a -> x"
+    u3 = f"wake\n\n{notice}\n\nTOOL: b()\n\nOK b -> y"
+    u4 = f"wake\n\n{notice}\n\nTOOL: z()\n\nOK z -> CUT the result"
+    _turn(conn, "s1", 1, "wake", "TOOL: a()")
+    _turn(conn, "s1", 2, u2, "TOOL: b()")
+    _turn(conn, "s1", 3, u3, "TOOL: c()")
+    _turn(conn, "s1", 4, u4, "TOOL: d()")
+    conn.commit()
+    conn.close()
+    phrases = _section(_report(tmp_path / "evict.db"), "window and door phrases")
+    assert "'dropped to fit the window': turns=1 sessions=1" in phrases
+    assert "'CUT the result': turns=0 sessions=0" in phrases
+    assert "prompts holding no copy of the previous completion: 1" in phrases
 
 
 def test_since_reads_a_t_as_the_stored_space(tmp_path):

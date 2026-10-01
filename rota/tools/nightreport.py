@@ -24,7 +24,16 @@ misses a new copy (frame 105 diff review, s88 and s132 of night 101). A
 turn holds a phrase when the newest feedback or the completion holds it.
 The newest feedback is the part of the prompt after the previous turn's
 completion. The model's own completion can quote a runner phrase, so the
-newest feedback never includes that completion.
+newest feedback never includes that completion. A prompt that holds no copy
+of the previous completion counts nothing, and the report counts those
+prompts.
+
+The eviction notice is the one phrase read from the whole prompt, by its
+count. `_fit` writes `[N earlier exchange(s) dropped to fit the window ...]`
+in the middle of the prompt, before the newest feedback, so the feedback rule
+never sees the notice (frame 105 second review, s132 and s88 of night 101).
+A turn counts `dropped to fit the window` when its notice's N is new or
+differs from the N of the previous prompt.
 
 `--since` filters `finding_rulings.at` only. No other reported table
 stores a time: `sessions`, `turns` and `messages` order by `seq` alone.
@@ -66,6 +75,10 @@ ABSENT = "?"
 # A prompt can hold a long completion cut short. The search then uses the
 # completion's start.
 HEAD_PROBE = 60
+WINDOW = "dropped to fit the window"
+# The bracket anchors the notice that `_fit` writes, so a model's prose that
+# names earlier exchanges does not match.
+EVICT_RE = re.compile(r"\[(\d+) earlier exchange")
 
 
 def cut(text, n: int) -> str:
@@ -143,18 +156,24 @@ def _newest_feedback(user: str, prev_completion: str | None) -> tuple[str, bool]
     The part of a prompt that follows the previous turn's completion.
 
     The second value is False when the prompt holds no copy of that
-    completion, even cut short. The whole prompt is then the feedback.
+    completion, even cut short. The feedback is then empty, so the turn
+    counts nothing. The runner follows a completion with a blank line, so
+    that form is searched first. A copy of the completion inside the
+    feedback then cannot move the boundary.
     """
     if prev_completion is None:
         return user, True
     if not prev_completion:
-        return user, False
+        return "", False
+    i = user.rfind(prev_completion + "\n\n")
+    if i >= 0:
+        return user[i + len(prev_completion):], True
     i = user.rfind(prev_completion)
     if i >= 0:
         return user[i + len(prev_completion):], True
     i = user.rfind(prev_completion[:HEAD_PROBE])
     if i < 0:
-        return user, False
+        return "", False
     k = 0
     while k < len(prev_completion) and i + k < len(user) and prev_completion[k] == user[i + k]:
         k += 1
@@ -205,9 +224,10 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
 
     # A session belongs to a batch when one of these names it, in this order:
     # its wake refs, its trigger message's refs, a receipt on the batch row,
-    # or the arguments of a tool call. A Developer woken by an answer carries
-    # `[]` as wake refs. s150 of night 101 committed to bg_1 through a receipt,
-    # and s144 named bg_1 in `tests.encode` (frame 105 diff review).
+    # or a tool call's `batch_id=` argument. A Developer woken by an answer
+    # carries `[]` as wake refs. s150 of night 101 committed to bg_1 through a
+    # receipt, and s144 named bg_1 in `tests.encode` (frame 105 diff review).
+    # A batch id inside free text, such as a message body, does not count.
     batch_of: dict[str, str | None] = {}
     for s in sessions:
         b = _names_batch(_refs(s["wake_refs"]), batch_ids)
@@ -217,7 +237,8 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
             b = batch_by_receipt.get(s["id"])
         if b is None and batch_re is not None:
             for c in calls_by.get(s["id"], []):
-                m = batch_re.search(str(c["args_summary"] or ""))
+                args = str(c["args_summary"] or "")
+                m = batch_re.search(args) if "batch_id=" in args else None
                 if m:
                     b = m.group(1)
                     break
@@ -271,7 +292,10 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
         for sid, shas in steps:
             c = committed_of.get(sid)
             flag = f" committed={c}" if sid != "(row)" and c != 1 else ""
-            w(f"  {sid}{flag} " + (" ".join(short(x) for x in shas) or f"sha={ABSENT}"))
+            # `?` means an absent table, so a session with turns and no
+            # commit line says so in words.
+            none = "no commit line" if have_turns else f"sha={ABSENT}"
+            w(f"  {sid}{flag} " + (" ".join(short(x) for x in shas) or none))
 
     # 2. Wakes, in order.
     w("== wakes")
@@ -454,17 +478,24 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
     for sid, ts in turns_by.items():
         first_complete = None
         prev_completion: str | None = None
+        prev_evicted: str | None = None
         for t in ts:
             completion = str(t["completion"] or "")
             runner = _is_runner(t)
+            evicted_now = False
             if runner:
                 # The runner's turn has no prompt. Its completion is the runner's text.
                 fresh = ""
             else:
-                fresh, matched = _newest_feedback(str(t["user"] or ""), prev_completion)
+                user = str(t["user"] or "")
+                fresh, matched = _newest_feedback(user, prev_completion)
                 unmatched += not matched
+                notice = EVICT_RE.search(user)
+                evicted = notice.group(1) if notice else None
+                evicted_now = evicted is not None and evicted != prev_evicted
+                prev_evicted = evicted
             for p in PHRASES:
-                if p in fresh or p in completion:
+                if p in fresh or p in completion or (p == WINDOW and evicted_now):
                     holding[p].append((sid, t["seq"], runner))
                     if p == COMPLETE and first_complete is None:
                         first_complete = t["seq"]
