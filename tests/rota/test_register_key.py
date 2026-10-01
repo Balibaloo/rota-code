@@ -1656,26 +1656,25 @@ def registered():
     conn.close()
 
 
-def _newest_row_in_the_wide_match(conn, case: dict, text: str):
+def _newest_row_and_its_hash(conn, case: dict) -> tuple[list, str]:
     """
-    The narrow match, and whether its newest row is in the wide match.
+    The narrow match, newest first, and the system hash of its newest row.
 
-    The rows carry no system hash column, so the check compares `seq`, which
-    identifies a row. Both matches are newest first.
+    The match returns no system hash column, so the hash is read back from
+    `case_runs`. The read filters on the whole primary key, because one `seq`
+    can sit on two rows of one case, model and prompt hash.
     """
     want = casestatus.wanted_pins(case, casestatus.model_for())
     narrow = casestatus.matching_runs(conn, case, want, limit=99)
-    wide = casestatus.matching_runs(conn, case, want, limit=99, system=text)
-    kept = {row["seq"] for row in wide}
-    return narrow, bool(narrow) and narrow[0]["seq"] in kept
-
-
-def _newest_hash(conn, case: dict, row) -> str:
-    """The system hash the newest narrow row carries, for the message."""
+    if not narrow:
+        return narrow, "no row"
     found = conn.execute(
-        "SELECT system_hash FROM case_runs WHERE case_id = ? AND seq = ?",
-        (case["id"], row["seq"])).fetchone()
-    return found[0] if found else "no row"
+        "SELECT system_hash FROM case_runs WHERE case_id = ? AND model = ?"
+        " AND prompt_hash = ? AND run_no = ? AND seq = ?"
+        " ORDER BY seq DESC, rowid DESC LIMIT 1",
+        (case["id"], want.model, want.prompt_hash, narrow[0]["run_no"],
+         narrow[0]["seq"])).fetchone()
+    return narrow, found[0] if found else "no row"
 
 
 @pytest.mark.skipif(not WITH_A_ROW, reason=NO_REGISTER)
@@ -1684,8 +1683,8 @@ def _newest_hash(conn, case: dict, row) -> str:
 def test_the_composed_system_text_is_the_one_the_run_recorded(case, registered):
     """
     The tree composes the system text that the newest run of the case recorded.
-    Older rows under a superseded text are history, so the wide match can drop
-    them without a fault.
+    Older rows under a superseded text are history, so they do not fail the
+    check.
 
     The composition is a second definition of something the runner already
     builds, and a second definition that agrees on the easy cases is the
@@ -1696,13 +1695,12 @@ def test_the_composed_system_text_is_the_one_the_run_recorded(case, registered):
     (observed: frame 102's gate, 2026-10-01).
     """
     text = fixtures.system_text_for(case)
-    narrow, kept = _newest_row_in_the_wide_match(registered, case, text)
+    narrow, newest = _newest_row_and_its_hash(registered, case)
 
     assert narrow, "the parameter set holds only cases that have a row"
-    assert kept, (
+    assert newest == system_hash(text), (
         f"the tree composes {system_hash(text)}, and the newest of "
-        f"{len(narrow)} rows carries "
-        f"{_newest_hash(registered, case, narrow[0])}")
+        f"{len(narrow)} rows carries {newest}")
 
 
 def test_the_newest_row_decides_and_older_rows_are_history(register):
@@ -1716,16 +1714,15 @@ def test_the_newest_row_decides_and_older_rows_are_history(register):
     _record(register, pins, system="a superseded system text")
     _record(register, pins)
 
-    narrow, kept = _newest_row_in_the_wide_match(register, CASE, text)
+    narrow, newest = _newest_row_and_its_hash(register, CASE)
     assert len(narrow) == 2, "both rows are under one prompt hash"
-    assert kept, "the newest row carries the tree's hash"
+    assert newest == system_hash(text), "the newest row carries the tree's hash"
 
     _record(register, pins, system="a superseded system text")
-    narrow, kept = _newest_row_in_the_wide_match(register, CASE, text)
+    narrow, newest = _newest_row_and_its_hash(register, CASE)
     assert len(narrow) == 3
-    assert not kept, "the newest row carries another hash"
-    assert _newest_hash(register, CASE, narrow[0]) == system_hash(
-        "a superseded system text")
+    assert newest != system_hash(text), "the newest row carries another hash"
+    assert newest == system_hash("a superseded system text")
 
 
 @pytest.mark.skipif(not WITH_A_ROW, reason=NO_REGISTER)
