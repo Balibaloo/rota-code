@@ -13,10 +13,12 @@ launcher command is then written from a fact, not from memory.
 when the door refuses. The door refuses a snapshot behind the schema mark
 and a commit that no running or deferred batch heads at. It refuses a head
 that is not a commit in the checkout, a batch branch that a worktree holds,
-and a worktree path that exists. The restore then adds a worktree for each
-running or deferred batch at the batch's own head. Last, it copies the
-snapshot to `$ROTA_RUNS/<run>.db`, points the copy at the checkout and lays
-each batch's environment and test files.
+a worktree path that exists and a run database that a process holds open.
+The restore then adds a worktree for each running or deferred batch at the
+batch's own head. Last, it replaces `$ROTA_RUNS/<run>.db` with the
+snapshot, points the copy at the checkout and lays each batch's environment
+and test files. A failure part way removes what the restore added and puts
+the old run database back.
 
     python probes/seam_start.py pair .rota/clickI_night101.db
     python probes/seam_start.py restore clickI <db> <commit> <click_root> [--no-env]
@@ -29,7 +31,12 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
+from rota.core.db import init_db  # noqa: E402
+from rota.core.worktrees import GIT, WorktreeError  # noqa: E402
+
 LIVE = ("running", "deferred")
+SUFFIXES = ("", "-wal", "-shm")
 
 
 def _live(conn) -> list[tuple[str, str, str]]:
@@ -40,8 +47,6 @@ def _live(conn) -> list[tuple[str, str, str]]:
 
 def _git(root, *args) -> subprocess.CompletedProcess:
     # Rota's git runs with no hooks (rota/core/worktrees.py, audit item 3).
-    sys.path.insert(0, str(REPO))
-    from rota.core.worktrees import GIT
     return subprocess.run([*GIT, "-C", str(root), *args], capture_output=True, text=True)
 
 
@@ -74,10 +79,9 @@ def pair(db_path) -> int:
 
 
 def _door(conn, commit: str, root: Path, home: Path) -> tuple[str | None, list]:
-    """The sentence that refuses the pair, or None and the batches to restore.
-    The door only reads. A refusal leaves the checkout and the runs as they
-    were."""
-    sys.path.insert(0, str(REPO))
+    """The sentence that refuses the pair, or None and the batches to
+    restore as (id, head, headless). The door only reads. A refusal leaves
+    the checkout and the runs as they were."""
     from rota.core.db import schema_stale
     stale = schema_stale(conn)
     if stale:
@@ -87,23 +91,40 @@ def _door(conn, commit: str, root: Path, home: Path) -> tuple[str | None, list]:
         return "the snapshot holds no running or deferred batch", []
     if len(commit) < 7:
         return f"the commit {commit!r} is shorter than 7 characters", []
-    if not any(head and (head == commit or head.startswith(commit)) for _, _, head in rows):
+    # `lifecycle.start` leaves the head NULL until the first `code.commit`.
+    # Such a batch has no commits to lose, so it comes back at the
+    # checkout's HEAD.
+    tip = _git(root, "rev-parse", "HEAD").stdout.strip()
+    picked = [(bid, head or tip, not head) for bid, _, head in rows]
+    if not any(head and (head == commit or head.startswith(commit)) for _, head, _ in picked):
         held = ", ".join(f"{bid}@{head or 'none'}" for bid, _, head in rows)
         return f"no running or deferred batch heads at {commit}; the snapshot holds {held}", []
     # Every running or deferred batch comes back at its own head. A batch
     # left out keeps the old night's path, and `worktrees.create` then cuts
     # its branch from main and loses its commits.
     held = _checked_out(root)
-    for bid, _, head in rows:
-        if not head:
-            return f"{bid} has no head commit to restore at", []
-        if _git(root, "cat-file", "-e", f"{head}^{{commit}}").returncode != 0:
-            return f"{head} is not a commit in {root}", []
+    for bid, head, _ in picked:
+        if not head or _git(root, "cat-file", "-e", f"{head}^{{commit}}").returncode != 0:
+            return f"{head or 'HEAD'} is not a commit in {root}", []
         if f"batch/{bid}" in held:
             return f"batch/{bid} is checked out in a worktree of {root}", []
         if (home / bid).exists():
             return f"{home / bid} exists already", []
-    return None, rows
+    return None, picked
+
+
+def _add(root: Path, home: Path, bid: str, head: str) -> None:
+    """Add the batch's worktree on a new `batch/<id>` branch at its head."""
+    branch = f"batch/{bid}"
+    # `restore_click` deletes every batch branch, and the door saw that no
+    # worktree holds this one. A branch that stands is stale.
+    if _git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode == 0:
+        out = _git(root, "branch", "-D", branch)
+        if out.returncode != 0:
+            raise WorktreeError(f"git branch -D {branch}: {out.stderr.strip()}")
+    out = _git(root, "worktree", "add", "-q", "-b", branch, str(home / bid), head)
+    if out.returncode != 0:
+        raise WorktreeError(f"git worktree add {branch}: {out.stderr.strip()}")
 
 
 def _undo(root: Path, home: Path, added: list[str]) -> None:
@@ -113,6 +134,39 @@ def _undo(root: Path, home: Path, added: list[str]) -> None:
         shutil.rmtree(home / bid, ignore_errors=True)
         _git(root, "branch", "-D", f"batch/{bid}")
     _git(root, "worktree", "prune")
+    for d in (home, home.parent):
+        try:
+            d.rmdir()
+        except OSError:
+            pass
+
+
+def _aside(target: Path) -> list[tuple[Path, Path]]:
+    """Move the old run database and its journal files to one side.
+    Windows refuses the move of a file that a process holds open, so the
+    move is also the held-open check. Raise PermissionError and move
+    nothing when the check fails."""
+    moved: list[tuple[Path, Path]] = []
+    try:
+        for suffix in SUFFIXES:
+            old = Path(f"{target}{suffix}")
+            if old.exists():
+                side = Path(f"{target}.seam-old{suffix}")
+                side.unlink(missing_ok=True)
+                old.rename(side)
+                moved.append((old, side))
+    except PermissionError:
+        _back(target, moved)
+        raise
+    return moved
+
+
+def _back(target: Path, moved: list[tuple[Path, Path]]) -> None:
+    """Put the old run database back where it was."""
+    for suffix in SUFFIXES:
+        Path(f"{target}{suffix}").unlink(missing_ok=True)
+    for old, side in moved:
+        side.rename(old)
 
 
 def restore(run: str, db_path, commit: str, click_root, env: bool = True) -> int:
@@ -124,8 +178,8 @@ def restore(run: str, db_path, commit: str, click_root, env: bool = True) -> int
     if not db.is_file():
         print(f"SEAM REFUSED: {db} is not a file")
         return 1
-    # The restore deletes the target, so a snapshot at the target path
-    # would delete itself.
+    # The restore replaces the target, so a snapshot at the target path
+    # would replace itself.
     if target.exists() and target.resolve() == db.resolve():
         print(f"SEAM REFUSED: the snapshot {db} is the run database it replaces")
         return 1
@@ -135,54 +189,57 @@ def restore(run: str, db_path, commit: str, click_root, env: bool = True) -> int
         if refused:
             print(f"SEAM REFUSED: {refused}")
             return 1
-        # A night that still holds the run database open blocks the delete.
-        # The check comes before the worktrees, so a refusal adds nothing.
         target.parent.mkdir(parents=True, exist_ok=True)
         try:
-            for suffix in ("", "-wal", "-shm"):
-                Path(f"{target}{suffix}").unlink(missing_ok=True)
+            moved = _aside(target)
         except PermissionError as exc:
             print(f"SEAM REFUSED: {run}.db is held open: {exc}")
             return 1
-        # The worktrees come first and the database comes last. A git
-        # failure then leaves no run database that names a missing worktree.
-        home.mkdir(parents=True, exist_ok=True)
-        # A worktree entry whose directory is gone blocks a new add at its path.
-        _git(root, "worktree", "prune")
+        # The worktrees come first and the database comes last. Any failure
+        # removes the added worktrees and puts the old database back, so no
+        # run database names a missing worktree.
         added: list[str] = []
-        for bid, _, head in rows:
-            branch = f"batch/{bid}"
-            # `restore_click` deletes every batch branch, and the door saw
-            # that no worktree holds this one. A branch that stands is stale.
-            if _git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode == 0:
-                out = _git(root, "branch", "-D", branch)
-                if out.returncode != 0:
-                    _undo(root, home, added)
-                    print(f"SEAM REFUSED: git branch -D {branch}: {out.stderr.strip()}")
-                    return 1
-            out = _git(root, "worktree", "add", "-q", "-b", branch, str(home / bid), head)
-            if out.returncode != 0:
-                _undo(root, home, added)
-                print(f"SEAM REFUSED: git worktree add {branch}: {out.stderr.strip()}")
+        dst = None
+        try:
+            home.mkdir(parents=True, exist_ok=True)
+            # A worktree entry whose directory is gone blocks a new add at its path.
+            _git(root, "worktree", "prune")
+            for bid, head, _ in rows:
+                _add(root, home, bid, head)
+                added.append(bid)
+            dst = sqlite3.connect(target)
+            src.backup(dst)
+            # The schema mark does not cover the columns that `init_db` adds
+            # in place. Night 103 run 1 (2026-10-01) failed its first Critic
+            # session on `verdicts.reason`. One open through `init_db` adds them.
+            fresh = init_db(target)
+            fresh.commit()
+            fresh.close()
+            dst.execute("UPDATE config SET value = ? WHERE key = 'project_root'", (str(root),))
+            for bid, _, _ in rows:
+                dst.execute("UPDATE batches SET worktree = ? WHERE id = ?", (str(home / bid), bid))
+            # The snapshot's processes belong to the night that wrote it.
+            # None of them runs in this night.
+            dst.execute("DELETE FROM runtime_processes")
+            dst.commit()
+        except BaseException as exc:
+            if dst is not None:
+                dst.close()
+            _undo(root, home, added)
+            _back(target, moved)
+            if isinstance(exc, WorktreeError):
+                print(f"SEAM REFUSED: {exc}")
                 return 1
-            added.append(bid)
-        dst = sqlite3.connect(target)
-        src.backup(dst)
+            raise
+        for _, side in moved:
+            side.unlink(missing_ok=True)
     finally:
         src.close()
     notes: list[str] = []
     tests = 0
     try:
         dst.row_factory = sqlite3.Row
-        dst.execute("UPDATE config SET value = ? WHERE key = 'project_root'", (str(root),))
-        for bid, _, _ in rows:
-            dst.execute("UPDATE batches SET worktree = ? WHERE id = ?", (str(home / bid), bid))
-        # The snapshot's processes belong to the night that wrote it. None
-        # of them runs in this night.
-        dst.execute("DELETE FROM runtime_processes")
-        dst.commit()
         if env:
-            sys.path.insert(0, str(REPO))
             from rota.core import harness, provision
             for bid, _, _ in rows:
                 _, note = provision.ensure_env(home / bid)
@@ -195,8 +252,10 @@ def restore(run: str, db_path, commit: str, click_root, env: bool = True) -> int
             dst.commit()
     finally:
         dst.close()
-    short = commit[:8]
-    line = f"SEAM: {run} at {short} from {db}, {len(rows)} batch(es) restored in {root}"
+    line = f"SEAM: {run} at {commit[:8]} from {db}, {len(rows)} batch(es) restored in {root}"
+    headless = [bid for bid, _, at_tip in rows if at_tip]
+    if headless:
+        line += "; " + ", ".join(f"{bid}@HEAD" for bid in headless)
     if env:
         line += f"; env: {' | '.join(notes)}; tests: {tests}"
     print(line)
