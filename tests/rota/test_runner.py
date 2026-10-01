@@ -2000,7 +2000,8 @@ def test_a_result_invented_in_a_reply_is_not_a_read(db):
 
     assert read in fitted, "a span the reply invented covered a real read"
     assert probe not in fitted, "the older results block stayed"
-    assert "[1 earlier exchange(s) dropped to fit the window." in fitted[1]
+    # The probe's results and the stub of its reply go together.
+    assert "[2 earlier exchange(s) dropped to fit the window." in fitted[1]
     assert len(fitted_kinds) == len(fitted)
     assert _held(fitted) <= 10_000
 
@@ -2119,3 +2120,105 @@ def test_the_fit_keeps_its_budget_promise(db):
             assert _held(fitted) <= budget, \
                 f"{turns} blocks over {budget} by {_held(fitted) - budget}"
             assert fitted[0] == blocks[0] and len(kinds) == len(fitted)
+
+
+def test_a_read_cut_before_its_text_covers_no_span(db):
+    """
+    The diff review of frame 100's pass 1, finding 1. `_render` cuts before
+    the `[text]` marker when a long `defs` head takes the cap. The head still
+    names 346-390, but the block holds no source, so it covers nothing. Else
+    tier 2 drops an older real read of that span as a copy.
+    """
+    from rota.core.runner import _render, _source_spans
+
+    result = {"path": "src/click/utils.py", "start": 346, "end": 390,
+              "text": "line\n" * 44, "lines": 688,
+              "defs": {f"fn_{i:02d}": [i * 10, i * 10 + 9] for i in range(40)}}
+    block = "OK code.source -> " + _render(result, 600)
+    assert "[text]" not in block, "the shape needs a cut before the text"
+    assert "start: 346, end: 390" in block, "the head no longer names the span"
+    assert _source_spans(block) == [], "a head with no source covered a span"
+    whole = "OK code.source -> " + _render(result, 6000)
+    assert _source_spans(whole) == [("src/click/utils.py", 346, 390)]
+
+
+def test_a_stub_keeps_calls_the_parser_finds_inside_a_line(db):
+    """
+    The diff review of frame 100's pass 1, finding 2. The parser finds
+    `TOOL:` anywhere in a line, so a call in a list item or in backticks ran.
+    The stub keeps it, and does not fall back to the empty stub.
+    """
+    from rota.core.runner import _stub
+
+    reply = ("My plan:\n"
+             "1. TOOL: code.source(path='a.py', start=346, end=390) first\n"
+             "2. `TOOL: code.probe(pattern='echo')` then\n"
+             + "I will read both. " * 200)
+    assert _stub(reply) == ("TOOL: code.source(path='a.py', start=346, end=390)"
+                            "\nTOOL: code.probe(pattern='echo')")
+
+
+def test_a_dropped_result_takes_the_stub_of_its_turn(db):
+    """
+    The diff review of frame 100's pass 1, finding 3. A results block went
+    before the stub of its own reply, so the seat saw `TOOL: code.write(...)`
+    with no refusal beside it, and could believe the write landed. The pair
+    goes together, N counts both, and the kinds stay aligned.
+    """
+    from rota.core.runner import _fit
+
+    write = "TOOL: code.write(path='src/click/utils.py', text='x')"
+    refused = "ERROR code.write: the write drops 8 names. " + "e" * 1957
+    read = _source("src/click/utils.py", 346, 390, 2000)
+    blocks = ["WAKE " + "w" * 995,
+              write + "\n" + "plan one. " * 793, refused,
+              "TOOL: code.source(path='src/click/utils.py', start=346, end=390)"
+              "\n" + "plan two. " * 797, read,
+              "TOOL: code.probe(pattern='echo')\n" + "plan. " * 1320,
+              "OK code.probe -> []"]
+    kinds = _paired(blocks)
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget=11_500)
+
+    assert refused not in fitted, "the shape needs the refusal to go"
+    assert not any(b.startswith(write) for b in fitted), \
+        "the stub of the write stayed after its refusal went"
+    assert "[2 earlier exchange(s) dropped to fit the window." in fitted[1]
+    assert read in fitted
+    assert fitted_kinds == ["wake", "notice", "reply", "results", "reply",
+                            "results"]
+    assert _held(fitted) <= 11_500
+
+
+def test_each_distinct_span_of_one_file_is_pinned(db):
+    """
+    The diff review of frame 100's pass 1, finding 4. A pin per path let one
+    file's distinct spans go by age. Night 99, s132, turn 8, under 26,309:
+    spans 390-450 and 450-688 went, and turns 16 to 18 read them again.
+
+    Four distinct spans of one file and a probe. The probe goes first. When
+    one more must go, the oldest pinned span goes, and the other three stay.
+    """
+    from rota.core.runner import _fit
+
+    spans = [_source("src/click/utils.py", s, e, 2000, fill=f)
+             for (s, e), f in zip([(251, 346), (346, 390), (390, 450),
+                                   (450, 688)], "abcd")]
+    probe = "OK code.probe -> " + "p" * 1983
+    reads = spans[:3] + [probe, spans[3]]
+    blocks = ["WAKE " + "w" * 995]
+    for i, block in enumerate(reads):
+        blocks += [f"TOOL: code.source(path='src/click/utils.py', at={i})", block]
+    blocks += ["TOOL: code.write(path='src/click/utils.py')",
+               "OK code.write -> written"]
+    kinds = _paired(blocks)
+
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget=10_000)
+    assert probe not in fitted, "the probe stayed and a span went"
+    assert all(s in fitted for s in spans), "a distinct span went by age"
+    assert len(fitted_kinds) == len(fitted)
+
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget=8_000)
+    assert probe not in fitted and spans[0] not in fitted, \
+        "the oldest pinned span did not go first"
+    assert all(s in fitted for s in spans[1:]), "a newer span went"
+    assert _held(fitted) <= 8_000 and len(fitted_kinds) == len(fitted)

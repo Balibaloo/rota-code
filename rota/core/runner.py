@@ -702,9 +702,16 @@ def _stub(reply: str) -> str:
     """
     An old reply as its call lines only. The results of the turn say what ran,
     so the call lines are enough to read them by (frame 100, night 99, s132).
+
+    The calls are the ones the parser finds, because the parser finds `TOOL:`
+    anywhere in a line. A call in a list item or in backticks ran, so its
+    stub keeps it (the diff review of frame 100's pass 1, finding 2). Each
+    call is its first line, cut to `_STUB_CALL_CHARS`.
     """
-    calls = [line.strip()[:_STUB_CALL_CHARS] for line in reply.splitlines()
-             if line.strip().startswith("TOOL:")]
+    calls = [(f"{toolproto.MARKER} {call.raw}".splitlines() or [""])[0]
+             [:_STUB_CALL_CHARS]
+             for call in toolproto.extract(reply)
+             if isinstance(call, toolproto.ToolCall)]
     return chr(10).join(calls) or _STUB_EMPTY
 
 
@@ -712,11 +719,17 @@ def _source_spans(block: str) -> list[tuple[str, int, int]]:
     """
     The (path, start, end) of each `code.source` result in a results block.
     The end is the line where `_render` cut the span, when it cut one.
+
+    A result with no `[text]` marker holds no source. `_render` cuts before
+    the marker when a long `defs` head takes the cap, and the head still
+    names the whole span (the diff review of frame 100's pass 1, finding 1).
     """
     found = list(_SOURCE_RESULT.finditer(block))
     spans = []
     for i, match in enumerate(found):
         stop = found[i + 1].start() if i + 1 < len(found) else len(block)
+        if block.find("[text]", match.end(), stop) < 0:
+            continue
         end = int(match.group(3))
         cut = _SOURCE_CUT_AT.search(block, match.end(), stop)
         if cut:
@@ -749,9 +762,12 @@ def _fit(transcript: list[str], kinds: list[str],
 
     1. An old reply becomes a stub of its call lines.
     2. A results block goes when newer blocks hold all of its source spans.
-       Then the other results blocks go, except the newest read of a path.
-    3. The newest read of a path goes.
+       Then the other results blocks go, except the newest read of each
+       distinct span.
+    3. The newest read of each distinct span goes, oldest first.
     4. Whatever is left goes, so the budget holds.
+
+    A results block that goes takes the reply of its turn with it.
 
     `kinds` names the kind of each block, and the two lists come back aligned.
     """
@@ -801,10 +817,18 @@ def _fit(transcript: list[str], kinds: list[str],
         noted = note_room if (dropped or old_notices) else 0
         return fixed + held + noted > budget
 
-    def drop(entry: list) -> None:
+    def drop(at: int) -> None:
+        # A results block takes the reply of its turn with it. A stub left
+        # alone shows a call with no answer, and the seat can then believe a
+        # refused write landed (the diff review of frame 100's pass 1,
+        # finding 3). N counts both blocks.
         nonlocal dropped
-        entry[2] = False
+        middle[at][2] = False
         dropped += 1
+        if (middle[at][1] == _RESULTS and at > 0
+                and middle[at - 1][1] == _REPLY and middle[at - 1][2]):
+            middle[at - 1][2] = False
+            dropped += 1
 
     # Tier 1: old replies become stubs. A stub drops no block, so N stays.
     for entry in middle:
@@ -842,30 +866,34 @@ def _fit(transcript: list[str], kinds: list[str],
             break
         if entry[2] and entry[1] == _RESULTS and covered(
                 i, _source_spans(entry[0])):
-            drop(entry)
+            drop(i)
 
-    # The newest read of each path, which tier 3 drops last.
-    newest: dict[str, int] = {}
+    # The newest read of each distinct span, which tier 3 drops last. A pin
+    # per path let one file's distinct spans go by age. Night 99, s132, turn
+    # 8: spans 390-450 and 450-688 went, and turns 16 to 18 read them again
+    # (the diff review of frame 100's pass 1, finding 4).
+    newest: dict[tuple[str, int, int], int] = {}
     for i, held, _ in reads():
-        for path, _, _ in held:
-            newest[path] = i
+        for span in held:
+            newest[span] = i
     pinned = set(newest.values())
 
-    # Tier 2, second half, and tier 3.
+    # Tier 2, second half, and tier 3. Tier 3 drops the pinned reads, oldest
+    # first.
     for keep_pinned in (True, False):
         for i, entry in enumerate(middle):
             if not over():
                 break
             if (entry[2] and entry[1] == _RESULTS
                     and (i not in pinned or not keep_pinned)):
-                drop(entry)
+                drop(i)
 
     # Tier 4: the stubs and any block of another kind, so the budget holds.
-    for entry in middle:
+    for i, entry in enumerate(middle):
         if not over():
             break
         if entry[2] and entry[1] != _NOTICE:
-            drop(entry)
+            drop(i)
 
     if not dropped:
         kept = [(block, kind) for block, kind, keep in middle if keep]
