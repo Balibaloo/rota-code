@@ -8429,6 +8429,13 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
         if dirty:
             result["not committed"] = dirty
             result["lands with"] = "code.commit"
+        # An empty diff with no word reads as a diff that failed to load.
+        # Frame 106 (2026-10-01): an Architect read the empty diff of a batch
+        # with no edit and answered the Developer three times.
+        # `code.read` says the same fact in its own note.
+        elif not out.stdout and out.returncode == 0:
+            result["note"] = ("this batch has no change since its fork: "
+                              "no commit and no uncommitted edit")
         # The definitions the batch changed that no criterion names, read
         # from the worktree against the project's own file. Click night 48
         # (2026-09-14): the diff was in front of the Developer and it

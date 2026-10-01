@@ -483,11 +483,21 @@ def test_a_batch_with_no_commit_says_so(project):
     lifecycle.start(db, "b1")
     seen = build("critic", db, batch_id="b1").call("code.read")
     assert seen["diff"] == "" and seen["note"] == "no commit yet on this batch", seen
-
+    # Frame 106 (2026-10-01): `code.diff` says the same fact. An Architect
+    # read a bare empty diff and answered the Developer three times.
     dev = build("developer", db, batch_id="b1")
+    diff = dev.call("code.diff")
+    assert diff["diff"] == "" and diff["note"] == (
+        "this batch has no change since its fork: "
+        "no commit and no uncommitted edit"), diff
+
     dev.call("code.write", path="src/notify/formatting.py", text="# emptied\n")
+    # An uncommitted edit is a change, and its own entry names it.
+    diff = dev.call("code.diff")
+    assert "note" not in diff and diff["not committed"], diff
     dev.call("code.commit", message="empty formatting")
     assert "note" not in build("critic", db, batch_id="b1").call("code.read")
+    assert "note" not in dev.call("code.diff")
 
 
 def test_the_harness_runs_in_the_batch_worktree(project):

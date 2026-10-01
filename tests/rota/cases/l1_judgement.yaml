@@ -385,6 +385,27 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    # The tenth attempt, committed. With no edit the batch's diff is empty
+    # since its fork (commit 4876aae), and the seat reads that as no work done.
+    message: "stream the export"
+    edit:
+      src/catalog/export.py: |
+        import csv
+
+        from ..store import connect
+
+
+        def export_csv(scope, out):
+            conn = connect()
+            query = "SELECT id, name, ingredients FROM recipes"
+            if scope != "all":
+                query += " WHERE collection = ?"
+            rows = conn.execute(query, () if scope == "all" else (scope,)).fetchall()
+            writer = csv.writer(out)
+            writer.writerow(["id", "name", "ingredients"])
+            for row in rows:
+                writer.writerow([row["id"], row["name"], row["ingredients"]])
+            return len(rows)
   fixture:
     items:
       - {id: <i1>, text: "exports stream in constant memory", kind: in_scope,
@@ -408,7 +429,8 @@
          body: "assert peak_memory(export_csv, 'all') < 64 * 2**20"}
     test_runs:
       # At the loop cap: what makes the batch exhausted rather than bouncing.
-      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123,
+      # `HEAD` so the fixture names the edit's commit as the failed attempt.
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: HEAD,
          result: fail, attempt: 10}
     sessions:
       # The rung is derived from the sessions the exhaustion opened (frame 79,
