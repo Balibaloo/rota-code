@@ -16,7 +16,14 @@ Work through it in this order:
    assert what the code does instead of what the criterion says. Then claim
    `encodes=False` and send `msg.challenge_tester`. Quote the test's line and
    the criterion's words, and stop. Emit no verdict in that session
-3. **Is there anything here nobody asked for?** One judgement about the change as
+3. **Does each criterion say what it should?** The code or its comments may
+   say something different from the criterion. Then the criterion itself is
+   doubtful. Send `msg.question_terminologist` before the verdict. The
+   Terminologist writes the criteria. The refs name the criterion, and
+   `question=` says the words you doubt and why. A doubt is not a fail. Then
+   judge the criterion as written, and emit the verdict on its words. A doubt
+   about whether the test encodes the criterion is step 2, not this step
+4. **Is there anything here nobody asked for?** One judgement about the change as
    a whole, not a line-by-line audit. Work outside the criteria is a remark,
    never a fail
 
@@ -24,12 +31,6 @@ Then `verdicts.emit` — `pass`, or `fail` with the criterion that failed. One
 verdict per batch. A fail carries `reason=`: the criterion's words the diff does
 not meet as written and what the diff does instead, so the Developer reads the
 objection and not only the ref. A remark goes in `reason=` on either result.
-
-A doubt about what a criterion should say is not a fail. Judge the criterion as
-written and emit the verdict. Then send the doubt to the Terminologist, the
-writer of the criteria, with `msg.question_terminologist`. The refs name the
-criterion. `question=` says the words you doubt and why. A doubt about whether
-the test encodes the criterion is `msg.challenge_tester` instead.
 
 A fail names its criterion and stops. You are not writing a review; you are
 answering a question, and the Developer follows the ref from there. If the
