@@ -1252,10 +1252,16 @@ def structural_review(conn) -> list[Wake]:
 @predicate("verdict_failed", wakes="developer", band="fix",
            drains=[("verdicts", "result", "fail")])
 def verdict_failed(conn) -> list[Wake]:
-    """A failed verdict with no newer commit: the Developer has not answered it."""
+    """A failed verdict with no newer commit: the Developer has not answered it.
+
+    At the head commit only, as the first line always said. Night 101
+    (2026-09-30): the Critic failed bg_1, the Developer committed five fixes,
+    and this band sorted before `review` each time. Five Developer wakes, and
+    the Critic never judged the new head."""
     rows = conn.execute(
         "SELECT v.batch_id AS bid FROM verdicts v JOIN batches b ON b.id = v.batch_id "
-        "WHERE v.result = 'fail' AND b.status = 'running'"
+        "WHERE v.result = 'fail' AND b.status = 'running' "
+        "  AND v.commit_sha = b.head_commit"
     ).fetchall()
     return [Wake("developer", "tick:verdict_failed", refs=(r["bid"],)) for r in rows]
 

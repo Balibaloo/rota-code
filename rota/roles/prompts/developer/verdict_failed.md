@@ -1,8 +1,9 @@
 MODE: verdict_failed — Critic rejected the diff.
 
-`verdicts.load` names the criterion that failed and nothing else — no argument,
-no suggestion, no reasoning. That is the design: you are being told *what* was
-not delivered, not talked into agreeing.
+`verdicts.load` names the criterion that failed and the Critic's reason. The
+reason says which words of the criterion the diff does not meet — no argument,
+no suggestion. That is the design: you are being told *what* was not delivered,
+not talked into agreeing.
 
 `criteria.load` it, read your diff, and **fix the code so the criterion is
 satisfied as written.** `code.source`, `code.write`, `code.commit`. That is the

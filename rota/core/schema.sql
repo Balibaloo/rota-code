@@ -587,6 +587,7 @@ CREATE TABLE IF NOT EXISTS decisions (
     version          INTEGER NOT NULL DEFAULT 1
 );
 
+-- `reason` carries the Critic's objection to the Developer (night 101; ruled by Roman, frame 88, 2026-09-30).
 CREATE TABLE IF NOT EXISTS verdicts (
     id                TEXT PRIMARY KEY,
     batch_id          TEXT NOT NULL REFERENCES batches(id),
@@ -594,6 +595,7 @@ CREATE TABLE IF NOT EXISTS verdicts (
     diff_ref          TEXT,
     result            TEXT NOT NULL CHECK (result IN ('pass','fail')),
     failed_criterion  TEXT REFERENCES criteria(id),
+    reason            TEXT,
     version           INTEGER NOT NULL DEFAULT 1
 );
 

@@ -17,7 +17,9 @@ Work through it in this order:
    a whole, not a line-by-line audit
 
 Then `verdicts.emit` — `pass`, or `fail` with the criterion that failed. One
-verdict per batch.
+verdict per batch. A fail carries `reason=`: the criterion's words the diff does
+not meet and what the diff does instead, so the Developer reads the objection
+and not only the ref.
 
 A fail names its criterion and stops. You are not writing a review; you are
 answering a question, and the Developer follows the ref from there. If the

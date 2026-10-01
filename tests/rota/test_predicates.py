@@ -1890,6 +1890,38 @@ def _wakes(conn, name):
     return [(w.role, w.kind, w.refs) for w in P.REGISTRY[name].fn(conn)]
 
 
+def test_a_fail_verdict_wakes_the_developer_once_and_the_next_green_head_wakes_the_critic(tmp_path):
+    """Night 101 (2026-09-30): the Critic failed bg_1, and the head moved
+    five times on green. Five Developer wakes followed, and no review."""
+    conn = init_db(tmp_path / "r.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES ('i1','split the bill','in_scope','approved',1,1)")
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+                 "VALUES ('b1','i1','running','abc')")
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','split it')")
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','t1')")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) "
+                 "VALUES ('c1','t1','the bill splits evenly')")
+    conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                 "VALUES ('te1','b1','c1','test_split.py','assert True')")
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+                 "VALUES ('r1','b1','te1','abc','pass')")
+    conn.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result, "
+                 "failed_criterion, reason) VALUES "
+                 "('critic:b1:abc','b1','abc','fail','c1','splits unevenly')")
+    conn.commit()
+    assert _wakes(conn, "verdict_failed") == \
+        [("developer", "tick:verdict_failed", ("b1",))]
+    assert _wakes(conn, "review") == []
+    # The Developer's commit answers the fail: the Critic judges the new head.
+    conn.execute("UPDATE batches SET head_commit = 'def' WHERE id = 'b1'")
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+                 "VALUES ('r2','b1','te1','def','pass')")
+    conn.commit()
+    assert _wakes(conn, "verdict_failed") == []
+    assert _wakes(conn, "review") == [("critic", "tick:review", ("b1",))]
+
+
 def test_a_finding_with_no_ruling_wakes_the_critic_and_not_the_developer(tmp_path):
     """Ruled 2026-09-27: a finding after the Critic's pass goes to the
     Critic first. Night 94: `fnd_1` woke the Developer twice."""

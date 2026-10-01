@@ -6086,10 +6086,17 @@ def verdicts_claim_encodes(ctx: Ctx, criterion_id: str, encodes: bool) -> dict:
 
 @op("verdicts", "emit")
 def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
-                  failed_criterion: str | None = None, diff_ref: str = "") -> dict:
+                  failed_criterion: str | None = None, reason: str = "",
+                  diff_ref: str = "") -> dict:
     """
     Judge a commit. `result` is 'pass' or 'fail'; name the criterion a fail
     fails.
+
+    `reason`, on a fail: the criterion's words the work does not meet, and
+    what the work does instead. The Developer reads it beside the ref (ruled
+    by Roman, frame 88, 2026-09-30). Never refused, on a pass or on a fail
+    without one: an optional argument is filled on every call, and a refusal
+    of it loops the seat (observed: frame 81, 2026-09-24).
 
     The id is *derived* from the judge, the batch and the commit, because that is
     what a verdict is: one judgement, by one role, on one commit. `review` gates
@@ -6141,7 +6148,8 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     ctx.writes.append(("verdicts", id, {
         "batch_id": batch_id, "result": result,
         "commit_sha": commit,
-        "failed_criterion": failed_criterion, "diff_ref": diff_ref}))
+        "failed_criterion": failed_criterion, "reason": reason,
+        "diff_ref": diff_ref}))
     return {"id": id, "result": result}
 
 
@@ -6149,7 +6157,8 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
 def verdicts_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     bid = batch_id or ctx.batch_id
     return _rows(ctx.conn.execute(
-        "SELECT id, batch_id, result, failed_criterion FROM verdicts WHERE batch_id = ?",
+        "SELECT id, batch_id, result, failed_criterion, reason FROM verdicts "
+        "WHERE batch_id = ?",
         (bid,)))
 
 

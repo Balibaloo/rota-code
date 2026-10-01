@@ -227,6 +227,10 @@ def init_db(path: str | Path) -> sqlite3.Connection:
     if not _has_column(conn, "items", "is_description"):
         conn.execute("ALTER TABLE items ADD COLUMN is_description "
                      "INTEGER NOT NULL DEFAULT 0")
+    # The same for the verdict's reason: NULL is every older verdict's truth,
+    # since no Critic could give a reason before the column existed.
+    if not _has_column(conn, "verdicts", "reason"):
+        conn.execute("ALTER TABLE verdicts ADD COLUMN reason TEXT")
     conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                  (SCHEMA_KEY, SCHEMA_MARK))
     return conn
