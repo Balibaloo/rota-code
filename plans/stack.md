@@ -226,7 +226,7 @@ a different question and the night is then opened once.
 - Status 2026-10-01 07:13 (rota-d0): **taken by d2cc277a from 104efdb6's hand-off at stack commit f0a8f00, validating only** (observed: the take command's exit 0, 2026-10-01 07:13). Meta workflow. Frame 104 is next on Roman's recorded order, checked with Roman before it starts.
 - Status 2026-10-01 07:13 (rota-0f): **handed to d2cc277a, rota-d0, confirmed 6 seconds after the claim** (observed: the hand command, exit 0, 2026-10-01 07:13). Meta workflow. 104efdb6 stops here.
 
-### 104. A night starts from a snapshot at the seam under test, with the checkout at its commit (2026-10-01)
+### 104. A night starts from a snapshot at the seam under test, with the checkout at its commit (2026-10-01) (d2cc277a)
 
 - **No batch. The first of the three levers Roman ruled on 2026-10-01** (ruled: Roman, the same ruling). Sites: the night launcher `probes/gauntlet_click.sh` and its warm-start path, and the click checkout's restore.
 - Meta workflow. Warm start skips onboarding, and a night still takes about two hours to reach the fix loop (observed: night 100, 14:11 to 16:25, 2026-09-30). A snapshot of the run database taken at the state under test, with the click checkout at that state's head, starts the night at that step. Night 101's database at the Critic's fail of bg_1 is the first such pair.
@@ -234,6 +234,7 @@ a different question and the night is then opened once.
 - Waits on: frame 105. Then before frames 100 and 101.
 - Reasoning: the same answer and ruling.
 - Status 2026-10-01 02:46 (rota-0f): pushed by 104efdb6, unclaimed, priced. Meta workflow. The third lever is an order and not a frame: frames 100, 101 and 88 share the night after frame 102's, because all three change what the Critic and the Developer see (ruled: Roman, the same ruling). The fourth lever, two nights on two servers, is skipped (ruled: Roman).
+- Status 2026-10-01 09:13 (rota-d0): claimed by d2cc277a beside frame 105, which is validating only (ruled: Roman, asked on the phone with frame 104 recommended, 2026-10-01 09:13). Meta workflow. The design read starts on the launcher and the warm-start path.
 
 ### 103. A tool signature edit moves the system text and not the prompt hash, and the register-key test reads old rows as current (2026-10-01)
 
