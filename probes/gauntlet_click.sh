@@ -47,6 +47,23 @@ echo "== onboard $(date +%H:%M)"
 # replaces it, and night 34's sessions were lost to night 35's start
 # (2026-09-13) before they were read.
 python -c "import sqlite3, os; d = os.environ['ROTA_RUNS']; os.path.exists(d + '/clickI.db') and sqlite3.connect(d + '/clickI.db').backup(sqlite3.connect(d + '/clickI_prev.db'))"
+# A seam start: the night begins at the state under test, not at onboarding.
+# A seam is a run database paired with the commit its batch's worktree stood
+# at (plans/frame104-seam-start.md, 2026-10-01). Write the pair from the fact
+# that `python probes/seam_start.py pair <db>` prints. The night skips
+# onboarding, the fresh check and the three sentences, and runs one walk.
+if [ -n "${GAUNTLET_SEAM_DB:-}" ] || [ -n "${GAUNTLET_SEAM_COMMIT:-}" ]; then
+  [ -n "${GAUNTLET_SEAM_DB:-}" ] && [ -n "${GAUNTLET_SEAM_COMMIT:-}" ] || { echo "SEAM REFUSED: set both GAUNTLET_SEAM_DB and GAUNTLET_SEAM_COMMIT"; exit 3; }
+  echo "== seam start $(date +%H:%M) from $GAUNTLET_SEAM_DB at $GAUNTLET_SEAM_COMMIT"
+  python "$REPO/probes/seam_start.py" restore clickI "$GAUNTLET_SEAM_DB" "$GAUNTLET_SEAM_COMMIT" "$CLICK_ROOT" || exit 3
+  export WALK_FROM_WARM=1 WALK_FROM_SEAM=1
+  ollama_up
+  echo "== seam walk $(date +%H:%M)"
+  WALK_PHASE=seam python "$W" clickI "" "" 250
+  python -m rota.tools.nightcount clickI
+  echo "GAUNTLET-DONE $(date +%H:%M)"
+  exit 0
+fi
 # Warm is the default (ruled: Roman, 2026-09-24, "why is this not always
 # on?"). The stamp check goes cold by itself when a hard file moved, and
 # every fifth night is cold. Set GAUNTLET_COLD=1 when the frame's walk covers

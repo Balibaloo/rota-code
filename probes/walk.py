@@ -36,7 +36,9 @@ PHASE = os.environ.get("WALK_PHASE") or ("onboarding" if ONBOARD_ONLY else "sent
 NIGHT = os.environ.get("WALK_NIGHT", "")
 _last_page = ""
    # onboarding alone, then the snapshot
-if not ONBOARD_ONLY and (not last or last["text"] != first):
+# A seam start continues a night. Its sentence is already in the database,
+# so a seam walk posts none (plans/frame104-seam-start.md).
+if not ONBOARD_ONLY and not os.environ.get("WALK_FROM_SEAM") and (not last or last["text"] != first):
     # A new sentence into a run that may already have merged: the next
     # principal entry and message, in the same thread, after every seq so far.
     n = 1 + conn.execute("SELECT COUNT(*) FROM entries WHERE id LIKE 'e_p%'").fetchone()[0]
