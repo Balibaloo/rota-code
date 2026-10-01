@@ -42,7 +42,6 @@ restore_click
 # GAUNTLET_FROM=2 starts at the second sentence. Sentence one merged on
 # nights 49 and 50 (2026-09-14); a night that measures sentences two and
 # three need not spend forty minutes re-proving it.
-echo "== onboard $(date +%H:%M)"
 # The last night's run database, kept beside the new one: `onboard --force`
 # replaces it, and night 34's sessions were lost to night 35's start
 # (2026-09-13) before they were read.
@@ -59,11 +58,13 @@ if [ -n "${GAUNTLET_SEAM_DB:-}" ] || [ -n "${GAUNTLET_SEAM_COMMIT:-}" ]; then
   export WALK_FROM_WARM=1 WALK_FROM_SEAM=1
   ollama_up
   echo "== seam walk $(date +%H:%M)"
-  WALK_PHASE=seam python "$W" clickI "" "" 250
+  # The walk answers each clarify with this sentence. An empty answer lands nothing.
+  WALK_PHASE=seam python "$W" clickI "" "${GAUNTLET_SEAM_ANSWER:-yes to all of it. keep it simple.}" 250
   python -m rota.tools.nightcount clickI
   echo "GAUNTLET-DONE $(date +%H:%M)"
   exit 0
 fi
+echo "== onboard $(date +%H:%M)"
 # Warm is the default (ruled: Roman, 2026-09-24, "why is this not always
 # on?"). The stamp check goes cold by itself when a hard file moved, and
 # every fifth night is cold. Set GAUNTLET_COLD=1 when the frame's walk covers
