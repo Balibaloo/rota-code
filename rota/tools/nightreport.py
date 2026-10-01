@@ -38,10 +38,9 @@ differs from the N of the previous prompt.
 `--since` filters `finding_rulings.at` only. No other reported table
 stores a time: `sessions`, `turns` and `messages` order by `seq` alone.
 
-A wake run of one role and one wake kind, outside a batch, all committed
-and contiguous in `seq`, prints as one line. The 39 reconcile ticks of
-night 101 made the report too long to read otherwise. `--full` prints one
-line per session.
+By default, the sessions outside a batch print as one line per role and
+wake kind, and the completion-line list keeps its ten largest counts.
+`--full` prints one line per session and the whole list.
 """
 from __future__ import annotations
 
@@ -338,29 +337,26 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
         for s in group:
             w(wake_line(s))
     w(f"-- no batch: {len(loose)} sessions")
-    pos_of = {s["id"]: i for i, s in enumerate(sessions)}
     # Without the wake kind, two sessions of one role cannot be told apart.
-    can_collapse = not full and n.has("sessions", "wake_kind") and n.has("sessions", "committed")
-    i = 0
-    while i < len(loose):
-        s = loose[i]
-        j = i
-        if can_collapse and s["committed"] == 1:
-            # A run is contiguous in seq, so the range hides no session of
-            # another kind (s145..s147 hid s146 on night 100).
-            while (j + 1 < len(loose) and loose[j + 1]["committed"] == 1
-                   and pos_of[loose[j + 1]["id"]] == pos_of[loose[j]["id"]] + 1
-                   and loose[j + 1]["role"] == s["role"]
-                   and loose[j + 1]["wake_kind"] == s["wake_kind"]):
-                j += 1
-        if j == i:
+    can_group = not full and n.has("sessions", "wake_kind")
+    if not can_group:
+        for s in loose:
             w(wake_line(s))
-        else:
-            run = loose[i:j + 1]
-            ts = (sum(model_turns(x["id"]) for x in run) if have_turns else ABSENT)
-            w(cut(f"{s['id']}..{run[-1]['id']} {s['role']} {s['wake_kind']} x{len(run)} "
-                  f"t={ts} c={len(run)} last={last_call(run[-1]['id'])}", WAKE_WIDTH))
-        i = j + 1
+    else:
+        # Night 102's read spent 39k of 73.5k on the print before its first
+        # query, and 130 of the lines were no-batch wakes (frame 105, pass 4).
+        groups: "OrderedDict[tuple, list[dict]]" = OrderedDict()
+        for s in loose:
+            groups.setdefault((s["role"], s["wake_kind"]), []).append(s)
+        for (role, kind), group in groups.items():
+            ts = sum(model_turns(x["id"]) for x in group) if have_turns else ABSENT
+            done = (sum(1 for x in group if x["committed"] == 1)
+                    if n.has("sessions", "committed") else ABSENT)
+            w(cut(f"{role} {kind} x{len(group)} t={ts} c={done} "
+                  f"first={group[0]['id']} last={group[-1]['id']}", WAKE_WIDTH))
+        for s in loose:
+            if s["committed"] == 0:
+                w(wake_line(s))
 
     # 3. Verdicts.
     w("== verdicts")
@@ -517,11 +513,15 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
         w(f"{p!r}: turns={len(hits)} sessions={len({s for s, _, _ in hits})}{mark}")
     if have_turns:
         w(f"prompts holding no copy of the previous completion: {unmatched}")
-    from_first.sort(key=lambda x: (seq_of.get(x[0]) if isinstance(seq_of.get(x[0]), int)
+    # The largest counts first. Night 102 listed 49 sessions, so the brief
+    # print keeps ten.
+    from_first.sort(key=lambda x: (-x[2], seq_of.get(x[0]) if isinstance(seq_of.get(x[0]), int)
                                    else 0, x[0]))
+    shown = from_first if full else from_first[:10]
+    of = f" ({len(shown)} of {len(from_first)} shown)" if len(shown) < len(from_first) else ""
     w(f"sessions with model turns at or after the first turn holding {COMPLETE!r}: "
-      f"{len(from_first) if have_turns else ABSENT}")
-    for sid, first, count in from_first:
+      f"{len(from_first) if have_turns else ABSENT}{of}")
+    for sid, first, count in shown:
         w(f"  {sid} first_turn={first} turns_from={count}")
 
     # 10. Failures.
@@ -548,7 +548,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("db", help="path to a run database")
     ap.add_argument("--since", help="a UTC time, as `datetime('now')` stores it; a T is read "
                                     "as a space; filters finding_rulings.at only")
-    ap.add_argument("--full", action="store_true", help="one line per session, no runs")
+    ap.add_argument("--full", action="store_true",
+                    help="one line per session, and the whole completion-line list")
     args = ap.parse_args(argv)
     try:
         conn = open_ro(args.db)

@@ -151,10 +151,20 @@ def test_a_receipt_session_joins_its_batch(tmp_path):
 
 
 def test_a_run_never_hides_a_session_between(tmp_path):
+    """The default print groups by role and kind, and names its first and last session only."""
     wakes = _section(_report(_night(tmp_path)), "wakes")
-    assert not any(l.startswith("s4..") for l in wakes)
-    assert any(l.startswith("s4 liaison message") for l in wakes)
-    assert any(l.startswith("s6..s7 liaison message x2") for l in wakes)
+    assert "liaison message x3 t=0 c=3 first=s4 last=s7" in wakes
+    assert "vision_keeper message x1 t=3 c=1 first=s8 last=s8" in wakes
+    # s5 sits between s4 and s6, and prints under its batch, not in the group.
+    assert any(l.startswith("s5 tester message") for l in wakes)
+    assert not any(".." in l.split(" ")[0] for l in wakes)
+
+
+def test_full_prints_one_line_per_session(tmp_path):
+    wakes = _section(_report(_night(tmp_path), full=True), "wakes")
+    for sid in ("s4", "s6", "s7"):
+        assert any(l.startswith(f"{sid} liaison message [] t=0 c=1") for l in wakes)
+    assert not any(" first=" in l for l in wakes)
 
 
 def test_the_completion_line_counts_from_its_first_turn(tmp_path):
@@ -183,8 +193,9 @@ def test_an_absent_table_or_column_prints_as_absent(tmp_path):
     wakes = _section(lines, "wakes")
     assert "absent: sessions.wake_kind" in wakes
     assert any(l.startswith("s1 developer ? [bg_1] t=? c=1") for l in wakes)
-    # Without the wake kind, no run collapses.
-    assert not any(".." in l.split(" ")[0] for l in wakes)
+    # Without the wake kind, no group forms, and each session keeps its line.
+    assert not any(" first=" in l for l in wakes)
+    assert any(l.startswith("s4 liaison ? []") for l in wakes)
 
 
 def test_the_eviction_notice_counts_when_its_count_is_new(tmp_path):
