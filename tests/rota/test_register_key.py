@@ -1656,29 +1656,76 @@ def registered():
     conn.close()
 
 
+def _newest_row_in_the_wide_match(conn, case: dict, text: str):
+    """
+    The narrow match, and whether its newest row is in the wide match.
+
+    The rows carry no system hash column, so the check compares `seq`, which
+    identifies a row. Both matches are newest first.
+    """
+    want = casestatus.wanted_pins(case, casestatus.model_for())
+    narrow = casestatus.matching_runs(conn, case, want, limit=99)
+    wide = casestatus.matching_runs(conn, case, want, limit=99, system=text)
+    kept = {row["seq"] for row in wide}
+    return narrow, bool(narrow) and narrow[0]["seq"] in kept
+
+
+def _newest_hash(conn, case: dict, row) -> str:
+    """The system hash the newest narrow row carries, for the message."""
+    found = conn.execute(
+        "SELECT system_hash FROM case_runs WHERE case_id = ? AND seq = ?",
+        (case["id"], row["seq"])).fetchone()
+    return found[0] if found else "no row"
+
+
 @pytest.mark.skipif(not WITH_A_ROW, reason=NO_REGISTER)
 @pytest.mark.parametrize("case", WITH_A_ROW or [{}],
                          ids=[c["id"] for c in WITH_A_ROW] or ["none"])
 def test_the_composed_system_text_is_the_one_the_run_recorded(case, registered):
     """
-    The widened match drops no row it should keep, case by case.
+    The tree composes the system text that the newest run of the case recorded.
+    Older rows under a superseded text are history, so the wide match can drop
+    them without a fault.
 
     The composition is a second definition of something the runner already
     builds, and a second definition that agrees on the easy cases is the
     danger. A hand-rolled composition that skipped the fixture agreed on 102
     of 121 cases: 13 raised on a foreign key and 6 gave a different hash
-    (observed: frame 63's first read, 2026-09-22).
+    (observed: frame 63's first read, 2026-09-22). The test compared every
+    row once, and it then failed on 89 rows a re-record had superseded
+    (observed: frame 102's gate, 2026-10-01).
     """
-    want = casestatus.wanted_pins(case, casestatus.model_for())
     text = fixtures.system_text_for(case)
-    narrow = casestatus.matching_runs(registered, case, want, limit=99)
-    wide = casestatus.matching_runs(registered, case, want, limit=99,
-                                    system=text)
+    narrow, kept = _newest_row_in_the_wide_match(registered, case, text)
 
     assert narrow, "the parameter set holds only cases that have a row"
-    assert len(wide) == len(narrow), (
-        f"the tree composes {system_hash(text)}, and "
-        f"{len(narrow) - len(wide)} of {len(narrow)} rows carry another hash")
+    assert kept, (
+        f"the tree composes {system_hash(text)}, and the newest of "
+        f"{len(narrow)} rows carries "
+        f"{_newest_hash(registered, case, narrow[0])}")
+
+
+def test_the_newest_row_decides_and_older_rows_are_history(register):
+    """
+    A row under a superseded system text does not fail the check when a newer
+    row carries the tree's text. The check fails when the newest row carries
+    another text.
+    """
+    pins = Pins(model=MODEL, temperature=0.0)
+    text = fixtures.system_text_for(CASE)
+    _record(register, pins, system="a superseded system text")
+    _record(register, pins)
+
+    narrow, kept = _newest_row_in_the_wide_match(register, CASE, text)
+    assert len(narrow) == 2, "both rows are under one prompt hash"
+    assert kept, "the newest row carries the tree's hash"
+
+    _record(register, pins, system="a superseded system text")
+    narrow, kept = _newest_row_in_the_wide_match(register, CASE, text)
+    assert len(narrow) == 3
+    assert not kept, "the newest row carries another hash"
+    assert _newest_hash(register, CASE, narrow[0]) == system_hash(
+        "a superseded system text")
 
 
 @pytest.mark.skipif(not WITH_A_ROW, reason=NO_REGISTER)
