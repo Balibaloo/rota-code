@@ -1,7 +1,7 @@
 """
 The rows a night's read asks for, as plain text.
 
-    python -m rota.tools.nightreport <path to a run database> [--since <iso time>] [--full]
+    python -m rota.tools.nightreport <path to a run database> [--since <UTC time>] [--full]
 
 The build session read every night's run database on an agent, and each
 read cost 85k to 103k tokens to answer the same questions (observed: frame
@@ -10,23 +10,29 @@ The read then becomes a summary over facts.
 
 The tool is read-only. It opens the file with `mode=ro` and never calls
 `init_db`, because `init_db` refuses a database on an old schema mark, and
-the report must open old nights. A table or a column that an old night
-lacks prints as absent or as an empty value.
+the report must open old nights. A section that reads an absent table or
+column prints `absent: <table>` or `absent: <table>.<column>` under its
+header, and an absent column's value prints as `?`. A zero from an absent
+table read as a fact on the frame 105 diff review (2026-10-01).
 
 The tool prints facts only. It names no stall and no cause.
 
 `turns.user` holds the whole assembled prompt, so one feedback line
 persists into every later turn of the session (`rota/tools/nightcount.py`).
-A turn holds a phrase when its prompt carries more copies than the prompt
-before it, or when its completion carries the phrase.
+A window cut also drops old copies, so a count that compares two prompts
+misses a new copy (frame 105 diff review, s88 and s132 of night 101). A
+turn holds a phrase when the newest feedback or the completion holds it.
+The newest feedback is the part of the prompt after the previous turn's
+completion. The model's own completion can quote a runner phrase, so the
+newest feedback never includes that completion.
 
 `--since` filters `finding_rulings.at` only. No other reported table
 stores a time: `sessions`, `turns` and `messages` order by `seq` alone.
 
-A wake run of one role and one wake kind, outside a batch and all
-committed, prints as one line. The 39 reconcile ticks of night 101 made
-the report too long to read otherwise. `--full` prints one line per
-session.
+A wake run of one role and one wake kind, outside a batch, all committed
+and contiguous in `seq`, prints as one line. The 39 reconcile ticks of
+night 101 made the report too long to read otherwise. `--full` prints one
+line per session.
 """
 from __future__ import annotations
 
@@ -55,6 +61,11 @@ COMMIT_RE = re.compile(r'OK code\.commit -> \{"committed": true, "head_commit": 
 RUNNER_PREFIXES = ("SESSION FAILED", "SESSION ENDED")
 SHA = 10
 WAKE_WIDTH = 120
+# The value of a column that the database lacks.
+ABSENT = "?"
+# A prompt can hold a long completion cut short. The search then uses the
+# completion's start.
+HEAD_PROBE = 60
 
 
 def cut(text, n: int) -> str:
@@ -64,6 +75,8 @@ def cut(text, n: int) -> str:
 
 
 def short(sha) -> str:
+    if sha == ABSENT:
+        return ABSENT
     return (sha or "-")[:SHA]
 
 
@@ -77,7 +90,7 @@ def open_ro(path: str | Path) -> sqlite3.Connection:
 
 
 class Night:
-    """The run database, with absent tables and columns read as empty."""
+    """The run database. An absent column reads as `?`, and an absent table as no rows."""
 
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
@@ -85,15 +98,25 @@ class Night:
         for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'"):
             self.columns[name] = {r[1] for r in conn.execute(f"PRAGMA table_info({name})")}
 
-    def has(self, table: str) -> bool:
-        return table in self.columns
+    def has(self, table: str, column: str | None = None) -> bool:
+        if table not in self.columns:
+            return False
+        return column is None or column in self.columns[table]
 
-    def rows(self, table: str, cols: tuple[str, ...], tail: str = "") -> list[dict]:
+    def absent(self, table: str, cols: tuple[str, ...]) -> list[str]:
+        """The `absent:` lines for a read of `cols` from `table`."""
+        if not self.has(table):
+            return [f"absent: {table}"]
+        return [f"absent: {table}.{c}" for c in cols if c not in self.columns[table]]
+
+    def rows(self, table: str, cols: tuple[str, ...], order: tuple[str, ...] = ()) -> list[dict]:
         if not self.has(table):
             return []
         have = self.columns[table]
-        sel = ", ".join(c if c in have else f"NULL AS {c}" for c in cols)
-        return [dict(r) for r in self.conn.execute(f"SELECT {sel} FROM {table} {tail}")]
+        sel = ", ".join(c if c in have else f"'{ABSENT}' AS {c}" for c in cols)
+        keys = [c for c in order if c in have] or ["rowid"]
+        sql = f"SELECT {sel} FROM {table} ORDER BY {', '.join(keys)}"
+        return [dict(r) for r in self.conn.execute(sql)]
 
 
 def _refs(text) -> list[str]:
@@ -115,23 +138,31 @@ def _names_batch(refs: list[str], batch_ids: set[str]) -> str | None:
     return None
 
 
-def _new_turn_text(turns: list[dict]) -> list[tuple[dict, str, str]]:
-    """Each turn with its prompt and completion, beside the prompt before it."""
-    out, prev = [], ""
-    for t in turns:
-        user = t["user"] or ""
-        out.append((t, prev, t["completion"] or ""))
-        prev = user
-    return out
+def _newest_feedback(user: str, prev_completion: str | None) -> tuple[str, bool]:
+    """
+    The part of a prompt that follows the previous turn's completion.
 
-
-def _holds(turn: dict, prev_user: str, completion: str, phrase: str) -> bool:
-    user = turn["user"] or ""
-    return user.count(phrase) > prev_user.count(phrase) or phrase in completion
+    The second value is False when the prompt holds no copy of that
+    completion, even cut short. The whole prompt is then the feedback.
+    """
+    if prev_completion is None:
+        return user, True
+    if not prev_completion:
+        return user, False
+    i = user.rfind(prev_completion)
+    if i >= 0:
+        return user[i + len(prev_completion):], True
+    i = user.rfind(prev_completion[:HEAD_PROBE])
+    if i < 0:
+        return user, False
+    k = 0
+    while k < len(prev_completion) and i + k < len(user) and prev_completion[k] == user[i + k]:
+        k += 1
+    return user[i + k:], True
 
 
 def _is_runner(turn: dict) -> bool:
-    return (turn["completion"] or "").startswith(RUNNER_PREFIXES)
+    return str(turn["completion"] or "").startswith(RUNNER_PREFIXES)
 
 
 def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False) -> list[str]:
@@ -139,90 +170,138 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
     out: list[str] = []
     w = out.append
 
-    sessions = n.rows("sessions", ("id", "role", "trigger_msg", "committed", "seq",
-                                   "wake_kind", "wake_detail", "wake_refs"), "ORDER BY seq")
+    S_COLS = ("id", "role", "trigger_msg", "committed", "seq", "wake_kind", "wake_detail",
+              "wake_refs")
+    T_COLS = ("session_id", "seq", "user", "completion")
+    C_COLS = ("session_id", "fn", "args_summary", "seq")
+    M_COLS = ("id", "from_role", "to_role", "verb", "body_refs", "body_text",
+              "unresolved_note", "status", "seq")
+    B_COLS = ("id", "item_id", "head_commit", "status")
+    R_COLS = ("session_id", "table_name", "row_id")
+
+    sessions = n.rows("sessions", S_COLS, ("seq",))
+    have_turns = n.has("turns")
     turns_by: dict[str, list[dict]] = {}
-    for t in n.rows("turns", ("session_id", "seq", "user", "completion"), "ORDER BY session_id, seq"):
+    for t in n.rows("turns", T_COLS, ("session_id", "seq")):
         turns_by.setdefault(t["session_id"], []).append(t)
-    last_call: dict[str, dict] = {}
-    for c in n.rows("tool_calls", ("session_id", "fn", "args_summary", "seq"), "ORDER BY session_id, seq"):
-        last_call[c["session_id"]] = c
-    messages = n.rows("messages", ("id", "from_role", "to_role", "verb", "body_refs",
-                                   "body_text", "unresolved_note", "status", "seq"), "ORDER BY seq")
+    calls_by: dict[str, list[dict]] = {}
+    for c in n.rows("tool_calls", C_COLS, ("session_id", "seq")):
+        calls_by.setdefault(c["session_id"], []).append(c)
+    messages = n.rows("messages", M_COLS, ("seq",))
     msg_by = {m["id"]: m for m in messages}
     items = {r["id"]: r for r in n.rows("items", ("id", "text"))}
-    batches = n.rows("batches", ("id", "item_id", "head_commit", "status"), "ORDER BY rowid")
+    batches = n.rows("batches", B_COLS)
     batch_ids = {b["id"] for b in batches}
-    receipts = n.rows("receipts", ("session_id", "table_name", "row_id", "new_version"),
-                      "ORDER BY rowid")
+    receipts = n.rows("receipts", R_COLS)
+    receipt_sessions: dict[str, list[str]] = {}
+    batch_by_receipt: dict[str, str] = {}
+    for r in receipts:
+        if r["table_name"] == "batches" and r["row_id"] in batch_ids:
+            receipt_sessions.setdefault(r["row_id"], []).append(r["session_id"])
+            batch_by_receipt.setdefault(r["session_id"], r["row_id"])
+    batch_re = (re.compile(r"(?<![\w])(" + "|".join(map(re.escape, sorted(batch_ids, key=len,
+                                                                          reverse=True)))
+                           + r")(?![\w])") if batch_ids else None)
 
-    # A session belongs to a batch when its wake refs, or its trigger
-    # message's refs, name the batch. A Developer woken by an answer carries
-    # `[]` as wake refs, and the answer's refs name the batch.
+    # A session belongs to a batch when one of these names it, in this order:
+    # its wake refs, its trigger message's refs, a receipt on the batch row,
+    # or the arguments of a tool call. A Developer woken by an answer carries
+    # `[]` as wake refs. s150 of night 101 committed to bg_1 through a receipt,
+    # and s144 named bg_1 in `tests.encode` (frame 105 diff review).
     batch_of: dict[str, str | None] = {}
     for s in sessions:
         b = _names_batch(_refs(s["wake_refs"]), batch_ids)
         if b is None and s["trigger_msg"] in msg_by:
             b = _names_batch(_refs(msg_by[s["trigger_msg"]]["body_refs"]), batch_ids)
+        if b is None:
+            b = batch_by_receipt.get(s["id"])
+        if b is None and batch_re is not None:
+            for c in calls_by.get(s["id"], []):
+                m = batch_re.search(str(c["args_summary"] or ""))
+                if m:
+                    b = m.group(1)
+                    break
         batch_of[s["id"]] = b
 
-    w(f"night report: {len(sessions)} sessions, "
-      f"{sum(len(v) for v in turns_by.values())} turns, {len(batches)} batches. "
+    nturns = sum(len(v) for v in turns_by.values()) if have_turns else ABSENT
+    w(f"night report: {len(sessions) if n.has('sessions') else ABSENT} sessions, "
+      f"{nturns} turns, {len(batches) if n.has('batches') else ABSENT} batches. "
       f"Commits show their first {SHA} characters.")
     if since:
-        w(f"--since {since} filters finding_rulings.at only.")
+        w(f"--since {since} (UTC) filters finding_rulings.at only.")
+
+    def model_turns(sid: str):
+        if not have_turns:
+            return ABSENT
+        return sum(1 for t in turns_by.get(sid, []) if not _is_runner(t))
 
     # 1. Batches.
     w("== batches")
-    receipt_sessions: dict[str, list[str]] = {}
-    for r in receipts:
-        if r["table_name"] == "batches":
-            receipt_sessions.setdefault(r["row_id"], []).append(r["session_id"])
+    for line in (n.absent("batches", B_COLS) + n.absent("items", ("id", "text"))
+                 + n.absent("receipts", R_COLS) + n.absent("turns", T_COLS)):
+        w(line)
     seq_of = {s["id"]: s["seq"] for s in sessions}
     committed_of = {s["id"]: s["committed"] for s in sessions}
-    history: dict[str, list[tuple[str, list[str]]]] = {}
     for b in batches:
         sids = set(receipt_sessions.get(b["id"], []))
         sids |= {sid for sid, bb in batch_of.items() if bb == b["id"]}
         seen: set[str] = set()
         steps: list[tuple[str, list[str]]] = []
-        for sid in sorted(sids, key=lambda x: seq_of.get(x, 0)):
+        for sid in sorted(sids, key=lambda x: (seq_of.get(x) if isinstance(seq_of.get(x), int)
+                                               else 0, x)):
             shas = []
             for t in turns_by.get(sid, []):
-                for text in (t["user"] or "", t["completion"] or ""):
+                for text in (str(t["user"] or ""), str(t["completion"] or "")):
                     for sha in COMMIT_RE.findall(text):
                         if sha not in seen:
                             seen.add(sha)
                             shas.append(sha)
             if shas:
                 steps.append((sid, shas))
-        if b["head_commit"] and b["head_commit"] not in seen:
-            steps.append(("(row)", [b["head_commit"]]))
-        history[b["id"]] = steps
+            elif sid in receipt_sessions.get(b["id"], []):
+                # The session wrote the batch row, and no commit line shows the sha.
+                steps.append((sid, []))
+        head = b["head_commit"]
+        if head and head != ABSENT and head not in seen:
+            steps.append(("(row)", [head]))
+        count = sum(len(x) for _, x in steps) if have_turns else ABSENT
         item = items.get(b["item_id"], {}).get("text")
-        w(f"{b['id']} status={b['status']} head={short(b['head_commit'])} "
-          f"commits={sum(len(x) for _, x in steps)} item={b['item_id']}: {cut(item, 80)}")
+        w(f"{b['id']} status={b['status']} head={short(head)} "
+          f"commits={count} item={b['item_id']}: {cut(item, 80)}")
         for sid, shas in steps:
-            flag = "" if sid == "(row)" or committed_of.get(sid) else " committed=0"
-            w(f"  {sid}{flag} " + " ".join(short(x) for x in shas))
+            c = committed_of.get(sid)
+            flag = f" committed={c}" if sid != "(row)" and c != 1 else ""
+            w(f"  {sid}{flag} " + (" ".join(short(x) for x in shas) or f"sha={ABSENT}"))
 
     # 2. Wakes, in order.
     w("== wakes")
+    for line in (n.absent("sessions", S_COLS) + n.absent("turns", T_COLS)
+                 + n.absent("tool_calls", C_COLS)):
+        w(line)
+
+    def last_call(sid: str):
+        if not n.has("tool_calls"):
+            return ABSENT
+        cs = calls_by.get(sid, [])
+        return f"{cs[-1]['fn']}({cs[-1]['args_summary']})" if cs else "-"
 
     def wake_line(s: dict) -> str:
         ts = turns_by.get(s["id"], [])
-        model_turns = sum(1 for t in ts if not _is_runner(t))
         # An agenda wake names seven ledger rows, and the full list pushed the
         # turn count and the committed flag past the line's cut.
-        refs = cut(",".join(_refs(s["wake_refs"])), 40)
-        if s["committed"]:
-            c = last_call.get(s["id"])
-            tail = f"last={c['fn']}({c['args_summary']})" if c else "last=-"
+        refs = (ABSENT if s["wake_refs"] == ABSENT
+                else cut(",".join(_refs(s["wake_refs"])), 40))
+        if s["committed"] == 0:
+            if not have_turns:
+                tail = f"error={ABSENT}"
+            else:
+                err = str(ts[-1]["completion"]) if ts else ""
+                tail = "error=" + (err[len("SESSION FAILED: "):]
+                                   if err.startswith("SESSION FAILED: ") else err)
         else:
-            err = ts[-1]["completion"] if ts else ""
-            tail = "error=" + (err[len("SESSION FAILED: "):] if err.startswith("SESSION FAILED: ") else err)
+            tail = f"last={last_call(s['id'])}"
         head = (f"{s['id']} {s['role']} {s['wake_kind']} [{refs}] "
-                f"t={model_turns} c={s['committed']} ")
+                f"t={model_turns(s['id'])} c={s['committed']} ")
         return cut(head + tail, WAKE_WIDTH)
 
     by_batch: "OrderedDict[str, list[dict]]" = OrderedDict((b["id"], []) for b in batches)
@@ -235,12 +314,18 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
         for s in group:
             w(wake_line(s))
     w(f"-- no batch: {len(loose)} sessions")
+    pos_of = {s["id"]: i for i, s in enumerate(sessions)}
+    # Without the wake kind, two sessions of one role cannot be told apart.
+    can_collapse = not full and n.has("sessions", "wake_kind") and n.has("sessions", "committed")
     i = 0
     while i < len(loose):
         s = loose[i]
         j = i
-        if not full and s["committed"]:
-            while (j + 1 < len(loose) and loose[j + 1]["committed"]
+        if can_collapse and s["committed"] == 1:
+            # A run is contiguous in seq, so the range hides no session of
+            # another kind (s145..s147 hid s146 on night 100).
+            while (j + 1 < len(loose) and loose[j + 1]["committed"] == 1
+                   and pos_of[loose[j + 1]["id"]] == pos_of[loose[j]["id"]] + 1
                    and loose[j + 1]["role"] == s["role"]
                    and loose[j + 1]["wake_kind"] == s["wake_kind"]):
                 j += 1
@@ -248,87 +333,111 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
             w(wake_line(s))
         else:
             run = loose[i:j + 1]
-            nturns = sum(1 for x in run for t in turns_by.get(x["id"], []) if not _is_runner(t))
-            c = last_call.get(run[-1]["id"])
-            last = f"{c['fn']}({c['args_summary']})" if c else "-"
+            ts = (sum(model_turns(x["id"]) for x in run) if have_turns else ABSENT)
             w(cut(f"{s['id']}..{run[-1]['id']} {s['role']} {s['wake_kind']} x{len(run)} "
-                  f"t={nturns} c={len(run)} last={last}", WAKE_WIDTH))
+                  f"t={ts} c={len(run)} last={last_call(run[-1]['id'])}", WAKE_WIDTH))
         i = j + 1
 
     # 3. Verdicts.
     w("== verdicts")
+    V_COLS = ("id", "batch_id", "commit_sha", "result", "failed_criterion", "reason")
+    for line in n.absent("verdicts", V_COLS) + n.absent("batches", ("id", "head_commit")):
+        w(line)
     heads = {b["id"]: b["head_commit"] for b in batches}
-    for v in n.rows("verdicts", ("id", "batch_id", "commit_sha", "result",
-                                 "failed_criterion", "reason"), "ORDER BY rowid"):
-        at = "head" if v["commit_sha"] and v["commit_sha"] == heads.get(v["batch_id"]) else "old"
-        w(f"{cut(v['id'], 40)} batch={v['batch_id']} commit={short(v['commit_sha'])} {at} "
+
+    def at_head(bid, sha) -> str:
+        head = heads.get(bid)
+        if sha == ABSENT or head == ABSENT or bid not in heads:
+            return ABSENT
+        return "head" if sha and sha == head else "old"
+
+    for v in n.rows("verdicts", V_COLS):
+        w(f"{cut(v['id'], 40)} batch={v['batch_id']} commit={short(v['commit_sha'])} "
+          f"{at_head(v['batch_id'], v['commit_sha'])} "
           f"result={v['result']} failed={v['failed_criterion'] or '-'} "
           f"reason={cut(v['reason'], 100) or '-'}")
 
     # 4. Test runs.
     w("== test runs")
-    tally: "OrderedDict[tuple, list[int]]" = OrderedDict()
-    for r in n.rows("test_runs", ("batch_id", "commit_sha", "result"), "ORDER BY rowid"):
+    TR_COLS = ("batch_id", "commit_sha", "result")
+    for line in n.absent("test_runs", TR_COLS):
+        w(line)
+    tally: "OrderedDict[tuple, list]" = OrderedDict()
+    for r in n.rows("test_runs", TR_COLS):
         k = (r["batch_id"], r["commit_sha"])
         tally.setdefault(k, [0, 0])
         tally[k][0] += 1
-        tally[k][1] += r["result"] != "pass"
+        if r["result"] == ABSENT:
+            tally[k][1] = ABSENT
+        elif tally[k][1] != ABSENT:
+            tally[k][1] += r["result"] != "pass"
     for (bid, sha), (runs, bad) in tally.items():
-        at = " head" if sha and sha == heads.get(bid) else ""
+        mark = at_head(bid, sha)
+        at = " head" if mark == "head" else (f" {ABSENT}" if mark == ABSENT else "")
         w(f"{bid} {short(sha)}{at} runs={runs} not_pass={bad}")
 
     # 5. Findings and rulings.
     w("== findings and rulings")
+    F_COLS = ("id", "batch_id", "constraint_id", "commit_sha", "status", "grain")
+    FR_COLS = ("finding_id", "commit_sha", "ruling", "reason", "session_id", "at")
+    for line in n.absent("findings", F_COLS) + n.absent("finding_rulings", FR_COLS):
+        w(line)
+    # `finding_rulings.at` is `datetime('now')`, with a space and no `T`. A
+    # `T` sorts after the space and dropped every ruling of the date.
+    floor = since.replace("T", " ") if since else None
     rulings: dict[str, list[dict]] = {}
-    tail = "ORDER BY rowid"
-    for r in n.rows("finding_rulings", ("finding_id", "commit_sha", "ruling", "reason",
-                                        "session_id", "at"), tail):
-        if since and (r["at"] or "") < since:
+    for r in n.rows("finding_rulings", FR_COLS):
+        if floor and r["at"] != ABSENT and str(r["at"] or "").replace("T", " ") < floor:
             continue
         rulings.setdefault(r["finding_id"], []).append(r)
-    for f in n.rows("findings", ("id", "batch_id", "constraint_id", "commit_sha",
-                                 "status", "grain"), "ORDER BY rowid"):
+    for f in n.rows("findings", F_COLS):
         base = (f"{f['id']} batch={f['batch_id']} constraint={f['constraint_id']} "
                 f"commit={short(f['commit_sha'])} {f['status']} grain={cut(f['grain'], 40)}")
         rs = rulings.get(f["id"], [])
         if not rs:
-            w(base + " ruling=-")
+            w(base + (f" ruling={ABSENT}" if not n.has("finding_rulings") else " ruling=-"))
         for r in rs:
             w(base + f" ruling={r['ruling']} at={r['at']} by={r['session_id'] or '-'} "
                      f"commit={short(r['commit_sha'])} reason={cut(r['reason'], 80)}")
 
-    # 6. Attempts.
-    w("== tick attempts")
-    for a in n.rows("tick_attempts", ("tick_key", "attempts", "quarantined", "reported"),
-                    "ORDER BY rowid"):
+    # 6. Attempts. `clear_dispatch` deletes rows during the run, so the
+    # table holds the end state only.
+    w("== tick attempts (at the end of the night)")
+    A_COLS = ("tick_key", "attempts", "quarantined", "reported")
+    for line in n.absent("tick_attempts", A_COLS):
+        w(line)
+    for a in n.rows("tick_attempts", A_COLS):
         w(f"{cut(a['tick_key'], 80)} attempts={a['attempts']} quarantined={a['quarantined']} "
           f"reported={a['reported']}")
 
     # 7. Quarantine and deferral.
     w("== quarantine and deferral")
-    last_writer: dict[str, str] = {}
-    for r in receipts:
-        if r["table_name"] == "batches":
-            last_writer[r["row_id"]] = r["session_id"]
+    CP_COLS = ("session_id", "role", "batch_id", "working_set", "valid")
+    for line in (n.absent("batches", ("id", "status")) + n.absent("receipts", R_COLS)
+                 + n.absent("messages", ("id", "status")) + n.absent("checkpoints", CP_COLS)):
+        w(line)
     # The schema stores no time on a batch, so the last session with a
     # receipt on the row is the nearest record of who set the status.
     for b in batches:
         if b["status"] not in ("running", "merged"):
-            w(f"{b['id']} status={b['status']} last_write={last_writer.get(b['id'], '-')}")
+            writers = receipt_sessions.get(b["id"], [])
+            last = writers[-1] if writers else ("-" if n.has("receipts") else ABSENT)
+            w(f"{b['id']} status={b['status']} last_write={last}")
     for m in messages:
         if m["status"] == "quarantined":
             w(f"message {m['id']} {m['from_role']}->{m['to_role']} {m['verb']} status=quarantined")
-    cps = n.rows("checkpoints", ("session_id", "role", "batch_id", "working_set", "valid"),
-                 "ORDER BY rowid")
-    w(f"checkpoints: {len(cps)}")
+    cps = n.rows("checkpoints", CP_COLS)
+    w(f"checkpoints: {len(cps) if n.has('checkpoints') else ABSENT}")
     for c in cps:
         w(f"{c['session_id']} {c['role']} batch={c['batch_id'] or '-'} valid={c['valid']} "
           f"working_set={cut(c['working_set'], 60)}")
 
     # 8. Messages.
     w("== messages")
+    for line in n.absent("messages", M_COLS):
+        w(line)
     counts = Counter((m["from_role"], m["to_role"], m["verb"]) for m in messages)
-    for (fr, to, verb), k in sorted(counts.items()):
+    for (fr, to, verb), k in sorted(counts.items(), key=lambda x: tuple(map(str, x[0]))):
         w(f"{fr}->{to} {verb} {k}")
     for m in messages:
         if m["status"] in ("open", "unresolved"):
@@ -337,33 +446,62 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
 
     # 9. Window and door phrases.
     w("== window and door phrases (turns, sessions)")
-    holding: dict[str, list[tuple[str, int]]] = {p: [] for p in PHRASES}
-    after: list[tuple[str, int, int]] = []
+    for line in n.absent("turns", T_COLS):
+        w(line)
+    holding: dict[str, list[tuple[str, int, bool]]] = {p: [] for p in PHRASES}
+    from_first: list[tuple[str, int, int]] = []
+    unmatched = 0
     for sid, ts in turns_by.items():
         first_complete = None
-        for t, prev, comp in _new_turn_text(ts):
+        prev_completion: str | None = None
+        for t in ts:
+            completion = str(t["completion"] or "")
+            runner = _is_runner(t)
+            if runner:
+                # The runner's turn has no prompt. Its completion is the runner's text.
+                fresh = ""
+            else:
+                fresh, matched = _newest_feedback(str(t["user"] or ""), prev_completion)
+                unmatched += not matched
             for p in PHRASES:
-                if _holds(t, prev, comp, p):
-                    holding[p].append((sid, t["seq"]))
+                if p in fresh or p in completion:
+                    holding[p].append((sid, t["seq"], runner))
                     if p == COMPLETE and first_complete is None:
                         first_complete = t["seq"]
+            if not runner:
+                prev_completion = completion
         if first_complete is not None:
-            later = sum(1 for t in ts if t["seq"] > first_complete and not _is_runner(t))
-            if later:
-                after.append((sid, first_complete, later))
+            # The runner puts the line in the feedback, so the turn that first
+            # holds it is the model's first reply after it.
+            at_or_after = sum(1 for t in ts if t["seq"] >= first_complete and not _is_runner(t))
+            if at_or_after:
+                from_first.append((sid, first_complete, at_or_after))
     for p in PHRASES:
-        w(f"{p!r}: turns={len(holding[p])} sessions={len({s for s, _ in holding[p]})}")
-    after.sort(key=lambda x: seq_of.get(x[0], 0))
-    w(f"sessions with turns after the first turn holding {COMPLETE!r}: {len(after)}")
-    for sid, first, later in after:
-        w(f"  {sid} first_turn={first} turns_after={later}")
+        if not have_turns:
+            w(f"{p!r}: turns={ABSENT} sessions={ABSENT}")
+            continue
+        hits = holding[p]
+        runner_hits = sum(1 for _, _, r in hits if r)
+        mark = f" (runner) runner_turns={runner_hits}" if runner_hits else ""
+        w(f"{p!r}: turns={len(hits)} sessions={len({s for s, _, _ in hits})}{mark}")
+    if have_turns:
+        w(f"prompts holding no copy of the previous completion: {unmatched}")
+    from_first.sort(key=lambda x: (seq_of.get(x[0]) if isinstance(seq_of.get(x[0]), int)
+                                   else 0, x[0]))
+    w(f"sessions with model turns at or after the first turn holding {COMPLETE!r}: "
+      f"{len(from_first) if have_turns else ABSENT}")
+    for sid, first, count in from_first:
+        w(f"  {sid} first_turn={first} turns_from={count}")
 
     # 10. Failures.
     w("== failures")
+    for line in n.absent("sessions", ("id", "role", "wake_kind", "committed")) + \
+            n.absent("turns", ("session_id", "completion")):
+        w(line)
     for s in sessions:
-        if not s["committed"]:
+        if s["committed"] == 0:
             ts = turns_by.get(s["id"], [])
-            last = ts[-1]["completion"] if ts else ""
+            last = (ts[-1]["completion"] if ts else "") if have_turns else ABSENT
             w(f"{s['id']} {s['role']} {s['wake_kind']}: {cut(last, 160)}")
     # A section with no rows says so, so an empty section and a cut report differ.
     filled: list[str] = []
@@ -377,7 +515,8 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m rota.tools.nightreport")
     ap.add_argument("db", help="path to a run database")
-    ap.add_argument("--since", help="ISO time; filters finding_rulings.at")
+    ap.add_argument("--since", help="a UTC time, as `datetime('now')` stores it; a T is read "
+                                    "as a space; filters finding_rulings.at only")
     ap.add_argument("--full", action="store_true", help="one line per session, no runs")
     args = ap.parse_args(argv)
     try:
