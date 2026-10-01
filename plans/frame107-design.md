@@ -1,7 +1,8 @@
-# Frame 107, the Critic's doubt reaches the Terminologist: design record, revision 2
+# Frame 107, the Critic's doubt reaches the Terminologist: design record, revision 3
 
 Rota workflow. Opus scope read, 2026-10-01 15:27. Ruled: Roman, 2026-10-01 15:25:
 the doubt goes to the Terminologist, and the verdict lands first, as written.
+Revision 3 folds the short review's fixes into pass 1, which builds them.
 
 ## 1. The edge: (a), a `question`
 
@@ -12,157 +13,162 @@ brief needs one paragraph (reasoned). Option (b) needs a new Terminologist
 `rota/roles/prompts.py` `compose`). The binder requires words in `question=`,
 and the doubt is a sentence.
 
-Add two edges to `rota/design/graph.json`, after `critic -> tester challenge`:
+`rota/design/graph.json` gains two edges in the field shape of
+`developer -> terminologist question` and `terminologist -> developer answer`:
 
-```json
-{"s": "critic", "t": "terminologist", "type": "messages", "v": "question",
- "expects": "answer", "n": "doubt about what a criterion says, in words; the refs name the criterion",
- "rows": "single", "prose": "question",
- "label": "beside the verdict, never instead of it (ruled: Roman, 2026-10-01 15:25)"},
-{"s": "terminologist", "t": "critic", "type": "messages", "v": "answer",
- "n": "the criterion stands, or the repair it took", "rows": "single"}
-```
+- `critic -> terminologist`, `messages`, `v: question`, `expects: answer`,
+  `rows: single`, `prose: question`, after `critic -> tester challenge`.
+- `terminologist -> critic`, `messages`, `v: answer`, `rows: single`, after
+  `terminologist -> architect answer`. Its `n` reads "the criterion stands, or
+  the report it took", because a wrong criterion goes to the Liaison by report.
 
-Remove the `silent_channels` entries `critic -> terminologist` and
-`terminologist -> critic`, which the edges make false. No code reads them
-(observed: grep of `*.py` and `*.js`, 2026-10-01).
+Each label names frame 107 and the ruling. The `silent_channels` entries
+`critic -> terminologist` and `terminologist -> critic` go. No code reads them
+(observed: grep of the tree outside `.venv` and `.git`, 2026-10-01).
 
-## 2. The op `msg.question_terminologist` and its guard
+No op goes in `rota/roles/api.py`. The sandbox generates
+`msg.question_terminologist` and `msg.answer_critic` from the edges (observed:
+`rota/core/sandbox.py` 497-508).
 
-The sandbox generates the op from the edge (observed: `rota/core/sandbox.py`
-499-508). Its signature is `send(refs: list[str], question: str, round_no: int = 0)`.
-The existing guards refuse three things for a Critic question:
+## 2. The tools and the guards
 
-1. An empty `question=`: "msg.question_terminologist needs question=" (the binder).
-2. A third question on refs that overlap two answered ones (sandbox.py
-   1322-1349). The door named is `schedule.unresolved`, which the Critic does
-   not hold. The implementer adds a Critic door: "emit the verdict as written".
-3. A ref to an id that does not exist (the generic ref check, reasoned).
+Tool lines: `critic/review.tools` gains `msg.question_terminologist`.
+`terminologist/question.tools` and `terminologist/unresolved.tools` gain
+`msg.answer_critic`. The `unresolved` line is a pass 1 addition:
+`test_an_unresolved_rung_can_answer_every_asker_that_reaches_it` requires it,
+because the new answer edge makes the Terminologist a rung for the Critic.
 
-The open-question guard (sandbox.py 1248-1260) is the Tester's only.
+Guards in `rota/core/sandbox.py`:
+
+1. An empty `question=` is refused by the binder, as before.
+2. The overlap refusal, a third question on refs that two answers already
+   covered, gains a Critic branch. Its way out reads "the verdict stands as
+   written: end the session". The Critic holds no `schedule.unresolved`.
+3. The Terminologist's answer guard names `msg.report_{recipient}`. For the
+   Critic it now names `msg.report_liaison`, the only report edge the
+   Terminologist holds. The other recipients keep their text.
+
+A second verdict is refused in `verdicts.emit` (`rota/roles/api.py`). The
+verdict id is the role, the batch and the head commit. A staged or stored row
+with that id refuses the call: "your verdict on batch b1 at this commit
+already landed, and one commit gets one verdict: end the session". A new head
+commit gets its own verdict. The unit test is
+`test_a_second_verdict_on_one_commit_is_refused` in `tests/rota/test_desk_guards.py`.
 
 ## 3. The brief lines
 
-`critic/review.md` lines 28-30 ("A doubt about what a criterion should say
-... in `reason=`.") become:
+`critic/review.md`: frame 88's line that put the doubt in `reason=` becomes:
 > A doubt about what a criterion should say is not a fail. Judge the criterion
-> as written and emit the verdict. Then send `msg.question_terminologist`, the
-> writer of the criteria: refs naming the criterion, and in `question=` the
-> words you doubt and why. A doubt about whether the test encodes the
-> criterion is `msg.challenge_tester` instead.
+> as written and emit the verdict. Then send the doubt to the Terminologist,
+> the writer of the criteria, with `msg.question_terminologist`. The refs name
+> the criterion. `question=` says the words you doubt and why. A doubt about
+> whether the test encodes the criterion is `msg.challenge_tester` instead.
 
-Tools: `critic/review.tools` appends `msg.question_terminologist`, and
-`terminologist/question.tools` appends `msg.answer_critic`.
+`critic/answer.md`: the header becomes "MODE: answer — a role answered a
+message you sent." The prefix stays, because
+`test_every_piece_names_its_own_mode` needs it. The first branch:
+> If the Terminologist answered your question about a criterion, read the
+> answer and end the session. Your verdict on this batch already landed. Do
+> not claim, and do not emit a second verdict: the tool refuses it.
 
-`terminologist/question.md`: "Three roles can ask you this" becomes "Four
-roles", and `msg.answer_critic` joins the list. Add:
-> The Critic asks about a criterion, not a term. Read the criterion against
-> its ticket with `criteria.consult`. If the words say what the ticket asks,
-> answer with refs to the criterion. If not, `msg.report_liaison` naming the
-> criterion. Answering is not amending here too.
+The Tester branch follows, with its claim and emit steps unchanged.
 
-`rota/roles/prompts/critic/answer.md`, after the first paragraph:
-> If the Terminologist answered a question about a criterion, your verdict on
-> this batch already landed. Read the answer and end. Do not claim and do not
-> emit again.
+`terminologist/question.md`: "Three roles" becomes "Four roles", and
+`msg.answer_critic` joins the list. One paragraph:
+> The Critic asks about a criterion, not a term. You wrote the criteria. Read
+> the criterion against its ticket with `criteria.consult`. The refs of your
+> answer name the criterion. The answer says whether the criterion means what
+> the test encodes, as the question quotes it. If the criterion means what its
+> ticket asks, answer with `msg.answer_critic`. If it does not, send
+> `msg.report_liaison` and name the criterion. Answering is not amending here too.
 
 ## 4. The case
 
-Add to `tests/rota/cases/l1_judgement.yaml` after
+`L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist` goes in
+`tests/rota/cases/l1_judgement.yaml`, after
 `L1-CR-a-test-that-encodes-nothing-is-a-challenge`. The Critic cannot read the
 item row, so the doubt comes from the criterion and the code alone. The
 criterion says the invoices go. The test encodes that. The diff meets it. The
 code's own comment says the invoices must survive.
 
-```yaml
-- id: L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist
-  tier: T1
-  model: gemma3:12b
-  role: critic
-  runs: 5
-  pass: 3
-  tick: review
-  refs: [<b1>]
-  repo:
-    batch: <b1>
-    message: "close an account"
-    edit:
-      src/billing/accounts.py: |
-        # L1-CR-a-test-that-encodes-nothing-is-a-challenge's repo.edit, whole, two lines changed:
-        #   from ..store import Record, delete, load, save
-        #   delete("invoices", account_id)   # in close_account, before the tombstone
-  fixture:
-    items: [{id: <i1>, text: "closing an account", kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}]
-    tickets: [{id: <tk1>, item_id: <i1>, text: "close an account"}]
-    criteria:
-      - {id: <c1>, ticket_id: <tk1>, term_refs: '[]',
-         text: "closing an account tombstones it and deletes its invoices"}
-    batches: [{id: <b1>, item_id: <i1>, status: running, head_commit: abc123}]
-    batch_tickets: [{batch_id: <b1>, ticket_id: <tk1>}]
-    tests:
-      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_close.py,
-         body: "close_account('a1')\nassert load('invoices', 'a1') is None\nassert load('billing_accounts', 'a1').values['state'] == 'tombstoned'"}
-    test_runs: [{id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}]
-  expect:
-    writes: {verdicts: {count: 1}}
-    messages: [{to: terminologist, verb: question, count: 1, refs_include: [<c1>]}]
-  forbidden: {recipients: [tester, developer]}
-```
+The repo edit is the sample `src/billing/accounts.py` in full, as the
+challenge case writes it, with two lines changed: `delete` joins the store
+import, and `delete("invoices", account_id)` runs before the tombstone. The
+store has `delete(table, id)` (observed: `rota/testkit/samplerepo.py` 153).
+The kept comment "Closing does not delete: the invoices have to survive for
+seven years" carries the doubt.
 
-The pass writes the edit out in full. The store has `delete(table, id)`
-(observed: `rota/testkit/samplerepo.py` 153). The kept comment "Closing does
-not delete: the invoices have to survive for seven years" carries the doubt.
+The keys:
+
+- `expect.writes.verdicts`: `count: 1` and `text_includes: ['"result": "pass"']`.
+  The case runner has no field-value key, so the result is asserted as a
+  substring of the row's JSON (observed: `rota/testkit/fixtures.py` 504-532).
+- `expect.messages`: one `question` to `terminologist`, `refs_include: [<c1>]`.
+- `forbidden.recipients`: `[tester, developer]`.
 
 ## 5. Structure tests
 
-- `tests/rota/test_graph_reply.py`: the new answer edge and `msg.answer_critic`
-  in `terminologist/question.tools` satisfy `test_an_asking_edge_has_its_reply`.
-- `tests/rota/test_roles_doc.py`: in `rota/ROLES.md`, the Critic's line 210
-  becomes "**Reaches** developer (challenge), terminologist (question), tester
-  (challenge)". The Terminologist's line 134 adds "critic (answer)". Line 206,
-  "a verdict and two challenges", becomes "a verdict, two challenges and a question".
+- `tests/rota/test_graph_reply.py`: the answer edge and `msg.answer_critic`
+  satisfy `test_an_asking_edge_has_its_reply`.
+- `rota/ROLES.md`: the Critic reaches "developer (challenge), terminologist
+  (question), tester (challenge)". Its namespace line reads "a verdict, two
+  challenges and a question". The Terminologist's line adds "critic (answer)".
+- `rota/SYSTEM.md`: the table row, the "Critic's hole" paragraph and gap 2 say
+  that gap 2 closes for the Terminologist only.
+- `tests/rota/test_docs.py`: `test_critic_still_cannot_ask_anything` becomes
+  `test_critic_asks_only_the_terminologist`.
+- `tests/rota/test_t0_sandbox.py`: `test_s9_critic_namespace_is_review_plus_challenge`
+  adds `msg.question_terminologist` to the Critic's outbound set.
 - `tests/rota/test_edge_coverage.py`: the new case covers
-  `(critic, terminologist, question)` through `expect.messages`. The answer
-  edge `(terminologist, critic, answer)` has no case. Either the backlog set
-  gains it in the same commit, or a second case with `inbound: {from: critic,
-  to: terminologist, verb: question}` covers it. Recommended: the backlog, as
-  the frame's ends-when names one case.
-- The generated doc string ("Ask terminologist a question. The refs say what
-  it is about") fits. No doc branch.
+  `(critic, terminologist, question)`. `BACKLOG` gains
+  `(terminologist, critic, answer)`, which has no case.
 - Law 3: `derived_contacts('critic')` is `['developer', 'terminologist',
-  'tester']`, and `derived_contacts('terminologist')` includes `critic`
-  (observed: `rota/design/graph.py` 142, run 2026-10-01 15:27). Both edges
+  'tester']`, and `derived_contacts('terminologist')` includes `critic`.
+  `assert_consistent` passes (observed: run by pass 1, 2026-10-01). Both edges
   derive by law, with no `contact_exceptions` entry.
 
 ## 6. Re-records owed
 
-Eight, plus the new case (observed: grep of `tests/rota/cases/*.yaml`, 2026-10-01).
+Nine (observed: grep of `tests/rota/cases/*.yaml`, 2026-10-01).
 
 The Critic's `review` brief and tools change:
-1. `ACT-CR-quote-the-tests-code` (`l1_acts.yaml` 315)
-2. `L1-CR-pass-a-conforming-diff` (`l1_judgement.yaml` 6)
-3. `L1-CR-fail-names-its-criterion` (`l1_judgement.yaml` 70)
-4. `L1-CR-a-test-that-encodes-nothing-is-a-challenge` (`l1_judgement.yaml` 296)
-5. `L3-a-failed-verdict-turns-into-a-fix` (`l3_handoffs.yaml` 128)
+1. `ACT-CR-quote-the-tests-code` (`l1_acts.yaml`)
+2. `L1-CR-pass-a-conforming-diff` (`l1_judgement.yaml`)
+3. `L1-CR-fail-names-its-criterion` (`l1_judgement.yaml`)
+4. `L1-CR-a-test-that-encodes-nothing-is-a-challenge` (`l1_judgement.yaml`)
+5. `L3-a-failed-verdict-turns-into-a-fix` (`l3_handoffs.yaml`)
 
 The Terminologist's `question` brief and tools change:
-6. `L1-TE-answer-a-term-question` (`l1_terminologist.yaml` 51)
-7. `L1-TE-answer-the-architects-question` (`l1_answers.yaml` 228)
+6. `L1-TE-answer-a-term-question` (`l1_terminologist.yaml`)
+7. `L1-TE-answer-the-architects-question` (`l1_answers.yaml`)
 
 The Critic's `answer` brief changes:
-8. `L1-CR-finish-the-review-with-the-answer-in-hand` (`l1_answers.yaml` 265)
+8. `L1-CR-finish-the-review-with-the-answer-in-hand` (`l1_answers.yaml`)
+
+The new case:
+9. `L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist`
+
+Watch: `L1-TE-a-rung-for-a-question-the-principal-asked` reads
+`terminologist/unresolved.tools`. The situational narrowing drops
+`msg.answer_critic` on that wake, so it may stay green (reasoned).
 
 ## 7. Risks
 
-1. The answer reaches the Critic after its verdict. Re-review is not wanted,
-   and a second `verdicts.emit` has no refusal today (observed: `verdicts_emit`,
-   2026-10-01), so the `answer` brief ends the session. The implementer checks
-   that a session with no writes commits on an answer wake.
-2. Case 2 may send a needless question; its `forbidden.recipients` gains `terminologist`.
-3. Case 4 may drift to the Terminologist door; the brief gives each door one sentence.
-4. A wrong criterion reaches the Liaison by report, not a repair: `criterion_repair`
-   wakes on a Tester's question only (observed: `predicates.py` 1122). Widening it is a later frame.
+1. The answer reaches the Critic after its verdict. The `answer` brief ends the
+   session, and `verdicts.emit` refuses a second verdict. A session with no
+   writes on an answer wake is not refused by any guard pass 1 found
+   (reasoned: grep of `rota/core`, 2026-10-01). The walk confirms it.
+2. Case 2 may send a needless question. Its `forbidden.recipients` may then
+   gain `terminologist`.
+3. Case 4 may drift to the Terminologist door. The brief gives each door one
+   sentence.
+4. A wrong criterion reaches the Liaison by report, not a repair:
+   `criterion_repair` wakes on a Tester's question only (observed:
+   `predicates.py` 1122). Widening it is a later frame.
+5. The second-verdict refusal is new for every role that emits. A recorded
+   case where a seat emits twice on one commit now reads a refusal. The gate
+   shows such a case as stale or red.
 
 ## 8. Open questions
 
-None. The edge is Roman's ruling, and the verdict order is settled.
+None on the design. The edge is Roman's ruling, and the verdict order is settled.

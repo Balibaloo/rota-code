@@ -79,7 +79,7 @@ same problem as this, solved once, in one place, and never generalised.
 | terminologist | question · challenge · report | — |
 | developer | question · challenge · escalate | — |
 | **tester** | **question** | escalate · challenge · report |
-| **critic** | **challenge** | question — it cannot ask anything at all |
+| **critic** | **challenge** · question | a question to any role but the Terminologist |
 | researcher | answer | *deliberate*: it shares no context, so it has nothing to escalate about and nowhere to send it |
 | liaison | ask · clarify · confirm · present · relay · deliver | — |
 
@@ -154,9 +154,9 @@ So there is one gap, not two, and it accounts for five of the six failing
 cases. Prose has failed to move any of them, which is what a structural gap
 looks like from the outside.
 
-**Critic's hole survives the correction**, and stands on its own: it cannot ask
-anything. No case tests a Critic that does not understand a criterion, so it has
-never been observed. Holes look like that before somebody draws the set.
+**Critic's hole survived the correction**, and stood on its own: it could not ask
+anything. Frame 107 closed it for the Terminologist only. The Critic now sends a
+doubt about a criterion to the writer of the criteria (ruled: Roman, 2026-10-01).
 
 ## Where the current design is lacking
 
@@ -175,7 +175,14 @@ In the order the frame produces them, not the order they were noticed.
    session boundary, so every rule of this kind had nowhere to live. Now it has
    one.
 
-2. **Critic cannot ask.** Critic is starved of the model and the decisions on
+2. **Critic cannot ask.** Closed for the Terminologist only (frame 107, ruled:
+   Roman, 2026-10-01). The Critic judges the criterion as written and emits the
+   verdict. Then `msg.question_terminologist` carries its doubt about the
+   criterion to the writer of the criteria. The answer wakes the Critic, and
+   the tool refuses a second verdict on the same commit. The Critic asks no
+   other role. The history follows.
+
+   Critic is starved of the model and the decisions on
    purpose, and that starvation is load-bearing — a judge that remembers its
    prior objection is anchored. But *cannot see* and *cannot ask* are different
    properties, and only the first was intended.

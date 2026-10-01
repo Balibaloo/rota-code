@@ -60,9 +60,13 @@ def test_s9_critic_namespace_is_review_plus_challenge(db):
         "challenge.load", "challenge.uphold", "challenge.break",
         "challenge.vacuous", "code.source", "code.probe",
     }
-    # Its only outbound channels are the two disputes it is entitled to raise.
+    # Its outbound channels are the two disputes it is entitled to raise,
+    # and one question to the writer of the criteria. Frame 107 added the
+    # question (ruled: Roman, 2026-10-01: the Critic's doubt about a
+    # criterion goes to the Terminologist, the writer of the criteria).
     assert {f for f in sb.functions() if f.startswith("msg.")} == {
         "msg.challenge_developer", "msg.challenge_tester",
+        "msg.question_terminologist",
     }
 
 

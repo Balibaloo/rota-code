@@ -275,6 +275,29 @@ def test_a_developer_challenge_does_not_block_the_verdict(db):
     assert out["result"] == "fail"
 
 
+def test_a_second_verdict_on_one_commit_is_refused(db):
+    # Frame 107. The Terminologist's answer wakes the Critic after its
+    # verdict landed, so the tool refuses a second verdict on the same
+    # commit (ruled: Roman, 2026-10-01: the Critic's doubt about a
+    # criterion goes to the Terminologist, the writer of the criteria).
+    sb = build("critic", db, batch_id="b1", mode="review")
+    sb.call("verdicts.emit", batch_id="b1", result="pass")
+    with pytest.raises(ValueError, match="already landed"):
+        sb.call("verdicts.emit", batch_id="b1", result="pass")
+    # A verdict on file from an earlier session counts the same.
+    db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+               "VALUES ('critic:b1:abc123','b1','abc123','pass')")
+    db.commit()
+    sb = build("critic", db, batch_id="b1", mode="answer")
+    with pytest.raises(ValueError, match="already landed"):
+        sb.call("verdicts.emit", batch_id="b1", result="pass")
+    # A new commit is a new diff, and it gets its own verdict.
+    db.execute("UPDATE batches SET head_commit = 'def456' WHERE id = 'b1'")
+    db.commit()
+    out = sb.call("verdicts.emit", batch_id="b1", result="pass")
+    assert out["id"] == "critic:b1:def456"
+
+
 def test_a_report_from_a_batch_wake_names_the_batch(db):
     wake = Wake("architect", "tick:exhausted", refs=("b1",))
     sb = build("architect", db, batch_id="b1", mode="exhausted", wake=wake)

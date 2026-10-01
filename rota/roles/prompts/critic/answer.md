@@ -1,4 +1,10 @@
-MODE: answer — the Tester answered your challenge.
+MODE: answer — a role answered a message you sent.
+
+If the Terminologist answered your question about a criterion, read the answer
+and end the session. Your verdict on this batch already landed. Do not claim,
+and do not emit a second verdict: the tool refuses it.
+
+If the Tester answered your challenge, finish the review as follows.
 
 You said a test does not encode its criterion. The Tester read the criterion
 again and answered: the test stands, and the answer names what in the criterion

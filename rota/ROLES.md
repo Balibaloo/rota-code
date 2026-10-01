@@ -131,8 +131,9 @@ would satisfy it.
 that is Vision Keeper's report. Collapsing two senses into one is a decision, and
 two senses is a finding, not a failure to resolve.
 
-**Reaches** architect (answer), developer (answer), vision_keeper (challenge),
-liaison (answer, report), researcher (question), tester (answer).
+**Reaches** architect (answer), critic (answer), developer (answer),
+vision_keeper (challenge), liaison (answer, report), researcher (question),
+tester (answer).
 
 **Woken by** criteria, criterion_repair, define, term_collision.
 
@@ -203,11 +204,13 @@ researcher (question), terminologist (question).
 **Answerable for** one verdict per batch, on one commit.
 
 **Never fixes anything**, and holds the narrowest namespace in the system:
-criteria, tests, code, a verdict and two challenges. A fail names its criterion
+criteria, tests, code, a verdict, two challenges and a question. A fail names its criterion
 and stops. It also reads the findings, and rules `upheld` or `dismissed` on a
 finding filed after its pass (ruled: Roman, 2026-09-27).
 
-**Reaches** developer (challenge), tester (challenge).
+**Reaches** developer (challenge), terminologist (question), tester
+(challenge). The question carries a doubt about a criterion to its writer
+(frame 107, ruled: Roman, 2026-10-01).
 
 **Woken by** challenge, finding_review, review.
 

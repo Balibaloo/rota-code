@@ -376,6 +376,92 @@
   forbidden:
     writes: [criteria, tests, verdicts]
 
+# Frame 107 (ruled: Roman, 2026-10-01: the Critic's doubt about a criterion
+# goes to the Terminologist, the writer of the criteria). The Critic cannot
+# read the item row, so the doubt comes from the criterion and the code. The
+# criterion says the invoices go. The test encodes that, and the diff meets
+# it. The code's own comment says the invoices must survive.
+- id: L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist
+  tier: T1
+  model: gemma3:12b
+  role: critic
+  runs: 5
+  pass: 3
+  tick: review
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    message: "close an account"
+    # The sample file whole with two lines changed: `delete` in the import,
+    # and the delete before the tombstone. The comment stays and carries
+    # the doubt.
+    edit:
+      src/billing/accounts.py: |
+        from dataclasses import dataclass
+
+        from ..store import Record, delete, load, save
+
+
+        @dataclass
+        class BillingAccount:
+            """Who the invoice is addressed to. May cover several login identities."""
+            id: str
+            name: str
+            terms_days: int = 30
+
+
+        def open_account(id, name, terms_days=30):
+            save(Record("billing_accounts", id, {"name": name, "terms_days": terms_days}))
+            return BillingAccount(id, name, terms_days)
+
+
+        def balance(account_id, conn=None):
+            conn = conn or None
+            rows = load("invoices", account_id, conn)
+            if rows is None:
+                return 0
+            return sum(int(v) for k, v in rows.values.items() if k == "total_cents")
+
+
+        def close_account(account_id):
+            # Closing does not delete: the invoices have to survive for seven years.
+            rec = load("billing_accounts", account_id)
+            if rec is None:
+                return False
+            delete("invoices", account_id)
+            rec.values["state"] = "tombstoned"
+            save(rec)
+            return True
+  fixture:
+    items:
+      - {id: <i1>, text: "closing an account", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "close an account"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "closing an account tombstones it and deletes its invoices",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_close.py,
+         body: "close_account('a1')\nassert load('invoices', 'a1') is None\nassert load('billing_accounts', 'a1').values['state'] == 'tombstoned'"}
+    test_runs:
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123,
+         result: pass}
+  expect:
+    # The diff meets the criterion as written, so the verdict is a pass.
+    # The doubt travels beside it as one question to the Terminologist.
+    writes:
+      verdicts: {count: 1, text_includes: ['"result": "pass"']}
+    messages:
+      - {to: terminologist, verb: question, count: 1, refs_include: [<c1>]}
+  forbidden:
+    recipients: [tester, developer]
+
 - id: L1-AR-a-dead-end-is-reported-not-sat-on
   tier: T1
   role: architect

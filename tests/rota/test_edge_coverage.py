@@ -87,6 +87,10 @@ def test_every_message_edge_is_exercised_or_on_the_backlog():
     BACKLOG = {
         ("researcher", "tester", "answer"),
         ("terminologist", "researcher", "question"),
+        # Frame 107: the reply to the Critic's doubt about a criterion has
+        # no case yet (ruled: Roman, 2026-10-01: the Critic's doubt about a
+        # criterion goes to the Terminologist, the writer of the criteria).
+        ("terminologist", "critic", "answer"),
     }
     untouched = edges - touched
     assert untouched == BACKLOG, (

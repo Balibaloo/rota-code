@@ -1340,9 +1340,18 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 if prior_refs & set(refs):
                     answered += 1
             if answered >= 2:
-                door = ("tests.triage(criterion_id=..., verdict='cannot') with the "
-                        "reason: the criterion goes to repair"
-                        if ctx.role == "tester" else "schedule.unresolved")
+                # Frame 107. The Critic holds no schedule.unresolved. Its
+                # verdict lands first on the criterion as written. So a
+                # third question has nothing left to change (ruled: Roman,
+                # 2026-10-01: the Critic's doubt about a criterion goes to
+                # the Terminologist, the writer of the criteria).
+                if ctx.role == "tester":
+                    door = ("tests.triage(criterion_id=..., verdict='cannot') "
+                            "with the reason: the criterion goes to repair")
+                elif ctx.role == "critic":
+                    door = "the verdict stands as written: end the session"
+                else:
+                    door = "schedule.unresolved"
                 raise ValueError(
                     f"{recipient} has answered {answered} questions of yours "
                     f"on these rows and they did not settle it. A third "
@@ -1714,10 +1723,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 "SELECT 1 FROM glossary_terms WHERE id = ? UNION ALL "
                 "SELECT 1 FROM criteria WHERE id = ?", (r, r)).fetchone()]
             if not cited:
+                # Frame 107. The Terminologist holds no report edge to the
+                # Critic, so the door names the Liaison (ruled: Roman,
+                # 2026-10-01: the Critic's doubt about a criterion goes to
+                # the Terminologist, the writer of the criteria).
+                to = "liaison" if recipient == "critic" else recipient
                 raise ValueError(
                     f"an answer from the glossary carries a term, and "
                     f"refs={list(refs or [])} names none. The glossary does "
-                    f"not carry this: send msg.report_{recipient}"
+                    f"not carry this: send msg.report_{to}"
                     f"(refs={list(refs or [])}) with the same refs.")
 
         # A confirmation points at what is being ratified, and the only

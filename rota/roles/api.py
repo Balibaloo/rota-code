@@ -6140,6 +6140,19 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
             "is your judgement of this commit until the challenge lands. "
             "A verdict on top of it would judge against a test you just "
             "said is in dispute -- end the session here")
+    # Frame 107. The Terminologist's answer wakes the Critic after its
+    # verdict landed. The tool refuses a second verdict, so the rule does
+    # not rest on the brief alone (ruled: Roman, 2026-10-01: the Critic's
+    # doubt about a criterion goes to the Terminologist, the writer of the
+    # criteria).
+    commit = _head_commit(ctx, batch_id)
+    id = f"{ctx.role}:{batch_id}:{commit}"
+    if (any(w[0] == "verdicts" and w[1] == id for w in ctx.writes)
+            or ctx.conn.execute("SELECT 1 FROM verdicts WHERE id = ?",
+                                (id,)).fetchone()):
+        raise ValueError(
+            f"your verdict on batch {batch_id} at this commit already "
+            f"landed, and one commit gets one verdict: end the session")
     if failed_criterion:
         _must_exist(ctx, "criteria", failed_criterion)
         # The mandatory branch: a fail names a criterion whose test was
@@ -6155,8 +6168,6 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
                 f". `verdicts.claim_encodes({failed_criterion!r}, encodes=...)` "
                 f"first: True and the fail can land, False and this is "
                 f"`msg.challenge_tester` instead, not a fail on the code")
-    commit = _head_commit(ctx, batch_id)
-    id = f"{ctx.role}:{batch_id}:{commit}"
     ctx.writes.append(("verdicts", id, {
         "batch_id": batch_id, "result": result,
         "commit_sha": commit,

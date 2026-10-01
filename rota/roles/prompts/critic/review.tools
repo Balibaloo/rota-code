@@ -5,3 +5,4 @@ verdicts.claim_encodes
 verdicts.emit
 msg.challenge_developer
 msg.challenge_tester
+msg.question_terminologist

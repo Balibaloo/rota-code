@@ -25,9 +25,11 @@ verdict per batch. A fail carries `reason=`: the criterion's words the diff does
 not meet as written and what the diff does instead, so the Developer reads the
 objection and not only the ref. A remark goes in `reason=` on either result.
 
-A doubt about what a criterion should say is not a fail. This mode has no tool
-that reaches the Architect. Judge the criterion as written, and write the doubt
-in `reason=`.
+A doubt about what a criterion should say is not a fail. Judge the criterion as
+written and emit the verdict. Then send the doubt to the Terminologist, the
+writer of the criteria, with `msg.question_terminologist`. The refs name the
+criterion. `question=` says the words you doubt and why. A doubt about whether
+the test encodes the criterion is `msg.challenge_tester` instead.
 
 A fail names its criterion and stops. You are not writing a review; you are
 answering a question, and the Developer follows the ref from there. If the

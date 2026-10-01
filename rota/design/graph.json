@@ -1272,6 +1272,17 @@
       "prose": "quotes"
     },
     {
+      "s": "critic",
+      "t": "terminologist",
+      "type": "messages",
+      "v": "question",
+      "expects": "answer",
+      "n": "doubt about what a criterion says, in words; the refs name the criterion",
+      "rows": "single",
+      "label": "the Critic asks the writer of the criteria, beside the verdict (frame 107, ruled: Roman, 2026-10-01)",
+      "prose": "question"
+    },
+    {
       "s": "tester",
       "t": "vision_keeper",
       "type": "messages",
@@ -1470,6 +1481,15 @@
       "v": "answer",
       "n": "term sense",
       "label": "the reply to a question the cascade cannot carry",
+      "rows": "single"
+    },
+    {
+      "s": "terminologist",
+      "t": "critic",
+      "type": "messages",
+      "v": "answer",
+      "n": "the criterion stands, or the report it took",
+      "label": "the reply to the Critic's doubt about a criterion (frame 107, ruled: Roman, 2026-10-01)",
       "rows": "single"
     },
     {
@@ -2330,19 +2350,9 @@
       "why": "inform: the receipt cascade wakes it"
     },
     {
-      "s": "terminologist",
-      "t": "critic",
-      "why": "inform: Critic is woken by the review predicate, not told"
-    },
-    {
       "s": "tester",
       "t": "critic",
       "why": "inform: Critic is woken by the review predicate, not told"
-    },
-    {
-      "s": "critic",
-      "t": "terminologist",
-      "why": "Open. A criterion Critic cannot judge has nowhere to go, and the resolution taken was to resolve term_refs into criteria.load instead \u2014 a completeness fix rather than a channel."
     }
   ]
 }

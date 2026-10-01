@@ -109,15 +109,19 @@ def test_every_document_is_checked_or_declared_narrative():
 # to make the suite green again.
 # ---------------------------------------------------------------------------
 
-def test_critic_still_cannot_ask_anything():
-    """SYSTEM.md gap 2. Critic is starved of the model on purpose and cannot
-    ask a question either, which was not the intent. Fix the gap and this test
-    fails, which is the point: the document must stop claiming it."""
+def test_critic_asks_only_the_terminologist():
+    """SYSTEM.md gap 2, closed for the Terminologist only. Frame 107 gave
+    the Critic one question, to the writer of the criteria (ruled: Roman,
+    2026-10-01: the Critic's doubt about a criterion goes to the
+    Terminologist, the writer of the criteria). A second question channel
+    widens the Critic's context. Then this test fails, and SYSTEM.md must
+    say so."""
     g = graph_mod.load()
-    verbs = {e.v for e in g.of_type("messages") if e.s == "critic"}
-    assert verbs == {"challenge"}, (
-        f"Critic's vocabulary is now {sorted(verbs)}. If it can ask, "
-        f"SYSTEM.md gap 2 is closed and must say so")
+    asks = {e.t for e in g.of_type("messages")
+            if e.s == "critic" and e.v == "question"}
+    assert asks == {"terminologist"}, (
+        f"Critic asks {sorted(asks)}. SYSTEM.md gap 2 says the Critic asks "
+        f"the Terminologist only, and must change with the graph")
 
 
 def test_no_question_channel_is_unanswerable():
