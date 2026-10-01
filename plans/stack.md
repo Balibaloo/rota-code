@@ -222,7 +222,7 @@ a different question and the night is then opened once.
 - Reasoning: the gate lines on frames 101, 103 and 88 of this date.
 - Status 2026-10-01 12:38 (rota-d0): pushed by d2cc277a, unclaimed, priced. Meta workflow.
 
-### 105. A night report tool prints the cycle facts, and the Opus read starts from them (2026-10-01) (d2cc277a)
+### 105. A night report tool prints the cycle facts, and the Opus read starts from them (2026-10-01) (10885dab)
 
 - **No batch. The second of the three levers Roman ruled on 2026-10-01** (ruled: Roman, "prioritize 1-3 now, skip 4", to the four levers the assistant put for faster nights; the Opus read stays, so the holder's context stays clean). One site: a new `rota/tools/nightreport.py`, started from `tests/rota/fixtures/extract_night.py`.
 - Meta workflow. Every night's read asks the same questions: which predicate woke whom per batch and in what order, each verdict with its commit and reason, each head move, `tick_attempts`, the quarantines, the cut and eviction phrases by count, and the sessions that ran past their completion line. Each read costs 85k to 103k on Opus (observed: nights 98 to 101's status lines) and the facts are rows.
@@ -246,6 +246,8 @@ a different question and the night is then opened once.
 - Status 2026-10-01 07:13 (rota-0f): **handed to d2cc277a, rota-d0, confirmed 6 seconds after the claim** (observed: the hand command, exit 0, 2026-10-01 07:13). Meta workflow. 104efdb6 stops here.
 - Status 2026-10-01 14:14 (rota-d0): **handed off with the stack by d2cc277a at about 300k, idle under the rule Roman set this hour: a session past 300k that holds only frames waiting on something outside it hands off at once** (ruled: Roman, 2026-10-01, in the terminal; CLAUDE.md carries it). Meta workflow. For the next session, in order: frame 106's read first, then frame 100 on the seam pair, with frame 107 blocked on Roman. The seam pair is `.rota/clickI_night101.db` plus `e1f99723`, launched as `.rota/launch_night104.sh`. This frame stays validating; the next full night's read measures it. The gate at a8ab7ff reads 27 against 23, stale 0, with frame 106's case and one flaky test as the new reds.
 - Status 2026-10-01 14:14 (rota-d0): **session 10885dab holds the stack, confirmed ten seconds after the claim** (observed: the hand command's exit 0, 2026-10-01 14:14). Meta workflow. d2cc277a stops.
+- Status 2026-10-01 14:15 (rota-06): **taken by 10885dab from d2cc277a's hand-off at stack commit de65f97, validating only** (observed: the take command's exit 0, 2026-10-01 14:15). Meta workflow. Frame 106's read is next on the recorded order, checked with Roman before it starts.
+
 ### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
 
 - **Batch C, the night's stall, found by night 99's read of walk 1.** Two sites: the
