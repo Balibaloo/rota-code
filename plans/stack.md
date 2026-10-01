@@ -236,6 +236,15 @@ a different question and the night is then opened once.
   `c628193`** (observed: `handover.py hand`, exit 0, CONFIRMED 7s after the claim at 23:47:18). Meta
   workflow. This session, 7448850f, stops here at about 358k.
 
+### 103. A tool signature edit moves the system text and not the prompt hash, and the register-key test reads old rows as current (2026-10-01)
+
+- **Batch A, the cassette key, reopened by frame 102's pass 1.** One site: `tests/rota/test_register_key.py`, `test_the_composed_system_text_is_the_one_the_run_recorded`, and the narrow key in `rota/tools/casestatus.py`'s `matching_runs`.
+- Meta workflow. `verdicts.emit` gained an optional `reason`, so the TOOL line of the Critic's answer mode moved and the prompt hash of `L1-CR-finish-the-review-with-the-answer-in-hand` did not; the gate re-recorded the case 5/5 on the system clause, and the test then counted 89 of 99 narrow rows under the old system hash as rows the wide match should keep (observed: frame 102's gate, 2026-10-01). The narrow key names the case, the prompt hash and the model, and a tool line is in none of them.
+- Ends when: a signature edit alone leaves no red on that test, either because the narrow key carries the system hash or because the test compares the wide match with the newest load only; one test; the gate green on this line. Priced: one read of the key, 15k; one pass, about 20k on Opus; one diff review, about 20k.
+- Waits on: Roman's order. Recommended: before the next frame that edits an op's signature, because each one adds a red of this shape.
+- Reasoning: frame 102's pass 1 status.
+- Status 2026-10-01 01:08 (rota-0f): pushed by 104efdb6, unclaimed, priced. Meta workflow.
+
 ### 101. The Critic's wake puts the diff first, and a long diff cuts the criteria and the tests out (2026-09-30)
 
 - **Batch C, the night's stall, found by frame 97's last review.** One site: the order of the pushed results
