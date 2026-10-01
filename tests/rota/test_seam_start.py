@@ -162,6 +162,33 @@ def test_a_run_database_held_open_is_refused(tmp_path, monkeypatch, capsys):
     _unchanged(tmp_path, repo, old)
 
 
+def test_a_journal_file_held_open_moves_nothing_for_good(tmp_path, monkeypatch, capsys):
+    """The main file and the WAL move aside, the held SHM refuses, and the
+    two moved files come back. Nothing at the target path is deleted."""
+    repo, sha, db, old = _setup(tmp_path, monkeypatch)
+    runs = tmp_path / "runs"
+    (runs / "clickI.db-wal").write_bytes(b"old wal")
+    (runs / "clickI.db-shm").write_bytes(b"old shm")
+    with open(runs / "clickI.db-shm", "rb"):
+        assert _mod().restore("clickI", db, sha, repo, env=False) == 1
+    assert "SEAM REFUSED: clickI.db is held open" in capsys.readouterr().out
+    _unchanged(tmp_path, repo, old)
+    assert (runs / "clickI.db-wal").read_bytes() == b"old wal"
+    assert (runs / "clickI.db-shm").read_bytes() == b"old shm"
+
+
+def test_a_side_file_from_an_earlier_restore_is_refused(tmp_path, monkeypatch, capsys):
+    repo, sha, db, old = _setup(tmp_path, monkeypatch)
+    side = tmp_path / "runs" / "clickI.db.seam-old"
+    side.write_bytes(b"the real old database")
+    assert _mod().restore("clickI", db, sha, repo, env=False) == 1
+    assert "exists from an earlier restore" in capsys.readouterr().out
+    assert side.read_bytes() == b"the real old database"
+    assert (tmp_path / "runs" / "clickI.db").read_bytes() == old
+    assert _git(repo, "branch", "--list", "batch/*") == ""
+    assert not (repo / ".rota" / "worktrees").exists()
+
+
 def test_a_failed_add_removes_what_the_restore_added(tmp_path, monkeypatch, capsys):
     repo, sha, db, old = _setup(tmp_path, monkeypatch)
     runs = tmp_path / "runs"

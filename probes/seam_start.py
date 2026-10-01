@@ -154,7 +154,6 @@ def _aside(target: Path) -> list[tuple[Path, Path]]:
             old = Path(f"{target}{suffix}")
             if old.exists():
                 side = Path(f"{target}.seam-old{suffix}")
-                side.unlink(missing_ok=True)
                 old.rename(side)
                 moved.append((old, side))
     except PermissionError:
@@ -183,12 +182,16 @@ def _reopen(target: Path) -> None:
     Windows then refuses the delete in `_back` (WinError 32)."""
     from rota.core import db as rota_db
     failed = None
+    fresh = None
     try:
         fresh = rota_db.init_db(target)
         fresh.commit()
-        fresh.close()
     except BaseException as exc:                           # noqa: BLE001
         failed = exc.with_traceback(None)
+    finally:
+        # A failed commit leaves the connection open in this live frame.
+        if fresh is not None:
+            fresh.close()
     if failed is not None:
         gc.collect()
         raise failed
@@ -213,6 +216,12 @@ def restore(run: str, db_path, commit: str, click_root, env: bool = True) -> int
         refused, rows = _door(src, commit, root, home)
         if refused:
             print(f"SEAM REFUSED: {refused}")
+            return 1
+        # A side file from a killed restore is the real old database. The
+        # move would replace it, so a person decides.
+        for side in sorted(target.parent.glob(f"{target.name}.seam-old*")):
+            print(f"SEAM REFUSED: {side} exists from an earlier restore; "
+                  f"move it back or delete it by hand")
             return 1
         target.parent.mkdir(parents=True, exist_ok=True)
         try:
