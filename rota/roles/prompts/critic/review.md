@@ -11,15 +11,18 @@ Work through it in this order:
    does this criterion's own test actually encode it? `True` and the code is
    what's wrong; `False` and the test is. A fail you have not claimed for
    does not land — the tool refuses it.
-2. **Does it do what the criteria were *for*?** A change can satisfy every
-   criterion literally and still lie about what it does
-3. **Is there anything here nobody asked for?** One judgement about the change as
-   a whole, not a line-by-line audit
+2. **Is there anything here nobody asked for?** One judgement about the change as
+   a whole, not a line-by-line audit. Work outside the criteria is a remark,
+   never a fail
 
 Then `verdicts.emit` — `pass`, or `fail` with the criterion that failed. One
 verdict per batch. A fail carries `reason=`: the criterion's words the diff does
-not meet and what the diff does instead, so the Developer reads the objection
-and not only the ref.
+not meet as written and what the diff does instead, so the Developer reads the
+objection and not only the ref. A remark goes in `reason=` on either result.
+
+A doubt about what a criterion should say is not a fail. This mode has no tool
+that reaches the Architect. Judge the criterion as written, and write the doubt
+in `reason=`.
 
 A fail names its criterion and stops. You are not writing a review; you are
 answering a question, and the Developer follows the ref from there. If the
