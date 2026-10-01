@@ -722,6 +722,8 @@ def test_the_batch_own_tests_come_first_and_green_inherited_bodies_stay_out(proj
                "VALUES ('f101_rr', 'b1', 'f101_red', 'fail', 'assert 1 == 2')")
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
                "VALUES ('f101_own', 'b1', 'c1', 'test_own.py', 'def test_own(): OWN_BODY')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('f101_norun', 'b1', NULL, 'tests/test_norun.py', 'def test_n(): NORUN')")
     db.commit()
 
     loaded = build("critic", db, batch_id="b1").call("tests.load")
@@ -732,9 +734,11 @@ def test_the_batch_own_tests_come_first_and_green_inherited_bodies_stay_out(proj
     green = [r for r in loaded if r["id"].startswith("f101_g")]
     assert len(green) == 30
     for r in green:
-        assert r["body"] == (f"10000 characters, passing, not shown; "
-                             f"the file is at {r['path']}"), r["body"]
-        assert "xxxx" not in r["body"]
+        assert r["body"] == "10000 characters, passing, not shown", r["body"]
+    norun = next(r for r in loaded if r["id"] == "f101_norun")
+    assert norun["body"] == f"{len('def test_n(): NORUN')} characters, not run yet, not shown"
+    # The Critic has no read for a file path, so no hidden body points at one.
+    assert not any("the file is at" in (r["body"] or "") for r in loaded)
 
 
 def test_a_finding_names_a_file_the_diff_changed(project):

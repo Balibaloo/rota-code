@@ -5523,8 +5523,9 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
             # batch's own tests behind the push cap. A green inherited body
             # tells the reader nothing, so the row names its file (frame 101).
             if row.get("criterion_id") is None:
-                row["body"] = (f"{len(row.get('body') or '')} characters, passing, "
-                               f"not shown; the file is at {row.get('path')}")
+                state = "passing" if row.get("last_result") == "pass" else "not run yet"
+                row["body"] = (f"{len(row.get('body') or '')} characters, {state}, "
+                               f"not shown")
             continue
         if sha not in seen:
             seen[sha] = [p for p in (_wt.changed_since(root, sha) if root else [])
