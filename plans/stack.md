@@ -898,6 +898,7 @@ a different question and the night is then opened once.
   frame 102's second half. The Critic's brief line and its re-record are this frame's remaining work,
   unclaimed, about 30k plus the re-records by count. Ruling recorded, no longer blocked.
 - Status 2026-10-01 10:43 (rota-d0): claimed by d2cc277a for the Critic's brief line, beside frames 101, 103 and 105 (ruled: Roman, "Ok", 2026-10-01 10:43). Meta workflow. The brief files are not frame 101's files, and the Critic's re-records run once after both land. Pass 1 on Opus, no gate.
+- Status 2026-10-01 10:45 (rota-d0): **pass 1 on Opus, 36.3k on the harness line against 30k, committed at 13d138b: `base.md`'s paragraph now reads `The criterion's words bind`, a fail names a criterion the diff does not meet as written, a remark goes in the reason; `review.md` drops the step `Does it do what the criteria were for` and sends a doubt about a criterion into `reason=`** (observed: the agent's report with the lines verbatim, read by this session, 2026-10-01 10:45). Meta workflow. Blocked on Roman for one part of the ruling: a doubt about a criterion is a challenge to the Architect, and the graph has no Critic-to-Architect edge, no op and no tool line. Recommended: a later frame adds the edge, the op `msg.challenge_architect` and the tool line, with its own re-records; until then the doubt reaches the Developer through the reason. The Critic's cases re-record once with frame 101's, and the seam night proves both.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (532b3429)
 
