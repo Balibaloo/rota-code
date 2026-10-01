@@ -222,6 +222,7 @@ a different question and the night is then opened once.
 - Reasoning: the gate lines on frames 101, 103 and 88 of this date.
 - Status 2026-10-01 12:38 (rota-d0): pushed by d2cc277a, unclaimed, priced. Meta workflow.
 - Status 2026-10-01 14:29 (rota-06): **claimed by 10885dab on Roman's choice; the red is the load flip frame 97 recorded on 2026-09-30, not a commit** (observed: `case_runs` for the case, 2026-10-01 14:27: prompt hash `d7d75dda` and system hash `5d8c13dd` unchanged since 2026-09-24; 4 of 5 on every replay to 2026-09-30 14:06; a `no cassette` key miss at 17:55 and a live re-record at 18:05 on load `qwen3:8b@248720` gave 0 of 5; every gate since replays that recording; the only other live runs are 18:42 on the same load, 0 of 5; the per-load history holds 0 of 5 on load 248653 and 2 of 5 on 248654 on 2026-09-25 too). Meta workflow. The commit read is not needed, because the bytes the model saw did not move. Frame 97's status of 18:43 in `plans/archive/stack-2026-09-30.md` names the first call's move from `findings.load` to `msg.answer_developer`, and says the case goes to frame 84's list if the red holds on a second load. One live re-record on a fresh load runs now, refresh then plain, on the gate's own command, with no night on the GPU.
+- Status 2026-10-01 14:34 (rota-06): **the cause is named, and it is a commit and not a load: 4876aae, frame 97's pass 1, emptied the `[code.diff]` block of the case's first prompt** (observed: the re-record at 14:30 on load `qwen3:8b@248730` gave 0 of 5 live, so the red holds on a second load; the `user` column of the two first-turn cassettes differs in one block only: before, `git diff HEAD~1` in a worktree with no edit showed the fixture repository's last commit, three test files, and after, the diff against the merge base is `{"batch": "b_a3ce29", "diff": ""}`, which is correct for a batch with no edit; the pins are `{"think": false}` throughout, and the system text moved from 5647 to 5730 characters at some earlier point with the case still green; with the empty diff the seat's first call is `msg.answer_developer`, repeated three times, and with the diff it is `findings.load` and then `msg.report_liaison`). Meta workflow. The case's fixture has `repo: batch: <b1>` and no `edit:`, so the old prompt carried a diff that was never the batch's work, and the case was green on an artefact. Nine cases have a batch with no edit, and this is the only one that went red. The fix is in the case: an `edit:` that holds a failed streaming attempt, so the exhausted batch has a diff to read, plus one sentence in `code.diff` for an empty diff, so a seat can tell no change from nothing shown. One register line written. Pass 1 runs on Opus.
 
 ### 105. A night report tool prints the cycle facts, and the Opus read starts from them (2026-10-01) (10885dab)
 
@@ -249,7 +250,7 @@ a different question and the night is then opened once.
 - Status 2026-10-01 14:14 (rota-d0): **session 10885dab holds the stack, confirmed ten seconds after the claim** (observed: the hand command's exit 0, 2026-10-01 14:14). Meta workflow. d2cc277a stops.
 - Status 2026-10-01 14:15 (rota-06): **taken by 10885dab from d2cc277a's hand-off at stack commit de65f97, validating only** (observed: the take command's exit 0, 2026-10-01 14:15). Meta workflow. Frame 106's read is next on the recorded order, checked with Roman before it starts.
 
-### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30)
+### 100. The window drops earlier reads and the seat re-reads the same spans until the repeat door stops it (2026-09-30) (10885dab)
 
 - **Batch C, the night's stall, found by night 99's read of walk 1.** Two sites: the
   eviction at `rota/core/runner.py:570` and the repeat refusal at `:2760`. It touches the
@@ -266,6 +267,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended: after frame 99.
 - Reasoning: the same read.
 - Status 2026-09-30 12:55 (rota-4c): pushed by 532b3429, unclaimed, priced. Meta workflow.
+- Status 2026-10-01 14:33 (rota-06): **claimed by 10885dab beside frame 106, on the recorded order; the design read runs on Opus while frame 106's re-record holds the GPU** (observed: the two frames touch different files, frame 106 none yet). Meta workflow. The read covers `_fit` and the eviction at `rota/core/runner.py:570` and `:665`, the repeat door at `:2746`, and s132's turns on nights 98 to 101, whose databases hold 216, 115, 253 and 275 eviction turns (observed: a count on the four files, 2026-10-01 14:31). It writes `plans/frame100-design.md`, revision 1, and a design review follows before any code.
 
 ### 98. A seat sends a second message after its session is complete, and a case passes on a broken file (2026-09-30)
 
