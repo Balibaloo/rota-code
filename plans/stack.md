@@ -227,7 +227,7 @@ a different question and the night is then opened once.
 - Status 2026-10-01 07:13 (rota-d0): **taken by d2cc277a from 104efdb6's hand-off at stack commit f0a8f00, validating only** (observed: the take command's exit 0, 2026-10-01 07:13). Meta workflow. Frame 104 is next on Roman's recorded order, checked with Roman before it starts.
 - Status 2026-10-01 07:13 (rota-0f): **handed to d2cc277a, rota-d0, confirmed 6 seconds after the claim** (observed: the hand command, exit 0, 2026-10-01 07:13). Meta workflow. 104efdb6 stops here.
 
-### 103. A tool signature edit moves the system text and not the prompt hash, and the register-key test reads old rows as current (2026-10-01)
+### 103. A tool signature edit moves the system text and not the prompt hash, and the register-key test reads old rows as current (2026-10-01) (d2cc277a)
 
 - **Batch A, the cassette key, reopened by frame 102's pass 1.** One site: `tests/rota/test_register_key.py`, `test_the_composed_system_text_is_the_one_the_run_recorded`, and the narrow key in `rota/tools/casestatus.py`'s `matching_runs`.
 - Meta workflow. `verdicts.emit` gained an optional `reason`, so the TOOL line of the Critic's answer mode moved and the prompt hash of `L1-CR-finish-the-review-with-the-answer-in-hand` did not; the gate re-recorded the case 5/5 on the system clause, and the test then counted 89 of 99 narrow rows under the old system hash as rows the wide match should keep (observed: frame 102's gate, 2026-10-01). The narrow key names the case, the prompt hash and the model, and a tool line is in none of them.
@@ -235,6 +235,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended: before the next frame that edits an op's signature, because each one adds a red of this shape.
 - Reasoning: frame 102's pass 1 status.
 - Status 2026-10-01 01:08 (rota-0f): pushed by 104efdb6, unclaimed, priced. Meta workflow.
+- Status 2026-10-01 10:43 (rota-d0): claimed by d2cc277a beside frames 101 and 105, on its own agent, because the files are disjoint (ruled: Roman, "Ok" to the recommendation in the terminal, 2026-10-01 10:43). Meta workflow. Route chosen: the test compares the newest row with the tree's composition, and the narrow key stays. Pass 1 on Opus, touched tests only; the gate runs once for the three frames.
 
 ### 101. The Critic's wake puts the diff first, and a long diff cuts the criteria and the tests out (2026-09-30) (d2cc277a)
 
@@ -626,7 +627,7 @@ a different question and the night is then opened once.
 - Status 2026-09-30 16:32 (rota-c6): **reached on night 100 and failed: bg_2 was quarantined at attempt 3, and the Liaison's quarantined wake, s216, presented a build plan page, m108, with no park or stop option; the scripted go-ahead changed nothing, no park was asked and no resume fired** (observed: night 100's read on Opus, 102.9k on the harness line against 100k, from `.rota/clickI_night100.db`, 2026-09-30). Meta workflow. The frame reopens: the quarantine needs its own page that names the given-up key and offers park or resume. Waits on Roman's order.
 - Status 2026-09-30 22:24 (rota-c6): **not reached on night 101: the only quarantine was `constraint_zero` at run start, no park and no resume** (observed: night 101's read on Opus, 85.0k on the harness line against 80k, from `.rota/clickI_night101.db`, 2026-09-30). Meta workflow. Still open on its own finding from night 100.
 
-### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (532b3429)
+### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (d2cc277a)
 
 - **Roman's second step, ruled 2026-09-25 14:34: a small frame so frame 33
   gets its merge.** It touches a criterion's wording or a test's assertion
@@ -895,6 +896,7 @@ a different question and the night is then opened once.
   on a purpose the Critic read from the builder's own docstring). Meta workflow. The reason's route is
   frame 102's second half. The Critic's brief line and its re-record are this frame's remaining work,
   unclaimed, about 30k plus the re-records by count. Ruling recorded, no longer blocked.
+- Status 2026-10-01 10:43 (rota-d0): claimed by d2cc277a for the Critic's brief line, beside frames 101, 103 and 105 (ruled: Roman, "Ok", 2026-10-01 10:43). Meta workflow. The brief files are not frame 101's files, and the Critic's re-records run once after both land. Pass 1 on Opus, no gate.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (532b3429)
 
