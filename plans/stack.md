@@ -229,7 +229,7 @@ a different question and the night is then opened once.
 - Status 2026-10-02 15:53 (rota-65): **handed to 46f23339, rota-43, confirmed 6 seconds after the claim at stack commit e810fe0** (observed: the hand command, exit 0, 2026-10-02 15:53). Meta workflow. eca94a44 stops here.
 - Status 2026-10-02 15:54 (rota-43): **taken by 46f23339, rota-43, at stack commit 97ca57d; night 107 runs on the worktree at 8925d78, two walk processes live, the log at the onboard line** (observed: the take command exit 0 and the process list, 2026-10-02 15:54). Meta workflow. Validating on the night. Frame 111 starts in the main checkout meanwhile, per Roman's order of 2026-10-02 14:30.
 
-### 111. A Developer loops on a refused repeat challenge instead of escalating (2026-10-02)
+### 111. A Developer loops on a refused repeat challenge instead of escalating (2026-10-02) (46f23339)
 
 - **Batch C, the night's stall, found by night 106's read.** Sites: the refusal "on exactly these refs already ... and they answered" in `rota/core/sandbox.py`, and the Developer's `tests_failing.md` way out.
 - Rota workflow. On bg_2, six Developer sessions at attempts 4 to 8 each sent the same challenge and were refused with the answered-already text, 20 or more times in the night, and none escalated to the Architect or reported (observed: `plans/night106-read.md`, section 1, 2026-10-02). The refusal names no way out.
@@ -237,6 +237,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended second.
 - Reasoning: `plans/night106-read.md`, sections 1 and 6.
 - Status 2026-10-02 13:47 (rota-65): pushed by eca94a44, unclaimed, unpriced. Rota workflow.
+- Status 2026-10-02 15:55 (rota-43): **claimed by 46f23339 beside frame 110, which validates on night 107; different files. The push line's claim that the refusal names no way out is contradicted by the code: `sandbox.py:1327` ends the refusal with `msg.escalate_architect` when the recipient is the Tester, and the Developer's `tests_failing.tools` holds that tool** (observed: the refusal text and the tools file, 2026-10-02 15:55). Rota workflow. So the cause is unread. A scope read runs on Opus, read-only, over `s218` to `s228` of `.rota/clickI_night106.db`: what each seat was sent, the refusal as it reached the seat, and what the seat called next; and the brief's own gate on escalation, two real changes first. It writes `plans/frame111-design.md` revision 1. Cap 60k.
 
 ### 112. A wake repeats on an unchanged tree, and the attempt counter spends the ladder (2026-10-02)
 
