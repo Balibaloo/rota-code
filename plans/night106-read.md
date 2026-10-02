@@ -54,3 +54,7 @@ The print does not define the term, and no turn holds the word. Unanswered from 
 ## 6. Other facts
 
 The Tester's rewrites raised bg_1 from one failure to three. The "already sent on exactly these refs" refusal fired 20 or more times, and the Developers looped on it instead of escalating. Walk 3 ran bg_3's grouping, annotation and approval only, 0 commits. `s156` at attempt 10 of 10 still sent a challenge.
+
+## Correction, 2026-10-02 14:35
+
+Section 2 says only `_02` failed before af4cbede. A re-encode deletes the test's earlier runs (`rota/core/db.py:576-580`), so the runs table no longer holds the early failures of `_01` and `_03`; at m66 the wake showed `_01` red with `AttributeError`. All three failed from the start. Also, no challenge named `_02`: the Developer challenged `_03` five times and `_01` twice (observed: frame 110's scope read of the `messages` table, 2026-10-02).
