@@ -309,7 +309,11 @@ it, and write the rating beside the question** (ruled: Roman,
 2026-10-02, after a session waited idle 5 hours 18 minutes on two
 low-impact questions whose answers were both the recommended ones). Low
 means the answer sets an order, a number or a name, and no edit, GPU
-hour or composition line depends on which way it goes. A low question
+hour or composition line depends on which way it goes. **Every notification and every question starts with the rating in
+brackets, `[high]`, `[med]` or `[low]`, as its first word**, because
+Roman reads it on his phone and sorts by it before he opens it (ruled:
+Roman, 2026-10-02). In `AskUserQuestion` the prefix goes on the question
+text and on the header. A low question
 goes by `PushNotification` with the recommended answer and a 20-minute
 timer: arm a background `sleep 1200` with the Bash tool, and on the wake
 with no reply continue on the recommended answer and write "taken by
