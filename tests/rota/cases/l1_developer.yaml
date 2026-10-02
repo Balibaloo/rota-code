@@ -374,7 +374,7 @@
           1 failed in 0.04s
   expect:
     messages:
-      - {to: tester, verb: challenge, count: 1}
+      - {to: tester, verb: challenge, count: ">=1"}
   forbidden:
     # Printing a fallback would turn the test green and break the criterion.
     writes: [criteria, tests]

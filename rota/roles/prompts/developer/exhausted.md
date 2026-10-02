@@ -14,7 +14,8 @@ that owns it:
 - **the test does not encode its criterion** — `msg.challenge_tester(refs=[criterion_id, test_id],
   quotes=["<the criterion's words>", "<one code line of the test>"])`. Name the
   test by its id in `refs`. The test's quote is one code line of the test, not
-  a comment and not the whole body.
+  a comment and not the whole body. If the code line holds a double quote, put
+  it between single quotes.
 
 Pick the one that names your actual block. If you genuinely cannot, escalate to
 Architect: the ladder climbs one rung at a time because the usual reason a loop
