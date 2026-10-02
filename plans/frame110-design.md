@@ -77,3 +77,15 @@ Decided from the design review (observed: the reviewer's probes on `graph.json`,
 4. No guard in `tests.encode`. Option (b) and the positional-args variant are declined: both need a list of runner callees, which is framework knowledge, and the destination is any small Python repository.
 5. Section 0 line 10 is corrected: `_02` raised `KeyError: 'prog_name'`, `_01` `KeyError: slice(None, 1, None)`, `_03` `TypeError: object of type 'BadObj' has no len()`.
 6. One new case, `L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner`, framework-free: the repository seeds `src/report/export.py` with a plain `echo_json`, the test calls `asyncio.run(echo_json({"a": 1}))`, the seeded red run says `ValueError: a coroutine was expected, got None`; expects one `tests` write whose body calls `echo_json` directly, forbids `criteria`, `items`, `tickets`. Re-records: that case and the two challenge cases. Price: one pass about 90k, one review about 65k, three re-records about 15 GPU minutes.
+
+## Revision 3, 2026-10-02 14:42, the pass 1 implementer
+
+What landed in pass 1 (observed: the four touched test files, 569 passed and 20 skipped, 2026-10-02):
+
+1. `tester/challenge.tools` names `code.source` under a ruling comment. The graph-grant test passes.
+2. `tester/challenge.md` widens the claim to a test that cannot run against any code. One conditional line follows "Read the criterion again, cold, and decide." The line names `code.source`.
+3. `runner._resolve_refs` takes `role`. `resolve_inbound` passes `wake.role` at both of its calls. A Tester gets the whole stored output, and every other role gets the 700 tail. The other four call sites pass no role, so they keep the tail.
+4. `test_runner.py` holds `test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail`, with a 1999-character output.
+5. `l1_tester.yaml` holds `L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner`. The case schema has a body check, so the case expects one `tests` write with `text_includes: ["echo_json({"]` and `text_excludes: ["asyncio.run"]`. The case has no recording yet.
+
+Deviations: the criterion defines "compact" as "with no indentation", because `json.dumps` keeps its default separators and the test must not ask for `{"a":1}`. The key stays `output_tail` for the Tester, though it holds the whole output.

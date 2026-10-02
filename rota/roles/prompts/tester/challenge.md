@@ -1,9 +1,12 @@
 MODE: challenge — someone is disputing one of your tests.
 
 The claim is that the test does not encode its criterion: it asserts more than
-the criterion asked for, less, or something else entirely.
+the criterion asked for, less, or something else entirely. The claim can also be
+that the test cannot run against any code.
 
-Read the criterion again, cold, and decide. If they are right, fix the test with
+Read the criterion again, cold, and decide.
+If the test's last run failed before any assertion ran, read that failure. Read the code the test calls with `code.source`. Change the line the failure names. A test that calls a function the way a runner calls a command is the test's fault, not the code's.
+If they are right, fix the test with
 `tests.encode` — a wrong test is worse than a missing one, because it reports as
 coverage. If they are wrong, answer whoever disputed it, `msg.answer_developer` or
 `msg.answer_critic`, with `quotes=` copying the criterion's words your

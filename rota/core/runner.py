@@ -1190,7 +1190,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             if reason:
                 out.setdefault("principal_said", reason)
 
-    resolved = _resolve_refs(conn, out["refs"])
+    resolved = _resolve_refs(conn, out["refs"], role=wake.role)
     if resolved:
         out["resolved_refs"] = resolved
     # One name for one thing. Intake already calls the principal's words
@@ -1232,7 +1232,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 for sib in siblings:
                     extra += refs_of(sib["body_refs"])
             more = _resolve_refs(conn, [r for r in extra
-                                        if r not in out.get("resolved_refs", {})])
+                                        if r not in out.get("resolved_refs", {})],
+                                 role=wake.role)
             if more:
                 out.setdefault("resolved_refs", {}).update(more)
                 if "principal_said" not in out:
@@ -1505,8 +1506,10 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
             for r in reversed(rows)]
 
 
-def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
-    """Refs to rows, one hop deep. Nothing those rows point at in turn."""
+def _resolve_refs(conn: sqlite3.Connection, refs,
+                  role: str | None = None) -> dict[str, Any]:
+    """Refs to rows, one hop deep. Nothing those rows point at in turn.
+    `role` is the woken role. Only the Tester reads a test's whole output."""
     resolved: dict[str, Any] = {}
     for ref in refs:
         # Rows written before `_bind_send` refused non-string refs can still
@@ -1590,9 +1593,16 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
                         "ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone()
                     if run:
                         out = run["output"] or ""
+                        # The Tester gets the whole stored output, which
+                        # `harness.run_test` caps at 2000 characters. The
+                        # 700 tail of night 106's `_03` held parser frames
+                        # and not the test's own call line (frame 110,
+                        # revision 2). Every other role keeps the tail, so
+                        # its prompt does not move.
+                        keep = out if role == "tester" else out[-700:]
                         resolved[ref]["last_run"] = {
                             "result": run["result"],
-                            "output_tail": out[-700:] if out else ""}
+                            "output_tail": keep}
                 break
     return resolved
 

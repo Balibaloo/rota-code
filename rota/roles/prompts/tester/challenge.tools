@@ -1,5 +1,8 @@
 criteria.load
 tests.consult
+# A test whose last run failed before any assertion needs the code it calls,
+# and the criterion still rules what it asserts (ruled: Roman, 2026-09-24 21:20).
+code.source
 tests.encode
 msg.answer_developer
 msg.question_terminologist

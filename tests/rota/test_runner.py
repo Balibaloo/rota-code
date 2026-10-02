@@ -2222,3 +2222,42 @@ def test_each_distinct_span_of_one_file_is_pinned(db):
         "the oldest pinned span did not go first"
     assert all(s in fitted for s in spans[1:]), "a newer span went"
     assert _held(fitted) <= 8_000 and len(fitted_kinds) == len(fitted)
+
+
+def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
+    """Frame 110, night 106: the 700 tail of `_03`'s run held parser frames
+    and not the test's own call line. The Tester gets the whole stored
+    output. Every other role keeps the tail, so its prompt does not move."""
+    from rota.core.runner import resolve_inbound
+
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i1','export JSON','in_scope','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk1','i1','print JSON')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','echo_json prints one line')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES "
+               "('b1','i1','running')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst1','b1','c1','test_export.py','assert True')")
+    call = ">       asyncio.run(echo_json({'a': 1}))"
+    output = (call + " ").ljust(1999, "x")
+    assert len(output) == 1999
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r1','b1','tst1','abc123',"
+               "'fail',1,?)", (output,))
+    for mid, to in (("m2", "tester"), ("m3", "developer")):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, body_refs, seq) VALUES (?,'t2','developer',?,"
+                   "'challenge','[\"tst1\", \"c1\"]',2)", (mid, to))
+    db.commit()
+
+    tester = resolve_inbound(db, Wake(role="tester", kind="message",
+                                      message_id="m2", detail="challenge"))
+    seen = tester["resolved_refs"]["tst1"]["last_run"]["output_tail"]
+    assert seen == output and seen.index(call) < 10
+
+    developer = resolve_inbound(db, Wake(role="developer", kind="message",
+                                         message_id="m3", detail="challenge"))
+    tail = developer["resolved_refs"]["tst1"]["last_run"]["output_tail"]
+    assert tail == output[-700:] and call not in tail

@@ -92,6 +92,103 @@
     # re-derive what was asked for.
     writes: [criteria, items, tickets]
 
+- id: L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner
+  # Frame 110, night 106: the Tester re-wrapped a plain function for a
+  # runner and never called the function. The test here fails the same way
+  # with no framework: `asyncio.run` wants a coroutine and gets None.
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  inbound:
+    from: developer
+    to: tester
+    verb: challenge
+    body_refs: [<tst1>, <c1>]
+    body_text: "The criterion says \"echo_json prints the value as compact JSON
+      on one line, with no indentation\". The test calls
+      `asyncio.run(echo_json({\"a\": 1}))` and fails before it asserts anything."
+  repo:
+    batch: <b1>
+    message: "print a value as JSON"
+    edit:
+      src/report/export.py: |
+        import json
+
+
+        def echo_json(value):
+            print(json.dumps(value))
+  fixture:
+    items:
+      - {id: <i1>, text: "export a value as JSON", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "print a value as JSON"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "echo_json prints the value as compact JSON on one line, with no indentation",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      # Asserts what the criterion asks, and drives a plain function the way
+      # a runner drives a coroutine. It fails against any code.
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: test_export.py
+        body: |
+          import asyncio
+
+          from report.export import echo_json
+
+
+          def test_echo_json_prints_one_line(capsys):
+              asyncio.run(echo_json({"a": 1}))
+              out = capsys.readouterr().out
+              assert len(out.splitlines()) == 1
+              assert out.strip() == '{"a": 1}'
+    test_runs:
+      - id: <r1>
+        batch_id: <b1>
+        test_id: <tst1>
+        commit_sha: abc123
+        result: fail
+        output: |
+          ____________________ test_echo_json_prints_one_line ____________________
+
+          capsys = <_pytest.capture.CaptureFixture object at 0x0000021F3A8C1D50>
+
+              def test_echo_json_prints_one_line(capsys):
+          >       asyncio.run(echo_json({"a": 1}))
+
+          test_export.py:7:
+          _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+              def run(main, *, debug=None):
+                  if events._get_running_loop() is not None:
+                      raise RuntimeError(
+                          "asyncio.run() cannot be called from a running event loop")
+                  if not coroutines.iscoroutine(main):
+          >           raise ValueError("a coroutine was expected, got {!r}".format(main))
+          E           ValueError: a coroutine was expected, got None
+
+          asyncio/runners.py:37: ValueError
+          ----------------------------- Captured stdout call -----------------------------
+          {"a": 1}
+          =========================== short test summary info ============================
+          FAILED test_export.py::test_echo_json_prints_one_line - ValueError: a coroutine was expected, got None
+  expect:
+    writes:
+      # One test per criterion, as the case above derives. The body calls
+      # the function, and the runner call is gone.
+      tests: {count: "1..1", text_includes: ["echo_json({"],
+              text_excludes: ["asyncio.run"]}
+  forbidden:
+    writes: [criteria, items, tickets]
+
 - id: L1-VK-answer-a-scope-inquiry-read-only
   tier: T1
   role: vision_keeper
