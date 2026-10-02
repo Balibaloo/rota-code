@@ -221,7 +221,16 @@ writes the actual beside the estimate, walls counted apart.
 In a loop, you diagnose and write the fix brief. A cause goes on the
 stack only after the turns of the failing sessions are read: what each
 seat called, what came back, what it committed. What you changed that
-day is the last suspect. An agent implements,
+day is the last suspect. **When a seat has a fact in front of it and does
+not act on it, interview the model in its context before a second brief
+shape** (ruled: Roman, 2026-10-02 15:02, frame 110, after two brief shapes
+and a door moved nothing). An agent replays the seat's exact turn with
+`probes/frame37/interview_turn.py --seq <working turn>` and asks, in the
+same conversation, what the seat read, what it understood, and what would
+have moved it. The answers go verbatim to a record. The fix is decided
+from what the model says. Frame 110's interview found in one call that the
+failure sat inside an escaped JSON string, which three passes had not seen.
+An agent implements,
 re-records the touched cases, and returns the diff and the result. You
 review from a context that never read the files. A one-line door is the
 exception. Bulk reading goes to agents. One frame per wall. One status
