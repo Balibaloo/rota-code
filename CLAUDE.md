@@ -304,6 +304,19 @@ that Roman did not need costs his attention, which is the scarcest
 budget. Do not notify for progress, and do not notify while Roman reads
 the terminal.
 
+**Rate every question's impact as high, medium or low before you ask
+it, and write the rating beside the question** (ruled: Roman,
+2026-10-02, after a session waited idle 5 hours 18 minutes on two
+low-impact questions whose answers were both the recommended ones). Low
+means the answer sets an order, a number or a name, and no edit, GPU
+hour or composition line depends on which way it goes. A low question
+goes by `PushNotification` with the recommended answer and a 20-minute
+timer: arm a background `sleep 1200` with the Bash tool, and on the wake
+with no reply continue on the recommended answer and write "taken by
+timeout at <clock>" in the status line. A high or medium question goes
+by `AskUserQuestion` and waits. Never start the recommended work before
+the answer or the timeout.
+
 Records: a conclusion goes to a record when it forms. Every conclusion
 carries a mark, each with a reason the size of a commit headline:
 (observed: where and when), (reasoned: why), or (ruled: why). An
