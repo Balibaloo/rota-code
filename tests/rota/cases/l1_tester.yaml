@@ -95,7 +95,7 @@
 - id: L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner
   # Frame 110, night 106: the Tester re-wrapped a plain function for a
   # runner and never called the function. The test here fails the same way
-  # with no framework: `asyncio.run` wants a coroutine and gets None.
+  # with no framework: `asyncio.run` wants an awaitable and gets None.
   tier: T1
   role: tester
   runs: 5
@@ -106,8 +106,8 @@
     verb: challenge
     body_refs: [<tst1>, <c1>]
     body_text: "The criterion says \"echo_json prints the value as compact JSON
-      on one line, with no indentation\". The test calls
-      `asyncio.run(echo_json({\"a\": 1}))` and fails before it asserts anything."
+      on one line, with no indentation\". The test says
+      `asyncio.run(echo_json({\"a\": 1}))`. The test fails."
   repo:
     batch: <b1>
     message: "print a value as JSON"
@@ -154,38 +154,59 @@
       - id: <r1>
         batch_id: <b1>
         test_id: <tst1>
-        commit_sha: abc123
+        # The red run names the edit commit, as a real run does. The output
+        # is the tail of this body under pytest on Python 3.14.2 (observed:
+        # a scratch run, 2026-10-02).
+        commit_sha: HEAD
         result: fail
         output: |
-          ____________________ test_echo_json_prints_one_line ____________________
-
-          capsys = <_pytest.capture.CaptureFixture object at 0x0000021F3A8C1D50>
+          capsys = <_pytest.capture.CaptureFixture object at 0x000001D5D1ED46E0>
 
               def test_echo_json_prints_one_line(capsys):
           >       asyncio.run(echo_json({"a": 1}))
 
           test_export.py:7:
-          _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+          _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+          ..\..\..\..\..\..\Python\pythoncore-3.14-64\Lib\asyncio\runners.py:204: in run
+              return runner.run(main)
+                     ^^^^^^^^^^^^^^^^
+          _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-              def run(main, *, debug=None):
+          self = <asyncio.runners.Runner object at 0x000001D5D1ED4590>, coro = None
+
+              def run(self, coro, *, context=None):
+                  """Run code in the embedded event loop."""
                   if events._get_running_loop() is not None:
+                      # fail fast with short traceback
                       raise RuntimeError(
-                          "asyncio.run() cannot be called from a running event loop")
-                  if not coroutines.iscoroutine(main):
-          >           raise ValueError("a coroutine was expected, got {!r}".format(main))
-          E           ValueError: a coroutine was expected, got None
+                          "Runner.run() cannot be called from a running event loop")
 
-          asyncio/runners.py:37: ValueError
-          ----------------------------- Captured stdout call -----------------------------
+                  self._lazy_init()
+
+                  if not coroutines.iscoroutine(coro):
+                      if inspect.isawaitable(coro):
+                          async def _wrap_awaitable(awaitable):
+                              return await awaitable
+
+                          coro = _wrap_awaitable(coro)
+                      else:
+          >               raise TypeError('An asyncio.Future, a coroutine or an '
+                                          'awaitable is required')
+          E               TypeError: An asyncio.Future, a coroutine or an awaitable is required
+
+          ..\..\..\..\..\..\Python\pythoncore-3.14-64\Lib\asyncio\runners.py:103: TypeError
+          ---------------------------- Captured stdout call -----------------------------
           {"a": 1}
-          =========================== short test summary info ============================
-          FAILED test_export.py::test_echo_json_prints_one_line - ValueError: a coroutine was expected, got None
+          =========================== short test summary info ===========================
+          FAILED test_export.py::test_echo_json_prints_one_line - TypeError: An asyncio...
+          ============================== 1 failed in 0.21s ==============================
   expect:
     writes:
       # One test per criterion, as the case above derives. The body calls
       # the function, and the runner call is gone.
       tests: {count: "1..1", text_includes: ["echo_json({"],
-              text_excludes: ["asyncio.run"]}
+              text_excludes: ["asyncio.run", "await ", "async def",
+                              "run_until_complete", "asyncio"]}
   forbidden:
     writes: [criteria, items, tickets]
 

@@ -2226,8 +2226,8 @@ def test_each_distinct_span_of_one_file_is_pinned(db):
 
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
     """Frame 110, night 106: the 700 tail of `_03`'s run held parser frames
-    and not the test's own call line. The Tester gets the whole stored
-    output. Every other role keeps the tail, so its prompt does not move."""
+    and not the test's own call line. A Tester challenge gets the whole stored
+    output. Every other wake keeps the tail, so its prompt does not move."""
     from rota.core.runner import resolve_inbound
 
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
@@ -2246,10 +2246,12 @@ def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
     db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
                "result, attempt, output) VALUES ('r1','b1','tst1','abc123',"
                "'fail',1,?)", (output,))
-    for mid, to in (("m2", "tester"), ("m3", "developer")):
+    for mid, to, verb in (("m2", "tester", "challenge"),
+                          ("m3", "developer", "challenge"),
+                          ("m4", "tester", "answer")):
         db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
                    "verb, body_refs, seq) VALUES (?,'t2','developer',?,"
-                   "'challenge','[\"tst1\", \"c1\"]',2)", (mid, to))
+                   "?,'[\"tst1\", \"c1\"]',2)", (mid, to, verb))
     db.commit()
 
     tester = resolve_inbound(db, Wake(role="tester", kind="message",
@@ -2261,3 +2263,9 @@ def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
                                          message_id="m3", detail="challenge"))
     tail = developer["resolved_refs"]["tst1"]["last_run"]["output_tail"]
     assert tail == output[-700:] and call not in tail
+
+    # Challenge mode only: a Tester woken by an answer keeps the tail.
+    answer = resolve_inbound(db, Wake(role="tester", kind="message",
+                                      message_id="m4", detail="answer"))
+    assert answer["resolved_refs"]["tst1"]["last_run"]["output_tail"] \
+        == output[-700:]

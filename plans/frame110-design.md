@@ -89,3 +89,10 @@ What landed in pass 1 (observed: the four touched test files, 569 passed and 20 
 5. `l1_tester.yaml` holds `L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner`. The case schema has a body check, so the case expects one `tests` write with `text_includes: ["echo_json({"]` and `text_excludes: ["asyncio.run"]`. The case has no recording yet.
 
 Deviations: the criterion defines "compact" as "with no indentation", because `json.dumps` keeps its default separators and the test must not ask for `{"a":1}`. The key stays `output_tail` for the Tester, though it holds the whole output.
+
+Pass 2, after the diff review of ab70f47 (reasoned: the review's findings, 2026-10-02):
+
+- The whole output goes to a Tester wake whose detail is `challenge` only. A Tester answer wake keeps the 700 tail.
+- The per-ref cap of 2000 characters at `harness.py:171` is accepted.
+- The stored output is a tail of the whole file's run. One file with several tests can still push the challenged test's own line out.
+- The new case seeds the real Python 3.14.2 tail, `TypeError: An asyncio.Future, a coroutine or an awaitable is required`, and a neutral challenge.

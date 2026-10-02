@@ -5,7 +5,7 @@ the criterion asked for, less, or something else entirely. The claim can also be
 that the test cannot run against any code.
 
 Read the criterion again, cold, and decide.
-If the test's last run failed before any assertion ran, read that failure. Read the code the test calls with `code.source`. Change the line the failure names. A test that calls a function the way a runner calls a command is the test's fault, not the code's.
+If the last run failed before any assertion ran, read the failure and the called code with `code.source`, and fix the call line. A test that calls a function the way a runner calls a command is the test's fault.
 If they are right, fix the test with
 `tests.encode` — a wrong test is worse than a missing one, because it reports as
 coverage. If they are wrong, answer whoever disputed it, `msg.answer_developer` or
