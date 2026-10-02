@@ -12,6 +12,9 @@ that hide a session, and the completion line's first turn.
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
+
+import pytest
 
 from rota.core.db import init_db
 from rota.tools import nightreport
@@ -198,12 +201,13 @@ def test_an_absent_table_or_column_prints_as_absent(tmp_path):
     assert any(l.startswith("s4 liaison ? []") for l in wakes)
 
 
-def test_the_eviction_notice_counts_when_its_count_is_new(tmp_path):
+def test_the_eviction_notice_counts_in_each_prompt_that_holds_it(tmp_path):
     """
-    `_fit` writes the notice before the newest feedback, so only its count shows a new cut.
+    `_fit` writes the notice before the newest feedback, so the whole prompt is read.
 
-    Turn 2 holds the notice first, and turn 3 holds the same count. Turn 4's
-    prompt holds no copy of turn 3's completion, so its phrase counts nothing.
+    Turns 2, 3 and 4 hold the notice with one count. `_fit` writes the same
+    count after a new drop, so a repeated count is still a cut. Turn 4's
+    prompt holds no copy of turn 3's completion, so its CUT line counts nothing.
     """
     conn = init_db(tmp_path / "evict.db")
     _session(conn, "s1", "developer", 1, "tick:batch_start")
@@ -218,9 +222,23 @@ def test_the_eviction_notice_counts_when_its_count_is_new(tmp_path):
     conn.commit()
     conn.close()
     phrases = _section(_report(tmp_path / "evict.db"), "window and door phrases")
-    assert "'dropped to fit the window': turns=1 sessions=1" in phrases
+    assert "'dropped to fit the window': turns=3 sessions=1" in phrases
     assert "'CUT the result': turns=0 sessions=0" in phrases
     assert "prompts holding no copy of the previous completion: 1" in phrases
+
+
+NIGHT105 = Path(__file__).resolve().parents[2] / ".rota" / "clickI_night105.db"
+
+
+@pytest.mark.skipif(not NIGHT105.exists(), reason="night 105's run database is absent")
+def test_night_105_counts_every_prompt_that_holds_the_notice():
+    """
+    The count by a new N read 20 turns, and the prompts hold 43 notices (frame 105, pass 5).
+
+    s131 holds a notice of 2 in turns 5 to 11, and `_fit` writes 2 after each
+    new drop of one block.
+    """
+    assert "'dropped to fit the window': turns=43 sessions=7" in _report(NIGHT105)
 
 
 def test_since_reads_a_t_as_the_stored_space(tmp_path):

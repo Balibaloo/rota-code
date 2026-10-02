@@ -19,7 +19,8 @@ four counters follow.
   to run the call again. The session is told to re-read what it cannot
   see.
 - repeats: sessions that ran the same prompt hash on the same wake kind as
-  an earlier session of the run.
+  an earlier session of the run, or the same role, wake kind, trigger and
+  refs on the same tree.
 
 Counter a reads `completion`, and not the feedback line in the prompt.
 `db.session_fail` stores the whole assembled prompt in `turns.user`, so the
@@ -73,6 +74,8 @@ REPEAT_TAILS = ("unchanged since you asked", "was run for you before you")
 WRITE_RESULT = "OK code.write ->"
 LANDED = re.compile(r'"committed":\s*true')
 HEAD_COMMIT = re.compile(r'"head_commit":\s*"([0-9a-f]+)"')
+# A landed commit's head. A read can name `head_commit` with no commit.
+COMMIT_HEAD = re.compile(r'"committed":\s*true,\s*"head_commit":\s*"([0-9a-f]+)"')
 # The write call as the seat sends it, marked and at the start of its line.
 WRITE_CALL = re.compile(r"^[ \t]*TOOL:[ \t]*code\.write\b", re.MULTILINE)
 
@@ -160,11 +163,8 @@ def count(conn: sqlite3.Connection) -> dict:
                 if EVICTION in (r["user"] or "")
                 and any(t in (r["user"] or "") for t in REPEAT_TAILS)]
 
-    groups = _rows(conn,
-                   "SELECT COUNT(*) AS n FROM sessions "
-                   "WHERE prompt_hash IS NOT NULL AND prompt_hash != '' "
-                   "GROUP BY prompt_hash, wake_kind HAVING COUNT(*) > 1")
-    repeated = sum(g["n"] for g in groups)
+    groups = _repeats(conn, turns)
+    repeated = sum(len(g) for g in groups)
 
     return {
         "sessions": _total(conn, "sessions"),
@@ -181,7 +181,62 @@ def count(conn: sqlite3.Connection) -> dict:
         "repeat_wakes": len(groups),
         "repeat_sessions": repeated,
         "repeats": repeated - len(groups),
+        "repeat_groups": groups,
     }
+
+
+def _repeats(conn: sqlite3.Connection, turns: list) -> list[list[str]]:
+    """The sessions of each repeated wake, in session order.
+
+    Two sessions are one wake when they share the prompt hash and the wake
+    kind. They are also one wake when they share the role, the wake kind,
+    the trigger message and the wake refs on one known tree. The prompt
+    names the attempt and the size of a cut, so the hash differs between
+    attempts. Night 105's s141, s142 and s143 woke on one tree with three
+    hashes, and the hash rule counted no repeat (frame 105, pass 5).
+
+    The tree is the head of the last landed commit in an earlier session's
+    turns. A session with no earlier landed commit has no known tree, so
+    the second rule never joins it.
+    """
+    have = {r[1] for r in _rows(conn, "PRAGMA table_info(sessions)")}
+    if not have:
+        return []
+    cols = ("id", "seq", "role", "wake_kind", "trigger_msg", "wake_refs", "prompt_hash")
+    sel = ", ".join(c if c in have else f"NULL AS {c}" for c in cols)
+    sessions = _rows(conn, f"SELECT {sel} FROM sessions ORDER BY seq")
+    landed: dict[str, str] = {}
+    for r in turns:
+        for text in (r["user"] or "", r["completion"] or ""):
+            for m in COMMIT_HEAD.finditer(text):
+                landed[r["sid"]] = m.group(1)
+    parent = {s["id"]: s["id"] for s in sessions}
+
+    def root(sid: str) -> str:
+        while parent[sid] != sid:
+            sid = parent[sid]
+        return sid
+
+    first: dict[tuple, str] = {}
+    tree = None
+    for s in sessions:
+        keys = []
+        if s["prompt_hash"]:
+            keys.append(("hash", s["prompt_hash"], s["wake_kind"]))
+        if tree is not None:
+            keys.append(("wake", s["role"], s["wake_kind"], s["trigger_msg"],
+                         s["wake_refs"], tree))
+        for k in keys:
+            if k in first:
+                parent[root(s["id"])] = root(first[k])
+            else:
+                first[k] = s["id"]
+        # The session's own commits move the tree for the sessions after it.
+        tree = landed.get(s["id"], tree)
+    members: dict[str, list[str]] = {}
+    for s in sessions:
+        members.setdefault(root(s["id"]), []).append(s["id"])
+    return [g for g in members.values() if len(g) > 1]
 
 
 def _total(conn: sqlite3.Connection, table: str) -> int:

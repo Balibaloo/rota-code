@@ -1,4 +1,8 @@
 """rota/tools/nightcount.py: the night's four counters over a run database."""
+from pathlib import Path
+
+import pytest
+
 from rota.core.db import connect_readonly, init_db
 from rota.tools.nightcount import count, main
 
@@ -194,6 +198,43 @@ def test_a_repeat_shares_the_prompt_hash_and_the_wake_kind(tmp_path):
     c = counted(tmp_path, build)
     assert c["repeat_wakes"] == 1
     assert c["repeat_sessions"] == 2 and c["repeats"] == 1
+
+
+def test_a_repeat_shares_the_wake_key_on_one_tree(tmp_path):
+    """
+    The attempt line changes the hash, so the wake key and the tree also join a repeat.
+
+    s1 lands a commit. s2 and s3 wake on that tree with one key. s4 lands
+    another commit, so s5 wakes on a new tree and is no repeat.
+    """
+    def build(conn):
+        session(conn, "s1", kind="tick:batch_start", prompt_hash="h1")
+        turn(conn, "s1", 1, "wake", "TOOL: code.commit()")
+        turn(conn, "s1", 2, "wake\n\n" + LANDED, "done")
+        for sid, h in (("s2", "h2"), ("s3", "h3"), ("s5", "h5")):
+            session(conn, sid, kind="tick:tests_failing", prompt_hash=h)
+        session(conn, "s4", kind="tick:verdict_failed", prompt_hash="h4")
+        turn(conn, "s4", 1, "wake\n\n" + LANDED.replace("4473c35", "9999999"), "done")
+
+    c = counted(tmp_path, build)
+    assert c["repeat_groups"] == [["s2", "s3"]]
+    assert c["repeat_sessions"] == 2 and c["repeats"] == 1
+
+
+NIGHT105 = Path(__file__).resolve().parents[2] / ".rota" / "clickI_night105.db"
+
+
+@pytest.mark.skipif(not NIGHT105.exists(), reason="night 105's run database is absent")
+def test_night_105_counts_the_three_attempts_as_one_repeated_wake():
+    """
+    s141, s142 and s143 woke on tests_failing for bg_1 at head 7fef346 with three hashes.
+
+    s132 and s138 woke on tests_missing for bg_1 on the same tree, with one wake detail.
+    """
+    c = count(connect_readonly(NIGHT105))
+    assert ["s141", "s142", "s143"] in c["repeat_groups"]
+    assert c["repeat_groups"] == [["s132", "s138"], ["s141", "s142", "s143"]]
+    assert c["repeat_wakes"] == 2 and c["repeat_sessions"] == 5 and c["repeats"] == 3
 
 
 def test_main_prints_five_lines_of_facts(tmp_path, capsys):

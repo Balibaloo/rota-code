@@ -28,12 +28,18 @@ newest feedback never includes that completion. A prompt that holds no copy
 of the previous completion counts nothing, and the report counts those
 prompts.
 
-The eviction notice is the one phrase read from the whole prompt, by its
-count. `_fit` writes `[N earlier exchange(s) dropped to fit the window ...]`
-in the middle of the prompt, before the newest feedback, so the feedback rule
-never sees the notice (frame 105 second review, s132 and s88 of night 101).
-A turn counts `dropped to fit the window` when its notice's N is new or
-differs from the N of the previous prompt.
+The eviction notice is the one phrase read from the whole prompt. `_fit`
+writes `[N earlier exchange(s) dropped to fit the window ...]` in the middle
+of the prompt, before the newest feedback, so the feedback rule never sees
+the notice (frame 105 second review, s132 and s88 of night 101). A turn
+counts `dropped to fit the window` when its prompt holds the notice. The
+prompt of that turn lacks the exchanges the notice names.
+
+The notice's N does not show a new drop. `_fit` writes N as the new drops
+plus one for the old notice, so one new drop after a notice of 2 writes 2
+again. The count by a new N read 20 turns on night 105, and the prompts hold
+43 notices (frame 105, pass 5). The text after the notice does not show a
+new drop either, because a tier drops a block from anywhere in the middle.
 
 `--since` filters `finding_rulings.at` only. No other reported table
 stores a time: `sessions`, `turns` and `messages` order by `seq` alone.
@@ -474,11 +480,10 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
     for sid, ts in turns_by.items():
         first_complete = None
         prev_completion: str | None = None
-        prev_evicted: str | None = None
         for t in ts:
             completion = str(t["completion"] or "")
             runner = _is_runner(t)
-            evicted_now = False
+            evicted = False
             if runner:
                 # The runner's turn has no prompt. Its completion is the runner's text.
                 fresh = ""
@@ -486,12 +491,9 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
                 user = str(t["user"] or "")
                 fresh, matched = _newest_feedback(user, prev_completion)
                 unmatched += not matched
-                notice = EVICT_RE.search(user)
-                evicted = notice.group(1) if notice else None
-                evicted_now = evicted is not None and evicted != prev_evicted
-                prev_evicted = evicted
+                evicted = EVICT_RE.search(user) is not None
             for p in PHRASES:
-                if p in fresh or p in completion or (p == WINDOW and evicted_now):
+                if p in fresh or p in completion or (p == WINDOW and evicted):
                     holding[p].append((sid, t["seq"], runner))
                     if p == COMPLETE and first_complete is None:
                         first_complete = t["seq"]
