@@ -1,6 +1,6 @@
 # Frame 111, a Developer loops on a refused repeat challenge: scope read
 
-Revision 2, 2026-10-02. Section 5 holds the frame holder's decisions. Source: `.rota/clickI_night106.db`, read-only. Pointers are (session, turn seq). A refusal "@n" first reaches the seat in the `user` text of turn n. All marks are (observed: query, 2026-10-02) unless a line says otherwise. Every statement is about the rota workflow.
+Revision 3, 2026-10-02. Section 5 holds the frame holder's decisions, and section 6 corrects three of them after the design review. Source: `.rota/clickI_night106.db`, read-only. Pointers are (session, turn seq). A refusal "@n" first reaches the seat in the `user` text of turn n. All marks are (observed: query, 2026-10-02) unless a line says otherwise. Every statement is about the rota workflow.
 
 Codes: CH is `msg.challenge_tester`, ESC is `msg.escalate_architect`. G-stdin is the `code.write` guard in `rota/roles/api.py` near 9677. G-refs is the repeat-refs guard in `rota/core/sandbox.py` near 1306. G-once is the one-send-per-session guard.
 
@@ -73,3 +73,16 @@ The frame's ends-when changes. The refusal names the rung already, at `sandbox.p
 7. The Architect's empty answer has a cause of its own: `model.amend` was refused twice by the judgement door "that is what the product does" in s213 and s219, and the seat then answered with refs alone. That door is not this frame's. It goes to the stack as a line in this frame's status, for a frame of its own if a night repeats it.
 
 Price: pass 1 about 300k cold on Opus, three doors with sandbox tests; one diff review about 60k. Pass 2 about 300k, the push and the case; one diff review. The frame touches a brief's push and three doors, so it ends on a night walk.
+
+## 6. The design review's corrections, revision 3 (2026-10-02 16:09)
+
+The design review on Opus confirmed three defects in section 5 (observed: the reviewer's probes on `rota/design/graph.json`, `api.py:4644`, `api.py:4687` and a pytest run of three shield shapes, 2026-10-02). I checked the graph and the encode guard myself (observed: 2026-10-02 16:09). Every statement is about the rota workflow.
+
+1. Decision 2 falls. The edge `architect -> developer: answer` carries no prose, so the binder builds `send(refs, round_no)` with no `text`. Every Architect answer to a Developer holds no words by construction, and a door that asks for words names a call that cannot pass. The Architect's empty answer is a channel fact, not a seat's fault. It leaves this frame as frame 115, blocked on Roman: whether the edge gains prose, as the Tester's answer channel has. The recommended answer is yes.
+2. Decision 3 changes. The Developer has no edge to the Liaison, so `msg.report_liaison` does not exist for it. The repeat-refs refusal on an escalation now lists the answer's refs that the escalation did not hold, as "the answer points at <ids>". When the answer adds no ref, the refusal says "the answer added no row" and keeps the existing exit, the attempt cap carries the batch to the ladder. It quotes no text, because an Architect answer has none and a quoted line was copied as a result at (s223, 4).
+3. Decision 1 widens. `tests.encode` at `api.py:4687` already counts the string `sys.stdin` as a shield, and `code.write` at `api.py:9667` does not, so two guards on one signal disagree. One AST helper replaces the three string checks at 4644, 4687 and 9667. It detects an `Assign` or `AnnAssign` to `Attribute(value=Name('sys'), attr='stdin')`, a call `*.setattr(Name('sys'), Constant('stdin'), ...)`, and a call `*.setattr(Constant('sys.stdin' or 'builtins.input'), ...)`. The encode side keeps its exception for a `builtins.input` patch that a bound `input` name does not reach.
+4. The repeat-refs door compares `json.dumps(list(refs))` for equality, so the same refs in another order escape it. The door and the register case compare sorted refs. A test row re-encoded to a new version since the answer is not checked. Night 106 did not hit that shape, so it waits for a night that does.
+5. The push of decision 4 goes inside `if own:` near `runner.py:2031`, after "passing, not shown", only when the thread is non-empty. The query joins `messages` with `json_each(body_refs)` on the test id, verbs `challenge` and `escalate`, with a left join on the answer's `cause_id`. The four recorded tests_failing cases hold no fixture message, so none re-records (observed: the reviewer's parse of `tests/rota/cases/*.yaml`, 2026-10-02).
+6. The case copies the tests, test_runs and batch shape of `L1-DV-fix-the-code-not-the-test` and the messages shape of `l1_unresolved.yaml:44`, with `body_refs` as exact JSON, `forbidden.calls: [msg.challenge_tester]`, and `any_of` for the landed write and commit or the landed escalation.
+
+Pass 1 now holds the Developer's two doors and the shield helper, with sandbox tests. Pass 2 holds the push and the case. Frame 115 holds the Architect.
