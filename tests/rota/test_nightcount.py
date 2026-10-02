@@ -259,7 +259,28 @@ def test_night_105_counts_the_three_attempts_as_one_repeated_wake():
     assert c["repeat_wakes"] == 2 and c["repeat_sessions"] == 5 and c["repeats"] == 3
 
 
-def test_main_prints_five_lines_of_facts(tmp_path, capsys):
+NIGHT106 = NIGHT105.with_name("clickI_night106.db")
+
+
+@pytest.mark.skipif(not NIGHT106.exists(), reason="night 106's run database is absent")
+def test_night_106_counts_each_wake_key_on_one_head():
+    """
+    Night 106's log read 1 wake from bf74640, which held the hash rule alone (frame 105, pass 7).
+
+    The five groups the review named are each one wake key on one head. Four
+    more groups hold: s132 and s138, s152 and s154, s199 and s200 on one key
+    and one head, and s206 and s229 on one prompt hash.
+    """
+    c = count(connect_readonly(NIGHT106))
+    assert c["repeat_wakes"] == 9 and c["repeat_sessions"] == 24 and c["repeats"] == 15
+    for group in (["s143", "s145"], ["s201", "s202"], ["s223", "s224"],
+                  ["s226", "s227", "s228"]):
+        assert group in c["repeat_groups"]
+    # s209, s212, s217 and s218 woke on the same key before s218's commit.
+    assert ["s203", "s204", "s205", "s209", "s212", "s217", "s218"] in c["repeat_groups"]
+
+
+def test_main_prints_six_lines_of_facts(tmp_path, capsys):
     conn = init_db(tmp_path / "clickI.db")
     session(conn, "s1", role="developer", prompt_hash="h1")
     session(conn, "s2", role="developer", prompt_hash="h1")
@@ -277,7 +298,9 @@ def test_main_prints_five_lines_of_facts(tmp_path, capsys):
     assert out[2] == ("ran anyway: 0 writes after an invention (1 turns with "
                       "a write result), 1 with a landed commit, shas 4473c354")
     assert out[3] == "dangling pointers: 1 turns, 1 sessions"
-    assert out[4] == "repeats: 1 wakes repeated, 2 sessions, 1 of them repeats"
+    assert out[4] == ("  A dangling pointer is a turn whose prompt holds the eviction "
+                      "notice and a refusal to run a call again. most: s2 (1)")
+    assert out[5] == "repeats: 1 wakes repeated, 2 sessions, 1 of them repeats"
 
 
 def test_a_clean_run_prints_zeros(tmp_path, capsys):
@@ -294,5 +317,7 @@ def test_a_clean_run_prints_zeros(tmp_path, capsys):
         "ran anyway: 0 writes after an invention (0 turns with a write "
         "result), 0 with a landed commit, shas none",
         "dangling pointers: 0 turns, 0 sessions",
+        "  A dangling pointer is a turn whose prompt holds the eviction notice and a "
+        "refusal to run a call again. most: none",
         "repeats: 0 wakes repeated, 0 sessions, 0 of them repeats",
     ]

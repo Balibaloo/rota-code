@@ -5,9 +5,11 @@ anyway.
     python -m rota.tools.nightcount clickI   # one run, by name or by path
     python -m rota.tools.nightcount          # every run in the runs directory
 
-Five lines per run, plain ASCII, so a night log can carry them next to
+Six lines per run, plain ASCII, so a night log can carry them next to
 `GAUNTLET-DONE`. The header names the run, its sessions and its turns. The
-four counters follow.
+four counters follow. A line under the dangling pointers says what the count
+means and names the three sessions with the most turns, because the night
+106 log printed the term with no definition (frame 105, pass 7).
 
 - made up: turns whose completion carries a tool result the model wrote
   for itself, the distinct sessions of those turns, and the split by role.
@@ -64,6 +66,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections import Counter
 
 from ..core.runner import FABRICATED_RESULT
 
@@ -178,6 +181,9 @@ def count(conn: sqlite3.Connection) -> dict:
         "shas": shas,
         "dangling_turns": len(dangling),
         "dangling_sessions": len({r["sid"] for r in dangling}),
+        # Ties keep the session order, so the line is the same on each run.
+        "dangling_most": sorted(Counter(r["sid"] for r in dangling).items(),
+                                key=lambda x: -x[1])[:3],
         "repeat_wakes": len(groups),
         "repeat_sessions": repeated,
         "repeats": repeated - len(groups),
@@ -260,7 +266,7 @@ def _total(conn: sqlite3.Connection, table: str) -> int:
 
 
 def lines(name: str, c: dict) -> list[str]:
-    """The five lines of one run."""
+    """The six lines of one run."""
     roles = ", ".join(f"{r} {n}" for r, n in c["made_roles"].items()) or "none"
     shas = " ".join(c["shas"]) or "none"
     return [
@@ -272,6 +278,9 @@ def lines(name: str, c: dict) -> list[str]:
         f"{c['ran_commits']} with a landed commit, shas {shas}",
         f"dangling pointers: {c['dangling_turns']} turns, "
         f"{c['dangling_sessions']} sessions",
+        "  A dangling pointer is a turn whose prompt holds the eviction notice "
+        "and a refusal to run a call again. most: "
+        + (", ".join(f"{sid} ({n})" for sid, n in c["dangling_most"]) or "none"),
         f"repeats: {c['repeat_wakes']} wakes repeated, "
         f"{c['repeat_sessions']} sessions, {c['repeats']} of them repeats",
     ]
