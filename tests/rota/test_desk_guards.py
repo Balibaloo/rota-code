@@ -591,6 +591,41 @@ def test_a_repeat_escalation_is_told_the_rows_the_answer_added(db):
         "those rows, write the change they call for, and commit")
 
 
+def test_a_challenge_that_waits_for_its_answer_is_not_sent_twice(db):
+    """Night 108 (2026-10-02): s307 to s328 sent one challenge each on the
+    refs of m190 while the Tester answered none, and nine landed."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m1','th','developer','tester',"
+               "'challenge','[\"tst1\", \"c1\"]',1,'open')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    quotes = ["closing an account leaves its invoices in place",
+              "assert close_account('a1') is not None"]
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=quotes)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs already (m1) and it "
+        "waits for an answer. A second copy is the same question twice, and the "
+        "answer comes to a later wake. Until then: code.source the code the "
+        "test calls and write the change that makes it pass, or end the session "
+        "with no call")
+    # Once the Tester answers, the answered door speaks, and this one does not.
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status, cause_id) VALUES ('m2','th','tester',"
+               "'developer','answer','[\"c1\", \"tst1\"]',2,'open','m1')")
+    db.commit()
+    sb2 = build("developer", db, batch_id="b1", mode="tests_failing",
+                allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError) as exc:
+        sb2.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=quotes)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs already (m1) and "
+        "they answered. Sending it again is the same argument again -- "
+        "msg.escalate_architect")
+
+
 def test_an_answer_with_null_refs_added_no_row(db):
     """The diff review of 538b84a (2026-10-02): `null` as body_refs made
     json.loads return None, and enumerate(None) raised."""

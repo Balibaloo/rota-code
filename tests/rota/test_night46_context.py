@@ -114,6 +114,10 @@ def test_the_fix_wake_shows_the_thread_on_a_red_test(db):
          None, 7, "answered", None),
         ("m8", "th5", "tester", "developer", "answer", '["tst1"]',
          "x" * 700, 8, "open", "m7"),
+        # Night 108 (2026-10-02): the Architect's own challenge on the test
+        # is not the Developer's thread.
+        ("m9", "th6", "architect", "vision_keeper", "challenge", '["c1", "tst1"]',
+         None, 9, "open", None),
     ])
     # First, because the push cut removes the last key first (dad15d9 review).
     assert list(shown)[:2] == ["challenges and escalations on these tests",

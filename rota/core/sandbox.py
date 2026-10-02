@@ -1363,6 +1363,36 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"you sent {verb} to {recipient} on exactly these refs "
                     f"already ({prior['id']}) and they answered. Sending it "
                     f"again is the same argument again -- {door}")
+            # A challenge with no answer yet is a question still open. Night
+            # 108 (2026-10-02): s307 to s328 sent one challenge each on the
+            # refs of m190 while the Tester answered none. Nine landed, and
+            # the door read only answered priors. The Developer's text names
+            # the code, so the door holds for the Developer only.
+            if ctx.role == "developer":
+                waiting = None
+                for row in ctx.conn.execute(
+                        "SELECT m.id, m.body_refs FROM messages m "
+                        "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
+                        "AND NOT EXISTS (SELECT 1 FROM messages a "
+                        "  WHERE a.cause_id = m.id AND a.verb = 'answer') "
+                        "ORDER BY m.seq DESC", (ctx.role, recipient, verb)):
+                    try:
+                        if sorted(_json.loads(row["body_refs"] or "[]")) == want:
+                            waiting = row
+                            break
+                    except (TypeError, ValueError):
+                        continue
+                if waiting:
+                    way = ("write the change that makes it pass"
+                           if verb == "challenge" else
+                           "write the change that makes it pass, and commit it")
+                    raise ValueError(
+                        f"you sent {verb} to {recipient} on exactly these refs "
+                        f"already ({waiting['id']}) and it waits for an answer. "
+                        f"A second copy is the same question twice, and the "
+                        f"answer comes to a later wake. Until then: code.source "
+                        f"the code the test calls and {way}, or end the session "
+                        f"with no call")
         if verb == "question" and refs:
             # A question answered twice on the same rows is not a third
             # question. tipsAB (2026-09-09): the Tester asked the

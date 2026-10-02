@@ -1821,10 +1821,14 @@ def _thread_on_tests(sb: sandbox_mod.Sandbox, tests: list[dict]) -> list[dict]:
             "  SELECT x.id FROM messages x WHERE x.cause_id = m.id "
             "  AND x.verb = 'answer' ORDER BY x.seq DESC LIMIT 1) "
             "WHERE m.verb IN ('challenge', 'escalate') "
+            # The woken role's own messages only. Night 108 (2026-10-02):
+            # the Architect's challenges to the Vision Keeper, m177 and m182,
+            # showed as entries on the Developer's test.
+            "AND m.from_role = ? "
             # SQLite does not promise to skip json_type for an invalid row.
             "AND json_type(CASE WHEN json_valid(m.body_refs) "
             "  THEN m.body_refs ELSE '[]' END) = 'array' "
-            "ORDER BY m.seq", (r.get("id"),)).fetchall()
+            "ORDER BY m.seq", (r.get("id"), sb.ctx.role)).fetchall()
         for m in found:
             text = (m["answer_text"] or "").strip()
             if m["answer_id"] is None:
