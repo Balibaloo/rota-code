@@ -102,3 +102,8 @@ Pass 4, after the interview in `plans/frame110-interview.md` (reasoned: the seat
 - `build_prompt` puts one plain text block above the JSON for each challenged test whose last run did not pass. The block holds a heading, the body and the failure output. Only a Tester challenge wake gets it.
 - The heading says "failed before any assertion" when no body `assert` line shows in the output, or when an `E ` line shows first. `_failed_before_assertion` holds the rule.
 - The JSON block does not change, so no other reader of the wake moves.
+
+Pass 5, the door (reasoned: pass 4's runs named the fault and answered):
+
+- `sandbox._unrunnable_test` refuses a Tester's answer to a challenge while a challenged test's last run is `fail` before any assertion, and this session staged no `tests` write for it.
+- A quote of the criterion does not open the door. The quote guard already refuses an answer with no quote, so an exception for a quote would never fire. The hold case seeds no run, so its path stays open.
