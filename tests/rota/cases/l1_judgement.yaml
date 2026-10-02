@@ -383,7 +383,7 @@
 # it. The code's own comment says the invoices must survive.
 - id: L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist
   tier: T1
-  model: gemma3:12b
+  model: qwen3:8b
   role: critic
   runs: 5
   pass: 3
