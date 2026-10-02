@@ -4560,6 +4560,71 @@ def _invented_literals(ctx: Ctx, criterion_id: str, tree) -> list[str]:
     return out
 
 
+# One signal, one check. Night 106 (2026-10-02): bg_2's two tests assigned
+# `sys.stdin = io.StringIO(...)`. `code.write` counted only the words
+# "monkeypatch" and "builtins" as a shield, so it refused every fix as
+# unshielded. It sent the seat to a challenge the Tester had answered.
+# `tests.encode` already counted the string "sys.stdin". Both doors now read
+# the parsed body, so a word in a comment shields nothing either.
+def _stdin_shields(tree) -> set[str]:
+    """The dotted names a test body replaces: 'sys.stdin', 'builtins.input',
+    or a module's own name such as 'click.termui.visible_prompt_func'.
+
+    Reads `sys.stdin = ...`, `setattr(obj, 'name', ...)`,
+    `setattr('dotted.name', ...)`, `patch('dotted.name')` and
+    `patch.object(obj, 'name')`, for any receiver of the call."""
+    import ast as _ast
+
+    def dotted(node) -> str | None:
+        parts = []
+        while isinstance(node, _ast.Attribute):
+            parts.append(node.attr)
+            node = node.value
+        if not isinstance(node, _ast.Name):
+            return None
+        parts.append(node.id)
+        return ".".join(reversed(parts))
+
+    def text(node) -> str | None:
+        if isinstance(node, _ast.Constant) and isinstance(node.value, str):
+            return node.value
+        return None
+
+    out: set[str] = set()
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.Assign, _ast.AnnAssign)):
+            for t in (n.targets if isinstance(n, _ast.Assign) else [n.target]):
+                if isinstance(t, _ast.Attribute) and (name := dotted(t)):
+                    out.add(name)
+            continue
+        if not isinstance(n, _ast.Call) or not n.args:
+            continue
+        f = n.func
+        verb = (f.attr if isinstance(f, _ast.Attribute)
+                else f.id if isinstance(f, _ast.Name) else None)
+        # `patch.object(obj, 'name')` is the object form of `patch`.
+        if verb == "object" and not (isinstance(f.value, (_ast.Name, _ast.Attribute))
+                                     and (dotted(f.value) or "").endswith("patch")):
+            continue
+        if verb not in ("setattr", "patch", "object"):
+            continue
+        first = text(n.args[0])
+        if first is not None:
+            if "." in first and verb != "object":
+                out.add(first)
+            continue
+        second = text(n.args[1]) if len(n.args) > 1 else None
+        base = dotted(n.args[0])
+        if second and base and verb != "patch":
+            out.add(f"{base}.{second}")
+    return out
+
+
+def _shields_input(shields: set[str]) -> bool:
+    """True when the body gives `input()` a stream or a stand-in."""
+    return "sys.stdin" in shields or "builtins.input" in shields
+
+
 @op("tests", "encode")
 def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                  batch_id: str | None = None) -> dict:
@@ -4641,7 +4706,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # that can.
     calls = [n for n in _ast.walk(tree) if isinstance(n, _ast.Call)]
     names = {n.func.id for n in calls if isinstance(n.func, _ast.Name)}
-    if "input" in names and "monkeypatch" not in body and "builtins" not in body:
+    shields = _stdin_shields(tree)
+    if "input" in names and not _shields_input(shields):
         raise Wall(
             "this test calls input(), and pytest captures stdin: the call "
             "raises OSError before any assertion runs, against any code. "
@@ -4679,13 +4745,17 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # body patches nothing, or patches builtins.input only.
     # `sys.stdin` as code, not the word in a comment: night 54 (2026-09-14)
     # wrote "when stdin is closed" in a comment and the scan stood down.
-    patches_builtin_only = "builtins.input" in body and "sys.stdin" not in body
+    patches_builtin_only = ("builtins.input" in shields
+                            and "sys.stdin" not in shields)
     # A body that replaces sys.stdin, by monkeypatch or by assignment, has
     # given the reader a stream: night 57 (2026-09-14) assigned
     # `sys.stdin = io.StringIO('')` with a restore and was refused three
     # times as if it had patched nothing.
-    unpatched = ("monkeypatch" not in body and "builtins" not in body
-                 and "sys.stdin" not in body)
+    unpatched = not _shields_input(shields)
+    # A patch of the name the function reads through reaches it, as
+    # `monkeypatch.setattr('click.termui.visible_prompt_func', ...)` does.
+    reached = {t.rsplit(".", 1)[-1] for t in shields
+               if t not in ("sys.stdin", "builtins.input")}
     if (unpatched or patches_builtin_only) and ctx.batch_id:
         try:
             root = _worktree_of(ctx)
@@ -4721,7 +4791,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     via = {c.id for c in _ast.walk(node)
                            if isinstance(c, _ast.Name) and isinstance(c.ctx, _ast.Load)
                            and c.id in readers}
-                    if not via:
+                    if not via or via & reached:
                         continue
                     aliases = sorted(via - {"input"})
                     if patches_builtin_only and not aliases:
@@ -9664,11 +9734,15 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             for row in ctx.conn.execute(
                     "SELECT body FROM tests WHERE batch_id = ?", (ctx.batch_id,)):
                 tbody = row["body"] or ""
-                if "monkeypatch" in tbody or "builtins" in tbody:
-                    continue
                 try:
                     ttree = _ast.parse(tbody)
                 except SyntaxError:
+                    continue
+                tshields = _stdin_shields(ttree)
+                # A patch of `builtins.input` or of a module's own `input`
+                # name reaches the reader too.
+                if "sys.stdin" in tshields or any(
+                        t.rsplit(".", 1)[-1] == "input" for t in tshields):
                     continue
                 called = {n.func.id for n in _ast.walk(ttree)
                          if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)}
@@ -9678,7 +9752,8 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     raise ValueError(
                         f"{fn_name} reads input() internally, and a test in "
                         f"this batch calls {fn_name}() directly with no "
-                        f"monkeypatch shielding it -- stdin is captured "
+                        f"monkeypatch or sys.stdin assignment shielding it "
+                        f"-- stdin is captured "
                         f"under pytest, so that call raises before the "
                         f"test's assertion ever runs, against this or any "
                         f"other implementation of {fn_name}. Reshaping "

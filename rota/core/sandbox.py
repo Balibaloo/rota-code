@@ -1302,23 +1302,56 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # identical refs every round -- a livelock the attempt cap
             # cannot see because every message is a fresh cause. A held
             # answer means the two of you disagree; the door is above.
+            # The refs match as a sorted list. Frame 111's design review
+            # (2026-10-02): the same refs in another order escaped the door.
             import json as _json
-            prior = ctx.conn.execute(
-                "SELECT m.id FROM messages m JOIN messages a ON a.cause_id = m.id "
-                "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
-                "AND m.body_refs = ? AND a.verb = 'answer' ORDER BY m.seq DESC "
-                "LIMIT 1", (ctx.role, recipient, verb,
-                            _json.dumps(list(refs or [])))
-            ).fetchone()
+            want = sorted(refs or [])
+            prior = None
+            for row in ctx.conn.execute(
+                    "SELECT m.id, m.body_refs, a.id AS answer_id, "
+                    "a.body_refs AS answer_refs FROM messages m "
+                    "JOIN messages a ON a.cause_id = m.id "
+                    "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
+                    "AND a.verb = 'answer' ORDER BY m.seq DESC, a.seq DESC",
+                    (ctx.role, recipient, verb)):
+                try:
+                    if sorted(_json.loads(row["body_refs"] or "[]")) == want:
+                        prior = row
+                        break
+                except (TypeError, ValueError):
+                    continue
             if prior:
                 # Walk ten: escalate, answer, escalate, answer, three times
                 # on one pair of refs, with the fix written into the reply
                 # as prose in between. The Architect answered; the answer is
                 # the material now.
+                # Night 106 (2026-10-02): s223 and s224 met "act on the
+                # answer", and the answer m116 held no words and no new row.
+                # The next write met the stdin door again. So the door names
+                # the rows the answer added, or says that it added none.
                 if verb == "escalate":
-                    door = ("act on the answer -- code.write the change it "
-                            "points at and commit; if it truly did not land, "
-                            "the attempt cap carries this batch to the ladder")
+                    try:
+                        answer_refs = _json.loads(prior["answer_refs"] or "[]")
+                    except (TypeError, ValueError):
+                        answer_refs = []
+                    own = set(refs or [])
+                    added = [r for i, r in enumerate(answer_refs)
+                             if isinstance(r, str) and r not in own
+                             and r not in answer_refs[:i]]
+                    head = (f"you sent {verb} to {recipient} on exactly these "
+                            f"refs already ({prior['id']}) and they answered "
+                            f"({prior['answer_id']})")
+                    if added:
+                        raise ValueError(
+                            f"{head}: the answer points at {', '.join(added)} "
+                            f"-- code.source those rows, write the change they "
+                            f"call for, and commit")
+                    raise ValueError(
+                        f"{head} with no row beyond your own refs. Sending it "
+                        f"again is the same argument again. The attempt cap "
+                        f"carries this batch to the ladder: make one real "
+                        f"change to the code the test calls, or end the "
+                        f"session with no call")
                 elif recipient == "tester":
                     door = "msg.escalate_architect"
                 else:

@@ -352,6 +352,89 @@ def test_a_test_that_reads_stdin_cannot_pass_under_pytest(db):
                 "    assert greet() == 'closing Alice'")
 
 
+# Frame 111. Night 106 (2026-10-02): bg_2's tests assigned `sys.stdin`, and
+# `code.write` refused every fix as unshielded. One AST check serves both doors.
+_ASK = "def ask():\n    return input('name: ')\n"
+_SHIELDS = {
+    "assigned": "    sys.stdin = io.StringIO('')\n",
+    "setattr_sys": "    monkeypatch.setattr(sys, 'stdin', io.StringIO(''))\n",
+    "builtins_input": "    monkeypatch.setattr('builtins.input', lambda _='': '')\n",
+    "none": "",
+    "comment": "    # sys.stdin is captured under pytest\n",
+}
+
+
+def _asker(shield):
+    return ("import io\nimport sys\nfrom script import ask\n\n"
+            "def test_ask(monkeypatch):\n" + _SHIELDS[shield]
+            + "    assert ask() == ''\n")
+
+
+def _stdin_db(db, tmp_path, script=None):
+    root = tmp_path / "wt"; root.mkdir()
+    if script:
+        (root / "script.py").write_text(script)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+
+
+def _write_ask(db, shield):
+    db.execute("DELETE FROM tests")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst1','b1','c1','tests/test_ask.py',?)", (_asker(shield),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    return sb.call("code.write", path="script.py", text=_ASK)
+
+
+@pytest.mark.parametrize("shield", ["assigned", "setattr_sys", "builtins_input"])
+def test_a_shielded_test_lets_a_reader_of_input_be_written(db, tmp_path, shield):
+    _stdin_db(db, tmp_path)
+    assert _write_ask(db, shield)["created"]
+
+
+@pytest.mark.parametrize("shield", ["none", "comment"])
+def test_an_unshielded_test_refuses_a_reader_of_input(db, tmp_path, shield):
+    _stdin_db(db, tmp_path)
+    with pytest.raises(ValueError, match="ask reads input\\(\\) internally, and a "
+                       "test in this batch calls ask\\(\\) directly with no "
+                       "monkeypatch or sys.stdin assignment shielding it"):
+        _write_ask(db, shield)
+
+
+@pytest.mark.parametrize("shield", ["assigned", "setattr_sys", "builtins_input"])
+def test_a_shielded_test_of_a_reader_of_input_is_encoded(db, tmp_path, shield):
+    _stdin_db(db, tmp_path, _ASK)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    # The literal door reads 'stdin' as a chosen word, a fact apart from this one.
+    sb.call("ledger.log", about_ref="c1", about_table="criteria",
+            assumption="the test assumes stdin is the stream ask reads")
+    assert _encode(sb, _asker(shield))
+
+
+@pytest.mark.parametrize("shield", ["none", "comment"])
+def test_an_unshielded_test_of_a_reader_of_input_is_refused(db, tmp_path, shield):
+    _stdin_db(db, tmp_path, _ASK)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="ask\\(\\) reads input\\(\\) internally "
+                       "\\(script.py\\), and this test calls ask\\(\\) directly"):
+        _encode(sb, _asker(shield))
+
+
+def test_a_test_that_calls_input_itself_needs_a_shield_in_code(db):
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="captures stdin"):
+        _encode(sb, "import sys\n\ndef test_greet():\n"
+                    "    # sys.stdin and builtins are captured\n"
+                    "    assert input() == ''")
+    sb2 = build("tester", db, batch_id="b1", mode="tests_missing")
+    assert _encode(sb2, "import io\nimport sys\n\ndef test_greet():\n"
+                        "    sys.stdin = io.StringIO('')\n"
+                        "    assert input() == ''")
+
+
 def test_a_name_the_test_never_imports_is_a_nameerror(db):
     """Walk nine's one landed test: `assert test_valid_input()` against a
     name defined nowhere. The floor puts the project on the import path;
@@ -431,19 +514,49 @@ def test_a_module_that_reads_stdin_at_import_dies_at_collection(db, tmp_path):
     assert out["created"]
 
 
-def test_the_same_escalation_twice_is_refused_toward_the_answer(db):
+def _answered_escalation(db, answer_refs):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES ('m1','th','developer','architect',"
                "'escalate','[\"c1\", \"tst1\"]',1,'answered')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status, cause_id) VALUES ('m2','th','architect',"
-               "'developer','answer','[\"c1\"]',2,'answered','m1')")
+               "'developer','answer',?,2,'answered','m1')", (answer_refs,))
     db.commit()
     from rota.roles import prompts
-    sb = build("developer", db, batch_id="b1", mode="tests_failing",
-               allow=prompts.mode_tools("developer", "tests_failing"))
-    with pytest.raises(ValueError, match="act on the answer"):
+    return build("developer", db, batch_id="b1", mode="tests_failing",
+                 allow=prompts.mode_tools("developer", "tests_failing"))
+
+
+def test_the_same_escalation_twice_is_refused_toward_the_answer(db):
+    """Night 106 (2026-10-02): s223 and s224 met "act on the answer", and
+    the answer m116 held no words and no new row (frame 111)."""
+    sb = _answered_escalation(db, '["c1"]')
+    with pytest.raises(ValueError) as exc:
         sb.call("msg.escalate_architect", refs=["c1", "tst1"])
+    assert str(exc.value) == (
+        "you sent escalate to architect on exactly these refs already (m1) "
+        "and they answered (m2) with no row beyond your own refs. Sending it "
+        "again is the same argument again. The attempt cap carries this batch "
+        "to the ladder: make one real change to the code the test calls, or "
+        "end the session with no call")
+
+
+def test_the_same_refs_in_another_order_are_the_same_escalation(db):
+    """Frame 111's design review (2026-10-02): the door compared the JSON
+    text, so the same refs in another order escaped it."""
+    sb = _answered_escalation(db, '["c1"]')
+    with pytest.raises(ValueError, match=r"exactly these refs already \(m1\)"):
+        sb.call("msg.escalate_architect", refs=["tst1", "c1"])
+
+
+def test_a_repeat_escalation_is_told_the_rows_the_answer_added(db):
+    sb = _answered_escalation(db, '["c1", "g1", "tk1"]')
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.escalate_architect", refs=["c1", "tst1"])
+    assert str(exc.value) == (
+        "you sent escalate to architect on exactly these refs already (m1) "
+        "and they answered (m2): the answer points at g1, tk1 -- code.source "
+        "those rows, write the change they call for, and commit")
 
 
 def test_code_in_the_reply_is_told_it_landed_nowhere(db, tmp_path):
