@@ -354,20 +354,29 @@ def test_a_test_that_reads_stdin_cannot_pass_under_pytest(db):
 
 # Frame 111. Night 106 (2026-10-02): bg_2's tests assigned `sys.stdin`, and
 # `code.write` refused every fix as unshielded. One AST check serves both doors.
+# Each shielded body but `builtins_input` holds no word the old check read,
+# so the old check refused it. `builtins_input` keeps today's acceptance.
 _ASK = "def ask():\n    return input('name: ')\n"
 _SHIELDS = {
-    "assigned": "    sys.stdin = io.StringIO('')\n",
-    "setattr_sys": "    monkeypatch.setattr(sys, 'stdin', io.StringIO(''))\n",
-    "builtins_input": "    monkeypatch.setattr('builtins.input', lambda _='': '')\n",
-    "none": "",
-    "comment": "    # sys.stdin is captured under pytest\n",
+    "assigned": "def test_ask():\n    sys.stdin = io.StringIO('')\n",
+    "setattr_sys": "def test_ask():\n    setattr(sys, 'stdin', io.StringIO(''))\n",
+    "patch_object": "def test_ask():\n  with mock.patch.object(sys, 'stdin', io.StringIO('')):\n",
+    "tuple": "def test_ask():\n    sys.stdin, old = io.StringIO(''), sys.stdin\n",
+    "builtins_input": "def test_ask(monkeypatch):\n"
+                      "    monkeypatch.setattr('builtins.input', lambda _='': '')\n",
+    "none": "def test_ask():\n",
+    "comment": "def test_ask():\n    # sys.stdin is captured under pytest\n",
+    "attribute": "def test_ask():\n    ns = mock.Mock()\n    ns.input = 3\n",
+    "client": "def test_ask():\n    client = mock.Mock()\n    client.patch('/v1.input')\n",
+    "bare_patch": "def test_ask():\n  with mock.patch('sys.stdin'):\n",
 }
+_SHIELDED = ["assigned", "setattr_sys", "patch_object", "tuple", "builtins_input"]
+_UNSHIELDED = ["none", "comment", "attribute", "client", "bare_patch"]
 
 
 def _asker(shield):
-    return ("import io\nimport sys\nfrom script import ask\n\n"
-            "def test_ask(monkeypatch):\n" + _SHIELDS[shield]
-            + "    assert ask() == ''\n")
+    return ("import io\nimport sys\nfrom unittest import mock\nfrom script import ask\n\n"
+            + _SHIELDS[shield] + "    assert ask() == ''\n")
 
 
 def _stdin_db(db, tmp_path, script=None):
@@ -389,13 +398,13 @@ def _write_ask(db, shield):
     return sb.call("code.write", path="script.py", text=_ASK)
 
 
-@pytest.mark.parametrize("shield", ["assigned", "setattr_sys", "builtins_input"])
+@pytest.mark.parametrize("shield", _SHIELDED)
 def test_a_shielded_test_lets_a_reader_of_input_be_written(db, tmp_path, shield):
     _stdin_db(db, tmp_path)
     assert _write_ask(db, shield)["created"]
 
 
-@pytest.mark.parametrize("shield", ["none", "comment"])
+@pytest.mark.parametrize("shield", _UNSHIELDED)
 def test_an_unshielded_test_refuses_a_reader_of_input(db, tmp_path, shield):
     _stdin_db(db, tmp_path)
     with pytest.raises(ValueError, match="ask reads input\\(\\) internally, and a "
@@ -404,7 +413,7 @@ def test_an_unshielded_test_refuses_a_reader_of_input(db, tmp_path, shield):
         _write_ask(db, shield)
 
 
-@pytest.mark.parametrize("shield", ["assigned", "setattr_sys", "builtins_input"])
+@pytest.mark.parametrize("shield", _SHIELDED)
 def test_a_shielded_test_of_a_reader_of_input_is_encoded(db, tmp_path, shield):
     _stdin_db(db, tmp_path, _ASK)
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
@@ -414,7 +423,7 @@ def test_a_shielded_test_of_a_reader_of_input_is_encoded(db, tmp_path, shield):
     assert _encode(sb, _asker(shield))
 
 
-@pytest.mark.parametrize("shield", ["none", "comment"])
+@pytest.mark.parametrize("shield", _UNSHIELDED)
 def test_an_unshielded_test_of_a_reader_of_input_is_refused(db, tmp_path, shield):
     _stdin_db(db, tmp_path, _ASK)
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
@@ -433,6 +442,29 @@ def test_a_test_that_calls_input_itself_needs_a_shield_in_code(db):
     assert _encode(sb2, "import io\nimport sys\n\ndef test_greet():\n"
                         "    sys.stdin = io.StringIO('')\n"
                         "    assert input() == ''")
+
+
+@pytest.mark.parametrize("body, want", [
+    ("object(1)", set()),                                        # finding 4
+    ("ns.input = 3", set()),                                     # finding 1
+    ("client.patch('/v1.input')", set()),                        # finding 1
+    ("setattr(ns, 'input', 3)", set()),                          # finding 1
+    ("mock.patch('sys.stdin')", set()),                          # finding 3
+    ("mock.patch.object(sys, 'stdin')", set()),                  # finding 3
+    ("mock.patch('sys.stdin', new=io.StringIO(''))", {"sys.stdin"}),
+    ("sys.stdin, old = io.StringIO(''), sys.stdin", {"sys.stdin"}),  # finding 5
+    ("[sys.stdin, *rest] = [io.StringIO('')]", {"sys.stdin"}),
+    ("import script\nmonkeypatch.setattr(script, 'input', f)", {"script.input"}),
+    ("monkeypatch.setattr('click.termui.visible_prompt_func', f)",
+     {"click.termui.visible_prompt_func"}),
+    ("with patch('builtins.input', side_effect=EOFError()): pass", {"builtins.input"}),
+])
+def test_the_stdin_shield_reads_only_a_stream_or_a_module_name(body, want):
+    """The diff review of 538b84a (2026-10-02, frame 111) found a shield on
+    any attribute named input, a bare stdin patch, and a crash on object()."""
+    import ast
+    from rota.roles.api import _stdin_shields
+    assert _stdin_shields(ast.parse(body)) == want
 
 
 def test_a_name_the_test_never_imports_is_a_nameerror(db):
@@ -557,6 +589,14 @@ def test_a_repeat_escalation_is_told_the_rows_the_answer_added(db):
         "you sent escalate to architect on exactly these refs already (m1) "
         "and they answered (m2): the answer points at g1, tk1 -- code.source "
         "those rows, write the change they call for, and commit")
+
+
+def test_an_answer_with_null_refs_added_no_row(db):
+    """The diff review of 538b84a (2026-10-02): `null` as body_refs made
+    json.loads return None, and enumerate(None) raised."""
+    sb = _answered_escalation(db, "null")
+    with pytest.raises(ValueError, match=r"\(m2\) with no row beyond your own refs"):
+        sb.call("msg.escalate_architect", refs=["c1", "tst1"])
 
 
 def test_code_in_the_reply_is_told_it_landed_nowhere(db, tmp_path):

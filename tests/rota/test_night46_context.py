@@ -77,6 +77,57 @@ def test_the_fix_wake_pushes_the_red_tests_and_the_code_they_call(tmp_path):
     assert "def echo(" not in span["text"], "the span is the definition, not the file"
 
 
+def _red_test_push(db, messages=()):
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "output, attempt) VALUES ('r1','b1','tst1','abc123','fail',"
+               "'NameError: close_account',1)")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst2','b1','c1','test_other.py','def test_y():\n    assert True')")
+    for row in messages:
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                   "body_refs, body_text, seq, status, cause_id) VALUES "
+                   "(?,?,?,?,?,?,?,?,?,?)", row)
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    return push_working_set("developer", sb, Wake("developer", "tick:tests_failing",
+                                                  refs=("b1",)))["tests.load"]
+
+
+def test_the_fix_wake_shows_the_thread_on_a_red_test(db):
+    """Night 106 (2026-10-02): no tick wake carried m109 to m115, and the
+    seat sent the challenge again at attempts 4 to 8 (frame 111)."""
+    shown = _red_test_push(db, [
+        ("m1", "th", "developer", "tester", "challenge", '["c1", "tst1"]',
+         "the test asserts what c1 never says", 1, "answered", None),
+        ("m2", "th", "tester", "developer", "answer", '["c1", "tst1"]',
+         "closing an account leaves its invoices in place", 2, "open", "m1"),
+        ("m3", "th2", "developer", "architect", "escalate", '["tst1"]',
+         None, 3, "answered", None),
+        ("m4", "th2", "architect", "developer", "answer", '["c1"]',
+         None, 4, "open", "m3"),
+        ("m5", "th3", "developer", "architect", "escalate", '["c1", "tst1"]',
+         None, 5, "open", None),
+        ("m6", "th4", "developer", "tester", "challenge", '["c1", "tst2"]',
+         None, 6, "open", None),
+    ])
+    assert list(shown)[-1] == "challenges and escalations on these tests"
+    assert shown["challenges and escalations on these tests"] == [
+        {"id": "m1", "verb": "challenge", "to": "tester", "test": "tst1",
+         "answer": "closing an account leaves its invoices in place"},
+        {"id": "m3", "verb": "escalate", "to": "architect", "test": "tst1",
+         "answer": "answered with no words"},
+        {"id": "m5", "verb": "escalate", "to": "architect", "test": "tst1",
+         "answer": "not answered yet"},
+    ]
+
+
+def test_the_fix_wake_with_no_thread_pushes_no_thread_key(db):
+    shown = _red_test_push(db)
+    assert "the batch's tests, not passing" in shown
+    assert "challenges and escalations on these tests" not in shown
+
+
 def test_the_missing_tests_wake_names_the_criteria_without_a_test(db):
     """Shown six criteria and three tests, the Tester re-encoded the three
     that had tests and routed one that had none."""

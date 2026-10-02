@@ -1331,27 +1331,30 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 # the rows the answer added, or says that it added none.
                 if verb == "escalate":
                     try:
-                        answer_refs = _json.loads(prior["answer_refs"] or "[]")
+                        answer_refs = _json.loads(prior["answer_refs"] or "[]") or []
                     except (TypeError, ValueError):
                         answer_refs = []
+                    if not isinstance(answer_refs, list):
+                        answer_refs = []          # the JSON text `null`, or a scalar
                     own = set(refs or [])
                     added = [r for i, r in enumerate(answer_refs)
                              if isinstance(r, str) and r not in own
                              and r not in answer_refs[:i]]
-                    head = (f"you sent {verb} to {recipient} on exactly these "
-                            f"refs already ({prior['id']}) and they answered "
-                            f"({prior['answer_id']})")
                     if added:
                         raise ValueError(
-                            f"{head}: the answer points at {', '.join(added)} "
-                            f"-- code.source those rows, write the change they "
-                            f"call for, and commit")
+                            f"you sent {verb} to {recipient} on exactly these "
+                            f"refs already ({prior['id']}) and they answered "
+                            f"({prior['answer_id']}): the answer points at "
+                            f"{', '.join(added)} -- code.source those rows, "
+                            f"write the change they call for, and commit")
                     raise ValueError(
-                        f"{head} with no row beyond your own refs. Sending it "
-                        f"again is the same argument again. The attempt cap "
-                        f"carries this batch to the ladder: make one real "
-                        f"change to the code the test calls, or end the "
-                        f"session with no call")
+                        f"you sent {verb} to {recipient} on exactly these refs "
+                        f"already ({prior['id']}) and they answered "
+                        f"({prior['answer_id']}) with no row beyond your own "
+                        f"refs. Sending it again is the same argument again. "
+                        f"The attempt cap carries this batch to the ladder: "
+                        f"make one real change to the code the test calls, or "
+                        f"end the session with no call")
                 elif recipient == "tester":
                     door = "msg.escalate_architect"
                 else:

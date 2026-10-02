@@ -2039,6 +2039,38 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                     f"code.diff below and restore what it changed; a challenge has "
                     f"no side here")
             shown["passing, not shown"] = f"{green} test(s)"
+            # The thread on a red test is part of the red test. Night 106
+            # (2026-10-02): no tick wake carried m109 to m115. The seat
+            # learned of them from refusals only, and it sent the challenge
+            # again at attempts 4 to 8. A wake with no thread pushes no key,
+            # so the recorded prompts keep their bytes.
+            if own:
+                thread = []
+                for r in own:
+                    try:
+                        found = sb.ctx.conn.execute(
+                            "SELECT m.id, m.verb, m.to_role, a.id AS answer_id, "
+                            "a.body_text AS answer_text FROM messages m "
+                            "JOIN json_each(m.body_refs) j ON j.value = ? "
+                            "LEFT JOIN messages a ON a.id = ("
+                            "  SELECT x.id FROM messages x WHERE x.cause_id = m.id "
+                            "  AND x.verb = 'answer' ORDER BY x.seq DESC LIMIT 1) "
+                            "WHERE m.verb IN ('challenge', 'escalate') "
+                            "ORDER BY m.seq", (r.get("id"),)).fetchall()
+                    except sqlite3.Error:      # a body_refs that is not JSON
+                        continue
+                    for m in found:
+                        if m["answer_id"] is None:
+                            answer = "not answered yet"
+                        elif (m["answer_text"] or "").strip():
+                            answer = m["answer_text"]
+                        else:
+                            answer = "answered with no words"
+                        thread.append({"id": m["id"], "verb": m["verb"],
+                                       "to": m["to_role"], "test": r.get("id"),
+                                       "answer": answer})
+                if thread:
+                    shown["challenges and escalations on these tests"] = thread
             pushed["tests.load"] = shown
             if own and "code.source" in have:
                 spans = _source_the_tests_call(sb, own)

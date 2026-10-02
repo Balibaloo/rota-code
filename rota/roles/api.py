@@ -4570,10 +4570,12 @@ def _stdin_shields(tree) -> set[str]:
     """The dotted names a test body replaces: 'sys.stdin', 'builtins.input',
     or a module's own name such as 'click.termui.visible_prompt_func'.
 
-    Reads `sys.stdin = ...`, `setattr(obj, 'name', ...)`,
+    Reads `sys.stdin = ...`, and the calls `setattr(obj, 'name', ...)`,
     `setattr('dotted.name', ...)`, `patch('dotted.name')` and
-    `patch.object(obj, 'name')`, for any receiver of the call."""
+    `patch.object(obj, 'name')` on any receiver. A module's own name counts
+    only as a dotted path of identifiers, or on a name the body imports."""
     import ast as _ast
+    import re as _re
 
     def dotted(node) -> str | None:
         parts = []
@@ -4590,12 +4592,29 @@ def _stdin_shields(tree) -> set[str]:
             return node.value
         return None
 
+    def flat(t):
+        # `sys.stdin, old = io.StringIO(''), sys.stdin` assigns sys.stdin too.
+        if isinstance(t, (_ast.Tuple, _ast.List)):
+            for e in t.elts:
+                yield from flat(e)
+        elif isinstance(t, _ast.Starred):
+            yield from flat(t.value)
+        else:
+            yield t
+
+    # `ns.input = 3` or `client.patch('/v1.input')` replaces no module's
+    # name. The diff review of 538b84a (2026-10-02) found both passed.
+    modules = {(a.asname or a.name).split(".")[0] for n in _ast.walk(tree)
+               if isinstance(n, (_ast.Import, _ast.ImportFrom)) for a in n.names}
+    path_shape = _re.compile(r"[A-Za-z_]\w*(\.[A-Za-z_]\w*)+")
+
     out: set[str] = set()
     for n in _ast.walk(tree):
         if isinstance(n, (_ast.Assign, _ast.AnnAssign)):
             for t in (n.targets if isinstance(n, _ast.Assign) else [n.target]):
-                if isinstance(t, _ast.Attribute) and (name := dotted(t)):
-                    out.add(name)
+                for e in flat(t):
+                    if isinstance(e, _ast.Attribute) and dotted(e) == "sys.stdin":
+                        out.add("sys.stdin")
             continue
         if not isinstance(n, _ast.Call) or not n.args:
             continue
@@ -4603,20 +4622,30 @@ def _stdin_shields(tree) -> set[str]:
         verb = (f.attr if isinstance(f, _ast.Attribute)
                 else f.id if isinstance(f, _ast.Name) else None)
         # `patch.object(obj, 'name')` is the object form of `patch`.
-        if verb == "object" and not (isinstance(f.value, (_ast.Name, _ast.Attribute))
+        if verb == "object" and not (isinstance(f, _ast.Attribute)
                                      and (dotted(f.value) or "").endswith("patch")):
             continue
         if verb not in ("setattr", "patch", "object"):
             continue
         first = text(n.args[0])
         if first is not None:
-            if "." in first and verb != "object":
-                out.add(first)
+            if verb == "object" or not path_shape.fullmatch(first):
+                continue
+            target, values = first, n.args[1:]
+        else:
+            second = text(n.args[1]) if len(n.args) > 1 else None
+            base = dotted(n.args[0])
+            if verb == "patch" or not (second and base):
+                continue
+            if base not in ("sys", "builtins") and base.split(".")[0] not in modules:
+                continue
+            target, values = f"{base}.{second}", n.args[2:]
+        # A bare `patch('sys.stdin')` puts a MagicMock there, and input()
+        # then raises "readline() returned non-string". A stream is named.
+        if target == "sys.stdin" and not (values or any(
+                k.arg in ("new", "new_callable") for k in n.keywords)):
             continue
-        second = text(n.args[1]) if len(n.args) > 1 else None
-        base = dotted(n.args[0])
-        if second and base and verb != "patch":
-            out.add(f"{base}.{second}")
+        out.add(target)
     return out
 
 
