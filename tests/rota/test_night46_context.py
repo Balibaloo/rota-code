@@ -110,9 +110,16 @@ def test_the_fix_wake_shows_the_thread_on_a_red_test(db):
          None, 5, "open", None),
         ("m6", "th4", "developer", "tester", "challenge", '["c1", "tst2"]',
          None, 6, "open", None),
+        ("m7", "th5", "developer", "tester", "challenge", '["tst1"]',
+         None, 7, "answered", None),
+        ("m8", "th5", "tester", "developer", "answer", '["tst1"]',
+         "x" * 700, 8, "open", "m7"),
     ])
-    assert list(shown)[-1] == "challenges and escalations on these tests"
-    assert shown["challenges and escalations on these tests"] == [
+    # First, because the push cut removes the last key first (dad15d9 review).
+    assert list(shown)[:2] == ["challenges and escalations on these tests",
+                               "the batch's tests, not passing"]
+    thread = shown["challenges and escalations on these tests"]
+    assert thread[:3] == [
         {"id": "m1", "verb": "challenge", "to": "tester", "test": "tst1",
          "answer": "closing an account leaves its invoices in place"},
         {"id": "m3", "verb": "escalate", "to": "architect", "test": "tst1",
@@ -120,12 +127,31 @@ def test_the_fix_wake_shows_the_thread_on_a_red_test(db):
         {"id": "m5", "verb": "escalate", "to": "architect", "test": "tst1",
          "answer": "not answered yet"},
     ]
+    assert [t["id"] for t in thread] == ["m1", "m3", "m5", "m7"]
+    long = thread[3]["answer"]
+    assert long.startswith("x" * 600 + "\nCUT the answer m8: 100 of 700 characters are not shown.")
+    assert "x" * 601 not in long
 
 
 def test_the_fix_wake_with_no_thread_pushes_no_thread_key(db):
     shown = _red_test_push(db)
     assert "the batch's tests, not passing" in shown
     assert "challenges and escalations on these tests" not in shown
+
+
+@pytest.mark.parametrize("bad", ["not json", "", '{"a": "tst1"}'])
+def test_a_corrupt_refs_row_does_not_hide_the_thread(db, bad):
+    """The review of dad15d9 (2026-10-02): one row whose body_refs was not
+    JSON made json_each raise for every test, and the key never appeared.
+    A JSON object's values are no refs either."""
+    shown = _red_test_push(db, [
+        ("m1", "th", "developer", "tester", "challenge", bad, None, 1, "open", None),
+        ("m2", "th2", "developer", "tester", "challenge", '["c1", "tst1"]',
+         None, 2, "open", None),
+    ])
+    assert shown["challenges and escalations on these tests"] == [
+        {"id": "m2", "verb": "challenge", "to": "tester", "test": "tst1",
+         "answer": "not answered yet"}]
 
 
 def test_the_missing_tests_wake_names_the_criteria_without_a_test(db):

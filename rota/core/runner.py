@@ -1787,6 +1787,51 @@ def _call_tag(call: Any, n_calls: int) -> str:
     return call.name
 
 
+# An answer longer than this is cut in the thread. The thread leads the
+# fix wake's push, so an uncapped answer would crowd out the red tests.
+_THREAD_ANSWER_CHARS = 600
+
+
+def _thread_on_tests(sb: sandbox_mod.Sandbox, tests: list[dict]) -> list[dict]:
+    """The challenges and escalations whose refs hold a red test, each with
+    its latest answer: the words, "answered with no words" or "not answered
+    yet"."""
+    thread: list[dict] = []
+    for r in tests:
+        # A body_refs that is not JSON, or that is a JSON object, holds no
+        # test id. The review of dad15d9 (2026-10-02): one corrupt row made
+        # json_each raise for every test, and the key never appeared.
+        found = sb.ctx.conn.execute(
+            "SELECT m.id, m.verb, m.to_role, a.id AS answer_id, "
+            "a.body_text AS answer_text FROM messages m "
+            "JOIN json_each(CASE WHEN json_valid(m.body_refs) "
+            "  THEN m.body_refs ELSE '[]' END) j ON j.value = ? "
+            "LEFT JOIN messages a ON a.id = ("
+            "  SELECT x.id FROM messages x WHERE x.cause_id = m.id "
+            "  AND x.verb = 'answer' ORDER BY x.seq DESC LIMIT 1) "
+            "WHERE m.verb IN ('challenge', 'escalate') "
+            # SQLite does not promise to skip json_type for an invalid row.
+            "AND json_type(CASE WHEN json_valid(m.body_refs) "
+            "  THEN m.body_refs ELSE '[]' END) = 'array' "
+            "ORDER BY m.seq", (r.get("id"),)).fetchall()
+        for m in found:
+            text = (m["answer_text"] or "").strip()
+            if m["answer_id"] is None:
+                answer = "not answered yet"
+            elif not text:
+                answer = "answered with no words"
+            elif len(text) > _THREAD_ANSWER_CHARS:
+                answer = text[:_THREAD_ANSWER_CHARS] + chr(10) + cut_note(
+                    f"the answer {m['answer_id']}", len(text) - _THREAD_ANSWER_CHARS,
+                    len(text), "characters",
+                    "Nothing returns a message's words. Act on what is shown.")
+            else:
+                answer = text
+            thread.append({"id": m["id"], "verb": m["verb"], "to": m["to_role"],
+                           "test": r.get("id"), "answer": answer})
+    return thread
+
+
 def _source_the_tests_call(sb: sandbox_mod.Sandbox,
                            tests: list[dict]) -> dict[str, Any]:
     """The definitions a failing test imports, read at their lines.
@@ -2027,7 +2072,17 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             # fails because of the diff; the diff is what to push.
             own = [r for r in red if r.get("criterion_id")]
             project = [r for r in red if not r.get("criterion_id")]
+            # The thread on a red test is part of the red test. Night 106
+            # (2026-10-02): no tick wake carried m109 to m115. The seat
+            # learned of them from refusals only, and it sent the challenge
+            # again at attempts 4 to 8. A wake with no thread pushes no key,
+            # so the recorded prompts keep their bytes. The key goes first,
+            # because the push cut at 20,000 characters removes the last key
+            # first, and a long test body must not take the thread with it.
+            thread = _thread_on_tests(sb, own)
             shown: dict[str, Any] = {}
+            if thread:
+                shown["challenges and escalations on these tests"] = thread
             if own:
                 shown["the batch's tests, not passing"] = own
             if project:
@@ -2039,38 +2094,6 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                     f"code.diff below and restore what it changed; a challenge has "
                     f"no side here")
             shown["passing, not shown"] = f"{green} test(s)"
-            # The thread on a red test is part of the red test. Night 106
-            # (2026-10-02): no tick wake carried m109 to m115. The seat
-            # learned of them from refusals only, and it sent the challenge
-            # again at attempts 4 to 8. A wake with no thread pushes no key,
-            # so the recorded prompts keep their bytes.
-            if own:
-                thread = []
-                for r in own:
-                    try:
-                        found = sb.ctx.conn.execute(
-                            "SELECT m.id, m.verb, m.to_role, a.id AS answer_id, "
-                            "a.body_text AS answer_text FROM messages m "
-                            "JOIN json_each(m.body_refs) j ON j.value = ? "
-                            "LEFT JOIN messages a ON a.id = ("
-                            "  SELECT x.id FROM messages x WHERE x.cause_id = m.id "
-                            "  AND x.verb = 'answer' ORDER BY x.seq DESC LIMIT 1) "
-                            "WHERE m.verb IN ('challenge', 'escalate') "
-                            "ORDER BY m.seq", (r.get("id"),)).fetchall()
-                    except sqlite3.Error:      # a body_refs that is not JSON
-                        continue
-                    for m in found:
-                        if m["answer_id"] is None:
-                            answer = "not answered yet"
-                        elif (m["answer_text"] or "").strip():
-                            answer = m["answer_text"]
-                        else:
-                            answer = "answered with no words"
-                        thread.append({"id": m["id"], "verb": m["verb"],
-                                       "to": m["to_role"], "test": r.get("id"),
-                                       "answer": answer})
-                if thread:
-                    shown["challenges and escalations on these tests"] = thread
             pushed["tests.load"] = shown
             if own and "code.source" in have:
                 spans = _source_the_tests_call(sb, own)
