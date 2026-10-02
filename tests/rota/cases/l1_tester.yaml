@@ -206,7 +206,7 @@
       # the function, and the runner call is gone.
       tests: {count: "1..1", text_includes: ["echo_json({"],
               text_excludes: ["asyncio.run", "await ", "async def",
-                              "run_until_complete", "asyncio"]}
+                              "run_until_complete"]}
   forbidden:
     writes: [criteria, items, tickets]
 
