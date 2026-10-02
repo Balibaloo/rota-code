@@ -2269,3 +2269,71 @@ def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
                                       message_id="m4", detail="answer"))
     assert answer["resolved_refs"]["tst1"]["last_run"]["output_tail"] \
         == output[-700:]
+
+
+def test_a_tester_challenge_shows_the_failed_run_as_text_above_the_json(db):
+    """Frame 110's interview: the seat missed a failure that sat inside an
+    escaped JSON string. A Tester challenge now shows the body and the
+    failure as plain text above the JSON. Other wakes stay as they were."""
+    from rota.core.runner import _failed_before_assertion, build_prompt
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i1','a report','in_scope','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk1','i1','make a report')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','a report carries its title')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES "
+               "('b1','i1','running')")
+    body = ("from report import make_report\n\n\n"
+            "def test_report_has_title():\n"
+            "    result = make_report('q3')\n"
+            "    assert result.title == 'q3'\n")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst1','b1','c1','test_report.py',?)", (body,))
+    error = ("E       TypeError: make_report() takes 0 positional arguments "
+             "but 1 was given")
+    output = ("    def test_report_has_title():\n"
+              ">       result = make_report('q3')\n"
+              f"{error}\n\n"
+              "test_report.py:5: TypeError\n"
+              "1 failed in 0.02s\n")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r1','b1','tst1','abc123',"
+               "'fail',1,?)", (output,))
+    for mid, to in (("m2", "tester"), ("m3", "developer")):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, body_refs, seq) VALUES (?,'t2','developer',?,"
+                   "'challenge','[\"tst1\", \"c1\"]',2)", (mid, to))
+    db.commit()
+
+    from rota.core.runner import resolve_inbound
+
+    wake = Wake(role="tester", kind="message", message_id="m2",
+                detail="challenge")
+    sb = build("tester", db, batch_id="b1", mode="challenge",
+               allow=prompts.mode_tools("tester", "challenge"))
+    _system, user = build_prompt("tester", sb, wake, {}, "MODE: challenge",
+                                 resolve_inbound(db, wake))
+    head = user.index("[last run of tst1: failed before any assertion]")
+    assert head < user.index("The message that woke you:")
+    block = user[head:user.index("The message that woke you:")]
+    assert "    result = make_report('q3')" in block
+    assert error in block and "\\n" not in block
+
+    wake = Wake(role="developer", kind="message", message_id="m3",
+                detail="challenge")
+    sb = build("developer", db, batch_id="b1")
+    _system, user = build_prompt("developer", sb, wake, {}, "MODE: challenge",
+                                 resolve_inbound(db, wake))
+    assert "[last run of" not in user
+
+    # An assertion that ran shows its own line before the error.
+    ran = ("    def test_report_has_title():\n"
+           "        result = make_report('q3')\n"
+           ">       assert result.title == 'q3'\n"
+           "E       AssertionError\n")
+    assert not _failed_before_assertion(body, ran)
+    assert _failed_before_assertion(body, output)

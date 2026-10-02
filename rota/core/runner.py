@@ -387,6 +387,11 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # the tick's own name (a case wake's default detail) and not the
         # word already said above.
         body.append(wake.detail)
+    if inbound and role == "tester" and wake.detail == "challenge":
+        # Frame 110's interview: inside an escaped JSON string the seat read
+        # the challenge as a criterion question. Asked in plain words, it
+        # blamed the test. The JSON below stays as it is for other readers.
+        body.extend(_failed_run_blocks(inbound))
     if inbound:
         body.append("\nThe reports that came back:" if "reports" in inbound
                     else "\nThe message that woke you:")
@@ -1609,6 +1614,50 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                             "output_tail": keep}
                 break
     return resolved
+
+
+def _failed_before_assertion(body: str, output: str) -> bool:
+    """Whether a failed run stopped before any assertion of the test ran.
+
+    The rule: the run failed before any assertion when the body has no
+    `assert` line that the output names, or when the output's first `E ` line
+    comes before the first line that names a body `assert` line. A traceback
+    shows the test's own lines down to the failing one, so an assertion that
+    ran and failed shows its line before the error.
+    """
+    asserts = [s.strip() for s in body.splitlines()
+               if s.strip().startswith("assert")]
+    lines = output.splitlines()
+    named = next((i for i, line in enumerate(lines)
+                  if any(a in line for a in asserts)), None)
+    if named is None:
+        return True
+    first_error = next((i for i, line in enumerate(lines)
+                        if line.startswith("E ")), None)
+    return first_error is not None and first_error < named
+
+
+def _failed_run_blocks(inbound: dict[str, Any]) -> list[str]:
+    """Plain text for each challenged test whose last run failed.
+
+    One block per test: a heading line, the test's body, and the failure
+    output, all unescaped.
+    """
+    blocks: list[str] = []
+    for ref, row in (inbound.get("resolved_refs") or {}).items():
+        if not isinstance(row, dict) or row.get("table") != "tests":
+            continue
+        run = row.get("last_run")
+        if not run or run.get("result") == "pass":
+            continue
+        body = row.get("body") or ""
+        output = run.get("output_tail") or ""
+        state = ("failed before any assertion"
+                 if _failed_before_assertion(body, output) else "failed")
+        blocks.append(f"\n[last run of {ref}: {state}]\n"
+                      f"The test's body:\n{body.rstrip()}\n"
+                      f"The failure output:\n{output.rstrip()}")
+    return blocks
 
 
 def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:

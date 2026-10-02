@@ -96,3 +96,9 @@ Pass 2, after the diff review of ab70f47 (reasoned: the review's findings, 2026-
 - The per-ref cap of 2000 characters at `harness.py:171` is accepted.
 - The stored output is a tail of the whole file's run. One file with several tests can still push the challenged test's own line out.
 - The new case seeds the real Python 3.14.2 tail, `TypeError: An asyncio.Future, a coroutine or an awaitable is required`, and a neutral challenge.
+
+Pass 4, after the interview in `plans/frame110-interview.md` (reasoned: the seat missed the failure inside escaped JSON):
+
+- `build_prompt` puts one plain text block above the JSON for each challenged test whose last run did not pass. The block holds a heading, the body and the failure output. Only a Tester challenge wake gets it.
+- The heading says "failed before any assertion" when no body `assert` line shows in the output, or when an `E ` line shows first. `_failed_before_assertion` holds the rule.
+- The JSON block does not change, so no other reader of the wake moves.
