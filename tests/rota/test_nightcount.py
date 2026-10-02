@@ -273,6 +273,7 @@ def test_night_106_counts_each_wake_key_on_one_head():
     """
     c = count(connect_readonly(NIGHT106))
     assert c["repeat_wakes"] == 9 and c["repeat_sessions"] == 24 and c["repeats"] == 15
+    assert c["dangling_most"] == [("s147", 14), ("s200", 14), ("s131", 13)]
     for group in (["s143", "s145"], ["s201", "s202"], ["s223", "s224"],
                   ["s226", "s227", "s228"]):
         assert group in c["repeat_groups"]
@@ -299,7 +300,7 @@ def test_main_prints_six_lines_of_facts(tmp_path, capsys):
                       "a write result), 1 with a landed commit, shas 4473c354")
     assert out[3] == "dangling pointers: 1 turns, 1 sessions"
     assert out[4] == ("  A dangling pointer is a turn whose prompt holds the eviction "
-                      "notice and a refusal to run a call again. most: s2 (1)")
+                      "notice and a refusal to run a call again. Most such turns: s2 (1)")
     assert out[5] == "repeats: 1 wakes repeated, 2 sessions, 1 of them repeats"
 
 
@@ -318,6 +319,6 @@ def test_a_clean_run_prints_zeros(tmp_path, capsys):
         "result), 0 with a landed commit, shas none",
         "dangling pointers: 0 turns, 0 sessions",
         "  A dangling pointer is a turn whose prompt holds the eviction notice and a "
-        "refusal to run a call again. most: none",
+        "refusal to run a call again. Most such turns: none",
         "repeats: 0 wakes repeated, 0 sessions, 0 of them repeats",
     ]

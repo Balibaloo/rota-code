@@ -279,7 +279,7 @@ def lines(name: str, c: dict) -> list[str]:
         f"dangling pointers: {c['dangling_turns']} turns, "
         f"{c['dangling_sessions']} sessions",
         "  A dangling pointer is a turn whose prompt holds the eviction notice "
-        "and a refusal to run a call again. most: "
+        "and a refusal to run a call again. Most such turns: "
         + (", ".join(f"{sid} ({n})" for sid, n in c["dangling_most"]) or "none"),
         f"repeats: {c['repeat_wakes']} wakes repeated, "
         f"{c['repeat_sessions']} sessions, {c['repeats']} of them repeats",
