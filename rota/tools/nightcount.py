@@ -195,20 +195,35 @@ def _repeats(conn: sqlite3.Connection, turns: list) -> list[list[str]]:
     attempts. Night 105's s141, s142 and s143 woke on one tree with three
     hashes, and the hash rule counted no repeat (frame 105, pass 5).
 
-    The tree is the head of the last landed commit in an earlier session's
-    turns. A session with no earlier landed commit has no known tree, so
-    the second rule never joins it.
+    The union links whole groups, so a group can span trees through the
+    hash rule. On night 101, s146 to s167 form one group across seven heads.
+
+    The tree is the head of the newest landed commit in an earlier session's
+    prompts. A session with no earlier landed commit has no known tree, so
+    the second rule never joins it. The read skips the completion, because
+    a seat can type an `OK code.commit` line itself. Night 101 holds 3 such
+    completions, and night 90 holds 14. The newest head is the newest by
+    turn order. A middle eviction can drop the newest result from a later
+    prompt and leave an older one.
+
+    The second rule needs the `trigger_msg` and `wake_refs` columns. Without
+    them, the key joins every session of one role and kind on one tree.
     """
     have = {r[1] for r in _rows(conn, "PRAGMA table_info(sessions)")}
     if not have:
         return []
+    keyed = {"trigger_msg", "wake_refs"} <= have
     cols = ("id", "seq", "role", "wake_kind", "trigger_msg", "wake_refs", "prompt_hash")
     sel = ", ".join(c if c in have else f"NULL AS {c}" for c in cols)
     sessions = _rows(conn, f"SELECT {sel} FROM sessions ORDER BY seq")
     landed: dict[str, str] = {}
+    seen: dict[str, set[str]] = {}
     for r in turns:
-        for text in (r["user"] or "", r["completion"] or ""):
-            for m in COMMIT_HEAD.finditer(text):
+        known = seen.setdefault(r["sid"], set())
+        for m in COMMIT_HEAD.finditer(r["user"] or ""):
+            # A head that an earlier turn showed is older than a new one.
+            if m.group(1) not in known:
+                known.add(m.group(1))
                 landed[r["sid"]] = m.group(1)
     parent = {s["id"]: s["id"] for s in sessions}
 
@@ -223,7 +238,7 @@ def _repeats(conn: sqlite3.Connection, turns: list) -> list[list[str]]:
         keys = []
         if s["prompt_hash"]:
             keys.append(("hash", s["prompt_hash"], s["wake_kind"]))
-        if tree is not None:
+        if keyed and tree is not None:
             keys.append(("wake", s["role"], s["wake_kind"], s["trigger_msg"],
                          s["wake_refs"], tree))
         for k in keys:

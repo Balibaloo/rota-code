@@ -1,4 +1,5 @@
 """rota/tools/nightcount.py: the night's four counters over a run database."""
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -217,8 +218,28 @@ def test_a_repeat_shares_the_wake_key_on_one_tree(tmp_path):
         turn(conn, "s4", 1, "wake\n\n" + LANDED.replace("4473c35", "9999999"), "done")
 
     c = counted(tmp_path, build)
+    # The count comes first, so the tool before the key rule fails on it.
+    assert c["repeat_wakes"] == 1
     assert c["repeat_groups"] == [["s2", "s3"]]
     assert c["repeat_sessions"] == 2 and c["repeats"] == 1
+
+
+def test_an_old_database_without_the_key_columns_joins_no_wake_by_key(tmp_path):
+    """Without the trigger and the refs, the key would join every session of one role and kind."""
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE sessions (id TEXT, role TEXT, wake_kind TEXT, seq INTEGER, "
+                 "prompt_hash TEXT)")
+    conn.execute("CREATE TABLE turns (session_id TEXT, seq INTEGER, user TEXT, "
+                 "completion TEXT)")
+    for sid, seq, h in (("s1", 1, "h1"), ("s2", 2, "h2"), ("s3", 3, "h3")):
+        conn.execute("INSERT INTO sessions VALUES (?, 'developer', 'tick:tests_failing', ?, ?)",
+                     (sid, seq, h))
+    conn.execute("INSERT INTO turns VALUES ('s1', 1, ?, 'done')", ("wake\n\n" + LANDED,))
+    conn.commit()
+    conn.close()
+    c = count(connect_readonly(path))
+    assert c["repeat_wakes"] == 0 and c["repeat_groups"] == []
 
 
 NIGHT105 = Path(__file__).resolve().parents[2] / ".rota" / "clickI_night105.db"
@@ -232,6 +253,7 @@ def test_night_105_counts_the_three_attempts_as_one_repeated_wake():
     s132 and s138 woke on tests_missing for bg_1 on the same tree, with one wake detail.
     """
     c = count(connect_readonly(NIGHT105))
+    assert c["repeat_wakes"] == 2
     assert ["s141", "s142", "s143"] in c["repeat_groups"]
     assert c["repeat_groups"] == [["s132", "s138"], ["s141", "s142", "s143"]]
     assert c["repeat_wakes"] == 2 and c["repeat_sessions"] == 5 and c["repeats"] == 3
