@@ -204,7 +204,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 110. A challenged test is rewritten into the same fault, and the one not challenged never changes (2026-10-02)
+### 110. A challenged test is rewritten into the same fault, and the one not challenged never changes (2026-10-02) (eca94a44)
 
 - **Batch C, the night's stall, found by night 106's read.** Sites: the Tester's answer mode on a challenge, `rota/roles/prompts/tester/`, and the `tests.encode` guard.
 - Rota workflow. On night 106 the three `echo_json` tests failed because they invoke a plain function through `CliRunner`. Seven challenges reached the Tester. It rewrapped `_01` and `_03` in `@command() def cli(obj)` and passed a dict or an object as a CLI argument, so they still fail, and it never touched `_02`, the one the first challenge named. bg_1 went from one failure to three and parked at attempt 10 (observed: `plans/night106-read.md`, section 2, 2026-10-02).
@@ -212,6 +212,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended first: it is the root of bg_1's stall on two nights.
 - Reasoning: `plans/night106-read.md`, sections 2 and 6.
 - Status 2026-10-02 13:47 (rota-65): pushed by eca94a44, unclaimed, unpriced. Rota workflow.
+- Status 2026-10-02 14:30 (rota-65): **Roman rules the order: 110, 111, 112, then 108, 113, 114** (ruled: Roman, 2026-10-02 14:30, asked with the repeat guard first and the tail cap first as the other options; low impact). Rota workflow. Claimed by eca94a44 beside frame 105's pass, different files. A scope read runs on Opus, read-only, over the Tester's answer brief, the `tests.encode` guard and `s146`, `s148`, `s153` of night 106, and writes `plans/frame110-design.md` revision 1.
 
 ### 111. A Developer loops on a refused repeat challenge instead of escalating (2026-10-02)
 
@@ -248,6 +249,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's ruling, medium impact. Recommended: the Developer treats it as the sentence's own test and fixes the code, and reports to the Liaison when the fix would change behaviour the sentence did not ask for.
 - Reasoning: `plans/night106-read.md`, section 6.
 - Status 2026-10-02 13:47 (rota-65): pushed by eca94a44, unclaimed, blocked on Roman. Rota workflow.
+- Status 2026-10-02 14:30 (rota-65): Roman asked, in place of a ruling, what a team does with a failing inherited test in theory. Answered in the terminal; the frame stays blocked on his ruling. Rota workflow.
 
 ### 108. A tail reply larger than the budget empties the window's middle (2026-10-01)
 
@@ -291,6 +293,7 @@ a different question and the night is then opened once.
 - Status 2026-10-02 10:25 (rota-65): **pass 6, 91.3k cumulative on the harness line, so about 9k for the pass, committed by me at 7ee6403: all four fixed, the head reads from prompts only and by turn order, the wake key needs its two columns, one new synthetic test, 23 pass; neither repeats line moved** (observed: the agent's runs, 2026-10-02). Meta workflow. The loop stops at two passes. Built at 7ee6403. Validating: the next night's read starts from the print and its harness count closes the frame under 60k. Totals: passes 88.3k, 82k, 23k, 16k, 82.5k, 9k; reviews 76.7k, 36.7k, 11.5k, 13.2k, 46.2k; reads 73.5k, 55.2k, 94.8k.
 - Status 2026-10-02 10:40 (rota-65): **validating on night 106 from bf74640; the read starts from the print and its harness count closes the frame under 60k** (observed: the gate at 8288a39, 23 against 23, stale 0, 2026-10-02). Meta workflow.
 - Status 2026-10-02 13:47 (rota-65): **measured on night 106: the read from the print cost 94.6k on the harness line with 8 queries and six questions, against the 60k line; the print's repeat line counted one pair where the rows hold five groups on unchanged heads, and the print does not define a dangling pointer, so one of six questions went unanswered** (observed: the harness line and the read, 2026-10-02). Meta workflow. Four measures, 73.5k, 55.2k, 94.8k, 94.6k: the cost follows the questions asked, not the print. Blocked on Roman, low impact. Recommended: drop the cost line, one pass fixes the two print gaps, and the frame closes on that pass's review (reasoned: a line the questions set is not a line the tool can meet).
+- Status 2026-10-02 14:30 (rota-65): **Roman rules: the cost line is dropped, one pass fixes the two print gaps, and the frame closes on that pass's review** (ruled: Roman, 2026-10-02 14:30, asked with a three-question cap and close-now as the other options; low impact). Meta workflow. Pass 7 on the same agent: the repeat rule catches night 106's five groups, and the print defines a dangling pointer.
 
 ### 98. A seat sends a second message after its session is complete, and a case passes on a broken file (2026-09-30)
 
