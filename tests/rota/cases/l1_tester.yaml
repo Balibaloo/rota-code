@@ -105,7 +105,7 @@
     to: tester
     verb: challenge
     body_refs: [<tst1>, <c1>]
-    body_text: "The criterion says \"echo_json prints the value as compact JSON
+    body_text: "The criterion says \"echo_json prints the value as JSON
       on one line, with no indentation\". The test says
       `asyncio.run(echo_json({\"a\": 1}))`. The test fails."
   repo:
@@ -126,7 +126,7 @@
       - {id: <tk1>, item_id: <i1>, text: "print a value as JSON"}
     criteria:
       - {id: <c1>, ticket_id: <tk1>,
-         text: "echo_json prints the value as compact JSON on one line, with no indentation",
+         text: "echo_json prints the value as JSON on one line, with no indentation",
          term_refs: '[]'}
     batches:
       - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
