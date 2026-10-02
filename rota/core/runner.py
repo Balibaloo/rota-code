@@ -1627,6 +1627,17 @@ def _failed_before_assertion(body: str, output: str) -> bool:
     """
     asserts = [s.strip() for s in body.splitlines()
                if s.strip().startswith("assert")]
+    # A chained traceback prints the cause first, with its own `E ` line,
+    # and the test's section last. Night 107 (2026-10-02): s151's test
+    # caught a TypeError and asserted on its text, the cause's `E ` line
+    # sat above the assert, and the label read "before any assertion" on
+    # a test that reached its own line 11. The last section is the test's.
+    for marker in ("During handling of the above exception, another "
+                   "exception occurred:",
+                   "The above exception was the direct cause of the "
+                   "following exception:"):
+        if marker in output:
+            output = output.rsplit(marker, 1)[1]
     lines = output.splitlines()
     named = next((i for i, line in enumerate(lines)
                   if any(a in line for a in asserts)), None)

@@ -2337,3 +2337,16 @@ def test_a_tester_challenge_shows_the_failed_run_as_text_above_the_json(db):
            "E       AssertionError\n")
     assert not _failed_before_assertion(body, ran)
     assert _failed_before_assertion(body, output)
+
+    # Night 107, s151: a chained traceback prints the cause's `E ` line
+    # above the test's own assert. The last section decides.
+    chained = ("E       TypeError: Object of type function is not JSON "
+               "serializable\n\n"
+               "json/encoder.py:182: TypeError\n\n"
+               "During handling of the above exception, another exception "
+               "occurred:\n\n"
+               "    def test_report_has_title():\n"
+               "        result = make_report('q3')\n"
+               ">       assert result.title == 'q3'\n"
+               "E       AssertionError\n")
+    assert not _failed_before_assertion(body, chained)
