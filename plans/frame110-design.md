@@ -66,3 +66,14 @@ Two notes for the stack, outside frame 110:
 
 - `_02` stays broken under (b), because no seat re-encodes it. The Developer challenged `_03` and `_01` only. A frame on the Developer's choice of test needs its own read (reasoned: section 0).
 - `plans/night106-read.md` section 2 says only `_02` failed before af4cbede. The deleted runs at `db.py:580` explain that reading. A correction line is owed there (reasoned: section 0).
+
+## Revision 2, 2026-10-02 14:38, the holder
+
+Decided from the design review (observed: the reviewer's probes on `graph.json`, `runner.py:1580-1595`, `harness.py:171` and night 106's `runs`, 2026-10-02):
+
+1. No new edge. The Tester has `reads code (source)`, ruled 2026-09-24, so `code.source` joins `tester/challenge.tools` as a mode narrowing with a ruling comment, as `answer.tools` has. `tests.load` and `code.probe` are dropped: both need edges the graph does not grant, and `tests.load`'s rows are written for the Developer.
+2. The failure text goes by the runner route: the resolver at `runner.py:1580-1595` keeps the whole stored output, at most 2000 characters by `harness.py:171`, for a Tester wake only, and the 700-character tail for every other role, so no other role's prompt moves. The 700 tail of `_03`'s run holds parser frames and not the test's own call line; the full 1999 characters hold the call and `TypeError: object of type 'BadObj' has no len()`.
+3. The brief: `challenge.md:3-4` widens past "more, less or something else" to a test that cannot run against any code; after line 6 one conditional line: if the test's last run failed before any assertion ran, read that failure and the code the test calls with `code.source`, and change the line the failure names; a test that calls a function the way a runner calls a command is the test's fault. `base.md:5-6` stays, as answer mode lives with it.
+4. No guard in `tests.encode`. Option (b) and the positional-args variant are declined: both need a list of runner callees, which is framework knowledge, and the destination is any small Python repository.
+5. Section 0 line 10 is corrected: `_02` raised `KeyError: 'prog_name'`, `_01` `KeyError: slice(None, 1, None)`, `_03` `TypeError: object of type 'BadObj' has no len()`.
+6. One new case, `L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner`, framework-free: the repository seeds `src/report/export.py` with a plain `echo_json`, the test calls `asyncio.run(echo_json({"a": 1}))`, the seeded red run says `ValueError: a coroutine was expected, got None`; expects one `tests` write whose body calls `echo_json` directly, forbids `criteria`, `items`, `tickets`. Re-records: that case and the two challenge cases. Price: one pass about 90k, one review about 65k, three re-records about 15 GPU minutes.
