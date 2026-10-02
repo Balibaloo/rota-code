@@ -204,14 +204,15 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 109. The Developer's challenge to the Tester never parses, and the batch gives up on a test that calls a function as a command (2026-10-02)
+### 109. The Developer's challenge to the Tester never parses, and the batch gives up on a test that calls a function as a command (2026-10-02) (eca94a44)
 
 - **Batch C, the night's stall, found by night 105's read.** Sites: the Developer's brief on challenging a test, `rota/roles/prompts/developer/`, and the tool-call parser's handling of a quoted argument that carries a test body.
 - Rota workflow. On night 105 bg_1 reached tests_failing with three tests that call `CliRunner().invoke(echo_json, ...)` on a plain function, so every run fails with `KeyError: 'prog_name'`. The Developer may not edit a test, and its one exit is `msg.challenge_tester`. Sessions `s141`, `s142` and `s143` each tried it four times and each try failed with `unterminated argument list: a quote inside a quoted argument ended the string early`, because the seat put the whole test body into `quotes=` and the body holds a `'` inside `"`, and it closed the string before `round_no=0`. Three attempts ran as one repeated wake on the same tree, the tick quarantined, the night gave up, and bg_2 and bg_3 never started (observed: the Opus read of night 105 and one query on `s141` turn 4, 2026-10-02). The launcher's `repeats: 0` line and the print's repeat count missed it, which is frame 105's second defect.
 - Ends when: a Developer's challenge whose quote carries a test body lands, by a brief that tells the seat to quote one line and name the test, or by a parser that takes a triple-quoted or fenced argument, or both; one parser test on `s141`'s turn 4 call; the Developer's challenge cases re-record; a night where a tests_failing wake either fixes the code or lands a challenge, and no wake repeats on an unchanged tree. Price after a read of the parser's door and the brief, about 30k.
-- Waits on: Roman's order against frame 108, the tail cap. Recommended: this frame first, because it stopped the whole night at the first batch and frame 108 is a sharpening of a window that held on this night.
+- Waits on: nothing. **Roman rules: this frame before frame 108** (ruled: Roman, 2026-10-02 04:15, asked with frame 108 as the other option; the stall stopped the night at batch one).
 - Reasoning: `plans/night105-read.md`, questions 4 and 7.
 - Status 2026-10-02 04:08 (rota-65): pushed by eca94a44, unclaimed, unpriced. Rota workflow.
+- Status 2026-10-02 09:26 (rota-65): **claimed by eca94a44 on Roman's ruling, beside frame 105's pass, because the two touch different files; a scope read runs on Opus, read-only, over the parser's door and the Developer's brief, and writes `plans/frame109-design.md` revision 1** (ruled: Roman, 2026-10-02 04:15). Rota workflow.
 
 ### 108. A tail reply larger than the budget empties the window's middle (2026-10-01)
 
@@ -249,6 +250,7 @@ a different question and the night is then opened once.
 - Status 2026-10-01 14:15 (rota-06): **taken by 10885dab from d2cc277a's hand-off at stack commit de65f97, validating only** (observed: the take command's exit 0, 2026-10-01 14:15). Meta workflow. Frame 106's read is next on the recorded order, checked with Roman before it starts.
 - Status 2026-10-02 02:56 (rota-65): **taken by eca94a44, validating; night 105's read measures the 40k line** (observed: the take command's exit 0, 2026-10-02 02:55). Meta workflow.
 - Status 2026-10-02 04:08 (rota-65): **measured on night 105: the read from the print cost 94.8k on the harness line with 12 queries, against the 40k line; the print has two wrong counts, the window phrase at 20 turns where the rows hold 43, and `repeats: 0` where three Developer wakes on bg_1 were one wake repeated with the same tree and key** (observed: the harness line and the agent's own counts against the print, 2026-10-02). Meta workflow. The line is unmet on three nights, 73.5k, 55.2k, 94.8k, and the agent's base before its first query is about 39k, so 40k is below the floor of any read that queries at all. Blocked on Roman. Recommended: one pass on Opus fixes the two counts, and the line moves to 60k, the measured floor plus a few queries, so the frame closes on the next night (reasoned: three measures, the lowest at 55.2k on a two-session night). The facts of the read are in `plans/night105-read.md`.
+- Status 2026-10-02 09:26 (rota-65): **Roman rules: one pass fixes the two counts, and the line moves from 40k to 60k** (ruled: Roman, 2026-10-02 04:15, asked with close-as-built and keep-measuring as the other options; three measures and a 39k floor before the first query). Meta workflow. Pass 5 runs on Opus: the window phrase count and the repeated-wake count, each with a test on `.rota/clickI_night105.db`. The frame closes on the next night's read under 60k.
 
 ### 98. A seat sends a second message after its session is complete, and a case passes on a broken file (2026-09-30)
 
