@@ -86,3 +86,5 @@ The design review on Opus confirmed three defects in section 5 (observed: the re
 6. The case copies the tests, test_runs and batch shape of `L1-DV-fix-the-code-not-the-test` and the messages shape of `l1_unresolved.yaml:44`, with `body_refs` as exact JSON, `forbidden.calls: [msg.challenge_tester]`, and `any_of` for the landed write and commit or the landed escalation.
 
 Pass 1 now holds the Developer's two doors and the shield helper, with sandbox tests. Pass 2 holds the push and the case. Frame 115 holds the Architect.
+
+Note, 2026-10-02 17:51: the no-row refusal's words are the pass 1 brief's, `with no row beyond your own refs`, and they stand; section 6 item 2 paraphrased them. A decorator `@patch('sys.stdin')` whose mock the body configures is a true shield the helper does not read; the false refusal is accepted until a night shows the shape (reasoned: two reviews, no recorded body uses it).
