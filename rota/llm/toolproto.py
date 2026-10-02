@@ -638,7 +638,21 @@ def extract(text: str, signatures: dict | None = None, *,
         raw_args = text[args_start:args_end]
         try:
             args, pos = parse_args(raw_args)
-        except Exception as exc:
+        except Exception as first_exc:
+            # Frame 109, night 105: the first scan read `can't` inside a
+            # `'''` value as a quote and closed the list early. The rescan
+            # reads `'''` as one token, so ask it before the refusal.
+            rescan_end = _rescan_args(text, args_start, MARKER)
+            if rescan_end is not None and rescan_end != args_end:
+                args_end = rescan_end
+                raw_args = text[args_start:args_end]
+                args, pos = parse_args(raw_args)
+                exc = None
+            else:
+                exc = first_exc
+        else:
+            exc = None
+        if exc is not None:
             add(ToolError(f"{MARKER} {name}({raw_args[:80]})",
                           f"could not parse arguments: {exc}"), marker)
         else:

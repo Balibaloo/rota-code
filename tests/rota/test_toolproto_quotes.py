@@ -130,3 +130,44 @@ def test_an_argument_list_the_first_scan_cannot_close_is_read_again():
     got = toolproto.extract(raw2)
     assert len(got) == 1 and not isinstance(got[0], toolproto.ToolError), got
     assert "def test_x" in got[0].args["body"]
+
+
+# Night 105, `.rota/clickI_night105.db`, session s141: the `quotes=` value of
+# turns 4 and 5, byte for byte. The `\n` and `\"` are text, as the seat wrote.
+NIGHT105_BODY = r"""Criterion echo_json_compact_3: The callable `echo_json` must handle non-serializable objects by raising a `TypeError` consistent with the behavior of standard library JSON serialization, rather than silently failing or printing a fallback.\n\nTest inh_echo_json_03 body: def test_echo_json_non_serializable():\n    from click.testing import CliRunner\n    from src.click.utils import echo_json\n    \n    runner = CliRunner()\n    # Pass a non-serializable object (e.g., a custom class instance without __dict__ or __repr__ that JSON can't handle)\n    class BadObj:\n        def __init__(self):\n            self.value = \"test\"\n    \n    result = runner.invoke(echo_json, [str(BadObj())], catch_exceptions=False)\n    # It should raise TypeError because json.dumps cannot serialize it\n    assert result.exit_code != 0\n    assert 'TypeError' in result.output"""
+
+NIGHT105_HEAD = "TOOL: msg.challenge_tester(refs=['echo_json_compact_3', 'inh_echo_json_03'], "
+
+
+def test_a_triple_quoted_value_the_first_scan_closes_early_is_read_again():
+    """
+    Frame 109, night 105, s141 turn 5 with the stray outer `"` removed. The
+    first scan reads `can't` as an opening quote and closes the list at the
+    `)` after it. The arguments up to there do not parse, so the rescan runs
+    and reads `'''` as one token.
+    """
+    raw = NIGHT105_HEAD + "quotes='''" + NIGHT105_BODY + "''', round_no=0)"
+    got = toolproto.extract(raw)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolCall), got
+    assert got[0].args["refs"] == ["echo_json_compact_3", "inh_echo_json_03"]
+    assert "can't handle" in got[0].args["quotes"]
+    assert got[0].args["quotes"].endswith("'TypeError' in result.output")
+    assert got[0].args["round_no"] == 0
+
+
+def test_a_stray_quote_after_the_value_is_still_the_same_door():
+    """
+    Night 105, s141 turn 4 as written: the seat opened a second string at
+    `", "round_no=0)`. No parser can tell that quote from a real one, so the
+    refusal and its hint stay, byte for byte (frame 109's review: 217
+    cassette prompts carry the door text).
+    """
+    raw = NIGHT105_HEAD + 'quotes="' + NIGHT105_BODY + '", "round_no=0)'
+    got = toolproto.extract(raw)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].raw == "TOOL: msg.challenge_tester(..."
+    assert got[0].reason == (
+        "unterminated argument list: a quote inside a quoted argument "
+        "ended the string early, or a bracket is unbalanced. Source "
+        "has quotes of its own: put it between triple quotes, "
+        "text='''...''', with the lines as they are, no escaping")

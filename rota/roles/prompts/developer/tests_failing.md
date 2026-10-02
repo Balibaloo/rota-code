@@ -23,9 +23,10 @@ read rather than of what is there.
 `code.write`, `code.commit`. Do not edit the test.
 
 **No — then stop.** `msg.challenge_tester(refs=[criterion_id, test_id],
-quotes="...")` — `quotes=` copies the exact words of both rows, the span of
-the criterion and the span of the test, verbatim, not your summary of them.
-Then change nothing. This is the one case where making a red test pass is the
+quotes=["<the criterion's words>", "<one code line of the test>"])`. Name the
+test by its id in `refs`. Copy the criterion's words verbatim, not your summary.
+The test's quote is one code line of the test, not a comment and not the whole
+body. Then change nothing. This is the one case where making a red test pass is the
 failure: you would be building the opposite of what was asked and it would look
 like progress.
 
