@@ -166,7 +166,7 @@ from pathlib import Path
 BOX = ".handover"
 BEAT = 20.0
 STALE = 90.0
-WAIT = 28800.0
+WAIT = 7000.0     # under the harness's 7200s cap on a background command
 CONFIRM = 90.0
 RECLAIM = 900.0
 GRACE = 25.0

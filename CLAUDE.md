@@ -129,7 +129,10 @@ started, and the tool reads it. A session cannot read its own peer name
 until it lists its peers, so a typed name is a guess. One session typed a
 description, and its row then named nobody a message could reach.
 
-Run it with the Bash tool and its background flag. Then run
+Run it with the Bash tool, its background flag, and a `timeout` of
+7200000. The harness kills a background command at two hours, and the
+default limit is thirty minutes. The watcher blocks 7000 seconds and
+exits 3 by itself, so a re-arm is one turn per two hours. Then run
 `python rota/tools/handover.py peers` and find your own session id in
 the table. A background command returns at once and can still fail, so
 prove the arm before you report it. The name beside your session id is

@@ -498,7 +498,7 @@ the machine the tool was built on.
 - The cost of arming a standby: one command and one line of reply. Not yet
   measured here.
 - The cost of a re-arm when the wait runs out: one turn per standby per
-  `--wait`. At the 28800 default that is one turn per session per eight hours.
+  `--wait`. At the 7000 default that is one turn per session per two hours.
   Two standbys ran out at 10:37 and re-armed four and seven seconds later with
   no person present, and both still read about 20k after twelve and a half hours
   in the reserve (observed: a destination's hand-off log, 2026-09-20).
@@ -506,7 +506,12 @@ the machine the tool was built on.
   times over 49.7 minutes on the kit's machine and then ended on its own
   clock. The longest gap between two beats was 22 seconds against a 20 second
   interval. The ceiling is above 50 minutes and is otherwise unknown
-  (borrowed). Measure it here, then set `--wait` below it.
+  (borrowed). Measured here: a watcher armed with no `timeout` was killed at
+  30 minutes, and one armed with the maximum `timeout` of 7200000 was killed
+  at 2 hours exactly. The sign is a task notification with status `killed`
+  and no exit code. The `--wait` default is 7000 from 2026-10-02, so the
+  watcher exits 3 before the kill (observed: session 4612e9cc, 2026-10-01
+  22:05 to 2026-10-02 00:36).
 
 **All seven of the kit's update steps are installed, 2026-09-20 02:30.** The
 last two needed Roman to approve them by hand. A session running in auto mode
