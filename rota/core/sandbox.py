@@ -671,38 +671,6 @@ def _quotes_span(source: str, text: str, n: int = 12) -> bool:
     return any(src[i:i + n] in msg for i in range(len(src) - n + 1))
 
 
-def _unrunnable_test(ctx: api.Ctx, challenged: str | None) -> None:
-    """Refuse an answer while a challenged test cannot run as written.
-
-    Frame 110: the seat named the fault, then answered and kept the test.
-    The test counts as unchanged while this session staged no `tests` write
-    for it. A landed re-encode deletes the test's runs (`db.py`), so a later
-    session sees no run. A quote of the criterion does not open this door,
-    because a hold keeps a test that fails against any code.
-    """
-    from .db import refs_of
-    from .runner import _failed_before_assertion
-
-    staged = {w[1] for w in (ctx.writes or []) if w[0] == "tests"}
-    for ref in refs_of(challenged):
-        if ref in staged:
-            continue
-        test = ctx.conn.execute(
-            "SELECT body FROM tests WHERE id = ?", (ref,)).fetchone()
-        if not test:
-            continue
-        run = ctx.conn.execute(
-            "SELECT result, output FROM test_runs WHERE test_id = ? "
-            "ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone()
-        if (run and run["result"] == "fail"
-                and _failed_before_assertion(test["body"] or "",
-                                             run["output"] or "")):
-            raise ValueError(
-                f"{ref} failed before any assertion ran, so it cannot pass "
-                f"against any code as written. Change {ref} with tests.encode "
-                f"before you answer")
-
-
 def _answer_evidence(ctx: api.Ctx, refs, text: str) -> None:
     """The Tester's answer to a challenge quotes the criterion it stands on.
 
@@ -711,11 +679,9 @@ def _answer_evidence(ctx: api.Ctx, refs, text: str) -> None:
     refs; the exit for a test that asserts more than its criterion is
     `tests.encode`, and this door names it."""
     trig = ctx.conn.execute(
-        "SELECT verb, body_refs FROM messages WHERE id = ?",
-        (getattr(ctx, "trigger", None),)).fetchone()
+        "SELECT verb FROM messages WHERE id = ?", (getattr(ctx, "trigger", None),)).fetchone()
     if not trig or trig["verb"] != "challenge":
         return
-    _unrunnable_test(ctx, trig["body_refs"])
     crit = [(r, row["text"]) for r in (refs or [])
             for row in [ctx.conn.execute("SELECT text FROM criteria WHERE id = ?", (r,)).fetchone()]
             if row]

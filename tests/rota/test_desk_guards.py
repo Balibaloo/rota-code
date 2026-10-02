@@ -527,51 +527,6 @@ def test_a_tester_cannot_hold_a_test_whose_run_reached_stdin(db):
                 quotes="leaves its invoices in place")
 
 
-def _challenged_run(db, output):
-    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
-               "result, attempt, output) VALUES ('r1','b1','tst1','abc123',"
-               "'fail',1,?)", (output,))
-    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-               "body_refs, seq, status) VALUES ('m1','th','developer','tester',"
-               "'challenge','[\"c1\", \"tst1\"]',1,'open')")
-    db.commit()
-    from rota.roles import prompts
-    sb = build("tester", db, batch_id="b1", mode="challenge",
-               allow=prompts.mode_tools("tester", "challenge"),
-               wake=Wake("tester", "message", message_id="m1", refs=("m1",)))
-    # `run_session` sets the trigger, and `build` alone does not.
-    sb.ctx.trigger = "m1"
-    return sb
-
-
-def test_a_tester_cannot_answer_for_a_test_that_failed_before_any_assertion(db):
-    """Frame 110: the seat named the fault, then answered and kept a test
-    that fails against any code. The answer waits for `tests.encode`."""
-    sb = _challenged_run(db, "    def test_close():\n"
-                             ">       close_account(Account('a1'))\n"
-                             "E       TypeError: Account() takes no arguments\n")
-    with pytest.raises(ValueError, match="tst1 failed before any assertion"):
-        sb.call("msg.answer_developer", refs=["c1", "tst1"],
-                quotes="leaves its invoices in place")
-    sb.call("tests.encode", id="tst1", criterion_id="c1",
-            path="test_close.py",
-            body="from accounts import close_account, invoices_for\n\n\n"
-                 "def test_close():\n    a = close_account('a1')\n"
-                 "    assert invoices_for(a)")
-    sb.call("msg.answer_developer", refs=["c1", "tst1"],
-            quotes="leaves its invoices in place")
-
-
-def test_a_tester_holds_a_test_whose_assertion_ran(db):
-    """The hold path stays open: an assertion that ran and failed is a
-    dispute about the criterion, and a quoted answer lands with no edit."""
-    sb = _challenged_run(db, "    def test_close():\n"
-                             ">       assert close_account('a1') is not None\n"
-                             "E       assert None is not None\n")
-    sb.call("msg.answer_developer", refs=["c1", "tst1"],
-            quotes="leaves its invoices in place")
-
-
 def test_a_commit_resets_the_failing_ticks_attempts(db):
     """Walk seventeen: four, three, two tests failing across three commits
     and the third session was the quarantine -- progress counted as
