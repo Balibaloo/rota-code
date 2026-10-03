@@ -88,3 +88,15 @@ The design review on Opus confirmed three defects in section 5 (observed: the re
 Pass 1 now holds the Developer's two doors and the shield helper, with sandbox tests. Pass 2 holds the push and the case. Frame 115 holds the Architect.
 
 Note, 2026-10-02 17:51: the no-row refusal's words are the pass 1 brief's, `with no row beyond your own refs`, and they stand; section 6 item 2 paraphrased them. A decorator `@patch('sys.stdin')` whose mock the body configures is a true shield the helper does not read; the false refusal is accepted until a night shows the shape (reasoned: two reviews, no recorded body uses it).
+
+## 7. Decisions, revision 4 (2026-10-03 03:28, the frame holder, after night 111)
+
+Night 111 is read in `plans/night111-read.md`. The door text works where the seat reads it. The seat did not read it twice in s252: once ignored at turn 6, once evicted by turn 17 (observed: the turn's user text, 2026-10-03). Every statement is about the rota workflow.
+
+1. `runner._thread_on_tests` reads the prior's status as the door does. The query adds `m.status`. A prior with no answer row and `status != 'open'` reads `closed (<status>) with no answer row`. A prior with no answer row and `status = 'open'` keeps `not answered yet`. A prior with an answer row keeps today's three shapes. Two readings of one message in one prompt no longer disagree.
+2. The thread key carries the way out once. When any entry's answer is not `not answered yet`, the push adds one key after the thread, `after these`: `A listed message that is answered or closed is refused if sent again on these refs. Make one real change to the code the test calls, or end the session with no call.` The key sits in the wake head, which `_fit` keeps, so the sentence survives the eviction that removed the refusal at turn 17. A wake with no thread, or a thread where every entry waits, pushes the same bytes as before, so the recorded tests_failing cases hold.
+3. The repeat-refs refusal on a challenge names the rung as an instruction. `Sending it again is the same argument again -- msg.escalate_architect` becomes `Sending it again is the same argument again. Do not send this challenge again. Send msg.escalate_architect on the same refs, or make one real change to the code the test calls.` The `schedule.unresolved` branch takes the same shape with its own name. The escalation branch keeps its text. Recorded cases that hold the old sentence go stale and re-record.
+4. The three-strike note and `_fit` do not change. Decision 2 makes the way out durable without touching the window.
+5. The measure is the seam again, night 112, from `.rota/clickI_night109_cut.db` at 93e061b6. Closes when no Developer session is refused the same challenge three times and no two sessions land a challenge on the same sorted refs; the cold night follows.
+
+Price: pass 6 about 110k cold on Opus, three text changes with one runner test and one sandbox test each; one diff review about 40k; the gate; one seam night of about 15 minutes.
