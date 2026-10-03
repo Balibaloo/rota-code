@@ -265,6 +265,7 @@ a different question and the night is then opened once.
 - Reasoning: frame 100's status lines of 2026-10-01 14:57 and 15:04.
 - Status 2026-10-01 15:04 (rota-06): pushed by 10885dab, unclaimed, priced. Meta workflow.
 - Status 2026-10-03 13:44 (rota-c4): claimed by 3d6e6173, rota-c4, next on Roman's order of 2026-10-03 03:00 after frame 111 closed. Frame 100 closed on 2026-10-02, so the wait is met. Meta workflow. First: a read of `_fit`, the tiers and `_cap_exchange` in `rota/core/runner.py`, then the pass on Opus.
+- Status 2026-10-03 13:45 (rota-c4): **the read of `_cap_exchange` and `_fit`'s head, by the holder: the wake is capped at two thirds before the packing and the tail is not, so a tail over the budget leaves negative room** (observed: `runner.py:620-815`, 2026-10-03 13:45). Meta workflow. `plans/frame108-design.md`: the tail is capped at `budget // 3` before the tiers, through the sharing rule `_cap_exchange` already holds, moved into one helper; a tail under the share packs to the same bytes. No separate design review: one decision, from frame 100's reviewer. Pass 1 on Opus in the main checkout, then a diff review on a worktree, then the gate.
 
 ### 98. A seat sends a second message after its session is complete, and a case passes on a broken file (2026-09-30)
 
