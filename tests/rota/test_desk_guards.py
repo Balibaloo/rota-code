@@ -622,8 +622,9 @@ def test_a_challenge_that_waits_for_its_answer_is_not_sent_twice(db):
         sb2.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=quotes)
     assert str(exc.value) == (
         "you sent challenge to tester on exactly these refs already (m1) and "
-        "they answered. Sending it again is the same argument again -- "
-        "msg.escalate_architect")
+        "they answered. Sending it again is the same argument again. Do not "
+        "send this challenge again. Send msg.escalate_architect on the same "
+        "refs, or make one real change to the code the test calls.")
 
 
 @pytest.mark.parametrize("status", ["answered", "unresolved"])
@@ -674,11 +675,36 @@ def test_a_closed_challenge_with_no_answer_row_is_answered(db):
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
-    with pytest.raises(ValueError, match=r"\(m1\) and they answered\. .* -- "
-                                         r"msg\.escalate_architect$"):
+    with pytest.raises(ValueError, match=r"\(m1\) and they answered\. .* Send "
+                                         r"msg\.escalate_architect on the same refs"):
         sb.call("msg.challenge_tester", refs=["c1", "tst1"],
                 quotes=["closing an account leaves its invoices in place",
                         "assert close_account('a1') is not None"])
+
+
+def test_a_repeat_challenge_is_told_the_rung_as_a_sentence(db):
+    """Night 111 (2026-10-03): s252 read "-- msg.escalate_architect" at
+    turn 6 and sent the same challenge again (frame 111)."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m96','th','developer','tester',"
+               "'challenge','[\"tst1\", \"c1\"]',1,'answered')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status, cause_id) VALUES ('m98','th','tester',"
+               "'developer','answer','[\"c1\", \"tst1\"]',2,'open','m96')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+                quotes=["closing an account leaves its invoices in place",
+                        "assert close_account('a1') is not None"])
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs already (m96) and "
+        "they answered. Sending it again is the same argument again. Do not "
+        "send this challenge again. Send msg.escalate_architect on the same "
+        "refs, or make one real change to the code the test calls.")
+    assert " -- " not in str(exc.value)
 
 
 def test_an_answer_with_null_refs_added_no_row(db):

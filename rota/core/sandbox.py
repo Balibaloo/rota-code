@@ -1373,10 +1373,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     door = "msg.escalate_architect"
                 else:
                     door = "schedule.unresolved"
+                # The rung is an instruction, not a bare name after a dash.
+                # Night 111 (2026-10-03): s252 read "-- msg.escalate_architect"
+                # at turn 6 and sent the same challenge again.
                 raise ValueError(
                     f"you sent {verb} to {recipient} on exactly these refs "
                     f"already ({prior['id']}) and they answered. Sending it "
-                    f"again is the same argument again -- {door}")
+                    f"again is the same argument again. Do not send this "
+                    f"{verb} again. Send {door} on the same refs, or make one "
+                    f"real change to the code the test calls.")
             # A challenge with no answer yet is a question still open. Night
             # 108 (2026-10-02): s307 to s328 sent one challenge each on the
             # refs of m190 while the Tester answered none. Nine landed, and

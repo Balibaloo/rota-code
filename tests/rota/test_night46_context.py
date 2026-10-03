@@ -120,8 +120,8 @@ def test_the_fix_wake_shows_the_thread_on_a_red_test(db):
          None, 9, "open", None),
     ])
     # First, because the push cut removes the last key first (dad15d9 review).
-    assert list(shown)[:2] == ["challenges and escalations on these tests",
-                               "the batch's tests, not passing"]
+    assert list(shown)[:3] == ["challenges and escalations on these tests",
+                               "after these", "the batch's tests, not passing"]
     thread = shown["challenges and escalations on these tests"]
     assert thread[:3] == [
         {"id": "m1", "verb": "challenge", "to": "tester", "test": "tst1",
@@ -141,6 +141,59 @@ def test_the_fix_wake_with_no_thread_pushes_no_thread_key(db):
     shown = _red_test_push(db)
     assert "the batch's tests, not passing" in shown
     assert "challenges and escalations on these tests" not in shown
+    assert "after these" not in shown
+
+
+def _thread_answer(db, status, answer=None):
+    rows = [("m97", "th", "developer", "architect", "escalate", '["c1", "tst1"]',
+             None, 1, status, None)]
+    if answer is not None:
+        rows.append(("m98", "th", "architect", "developer", "answer",
+                     '["c1", "tst1"]', answer, 2, "open", "m97"))
+    shown = _red_test_push(db, rows)
+    return shown, shown["challenges and escalations on these tests"][0]["answer"]
+
+
+@pytest.mark.parametrize("status", ["answered", "unresolved"])
+def test_a_closed_prior_with_no_answer_row_reads_closed_in_the_thread(db, status):
+    """Night 111 (2026-10-03): the thread said m97 was "not answered yet",
+    and the door said that m97 was answered (frame 111)."""
+    _, answer = _thread_answer(db, status)
+    assert answer == f"closed ({status}) with no answer row"
+
+
+def test_an_open_prior_with_no_answer_row_is_not_answered_yet(db):
+    _, answer = _thread_answer(db, "open")
+    assert answer == "not answered yet"
+
+
+def test_an_answer_row_with_no_words_is_answered_with_no_words(db):
+    _, answer = _thread_answer(db, "unresolved", answer="")
+    assert answer == "answered with no words"
+
+
+_AFTER_THESE = ("A listed message that is answered or closed is refused if sent "
+                "again on these refs. Make one real change to the code the test "
+                "calls, or end the session with no call.")
+
+
+@pytest.mark.parametrize("status,answer", [("answered", None),
+                                           ("open", "the test stands")])
+def test_the_thread_carries_the_way_out_after_it(db, status, answer):
+    """Night 111 (2026-10-03): by turn 17 the window had dropped both
+    refusals, and s252 sent the challenge a third time (frame 111)."""
+    shown, _ = _thread_answer(db, status, answer)
+    keys = list(shown)
+    assert keys[:2] == ["challenges and escalations on these tests", "after these"]
+    assert shown["after these"] == _AFTER_THESE
+
+
+def test_a_thread_where_every_entry_waits_adds_no_way_out(db):
+    shown, answer = _thread_answer(db, "open")
+    assert answer == "not answered yet"
+    assert list(shown)[:2] == ["challenges and escalations on these tests",
+                               "the batch's tests, not passing"]
+    assert "after these" not in shown
 
 
 @pytest.mark.parametrize("bad", ["not json", "", '{"a": "tst1"}'])

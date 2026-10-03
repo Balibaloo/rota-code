@@ -1805,15 +1805,15 @@ _THREAD_ANSWER_CHARS = 600
 
 def _thread_on_tests(sb: sandbox_mod.Sandbox, tests: list[dict]) -> list[dict]:
     """The challenges and escalations whose refs hold a red test, each with
-    its latest answer: the words, "answered with no words" or "not answered
-    yet"."""
+    its latest answer: the words, "answered with no words", "closed
+    (<status>) with no answer row" or "not answered yet"."""
     thread: list[dict] = []
     for r in tests:
         # A body_refs that is not JSON, or that is a JSON object, holds no
         # test id. The review of dad15d9 (2026-10-02): one corrupt row made
         # json_each raise for every test, and the key never appeared.
         found = sb.ctx.conn.execute(
-            "SELECT m.id, m.verb, m.to_role, a.id AS answer_id, "
+            "SELECT m.id, m.verb, m.to_role, m.status, a.id AS answer_id, "
             "a.body_text AS answer_text FROM messages m "
             "JOIN json_each(CASE WHEN json_valid(m.body_refs) "
             "  THEN m.body_refs ELSE '[]' END) j ON j.value = ? "
@@ -1831,7 +1831,12 @@ def _thread_on_tests(sb: sandbox_mod.Sandbox, tests: list[dict]) -> list[dict]:
             "ORDER BY m.seq", (r.get("id"), sb.ctx.role)).fetchall()
         for m in found:
             text = (m["answer_text"] or "").strip()
-            if m["answer_id"] is None:
+            # The thread reads the prior's status as the repeat-refs door
+            # does. Night 111 (2026-10-03): the thread said m97 was "not
+            # answered yet", and the door said that m97 was answered.
+            if m["answer_id"] is None and m["status"] != "open":
+                answer = f"closed ({m['status']}) with no answer row"
+            elif m["answer_id"] is None:
                 answer = "not answered yet"
             elif not text:
                 answer = "answered with no words"
@@ -2098,6 +2103,16 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             shown: dict[str, Any] = {}
             if thread:
                 shown["challenges and escalations on these tests"] = thread
+                # The way out sits in the wake head, which the window keeps.
+                # Night 111 (2026-10-03): by turn 17 the window had dropped
+                # both refusals, and s252 sent the challenge a third time.
+                # A thread where every entry waits adds no key, so the
+                # recorded prompts keep their bytes.
+                if any(t["answer"] != "not answered yet" for t in thread):
+                    shown["after these"] = (
+                        "A listed message that is answered or closed is refused "
+                        "if sent again on these refs. Make one real change to "
+                        "the code the test calls, or end the session with no call.")
             if own:
                 shown["the batch's tests, not passing"] = own
             if project:
