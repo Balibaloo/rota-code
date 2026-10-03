@@ -652,6 +652,47 @@ def _cap_exchange(transcript: list[str], budget: int) -> list[str]:
                               _exchange_cut(results, results_room)]
 
 
+def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
+                    note_room: int) -> list[str]:
+    """
+    Cut the latest reply when the tail leaves no middle block any room.
+
+    Night 99, s132, turn 13: a 30,894-character reply against a 26,309
+    budget left negative room, and every middle block went. Turns 15 to 18
+    then read four spans again (frame 108). `_cap_exchange` cut the tail only
+    after the middle was gone.
+
+    The cap cuts the reply only. The runner sizes the results block, and its
+    cut names the call that fetches the rest (frame 108, revision 2). The
+    tail gets a third of the budget at least, and a small wake lends it the
+    part of the wake's two thirds that the wake does not use. The results
+    are paid for out of that room, and the reply keeps the rest.
+
+    The cap fires only when no middle block can fit beside the tail as it
+    stands. A tail that leaves room for one block is not this defect, and
+    the packing handles it as before. The cut lands only when it gives a
+    middle block room.
+    """
+    sizes = [len(block) + 2 for block, kind in zip(transcript[1:-2], kinds[1:-2])
+             if kind != _NOTICE]
+    if not sizes:
+        return transcript
+    fixed = len(transcript[0]) + 2 + sum(len(t) + 2 for t in transcript[-2:])
+    if budget - fixed - note_room >= min(sizes):
+        return transcript
+    third = budget // 3
+    tail_room = max(third, budget - (len(transcript[0]) + 2) - third)
+    reply, results = transcript[-2:]
+    reply_room = max(tail_room - 4 - len(results), _MIN_EXCHANGE // 2)
+    cut = _exchange_cut(reply, reply_room)
+    # A cut that still leaves no block room buys nothing and loses the reply's
+    # text. The trimmed-middle test met one: 57 characters, and no block came
+    # back (frame 108, revision 2, point 3).
+    if budget - (fixed - len(reply) + len(cut)) - note_room < min(sizes):
+        return transcript
+    return transcript[:-2] + [cut, results]
+
+
 def _fit_budget(num_ctx: int, system_chars: int) -> int:
     """
     The characters a session's transcript may hold, for `_fit`.
@@ -801,18 +842,20 @@ def _fit(transcript: list[str], kinds: list[str],
     if len(transcript) < 4:
         return _cap_exchange(transcript, budget), kinds
 
-    head, tail = transcript[:1], transcript[-2:]
-    # Each middle block as [text, kind, kept]. A stub changes the text, and
-    # a drop clears `kept`.
-    middle = [[block, kind, True]
-              for block, kind in zip(transcript[1:-2], kinds[1:-2])]
-    fixed = sum(len(t) + 2 for t in head + tail)
     # The notice is part of the prompt, so the packing pays for it. Unreserved,
     # the transcript came back up to 116 characters over the budget and
     # `_cap_exchange` read the deficit as room it could lend (the diff review
     # of 34c3e72, F5). Reserved at the longest it can be, which is the notice
     # for every block dropping.
     note_room = len(_dropped_note(len(transcript))) + 2
+    transcript = _cap_tail_reply(transcript, kinds, budget, note_room)
+
+    head, tail = transcript[:1], transcript[-2:]
+    # Each middle block as [text, kind, kept]. A stub changes the text, and
+    # a drop clears `kept`.
+    middle = [[block, kind, True]
+              for block, kind in zip(transcript[1:-2], kinds[1:-2])]
+    fixed = sum(len(t) + 2 for t in head + tail)
     old_notices = sum(1 for _, kind, _ in middle if kind == _NOTICE)
     dropped = 0
 
@@ -879,8 +922,8 @@ def _fit(transcript: list[str], kinds: list[str],
     # spans 390-450 and 450-688 went by age under both rules. The re-reads
     # at turns 16 to 18 follow turn 13, whose 30,894-character reply in the
     # last two blocks was larger than the budget, so the whole middle went.
-    # Only a cap on the tail saves those reads, and that is its own frame
-    # (the diff review of frame 100's pass 2, finding 1).
+    # `_cap_tail_reply` above saves those reads (frame 108, after the diff
+    # review of frame 100's pass 2, finding 1).
     newest: dict[tuple[str, int, int], int] = {}
     for i, held, _ in reads():
         for span in held:

@@ -2224,6 +2224,116 @@ def test_each_distinct_span_of_one_file_is_pinned(db):
     assert _held(fitted) <= 8_000 and len(fitted_kinds) == len(fitted)
 
 
+_S132_BUDGET = 26_309
+
+
+def _s132_turn_13(reply_chars: int, results: str) -> list[str]:
+    """
+    Night 99, s132, turn 13: a wake of about 13,500 characters, four reads of
+    distinct spans in the middle with their replies, and the latest exchange.
+    """
+    blocks = ["WAKE " + "w" * 13_495]
+    for (s, e), fill in zip([(251, 346), (346, 390), (390, 450), (450, 688)],
+                            "abcd"):
+        blocks += [f"TOOL: code.source(path='src/click/utils.py', start={s}, "
+                   f"end={e})\n" + "plan. " * 90,
+                   _source("src/click/utils.py", s, e, 3000, fill=fill)]
+    call = "TOOL: code.write(path='src/click/utils.py')\n"
+    blocks += [call + "r" * (reply_chars - len(call)), results]
+    return blocks
+
+
+def _parent_fit():
+    """`_fit` as it was at 032c71c, before the tail cap of frame 108."""
+    import importlib.util
+    import subprocess
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    text = subprocess.run(["git", "show", "032c71c:rota/core/runner.py"],
+                          capture_output=True, check=True,
+                          cwd=Path(__file__).resolve().parents[2]).stdout
+    path = Path(tempfile.mkdtemp()) / "runner_032c71c.py"
+    path.write_bytes(text)
+    name = "rota.core._runner_032c71c"
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module._fit
+
+
+def test_a_tail_larger_than_the_budget_leaves_a_middle_read(db):
+    """
+    Frame 108. Night 99, s132, turn 13: a 30,894-character reply against a
+    26,309 budget left negative room, and every middle block went. Turns 15
+    to 18 read four spans again. The reply is cut before the tiers run, so
+    the packing keeps a read.
+    """
+    from rota.core.runner import _fit
+
+    results = "OK code.write -> " + "o" * 1983
+    blocks = _s132_turn_13(30_894, results)
+    kinds = _paired(blocks)
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget=_S132_BUDGET)
+
+    third = _S132_BUDGET // 3
+    reply_room = max(third, _S132_BUDGET - (len(blocks[0]) + 2) - third) \
+        - 4 - len(results)
+    assert any(b in fitted for b in blocks[2:-2:2]), "every middle read went"
+    assert len(fitted[-2]) <= reply_room, "the reply is over its room"
+    assert "CUT this exchange" in fitted[-2], "the reply was cut in silence"
+    assert fitted[-1] == results, "the cap touched the results"
+    assert _held(fitted) <= _S132_BUDGET
+    assert len(fitted_kinds) == len(fitted)
+    assert fitted_kinds[0] == "wake" and fitted_kinds[-2:] == kinds[-2:]
+
+
+def test_a_tail_that_leaves_a_middle_block_room_packs_as_before(db):
+    """
+    Frame 108, revision 2. The cap fires only when no middle block can fit
+    beside the tail. Any other transcript packs to the bytes of the parent.
+    The second shape leaves no block room, but a cut of its reply frees no
+    block, so the reply stays whole.
+    """
+    from rota.core.runner import _fit
+
+    parent = _parent_fit()
+    s132 = _s132_turn_13(2000, "OK code.write -> " + "o" * 1983)
+    trimmed = (["WAKE: you are surveying src/billing"]
+               + [f"turn {i} " + "x" * 4000 for i in range(1, 7)])
+    pinned = ["WAKE " + "w" * 995]
+    for i in range(5):
+        pinned += [f"TOOL: code.source(path='src/click/utils.py', at={i})",
+                   _source("src/click/utils.py", 100 * i, 100 * i + 50, 2000)]
+    for blocks, budget in ((s132, _S132_BUDGET), (trimmed, 12_000),
+                           (pinned, 8_000)):
+        kinds = _paired(blocks)
+        assert _fit(list(blocks), list(kinds), budget) == \
+            parent(list(blocks), list(kinds), budget), blocks[0][:40]
+
+
+def test_a_short_reply_keeps_its_length_beside_large_results(db):
+    """
+    Frame 108, revision 2. The cap cuts the reply only. The runner sizes the
+    results block, and its cut names the call that fetches the rest. Here
+    the cap fires, the reply is under the floor, and both blocks stay whole.
+    """
+    from rota.core.runner import _fit
+
+    reply = "TOOL: code.source(path='src/click/utils.py', start=1, end=688)"
+    results = _source("src/click/utils.py", 1, 688, 12_400)
+    blocks = _s132_turn_13(2000, results)
+    blocks[-2] = reply
+    kinds = _paired(blocks)
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget=_S132_BUDGET)
+
+    assert fitted[-2:] == [reply, results], "the cap cut the latest exchange"
+    assert _held(fitted) <= _S132_BUDGET
+    assert len(fitted_kinds) == len(fitted)
+
+
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
     """Frame 110, night 106: the 700 tail of `_03`'s run held parser frames
     and not the test's own call line. A Tester challenge gets the whole stored
