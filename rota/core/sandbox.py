@@ -1306,20 +1306,32 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # (2026-10-02): the same refs in another order escaped the door.
             import json as _json
             want = sorted(refs or [])
-            prior = None
+            # A prior is answered when an answer row names it. For the
+            # Developer, a prior that the dispatch closed with no answer row
+            # counts too, as an answer with no row. Night 109 (2026-10-03):
+            # the Architect turned escalation m97 into a challenge to the
+            # Vision Keeper. m97 read 'answered' with no answer row, and the
+            # pending branch below refused 11 escalations all night.
+            prior = waiting = None
             for row in ctx.conn.execute(
-                    "SELECT m.id, m.body_refs, a.id AS answer_id, "
+                    "SELECT m.id, m.body_refs, m.status, a.id AS answer_id, "
                     "a.body_refs AS answer_refs FROM messages m "
-                    "JOIN messages a ON a.cause_id = m.id "
+                    "LEFT JOIN messages a ON a.id = ("
+                    "  SELECT x.id FROM messages x WHERE x.cause_id = m.id "
+                    "  AND x.verb = 'answer' ORDER BY x.seq DESC LIMIT 1) "
                     "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
-                    "AND a.verb = 'answer' ORDER BY m.seq DESC, a.seq DESC",
-                    (ctx.role, recipient, verb)):
+                    "ORDER BY m.seq DESC", (ctx.role, recipient, verb)):
                 try:
-                    if sorted(_json.loads(row["body_refs"] or "[]")) == want:
-                        prior = row
-                        break
+                    if sorted(_json.loads(row["body_refs"] or "[]")) != want:
+                        continue
                 except (TypeError, ValueError):
                     continue
+                closed = ctx.role == "developer" and row["status"] != "open"
+                if row["answer_id"] is not None or closed:
+                    prior = row
+                    break
+                if waiting is None and row["status"] == "open":
+                    waiting = row
             if prior:
                 # Walk ten: escalate, answer, escalate, answer, three times
                 # on one pair of refs, with the fix written into the reply
@@ -1347,10 +1359,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                             f"({prior['answer_id']}): the answer points at "
                             f"{', '.join(added)} -- code.source those rows, "
                             f"write the change they call for, and commit")
+                    # A closed prior with no answer row names its status.
+                    answer_id = prior["answer_id"] or prior["status"]
                     raise ValueError(
                         f"you sent {verb} to {recipient} on exactly these refs "
                         f"already ({prior['id']}) and they answered "
-                        f"({prior['answer_id']}) with no row beyond your own "
+                        f"({answer_id}) with no row beyond your own "
                         f"refs. Sending it again is the same argument again. "
                         f"The attempt cap carries this batch to the ladder: "
                         f"make one real change to the code the test calls, or "
@@ -1367,21 +1381,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # 108 (2026-10-02): s307 to s328 sent one challenge each on the
             # refs of m190 while the Tester answered none. Nine landed, and
             # the door read only answered priors. The Developer's text names
-            # the code, so the door holds for the Developer only.
+            # the code, so the door holds for the Developer only. Only an open
+            # prior waits: the schema's open status is 'open'.
             if ctx.role == "developer":
-                waiting = None
-                for row in ctx.conn.execute(
-                        "SELECT m.id, m.body_refs FROM messages m "
-                        "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
-                        "AND NOT EXISTS (SELECT 1 FROM messages a "
-                        "  WHERE a.cause_id = m.id AND a.verb = 'answer') "
-                        "ORDER BY m.seq DESC", (ctx.role, recipient, verb)):
-                    try:
-                        if sorted(_json.loads(row["body_refs"] or "[]")) == want:
-                            waiting = row
-                            break
-                    except (TypeError, ValueError):
-                        continue
                 if waiting:
                     way = ("write the change that makes it pass"
                            if verb == "challenge" else

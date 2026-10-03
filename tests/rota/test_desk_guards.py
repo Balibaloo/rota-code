@@ -626,6 +626,61 @@ def test_a_challenge_that_waits_for_its_answer_is_not_sent_twice(db):
         "msg.escalate_architect")
 
 
+@pytest.mark.parametrize("status", ["answered", "unresolved"])
+def test_a_closed_escalation_with_no_answer_row_is_not_pending(db, status):
+    """Night 109 (2026-10-03): the Architect turned escalation m97 into a
+    challenge to the Vision Keeper. m97 read 'answered' with no answer row,
+    and "it waits for an answer" refused 11 escalations all night."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m97','th','developer','architect',"
+               "'escalate','[\"tst1\", \"c1\"]',1,?)", (status,))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.escalate_architect", refs=["c1", "tst1"])
+    assert str(exc.value) == (
+        f"you sent escalate to architect on exactly these refs already (m97) "
+        f"and they answered ({status}) with no row beyond your own refs. Sending "
+        f"it again is the same argument again. The attempt cap carries this "
+        f"batch to the ladder: make one real change to the code the test calls, "
+        f"or end the session with no call")
+
+
+def test_an_open_escalation_with_no_answer_row_waits(db):
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m97','th','developer','architect',"
+               "'escalate','[\"tst1\", \"c1\"]',1,'open')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.escalate_architect", refs=["c1", "tst1"])
+    assert str(exc.value) == (
+        "you sent escalate to architect on exactly these refs already (m97) and "
+        "it waits for an answer. A second copy is the same question twice, and "
+        "the answer comes to a later wake. Until then: code.source the code the "
+        "test calls and write the change that makes it pass, and commit it, or "
+        "end the session with no call")
+
+
+def test_a_closed_challenge_with_no_answer_row_is_answered(db):
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m1','th','developer','tester',"
+               "'challenge','[\"c1\", \"tst1\"]',1,'answered')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError, match=r"\(m1\) and they answered\. .* -- "
+                                         r"msg\.escalate_architect$"):
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+                quotes=["closing an account leaves its invoices in place",
+                        "assert close_account('a1') is not None"])
+
+
 def test_an_answer_with_null_refs_added_no_row(db):
     """The diff review of 538b84a (2026-10-02): `null` as body_refs made
     json.loads return None, and enumerate(None) raised."""
