@@ -208,10 +208,11 @@ a different question and the night is then opened once.
 
 - **Batch C, the night's stall, found by night 112's read.** Sites: the repeat-refs door in `rota/core/sandbox.py`, which counts per call, and the runner's three-strike note in `rota/core/runner.py`, which counts per turn.
 - Rota workflow. On night 112, s252 sent one challenge at turn 12 and five more at turn 13, one per red test of bg_2; four were refused as answered and two landed; the seat then re-sent the first refs twice with the refusal and the way out in its prompt (observed: `plans/night112-read.md`, section 1, 2026-10-03). Five challenges in one reply are one argument five times, and the refusal count on one refs set reaches three in two turns.
-- Ends when: a reply that holds more than one challenge or escalation lands the first and refuses the rest with one sentence that names the one that landed; one sandbox test; a night where no Developer session is refused the same challenge three times. Price about 20k on Opus, one review of about 20k, and the behaviour it buys is the second half of frame 111's line.
+- Ends when: a reply that holds more than one challenge or escalation lands the first and refuses the rest with one sentence that names the one that landed; one sandbox test. Measured on a night: Developer replies that land or attempt more than one challenge fall from 1 of 21 tests_failing sessions on night 112 to 0, and sessions refused the same challenge three times stay at most 1 of 21. A session that still repeats is read, and it closes the frame when its cause is not the burst. Price about 20k on Opus, one review of about 20k; the behaviour it buys is the second half of frame 111's line.
 - Waits on: Roman's order. Recommended after frames 108 and 113.
 - Reasoning: `plans/night112-read.md`, sections 1 and 2.
 - Status 2026-10-03 13:44 (rota-c4): pushed by 3d6e6173 on Roman's ruling that closed frame 111. Unclaimed, priced. Rota workflow.
+- Status 2026-10-03 14:42 (rota-c4): ends-when rewritten to the three-part form the brief now rules, mechanism, ratio with night 112's baseline, residue rule (ruled: Roman, 2026-10-03 14:42, 'please update guidance'). Rota workflow.
 
 ### 113. A Developer writes its own tool results, and ten commits landed after one (2026-10-02)
 

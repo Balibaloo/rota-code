@@ -218,6 +218,19 @@ grill, each ends-when line carries a token price from the anchors in
 a price and no behaviour becomes its own frame below. The closing status
 writes the actual beside the estimate, walls counted apart.
 
+**An ends-when on a seat's behaviour has three parts** (ruled: Roman,
+2026-10-03, after frame 111's close waited on a question the read could
+have answered). First, the mechanism: what the seat meets, which is what
+the pass builds and the review checks. Second, a ratio with a baseline
+from the night that found the wall, never a zero: a zero on a stochastic
+seat is a line no night can prove, and one bad session blocks a frame
+that worked. Third, the residue rule: a session that still shows the sign
+is read, and the frame closes when its cause is not the cause the frame
+named; that cause is a new frame. Frame 111's line was a zero and lacked
+the third part, so it survived four nights and cost a ruling that the
+read already held: the one session left had a different cause, five
+challenges in one reply.
+
 In a loop, you diagnose and write the fix brief. A cause goes on the
 stack only after the turns of the failing sessions are read: what each
 seat called, what came back, what it committed. What you changed that
