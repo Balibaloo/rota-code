@@ -2251,9 +2251,12 @@ def _parent_fit():
     import tempfile
     from pathlib import Path
 
-    text = subprocess.run(["git", "show", "032c71c:rota/core/runner.py"],
-                          capture_output=True, check=True,
-                          cwd=Path(__file__).resolve().parents[2]).stdout
+    try:
+        text = subprocess.run(["git", "show", "032c71c:rota/core/runner.py"],
+                              capture_output=True, check=True,
+                              cwd=Path(__file__).resolve().parents[2]).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pytest.skip("the parent commit 032c71c is not in this checkout")
     path = Path(tempfile.mkdtemp()) / "runner_032c71c.py"
     path.write_bytes(text)
     name = "rota.core._runner_032c71c"
@@ -2332,6 +2335,57 @@ def test_a_short_reply_keeps_its_length_beside_large_results(db):
     assert fitted[-2:] == [reply, results], "the cap cut the latest exchange"
     assert _held(fitted) <= _S132_BUDGET
     assert len(fitted_kinds) == len(fitted)
+
+
+def test_the_cap_sizes_the_middle_by_a_results_unit(db):
+    """
+    The diff review of frame 108's pass 1, finding 1. The trigger read the
+    smallest middle block, and a 62-character call line passed for room. The
+    packing never keeps a reply alone, so no read fit and the cap stayed
+    off. The unit is a results block plus the stub of its reply.
+    """
+    from rota.core.runner import _dropped_note, _fit
+
+    blocks = ["WAKE " + "w" * 1995]
+    for i in range(4):
+        call = f"TOOL: code.source(path='src/click/utils.py', start={i}, end=9)"
+        blocks += [call.ljust(60), _source("src/click/utils.py", i, 9, 1071)]
+    tail_results = "OK code.write -> " + "o" * 983
+    call = "TOOL: code.write(path='src/click/utils.py')\n"
+    blocks += [call + "r" * (4700 - len(call)), tail_results]
+    kinds = _paired(blocks)
+    budget = 8_000
+
+    # The shape: the old unit fits beside the uncut tail, and a results unit
+    # does not.
+    room = (budget - _held([blocks[0]] + blocks[-2:])
+            - len(_dropped_note(len(blocks))) - 2)
+    assert 62 <= room < 1071 + 2 + 60 + 2, room
+
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget=budget)
+    assert "CUT this exchange" in fitted[-2], "the cap did not fire"
+    assert any(b in fitted for b in blocks[2:-2:2]), "every middle read went"
+    assert fitted[-1] == tail_results
+    assert _held(fitted) <= budget and len(fitted_kinds) == len(fitted)
+
+
+def test_a_cut_reply_keeps_its_call_in_its_stub(db):
+    """
+    The diff review of frame 108's pass 1, finding 2. `_exchange_cut` keeps
+    a prefix, so a call after the prose fell outside it. The reply then
+    stubbed to no call on a later turn. The cut reply starts with its stub.
+    """
+    from rota.core.runner import _fit, _stub
+
+    call = "TOOL: code.write(path='src/click/utils.py', text='x')"
+    blocks = _s132_turn_13(2000, "OK code.write -> " + "o" * 1983)
+    blocks[-2] = "I reason about the fix. " * 1285 + "\n" + call
+    kinds = _paired(blocks)
+    fitted, _ = _fit(list(blocks), list(kinds), budget=_S132_BUDGET)
+
+    assert "CUT this exchange" in fitted[-2], "the cap did not fire"
+    assert fitted[-2].startswith(call + "\n"), fitted[-2][:120]
+    assert _stub(fitted[-2]) == call, "the stub of the cut reply lost its call"
 
 
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):

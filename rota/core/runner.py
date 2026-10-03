@@ -655,7 +655,7 @@ def _cap_exchange(transcript: list[str], budget: int) -> list[str]:
 def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
                     note_room: int) -> list[str]:
     """
-    Cut the latest reply when the tail leaves no middle block any room.
+    Cut the latest reply when the tail leaves no middle unit any room.
 
     Night 99, s132, turn 13: a 30,894-character reply against a 26,309
     budget left negative room, and every middle block went. Turns 15 to 18
@@ -668,29 +668,64 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
     part of the wake's two thirds that the wake does not use. The results
     are paid for out of that room, and the reply keeps the rest.
 
-    The cap fires only when no middle block can fit beside the tail as it
-    stands. A tail that leaves room for one block is not this defect, and
+    The cap fires only when no middle unit can fit beside the tail as it
+    stands. A tail that leaves room for one unit is not this defect, and
     the packing handles it as before. The cut lands only when it gives a
-    middle block room.
+    middle unit room.
+
+    The cut reply starts with its stub. `_exchange_cut` keeps a prefix, so a
+    call after the prose or a call with a large argument fell outside it.
+    The reply then stubbed to no call on a later turn (the diff review of
+    frame 108's pass 1, finding 2).
     """
-    sizes = [len(block) + 2 for block, kind in zip(transcript[1:-2], kinds[1:-2])
-             if kind != _NOTICE]
-    if not sizes:
+    smallest = _smallest_unit(transcript[1:-2], kinds[1:-2])
+    if smallest is None:
         return transcript
     fixed = len(transcript[0]) + 2 + sum(len(t) + 2 for t in transcript[-2:])
-    if budget - fixed - note_room >= min(sizes):
+    if budget - fixed - note_room >= smallest:
         return transcript
     third = budget // 3
     tail_room = max(third, budget - (len(transcript[0]) + 2) - third)
     reply, results = transcript[-2:]
     reply_room = max(tail_room - 4 - len(results), _MIN_EXCHANGE // 2)
-    cut = _exchange_cut(reply, reply_room)
-    # A cut that still leaves no block room buys nothing and loses the reply's
+    if len(reply) <= reply_room:
+        return transcript
+    stub = _stub(reply)
+    if stub == _STUB_EMPTY:
+        cut = _exchange_cut(reply, reply_room)
+    else:
+        cut = stub + chr(10) + _exchange_cut(
+            reply, max(reply_room - len(stub) - 1, 0))
+    # A cut that still leaves no unit room buys nothing and loses the reply's
     # text. The trimmed-middle test met one: 57 characters, and no block came
     # back (frame 108, revision 2, point 3).
-    if budget - (fixed - len(reply) + len(cut)) - note_room < min(sizes):
+    if budget - (fixed - len(reply) + len(cut)) - note_room < smallest:
         return transcript
     return transcript[:-2] + [cut, results]
+
+
+def _smallest_unit(middle: list[str], kinds: list[str]) -> int | None:
+    """
+    The fewest characters one middle unit can keep after the packing.
+
+    The packing never keeps a reply alone beside nothing. `drop()` takes a
+    results block with the reply of its turn, and tier 4 drops the rest. So
+    the unit is a results block plus the stub of its reply. A reply with no
+    results after it is a unit of its stub alone. Notices are not units,
+    because the packing charges the notice apart (the diff review of frame
+    108's pass 1, finding 1).
+    """
+    units = []
+    for i, (block, kind) in enumerate(zip(middle, kinds)):
+        if kind == _RESULTS:
+            size = len(block) + 2
+            if i > 0 and kinds[i - 1] == _REPLY:
+                size += len(_stub(middle[i - 1])) + 2
+            units.append(size)
+        elif kind == _REPLY and (i + 1 == len(middle)
+                                 or kinds[i + 1] != _RESULTS):
+            units.append(len(_stub(block)) + 2)
+    return min(units) if units else None
 
 
 def _fit_budget(num_ctx: int, system_chars: int) -> int:
