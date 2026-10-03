@@ -295,7 +295,15 @@ open as validating while the next frame starts in the main checkout.
 
 Escalate as a blocked frame: the question and a recommended answer.
 Triggers: a ruling is needed, a wall survives three cycles, a change
-touches the composition, or the budget is spent.
+touches the composition, or the budget is spent. **Before a frame blocks
+on Roman, an agent reads the records for a prior ruling on the same
+question**: `LAWS.md`, `DECISIONS.md`, `plans/archive/`,
+`plans/operating-facts.md`, the briefs, and `git log -S` on the lines in
+question. The blocked frame cites what the history says and asks only
+what it leaves open (ruled: Roman, 2026-10-03, after frames 114 and 115
+went to him as open questions and one history read found both answered
+in the design: law 2 keeps words off an answer, and a broken project test
+is the Developer's own regression since 2026-09-14).
 
 An escalation reaches Roman on his phone. Roman ruled on 2026-09-20 that
 a decision must notify, and not only a prompt. Two routes, and you pick
