@@ -419,8 +419,12 @@ def _a_stored_test(db, id="t1", criterion_id="c1", path="p.py", batch_id="b1"):
 def _commit(db, sb):
     from rota.core.db import SessionResult, session_commit
     from rota.core.runner import _as_write
-    session_commit(db, SessionResult(session_id="s_fix", role="tester",
-                                     writes=[_as_write(w) for w in sb.ctx.writes]))
+    from types import SimpleNamespace
+    from rota.core.runner import _messages_from
+    session_commit(db, SessionResult(
+        session_id="s_fix", role="tester",
+        writes=[_as_write(w) for w in sb.ctx.writes],
+        messages=_messages_from(sb, SimpleNamespace(message_id=None), "s_fix")))
 
 
 def _challenge_tester(db):
@@ -516,6 +520,69 @@ def test_a_stored_test_of_another_batch_is_not_replaced(db):
                   body=_PRORATE + " # fixed")
     assert out.get("unchanged") and "one criterion takes one" in out["note"], out
     assert [w[1] for w in sb.ctx.writes] == ["t1_new"]
+
+
+def test_a_stored_test_of_another_batch_is_refused_as_a_first_write(db):
+    """With no earlier write the guard is silent, and the commit's UPDATE
+    moved the `b2` row into `b1` at version 2. The encode is refused."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    db.execute("INSERT INTO batches (id, item_id, status) "
+               "VALUES ('b2','i1','running')")
+    _a_stored_test(db, batch_id="b2")
+    sb = _challenge_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+                body=_PRORATE + " # fixed")
+    assert str(exc.value) == ("t1 is a test of batch b2, and this session "
+                              "writes batch b1. Choose another id.")
+    assert sb.ctx.writes == []
+
+
+def test_a_replace_keeps_another_batchs_staged_test(db):
+    """The removal is the replace's own batch. A test staged for `c1` in
+    `b2` stays, and the note does not name it."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    db.execute("INSERT INTO batches (id, item_id, status) "
+               "VALUES ('b2','i1','running')")
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+
+    sb.call("tests.encode", id="t2", criterion_id="c1", path="q.py",
+            body=_PRORATE + " # b2", batch_id="b2")
+    out = sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+                  body=_PRORATE + " # fixed")
+    assert out == {"id": "t1"}, out
+    assert [w[1] for w in sb.ctx.writes] == ["t2", "t1"]
+
+
+def test_a_message_that_names_a_dropped_test_names_the_replace(db):
+    """
+    A staged message that names a dropped test would land with a ref to no
+    row, because the commit checks no refs. The replace renames the ref.
+    """
+    import json
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+
+    sb.call("tests.encode", id="t1_new", criterion_id="c1", path="q.py",
+            body=_PRORATE + " # new")
+    sent = sb.call("msg.answer_developer", refs=["t1_new", "c1"],
+                   quotes=["prorating a mid-month upgrade charges the unused "
+                           "remainder"])
+    out = sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+                  body=_PRORATE + " # fixed")
+    assert out["note"].endswith(f" Your message {sent['id']} now names t1."), out
+    _commit(db, sb)
+    row = db.execute("SELECT body_refs FROM messages WHERE id = ?",
+                     (sent["id"],)).fetchone()
+    refs = json.loads(row["body_refs"])
+    assert refs == ["t1", "c1"]
+    for r in refs:
+        assert db.execute("SELECT 1 FROM tests WHERE id = ? UNION "
+                          "SELECT 1 FROM criteria WHERE id = ?",
+                          (r, r)).fetchone(), r
 
 
 def test_a_replace_keeps_the_stored_path(db):

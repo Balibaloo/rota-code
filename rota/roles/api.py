@@ -5551,6 +5551,17 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                         f"was written. If that test is wrong, this is not the "
                         f"session that discovers it."}
 
+    # A stored test belongs to its batch. The commit UPDATEs every staged
+    # column (db.py), so an encode from another batch moved the row into
+    # this one. After the one-test guard, so its answer stays as it was.
+    other = ctx.conn.execute(
+        "SELECT batch_id FROM tests WHERE id = ? AND batch_id != ?",
+        (id, batch_id)).fetchone()
+    if other is not None:
+        raise ValueError(
+            f"{id} is a test of batch {other['batch_id']}, and this session "
+            f"writes batch {batch_id}. Choose another id.")
+
     # One file per test. Walk twelve: two tests named tests/test_input_
     # validation.py, the second overwrote the first on disk, and the harness
     # ran a file that encoded one criterion under two ids.
@@ -5581,18 +5592,37 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # row has no file yet: the harness writes files from stored rows only.
     dropped = []
     if replaces:
-        dropped = [w[1] for w in done if w[1] != id]
+        dropped = [w[1] for w in done
+                   if w[1] != id and w[2].get("batch_id") == batch_id]
         ctx.writes[:] = [w for w in ctx.writes
-                         if not (w[0] == "tests" and (
-                             w[1] == id
-                             or w[2].get("criterion_id") == criterion_id))]
+                         if not (w[0] == "tests"
+                                 and w[2].get("batch_id") == batch_id and (
+                                     w[1] == id
+                                     or w[2].get("criterion_id") == criterion_id))]
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": criterion_id,
         "path": path, "body": body}))
     if dropped:
-        return {"id": id,
-                "note": f"{', '.join(dropped)} was not kept: {id} replaces the "
-                        f"test of {criterion_id}, and one criterion takes one."}
+        # A staged message that names a dropped test would land with a ref
+        # to no row: the commit checks no refs. It names the replace instead.
+        renamed = []
+        for m in getattr(ctx, "outbound", None) or []:
+            refs = m.get("body_refs") or []
+            if not set(dropped) & set(refs):
+                continue
+            new_refs = []
+            for r in refs:
+                r = id if r in dropped else r
+                if r == id and id in new_refs:
+                    continue
+                new_refs.append(r)
+            m["body_refs"] = new_refs
+            renamed.append(m["id"])
+        note = (f"{', '.join(dropped)} was not kept: {id} replaces the "
+                f"test of {criterion_id}, and one criterion takes one.")
+        for mid in renamed:
+            note += f" Your message {mid} now names {id}."
+        return {"id": id, "note": note}
     return {"id": id}
 
 
