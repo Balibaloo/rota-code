@@ -2465,6 +2465,58 @@ def test_a_reply_that_starts_with_its_call_shows_the_call_once(db):
     assert fitted[-2].count(call) == 1, "the call shows twice"
 
 
+def test_a_cut_that_keeps_no_read_leaves_the_tail_whole(db):
+    """
+    The diff review of frame 108's pass 3, finding 1. The cut landed when
+    the room passed the smallest unit. The packing drops oldest first, so
+    the smallest unit went, the next did not fit, and the middle emptied
+    with the reply cut. The cut now lands only when a trial pack keeps a
+    read. No cut keeps one here, so the output is the parent's bytes.
+    """
+    from rota.core.runner import _fit
+
+    def call(i: int) -> str:
+        return f"TOOL: code.source(path='src/click/u.py', start={i}, end=9)"
+
+    blocks = ["WAKE " + "w" * 5000,
+              call(1) + "\n" + "plan. " * 50,
+              _source("src/click/u.py", 1, 9, 298, fill="a"),
+              call(2) + "\n" + "plan. " * 50,
+              _source("src/click/u.py", 2, 9, 2998, fill="b"),
+              call(3) + "\n" + "plan. " * 1222,
+              _source("src/click/u.py", 3, 9, 4639, fill="c")]
+    tail_call = "TOOL: code.write(path='src/click/u.py')"
+    blocks += ["r" * (30_894 - len(tail_call) - 1) + "\n" + tail_call,
+               "OK code.write -> " + "o" * 1983]
+    kinds = _paired(blocks)
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget=12_000)
+
+    assert not any(b in fitted for b in blocks[2:-2:2]), \
+        "the shape needs every middle read to go"
+    assert (fitted, fitted_kinds) == _parent_fit()(
+        list(blocks), list(kinds), 12_000), "a cut landed and kept no read"
+
+
+def test_a_call_inside_the_kept_prefix_shows_once(db):
+    """
+    The diff review of frame 108's pass 3, finding 2. A call in the middle
+    of the prose fell inside the kept prefix, and the stub prefix repeated
+    it. The plain cut serves when its own stub still lists every call.
+    """
+    from rota.core.runner import _fit, _stub
+
+    call = "TOOL: code.write(path='src/click/utils.py', text='x')"
+    blocks = _s132_turn_13(2000, "OK code.write -> " + "o" * 1983)
+    blocks[-2] = ("I reason about the fix. " * 100 + "\n" + call + "\n"
+                  + "I check the result. " * 1400)
+    kinds = _paired(blocks)
+    fitted, _ = _fit(list(blocks), list(kinds), budget=_S132_BUDGET)
+
+    assert "CUT this exchange" in fitted[-2], "the cap did not fire"
+    assert fitted[-2].count(call) == 1, "the call shows twice"
+    assert _stub(fitted[-2]) == call, "the stub of the cut reply lost its call"
+
+
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
     """Frame 110, night 106: the 700 tail of `_03`'s run held parser frames
     and not the test's own call line. A Tester challenge gets the whole stored

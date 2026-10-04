@@ -670,8 +670,8 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
 
     The cap fires only when no middle unit can fit beside the tail as it
     stands. A tail that leaves room for one unit is not this defect, and
-    the packing handles it as before. The cut lands only when it gives a
-    middle unit room.
+    the packing handles it as before. The cut lands only when a trial pack
+    of the cut transcript keeps a middle results block.
 
     The cut reply starts with its stub. `_exchange_cut` keeps a prefix, so a
     call after the prose or a call with a large argument fell outside it.
@@ -702,18 +702,26 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
     if len(reply) <= reply_room:
         return transcript
     stub = _stub(reply)
-    if (stub == _STUB_EMPTY or reply.startswith(stub)
+    plain = _exchange_cut(reply, reply_room)
+    # The plain cut serves when its own stub still lists every call: a call
+    # inside the kept prefix showed twice under a stub prefix (the diff
+    # review of frame 108's pass 3, finding 2).
+    if (stub == _STUB_EMPTY or reply.startswith(stub) or _stub(plain) == stub
             or len(stub) + 1 >= reply_room // 2 or _stub(stub) != stub):
-        cut = _exchange_cut(reply, reply_room)
+        cut = plain
     else:
         cut = stub + chr(10) + _exchange_cut(
             reply, max(reply_room - len(stub) - 1, 0))
-    # A cut that still leaves no unit room buys nothing and loses the reply's
-    # text. The trimmed-middle test met one: 57 characters, and no block came
-    # back (frame 108, revision 2, point 3).
-    if budget - (fixed - len(reply) + len(cut)) - note_room < smallest:
+    # The cut lands only when a trial pack keeps a middle read. A test on
+    # the smallest unit was not enough, because the packing drops oldest
+    # first: in 362 of 2,131 cuts the reply was cut and the middle still
+    # emptied (the diff review of frame 108's pass 3, finding 1). The trial
+    # runs `_pack`, never `_fit`, so the cap does not recurse.
+    capped = transcript[:-2] + [cut, results]
+    _, trial_kinds = _pack(capped, kinds, budget, note_room)
+    if _RESULTS not in trial_kinds[1:-2]:
         return transcript
-    return transcript[:-2] + [cut, results]
+    return capped
 
 
 def _smallest_unit(middle: list[str], kinds: list[str]) -> int | None:
@@ -907,7 +915,20 @@ def _fit(transcript: list[str], kinds: list[str],
     # for every block dropping.
     note_room = len(_dropped_note(len(transcript))) + 2
     transcript = _cap_tail_reply(transcript, kinds, budget, note_room)
+    out, out_kinds = _pack(transcript, kinds, budget, note_room)
+    return _cap_exchange(out, budget), out_kinds
 
+
+def _pack(transcript: list[str], kinds: list[str], budget: int,
+          note_room: int) -> tuple[list[str], list[str]]:
+    """
+    Pack the middle by the tiers of `_fit`, and keep the head and the tail.
+
+    `_fit` packs with this function, and so does the trial of
+    `_cap_tail_reply`. One function, so the trial and the real pack cannot
+    drift (the diff review of frame 108's pass 3, finding 1). The caller
+    applies `_cap_exchange` to the result.
+    """
     head, tail = transcript[:1], transcript[-2:]
     # Each middle block as [text, kind, kept]. A stub changes the text, and
     # a drop clears `kept`.
@@ -1014,7 +1035,7 @@ def _fit(transcript: list[str], kinds: list[str],
                    if keep and kind != _NOTICE])
     out = head + [block for block, _ in kept] + tail
     out_kinds = kinds[:1] + [kind for _, kind in kept] + kinds[-2:]
-    return _cap_exchange(out, budget), out_kinds
+    return out, out_kinds
 
 
 def _prompt_overrun(system: str, user: str, budget: int, num_ctx: int) -> str:
