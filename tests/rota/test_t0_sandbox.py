@@ -410,9 +410,17 @@ _PRORATE = ("from billing import prorate\ndef test_it():\n"
             "    assert prorate(999, 1, 3) == 333")
 
 
-def _a_stored_test(db, id="t1", criterion_id="c1", path="p.py"):
+def _a_stored_test(db, id="t1", criterion_id="c1", path="p.py", batch_id="b1"):
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
-               "VALUES (?, 'b1', ?, ?, ?)", (id, criterion_id, path, _PRORATE))
+               "VALUES (?, ?, ?, ?, ?)",
+               (id, batch_id, criterion_id, path, _PRORATE))
+
+
+def _commit(db, sb):
+    from rota.core.db import SessionResult, session_commit
+    from rota.core.runner import _as_write
+    session_commit(db, SessionResult(session_id="s_fix", role="tester",
+                                     writes=[_as_write(w) for w in sb.ctx.writes]))
 
 
 def _challenge_tester(db):
@@ -430,8 +438,6 @@ def test_a_fix_under_a_new_id_is_told_that_the_old_id_replaces(db):
     new file, so the old test stayed and ran beside the fix. The door now
     names the old id, and the old id replaces the row in place.
     """
-    from rota.core.db import SessionResult, session_commit
-    from rota.core.runner import _as_write
     _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
     _a_stored_test(db)
     sb = _challenge_tester(db)
@@ -445,8 +451,7 @@ def test_a_fix_under_a_new_id_is_told_that_the_old_id_replaces(db):
     out = sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
                   body=_PRORATE + " # fixed")
     assert out == {"id": "t1"}, out
-    session_commit(db, SessionResult(session_id="s_fix", role="tester",
-                                     writes=[_as_write(w) for w in sb.ctx.writes]))
+    _commit(db, sb)
     rows = db.execute("SELECT id, version FROM tests WHERE criterion_id = 'c1'"
                       ).fetchall()
     assert [(r["id"], r["version"]) for r in rows] == [("t1", 2)]
@@ -473,8 +478,9 @@ def test_the_stored_id_replaces_after_a_first_write_this_session(db):
     """
     Night 117 s213: a new-id "fix" landed first, then t9 sent the old id
     with a real fix. The one-test guard answered `unchanged`. A stored test
-    of the criterion under its own id is a replace, not a second test. A
-    second new id still gets `unchanged`.
+    of the criterion under its own id is a replace, not a second test, and
+    the new-id row it supersedes is not kept. A second new id still gets
+    `unchanged`.
     """
     _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
     _a_stored_test(db)
@@ -484,11 +490,64 @@ def test_the_stored_id_replaces_after_a_first_write_this_session(db):
             body=_PRORATE + " # new")
     out = sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
                   body=_PRORATE + " # fixed")
-    assert out == {"id": "t1"}, out
+    assert out == {"id": "t1", "note": "t1_new was not kept: t1 replaces the "
+                   "test of c1, and one criterion takes one."}, out
     again = sb.call("tests.encode", id="t1_v2", criterion_id="c1",
                     path="r.py", body=_PRORATE + " # v2")
     assert again.get("unchanged") and "one criterion takes one" in again["note"]
-    assert [w[1] for w in sb.ctx.writes] == ["t1_new", "t1"]
+    _commit(db, sb)
+    rows = db.execute("SELECT id, version FROM tests WHERE criterion_id = 'c1'"
+                      ).fetchall()
+    assert [(r["id"], r["version"]) for r in rows] == [("t1", 2)]
+
+
+def test_a_stored_test_of_another_batch_is_not_replaced(db):
+    """The replace is the session's own batch. A stored `t1` of `b2` sent
+    from a `b1` session would move the row into `b1`."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    db.execute("INSERT INTO batches (id, item_id, status) "
+               "VALUES ('b2','i1','running')")
+    _a_stored_test(db, batch_id="b2")
+    sb = _challenge_tester(db)
+
+    sb.call("tests.encode", id="t1_new", criterion_id="c1", path="q.py",
+            body=_PRORATE + " # new")
+    out = sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+                  body=_PRORATE + " # fixed")
+    assert out.get("unchanged") and "one criterion takes one" in out["note"], out
+    assert [w[1] for w in sb.ctx.writes] == ["t1_new"]
+
+
+def test_a_replace_keeps_the_stored_path(db):
+    """The harness writes each row to its path and deletes nothing, so a
+    replace under a new path would leave the old file on disk."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="t1", criterion_id="c1", path="q.py",
+                body=_PRORATE + " # fixed")
+    assert str(exc.value) == ("t1 is stored at p.py. To replace it, send this "
+                              "encode again with path='p.py'.")
+    assert sb.ctx.writes == []
+
+
+def test_two_replaces_of_one_test_stage_one_write(db):
+    """The second replace supersedes the first, so the version moves once
+    and the row holds the second body."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+
+    sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+            body=_PRORATE + " # first")
+    sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+            body=_PRORATE + " # second")
+    assert [w[1] for w in sb.ctx.writes if w[0] == "tests"] == ["t1"]
+    _commit(db, sb)
+    row = db.execute("SELECT version, body FROM tests WHERE id = 't1'").fetchone()
+    assert (row["version"], row["body"]) == (2, _PRORATE + " # second")
 
 
 def test_a_second_criterion_is_a_second_test(db):

@@ -5532,9 +5532,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # A stored test of this criterion, sent under its own id, is a replace and
     # not a second test. Frame 123, night 117 s213: the guard refused the old
     # id with a real fix, because a new-id "fix" had landed first.
-    replaces = ctx.conn.execute(
-        "SELECT 1 FROM tests WHERE id = ? AND criterion_id = ?",
-        (id, criterion_id)).fetchone() is not None
+    stored = ctx.conn.execute(
+        "SELECT path FROM tests WHERE id = ? AND criterion_id = ? "
+        "AND batch_id = ?", (id, criterion_id, batch_id)).fetchone()
+    replaces = stored is not None
+    if replaces and stored["path"] != path:
+        # The harness writes each row to its path and deletes nothing. A
+        # replace under a new path leaves the old file on disk.
+        raise ValueError(
+            f"{id} is stored at {stored['path']}. To replace it, send this "
+            f"encode again with path={stored['path']!r}.")
     done = [w for w in ctx.writes
             if w[0] == "tests" and w[2].get("criterion_id") == criterion_id]
     if done and not replaces:
@@ -5568,14 +5575,24 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"{path} is already {clash['id']}'s file; two tests in one file "
             f"overwrite each other on disk. Name this one for its own "
             f"criterion -- tests/test_<what it checks>.py")
-    # A second replace of one stored test in one session supersedes the
-    # first. Two staged rows for one id would move the version twice.
+    # A replace supersedes every test this session staged on the criterion.
+    # The same id twice would move the version twice. Another id is the
+    # left-over test frame 123 exists to stop (night 117 s213). A staged
+    # row has no file yet: the harness writes files from stored rows only.
+    dropped = []
     if replaces:
+        dropped = [w[1] for w in done if w[1] != id]
         ctx.writes[:] = [w for w in ctx.writes
-                         if not (w[0] == "tests" and w[1] == id)]
+                         if not (w[0] == "tests" and (
+                             w[1] == id
+                             or w[2].get("criterion_id") == criterion_id))]
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": criterion_id,
         "path": path, "body": body}))
+    if dropped:
+        return {"id": id,
+                "note": f"{', '.join(dropped)} was not kept: {id} replaces the "
+                        f"test of {criterion_id}, and one criterion takes one."}
     return {"id": id}
 
 
