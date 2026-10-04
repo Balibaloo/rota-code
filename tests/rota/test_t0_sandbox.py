@@ -406,6 +406,91 @@ def test_one_criterion_gets_one_test_in_a_session(db):
         "the second test for the same criterion must not land"
 
 
+_PRORATE = ("from billing import prorate\ndef test_it():\n"
+            "    assert prorate(999, 1, 3) == 333")
+
+
+def _a_stored_test(db, id="t1", criterion_id="c1", path="p.py"):
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES (?, 'b1', ?, ?, ?)", (id, criterion_id, path, _PRORATE))
+
+
+def _challenge_tester(db):
+    from rota.roles import prompts
+    sb = build("tester", db, mode="challenge",
+               allow=prompts.mode_tools("tester", "challenge"))
+    sb.ctx.batch_id = "b1"
+    return sb
+
+
+def test_a_fix_under_a_new_id_is_told_that_the_old_id_replaces(db):
+    """
+    Frame 123: in 4 of 4 challenge sessions the Tester sent its fix as
+    `<old id>_fixed` at the old test's path. The clash door offered only a
+    new file, so the old test stayed and ran beside the fix. The door now
+    names the old id, and the old id replaces the row in place.
+    """
+    from rota.core.db import SessionResult, session_commit
+    from rota.core.runner import _as_write
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="t1_fixed", criterion_id="c1", path="p.py",
+                body=_PRORATE + " # fixed")
+    assert "id='t1'" in str(exc.value) and "replaces" in str(exc.value), exc.value
+    assert sb.ctx.writes == []
+
+    out = sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+                  body=_PRORATE + " # fixed")
+    assert out == {"id": "t1"}, out
+    session_commit(db, SessionResult(session_id="s_fix", role="tester",
+                                     writes=[_as_write(w) for w in sb.ctx.writes]))
+    rows = db.execute("SELECT id, version FROM tests WHERE criterion_id = 'c1'"
+                      ).fetchall()
+    assert [(r["id"], r["version"]) for r in rows] == [("t1", 2)]
+
+
+def test_a_clash_with_another_criterions_test_keeps_the_new_file_door(db):
+    """The replace remedy is for the same criterion only. Another criterion's
+    file still asks for a file of its own (walk twelve)."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) "
+               "VALUES ('c2','tk1','a downgrade takes effect next period')")
+    _a_stored_test(db, criterion_id="c2")
+    sb = _challenge_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="t9", criterion_id="c1", path="p.py",
+                body=_PRORATE)
+    assert ("p.py is already t1's file; two tests in one file overwrite "
+            "each other on disk") in str(exc.value), exc.value
+    assert "replaces" not in str(exc.value)
+
+
+def test_the_stored_id_replaces_after_a_first_write_this_session(db):
+    """
+    Night 117 s213: a new-id "fix" landed first, then t9 sent the old id
+    with a real fix. The one-test guard answered `unchanged`. A stored test
+    of the criterion under its own id is a replace, not a second test. A
+    second new id still gets `unchanged`.
+    """
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+
+    sb.call("tests.encode", id="t1_new", criterion_id="c1", path="q.py",
+            body=_PRORATE + " # new")
+    out = sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+                  body=_PRORATE + " # fixed")
+    assert out == {"id": "t1"}, out
+    again = sb.call("tests.encode", id="t1_v2", criterion_id="c1",
+                    path="r.py", body=_PRORATE + " # v2")
+    assert again.get("unchanged") and "one criterion takes one" in again["note"]
+    assert [w[1] for w in sb.ctx.writes] == ["t1_new", "t1"]
+
+
 def test_a_second_criterion_is_a_second_test(db):
     """The bound is per criterion, not per session: a batch has several."""
     _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")

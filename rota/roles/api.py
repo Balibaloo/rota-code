@@ -5528,9 +5528,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # Reported rather than refused, for the same reason as the byte-identical
     # re-encode above: the session has already said what it has to say about
     # this criterion, and an error invites it to say it a fifth way.
+    #
+    # A stored test of this criterion, sent under its own id, is a replace and
+    # not a second test. Frame 123, night 117 s213: the guard refused the old
+    # id with a real fix, because a new-id "fix" had landed first.
+    replaces = ctx.conn.execute(
+        "SELECT 1 FROM tests WHERE id = ? AND criterion_id = ?",
+        (id, criterion_id)).fetchone() is not None
     done = [w for w in ctx.writes
             if w[0] == "tests" and w[2].get("criterion_id") == criterion_id]
-    if done:
+    if done and not replaces:
         return {"id": done[0][1], "unchanged": True,
                 "note": f"{criterion_id} already has a test this session "
                         f"({done[0][1]}), and one criterion takes one. Nothing "
@@ -5541,8 +5548,17 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # validation.py, the second overwrote the first on disk, and the harness
     # ran a file that encoded one criterion under two ids.
     clash = ctx.conn.execute(
-        "SELECT id FROM tests WHERE path = ? AND id != ? AND batch_id = ?",
+        "SELECT id, criterion_id FROM tests "
+        "WHERE path = ? AND id != ? AND batch_id = ?",
         (path, id, batch_id)).fetchone()
+    if clash is not None and clash["criterion_id"] == criterion_id:
+        # Frame 123: in 4 of 4 challenge sessions the Tester sent its fix
+        # under a new id. The old door offered only a new file, so the old
+        # test stayed and ran beside the fix.
+        raise ValueError(
+            f"{path} is {clash['id']}'s file, and {clash['id']} is the test "
+            f"of this same criterion. To fix that test, send this encode "
+            f"again with id={clash['id']!r}. The same id replaces it.")
     if clash is None:
         clash = next((w for w in ctx.writes if w[0] == "tests" and w[1] != id
                       and w[2].get("path") == path), None)
@@ -5552,6 +5568,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"{path} is already {clash['id']}'s file; two tests in one file "
             f"overwrite each other on disk. Name this one for its own "
             f"criterion -- tests/test_<what it checks>.py")
+    # A second replace of one stored test in one session supersedes the
+    # first. Two staged rows for one id would move the version twice.
+    if replaces:
+        ctx.writes[:] = [w for w in ctx.writes
+                         if not (w[0] == "tests" and w[1] == id)]
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": criterion_id,
         "path": path, "body": body}))
