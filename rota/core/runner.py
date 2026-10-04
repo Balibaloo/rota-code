@@ -676,12 +676,23 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
     The cut reply starts with its stub. `_exchange_cut` keeps a prefix, so a
     call after the prose or a call with a large argument fell outside it.
     The reply then stubbed to no call on a later turn (the diff review of
-    frame 108's pass 1, finding 2).
+    frame 108's pass 1, finding 2). A reply that starts with its stub needs
+    no prefix. A stub that takes half the room or more, and a stub whose
+    call line does not parse again, fall back to the plain cut. Frame 117
+    holds the second case.
     """
-    smallest = _smallest_unit(transcript[1:-2], kinds[1:-2])
+    middle, middle_kinds = transcript[1:-2], kinds[1:-2]
+    smallest = _smallest_unit(middle, middle_kinds)
     if smallest is None:
         return transcript
     fixed = len(transcript[0]) + 2 + sum(len(t) + 2 for t in transcript[-2:])
+    # The packing charges the notice only when a block drops. A middle that
+    # fits whole once tier 1 stubs its replies drops nothing, so the tail
+    # takes no cut (the diff review of frame 108's pass 2, finding 1).
+    if _NOTICE not in middle_kinds and fixed + sum(
+            _unit_chars(block, kind)
+            for block, kind in zip(middle, middle_kinds)) <= budget:
+        return transcript
     if budget - fixed - note_room >= smallest:
         return transcript
     third = budget // 3
@@ -691,7 +702,8 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
     if len(reply) <= reply_room:
         return transcript
     stub = _stub(reply)
-    if stub == _STUB_EMPTY:
+    if (stub == _STUB_EMPTY or reply.startswith(stub)
+            or len(stub) + 1 >= reply_room // 2 or _stub(stub) != stub):
         cut = _exchange_cut(reply, reply_room)
     else:
         cut = stub + chr(10) + _exchange_cut(
@@ -720,12 +732,23 @@ def _smallest_unit(middle: list[str], kinds: list[str]) -> int | None:
         if kind == _RESULTS:
             size = len(block) + 2
             if i > 0 and kinds[i - 1] == _REPLY:
-                size += len(_stub(middle[i - 1])) + 2
+                size += _unit_chars(middle[i - 1], _REPLY)
             units.append(size)
         elif kind == _REPLY and (i + 1 == len(middle)
                                  or kinds[i + 1] != _RESULTS):
-            units.append(len(_stub(block)) + 2)
+            units.append(_unit_chars(block, _REPLY))
     return min(units) if units else None
+
+
+def _unit_chars(block: str, kind: str) -> int:
+    """
+    The characters one middle block holds after tier 1, its separator
+    included. Tier 1 puts a stub in place of a reply only when the stub is
+    shorter (the diff review of frame 108's pass 2, finding 2).
+    """
+    if kind == _REPLY:
+        return min(len(block), len(_stub(block))) + 2
+    return len(block) + 2
 
 
 def _fit_budget(num_ctx: int, system_chars: int) -> int:

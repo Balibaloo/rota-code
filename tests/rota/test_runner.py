@@ -2388,6 +2388,83 @@ def test_a_cut_reply_keeps_its_call_in_its_stub(db):
     assert _stub(fitted[-2]) == call, "the stub of the cut reply lost its call"
 
 
+def test_a_middle_that_fits_once_stubbed_leaves_the_tail_whole(db):
+    """
+    The diff review of frame 108's pass 2, finding 1. The trigger charged
+    the notice, but the packing charges it only when a block drops. Here
+    tier 1 stubs the old reply, the middle fits whole, and no block drops.
+    The tail stays whole, and the output is the parent's bytes.
+    """
+    from rota.core.runner import _dropped_note, _fit
+
+    call = "TOOL: code.source(path='src/click/utils.py', start=1, end=9)"
+    tail_call = "TOOL: code.write(path='src/click/utils.py')"
+    blocks = ["WAKE " + "w" * 995,
+              call + "\n" + "plan. " * 400,
+              _source("src/click/utils.py", 1, 9, 1759),
+              "r" * (3927 - len(tail_call) - 1) + "\n" + tail_call,
+              "OK code.write -> " + "o" * 483]
+    kinds = _paired(blocks)
+    fixed = _held([blocks[0]] + blocks[-2:])
+    unit = len(blocks[2]) + 2 + len(call) + 2
+    budget = fixed + unit + 50
+    # The shape: the old trigger fired, because it charged the notice.
+    assert budget - fixed - len(_dropped_note(len(blocks))) - 2 < unit
+
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget=budget)
+    assert fitted[-2] == blocks[-2], "the cap cut a tail that left room"
+    assert (fitted, fitted_kinds) == _parent_fit()(
+        list(blocks), list(kinds), budget)
+
+
+def test_a_reply_shorter_than_its_stub_counts_at_its_own_length(db):
+    """
+    The diff review of frame 108's pass 2, finding 2. Tier 1 puts a stub in
+    place of a reply only when the stub is shorter. An "ok" reply stays "ok",
+    so its unit is the read plus two characters. Counted as a stub, the unit
+    did not fit, and the cap cut a tail that left a unit room.
+    """
+    from rota.core.runner import _dropped_note, _fit
+
+    tail_call = "TOOL: code.write(path='src/click/utils.py')"
+    blocks = ["WAKE " + "w" * 995]
+    for i in range(3):
+        blocks += ["ok", _source("src/click/utils.py", i, 9, 1000,
+                                 fill="abc"[i])]
+    blocks += ["r" * (5000 - len(tail_call) - 1) + "\n" + tail_call,
+               "OK code.write -> " + "o" * 183]
+    kinds = _paired(blocks)
+    fixed = _held([blocks[0]] + blocks[-2:])
+    note_room = len(_dropped_note(len(blocks))) + 2
+    budget = fixed + note_room + 1016
+    # The shape: the true unit fits, and a unit with an "ok" stub does not.
+    assert 1000 + 2 + 2 + 2 <= 1016 < 1000 + 2 + 31 + 2
+
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget=budget)
+    assert fitted[-2] == blocks[-2], "the cap cut a tail that left room"
+    assert (fitted, fitted_kinds) == _parent_fit()(
+        list(blocks), list(kinds), budget)
+
+
+def test_a_reply_that_starts_with_its_call_shows_the_call_once(db):
+    """
+    The diff review of frame 108's pass 2, finding 3. A reply whose first
+    line is its call already starts with its stub. A stub prefix showed the
+    call twice. The reply takes the plain cut.
+    """
+    from rota.core.runner import _fit
+
+    call = "TOOL: code.write(path='src/click/utils.py', text='x')"
+    blocks = _s132_turn_13(2000, "OK code.write -> " + "o" * 1983)
+    blocks[-2] = call + "\n" + "I reason about the fix. " * 1285
+    kinds = _paired(blocks)
+    fitted, _ = _fit(list(blocks), list(kinds), budget=_S132_BUDGET)
+
+    assert "CUT this exchange" in fitted[-2], "the cap did not fire"
+    assert fitted[-2].startswith(call + "\n"), fitted[-2][:120]
+    assert fitted[-2].count(call) == 1, "the call shows twice"
+
+
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
     """Frame 110, night 106: the 700 tail of `_03`'s run held parser frames
     and not the test's own call line. A Tester challenge gets the whole stored
