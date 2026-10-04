@@ -232,6 +232,7 @@ a different question and the night is then opened once.
 - Reasoning: the register's line of 2026-10-04 09:31, "Models and Ollama".
 - Status 2026-10-04 09:31 (rota-f7): pushed and held by 5e8ace65. Blocked on Roman, medium. One register line written. Meta workflow.
 - Status 2026-10-04 10:47 (rota-f7): **the eight cases that still held Titan recordings are re-recorded on the main card through the gate's `_rerecord`, and all eight passed: `ACT-TS-three-criteria-one-per-reply`, `L1-DV-act-on-an-answered-challenge`, `L1-DV-read-the-map-not-the-whole-file`, `L1-TE-adopt-what-the-principal-approved`, `L1-TS-a-criterion-no-machine-could-check-is-vision_keepers`, `L1-VK-decide-a-challenge-to-an-approved-item`, `L1-VK-relay-the-ruling`, `L1-DV-build-a-clear-criterion`** (observed: `rerecord_main.py` in the session scratchpad, log `.rota/rerecord_main_2026-10-04.log`, 2026-10-04 10:47). Meta workflow. The other seven were re-recorded on the main card by the gate of 08:34 and the lone refresh of 09:03. Roman asked at about 09:35 whether the Titan is useless; answered in the terminal: no, it keeps the interviews and the probes, and it cannot re-record for a register the 3080 recorded. That is a question and not a ruling, so the frame stays blocked on him, medium.
+- Status 2026-10-04 12:52 (rota-f7): Roman asked at 12:50, in place of a ruling: "Are we sure it's just the card? Is there no configuration mismatches?" **The two load blocks, read line for line: the batch was 512 on both in the first trial and 1,024 on the Titan only after the restart with flash attention on; with `options.num_batch = 512` and flash attention on, the Titan's reply is again its own bare `TOOL:` line and differs from the main card's at offset 0. Context, batch, KV cache, template and tensor placement now match. What is left: the device, and the CUDA library each card loads, `ARCHS = 750,800,860,890,1000,1200` on the 3080 against `500,520,600,610,700,750,800,860,890,900,1200` on the Titan, which Maxwell needs** (observed: the diagnosis agent's third trial and both server logs, 98.5k cumulative on the harness line, 2026-10-04 12:52). Meta workflow. Four settings tried, flash attention off and on, batch 512 and 1,024; no setting is left to try. The ruling asked for stands, with the same recommendation.
 
 ### 123. A Tester's fix after a challenge leaves the old test, and two tests then contradict (2026-10-04)
 
@@ -262,7 +263,7 @@ a different question and the night is then opened once.
 - Status 2026-10-04 08:30 (rota-f7): pushed by 5e8ace65. Unclaimed, priced. Rota workflow.
 - Status 2026-10-04 10:47 (rota-f7): night 116: `CUT your wake` stands on a cut reply in s186, s190 and s206, where the retry shows the first 4,000 characters of a prose reply of 35,200 and 36,475 characters, `_render_cut(completion.text, 4000)` at `runner.py:2898`; the old sentence stands beside the eviction notice in 6 turns in 3 sessions (observed: `plans/night116-read.md`, 2026-10-04). Rota workflow. Unclaimed.
 
-### 120. The Developer's wake holds one traceback 34 times and no source (2026-10-04)
+### 120. The Developer's wake holds one traceback 34 times and no source (2026-10-04) (5e8ace65)
 
 - **Batch C, the night's stall, found by frame 119's design read.** Site: the red rows of `tests.load` in the wake builder, `rota/core/runner.py:2238-2247`.
 - Rota workflow. On night 113, s153's wake gives 34 project rows with one byte-identical traceback of 726 characters, about 28,734 characters, and the cut then removes all of `code.source`, about 20,150 (observed: `plans/frame119-design.md`, sections 1 and 2, 2026-10-04).
@@ -270,6 +271,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended after frame 119, the Developer wake takes two thirds of the window, because both edit the wake.
 - Reasoning: `plans/frame119-design.md`, section 4, option (a).
 - Status 2026-10-04 05:26 (rota-f7): pushed by 5e8ace65. Unclaimed, priced. Rota workflow.
+- Status 2026-10-04 12:52 (rota-f7): claimed by 5e8ace65, first on Roman's order of 12:50. Nights 115 and 116 give no test of it: no batch was red at import, and 8 of 8 and 7 of 7 wakes hold source with one copy of a traceback (observed: `plans/night115-read.md` and `plans/night116-read.md`, 2026-10-04). The baseline stays night 113's. No separate design review: the design is option (a) of `plans/frame119-design.md`, section 4, read and judged at frame 119. Pass 1 goes to a fresh implementer on Opus.
 
 ### 117. A stub of a long call line stubs again to no call (2026-10-03)
 
