@@ -2725,6 +2725,60 @@ def test_a_runner_note_is_no_read_for_the_wake_share(db):
     assert _held(fitted) <= budget
 
 
+def test_a_block_of_repeat_lines_is_no_read_for_the_wake_share(db):
+    """
+    Frame 119, pass 4. The runner's repeat lines point at an earlier answer
+    and hold none. On night 115, 53 of 507 tail blocks held only such lines.
+    A middle whose only results block holds them leaves the wake its two
+    thirds, and the bytes are those of 6ba9fcc.
+    """
+    from rota.core.runner import _fit
+
+    budget = 28_242
+    repeats = chr(10).join([
+        "OK code.area -> was run for you before you started. What code.area "
+        "returned then still stands.",
+        "OK code.source -> unchanged since you asked earlier this session. "
+        "What code.source returned then still stands."])
+    blocks = ["WAKE " + "w" * (18_920 - 5),
+              "TOOL: code.area()\nTOOL: code.source(path='a.py')",
+              repeats,
+              "I survey the area. " * 105,
+              "OK code.area -> " + "a" * (9_500 - 16)]
+    kinds = _paired(blocks)
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget)
+    assert fitted[0].startswith(blocks[0][:budget * 2 // 3] + "\nCUT your wake")
+    assert (fitted, fitted_kinds) == _parent_fit(_F119_PARENT)(
+        list(blocks), list(kinds), budget)
+    assert _held(fitted) <= budget
+
+
+def test_a_runner_note_buys_no_cut_of_the_tail_reply(db):
+    """
+    Frame 119, pass 4. The tail cap landed when its trial kept any middle
+    results block, and a reply-cut note alone is no read. The reply stays
+    whole, and the bytes are those of 032c71c, before the cap: 6ba9fcc
+    already cut the reply for the note.
+    """
+    from rota.core.runner import _fit
+
+    note = "ERROR reply cut: your reply was cut at the output budget. "
+    tail_call = "TOOL: code.write(path='a.py')"
+    blocks = ["WAKE " + "w" * 995,
+              "[your reply of an earlier turn]",
+              note + "n" * (332 - len(note)),
+              "r" * (7_000 - len(tail_call) - 1) + "\n" + tail_call,
+              "OK code.write -> " + "o" * 483]
+    kinds = _paired(blocks)
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), 8_000)
+    # The cap would cut the reply to 3,828. `_cap_exchange` still trims it
+    # to the room the note leaves, as before the cap.
+    assert len(fitted[-2]) > 6_000, "a note bought a reply cut"
+    assert (fitted, fitted_kinds) == _parent_fit()(
+        list(blocks), list(kinds), 8_000)
+    assert _held(fitted) <= 8_000
+
+
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
     """Frame 110, night 106: the 700 tail of `_03`'s run held parser frames
     and not the test's own call line. A Tester challenge gets the whole stored

@@ -734,10 +734,11 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
     # the smallest unit was not enough, because the packing drops oldest
     # first: in 362 of 2,131 cuts the reply was cut and the middle still
     # emptied (the diff review of frame 108's pass 3, finding 1). The trial
-    # runs `_pack`, never `_fit`, so the cap does not recurse.
+    # runs `_pack`, never `_fit`, so the cap does not recurse. A runner note
+    # alone is no read, so it buys no cut (frame 119, pass 4).
     capped = transcript[:-2] + [cut, results]
-    _, trial_kinds = _pack(capped, kinds, budget, note_room)
-    if _RESULTS not in trial_kinds[1:-2]:
+    trial, trial_kinds = _pack(capped, kinds, budget, note_room)
+    if not _reads_in(trial[1:-2], trial_kinds[1:-2]):
         return transcript
     return capped
 
@@ -816,8 +817,26 @@ _SOURCE_RESULT = re.compile(
 _SOURCE_CUT_AT = re.compile(r"The cut fell at line (\d+): code\.source\(")
 # `_exchange_cut` names no line, so a block it cut covers no span.
 _EXCHANGE_CUT = "CUT this exchange"
-# The result line of a call, as the runner writes it into a results block.
-_OK_LINE = re.compile(r"^OK [\w.]+ -> ", re.MULTILINE)
+# The repeat lines of the runner. They point at an earlier answer and hold
+# none, so a block of them only is no read (frame 119, pass 4).
+_PUSHED_REPEAT = "was run for you before you started."
+_ASKED_REPEAT = "unchanged since you asked earlier this session."
+# The result line of a call that holds an answer, as the runner writes it.
+_OK_LINE = re.compile(
+    r"^OK [\w.]+ -> (?!" + re.escape(_PUSHED_REPEAT) + "|"
+    + re.escape(_ASKED_REPEAT) + ")", re.MULTILINE)
+
+
+def _reads_in(blocks: list[str], kinds: list[str]) -> bool:
+    """
+    Whether a results block among `blocks` holds an answer of a call.
+
+    Night 115, s73: the only middle results block was the runner's reply-cut
+    note, and the wake lost 4,707 characters of source for it (frame 119,
+    pass 3). A block of repeat lines only holds no answer either (pass 4).
+    """
+    return any(kind == _RESULTS and _OK_LINE.search(block)
+               for block, kind in zip(blocks, kinds))
 
 
 def _append(transcript: list[str], kinds: list[str], kind: str,
@@ -925,23 +944,16 @@ def _fit(transcript: list[str], kinds: list[str],
     # never grows back (frame 119's diff review, finding 1). So the wake takes
     # half only when two thirds keep no read and half keeps one. A first turn
     # keeps two thirds, the case of b8c18fe.
-    #
-    # A read is a results block with an `OK <fn>` line. Night 115, s73: the
-    # only middle results block was the runner's reply-cut note, and the wake
-    # lost 4,707 characters of source for it (frame 119, pass 3).
-    def reads_in(blocks: list[str], block_kinds: list[str]) -> bool:
-        return any(kind == _RESULTS and _OK_LINE.search(block)
-                   for block, kind in zip(blocks, block_kinds))
-
+    # A read is what `_reads_in` names.
     def keeps_a_read(room: int) -> bool:
         trial = [_render_cut(transcript[0], room)] + transcript[1:]
         trial_note = len(_dropped_note(len(trial))) + 2
         trial = _cap_tail_reply(trial, kinds, budget, trial_note)
         out, trial_kinds = _pack(trial, kinds, budget, trial_note)
-        return reads_in(out[1:-2], trial_kinds[1:-2])
+        return _reads_in(out[1:-2], trial_kinds[1:-2])
 
     wake_room = (budget * 2) // 3
-    if (len(transcript) >= 4 and reads_in(transcript[1:-2], kinds[1:-2])
+    if (len(transcript) >= 4 and _reads_in(transcript[1:-2], kinds[1:-2])
             and len(transcript[0]) > budget // 2
             and not keeps_a_read(wake_room) and keeps_a_read(budget // 2)):
         wake_room = budget // 2
@@ -3378,16 +3390,14 @@ def run_session(
                         # where the answer really is above and the session asked
                         # again regardless.
                         feedback.append(
-                            f"OK {call.name} -> was run for you before you "
-                            f"started. What {call.name} returned then still "
-                            f"stands."
+                            f"OK {call.name} -> {_PUSHED_REPEAT} What "
+                            f"{call.name} returned then still stands."
                             if key in pushed_keys else
-                            f"OK {call.name} -> unchanged since you asked "
-                            f"earlier this session. {result['unchanged']}"
+                            f"OK {call.name} -> {_ASKED_REPEAT} "
+                            f"{result['unchanged']}"
                             if same_write else
-                            f"OK {call.name} -> unchanged since you asked "
-                            f"earlier this session. What {call.name} returned "
-                            f"then still stands.")
+                            f"OK {call.name} -> {_ASKED_REPEAT} What "
+                            f"{call.name} returned then still stands.")
                     else:
                         # Charged here and nowhere else: a repeat costs a line,
                         # not a result, and a turn of repeats must not use up
