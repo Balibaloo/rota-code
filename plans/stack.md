@@ -204,7 +204,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 118. The Titan as the gate's bench, so that nothing waits behind a night (2026-10-04) (Roman)
+### 118. The Titan as the gate's bench, so that nothing waits behind a night (2026-10-04) (Roman) (5e8ace65)
 
 - **No batch. An instrument.** Sites: `probes/titan_ollama.ps1`, the second Ollama server on port 11435; the re-record step of `rota/tools/gate.py`; the register's line "Do not run the gate beside a night" in `plans/operating-facts.md`.
 - Meta workflow. The 3080 runs one thing at a time: on 2026-10-02 a gate was killed at 40 minutes behind night 107, and on 2026-10-03 Roman stopped GPU work for eight hours (observed: frame 111's status lines, 2026-10-02 17:26 and 2026-10-03 15:52). The Titan failed at one slot and a 12,288 window with `CUDA error: the launch timed out`, the Windows display driver timeout, on 2026-09-15; `TdrDelay` and `TdrDdiDelay` are 60 since the restart of 2026-10-04 02:17 (observed: the registry read, 2026-10-04). Nobody has run the Titan at 16,384 since.
