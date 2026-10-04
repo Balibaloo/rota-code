@@ -755,8 +755,14 @@ def _held(monkeypatch, ps):
 def test_a_held_card_names_each_model_with_its_expiry(monkeypatch):
     asked = _held(monkeypatch, {"models": [
         {"name": "qwen3.5:9b", "expires_at": WHEN}, {"name": "qwen3:8b"}]})
-    assert gate.main_card_held() == [f"qwen3.5:9b until {WHEN}", "qwen3:8b"]
-    assert asked == [f"{gate.MAIN_HOST}/api/ps"]
+    assert gate.main_card_held({}) == [f"qwen3.5:9b until {WHEN}", "qwen3:8b"]
+    assert asked == ["http://localhost:11434/api/ps"]
+
+
+def test_the_probe_asks_the_server_the_children_use(monkeypatch):
+    asked = _held(monkeypatch, HELD)
+    gate.main_card_held({"OLLAMA_HOST": "http://elsewhere:7/"})
+    assert asked == ["http://elsewhere:7/api/ps"]
 
 
 @pytest.mark.parametrize("ps", [
@@ -767,7 +773,7 @@ def test_a_held_card_names_each_model_with_its_expiry(monkeypatch):
 ], ids=["no answer", "empty", "models not a list", "no usable entry"])
 def test_a_free_or_malformed_reply_reads_as_free(monkeypatch, ps):
     _held(monkeypatch, ps)
-    assert gate.main_card_held() == []
+    assert gate.main_card_held({}) == []
 
 
 def test_a_reply_cut_short_reads_as_no_answer(monkeypatch):
@@ -803,10 +809,11 @@ def test_a_held_card_makes_the_rerecords_wait(stage, monkeypatch, capsys):
     reds, and the last line and the exit code say they wait.
     """
     _held(monkeypatch, HELD)
+    _baseline(stage["root"])
     stage["stale"] = {"case-a", "case-b"}
-    stage["log"] = LOG_MIXED
+    stage["log"] = _stale_log("case-a")
     stage["failed"] = {_node("case-a")}
-    assert _run(stage, "--baseline", rerecord=True) == gate.WAIT_EXIT
+    assert _run(stage, rerecord=True) == gate.WAIT_EXIT
     assert stage["rerecorded"] == []
     assert stage["reran"] == []
     out = _lines(capsys)
@@ -814,10 +821,41 @@ def test_a_held_card_makes_the_rerecords_wait(stage, monkeypatch, capsys):
                       "re-records wait")
     assert out[1].startswith("suite: ")
     assert out[2] == "new reds (0): none"
-    assert out[4] == "stale (2): case-a, case-b"
+    assert out[4] == "stale (2): case-a, case-b (+2 -0 against baseline)"
     assert out[-1] == "exit 3: 2 stale cases wait for the main card"
-    stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
-    assert stored["stale"] == ["case-a", "case-b"]
+
+
+def _stale_log(case_id):
+    return (f"FAILED {_node(case_id)} - Failed: STALE no cassette\n"
+            "1 failed, 1 passed in 2.00s\n")
+
+
+def test_a_held_card_stores_no_baseline(stage, monkeypatch, capsys):
+    """A waiting run holds no red for its stale cases, so it is no baseline."""
+    _held(monkeypatch, HELD)
+    stage["stale"] = {"case-a"}
+    stage["log"] = _stale_log("case-a")
+    stage["failed"] = {_node("case-a")}
+    assert _run(stage, "--baseline", rerecord=True) == gate.WAIT_EXIT
+    assert not (stage["root"] / gate.BASELINE_NAME).exists()
+    out = _lines(capsys)
+    assert ("note: baseline not stored, because stale cases wait for the "
+            "main card") in out
+    assert not any(line.startswith("note: baseline stored") for line in out)
+
+
+def test_a_known_red_of_a_stale_case_stays_a_red(stage, monkeypatch, capsys):
+    """Only a `STALE` red waits. A red for another reason is not gone."""
+    _held(monkeypatch, HELD)
+    _baseline(stage["root"], failed=[_node("case-a")], summary="1 failed")
+    stage["stale"] = {"case-a"}
+    stage["log"] = (f"FAILED {_node('case-a')} - AssertionError: wrong\n"
+                    "1 failed, 1 passed in 2.00s\n")
+    stage["failed"] = {_node("case-a")}
+    assert _run(stage, rerecord=True) == gate.WAIT_EXIT
+    out = _lines(capsys)
+    assert out[2] == "new reds (0): none"
+    assert out[3] == "reds gone (0): none"
 
 
 def test_a_new_red_keeps_exit_one_beside_the_wait(stage, monkeypatch, capsys):

@@ -60,9 +60,9 @@ DROPPED_NAMES = RECORDING_NAMES + ("PYTEST_ADDOPTS",)
 #: so every gate run measures the same thing.
 SUITE = "tests/rota"
 
-#: The server a night holds for hours. `rota/llm/llm.py` falls back to the
-#: same port when `OLLAMA_HOST` is unset.
-MAIN_HOST = "http://127.0.0.1:11434"
+#: The server the children use when `OLLAMA_HOST` is unset, the fallback of
+#: `rota/llm/llm.py:44`. A night holds this server for hours.
+DEFAULT_HOST = "http://localhost:11434"
 
 #: The exit code of a run whose stale cases wait for the main card. It is
 #: not 1, because a wait is no red.
@@ -115,17 +115,20 @@ def _get_json(url: str) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def main_card_held() -> list[str]:
+def main_card_held(env: dict[str, str]) -> list[str]:
     """
-    The models the main server holds now, each with its expiry when given.
-    Empty when the card is free or the server does not answer.
+    The models the children's server holds now, each with its expiry when
+    given. Empty when the card is free or the server does not answer.
 
     A held card means a night runs there, so the re-records wait. The gate
     never moves them to the Titan: the Titan gives another temperature-0
     reply to the same prompt, so its recording is no evidence for this
     register (ruled: Roman, frame 124).
     """
-    ps = _get_json(f"{MAIN_HOST}/api/ps") or {}
+    # Read as `rota/llm/llm.py:44` reads it, so the probe asks the server
+    # the re-records would call (observed: frame 124's diff review).
+    host = env.get("OLLAMA_HOST", DEFAULT_HOST).rstrip("/")
+    ps = _get_json(f"{host}/api/ps") or {}
     models = ps.get("models")
     if not isinstance(models, list):
         return []
@@ -434,7 +437,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     env = child_env(model, temp_root)
     # Asked once, before the run, so the line comes before the five lines.
     # The suite's replay calls no model, so only the re-records wait.
-    held = [] if args.no_rerecord else main_card_held()
+    held = [] if args.no_rerecord else main_card_held(env)
     if held:
         then = ("re-records run on --rerecord-now" if args.rerecord_now
                 else "re-records wait")
@@ -483,10 +486,11 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     failed_stale = set(by_failure)
     waiting = sorted(stale) if stale and wait else []
     if waiting:
-        # A stale case fails its replay, and that red is unmeasured, not
-        # wrong. The re-record path clears the same reds, so a held card
-        # must not turn them into new reds.
-        failed = {node for node in failed if case_of(node) not in stale}
+        # A `STALE` red is unmeasured, not wrong, so a held card must not
+        # turn it into a new red. A red for another reason stays, or a
+        # known red would read as gone (observed: frame 124's diff review).
+        unmeasured = stale_by_failure(text, failed)
+        failed = {node for node in failed if case_of(node) not in unmeasured}
     if stale and not args.no_rerecord and not wait:
         # One case at a time, after the suite ends. Two writers on the
         # cassette file lost a run to `database is locked` (observed:
@@ -565,8 +569,11 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     # With no baseline every known red is new, and the first run would print 22
     # tracebacks. That is the wall the gate exists to remove, so a run that
     # stores the baseline compares itself against itself.
-    wrote = stored is None or args.baseline
-    base = record if wrote else stored
+    fresh = stored is None or args.baseline
+    base = record if fresh else stored
+    # A waiting run holds no red for its unmeasured cases, so a baseline from
+    # it would call them green (observed: frame 124's diff review).
+    wrote = fresh and not waiting
     if wrote:
         _write_baseline(path, record)
 
@@ -578,7 +585,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     # from collecting reads as green against the reds alone, and the reader has
     # no other reference number.
     first = f"suite: {summary}"
-    if not wrote:
+    if not fresh:
         first += f" (baseline: {base.get('summary', '')})"
     print(first)
     print(f"new reds ({len(new_reds)}): {_listed(new_reds)}")
@@ -609,6 +616,9 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
 
     if wrote:
         print(f"note: baseline stored at {_short(record['commit'])}")
+    elif fresh:
+        print("note: baseline not stored, because stale cases wait for the "
+              "main card")
     if head != base.get("commit"):
         print("note: the tree moved past the baseline "
               f"({_short(base.get('commit', ''))} -> {_short(head)})")
@@ -618,7 +628,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
               "commit to commit")
     passed = count_in(summary, "passed")
     was = count_in(base.get("summary") or "", "passed")
-    if not wrote and passed < was:
+    if not fresh and passed < was:
         print(f"note: passed fell from {was} to {passed}")
 
     if new_reds:
