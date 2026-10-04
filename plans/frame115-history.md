@@ -126,6 +126,54 @@ leaves one question: the Developer sees the Architect's decision row
 through the answer, which needs `decisions` resolved in the wake, or
 `answer` becomes a verb with words on every channel, which amends law 2.
 
+## 7. The meta records: what Roman and the assistant said
+
+Meta workflow. Roman said the question was already discussed (ruled:
+Roman, 2026-10-04 14:34, "we have already discussed this, use a subagent
+to search our decisions logs, etc ie meta"). A second agent on Opus, 124.8k
+on the harness line against 120k, streamed Roman's typed messages and
+question answers from all 70 transcripts in
+`C:\Users\roman\.claude\projects\d--repos-rota\`, 2026-09-16 to 2026-10-04.
+Transcript times are UTC, and local time is UTC+1 (observed: the
+transcripts, 2026-10-04).
+
+- 2026-09-15, about 23:4x local: the Tester's quotes. No transcript exists
+  for the day. The record is `plans/archive/stack-2026-09-16.md:322`,
+  "Roman took the recommendations (23:4x)."
+- 2026-09-16 09:54Z to 10:19Z, session 836a1517: the blocking ask. The
+  assistant cited law 2: "reasoning stays where it was made, reachable by
+  a pointer. The pointer exists. No seat follows it." Roman: "yes i always
+  thought thats how it worked, a dev questions wakers others, and the dev
+  is wiped only when needed". Then: "keep this tentative in case our
+  understanding is missaligned from the code, This is low priority at the
+  moment". This exchange is about a seat's session and not about the
+  answer channel.
+- 2026-10-02 15:09Z, session 46f23339: a notification, "Frame 115 needs a
+  ruling … Recommended: the edge gains prose." No reply.
+- 2026-10-02 18:00Z, session 46f23339. Roman: "Ask an agent to look for
+  any historical context for your questions". The assistant, 18:05Z, after
+  the read: "**Architect's reply (F-115):** add the brief branch "the
+  constraint holds", answered through a decision row, and refuse a reply
+  that adds no row. No wiring change." No reply on that point.
+- 2026-10-03 13:33Z, sessions 46f23339 and 3d6e6173. Roman: "so for your
+  question, is there any framework that would have helped you answer it?"
+  The assistant: "Both questions I sent you were already answered in the
+  records: law 2 from day one settles that an answer is a row and not
+  words, and the 2026-09-14 commits settle that a broken project test is
+  the Developer's own regression." Roman then said "ok please update
+  guidance", which made the history-before-escalation rule in `CLAUDE.md`.
+
+No ruling on frame 115 stands in Roman's own words. The discussion he
+names is the exchange of 2026-10-03: the assistant said law 2 settles the
+question with the row route, and he took that and ruled the guidance from
+it (reasoned: the only meta exchanges on this frame). The one point never
+put to him is section 4's gap, that the Developer cannot read a decision
+row.
+
+Not searched: the sub-agents' transcripts, `HANDOFF.md`, the workshop
+notes, and `rota/DECISIONS.md` outside lines 384-413, 484-619 and grep
+hits.
+
 ## Not read
 
 `rota/DECISIONS.md` beyond grep hits and lines 500-540;
