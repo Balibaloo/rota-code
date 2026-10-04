@@ -1625,31 +1625,23 @@ def _third_asking(db) -> str:
     return backend.calls[3][1]
 
 
-def test_the_refusal_makes_no_claim_about_this_prompt(db):
+@pytest.mark.parametrize("cap", [3, 1])
+def test_the_refusal_keeps_the_wording_of_6ba9fcc(db, monkeypatch, cap):
     """
-    Frame 119. "The answer is in this prompt." was written one turn before
-    the eviction could take the block (night 113, s156, turn 9). Under
-    SERVE_CAP the line says that a dropped answer is served again.
-    """
-    prompt = _third_asking(db)
-    assert "asked three times" in prompt
-    assert "If the window dropped it, ask once more and it is served again." \
-        in prompt
-    assert "The answer is in this prompt." not in prompt
-
-
-def test_the_refusal_at_the_serve_cap_promises_no_serve(db, monkeypatch):
-    """
-    Frame 119. At SERVE_CAP a dropped answer is refused and not served
-    again, so the line promises no serve and says nothing about place.
+    Frame 119, pass 3. "If the window dropped it, ask once more and it is
+    served again." invited a repeat: night 115, s33 to s35, repeated ten
+    calls where night 113 attested. The line keeps the wording of 6ba9fcc,
+    under SERVE_CAP and at it.
     """
     from rota.core import runner
 
-    monkeypatch.setattr(runner, "SERVE_CAP", 1)
+    monkeypatch.setattr(runner, "SERVE_CAP", cap)
     prompt = _third_asking(db)
-    assert "asked three times" in prompt
+    line = ("ERROR decisions.search: asked three times this session and the "
+            "answer has not changed; not answered again. The answer is in "
+            "this prompt.")
+    assert line in prompt, prompt[-400:]
     assert "served again" not in prompt
-    assert "The answer is in this prompt." not in prompt
 
 
 def test_an_action_is_held_behind_a_fresh_read_and_not_behind_a_repeat(db):
@@ -2706,6 +2698,31 @@ def test_a_reply_with_no_results_is_no_middle_unit(db):
     assert read in fitted, "the middle kept stubs and no read"
     assert "CUT this exchange" in fitted[-2], "the cap did not fire"
     assert _held(fitted) <= budget and len(fitted_kinds) == len(fitted)
+
+
+def test_a_runner_note_is_no_read_for_the_wake_share(db):
+    """
+    Frame 119, pass 3. Night 115, s73, turns 6 to 13: the only middle
+    results block was the runner's reply-cut note, and the wake took half
+    and lost 4,707 characters of source for it. A results block with no
+    `OK <fn>` line is no read, so the wake keeps two thirds.
+    """
+    from rota.core.runner import _fit
+
+    budget = 28_242
+    assert (budget * 2 // 3, budget // 2) == (18_828, 14_121)
+    note = "ERROR reply cut: your reply was cut at the output budget. "
+    blocks = ["WAKE " + "w" * (18_920 - 5),
+              "[your reply of an earlier turn]",
+              note + "n" * (332 - len(note)),
+              "I survey the area. " * 105,
+              "OK code.area -> " + "a" * (9_500 - 16)]
+    kinds = _paired(blocks)
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget)
+    assert fitted[0].startswith(blocks[0][:budget * 2 // 3] + "\nCUT your wake")
+    assert (fitted, fitted_kinds) == _parent_fit(_F119_PARENT)(
+        list(blocks), list(kinds), budget)
+    assert _held(fitted) <= budget
 
 
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):

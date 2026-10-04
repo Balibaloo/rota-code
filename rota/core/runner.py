@@ -816,6 +816,8 @@ _SOURCE_RESULT = re.compile(
 _SOURCE_CUT_AT = re.compile(r"The cut fell at line (\d+): code\.source\(")
 # `_exchange_cut` names no line, so a block it cut covers no span.
 _EXCHANGE_CUT = "CUT this exchange"
+# The result line of a call, as the runner writes it into a results block.
+_OK_LINE = re.compile(r"^OK [\w.]+ -> ", re.MULTILINE)
 
 
 def _append(transcript: list[str], kinds: list[str], kind: str,
@@ -923,15 +925,23 @@ def _fit(transcript: list[str], kinds: list[str],
     # never grows back (frame 119's diff review, finding 1). So the wake takes
     # half only when two thirds keep no read and half keeps one. A first turn
     # keeps two thirds, the case of b8c18fe.
+    #
+    # A read is a results block with an `OK <fn>` line. Night 115, s73: the
+    # only middle results block was the runner's reply-cut note, and the wake
+    # lost 4,707 characters of source for it (frame 119, pass 3).
+    def reads_in(blocks: list[str], block_kinds: list[str]) -> bool:
+        return any(kind == _RESULTS and _OK_LINE.search(block)
+                   for block, kind in zip(blocks, block_kinds))
+
     def keeps_a_read(room: int) -> bool:
         trial = [_render_cut(transcript[0], room)] + transcript[1:]
         trial_note = len(_dropped_note(len(trial))) + 2
         trial = _cap_tail_reply(trial, kinds, budget, trial_note)
-        _, trial_kinds = _pack(trial, kinds, budget, trial_note)
-        return _RESULTS in trial_kinds[1:-2]
+        out, trial_kinds = _pack(trial, kinds, budget, trial_note)
+        return reads_in(out[1:-2], trial_kinds[1:-2])
 
     wake_room = (budget * 2) // 3
-    if (len(transcript) >= 4 and _RESULTS in kinds[1:-2]
+    if (len(transcript) >= 4 and reads_in(transcript[1:-2], kinds[1:-2])
             and len(transcript[0]) > budget // 2
             and not keeps_a_read(wake_room) and keeps_a_read(budget // 2)):
         wake_room = budget // 2
@@ -3320,19 +3330,22 @@ def run_session(
                             seat_refusals = getattr(sb.ctx, "refusals", None)
                             if seat_refusals is not None:
                                 seat_refusals.append((call.name, why, "Repeat"))
-                            # The line makes no claim about this prompt. "The
-                            # answer is in this prompt" was written one turn
-                            # before the eviction could take the block: night
-                            # 113, s156, turn 9, read it beside an empty middle
-                            # (frame 119). An evicted key goes to the serve
-                            # below, so the line says that, but only under
-                            # SERVE_CAP. At the cap the next asking is refused,
-                            # and the line then says nothing more.
+                            # This branch is the answered-and-present case, and
+                            # the sentence says so. "Use what it returned
+                            # earlier" was said in exactly the evicted case,
+                            # about a result the seat could not see, and rule 2
+                            # sends that case to the serve below. The eviction
+                            # can still take the block between this line and
+                            # the reading of it, and then the key is evicted
+                            # and the next asking is served again.
+                            #
+                            # Frame 119 put "ask once more and it is served
+                            # again" here. Night 115, s33 to s35, then repeated
+                            # ten calls where night 113 attested, so the
+                            # sentence was reverted (frame 119, pass 3).
                             feedback.append(
-                                f"ERROR {_call_tag(call, len(calls))}: {why}."
-                                + (" If the window dropped it, ask once more "
-                                   "and it is served again."
-                                   if served.get(key, 0) < SERVE_CAP else ""))
+                                f"ERROR {_call_tag(call, len(calls))}: {why}. "
+                                f"The answer is in this prompt.")
                     elif unchanged:
                         repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three
