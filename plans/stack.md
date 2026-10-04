@@ -204,7 +204,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 119. The Developer wake takes two thirds of the window, so a long reply still empties the middle (2026-10-04)
+### 119. The Developer wake takes two thirds of the window, so a long reply still empties the middle (2026-10-04) (5e8ace65)
 
 - **Batch C, the night's stall, found by night 113's read of frame 108's residue.** Site: `wake_room` in `_fit` in `rota/core/runner.py`, the two-thirds cap on the wake, and what the Developer's wake carries.
 - Rota workflow. On night 113 every Developer wake is 18,179 characters, cut at two thirds of a 27,096 budget. The tail then takes 9,032 at least, wake and tail exceed the budget, and no trial pack keeps a middle read, so frame 108's cap never lands on a Developer turn. s153, s154 and s156 re-read spans their window held before a long reply, and the runner told s156 `The answer is in this prompt` when the prompt held no copy; the report's 54 dangling-pointer turns in 12 sessions follow from the same (observed: `plans/night113-read.md`, section 1 and 7, 2026-10-04).
@@ -212,6 +212,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended after frame 118, the Titan as the gate's bench, and before frame 113, a Developer writes its own tool results, because both edit `_fit`'s neighbourhood and the wall stalls every Developer batch.
 - Reasoning: `plans/night113-read.md`, sections 1 and 7.
 - Status 2026-10-04 04:19 (rota-f7): pushed by 5e8ace65 at frame 108's close. Unclaimed. Rota workflow.
+- Status 2026-10-04 05:19 (rota-f7): claimed by 5e8ace65. The order question, low, went to Roman's phone at 04:59 with the recommended answer, this frame before frame 113, a Developer writes its own tool results; taken by timeout at 05:19. Meta workflow. First: a design read on Opus of what the 18,179 characters of the Developer's wake hold, into `plans/frame119-design.md`, judged here before any code.
 
 ### 117. A stub of a long call line stubs again to no call (2026-10-03)
 
