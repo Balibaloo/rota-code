@@ -228,8 +228,37 @@ def test_the_refusal_names_the_value_that_never_ends_and_shows_a_form():
         "backslash before it. Put a value with quotes or line breaks between "
         "triple quotes, three single quotes at each end. Write the value as "
         "it is, with no backslashes:\n"
-        "why='''if x != \"a\":\n    return \"it's done\"'''")
+        "why='''the text, with its quotes and line breaks as they are'''")
     form = got[0].reason.split(":\n", 1)[1]
     shown = toolproto.extract(f"TOOL: challenge.uphold(citation='a.py', quote='x', {form})",
                               UPHOLD)
-    assert shown[0].args["why"] == 'if x != "a":\n    return "it\'s done"'
+    assert shown[0].args["why"] == "the text, with its quotes and line breaks as they are"
+
+
+def test_the_refusal_names_no_value_that_opens_inside_a_tuple():
+    """Frame 122's review: the open quote of `a.b(x=(1, 'y)` sits inside a
+    tuple, so it is not the value of `x`. The old refusal stays."""
+    got = toolproto.extract("TOOL: a.b(x=(1, 'y)")
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(
+        "unterminated argument list: a quote inside a quoted argument")
+
+
+WRITE = {"code.write": ({"path", "text"}, {"path", "text", "start", "end"})}
+
+
+@pytest.mark.parametrize("raw", [
+    # Frame 122's review probe: the third reading of pass 1 joined `''` into
+    # nothing and wrote `return ` where the seat wrote `return ''`.
+    "TOOL: code.write(path='a.py', text='def name(x):\\n    if not x:\\n"
+    "        return ''\\n    return f\"it's {x}\"\\n')",
+    # A quote that opens right after a quote closes.
+    "TOOL: code.write(path='a.py', text='s = 'it''s'')",
+    # A tail after `')`: the value did not end at the first `')`.
+    "TOOL: code.write(path='a.py', text='it's f(x')\nmore')",
+], ids=["empty-string-probe", "adjacent-quotes", "tail-after-close"])
+def test_a_doubtful_third_reading_is_a_refusal_and_never_a_write(raw):
+    """A refusal is safe, and a wrong write is not. The third reading gives
+    up when a value is not one token or the call has a tail."""
+    got = toolproto.extract(raw, WRITE)
+    assert got and all(isinstance(g, toolproto.ToolError) for g in got), got

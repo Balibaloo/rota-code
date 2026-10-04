@@ -177,16 +177,33 @@ def _third_reading(text: str, start: int) -> tuple[str, int] | None:
 
     - An apostrophe between two letters inside a single-quoted value is
       text. Python never lets a letter follow a closing quote here.
-    - A triple-quoted value inside one more quote, `"'''...'''"`, is the
-      triple-quoted value. The outer quote may close as `\\"`.
+    - A triple-quoted value inside one more quote, `"'''...'''\\"`, is the
+      triple-quoted value. The outer quote must close as `\\"`. With a
+      plain `"`, Python reads a string that holds the triple quotes.
+
+    A wrong write is worse than a refusal (frame 122's review: the first
+    version joined `''` into nothing). So every doubt is a refusal:
+
+    - One of the two rules must apply, or the reading adds nothing.
+    - A string value is one token. Only a comma, a closing bracket or
+      white space may follow it.
+    - A value that holds an apostrophe is the last argument. Only white
+      space may follow its closing quote, before the closing bracket.
+    - Only white space may follow the call, up to the next `TOOL:` line.
+      One exception: a stray `")` after a wrapped value that closed as
+      `\\"`, as s86 wrote on turns 4 to 6.
 
     The answer is the rewritten argument list and the offset of the
     closing bracket in `text`. It stands only when `parse_args` parses it.
     """
     out: list[str] = []
-    i, depth = start, 1
+    i, depth, square = start, 1, 0
     quote = None            # the active string delimiter: ', ", ''', or """
     wrap = None             # the outer quote around a triple-quoted value
+    apostrophe = False      # the open value holds an apostrophe
+    used_apostrophe = False
+    stray = None            # the tail a wrapped value that closed as \" allows
+    used = False
     while i < len(text):
         ch = text[i]
         if quote:
@@ -195,19 +212,30 @@ def _third_reading(text: str, start: int) -> tuple[str, int] | None:
                 i += 2
                 continue
             if text.startswith(quote, i):
-                if (quote == "'" and out and out[-1][-1:].isalnum()
+                if (quote == "'" and not wrap and out
+                        and out[-1][-1:].isalnum()
                         and text[i + 1:i + 2].isalnum()):
                     out.append("\\'")
                     i += 1
+                    apostrophe = used = used_apostrophe = True
                     continue
                 out.append(quote)
                 i += len(quote)
                 if wrap:
-                    if text.startswith("\\" + wrap, i):
-                        i += 2
-                    elif text.startswith(wrap, i):
-                        i += 1
+                    if not text.startswith("\\" + wrap, i):
+                        return None
+                    i += 2
+                    stray = wrap + ")"
+                j = i
+                while j < len(text) and text[j].isspace():
+                    j += 1
+                follow = text[j:j + 1]
+                if follow not in (",", ")", "]"):
+                    return None
+                if apostrophe and (follow != ")" or depth != 1 or square):
+                    return None
                 quote = wrap = None
+                apostrophe = False
                 continue
             out.append(ch)
             i += 1
@@ -215,6 +243,7 @@ def _third_reading(text: str, start: int) -> tuple[str, int] | None:
         head = text[i + 1:i + 4]
         if ch in "'\"" and head in ("'''", '"""') and head[0] != ch:
             wrap, quote = ch, head
+            used = True
             out.append(head)
             i += 4
             continue
@@ -225,6 +254,10 @@ def _third_reading(text: str, start: int) -> tuple[str, int] | None:
             continue
         if ch in ("'", '"'):
             quote = ch
+        elif ch == "[":
+            square += 1
+        elif ch == "]":
+            square -= 1
         elif ch == "(":
             depth += 1
         elif ch == ")":
@@ -233,7 +266,12 @@ def _third_reading(text: str, start: int) -> tuple[str, int] | None:
                 break
         out.append(ch)
         i += 1
-    if depth != 0 or i >= len(text):
+    if not used or depth != 0 or i >= len(text):
+        return None
+    after = text[i + 1:]
+    following = re.search(r"\n[ \t]*" + re.escape(MARKER), after)
+    tail = (after[:following.start()] if following else after).strip()
+    if tail and (used_apostrophe or tail != stray):
         return None
     raw = "".join(out)
     try:
@@ -265,8 +303,9 @@ def _open_argument(text: str, start: int) -> str | None:
             in_double = ch != '"'
         elif ch in "'\"":
             in_single, in_double = ch == "'", ch == '"'
-            # A quote after a comma opens a new value with no name.
-            opened_key = None if after_comma else last_key
+            # A quote after a comma opens a new value with no name. A quote
+            # inside a tuple or a call is not the named value itself.
+            opened_key = None if after_comma or depth != 1 else last_key
         elif ch == "(":
             depth += 1
         elif ch == ")":
@@ -747,6 +786,10 @@ def extract(text: str, signatures: dict | None = None, *,
             args3, pos3 = parse_args(raw3)
             if _swallowed_argument(args3, params):
                 return None
+            # A name the function lacks means a quote in the source opened
+            # a false argument (frame 122's fuzz: `'',a='if` in a text).
+            if params and any(k not in params for k in args3):
+                return None
             add(ToolCall(name=name, args=args3, pos=pos3,
                          raw=f"{name}({raw3})"), marker)
             return end3
@@ -772,7 +815,10 @@ def extract(text: str, signatures: dict | None = None, *,
                     f"value with quotes or line breaks between triple "
                     f"quotes, three single quotes at each end. Write the "
                     f"value as it is, with no backslashes:\n"
-                    f"{key}='''if x != \"a\":\n    return \"it's done\"'''")
+                    # A placeholder, not sample code: a seat copies an
+                    # example's content (frame 122's review).
+                    f"{key}='''the text, with its quotes and line breaks "
+                    f"as they are'''")
             else:
                 reason = (
                     "unterminated argument list: a quote inside a quoted "
