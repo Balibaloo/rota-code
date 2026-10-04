@@ -284,7 +284,7 @@ a different question and the night is then opened once.
 - Status 2026-10-04 04:19 (rota-f7): night 113: 1 of 7 tests_failing sessions on both measures, against 1 of 21 on night 112: s143 sent three messages per reply at turns 6 to 8 and met the same refusal on m64 three times (observed: `plans/night113-read.md`, section 5, 2026-10-04). Rota workflow. Unclaimed.
 - Status 2026-10-04 10:47 (rota-f7): night 116: 0 of 7 tests_failing replies held more than one challenge, and 2 of 7 sessions, s187 and s190, were refused the same challenge three times, against the line of at most 1 (observed: `plans/night116-read.md`, 2026-10-04). Rota workflow. Unclaimed; the repeat is one challenge per reply sent again, so the burst is not its cause.
 
-### 113. A Developer writes its own tool results, and ten commits landed after one (2026-10-02)
+### 113. A Developer writes its own tool results, and ten commits landed after one (2026-10-02) (5e8ace65)
 
 - **Batch C, the night's stall, found by night 106's count.** Sites: the Developer's modes and the runner's invented-result door.
 - Rota workflow. Night 106's made-up count is developer 22 sessions against 1 on night 105: `code.source` 166 invented lines in 16 sessions, `code.write` 35 in 9, `code.commit` 11 in 6, and five landed shas sit in sessions that also invented a commit line (observed: `plans/night106-read.md`, section 4, 2026-10-02). Frame 100's design read parked the invented-result cut as its own frame, 3,587 cassettes.
