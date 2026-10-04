@@ -58,6 +58,18 @@ DROPPED_NAMES = RECORDING_NAMES + ("PYTEST_ADDOPTS",)
 #: so every gate run measures the same thing.
 SUITE = "tests/rota"
 
+#: The server a night holds for hours. `rota/llm/llm.py` falls back to the
+#: same port when `OLLAMA_HOST` is unset.
+MAIN_HOST = "http://127.0.0.1:11434"
+
+#: The second card's server. The gate moves there so it never waits behind a
+#: night (ruled: Roman, frame 118). An empty `ROTA_GATE_BENCH` turns it off.
+BENCH_HOST = "http://127.0.0.1:11435"
+
+#: The bench card writes 17 tok/s, so a 5,000-token reply alone fills the
+#: 300 s default (observed: frame 118, 2026-10-04, one Developer turn).
+BENCH_TIMEOUT = "900"
+
 BASELINE_NAME = ".rota-gate.json"
 LOG_NAME = ".rota-gate.log"
 LASTFAILED = Path(".pytest_cache") / "v" / "cache" / "lastfailed"
@@ -88,6 +100,44 @@ def child_env(model: str, temp_root: Path | None = None) -> dict[str, str]:
     for name in ("TMPDIR", "TEMP", "TMP"):
         env[name] = str(root)
     return env
+
+
+def _get_json(url: str) -> dict | None:
+    """The JSON body of a GET, or None when the server does not answer."""
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(url, timeout=2) as reply:
+            data = json.loads(reply.read().decode("utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def choose_host(env: dict[str, str]) -> str:
+    """
+    Point the child at the bench when a night holds the main server.
+    Return the line that says which host the gate uses and why.
+
+    One variable moves the child, because `rota/llm/llm.py` reads
+    `OLLAMA_HOST` at import (ruled: Roman, frame 118, no second code path).
+    """
+    if env.get("OLLAMA_HOST"):
+        return f"bench: off, the caller sets OLLAMA_HOST={env['OLLAMA_HOST']}"
+    bench = os.environ.get("ROTA_GATE_BENCH", BENCH_HOST)
+    if not bench:
+        return "bench: off, ROTA_GATE_BENCH is empty"
+    ps = _get_json(f"{MAIN_HOST}/api/ps")
+    loaded = [m.get("name", "?") for m in (ps or {}).get("models") or []]
+    if not loaded:
+        return "bench: off, the main server is free"
+    if _get_json(f"{bench.rstrip('/')}/api/tags") is None:
+        return (f"bench: off, the main server holds {', '.join(loaded)} "
+                f"and {bench} does not answer")
+    env["OLLAMA_HOST"] = bench
+    # A timeout the caller set stays. Only the default is too short there.
+    env.setdefault("ROTA_LLM_TIMEOUT", BENCH_TIMEOUT)
+    return f"bench: {bench}, the main server holds {', '.join(loaded)}"
 
 
 def _run_suite(env: dict[str, str], log: Path) -> int:
@@ -378,6 +428,9 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     model = args.model or os.environ.get("ROTA_MODEL") or FALLBACK_MODEL
     temp_root = TEMP_ROOT
     env = child_env(model, temp_root)
+    # Decided once, so the suite run, the re-runs and the re-records all
+    # reach one server. The line comes before the run and the five lines.
+    print(choose_host(env), flush=True)
 
     # The cache is cumulative: pytest drops only the ids it ran, so a removed
     # parametrised id or a fixed collection error stays in it for ever under

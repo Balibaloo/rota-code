@@ -109,6 +109,9 @@ def stage(tmp_path, monkeypatch):
     monkeypatch.setattr(gate, "_stale", stale)
     monkeypatch.setattr(gate, "_head", lambda: state["head"])
     monkeypatch.setattr(gate, "_dirty", lambda: state["dirty"])
+    # No test reaches a server. A free main server keeps the bench off.
+    monkeypatch.setattr(gate, "_get_json", lambda url: {"models": []})
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
     return state
 
 
@@ -124,7 +127,9 @@ def _run(stage, *argv, rerecord=False):
 
 
 def _lines(capsys):
-    return capsys.readouterr().out.splitlines()
+    # The bench line opens every run. The bench tests read it on their own.
+    return [line for line in capsys.readouterr().out.splitlines()
+            if not line.startswith("bench: ")]
 
 
 def test_the_summary_is_the_last_line_that_carries_a_duration():
@@ -731,3 +736,81 @@ def test_the_rerecord_command_is_the_one_casestatus_prints(monkeypatch):
     assert names == {"ROTA_L1": "1", "ROTA_MODEL": "qwen3:8b",
                      "ROTA_NUM_CTX": "8192"}
     assert argv[1:] == ["-m", "pytest", node, "-q"]
+
+
+HELD = {"models": [{"name": "qwen3.5:9b"}]}
+TAGS = {"models": [{"name": "qwen3:8b"}]}
+
+
+def _servers(monkeypatch, ps, tags):
+    """Fake the two reads. Return the list of the URLs the gate asked."""
+    asked = []
+
+    def get_json(url):
+        asked.append(url)
+        return ps if url.endswith("/api/ps") else tags
+
+    monkeypatch.setattr(gate, "_get_json", get_json)
+    monkeypatch.delenv("ROTA_GATE_BENCH", raising=False)
+    return asked
+
+
+def test_the_callers_host_wins_and_no_server_is_asked(monkeypatch):
+    asked = _servers(monkeypatch, HELD, TAGS)
+    env = {"OLLAMA_HOST": "http://elsewhere:1"}
+    line = gate.choose_host(env)
+    assert env == {"OLLAMA_HOST": "http://elsewhere:1"}
+    assert asked == []
+    assert line == "bench: off, the caller sets OLLAMA_HOST=http://elsewhere:1"
+
+
+def test_a_held_main_server_and_a_live_bench_move_the_child(monkeypatch):
+    asked = _servers(monkeypatch, HELD, TAGS)
+    env = {}
+    line = gate.choose_host(env)
+    assert env == {"OLLAMA_HOST": gate.BENCH_HOST, "ROTA_LLM_TIMEOUT": "900"}
+    assert asked == [f"{gate.MAIN_HOST}/api/ps", f"{gate.BENCH_HOST}/api/tags"]
+    assert line == f"bench: {gate.BENCH_HOST}, the main server holds qwen3.5:9b"
+
+
+def test_the_bench_keeps_a_timeout_the_caller_set(monkeypatch):
+    _servers(monkeypatch, HELD, TAGS)
+    env = {"ROTA_LLM_TIMEOUT": "1200"}
+    gate.choose_host(env)
+    assert env["ROTA_LLM_TIMEOUT"] == "1200"
+
+
+def test_a_free_main_server_changes_nothing(monkeypatch):
+    asked = _servers(monkeypatch, {"models": []}, TAGS)
+    env = {}
+    assert gate.choose_host(env) == "bench: off, the main server is free"
+    assert env == {}
+    assert asked == [f"{gate.MAIN_HOST}/api/ps"]
+
+
+def test_a_held_main_server_and_a_dead_bench_change_nothing(monkeypatch):
+    _servers(monkeypatch, HELD, None)
+    env = {}
+    line = gate.choose_host(env)
+    assert env == {}
+    assert line == ("bench: off, the main server holds qwen3.5:9b "
+                    f"and {gate.BENCH_HOST} does not answer")
+
+
+def test_an_empty_bench_name_turns_the_bench_off(monkeypatch):
+    asked = _servers(monkeypatch, HELD, TAGS)
+    monkeypatch.setenv("ROTA_GATE_BENCH", "")
+    env = {}
+    assert gate.choose_host(env) == "bench: off, ROTA_GATE_BENCH is empty"
+    assert env == {}
+    assert asked == []
+
+
+def test_the_bench_reaches_the_suite_run_and_the_line_comes_first(
+        stage, monkeypatch, capsys):
+    _servers(monkeypatch, HELD, TAGS)
+    _run(stage)
+    assert stage["env"]["OLLAMA_HOST"] == gate.BENCH_HOST
+    out = capsys.readouterr().out.splitlines()
+    assert out[0] == f"bench: {gate.BENCH_HOST}, the main server holds qwen3.5:9b"
+    assert out[1].startswith("suite: ")
