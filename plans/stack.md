@@ -222,6 +222,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order.
 - Reasoning: `plans/night116-read.md`, new walls.
 - Status 2026-10-04 10:47 (rota-f7): pushed by 5e8ace65. Unclaimed, priced. Rota workflow.
+- Status 2026-10-04 16:21 (rota-da): claimed by 419281dc, next on Roman's order of 12:50, while frame 123, a Tester's fix leaves two tests that contradict, validates on night 118. No separate design review: the change is one pattern in one function (reasoned: the ends-when names the design, and the diff review reads it). Pass 1 goes to a fresh implementer on Opus, estimate 20k without the gate. The pass also reads the Vision Keeper s198 of night 116 for the second cause, a decision asserted as an item. Meta workflow.
 
 ### 123. A Tester's fix after a challenge leaves the old test, and two tests then contradict (2026-10-04) (419281dc)
 
