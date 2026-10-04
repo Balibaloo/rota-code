@@ -6,7 +6,9 @@ The suite in five lines, with a traceback for a new red only.
     python -m rota.tools.gate --no-rerecord  # leave the stale cases stale
 
 A stale case is re-recorded after the run, one case at a time, and the gate
-prints one `rerecorded` line per case before the five lines.
+prints one `rerecorded` line per case before the five lines. When a model is
+loaded on the main card, the re-records wait, and the run exits 3.
+`--rerecord-now` re-records anyway.
 
 Twelve suite runs inside agents cost about 25k tokens each. Every agent read the
 tracebacks of the same 22 known reds, and one FAILED-list compare still missed a
@@ -62,13 +64,9 @@ SUITE = "tests/rota"
 #: same port when `OLLAMA_HOST` is unset.
 MAIN_HOST = "http://127.0.0.1:11434"
 
-#: The second card's server. The gate moves there so it never waits behind a
-#: night (ruled: Roman, frame 118). An empty `ROTA_GATE_BENCH` turns it off.
-BENCH_HOST = "http://127.0.0.1:11435"
-
-#: The bench card writes 17 tok/s, so a 5,000-token reply alone fills the
-#: 300 s default (observed: frame 118, 2026-10-04, one Developer turn).
-BENCH_TIMEOUT = "900"
+#: The exit code of a run whose stale cases wait for the main card. It is
+#: not 1, because a wait is no red.
+WAIT_EXIT = 3
 
 BASELINE_NAME = ".rota-gate.json"
 LOG_NAME = ".rota-gate.log"
@@ -117,35 +115,26 @@ def _get_json(url: str) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def choose_host(env: dict[str, str]) -> str:
+def main_card_held() -> list[str]:
     """
-    Point the child at the bench when a night holds the main server.
-    Return the line that says which host the gate uses and why.
+    The models the main server holds now, each with its expiry when given.
+    Empty when the card is free or the server does not answer.
 
-    One variable moves the child, because `rota/llm/llm.py` reads
-    `OLLAMA_HOST` at import (ruled: Roman, frame 118, no second code path).
+    A held card means a night runs there, so the re-records wait. The gate
+    never moves them to the Titan: the Titan gives another temperature-0
+    reply to the same prompt, so its recording is no evidence for this
+    register (ruled: Roman, frame 124).
     """
-    if env.get("OLLAMA_HOST"):
-        return f"bench: off, the caller sets OLLAMA_HOST={env['OLLAMA_HOST']}"
-    bench = os.environ.get("ROTA_GATE_BENCH", BENCH_HOST)
-    if not bench:
-        return "bench: off, ROTA_GATE_BENCH is empty"
-    ps = _get_json(f"{MAIN_HOST}/api/ps")
+    ps = _get_json(f"{MAIN_HOST}/api/ps") or {}
+    models = ps.get("models")
+    if not isinstance(models, list):
+        return []
     # Ollama keeps a model loaded for five minutes after its last call, so
     # the gate's own re-record also reads as held. The expiry tells a reader
-    # which case it is. The decision stays (ruled: frame 118's diff review).
-    loaded = [f"{m.get('name', '?')} until {m['expires_at']}"
-              if m.get("expires_at") else m.get("name", "?")
-              for m in (ps or {}).get("models") or [] if isinstance(m, dict)]
-    if not loaded:
-        return "bench: off, the main server is free"
-    if _get_json(f"{bench.rstrip('/')}/api/tags") is None:
-        return (f"bench: off, the main server holds {', '.join(loaded)} "
-                f"and {bench} does not answer")
-    env["OLLAMA_HOST"] = bench
-    # A timeout the caller set stays. Only the default is too short there.
-    env.setdefault("ROTA_LLM_TIMEOUT", BENCH_TIMEOUT)
-    return f"bench: {bench}, the main server holds {', '.join(loaded)}"
+    # which case it is (ruled: frame 118's diff review).
+    return [f"{m['name']} until {m['expires_at']}" if m.get("expires_at")
+            else str(m["name"])
+            for m in models if isinstance(m, dict) and m.get("name")]
 
 
 def _run_suite(env: dict[str, str], log: Path) -> int:
@@ -408,6 +397,10 @@ def _short(commit: str) -> str:
     return commit[:7] if commit else "unknown"
 
 
+def _waits(ids: list[str]) -> str:
+    return f"{len(ids)} stale cases wait for the main card"
+
+
 def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="python -m rota.tools.gate",
@@ -418,6 +411,9 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
                     help=f"the model the replay is held by (default {FALLBACK_MODEL})")
     ap.add_argument("--no-rerecord", action="store_true",
                     help="do not re-record the stale cases")
+    ap.add_argument("--rerecord-now", action="store_true",
+                    help="re-record even when the main card is held, for a "
+                         "model the gate itself left loaded")
     args = ap.parse_args(argv)
 
     root = Path(root) if root is not None else repo_root()
@@ -436,9 +432,14 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     model = args.model or os.environ.get("ROTA_MODEL") or FALLBACK_MODEL
     temp_root = TEMP_ROOT
     env = child_env(model, temp_root)
-    # Decided once, so the suite run, the re-runs and the re-records all
-    # reach one server. The line comes before the run and the five lines.
-    print(choose_host(env), flush=True)
+    # Asked once, before the run, so the line comes before the five lines.
+    # The suite's replay calls no model, so only the re-records wait.
+    held = [] if args.no_rerecord else main_card_held()
+    if held:
+        then = ("re-records run on --rerecord-now" if args.rerecord_now
+                else "re-records wait")
+        print(f"main card: held by {', '.join(held)}, {then}", flush=True)
+    wait = bool(held) and not args.rerecord_now
 
     # The cache is cumulative: pytest drops only the ids it ran, so a removed
     # parametrised id or a fixed collection error stays in it for ever under
@@ -480,7 +481,13 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
         by_failure = stale_by_failure(text, failed) - stale
         stale = stale | by_failure
     failed_stale = set(by_failure)
-    if stale and not args.no_rerecord:
+    waiting = sorted(stale) if stale and wait else []
+    if waiting:
+        # A stale case fails its replay, and that red is unmeasured, not
+        # wrong. The re-record path clears the same reds, so a held card
+        # must not turn them into new reds.
+        failed = {node for node in failed if case_of(node) not in stale}
+    if stale and not args.no_rerecord and not wait:
         # One case at a time, after the suite ends. Two writers on the
         # cassette file lost a run to `database is locked` (observed:
         # `plans/operating-facts.md`, frame 86, 2026-09-25).
@@ -630,9 +637,14 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
         # A test that fails under load and passes alone is a defect, not noise,
         # so a flaky red keeps the exit code at 1 (ruled: the diff review of
         # 2026-09-17, point 7).
+        if waiting:
+            print(f"note: {_waits(waiting)}")
         print(f"exit 1: {len(new_reds)} new reds, {len(flaky)} of them flaky")
         return 1
 
+    if waiting:
+        print(f"exit {WAIT_EXIT}: {_waits(waiting)}")
+        return WAIT_EXIT
     return 0
 
 

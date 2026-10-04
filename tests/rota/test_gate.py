@@ -109,9 +109,9 @@ def stage(tmp_path, monkeypatch):
     monkeypatch.setattr(gate, "_stale", stale)
     monkeypatch.setattr(gate, "_head", lambda: state["head"])
     monkeypatch.setattr(gate, "_dirty", lambda: state["dirty"])
-    # No test reaches a server. A free main server keeps the bench off.
+    # No test reaches a server. The main card reads free unless a test holds
+    # it with `_held`.
     monkeypatch.setattr(gate, "_get_json", lambda url: {"models": []})
-    monkeypatch.delenv("OLLAMA_HOST", raising=False)
     return state
 
 
@@ -127,9 +127,7 @@ def _run(stage, *argv, rerecord=False):
 
 
 def _lines(capsys):
-    # The bench line opens every run. The bench tests read it on their own.
-    return [line for line in capsys.readouterr().out.splitlines()
-            if not line.startswith("bench: ")]
+    return capsys.readouterr().out.splitlines()
 
 
 def test_the_summary_is_the_last_line_that_carries_a_duration():
@@ -738,51 +736,38 @@ def test_the_rerecord_command_is_the_one_casestatus_prints(monkeypatch):
     assert argv[1:] == ["-m", "pytest", node, "-q"]
 
 
-HELD = {"models": [{"name": "qwen3.5:9b"}]}
-TAGS = {"models": [{"name": "qwen3:8b"}]}
+WHEN = "2026-10-04T05:00:00+01:00"
+HELD = {"models": [{"name": "qwen3.5:9b", "expires_at": WHEN}]}
 
 
-def _servers(monkeypatch, ps, tags):
-    """Fake the two reads. Return the list of the URLs the gate asked."""
+def _held(monkeypatch, ps):
+    """Fake the main card's `/api/ps`. Return the list of the URLs asked."""
     asked = []
 
     def get_json(url):
         asked.append(url)
-        return ps if url.endswith("/api/ps") else tags
+        return ps
 
     monkeypatch.setattr(gate, "_get_json", get_json)
-    monkeypatch.delenv("ROTA_GATE_BENCH", raising=False)
     return asked
 
 
-def test_the_callers_host_wins_and_no_server_is_asked(monkeypatch):
-    asked = _servers(monkeypatch, HELD, TAGS)
-    env = {"OLLAMA_HOST": "http://elsewhere:1"}
-    line = gate.choose_host(env)
-    assert env == {"OLLAMA_HOST": "http://elsewhere:1"}
-    assert asked == []
-    assert line == "bench: off, the caller sets OLLAMA_HOST=http://elsewhere:1"
+def test_a_held_card_names_each_model_with_its_expiry(monkeypatch):
+    asked = _held(monkeypatch, {"models": [
+        {"name": "qwen3.5:9b", "expires_at": WHEN}, {"name": "qwen3:8b"}]})
+    assert gate.main_card_held() == [f"qwen3.5:9b until {WHEN}", "qwen3:8b"]
+    assert asked == [f"{gate.MAIN_HOST}/api/ps"]
 
 
-def test_a_held_main_server_and_a_live_bench_move_the_child(monkeypatch):
-    # The expiry shows a model kept loaded after a call, not only a night.
-    when = "2026-10-04T05:00:00+01:00"
-    asked = _servers(monkeypatch,
-                     {"models": [{"name": "qwen3.5:9b", "expires_at": when}]},
-                     TAGS)
-    env = {}
-    line = gate.choose_host(env)
-    assert env == {"OLLAMA_HOST": gate.BENCH_HOST, "ROTA_LLM_TIMEOUT": "900"}
-    assert asked == [f"{gate.MAIN_HOST}/api/ps", f"{gate.BENCH_HOST}/api/tags"]
-    assert line == (f"bench: {gate.BENCH_HOST}, "
-                    f"the main server holds qwen3.5:9b until {when}")
-
-
-def test_a_ps_entry_that_is_not_a_dict_is_skipped(monkeypatch):
-    _servers(monkeypatch, {"models": ["qwen3.5:9b", None]}, TAGS)
-    env = {}
-    assert gate.choose_host(env) == "bench: off, the main server is free"
-    assert env == {}
+@pytest.mark.parametrize("ps", [
+    None,
+    {"models": []},
+    {"models": {"name": "qwen3.5:9b"}},
+    {"models": [{"name": None}, "qwen3.5:9b", None]},
+], ids=["no answer", "empty", "models not a list", "no usable entry"])
+def test_a_free_or_malformed_reply_reads_as_free(monkeypatch, ps):
+    _held(monkeypatch, ps)
+    assert gate.main_card_held() == []
 
 
 def test_a_reply_cut_short_reads_as_no_answer(monkeypatch):
@@ -803,44 +788,67 @@ def test_a_reply_cut_short_reads_as_no_answer(monkeypatch):
     assert gate._get_json("http://127.0.0.1:1/api/ps") is None
 
 
-def test_the_bench_keeps_a_timeout_the_caller_set(monkeypatch):
-    _servers(monkeypatch, HELD, TAGS)
-    env = {"ROTA_LLM_TIMEOUT": "1200"}
-    gate.choose_host(env)
-    assert env["ROTA_LLM_TIMEOUT"] == "1200"
+def test_a_free_card_rerecords_and_prints_no_card_line(stage, capsys):
+    stage["stale"] = {"case-a"}
+    assert _run(stage, "--baseline", rerecord=True) == 0
+    assert stage["rerecorded"] == [("qwen3:8b", "case-a")]
+    out = _lines(capsys)
+    assert not any(line.startswith("main card: ") for line in out)
+    assert out[0].startswith("rerecording 1 stale cases")
 
 
-def test_a_free_main_server_changes_nothing(monkeypatch):
-    asked = _servers(monkeypatch, {"models": []}, TAGS)
-    env = {}
-    assert gate.choose_host(env) == "bench: off, the main server is free"
-    assert env == {}
-    assert asked == [f"{gate.MAIN_HOST}/api/ps"]
-
-
-def test_a_held_main_server_and_a_dead_bench_change_nothing(monkeypatch):
-    _servers(monkeypatch, HELD, None)
-    env = {}
-    line = gate.choose_host(env)
-    assert env == {}
-    assert line == ("bench: off, the main server holds qwen3.5:9b "
-                    f"and {gate.BENCH_HOST} does not answer")
-
-
-def test_an_empty_bench_name_turns_the_bench_off(monkeypatch):
-    asked = _servers(monkeypatch, HELD, TAGS)
-    monkeypatch.setenv("ROTA_GATE_BENCH", "")
-    env = {}
-    assert gate.choose_host(env) == "bench: off, ROTA_GATE_BENCH is empty"
-    assert env == {}
-    assert asked == []
-
-
-def test_the_bench_reaches_the_suite_run_and_the_line_comes_first(
-        stage, monkeypatch, capsys):
-    _servers(monkeypatch, HELD, TAGS)
-    _run(stage)
-    assert stage["env"]["OLLAMA_HOST"] == gate.BENCH_HOST
-    out = capsys.readouterr().out.splitlines()
-    assert out[0] == f"bench: {gate.BENCH_HOST}, the main server holds qwen3.5:9b"
+def test_a_held_card_makes_the_rerecords_wait(stage, monkeypatch, capsys):
+    """
+    The stale cases stay on the stale line, their replay reds are not new
+    reds, and the last line and the exit code say they wait.
+    """
+    _held(monkeypatch, HELD)
+    stage["stale"] = {"case-a", "case-b"}
+    stage["log"] = LOG_MIXED
+    stage["failed"] = {_node("case-a")}
+    assert _run(stage, "--baseline", rerecord=True) == gate.WAIT_EXIT
+    assert stage["rerecorded"] == []
+    assert stage["reran"] == []
+    out = _lines(capsys)
+    assert out[0] == (f"main card: held by qwen3.5:9b until {WHEN}, "
+                      "re-records wait")
     assert out[1].startswith("suite: ")
+    assert out[2] == "new reds (0): none"
+    assert out[4] == "stale (2): case-a, case-b"
+    assert out[-1] == "exit 3: 2 stale cases wait for the main card"
+    stored = json.loads((stage["root"] / gate.BASELINE_NAME).read_text("utf-8"))
+    assert stored["stale"] == ["case-a", "case-b"]
+
+
+def test_a_new_red_keeps_exit_one_beside_the_wait(stage, monkeypatch, capsys):
+    _held(monkeypatch, HELD)
+    _baseline(stage["root"])
+    stage["stale"] = {"case-a"}
+    stage["log"] = LOG_MIXED
+    stage["failed"] = {SPACED}
+    stage["after"] = {SPACED}
+    assert _run(stage, rerecord=True) == 1
+    out = _lines(capsys)
+    assert out[-2] == "note: 1 stale cases wait for the main card"
+    assert out[-1] == "exit 1: 1 new reds, 0 of them flaky"
+
+
+def test_rerecord_now_rerecords_on_a_held_card(stage, monkeypatch, capsys):
+    _held(monkeypatch, HELD)
+    stage["stale"] = {"case-a"}
+    assert _run(stage, "--baseline", "--rerecord-now", rerecord=True) == 0
+    assert stage["rerecorded"] == [("qwen3:8b", "case-a")]
+    out = _lines(capsys)
+    assert out[0] == (f"main card: held by qwen3.5:9b until {WHEN}, "
+                      "re-records run on --rerecord-now")
+
+
+def test_the_gate_moves_no_child_to_another_server(stage, monkeypatch):
+    _held(monkeypatch, HELD)
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
+    monkeypatch.delenv("ROTA_LLM_TIMEOUT", raising=False)
+    _run(stage, rerecord=True)
+    assert "OLLAMA_HOST" not in stage["env"]
+    assert "ROTA_LLM_TIMEOUT" not in stage["env"]
+
+
