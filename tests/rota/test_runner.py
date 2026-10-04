@@ -2281,6 +2281,11 @@ def _parent_fit(rev: str = "032c71c"):
     frame 108. Frame 119 compares against 6ba9fcc, before the wake's share
     yields.
     """
+    return _parent_runner(rev)._fit
+
+
+def _parent_runner(rev: str):
+    """The runner module as it was at `rev`, or a skip without git history."""
     import importlib.util
     import subprocess
     import sys
@@ -2300,7 +2305,7 @@ def _parent_fit(rev: str = "032c71c"):
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
-    return module._fit
+    return module
 
 
 def test_a_tail_larger_than_the_budget_leaves_a_middle_read(db):
@@ -2905,3 +2910,177 @@ def test_a_tester_challenge_shows_the_failed_run_as_text_above_the_json(db):
                ">       assert result.title == 'q3'\n"
                "E       AssertionError\n")
     assert not _failed_before_assertion(body, chained)
+
+
+# Frame 120. The parent is the commit before the red rows group by output.
+_F120_PARENT = "aefd1f9"
+
+# Night 113's traceback, 726 characters as the harness wrote it.
+_F120_TRACEBACK = (
+    "ImportError while loading conftest 'D:\\repos\\_AI\\sample_repos\\clickI"
+    "\\.rota\\worktrees\\bg_1\\tests\\conftest.py'.\n"
+    "tests\\conftest.py:3: in <module>\n"
+    "    from click.testing import CliRunner\n"
+    "src\\click\\__init__.py:10: in <module>\n"
+    "    from .core import Argument as Argument\n"
+    "src\\click\\core.py:23: in <module>\n"
+    "    from . import types\n"
+    "src\\click\\types.py:17: in <module>\n"
+    "    from .exceptions import BadParameter\n"
+    "src\\click\\exceptions.py:10: in <module>\n"
+    "    from .utils import echo\n"
+    "src\\click\\utils.py:1: in <module>\n"
+    "    from . import click\n"
+    "E   ImportError: cannot import name 'click' from partially initialized "
+    "module 'click' (most likely due to a circular import) "
+    "(D:\\repos\\_AI\\sample_repos\\clickI\\.rota\\worktrees\\bg_1\\src\\click"
+    "\\__init__.py)")
+
+
+def _f120_db(tmp_path, own: list[str], project: list[str]):
+    """
+    A batch whose own tests and project tests are red with the given outputs.
+    Own row i has criterion c{i}, and project row i has no criterion.
+    """
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES ('echo_json','Add echo_json','in_scope',"
+                 "'approved',1,1)")
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+                 "('tk1','echo_json','add echo_json')")
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES "
+                 "('b1','echo_json','running','abc123')")
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    rows = ([(f"own_{i}", f"c{i}", f"tests/test_utils/test_echo_json_{i}.py", said)
+             for i, said in enumerate(own)]
+            + [(f"inh_{i:08x}", None, f"tests/test_mod_{i}.py", said)
+               for i, said in enumerate(project)])
+    for n, (tid, crit, path, said) in enumerate(rows):
+        if crit:
+            conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                         "(?, 'tk1', ?)", (crit, f"echo_json case {crit}"))
+        body = (f"def test_{tid}():\n    from click.utils import echo_json\n"
+                f"    assert echo_json({n}) == {n}\n" + "    # case\n" * 30)
+        conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                     "VALUES (?, 'b1', ?, ?, ?)", (tid, crit, path, body))
+        conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+                     "result, output, attempt) VALUES (?, 'b1', ?, 'abc123', "
+                     "'error', ?, 1)", (f"r{n}", tid, said))
+    conn.commit()
+    return conn
+
+
+def _f120_push(conn, module=None):
+    """The `tick:tests_failing` push of the Developer, by `module`'s runner."""
+    from rota.core import runner
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build("developer", conn, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    wake = Wake("developer", "tick:tests_failing", refs=("b1",))
+    return sb, wake, (module or runner).push_working_set("developer", sb, wake)
+
+
+_F120_PROJECT_KEY = "the project's own tests, not passing at your commit"
+
+
+def test_red_rows_with_one_output_show_it_once_and_the_source_survives(tmp_path):
+    """
+    Frame 120. Night 113, s153: 34 project rows held one traceback, the push
+    showed ten copies, and the window cut removed all of `code.source`. The
+    traceback now shows once with the 34 tests, and the source is kept.
+    """
+    from rota.core.runner import _fit, _render, build_prompt, PUSH_CHARS
+
+    own = [f"own failure {i}: " + f"line {i}\n" * 90 for i in range(3)]
+    conn = _f120_db(tmp_path, own, [_F120_TRACEBACK] * 34)
+    sb, wake, pushed = _f120_push(conn)
+
+    shown = pushed["tests.load"]
+    assert [r["said"] for r in shown["the batch's tests, not passing"]] == own
+    block = shown[_F120_PROJECT_KEY]
+    assert len(block) == 1, block
+    assert block[0]["said"] == _F120_TRACEBACK
+    assert block[0]["count"] == 34
+    assert block[0]["tests that gave this output"] == [
+        f"inh_{i:08x} tests/test_mod_{i}.py" for i in range(34)]
+    assert list(block[0]) == ["said", "tests that gave this output", "count"]
+    assert _render(shown, PUSH_CHARS).count("partially initialized") == 1
+    assert "34 test(s) with no criterion" in shown["what that means"]
+
+    # The wake around it, at night 113's sizes (frame 119's design, table 1).
+    parent = _f120_push(conn, _parent_runner(_F120_PARENT))[2]["tests.load"]
+
+    def wake_of(tests_load):
+        body = {"batches.expect": "e" * 3_913, "code.diff": "d" * 2_167,
+                "criteria.load": "c" * 839, "references.load": "r" * 22,
+                "tests.load": tests_load,
+                "code.source": {"path": "src/click/utils.py", "start": 0,
+                                "end": 400, "text": "def echo():\n" * 1_670}}
+        user = build_prompt("developer", sb, wake, body, instructions="")[1]
+        return _fit([user], ["wake"], budget=27_096)[0][0]
+
+    kept = wake_of(shown)
+    assert "\n[code.source]\npath: src/click/utils.py" in kept
+    assert "def echo():" in kept.split("\n[code.source]\n", 1)[1]
+    assert "[code.source]" not in wake_of(parent), "the parent kept the source"
+
+
+def test_red_rows_with_distinct_outputs_push_the_parents_bytes(tmp_path):
+    """
+    Frame 120. A wake whose red rows each say something else pushes what the
+    parent pushed, byte for byte, so its recordings stay.
+    """
+    from rota.core.runner import _render, PUSH_CHARS
+
+    own = [f"own {i}\nE   AssertionError: {i}" for i in range(2)]
+    project = [f"tests/test_mod_{i}.py:{10 + i}: in test_{i}\nE   KeyError: {i}"
+               for i in range(5)] + [_F120_TRACEBACK]
+    conn = _f120_db(tmp_path, own, project)
+    pushed = _f120_push(conn)[2]
+    parent = _f120_push(conn, _parent_runner(_F120_PARENT))[2]
+
+    assert pushed == parent
+    for key in pushed:
+        assert _render(pushed[key], PUSH_CHARS) == _render(parent[key], PUSH_CHARS)
+
+
+def test_red_row_groups_keep_the_order_of_their_first_row():
+    """
+    Frame 120. Two shared outputs and one unique output: the unique row keeps
+    today's form, and each group stands where its first row stood.
+    """
+    from rota.core.runner import _red_rows_by_output
+
+    rows = [{"id": "u1", "path": "tests/u.py", "said": "X", "body": "b"},
+            {"id": "a1", "path": "tests/a1.py", "said": "A"},
+            {"id": "b1", "path": "tests/b1.py", "said": "B"},
+            {"id": "a2", "path": "tests/a2.py", "said": "A"},
+            {"id": "b2", "path": "tests/b2.py", "said": "B"},
+            {"id": "b3", "path": "tests/b3.py", "said": "B"}]
+    assert _red_rows_by_output(rows) == [
+        {"id": "u1", "path": "tests/u.py", "said": "X"},
+        {"said": "A", "tests that gave this output":
+            ["a1 tests/a1.py", "a2 tests/a2.py"], "count": 2},
+        {"said": "B", "tests that gave this output":
+            ["b1 tests/b1.py", "b2 tests/b2.py", "b3 tests/b3.py"], "count": 3},
+    ]
+
+
+def test_red_rows_merge_on_byte_identical_outputs_only():
+    """
+    Frame 120. An output that differs in the test's own name or in one line
+    number is another fact, so it keeps its own row.
+    """
+    from rota.core.runner import _red_rows_by_output
+
+    said = "tests/test_a.py:12: in test_a\nE   AssertionError"
+    rows = [{"id": "a", "path": "tests/test_a.py", "said": said},
+            {"id": "b", "path": "tests/test_b.py",
+             "said": said.replace("test_a", "test_b")},
+            {"id": "c", "path": "tests/test_a.py",
+             "said": said.replace(":12:", ":13:")},
+            {"id": "d", "path": "tests/test_d.py", "said": said + " "}]
+    assert _red_rows_by_output(rows) == [
+        {k: r[k] for k in ("id", "path", "said")} for r in rows]

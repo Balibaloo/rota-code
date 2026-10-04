@@ -2081,6 +2081,40 @@ def _source_the_tests_call(sb: sandbox_mod.Sandbox,
     return spans
 
 
+def _red_rows_by_output(rows: list[dict]) -> list[dict]:
+    """
+    The project's red rows, one block per output the harness gave.
+
+    Night 113 (2026-10-04, frame 120): a batch broke its own import, and all
+    34 project rows held one traceback of 726 characters. The rows took
+    28,734 characters, the push cut kept ten copies, and the window cut
+    removed all of `code.source`. A shared output now shows once, then the
+    tests that gave it, then the count. Only byte-identical outputs share a
+    block, because a changed name or line is a different fact. A row whose
+    output no other row gave keeps today's form, so its wake keeps its bytes.
+    Groups keep the order of their first row.
+    """
+    count: dict[str, int] = {}
+    for r in rows:
+        said = r.get("said")
+        if isinstance(said, str) and said:
+            count[said] = count.get(said, 0) + 1
+    out: list[dict] = []
+    group: dict[str, dict] = {}
+    for r in rows:
+        said = r.get("said")
+        if not (isinstance(said, str) and said and count[said] > 1):
+            out.append({k: r.get(k) for k in ("id", "path", "said")})
+            continue
+        if said not in group:
+            group[said] = {"said": said, "tests that gave this output": [],
+                           "count": count[said]}
+            out.append(group[said])
+        group[said]["tests that gave this output"].append(
+            f"{r.get('id')} {r.get('path')}")
+    return out
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -2299,8 +2333,8 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             if own:
                 shown["the batch's tests, not passing"] = own
             if project:
-                shown["the project's own tests, not passing at your commit"] = [
-                    {k: r.get(k) for k in ("id", "path", "said")} for r in project]
+                shown["the project's own tests, not passing at your commit"] = (
+                    _red_rows_by_output(project))
                 shown["what that means"] = (
                     f"{len(project)} test(s) with no criterion are the project's, and "
                     f"they passed before this batch. Your diff broke them. Read "
