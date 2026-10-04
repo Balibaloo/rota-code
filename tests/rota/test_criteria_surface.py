@@ -292,6 +292,10 @@ def _named(db, text):
     # clickI nights 87 and 96.
     "The function must return the default on EOF.",
     "A function that returns the default, a helper which prints it.",
+    # An underscore alone is not an identifier.
+    "A helper _ and a function __ are not names.",
+    # A kind word before "(" is a plural, not a call.
+    "The function(s) of the module return the default.",
 ])
 def test_a_plain_word_after_function_is_not_a_new_callable(db, text):
     assert _named(db, text) == []
@@ -307,6 +311,16 @@ def test_a_plain_word_after_function_is_not_a_new_callable(db, text):
     ("Add a function split_bill to main.", "split_bill"),
     ("Add a method splitBill to the class.", "splitBill"),
     ("Add a function click.echo_json beside echo.", "echo_json"),
+    # A leading underscore is a private callable's form.
+    ("Add a helper _private to main.", "_private"),
+    ("Give the class a method __init__ that takes a name.", "__init__"),
 ])
 def test_a_callable_form_after_function_is_a_new_callable(db, text, name):
     assert _named(db, text) == [name]
+
+
+def test_a_bare_lowercase_name_after_helper_is_lost_by_decision(db):
+    """Frame 125's review (2026-10-04) keeps the form rule. A bare lowercase
+    word reads like English, and no night text names a callable that way.
+    A rule on "not an English word" would be a stop list under another name."""
+    assert _named(db, "add a helper slugify that lowers a title") == []

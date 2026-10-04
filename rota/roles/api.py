@@ -3655,19 +3655,25 @@ def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
     # `already` a callable, and the criteria door refused three
     # Terminologists. "helper next to echo" made `next` on nights 113-117.
     # A form rule, not a stop list: a stop list misses the next word.
+    # So "a helper slugify" gives no name, on purpose: no night text has
+    # the form. `_vet_surface` reads this result too and refuses that repair.
     kind = r"(?:function|callable|method|helper|decorator)\s+"
     ident = r"[A-Za-z_][A-Za-z0-9_]*"
     # "named" or "called" says the next word is a name, whatever its form.
     names = set(_re.findall(kind + r"(?:named|called)\s+`?(" + ident + r")`?", text))
     names |= set(_re.findall(kind + r"`(" + ident + r")`", text))
     # A snake_case or camelCase word is an identifier, and English has none.
+    # A leading underscore counts, so `_private` and `__init__` stay names.
     names |= set(_re.findall(
-        kind + r"([A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]*|[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*)\b",
+        kind + r"(_+[A-Za-z][A-Za-z0-9_]*|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]*"
+        r"|[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*)\b",
         text))
     # A dotted path names its last part, the callable a surface ends in.
     names |= set(_re.findall(kind + r"`?(?:" + ident + r"\.)+(" + ident + r")\b", text))
     names |= set(_re.findall(r"`?([A-Za-z_][A-Za-z0-9_]*)\(", text))
-    names -= {"a", "the", "named", "called", "new", "that", "which", "in", "to"}
+    # "function(s)" matches the call form, and a kind word is never a name.
+    names -= {"a", "the", "named", "called", "new", "that", "which", "in", "to",
+              "function", "callable", "method", "helper", "decorator"}
     out = []
     for name in sorted(names):
         known = ctx.conn.execute(
