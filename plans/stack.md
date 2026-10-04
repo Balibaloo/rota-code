@@ -223,6 +223,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night116-read.md`, new walls.
 - Status 2026-10-04 10:47 (rota-f7): pushed by 5e8ace65. Unclaimed, priced. Rota workflow.
 - Status 2026-10-04 16:21 (rota-da): claimed by 419281dc, next on Roman's order of 12:50, while frame 123, a Tester's fix leaves two tests that contradict, validates on night 118. No separate design review: the change is one pattern in one function (reasoned: the ends-when names the design, and the diff review reads it). Pass 1 goes to a fresh implementer on Opus, estimate 20k without the gate. The pass also reads the Vision Keeper s198 of night 116 for the second cause, a decision asserted as an item. Meta workflow.
+- Status 2026-10-04 16:35 (rota-da): **pass 1 on a fresh implementer on Opus, 54.3k on the harness line against 20k, committed at c91fbda: the word after "function" is a name only in a callable's form, after "named" or "called", in backticks, in snake_case or camelCase, as a dotted path's last part, or before `(`. Night 116's item text passes the door with `surface_refs=['confirm']`. Over the 52 databases in `.rota/` the old pattern's false names go: `next` in 38 tickets, from "helper next to echo" on every echo_json night, `must` in 4, `already` in 2, `function` in 1; no name is added and `echo_json` stays. The agent's gate at c91fbda beside night 118, 549.3s: `main card: held by qwen3:8b until 2026-10-04T16:28:54, re-records wait`; suite 23 failed against the baseline's 23; new reds 3, the known three by name; reds gone 3; stale 0** (observed: the agent's report and the gate's lines, 2026-10-04 16:35). Meta workflow. The second cause stands and is frame 129: s198 authored a decision and then asserted the same text as a new item. The diff review runs on Opus on `C:/Users/roman/rota_review125` at c91fbda, six points, first the loss of a real name written as one bare word.
 
 ### 123. A Tester's fix after a challenge leaves the old test, and two tests then contradict (2026-10-04) (419281dc)
 
@@ -250,6 +251,15 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended after frame 123, a Tester's fix leaves two tests that contradict, because both edit `tests.encode`.
 - Reasoning: `plans/frame123-read.md`, section 2.
 - Status 2026-10-04 15:26 (rota-da): pushed by 419281dc. Unclaimed, priced. Rota workflow.
+
+### 129. A Vision Keeper that answers a challenge authors a decision and then asserts it as a new item (2026-10-04)
+
+- **No batch. A seat's act in challenge mode, found by frame 125's pass 1.** Sites: the Vision Keeper's challenge-mode brief, "If it does: amend it with `problem.assert`... If it does not: author a decision saying why.", and `problem.assert`.
+- Rota workflow. On night 116 the Vision Keeper s198 was challenged on the item `confirm_default_on_eof`. It called `decisions.author` under the item's id and was refused, sent the decision again as `confirm_default_on_eof_resolved`, and then called `problem.assert` with the same id and text, `kind='in_scope'`. The night then held an in-scope item whose text is "The confirm() function already takes a default_on_eof flag as described in s2. The challenge is resolved as the item is ratified and in scope.", and three Terminologist sessions wrote criteria for it (observed: the implementer's read of s198's turns, 2026-10-04; `plans/night116-read.md`).
+- Ends when: the cause is read from s198's turns and one other challenge session per night on nights 113 to 118, how often a Vision Keeper asserts after it authors; then a door on `problem.assert` that refuses an id or a text of a decision this session authored, or one brief line, after an interview if the seat ignores a fact in front of it. Measured on a night: Vision Keeper challenge sessions that leave a new in-scope item with a decision's text fall from 1 on night 116 to 0 of the night's challenge sessions. A session that still leaves one is read, and the frame closes when its cause is not an assert after a decision. Price after the read, about 30k.
+- Waits on: Roman's order. Recommended after frame 122, a Critic's quote that holds quotes never parses.
+- Reasoning: frame 125's status of 2026-10-04 16:35.
+- Status 2026-10-04 16:35 (rota-da): pushed by 419281dc. Unclaimed, unpriced until the read. Rota workflow.
 
 ### 128. A Tester that fixes an inherited test is sent to a new file, and the inherited test stays (2026-10-04)
 
