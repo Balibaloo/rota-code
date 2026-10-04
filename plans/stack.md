@@ -213,6 +213,7 @@ a different question and the night is then opened once.
 - Waits on: a session. This session is past its 300k line and takes no new frame.
 - Reasoning: this heading's rulings; `plans/operating-facts.md`, "Hardware and drives" and "Models and Ollama"; the hosted options and their prices are in session 3d6e6173's replies of 2026-10-04 and are not a record.
 - Status 2026-10-04 02:37 (rota-c4): pushed by 3d6e6173 after the grill. Unclaimed, priced. Work power mode is set, 320 W and 200 W, and resets at a restart. Meta workflow.
+- Status 2026-10-04 04:21 (rota-f7): claimed by 5e8ace65. **Step one holds: s146 turn 8 of night 113, a Developer turn of 32,377 characters and 8,583 tokens, replayed on port 11435 at one slot and a 16,384 window in 90.1s: load 7.4s, prompt 37.0s, reply 775 tokens in 45.5s at 17.0 tok/s, `done_reason stop`, no `timed out` line in the server log, `n_ctx_slot = 16384`** (observed: `titan_turn.py` in the session scratchpad and `%TEMP%/ollama-titan.log`, 2026-10-04 04:21). Meta workflow. The Titan holds 11,852 of 12,288 MiB with the model loaded, so one model at a time. Estimate 10k, actual about 10k by the holder. One register line written, "Models and Ollama". Step two goes to an implementer on Opus: `OLLAMA_HOST` is already the one variable, `rota/llm/llm.py:44`.
 
 ### 119. The Developer wake takes two thirds of the window, so a long reply still empties the middle (2026-10-04)
 
