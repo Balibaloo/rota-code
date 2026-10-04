@@ -318,6 +318,21 @@ went to him as open questions and one history read found both answered
 in the design: law 2 keeps words off an answer, and a broken project test
 is the Developer's own regression since 2026-09-14).
 
+**Before any question goes to Roman, new or inherited, an agent answers
+two things** (ruled: Roman, 2026-10-04 14:52, "yeah add it", after
+session 419281dc asked two inherited questions and he sent each back for
+a read). First, what the records say: the design files, and the build
+sessions' transcripts for Roman's own words. The transcripts are in
+`C:\Users\roman\.claude\projects\d--repos-rota\*.jsonl`, and a script
+streams his typed messages and his answers by keyword. Second, whether
+the recommended answer holds against the evidence the frame cites. A
+question that the read dissolves is not asked. An inherited
+recommendation is a copied claim until this session's agent tests it.
+Frame 114's recommended door change stood two days in the stack. The
+agent's test showed that it repaired 0 of the refused writes. Frame 115's
+discussion was in a transcript of 2026-10-03 that the first read never
+opened.
+
 An escalation reaches Roman on his phone. Roman ruled on 2026-09-20 that
 a decision must notify, and not only a prompt. Two routes, and you pick
 one:
