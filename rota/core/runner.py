@@ -895,7 +895,15 @@ def _fit(transcript: list[str], kinds: list[str],
     # Two thirds of the budget for the wake, not half: the pushed working set
     # is the part of the prompt the session was woken to read, and a source
     # push the size the area deserves is most of it.
-    wake_room = (budget * 2) // 3
+    #
+    # The share yields to half once the middle holds a read. Night 113, s153,
+    # turn 16: the wake at two thirds and a third for the tail left the middle
+    # no room, and the seat read utils.py again (frame 119). The share stays
+    # fixed from the budget and is never sized from the middle, because frame
+    # 108 ruled that circular. A first turn keeps two thirds, the case of
+    # b8c18fe.
+    middle_read = _RESULTS in kinds[1:-2]
+    wake_room = budget // 2 if middle_read else (budget * 2) // 3
     if len(transcript[0]) > wake_room:
         transcript = [_render_cut(transcript[0], wake_room)] + transcript[1:]
 

@@ -2119,7 +2119,12 @@ def test_the_fit_keeps_its_budget_promise(db):
             fitted, kinds = _fit(blocks, _paired(blocks), budget=budget)
             assert _held(fitted) <= budget, \
                 f"{turns} blocks over {budget} by {_held(fitted) - budget}"
-            assert fitted[0] == blocks[0] and len(kinds) == len(fitted)
+            # A wake over half the budget yields beside a middle read
+            # (frame 119). Under 8,000 the 4,743 wake is over half.
+            assert (fitted[0] == blocks[0]
+                    or fitted[0].startswith(blocks[0][:budget // 2]
+                                            + "\nCUT your wake"))
+            assert len(kinds) == len(fitted)
 
 
 def test_a_read_cut_before_its_text_covers_no_span(db):
@@ -2243,8 +2248,12 @@ def _s132_turn_13(reply_chars: int, results: str) -> list[str]:
     return blocks
 
 
-def _parent_fit():
-    """`_fit` as it was at 032c71c, before the tail cap of frame 108."""
+def _parent_fit(rev: str = "032c71c"):
+    """
+    `_fit` as it was at `rev`. The default is 032c71c, before the tail cap of
+    frame 108. Frame 119 compares against 6ba9fcc, before the wake's share
+    yields.
+    """
     import importlib.util
     import subprocess
     import sys
@@ -2252,14 +2261,14 @@ def _parent_fit():
     from pathlib import Path
 
     try:
-        text = subprocess.run(["git", "show", "032c71c:rota/core/runner.py"],
+        text = subprocess.run(["git", "show", f"{rev}:rota/core/runner.py"],
                               capture_output=True, check=True,
                               cwd=Path(__file__).resolve().parents[2]).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
-        pytest.skip("the parent commit 032c71c is not in this checkout")
-    path = Path(tempfile.mkdtemp()) / "runner_032c71c.py"
+        pytest.skip(f"the parent commit {rev} is not in this checkout")
+    path = Path(tempfile.mkdtemp()) / f"runner_{rev}.py"
     path.write_bytes(text)
-    name = "rota.core._runner_032c71c"
+    name = f"rota.core._runner_{rev}"
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
@@ -2304,6 +2313,9 @@ def test_a_tail_that_leaves_a_middle_block_room_packs_as_before(db):
 
     parent = _parent_fit()
     s132 = _s132_turn_13(2000, "OK code.write -> " + "o" * 1983)
+    # Under half the budget, because frame 119 cuts a wake over half once
+    # the middle holds a read, and the parent did not.
+    s132[0] = "WAKE " + "w" * 12_995
     trimmed = (["WAKE: you are surveying src/billing"]
                + [f"turn {i} " + "x" * 4000 for i in range(1, 7)])
     pinned = ["WAKE " + "w" * 995]
@@ -2515,6 +2527,99 @@ def test_a_call_inside_the_kept_prefix_shows_once(db):
     assert "CUT this exchange" in fitted[-2], "the cap did not fire"
     assert fitted[-2].count(call) == 1, "the call shows twice"
     assert _stub(fitted[-2]) == call, "the stub of the cut reply lost its call"
+
+
+# Night 113, s153: the budget, and the wake before the window cut it.
+_S153_BUDGET = 27_096
+_S153_WAKE = 47_547
+# The commit before frame 119, where the wake took two thirds on every turn.
+_F119_PARENT = "6ba9fcc"
+
+
+def _s153_turn_16() -> list[str]:
+    """
+    Night 113, s153, turn 16: the uncut wake, two older reads, the newest
+    middle read of utils.py 670-710 at about 1,937 characters with its stub,
+    and the latest exchange of a 10,928 reply and 8,566 of results.
+    """
+    blocks = ["WAKE " + "w" * (_S153_WAKE - 5)]
+    for (s, e), size, fill in (((1, 20), 1200, "a"), ((1, 50), 2400, "b"),
+                               ((670, 710), 1860, "c")):
+        blocks += [f"TOOL: code.source(path='src/click/utils.py', start={s}, "
+                   f"end={e})\n" + "plan. " * 300,
+                   _source("src/click/utils.py", s, e, size, fill=fill)]
+    call = "TOOL: batches.expect(batch_id='bg_1')\n"
+    blocks += [call + "r" * (10_928 - len(call)),
+               "OK batches.expect -> " + "e" * (8_566 - 21)]
+    return blocks
+
+
+def test_a_wake_yields_half_the_budget_to_keep_a_middle_read(db):
+    """
+    Frame 119. Night 113, s153, turn 16: the wake at two thirds and the tail
+    at a third left the middle no room, so the read of utils.py 670-710 went
+    and the seat read it again. With a middle read, the wake takes half the
+    budget, and the cap keeps the read beside the tail.
+    """
+    from rota.core.runner import _fit, _stub
+
+    blocks = _s153_turn_16()
+    kinds = _paired(blocks)
+    newest = blocks[-3]
+    # The shape: the middle unit is about 1,937, as on night 113.
+    assert 1_900 <= len(newest) + 2 + len(_stub(blocks[-4])) + 2 <= 1_950
+
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), _S153_BUDGET)
+    assert newest in fitted, "the newest middle read went"
+    assert len(fitted[0]) <= _S153_BUDGET // 2 + 200, "the wake kept two thirds"
+    assert "CUT your wake" in fitted[0], "the wake was cut in silence"
+    assert _held(fitted) <= _S153_BUDGET
+    assert len(fitted_kinds) == len(fitted)
+
+    parent, parent_kinds = _parent_fit(_F119_PARENT)(
+        list(blocks), list(kinds), _S153_BUDGET)
+    assert newest not in parent, "the shape does not fail on the parent"
+
+
+def test_a_first_turn_wake_keeps_two_thirds(db):
+    """
+    Frame 119. A transcript with no middle read keeps the wake's two thirds,
+    the case of b8c18fe. A first turn and a transcript of three blocks pack
+    to the bytes of the parent.
+    """
+    from rota.core.runner import _fit
+
+    parent = _parent_fit(_F119_PARENT)
+    wake = "WAKE " + "w" * (_S153_WAKE - 5)
+    shapes = ([wake],
+              [wake, "TOOL: code.source(path='src/click/utils.py', start=1, "
+                     "end=50)\n" + "plan. " * 300,
+               _source("src/click/utils.py", 1, 50, 2400)])
+    for blocks in shapes:
+        kinds = _paired(blocks)
+        fitted, fitted_kinds = _fit(list(blocks), list(kinds), _S153_BUDGET)
+        assert len(fitted[0]) > _S153_BUDGET * 2 // 3, "the wake lost its share"
+        assert (fitted, fitted_kinds) == parent(
+            list(blocks), list(kinds), _S153_BUDGET), len(blocks)
+        assert _held(fitted) <= _S153_BUDGET
+
+
+def test_a_wake_under_half_packs_as_before(db):
+    """
+    Frame 119. A later turn whose wake is under half the budget takes no
+    cut, so the share changes nothing and the bytes are the parent's.
+    """
+    from rota.core.runner import _fit
+
+    parent = _parent_fit(_F119_PARENT)
+    blocks = _s153_turn_16()
+    blocks[0] = "WAKE " + "w" * 12_000
+    kinds = _paired(blocks)
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), _S153_BUDGET)
+    assert fitted[0] == blocks[0]
+    assert (fitted, fitted_kinds) == parent(
+        list(blocks), list(kinds), _S153_BUDGET)
+    assert _held(fitted) <= _S153_BUDGET
 
 
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
