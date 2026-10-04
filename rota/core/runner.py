@@ -559,13 +559,31 @@ def cut_note(what: str, not_shown: int, total: int, unit: str, call: str) -> str
             f"{call}")
 
 
+_WAKE_CUT_CALL = "Nothing returns a wake. Ask by name for the reads you need."
+# The note of a wake an earlier turn cut. The runner stores the cut wake, so
+# the note carries the only record of the uncut length (frame 119's diff
+# review, finding 2: a second cut printed 4,634 of 18,182, not of 47,547).
+_WAKE_CUT = re.compile(r"\nCUT your wake: [\d,]+ of ([\d,]+) characters are "
+                       r"not shown\. " + re.escape(_WAKE_CUT_CALL) + r"\Z")
+
+
 def _render_cut(text: str, limit: int) -> str:
-    """Cut, saying so. The same contract `_render` keeps for a tool result."""
+    """
+    Cut, saying so. The same contract `_render` keeps for a tool result.
+
+    A text that an earlier cut already holds is cut from its kept part, and
+    the note keeps the uncut total. A kept part inside the limit comes back
+    as it is.
+    """
     if len(text) <= limit:
         return text
-    return text[:limit] + chr(10) + cut_note(
-        "your wake", len(text) - limit, len(text), "characters",
-        "Nothing returns a wake. Ask by name for the reads you need.")
+    earlier = _WAKE_CUT.search(text)
+    body = text[:earlier.start()] if earlier else text
+    total = int(earlier.group(1).replace(",", "")) if earlier else len(text)
+    if earlier and len(body) <= limit:
+        return text
+    return body[:limit] + chr(10) + cut_note(
+        "your wake", total - limit, total, "characters", _WAKE_CUT_CALL)
 
 
 # The phrase the eviction notice carries, and the phrase the repeat line reads
@@ -730,10 +748,13 @@ def _smallest_unit(middle: list[str], kinds: list[str]) -> int | None:
 
     The packing never keeps a reply alone beside nothing. `drop()` takes a
     results block with the reply of its turn, and tier 4 drops the rest. So
-    the unit is a results block plus the stub of its reply. A reply with no
-    results after it is a unit of its stub alone. Notices are not units,
-    because the packing charges the notice apart (the diff review of frame
-    108's pass 1, finding 1).
+    the unit is a results block plus the stub of its reply. Notices are not
+    units, because the packing charges the notice apart (the diff review of
+    frame 108's pass 1, finding 1).
+
+    A reply with no results after it is no unit. Its stub passed for room,
+    the cap stayed off, and the middle kept stubs and no read (frame 119's
+    diff review, finding 3).
     """
     units = []
     for i, (block, kind) in enumerate(zip(middle, kinds)):
@@ -742,9 +763,6 @@ def _smallest_unit(middle: list[str], kinds: list[str]) -> int | None:
             if i > 0 and kinds[i - 1] == _REPLY:
                 size += _unit_chars(middle[i - 1], _REPLY)
             units.append(size)
-        elif kind == _REPLY and (i + 1 == len(middle)
-                                 or kinds[i + 1] != _RESULTS):
-            units.append(_unit_chars(block, _REPLY))
     return min(units) if units else None
 
 
@@ -896,14 +914,27 @@ def _fit(transcript: list[str], kinds: list[str],
     # is the part of the prompt the session was woken to read, and a source
     # push the size the area deserves is most of it.
     #
-    # The share yields to half once the middle holds a read. Night 113, s153,
-    # turn 16: the wake at two thirds and a third for the tail left the middle
-    # no room, and the seat read utils.py again (frame 119). The share stays
-    # fixed from the budget and is never sized from the middle, because frame
-    # 108 ruled that circular. A first turn keeps two thirds, the case of
-    # b8c18fe.
-    middle_read = _RESULTS in kinds[1:-2]
-    wake_room = budget // 2 if middle_read else (budget * 2) // 3
+    # The share yields to half when two thirds keep no middle read. Night 113,
+    # s153, turn 16: the wake at two thirds and a third for the tail left the
+    # middle no room, and the seat read utils.py again (frame 119). Both
+    # shares stay fixed from the budget, because frame 108 ruled a share sized
+    # from the middle circular. Trial packs only choose between them. A cut
+    # that keeps no more reads loses wake for nothing, and the stored wake
+    # never grows back (frame 119's diff review, finding 1). So the wake takes
+    # half only when two thirds keep no read and half keeps one. A first turn
+    # keeps two thirds, the case of b8c18fe.
+    def keeps_a_read(room: int) -> bool:
+        trial = [_render_cut(transcript[0], room)] + transcript[1:]
+        trial_note = len(_dropped_note(len(trial))) + 2
+        trial = _cap_tail_reply(trial, kinds, budget, trial_note)
+        _, trial_kinds = _pack(trial, kinds, budget, trial_note)
+        return _RESULTS in trial_kinds[1:-2]
+
+    wake_room = (budget * 2) // 3
+    if (len(transcript) >= 4 and _RESULTS in kinds[1:-2]
+            and len(transcript[0]) > budget // 2
+            and not keeps_a_read(wake_room) and keeps_a_read(budget // 2)):
+        wake_room = budget // 2
     if len(transcript[0]) > wake_room:
         transcript = [_render_cut(transcript[0], wake_room)] + transcript[1:]
 
@@ -3289,17 +3320,19 @@ def run_session(
                             seat_refusals = getattr(sb.ctx, "refusals", None)
                             if seat_refusals is not None:
                                 seat_refusals.append((call.name, why, "Repeat"))
-                            # This branch is the answered-and-present case, and
-                            # the sentence says so. "Use what it returned
-                            # earlier" was said in exactly the evicted case,
-                            # about a result the seat could not see, and rule 2
-                            # sends that case to the serve below. The eviction
-                            # can still take the block between this line and
-                            # the reading of it, and then the key is evicted
-                            # and the next asking is served again.
+                            # The line makes no claim about this prompt. "The
+                            # answer is in this prompt" was written one turn
+                            # before the eviction could take the block: night
+                            # 113, s156, turn 9, read it beside an empty middle
+                            # (frame 119). An evicted key goes to the serve
+                            # below, so the line says that, but only under
+                            # SERVE_CAP. At the cap the next asking is refused,
+                            # and the line then says nothing more.
                             feedback.append(
-                                f"ERROR {_call_tag(call, len(calls))}: {why}. "
-                                f"The answer is in this prompt.")
+                                f"ERROR {_call_tag(call, len(calls))}: {why}."
+                                + (" If the window dropped it, ask once more "
+                                   "and it is served again."
+                                   if served.get(key, 0) < SERVE_CAP else ""))
                     elif unchanged:
                         repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three

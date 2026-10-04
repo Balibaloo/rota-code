@@ -1612,6 +1612,46 @@ def test_the_third_identical_call_is_refused_and_the_session_runs_on(db):
     assert "." not in counted[0].split(":", 1)[0], counted[0]
 
 
+def _third_asking(db) -> str:
+    """The prompt after the third identical `decisions.search`."""
+    for i in range(20):
+        db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
+                   (f"d{i:02d}", "vision_keeper", "scope " + "detail " * 20))
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend([f"Reading.\n{ask}", f"Again.\n{ask}",
+                               f"Once more.\n{ask}", "Done."])
+    run_session(db, wake_vision_keeper(), backend=backend,
+                pins=Pins(model="scripted"))
+    return backend.calls[3][1]
+
+
+def test_the_refusal_makes_no_claim_about_this_prompt(db):
+    """
+    Frame 119. "The answer is in this prompt." was written one turn before
+    the eviction could take the block (night 113, s156, turn 9). Under
+    SERVE_CAP the line says that a dropped answer is served again.
+    """
+    prompt = _third_asking(db)
+    assert "asked three times" in prompt
+    assert "If the window dropped it, ask once more and it is served again." \
+        in prompt
+    assert "The answer is in this prompt." not in prompt
+
+
+def test_the_refusal_at_the_serve_cap_promises_no_serve(db, monkeypatch):
+    """
+    Frame 119. At SERVE_CAP a dropped answer is refused and not served
+    again, so the line promises no serve and says nothing about place.
+    """
+    from rota.core import runner
+
+    monkeypatch.setattr(runner, "SERVE_CAP", 1)
+    prompt = _third_asking(db)
+    assert "asked three times" in prompt
+    assert "served again" not in prompt
+    assert "The answer is in this prompt." not in prompt
+
+
 def test_an_action_is_held_behind_a_fresh_read_and_not_behind_a_repeat(db):
     """
     `already_run` drives the hold as well as the repeat line, and the hold keeps
@@ -2119,12 +2159,7 @@ def test_the_fit_keeps_its_budget_promise(db):
             fitted, kinds = _fit(blocks, _paired(blocks), budget=budget)
             assert _held(fitted) <= budget, \
                 f"{turns} blocks over {budget} by {_held(fitted) - budget}"
-            # A wake over half the budget yields beside a middle read
-            # (frame 119). Under 8,000 the 4,743 wake is over half.
-            assert (fitted[0] == blocks[0]
-                    or fitted[0].startswith(blocks[0][:budget // 2]
-                                            + "\nCUT your wake"))
-            assert len(kinds) == len(fitted)
+            assert fitted[0] == blocks[0] and len(kinds) == len(fitted)
 
 
 def test_a_read_cut_before_its_text_covers_no_span(db):
@@ -2313,9 +2348,6 @@ def test_a_tail_that_leaves_a_middle_block_room_packs_as_before(db):
 
     parent = _parent_fit()
     s132 = _s132_turn_13(2000, "OK code.write -> " + "o" * 1983)
-    # Under half the budget, because frame 119 cuts a wake over half once
-    # the middle holds a read, and the parent did not.
-    s132[0] = "WAKE " + "w" * 12_995
     trimmed = (["WAKE: you are surveying src/billing"]
                + [f"turn {i} " + "x" * 4000 for i in range(1, 7)])
     pinned = ["WAKE " + "w" * 995]
@@ -2620,6 +2652,60 @@ def test_a_wake_under_half_packs_as_before(db):
     assert (fitted, fitted_kinds) == parent(
         list(blocks), list(kinds), _S153_BUDGET)
     assert _held(fitted) <= _S153_BUDGET
+
+
+def test_a_wake_cut_again_names_the_uncut_total(db):
+    """
+    Frame 119's diff review, finding 2. The runner stores the cut wake, so a
+    second cut printed `4,634 of 18,182` where the wake was 47,547. The note
+    keeps the uncut total. A cut wake inside its room comes back as it is.
+    """
+    from rota.core.runner import _fit
+
+    blocks = _s153_turn_16()
+    first, _ = _fit([blocks[0]], ["wake"], _S153_BUDGET)
+    keep = _S153_BUDGET * 2 // 3
+    assert f"CUT your wake: {_S153_WAKE - keep:,} of {_S153_WAKE:,} " in first[0]
+    again, _ = _fit([first[0]], ["wake"], _S153_BUDGET)
+    assert again == first, "a cut wake inside its room was cut again"
+
+    blocks[0] = first[0]
+    fitted, _ = _fit(list(blocks), _paired(blocks), _S153_BUDGET)
+    half = _S153_BUDGET // 2
+    assert fitted[0].startswith(blocks[0][:half] + "\nCUT your wake: "
+                                f"{_S153_WAKE - half:,} of {_S153_WAKE:,} ")
+    assert fitted[0].count("CUT your wake") == 1
+    assert _held(fitted) <= _S153_BUDGET
+
+
+def test_a_reply_with_no_results_is_no_middle_unit(db):
+    """
+    Frame 119's diff review, finding 3. A reply stub with no results after
+    it passed for the smallest unit, so the cap stayed off and the middle
+    kept stubs and no read. Units are results blocks only.
+    """
+    from rota.core.runner import _dropped_note, _fit
+
+    read_call = "TOOL: code.source(path='src/click/utils.py', start=1, end=9)"
+    read = _source("src/click/utils.py", 1, 9, 1500)
+    probe = "TOOL: code.probe(pattern='echo')"
+    tail_call = "TOOL: code.write(path='src/click/utils.py')"
+    blocks = ["WAKE " + "w" * 995,
+              read_call + "\n" + "plan. " * 100, read,
+              probe + "\n" + "plan. " * 100,
+              tail_call + "\n" + "r" * (5000 - len(tail_call) - 1),
+              "OK code.write -> " + "o" * 983]
+    kinds = ["wake", "reply", "results", "reply", "reply", "results"]
+    budget = 8_000
+    room = (budget - _held([blocks[0]] + blocks[-2:])
+            - len(_dropped_note(len(blocks))) - 2)
+    # The shape: the probe's stub fits beside the tail, and the read does not.
+    assert len(probe) + 2 <= room < len(read) + 2 + len(read_call) + 2, room
+
+    fitted, fitted_kinds = _fit(list(blocks), list(kinds), budget)
+    assert read in fitted, "the middle kept stubs and no read"
+    assert "CUT this exchange" in fitted[-2], "the cap did not fire"
+    assert _held(fitted) <= budget and len(fitted_kinds) == len(fitted)
 
 
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
