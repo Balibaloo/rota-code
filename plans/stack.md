@@ -144,6 +144,16 @@ rule stays, a case re-records only when its prompt moved; the gate gains
 the re-record of its own stale set, frame 89, before batch B's repairs.
 `CLAUDE.md` carries the three changes from this commit.
 
+**Roman ruled the order on 2026-10-04 at 12:50** (ruled: Roman, asked with
+"keep the old order first", frames 116 and 117, as the other option). The
+batch stoppers run first: frame 120, the Developer's wake holds one traceback
+34 times; frame 123, a Tester's fix leaves two tests that contradict; frame
+125, the criteria door reads "already" as a name. Then frame 122, a Critic's
+quote that holds quotes never parses, then frame 121, three runner notes tell
+the seat a wrong thing. Frames 116 and 117 follow. Frame 113, a Developer
+writes its own tool results, is parked. Frames 114, 115 and 124 wait on his
+rulings.
+
 The file below is in that order. Frames 2 and 1 stay at the bottom, because
 they are the gauntlet and the end state and no step names them.
 
@@ -285,7 +295,7 @@ a different question and the night is then opened once.
 - Status 2026-10-04 04:19 (rota-f7): night 113: 1 of 7 tests_failing sessions on both measures, against 1 of 21 on night 112: s143 sent three messages per reply at turns 6 to 8 and met the same refusal on m64 three times (observed: `plans/night113-read.md`, section 5, 2026-10-04). Rota workflow. Unclaimed.
 - Status 2026-10-04 10:47 (rota-f7): night 116: 0 of 7 tests_failing replies held more than one challenge, and 2 of 7 sessions, s187 and s190, were refused the same challenge three times, against the line of at most 1 (observed: `plans/night116-read.md`, 2026-10-04). Rota workflow. Unclaimed; the repeat is one challenge per reply sent again, so the burst is not its cause.
 
-### 113. A Developer writes its own tool results, and ten commits landed after one (2026-10-02) (5e8ace65)
+### 113. A Developer writes its own tool results, and ten commits landed after one (2026-10-02) (parked)
 
 - **Batch C, the night's stall, found by night 106's count.** Sites: the Developer's modes and the runner's invented-result door.
 - Rota workflow. Night 106's made-up count is developer 22 sessions against 1 on night 105: `code.source` 166 invented lines in 16 sessions, `code.write` 35 in 9, `code.commit` 11 in 6, and five landed shas sit in sessions that also invented a commit line (observed: `plans/night106-read.md`, section 4, 2026-10-02). Frame 100's design read parked the invented-result cut as its own frame, 3,587 cassettes.
@@ -301,6 +311,7 @@ a different question and the night is then opened once.
 - Status 2026-10-04 04:19 (rota-f7): night 113: 9 of 10 Developer sessions wrote their own tool results, against 29 of 35 on night 109; 15 of the 28 lines copy a real result line from the same prompt; s143's invented `OK code.commit` sits beside the landed commit 3945a33c6a, which broke the suite (observed: `plans/night113-read.md`, section 2, 2026-10-04). Rota workflow. Unclaimed.
 - Status 2026-10-04 10:47 (rota-f7): night 116: 6 of 11 Developer sessions wrote their own tool results, 37 lines, 12 copied from the same prompt, against 9 of 10 on night 113 and 7 of 10 on night 115; s179's 22,443-character reply holds 14 calls and results the seat wrote, and that reply emptied its own window (observed: `plans/night116-read.md`, 2026-10-04). Rota workflow. Unclaimed.
 - Status 2026-10-04 10:54 (rota-f7): claimed by 5e8ace65 at 10:47 on Roman's order of 2026-10-03. **The cause read on Opus, 116.5k on the harness line against 90k: there was no rise at night 106. Night 105 ran 4 Developer sessions and night 106 ran 33, the count on nights 93 to 104 was 7, 21, 2, 19, 12, 3, 12, 28, 17, 17, and no commit between the two nights touches the transcript, the stub, the results text or `_fit`. The form is taught by the prompt itself, `"\n\n".join(transcript)` at `runner.py:2831`, where a `TOOL:` line and its `OK fn -> ` block stand side by side with no frame; the wake's `[fn]` frame stands in 677 to 1,084 prompts a night and no reply copies it. The runner already runs the calls before the first invented line, drops the calls after it, and warns in the next results block; it then stores the whole reply, so the invented lines stay in 68 of 76, 110 of 121 and 68 of 76 later turns. Harm on nights 113, 114 and 116: 0 write or commit results with no call behind them; 1 invented commit with no landed commit; 4 Developer replies with 5 or more invented lines, two of which emptied the window** (observed: `plans/frame113-read.md`, 2026-10-04). Rota workflow. The frame's first two lines are wrong on the rise, and its ends-when of "under 5" is a line no night since 93 has met. Options from the read: (a) store the reply cut at its first invented line, about 2,618 to 3,587 cassettes stale; (b) a frame around runner results, 22,316 stale; (c) a fourth brief wording, which needs the interview first. Blocked on Roman, medium, because (a) costs about six GPU hours of re-records for a harm of four replies in three nights. Recommended: (a), after frames 120 and 123, which stop batches, and with the ends-when in three parts: Developer turns that invent after the session's first invention fall from 44 of 77.
+- Status 2026-10-04 12:51 (rota-f7): **parked** (ruled: Roman, 2026-10-04 12:50, asked with "later, after the batch stoppers" recommended and "now" as the other option; he chose "Park it": the cause and the count stay on record, and no fix runs until a night shows more harm than four replies). The claim of 5e8ace65 ends. Each night read keeps the count. Rota workflow.
 
 ### 114. A failing inherited test has no route: a challenge needs a criterion the test lacks (2026-10-02)
 
