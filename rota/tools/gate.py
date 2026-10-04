@@ -104,12 +104,15 @@ def child_env(model: str, temp_root: Path | None = None) -> dict[str, str]:
 
 def _get_json(url: str) -> dict | None:
     """The JSON body of a GET, or None when the server does not answer."""
+    import http.client
     import urllib.request
 
+    # A reply cut short raises `IncompleteRead`, which is no `OSError`
+    # (observed: frame 118's diff review). The gate must reach the suite.
     try:
         with urllib.request.urlopen(url, timeout=2) as reply:
             data = json.loads(reply.read().decode("utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):
         return None
     return data if isinstance(data, dict) else None
 
@@ -128,7 +131,12 @@ def choose_host(env: dict[str, str]) -> str:
     if not bench:
         return "bench: off, ROTA_GATE_BENCH is empty"
     ps = _get_json(f"{MAIN_HOST}/api/ps")
-    loaded = [m.get("name", "?") for m in (ps or {}).get("models") or []]
+    # Ollama keeps a model loaded for five minutes after its last call, so
+    # the gate's own re-record also reads as held. The expiry tells a reader
+    # which case it is. The decision stays (ruled: frame 118's diff review).
+    loaded = [f"{m.get('name', '?')} until {m['expires_at']}"
+              if m.get("expires_at") else m.get("name", "?")
+              for m in (ps or {}).get("models") or [] if isinstance(m, dict)]
     if not loaded:
         return "bench: off, the main server is free"
     if _get_json(f"{bench.rstrip('/')}/api/tags") is None:

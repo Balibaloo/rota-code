@@ -765,12 +765,42 @@ def test_the_callers_host_wins_and_no_server_is_asked(monkeypatch):
 
 
 def test_a_held_main_server_and_a_live_bench_move_the_child(monkeypatch):
-    asked = _servers(monkeypatch, HELD, TAGS)
+    # The expiry shows a model kept loaded after a call, not only a night.
+    when = "2026-10-04T05:00:00+01:00"
+    asked = _servers(monkeypatch,
+                     {"models": [{"name": "qwen3.5:9b", "expires_at": when}]},
+                     TAGS)
     env = {}
     line = gate.choose_host(env)
     assert env == {"OLLAMA_HOST": gate.BENCH_HOST, "ROTA_LLM_TIMEOUT": "900"}
     assert asked == [f"{gate.MAIN_HOST}/api/ps", f"{gate.BENCH_HOST}/api/tags"]
-    assert line == f"bench: {gate.BENCH_HOST}, the main server holds qwen3.5:9b"
+    assert line == (f"bench: {gate.BENCH_HOST}, "
+                    f"the main server holds qwen3.5:9b until {when}")
+
+
+def test_a_ps_entry_that_is_not_a_dict_is_skipped(monkeypatch):
+    _servers(monkeypatch, {"models": ["qwen3.5:9b", None]}, TAGS)
+    env = {}
+    assert gate.choose_host(env) == "bench: off, the main server is free"
+    assert env == {}
+
+
+def test_a_reply_cut_short_reads_as_no_answer(monkeypatch):
+    import http.client
+    import urllib.request
+
+    class Cut:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            raise http.client.IncompleteRead(b"{\"mod")
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda url, timeout: Cut())
+    assert gate._get_json("http://127.0.0.1:1/api/ps") is None
 
 
 def test_the_bench_keeps_a_timeout_the_caller_set(monkeypatch):
