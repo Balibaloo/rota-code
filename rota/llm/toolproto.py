@@ -169,6 +169,11 @@ def _rescan_args(text: str, start: int, marker: str) -> int | None:
     return None
 
 
+# A function with one of these parameters writes source or a file. Frame
+# 122's second review: the third reading never yields a call to one.
+_WRITES = frozenset({"text", "body", "path"})
+
+
 def _third_reading(text: str, start: int) -> tuple[str, int] | None:
     """A third scan, for the two forms frame 122 read on night 115.
 
@@ -274,9 +279,16 @@ def _third_reading(text: str, start: int) -> tuple[str, int] | None:
     if tail and (used_apostrophe or tail != stray):
         return None
     raw = "".join(out)
+    # The rewritten list must be strict Python, because the lenient parse
+    # guesses. `ast.parse` accepts a key given twice, so count the keys
+    # (frame 122's second review: `path='a.py', ..., path='a'it'`).
     try:
+        safe = _quote_bare_keywords(_escape_newlines_in_quotes(raw))
+        keys = [k.arg for k in ast.parse(f"_f({safe})", mode="eval").body.keywords]
         parse_args(raw)
     except Exception:
+        return None
+    if len(keys) != len(set(keys)):
         return None
     return raw, i
 
@@ -779,6 +791,10 @@ def extract(text: str, signatures: dict | None = None, *,
 
         def third_call() -> int | None:
             """Add the call by the third reading, and return its end."""
+            # A wrong `why` is a sentence that a door or a reader checks.
+            # A wrong `text` is a file on disk, so writers get no guess.
+            if not params or _WRITES & set(params):
+                return None
             third = _third_reading(text, args_start)
             if third is None:
                 return None

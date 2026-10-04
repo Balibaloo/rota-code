@@ -244,21 +244,53 @@ def test_the_refusal_names_no_value_that_opens_inside_a_tuple():
         "unterminated argument list: a quote inside a quoted argument")
 
 
-WRITE = {"code.write": ({"path", "text"}, {"path", "text", "start", "end"})}
+WRITE = {
+    "code.write": ({"path", "text"}, {"path", "text", "start", "end"}),
+    "tests.encode": ({"id", "criterion_id", "path", "body"},
+                     {"id", "criterion_id", "path", "body", "batch_id"}),
+}
 
 
 @pytest.mark.parametrize("raw", [
-    # Frame 122's review probe: the third reading of pass 1 joined `''` into
-    # nothing and wrote `return ` where the seat wrote `return ''`.
+    # A quote that opens right after a quote closes. fb1bdba's third
+    # reading joined the two strings into `why="ab it's"`.
+    "TOOL: challenge.uphold(citation='a.py', quote='x', why='a''b it's')",
+    # A tail after `')`: the value did not end at the first `')`.
+    "TOOL: challenge.uphold(citation='a.py', quote='x', why='it's f(x')\nmore')",
+], ids=["adjacent-quotes", "tail-after-close"])
+def test_a_doubtful_third_reading_is_a_refusal(raw):
+    """A refusal is safe, and a wrong value is not. The third reading gives
+    up when a value is not one token or the call has a tail."""
+    got = toolproto.extract(raw, UPHOLD)
+    assert got and all(isinstance(g, toolproto.ToolError) for g in got), got
+
+
+@pytest.mark.parametrize("raw", [
+    # Frame 122's first review: pass 1 joined `''` into nothing and wrote
+    # `return ` where the seat wrote `return ''`.
     "TOOL: code.write(path='a.py', text='def name(x):\\n    if not x:\\n"
     "        return ''\\n    return f\"it's {x}\"\\n')",
-    # A quote that opens right after a quote closes.
-    "TOOL: code.write(path='a.py', text='s = 'it''s'')",
-    # A tail after `')`: the value did not end at the first `')`.
-    "TOOL: code.write(path='a.py', text='it's f(x')\nmore')",
-], ids=["empty-string-probe", "adjacent-quotes", "tail-after-close"])
-def test_a_doubtful_third_reading_is_a_refusal_and_never_a_write(raw):
-    """A refusal is safe, and a wrong write is not. The third reading gives
-    up when a value is not one token or the call has a tail."""
+    # Frame 122's second review: each wrote a wrong value at 78ed236.
+    "TOOL: code.write(path='a.py', text='a', end='it's')",
+    "TOOL: code.write(text='x = 1', path='it's.py')",
+    "TOOL: tests.encode(id='t1', criterion_id='c1', body='f(x', path='it's')",
+    "TOOL: code.write(path='a.py', text='', path='a'it')",
+], ids=["empty-string", "end-its", "path-its", "body-path-its", "path-twice"])
+def test_a_function_that_writes_never_gets_a_wrong_write(raw):
+    """Each call is a refusal before frame 122, and it stays a refusal."""
     got = toolproto.extract(raw, WRITE)
     assert got and all(isinstance(g, toolproto.ToolError) for g in got), got
+
+
+def test_only_a_function_that_writes_nothing_gets_the_third_reading():
+    """A wrong `why` is a sentence that a door checks. A wrong `text` is a
+    file on disk. The same broken value parses for the one and not the
+    other."""
+    value = "='the claim's reference')"
+    sigs = dict(UPHOLD, **{"notes.add": ({"text"}, {"text"})})
+    uphold = toolproto.extract(
+        "TOOL: challenge.uphold(citation='a.py', quote='x', why" + value, sigs)
+    assert isinstance(uphold[0], toolproto.ToolCall), uphold
+    assert uphold[0].args["why"] == "the claim's reference"
+    write = toolproto.extract("TOOL: notes.add(text" + value, sigs)
+    assert isinstance(write[0], toolproto.ToolError), write
