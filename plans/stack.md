@@ -204,6 +204,16 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 118. The Titan as the gate's bench, so that nothing waits behind a night (2026-10-04) (Roman)
+
+- **No batch. An instrument.** Sites: `probes/titan_ollama.ps1`, the second Ollama server on port 11435; the re-record step of `rota/tools/gate.py`; the register's line "Do not run the gate beside a night" in `plans/operating-facts.md`.
+- Meta workflow. The 3080 runs one thing at a time: on 2026-10-02 a gate was killed at 40 minutes behind night 107, and on 2026-10-03 Roman stopped GPU work for eight hours (observed: frame 111's status lines, 2026-10-02 17:26 and 2026-10-03 15:52). The Titan failed at one slot and a 12,288 window with `CUDA error: the launch timed out`, the Windows display driver timeout, on 2026-09-15; `TdrDelay` and `TdrDdiDelay` are 60 since the restart of 2026-10-04 02:17 (observed: the registry read, 2026-10-04). Nobody has run the Titan at 16,384 since.
+- Ends when, three steps, each a visible end. One: one recorded Developer turn of qwen3.5:9b replays on port 11435 at a 16,384 window with one slot and returns a reply, with the seconds written down; price about 10k, by the holder. Two: the gate sends its re-records and its model calls to the Titan when a night holds the 3080, one variable and no second code path, and one stale case re-records there and passes; price about 30k on Opus and a review of about 20k. Three: one gate runs beside one night, its five lines are read, each red it names flaky is run again alone, and the register's line is rewritten from that run; the behaviour the price buys is a gate that never waits two hours.
+- Ruled by Roman at the grill of 2026-10-04 02:37, three answers, each the recommended one or his own: the second lane exists to keep the gate moving, not to run two nights or a stronger model; the gate may run beside a night, and a red it names flaky counts only after it fails alone; if step one fails or is too slow, the next trial is a smaller `num_batch` on the Titan's server, and hosted credit is bought only if that fails too.
+- Waits on: a session. This session is past its 300k line and takes no new frame.
+- Reasoning: this heading's rulings; `plans/operating-facts.md`, "Hardware and drives" and "Models and Ollama"; the hosted options and their prices are in session 3d6e6173's replies of 2026-10-04 and are not a record.
+- Status 2026-10-04 02:37 (rota-c4): pushed by 3d6e6173 after the grill. Unclaimed, priced. Work power mode is set, 320 W and 200 W, and resets at a restart. Meta workflow.
+
 ### 117. A stub of a long call line stubs again to no call (2026-10-03)
 
 - **Batch C, the night's stall, found by frame 108's pass 2.** Site: `_stub` in `rota/core/runner.py`, which cuts each call line to `_STUB_CALL_CHARS`, 200 characters.
