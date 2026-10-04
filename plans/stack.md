@@ -213,6 +213,16 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night113-read.md`, sections 1 and 7.
 - Status 2026-10-04 04:19 (rota-f7): pushed by 5e8ace65 at frame 108's close. Unclaimed. Rota workflow.
 - Status 2026-10-04 05:19 (rota-f7): claimed by 5e8ace65. The order question, low, went to Roman's phone at 04:59 with the recommended answer, this frame before frame 113, a Developer writes its own tool results; taken by timeout at 05:19. Meta workflow. First: a design read on Opus of what the 18,179 characters of the Developer's wake hold, into `plans/frame119-design.md`, judged here before any code.
+- Status 2026-10-04 05:26 (rota-f7): **the design read on Opus, 120.1k on the harness line against 60k: s153's wake is 47,547 characters uncut and 18,064 kept; `tests.load` is about 34,100, 34 project rows with one byte-identical traceback, and `code.source`, about 20,150, is cut whole; the two-thirds share comes from b8c18fe of 2026-08-24, reasoned for a survey's source push, with no ruling and no measurement behind it; the sentence `The answer is in this prompt.` sits beside the eviction notice in 26 turns in 7 sessions, and the report's 54 dangling-pointer turns count other lines** (observed: `plans/frame119-design.md`, sections 1, 3 and 5, 2026-10-04). Meta workflow. Judged: option (b), the wake's share is `budget // 2` when the transcript holds a middle results block and two thirds on a first turn, with the sentence replaced by one that claims no place; the middle room becomes 3,721, 3,576 and 3,872 on s153 t16, s154 t16 and s156 t8, so frame 108's cap lands (reasoned: the design's arithmetic, not yet run). Option (c) sizes a share from the middle, which frame 108 refused. Option (a), one traceback per distinct output, does not free the middle and is frame 120. The ends-when's second ratio changes to the sentence's own count, 26 turns in 7 sessions. Pass 1 goes to an implementer on Opus.
+
+### 120. The Developer's wake holds one traceback 34 times and no source (2026-10-04)
+
+- **Batch C, the night's stall, found by frame 119's design read.** Site: the red rows of `tests.load` in the wake builder, `rota/core/runner.py:2238-2247`.
+- Rota workflow. On night 113, s153's wake gives 34 project rows with one byte-identical traceback of 726 characters, about 28,734 characters, and the cut then removes all of `code.source`, about 20,150 (observed: `plans/frame119-design.md`, sections 1 and 2, 2026-10-04).
+- Ends when: the builder groups red rows by their output, one traceback per distinct output and then the ids and paths; one runner test. Measured on a night with a batch red at import: Developer `tests_failing` wakes that hold a `code.source` block rise from 0 of 3 read on night 113. A wake that still holds no source is read, and the frame closes when its cause is not repeated output. Price about 30k on Opus and one review of about 20k.
+- Waits on: Roman's order. Recommended after frame 119, the Developer wake takes two thirds of the window, because both edit the wake.
+- Reasoning: `plans/frame119-design.md`, section 4, option (a).
+- Status 2026-10-04 05:26 (rota-f7): pushed by 5e8ace65. Unclaimed, priced. Rota workflow.
 
 ### 117. A stub of a long call line stubs again to no call (2026-10-03)
 
