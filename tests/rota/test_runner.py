@@ -3005,8 +3005,12 @@ def test_red_rows_with_one_output_show_it_once_and_the_source_survives(tmp_path)
     assert block[0]["count"] == 34
     assert block[0]["tests that gave this output"] == [
         f"inh_{i:08x} tests/test_mod_{i}.py" for i in range(34)]
-    assert list(block[0]) == ["said", "tests that gave this output", "count"]
-    assert _render(shown, PUSH_CHARS).count("partially initialized") == 1
+    assert list(block[0]) == ["said", "count", "tests that gave this output"]
+    rendered = _render(shown, PUSH_CHARS)
+    assert (rendered.index('"count": 34')
+            < rendered.index('"tests that gave this output"')), \
+        "a cut inside the id list would hide the count"
+    assert rendered.count("partially initialized") == 1
     assert "34 test(s) with no criterion" in shown["what that means"]
 
     # The wake around it, at night 113's sizes (frame 119's design, table 1).
@@ -3061,11 +3065,13 @@ def test_red_row_groups_keep_the_order_of_their_first_row():
             {"id": "b3", "path": "tests/b3.py", "said": "B"}]
     assert _red_rows_by_output(rows) == [
         {"id": "u1", "path": "tests/u.py", "said": "X"},
-        {"said": "A", "tests that gave this output":
-            ["a1 tests/a1.py", "a2 tests/a2.py"], "count": 2},
-        {"said": "B", "tests that gave this output":
-            ["b1 tests/b1.py", "b2 tests/b2.py", "b3 tests/b3.py"], "count": 3},
+        {"said": "A", "count": 2, "tests that gave this output":
+            ["a1 tests/a1.py", "a2 tests/a2.py"]},
+        {"said": "B", "count": 3, "tests that gave this output":
+            ["b1 tests/b1.py", "b2 tests/b2.py", "b3 tests/b3.py"]},
     ]
+    assert [list(r) for r in _red_rows_by_output(rows)[1:]] == [
+        ["said", "count", "tests that gave this output"]] * 2
 
 
 def test_red_rows_merge_on_byte_identical_outputs_only():

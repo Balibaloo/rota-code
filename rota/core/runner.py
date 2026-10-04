@@ -2089,7 +2089,8 @@ def _red_rows_by_output(rows: list[dict]) -> list[dict]:
     34 project rows held one traceback of 726 characters. The rows took
     28,734 characters, the push cut kept ten copies, and the window cut
     removed all of `code.source`. A shared output now shows once, then the
-    tests that gave it, then the count. Only byte-identical outputs share a
+    count, then the tests that gave it. The count goes before the list, so a
+    cut inside a long list keeps it. Only byte-identical outputs share a
     block, because a changed name or line is a different fact. A row whose
     output no other row gave keeps today's form, so its wake keeps its bytes.
     Groups keep the order of their first row.
@@ -2107,8 +2108,8 @@ def _red_rows_by_output(rows: list[dict]) -> list[dict]:
             out.append({k: r.get(k) for k in ("id", "path", "said")})
             continue
         if said not in group:
-            group[said] = {"said": said, "tests that gave this output": [],
-                           "count": count[said]}
+            group[said] = {"said": said, "count": count[said],
+                           "tests that gave this output": []}
             out.append(group[said])
         group[said]["tests that gave this output"].append(
             f"{r.get('id')} {r.get('path')}")
