@@ -214,7 +214,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 125. The criteria door reads the word "already" as a function's name (2026-10-04)
+### 125. The criteria door reads the word "already" as a function's name (2026-10-04) (419281dc)
 
 - **No batch. A door's pattern.** Site: `_named_new_callables` in `rota/roles/api.py`, which takes the word after "function" as a callable name.
 - Rota workflow. On night 116 the Vision Keeper s198 turned its decision text into a new in-scope item with `problem.assert`, `confirm_default_on_eof_resolved`. The criteria door then refused every attempt of s205, s206 and s207 with `the item names already`, and the night gave up on the criteria for that item (observed: `plans/night116-read.md`, 2026-10-04). Two causes: the door's pattern, this frame, and the seat that asserted a decision as an item, which is read with this frame and pushed apart if it stands.
