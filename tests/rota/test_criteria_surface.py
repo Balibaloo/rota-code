@@ -245,3 +245,68 @@ def test_a_call_with_arguments_names_the_callable(db):
     assert sb.call("criteria.specify", id="c_8", ticket_id="tk8",
                    text="echo_json prints the object as JSON",
                    surface_refs=["echo_json"])["id"] == "c_8"
+
+
+def test_an_english_word_after_function_is_not_a_name(db):
+    """clickI night 116 (2026-10-04): the item said "The confirm() function
+    already takes", and the door read `already` as the callable the item
+    names. Three Terminologists were refused on every turn with "the item
+    names already", and the night gave up on the criteria for the item."""
+    _index(db, "src/click/termui.py::confirm")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('confirm_default_on_eof_resolved', ?, "
+               "'in_scope', 'approved', 1, 1)",
+               ("The confirm() function already takes a default_on_eof flag as "
+                "described in s2. The challenge is resolved as the item is "
+                "ratified and in scope.",))
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk_1_confirm_default_on_eof_resolved', "
+               "'confirm_default_on_eof_resolved', ?)",
+               ("the confirm() function already takes a default_on_eof flag as "
+                "described in s2",))
+    db.commit()
+    sb = build("terminologist", db, mode="normal",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    out = sb.call("criteria.specify", id="cr_1",
+                  ticket_id="tk_1_confirm_default_on_eof_resolved",
+                  text="confirm returns the default when stdin is closed",
+                  surface_refs=["confirm"])
+    assert out["id"] == "cr_1"
+
+
+def _named(db, text):
+    from rota.roles.api import _named_new_callables
+    _index(db, "src/click/termui.py::confirm", "src/click/utils.py::echo")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i7', ?, 'in_scope', 'approved', 1, 1)", (text,))
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk7','i7','')")
+    db.commit()
+    return _named_new_callables(build("terminologist", db, mode="criteria").ctx, "tk7")
+
+
+@pytest.mark.parametrize("text", [
+    # clickI night 116, the item a Vision Keeper asserted from a decision.
+    "The confirm() function already takes a default_on_eof flag.",
+    # clickI nights 113 to 117, the echo_json item: `next` on every night.
+    "Add a helper next to echo that prints an object as compact JSON.",
+    # clickI nights 87 and 96.
+    "The function must return the default on EOF.",
+    "A function that returns the default, a helper which prints it.",
+])
+def test_a_plain_word_after_function_is_not_a_new_callable(db, text):
+    assert _named(db, text) == []
+
+
+@pytest.mark.parametrize("text, name", [
+    # clickI nights 113 to 117, and night 11: the call form.
+    ("Add an echo_json(obj) helper next to echo.", "echo_json"),
+    # A4: the words name it.
+    ("The share lives in a new function named split_bill.", "split_bill"),
+    ("Add a helper called render.", "render"),
+    ("Add the helper `render` to the module.", "render"),
+    ("Add a function split_bill to main.", "split_bill"),
+    ("Add a method splitBill to the class.", "splitBill"),
+    ("Add a function click.echo_json beside echo.", "echo_json"),
+])
+def test_a_callable_form_after_function_is_a_new_callable(db, text, name):
+    assert _named(db, text) == [name]
