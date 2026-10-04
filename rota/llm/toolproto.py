@@ -168,6 +168,119 @@ def _rescan_args(text: str, start: int, marker: str) -> int | None:
             return None
     return None
 
+
+def _third_reading(text: str, start: int) -> tuple[str, int] | None:
+    """A third scan, for the two forms frame 122 read on night 115.
+
+    Critic s86 to s88 sent each form, and the parser refused each one
+    until the session ended. Neither form has a second reading.
+
+    - An apostrophe between two letters inside a single-quoted value is
+      text. Python never lets a letter follow a closing quote here.
+    - A triple-quoted value inside one more quote, `"'''...'''"`, is the
+      triple-quoted value. The outer quote may close as `\\"`.
+
+    The answer is the rewritten argument list and the offset of the
+    closing bracket in `text`. It stands only when `parse_args` parses it.
+    """
+    out: list[str] = []
+    i, depth = start, 1
+    quote = None            # the active string delimiter: ', ", ''', or """
+    wrap = None             # the outer quote around a triple-quoted value
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            if ch == "\\":
+                out.append(text[i:i + 2])
+                i += 2
+                continue
+            if text.startswith(quote, i):
+                if (quote == "'" and out and out[-1][-1:].isalnum()
+                        and text[i + 1:i + 2].isalnum()):
+                    out.append("\\'")
+                    i += 1
+                    continue
+                out.append(quote)
+                i += len(quote)
+                if wrap:
+                    if text.startswith("\\" + wrap, i):
+                        i += 2
+                    elif text.startswith(wrap, i):
+                        i += 1
+                quote = wrap = None
+                continue
+            out.append(ch)
+            i += 1
+            continue
+        head = text[i + 1:i + 4]
+        if ch in "'\"" and head in ("'''", '"""') and head[0] != ch:
+            wrap, quote = ch, head
+            out.append(head)
+            i += 4
+            continue
+        if text.startswith("'''", i) or text.startswith('"""', i):
+            quote = text[i:i + 3]
+            out.append(quote)
+            i += 3
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                break
+        out.append(ch)
+        i += 1
+    if depth != 0 or i >= len(text):
+        return None
+    raw = "".join(out)
+    try:
+        parse_args(raw)
+    except Exception:
+        return None
+    return raw, i
+
+
+def _open_argument(text: str, start: int) -> str | None:
+    """The argument whose quoted value never ends, by the first scan's rules.
+
+    The name is the last `name=` at the top level before that value opened.
+    """
+    last_key = opened_key = None
+    after_comma = False
+    depth = 1
+    in_single = in_double = escaped = False
+    i = start
+    while i < len(text):
+        ch = text[i]
+        if escaped:
+            escaped = False
+        elif ch == "\\":
+            escaped = True
+        elif in_single:
+            in_single = ch != "'"
+        elif in_double:
+            in_double = ch != '"'
+        elif ch in "'\"":
+            in_single, in_double = ch == "'", ch == '"'
+            # A quote after a comma opens a new value with no name.
+            opened_key = None if after_comma else last_key
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 1:
+            after_comma = True
+        elif ch == "=" and depth == 1:
+            m = re.search(r"([A-Za-z_]\w*)\s*$", text[start:i])
+            if m:
+                last_key, after_comma = m.group(1), False
+        i += 1
+    return opened_key if in_single or in_double else None
+
+
 def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     """
     Parse the argument list. JSON object form, or Python keyword form.
@@ -621,17 +734,53 @@ def extract(text: str, signatures: dict | None = None, *,
             # argument died here three sessions running, the same call each
             # time. The fallback holds only when the arguments then parse.
             args_end = _rescan_args(text, args_start, MARKER)
+        sig = (signatures or {}).get(name)
+        # `_param_sets` hands (required, all); a bare set is accepted too.
+        params = sig[1] if isinstance(sig, tuple) and len(sig) == 2 else sig
+
+        def third_call() -> int | None:
+            """Add the call by the third reading, and return its end."""
+            third = _third_reading(text, args_start)
+            if third is None:
+                return None
+            raw3, end3 = third
+            args3, pos3 = parse_args(raw3)
+            if _swallowed_argument(args3, params):
+                return None
+            add(ToolCall(name=name, args=args3, pos=pos3,
+                         raw=f"{name}({raw3})"), marker)
+            return end3
+
         if args_end is None:
+            end3 = third_call()
+            if end3 is not None:
+                cursor = end3 + 1
+                continue
             # Say why, or the model retries the same call. tipsAH (2026-09-09):
             # ten writes of main.py refused as "unterminated argument list",
             # the model's own guess was "a multi-line string", and the cause
             # was a quote inside the text closing the string early.
-            add(ToolError(
-                f"{MARKER} {name}(...",
-                "unterminated argument list: a quote inside a quoted argument "
-                "ended the string early, or a bracket is unbalanced. Source "
-                "has quotes of its own: put it between triple quotes, "
-                "text='''...''', with the lines as they are, no escaping"), marker)
+            key = _open_argument(text, args_start)
+            if key:
+                # Frame 122, night 115: the old hint named `text=`, and the
+                # Critic put triple quotes on `quote`. The apostrophe that
+                # broke the list was in `why`. Name the argument.
+                reason = (
+                    f"unterminated argument list: the value of {key} never "
+                    f"ends. Either a quote inside {key} closed it early, or "
+                    f"its closing quote has a backslash before it. Put a "
+                    f"value with quotes or line breaks between triple "
+                    f"quotes, three single quotes at each end. Write the "
+                    f"value as it is, with no backslashes:\n"
+                    f"{key}='''if x != \"a\":\n    return \"it's done\"'''")
+            else:
+                reason = (
+                    "unterminated argument list: a quote inside a quoted "
+                    "argument ended the string early, or a bracket is "
+                    "unbalanced. Source has quotes of its own: put it between "
+                    "triple quotes, text='''...''', with the lines as they "
+                    "are, no escaping")
+            add(ToolError(f"{MARKER} {name}(...", reason), marker)
             cursor = marker + len(MARKER)
             continue
 
@@ -652,13 +801,18 @@ def extract(text: str, signatures: dict | None = None, *,
                 exc = first_exc
         else:
             exc = None
-        if exc is not None:
+        # A list that fails here may still have the third reading. Night
+        # 115, s86 turn 4: a stray `")` after the call closed the wrapped
+        # value, and `why` rode along inside `quote`.
+        end3 = None
+        if exc is not None or _swallowed_argument(args, params):
+            end3 = third_call()
+        if end3 is not None:
+            args_end = end3
+        elif exc is not None:
             add(ToolError(f"{MARKER} {name}({raw_args[:80]})",
                           f"could not parse arguments: {exc}"), marker)
         else:
-            sig = (signatures or {}).get(name)
-            # `_param_sets` hands (required, all); a bare set is accepted too.
-            params = sig[1] if isinstance(sig, tuple) and len(sig) == 2 else sig
             swallowed = _swallowed_argument(args, params)
             if swallowed:
                 # L1-DV-apply-the-answer (2026-09-12): llama wrote a

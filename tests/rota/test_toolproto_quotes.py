@@ -171,3 +171,65 @@ def test_a_stray_quote_after_the_value_is_still_the_same_door():
         "ended the string early, or a bracket is unbalanced. Source "
         "has quotes of its own: put it between triple quotes, "
         "text='''...''', with the lines as they are, no escaping")
+
+
+# Night 115, `.rota/clickI_night115.db`, Critic s86: the call of turns 1
+# to 4, byte for byte. Turns 5 and 6 repeat turn 4. Each `\n`, `\"` and
+# `\'` is text, as the seat wrote it.
+S86_T1 = r"""TOOL: challenge.uphold(citation='examples/validation/validation.py', quote='def validate_count(ctx, param, value):\n    if value < 0 or value % 2 != 0:\n        raise click.BadParameter("Should be a positive, even integer.")\n    return value', why='The claim cites `click.ParamType` as the mechanism for validation in this file. The code explicitly implements a custom class `URL(click.ParamType[urlparse.ParseResult])` which inherits from `click.ParamType`. This confirms that `click.ParamType` is indeed used and instantiated (via `type=URL()`) to handle parameter conversion and validation logic, supporting the claim's reference to it.')"""
+S86_T2 = r"""TOOL: challenge.uphold(citation='examples/validation/validation.py', quote="'''def validate_count(ctx, param, value):\n    if value < 0 or value % 2 != 0:\n        raise click.BadParameter(\"Should be a positive, even integer.\")\n    return value'''\", why='The claim cites `click.ParamType` as the mechanism for validation in this file. The code explicitly implements a custom class `URL(click.ParamType[urlparse.ParseResult])` which inherits from `click.ParamType`. This confirms that `click.ParamType` is indeed used and instantiated (via `type=URL()`) to handle parameter conversion and validation logic, supporting the claim\'s reference to it.')"""
+S86_T3 = r"""TOOL: challenge.uphold(citation='examples/validation/validation.py', quote="'''def validate_count(ctx, param, value):
+    if value < 0 or value % 2 != 0:
+        raise click.BadParameter(\"Should be a positive, even integer.\")
+    return value'''\", why='The claim cites `click.ParamType` as the mechanism for validation in this file. The code explicitly implements a custom class `URL(click.ParamType[urlparse.ParseResult])` which inherits from `click.ParamType`. This confirms that `click.ParamType` is indeed used and instantiated (via `type=URL()`) to handle parameter conversion and validation logic, supporting the claim\'s reference to it.')"""
+S86_T4 = r"""TOOL: challenge.uphold(citation='examples/validation/validation.py', quote="'''def validate_count(ctx, param, value):
+    if value < 0 or value % 2 != 0:
+        raise click.BadParameter(\"Should be a positive, even integer.\")
+    return value'''\", why='The claim cites `click.ParamType` as the mechanism for validation in this file. The code explicitly implements a custom class `URL(click.ParamType[urlparse.ParseResult])` which inherits from `click.ParamType`. This confirms that `click.ParamType` is indeed used and instantiated (via `type=URL()`) to handle parameter conversion and validation logic, supporting the claim\'s reference to it.')")"""
+
+S86_QUOTE = (
+    'def validate_count(ctx, param, value):\n'
+    '    if value < 0 or value % 2 != 0:\n'
+    '        raise click.BadParameter("Should be a positive, even integer.")\n'
+    '    return value')
+UPHOLD = {"challenge.uphold": ({"citation", "quote"}, {"citation", "quote", "why"})}
+
+
+@pytest.mark.parametrize("raw", [S86_T1, S86_T2, S86_T3, S86_T4],
+                         ids=["t1-apostrophe", "t2-wrapped-triple",
+                              "t3-wrapped-triple-lines", "t4-stray-close"])
+def test_each_form_the_critic_sent_on_night_115_is_read(raw):
+    """
+    Frame 122. Turn 1 broke on `claim's` in `why`: an apostrophe between two
+    letters is text. Turns 2 to 6 wrapped the quote as `"'''...'''\\"`, and
+    turn 4 added `")` after the call. Each has one reading, and the third
+    reading takes it.
+    """
+    got = toolproto.extract(raw, UPHOLD)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolCall), got
+    assert got[0].args["citation"] == "examples/validation/validation.py"
+    assert got[0].args["quote"] == S86_QUOTE
+    assert got[0].args["why"].endswith("supporting the claim's reference to it.")
+
+
+def test_the_refusal_names_the_value_that_never_ends_and_shows_a_form():
+    """
+    Frame 122: the old refusal named `text=`, and the Critic put triple
+    quotes on `quote`. The value that broke was `why`. The refusal now names
+    it, and its example parses.
+    """
+    got = toolproto.extract(
+        "TOOL: challenge.uphold(citation='a.py', quote='x', why='it is done)",
+        UPHOLD)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == (
+        "unterminated argument list: the value of why never ends. Either a "
+        "quote inside why closed it early, or its closing quote has a "
+        "backslash before it. Put a value with quotes or line breaks between "
+        "triple quotes, three single quotes at each end. Write the value as "
+        "it is, with no backslashes:\n"
+        "why='''if x != \"a\":\n    return \"it's done\"'''")
+    form = got[0].reason.split(":\n", 1)[1]
+    shown = toolproto.extract(f"TOOL: challenge.uphold(citation='a.py', quote='x', {form})",
+                              UPHOLD)
+    assert shown[0].args["why"] == 'if x != "a":\n    return "it\'s done"'
