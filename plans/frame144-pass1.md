@@ -27,7 +27,7 @@ The three ops outside `ctx`:
 
 ## The sites
 
-47 `_offer` calls, 44 in `api.py` and 3 in `sandbox.py` (observed: grep, 2026-10-05).
+45 offer sites at c888968, 42 in `api.py` and 3 in `sandbox.py` (observed: an ast count of the calls of `_offer` and `_send`, less the helper's own call, pass 2, 2026-10-05). The first count, 47 by grep, was wrong.
 
 Converted:
 
@@ -59,7 +59,7 @@ Over the first full gate run with `ROTA_OFFER_LOG` set (observed: `offers_all.js
 - 71 offers were not sent, because their text is the seat's to write (the boundary offers of `code.write`).
 - 18 `AGAIN` steps met another door's refusal of the seat's own arguments. The follow check counts those as admitted, by the rule above.
 - 73 of the 184 offers came from L1 and L3 cases that replay recorded sessions through the runner. So the hook sees a seat's own refusals on a replay (observed: the log's test ids, 2026-10-05).
-- The new file `test_offers_followed.py` adds 12 tests, 3 of them strict xfails.
+- The new file `test_offers_followed.py` adds 11 tests, 3 of them strict xfails (corrected in pass 2 from 12, observed: `grep -c "^def test_"` at c888968).
 
 ## The offers that fail today
 
