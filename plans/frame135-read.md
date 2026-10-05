@@ -44,10 +44,14 @@ The sign is `criterion_id IS NULL` on the stored row, not the `inh_` prefix.
 - `tests_encode` calls `_must_exist(ctx, "criteria", criterion_id)` at 5135, so a Tester's row always holds a criterion (reasoned: an encode with no criterion is refused before it is staged).
 - In night 120's database, 0 rows have a null criterion and a name without `inh_`, and 0 `inh_` rows have a criterion (observed: `tests`, 2026-10-05). The night 119 Tester's `inh_echo_json_01` holds its criterion, so the sign keeps it replaceable (reasoned).
 
-## The predicate
+## The predicate (the door as of pass 3, 2026-10-05)
 
-`tests.encode` refuses when the stored row of `id` has `criterion_id IS NULL` and a path other than the sent path.
+Pass 1 built a narrower door. Passes 2 and 3 widened it after two diff reviews. The door stands after the equal-body check and before the one-test guard.
 
-- s140's case has a new path: `test_echo_json.py` against `test_confirm.py`. All five calls of s140 meet the predicate.
-- A challenge fix of the project test itself keeps the stored path. The predicate does not meet it, so frame 128's path behaves as it does today (reasoned: frame 128 is open and unruled).
-- The door stands after the equal-body check and before the one-test guard, so the seat reads the id fault before the path fault.
+- A stored row is a project test when `criterion_id IS NULL`, or when its id equals `harness.inherited_id(stored path)`. `harness.inherit` calls the same function. The second sign holds after a landed fix gives the row a criterion (reasoned: the fix keeps the id).
+- A wake is a challenge when `ctx.mode == "challenge"`, or when the trigger message's verb is `challenge`. A real Tester challenge wake runs in the sandbox mode `normal` (observed: `sessions.mode` of night 120's Testers, 2026-10-05).
+- The door refuses a project id at any path outside a challenge. In a challenge wake it refuses a project id at a new path only. The path comparison treats a backslash as a forward slash.
+- A challenge wake that sends the project id at the project test's own path is admitted, as before frame 135. Frame 128 rules on that case (reasoned: frame 128 is open and unruled).
+- The refusal names the project test's path. Outside a challenge it says that an encode never replaces a project test and asks for a new id. In a challenge it offers the stored path under this id, or a new id.
+- When the sent path is the file of the Tester's own test of the same criterion, the refusal names that test's id in the clash door's words, as frame 123 asks. When another test owns the path, the refusal adds a request for a new path.
+- s140's five calls all meet the door: each sent a project id outside a challenge.
