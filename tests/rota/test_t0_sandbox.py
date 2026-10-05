@@ -658,20 +658,29 @@ def test_a_project_id_at_its_own_path_is_refused_outside_a_challenge(db):
     assert sb.ctx.writes == []
 
 
-def test_a_challenge_wake_still_fixes_a_project_test_at_its_own_path(db):
-    """Frame 128 is open, so a challenge wake behaves as before. A real
-    challenge wake runs in the sandbox mode `normal`, and the trigger's verb
-    is the sign."""
-    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
-    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
-                   path="tests/test_utils/test_confirm.py")
+def _challenge_wake(db, refs):
+    """A real challenge wake: the sandbox mode `normal`, the challenge tool
+    list, and a trigger whose verb is `challenge` and whose refs name the
+    challenged test."""
+    import json
+    from rota.roles import prompts
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES "
-               "('m1','t1','developer','tester','challenge','[]',1,'open')")
-    from rota.roles import prompts
+               "('m1','t1','developer','tester','challenge',?,1,'open')",
+               (json.dumps(refs),))
     sb = build("tester", db, allow=prompts.mode_tools("tester", "challenge"))
     sb.ctx.batch_id = "b1"
     sb.ctx.trigger = "m1"
+    return sb
+
+
+def test_a_challenge_wake_still_fixes_a_project_test_at_its_own_path(db):
+    """Frame 128 is open, so a challenge of this project test behaves as
+    before frame 135 at the test's own path."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
+                   path="tests/test_utils/test_confirm.py")
+    sb = _challenge_wake(db, ["inh_022b8a87"])
 
     out = sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
                   path="tests/test_utils/test_confirm.py",
@@ -683,6 +692,27 @@ def test_a_challenge_wake_still_fixes_a_project_test_at_its_own_path(db):
     assert (row["criterion_id"], row["version"]) == ("c1", 2)
 
 
+def test_a_challenge_of_another_test_does_not_open_a_project_test(db):
+    """Frame 135's review at eb6c7ef: a challenge wake about tst_x sent its
+    fix under a project id at the project's own path, and it landed. The
+    wake challenges the project test only when its refs name that id."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
+                   path="tests/test_utils/test_confirm.py")
+    _a_stored_test(db, id="tst_x", path="tests/test_x.py")
+    sb = _challenge_wake(db, ["tst_x"])
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
+                path="tests/test_utils/test_confirm.py",
+                body=_PRORATE + " # fix of x", batch_id="b1")
+    assert str(exc.value) == (
+        "inh_022b8a87 is the id of the project's test "
+        "tests/test_utils/test_confirm.py. An encode never replaces a "
+        "project test. Send this encode again with a new id that you invent.")
+    assert sb.ctx.writes == []
+
+
 def test_a_project_row_that_holds_a_criterion_is_still_the_projects(db):
     """After a challenge fix lands, the project row holds a criterion. Its id
     is still the one `harness.inherit` derives from its path, so a move to a
@@ -692,13 +722,13 @@ def test_a_project_row_that_holds_a_criterion_is_still_the_projects(db):
     _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
     _a_stored_test(db, id=pid, criterion_id="c1",
                    path="tests/test_utils/test_confirm.py")
-    sb = _challenge_tester(db)
+    sb = _challenge_wake(db, [pid])
 
     with pytest.raises(ValueError) as exc:
         sb.call("tests.encode", id=pid, criterion_id="c1",
                 path="tests/test_utils/test_new.py", body=_PRORATE + " # moved")
-    # A challenge wake may fix the project test at its own file, so the
-    # refusal does not say that an encode never replaces it.
+    # A challenge of this test may fix it at its own file, so the refusal
+    # does not say that an encode never replaces it.
     assert str(exc.value) == (
         f"{pid} is the id of the project's test "
         "tests/test_utils/test_confirm.py. A fix of that test keeps its file: "
@@ -707,9 +737,10 @@ def test_a_project_row_that_holds_a_criterion_is_still_the_projects(db):
     assert sb.ctx.writes == []
 
 
-def test_a_project_id_on_another_tests_file_names_both_faults(db):
+def test_a_project_id_on_another_tests_file_gets_the_id_fact_only(db):
     """s140's call 4 sent a project id and the file of another project test.
-    One refusal names both, so the next call does not meet the clash door."""
+    The door states the id fact only. The clash door answers the path on
+    the next call, in its own words."""
     _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
     _a_stored_test(db, id="inh_01fdb170", criterion_id=None,
                    path="tests/test_utils/test_echo_via_pager.py")
@@ -724,45 +755,25 @@ def test_a_project_id_on_another_tests_file_names_both_faults(db):
     assert str(exc.value) == (
         "inh_01fdb170 is the id of the project's test "
         "tests/test_utils/test_echo_via_pager.py. An encode never replaces "
-        "a project test. Send this encode again with a new id that you invent. "
-        "tests/test_utils/test_echo.py is inh_5f7b1750's file, so send a new "
-        "path too: tests/test_<what it checks>.py.")
+        "a project test. Send this encode again with a new id that you invent.")
 
 
-def test_a_project_id_on_the_file_of_this_criterions_test_names_that_test(db):
-    """Frame 135's delta review: the path was the Tester's own test of the
-    same criterion, and the door said to send a new id and a new path. That
-    leaves two tests on one criterion, which frame 123 stops."""
+def test_a_challenge_fix_sent_with_backslashes_is_stored_with_slashes(db):
+    """Frame 135's review at eb6c7ef: a row stored with backslashes ran as
+    `error no tests ran` for good. The encode reads one form of the path."""
     _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
     _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
                    path="tests/test_utils/test_confirm.py")
-    _a_stored_test(db, id="tst_own", criterion_id="c1",
-                   path="tests/test_prorate.py")
-    sb = _answer_tester(db)
-
-    with pytest.raises(ValueError) as exc:
-        sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
-                path="tests/test_prorate.py", body=_PRORATE + " # new",
-                batch_id="b1")
-    assert str(exc.value) == (
-        "inh_022b8a87 is the id of the project's test "
-        "tests/test_utils/test_confirm.py. tests/test_prorate.py is "
-        "tst_own's file, and tst_own is the test of this same criterion. To "
-        "fix that test, send this encode again with id='tst_own'. The same "
-        "id replaces it.")
-
-
-def test_a_challenge_fix_at_the_project_path_with_backslashes_lands(db):
-    """The same file sent with backslashes is the same path, not a move."""
-    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
-    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
-                   path="tests/test_utils/test_confirm.py")
-    sb = _challenge_tester(db)
+    sb = _challenge_wake(db, ["inh_022b8a87"])
 
     out = sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
                   path="tests\\test_utils\\test_confirm.py",
                   body=_PRORATE + " # fix")
     assert out == {"id": "inh_022b8a87"}, out
+    _commit(db, sb)
+    row = db.execute("SELECT path FROM tests WHERE id = 'inh_022b8a87'"
+                     ).fetchone()
+    assert row["path"] == "tests/test_utils/test_confirm.py"
 
 
 def test_a_testers_own_test_with_the_inh_prefix_is_still_replaced(db):

@@ -4694,6 +4694,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     with it — the same shape as the invented item id, and recoverable for the
     same reason: the model can be told and try again.
     """
+    # One form of the path for every door and for the stored row. A row
+    # stored with backslashes ran as `error no tests ran` in
+    # `harness._run_one` for good (frame 135's review at eb6c7ef).
+    path = path.replace("\\", "/")
     # The fork is mandatory where the mode offers it: an encode is only legal
     # for a criterion this session has claimed encodable. The other three
     # verdicts name their owner, and taking that door is equally a completion.
@@ -5548,37 +5552,25 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     project = prior is not None and (
         prior["criterion_id"] is None
         or id == inherited_id(prior["path"].replace("\\", "/")))
-    # A challenge wake runs in the sandbox mode `normal`, so the trigger's
-    # verb is the sign. A fix of the project test at its own path in that
-    # wake is frame 128's open question, and it behaves as it did before.
-    challenged = getattr(ctx, "mode", "") == "challenge"
-    if project and not challenged and getattr(ctx, "trigger", None):
-        verb = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
-                                (ctx.trigger,)).fetchone()
-        challenged = verb is not None and verb["verb"] == "challenge"
-    # A path with backslashes names the same file (frame 135's delta review).
-    same_path = (project
-                 and prior["path"].replace("\\", "/") == path.replace("\\", "/"))
-    if project and (not same_path or not challenged):
-        # One refusal for both faults. s140's call 4 had a project id and
-        # another test's file, and a refusal per fault costs a turn each.
-        row = ctx.conn.execute(
-            "SELECT id, criterion_id FROM tests "
-            "WHERE path = ? AND id != ? AND batch_id = ?",
-            (path, id, batch_id)).fetchone()
-        taken = (row["id"], row["criterion_id"]) if row else next(
-            ((w[1], w[2].get("criterion_id")) for w in ctx.writes
-             if w[0] == "tests" and w[1] != id and w[2].get("path") == path),
-            None)
+    # A wake challenges this project test only when the trigger's verb is
+    # `challenge` and its refs name this id. All 31 Tester challenges of
+    # nights 113 to 120 name the challenged test there. A challenge wake runs
+    # in the sandbox mode `normal`, so the mode is no sign. A fix of the
+    # project test at its own path in that wake is frame 128's open
+    # question, and it behaves as it did before frame 135.
+    challenged = False
+    if project and getattr(ctx, "trigger", None):
+        from ..core.db import refs_of
+        msg = ctx.conn.execute(
+            "SELECT verb, body_refs FROM messages WHERE id = ?",
+            (ctx.trigger,)).fetchone()
+        challenged = (msg is not None and msg["verb"] == "challenge"
+                      and id in refs_of(msg["body_refs"]))
+    # Each sentence names only a call this door then admits. Three reviews
+    # found that a sentence naming any other call opened a new route. A path
+    # that is another test's file is the clash door's, on the next call.
+    if project and (prior["path"] != path or not challenged):
         said = f"{id} is the id of the project's test {prior['path']}."
-        if taken and taken[1] == criterion_id:
-            # The path is the Tester's own test of this criterion. A new id
-            # and a new path would leave two tests on one criterion, which
-            # frame 123 stops. The clash door's words, for the same case.
-            raise ValueError(
-                f"{said} {path} is {taken[0]}'s file, and {taken[0]} is the "
-                f"test of this same criterion. To fix that test, send this "
-                f"encode again with id={taken[0]!r}. The same id replaces it.")
         if challenged:
             said += (f" A fix of that test keeps its file: send this encode "
                      f"again with path={prior['path']!r}, or send a new id "
@@ -5586,9 +5578,6 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         else:
             said += (" An encode never replaces a project test. Send this "
                      "encode again with a new id that you invent.")
-        if taken:
-            said += (f" {path} is {taken[0]}'s file, so send a new path too: "
-                     f"tests/test_<what it checks>.py.")
         raise ValueError(said)
 
     # One test per criterion, which is the brief's first line and was held by
