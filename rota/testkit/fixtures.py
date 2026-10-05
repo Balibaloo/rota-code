@@ -1068,6 +1068,35 @@ def system_text_for(case: dict) -> str:
         conn.close()
 
 
+class _Replied:
+    """The seat's own earlier replies first, then the model.
+
+    A case's `replies:` holds what the seat said on its first turns, copied
+    from a night. The runner answers each reply as it answered the night's,
+    and the model then judges the turn after them. So the case measures one
+    judgement on a transcript, and the cassette keys on that turn's prompt
+    (frame 152, night 125: the nudge after a test written into a reply).
+    """
+
+    def __init__(self, replies: list[str], inner):
+        from ..llm.llm import Completion
+
+        self._make = Completion
+        self.replies = list(replies)
+        self.inner = inner
+        self.name = getattr(inner, "name", "")
+
+    @property
+    def misses(self) -> int:
+        return getattr(self.inner, "misses", 0)
+
+    def complete(self, system: str, user: str, pins: Pins, tools=None):
+        if self.replies:
+            return self._make(text=self.replies.pop(0), pins=pins,
+                              backend="replies")
+        return self.inner.complete(system, user, pins, tools=tools)
+
+
 def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
              instructions: str = "", run_no: int = 1) -> CaseResult:
     conn = init_db(db_path)
@@ -1087,6 +1116,8 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     # write a line of the code it was woken for.
     from ..core.loop import _batch_of
 
+    if case.get("replies"):
+        backend = _Replied(case["replies"], backend)
     outcome = run_session(conn, wake, backend=backend, pins=pins,
                           instructions=instructions,
                           batch_id=_batch_of(conn, wake),

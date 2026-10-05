@@ -210,6 +210,157 @@
   forbidden:
     writes: [criteria, items, tickets]
 
+- id: L1-TS-send-a-test-written-into-the-reply-as-tests-encode
+  # Frame 152, night 125: the Tester s149, woken by the challenge m69,
+  # wrote a right repair in a fence and sent no tests.encode. The runner
+  # said nothing, and the session closed with nothing written. Here the
+  # seat's turn 1 is s149's own reply, and the runner answers it with the
+  # nudge for a test written into a reply. The judgement is the turn after
+  # the nudge: send the test as tests.encode on the challenged test's id.
+  # The night's model.
+  model: qwen3.5:9b
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  inbound:
+    from: developer
+    to: tester
+    verb: challenge
+    body_refs: [<c1>, <tst1>]
+    body_text: "The callable `echo_json` accepts any Python object and
+      writes its JSON representation to the stream using
+      `json.dumps(obj, separators=(\",\", \":\"))`, followed by a single
+      newline. ... output = sys.stdout.getvalue()"
+  replies:
+    - |-
+      The test failed because `sys.stdout` is not a plain file object but an `EncodedFile`. The test's attempt to call `.getvalue()` on it fails. This is a common pattern when testing code that writes to stdout: you must capture the output differently (e.g., by redirecting at the process level or using a custom stream wrapper).
+
+      However, the criterion does not specify how to capture output — only what `echo_json` should write. The test's implementation choice (using `StringIO`) is invalid in this environment because `sys.stdout` has been replaced with an `EncodedFile`, which lacks `.getvalue()`.
+
+      The fix is to use a method that works with the actual runtime environment. Since we cannot assume `sys.stdout` can be replaced with a plain file, we must instead capture output via a different mechanism — for example, by using `contextlib.redirect_stdout` or by mocking stdout in a way compatible with `EncodedFile`.
+
+      But wait: the criterion says nothing about how to test it — only what behavior is expected. The test's failure is due to an implementation detail (using `StringIO` directly on `sys.stdout`). That is not a flaw in the criterion, but in the test's approach.
+
+      We must rewrite the test so that it captures output correctly without relying on `.getvalue()` on an `EncodedFile`.
+
+      Let’s fix the test by using `contextlib.redirect_stdout` to redirect stdout to a `StringIO` during the call.
+
+      ```python
+      def test_echo_json_compact():
+          import sys
+          from io import StringIO
+          from contextlib import redirect_stdout
+          from src.click.utils import echo_json
+
+          captured = StringIO()
+          with redirect_stdout(captured):
+              echo_json({"key": "value"})
+
+          output = captured.getvalue()
+          assert output.strip() == '{"key": "value"}'
+          # Check for single newline at end
+          assert output.endswith("\n")
+          # Check no extra newlines
+          assert output.count("\n") == 1
+      ```
+
+      This avoids the `.getvalue()` call on `sys.stdout` directly and instead uses a context manager to redirect stdout to a `StringIO`.
+
+      Now encode this corrected test.
+  fixture:
+    items:
+      - {id: <i1>, text: "Add an echo_json(obj) helper next to echo that prints
+           an object as compact JSON on one line, followed by a newline.",
+         kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "add echo_json"}
+    criteria:
+      - id: <c1>
+        ticket_id: <tk1>
+        text: "The callable `echo_json` accepts any Python object and writes
+          its JSON representation to the stream using
+          `json.dumps(obj, separators=(\",\", \":\"))`, followed by a single
+          newline."
+        term_refs: '[]'
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: a7045de}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    # The night's row that covers the test's literal. Without it the
+    # assumption door refuses the repair, and the case measures that door.
+    ledger:
+      - {id: <l1>, about_ref: <c1>, about_table: criteria,
+         default_taken: "the test assumes input string '{\"key\": \"value\"}'
+           where the material is silent",
+         status: resolved, author: tester, version: 2}
+    tests:
+      # Version 2 of inh_echo_json_01 from s145. It reads the buffer after
+      # it puts the old stdout back, so it fails before any assertion.
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_utils/test_echo_json_compact.py
+        version: 2
+        body: |-
+          def test_echo_json_compact():
+              import sys
+              from io import StringIO
+              from src.click.utils import echo_json
+
+              old_stdout = sys.stdout
+              sys.stdout = StringIO()
+              try:
+                  echo_json({"key": "value"})
+              finally:
+                  sys.stdout = old_stdout
+
+              output = sys.stdout.getvalue()
+              assert output.strip() == "{\"key\": \"value\"}"
+              # Check for single newline at end
+              assert output.endswith("\n")
+              # Check no extra newlines
+              assert output.count("\n") == 1
+    test_runs:
+      - id: <r1>
+        batch_id: <b1>
+        test_id: <tst1>
+        commit_sha: a7045de
+        result: fail
+        attempt: 5
+        output: |-
+          F                                                                        [100%]
+          ================================== FAILURES ===================================
+          ___________________________ test_echo_json_compact ____________________________
+
+              def test_echo_json_compact():
+                  import sys
+                  from io import StringIO
+                  from src.click.utils import echo_json
+
+                  old_stdout = sys.stdout
+                  sys.stdout = StringIO()
+                  try:
+                      echo_json({"key": "value"})
+                  finally:
+                      sys.stdout = old_stdout
+
+          >       output = sys.stdout.getvalue()
+                           ^^^^^^^^^^^^^^^^^^^
+          E       AttributeError: 'EncodedFile' object has no attribute 'getvalue'
+
+          tests\test_utils\test_echo_json_compact.py:13: AttributeError
+          =========================== short test summary info ===========================
+          FAILED tests/test_utils/test_echo_json_compact.py::test_echo_json_compact - A...
+          1 failed in 0.14s
+  expect:
+    writes:
+      # The challenged test, replaced under its own id.
+      tests: {count: "1..1", ids_include: [<tst1>]}
+  forbidden:
+    writes: [criteria, items, tickets]
+
 - id: L1-VK-answer-a-scope-inquiry-read-only
   tier: T1
   role: vision_keeper

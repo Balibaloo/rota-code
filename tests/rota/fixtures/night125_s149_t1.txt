@@ -1,0 +1,34 @@
+The test failed because `sys.stdout` is not a plain file object but an `EncodedFile`. The test's attempt to call `.getvalue()` on it fails. This is a common pattern when testing code that writes to stdout: you must capture the output differently (e.g., by redirecting at the process level or using a custom stream wrapper).
+
+However, the criterion does not specify how to capture output — only what `echo_json` should write. The test's implementation choice (using `StringIO`) is invalid in this environment because `sys.stdout` has been replaced with an `EncodedFile`, which lacks `.getvalue()`.
+
+The fix is to use a method that works with the actual runtime environment. Since we cannot assume `sys.stdout` can be replaced with a plain file, we must instead capture output via a different mechanism — for example, by using `contextlib.redirect_stdout` or by mocking stdout in a way compatible with `EncodedFile`.
+
+But wait: the criterion says nothing about how to test it — only what behavior is expected. The test's failure is due to an implementation detail (using `StringIO` directly on `sys.stdout`). That is not a flaw in the criterion, but in the test's approach.
+
+We must rewrite the test so that it captures output correctly without relying on `.getvalue()` on an `EncodedFile`.
+
+Let’s fix the test by using `contextlib.redirect_stdout` to redirect stdout to a `StringIO` during the call.
+
+```python
+def test_echo_json_compact():
+    import sys
+    from io import StringIO
+    from contextlib import redirect_stdout
+    from src.click.utils import echo_json
+
+    captured = StringIO()
+    with redirect_stdout(captured):
+        echo_json({"key": "value"})
+    
+    output = captured.getvalue()
+    assert output.strip() == '{"key": "value"}'
+    # Check for single newline at end
+    assert output.endswith("\n")
+    # Check no extra newlines
+    assert output.count("\n") == 1
+```
+
+This avoids the `.getvalue()` call on `sys.stdout` directly and instead uses a context manager to redirect stdout to a `StringIO`.
+
+Now encode this corrected test.

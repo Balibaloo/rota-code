@@ -1869,6 +1869,33 @@ def _failed_run_blocks(inbound: dict[str, Any]) -> list[str]:
     return blocks
 
 
+def _encode_nudge(conn: sqlite3.Connection, refs: list[str]) -> str:
+    """The sentence for a test written into a reply, with the call to copy.
+
+    The wake's refs give the values. A challenge names one test, and its row
+    gives the id, the criterion and the path. Another wake names one
+    criterion or none. A value the wake does not hold stays '...'.
+    """
+    tests, crits = [], []
+    for ref in refs:
+        row = conn.execute("SELECT id, criterion_id, path FROM tests "
+                           "WHERE id = ?", (ref,)).fetchone()
+        if row:
+            tests.append(row)
+        elif conn.execute("SELECT 1 FROM criteria WHERE id = ?",
+                          (ref,)).fetchone():
+            crits.append(ref)
+    args = {"id": "...", "criterion_id": "...", "path": "..."}
+    if len(tests) == 1:
+        args = {k: tests[0][k] or "..." for k in args}
+    elif not tests and len(crits) == 1:
+        args["criterion_id"] = crits[0]
+    named = ", ".join(f"{k}={v!r}" for k, v in args.items())
+    return ("You wrote a test into your reply, and a reply is not a stored "
+            "test -- nothing landed. Send it as a call: "
+            f"tests.encode({named}, body='...').")
+
+
 def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
     """Whether the item is a description. False on a run database that
     predates the column."""
@@ -2974,7 +3001,25 @@ def run_session(
                     "file -- nothing landed. Send it as a call: "
                     "code.write(path='...', text='...') and then code.commit.")
                 continue
-            if (not calls and not intent_warned and INTENT.search(completion.text)
+            # Night 125: the Tester s147 and s149 each wrote the repair of a
+            # challenged test in a fence and sent no tests.encode. The branch
+            # above needs code.write, which a Tester never holds. s147 met the
+            # named-act nudge, and s149 met no nudge, because a message wake
+            # gets no owed-call nudge and "Let's fix" is not an INTENT.
+            # Once: told, and the next fenced reply is the session's real
+            # stop, so neither nudge below answers it.
+            test_fence = ("```" in completion.text and not calls
+                          and "tests.encode" in allowed
+                          and "code.write" not in allowed)
+            if test_fence and not fence_warned:
+                fence_warned = True
+                outcome.errors.append("wrote a test into its reply")
+                _append(transcript, kinds, _REPLY, completion.text)
+                _append(transcript, kinds, _RESULTS, _encode_nudge(
+                    conn, inbound.get("refs") or list(wake.refs)))
+                continue
+            if (not calls and not intent_warned and not test_fence
+                    and INTENT.search(completion.text)
                     and (any(name in completion.text for name in allowed)
                          or not (sb.ctx.writes or getattr(sb.ctx, "outbound", [])))):
                 # Walks fourteen and fifteen: "I will address these issues by
@@ -2997,7 +3042,7 @@ def run_session(
                     "or end by saying nothing is owed.")
                 continue
             if (not calls and not noop_warned and not held_calls
-                    and wake.kind.startswith("tick:")
+                    and not test_fence and wake.kind.startswith("tick:")
                     and not (sb.ctx.writes or getattr(sb.ctx, "outbound", []))):
                 # Walk sixteen: the two-line check answered "No, the test is
                 # wrong" and the session ended -- no fix, no challenge, no
