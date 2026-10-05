@@ -302,13 +302,18 @@ S229_T8 = r"""TOOL: challenge.uphold(citation='src/click/termui.py', quote='def 
 S229_WHY = S229_T8[S229_T8.index("why='") + 5:-2]
 
 
-def _form(stray: str) -> str:
+def _form(stray: str, extra: bool = False) -> str:
+    write = (f"Remove the extra quote at the start or the end of {stray}. "
+             f"Write the rest of the value as it is" if extra
+             else "Write the whole value as it is")
     return (f"a quote inside {stray} ended it early, and the text after that "
             f"quote is not an argument. Put the value of {stray} between "
-            f"triple quotes, three single quotes at each end. Write the whole "
-            f"value as it is, with no backslashes:\n"
+            f"triple quotes, three single quotes at each end. {write}, with "
+            f"no backslashes:\n"
             f"{stray}='''the text, with its quotes and line breaks as they "
-            f"are'''")
+            f"are'''\n"
+            f"No escaping, and no placeholder: the value is the whole text, "
+            f"sent again in full")
 
 
 def test_the_refusal_names_the_value_that_holds_the_stray_quote():
@@ -332,33 +337,153 @@ LEDGER = {"ledger.log": ({"about_ref", "about_table", "assumption"},
                          {"about_ref", "about_table", "assumption"})}
 
 
-@pytest.mark.parametrize("raw, sigs, stray", [
+@pytest.mark.parametrize("raw, sigs, stray, extra", [
     # s229 turn 9: an empty string, then the text.
     ("TOOL: challenge.uphold(citation='a.py', quote=''def f(x):\n"
-     "    return x'', why='it holds 'x' twice')", UPHOLD, "quote"),
+     "    return x'', why='it holds 'x' twice')", UPHOLD, "quote", True),
     # s130 turn 19: four quotes open `path`, two open `text`.
     ("TOOL: code.write(path=''''a.py''', text=''import sys\n"
-     "x = 1'')", WRITE, "text"),
+     "x = 1'')", WRITE, "text", True),
     # s160, s162 and s130 turn 18: source quotes inside `text`.
     ("TOOL: code.write(path='a.py', text='warn(f\"'a.{name}' is old\")\n"
-     "x = 1', start=6, end=-1)", WRITE, "text"),
+     "x = 1', start=6, end=-1)", WRITE, "text", False),
     # s266 turn 1: source quotes inside `body`, and `id` comes first.
     ("TOOL: tests.encode(id='t2', criterion_id='c2', path='t.py', "
      "body='def test_x():\n    assert 1, f\"want 'x' in {y}\"')",
-     WRITE, "body"),
+     WRITE, "body", False),
     # s45 turns 1 and 3: a quote closes `assumption` in the prose.
     ("TOOL: ledger.log(about_ref='how', about_table='items', assumption="
      "'the README says: \"a\"'; the code shows: \"b\", so it's done')", LEDGER,
-     "assumption"),
+     "assumption", False),
 ], ids=["s229-t9-empty-string", "s130-t19-four-quotes", "s160-text",
         "s266-body", "s45-assumption"])
 def test_each_swallow_of_night_119_names_the_value_that_holds_the_quote(
-        raw, sigs, stray):
+        raw, sigs, stray, extra):
     """Frame 122: the old refusal named the first argument in each of
     these. The stray quote stands in a later one."""
     got = toolproto.extract(raw, sigs)
     assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
-    assert got[0].reason == _form(stray)
+    assert got[0].reason == _form(stray, extra)
+
+
+# Night 119, Critic s229: the reply of turn 9, byte for byte. Its line
+# breaks are real, and each `\'` is text, as the seat wrote it.
+S229_T9 = r'''TOOL: challenge.uphold(citation='src/click/termui.py', quote=''def confirm(
+    text: str,
+    default: bool | None = False,
+    abort: bool = False,
+    prompt_suffix: str = ": ",
+    show_default: bool = True,
+    err: bool = False,
+    default_on_eof: bool = False,
+) -> bool:
+    """Prompts for confirmation (yes/no question).
+
+    If the user aborts the input by sending a interrupt signal this
+    function will catch it and raise a :exc:`Abort` exception.
+
+    :param text: the question to ask.
+    :param default: The default value to use when no input is given. If
+        ``None``, repeat until input is given.
+    :param abort: if this is set to `True` a negative answer aborts the
+                  exception by raising :exc:`Abort`.
+    :param prompt_suffix: a suffix that should be added to the prompt.
+    :param show_default: shows or hides the default value in the prompt.
+    :param err: if set to true the file defaults to ``stderr`` instead of
+                ``stdout``, the same as with echo.
+    :param default_on_eof: when True, return the default value when stdin
+        is closed (EOF) instead of raising an exception. When False (or
+        not provided), raise an exception on EOF as per existing behavior.
+
+    .. versionchanged:: 8.5.0
+        Added the ``default_on_eof`` parameter.
+    """
+    prompt = _build_prompt(
+        text,
+        prompt_suffix,
+        show_default,
+        "y/n" if default is None else ("Y/n" if default else "y/N"),
+    )
+
+    while True:
+        try:
+            value = _readline_prompt(visible_prompt_func, prompt, err).lower().strip()
+        except (KeyboardInterrupt, EOFError):
+            if default_on_eof:
+                return default  # type: ignore
+            raise Abort() from None
+        if value in ("y", "yes"):
+            rv = True
+        elif value in ("n", "no"):
+            rv = False
+        elif default is not None and value == "":
+            rv = default
+        else:
+            echo(_("Error: invalid input"), err=err)
+            continue
+        break
+    if abort and not rv:
+        raise Abort()
+    return rv'', why='The claim asserts that confirm() takes a default_on_eof flag and returns the default when stdin is closed. The source code at lines 288-345 of src/click/termui.py explicitly defines the function with the parameter \'default_on_eof: bool = False\' and includes logic in the except block for EOFError that checks this flag to return the default value if True, otherwise raising an exception.')'''
+
+# Night 118, `.rota/clickI_night118.db`, Vision Keeper s241: the reply of
+# turn 7, byte for byte.
+S241_CALL = "TOOL: ledger.log(about_ref=''''Ruling ratifies creation of new term via relay refs; glossary.adopt tool state prevents adoption until row exists, which contradicts create then adopt flow for these specific IDs.'''', about_table='criteria', assumption='')"
+S241_T7 = S241_CALL + "\n" + S241_CALL + "\n\nEnd."
+
+
+def test_a_seat_that_follows_the_refusal_for_an_extra_quote_is_read():
+    """
+    Frame 122's fourth review. s229 turn 9 opened `quote` with two quotes,
+    and s241 turn 7 opened `about_ref` with four. A seat that keeps the
+    extra quote inside triple quotes is refused again. The refusal tells
+    it to remove the quote, and the call that does so parses.
+    """
+    got = toolproto.extract(S229_T9, UPHOLD)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _form("quote", extra=True)
+    fixed = (S229_T9.replace("quote=''def", "quote='''def")
+             .replace("return rv'', why", "return rv''', why"))
+    call = toolproto.extract(fixed, UPHOLD)
+    assert len(call) == 1 and isinstance(call[0], toolproto.ToolCall), call
+    assert call[0].args["quote"].startswith("def confirm(\n    text: str,")
+    assert call[0].args["quote"].endswith("    return rv")
+    assert "parameter 'default_on_eof: bool = False' and" in call[0].args["why"]
+
+    got = toolproto.extract(S241_T7, LEDGER)
+    assert len(got) == 2, got
+    assert all(g.reason == _form("about_ref", extra=True) for g in got), got
+    calls = toolproto.extract(S241_T7.replace("''''", "'''"), LEDGER)
+    assert len(calls) == 2, calls
+    for c in calls:
+        assert isinstance(c, toolproto.ToolCall), c
+        assert c.args["about_ref"].startswith("Ruling ratifies creation")
+        assert c.args["about_ref"].endswith("for these specific IDs.")
+        assert c.args["about_table"] == "criteria"
+
+
+def test_a_stray_quote_inside_a_list_names_the_list():
+    """The list branch of the left scan: in `refs=['it's', ...]` the quote
+    after `it` has a letter after it, so `refs` holds the stray quote."""
+    sigs = {"msg.reply": ({"why"}, {"why", "refs", "quote"})}
+    got = toolproto.extract(
+        "TOOL: msg.reply(why='x', refs=['it's', 'the user's'], quote='q')",
+        sigs)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _form("refs")
+
+
+def test_a_name_the_function_lacks_is_never_named():
+    """Frame 122's fourth review: `', mode='` inside `quote` is text,
+    because `challenge.uphold` has no `mode`. The scan names nothing, and
+    the old refusal stays."""
+    got = toolproto.extract(
+        "TOOL: challenge.uphold(citation='a.py', quote='the users', "
+        "mode='r' is it', why='it's')", UPHOLD)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert "mode" not in got[0].reason
+    assert got[0].reason.startswith("a quote inside citation ended it early "
+                                    "and the arguments after it")
 
 
 def test_a_swallow_with_no_stray_quote_keeps_the_old_refusal():

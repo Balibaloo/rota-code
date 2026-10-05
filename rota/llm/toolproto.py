@@ -293,7 +293,7 @@ def _third_reading(text: str, start: int) -> tuple[str, int] | None:
     return raw, i
 
 
-def _stray_quote(raw: str) -> str | None:
+def _stray_quote(raw: str, params) -> tuple[str, bool] | None:
     """The argument that holds the first stray quote, read from the left.
 
     A quote closes a value only where a comma or the end of the list
@@ -303,7 +303,9 @@ def _stray_quote(raw: str) -> str | None:
     Night 119, s229: the stray quote was in `why`, and the refusal named
     `citation` (frame 122, pass 4).
 
-    The answer is None on every doubt: no name before a value, a value
+    The answer is the name, and whether the value has an extra quote
+    beside its opening or closing quotes. The answer is None on every
+    doubt: a name the function lacks, no name before a value, a value
     that never closes, or text after a value that is not a quote.
     """
     i, n = 0, len(raw)
@@ -316,8 +318,14 @@ def _stray_quote(raw: str) -> str | None:
         if not m:
             return None
         name, i = m.group(1), i + m.end()
+        # Frame 122's fourth review: `', mode='` inside a quote is text
+        # when the function has no `mode`. The stray quote then stands
+        # before it, so the scan cannot name the value.
+        if name not in params:
+            return None
         if i >= n:
             return None
+        begin = i
         if raw.startswith("'''", i) or raw.startswith('"""', i):
             end = raw.find(raw[i:i + 3], i + 3)
             if end < 0:
@@ -346,7 +354,7 @@ def _stray_quote(raw: str) -> str | None:
                         if not rest:
                             return None
                         if rest[0] not in ",:]})":
-                            return name
+                            return name, False
                 elif ch in "'\"":
                     quote = ch
                 elif ch in "[{(":
@@ -369,8 +377,34 @@ def _stray_quote(raw: str) -> str | None:
         if rest and rest[0] != ",":
             # Text after the closing quote of a quoted value means that
             # quote was stray. Text after a bracket is another fault.
-            return name if raw[i - 1] in "'\"" else None
+            if raw[i - 1] not in "'\"":
+                return None
+            return name, _extra_quote(raw, begin, params)
         i = n - len(rest)
+
+
+def _extra_quote(raw: str, begin: int, params) -> bool:
+    """Whether the value at `begin` opens or closes with a run of quotes
+    that is not one quote or three.
+
+    Night 119, s229 turn 9 sent `quote=''def ...''`, and night 118, s241
+    turn 7 sent `about_ref=''''...''''`. A seat that keeps the extra quote
+    inside triple quotes is refused again (frame 122's fourth review).
+    The value ends at the first run of quotes that a parameter or the end
+    of the list follows.
+    """
+    # Only the quote that opened the value counts. A closing `"'` is a
+    # double quote of the text and then the single closing quote.
+    q = raw[begin]
+    opening = len(raw[begin:]) - len(raw[begin:].lstrip(q))
+    if opening not in (1, 3):
+        return True
+    for m in re.finditer(r"(['\"]+)\s*(?:,\s*([A-Za-z_]\w*)\s*=|$)",
+                         raw[begin + opening:]):
+        if m.group(2) is None or m.group(2) in params:
+            run = m.group(1)
+            return len(run) - len(run.rstrip(q)) not in (1, 3)
+    return False
 
 
 def _open_argument(text: str, start: int) -> str | None:
@@ -970,20 +1004,28 @@ def extract(text: str, signatures: dict | None = None, *,
                 # test whose body broke the list.
                 longest = max((k for k, v in args.items() if isinstance(v, str)),
                               key=lambda k: len(args[k]), default=key)
-                stray = _stray_quote(raw_args)
-                if stray:
+                found = _stray_quote(raw_args, params)
+                if found:
                     # Night 119, s229: the refusal named `citation`, the
                     # stray quote was in `why`, and the Critic put triple
                     # quotes on `quote`. Name the value that holds it.
+                    stray, extra = found
+                    write = (
+                        f"Remove the extra quote at the start or the end of "
+                        f"{stray}. Write the rest of the value as it is"
+                        if extra else "Write the whole value as it is")
                     add(ToolError(
                         f"{MARKER} {name}({raw_args[:80]})",
                         f"a quote inside {stray} ended it early, and the text "
                         f"after that quote is not an argument. Put the value "
                         f"of {stray} between triple quotes, three single "
-                        f"quotes at each end. Write the whole value as it "
-                        f"is, with no backslashes:\n"
+                        f"quotes at each end. {write}, with no backslashes:\n"
                         f"{stray}='''the text, with its quotes and line "
-                        f"breaks as they are'''"), marker)
+                        f"breaks as they are'''\n"
+                        # A seat copies a placeholder line (frame 122's
+                        # fourth review), so the old warning follows it.
+                        f"No escaping, and no placeholder: the value is the "
+                        f"whole text, sent again in full"), marker)
                     cursor = args_end + 1
                     continue
                 add(ToolError(
