@@ -214,7 +214,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 135. A Tester's encode under a project test's id replaces the project's test, and a batch merges without it (2026-10-05)
+### 135. A Tester's encode under a project test's id replaces the project's test, and a batch merges without it (2026-10-05) (5101d8d0)
 
 - **Batch C, a wrong merge, found by night 120's read. High.** Site: `tests.encode` in `rota/roles/api.py`, an id that is a project test's row.
 - Rota workflow. On night 120 the Tester s140 sent `tests.encode(id='inh_022b8a87', ...)`. The call replaced the row of a project test, `tests/test_utils/test_confirm.py` did not run under its row in bg_1, and bg_1 merged (observed: `plans/night120-read.md`, 2026-10-05). Frame 123's review of 2026-10-04 16:20 saw the same door open on a probe, and frame 128 holds the related case.
@@ -222,8 +222,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended first of all open frames, because a merge without a project test breaks the destination's promise, a merged change that a person can trust. Read with frame 128, a Tester that fixes an inherited test, and frame 114.
 - Reasoning: `plans/night120-read.md`, new walls, wall 1.
 - Status 2026-10-05 05:05 (rota-2e): pushed by e6218d79. Unclaimed, priced. Rota workflow.
-
-### 136. A span write that adds one line removes the file's import lines, and the door admits it (2026-10-05)
+- Status 2026-10-05 05:56 (rota-ca): claimed by 5101d8d0 while frame 121, two runner notes say what happened, validates on night 121. The order was asked as a low question by one notification at 05:36, this frame first and before frames 116 and 117 of the order of 2026-10-04 12:50, and it is taken by timeout at 05:56. Meta workflow. Pass 1 goes to a fresh implementer on Opus: first the cause from s140's turns and the test runs of bg_1 in `.rota/clickI_night120.db`, written to `plans/frame135-read.md`, then the door and its sandbox test. A span write that adds one line removes the file's import lines, and the door admits it (2026-10-05)
 
 - **Batch C, the night's stall, found by night 120's read. A batch stopper.** Site: `code.write` with `start` and `end` in `rota/roles/api.py`, and the door that reads what a span write drops.
 - Rota workflow. On night 120 the Developer s227 sent `code.write(path='src/click/decorators.py', text='import sys\n', start=0, end=5)`. The door admitted the write, commit a3352d90e3 removed the file's first lines, and 43 of 43 tests went to `error` with `NameError: name 't' is not defined`. s228 and s229 removed more of the header. At attempt 6, 3 of 3 seats named `import typing as t` and 0 writes landed. bg_3 was given up (observed: `plans/night120-read.md`, 2026-10-05).
