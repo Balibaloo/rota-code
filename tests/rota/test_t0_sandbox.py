@@ -626,7 +626,7 @@ def test_a_new_test_under_a_project_tests_id_is_refused(db):
                 body=_PRORATE + " # new", batch_id="b1")
     assert str(exc.value) == (
         "inh_022b8a87 is the id of the project's test "
-        "tests/test_utils/test_confirm.py, and an encode never replaces a "
+        "tests/test_utils/test_confirm.py. An encode never replaces a "
         "project test. Send this encode again with a new id that you invent.")
     assert sb.ctx.writes == []
 
@@ -654,7 +654,7 @@ def test_a_project_id_at_its_own_path_is_refused_outside_a_challenge(db):
         sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
                 path="tests/test_utils/test_confirm.py",
                 body=_PRORATE + " # new", batch_id="b1")
-    assert "an encode never replaces a project test" in str(exc.value)
+    assert "An encode never replaces a project test" in str(exc.value)
     assert sb.ctx.writes == []
 
 
@@ -697,8 +697,13 @@ def test_a_project_row_that_holds_a_criterion_is_still_the_projects(db):
     with pytest.raises(ValueError) as exc:
         sb.call("tests.encode", id=pid, criterion_id="c1",
                 path="tests/test_utils/test_new.py", body=_PRORATE + " # moved")
-    assert str(exc.value).startswith(f"{pid} is the id of the project's test "
-                                     "tests/test_utils/test_confirm.py,")
+    # A challenge wake may fix the project test at its own file, so the
+    # refusal does not say that an encode never replaces it.
+    assert str(exc.value) == (
+        f"{pid} is the id of the project's test "
+        "tests/test_utils/test_confirm.py. A fix of that test keeps its file: "
+        "send this encode again with path='tests/test_utils/test_confirm.py', "
+        "or send a new id that you invent.")
     assert sb.ctx.writes == []
 
 
@@ -718,10 +723,46 @@ def test_a_project_id_on_another_tests_file_names_both_faults(db):
                 body=_PRORATE + " # new", batch_id="b1")
     assert str(exc.value) == (
         "inh_01fdb170 is the id of the project's test "
-        "tests/test_utils/test_echo_via_pager.py, and an encode never replaces "
+        "tests/test_utils/test_echo_via_pager.py. An encode never replaces "
         "a project test. Send this encode again with a new id that you invent. "
         "tests/test_utils/test_echo.py is inh_5f7b1750's file, so send a new "
         "path too: tests/test_<what it checks>.py.")
+
+
+def test_a_project_id_on_the_file_of_this_criterions_test_names_that_test(db):
+    """Frame 135's delta review: the path was the Tester's own test of the
+    same criterion, and the door said to send a new id and a new path. That
+    leaves two tests on one criterion, which frame 123 stops."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
+                   path="tests/test_utils/test_confirm.py")
+    _a_stored_test(db, id="tst_own", criterion_id="c1",
+                   path="tests/test_prorate.py")
+    sb = _answer_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
+                path="tests/test_prorate.py", body=_PRORATE + " # new",
+                batch_id="b1")
+    assert str(exc.value) == (
+        "inh_022b8a87 is the id of the project's test "
+        "tests/test_utils/test_confirm.py. tests/test_prorate.py is "
+        "tst_own's file, and tst_own is the test of this same criterion. To "
+        "fix that test, send this encode again with id='tst_own'. The same "
+        "id replaces it.")
+
+
+def test_a_challenge_fix_at_the_project_path_with_backslashes_lands(db):
+    """The same file sent with backslashes is the same path, not a move."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
+                   path="tests/test_utils/test_confirm.py")
+    sb = _challenge_tester(db)
+
+    out = sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
+                  path="tests\\test_utils\\test_confirm.py",
+                  body=_PRORATE + " # fix")
+    assert out == {"id": "inh_022b8a87"}, out
 
 
 def test_a_testers_own_test_with_the_inh_prefix_is_still_replaced(db):

@@ -5556,20 +5556,38 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         verb = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
                                 (ctx.trigger,)).fetchone()
         challenged = verb is not None and verb["verb"] == "challenge"
-    if project and (prior["path"] != path or not challenged):
-        said = (f"{id} is the id of the project's test {prior['path']}, and "
-                f"an encode never replaces a project test. Send this encode "
-                f"again with a new id that you invent.")
+    # A path with backslashes names the same file (frame 135's delta review).
+    same_path = (project
+                 and prior["path"].replace("\\", "/") == path.replace("\\", "/"))
+    if project and (not same_path or not challenged):
         # One refusal for both faults. s140's call 4 had a project id and
         # another test's file, and a refusal per fault costs a turn each.
-        taken = ctx.conn.execute(
-            "SELECT id FROM tests WHERE path = ? AND id != ? AND batch_id = ?",
+        row = ctx.conn.execute(
+            "SELECT id, criterion_id FROM tests "
+            "WHERE path = ? AND id != ? AND batch_id = ?",
             (path, id, batch_id)).fetchone()
-        taken = taken["id"] if taken else next(
-            (w[1] for w in ctx.writes if w[0] == "tests" and w[1] != id
-             and w[2].get("path") == path), None)
+        taken = (row["id"], row["criterion_id"]) if row else next(
+            ((w[1], w[2].get("criterion_id")) for w in ctx.writes
+             if w[0] == "tests" and w[1] != id and w[2].get("path") == path),
+            None)
+        said = f"{id} is the id of the project's test {prior['path']}."
+        if taken and taken[1] == criterion_id:
+            # The path is the Tester's own test of this criterion. A new id
+            # and a new path would leave two tests on one criterion, which
+            # frame 123 stops. The clash door's words, for the same case.
+            raise ValueError(
+                f"{said} {path} is {taken[0]}'s file, and {taken[0]} is the "
+                f"test of this same criterion. To fix that test, send this "
+                f"encode again with id={taken[0]!r}. The same id replaces it.")
+        if challenged:
+            said += (f" A fix of that test keeps its file: send this encode "
+                     f"again with path={prior['path']!r}, or send a new id "
+                     f"that you invent.")
+        else:
+            said += (" An encode never replaces a project test. Send this "
+                     "encode again with a new id that you invent.")
         if taken:
-            said += (f" {path} is {taken}'s file, so send a new path too: "
+            said += (f" {path} is {taken[0]}'s file, so send a new path too: "
                      f"tests/test_<what it checks>.py.")
         raise ValueError(said)
 
