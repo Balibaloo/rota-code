@@ -422,6 +422,39 @@ def test_the_calls_after_an_invented_result_never_run(db, worktree):
         "the write behind the invention landed, or the next turn's did not"
 
 
+def test_a_cut_after_a_whole_write_never_says_nothing_was_written(db, worktree):
+    """
+    Frame 121's diff review, finding 2. A reply whose last call is a whole
+    `code.write` and whose prose after it reaches the output budget: the
+    write lands, and the line says that the cut broke no call. "Nothing was
+    written" was false there.
+    """
+    from rota.llm.llm import Completion
+
+    class Cut(ScriptedBackend):
+        def complete(self, system, user, pins, tools=None):
+            c = super().complete(system, user, pins, tools)
+            if len(self.calls) == 1:
+                return Completion(text=c.text, pins=pins, backend=self.name,
+                                  raw={"done_reason": "length"})
+            return c
+
+    backend = Cut([
+        "TOOL: code.write(path='src/acct.py', text='VALUE = 1\n')\n"
+        "Now I explain the change at length, because the account",
+        "Done.",
+    ])
+    run_session(db, wake_developer(), backend=backend,
+                pins=Pins(model="scripted"), batch_id="b1")
+    after = backend.calls[1][1]
+    assert ("ERROR reply cut: your reply was cut at the output budget before "
+            "it ended. The cut fell after the last call, so it broke no call, "
+            "and the results of your calls follow.") in after, after[-1500:]
+    assert "nothing was written" not in after
+    assert "OK code.write" in after, after[-1500:]
+    assert (worktree / "src" / "acct.py").read_text() == "VALUE = 1\n"
+
+
 def test_an_invented_result_before_any_call_holds_every_call(db):
     """
     The edge of rule 1: the invention comes first, so no call of the turn is
@@ -904,9 +937,9 @@ def test_a_key_is_served_three_times_and_then_the_room_refuses(db):
         f"the refusal does not name the window: {served[3][:200]}"
     # `decisions.search` takes no span, so the refusal names no span.
     assert ("ERROR decisions.search: served three times this session, and "
-            "the window took it each time; not served again. The result does "
-            "not change. Act on what your prompt holds now, or finish without "
-            "it.") in served[3], served[3][:300]
+            "the window took it each time; not served again. Your prompt does "
+            "not hold this result, and the window cannot hold it. Act without "
+            "it, or finish.") in served[3], served[3][:300]
     assert "narrower span" not in served[3], \
         "the refusal names a span the call does not take"
     assert "returned earlier" not in served[3], \
@@ -915,13 +948,15 @@ def test_a_key_is_served_three_times_and_then_the_room_refuses(db):
         "the fourth asking was never refused"
 
 
-def test_the_serve_cap_names_a_span_only_to_a_call_that_takes_one(db, monkeypatch):
+@pytest.mark.parametrize("bound", ["a narrower span", "a smaller limit"])
+def test_the_serve_cap_names_a_bound_only_to_a_call_that_takes_one(db, monkeypatch, bound):
     """
-    Frame 121's interview, D. Night 119's s260 was told to ask
-    `tests.load` for a narrower span, and `tests.load` takes `batch_id`
-    only. The refusal reads the signature: `code.source` takes `start` and
-    `end`, and `tests.load` and `decisions.search` take no span. The span
-    wording stays byte for byte where it applies.
+    Frame 121's interview, D, and its diff review, finding 5. Night 119's
+    s260 was told to ask `tests.load` for a narrower span, and `tests.load`
+    takes `batch_id` only. The refusal reads the signature: `code.source`
+    takes `start` and `end`, `code.concordance` and `code.prose` take
+    `limit`, and `tests.load` and `decisions.search` take neither. The
+    `code.source` wording stays byte for byte.
     """
     from rota.core import runner
     from rota.core.sandbox import build
@@ -929,24 +964,27 @@ def test_the_serve_cap_names_a_span_only_to_a_call_that_takes_one(db, monkeypatc
 
     sb = build("developer", db, batch_id=None, mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
-    assert runner._has_span(sb, "code.source")
-    assert runner._has_span(sb, "code.write")
-    assert not runner._has_span(sb, "tests.load")
-    assert not runner._has_span(sb, "criteria.load")
+    assert runner._bound_of(sb, "code.source") == "a narrower span"
+    assert runner._bound_of(sb, "code.write") == "a narrower span"
+    assert runner._bound_of(sb, "tests.load") is None
+    assert runner._bound_of(sb, "criteria.load") is None
+    concordance = runner._bound_of(build("terminologist", db), "code.concordance")
+    assert concordance == "a smaller limit"
+    assert runner._bound_of(build("vision_keeper", db), "code.prose") == "a smaller limit"
 
     # The session below asks `decisions.search`. Its signature is pinned
-    # as a span here, so the span branch runs on the same eviction shape.
-    monkeypatch.setattr(runner, "_has_span", lambda sb, name: True)
+    # to the bound here, so each branch runs on the same eviction shape.
+    monkeypatch.setattr(runner, "_bound_of", lambda sb, name: bound)
     _seed_decisions(db)
     ask = "TOOL: decisions.search(query='scope')"
     backend = ScriptedBackend(_evicting_repeats(ask, askings=4))
     run_session(db, wake_vision_keeper(), backend=backend,
                 pins=Pins(model="scripted", temperature=0.0, num_ctx=512))
     refused = backend.calls[5][1].split("\n\n")[-1]
-    assert ("ERROR decisions.search: served three times this session, and "
+    line = ("ERROR decisions.search: served three times this session, and "
             "the window took it each time; not served again. Ask "
-            "decisions.search for a narrower span, or finish without it.") \
-        in refused, refused[:300]
+            f"decisions.search for {bound}, or finish without it.")
+    assert line in refused, refused[:300]
 
 
 def test_three_identical_calls_in_one_reply_meet_the_refusal(db):

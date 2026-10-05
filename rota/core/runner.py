@@ -407,8 +407,8 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             # there (frame 121's interview, E). Other wakes keep the sentence.
             body.append(
                 "\nAlready run for you, with the results below. Calling any of "
-                "these again costs you a turn, and tests.load returns each test "
-                "of the batch with its body, not the summary below:")
+                "these again costs you a turn, and tests.load returns the rows "
+                "of the batch, not the summary below:")
         else:
             body.append(
                 "\nAlready run for you, with the results below. Calling any of "
@@ -2947,18 +2947,20 @@ def run_session(
                 # 98 minutes. A cut reply with no call is not the end: the
                 # model reads what it sent, bounded, and the cut, once.
                 #
-                # The two lines state one fact: the reply held no call, so no
-                # call ran. "The last call did not run" made night 119's s32
-                # believe a call it had sent was lost (frame 121's interview,
-                # B1). `outcome.errors` keeps the general sentence.
+                # The two lines state one fact: no call ran. "The last call did
+                # not run" made night 119's s32 believe a call it had sent was
+                # lost (frame 121's interview, B1). The sentence holds for a
+                # prose reply and for a bare call cut in the middle, which
+                # parses to no call (frame 121's diff review, finding 4).
+                # `outcome.errors` keeps the general sentence.
                 cut_retried = True
                 _append(transcript, kinds, _REPLY,
                         _render_cut(completion.text, 4000, reply=True))
                 _append(transcript, kinds, _RESULTS,
                         "ERROR reply cut: your reply was cut at the output "
-                        "budget before it ended. It held no call, so no call "
-                        "ran and nothing was written. Send one call, or end "
-                        "with one sentence.")
+                        "budget before it ended. It held no whole call, so no "
+                        "call ran and nothing was written. Send one call, or "
+                        "end with one sentence.")
                 continue
             if ("```" in completion.text and not calls
                     and "code.write" in allowed and not fence_warned):
@@ -3100,7 +3102,7 @@ def run_session(
             # an answer made this turn is not in this turn's prompt.
             served_keys: set[str] = set()
             if cut_note:
-                feedback.append(f"ERROR reply cut: {cut_note}")
+                feedback.append(f"ERROR reply cut: {_reply_cut_line(calls)}")
             held = []
             # Any tool call this turn supersedes last turn's held tail -- the
             # model revised, and its new calls are its will. Cleared here,
@@ -3367,14 +3369,18 @@ def run_session(
                             # A span is a step only for a call that takes one.
                             # Night 119's s260 was told to ask `tests.load` for
                             # a narrower span, and `tests.load` takes
-                            # `batch_id` only (frame 121's interview, D).
-                            if _has_span(sb, call.name):
-                                step = (f"Ask {call.name} for a narrower span, "
+                            # `batch_id` only (frame 121's interview, D). The
+                            # window took the result, so no text points at it:
+                            # all 24 refusals of night 119 stood in a prompt
+                            # with no copy (frame 121's diff review, 1).
+                            bound = _bound_of(sb, call.name)
+                            if bound:
+                                step = (f"Ask {call.name} for {bound}, "
                                         f"or finish without it.")
                             else:
-                                step = ("The result does not change. Act on "
-                                        "what your prompt holds now, or finish "
-                                        "without it.")
+                                step = ("Your prompt does not hold this "
+                                        "result, and the window cannot hold "
+                                        "it. Act without it, or finish.")
                             feedback.append(
                                 f"ERROR {_call_tag(call, len(calls))}: {why}. "
                                 f"{step}")
@@ -3853,14 +3859,53 @@ def _param_sets(sb) -> dict:
     return out
 
 
-# The parameters that bound a read to part of its result. `code.source` and
-# `code.write` take `start` and `end`. No other function takes a span.
+# The parameters that bound a read to part of its result, and the words that
+# name each one. `code.source` and `code.write` take `start` and `end`.
+# `code.concordance` and `code.prose` take `limit` (frame 121's diff review,
+# finding 5). A span wins, so the `code.source` line keeps its bytes.
 _SPAN_PARAMS = frozenset({"start", "end"})
+_LIMIT_PARAMS = frozenset({"limit"})
 
 
-def _has_span(sb, name: str) -> bool:
-    """Whether the function `name` takes a span, read from its signature."""
-    return bool(_param_sets(sb).get(name, (set(), set()))[1] & _SPAN_PARAMS)
+# The advice after every form of the cut line. Each sentence holds whether
+# the last call was whole or cut.
+_REPLY_CUT_ADVICE = ("Send less in one reply: one or two calls, then read "
+                     "their results. For a long file, write the span you "
+                     "changed with start and end copied from code.source, "
+                     "not the whole file")
+
+
+def _reply_cut_line(calls: list) -> str:
+    """
+    The cut line of a reply that held calls, built from its last call.
+
+    "The last call did not run and nothing was written" was false in 39 of
+    77 cut events of nights 113 to 119: the last parsed call was whole, and
+    29 of them show an `OK` line (frame 121's diff review, finding 2). Only
+    a call the cut broke parses to a `ToolError`, and that call is skipped.
+    The calls before it go through the loop, so each gets its own line.
+    """
+    head = "your reply was cut at the output budget before it ended"
+    if not calls:
+        return (f"{head}. It held no whole call, so no call ran and nothing "
+                f"was written. {_REPLY_CUT_ADVICE}")
+    if isinstance(calls[-1], toolproto.ToolError):
+        before = (" The results of the calls before it follow."
+                  if len(calls) > 1 else "")
+        return (f"{head}. The cut fell inside the last call, so that call did "
+                f"not run.{before} {_REPLY_CUT_ADVICE}")
+    return (f"{head}. The cut fell after the last call, so it broke no call, "
+            f"and the results of your calls follow. {_REPLY_CUT_ADVICE}")
+
+
+def _bound_of(sb, name: str) -> str | None:
+    """What a smaller asking of `name` changes, read from its signature."""
+    params = _param_sets(sb).get(name, (set(), set()))[1]
+    if params & _SPAN_PARAMS:
+        return "a narrower span"
+    if params & _LIMIT_PARAMS:
+        return "a smaller limit"
+    return None
 
 
 def _derive_frame_record(conn, sb) -> None:

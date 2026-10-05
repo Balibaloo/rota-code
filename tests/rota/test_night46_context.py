@@ -324,40 +324,80 @@ def test_a_cut_reply_does_not_also_report_the_cut_call_as_a_parse_error(vk_db):
     outcome = run_session(vk_db, _vk(), backend=backend, pins=Pins(model="scripted"))
     assert outcome.committed, outcome.errors
     second = backend.calls[1][1]
-    assert "reply cut" in second
+    # Frame 121's diff review, finding 2: the line says where the cut fell.
+    assert ("ERROR reply cut: your reply was cut at the output budget before "
+            "it ended. The cut fell inside the last call, so that call did not "
+            "run. The results of the calls before it follow. Send less in one "
+            "reply: one or two calls, then read their results.") in second, \
+        second[-1500:]
+    assert "nothing was written" not in second
     assert "unterminated argument list" not in second, second[-1500:]
     assert vk_db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1, "the whole call before the cut ran"
 
 
-def test_a_cut_reply_with_no_call_says_no_call_ran_in_both_lines(vk_db):
+class _CutFirst(ScriptedBackend):
+    """The first reply stops at the output budget."""
+
+    def complete(self, system, user, pins, tools=None):
+        c = super().complete(system, user, pins, tools)
+        if len(self.calls) == 1:
+            return Completion(text=c.text, pins=pins, backend=self.name,
+                              raw={"done_reason": "length"})
+        return c
+
+
+def test_a_cut_reply_whose_last_call_is_whole_says_the_cut_broke_no_call(vk_db):
+    """
+    Frame 121's diff review, finding 2. In 39 of 77 cut events of nights
+    113 to 119 the last parsed call was whole, and 29 show an `OK` line for
+    it. The line says that the cut broke no call, and never that nothing was
+    written.
+    """
+    backend = _CutFirst([
+        "TOOL: problem.assert(id='i1', text='users can delete their account', kind='in_scope')\n"
+        "I will now explain at length why the account matters and",
+        "Done.",
+    ])
+    outcome = run_session(vk_db, _vk(), backend=backend, pins=Pins(model="scripted"))
+    assert outcome.committed, outcome.errors
+    second = backend.calls[1][1]
+    assert ("ERROR reply cut: your reply was cut at the output budget before "
+            "it ended. The cut fell after the last call, so it broke no call, "
+            "and the results of your calls follow. Send less in one reply: one "
+            "or two calls, then read their results.") in second, second[-1500:]
+    assert "OK problem.assert" in second, second[-1500:]
+    assert "the last call did not run" not in second
+    assert "nothing was written" not in second
+    assert vk_db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1
+
+
+@pytest.mark.parametrize("reply", [
+    "I think about the account. " * 400,
+    # A bare call, with no `TOOL:` marker, cut in the middle parses to no
+    # call (the diff review, finding 4). One sentence holds for both shapes.
+    "I record it.\nproblem.assert(id='i1', text='" + "users can delete their account " * 300,
+], ids=["prose", "a bare call cut in the middle"])
+def test_a_cut_reply_with_no_whole_call_says_no_call_ran_in_both_lines(vk_db, reply):
     """
     Frame 121's interview, C and B1. Night 119's s263 read `CUT your wake`
     on its own prose reply and found no next call. The retry runs only when
-    the cut reply held no call, so the cut note and the ERROR line both say
-    that no call ran, and neither says that a last call was lost.
+    the cut reply held no whole call, so the cut note and the ERROR line both
+    say that no call ran, and neither says that a last call was lost.
     """
-
-    class Cut(ScriptedBackend):
-        def complete(self, system, user, pins, tools=None):
-            c = super().complete(system, user, pins, tools)
-            if len(self.calls) == 1:
-                return Completion(text=c.text, pins=pins, backend=self.name,
-                                  raw={"done_reason": "length"})
-            return c
-
-    backend = Cut(["I think about the account. " * 400, "Done."])
+    backend = _CutFirst([reply, "Done."])
     run_session(vk_db, _vk(), backend=backend, pins=Pins(model="scripted"))
     second = backend.calls[1][1]
-    total = len("I think about the account. " * 400)
+    total = len(reply)
     assert (f"\nCUT your reply: {total - 4000:,} of {total:,} characters are "
             f"not shown. The first 4,000 characters stand above. No call in "
             f"your reply ran. Send one call, and keep your prose short.") \
         in second, second[-600:]
     assert ("ERROR reply cut: your reply was cut at the output budget before "
-            "it ended. It held no call, so no call ran and nothing was "
+            "it ended. It held no whole call, so no call ran and nothing was "
             "written. Send one call, or end with one sentence.") in second
     assert "CUT your wake" not in second
     assert "the last call did not run" not in second
+    assert vk_db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
 
 
 def test_the_fix_wake_header_says_what_tests_load_returns(db):
@@ -371,6 +411,10 @@ def test_the_fix_wake_header_says_what_tests_load_returns(db):
     db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
                "output, attempt) VALUES ('r1','b1','tst1','abc123','fail',"
                "'NameError: close_account',1)")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('inh_1','b1',NULL,'tests/test_basic.py','def test_basic():\n    assert True')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "output, attempt) VALUES ('r2','b1','inh_1','abc123','pass','1 passed',1)")
     db.commit()
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
@@ -379,11 +423,14 @@ def test_the_fix_wake_header_says_what_tests_load_returns(db):
     assert isinstance(pushed["tests.load"], dict), "the push is not the summary"
     _system, user = build_prompt("developer", sb, wake, pushed, "MODE: tests_failing")
     assert ("\nAlready run for you, with the results below. Calling any of "
-            "these again costs you a turn, and tests.load returns each test of "
-            "the batch with its body, not the summary below:") in user
+            "these again costs you a turn, and tests.load returns the rows of "
+            "the batch, not the summary below:") in user
     assert "returns the same thing" not in user
+    # Rows, and not the summary. A passing row shows no body (frame 121's
+    # diff review, finding 3), so the header does not promise one.
     rows = sb.call("tests.load")
-    assert isinstance(rows, list) and rows[0]["body"], "the sentence is false"
+    assert isinstance(rows, list) and [r["id"] for r in rows] == ["tst1", "inh_1"], rows
+    assert rows[1]["body"].endswith("characters, passing, not shown"), rows[1]
 
     _system, other = build_prompt("developer", sb, wake,
                                   {"criteria.load": sb.call("criteria.load")},
