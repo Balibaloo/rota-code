@@ -242,7 +242,7 @@ a different question and the night is then opened once.
 - Reasoning: frame 135's statuses of 2026-10-05 07:51 and 08:47.
 - Status 2026-10-05 08:47 (rota-ca): pushed by 5101d8d0. Unclaimed, priced after the read. Rota workflow.
 
-### 136. A span write that adds one line removes the file's import lines, and the door admits it (2026-10-05)
+### 136. A span write that adds one line removes the file's import lines, and the door admits it (2026-10-05) (5101d8d0)
 
 - **Batch C, the night's stall, found by night 120's read. A batch stopper.** Site: `code.write` with `start` and `end` in `rota/roles/api.py`, and the door that reads what a span write drops.
 - Rota workflow. On night 120 the Developer s227 sent `code.write(path='src/click/decorators.py', text='import sys\n', start=0, end=5)`. The door admitted the write, commit a3352d90e3 removed the file's first lines, and 43 of 43 tests went to `error` with `NameError: name 't' is not defined`. s228 and s229 removed more of the header. At attempt 6, 3 of 3 seats named `import typing as t` and 0 writes landed. bg_3 was given up (observed: `plans/night120-read.md`, 2026-10-05).
@@ -250,6 +250,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended after frame 135.
 - Reasoning: `plans/night120-read.md`, section 2 and new walls, walls 2 and 5.
 - Status 2026-10-05 05:05 (rota-2e): pushed by e6218d79. Unclaimed, priced after the read. Rota workflow.
+- Status 2026-10-05 08:47 (rota-ca): claimed by 5101d8d0, next after frame 135, a Tester's encode replaces a project test, on the order that Roman saw in the terminal and did not change. Frames 121 and 135 validate beside it. Meta workflow. Pass 0 goes to a fresh implementer on Opus and writes no code: the read of s227's and s228's turns, the count of the sign on nights 113 to 120, and a design in `plans/frame136-design.md`. This session judges the design before pass 1 (reasoned: frame 135 built from the stack's line and cost four reviews, and `code_write` is 1,246 lines of doors).
 
 ### 137. Three parser refusals still name a wrong thing, and one broken call lands with no refusal (2026-10-05)
 
