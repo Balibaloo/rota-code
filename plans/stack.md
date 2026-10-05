@@ -232,7 +232,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night125-cycle-read.md`.
 - Status 2026-10-05 19:39 (rota-3f): pushed by 3f72d9cb. Unclaimed, priced. Rota workflow.
 
-### 152. A Tester writes its repair in a code block and sends no `tests.encode`, and no nudge fits it (2026-10-05)
+### 152. A Tester writes its repair in a code block and sends no `tests.encode`, and no nudge fits it (2026-10-05) (3f72d9cb)
 
 - **Batch C, the night's stall, found by night 125's cycle read. A batch stopper on night 125.** Site: the runner's nudge for a reply that holds code and no call, `rota/core/runner.py:2962`, which needs `code.write` in the seat's allowed calls.
 - Rota workflow. On night 125 the Tester s145 stored version 2 of `inh_echo_json_01` with a fault inside the test: it puts the old stdout back and then reads `sys.stdout.getvalue()`, so no product change makes it pass. The Developer challenged the right line twice, m68 and m69. The Testers s147 and s149 each wrote the repair in a code block and sent no call, and s149's repair was right. The same-refs door then refused 11 later challenges by its bound, as designed, the key was quarantined, and walk 1 ended `Stuck` on `tests_failing` for bg_1 (observed: `plans/night125-cycle-read.md`, 2026-10-05). This is frame 132's first sign, 1 of 5 Tester challenge sessions on night 119 and 2 of 5 on night 125. Frame 132 repaired the door behind it, so that a second challenge reaches the Tester. This frame is the seat's missing call.
@@ -240,6 +240,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended first of the unclaimed frames, because it stopped night 125's first batch at 1 of 37 tests not passing.
 - Reasoning: `plans/night125-cycle-read.md`.
 - Status 2026-10-05 19:39 (rota-3f): pushed by 3f72d9cb. Unclaimed, priced. Rota workflow.
+- Status 2026-10-05 19:51 (rota-3f): claimed by 3f72d9cb. The order was asked as a low question by notification at 19:50 with a 20-minute timer, this frame recommended first, and Roman answered "Continue" in the terminal before the timer ended (ruled: Roman, 2026-10-05, to the recommended answer). The site is confirmed by this session: the fence branch at `rota/core/runner.py:2962` reads `"code.write" in allowed`, so a Tester never meets it (observed: the file at 73d10e6, 2026-10-05). Pass 1 goes to a fresh implementer on Opus in the worktree `C:/Users/roman/rota_f152` on the branch `f152`, with no design pass, because the change is one branch of the runner: a seat that holds `tests.encode` and not `code.write` gets one nudge that names `tests.encode` and the challenged test; every close after a reply with no call is read for s147 and s149; runner tests on their real replies; one model case recorded 5 times with the night's model. Under 4 of 5 the agent stops and this session interviews the seat. Then a diff review, and a walk, because the frame touches the runner. Meta workflow.
 
 ### 151. The parser reads a line break as a space inside a triple-quoted value that holds a quote (2026-10-05)
 
