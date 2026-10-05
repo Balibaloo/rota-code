@@ -600,6 +600,63 @@ def test_a_replace_keeps_the_stored_path(db):
     assert sb.ctx.writes == []
 
 
+def _answer_tester(db):
+    from rota.roles import prompts
+    sb = build("tester", db, mode="answer",
+               allow=prompts.mode_tools("tester", "answer"))
+    sb.ctx.batch_id = "b1"
+    return sb
+
+
+def test_a_new_test_under_a_project_tests_id_is_refused(db):
+    """
+    Frame 135, night 120 s140, turn 5: the Tester sent its new test under
+    `inh_022b8a87`, the row of the project's test_confirm.py, at a new path.
+    The encode landed, the commit rewrote the row, and bg_1 merged without
+    running test_confirm.py. A row with no criterion is the project's.
+    """
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
+                   path="tests/test_utils/test_confirm.py")
+    sb = _answer_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
+                path="tests/test_utils/test_echo_json.py",
+                body=_PRORATE + " # new", batch_id="b1")
+    assert str(exc.value) == (
+        "inh_022b8a87 belongs to the project's test at "
+        "tests/test_utils/test_confirm.py. Send this encode again with a new "
+        "id that you invent.")
+    assert sb.ctx.writes == []
+
+    out = sb.call("tests.encode", id="tst_echo_json_3", criterion_id="c1",
+                  path="tests/test_utils/test_echo_json.py",
+                  body=_PRORATE + " # new", batch_id="b1")
+    assert out == {"id": "tst_echo_json_3"}, out
+    _commit(db, sb)
+    row = db.execute("SELECT criterion_id, path, version FROM tests "
+                     "WHERE id = 'inh_022b8a87'").fetchone()
+    assert (row["criterion_id"], row["path"], row["version"]) == (
+        None, "tests/test_utils/test_confirm.py", 1)
+
+
+def test_a_testers_own_test_with_the_inh_prefix_is_still_replaced(db):
+    """Night 119: a Tester named its own test `inh_echo_json_01`. The prefix
+    is not the sign of a project test, so its own row stays replaceable."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id="inh_echo_json_01")
+    sb = _challenge_tester(db)
+
+    out = sb.call("tests.encode", id="inh_echo_json_01", criterion_id="c1",
+                  path="p.py", body=_PRORATE + " # fixed")
+    assert out == {"id": "inh_echo_json_01"}, out
+    _commit(db, sb)
+    row = db.execute("SELECT version, body FROM tests "
+                     "WHERE id = 'inh_echo_json_01'").fetchone()
+    assert (row["version"], row["body"]) == (2, _PRORATE + " # fixed")
+
+
 def test_two_replaces_of_one_test_stage_one_write(db):
     """The second replace supersedes the first, so the version moves once
     and the row holds the second body."""

@@ -5530,11 +5530,24 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # something else -- which is how a guard turns one wasted call into a lost
     # session.
     prior = ctx.conn.execute(
-        "SELECT path, body FROM tests WHERE id = ?", (id,)).fetchone()
+        "SELECT path, body, criterion_id FROM tests WHERE id = ?",
+        (id,)).fetchone()
     if prior and prior["path"] == path and prior["body"] == body:
         return {"id": id, "unchanged": True,
                 "note": "identical to what is already on file, so nothing was "
                         "written and no version moved."}
+
+    # A row with no criterion is the project's own test: `harness.inherit`
+    # writes it, and every encode names a criterion. The `inh_` prefix is not
+    # the sign, because a Tester named its own tests `inh_echo_json_01` on
+    # night 119. Frame 135, night 120 s140: a new test under a project id at
+    # a new path replaced test_confirm.py, and bg_1 merged without running it.
+    # The same path is a fix of the project test itself. Frame 128 rules on
+    # that case, so this door leaves it open.
+    if prior and prior["criterion_id"] is None and prior["path"] != path:
+        raise ValueError(
+            f"{id} belongs to the project's test at {prior['path']}. Send "
+            f"this encode again with a new id that you invent.")
 
     # One test per criterion, which is the brief's first line and was held by
     # nothing. A session that could not encode a criterion honestly wrote a
