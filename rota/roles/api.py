@@ -437,6 +437,12 @@ class Wall(ValueError):
     messages are rewritten freely and the state machine must not care."""
 
 
+class EndRefusal(ValueError):
+    """A refusal whose step is to end the session with no call. The runner
+    keys on this class, not on the words: after it, the owed-call nudge
+    would contradict the door (frame 153, night 125's s158)."""
+
+
 def _same_words(a: str, b: str) -> bool:
     """
     Two strings that say the same thing in the same order.

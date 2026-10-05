@@ -2915,6 +2915,11 @@ def run_session(
         refused_same: dict[tuple[str, str], int] = {}
         stop_reason = ""
         turn_refusals: set[tuple[str, str]] = set()
+        # True when the newest ERROR line that answered a call told the seat
+        # to end with no call (frame 153). Every later ERROR line sets it
+        # again, because only the door's newest word counts. `ctx.refusals`
+        # cannot serve: a message's refusal never reaches it.
+        told_to_end = False
 
         budget = _fit_budget(pins.num_ctx, len(system))
 
@@ -3064,9 +3069,14 @@ def run_session(
                     "is not a call. Send the call you named, as TOOL: ..., "
                     "or end by saying nothing is owed.")
                 continue
+            # Night 125: the door told s158 "End the session with no call.",
+            # s158 obeyed, and this nudge then told it to act with a call.
+            # It sent the refused challenge again. A session whose newest
+            # refusal gave that step ends as the door asks (frame 153).
             if (not calls and not noop_warned and not held_calls
                     and not test_fence and wake.kind.startswith("tick:")
-                    and not (sb.ctx.writes or getattr(sb.ctx, "outbound", []))):
+                    and not (sb.ctx.writes or getattr(sb.ctx, "outbound", []))
+                    and not told_to_end):
                 # Walk sixteen: the two-line check answered "No, the test is
                 # wrong" and the session ended -- no fix, no challenge, no
                 # escalation, two sessions to quarantine. A tick exists
@@ -3101,6 +3111,7 @@ def run_session(
                     except Exception as exc:           # noqa: BLE001
                         outcome.errors.append(f"{hc.name} (held): {exc}")
                         refused.append(f"ERROR {hc.name}: {exc}")
+                        told_to_end = isinstance(exc, api.EndRefusal)
                 if refused and not stoodby_retried:
                     # Walk twenty-one: seven encodes held behind seven
                     # triage reads, the model declared them done, the
@@ -3218,11 +3229,13 @@ def run_session(
                 if isinstance(call, toolproto.ToolError):
                     outcome.errors.append(call.reason)
                     feedback.append(f"ERROR {call.raw}: {call.reason}")
+                    told_to_end = False
                     continue
                 err = toolproto.validate(call, allowed)
                 if err:
                     outcome.errors.append(err.reason)
                     feedback.append(f"ERROR {call.raw}: {err.reason}")
+                    told_to_end = False
                     continue
 
                 # Acting on a read you have not seen is the fault here, and it
@@ -3456,6 +3469,7 @@ def run_session(
                             feedback.append(
                                 f"ERROR {_call_tag(call, len(calls))}: {why}. "
                                 f"{step}")
+                            told_to_end = False
                     elif would_repeat and not evicted and (
                             stormed or repeated.get(key, 0) >= 1):
                         # The third identical call, refused. Session s71 sent
@@ -3506,6 +3520,7 @@ def run_session(
                             feedback.append(
                                 f"ERROR {_call_tag(call, len(calls))}: {why}. "
                                 f"The answer is in this prompt.")
+                            told_to_end = False
                     elif unchanged:
                         repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three
@@ -3578,6 +3593,7 @@ def run_session(
                     # names the call by its identifying argument.
                     feedback.append(f"ERROR {_call_tag(call, len(calls))}: {exc}")
                     turn_refusals.add((call.name, str(exc)[:160]))
+                    told_to_end = isinstance(exc, api.EndRefusal)
 
             # Counted per turn, not per call: a reply with four calls refused
             # the same way is one turn of the conversation, not three (clickI

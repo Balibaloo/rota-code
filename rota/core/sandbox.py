@@ -1069,6 +1069,17 @@ def _receipt_since_woken(conn: sqlite3.Connection, msg_id: str, refs,
         f"LIMIT 1", (*tables, *ids, msg_id)).fetchone() is not None
 
 
+#: The step of a refusal that tells the session to stop. A refusal that ends on
+#: it is raised as `api.EndRefusal`, so the runner can read the step from the
+#: refusal's class and not from its words (frame 153).
+END_STEP = "End the session with no call."
+
+
+class _Ending(str):
+    """A refusal's text whose step is `END_STEP`. The text is unchanged, and
+    the class carries the fact to the place that raises it."""
+
+
 def _code_step(ctx: api.Ctx) -> str:
     """
     The step toward the code, or the end of the session when the session
@@ -1081,7 +1092,7 @@ def _code_step(ctx: api.Ctx) -> str:
     """
     working = getattr(ctx, "working_set", None)
     if working is not None and "code.write" not in working:
-        return "End the session with no call."
+        return END_STEP
     return "Make one real change to the code the test calls."
 
 
@@ -1263,6 +1274,8 @@ def _escalation_or_step(ctx: api.Ctx, refs, fact: str, step: str) -> str:
         return api._offer(
             ctx, fact + " Send msg.escalate_architect on the same refs.",
             "msg.escalate_architect", {"refs": once})
+    if step == END_STEP:
+        return _Ending(fact + " " + step)
     return fact + " " + step
 
 
@@ -1401,7 +1414,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     # The Developer can write no test, and the ladder climbed twice already.
     # An ended session lets the tick cap carry the batch on (frame 132's
     # design, section 3.4).
-    return _escalation_or_step(ctx, refs, fact, "End the session with no call.")
+    return _escalation_or_step(ctx, refs, fact, END_STEP)
 
 
 def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
@@ -1883,7 +1896,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # database runs the same code (frame 132's pass 1).
             said = _same_refs_refusal(ctx, recipient, verb, refs)
             if said is not None:
-                raise ValueError(said)
+                # Night 125's s158 obeyed the step, and the runner's
+                # owed-call nudge then sent it back to the refused call. The
+                # class tells the runner that this refusal ends the session.
+                raise (api.EndRefusal if isinstance(said, _Ending)
+                       else ValueError)(said)
         if verb == "question" and refs:
             # A question answered twice on the same rows is not a third
             # question. tipsAB (2026-09-09): the Tester asked the
