@@ -1085,13 +1085,14 @@ def _code_step(ctx: api.Ctx) -> str:
     return "Make one real change to the code the test calls."
 
 
-#: How many challenges of the Developer may land on one test, counted across
-#: moves of the test and across the other refs. A moved test deletes its own
-#: runs and lifts the batch's tick quarantine (`db.py:579-610`), so on a batch
-#: of one test the attempt cap starts again at each move (the review of
-#: 4968ea7, 2026-10-05). Nights 113 to 124 hold at most two landed challenges
-#: per test, and no green test had more than one. The floor is 3 (ruled: the
-#: judging session, 2026-10-05, frame 132's pass 2).
+#: How many challenges of the Developer may land on one criterion, counted
+#: across moves of its tests, across its tests' ids and across the other refs.
+#: A moved test deletes its own runs and lifts the batch's tick quarantine
+#: (`db.py:579-610`), so on a batch of one test the attempt cap starts again
+#: at each move (the review of 4968ea7, 2026-10-05). Nights 113 to 124 hold at
+#: most two landed challenges per criterion, and no green criterion had more
+#: than one. The floor is 3 (ruled: the judging session, 2026-10-05, frame
+#: 132's pass 2).
 LANDED_CHALLENGES = 3
 
 
@@ -1106,83 +1107,163 @@ def _test_is_red(conn: sqlite3.Connection, refs) -> bool:
     return False
 
 
-def _challenges_naming(conn: sqlite3.Connection, test_id: str) -> list:
+def _unique_refs(refs) -> list:
+    """The refs in their order, each once."""
+    try:
+        return list(dict.fromkeys(refs or []))
+    except TypeError:
+        return list(refs or [])
+
+
+def _criteria_of_tests(conn: sqlite3.Connection) -> dict:
+    """Each test id, with its criterion id or None."""
+    return {r["id"]: r["criterion_id"]
+            for r in conn.execute("SELECT id, criterion_id FROM tests")}
+
+
+def _criteria_named(conn: sqlite3.Connection, refs, test_crit: dict) -> set:
+    """The criteria that `refs` name, directly or through a test."""
+    named = {r for r in _unique_refs(refs) if isinstance(r, str)
+             and conn.execute("SELECT 1 FROM criteria WHERE id = ?",
+                              (r,)).fetchone()}
+    named |= {test_crit[r] for r in _unique_refs(refs)
+              if isinstance(r, str) and test_crit.get(r)}
+    return named
+
+
+def _cap_keys(conn: sqlite3.Connection, refs, test_crit: dict) -> list:
     """
-    The Developer's challenges to the Tester whose refs hold `test_id`,
-    whatever their other refs, newest first. Each item is the row's id and
-    its refs.
+    What the cap counts for `refs`, in the order of the refs: each criterion
+    that the refs name, directly or through a test, as `("criterion", id)`.
+    A test with no criterion counts for itself, as `("test", id)`.
+    """
+    keys = []
+    for r in _unique_refs(refs):
+        if not isinstance(r, str):
+            continue
+        if r in test_crit:
+            key = (("criterion", test_crit[r]) if test_crit[r]
+                   else ("test", r))
+        elif conn.execute("SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone():
+            key = ("criterion", r)
+        else:
+            continue
+        if key not in keys:
+            keys.append(key)
+    return keys
+
+
+def _challenges_on(conn: sqlite3.Connection, key: tuple,
+                   test_crit: dict) -> list:
+    """
+    The Developer's challenges to the Tester that count for `key`, whatever
+    their other refs, newest first. Each item is the row's id and its refs.
+    A challenge counts for a criterion when its refs hold the criterion or
+    a test of the criterion.
     """
     import json as _json
+    kind, ident = key
     out = []
     for row in conn.execute(
             "SELECT id, body_refs FROM messages WHERE from_role = 'developer' "
             "AND to_role = 'tester' AND verb = 'challenge' ORDER BY seq DESC"):
         try:
             have = _json.loads(row["body_refs"] or "[]")
-            if isinstance(have, list) and test_id in have:
-                out.append((row["id"], have))
         except (TypeError, ValueError):
             continue
+        if not isinstance(have, list):
+            continue
+        strs = [r for r in have if isinstance(r, str)]
+        if ident in strs or (kind == "criterion" and any(
+                test_crit.get(r) == ident for r in strs)):
+            out.append((row["id"], have))
     return out
 
 
 def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     """
-    The cap on the Developer's landed challenges on one test. Return the
+    The cap on the Developer's landed challenges on one criterion. Return the
     refusal, or None below the cap. It runs only where the door would admit,
     so the other refusals keep their sentences.
 
-    The cap counts per test id, whatever the other refs. The review of
-    b2ed55b (2026-10-05) bought 24 landed challenges on one test with a
-    repeated ref or an added ref, because the count read one refs list. A
-    challenge that names several tests is refused when any test is at the
-    cap. Refs that name no test keep the count of the same refs.
+    The review of 4de1555 (2026-10-05): a count per test id let a Tester that
+    stored a new test id each round reopen the count, and one criterion
+    paired with each test of the batch got 3 per test. So the cap counts per
+    criterion, whatever the test ids and the other refs. A challenge is
+    refused when any criterion that it names is at the cap. A test with no
+    criterion counts for itself. Refs that name neither keep the count of
+    the same refs.
     """
     try:
         own = _refs_key(refs or [], as_set=True)
     except TypeError:
         own = None
-    tests = [r for r in dict.fromkeys(refs or []) if isinstance(r, str)
-             and ctx.conn.execute("SELECT 1 FROM tests WHERE id = ?",
-                                  (r,)).fetchone()]
-    test, priors = None, [(r["id"], None) for r in rows]
-    for t in tests:
-        named = _challenges_naming(ctx.conn, t)
-        if len(named) >= LANDED_CHALLENGES:
-            test, priors = t, named
+    test_crit = _criteria_of_tests(ctx.conn)
+    keys = _cap_keys(ctx.conn, refs, test_crit)
+    key, priors = None, [(r["id"], None) for r in rows]
+    for k in keys:
+        counted = _challenges_on(ctx.conn, k, test_crit)
+        if len(counted) >= LANDED_CHALLENGES:
+            key, priors = k, counted
             break
-    if test is None and (tests or len(priors) < LANDED_CHALLENGES):
+    if key is None and (keys or len(priors) < LANDED_CHALLENGES):
         return None
     ids = ", ".join(mid for mid, _ in reversed(priors))
     exact = all(have is None or _refs_key(have, as_set=True) == own
                 for _, have in priors)
-    where = "on exactly these refs" if exact else f"with {test} in the refs"
+    if exact:
+        where = "on exactly these refs"
+    elif key[0] == "criterion":
+        where = f"on {key[1]} or a test of {key[1]}"
+    else:
+        where = f"with {key[1]} in the refs"
     fact = (f"you sent challenge to tester {where} "
             f"{len(priors)} times already ({ids})")
-    # The sentence says only what the rows hold (the review of b2ed55b): the
-    # test changed only on a `tests` receipt, and a criteria receipt alone is
-    # a change of the criterion. A chain that the cap stops moved a row at
+    # The sentence says only what the rows hold (the reviews of b2ed55b and
+    # 4de1555): the test changed only on a `tests` receipt on a test that
+    # this call reads, and the criterion changed only on a criteria receipt
+    # on the counted criterion. A chain that the cap stops moved a row at
     # least once, so the short form is a guard.
-    red_refs = [test] if test else refs
+    tests, criteria = [], []
+    if key and key[0] == "criterion":
+        criteria = [key[1]]
+        tests = [r for r in _unique_refs(refs)
+                 if isinstance(r, str) and test_crit.get(r) == key[1]]
+        tests = tests or [t for t, c in test_crit.items() if c == key[1]]
+    elif key:
+        tests = [key[1]]
     test_changed = any(
-        _receipt_since_woken(ctx.conn, mid, red_refs, ("tests",))
+        _receipt_since_woken(ctx.conn, mid, tests, ("tests",))
         for mid, _ in priors)
     criterion_changed = any(
-        _receipt_since_woken(ctx.conn, mid, have if have is not None else refs,
-                             ("criteria",))
-        for mid, have in priors)
-    red = _test_is_red(ctx.conn, red_refs)
+        _receipt_since_woken(ctx.conn, mid, criteria, ("criteria",))
+        for mid, _ in priors)
+    red = _test_is_red(ctx.conn, tests)
     if test_changed and red:
         fact += ", and the test changed and is still red."
     elif criterion_changed and red:
         fact += ", and the criterion changed and the test is still red."
     else:
         fact += "."
-    if _escalation_admitted(ctx, refs):
+    return _escalation_or_step(ctx, refs, fact, _code_step(ctx))
+
+
+def _escalation_or_step(ctx: api.Ctx, refs, fact: str, step: str) -> str:
+    """
+    The refusal's step: the escalation when the doors admit it, recorded as
+    an offer, or `step`.
+
+    The challenge door compares the refs as a set, and the escalation door
+    compares a sorted list. So the escalation is asked and offered on the
+    refs with each ref once (the review of 4de1555, 2026-10-05: 12 of 12
+    escalations with a repeated ref landed past a closed escalation).
+    """
+    once = _unique_refs(refs)
+    if _escalation_admitted(ctx, once):
         return api._offer(
             ctx, fact + " Send msg.escalate_architect on the same refs.",
-            "msg.escalate_architect", {"refs": list(refs or [])})
-    return fact + " " + _code_step(ctx)
+            "msg.escalate_architect", {"refs": once})
+    return fact + " " + step
 
 
 def _judged_by(conn: sqlite3.Connection, msg_id: str, role: str) -> str | None:
@@ -1197,24 +1278,52 @@ def _judged_by(conn: sqlite3.Connection, msg_id: str, role: str) -> str | None:
 def _encodes_refused(conn: sqlite3.Connection, msg_id: str) -> bool:
     """
     True when the Tester sessions that `msg_id` woke called `tests.encode`
-    and stored no row of `tests`.
+    for a criterion of the challenge's refs, and stored no row of `tests`.
 
     Night 124 (2026-10-05): the constant-assertion door refused all 4 of
     s141's encodes, and s141 then answered m64 with m65. The door read m65
-    as a judgement while the test stood at version 1. No text is parsed,
-    and the encode is not matched to a ref (ruled: the holding session,
-    2026-10-05, frame 132's pass 3, from the review's count).
+    as a judgement while the test stood at version 1 (ruled: the holding
+    session, 2026-10-05, frame 132's pass 3, from the review's count). The
+    review of 4de1555 found the rule fired on a refused encode of another
+    criterion's test. So the encode must name a criterion of the refs, read
+    from `criterion_id` in the call's summary. An unreadable summary does
+    not fire the rule.
     """
-    row = conn.execute(
-        "SELECT (SELECT COUNT(*) FROM tool_calls t "
-        "        JOIN sessions s ON s.id = t.session_id "
-        "        WHERE s.trigger_msg = ? AND s.role = 'tester' "
-        "        AND t.fn = 'tests.encode'), "
-        "       (SELECT COUNT(*) FROM receipts r "
-        "        JOIN sessions s ON s.id = r.session_id "
-        "        WHERE s.trigger_msg = ? AND s.role = 'tester' "
-        "        AND r.table_name = 'tests')", (msg_id, msg_id)).fetchone()
-    return row[0] > 0 and row[1] == 0
+    import json as _json
+    row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                       (msg_id,)).fetchone()
+    try:
+        refs = _json.loads(row["body_refs"] or "[]") if row else []
+    except (TypeError, ValueError):
+        refs = []
+    if not isinstance(refs, list):
+        return False
+    wanted = _criteria_named(conn, refs, _criteria_of_tests(conn))
+    tried = any(
+        _encoded_criterion(r["args_summary"]) in wanted
+        for r in conn.execute(
+            "SELECT t.args_summary FROM tool_calls t "
+            "JOIN sessions s ON s.id = t.session_id "
+            "WHERE s.trigger_msg = ? AND s.role = 'tester' "
+            "AND t.fn = 'tests.encode'", (msg_id,)))
+    if not tried:
+        return False
+    return conn.execute(
+        "SELECT 1 FROM receipts r JOIN sessions s ON s.id = r.session_id "
+        "WHERE s.trigger_msg = ? AND s.role = 'tester' "
+        "AND r.table_name = 'tests' LIMIT 1", (msg_id,)).fetchone() is None
+
+
+#: `criterion_id='...'` in a call's summary. The summary cuts each argument
+#: at 60 characters (`Sandbox.call`), so an id of more than 44 characters
+#: loses its closing quote and does not match.
+_ENCODED_CRITERION = re.compile(r"(?:^|, )criterion_id='([^']*)'(?=, |$)")
+
+
+def _encoded_criterion(summary: str | None) -> str | None:
+    """The criterion id that an encode's summary names, or None."""
+    found = _ENCODED_CRITERION.findall(summary or "")
+    return found[0] if len(found) == 1 else None
 
 
 def _tester_judged(conn: sqlite3.Connection, msg_id: str) -> str | None:
@@ -1260,11 +1369,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
         fact = (f"you sent challenge to tester on exactly these refs already "
                 f"({prior['id']}) and they answered ({answer}). Sending it "
                 f"again is the same argument again.")
-        if _escalation_admitted(ctx, refs):
-            return api._offer(
-                ctx, fact + " Send msg.escalate_architect on the same refs.",
-                "msg.escalate_architect", {"refs": list(refs or [])})
-        return fact + " " + _code_step(ctx)
+        return _escalation_or_step(ctx, refs, fact, _code_step(ctx))
     # Frame 132, nights 119 and 123 (2026-10-05): the Tester's session wrote
     # nothing and sent nothing, the Architect's rung answered with no words,
     # and the door read that rung as the Tester's answer. An unanswered
@@ -1293,14 +1398,10 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
                  "and none landed.")
     else:
         fact += "Tester answered neither and did not change the test."
-    if _escalation_admitted(ctx, refs):
-        return api._offer(
-            ctx, fact + " Send msg.escalate_architect on the same refs.",
-            "msg.escalate_architect", {"refs": list(refs or [])})
     # The Developer can write no test, and the ladder climbed twice already.
     # An ended session lets the tick cap carry the batch on (frame 132's
     # design, section 3.4).
-    return fact + " End the session with no call."
+    return _escalation_or_step(ctx, refs, fact, "End the session with no call.")
 
 
 def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,

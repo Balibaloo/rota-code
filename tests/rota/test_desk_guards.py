@@ -1137,39 +1137,52 @@ def test_a_judged_challenge_in_mode_exhausted_ends_the_session(db):
 # harness fails it. A moved test deletes its runs and lifts the batch's tick
 # quarantine, so on a batch of one test the attempt cap starts again each
 # round. The door's cap on landed challenges ends the chain.
-def _chain(db, tests, refs_of=lambda i: ["c1", "tst1"], tester="moves"):
+TEST_BODIES = {"tst2": "assert 1 == 2", "tst3": "assert 3 == 4"}
+
+
+def _chain(db, tests, refs_of=lambda i: ["c1", "tst1"], tester="moves",
+           quotes_of=lambda i: QUOTES):
     """Each round the Developer challenges on `refs_of(i)`. The Tester then
-    `moves` the test through a real encode and commit, `moves the criterion`
-    through a Terminologist's receipt, stays `barren`, or `judges` with an
-    answer. The harness records a failing run of each test of the batch."""
+    `moves` the test through a real encode and commit, stores a `new id` of
+    the criterion's test the same way, `moves the criterion` through a
+    Terminologist's receipt, stays `barren`, or `judges` with an answer. The
+    harness records a failing run of each test of the batch."""
     from rota.core import lifecycle
     from rota.core.db import SessionResult, session_commit
     from rota.core.runner import _as_write
-    if "tst2" in tests:
-        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
-                   "('c2','tk1','closing an account keeps its owner')")
-        db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
-                   "VALUES ('tst2','b1','c2','test_owner.py','assert 1 == 2')")
+    for crit, text, test, path in (
+            ("c2", "closing an account keeps its owner", "tst2", "test_owner.py"),
+            ("c3", "closing an account keeps its name", "tst3", "test_name.py")):
+        if test in tests:
+            db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                       "(?, 'tk1', ?)", (crit, text))
+            db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                       "VALUES (?, 'b1', ?, ?, ?)", (test, crit, path, TEST_BODIES[test]))
     rounds = []
     for i in range(1, 8):
         refs = refs_of(i)
         sb = _developer(db)
         try:
-            out = sb.call("msg.challenge_tester", refs=refs, quotes=QUOTES)
+            out = sb.call("msg.challenge_tester", refs=refs, quotes=quotes_of(i))
         except ValueError as exc:
             return rounds, i, str(exc), sb
         _msg(db, out["id"], "developer", "tester", "challenge", refs,
              100 + 2 * i, "answered")
-        if tester == "moves":
+        if tester in ("moves", "new id"):
+            test = "tst1" if tester == "moves" else f"tstn{i}"
             tsb = build("tester", db, batch_id="b1", mode="challenge")
             tsb.call("tests.triage", criterion_id="c1", verdict="encodable")
-            tsb.call("tests.encode", id="tst1", criterion_id="c1",
-                     path="test_close.py",
+            tsb.call("tests.encode", id=test, criterion_id="c1",
+                     path="test_close.py" if tester == "moves" else f"test_new_{i}.py",
                      body=f"from billing import close_account\n"
                           f"def test_close_{i}():\n    {QUOTES[1]}\n")
             session_commit(db, SessionResult(
                 session_id=f"st{i}", role="tester", trigger_msg=out["id"],
                 writes=[_as_write(w) for w in tsb.ctx.writes]))
+            if tester == "new id":
+                lifecycle.record_test_run(db, f"r{i}{test}", "b1", test, result="fail",
+                                          attempt=lifecycle.next_attempt(db, "b1"),
+                                          output="boom")
         else:
             _session(db, f"st{i}", "tester", 1000 + 2 * i, trigger=out["id"])
         if tester == "moves the criterion":
@@ -1258,14 +1271,14 @@ def test_a_chain_on_one_test_stops_at_the_cap_whatever_the_other_refs(db, tests,
     landed, refused_at, said, sb = _chain(db, tests, refs_of)
     assert landed == ["m1", "m2", "m3"] and refused_at == 4
     where = ("on exactly these refs" if shape == "repeated ref"
-             else "with tst1 in the refs")
+             else "on c1 or a test of c1")
     assert said == (
         f"you sent challenge to tester {where} 3 times already (m1, m2, m3), "
         f"and the test changed and is still red. Send msg.escalate_architect "
         f"on the same refs.")
     assert [(o.op, o.args) for o in sb.ctx.offers] == [
-        ("msg.escalate_architect", {"refs": refs_of(4)})]
-    assert sb.call("msg.escalate_architect", refs=refs_of(4))["to"] == "architect"
+        ("msg.escalate_architect", {"refs": list(dict.fromkeys(refs_of(4)))})]
+    assert sb.call("msg.escalate_architect", refs=list(dict.fromkeys(refs_of(4))))["to"] == "architect"
 
 
 @pytest.mark.parametrize("tester, shape, refused_at, said", [
@@ -1274,14 +1287,14 @@ def test_a_chain_on_one_test_stops_at_the_cap_whatever_the_other_refs(db, tests,
      "m2), and the Tester answered neither and did not change the test. Send "
      "msg.escalate_architect on the same refs."),
     ("barren", "added ref", 4,
-     "you sent challenge to tester with tst1 in the refs 3 times already (m1, "
+     "you sent challenge to tester on c1 or a test of c1 3 times already (m1, "
      "m2, m3). Send msg.escalate_architect on the same refs."),
     ("judges", "repeated ref", 2,
      "you sent challenge to tester on exactly these refs already (m1) and "
      "they answered (a1). Sending it again is the same argument again. Send "
      "msg.escalate_architect on the same refs."),
     ("judges", "added ref", 4,
-     "you sent challenge to tester with tst1 in the refs 3 times already (m1, "
+     "you sent challenge to tester on c1 or a test of c1 3 times already (m1, "
      "m2, m3). Send msg.escalate_architect on the same refs."),
 ])
 def test_the_bound_and_the_true_repeat_end_their_chains_whatever_the_refs(
@@ -1303,7 +1316,7 @@ def test_a_challenge_of_several_tests_stops_when_one_is_at_the_cap(db):
     said = _same_refs_refusal(sb.ctx, "tester", "challenge",
                               ["c2", "tst2", "c1", "tst1"])
     assert said == (
-        "you sent challenge to tester with tst1 in the refs 3 times already "
+        "you sent challenge to tester on c1 or a test of c1 3 times already "
         "(m1, m2, m3), and the test changed and is still red. Send "
         "msg.escalate_architect on the same refs.")
 
@@ -1433,7 +1446,7 @@ def test_an_answer_after_an_encode_that_stored_a_test_is_a_judgement(db):
     the refs did not move, and the answer is a judgement."""
     _judged(db)                                        # m96 woke s1, answered by m98
     db.execute("INSERT INTO tool_calls (session_id, fn, args_summary, seq) "
-               "VALUES ('s1', 'tests.encode', 'id=''tst9''', 1)")
+               "VALUES ('s1', 'tests.encode', 'criterion_id=''c1'', id=''tst9''', 1)")
     db.execute("INSERT INTO receipts (session_id, table_name, row_id, new_version) "
                "VALUES ('s1', 'tests', 'tst9', 1)")
     with pytest.raises(ValueError, match=r"already \(m96\) and they answered \(m98\)"):
@@ -1448,6 +1461,280 @@ def test_night124_a_tester_that_sent_no_encode_and_answered_judged(db):
         "you sent challenge to tester on exactly these refs already (m64) and "
         "they answered (m65). Sending it again is the same argument again. "
         "Send msg.escalate_architect on the same refs.")
+
+
+# The review of 4de1555 (2026-10-05): the cap counted per test id. A Tester
+# that stored a new test id each round reopened the count, 14 of 14 landed,
+# and one criterion paired with each test of the batch got 3 per test.
+CAP_SAID = ("you sent challenge to tester on c1 or a test of c1 3 times already "
+            "(m1, m2, m3), and the test changed and is still red. Send "
+            "msg.escalate_architect on the same refs.")
+
+
+def test_a_tester_that_stores_a_new_test_id_each_round_meets_the_cap(db):
+    def refs_of(i):
+        newest = db.execute("SELECT id FROM tests WHERE criterion_id = 'c1' "
+                            "ORDER BY rowid DESC LIMIT 1").fetchone()[0]
+        return ["c1", newest]
+    landed, refused_at, said, sb = _chain(db, ("tst1",), refs_of, tester="new id")
+    assert (landed, refused_at) == (["m1", "m2", "m3"], 4)
+    assert refs_of(4) == ["c1", "tstn3"]
+    assert said == CAP_SAID
+    assert [(o.op, o.args) for o in sb.ctx.offers] == [
+        ("msg.escalate_architect", {"refs": ["c1", "tstn3"]})]
+
+
+@pytest.mark.parametrize("tests", [("tst1", "tst2"), ("tst1", "tst2", "tst3")])
+def test_one_criterion_against_each_test_of_the_batch_meets_the_cap(db, tests):
+    def test_of(i):
+        return tests[(i - 1) % len(tests)]
+
+    def refs_of(i):
+        return ["c1", test_of(i)] + (["g1"] if i > len(tests) else [])
+
+    def quotes_of(i):
+        return [QUOTES[0], TEST_BODIES.get(test_of(i), QUOTES[1])]
+    landed, refused_at, said, _ = _chain(db, tests, refs_of, quotes_of=quotes_of)
+    assert (landed, refused_at) == (["m1", "m2", "m3"], 4)
+    assert said == CAP_SAID
+
+
+def test_the_cap_offers_the_escalation_on_each_ref_once(db):
+    """The review of 4de1555 (2026-10-05): at the cap, a repeated ref was
+    offered an escalation that the closed escalation on the refs stops."""
+    _chain(db, ("tst1",))
+    _msg(db, "m90", "developer", "architect", "escalate", ["c1", "tst1"], 90,
+         "answered")
+    sb = _developer(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs 3 times already "
+        "(m1, m2, m3), and the test changed and is still red. Make one real "
+        "change to the code the test calls.")
+    assert sb.ctx.offers == []
+
+
+def _encode_row(db, sid, summary, fn="tests.encode"):
+    db.execute("INSERT INTO tool_calls (session_id, fn, args_summary, seq) "
+               "VALUES (?, ?, ?, 1)", (sid, fn, summary))
+
+
+@pytest.mark.parametrize("summary, fn", [
+    ("criterion_id='c2', id='tst2'", "tests.encode"),       # another criterion's test
+    ("criterion_id='c1, id='tst1'", "tests.encode"),        # the id is cut, no quote
+    ("criterion_id='c1', verdict='encodable'", "tests.triage"),
+    # Two matches: the body's text forges one. The read is not trusted.
+    ("body='a, criterion_id='c1', b', criterion_id='c2', id='tst2'", "tests.encode"),
+])
+def test_an_answer_stays_a_judgement_unless_an_encode_of_the_refs_was_refused(
+        db, summary, fn):
+    """The review of 4de1555 (2026-10-05): a refused encode of another
+    criterion's test made the answer on tst1 read as no judgement."""
+    _judged(db)                                        # m96 woke s1, answered by m98
+    _encode_row(db, "s1", summary, fn)
+    with pytest.raises(ValueError, match=r"already \(m96\) and they answered \(m98\)"):
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+
+
+@pytest.mark.parametrize("refs", [["c1"], ["tst1"]])
+def test_a_refused_encode_matches_a_criterion_named_directly_or_through_a_test(
+        db, refs):
+    from rota.core.sandbox import _same_refs_refusal
+    _msg(db, "m96", "developer", "tester", "challenge", refs, 1, "answered")
+    _session(db, "s1", "tester", 1, trigger="m96")
+    _msg(db, "m98", "tester", "developer", "answer", refs, 2, "answered", cause="m96")
+    _encode_row(db, "s1", "criterion_id='c1', id='tst1'")
+    assert _same_refs_refusal(_developer(db).ctx, "tester", "challenge", refs) is None
+
+
+def test_an_encode_in_a_session_of_another_role_is_not_the_testers(db):
+    _judged(db)
+    _session(db, "s2", "architect", 2, trigger="m96")
+    _encode_row(db, "s2", "criterion_id='c1', id='tst1'")
+    with pytest.raises(ValueError, match=r"already \(m96\) and they answered \(m98\)"):
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+
+
+@pytest.mark.parametrize("receipt", [("s1", "criteria", "c9"), ("s2", "tests", "tst9")])
+def test_only_a_tests_receipt_of_the_tester_lands_a_change(db, receipt):
+    """s1's encode of c1 was refused, so the answer is no judgement. A
+    criteria receipt of s1, or a tests receipt of another role's session
+    that m96 woke, does not land the Tester's change."""
+    _judged(db)
+    _encode_row(db, "s1", "criterion_id='c1', id='tst1'")
+    _session(db, "s2", "architect", 2, trigger="m96")
+    db.execute("INSERT INTO receipts (session_id, table_name, row_id, new_version) "
+               "VALUES (?, ?, ?, 1)", receipt)
+    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert out == {"id": "m99", "to": "tester", "verb": "challenge"}
+
+
+def test_the_bound_says_none_landed_when_one_of_two_priors_answered(db):
+    """m1's Tester did nothing. m3's Tester had its encode refused, and it
+    answered. "Answered neither" is false, so the new form stands."""
+    _msg(db, "m1", "developer", "tester", "challenge", ["c1", "tst1"], 1,
+         "unresolved", note=NOTE)
+    _session(db, "s1", "tester", 1, trigger="m1")
+    _msg(db, "m3", "developer", "tester", "challenge", ["c1", "tst1"], 3, "answered")
+    _session(db, "s2", "tester", 2, trigger="m3")
+    _encode_row(db, "s2", "criterion_id='c1', id='tst1'")
+    _msg(db, "m4", "tester", "developer", "answer", ["c1", "tst1"], 4,
+         "answered", cause="m3")
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs already (m1, then "
+        "m3), and the test did not change. The Tester sent changes to the "
+        "test, and none landed. Send msg.escalate_architect on the same refs.")
+
+
+def test_the_cap_counts_only_the_developers_challenges_to_the_tester(db):
+    for i, (frm, to, verb) in enumerate(
+            [("critic", "tester", "challenge")] * 3
+            + [("developer", "architect", "challenge")] * 3
+            + [("developer", "tester", "question")] * 3, start=1):
+        _msg(db, f"x{i}", frm, to, verb, ["c1", "tst1"], i, "answered")
+    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert out["to"] == "tester"
+
+
+def _rows_on(db, refs, ids, seq=50):
+    for n, mid in enumerate(ids):
+        _msg(db, mid, "developer", "tester", "challenge", refs, seq + n, "answered")
+
+
+def test_the_cap_names_the_first_criterion_at_the_cap(db):
+    """c1 holds 3 and c2 holds 4. The refs name c1 first, so the sentence
+    counts c1."""
+    from rota.core.sandbox import _same_refs_refusal
+    _chain(db, ("tst1", "tst2"))
+    _rows_on(db, ["c2", "tst2"], ["y1", "y2", "y3", "y4"])
+    said = _same_refs_refusal(_developer(db).ctx, "tester", "challenge",
+                              ["c1", "tst1", "c2", "tst2"])
+    assert said.startswith(
+        "you sent challenge to tester on c1 or a test of c1 3 times already "
+        "(m1, m2, m3)")
+
+
+def test_refs_that_name_no_criterion_or_test_keep_the_count_of_the_same_refs(db):
+    """The newest prior is unanswered and the one before it judged, so the
+    door would admit, and the cap counts the three priors on ['g1']."""
+    from rota.core.sandbox import _same_refs_refusal
+    _msg(db, "x1", "developer", "tester", "challenge", ["g1"], 1, "answered")
+    _msg(db, "x2", "developer", "tester", "challenge", ["g1"], 2, "answered")
+    _session(db, "s2", "tester", 2, trigger="x2")
+    _msg(db, "x3", "tester", "developer", "answer", ["g1"], 3, "answered", cause="x2")
+    _msg(db, "x4", "developer", "tester", "challenge", ["g1"], 4, "unresolved", note=NOTE)
+    _session(db, "s4", "tester", 4, trigger="x4")
+    said = _same_refs_refusal(_developer(db).ctx, "tester", "challenge", ["g1"])
+    assert said.startswith(
+        "you sent challenge to tester on exactly these refs 3 times already "
+        "(x1, x2, x4).")
+
+
+def test_refs_that_name_a_criterion_and_no_test_count_for_the_criterion(db):
+    from rota.core.sandbox import _same_refs_refusal
+    _rows_on(db, ["c1"], ["x1"], seq=1)
+    _rows_on(db, ["c1", "g1"], ["x2"], seq=2)
+    _rows_on(db, ["c1", "tk1"], ["x3"], seq=3)
+    said = _same_refs_refusal(_developer(db).ctx, "tester", "challenge", ["c1", "b1"])
+    assert said == (
+        "you sent challenge to tester on c1 or a test of c1 3 times already "
+        "(x1, x2, x3). Send msg.escalate_architect on the same refs.")
+
+
+def test_a_test_with_no_criterion_counts_for_itself(db):
+    from rota.core.sandbox import _same_refs_refusal
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst0', 'b1', NULL, 'test_zero.py', 'assert 0 == 1')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+               "VALUES ('r0', 'b1', 'tst0', 'abc123', 'fail')")
+    for i, extra in enumerate(([], ["g1"], ["tk1"]), start=1):
+        _rows_on(db, ["tst0"] + extra, [f"x{i}"], seq=i)
+        _session(db, f"s{i}", "tester", i, trigger=f"x{i}",
+                 receipts=[("tests", "tst0", i + 1)])
+    said = _same_refs_refusal(_developer(db).ctx, "tester", "challenge", ["tst0", "b1"])
+    assert said == (
+        "you sent challenge to tester with tst0 in the refs 3 times already "
+        "(x1, x2, x3), and the test changed and is still red. Send "
+        "msg.escalate_architect on the same refs.")
+
+
+def test_the_cap_reads_red_on_the_counted_criterions_test_only(db):
+    """tst1 passes and tst2 fails. The sentence is about c1, so it does not
+    say that the test is still red."""
+    from rota.core.sandbox import _same_refs_refusal
+    _chain(db, ("tst1", "tst2"))
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+               "VALUES ('r99', 'b1', 'tst1', 'abc123', 'pass')")
+    said = _same_refs_refusal(_developer(db).ctx, "tester", "challenge",
+                              ["c1", "tst1", "tst2"])
+    assert said == (
+        "you sent challenge to tester on c1 or a test of c1 3 times already "
+        "(m1, m2, m3). Send msg.escalate_architect on the same refs.")
+
+
+def test_the_criterion_form_needs_a_red_test(db):
+    _chain(db, ("tst1",), tester="moves the criterion")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+               "VALUES ('r99', 'b1', 'tst1', 'abc123', 'pass')")
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs 3 times already "
+        "(m1, m2, m3). Send msg.escalate_architect on the same refs.")
+
+
+def test_the_test_form_comes_before_the_criterion_form(db):
+    _chain(db, ("tst1",))
+    _session(db, "sc", "terminologist", 9000, receipts=[("criteria", "c1", 9)])
+    with pytest.raises(ValueError, match=r"and the test changed and is still red\."):
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+
+
+def test_the_criterion_form_reads_only_the_criterion_of_this_call(db):
+    """The review of 4de1555 (2026-10-05): three challenges on [c2, tst1],
+    each followed by a criteria receipt on c2. The call on [c1, tst1] met
+    "the criterion changed", and c1 never changed."""
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c2','tk1','closing an account keeps its owner')")
+    for i in (1, 2, 3):
+        _msg(db, f"m{i}", "developer", "tester", "challenge", ["c2", "tst1"],
+             10 * i, "answered")
+        _session(db, f"s{i}", "tester", 10 * i, trigger=f"m{i}")
+        _session(db, f"t{i}", "terminologist", 10 * i + 1,
+                 receipts=[("criteria", "c2", i)])
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+               "VALUES ('r1', 'b1', 'tst1', 'abc123', 'fail')")
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value) == (
+        "you sent challenge to tester on c1 or a test of c1 3 times already "
+        "(m1, m2, m3). Send msg.escalate_architect on the same refs.")
+    # c2 in the call's refs is not the counted criterion, so its receipts
+    # still do not make "the criterion changed".
+    from rota.core.sandbox import _same_refs_refusal
+    said = _same_refs_refusal(_developer(db).ctx, "tester", "challenge",
+                              ["c1", "tst1", "c2"])
+    assert said == (
+        "you sent challenge to tester on c1 or a test of c1 3 times already "
+        "(m1, m2, m3). Send msg.escalate_architect on the same refs.")
+
+
+def test_the_cap_reads_the_test_of_the_call_before_the_criterions_others(db):
+    """tst1 moved and is red. tst1b, the other test of c1, passes, and the
+    call names tst1b. The sentence is about tst1b."""
+    from rota.core.sandbox import _same_refs_refusal
+    _chain(db, ("tst1",))
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst1b', 'b1', 'c1', 'test_close_b.py', 'assert 2 == 2')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+               "VALUES ('r99', 'b1', 'tst1b', 'abc123', 'pass')")
+    said = _same_refs_refusal(_developer(db).ctx, "tester", "challenge", ["c1", "tst1b"])
+    assert said == (
+        "you sent challenge to tester on c1 or a test of c1 3 times already "
+        "(m1, m2, m3). Send msg.escalate_architect on the same refs.")
 
 
 def test_an_answer_with_null_refs_added_no_row(db):
