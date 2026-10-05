@@ -100,6 +100,15 @@ It names the call only when `_admits` passes. When `U` blocks it, the step carri
 
 **Price.** One implementer pass on Opus, cold, one file and 6 tests and a gate: about 150k (anchors 74k to 217k). One diff review: about 70k. A walk: one night. C adds about 30k to frame 114.
 
+**As built, pass 1 (2026-10-05).** The coordinator ruled on section 7: the dry run is accepted, A2 and D may refuse in a row, C goes to frame 114, and no tool text moves.
+
+- The predicate also refuses a span that removes a `from __future__` import whose features the merged file no longer holds. Over the 89 landed writes, 2 removed such a line, s146 and s227, and both are among the 5 hits (observed: `spans.py`, 2026-10-05).
+- `_span_lost` in `api.py` computes `U` and the removed `__future__` imports. Its refusal, `_span_lost_refusal`, runs after door 27. A1 applies when the text, parsed alone, binds none of the names that the removed statements bind. Otherwise A2 applies.
+- A1 on s227's call now quotes the `__future__` line too: "start=0, end=5 removes 'from __future__ import annotations', 'import inspect', 'import typing as t' and 'from functools import update_wrapper', and the rest of src/click/decorators.py still uses inspect, t and update_wrapper. To add your text and keep every line, send start=1, end=1."
+- A removed `__future__` import alone gives the fact "... and the rest of <path> runs under that `from __future__` import." A2 with a removed `__future__` line says "put those lines at the top of your text, the `from __future__` line first".
+- D replaces the bare compile refusal when `_future_order` finds the text's `__future__` import below another statement. When `_admits` fails, D keeps its first sentence and names no call.
+- A dry run returns `{}` before the disk, and an empty write in a dry run removes nothing. A refusal inside a dry run is the fact alone, so it starts no second dry run. 8 tests in `tests/rota/test_desk_guards.py` hold this, and one of them compares `ctx` and the worktree around `_admits`.
+
 ## 6. What the design does not cover
 
 - s228's `t = TypeVar`: a wrong binding of an old name passes the predicate.

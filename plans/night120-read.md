@@ -97,6 +97,8 @@ Against night 119's bg_3:
 
 Frame 114, a failing inherited test has no route: the door's answer in step 2 follows the ruling that a broken project test is the Developer's own regression (copied: `CLAUDE.md`, ruled 2026-10-03). The door named `code.diff`. The wake did not show the test as red or its output, so the seat had the door's word and no `NameError` (observed: the wake of s214, 2026-10-05).
 
+Correction, 2026-10-05: item 10 is wrong about the `.core`, `.globals` and `.utils` imports. s227's repeated writes at turns 6, 7 and 9 removed them, uncommitted, and s228's commit cfed9d8e5d carried them. s228's 0..15 replaced its own insert and the `R` to `FC` lines (observed: `plans/frame136-design.md`, 2026-10-05).
+
 ## 3. Frame 122's residue
 
 **The frame closed on this night. This read finds no session that ends on a parser refusal with the frame's cause, a quote inside a quote. It finds a wrong name or a wrong step in the refusal for a value that never ends.**

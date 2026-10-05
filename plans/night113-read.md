@@ -65,6 +65,7 @@ Verdict: the night exercised the path. The cap fired 4 times and each kept a rea
 - s156 read lines 1-20 and 1-50 ten times, the span that holds the import, and wrote nothing that landed (observed: tool_calls, 2026-10-04).
 - The drops door appears in 23 prompts in Developer sessions s131, s153, s154, s155 and in s87. `this write changes` appears once, at s154. `has no criterion` and `reaches the dynamic` appear 0 times (observed: LIKE over turns, 2026-10-04).
 - bg_1 ended on `developer|tick:tests_failing|bg_1 attempts=3 quarantined=1 reported=1`. The cycle detector fired at attempt 6 (observed: report, night113.log, 2026-10-04). This is night 112's shape a third time: the batch breaks its own utils.py import, and the drops door refuses whole-file repairs.
+- Correction, 2026-10-05: s146 did not add `from . import click` at line 1. It sent `start=0, end=15`, and the write replaced the 15 header lines of utils.py with that one line (observed: `plans/frame136-design.md`, 2026-10-05).
 
 ## 4. Frame 115: Architect answers
 
