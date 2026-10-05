@@ -9014,6 +9014,29 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     writes and then dies leaves the worktree ahead of the database, and boot
     reconciles the two.
     """
+    return _code_write(ctx, path, text, start, end, dry=False)
+
+
+def _admits(ctx: Ctx, path: str, text: str, start: int, end: int) -> bool:
+    """Whether the doors of `code.write` admit this exact call.
+
+    A refusal names a call only when this returns True. Frame 135's rule:
+    a refusal states one fact and one step, and the step is a call the door
+    then admits (frame 136). The dry run writes nothing and offers nothing,
+    so a refusal built inside it starts no second dry run.
+    """
+    try:
+        _code_write(ctx, path, text, start, end, dry=True)
+    except Exception:                                      # noqa: BLE001
+        # A call the doors refuse, or one they cannot judge, is not named.
+        return False
+    return True
+
+
+def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
+                dry: bool) -> dict:
+    """The doors and the write of `code.write`. With `dry`, the doors run
+    and the function returns before it changes the disk (frame 136)."""
     # Code is written in a batch's worktree and nowhere else. Walk
     # twenty-three: a Developer woken by a Vision Keeper's message, before
     # any batch existed, wrote script.py into the project root and then
@@ -9055,6 +9078,8 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             "SELECT 1 FROM code_index WHERE grain = ? AND grain_kind = 'path'",
             (path.replace("\\", "/"),)).fetchone()
         if target.exists() and not in_tree:
+            if dry:
+                return {}       # admitted; a dry run removes nothing
             target.unlink()
             return {"removed": path, "note": "the file this batch added is gone; "
                                              "commit to record it"}
@@ -9634,6 +9659,23 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                             tail_note = None    # a note never refuses a write
         if fail is not None:
             stage, exc = fail
+            # Click night 120 (2026-10-05): s227 sent the whole header back
+            # with `import sys` above `from __future__`, the bare refusal
+            # below named no step, and the seat gave up on a repair that
+            # was one line away. The step is named only when the doors
+            # admit it (frame 136, law of frame 135: one fact, one step).
+            order = (_future_order(fragment)
+                     if stage == "compile" and "__future__" in (exc.msg or "") else None)
+            if order is not None:
+                moved, futs, above = order
+                many = len(futs) > 1
+                quoted = " and ".join(f"'{x}'" for x in futs)
+                msg = (f"Python takes {quoted} only above every other statement, "
+                       f"and your text puts '{above}' above {'them' if many else 'it'}.")
+                if not dry and _admits(ctx, path, moved, start, end):
+                    msg += (f" Send the same call with {'those lines' if many else 'that line'} "
+                            f"first in text.")
+                raise ValueError(msg) from None
             if stage == "compile":
                 raise ValueError(
                     f"{path} is not valid Python ({exc.msg}, line "
@@ -10171,6 +10213,17 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 f"{pkg} fails. Import {name} from the module that defines it "
                 f"(a relative import, `from .core import ...`), or import "
                 f"inside the function that uses it")
+    # A span write that removes a line the rest of the file still needs.
+    # Click night 120 (2026-10-05): s227 meant to add `import sys` and sent
+    # start=0, end=5, which replaced the first five lines, and 43 of 43
+    # tests went to error at import. Night 113's s146 did the same over 15
+    # lines. The whole-file check above (791da68) never ran on a span. It
+    # runs last, so every other door has judged the call it offers.
+    if span and path.endswith(".py"):
+        lost = _span_lost(lines, start, stop, fragment, tree)
+        if lost is not None:
+            raise ValueError(_span_lost_refusal(
+                ctx, path, lines, start, end, fragment, lost, dry))
     if missing and path.endswith(".py") and not target.exists()             and stem not in wanted and not stem.startswith("test"):
         raise ValueError(
             f"the batch's tests import {', '.join(missing)} and no such "
@@ -10186,6 +10239,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             f"{path} is not where `import {stem}` looks: the import path is "
             f"the worktree root, so the module is {stem}.py at the top level "
             f"(or {stem}/__init__.py)")
+    # Every door has judged the call. A dry run stops before the disk.
+    if dry:
+        return {}
     # A write the file already holds changes nothing, and the result says so.
     # Night 97 (2026-09-29): s215 and s216 sent the landed text again, read
     # `"written, not committed": []`, and the test failed on one commit from
@@ -11043,6 +11099,161 @@ def _bound_anywhere(tree) -> set[str]:
         elif isinstance(x, _ast.MatchMapping) and x.rest:
             out.add(x.rest)
     return out
+
+
+def _is_future(node) -> bool:
+    import ast as _ast
+    return isinstance(node, _ast.ImportFrom) and node.module == "__future__"
+
+
+def _is_docstring(node) -> bool:
+    import ast as _ast
+    return (isinstance(node, _ast.Expr)
+            and isinstance(getattr(node.value, "value", None), str))
+
+
+def _span_lost(lines: list[str], start: int, stop: int, fragment: str, tree) -> dict | None:
+    """What a span write removes that the rest of the file still needs.
+
+    `names`: the names the old file bound at the top level, that the merged
+    file loads and binds nowhere. `futures`: the `from __future__` imports
+    of the span whose features the merged file no longer holds. A star
+    import can bind any name, so the check stays silent there, and a
+    builtin still resolves after the file's own shadow goes (frame 95).
+    """
+    import ast as _ast
+    import builtins as _builtins
+    try:
+        old = _ast.parse(chr(10).join(lines))
+    except SyntaxError:
+        return None
+    if any(isinstance(x, _ast.ImportFrom) and any(a.name == "*" for a in x.names)
+           for x in _ast.walk(tree)):
+        return None
+
+    def _in_span(s) -> bool:
+        return start <= s.lineno - 1 and getattr(s, "end_lineno", s.lineno) <= stop
+
+    binds = _top_binds(old)
+    loads = {x.id for x in _ast.walk(tree)
+             if isinstance(x, _ast.Name) and isinstance(x.ctx, _ast.Load)}
+    names = sorted(n for n in (set(binds) - _bound_anywhere(tree)
+                               - set(dir(_builtins))) & loads
+                   if _in_span(binds[n]))
+    have = {a.name for x in tree.body if _is_future(x) for a in x.names}
+    futures = [s for s in old.body
+               if _is_future(s) and _in_span(s) and any(a.name not in have for a in s.names)]
+    if not names and not futures:
+        return None
+    stmts = sorted({id(s): s for s in futures + [binds[n] for n in names]}.values(),
+                   key=lambda s: s.lineno)
+    removed = set(_top_binds(_ast.Module(body=[s for s in old.body if _in_span(s)],
+                                         type_ignores=[])))
+    try:
+        own = set(_top_binds(_ast.parse(fragment)))
+    except SyntaxError:
+        own = None
+    return {"names": names, "futures": futures, "stmts": stmts, "old": old,
+            "insert": own is not None and not (own & removed)}
+
+
+def _span_lost_refusal(ctx: Ctx, path: str, lines: list[str], start: int, end: int,
+                       fragment: str, lost: dict, dry: bool) -> str:
+    """The refusal of a span that removes a needed line: one fact, and one
+    call only when the doors admit it (frame 136)."""
+    import ast as _ast
+
+    def _seg(s) -> str:
+        return chr(10).join(lines[s.lineno - 1:getattr(s, "end_lineno", s.lineno)]).strip()
+
+    segs = [_seg(s) for s in lost["stmts"]]
+    quoted = [f"'{x}'" for x in segs]
+    quoted = quoted[0] if len(quoted) == 1 else ", ".join(quoted[:-1]) + " and " + quoted[-1]
+    names = lost["names"]
+    if names:
+        listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+        fact = (f"start={start}, end={end} removes {quoted}, and the rest of {path} "
+                f"still uses {listed}.")
+    else:
+        fact = (f"start={start}, end={end} removes {quoted}, and the rest of {path} "
+                f"runs under that `from __future__` import.")
+    if dry:
+        return fact
+    one = len(segs) == 1
+    if lost["insert"]:
+        # The seat meant to add its text. The insert goes below a leading
+        # docstring and `from __future__` imports, as the doors require.
+        body = lost["old"].body
+        lead = []
+        for i, s in enumerate(body):
+            if (i == 0 and _is_docstring(s)) or _is_future(s):
+                lead.append(s)
+                continue
+            break
+        at = start
+        if lead and start <= lead[-1].lineno - 1:
+            at = max(start, lead[-1].end_lineno)
+        if _admits(ctx, path, fragment, at, at):
+            return (f"{fact} To add your text and keep every line, "
+                    f"send start={at}, end={at}.")
+        return fact
+    # A replace: the text must carry the removed lines itself.
+    try:
+        own = _ast.parse(fragment).body
+    except SyntaxError:
+        return fact
+    flines = fragment.splitlines()
+    doc_end = own[0].end_lineno if own and _is_docstring(own[0]) else 0
+    lead_end = doc_end
+    for s in own[1 if doc_end else 0:]:
+        if not _is_future(s):
+            break
+        lead_end = s.end_lineno
+    futs = [_seg(s) for s in lost["stmts"] if _is_future(s)]
+    rest = [_seg(s) for s in lost["stmts"] if not _is_future(s)]
+    built = (flines[:doc_end] + futs + flines[doc_end:lead_end] + rest
+             + flines[lead_end:])
+    if not _admits(ctx, path, chr(10).join(built) + chr(10), start, end):
+        return fact
+    them = "it" if one else "them"
+    which = "that line" if one else "those lines"
+    if futs:
+        return (f"{fact} To keep {them}, put {which} at the top of your text, the "
+                f"`from __future__` line first, and send start={start}, end={end} again.")
+    return (f"{fact} To keep {them}, put {which} in your text below any "
+            f"`from __future__` line, and send start={start}, end={end} again.")
+
+
+def _future_order(fragment: str):
+    """A text whose `from __future__` imports sit below another statement:
+    (the text with them moved up, their lines, the first line above them).
+    None when the text has no such import or does not parse."""
+    import ast as _ast
+    try:
+        body = _ast.parse(fragment).body
+    except SyntaxError:
+        return None
+    flines = fragment.splitlines()
+
+    def _seg(s):
+        return chr(10).join(flines[s.lineno - 1:s.end_lineno])
+
+    start_i = 1 if body and _is_docstring(body[0]) else 0
+    futs = [s for s in body[start_i:] if _is_future(s)]
+    if not futs:
+        return None
+    above = next((s for s in body[start_i:] if not _is_future(s)
+                  and s.lineno < futs[-1].lineno), None)
+    if above is None:
+        return None
+    gone = set()
+    for s in futs:
+        gone.update(range(s.lineno - 1, s.end_lineno))
+    top = body[0].end_lineno if start_i else 0
+    kept = [x for i, x in enumerate(flines) if i not in gone]
+    moved = kept[:top] + [_seg(s) for s in futs] + kept[top:]
+    return (chr(10).join(moved) + chr(10), [_seg(s).strip() for s in futs],
+            flines[above.lineno - 1].strip())
 
 
 def _kept_spans(old_tree, new_tree) -> list[tuple[str, int, int]]:

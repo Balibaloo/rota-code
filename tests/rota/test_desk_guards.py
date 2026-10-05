@@ -3584,3 +3584,185 @@ def ask():
     root, sb = _ui_worktree(db, tmp_path, "m.py", old)
     sb.call("code.write", path="src/m.py", text="def ask():" + chr(10) + "    return input('x')" + chr(10))
     assert "input('x')" in (root / "src" / "m.py").read_text()
+
+
+# Frame 136: a span write that removes the file's import lines. Click night
+# 120 (2026-10-05): s227 meant to add `import sys` and sent start=0, end=5,
+# which replaced the first five lines of decorators.py; 43 of 43 tests went
+# to error at import. The header below is a trimmed copy of that file.
+_HEAD = (
+    "from __future__ import annotations\n"
+    "\n"
+    "import inspect\n"
+    "import typing as t\n"
+    "from functools import update_wrapper\n"
+    "from gettext import gettext as _\n"
+    "\n"
+    'R = t.TypeVar("R")\n'
+    "\n"
+    "\n"
+    "def pass_context(f):\n"
+    "    return update_wrapper(f, f)\n"
+    "\n"
+    "\n"
+    "def version_option(show_python=False):\n"
+    "    sig = inspect.signature(version_option)\n"
+    "    if show_python:\n"
+    '        return _(f"Python {sys.version_info.major}")\n'
+    "    return str(sig)\n"
+)
+_HEAD_IMPORTS = [x for x in _HEAD.splitlines() if x.startswith(("import ", "from "))]
+
+
+def _right(tmp_path, *extra):
+    """The file after a named call: every old import line, the new lines,
+    and a module that compiles."""
+    src = (tmp_path / "wt" / "m.py").read_text()
+    have = src.splitlines()
+    for line in _HEAD_IMPORTS + list(extra):
+        assert line in have, line
+    compile(src, "m.py", "exec", dont_inherit=True)
+    return src
+
+
+def test_a_span_that_removes_used_imports_is_refused_with_the_insert(db, tmp_path):
+    """s227's call: the refusal quotes the removed lines and names the
+    insert below the `from __future__` import, and that insert lands."""
+    msg = _span_refusal(db, tmp_path, _HEAD, 0, 5, "import sys\n")
+    assert msg == (
+        "start=0, end=5 removes 'from __future__ import annotations', 'import inspect', "
+        "'import typing as t' and 'from functools import update_wrapper', and the rest "
+        "of m.py still uses inspect, t and update_wrapper. To add your text and keep "
+        "every line, send start=1, end=1.")
+    assert (tmp_path / "wt" / "m.py").read_text() == _HEAD
+    assert _write(db, tmp_path, 1, 1, "import sys\n")["bytes"]
+    src = _right(tmp_path, "import sys")
+    assert src.startswith("from __future__ import annotations\nimport sys\n")
+
+
+def test_a_span_whose_text_binds_the_names_again_lands(db, tmp_path):
+    """A replace of the header that keeps every name is the seat's to make."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_text(_HEAD)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    text = ("from __future__ import annotations\n\nimport inspect\nimport sys\n"
+            "import typing as t\nfrom functools import update_wrapper\n")
+    assert _write(db, tmp_path, 0, 5, text)["bytes"]
+    _right(tmp_path, "import sys")
+
+
+_NO_INSPECT = ("from __future__ import annotations\n\nimport typing as t\n"
+               "from functools import update_wrapper\nfrom gettext import gettext as _\n\n"
+               'R = t.TypeVar("R")\n')
+
+
+def test_a_replace_that_drops_a_used_import_is_told_to_carry_it(db, tmp_path):
+    """A2: the text replaces the header and leaves out `import inspect`."""
+    msg = _span_refusal(db, tmp_path, _HEAD, 0, 8, _NO_INSPECT)
+    assert msg == (
+        "start=0, end=8 removes 'import inspect', and the rest of m.py still uses "
+        "inspect. To keep it, put that line in your text below any `from __future__` "
+        "line, and send start=0, end=8 again.")
+    text = _NO_INSPECT.replace("annotations\n", "annotations\nimport inspect\n", 1)
+    assert _write(db, tmp_path, 0, 8, text)["bytes"]
+    _right(tmp_path)
+
+
+def test_a_future_import_below_another_line_is_told_to_go_first(db, tmp_path):
+    """D, s227 turn 10: the whole header with `import sys` above
+    `from __future__`. The bare compile refusal named no step, and the seat
+    gave up on a repair that was one line away."""
+    text = "import sys\n" + _HEAD.split("\n\n\ndef pass_context")[0] + "\n"
+    msg = _span_refusal(db, tmp_path, _HEAD, 0, 8, text)
+    assert msg == (
+        "Python takes 'from __future__ import annotations' only above every other "
+        "statement, and your text puts 'import sys' above it. Send the same call with "
+        "that line first in text.")
+    moved = text.replace("import sys\n", "", 1).replace(
+        "annotations\n", "annotations\nimport sys\n", 1)
+    assert _write(db, tmp_path, 0, 8, moved)["bytes"]
+    _right(tmp_path, "import sys")
+
+
+def test_a_removed_future_import_alone_is_refused(db, tmp_path):
+    """The `from __future__` line binds no name the file loads, and the
+    span still removes it (frame 136: 0 of 84 harmless landed writes did)."""
+    msg = _span_refusal(db, tmp_path, _HEAD, 0, 1, "import sys\n")
+    assert msg.startswith("start=0, end=1 removes 'from __future__ import annotations', "
+                          "and the rest of m.py runs under that `from __future__` import.")
+    assert "send start=1, end=1." in msg
+    assert _write(db, tmp_path, 1, 1, "import sys\n")["bytes"]
+    _right(tmp_path, "import sys")
+
+
+def test_a_star_import_or_a_builtin_keeps_the_span_door_silent(db, tmp_path):
+    """A star import can bind any name, and a builtin still resolves after
+    the file's own shadow goes (frame 95)."""
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    (root / "m.py").write_text("import os\nimport inspect\n\n\ndef f():\n    return inspect, os\n")
+    assert _write(db, tmp_path, 1, 2, "from inspect import *\n")["bytes"]
+    (root / "m.py").write_text("len = None\nimport os\n\n\ndef f():\n    return len(os.sep)\n")
+    assert _write(db, tmp_path, 0, 1, "import sys\n")["bytes"]
+
+
+def test_a_span_refusal_names_no_call_the_doors_refuse(db, tmp_path, monkeypatch):
+    """Frame 135's rule: a call is named only where the door admits it."""
+    from rota.roles import api
+    monkeypatch.setattr(api, "_admits", lambda *a, **k: False)
+    msg = _span_refusal(db, tmp_path, _HEAD, 0, 5, "import sys\n")
+    assert msg.startswith("start=0, end=5 removes 'from __future__ import annotations'")
+    assert "send" not in msg
+    (tmp_path / "wt" / "m.py").write_text(_HEAD)
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 0, 8, _NO_INSPECT)
+    assert "still uses inspect." in str(err.value) and "send" not in str(err.value)
+    text = "import sys\n" + _HEAD.split("\n\n\ndef pass_context")[0] + "\n"
+    with pytest.raises(ValueError) as err:
+        _write(db, tmp_path, 0, 8, text)
+    assert str(err.value).endswith("above it.")
+
+
+def test_a_dry_run_leaves_the_context_and_the_disk_as_they_were(db, tmp_path, monkeypatch):
+    """Ruling 1 of frame 136: `_admits` changes nothing, passes or fails,
+    and a refusal starts exactly one dry run, which starts none."""
+    import copy
+    from rota.roles import api, prompts
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_text(_HEAD)
+    (root / "added.py").write_text("x = 1\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    ctx = sb.ctx
+
+    def state():
+        fields = {k: copy.deepcopy(v) for k, v in vars(ctx).items() if k != "conn"}
+        files = {p.relative_to(root).as_posix(): p.read_bytes()
+                 for p in root.rglob("*") if p.is_file()}
+        return fields, files, ctx.conn.total_changes
+
+    before = state()
+    assert api._admits(ctx, "m.py", "import sys\n", 1, 1)
+    assert api._admits(ctx, "added.py", "", 0, -1)
+    assert not api._admits(ctx, "m.py", "import sys\n", 0, 5)
+    assert state() == before
+    real, dries = api._code_write, []
+
+    def spy(*a, **k):
+        dries.append(k["dry"])
+        return real(*a, **k)
+
+    monkeypatch.setattr(api, "_code_write", spy)
+    with pytest.raises(ValueError, match="send start=1, end=1"):
+        sb.call("code.write", path="m.py", start=0, end=5, text="import sys\n")
+    assert dries == [False, True]
+    after = state()
+    # The sandbox records the real call's refusal, once. The dry run adds none.
+    changed = sorted(k for k in before[0] if before[0][k] != after[0][k])
+    assert changed == ["refusals"], changed
+    assert len(after[0]["refusals"]) == len(before[0]["refusals"] or []) + 1
+    assert after[1:] == before[1:]
