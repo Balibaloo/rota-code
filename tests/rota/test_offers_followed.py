@@ -216,6 +216,82 @@ def test_the_add_after_offer_of_a_cut_span_is_admitted(tmp_path):
     assert _admitted(sb, after[0]) == (True, None)
 
 
+def test_a_text_that_breaks_the_parser_gets_the_cut_refusal(tmp_path):
+    """200000 nested minus signs make ast.parse raise MemoryError. The cut
+    door's offer of the whole def then holds INVENT, and the seat meets the
+    refusal that it met before c888968 (the review of 8726a13, high 1)."""
+    sb = _developer(tmp_path, "def a(\n    x,\n):\n    return x\n")
+    said, offers = _refused(sb, "code.write", path="m.py", start=0, end=1,
+                            text="-" * 200000 + "1")
+    assert said == (
+        "start=0, end=1: end=1 falls inside a (lines 0 to 4 in code.source "
+        "numbering). Line 0 is 'def a('. Line 1 is '    x,'. To replace a whole "
+        "send start=0, end=4. To add after it send start=4, end=4.")
+    whole = [o for o in offers if o.said.startswith("To replace a whole")]
+    assert [o.args["text"] for o in whole] == [api.INVENT]
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "finding of frame 144 pass 3: _code_write at an insert, _future_door. A "
+    "text that ast.parse cannot hold raises MemoryError, and the session "
+    "crashes where a refusal belongs"))
+def test_an_insert_of_a_text_that_breaks_the_parser_is_refused(tmp_path):
+    sb = _developer(tmp_path, "def a(\n    x,\n):\n    return x\n")
+    with pytest.raises(ValueError):
+        sb.call("code.write", path="m.py", start=4, end=4, text="-" * 200000 + "1")
+
+
+def test_a_new_finding_in_an_xfail_test_turns_its_report_red():
+    """An xfail mark holds one known finding. Another finding of the hook in
+    the same test fails it (the review of 8726a13, low 3)."""
+    from types import SimpleNamespace
+
+    from tests.rota.conftest import unhide
+    report = SimpleNamespace(when="call", outcome="skipped", wasxfail="one finding",
+                             longrepr=None)
+    unhide(report, ["door code.write ..."])
+    assert report.outcome == "failed" and not hasattr(report, "wasxfail")
+    assert "door code.write" in report.longrepr
+    known = SimpleNamespace(when="call", outcome="skipped", wasxfail="one finding")
+    unhide(known, [])
+    assert known.outcome == "skipped" and known.wasxfail == "one finding"
+
+
+def test_a_helper_of_two_doors_gives_two_door_identities(tmp_path):
+    """`_end_offer` serves the cut door and the cross-block door. Its line
+    alone read as one door for both (the review of 8726a13, low 4)."""
+    sb = _developer(tmp_path, "def g():\n    try:\n        a = 1\n    finally:\n"
+                              "        d = (\n            4)\n")
+    said = "To stop where the body of try ends send end=3."
+    sites = []
+    for end in (5, 4):          # a cut boundary, then a whole one in another block
+        msg, offers = _refused(sb, "code.write", path="m.py", start=2, end=end,
+                               text="        a = 2\n")
+        assert said in msg
+        sites += [o.site for o in offers if o.said == said]
+    assert len(sites) == 2
+    assert [s.split(" < ")[0].rsplit(" in ", 1)[1] for s in sites] == ["_end_offer"] * 2
+    assert sites[0] != sites[1]
+    assert all(s.endswith(" in _code_write") for s in sites)
+
+
+def test_an_unsent_offer_sends_its_span_with_the_lines_it_holds(tmp_path):
+    """The text of "To stop where ... ends send end=3." is the seat's, so the
+    offer is not sent. Its span goes to the doors with its own lines, and
+    one line more is refused (the review of 8726a13, low 6)."""
+    sb = _developer(tmp_path, "def g():\n    try:\n        a = 1\n    finally:\n"
+                              "        d = (\n            4)\n")
+    kwargs = {"path": "m.py", "start": 2, "end": 5, "text": "        a = 2\n"}
+    with pytest.raises(ValueError) as exc:
+        sb.call("code.write", **kwargs)
+    offer = next(o for o in sb.ctx.offers if o.said.startswith("To stop where"))
+    [rec] = sandbox.follow(sb, "code.write", kwargs, exc.value, [offer])
+    assert rec["skipped"] and rec["span_only"] and rec["second"] is None
+    late = api.Offer(offer.op, {**offer.args, "end": 4}, (), offer.site, offer.said)
+    [rec] = sandbox.follow(sb, "code.write", kwargs, exc.value, [late])
+    assert rec["second"].startswith("ValueError: start=2, end=4 crosses"), rec
+
+
 # -- the fact check (frame 144, change 1(d)) --------------------------------------
 
 def _developer(tmp_path, src):
@@ -241,6 +317,20 @@ def test_a_cut_refusal_quotes_lines_that_are_true(tmp_path):
     facts = sandbox.check_facts(sb, sb.ctx.facts)
     assert {f["kind"] for f in facts} >= {"span", "line_text"}
     assert all(f["ok"] for f in facts), facts
+
+
+def test_the_fact_check_reads_a_span_and_a_line_against_the_tree(tmp_path):
+    """A span that ends one line early and a line that counts from 1 stayed
+    green under a check of bounds only (the review of 8726a13, high 2)."""
+    sb = _developer(tmp_path, "@dec\ndef f():\n    return 1\nx = 1\n")
+    f_ = (("name", "f"), ("node", "FunctionDef"), ("path", "m.py"))
+    dec = (("path", "m.py"), ("quote", "@dec"))
+    after = (("end_of", "f"), ("path", "m.py"))
+    facts = [api.Fact("span", (0, 3), f_), api.Fact("span", (0, 2), f_),
+             api.Fact("line", 0, dec), api.Fact("line", 1, dec),
+             api.Fact("span", (3, 3), after), api.Fact("span", (4, 4), after)]
+    assert [r["ok"] for r in sandbox.check_facts(sb, facts)] == [
+        True, False, True, False, True, False]
 
 
 def test_a_stored_path_refusal_quotes_the_stored_row(db):
@@ -315,6 +405,48 @@ def test_a_snapshot_refuses_an_attribute_it_cannot_restore(db):
     sb.ctx.odd = bytearray(b"x")
     with pytest.raises(TypeError, match="ctx.odd is a bytearray"):
         sandbox.dry_run(sb, "tests.encode", {})
+
+
+class _Plain:
+    """A type that keeps the default `==`, which compares identity."""
+
+    def __init__(self, n):
+        self.n = n
+
+
+def test_a_dry_run_keeps_an_unchanged_object_of_an_unknown_type(db):
+    """An element of a type with the default `==` kept its identity only by
+    chance. Its attributes decide now (the review of 8726a13, low 5)."""
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+    _, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
+                         path="q.py", body=_PRORATE + " # fixed")
+    plain, deeper = _Plain(1), {"inner": _Plain(2)}
+    sb.ctx.held = held = [plain, deeper]
+    assert _admitted(sb, offers[0]) == (True, None)
+    assert sb.ctx.held is held and held[0] is plain and held[1] is deeper
+    assert deeper["inner"].n == 2
+
+
+def test_a_dry_run_restores_a_path_a_row_and_the_working_set(db):
+    """A path and a sqlite3 row are values. The snapshot refused the path, and
+    deepcopy cannot copy a row (the review of 8726a13, low 5). Frame 132's
+    `ctx.working_set` comes back as the same object."""
+    from pathlib import Path
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+    _, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
+                         path="q.py", body=_PRORATE + " # fixed")
+    row = db.execute("SELECT 1 AS a").fetchone()
+    sb.ctx.where, sb.ctx.row, sb.ctx.rows = Path("x.py"), row, [row]
+    rows, ws = sb.ctx.rows, sb.ctx.working_set
+    assert isinstance(ws, frozenset) and ws
+    assert _admitted(sb, offers[0]) == (True, None)
+    assert sb.ctx.where == Path("x.py") and sb.ctx.row is row
+    assert sb.ctx.rows is rows and sb.ctx.rows[0] is row
+    assert sb.ctx.working_set is ws
 
 
 def test_a_dry_run_does_not_send_a_commit():

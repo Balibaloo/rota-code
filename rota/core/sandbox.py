@@ -20,6 +20,7 @@ from __future__ import annotations
 import inspect
 import re
 import sqlite3
+from pathlib import PurePath
 from types import SimpleNamespace
 from typing import Any, Callable, NamedTuple
 
@@ -2470,8 +2471,38 @@ class DrySkipped(Exception):
     """A dry run met an op whose effect it cannot hold back."""
 
 
-# The types whose value a dry run cannot change in place.
-_IMMUTABLE = (str, int, float, bool, type(None), tuple, frozenset, bytes)
+# The types whose value a dry run cannot change in place. A path and a row
+# of sqlite3 are values, and `copy.deepcopy` cannot copy a row (frame 144's
+# review of 8726a13, low 5).
+_IMMUTABLE = (str, int, float, bool, type(None), tuple, frozenset, bytes,
+              PurePath, sqlite3.Row)
+# The leaves that hold no mutable part, so a deep copy keeps them as they are.
+_LEAVES = (str, int, float, bool, type(None), bytes, PurePath, sqlite3.Row)
+
+
+def _deep(v, memo: dict):
+    """A deep copy of `v` that keeps a leaf of `_LEAVES` as it is, at any
+    depth. `memo` keeps the aliases, as in `copy.deepcopy`."""
+    import copy
+
+    if isinstance(v, _LEAVES):
+        return v
+    if id(v) in memo:
+        return memo[id(v)]
+    if type(v) is list:
+        out: Any = []
+        memo[id(v)] = out
+        out.extend(_deep(x, memo) for x in v)
+    elif type(v) is dict:
+        out = {}
+        memo[id(v)] = out
+        out.update((_deep(k, memo), _deep(x, memo)) for k, x in v.items())
+    elif type(v) in (set, frozenset, tuple):
+        out = type(v)(_deep(x, memo) for x in v)
+        memo[id(v)] = out
+    else:
+        return copy.deepcopy(v, memo)
+    return out
 
 
 def _ctx_snapshot(ctx: api.Ctx) -> tuple[dict, dict, dict]:
@@ -2490,11 +2521,34 @@ def _ctx_snapshot(ctx: api.Ctx) -> tuple[dict, dict, dict]:
                             f"cannot restore it")
     shallow = {k: copy.copy(v) for k, v in keep.items()
                if isinstance(v, (list, dict, set))}
-    deep = copy.deepcopy({k: v for k, v in keep.items() if k != "conn"})
+    deep = _deep({k: v for k, v in keep.items() if k != "conn"}, {})
     return keep, shallow, deep
 
 
-def _same(a, b) -> bool:
+def _same(a, b, seen: set | None = None) -> bool:
+    """Whether `a`, the object now, holds what its deep copy `b` held. An
+    object whose type keeps the default `==` compares by identity, so its
+    attributes are compared instead. Then an unchanged object of a type that
+    the dry run does not know keeps its identity (frame 144's review of
+    8726a13, low 5)."""
+    if a is b:
+        return True
+    if type(a) is not type(b):
+        return False
+    seen = set() if seen is None else seen
+    if (id(a), id(b)) in seen:
+        return True
+    seen.add((id(a), id(b)))
+    if isinstance(a, (list, tuple)):
+        return len(a) == len(b) and all(_same(x, y, seen) for x, y in zip(a, b))
+    if isinstance(a, dict):
+        return a.keys() == b.keys() and all(_same(a[k], b[k], seen) for k in a)
+    if type(a).__eq__ is object.__eq__:
+        sa = getattr(a, "__dict__", None)
+        sb_ = getattr(b, "__dict__", None)
+        if sa is None or sb_ is None:
+            return False
+        return _same(sa, sb_, seen)
     try:
         return bool(a == b)
     except Exception:                                      # noqa: BLE001
@@ -2538,14 +2592,14 @@ def _fill(args: dict, n: int) -> dict:
 
 
 def _raise_site(exc: BaseException) -> str:
-    """The file, line and function of the statement that raised `exc`."""
-    tb = exc.__traceback__
-    if tb is None:
-        return ""
-    while tb.tb_next is not None:
+    """The door that raised `exc`: the statement and its callers up to the
+    op, by `api.door_of`. A helper that raises for several doors gives one
+    identity per caller (frame 144's review of 8726a13, low 4)."""
+    tb, frames = exc.__traceback__, []
+    while tb is not None:
+        frames.append((tb.tb_frame.f_code, tb.tb_lineno))
         tb = tb.tb_next
-    code = tb.tb_frame.f_code
-    return f"{code.co_filename}:{tb.tb_lineno} in {code.co_name}"
+    return api.door_of(reversed(frames))
 
 
 class DryResult(NamedTuple):
@@ -2621,6 +2675,23 @@ def _params(sb: Sandbox, op: str) -> set | None:
     return set(inspect.signature(target).parameters) - {"ctx"}
 
 
+def _span_as_it_is(sb: Sandbox, o) -> dict | None:
+    """The arguments of an unsent `code.write` offer with its text replaced
+    by the lines that its span holds now. None when the offer holds no span
+    or the file is absent."""
+    a = o.args
+    if o.op != "code.write" or a.get("text") is not api.INVENT:
+        return None
+    start, end = a.get("start"), a.get("end")
+    if not (type(start) is int and type(end) is int and 0 <= start <= end):
+        return None
+    lines = _worktree_lines(sb.ctx, a.get("path", ""))
+    if lines is None or end > len(lines):
+        return None
+    held = lines[start:end]
+    return {**a, "text": "\n".join(held) + "\n" if held else ""}
+
+
 def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
            offers: list) -> list[dict]:
     """Send each offer of one refusal through `dry_run`. Returns one record
@@ -2657,8 +2728,16 @@ def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
             res = dry_run(sb, o.op, o.args, then)
         except DrySkipped as why:
             rec["skipped"] = str(why)
-            out.append(rec)
-            continue
+            same = _span_as_it_is(sb, o)
+            if same is None:
+                out.append(rec)
+                continue
+            # The text is the seat's to write, and the span is the door's.
+            # The span goes to the doors with the lines it holds now, so a
+            # door that judges the span alone reads it (frame 144's review
+            # of 8726a13, low 6).
+            rec["span_only"] = True
+            res = dry_run(sb, o.op, same)
         if not res.admitted:
             if (res.step > 0 and o.then[res.step - 1] == api.AGAIN
                     and res.site != first):
@@ -2682,6 +2761,69 @@ def _worktree_lines(ctx: api.Ctx, path: str) -> list[str] | None:
     return target.read_text(encoding="utf-8", errors="replace").splitlines()
 
 
+def _line_holds(line: str, where: dict) -> tuple[bool, str]:
+    """Whether `line` is the line that a `line` fact names. The door records
+    the line's text from the syntax tree or the parser, never from the number,
+    so a number that counts from 1 reads false (frame 144's review of
+    8726a13, high 2)."""
+    quote = (where.get("quote") or "").strip()
+    if quote:
+        quote = quote.splitlines()[0]
+        if quote not in line:
+            return False, f"the line is {line.strip()[:60]!r}, not {quote!r}"
+    if where.get("docstring") and not re.match(r"\s*[rRbBuUfF]{0,2}['\"]", line):
+        return False, f"the line is {line.strip()[:60]!r}, which opens no string"
+    return True, ""
+
+
+def _stmt_span(n, lines: list[str]) -> tuple[int, int]:
+    """A statement's span in code.source numbering, as `_code_write` counts
+    it: a decorated def starts at its first decorator."""
+    import ast
+    if isinstance(n, ast.match_case):
+        k = n.pattern.lineno - 1
+        while k > 0 and not re.match(r"\s*case(?![\w.])", lines[k]):
+            k -= 1
+        return k, _stmt_span(n.body[-1], lines)[1]
+    decs = getattr(n, "decorator_list", None) or []
+    return min([n.lineno] + [d.lineno for d in decs]) - 1, n.end_lineno
+
+
+def _span_holds(lines: list[str], lo: int, hi: int, where: dict) -> tuple[bool, str]:
+    """Whether `(lo, hi)` is the syntax tree's span of the statement that the
+    refusal names: its type `node`, its `name`, or the point after the
+    top-level definition `end_of`. A fact that names none of them is held to
+    its bounds only (frame 144's review of 8726a13, high 2)."""
+    import ast
+    if not any(k in where for k in ("node", "name", "end_of")):
+        return True, ""
+    try:
+        tree = ast.parse("\n".join(lines))
+    except Exception:                                      # noqa: BLE001
+        return False, "the file does not parse"
+    if "end_of" in where:
+        name = where["end_of"]
+        if name is None:
+            ok = lo == hi == len(lines)
+            return ok, "" if ok else f"the file ends at {len(lines)}"
+        ends = [n.end_lineno for n in tree.body if getattr(n, "name", None) == name]
+        ok = lo == hi and hi in ends
+        return ok, "" if ok else f"{name} ends at {ends}"
+    seen = []
+    for n in ast.walk(tree):
+        if not isinstance(n, (ast.stmt, ast.match_case)):
+            continue
+        if "node" in where and type(n).__name__ != where["node"]:
+            continue
+        if where.get("name") is not None and getattr(n, "name", None) != where["name"]:
+            continue
+        span = _stmt_span(n, lines)
+        if span == (lo, hi):
+            return True, ""
+        seen.append(span)
+    return False, f"the statement named has the spans {seen[:4]}"
+
+
 def check_facts(sb: Sandbox, facts: list) -> list[dict]:
     """Check each fact that a refusal quotes against the state (frame 144,
     change 1(d)). Returns one record per fact, with `ok` and the reason.
@@ -2693,9 +2835,11 @@ def check_facts(sb: Sandbox, facts: list) -> list[dict]:
     - `file`: the path is a file of the worktree, or with `absent`, is not.
     - `lines`: the file has this many lines now.
     - `line`: the line number is inside the text the sentence speaks of, the
-      file now or the `text` given.
+      file now or the `text` given, and that line holds the `quote` that the
+      door took from the tree or the parser (`_line_holds`).
     - `line_text`: line `n` of the file now starts with the quoted words.
-    - `span`: `(lo, hi)` lies inside that text.
+    - `span`: `(lo, hi)` is the tree's span of the statement that the
+      sentence names (`_span_holds`).
     - `arg`: the name is a parameter of `op`.
     """
     ctx = sb.ctx
@@ -2731,6 +2875,8 @@ def check_facts(sb: Sandbox, facts: list) -> list[dict]:
             elif f.kind == "line":
                 ok = 0 <= f.value < len(lines)
                 why = "" if ok else f"the text has {len(lines)} lines"
+                if ok:
+                    ok, why = _line_holds(lines[f.value], w)
             elif f.kind == "line_text":
                 n = w["n"]
                 ok = 0 <= n < len(lines) and lines[n].rstrip().startswith(f.value)
@@ -2739,6 +2885,8 @@ def check_facts(sb: Sandbox, facts: list) -> list[dict]:
                 lo, hi = f.value
                 ok = 0 <= lo <= hi <= len(lines)
                 why = "" if ok else f"the text has {len(lines)} lines"
+                if ok:
+                    ok, why = _span_holds(lines, lo, hi, w)
         elif f.kind == "arg":
             names = _params(sb, w["op"])
             ok = names is None or f.value in names

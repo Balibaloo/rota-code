@@ -207,6 +207,39 @@ class Offer:
     said: str = ""
 
 
+def door_of(frames) -> str:
+    """The identity of a door: each `(code, line)` of `frames`, innermost
+    first, joined by " < ", from the statement up to the op that holds it.
+
+    One frame is not enough. `_end_offer` serves the cut door and the
+    cross-block door, and its one line read as one door for both (frame
+    144's review of 8726a13, low 4). The walk stops at an op's own function
+    or at `_code_write`, and before a frame of the binder or of a test. So a
+    dry run and a seat's call give the same identity for the same door.
+    """
+    import os as _os
+
+    from ..paths import PACKAGE
+    norm = _os.path.normcase
+    own = norm(str(PACKAGE / "roles" / "api.py"))
+    box = norm(str(PACKAGE / "core" / "sandbox.py"))
+    ops = {getattr(fn, "__code__", None) for fn in REGISTRY.values()}
+    ops.add(_code_write.__code__)
+    out = []
+    for code, line in frames:
+        name = norm(_os.path.abspath(code.co_filename))
+        if name == own and code.co_name == "_send":
+            continue                    # the door is the helper's caller
+        if name not in (own, box):
+            break
+        if name == box and code.co_name in ("call", "dry_run", "follow"):
+            break
+        out.append(f"{code.co_filename}:{line} in {code.co_name}")
+        if code in ops:
+            break
+    return " < ".join(out)
+
+
 def _offer(ctx, said: str, op: str, args: dict, then: tuple = ()) -> str:
     """Record the call that `said` names, and return `said` unchanged.
 
@@ -217,12 +250,11 @@ def _offer(ctx, said: str, op: str, args: dict, then: tuple = ()) -> str:
     offers = getattr(ctx, "offers", None)
     if offers is not None:
         import sys as _sys
-        f = _sys._getframe(1)
-        if f.f_code.co_name == "_send":     # the door is the helper's caller
+        frames, f = [], _sys._getframe(1)
+        while f is not None:
+            frames.append((f.f_code, f.f_lineno))
             f = f.f_back
-        offers.append(Offer(op, dict(args), tuple(then),
-                            f"{f.f_code.co_filename}:{f.f_lineno} in "
-                            f"{f.f_code.co_name}", said))
+        offers.append(Offer(op, dict(args), tuple(then), door_of(frames), said))
     return said
 
 
@@ -9254,9 +9286,13 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # review of c888968, point 6).
         import ast as _a
         name = getattr(node, "name", None)
+        # The seat's text can make ast.parse raise more than SyntaxError:
+        # 200000 nested minus signs give MemoryError, and a null byte gives
+        # ValueError. The offer then holds INVENT, and the refusal keeps the
+        # bytes it had before c888968 (the review of 8726a13, high 1).
         try:
             body = _a.parse(text).body
-        except SyntaxError:
+        except Exception:
             return INVENT
         if (name and len(body) == 1 and getattr(body[0], "name", None) == name
                 and isinstance(body[0], (_a.FunctionDef, _a.AsyncFunctionDef,
@@ -9584,10 +9620,15 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 parts = [f"start={start}, end={end}: {label} falls inside {name} "
                          f"(lines {lo} to {hi} in code.source numbering)."]
                 # The numbers each sentence quotes, for the fact check of
-                # frame 144. They speak of the file as it is now.
-                _fact(ctx, "span", (lo, hi), path=wpath)
+                # frame 144. They speak of the file as it is now. A span
+                # names its statement, so the check reads the syntax tree's
+                # span of that statement (the review of 8726a13, high 2).
+                _fact(ctx, "span", (lo, hi), path=wpath, node=type(named[0]).__name__,
+                      name=getattr(named[0], "name", None))
                 if named is not inner:
-                    _fact(ctx, "span", (inner[1], inner[2]), path=wpath)
+                    _fact(ctx, "span", (inner[1], inner[2]), path=wpath,
+                          node=type(inner[0]).__name__,
+                          name=getattr(inner[0], "name", None))
                     parent = path[-2][0]
                     first = getattr(parent, "body", [None])[0]
                     doc = (inner[0] is first and isinstance(inner[0], _ast.Expr)
@@ -9601,14 +9642,20 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 for n, nlo, _hi in path:
                     if getattr(n, "decorator_list", None) and nlo < cut_b < n.lineno:
                         where = "below" if cut_b == n.lineno - 1 else "inside"
+                        # The line's text comes from the tree, not from the
+                        # number, so a number off by one reads false.
+                        d0 = min(n.decorator_list, key=lambda d: d.lineno)
+                        head = "@" + _ast.unparse(d0).split("(")[0]
                         parts.append(f"{label} is {where} the decorators of {_what(n)}, "
-                                     f"which start at line {_fact(ctx, 'line', nlo, path=wpath)}.")
+                                     f"which start at line "
+                                     f"{_fact(ctx, 'line', nlo, path=wpath, quote=head)}.")
                 o_cut = cuts[stop if at_start else start]
                 if other and not one_def:
                     o_label = f"end={end}" if at_start else f"start={start}"
                     verb = "also falls inside" if isinstance(o_cut, list) else "is inside"
                     on, olo, ohi = other[0]
-                    _fact(ctx, "span", (olo, ohi), path=wpath)
+                    _fact(ctx, "span", (olo, ohi), path=wpath, node=type(on).__name__,
+                          name=getattr(on, "name", None))
                     parts.append(f"{o_label} {verb} {_kind(on)} (lines {olo} to {ohi}).")
                 for i in sorted({start, stop - 1, stop}):
                     if 0 <= i < len(lines):
@@ -9723,7 +9770,10 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                             and id(ns[0]) in _docs):
                         after = _end(ns[0])
                         owner = "the module" if p is None else p.name
-                        _fact(ctx, "line", start, path=wpath)
+                        # The docstring's own first words, from the tree.
+                        first = str(ns[0].value.value).split(chr(10), 1)[0].strip()[:30]
+                        _fact(ctx, "line", start, path=wpath, docstring=True,
+                              quote=first or None)
                         raise ValueError(_send(
                             f"start={start}, end={end}: line {start} is the docstring "
                             f"of {owner}. Your text goes before it. Then the docstring "
@@ -9921,7 +9971,9 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                                        "start": start, "end": end})
                 raise ValueError(msg) from None
             if stage == "compile":
-                _fact(ctx, "line", (exc.lineno or 1) - 1, text=text)
+                # The parser's own copy of the line, so a number off by one
+                # reads false (the review of 8726a13, high 2).
+                _fact(ctx, "line", (exc.lineno or 1) - 1, text=text, quote=exc.text)
                 raise ValueError(
                     f"{path} is not valid Python ({exc.msg}, line "
                     f"{(exc.lineno or 1) - 1} in code.source numbering); the harness "
@@ -9961,14 +10013,15 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                                     holder = (lo, hi, type(n).__name__.lower())
                         if holder:
                             lo, hi, kind = holder
-                            _fact(ctx, "span", (lo, hi), path=wpath)
+                            _fact(ctx, "span", (lo, hi), path=wpath,
+                                  node=kind.capitalize())
                             frag_note += _send(
                                 f" `{tail_kw}` is the tail of the {kind} statement at lines "
                                 f"{lo} to {hi}; send that whole statement, with your "
                                 f"change in it: start={lo}, end={hi}.",
                                 start=lo, end=hi, text=INVENT)
             frag_note += _escape_note(fragment, exc if not span else None)
-            _fact(ctx, "line", (exc.lineno or 1) - 1, text=text)
+            _fact(ctx, "line", (exc.lineno or 1) - 1, text=text, quote=exc.text)
             raise ValueError(
                 f"{path} is not valid Python ({exc.msg}, line {(exc.lineno or 1) - 1} "
                 f"in code.source numbering); the harness imports it and would die at "
@@ -10424,7 +10477,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     for n_, lo_, hi_ in spans:
                         _send(f"{n_} with start={lo_}, end={hi_}", start=lo_, end=hi_,
                               text=INVENT)
-                        _fact(ctx, "span", (lo_, hi_), path=wpath)
+                        _fact(ctx, "span", (lo_, hi_), path=wpath, name=n_)
                     raise ValueError(
                         f"this rewrite of {path} drops {', '.join(sorted(set(gone) | set(used)))}, "
                         f"and {why}. To change {names} alone, write only "
@@ -10464,7 +10517,10 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 after = spans.get(changed[0], (len(old_lines), len(old_lines)))[1]
                 _send(f"with start={after}, end={after}", start=after, end=after,
                       text=INVENT)
-                _fact(ctx, "span", (after, after), path=wpath)
+                # "inserts after f": the point is where f ends, or the end of
+                # the file when f is not a top-level definition.
+                _fact(ctx, "span", (after, after), path=wpath,
+                      end_of=changed[0] if changed[0] in spans else None)
                 raise ValueError(
                     f"this write changes {', '.join(changed)}, and no criterion of "
                     f"this batch names {'it' if len(changed) == 1 else 'them'}: the "

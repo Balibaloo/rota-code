@@ -130,7 +130,12 @@ _TWICE, _INVALID = "m.py defines f twice", "m.py is not valid Python"
 # Finding 4, the invented-literal door: it names six of eight literals, and
 # the encode sent again meets it for the other two (frame 148's sentence).
 _CHOOSES = "the test chooses"
+# Finding 6, code.write at an insert: a text that ast.parse cannot hold, such
+# as 200000 nested minus signs, raises MemoryError from `_future_door`, and
+# the session crashes. The cut door's "To add after it" offer meets it.
+_CRASH = "MemoryError"
 KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
+    (_OF + "test_a_text_that_breaks_the_parser_gets_the_cut_refusal", _CRASH),
     (_SB + "test_a_project_id_at_its_own_path_is_refused_outside_a_challenge", _CLASH),
     (_SB + "test_a_challenge_of_another_test_does_not_open_a_project_test", _CLASH),
     (_SB + "test_a_project_id_on_another_tests_file_gets_the_id_fact_only", _CLASH),
@@ -239,6 +244,33 @@ def pytest_runtest_call(item):
         bad = _problems(item.nodeid, found)
         if bad and failed:
             item.add_report_section("call", "frame 144 follow check", "\n".join(bad))
+        # A strict xfail catches every failure of its test. So a new finding
+        # in such a test turns its report red below (the review of 8726a13,
+        # low 3).
+        item.stash[_FINDINGS] = bad
     if bad:
         raise AssertionError("the follow check found:\n" + "\n".join(bad))
     return result
+
+
+_FINDINGS = pytest.StashKey[list]()
+
+
+def unhide(report, bad: list[str]) -> None:
+    """Turn an xfailed report red when the hook found something that no
+    list above names. An xfail mark holds one known finding, and a new
+    finding in the same test is not that finding."""
+    if bad and report.when == "call" and hasattr(report, "wasxfail"):
+        del report.wasxfail
+        report.outcome = "failed"
+        report.longrepr = ("the follow check found, in a test marked xfail:\n"
+                           + "\n".join(bad))
+
+
+# tryfirst makes this wrapper the outer one, so it reads the report after
+# pytest's own xfail wrapper has marked it.
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    report = yield
+    unhide(report, item.stash.get(_FINDINGS, []))
+    return report
