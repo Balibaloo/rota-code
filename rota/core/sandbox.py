@@ -956,18 +956,28 @@ def _reply_to_read(ctx: api.Ctx) -> bool:
 UNANSWERED_CHALLENGES = 2
 
 
+def _refs_key(refs, as_set: bool = False) -> list:
+    """The refs as the door compares them: a sorted list, or a sorted set."""
+    return sorted(set(refs)) if as_set else sorted(refs)
+
+
 def _same_refs_rows(conn: sqlite3.Connection, role: str, recipient: str,
-                    verb: str, refs) -> list:
+                    verb: str, refs, as_set: bool = False) -> list:
     """
     The messages that `role` sent to `recipient` with `verb` on these refs,
     newest first. Each row carries the id and the refs of its newest answer
     row, from any role.
 
     The refs match as a sorted list. Frame 111's design review (2026-10-02):
-    the same refs in another order escaped the door.
+    the same refs in another order escaped the door. With `as_set`, they
+    match as a set, so a repeated ref is the same refs (the review of
+    b2ed55b, 2026-10-05).
     """
     import json as _json
-    want = sorted(refs or [])
+    try:
+        want = _refs_key(refs or [], as_set)
+    except TypeError:
+        want = _refs_key(refs or [])
     rows = []
     for row in conn.execute(
             "SELECT m.id, m.body_refs, m.status, a.id AS answer_id, "
@@ -978,7 +988,7 @@ def _same_refs_rows(conn: sqlite3.Connection, role: str, recipient: str,
             "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
             "ORDER BY m.seq DESC", (role, recipient, verb)):
         try:
-            if sorted(_json.loads(row["body_refs"] or "[]")) != want:
+            if _refs_key(_json.loads(row["body_refs"] or "[]"), as_set) != want:
                 continue
         except (TypeError, ValueError):
             continue
@@ -1037,16 +1047,26 @@ def _moved_since_woken(conn: sqlite3.Connection, msg_id: str, refs) -> bool:
     4968ea7 (2026-10-05) reopened the door with a `batches` receipt whose
     `row_id` was the test's id.
     """
+    return _receipt_since_woken(conn, msg_id, refs, ("tests", "criteria"))
+
+
+def _receipt_since_woken(conn: sqlite3.Connection, msg_id: str, refs,
+                         tables: tuple) -> bool:
+    """
+    True when a row of `refs` has a receipt of one of `tables` from a session
+    at or after the first session that `msg_id` woke.
+    """
     ids = [r for r in refs or [] if isinstance(r, str)]
-    if not ids:
+    if not ids or not tables:
         return False
     marks = ",".join("?" * len(ids))
+    names = ",".join("?" * len(tables))
     return conn.execute(
         f"SELECT 1 FROM receipts r JOIN sessions s ON s.id = r.session_id "
-        f"WHERE r.table_name IN ('tests', 'criteria') "
+        f"WHERE r.table_name IN ({names}) "
         f"AND r.row_id IN ({marks}) AND s.seq >= ("
         f"  SELECT MIN(w.seq) FROM sessions w WHERE w.trigger_msg = ?) "
-        f"LIMIT 1", (*ids, msg_id)).fetchone() is not None
+        f"LIMIT 1", (*tables, *ids, msg_id)).fetchone() is not None
 
 
 def _code_step(ctx: api.Ctx) -> str:
@@ -1065,12 +1085,13 @@ def _code_step(ctx: api.Ctx) -> str:
     return "Make one real change to the code the test calls."
 
 
-#: How many challenges of the Developer may land on one set of refs, counted
-#: across moves of the test. A moved test deletes its own runs and lifts the
-#: batch's tick quarantine (`db.py:579-610`), so on a batch of one test the
-#: attempt cap starts again at each move (the review of 4968ea7, 2026-10-05).
-#: Nights 113 to 124 hold one landed challenge per set, and the floor is 3
-#: (ruled: the judging session, 2026-10-05, frame 132's pass 2).
+#: How many challenges of the Developer may land on one test, counted across
+#: moves of the test and across the other refs. A moved test deletes its own
+#: runs and lifts the batch's tick quarantine (`db.py:579-610`), so on a batch
+#: of one test the attempt cap starts again at each move (the review of
+#: 4968ea7, 2026-10-05). Nights 113 to 124 hold at most two landed challenges
+#: per test, and no green test had more than one. The floor is 3 (ruled: the
+#: judging session, 2026-10-05, frame 132's pass 2).
 LANDED_CHALLENGES = 3
 
 
@@ -1085,22 +1106,76 @@ def _test_is_red(conn: sqlite3.Connection, refs) -> bool:
     return False
 
 
+def _challenges_naming(conn: sqlite3.Connection, test_id: str) -> list:
+    """
+    The Developer's challenges to the Tester whose refs hold `test_id`,
+    whatever their other refs, newest first. Each item is the row's id and
+    its refs.
+    """
+    import json as _json
+    out = []
+    for row in conn.execute(
+            "SELECT id, body_refs FROM messages WHERE from_role = 'developer' "
+            "AND to_role = 'tester' AND verb = 'challenge' ORDER BY seq DESC"):
+        try:
+            have = _json.loads(row["body_refs"] or "[]")
+            if isinstance(have, list) and test_id in have:
+                out.append((row["id"], have))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     """
-    The cap on the Developer's landed challenges on one set of refs. Return
-    the refusal, or None below the cap. It runs only where the door would
-    admit, so the other refusals keep their sentences.
+    The cap on the Developer's landed challenges on one test. Return the
+    refusal, or None below the cap. It runs only where the door would admit,
+    so the other refusals keep their sentences.
+
+    The cap counts per test id, whatever the other refs. The review of
+    b2ed55b (2026-10-05) bought 24 landed challenges on one test with a
+    repeated ref or an added ref, because the count read one refs list. A
+    challenge that names several tests is refused when any test is at the
+    cap. Refs that name no test keep the count of the same refs.
     """
-    if len(rows) < LANDED_CHALLENGES:
+    try:
+        own = _refs_key(refs or [], as_set=True)
+    except TypeError:
+        own = None
+    tests = [r for r in dict.fromkeys(refs or []) if isinstance(r, str)
+             and ctx.conn.execute("SELECT 1 FROM tests WHERE id = ?",
+                                  (r,)).fetchone()]
+    test, priors = None, [(r["id"], None) for r in rows]
+    for t in tests:
+        named = _challenges_naming(ctx.conn, t)
+        if len(named) >= LANDED_CHALLENGES:
+            test, priors = t, named
+            break
+    if test is None and (tests or len(priors) < LANDED_CHALLENGES):
         return None
-    ids = ", ".join(r["id"] for r in reversed(rows))
-    fact = (f"you sent challenge to tester on exactly these refs "
-            f"{len(rows)} times already ({ids})")
-    # The sentence says only what the rows hold. A chain that the cap stops
-    # moved the test at least once, so the short form is a guard.
-    changed = any(_moved_since_woken(ctx.conn, r["id"], refs) for r in rows)
-    if changed and _test_is_red(ctx.conn, refs):
+    ids = ", ".join(mid for mid, _ in reversed(priors))
+    exact = all(have is None or _refs_key(have, as_set=True) == own
+                for _, have in priors)
+    where = "on exactly these refs" if exact else f"with {test} in the refs"
+    fact = (f"you sent challenge to tester {where} "
+            f"{len(priors)} times already ({ids})")
+    # The sentence says only what the rows hold (the review of b2ed55b): the
+    # test changed only on a `tests` receipt, and a criteria receipt alone is
+    # a change of the criterion. A chain that the cap stops moved a row at
+    # least once, so the short form is a guard.
+    red_refs = [test] if test else refs
+    test_changed = any(
+        _receipt_since_woken(ctx.conn, mid, red_refs, ("tests",))
+        for mid, _ in priors)
+    criterion_changed = any(
+        _receipt_since_woken(ctx.conn, mid, have if have is not None else refs,
+                             ("criteria",))
+        for mid, have in priors)
+    red = _test_is_red(ctx.conn, red_refs)
+    if test_changed and red:
         fact += ", and the test changed and is still red."
+    elif criterion_changed and red:
+        fact += ", and the criterion changed and the test is still red."
     else:
         fact += "."
     if _escalation_admitted(ctx, refs):
@@ -1119,6 +1194,40 @@ def _judged_by(conn: sqlite3.Connection, msg_id: str, role: str) -> str | None:
     return row["id"] if row else None
 
 
+def _encodes_refused(conn: sqlite3.Connection, msg_id: str) -> bool:
+    """
+    True when the Tester sessions that `msg_id` woke called `tests.encode`
+    and stored no row of `tests`.
+
+    Night 124 (2026-10-05): the constant-assertion door refused all 4 of
+    s141's encodes, and s141 then answered m64 with m65. The door read m65
+    as a judgement while the test stood at version 1. No text is parsed,
+    and the encode is not matched to a ref (ruled: the holding session,
+    2026-10-05, frame 132's pass 3, from the review's count).
+    """
+    row = conn.execute(
+        "SELECT (SELECT COUNT(*) FROM tool_calls t "
+        "        JOIN sessions s ON s.id = t.session_id "
+        "        WHERE s.trigger_msg = ? AND s.role = 'tester' "
+        "        AND t.fn = 'tests.encode'), "
+        "       (SELECT COUNT(*) FROM receipts r "
+        "        JOIN sessions s ON s.id = r.session_id "
+        "        WHERE s.trigger_msg = ? AND s.role = 'tester' "
+        "        AND r.table_name = 'tests')", (msg_id, msg_id)).fetchone()
+    return row[0] > 0 and row[1] == 0
+
+
+def _tester_judged(conn: sqlite3.Connection, msg_id: str) -> str | None:
+    """
+    The Tester's answer to the challenge `msg_id`, or None when the Tester
+    did not judge it. An answer after refused encodes is no judgement.
+    """
+    answer = _judged_by(conn, msg_id, "tester")
+    if answer and _encodes_refused(conn, msg_id):
+        return None
+    return answer
+
+
 def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     """
     The same-refs door for the Developer's challenge to the Tester. Return
@@ -1128,10 +1237,13 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     3.1). An open prior waits. A prior after which a row of the refs moved
     admits. A prior that the Tester answered refuses. A prior with neither
     admits, until two such priors stand on one version. Each admit stops at
-    `LANDED_CHALLENGES` landed challenges on the refs, counted across moves.
+    `LANDED_CHALLENGES` landed challenges on a test of the refs, counted
+    across moves and across the other refs.
     """
     if not rows:
-        return None
+        # The review of b2ed55b (2026-10-05): a new refs list beside the same
+        # test had no prior, so the cap never ran on it.
+        return _challenge_cap_refusal(ctx, rows, refs)
     prior = rows[0]
     if prior["status"] == "open":
         return _waits_refusal("challenge", "tester", prior["id"])
@@ -1143,7 +1255,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     # S0 walk eight: nine rounds of challenge, answer and harness on the same
     # refs. The Tester judged this version, so the same challenge is the same
     # argument. Each sentence states one fact and one step (frame 135).
-    answer = _judged_by(ctx.conn, prior["id"], "tester")
+    answer = _tester_judged(ctx.conn, prior["id"])
     if answer:
         fact = (f"you sent challenge to tester on exactly these refs already "
                 f"({prior['id']}) and they answered ({answer}). Sending it "
@@ -1164,7 +1276,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
         if row["status"] == "open":
             continue
         if (_moved_since_woken(ctx.conn, row["id"], refs)
-                or _judged_by(ctx.conn, row["id"], "tester")):
+                or _tester_judged(ctx.conn, row["id"])):
             break
         unanswered.append(row)
         if len(unanswered) >= UNANSWERED_CHALLENGES:
@@ -1172,8 +1284,15 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     if len(unanswered) < UNANSWERED_CHALLENGES:
         return _challenge_cap_refusal(ctx, rows, refs)
     fact = (f"you sent challenge to tester on exactly these refs already "
-            f"({unanswered[1]['id']}, then {unanswered[0]['id']}), and the "
-            f"Tester answered neither and did not change the test.")
+            f"({unanswered[1]['id']}, then {unanswered[0]['id']}), and the ")
+    # Night 124 (2026-10-05): a prior can count as unanswered beside the
+    # Tester's answer row, when every encode of its session was refused.
+    # "Answered neither" is then false, so the sentence states the encodes.
+    if any(_judged_by(ctx.conn, r["id"], "tester") for r in unanswered):
+        fact += ("test did not change. The Tester sent changes to the test, "
+                 "and none landed.")
+    else:
+        fact += "Tester answered neither and did not change the test."
     if _escalation_admitted(ctx, refs):
         return api._offer(
             ctx, fact + " Send msg.escalate_architect on the same refs.",
@@ -1193,12 +1312,15 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
     `stage` raises the refusal. `_escalation_admitted` asks the same function
     before a sentence names an escalation, so the two cannot disagree.
     """
-    rows = _same_refs_rows(ctx.conn, ctx.role, recipient, verb, refs)
     # Only the Developer's challenge to the Tester reads who answered and
-    # whether the test moved. Every other sender and verb keeps its branch
-    # (ruled: the judging session, 2026-10-05, frame 132's question 4).
+    # whether the test moved, and only it compares the refs as a set. Every
+    # other sender and verb keeps its branch (ruled: the judging session,
+    # 2026-10-05, frame 132's question 4).
     if ctx.role == "developer" and recipient == "tester" and verb == "challenge":
+        rows = _same_refs_rows(ctx.conn, ctx.role, recipient, verb, refs,
+                               as_set=True)
         return _challenge_repeat_refusal(ctx, rows, refs)
+    rows = _same_refs_rows(ctx.conn, ctx.role, recipient, verb, refs)
     # A prior is answered when an answer row names it. For the
     # Developer, a prior that the dispatch closed with no answer row
     # counts too, as an answer with no row. Night 109 (2026-10-03):
