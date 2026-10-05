@@ -576,6 +576,11 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
         from ..roles.api import area_content_hash
 
         ctx.area_hash_at_wake = area_content_hash(conn, area)
+    # A door that names a next call reads the session's working set here.
+    # The review of 4968ea7 (2026-10-05): a refusal told a Developer in mode
+    # `exhausted` to change the code, and `code.write` is not in that mode.
+    ctx.working_set = frozenset(f"{a}.{fn}" for a, fns in grouped.items()
+                                for fn in fns)
     return Sandbox(role, ctx, artefacts)
 
 
@@ -1026,8 +1031,10 @@ def _moved_since_woken(conn: sqlite3.Connection, msg_id: str, refs) -> bool:
 
     No row stores the version that a challenge saw. The receipt is the
     smallest record that exists, so the door needs no new column (frame
-    132's design, section 3.1). Any table counts, because a repaired
-    criterion is a new version of the conflict too.
+    132's design, section 3.1). A repaired criterion is a new version of the
+    conflict too. Only the two sides of the conflict count: the review of
+    4968ea7 (2026-10-05) reopened the door with a `batches` receipt whose
+    `row_id` was the test's id.
     """
     ids = [r for r in refs or [] if isinstance(r, str)]
     if not ids:
@@ -1035,9 +1042,71 @@ def _moved_since_woken(conn: sqlite3.Connection, msg_id: str, refs) -> bool:
     marks = ",".join("?" * len(ids))
     return conn.execute(
         f"SELECT 1 FROM receipts r JOIN sessions s ON s.id = r.session_id "
-        f"WHERE r.row_id IN ({marks}) AND s.seq >= ("
+        f"WHERE r.table_name IN ('tests', 'criteria') "
+        f"AND r.row_id IN ({marks}) AND s.seq >= ("
         f"  SELECT MIN(w.seq) FROM sessions w WHERE w.trigger_msg = ?) "
         f"LIMIT 1", (*ids, msg_id)).fetchone() is not None
+
+
+def _code_step(ctx: api.Ctx) -> str:
+    """
+    The step toward the code, or the end of the session when the session
+    cannot write code.
+
+    The review of 4968ea7 (2026-10-05): 7 of the 141 refused challenges of
+    nights 113 to 123 came from mode `exhausted`, where `code.write` answers
+    `NotInWorkingSet`. A context that `build` did not make holds no working
+    set, and it keeps the step toward the code.
+    """
+    working = getattr(ctx, "working_set", None)
+    if working is not None and "code.write" not in working:
+        return "End the session with no call."
+    return "Make one real change to the code the test calls."
+
+
+#: How many challenges of the Developer may land on one set of refs, counted
+#: across moves of the test. A moved test deletes its own runs and lifts the
+#: batch's tick quarantine (`db.py:579-610`), so on a batch of one test the
+#: attempt cap starts again at each move (the review of 4968ea7, 2026-10-05).
+#: Nights 113 to 124 hold one landed challenge per set, and the floor is 3
+#: (ruled: the judging session, 2026-10-05, frame 132's pass 2).
+LANDED_CHALLENGES = 3
+
+
+def _test_is_red(conn: sqlite3.Connection, refs) -> bool:
+    """True when a test of `refs` has its newest run at fail or error."""
+    for ref in refs or []:
+        row = conn.execute(
+            "SELECT tr.result FROM test_runs tr JOIN tests t ON t.id = tr.test_id "
+            "WHERE tr.test_id = ? ORDER BY tr.rowid DESC LIMIT 1", (ref,)).fetchone()
+        if row is not None and row["result"] in ("fail", "error"):
+            return True
+    return False
+
+
+def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
+    """
+    The cap on the Developer's landed challenges on one set of refs. Return
+    the refusal, or None below the cap. It runs only where the door would
+    admit, so the other refusals keep their sentences.
+    """
+    if len(rows) < LANDED_CHALLENGES:
+        return None
+    ids = ", ".join(r["id"] for r in reversed(rows))
+    fact = (f"you sent challenge to tester on exactly these refs "
+            f"{len(rows)} times already ({ids})")
+    # The sentence says only what the rows hold. A chain that the cap stops
+    # moved the test at least once, so the short form is a guard.
+    changed = any(_moved_since_woken(ctx.conn, r["id"], refs) for r in rows)
+    if changed and _test_is_red(ctx.conn, refs):
+        fact += ", and the test changed and is still red."
+    else:
+        fact += "."
+    if _escalation_admitted(ctx, refs):
+        return api._offer(
+            ctx, fact + " Send msg.escalate_architect on the same refs.",
+            "msg.escalate_architect", {"refs": list(refs or [])})
+    return fact + " " + _code_step(ctx)
 
 
 def _judged_by(conn: sqlite3.Connection, msg_id: str, role: str) -> str | None:
@@ -1057,7 +1126,8 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     The newest prior on the same refs decides (frame 132's design, section
     3.1). An open prior waits. A prior after which a row of the refs moved
     admits. A prior that the Tester answered refuses. A prior with neither
-    admits, until two such priors stand on one version.
+    admits, until two such priors stand on one version. Each admit stops at
+    `LANDED_CHALLENGES` landed challenges on the refs, counted across moves.
     """
     if not rows:
         return None
@@ -1068,7 +1138,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     # test, and the challenge of version 2 met "they answered". A receipt
     # since the prior's first wake makes this a challenge of a new version.
     if _moved_since_woken(ctx.conn, prior["id"], refs):
-        return None
+        return _challenge_cap_refusal(ctx, rows, refs)
     # S0 walk eight: nine rounds of challenge, answer and harness on the same
     # refs. The Tester judged this version, so the same challenge is the same
     # argument. Each sentence states one fact and one step (frame 135).
@@ -1081,7 +1151,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
             return api._offer(
                 ctx, fact + " Send msg.escalate_architect on the same refs.",
                 "msg.escalate_architect", {"refs": list(refs or [])})
-        return fact + " Make one real change to the code the test calls."
+        return fact + " " + _code_step(ctx)
     # Frame 132, nights 119 and 123 (2026-10-05): the Tester's session wrote
     # nothing and sent nothing, the Architect's rung answered with no words,
     # and the door read that rung as the Tester's answer. An unanswered
@@ -1099,7 +1169,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
         if len(unanswered) >= UNANSWERED_CHALLENGES:
             break
     if len(unanswered) < UNANSWERED_CHALLENGES:
-        return None
+        return _challenge_cap_refusal(ctx, rows, refs)
     fact = (f"you sent challenge to tester on exactly these refs already "
             f"({unanswered[1]['id']}, then {unanswered[0]['id']}), and the "
             f"Tester answered neither and did not change the test.")

@@ -1001,6 +1001,233 @@ def test_night119_a_burst_lands_its_first_challenge_and_guards_the_second(db):
         "has to reconcile them. Your work here is done")
 
 
+N122_TEST3 = 'import pytest\n\ndef test_echo_json_non_serializable():\n    from src.click.utils import echo_json\n\n    class BadObj:\n        def __init__(self):\n            self.value = "test"\n\n    exception_raised = False\n    try:\n        echo_json(BadObj())\n    except TypeError:\n        exception_raised = True\n    \n    assert exception_raised'
+# s145's call at turns 7 and 8 of night 122, as the seat sent it.
+S145_T7 = dict(refs=['echo_json_compact_3', 'inh_echo_json_03'],
+               quotes=['The callable `echo_json` must handle non-serializable objects by raising a `TypeError` consistent with the behavior of standard library JSON serialization, rather than silently failing or printing a fallback.',
+                       "assert output.getvalue() == \"{}\\n\""])
+
+
+def _night122_m64(db, receipt_session):
+    """Night 122: the Tester s141, woken by m64, answered it with m65 and
+    stored version 2 of inh_echo_json_03 in the same session."""
+    refs = S145_T7["refs"]
+    _night_rows(db, "bg_1", "tk_1", [(
+        "echo_json_compact_3", N123_CRIT, "inh_echo_json_03",
+        "tests/test_utils/test_echo_json.py", N122_TEST3, 2)])
+    _session(db, "s139", "tester", 139, receipts=[("tests", "inh_echo_json_03", 1)])
+    _msg(db, "m64", "developer", "tester", "challenge", refs, 65, "answered")
+    _session(db, "s141", "tester", 141, trigger="m64",
+             receipts=[("tests", "inh_echo_json_03", 4)] if receipt_session == "woken" else ())
+    _msg(db, "m65", "tester", "developer", "answer", refs, 66, "answered", cause="m64")
+
+
+def test_night122_a_judged_challenge_whose_test_moved_at_the_wake_lands(db):
+    """Frame 145, night 122 (2026-10-05): s145's turns 7 and 8 met "they
+    answered" on m64. The Tester answered m64 with m65 and moved the test in
+    the session that m64 woke. The move admits the challenge of version 2,
+    and a receipt at the woken session itself counts (the review of 4968ea7)."""
+    _night122_m64(db, "woken")
+    out = _developer(db, "bg_1").call("msg.challenge_tester", **S145_T7)
+    assert out == {"id": "m66", "to": "tester", "verb": "challenge"}
+
+
+def test_a_receipt_before_the_wake_is_no_move(db):
+    """The same state with the only receipt from s139, before m64's wake: the
+    Tester judged the version that the challenge saw."""
+    _night122_m64(db, "before")
+    with pytest.raises(ValueError) as exc:
+        _developer(db, "bg_1").call("msg.challenge_tester", **S145_T7)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs already (m64) and "
+        "they answered (m65). Sending it again is the same argument again. "
+        "Send msg.escalate_architect on the same refs.")
+
+
+def test_a_receipt_of_another_table_is_no_move(db):
+    """The review of 4968ea7 (2026-10-05): a `batches` receipt whose row_id
+    is the test's id reopened the door. Only tests and criteria count."""
+    _judged(db)
+    _session(db, "s2", "developer", 2, receipts=[("batches", "tst1", 9)])
+    with pytest.raises(ValueError, match=r"already \(m96\) and they answered \(m98\)"):
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+
+
+def test_the_count_stops_at_a_moved_prior(db):
+    """m1 woke s1, and s2 moved the test after it. m3 is unanswered on the
+    new version: one unanswered prior, so the re-send lands."""
+    _msg(db, "m1", "developer", "tester", "challenge", ["c1", "tst1"], 1, "answered")
+    _session(db, "s1", "tester", 1, trigger="m1")
+    _session(db, "s2", "tester", 2, receipts=[("tests", "tst1", 2)])
+    _msg(db, "m3", "developer", "tester", "challenge", ["c1", "tst1"], 3,
+         "unresolved", note=NOTE)
+    _session(db, "s3", "tester", 3, trigger="m3")
+    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert out == {"id": "m4", "to": "tester", "verb": "challenge"}
+
+
+def test_the_count_stops_at_a_judged_prior(db):
+    _judged(db)
+    _msg(db, "m99", "developer", "tester", "challenge", ["c1", "tst1"], 3,
+         "unresolved", note=NOTE)
+    _session(db, "s2", "tester", 2, trigger="m99")
+    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert out == {"id": "m100", "to": "tester", "verb": "challenge"}
+
+
+def test_the_count_skips_an_older_open_prior(db):
+    """An open prior never reached the Tester, so it neither counts nor stops
+    the count. The bound names the two unanswered priors around it."""
+    _msg(db, "m1", "developer", "tester", "challenge", ["c1", "tst1"], 1,
+         "unresolved", note=NOTE)
+    _session(db, "s1", "tester", 1, trigger="m1")
+    _msg(db, "m2", "developer", "tester", "challenge", ["c1", "tst1"], 2, "open")
+    _msg(db, "m3", "developer", "tester", "challenge", ["c1", "tst1"], 3,
+         "unresolved", note=NOTE)
+    _session(db, "s2", "tester", 2, trigger="m3")
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value).startswith(
+        "you sent challenge to tester on exactly these refs already (m1, then "
+        "m3), and the Tester answered neither")
+
+
+def test_an_open_prior_with_an_answer_row_waits(db):
+    """The newest prior decides, and an open prior waits, whatever answer row
+    it holds. Pass 1 changed this state: the parent said "they answered"."""
+    _msg(db, "m1", "developer", "tester", "challenge", ["c1", "tst1"], 1, "open")
+    _msg(db, "m2", "tester", "developer", "answer", ["c1", "tst1"], 2,
+         "answered", cause="m1")
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs already (m1) and it "
+        "waits for an answer. A second copy is the same question twice, and the "
+        "answer comes to a later wake. Until then: code.source the code the "
+        "test calls and write the change that makes it pass, or end the session "
+        "with no call")
+
+
+def _exhausted(db):
+    from rota.roles import prompts
+    db.commit()
+    return build("developer", db, batch_id="b1", mode="exhausted",
+                 allow=prompts.mode_tools("developer", "exhausted"))
+
+
+def test_a_judged_challenge_in_mode_exhausted_ends_the_session(db):
+    """The review of 4968ea7 (2026-10-05): mode `exhausted` holds no
+    `code.write`, so the step toward the code cannot be followed."""
+    _judged(db)
+    _msg(db, "m99", "developer", "architect", "escalate", ["c1", "tst1"], 3,
+         "answered")
+    sb = _exhausted(db)
+    assert "code.write" not in sb.ctx.working_set
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs already (m96) and "
+        "they answered (m98). Sending it again is the same argument again. "
+        "End the session with no call.")
+
+
+# The chain of the review of 4968ea7 (2026-10-05): each round the Developer
+# challenges, the Tester stores a new version through the commit, and the
+# harness fails it. A moved test deletes its runs and lifts the batch's tick
+# quarantine, so on a batch of one test the attempt cap starts again each
+# round. The door's cap on landed challenges ends the chain.
+def _chain(db, tests):
+    from rota.core import lifecycle
+    from rota.core.db import SessionResult, session_commit
+    from rota.core.runner import _as_write
+    if "tst2" in tests:
+        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                   "('c2','tk1','closing an account keeps its owner')")
+        db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                   "VALUES ('tst2','b1','c2','test_owner.py','assert 1 == 2')")
+    rounds = []
+    for i in range(1, 8):
+        sb = _developer(db)
+        try:
+            out = sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+        except ValueError as exc:
+            return rounds, i, str(exc), sb
+        _msg(db, out["id"], "developer", "tester", "challenge", ["c1", "tst1"],
+             100 + i, "answered")
+        tsb = build("tester", db, batch_id="b1", mode="challenge")
+        tsb.call("tests.triage", criterion_id="c1", verdict="encodable")
+        tsb.call("tests.encode", id="tst1", criterion_id="c1", path="test_close.py",
+                 body=f"from billing import close_account\n"
+                      f"def test_close_{i}():\n    {QUOTES[1]}\n")
+        session_commit(db, SessionResult(
+            session_id=f"st{i}", role="tester", trigger_msg=out["id"],
+            writes=[_as_write(w) for w in tsb.ctx.writes]))
+        for test in tests:
+            lifecycle.record_test_run(db, f"r{i}{test}", "b1", test, result="fail",
+                                      attempt=lifecycle.next_attempt(db, "b1"),
+                                      output="boom")
+        db.commit()
+        rounds.append(out["id"])
+    return rounds, None, "", sb
+
+
+@pytest.mark.parametrize("tests", [("tst1",), ("tst1", "tst2")])
+def test_a_chain_of_moved_challenges_stops_at_the_cap(db, tests):
+    from rota.core.sandbox import LANDED_CHALLENGES
+    landed, refused_at, said, sb = _chain(db, tests)
+    assert len(landed) == LANDED_CHALLENGES and refused_at == LANDED_CHALLENGES + 1
+    ids = ", ".join(landed)
+    assert said == (
+        f"you sent challenge to tester on exactly these refs {LANDED_CHALLENGES} "
+        f"times already ({ids}), and the test changed and is still red. Send "
+        f"msg.escalate_architect on the same refs.")
+    assert [(o.op, o.args) for o in sb.ctx.offers] == [
+        ("msg.escalate_architect", {"refs": ["c1", "tst1"]})]
+    assert sb.call("msg.escalate_architect", refs=["c1", "tst1"])["to"] == "architect"
+
+
+def test_the_cap_ends_the_session_when_no_escalation_or_code_is_left(db):
+    _, _, _, _ = _chain(db, ("tst1",))
+    _msg(db, "m90", "developer", "architect", "escalate", ["c1", "tst1"], 90,
+         "answered")
+    with pytest.raises(ValueError) as exc:
+        _exhausted(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value).endswith(
+        "times already (m1, m2, m3), and the test changed and is still red. "
+        "End the session with no call.")
+
+
+def test_the_cap_says_only_the_count_when_the_test_is_not_red(db):
+    _, _, _, _ = _chain(db, ("tst1",))
+    db.execute("DELETE FROM test_runs")
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs 3 times already "
+        "(m1, m2, m3). Send msg.escalate_architect on the same refs.")
+
+
+def test_the_cap_says_only_the_count_when_the_test_did_not_change(db):
+    """Three landed challenges and no receipt on the refs: the sentence does
+    not say that the test changed."""
+    _judged(db)                                        # m96, answered by m98
+    _msg(db, "m99", "developer", "tester", "challenge", ["c1", "tst1"], 3,
+         "answered")
+    _session(db, "s2", "tester", 2, trigger="m99")
+    _msg(db, "m100", "tester", "developer", "answer", ["c1", "tst1"], 4,
+         "answered", cause="m99")
+    _msg(db, "m101", "developer", "tester", "challenge", ["c1", "tst1"], 5,
+         "unresolved", note=NOTE)
+    _session(db, "s3", "tester", 3, trigger="m101")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+               "VALUES ('r1', 'b1', 'tst1', 'abc123', 'fail')")
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs 3 times already "
+        "(m96, m99, m101). Send msg.escalate_architect on the same refs.")
+
+
 def test_an_answer_with_null_refs_added_no_row(db):
     """The diff review of 538b84a (2026-10-02): `null` as body_refs made
     json.loads return None, and enumerate(None) raised."""
