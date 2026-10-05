@@ -3763,9 +3763,11 @@ def test_a_dry_run_leaves_the_context_and_the_disk_as_they_were(db, tmp_path, mo
         sb.call("code.write", path="m.py", start=0, end=5, text="import sys\n")
     assert dries == [False, True]
     after = state()
-    # The sandbox records the real call's refusal, once. The dry run adds none.
+    # The sandbox records the real call's refusal, once, and the call that
+    # the refusal names (frame 144). The dry run adds none.
     changed = sorted(k for k in before[0] if before[0][k] != after[0][k])
-    assert changed == ["refusals"], changed
+    assert changed == ["offers", "refusals"], changed
+    assert [o.op for o in after[0]["offers"]] == ["code.write"]
     assert len(after[0]["refusals"]) == len(before[0]["refusals"] or []) + 1
     assert after[1:] == before[1:]
 

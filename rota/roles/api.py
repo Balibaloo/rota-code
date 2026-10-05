@@ -130,6 +130,11 @@ class Ctx:
     # `batch_files` runs three git calls, about 230 ms, and `findings.find`
     # needs the list on every refusal path (frame 90's diff review, finding 1).
     diff_files: dict = None
+    # The calls that the refusal of the current call names, as data: one
+    # `Offer` each, filled by `_offer`. A test with no model follows each
+    # one through the doors (frame 144). Nothing in a session reads it, and
+    # `Sandbox.call` clears it at the start of each call.
+    offers: list = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -154,6 +159,65 @@ class Ctx:
             self.cuts = []
         if self.diff_files is None:
             self.diff_files = {}
+        if self.offers is None:
+            self.offers = []
+
+
+class _Invent:
+    """The marker for an argument of an offered call that the seat must
+    invent, such as "a new id that you invent". The door cannot know the
+    value, so a follow check fills it with a fresh one (frame 144)."""
+
+    def __repr__(self) -> str:
+        return "INVENT"
+
+    # One marker. A copy of an offer keeps it, so `is INVENT` still holds.
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        return self
+
+
+INVENT = _Invent()
+
+# A step of `Offer.then` that sends the refused call again, unchanged. The
+# follow check holds it to one rule: it must not meet the same refusal. A
+# later door's own fact about the seat's arguments is that door's (frame 144).
+AGAIN = ("again", {})
+
+
+@dataclass(frozen=True)
+class Offer:
+    """One call that a refusal names. `then` holds the calls that the same
+    sentence names after it, in order. `site` is the file and line of the
+    `_offer` call, so that a failed follow names its door. `said` is the
+    sentence that names the call, or a short tag where one sentence names
+    several calls."""
+    op: str
+    args: dict
+    then: tuple = ()
+    site: str = ""
+    said: str = ""
+
+
+def _offer(ctx, said: str, op: str, args: dict, then: tuple = ()) -> str:
+    """Record the call that `said` names, and return `said` unchanged.
+
+    The sentence stays the door's own text to the byte, because the recorded
+    cases key on the prompt. The record is what a test follows (frame 144,
+    after frame 135's law: a refusal names only a call the doors admit).
+    """
+    offers = getattr(ctx, "offers", None)
+    if offers is not None:
+        import sys as _sys
+        f = _sys._getframe(1)
+        if f.f_code.co_name == "_send":     # the door is the helper's caller
+            f = f.f_back
+        offers.append(Offer(op, dict(args), tuple(then),
+                            f"{f.f_code.co_filename}:{f.f_lineno} in "
+                            f"{f.f_code.co_name}", said))
+    return said
 
 
 # What a role can do about words a row did not keep: nothing, and the habit
@@ -1383,11 +1447,13 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
                 or (set(_words_in(term)) and
                     set(_words_in(term)) == set(_words_in(subject))))
         if not same:
-            raise ValueError(
+            raise ValueError(_offer(
+                ctx,
                 f"this session is about {subject!r} and nothing else; "
                 f"{term!r} is not that word. Define {subject!r} from the "
                 f"concordance, or `surveys.attest(outcome='none_found')` if "
-                f"this project means nothing of its own by it.")
+                f"this project means nothing of its own by it.",
+                "surveys.attest", {"outcome": "none_found"}))
         if slug != _slug_of(subject):
             filed_under = subject
             term, slug = subject, _slug_of(subject)
@@ -1475,13 +1541,15 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
         unkinded = False
 
     if slug in _FRAME_WORDS:
-        raise ValueError(
+        raise ValueError(_offer(
+            ctx,
             f"{term!r} is the frame you were woken in, not something this "
             f"project means by it — every repository would have the same entry, "
             f"which is the test a definition has to fail. Define what the code "
             f"calls its own things, and if this area names none, "
             f"`surveys.attest(outcome='none_found')` is a real answer and often "
-            f"the right one.")
+            f"the right one.",
+            "surveys.attest", {"outcome": "none_found"}))
 
     # Only where there is code to have read. The gate was built for survey mode
     # -- "against the words actually read rather than against reading in
@@ -3773,11 +3841,15 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
         owned = [r["id"] for r in ctx.conn.execute(
             "SELECT id FROM tickets WHERE item_id = ? ORDER BY id", (ticket_id,))]
         if owned:
-            raise ValueError(
+            raise ValueError(_offer(
+                ctx,
                 f"{ticket_id!r} is an item, not a ticket. Its tickets are "
                 f"{owned}. A criterion belongs to one ticket: send "
                 f"criteria.specify(id='c_1', ticket_id={owned[0]!r}, text=...) "
-                f"with a new c_ id of your own and one of those ticket ids")
+                f"with a new c_ id of your own and one of those ticket ids",
+                "criteria.specify", {"id": INVENT, "ticket_id": owned[0],
+                                     "text": text, "term_refs": term_refs,
+                                     "surface_refs": surface_refs}))
     _must_exist(ctx, "tickets", ticket_id)
     # The wake names the item whose tickets want criteria. clickI
     # (2026-09-10): woken for `show_python`, the Terminologist specified
@@ -4388,11 +4460,15 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
             if (cw and rw and not _first_verb(crit_words, c_other)
                     and not _first_verb(req_words, r_other)):
                 row = next(name for name, ws in req if rw in ws)
-                raise ValueError(
+                raise ValueError(_offer(
+                    ctx,
                     f"{criterion_id} says '{cw}' and {row} says '{rw}'. Send "
                     f"tests.triage(criterion_id='{criterion_id}', "
                     f"verdict='contradicts_request', request_span='{rw}', "
-                    f"criterion_span='{cw}').")
+                    f"criterion_span='{cw}').",
+                    "tests.triage", {"criterion_id": criterion_id,
+                                     "verdict": "contradicts_request",
+                                     "request_span": rw, "criterion_span": cw}))
     ctx.triaged[criterion_id] = verdict
     if done:
         return {"criterion": criterion_id, "verdict": verdict,
@@ -4715,11 +4791,14 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # (2026-09-14) read "has no branch claim" as a field the criterion
         # lacked, triaged it `cannot` and asked the Vision Keeper what a
         # branch claim is, fifteen runs of fifteen.
-        raise ValueError(
+        raise ValueError(_offer(
+            ctx,
             f"{criterion_id} has no triage verdict from you yet. Call "
             f"tests.triage(criterion_id='{criterion_id}', verdict='encodable') "
             f"and then tests.encode in the same reply. The verdict 'cannot' "
-            f"sends the criterion to the desk that can repair it instead")
+            f"sends the criterion to the desk that can repair it instead",
+            "tests.triage", {"criterion_id": criterion_id, "verdict": "encodable"},
+            then=(AGAIN,)))
 
     # A test is Python the harness can run. S0 measured the alternative: the
     # criterion restated as an English sentence, path 'script', harness says
@@ -4951,10 +5030,14 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         except (ImportError, ValueError):
             is_module = False
         if is_module:
-            raise Wall(
+            raise Wall(_offer(
+                ctx,
                 f"the test uses {unbound[0]} and never imports it: a NameError "
                 f"against any code. Add the line `import {unbound[0]}` at the "
-                f"top of the body and send the encode again")
+                f"top of the body and send the encode again",
+                "tests.encode", {"id": id, "criterion_id": criterion_id,
+                                 "path": path, "body": f"import {unbound[0]}\n{body}",
+                                 "batch_id": batch_id}))
         # A Tester told to "import the function the surface names" invented
         # ledger, app and create_account five runs of five. The criterion
         # carries the surface, so the Wall names the import line.
@@ -5396,6 +5479,14 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     text = ctx.conn.execute(
         "SELECT text FROM criteria WHERE id = ?", (criterion_id,)).fetchone()
     if text is not None and _same_words(body, text["text"]):
+        # Three calls, one for each case the sentence names (frame 144).
+        _offer(ctx, "", "msg.question_terminologist",
+               {"refs": [criterion_id], "question": "what would make this checkable?"})
+        _offer(ctx, "", "msg.question_vision_keeper",
+               {"refs": [criterion_id],
+                "question": "what observable behaviour is promised here?"})
+        _offer(ctx, "", "schedule.reask",
+               {"what_is_missing": "words a test can assert"})
         raise Wall(
             f"that is {criterion_id}'s own sentence written back, so nothing has "
             f"been encoded and a test that reports as coverage would exist. If "
@@ -5483,14 +5574,19 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"the test uses what {uses_return} returns, and the criterion "
                 f"{criterion_id} says it prints")
         if says_prints and not says_returns:
-            raise ValueError(
+            raise ValueError(_offer(
+                ctx,
                 f"the test uses what {uses_return} returns, and the criterion, "
                 f"its ticket or the principal's words say it prints; nothing "
                 f"says it returns anything. That is an assumption, and it is "
                 f"logged where it is made: ledger.log(about_ref={criterion_id!r}, "
                 f"about_table='criteria', assumption=\"the test assumes "
                 f"{uses_return} returns what it prints\") -- then send this "
-                f"encode again unchanged. Or assert on what it prints")
+                f"encode again unchanged. Or assert on what it prints",
+                "ledger.log", {"about_ref": criterion_id, "about_table": "criteria",
+                               "assumption": f"the test assumes {uses_return} "
+                                             f"returns what it prints"},
+                then=(AGAIN,)))
 
     invented = _invented_literals(ctx, criterion_id, tree)
     if invented:
@@ -5510,13 +5606,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # turn, each logged and re-sent, and the session ran out.
             named = ", ".join(repr(w) for w in owed[:6])
             joined = " and ".join(owed[:6])
-            raise ValueError(
+            raise ValueError(_offer(
+                ctx,
                 f"the test chooses {named}, and nothing in the criterion, "
                 f"its ticket, the glossary or the principal's words says it. "
                 f"That is an assumption, and it is logged where it is made: "
                 f"ledger.log(about_ref={criterion_id!r}, about_table='criteria', "
                 f"assumption=\"the test assumes {joined} where the material "
-                f"is silent\") -- then send this encode again unchanged")
+                f"is silent\") -- then send this encode again unchanged",
+                "ledger.log", {"about_ref": criterion_id, "about_table": "criteria",
+                               "assumption": f"the test assumes {joined} where "
+                                             f"the material is silent"},
+                then=(AGAIN,)))
 
     batch_id = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
     if not batch_id:
@@ -5573,13 +5674,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # that is another test's file is the clash door's, on the next call.
     if project and (prior["path"] != path or not challenged):
         said = f"{id} is the id of the project's test {prior['path']}."
+        again = {"id": id, "criterion_id": criterion_id, "path": path,
+                 "body": body, "batch_id": batch_id}
         if challenged:
-            said += (f" A fix of that test keeps its file: send this encode "
-                     f"again with path={prior['path']!r}, or send a new id "
-                     f"that you invent.")
+            said += _offer(ctx, f" A fix of that test keeps its file: send this encode "
+                                f"again with path={prior['path']!r}, or send a new id "
+                                f"that you invent.",
+                           "tests.encode", {**again, "path": prior["path"]})
+            _offer(ctx, "or send a new id", "tests.encode", {**again, "id": INVENT})
         else:
-            said += (" An encode never replaces a project test. Send this "
-                     "encode again with a new id that you invent.")
+            said += _offer(ctx, " An encode never replaces a project test. Send this "
+                                "encode again with a new id that you invent.",
+                           "tests.encode", {**again, "id": INVENT})
         raise ValueError(said)
 
     # One test per criterion, which is the brief's first line and was held by
@@ -5604,9 +5710,13 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     if replaces and stored["path"] != path:
         # The harness writes each row to its path and deletes nothing. A
         # replace under a new path leaves the old file on disk.
-        raise ValueError(
+        raise ValueError(_offer(
+            ctx,
             f"{id} is stored at {stored['path']}. To replace it, send this "
-            f"encode again with path={stored['path']!r}.")
+            f"encode again with path={stored['path']!r}.",
+            "tests.encode", {"id": id, "criterion_id": criterion_id,
+                             "path": stored["path"], "body": body,
+                             "batch_id": batch_id}))
     done = [w for w in ctx.writes
             if w[0] == "tests" and w[2].get("criterion_id") == criterion_id]
     if done and not replaces:
@@ -5623,9 +5733,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         "SELECT batch_id FROM tests WHERE id = ? AND batch_id != ?",
         (id, batch_id)).fetchone()
     if other is not None:
-        raise ValueError(
+        raise ValueError(_offer(
+            ctx,
             f"{id} is a test of batch {other['batch_id']}, and this session "
-            f"writes batch {batch_id}. Choose another id.")
+            f"writes batch {batch_id}. Choose another id.",
+            "tests.encode", {"id": INVENT, "criterion_id": criterion_id,
+                             "path": path, "body": body, "batch_id": batch_id}))
 
     # One file per test. Walk twelve: two tests named tests/test_input_
     # validation.py, the second overwrote the first on disk, and the harness
@@ -5638,10 +5751,13 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # Frame 123: in 4 of 4 challenge sessions the Tester sent its fix
         # under a new id. The old door offered only a new file, so the old
         # test stayed and ran beside the fix.
-        raise ValueError(
+        raise ValueError(_offer(
+            ctx,
             f"{path} is {clash['id']}'s file, and {clash['id']} is the test "
             f"of this same criterion. To fix that test, send this encode "
-            f"again with id={clash['id']!r}. The same id replaces it.")
+            f"again with id={clash['id']!r}. The same id replaces it.",
+            "tests.encode", {"id": clash["id"], "criterion_id": criterion_id,
+                             "path": path, "body": body, "batch_id": batch_id}))
     if clash is None:
         clash = next((w for w in ctx.writes if w[0] == "tests" and w[1] != id
                       and w[2].get("path") == path), None)
@@ -6080,10 +6196,13 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # under items, and that is the shape the design asks for.
     home = _table_of_ref(ctx.conn, about_ref)
     if home and about_table != home:
-        raise ValueError(
+        raise ValueError(_offer(
+            ctx,
             f"{about_ref!r} is a row of {home}, not of {about_table}. "
             f"about_ref and about_table name one row together; send "
-            f"about_table={home!r}")
+            f"about_table={home!r}",
+            "ledger.log", {"about_ref": about_ref, "about_table": home,
+                           "assumption": assumption}))
 
     # A disagreement names what differs. seat2 on click (2026-09-12): the
     # reconcile phase logged "the README says X. The code shows X", nineteen
@@ -6393,6 +6512,11 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
         # asked -- `verdicts.claim_encodes` is where it gets asked.
         claim = ctx.verdict_claims.get(failed_criterion)
         if claim is not True:
+            # The sentence names a claim first, then this verdict again
+            # (frame 144). True is the branch on which the fail lands.
+            _offer(ctx, "", "verdicts.claim_encodes",
+                   {"criterion_id": failed_criterion, "encodes": True},
+                   then=(AGAIN,))
             raise ValueError(
                 f"a fail on {failed_criterion} stands on its test actually "
                 f"encoding it, and that has not been claimed this session"
@@ -9027,6 +9151,10 @@ def _admits(ctx: Ctx, path: str, text: str, start: int, end: int) -> bool:
     then admits (frame 136). The dry run writes nothing and offers nothing,
     so a refusal built inside it starts no second dry run.
     """
+    # A refusal inside the dry run records its own offers. They are not the
+    # outer refusal's, so they go (frame 144).
+    offers = getattr(ctx, "offers", None)
+    mark = len(offers) if offers is not None else 0
     try:
         _code_write(ctx, path, text, start, end, dry=True)
     except ValueError:
@@ -9038,6 +9166,9 @@ def _admits(ctx: Ctx, path: str, text: str, start: int, end: int) -> bool:
         _log.exception("code.write dry run crashed on %s start=%s end=%s",
                        path, start, end)
         return False
+    finally:
+        if offers is not None:
+            del offers[mark:]
     return True
 
 
@@ -9056,6 +9187,15 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             "session was not woken for one. Answer the message you were "
             "woken by; the build starts when the batch does")
     target = _within(_batch_worktree(ctx), path)
+    # The offers below name this write with other numbers. The span doors
+    # rebind `path` to a list of nodes, so the file's path is kept here.
+    wpath = path
+
+    def _send(said: str, **numbers) -> str:
+        return _offer(ctx, said, "code.write",
+                      {"path": wpath, "text": text, "start": start, "end": end,
+                       **numbers})
+
     # A parameter's own name where its value goes is a placeholder. tipsBG
     # (2026-09-14): `code.write(path=path, ...)` made a file called `path`,
     # the stray check raised it, and the Architect could not judge it.
@@ -9071,9 +9211,9 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     # Frame 94's diff review of 44e156a (2026-09-30): a start with no end
     # went to the whole-file path, and the fragment became the file.
     if end is None and start != 0:
-        raise ValueError(
+        raise ValueError(_send(
             f"start={start} came with no end. Send end=-1 for the whole file, "
-            f"or the end of the span")
+            f"or the end of the span", end=-1))
 
     # An empty write is a removal of a file this batch added, and nothing
     # else. tipsBG (2026-09-14): told to take a mistake out, the Developer
@@ -9110,10 +9250,10 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # slice `code.source` returns, so the numbers copy across. The
         # doors below judge the merged file, not the fragment.
         if not target.exists():
-            raise ValueError(
+            raise ValueError(_send(
                 f"{path} does not exist, so start={start}, end={end} names "
                 f"no lines to replace. Write a new file whole, with no "
-                f"start or end")
+                f"start or end", start=0, end=-1))
         lines = target.read_text(encoding="utf-8").splitlines()
         stop = len(lines) if end < 0 else min(end, len(lines))
         if start < 0 or start > len(lines) or stop < start:
@@ -9313,17 +9453,17 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 p, f, ns, x = m
                 if p is not None and ns and x == _end(ns[-1]):
                     if x == _end(p) and isinstance(p, _defs):
-                        return f"To edit {p.name} alone send end={x}, which is where {p.name} ends."
+                        return _send(f"To edit {p.name} alone send end={x}, which is where {p.name} ends.", end=x, text=INVENT)
                     if x == _end(p):
-                        return f"To stop where {_what(p)} ends send end={x}."
-                    return f"To stop where the {_block[f]} of {_what(p)} ends send end={x}."
+                        return _send(f"To stop where {_what(p)} ends send end={x}.", end=x, text=INVENT)
+                    return _send(f"To stop where the {_block[f]} of {_what(p)} ends send end={x}.", end=x, text=INVENT)
                 nxt = [s for s in ns if _lo(s) == x]
                 if nxt:
-                    return f"To stop before {_what(nxt[0])} send end={x}."
+                    return _send(f"To stop before {_what(nxt[0])} send end={x}.", end=x, text=INVENT)
                 prev = [s for s in ns if _end(s) == x]
                 if prev:
-                    return f"To stop after {_what(prev[-1])} send end={x}."
-                return f"To stop there send end={x}."
+                    return _send(f"To stop after {_what(prev[-1])} send end={x}.", end=x, text=INVENT)
+                return _send(f"To stop there send end={x}.", end=x, text=INVENT)
 
             def _start_offer(m):
                 p, f, ns, x = m
@@ -9334,21 +9474,22 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     if (isinstance(p, _defs) and f == "body" and isinstance(b0, _ast.Expr)
                             and isinstance(getattr(b0.value, "value", None), str)):
                         out += " Your text replaces the docstring too."
-                    return out
+                    return _send(out, start=x, text=INVENT)
                 prev = [s for s in ns if _end(s) == x]
                 if prev:
-                    return f"To start after {_what(prev[-1])} send start={x}."
+                    return _send(f"To start after {_what(prev[-1])} send start={x}.", start=x, text=INVENT)
                 nxt = [s for s in ns if _lo(s) == x]
                 if nxt:
-                    return f"To start before {_what(nxt[0])} send start={x}."
-                return f"To start there send start={x}."
+                    return _send(f"To start before {_what(nxt[0])} send start={x}.", start=x, text=INVENT)
+                return _send(f"To start there send start={x}.", start=x, text=INVENT)
 
             def _whole_parent(b):
                 # The statement that holds the list b sits in, whole.
                 for p, f, ns in reversed(_at(b)):
                     if p is not None:
-                        return (f"To replace {_what(p)} whole send "
-                                f"start={_lo(p)}, end={_end(p)}.")
+                        return _send(f"To replace {_what(p)} whole send "
+                                     f"start={_lo(p)}, end={_end(p)}.",
+                                     start=_lo(p), end=_end(p), text=INVENT)
                 return None
 
             tops = original.body if original else []
@@ -9438,10 +9579,13 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                             parts.append(w)
                 if start == stop:
                     parts.append("An insert goes between whole statements.")
-                    parts.append(f"To add after {name} send start={hi}, end={hi}.")
+                    parts.append(_send(f"To add after {name} send start={hi}, end={hi}.",
+                                       start=hi, end=hi))
                 else:
-                    parts.append(f"To replace {name} whole send start={lo}, end={hi}.")
-                    parts.append(f"To add after it send start={hi}, end={hi}.")
+                    parts.append(_send(f"To replace {name} whole send start={lo}, end={hi}.",
+                                       start=lo, end=hi, text=INVENT))
+                    parts.append(_send(f"To add after it send start={hi}, end={hi}.",
+                                       start=hi, end=hi))
                 raise ValueError(" ".join(parts))
             # Frame 94's diff review of 44e156a (2026-09-30): an insert at
             # 0..0 landed above `from __future__ import`. ast.parse took it,
@@ -9469,10 +9613,13 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     isinstance(s, _ast.ImportFrom) and s.module == "__future__" for s in own)
                 if futs and start <= _lo(futs[-1]) and not own_fut:
                     after = _end(futs[-1])
-                    raise ValueError(
+                    raise ValueError(_offer(
+                        ctx,
                         f"start={start}, end={end}: Python refuses any statement "
                         f"above the `from __future__` import at line {_lo(futs[-1])}. "
-                        f"To add after it send start={after}, end={after}.")
+                        f"To add after it send start={after}, end={after}.",
+                        "code.write", {"path": wpath, "text": src,
+                                       "start": after, "end": after}))
                 return own
 
             if start == stop:
@@ -9498,11 +9645,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                             and id(ns[0]) in _docs):
                         after = _end(ns[0])
                         owner = "the module" if p is None else p.name
-                        raise ValueError(
+                        raise ValueError(_send(
                             f"start={start}, end={end}: line {start} is the docstring "
                             f"of {owner}. Your text goes before it. Then the docstring "
                             f"is no longer a docstring. To add after the docstring "
-                            f"send start={after}, end={after}.")
+                            f"send start={after}, end={after}.", start=after, end=after))
             sl, el = _at(start), _at(stop)
             if start < stop and not any(a[0] is b[0] and a[1] == b[1] for a in sl for b in el):
                 # Frame 92's diff review of pass 5 (2026-09-29): both
@@ -9537,14 +9684,15 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                         break
                     n, level = hit[0], _children(hit[0])
                 if n is not None:
-                    parts.append(f"To replace {_what(n)} whole send "
-                                 f"start={_lo(n)}, end={_end(n)}.")
+                    parts.append(_send(f"To replace {_what(n)} whole send "
+                                       f"start={_lo(n)}, end={_end(n)}.",
+                                       start=_lo(n), end=_end(n), text=INVENT))
                 else:
                     ps, pe = _inside(tops, start), _inside(tops, stop)
                     a = ps[0][1] if ps else start
                     b = pe[0][2] if pe else stop
-                    parts.append(f"To replace the whole top-level statements "
-                                 f"send start={a}, end={b}.")
+                    parts.append(_send(f"To replace the whole top-level statements "
+                                       f"send start={a}, end={b}.", start=a, end=b, text=INVENT))
                 raise ValueError(" ".join(parts))
         nl = chr(10)
         fragment = text
@@ -9685,8 +9833,12 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 msg = (f"Python takes {quoted} only above every other statement, "
                        f"and your text puts '{above}' above {'them' if many else 'it'}.")
                 if not dry and _admits(ctx, path, moved, start, end):
-                    msg += (f" Send the same call with {'those lines' if many else 'that line'} "
-                            f"first in text.")
+                    msg += _offer(
+                        ctx,
+                        f" Send the same call with {'those lines' if many else 'that line'} "
+                        f"first in text.",
+                        "code.write", {"path": path, "text": moved,
+                                       "start": start, "end": end})
                 raise ValueError(msg) from None
             if stage == "compile":
                 raise ValueError(
@@ -11241,8 +11393,10 @@ def _span_lost_refusal(ctx: Ctx, path: str, lines: list[str], start: int, end: i
             head += 1
         at = max(at, head)
         if _admits(ctx, path, fragment, at, at):
-            return (f"{fact} To add your text and keep every line, "
-                    f"send start={at}, end={at}.")
+            return _offer(ctx, f"{fact} To add your text and keep every line, "
+                               f"send start={at}, end={at}.",
+                          "code.write", {"path": path, "text": fragment,
+                                         "start": at, "end": at})
         return fact
     # A replace: the text must carry the removed lines itself. Only an
     # import goes back this way. A removed assignment can use a name that
@@ -11270,6 +11424,8 @@ def _span_lost_refusal(ctx: Ctx, path: str, lines: list[str], start: int, end: i
         return fact
     them = "it" if one else "them"
     which = "that line" if one else "those lines"
+    _offer(ctx, "", "code.write", {"path": path, "text": chr(10).join(built) + chr(10),
+                                   "start": start, "end": end})
     if futs:
         return (f"{fact} To keep {them}, put {which} at the top of your text, the "
                 f"`from __future__` line first, and send start={start}, end={end} again.")

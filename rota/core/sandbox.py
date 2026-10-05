@@ -340,7 +340,18 @@ class Sandbox:
         if problem:
             raise ArgumentError(f"{dotted}: {problem}")
 
-        return target(**kwargs)
+        # The offers are the current call's: a refusal names its own calls.
+        offers = getattr(self.ctx, "offers", None)
+        if offers is not None:
+            del offers[:]
+        try:
+            return target(**kwargs)
+        except ValueError as exc:
+            # The follow check of frame 144. The hook is None in a session,
+            # so a seat meets the same refusal as before.
+            if _ON_REFUSAL is not None and offers:
+                _ON_REFUSAL(self, dotted, dict(kwargs), exc, list(offers))
+            raise
 
     def call_key(self, dotted: str, pos=(), kwargs=None) -> str:
         """
@@ -1449,10 +1460,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         if (verb == "converse" and recipient == "principal"
                 and getattr(ctx, "intake", "unarmed") != "unarmed"):
             if ctx.intake is None:
-                raise ValueError(
+                raise ValueError(api._offer(
+                    ctx,
                     "claim the branch first: brief.intake(verdict='work') "
                     "if they asked for anything at all, 'chat' if not. An "
-                    "unclaimed reply is how a request dies politely")
+                    "unclaimed reply is how a request dies politely",
+                    "brief.intake", {"verdict": "work"}))
             if ctx.intake == "work" and not refs:
                 raise ValueError(
                     "you claimed work, so the reply carries refs -- the "
@@ -1819,11 +1832,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                            if recipient == "critic"
                            else "an answer from the glossary carries a term")
                 source = "The criteria do" if recipient == "critic" else "The glossary does"
-                raise ValueError(
+                raise ValueError(api._offer(
+                    ctx,
                     f"{carries}, and "
                     f"refs={list(refs or [])} names none. {source} "
                     f"not carry this: send msg.report_liaison"
-                    f"(refs={list(refs or [])}) with the same refs.")
+                    f"(refs={list(refs or [])}) with the same refs.",
+                    "msg.report_liaison", {"refs": list(refs or [])}))
 
         # A confirmation points at what is being ratified, and the only
         # thing that can be is a statement.
@@ -2118,12 +2133,14 @@ def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
                     # and a later session made an item of that id. Name
                     # the artefact being written, not two others.
                     what = own or label.split(".", 1)[0]
-                    raise ValueError(
+                    raise ValueError(api._offer(
+                        ctx,
                         f"{kwargs['id']!r} is already a row of {table}; an "
                         f"artefact id is unique across every artefact table, "
                         f"or every ref to it is ambiguous. Give this {what} "
                         f"row an id of its own, a short name for what it "
-                        f"says, and send again")
+                        f"says, and send again",
+                        label, {**kwargs, "id": api.INVENT}))
         try:
             return impl(ctx, **kwargs)
         except Exception as exc:
@@ -2183,3 +2200,164 @@ def check_no_orphan_implementations(g: graph_mod.Graph | None = None) -> list[st
         f"{artefact}.{verb}" for (artefact, verb) in api.REGISTRY
         if (artefact, verb) not in declared
     )
+
+
+# The follow check of frame 144. A refusal that names a call records it as
+# an `api.Offer`. A test with no model sends that call through `dry_run`, and
+# the doors must admit it (frame 135's law: a refusal names only a call that
+# the doors then admit). Nothing in a session calls these. `_ON_REFUSAL` is
+# None there, and `tests/rota/conftest.py` sets it under pytest only.
+_ON_REFUSAL: Callable | None = None
+
+# The ops whose effect is outside `ctx`, and what a dry run does with each.
+# `code.write` writes the disk, and `api._code_write` has a dry mode that
+# stops before it (frame 136). `code.commit` runs git, and `web.fetch` reads
+# the network. Neither has a dry mode, so a dry run does not send them.
+_DRY_SKIPS = {
+    "code.commit": "code.commit runs git, and git has no dry mode here",
+    "web.fetch": "web.fetch reads the network",
+}
+
+
+# Taken at import, so that a test which spies on `api._code_write` counts
+# its own calls and not the follow check's.
+_CODE_WRITE = api._code_write
+
+
+class DrySkipped(Exception):
+    """A dry run met an op whose effect it cannot hold back."""
+
+
+def _ctx_snapshot(ctx: api.Ctx) -> tuple[dict, dict]:
+    """The attributes of `ctx` as objects, and a deep copy of each. `conn`
+    stays out: no op writes the database (the check is in `dry_run`)."""
+    import copy
+
+    keep = dict(vars(ctx))
+    saved = {}
+    for k, v in keep.items():
+        if k == "conn":
+            continue
+        try:
+            saved[k] = copy.deepcopy(v)
+        except Exception:                                  # noqa: BLE001
+            saved[k] = copy.copy(v)
+    return keep, saved
+
+
+def _ctx_restore(ctx: api.Ctx, keep: dict, saved: dict) -> None:
+    """Put each attribute back as it was. A list, a dict or a set keeps its
+    identity, because the runner and the tests hold `ctx.writes` itself."""
+    for k in list(vars(ctx)):
+        if k not in keep:
+            delattr(ctx, k)
+    for k, orig in keep.items():
+        if k in saved:
+            s = saved[k]
+            if isinstance(orig, list) and isinstance(s, list):
+                orig[:] = s
+            elif isinstance(orig, (dict, set)) and type(s) is type(orig):
+                orig.clear()
+                orig.update(s)
+        setattr(ctx, k, orig)
+
+
+def _fill(args: dict, n: int) -> dict:
+    """The offer's arguments, with a fresh id for each `api.INVENT` on an id.
+    An invented text or body is the seat's own work, and no fresh value
+    stands for it, so the offer is not sent."""
+    out = {}
+    for k, v in args.items():
+        if v is api.INVENT:
+            if k != "id" and not k.endswith("_id"):
+                raise DrySkipped(f"the {k} of the offered call is the seat's to write")
+            v = f"x_follow{n}_{k}"
+        out[k] = v
+    return out
+
+
+def dry_run(sb: Sandbox, op: str, args: dict,
+            then: tuple = ()) -> tuple[bool, str | None, str | None]:
+    """Send `op(**args)`, then each call of `then`, through the real doors,
+    and put `ctx` back as it was.
+
+    Returns `(admitted, refusal, call, step)`: whether every call was
+    admitted, and the first refusal with the call that met it and that
+    call's index, 0 for `op` itself. The calls run on the
+    real `ctx`, and `_ctx_restore` undoes what they staged. Raises
+    `DrySkipped` for an op in `_DRY_SKIPS`, and `RuntimeError` when a call
+    changed the database, because the restore cannot undo that.
+    """
+    calls = [(op, args)] + list(then)
+    for name, kw in calls:
+        if name in _DRY_SKIPS:
+            raise DrySkipped(_DRY_SKIPS[name])
+    calls = [(name, _fill(kw, n)) for n, (name, kw) in enumerate(calls)]
+    ctx = sb.ctx
+    keep, saved = _ctx_snapshot(ctx)
+    log = _CALL_LOG.get(id(ctx))
+    log_len = None if log is None else len(log)
+    changes = ctx.conn.total_changes
+    refused = None
+    try:
+        for n, (name, kw) in enumerate(calls):
+            try:
+                if name == "code.write":
+                    # The disk is outside `ctx`, so the write runs in its own
+                    # dry mode, after the binder's argument check.
+                    target = getattr(sb["code"], "write")
+                    problem = validate_args(target, kw, op=("code", "write"))
+                    if problem:
+                        raise ArgumentError(f"code.write: {problem}")
+                    _CODE_WRITE(ctx, kw["path"], kw["text"],
+                                kw.get("start", 0), kw.get("end", -1), dry=True)
+                else:
+                    sb.call(name, **kw)
+            except (ValueError, SandboxError, NotInWorkingSet) as exc:
+                refused = (f"{type(exc).__name__}: {exc}", f"{name}({kw!r})", n)
+                break
+    finally:
+        _ctx_restore(ctx, keep, saved)
+        if log is None:
+            _CALL_LOG.pop(id(ctx), None)
+        else:
+            del log[log_len:]
+        if ctx.conn.total_changes != changes:
+            raise RuntimeError(f"the dry run of {op} changed the database")
+    if refused:
+        return False, refused[0], refused[1], refused[2]
+    return True, None, None, None
+
+
+def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
+           offers: list) -> list[dict]:
+    """Send each offer of one refusal through `dry_run`. Returns one record
+    per offer: the door, the refusal, the offered call, and the second
+    refusal, which is None when the doors admitted the call.
+
+    A step `api.AGAIN` is the refused call, unchanged. It fails only when it
+    meets the first refusal again. Another door's refusal of it is a fact
+    about the seat's own arguments, which the first call meets as well.
+    """
+    out = []
+    for o in offers:
+        then = tuple((dotted, kwargs) if step == api.AGAIN else step
+                     for step in o.then)
+        rec = {"door": o.site, "said": o.said, "call": f"{dotted}({kwargs!r})",
+               "refusal": str(exc), "offer": f"{o.op}({o.args!r})",
+               "then": [c[0] for c in then], "second": None, "skipped": None}
+        try:
+            ok, second, where, step = dry_run(sb, o.op, o.args, then)
+        except DrySkipped as why:
+            rec["skipped"] = str(why)
+            out.append(rec)
+            continue
+        if not ok:
+            if (step > 0 and o.then[step - 1] == api.AGAIN
+                    and second.split(": ", 1)[-1] != str(exc)):
+                rec["note"] = f"the call again met another door: {second}"
+            else:
+                rec["second"] = second
+                rec["second_call"] = where
+        out.append(rec)
+    return out

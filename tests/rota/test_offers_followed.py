@@ -1,0 +1,215 @@
+"""
+The follow check of frame 144, held by direct tests.
+
+A refusal that names a call records it in `ctx.offers` (`api._offer`).
+`sandbox.dry_run` sends that call through the real doors on the same `ctx`
+and puts `ctx` back. The hook in `conftest.py` does this for every refusal
+that a test meets through `Sandbox.call`. These tests hold the doors of
+`tests.encode` that the table ranks first, frame 135's project-id door, and
+the instrument itself.
+
+An offer that the doors refuse today is a finding, and a strict xfail holds
+it here. `KNOWN_REFUSED_OFFERS` in `conftest.py` names the same finding, so
+the other tests that meet it stay green.
+"""
+from __future__ import annotations
+
+import pytest
+
+from rota.core import sandbox
+from rota.core.sandbox import build
+from rota.roles import api
+from tests.rota.test_t0_sandbox import (  # noqa: F401
+    _PRORATE, _a_criterion, _a_stored_test, _answer_tester, _challenge_tester,
+    _challenge_wake, db)
+
+
+def _refused(sb, op, **kwargs):
+    """The refusal of `op(**kwargs)`, and the offers it recorded."""
+    with pytest.raises(ValueError) as exc:
+        sb.call(op, **kwargs)
+    return str(exc.value), list(sb.ctx.offers)
+
+
+def _admitted(sb, offer):
+    ok, second, call, _ = sandbox.dry_run(sb, offer.op, offer.args, offer.then)
+    return ok, second
+
+
+_PRORATES = "prorating a mid-month upgrade charges the unused remainder"
+
+
+# -- tests.encode, the stored-test doors (the table's rank 1) ---------------
+
+def test_the_stored_path_offer_is_admitted(db):
+    """`api.py`'s stored-path door: "send this encode again with path=...".
+    The named call replaces t1 at its own path."""
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+    said, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
+                            path="q.py", body=_PRORATE + " # fixed")
+    assert said == "t1 is stored at p.py. To replace it, send this encode again with path='p.py'."
+    assert [(o.op, o.args["path"], o.args["id"]) for o in offers] == [
+        ("tests.encode", "p.py", "t1")]
+    assert _admitted(sb, offers[0]) == (True, None)
+    assert sb.ctx.writes == []
+
+
+def test_the_other_batch_offer_of_a_new_id_is_admitted(db):
+    """"Choose another id": the offer marks the id as the seat's to invent,
+    and a fresh id is admitted."""
+    _a_criterion(db, _PRORATES)
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b2','i1','running')")
+    _a_stored_test(db, batch_id="b2")
+    sb = _challenge_tester(db)
+    said, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
+                            path="p.py", body=_PRORATE + " # fixed")
+    assert said.endswith("Choose another id.")
+    assert offers[0].args["id"] is api.INVENT
+    assert _admitted(sb, offers[0]) == (True, None)
+
+
+def test_the_same_criterion_clash_offer_of_the_stored_id_is_admitted(db):
+    """"send this encode again with id=...": the stored id replaces its own
+    test at its own file."""
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+    said, offers = _refused(sb, "tests.encode", id="t9", criterion_id="c1",
+                            path="p.py", body=_PRORATE + " # fixed")
+    assert "send this encode again with id='t1'" in said
+    assert [o.args["id"] for o in offers] == ["t1"]
+    assert _admitted(sb, offers[0]) == (True, None)
+
+
+# -- frame 135's project-id door ---------------------------------------------
+
+def test_a_project_id_at_a_new_path_is_offered_a_new_id_that_lands(db):
+    """Night 120 s140: a new test under a project id at its own new path.
+    The new id at that path is admitted."""
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
+                   path="tests/test_utils/test_confirm.py")
+    sb = _answer_tester(db)
+    _, offers = _refused(sb, "tests.encode", id="inh_022b8a87", criterion_id="c1",
+                         path="tests/test_utils/test_echo_json.py",
+                         body=_PRORATE + " # new", batch_id="b1")
+    assert len(offers) == 1 and offers[0].args["id"] is api.INVENT
+    assert _admitted(sb, offers[0]) == (True, None)
+
+
+def test_a_challenged_project_test_is_offered_its_own_file_and_a_new_id(db):
+    """A challenge of the project test that sends it to a new file gets two
+    calls, its own file or a new id. The doors admit both."""
+    from rota.core.harness import inherited_id
+    pid = inherited_id("tests/test_utils/test_confirm.py")
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db, id=pid, criterion_id="c1",
+                   path="tests/test_utils/test_confirm.py")
+    sb = _challenge_wake(db, [pid])
+    _, offers = _refused(sb, "tests.encode", id=pid, criterion_id="c1",
+                         path="tests/test_utils/test_new.py", body=_PRORATE + " # moved")
+    assert [(o.args["id"], o.args["path"]) for o in offers] == [
+        (pid, "tests/test_utils/test_confirm.py"),
+        (api.INVENT, "tests/test_utils/test_new.py")]
+    for o in offers:
+        assert _admitted(sb, o) == (True, None), o
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "finding of frame 144 pass 1: tests_encode, the project-id door, "
+    "'Send this encode again with a new id that you invent.' The new id keeps "
+    "the seat's path, which is the project test's file, and the clash door "
+    "refuses it"))
+def test_a_project_id_at_its_own_path_is_offered_a_new_id_that_lands(db):
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
+                   path="tests/test_utils/test_confirm.py")
+    sb = _answer_tester(db)
+    _, offers = _refused(sb, "tests.encode", id="inh_022b8a87", criterion_id="c1",
+                         path="tests/test_utils/test_confirm.py",
+                         body=_PRORATE + " # new", batch_id="b1")
+    assert _admitted(sb, offers[0]) == (True, None)
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "finding of frame 144 pass 1: tests_encode, the unimported-module wall, "
+    "'Add the line `import pytest` at the top of the body and send the encode "
+    "again'. The encode with the line then meets the invented-literal door "
+    "(ACT-TS-give-the-prompt-a-stream)"))
+def test_the_added_import_offer_is_admitted(db):
+    _a_criterion(db, _PRORATES)
+    sb = _answer_tester(db)
+    body = ("from billing import prorate\ndef test_it():\n"
+            "    m = pytest.MonkeyPatch()\n"
+            "    assert prorate(999, 1, 3) == 'default_answer'\n")
+    said, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
+                            path="p.py", body=body, batch_id="b1")
+    assert said.startswith("the test uses pytest and never imports it")
+    assert offers[0].args["body"] == "import pytest\n" + body
+    assert _admitted(sb, offers[0]) == (True, None)
+
+
+# -- code.write ---------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "finding of frame 144 pass 1: _code_write, the cut door, 'To add after it "
+    "send start=, end='. The seat's text replaces the def, so the text added "
+    "after it defines the name twice"))
+def test_the_add_after_offer_of_a_cut_span_is_admitted(tmp_path):
+    from rota.core.db import init_db
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+                 "VALUES ('i1','x','in_scope','approved',1,1)")
+    root = tmp_path / "wt"
+    root.mkdir()
+    (root / "m.py").write_text("@dec\n@dec2(\n    1)\ndef f():\n    a = 1\n    return a\nx = 1\n")
+    conn.execute("INSERT INTO batches (id, item_id, status, worktree) "
+                 "VALUES ('b1','i1','running',?)", (str(root),))
+    conn.commit()
+    from rota.roles import prompts
+    sb = build("developer", conn, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    _, offers = _refused(sb, "code.write", path="m.py", start=3, end=6,
+                         text="def f():\n    return 1\n")
+    after = [o for o in offers if o.said.startswith("To add after it")]
+    assert after
+    assert _admitted(sb, after[0]) == (True, None)
+
+
+# -- the instrument -------------------------------------------------------------
+
+def test_a_dry_run_puts_the_context_back(db):
+    """An admitted offer stages a write inside the dry run. After it, `ctx`
+    holds what it held, the lists keep their identity, and the call log and
+    the database are unchanged."""
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+    _, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
+                         path="q.py", body=_PRORATE + " # fixed")
+    writes, refusals = sb.ctx.writes, list(sb.ctx.refusals)
+    log = list(sandbox._CALL_LOG.get(id(sb.ctx), []))
+    changes = db.total_changes
+    assert _admitted(sb, offers[0]) == (True, None)
+    assert sb.ctx.writes is writes and writes == []
+    assert sb.ctx.refusals == refusals
+    assert [o.op for o in sb.ctx.offers] == ["tests.encode"]
+    assert sandbox._CALL_LOG.get(id(sb.ctx), []) == log
+    assert db.total_changes == changes
+
+
+def test_a_dry_run_does_not_send_a_commit():
+    """git has no dry mode here, so an offered commit is not sent."""
+    with pytest.raises(sandbox.DrySkipped):
+        sandbox.dry_run(None, "code.commit", {})
+
+
+def test_an_invented_text_is_not_sent():
+    """A text the seat must write has no fresh value, so the offer is not
+    sent. An invented id gets a fresh one."""
+    assert sandbox._fill({"id": api.INVENT, "path": "p"}, 0) == {
+        "id": "x_follow0_id", "path": "p"}
+    with pytest.raises(sandbox.DrySkipped):
+        sandbox._fill({"text": api.INVENT}, 0)

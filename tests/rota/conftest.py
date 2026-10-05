@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import os
 
+import pytest
+
 from rota.llm.cassettes import TALLY
 
 
@@ -121,3 +123,76 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         terminalreporter.write_line("")
         terminalreporter.write_line(line, bold=True)
         TALLY.save(model=DEFAULT_MODEL)
+
+
+# The offers that the doors refuse today, by the function that makes the
+# offer, the op it names, and the first words of the sentence. Each one is a
+# finding of frame 144's pass 1, and a strict xfail in
+# `test_offers_followed.py` holds it. The judge makes frames of them. Remove
+# a line when its door is fixed, and the strict xfail then goes red.
+KNOWN_REFUSED_OFFERS: set[tuple[str, str, str]] = {
+    # A new id keeps the seat's path. When that path is a project test's
+    # file, the clash door refuses the new id.
+    ("tests_encode", "tests.encode", "An encode never replaces a pr"),
+    # The added import line lands, and a later door refuses a literal of the
+    # seat's own body (ACT-TS-give-the-prompt-a-stream).
+    ("tests_encode", "tests.encode", "the test uses"),
+    # A span that replaces a def is told to add the same text after it. The
+    # text is a replacement, so the merged file defines a name twice or does
+    # not parse.
+    ("_code_write", "code.write", "To add after it send start="),
+}
+
+
+def _known(rec: dict) -> bool:
+    fn = rec["door"].rsplit(" in ", 1)[-1]
+    op = rec["offer"].split("(", 1)[0]
+    said = (rec.get("said") or "").strip()
+    return any(fn == f and op == o and said.startswith(s)
+               for f, o, s in KNOWN_REFUSED_OFFERS)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    """
+    The follow check of frame 144, on every test of this directory.
+
+    A refusal that names a call records it in `ctx.offers`. When a test's
+    call meets such a refusal through `Sandbox.call`, this hook sends each
+    offered call through `sandbox.dry_run`. The test fails when the doors
+    refuse an offered call, unless the offer is a known finding above.
+    `ROTA_OFFER_LOG` names a file that takes one JSON line per offer.
+    """
+    import json
+
+    from rota.core import sandbox
+
+    found: list[dict] = []
+
+    def hook(sb, dotted, kwargs, exc, offers):
+        sandbox._ON_REFUSAL = None      # a dry run's own refusals are not followed
+        try:
+            found.extend(sandbox.follow(sb, dotted, kwargs, exc, offers))
+        except Exception as crash:                         # noqa: BLE001
+            found.append({"door": offers[0].site, "call": dotted,
+                          "refusal": str(exc), "offer": f"{offers[0].op}(...)",
+                          "second": f"the follow crashed: {crash!r}"})
+        finally:
+            sandbox._ON_REFUSAL = hook
+
+    sandbox._ON_REFUSAL = hook
+    try:
+        result = yield
+    finally:
+        sandbox._ON_REFUSAL = None
+    log = os.environ.get("ROTA_OFFER_LOG")
+    if log and found:
+        with open(log, "a", encoding="utf-8", newline="") as fh:
+            for rec in found:
+                fh.write(json.dumps({"test": item.nodeid, **rec}, default=repr) + "\n")
+    bad = [r for r in found if r.get("second") and not _known(r)]
+    if bad:
+        raise AssertionError("an offered call is refused by the doors:\n" + "\n".join(
+            f"door {r['door']}\n  refusal: {r['refusal']}\n  offer: {r['offer']}\n"
+            f"  second refusal: {r['second']}" for r in bad))
+    return result
