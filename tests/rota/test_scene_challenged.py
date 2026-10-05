@@ -7,8 +7,6 @@ and never asserts the same-refs door's refusal.
 """
 from __future__ import annotations
 
-import pytest
-
 from rota.testkit import scenes
 from tests.rota.scene_tests import make
 
@@ -29,4 +27,4 @@ def test_t1_is_at_version_2_and_green_on_the_same_commit(scene):
                         (scene.ids["challenge"],)).fetchone()[0] != "open"
 
 
-globals().update(make(NAME))
+globals().update(make(NAME, end=["critic|tick:review|b1"], attempts=[]))

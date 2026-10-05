@@ -5,10 +5,11 @@ The merge delivers the Tester's `test_upgrade.py` in a commit of its own,
 and b2's start takes it in. The design's section 5 names no fix for S2, so
 the proof is the wall that the state comes from: the merge's delivery of
 the Tester's bodies (click night 50, `lifecycle.merge`).
+
+The merge changed `src/billing` and the root, so the frontier at the end
+holds the Terminologist's survey of both areas again, after the Tester.
 """
 from __future__ import annotations
-
-import pytest
 
 from rota.testkit import scenes
 from tests.rota.scene_tests import make
@@ -29,4 +30,8 @@ def test_the_delivered_test_is_a_project_test_of_b2(scene):
                         (scene.ids["delivered"],)).fetchone()[0] == "pass"
 
 
-globals().update(make(NAME))
+globals().update(make(
+    NAME,
+    end=["tester|tick:tests_missing|b2", "terminologist|tick:survey|src/billing",
+         "terminologist|tick:survey|."],
+    attempts=[]))
