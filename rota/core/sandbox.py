@@ -936,6 +936,271 @@ def _reply_to_read(ctx: api.Ctx) -> bool:
     return api._ask_of(ctx) is not None
 
 
+#: How many challenges on one version of the refs may stand unanswered before
+#: the door refuses the next one. Two gives a stochastic Tester one more wake
+#: (ruled: the judging session, 2026-10-05, frame 132's design, question 2).
+#: The bound's sentence says "neither", so it names two priors.
+UNANSWERED_CHALLENGES = 2
+
+
+def _same_refs_rows(conn: sqlite3.Connection, role: str, recipient: str,
+                    verb: str, refs) -> list:
+    """
+    The messages that `role` sent to `recipient` with `verb` on these refs,
+    newest first. Each row carries the id and the refs of its newest answer
+    row, from any role.
+
+    The refs match as a sorted list. Frame 111's design review (2026-10-02):
+    the same refs in another order escaped the door.
+    """
+    import json as _json
+    want = sorted(refs or [])
+    rows = []
+    for row in conn.execute(
+            "SELECT m.id, m.body_refs, m.status, a.id AS answer_id, "
+            "a.body_refs AS answer_refs FROM messages m "
+            "LEFT JOIN messages a ON a.id = ("
+            "  SELECT x.id FROM messages x WHERE x.cause_id = m.id "
+            "  AND x.verb = 'answer' ORDER BY x.seq DESC LIMIT 1) "
+            "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
+            "ORDER BY m.seq DESC", (role, recipient, verb)):
+        try:
+            if sorted(_json.loads(row["body_refs"] or "[]")) != want:
+                continue
+        except (TypeError, ValueError):
+            continue
+        rows.append(row)
+    return rows
+
+
+def _sent_this_session(ctx: api.Ctx, recipient: str, verb: str) -> bool:
+    """
+    True when this session has staged `verb` to `recipient` already.
+
+    The triage verdict's row is the op's, not the model's send. A question the
+    model sends after the verdict is its first (frame 81).
+    """
+    return any(m["to_role"] == recipient and m["verb"] == verb
+               and m.get("route") != "triage"
+               for m in ctx.outbound)
+
+
+def _escalation_admitted(ctx: api.Ctx, refs) -> bool:
+    """
+    True when `msg.escalate_architect` on these refs passes the two repeat
+    doors of `_bind_send`, the duplicate guard and the same-refs door.
+
+    A refusal names a call only where the doors admit that call (frame 135,
+    `plans/operating-facts.md`, rulings on briefs and doors). For the
+    Developer, any escalation on the same refs, open or closed, refuses.
+    """
+    if _sent_this_session(ctx, "architect", "escalate"):
+        return False
+    return _same_refs_refusal(ctx, "architect", "escalate", refs) is None
+
+
+def _waits_refusal(verb: str, recipient: str, waiting_id: str) -> str:
+    """The refusal of a Developer's second copy of a message still open."""
+    way = ("write the change that makes it pass"
+           if verb == "challenge" else
+           "write the change that makes it pass, and commit it")
+    return (f"you sent {verb} to {recipient} on exactly these refs "
+            f"already ({waiting_id}) and it waits for an answer. "
+            f"A second copy is the same question twice, and the "
+            f"answer comes to a later wake. Until then: code.source "
+            f"the code the test calls and {way}, or end the session "
+            f"with no call")
+
+
+def _moved_since_woken(conn: sqlite3.Connection, msg_id: str, refs) -> bool:
+    """
+    True when a row of `refs` has a receipt from a session at or after the
+    first session that `msg_id` woke. False when `msg_id` woke no session.
+
+    No row stores the version that a challenge saw. The receipt is the
+    smallest record that exists, so the door needs no new column (frame
+    132's design, section 3.1). Any table counts, because a repaired
+    criterion is a new version of the conflict too.
+    """
+    ids = [r for r in refs or [] if isinstance(r, str)]
+    if not ids:
+        return False
+    marks = ",".join("?" * len(ids))
+    return conn.execute(
+        f"SELECT 1 FROM receipts r JOIN sessions s ON s.id = r.session_id "
+        f"WHERE r.row_id IN ({marks}) AND s.seq >= ("
+        f"  SELECT MIN(w.seq) FROM sessions w WHERE w.trigger_msg = ?) "
+        f"LIMIT 1", (*ids, msg_id)).fetchone() is not None
+
+
+def _judged_by(conn: sqlite3.Connection, msg_id: str, role: str) -> str | None:
+    """The id of the newest answer that `role` sent to `msg_id`, or None."""
+    row = conn.execute(
+        "SELECT id FROM messages WHERE cause_id = ? AND verb = 'answer' "
+        "AND from_role = ? ORDER BY seq DESC LIMIT 1",
+        (msg_id, role)).fetchone()
+    return row["id"] if row else None
+
+
+def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
+    """
+    The same-refs door for the Developer's challenge to the Tester. Return
+    the refusal, or None when the door admits the challenge.
+
+    The newest prior on the same refs decides (frame 132's design, section
+    3.1). An open prior waits. A prior after which a row of the refs moved
+    admits. A prior that the Tester answered refuses. A prior with neither
+    admits, until two such priors stand on one version.
+    """
+    if not rows:
+        return None
+    prior = rows[0]
+    if prior["status"] == "open":
+        return _waits_refusal("challenge", "tester", prior["id"])
+    # Frame 145, night 122 (2026-10-05): the Tester stored version 2 of the
+    # test, and the challenge of version 2 met "they answered". A receipt
+    # since the prior's first wake makes this a challenge of a new version.
+    if _moved_since_woken(ctx.conn, prior["id"], refs):
+        return None
+    # S0 walk eight: nine rounds of challenge, answer and harness on the same
+    # refs. The Tester judged this version, so the same challenge is the same
+    # argument. Each sentence states one fact and one step (frame 135).
+    answer = _judged_by(ctx.conn, prior["id"], "tester")
+    if answer:
+        fact = (f"you sent challenge to tester on exactly these refs already "
+                f"({prior['id']}) and they answered ({answer}). Sending it "
+                f"again is the same argument again.")
+        if _escalation_admitted(ctx, refs):
+            return api._offer(
+                ctx, fact + " Send msg.escalate_architect on the same refs.",
+                "msg.escalate_architect", {"refs": list(refs or [])})
+        return fact + " Make one real change to the code the test calls."
+    # Frame 132, nights 119 and 123 (2026-10-05): the Tester's session wrote
+    # nothing and sent nothing, the Architect's rung answered with no words,
+    # and the door read that rung as the Tester's answer. An unanswered
+    # challenge admits one re-send per version (ruled: the judging session,
+    # 2026-10-05, option 1). The count stops at a judged or a moved prior,
+    # because the priors before it are about another version or a judgement.
+    unanswered = [prior]
+    for row in rows[1:]:
+        if row["status"] == "open":
+            continue
+        if (_moved_since_woken(ctx.conn, row["id"], refs)
+                or _judged_by(ctx.conn, row["id"], "tester")):
+            break
+        unanswered.append(row)
+        if len(unanswered) >= UNANSWERED_CHALLENGES:
+            break
+    if len(unanswered) < UNANSWERED_CHALLENGES:
+        return None
+    fact = (f"you sent challenge to tester on exactly these refs already "
+            f"({unanswered[1]['id']}, then {unanswered[0]['id']}), and the "
+            f"Tester answered neither and did not change the test.")
+    if _escalation_admitted(ctx, refs):
+        return api._offer(
+            ctx, fact + " Send msg.escalate_architect on the same refs.",
+            "msg.escalate_architect", {"refs": list(refs or [])})
+    # The Developer can write no test, and the ladder climbed twice already.
+    # An ended session lets the tick cap carry the batch on (frame 132's
+    # design, section 3.4).
+    return fact + " End the session with no call."
+
+
+def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
+                       refs) -> str | None:
+    """
+    The door on a challenge or an escalation with the same refs as an earlier
+    one from this role. Return the refusal, or None when the door admits.
+
+    `stage` raises the refusal. `_escalation_admitted` asks the same function
+    before a sentence names an escalation, so the two cannot disagree.
+    """
+    rows = _same_refs_rows(ctx.conn, ctx.role, recipient, verb, refs)
+    # Only the Developer's challenge to the Tester reads who answered and
+    # whether the test moved. Every other sender and verb keeps its branch
+    # (ruled: the judging session, 2026-10-05, frame 132's question 4).
+    if ctx.role == "developer" and recipient == "tester" and verb == "challenge":
+        return _challenge_repeat_refusal(ctx, rows, refs)
+    # A prior is answered when an answer row names it. For the
+    # Developer, a prior that the dispatch closed with no answer row
+    # counts too, as an answer with no row. Night 109 (2026-10-03):
+    # the Architect turned escalation m97 into a challenge to the
+    # Vision Keeper. m97 read 'answered' with no answer row, and the
+    # pending branch below refused 11 escalations all night.
+    import json as _json
+    prior = waiting = None
+    for row in rows:
+        closed = ctx.role == "developer" and row["status"] != "open"
+        if row["answer_id"] is not None or closed:
+            prior = row
+            break
+        if waiting is None and row["status"] == "open":
+            waiting = row
+    if prior:
+        # Walk ten: escalate, answer, escalate, answer, three times
+        # on one pair of refs, with the fix written into the reply
+        # as prose in between. The Architect answered; the answer is
+        # the material now.
+        # Night 106 (2026-10-02): s223 and s224 met "act on the
+        # answer", and the answer m116 held no words and no new row.
+        # The next write met the stdin door again. So the door names
+        # the rows the answer added, or says that it added none.
+        if verb == "escalate":
+            try:
+                answer_refs = _json.loads(prior["answer_refs"] or "[]") or []
+            except (TypeError, ValueError):
+                answer_refs = []
+            if not isinstance(answer_refs, list):
+                answer_refs = []          # the JSON text `null`, or a scalar
+            own = set(refs or [])
+            added = [r for i, r in enumerate(answer_refs)
+                     if isinstance(r, str) and r not in own
+                     and r not in answer_refs[:i]]
+            if added:
+                return (
+                    f"you sent {verb} to {recipient} on exactly these "
+                    f"refs already ({prior['id']}) and they answered "
+                    f"({prior['answer_id']}): the answer points at "
+                    f"{', '.join(added)} -- code.source those rows, "
+                    f"write the change they call for, and commit")
+            # A closed prior with no answer row names its status.
+            answer_id = prior["answer_id"] or prior["status"]
+            return (
+                f"you sent {verb} to {recipient} on exactly these refs "
+                f"already ({prior['id']}) and they answered "
+                f"({answer_id}) with no row beyond your own "
+                f"refs. Sending it again is the same argument again. "
+                f"The attempt cap carries this batch to the ladder: "
+                f"make one real change to the code the test calls, or "
+                f"end the session with no call")
+        # The rung is an instruction, not a bare name after a dash.
+        # Night 111 (2026-10-03): s252 read "-- msg.escalate_architect"
+        # at turn 6 and sent the same challenge again. The Developer's
+        # rung is the Architect. Another sender has no op to name
+        # here: `schedule.unresolved` was renamed and took no refs
+        # (the review of ee1ed12, 2026-10-03), so the text names the
+        # answer and the end.
+        if recipient == "tester":
+            way = ("Send msg.escalate_architect on the same refs, or "
+                   "make one real change to the code the test calls.")
+        else:
+            way = "Act on the answer, or end the session with no call."
+        return (
+            f"you sent {verb} to {recipient} on exactly these refs "
+            f"already ({prior['id']}) and they answered. Sending it "
+            f"again is the same argument again. Do not send this "
+            f"{verb} again. {way}")
+    # A challenge with no answer yet is a question still open. Night
+    # 108 (2026-10-02): s307 to s328 sent one challenge each on the
+    # refs of m190 while the Tester answered none. Nine landed, and
+    # the door read only answered priors. The Developer's text names
+    # the code, so the door holds for the Developer only. Only an open
+    # prior waits: the schema's open status is 'open'.
+    if ctx.role == "developer" and waiting:
+        return _waits_refusal(verb, recipient, waiting["id"])
+    return None
+
+
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                prose: str = "") -> Callable:
     """
@@ -1313,108 +1578,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # identical refs every round -- a livelock the attempt cap
             # cannot see because every message is a fresh cause. A held
             # answer means the two of you disagree; the door is above.
-            # The refs match as a sorted list. Frame 111's design review
-            # (2026-10-02): the same refs in another order escaped the door.
-            import json as _json
-            want = sorted(refs or [])
-            # A prior is answered when an answer row names it. For the
-            # Developer, a prior that the dispatch closed with no answer row
-            # counts too, as an answer with no row. Night 109 (2026-10-03):
-            # the Architect turned escalation m97 into a challenge to the
-            # Vision Keeper. m97 read 'answered' with no answer row, and the
-            # pending branch below refused 11 escalations all night.
-            prior = waiting = None
-            for row in ctx.conn.execute(
-                    "SELECT m.id, m.body_refs, m.status, a.id AS answer_id, "
-                    "a.body_refs AS answer_refs FROM messages m "
-                    "LEFT JOIN messages a ON a.id = ("
-                    "  SELECT x.id FROM messages x WHERE x.cause_id = m.id "
-                    "  AND x.verb = 'answer' ORDER BY x.seq DESC LIMIT 1) "
-                    "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
-                    "ORDER BY m.seq DESC", (ctx.role, recipient, verb)):
-                try:
-                    if sorted(_json.loads(row["body_refs"] or "[]")) != want:
-                        continue
-                except (TypeError, ValueError):
-                    continue
-                closed = ctx.role == "developer" and row["status"] != "open"
-                if row["answer_id"] is not None or closed:
-                    prior = row
-                    break
-                if waiting is None and row["status"] == "open":
-                    waiting = row
-            if prior:
-                # Walk ten: escalate, answer, escalate, answer, three times
-                # on one pair of refs, with the fix written into the reply
-                # as prose in between. The Architect answered; the answer is
-                # the material now.
-                # Night 106 (2026-10-02): s223 and s224 met "act on the
-                # answer", and the answer m116 held no words and no new row.
-                # The next write met the stdin door again. So the door names
-                # the rows the answer added, or says that it added none.
-                if verb == "escalate":
-                    try:
-                        answer_refs = _json.loads(prior["answer_refs"] or "[]") or []
-                    except (TypeError, ValueError):
-                        answer_refs = []
-                    if not isinstance(answer_refs, list):
-                        answer_refs = []          # the JSON text `null`, or a scalar
-                    own = set(refs or [])
-                    added = [r for i, r in enumerate(answer_refs)
-                             if isinstance(r, str) and r not in own
-                             and r not in answer_refs[:i]]
-                    if added:
-                        raise ValueError(
-                            f"you sent {verb} to {recipient} on exactly these "
-                            f"refs already ({prior['id']}) and they answered "
-                            f"({prior['answer_id']}): the answer points at "
-                            f"{', '.join(added)} -- code.source those rows, "
-                            f"write the change they call for, and commit")
-                    # A closed prior with no answer row names its status.
-                    answer_id = prior["answer_id"] or prior["status"]
-                    raise ValueError(
-                        f"you sent {verb} to {recipient} on exactly these refs "
-                        f"already ({prior['id']}) and they answered "
-                        f"({answer_id}) with no row beyond your own "
-                        f"refs. Sending it again is the same argument again. "
-                        f"The attempt cap carries this batch to the ladder: "
-                        f"make one real change to the code the test calls, or "
-                        f"end the session with no call")
-                # The rung is an instruction, not a bare name after a dash.
-                # Night 111 (2026-10-03): s252 read "-- msg.escalate_architect"
-                # at turn 6 and sent the same challenge again. The Developer's
-                # rung is the Architect. Another sender has no op to name
-                # here: `schedule.unresolved` was renamed and took no refs
-                # (the review of ee1ed12, 2026-10-03), so the text names the
-                # answer and the end.
-                if recipient == "tester":
-                    way = ("Send msg.escalate_architect on the same refs, or "
-                           "make one real change to the code the test calls.")
-                else:
-                    way = "Act on the answer, or end the session with no call."
-                raise ValueError(
-                    f"you sent {verb} to {recipient} on exactly these refs "
-                    f"already ({prior['id']}) and they answered. Sending it "
-                    f"again is the same argument again. Do not send this "
-                    f"{verb} again. {way}")
-            # A challenge with no answer yet is a question still open. Night
-            # 108 (2026-10-02): s307 to s328 sent one challenge each on the
-            # refs of m190 while the Tester answered none. Nine landed, and
-            # the door read only answered priors. The Developer's text names
-            # the code, so the door holds for the Developer only. Only an open
-            # prior waits: the schema's open status is 'open'.
-            if ctx.role == "developer":
-                if waiting:
-                    way = ("write the change that makes it pass"
-                           if verb == "challenge" else
-                           "write the change that makes it pass, and commit it")
-                    raise ValueError(
-                        f"you sent {verb} to {recipient} on exactly these refs "
-                        f"already ({waiting['id']}) and it waits for an answer. "
-                        f"A second copy is the same question twice, and the "
-                        f"answer comes to a later wake. Until then: code.source "
-                        f"the code the test calls and {way}, or end the session "
-                        f"with no call")
+            # The door is a module function, so a replay on a night's
+            # database runs the same code (frame 132's pass 1).
+            said = _same_refs_refusal(ctx, recipient, verb, refs)
+            if said is not None:
+                raise ValueError(said)
         if verb == "question" and refs:
             # A question answered twice on the same rows is not a third
             # question. tipsAB (2026-09-09): the Tester asked the
@@ -1881,10 +2049,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
 
         # The triage verdict's row is the op's, not the model's send. A
         # question the model sends after the verdict is its first (frame 81).
-        duplicate = any(m["to_role"] == recipient and m["verb"] == verb
-                        and m.get("route") != "triage"
-                        for m in ctx.outbound)
-        if duplicate:
+        if _sent_this_session(ctx, recipient, verb):
             raise ValueError(
                 f"you have already sent {verb} to {recipient}; saying it again "
                 f"with different refs is a second answer to one question, and "
