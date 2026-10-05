@@ -254,8 +254,13 @@ The session that holds the frame is Fable. The line was measured once
 and held (ruled: Roman, 2026-09-24 01:07, on frame 74's count: Opus 5.5
 found 8 of 10 findings blind, missed 2, and added 1 false finding that
 read an absent value as a date; the count is in
-`plans/archive/stack-2026-09-23.md`, frame 74). Opus 5.5 is fit for the
-design review, which this session judges before any code. It judges by
+`plans/archive/stack-2026-09-23.md`, frame 74). **Every agent that is not
+an implementer or a sweeper runs on Fable** (ruled: Roman, 2026-10-05,
+"Please switch to fable for the non-implementer subagents"): a read of a
+night, a diff review, a design review, a history read. Pass `model:
+"fable"` on each such agent, because an agent without the field can take
+another model. This replaces the line that Opus 5.5 is fit for the
+design review. This session judges a design before any code. It judges by
 working back from the output: the gate on the commit, the findings against the known
 ones, spot reads of hunks. It reads the output in full, never the
 agent's reasoning.
