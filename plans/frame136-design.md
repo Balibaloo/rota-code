@@ -107,6 +107,8 @@ It names the call only when `_admits` passes. When `U` blocks it, the step carri
 - A1 on s227's call now quotes the `__future__` line too: "start=0, end=5 removes 'from __future__ import annotations', 'import inspect', 'import typing as t' and 'from functools import update_wrapper', and the rest of src/click/decorators.py still uses inspect, t and update_wrapper. To add your text and keep every line, send start=1, end=1."
 - A removed `__future__` import alone gives the fact "... and the rest of <path> runs under that `from __future__` import." A2 with a removed `__future__` line says "put those lines at the top of your text, the `from __future__` line first".
 - D replaces the bare compile refusal when `_future_order` finds the text's `__future__` import below another statement. When `_admits` fails, D keeps its first sentence and names no call.
+- Pass 2 (2026-10-05), after the review of 08caa8d. A2 names a call only when every quoted statement is an import. The built text keeps the text's docstring and `from __future__` lines first, then puts the removed `__future__` lines and the removed imports, then the rest of the text. A removed assignment, def or class gets the fact alone, because compile is not import: `R = t.TypeVar("R")` landed above `import typing as t`. A quote starts at a decorator. A blank text gets the fact alone. A1's insert sits below a `#!` line and a coding comment. D fires only when `start` is at or above the file's first statement that is not a docstring or a `__future__` import. `_admits` treats only `ValueError` as a refusal. Any other exception is logged to `rota.roles.api` and names no call.
+- A2's sentence as built: "To keep {it|them}, put {that line|those lines} at the top of your text, below any `from __future__` line, and send start=…, end=… again."
 - A dry run returns `{}` before the disk, and an empty write in a dry run removes nothing. A refusal inside a dry run is the fact alone, so it starts no second dry run. 8 tests in `tests/rota/test_desk_guards.py` hold this, and one of them compares `ctx` and the worktree around `_admits`.
 
 ## 6. What the design does not cover
@@ -117,6 +119,8 @@ It names the call only when `_admits` passes. When `U` blocks it, the step carri
 - Wall 5, the revert door's sentence. It needs the runs of HEAD and HEAD~1, and one api test.
 - The relative-import cycle of s146, which frame 114 covers. A1 must not offer an insert that the new cycle check refuses, and the dry-run holds that.
 - A text cut at the output budget, s230 turns 1 to 3 (frame 121).
+- An import under a top-level `try:` or `if TYPE_CHECKING:` binds no name for `_top_binds`. A span that removes such a block is not refused (observed: the review of 08caa8d, point 6, 2026-10-05). The predicate does not widen in pass 2.
+- A2 restores only the imports that the span removes. When an earlier write already removed another import, the A2 step lands and the file still fails at import. The reviewer's replay of s227 turns 6, 7 and 9 shows `NameError: name 't' is not defined` after the step (observed: `review136/variants.py` on the main checkout, 2026-10-05).
 
 ## 7. Open points for the judge
 
