@@ -21,7 +21,7 @@ import inspect
 import re
 import sqlite3
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 from ..roles import api
 from ..design import graph as graph_mod
@@ -330,6 +330,16 @@ class Sandbox:
         """
         if "." not in dotted:
             raise NotInWorkingSet(f"{dotted!r} is not a function name")
+        # The offers and the facts are the current call's: a refusal names
+        # its own calls and quotes its own facts. Cleared before any check,
+        # so a call that fails the argument check keeps none of the last
+        # call's (frame 144's review of c888968, point 9).
+        offers = getattr(self.ctx, "offers", None)
+        if offers is not None:
+            del offers[:]
+        facts = getattr(self.ctx, "facts", None)
+        if facts is not None:
+            del facts[:]
         artefact, fn = dotted.split(".", 1)
         target = getattr(self[artefact], fn)
 
@@ -340,17 +350,14 @@ class Sandbox:
         if problem:
             raise ArgumentError(f"{dotted}: {problem}")
 
-        # The offers are the current call's: a refusal names its own calls.
-        offers = getattr(self.ctx, "offers", None)
-        if offers is not None:
-            del offers[:]
         try:
             return target(**kwargs)
         except ValueError as exc:
             # The follow check of frame 144. The hook is None in a session,
             # so a seat meets the same refusal as before.
-            if _ON_REFUSAL is not None and offers:
-                _ON_REFUSAL(self, dotted, dict(kwargs), exc, list(offers))
+            if _ON_REFUSAL is not None and (offers or facts):
+                _ON_REFUSAL(self, dotted, dict(kwargs), exc, list(offers or ()),
+                            list(facts or ()))
             raise
 
     def call_key(self, dotted: str, pos=(), kwargs=None) -> str:
@@ -2393,35 +2400,54 @@ class DrySkipped(Exception):
     """A dry run met an op whose effect it cannot hold back."""
 
 
-def _ctx_snapshot(ctx: api.Ctx) -> tuple[dict, dict]:
-    """The attributes of `ctx` as objects, and a deep copy of each. `conn`
-    stays out: no op writes the database (the check is in `dry_run`)."""
+# The types whose value a dry run cannot change in place.
+_IMMUTABLE = (str, int, float, bool, type(None), tuple, frozenset, bytes)
+
+
+def _ctx_snapshot(ctx: api.Ctx) -> tuple[dict, dict, dict]:
+    """The attributes of `ctx`: the objects, a shallow copy of each list,
+    dict and set, and one deep copy of them all. One deep copy keeps the
+    aliases between attributes. `conn` stays out: no op writes the database
+    (the check is in `dry_run`). An attribute of a mutable type that this
+    function does not know raises, because its restore would be a guess
+    (frame 144's review of c888968, point 4)."""
     import copy
 
     keep = dict(vars(ctx))
-    saved = {}
     for k, v in keep.items():
-        if k == "conn":
-            continue
-        try:
-            saved[k] = copy.deepcopy(v)
-        except Exception:                                  # noqa: BLE001
-            saved[k] = copy.copy(v)
-    return keep, saved
+        if k != "conn" and not isinstance(v, _IMMUTABLE + (list, dict, set)):
+            raise TypeError(f"ctx.{k} is a {type(v).__name__}, and a dry run "
+                            f"cannot restore it")
+    shallow = {k: copy.copy(v) for k, v in keep.items()
+               if isinstance(v, (list, dict, set))}
+    deep = copy.deepcopy({k: v for k, v in keep.items() if k != "conn"})
+    return keep, shallow, deep
 
 
-def _ctx_restore(ctx: api.Ctx, keep: dict, saved: dict) -> None:
+def _same(a, b) -> bool:
+    try:
+        return bool(a == b)
+    except Exception:                                      # noqa: BLE001
+        return False
+
+
+def _ctx_restore(ctx: api.Ctx, keep: dict, shallow: dict, deep: dict) -> None:
     """Put each attribute back as it was. A list, a dict or a set keeps its
-    identity, because the runner and the tests hold `ctx.writes` itself."""
+    identity, because the runner and the tests hold `ctx.writes` itself. An
+    element keeps its identity too, unless the dry run changed it in place,
+    and then its deep copy goes back."""
     for k in list(vars(ctx)):
         if k not in keep:
             delattr(ctx, k)
     for k, orig in keep.items():
-        if k in saved:
-            s = saved[k]
-            if isinstance(orig, list) and isinstance(s, list):
-                orig[:] = s
-            elif isinstance(orig, (dict, set)) and type(s) is type(orig):
+        if k in shallow:
+            s, d = shallow[k], deep[k]
+            if isinstance(orig, list):
+                orig[:] = [se if _same(se, de) else de for se, de in zip(s, d)]
+            elif isinstance(orig, dict):
+                orig.clear()
+                orig.update({x: (s[x] if _same(s[x], d[x]) else d[x]) for x in s})
+            else:
                 orig.clear()
                 orig.update(s)
         setattr(ctx, k, orig)
@@ -2441,17 +2467,35 @@ def _fill(args: dict, n: int) -> dict:
     return out
 
 
-def dry_run(sb: Sandbox, op: str, args: dict,
-            then: tuple = ()) -> tuple[bool, str | None, str | None]:
+def _raise_site(exc: BaseException) -> str:
+    """The file, line and function of the statement that raised `exc`."""
+    tb = exc.__traceback__
+    if tb is None:
+        return ""
+    while tb.tb_next is not None:
+        tb = tb.tb_next
+    code = tb.tb_frame.f_code
+    return f"{code.co_filename}:{tb.tb_lineno} in {code.co_name}"
+
+
+class DryResult(NamedTuple):
+    """What a dry run found. `step` is the index of the refused call, 0 for
+    the offered op itself, and `site` is the statement that refused it."""
+    admitted: bool
+    refusal: str | None = None
+    call: str | None = None
+    step: int | None = None
+    site: str = ""
+
+
+def dry_run(sb: Sandbox, op: str, args: dict, then: tuple = ()) -> DryResult:
     """Send `op(**args)`, then each call of `then`, through the real doors,
     and put `ctx` back as it was.
 
-    Returns `(admitted, refusal, call, step)`: whether every call was
-    admitted, and the first refusal with the call that met it and that
-    call's index, 0 for `op` itself. The calls run on the
-    real `ctx`, and `_ctx_restore` undoes what they staged. Raises
-    `DrySkipped` for an op in `_DRY_SKIPS`, and `RuntimeError` when a call
-    changed the database, because the restore cannot undo that.
+    The calls run on the real `ctx`, and `_ctx_restore` undoes what they
+    staged. Raises `DrySkipped` for an op in `_DRY_SKIPS`, and
+    `RuntimeError` when a call changed the database, because the restore
+    cannot undo that.
     """
     calls = [(op, args)] + list(then)
     for name, kw in calls:
@@ -2459,7 +2503,7 @@ def dry_run(sb: Sandbox, op: str, args: dict,
             raise DrySkipped(_DRY_SKIPS[name])
     calls = [(name, _fill(kw, n)) for n, (name, kw) in enumerate(calls)]
     ctx = sb.ctx
-    keep, saved = _ctx_snapshot(ctx)
+    keep, shallow, deep = _ctx_snapshot(ctx)
     log = _CALL_LOG.get(id(ctx))
     log_len = None if log is None else len(log)
     changes = ctx.conn.total_changes
@@ -2479,50 +2523,159 @@ def dry_run(sb: Sandbox, op: str, args: dict,
                 else:
                     sb.call(name, **kw)
             except (ValueError, SandboxError, NotInWorkingSet) as exc:
-                refused = (f"{type(exc).__name__}: {exc}", f"{name}({kw!r})", n)
+                refused = DryResult(False, f"{type(exc).__name__}: {exc}",
+                                    f"{name}({kw!r})", n, _raise_site(exc))
                 break
     finally:
-        _ctx_restore(ctx, keep, saved)
+        _ctx_restore(ctx, keep, shallow, deep)
         if log is None:
             _CALL_LOG.pop(id(ctx), None)
         else:
             del log[log_len:]
         if ctx.conn.total_changes != changes:
             raise RuntimeError(f"the dry run of {op} changed the database")
-    if refused:
-        return False, refused[0], refused[1], refused[2]
-    return True, None, None, None
+    return refused or DryResult(True)
+
+
+def _params(sb: Sandbox, op: str) -> set | None:
+    """The argument names of `op`, from the seat's own function when the
+    mode holds it and from the registry otherwise. None when neither does."""
+    art, _, fn = op.partition(".")
+    try:
+        target = getattr(sb[art], fn)
+    except (NotInWorkingSet, AttributeError):
+        impl = api.REGISTRY.get((art, _attr_to_verb(fn)))
+        if impl is None:
+            return None
+        target = impl
+    return set(inspect.signature(target).parameters) - {"ctx"}
 
 
 def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
            offers: list) -> list[dict]:
     """Send each offer of one refusal through `dry_run`. Returns one record
-    per offer: the door, the refusal, the offered call, and the second
-    refusal, which is None when the doors admitted the call.
+    per offer: the door, the sentence, the refusal, the offered call, and
+    the second refusal, which is None when the doors admitted the call.
 
-    A step `api.AGAIN` is the refused call, unchanged. It fails only when it
-    meets the first refusal again. Another door's refusal of it is a fact
-    about the seat's own arguments, which the first call meets as well.
+    Two facts of the offer are checked too: its sentence is in the refusal,
+    and each argument it names is a parameter of its op (`bad_args`).
+
+    A step `api.AGAIN` is the refused call, unchanged. It fails when the
+    door that refused it first refuses it again. Another door's refusal of
+    it is a fact about the seat's own arguments, which the first call meets
+    as well. The door is the raising statement, never the text: the literal
+    door names six literals of eight, and the call again meets the same
+    door for the other two (frame 144's review of c888968, point 1).
     """
+    first = _raise_site(exc)
     out = []
     for o in offers:
         then = tuple((dotted, kwargs) if step == api.AGAIN else step
                      for step in o.then)
         rec = {"door": o.site, "said": o.said, "call": f"{dotted}({kwargs!r})",
-               "refusal": str(exc), "offer": f"{o.op}({o.args!r})",
-               "then": [c[0] for c in then], "second": None, "skipped": None}
+               "refusal": str(exc), "raised_at": first,
+               "offer": f"{o.op}({o.args!r})",
+               "then": [c[0] for c in then], "second": None, "skipped": None,
+               "said_in_refusal": o.said in str(exc)}
+        bad = []
+        for op, args in [(o.op, o.args)] + [s for s in o.then if s != api.AGAIN]:
+            names = _params(sb, op)
+            if names is not None:
+                bad += [f"{op}: {a}" for a in args if a not in names]
+        rec["bad_args"] = bad
         try:
-            ok, second, where, step = dry_run(sb, o.op, o.args, then)
+            res = dry_run(sb, o.op, o.args, then)
         except DrySkipped as why:
             rec["skipped"] = str(why)
             out.append(rec)
             continue
-        if not ok:
-            if (step > 0 and o.then[step - 1] == api.AGAIN
-                    and second.split(": ", 1)[-1] != str(exc)):
-                rec["note"] = f"the call again met another door: {second}"
+        if not res.admitted:
+            if (res.step > 0 and o.then[res.step - 1] == api.AGAIN
+                    and res.site != first):
+                rec["note"] = f"the call again met another door: {res.refusal}"
             else:
-                rec["second"] = second
-                rec["second_call"] = where
+                rec["second"] = res.refusal
+                rec["second_call"] = res.call
+                rec["second_at"] = res.site
         out.append(rec)
+    return out
+
+
+def _worktree_lines(ctx: api.Ctx, path: str) -> list[str] | None:
+    """The current lines of `path` in the batch's worktree, or None."""
+    try:
+        target = api._within(api._batch_worktree(ctx), path)
+    except Exception:                                      # noqa: BLE001
+        return None
+    if not target.is_file():
+        return None
+    return target.read_text(encoding="utf-8", errors="replace").splitlines()
+
+
+def check_facts(sb: Sandbox, facts: list) -> list[dict]:
+    """Check each fact that a refusal quotes against the state (frame 144,
+    change 1(d)). Returns one record per fact, with `ok` and the reason.
+
+    The kinds, each recorded by `api._fact` at the door:
+
+    - `row`: the id names a row, stored or staged this session.
+    - `test_path`: the tests row `id` is stored or staged at the path.
+    - `file`: the path is a file of the worktree, or with `absent`, is not.
+    - `lines`: the file has this many lines now.
+    - `line`: the line number is inside the text the sentence speaks of, the
+      file now or the `text` given.
+    - `line_text`: line `n` of the file now starts with the quoted words.
+    - `span`: `(lo, hi)` lies inside that text.
+    - `arg`: the name is a parameter of `op`.
+    """
+    ctx = sb.ctx
+    out = []
+    for f in facts:
+        w = dict(f.where)
+        ok, why = True, ""
+        if f.kind == "row":
+            staged = any(t != "ledger" and rid == f.value for t, rid, *_ in ctx.writes)
+            ok = staged or api.ref_resolves(ctx, f.value)
+            why = "" if ok else "no stored or staged row has this id"
+        elif f.kind == "test_path":
+            row = ctx.conn.execute("SELECT path FROM tests WHERE id = ?",
+                                   (w["id"],)).fetchone()
+            staged = [r[2].get("path") for r in ctx.writes
+                      if r[0] == "tests" and r[1] == w["id"]]
+            ok = (row is not None and row["path"] == f.value) or f.value in staged
+            why = "" if ok else f"tests row {w['id']} is not at this path"
+        elif f.kind == "file":
+            lines = _worktree_lines(ctx, f.value)
+            ok = (lines is None) if w.get("absent") else (lines is not None)
+            why = "" if ok else ("the file exists" if w.get("absent")
+                                 else "no such file in the worktree")
+        elif f.kind in ("lines", "line", "line_text", "span"):
+            text = w.get("text")
+            lines = (text.splitlines() if text is not None
+                     else _worktree_lines(ctx, w["path"]))
+            if lines is None:
+                ok, why = False, "the file the sentence speaks of is absent"
+            elif f.kind == "lines":
+                ok = f.value == len(lines)
+                why = "" if ok else f"the file has {len(lines)} lines"
+            elif f.kind == "line":
+                ok = 0 <= f.value < len(lines)
+                why = "" if ok else f"the text has {len(lines)} lines"
+            elif f.kind == "line_text":
+                n = w["n"]
+                ok = 0 <= n < len(lines) and lines[n].rstrip().startswith(f.value)
+                why = "" if ok else f"line {n} is not the quoted text"
+            else:
+                lo, hi = f.value
+                ok = 0 <= lo <= hi <= len(lines)
+                why = "" if ok else f"the text has {len(lines)} lines"
+        elif f.kind == "arg":
+            names = _params(sb, w["op"])
+            ok = names is None or f.value in names
+            why = "" if ok else f"{w['op']} has no argument {f.value}"
+        else:
+            ok, why = False, f"unknown kind {f.kind}"
+        out.append({"kind": f.kind, "value": f.value, "where": {
+            k: v for k, v in w.items() if k != "text"}, "site": f.site,
+            "ok": bool(ok), "why": why})
     return out

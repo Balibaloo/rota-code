@@ -135,6 +135,10 @@ class Ctx:
     # one through the doors (frame 144). Nothing in a session reads it, and
     # `Sandbox.call` clears it at the start of each call.
     offers: list = None
+    # The facts that the refusal of the current call quotes, as data: one
+    # `Fact` each, filled by `_fact`. A test checks each one against the
+    # state (frame 144, change 1(d)). Cleared like `offers`.
+    facts: list = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -161,6 +165,8 @@ class Ctx:
             self.diff_files = {}
         if self.offers is None:
             self.offers = []
+        if self.facts is None:
+            self.facts = []
 
 
 class _Invent:
@@ -218,6 +224,29 @@ def _offer(ctx, said: str, op: str, args: dict, then: tuple = ()) -> str:
                             f"{f.f_code.co_filename}:{f.f_lineno} in "
                             f"{f.f_code.co_name}", said))
     return said
+
+
+@dataclass(frozen=True)
+class Fact:
+    """One fact that a refusal quotes: an id, a path, a line, a span or an
+    argument name. `sandbox.check_facts` names the kinds and their checks."""
+    kind: str
+    value: Any
+    where: tuple = ()
+    site: str = ""
+
+
+def _fact(ctx, kind: str, value, **where):
+    """Record a fact that the refusal quotes, and return `value` unchanged,
+    so the sentence's text does not move (frame 144, change 1(d))."""
+    facts = getattr(ctx, "facts", None)
+    if facts is not None:
+        import sys as _sys
+        f = _sys._getframe(1)
+        facts.append(Fact(kind, value, tuple(sorted(where.items())),
+                          f"{f.f_code.co_filename}:{f.f_lineno} in "
+                          f"{f.f_code.co_name}"))
+    return value
 
 
 # What a role can do about words a row did not keep: nothing, and the habit
@@ -5480,12 +5509,19 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         "SELECT text FROM criteria WHERE id = ?", (criterion_id,)).fetchone()
     if text is not None and _same_words(body, text["text"]):
         # Three calls, one for each case the sentence names (frame 144).
-        _offer(ctx, "", "msg.question_terminologist",
+        # Each offer carries its own fragment of the sentence, so a test can
+        # see that the refusal holds it (the review of c888968, point 8).
+        _offer(ctx, f"msg.question_terminologist(refs=['{criterion_id}'], "
+                    f"question='what would make this checkable?')",
+               "msg.question_terminologist",
                {"refs": [criterion_id], "question": "what would make this checkable?"})
-        _offer(ctx, "", "msg.question_vision_keeper",
+        _offer(ctx, f"msg.question_vision_keeper(refs=['{criterion_id}'], "
+                    f"question='what observable behaviour is promised here?')",
+               "msg.question_vision_keeper",
                {"refs": [criterion_id],
                 "question": "what observable behaviour is promised here?"})
-        _offer(ctx, "", "schedule.reask",
+        _offer(ctx, "schedule.reask(what_is_missing='words a test can assert')",
+               "schedule.reask",
                {"what_is_missing": "words a test can assert"})
         raise Wall(
             f"that is {criterion_id}'s own sentence written back, so nothing has "
@@ -6512,11 +6548,17 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
         # asked -- `verdicts.claim_encodes` is where it gets asked.
         claim = ctx.verdict_claims.get(failed_criterion)
         if claim is not True:
-            # The sentence names a claim first, then this verdict again
-            # (frame 144). True is the branch on which the fail lands.
-            _offer(ctx, "", "verdicts.claim_encodes",
+            # The sentence names a claim with either value (frame 144). True
+            # is the branch on which this verdict lands when sent again.
+            # False is the branch that goes to the Tester instead.
+            _offer(ctx, f"`verdicts.claim_encodes({failed_criterion!r}, encodes=...)` "
+                        f"first: True and the fail can land",
+                   "verdicts.claim_encodes",
                    {"criterion_id": failed_criterion, "encodes": True},
                    then=(AGAIN,))
+            _offer(ctx, "False and this is `msg.challenge_tester` instead",
+                   "verdicts.claim_encodes",
+                   {"criterion_id": failed_criterion, "encodes": False})
             raise ValueError(
                 f"a fail on {failed_criterion} stands on its test actually "
                 f"encoding it, and that has not been claimed this session"
@@ -9155,6 +9197,8 @@ def _admits(ctx: Ctx, path: str, text: str, start: int, end: int) -> bool:
     # outer refusal's, so they go (frame 144).
     offers = getattr(ctx, "offers", None)
     mark = len(offers) if offers is not None else 0
+    facts = getattr(ctx, "facts", None)
+    fmark = len(facts) if facts is not None else 0
     try:
         _code_write(ctx, path, text, start, end, dry=True)
     except ValueError:
@@ -9169,6 +9213,8 @@ def _admits(ctx: Ctx, path: str, text: str, start: int, end: int) -> bool:
     finally:
         if offers is not None:
             del offers[mark:]
+        if facts is not None:
+            del facts[fmark:]
     return True
 
 
@@ -9195,6 +9241,22 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         return _offer(ctx, said, "code.write",
                       {"path": wpath, "text": text, "start": start, "end": end,
                        **numbers})
+
+    def _whole(node):
+        # "To replace f whole" names the seat's own text when that text is
+        # one definition of f. Any other text is the seat's to write (the
+        # review of c888968, point 6).
+        import ast as _a
+        name = getattr(node, "name", None)
+        try:
+            body = _a.parse(text).body
+        except SyntaxError:
+            return INVENT
+        if (name and len(body) == 1 and getattr(body[0], "name", None) == name
+                and isinstance(body[0], (_a.FunctionDef, _a.AsyncFunctionDef,
+                                         _a.ClassDef))):
+            return text
+        return INVENT
 
     # A parameter's own name where its value goes is a placeholder. tipsBG
     # (2026-09-14): `code.write(path=path, ...)` made a file called `path`,
@@ -9489,7 +9551,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     if p is not None:
                         return _send(f"To replace {_what(p)} whole send "
                                      f"start={_lo(p)}, end={_end(p)}.",
-                                     start=_lo(p), end=_end(p), text=INVENT)
+                                     start=_lo(p), end=_end(p), text=_whole(p))
                 return None
 
             tops = original.body if original else []
@@ -9583,7 +9645,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                                        start=hi, end=hi))
                 else:
                     parts.append(_send(f"To replace {name} whole send start={lo}, end={hi}.",
-                                       start=lo, end=hi, text=INVENT))
+                                       start=lo, end=hi, text=_whole(named[0])))
                     parts.append(_send(f"To add after it send start={hi}, end={hi}.",
                                        start=hi, end=hi))
                 raise ValueError(" ".join(parts))
@@ -9686,7 +9748,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 if n is not None:
                     parts.append(_send(f"To replace {_what(n)} whole send "
                                        f"start={_lo(n)}, end={_end(n)}.",
-                                       start=_lo(n), end=_end(n), text=INVENT))
+                                       start=_lo(n), end=_end(n), text=_whole(n)))
                 else:
                     ps, pe = _inside(tops, start), _inside(tops, stop)
                     a = ps[0][1] if ps else start
@@ -10018,6 +10080,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 old_tree = None
             if old_tree is not None and _guarded(old_tree) and not _guarded(tree):
                 n_old = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
+                # The numbers are the door's, and the text is the seat's
+                # (the review of c888968, point 7).
+                _send(f"with start={n_old}, end={n_old}", start=n_old, end=n_old,
+                      text=INVENT)
+                _fact(ctx, "lines", n_old, path=wpath)
                 raise ValueError(
                     f"{path} is the program's entry point: it has an "
                     f"`if __name__ == \"__main__\":` block today and this "
@@ -10323,6 +10390,12 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     # bottom-up: a span write moves every line below it
                     # (frame 95 pass 6).
                     names = ", ".join(n for n, _lo, _hi in spans)
+                    # One offer per span, its text the seat's (the review of
+                    # c888968, point 7).
+                    for n_, lo_, hi_ in spans:
+                        _send(f"{n_} with start={lo_}, end={hi_}", start=lo_, end=hi_,
+                              text=INVENT)
+                        _fact(ctx, "span", (lo_, hi_), path=wpath)
                     raise ValueError(
                         f"this rewrite of {path} drops {', '.join(sorted(set(gone) | set(used)))}, "
                         f"and {why}. To change {names} alone, write only "
@@ -10334,6 +10407,10 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 # time. The way out is a fact about the file, so say it:
                 # the line count, and the span that appends.
                 n_old = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
+                _send(f"the new definitions with start={n_old}, end={n_old}",
+                      start=n_old, end=n_old, text=INVENT)
+                _send("is start=0, end=0", start=0, end=0, text=INVENT)
+                _fact(ctx, "lines", n_old, path=wpath)
                 raise ValueError(
                     f"this rewrite of {path} drops {', '.join(sorted(set(gone) | set(used)))}, and "
                     f"{why}. Either write the whole file with every existing "
@@ -10356,6 +10433,9 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                          for n in old_tree.body
                          if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))}
                 after = spans.get(changed[0], (len(old_lines), len(old_lines)))[1]
+                _send(f"with start={after}, end={after}", start=after, end=after,
+                      text=INVENT)
+                _fact(ctx, "span", (after, after), path=wpath)
                 raise ValueError(
                     f"this write changes {', '.join(changed)}, and no criterion of "
                     f"this batch names {'it' if len(changed) == 1 else 'them'}: the "
@@ -11424,13 +11504,15 @@ def _span_lost_refusal(ctx: Ctx, path: str, lines: list[str], start: int, end: i
         return fact
     them = "it" if one else "them"
     which = "that line" if one else "those lines"
-    _offer(ctx, "", "code.write", {"path": path, "text": chr(10).join(built) + chr(10),
-                                   "start": start, "end": end})
     if futs:
-        return (f"{fact} To keep {them}, put {which} at the top of your text, the "
+        step = (f"To keep {them}, put {which} at the top of your text, the "
                 f"`from __future__` line first, and send start={start}, end={end} again.")
-    return (f"{fact} To keep {them}, put {which} at the top of your text, below any "
-            f"`from __future__` line, and send start={start}, end={end} again.")
+    else:
+        step = (f"To keep {them}, put {which} at the top of your text, below any "
+                f"`from __future__` line, and send start={start}, end={end} again.")
+    return f"{fact} " + _offer(ctx, step, "code.write",
+                               {"path": path, "text": chr(10).join(built) + chr(10),
+                                "start": start, "end": end})
 
 
 def _future_order(fragment: str):

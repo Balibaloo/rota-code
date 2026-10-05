@@ -22,25 +22,10 @@ import os
 import pytest
 
 from rota.llm.cassettes import TALLY
-
-
-def pytest_configure(config):
-    """
-    The model tiers run on one worker, and nobody has to remember why.
-
-    `pytest.ini` turns on `-n auto` because the deterministic suite is pure CPU
-    and was using one core of sixteen. L1 and L3 are the exception: they call a
-    real 8B model on one GPU when `ROTA_L1` is set, and two workers doing that
-    at once thrash it -- the run gets slower, and the per-tier durations this
-    file exists to record stop being a fact about anything.
-
-    Enforced here instead of in a flag, because a flag is a thing to forget and
-    the cost of forgetting is a number that looks real and is not.
-    """
-    if os.environ.get("ROTA_L1") or os.environ.get("ROTA_T1"):
-        if getattr(config.option, "numprocesses", None):
-            config.option.numprocesses = 0
-            config.option.dist = "no"
+# The model tiers run on one worker. `rota_serial_plugin.py` holds that rule,
+# because xdist reads `numprocesses` before a conftest can change it. A
+# second `pytest_configure` here replaced the first, so the rule that stood
+# here was dead (frame 144's review of c888968, point 10).
 from rota.llm.llm import DEFAULT_MODEL
 
 
@@ -125,43 +110,86 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         TALLY.save(model=DEFAULT_MODEL)
 
 
-# The offers that the doors refuse today, by the function that makes the
-# offer, the op it names, and the first words of the sentence. Each one is a
-# finding of frame 144's pass 1, and a strict xfail in
-# `test_offers_followed.py` holds it. The judge makes frames of them. Remove
-# a line when its door is fixed, and the strict xfail then goes red.
-KNOWN_REFUSED_OFFERS: set[tuple[str, str, str]] = {
-    # A new id keeps the seat's path. When that path is a project test's
-    # file, the clash door refuses the new id.
-    ("tests_encode", "tests.encode", "An encode never replaces a pr"),
-    # The added import line lands, and a later door refuses a literal of the
-    # seat's own body (ACT-TS-give-the-prompt-a-stream).
-    ("tests_encode", "tests.encode", "the test uses"),
-    # A span that replaces a def is told to add the same text after it. The
-    # text is a replacement, so the merged file defines a name twice or does
-    # not parse.
-    ("_code_write", "code.write", "To add after it send start="),
+# The offers that the doors refuse today: the test, and the first words of
+# the second refusal. Any other refused offer fails its test, even at a
+# known door (frame 144's review of c888968, point 2). Each line is a
+# finding, and a strict xfail in `test_offers_followed.py` holds it. The
+# judge makes frames of them. Remove a line when its door is fixed.
+_SB = "tests/rota/test_t0_sandbox.py::"
+_DG = "tests/rota/test_desk_guards.py::"
+_OF = "tests/rota/test_offers_followed.py::"
+# Finding 1, the project-id door: "Send this encode again with a new id that
+# you invent." The new id keeps the seat's path, and the clash door refuses.
+_CLASH = "tests/test_utils/test_"
+# Finding 2, the cut door: "To add after it send start=, end=." The seat's
+# text replaces the def, so the text after it does not compile or defines a
+# name twice.
+_TWICE, _INVALID = "m.py defines f twice", "m.py is not valid Python"
+# Finding 3, the unimported-module wall: the added import lands, and the
+# invented-literal door refuses the seat's own literal.
+# Finding 4, the invented-literal door: it names six of eight literals, and
+# the encode sent again meets it for the other two (frame 148's sentence).
+_CHOOSES = "the test chooses"
+KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
+    (_SB + "test_a_project_id_at_its_own_path_is_refused_outside_a_challenge", _CLASH),
+    (_SB + "test_a_challenge_of_another_test_does_not_open_a_project_test", _CLASH),
+    (_SB + "test_a_project_id_on_another_tests_file_gets_the_id_fact_only", _CLASH),
+    (_OF + "test_a_project_id_at_its_own_path_is_offered_a_new_id_that_lands", _CLASH),
+    (_DG + "test_a_span_from_the_top_into_the_first_statement_gets_no_moved_boundary",
+     _INVALID),
+    (_DG + "test_a_start_on_a_decorated_def_line_names_the_decorators", _TWICE),
+    (_DG + "test_a_span_from_a_blank_line_before_else_is_refused_with_an_offer", _INVALID),
+    (_OF + "test_the_add_after_offer_of_a_cut_span_is_admitted", _TWICE),
+    ("tests/rota/test_l1.py::test_l1_case[ACT-TS-give-the-prompt-a-stream]", _CHOOSES),
+    (_OF + "test_the_added_import_offer_is_admitted", _CHOOSES),
+    (_OF + "test_the_literal_offer_is_admitted_when_eight_literals_are_owed", _CHOOSES),
 }
 
+# The facts that a refusal quotes and the state contradicts today: the test,
+# the kind, and the function that records the fact. Kept like the list above.
+KNOWN_FALSE_FACTS: set[tuple[str, str, str]] = set()
 
-def _known(rec: dict) -> bool:
-    fn = rec["door"].rsplit(" in ", 1)[-1]
-    op = rec["offer"].split("(", 1)[0]
-    said = (rec.get("said") or "").strip()
-    return any(fn == f and op == o and said.startswith(s)
-               for f, o, s in KNOWN_REFUSED_OFFERS)
+
+def _problems(nodeid: str, found: list[dict]) -> list[str]:
+    """What the follow check and the fact check found wrong, one line each,
+    less the known findings."""
+    out = []
+    for r in found:
+        if "kind" in r:
+            fn = r["site"].rsplit(" in ", 1)[-1]
+            if not r["ok"] and (nodeid, r["kind"], fn) not in KNOWN_FALSE_FACTS:
+                out.append(f"fact {r['kind']} {r['value']!r} {r['where']} at {r['site']}: "
+                           f"{r['why']}")
+            continue
+        second = (r.get("second") or "").split(": ", 1)[-1]
+        if r.get("second") and not any(nodeid == t and second.startswith(s)
+                                       for t, s in KNOWN_REFUSED_OFFERS):
+            out.append(f"door {r['door']}\n  refusal: {r['refusal']}\n  offer: "
+                       f"{r['offer']}\n  second refusal: {r['second']} "
+                       f"(at {r.get('second_at')})")
+        if r.get("said") and r.get("said_in_refusal") is False:
+            out.append(f"door {r['door']}: the offer's sentence {r['said']!r} is not "
+                       f"in the refusal {r['refusal']!r}")
+        if r.get("bad_args"):
+            out.append(f"door {r['door']}: the offer names no such argument: "
+                       f"{r['bad_args']}")
+    return out
 
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
     """
-    The follow check of frame 144, on every test of this directory.
+    The follow check and the fact check of frame 144, on every test of this
+    directory.
 
-    A refusal that names a call records it in `ctx.offers`. When a test's
-    call meets such a refusal through `Sandbox.call`, this hook sends each
-    offered call through `sandbox.dry_run`. The test fails when the doors
-    refuse an offered call, unless the offer is a known finding above.
-    `ROTA_OFFER_LOG` names a file that takes one JSON line per offer.
+    A refusal records the calls it names in `ctx.offers` and the facts it
+    quotes in `ctx.facts`. When a test's call meets such a refusal through
+    `Sandbox.call`, this hook sends each offer through `sandbox.dry_run` and
+    checks each fact with `sandbox.check_facts`. A test that passes fails
+    when an offer is refused or a fact is false, unless a list above names
+    the finding. A test that fails keeps its own failure, and the findings
+    go into its report. `ROTA_OFFER_LOG` names a file that takes one JSON
+    line per offer and per fact.
     """
     import json
 
@@ -169,30 +197,36 @@ def pytest_runtest_call(item):
 
     found: list[dict] = []
 
-    def hook(sb, dotted, kwargs, exc, offers):
+    def hook(sb, dotted, kwargs, exc, offers, facts=()):
         sandbox._ON_REFUSAL = None      # a dry run's own refusals are not followed
         try:
-            found.extend(sandbox.follow(sb, dotted, kwargs, exc, offers))
+            if facts:
+                found.extend(sandbox.check_facts(sb, facts))
+            if offers:
+                found.extend(sandbox.follow(sb, dotted, kwargs, exc, offers))
         except Exception as crash:                         # noqa: BLE001
-            found.append({"door": offers[0].site, "call": dotted,
-                          "refusal": str(exc), "offer": f"{offers[0].op}(...)",
-                          "second": f"the follow crashed: {crash!r}"})
+            found.append({"door": dotted, "call": dotted, "refusal": str(exc),
+                          "offer": "?", "second": f"the check crashed: {crash!r}"})
         finally:
             sandbox._ON_REFUSAL = hook
 
     sandbox._ON_REFUSAL = hook
+    failed = True
     try:
         result = yield
+        failed = False
     finally:
+        # Here and not after the yield, so a test that fails still writes its
+        # log and shows its findings (the review of c888968, point 3).
         sandbox._ON_REFUSAL = None
-    log = os.environ.get("ROTA_OFFER_LOG")
-    if log and found:
-        with open(log, "a", encoding="utf-8", newline="") as fh:
-            for rec in found:
-                fh.write(json.dumps({"test": item.nodeid, **rec}, default=repr) + "\n")
-    bad = [r for r in found if r.get("second") and not _known(r)]
+        log = os.environ.get("ROTA_OFFER_LOG")
+        if log and found:
+            with open(log, "a", encoding="utf-8", newline="") as fh:
+                for rec in found:
+                    fh.write(json.dumps({"test": item.nodeid, **rec}, default=repr) + "\n")
+        bad = _problems(item.nodeid, found)
+        if bad and failed:
+            item.add_report_section("call", "frame 144 follow check", "\n".join(bad))
     if bad:
-        raise AssertionError("an offered call is refused by the doors:\n" + "\n".join(
-            f"door {r['door']}\n  refusal: {r['refusal']}\n  offer: {r['offer']}\n"
-            f"  second refusal: {r['second']}" for r in bad))
+        raise AssertionError("the follow check found:\n" + "\n".join(bad))
     return result

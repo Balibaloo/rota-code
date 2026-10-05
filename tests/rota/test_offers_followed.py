@@ -32,8 +32,8 @@ def _refused(sb, op, **kwargs):
 
 
 def _admitted(sb, offer):
-    ok, second, call, _ = sandbox.dry_run(sb, offer.op, offer.args, offer.then)
-    return ok, second
+    res = sandbox.dry_run(sb, offer.op, offer.args, offer.then)
+    return res.admitted, res.refusal
 
 
 _PRORATES = "prorating a mid-month upgrade charges the unused remainder"
@@ -151,6 +151,44 @@ def test_the_added_import_offer_is_admitted(db):
     assert _admitted(sb, offers[0]) == (True, None)
 
 
+_EIGHT = ("from billing import prorate\ndef test_it():\n"
+          "    assert prorate('alpha', 'bravo', 'charlie', 'delta', 'echo', "
+          "'foxtrot', 'golf', 'hotel') == 1\n")
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "finding of frame 144 pass 2: tests_encode, the invented-literal door. "
+    "It names six of eight owed literals (owed[:6]), and the encode sent again "
+    "after the named ledger.log meets the same door for the other two. The "
+    "sentence is frame 148's"))
+def test_the_literal_offer_is_admitted_when_eight_literals_are_owed(db):
+    _a_criterion(db, _PRORATES)
+    sb = _answer_tester(db)
+    said, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
+                            path="p.py", body=_EIGHT, batch_id="b1")
+    assert "'golf'" not in said and offers[0].op == "ledger.log"
+    res = sandbox.dry_run(sb, offers[0].op, offers[0].args, (
+        ("tests.encode", {"id": "t1", "criterion_id": "c1", "path": "p.py",
+                          "body": _EIGHT, "batch_id": "b1"}),))
+    assert res.admitted, res.refusal
+
+
+def test_an_argument_error_leaves_no_offer_of_the_call_before(db):
+    """The offers are cleared before the argument check, so a call that
+    fails it holds none of the last call's offers (review point 9)."""
+    from rota.core.sandbox import ArgumentError
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+    _refused(sb, "tests.encode", id="t1", criterion_id="c1", path="q.py",
+             body=_PRORATE + " # fixed")
+    assert sb.ctx.offers
+    with pytest.raises(ArgumentError):
+        sb.call("tests.encode", id="t1", criterion_id="c1", path="q.py",
+                body=_PRORATE, no_such=1)
+    assert sb.ctx.offers == []
+
+
 # -- code.write ---------------------------------------------------------------
 
 @pytest.mark.xfail(strict=True, reason=(
@@ -189,15 +227,29 @@ def test_a_dry_run_puts_the_context_back(db):
     sb = _challenge_tester(db)
     _, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
                          path="q.py", body=_PRORATE + " # fixed")
+    sb.ctx.writes.append(("tests", "t_staged", {"path": "s.py"}))
+    staged = sb.ctx.writes[0]
     writes, refusals = sb.ctx.writes, list(sb.ctx.refusals)
     log = list(sandbox._CALL_LOG.get(id(sb.ctx), []))
     changes = db.total_changes
     assert _admitted(sb, offers[0]) == (True, None)
-    assert sb.ctx.writes is writes and writes == []
+    # The list and its element keep their identity (review point 4).
+    assert sb.ctx.writes is writes and writes == [staged]
+    assert sb.ctx.writes[0] is staged
+    writes.clear()
     assert sb.ctx.refusals == refusals
     assert [o.op for o in sb.ctx.offers] == ["tests.encode"]
     assert sandbox._CALL_LOG.get(id(sb.ctx), []) == log
     assert db.total_changes == changes
+
+
+def test_a_snapshot_refuses_an_attribute_it_cannot_restore(db):
+    """A mutable type the snapshot does not know would be restored by a
+    guess, so the dry run refuses to start (review point 4)."""
+    sb = _challenge_tester(db)
+    sb.ctx.odd = bytearray(b"x")
+    with pytest.raises(TypeError, match="ctx.odd is a bytearray"):
+        sandbox.dry_run(sb, "tests.encode", {})
 
 
 def test_a_dry_run_does_not_send_a_commit():
