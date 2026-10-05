@@ -10756,6 +10756,91 @@ def _signature_drift(ctx: Ctx, tree) -> list[str]:
     return notes
 
 
+def _runs_at(ctx: Ctx, sha: str | None) -> dict:
+    """The latest result of each test of the batch at `sha`, by test id.
+    Empty when the harness ran no test at `sha`."""
+    if not sha:
+        return {}
+    out = {}
+    for r in ctx.conn.execute(
+            "SELECT test_id, result FROM test_runs WHERE batch_id = ? AND commit_sha = ? "
+            "ORDER BY attempt, rowid", (ctx.batch_id, sha)):
+        out[r["test_id"]] = r["result"]
+    return out
+
+
+def _runs_said(runs: dict) -> str:
+    """The counts of one commit's runs, in the words of the revert door."""
+    n = {k: sum(1 for v in runs.values() if v == k) for k in ("pass", "fail", "error")}
+    return f"{n['pass']} pass, {n['fail']} red, {n['error']} error"
+
+
+_REVERT_HEAD = ("this commit puts the tree back where it stood before your last "
+                "commit: you are undoing yourself.")
+_REVERT_OLD_STEPS = ("Say what stands and why "
+                     "(a decision), challenge the test (msg.challenge_tester) or "
+                     "escalate the criterion (msg.escalate_architect); do not flip")
+
+
+def _revert_refusal(ctx: Ctx, tree) -> str | None:
+    """The revert door's refusal of a commit whose tree equals `HEAD~1`, or
+    None when the door admits it.
+
+    The door reads the stored runs of the head and of `HEAD~1`, the tree the
+    commit restores. It runs no test. It admits the commit when fewer of the
+    tests that ran at both commits fail at `HEAD~1`. Night 124 (2026-10-05):
+    the head 35211b40e4 failed at import, 37 of 37 `error`. The door refused
+    the repair 3 times with "The tests pass both ways", and the batch was
+    given up there (frame 149). Where both commits truly pass, the sentence
+    is the old one to the byte, because the recorded cases key on the prompt.
+    """
+    import subprocess as _sp
+
+    def rev(name):
+        p = _sp.run([*GIT, "-C", str(tree), "rev-parse", "--verify", "-q", name],
+                    capture_output=True, text=True)
+        return p.stdout.strip() if p.returncode == 0 else None
+
+    head, back = rev("HEAD"), rev("HEAD~1")
+    at_head = _fact(ctx, "runs", _runs_at(ctx, head), at="HEAD", sha=head)
+    at_back = _fact(ctx, "runs", _runs_at(ctx, back), at="HEAD~1", sha=back)
+    both = set(at_head) & set(at_back)
+    bad_head = sum(1 for t in both if at_head[t] != "pass")
+    bad_back = sum(1 for t in both if at_back[t] != "pass")
+    if both and bad_back < bad_head:
+        return None
+    if (at_head and at_back and all(v == "pass" for v in at_head.values())
+            and all(v == "pass" for v in at_back.values())):
+        return (f"{_REVERT_HEAD} The tests pass both ways, so the disagreement "
+                f"is not in the code. {_REVERT_OLD_STEPS}")
+    said = [_REVERT_HEAD]
+    said.append(f"The runs at the head {head[:10]}: {_runs_said(at_head)}." if at_head
+                else f"No run is stored at the head {head[:10]}.")
+    said.append(f"The runs at {back[:10]}, the tree this commit puts back: "
+                f"{_runs_said(at_back)}." if at_back
+                else f"No run is stored at {back[:10]}, the tree this commit puts back.")
+    if both:
+        said.append(f"Of the {len(both)} tests that ran at both, the head fails "
+                    f"{bad_head} and {back[:10]} fails {bad_back}. Going back does not "
+                    f"lower that count.")
+    else:
+        said.append("So no run shows that going back makes a test pass.")
+    red = sorted(t for t, v in at_head.items() if v != "pass")
+    if not red:
+        said.append(_REVERT_OLD_STEPS)
+        return " ".join(said)
+    said.append("Change the code that the red tests call, then commit. Do not flip.")
+    crits = sorted({r["criterion_id"] for r in ctx.conn.execute(
+        f"SELECT criterion_id FROM tests WHERE id IN ({','.join('?' * len(red))})", red)
+        if r["criterion_id"]})
+    from ..core import sandbox as _sandbox
+    if crits and _sandbox._escalation_admitted(ctx, crits):
+        said.append(_offer(ctx, f"To dispute the criterion, send "
+                                f"msg.escalate_architect(refs={crits!r}).",
+                           "msg.escalate_architect", {"refs": crits}))
+    return " ".join(said)
+
+
 @op("code", "commit")
 def code_commit(ctx: Ctx, message: str) -> dict:
     """
@@ -10853,12 +10938,9 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             [*worktrees.GIT, "-C", str(tree), "diff", "--quiet", "HEAD", "--", ".",
              ":(exclude).venv", ":(exclude).rota"], capture_output=True, text=True).returncode != 0
         if same_as_before and changed_now:
-            raise ValueError(
-                "this commit puts the tree back where it stood before your last "
-                "commit: you are undoing yourself. The tests pass both ways, so "
-                "the disagreement is not in the code. Say what stands and why "
-                "(a decision), challenge the test (msg.challenge_tester) or "
-                "escalate the criterion (msg.escalate_architect); do not flip")
+            refusal = _revert_refusal(ctx, tree)
+            if refusal:
+                raise ValueError(refusal)
     # The Tester's test files are not the Developer's diff. The harness
     # writes the bodies at run time (harness.materialise) and `add -A`
     # was staging whatever version lay there. Click night 50 (2026-09-14):

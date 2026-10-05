@@ -3134,6 +3134,33 @@ def _span_holds(lines: list[str], lo: int, hi: int, where: dict) -> tuple[bool, 
     return False, f"the statement named has the spans {seen[:4]}"
 
 
+def _runs_hold(ctx: api.Ctx, runs: dict, where: dict) -> tuple[bool, str]:
+    """Whether `runs` are the stored runs of the commit that a revert
+    refusal names. The check reads git and `test_runs` itself, and does not
+    call the door's own reader (frame 149)."""
+    import subprocess
+    from . import worktrees
+    try:
+        tree = api._batch_worktree(ctx)
+    except Exception:                                      # noqa: BLE001
+        return False, "the batch has no worktree"
+    p = subprocess.run([*worktrees.GIT, "-C", str(tree), "rev-parse", "--verify", "-q",
+                        where["at"]], capture_output=True, text=True)
+    sha = p.stdout.strip() if p.returncode == 0 else None
+    if sha != where.get("sha"):
+        return False, f"{where['at']} is {sha}, not {where.get('sha')}"
+    latest: dict = {}
+    for r in ctx.conn.execute(
+            "SELECT test_id, result, attempt, rowid AS k FROM test_runs "
+            "WHERE batch_id = ? AND commit_sha = ?", (ctx.batch_id, sha)):
+        if r["test_id"] not in latest or (r["attempt"], r["k"]) > latest[r["test_id"]][0]:
+            latest[r["test_id"]] = ((r["attempt"], r["k"]), r["result"])
+    stored = {t: v[1] for t, v in latest.items()}
+    if stored != dict(runs):
+        return False, f"the stored runs at {sha} are {stored}"
+    return True, ""
+
+
 def check_facts(sb: Sandbox, facts: list) -> list[dict]:
     """Check each fact that a refusal quotes against the state (frame 144,
     change 1(d)). Returns one record per fact, with `ok` and the reason.
@@ -3151,6 +3178,9 @@ def check_facts(sb: Sandbox, facts: list) -> list[dict]:
     - `span`: `(lo, hi)` is the tree's span of the statement that the
       sentence names (`_span_holds`).
     - `arg`: the name is a parameter of `op`.
+    - `runs`: the commit `at` names in the worktree is `sha`, and the latest
+      run of each test of the batch at `sha` is the result given
+      (`_runs_hold`).
     """
     ctx = sb.ctx
     out = []
@@ -3208,6 +3238,8 @@ def check_facts(sb: Sandbox, facts: list) -> list[dict]:
             names = _params(sb, w["op"])
             ok = names is None or f.value in names
             why = "" if ok else f"{w['op']} has no argument {f.value}"
+        elif f.kind == "runs":
+            ok, why = _runs_hold(ctx, f.value, w)
         else:
             ok, why = False, f"unknown kind {f.kind}"
         out.append({"kind": f.kind, "value": f.value, "where": {
