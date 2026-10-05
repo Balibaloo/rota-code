@@ -64,6 +64,8 @@ The scenes together cost about 2.5 minutes of serial test time (reasoned from th
 
 ## 3. Doctrine 0 of `rota/TESTS.md`
 
+**Roman declined the proposed text below on 2026-10-05, and `rota/TESTS.md` holds another text since 0784616** (ruled: Roman, "the reason for small outputs is to make the results measurable"). The limit is on the output. The sentence on three to five rows of material is not in the doctrine. This note is the judging session's, c81b16d3.
+
 The text today (observed: `rota/TESTS.md:48-52`, 2026-10-05):
 
 > 0. **[A] Fixtures stay tiny - three to five rows, one judgement per case.** An 8B model will not fail a structural assertion, but it will drown in twenty statements with three plausible readings, and then the pass rate measures the fixture rather than the role. Harder variants get their own case ids so the simple one survives as the regression floor.
