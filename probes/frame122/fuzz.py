@@ -125,6 +125,101 @@ def prose_calls(seed: int, n: int, inject: bool) -> Iterator[Case]:
         yield Case(raw, fn, dict(items), False)
 
 
+# The shapes that a single-quoted keyword value never reaches, one generator
+# each (the review of fed7c58, low 7). Each names the fix that reads it.
+BARE_SIG = {"msg.present_principal": ({"refs"}, {"refs", "round_no"})}
+PATH_SIG = {"code.source": ({"path"}, {"path", "start", "end"})}
+TRIPLE_SIG = {"tests.encode": CODE_SIG["tests.encode"],
+              "msg.challenge_tester": ({"refs", "quotes"}, {"refs", "quotes", "round_no"})}
+MODEL_SIG = {"model.amend": ({"headline"}, {"headline", "text"}),
+             "model.describe": ({"account"}, {"account"}),
+             "ledger.log": ({"note"}, {"note"})}
+_PIECES = ["group", "argument", "c1", "t_2", "src", "click", "a", "echo"]
+_NAMES = ["src", "click", "utils", "tests", "a", "b_c", "main", "docs", "termui"]
+_TEXT = ["x", " ", "it's", "don't", "'y'", '"z"', chr(10), "def f():", "    ", "=",
+         "(", ")", "a", ",", "#", "assert", "Roman's"]
+
+
+def bare_calls(seed: int, n: int) -> Iterator[Case]:
+    """`refs=a, b#c, ., src/click`: two or more bare ids, read as a list of
+    strings. 65ca902 reads a hash as part of an id."""
+    rnd = random.Random(seed)
+    for _ in range(n):
+        ids = []
+        for _ in range(rnd.randint(2, 5)):
+            if rnd.random() < 0.1:
+                ids.append(".")
+                continue
+            parts = [rnd.choice(_PIECES) for _ in range(rnd.randint(1, 3))]
+            ids.append(parts[0] + "".join(rnd.choice("#/._-:@") + p for p in parts[1:]))
+        r = rnd.randint(0, 3)
+        raw = f"TOOL: msg.present_principal(refs={', '.join(ids)}, round_no={r})"
+        yield Case(raw, "msg.present_principal", {"refs": ids, "round_no": r}, False)
+
+
+def path_calls(seed: int, n: int) -> Iterator[Case]:
+    """`path=src/click/utils.py` with no quotes: Python reads a division or
+    an attribute, and 2b07533 reads the path."""
+    rnd = random.Random(seed)
+    for _ in range(n):
+        parts = [rnd.choice(_NAMES) for _ in range(rnd.randint(1, 4))]
+        sep = rnd.choice(["/", "."]) if len(parts) > 1 else "/"
+        path = sep.join(parts) + "." + rnd.choice(["py", "md", "txt"])
+        start = rnd.randint(0, 400)
+        raw = f"TOOL: code.source(path={path}, start={start})"
+        yield Case(raw, "code.source", {"path": path, "start": start}, False)
+
+
+def _text(rnd, lo: int, hi: int) -> str:
+    """Code with quotes of its own, no triple quote, no backslash, and no
+    quote at its end, where it would join the closing triple quote."""
+    while True:
+        t = "".join(rnd.choice(_TEXT) for _ in range(rnd.randint(lo, hi)))
+        if "'''" not in t and not t.endswith(("'", '"')) and t.strip():
+            return t
+
+
+def triple_calls(seed: int, n: int) -> Iterator[Case]:
+    """A body or a quote between triple quotes that holds single quotes. The
+    first scan counts quotes by parity, and a lone quote breaks it. The
+    second reading, dc34dcd with 3b92f9e, reads the triple quote as one
+    token."""
+    rnd = random.Random(seed)
+    for _ in range(n):
+        if rnd.random() < 0.5:
+            body = _text(rnd, 3, 14)
+            raw = ("TOOL: tests.encode(id='t1', criterion_id='c1', path='t.py', "
+                   "body='''" + body + "''')")
+            yield Case(raw, "tests.encode", {"id": "t1", "criterion_id": "c1",
+                                             "path": "t.py", "body": body}, False)
+        else:
+            q = _text(rnd, 2, 10)
+            raw = ("TOOL: msg.challenge_tester(refs=['c1', 't1'], quotes=['''" + q
+                   + "''', 'def f():'], round_no=0)")
+            yield Case(raw, "msg.challenge_tester", {"refs": ["c1", "t1"],
+                                                     "quotes": [q, "def f():"],
+                                                     "round_no": 0}, False)
+
+
+def model_calls(seed: int, n: int) -> Iterator[Case]:
+    """`MODEL: amend(...)`: the namespace as the marker. cf0aecb reads it as
+    model.amend. A rewrite moves the offsets, and b79882e places a call
+    that the source does not hold after every position."""
+    rnd = random.Random(seed)
+    for _ in range(n):
+        head = "".join(rnd.choice(["the ", "survey ", "note: ", "ok. ", chr(10)])
+                       for _ in range(rnd.randint(0, 4)))
+        h, t = rnd.choice(_PIECES) + str(rnd.randint(0, 9)), rnd.choice(_PIECES)
+        label = rnd.choice(["MODEL", "Model", "model"])
+        raw = head + f"{label}: amend(headline='{h}', text='{t}')"
+        if rnd.random() < 0.3:
+            raw += chr(10) + "NOTE: nothing(here)"
+        ledger = rnd.random() < 0.5
+        if ledger:
+            raw += chr(10) + LEDGER
+        yield Case(raw, "model.amend", {"headline": h, "text": t}, ledger)
+
+
 def read(parser, case: Case, sig: dict) -> list[tuple[str, dict]]:
     """The calls that `parser` reads in the case, with their arguments."""
     return [(c.name, c.args) for c in parser.extract(case.raw, sig) if hasattr(c, "args")]
@@ -144,46 +239,94 @@ def wrong(case: Case, calls: list[tuple[str, dict]]) -> list[tuple[str, dict]]:
     return out
 
 
-def outcome(parser, case: Case, sig: dict) -> str:
-    """`right`: the parser reads the case's call as written, and no wrong
-    call. `wrong`: it reads a call with other arguments. `refused`: neither."""
-    calls = read(parser, case, sig)
-    if wrong(case, calls):
-        return "wrong"
-    return "right" if any(name == case.fn for name, _ in calls) else "refused"
+def outcome(parser, case: Case, sig: dict) -> tuple[bool, str]:
+    """Whether the parser reads the case right, and a digest of all that it
+    reads. Right is the exact list of calls that the case wrote, in order,
+    and nothing else. The digest holds each call with its arguments, each
+    refusal sentence, and each start offset. So a dropped call, a doubled
+    call, a wrong read that turns into another, and a deleted or reworded
+    refusal all change it (the review of fed7c58, low 6)."""
+    import hashlib
+    starts: list[int] = []
+    got = parser.extract(case.raw, sig, starts=starts)
+    calls = [(c.name, c.args) for c in got if hasattr(c, "args")]
+    want = [(case.fn, case.want)] + ([("ledger.log", {"note": "ok"})] if case.ledger else [])
+    seen = [("call", c.name, sorted(c.args.items(), key=lambda kv: kv[0]),
+             tuple(getattr(c, "pos", ()) or ()))
+            if hasattr(c, "args") else ("refused", c.reason) for c in got]
+    digest = hashlib.blake2b(repr((seen, starts)).encode("utf-8", "surrogatepass"),
+                             digest_size=3).hexdigest()
+    return calls == want and not any(s[0] == "refused" for s in seen), digest
+
+
+def outcome_class(parser, case: Case, sig: dict) -> str:
+    """`right`, `wrong` or `refused`, for the probe's counts."""
+    right, _ = outcome(parser, case, sig)
+    if right:
+        return "right"
+    return "wrong" if wrong(case, read(parser, case, sig)) else "refused"
 
 
 # The gate's slice: (kind, seed, count, the wide or inject flag). Frame 122's
 # gains are the prose with apostrophes, and its wide code fuzz found the
 # wrong calls (observed: frame 144 pass 3, the transitions from fb1bdba^,
-# 2026-10-05).
+# 2026-10-05). The shape generators reach the fixes that a quoted keyword
+# value never reaches (pass 4).
 SLICES = [("code", 1, 1500, False), ("code", 1, 2500, True),
-          ("prose", 1, 2500, True), ("prose", 2, 1000, False)]
+          ("prose", 1, 2500, True), ("prose", 2, 1000, False),
+          ("bare", 1, 400, False), ("path", 1, 400, False),
+          ("triple", 1, 600, False), ("model", 1, 400, False)]
 SLICE_FILE = ROOT / "tests" / "rota" / "fixtures" / "toolproto_fuzz_slice.json"
+_SHAPES = {"bare": (bare_calls, BARE_SIG), "path": (path_calls, PATH_SIG),
+           "triple": (triple_calls, TRIPLE_SIG), "model": (model_calls, MODEL_SIG)}
 
 
 def slice_cases(kind: str, seed: int, n: int, flag: bool) -> tuple[Iterator[Case], dict]:
     if kind == "code":
         return code_calls(seed, n, flag), CODE_SIG
-    return prose_calls(seed, n, flag), PROSE_SIG
+    if kind == "prose":
+        return prose_calls(seed, n, flag), PROSE_SIG
+    gen, sig = _SHAPES[kind]
+    return gen(seed, n), sig
 
 
 def slice_key(kind: str, seed: int, n: int, flag: bool) -> str:
     return f"{kind}-{seed}-{n}-{'wide' if kind == 'code' and flag else 'inject' if flag else 'plain'}"
 
 
-def slice_outcomes(parser) -> dict[str, dict[str, list[int]]]:
-    """For each slice, the indices of the cases read right and read wrong.
-    The rest are refused."""
+def slice_outcomes(parser) -> dict[str, dict]:
+    """For each slice, the indices of the cases read right, and the digest
+    of every case, six hex digits each, in order."""
     out = {}
     for s in SLICES:
         cases, sig = slice_cases(*s)
-        got: dict[str, list[int]] = {"right": [], "wrong": []}
+        right, digests = [], []
         for i, case in enumerate(cases):
-            o = outcome(parser, case, sig)
-            if o in got:
-                got[o].append(i)
-        out[slice_key(*s)] = got
+            ok, d = outcome(parser, case, sig)
+            if ok:
+                right.append(i)
+            digests.append(d)
+        out[slice_key(*s)] = {"right": right, "digests": "".join(digests)}
+    return out
+
+
+def slice_changes(want: dict, now: dict) -> list[tuple[str, int, str]]:
+    """The cases whose outcome moved, less the gains: a case that reads right
+    now and did not before. Each is (slice, index, what moved)."""
+    out = []
+    for key, got in now.items():
+        was = want.get(key)
+        if was is None:
+            out.append((key, -1, "the slice is not in the fixture"))
+            continue
+        old_right, new_right = set(was["right"]), set(got["right"])
+        a, b = was["digests"], got["digests"]
+        for i in range(len(b) // 6):
+            if a[6 * i:6 * i + 6] == b[6 * i:6 * i + 6]:
+                continue
+            if i in new_right and i not in old_right:
+                continue
+            out.append((key, i, "no longer right" if i in old_right else "read otherwise"))
     return out
 
 
@@ -209,13 +352,17 @@ def record() -> None:
     sys.path.insert(0, str(ROOT))
     from rota.llm import toolproto as new
     before = json.loads(SLICE_FILE.read_text(encoding="utf-8")) if SLICE_FILE.exists() else {}
+    if not all("digests" in v for v in before.values()):
+        before = {}                 # a fixture of pass 3 holds no digests
     now = slice_outcomes(new)
+    moved = slice_changes(before, now) if before else []
     for key, got in now.items():
-        was = before.get(key, {"right": [], "wrong": []})
-        for o in ("right", "wrong"):
-            gained = sorted(set(got[o]) - set(was[o]))
-            lost = sorted(set(was[o]) - set(got[o]))
-            print(f"{key} {o}: {len(got[o])}, gained {len(gained)}, lost {len(lost)}")
+        was = before.get(key, {"right": []})
+        gained = len(set(got["right"]) - set(was["right"]))
+        lost = sum(1 for k, _, w in moved if k == key and w == "no longer right")
+        other = sum(1 for k, _, w in moved if k == key and w != "no longer right")
+        print(f"{key}: {len(got['right'])} right, gained {gained}, lost {lost}, "
+              f"read otherwise {other}")
     text = json.dumps(now, separators=(",", ":"), sort_keys=True) + "\n"
     with open(SLICE_FILE, "w", encoding="utf-8", newline="") as fh:
         fh.write(text)

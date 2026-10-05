@@ -287,7 +287,7 @@ def test_an_unsent_offer_sends_its_span_with_the_lines_it_holds(tmp_path):
     offer = next(o for o in sb.ctx.offers if o.said.startswith("To stop where"))
     [rec] = sandbox.follow(sb, "code.write", kwargs, exc.value, [offer])
     assert rec["skipped"] and rec["span_only"] and rec["second"] is None
-    late = api.Offer(offer.op, {**offer.args, "end": 4}, (), offer.site, offer.said)
+    late = api.Offer(offer.op, {**offer.args, "end": 4}, (), offer.frames, offer.said)
     [rec] = sandbox.follow(sb, "code.write", kwargs, exc.value, [late])
     assert rec["second"].startswith("ValueError: start=2, end=4 crosses"), rec
 
@@ -331,6 +331,142 @@ def test_the_fact_check_reads_a_span_and_a_line_against_the_tree(tmp_path):
              api.Fact("span", (3, 3), after), api.Fact("span", (4, 4), after)]
     assert [r["ok"] for r in sandbox.check_facts(sb, facts)] == [
         True, False, True, False, True, False]
+
+
+_B2_INSIDE = (
+    "start=1, end=4: start=1 falls inside a (lines 0 to 4 in code.source numbering). "
+    "start=1 is inside the decorators of a, which start at line 0. Line 1 is '@other'. "
+    "Line 3 is '    return x'. Your text's first line is line 2 of the file, so a span "
+    "that replaces it starts at start=2. To edit inside a send start=3, which is where "
+    "the body of a starts. To replace a whole send start=0, end=4. To add after it send "
+    "start=4, end=4.")
+_B2_BELOW = (
+    "start=2, end=4: start=2 falls inside a (lines 0 to 4 in code.source numbering). "
+    "start=2 is below the decorators of a, which start at line 0. Line 2 is 'def a(x):'. "
+    "Line 3 is '    return x'. To edit inside a send start=3, which is where the body "
+    "of a starts. To replace a whole send start=0, end=4. To add after it send start=4, "
+    "end=4.")
+
+
+@pytest.mark.parametrize("dec", ["@dec(" + "-" * 400 + "1)", "@dec" + ".a" * 2000,
+                                 "@ dec . more(1)"],
+                         ids=["minus400", "attr2000", "spaced"])
+def test_a_cut_at_deep_decorators_gets_the_refusal_of_b2ed55b(tmp_path, dec):
+    """`ast.unparse` of the first decorator recursed, and 400 nested minus
+    signs or a chain of 2000 attributes crashed the seat. The head now comes
+    from the decorator's own line. A spaced decorator read false with the
+    unparsed head (the review of fed7c58, high 1 and low 4). The refusals
+    are the bytes of b2ed55b."""
+    sb = _developer(tmp_path, "\n".join([dec, "@other", "def a(x):", "    return x", ""]))
+    for start, want in ((1, _B2_INSIDE), (2, _B2_BELOW)):
+        said, _ = _refused(sb, "code.write", path="m.py", start=start, end=4,
+                           text="def a(x):\n    return 1\n")
+        assert said == want
+        facts = sandbox.check_facts(sb, sb.ctx.facts)
+        assert [f["kind"] for f in facts].count("line") == 1
+        assert all(f["ok"] for f in facts), facts
+
+
+def test_a_line_quote_starts_the_line_at_a_word_boundary():
+    """`@dec` passed on `@decorate(1)` while the check read `in` (the review
+    of fed7c58, low 4)."""
+    holds = sandbox._line_holds
+    assert holds("@dec(1)", {"quote": "@dec"})[0]
+    assert holds("  @ dec . more(1)", {"quote": "@ dec . more"})[0]
+    assert not holds("@decorate(1)", {"quote": "@dec"})[0]
+    assert not holds("x = 1  # @dec", {"quote": "@dec"})[0]
+    assert holds('    """Doc and more', {"docstring": True, "quote": "Doc and mo"})[0]
+    assert not holds('    """Other', {"docstring": True, "quote": "Doc"})[0]
+
+
+def test_the_line_of_a_compile_refusal_is_read_by_compiling_the_text():
+    """Python 3.14 gives no `exc.text` for an error of the compile stage, so
+    the check held such a line to its bounds only (the review of fed7c58,
+    low 3)."""
+    sb = sandbox.SimpleNamespace(ctx=None)
+    text = "x = 1\nfrom __future__ import annotations\ny = 2\n"
+    at = (("quote", None), ("text", text))
+    facts = [api.Fact("line", n, at) for n in (1, 2, 0)]
+    assert [r["ok"] for r in sandbox.check_facts(sb, facts)] == [True, False, False]
+
+
+def test_a_nested_statement_of_the_same_type_does_not_stand_in():
+    """A span fact with a type and no name matched any statement of that
+    type, so (1, 3) passed for the outer if at (0, 3) (the review of
+    fed7c58, low 10)."""
+    lines = ["if a:", "    if b:", "        x = 1", "y = 2"]
+    outer = {"node": "If", "name": None, "head": "if a:"}
+    assert sandbox._span_holds(lines, 0, 3, outer)[0]
+    assert not sandbox._span_holds(lines, 1, 3, outer)[0]
+    assert sandbox._span_holds(lines, 1, 3, {**outer, "head": "if b:"})[0]
+
+
+def test_a_known_false_fact_is_known_by_its_sentence():
+    """The known list keyed on the function, and every fact site of
+    code.write is in `_code_write`. A false fact of another door in the same
+    test was hidden (the review of fed7c58, low 11)."""
+    from tests.rota.conftest import _problems
+    test = _OF_ID + "test_the_defines_twice_numbers_are_code_source_numbers"
+    rec = {"kind": "line_text", "ok": False, "value": "def f", "where": {},
+           "site": "api.py:1 in _code_write", "why": "no"}
+    assert _problems(test, [{**rec, "refusal": "m.py defines f twice (lines 1 and 3)."}]) == []
+    assert _problems(test, [{**rec, "refusal": "start=1, end=4: start=1 falls inside a"}])
+
+
+_OF_ID = "tests/rota/test_offers_followed.py::"
+
+
+def test_a_session_records_no_offer_and_a_test_records_frames(tmp_path, monkeypatch):
+    """`_offer` read the door on every refusal of a session, 0.29 ms each.
+    A session now records nothing, and a test keeps the raw frames, which
+    `Offer.site` reads (the review of fed7c58, low 2)."""
+    sb = _developer(tmp_path, "def a(\n    x,\n):\n    return x\n")
+    _, offers = _refused(sb, "code.write", path="m.py", start=0, end=1, text="def a(x):\n")
+    assert offers and all(type(c) is type(sandbox._fill.__code__) and type(n) is int
+                          for c, n in offers[0].frames)
+    assert offers[0].site.endswith(" in _code_write")
+    monkeypatch.setattr(api, "RECORD", False)
+    _, offers = _refused(sb, "code.write", path="m.py", start=0, end=1, text="def a(x):\n")
+    assert offers == [] and sb.ctx.facts == []
+
+
+def test_a_refusal_raised_in_a_library_names_its_door(tmp_path):
+    """A surrogate in the text makes `ast.parse` raise in `ast.py`. The
+    identity stopped at that first frame and read '' (the review of fed7c58,
+    low 5)."""
+    sb = _developer(tmp_path, "x = 1\n")
+    with pytest.raises(ValueError) as exc:
+        sb.call("code.write", path="m.py", text="x = '" + chr(0xD800) + "'\n")
+    site = sandbox._raise_site(exc.value)
+    assert " in _parse_compile < " in site and site.endswith(" in _code_write")
+
+
+def test_a_crash_of_one_offer_keeps_the_records_of_the_others(tmp_path):
+    """The add-after offer of a text that breaks the parser crashes its dry
+    run. The other offers of the refusal keep their records (the review of
+    fed7c58, low 9)."""
+    sb = _developer(tmp_path, "def a(\n    x,\n):\n    return x\n")
+    kwargs = {"path": "m.py", "start": 0, "end": 1, "text": "-" * 200000 + "1"}
+    with pytest.raises(ValueError) as exc:
+        sb.call("code.write", **kwargs)
+    offers = list(sb.ctx.offers)
+    recs = sandbox.follow(sb, "code.write", kwargs, exc.value, offers)
+    assert len(recs) == len(offers) == 2
+    assert [("MemoryError" in (r["second"] or "")) for r in recs] == [False, True]
+
+
+def test_a_skip_after_a_new_finding_turns_the_report_red():
+    """A test that calls `pytest.skip` after a refusal with a new finding
+    reported SKIPPED (the review of fed7c58, low 9)."""
+    from types import SimpleNamespace
+
+    from tests.rota.conftest import unhide
+    report = SimpleNamespace(when="call", outcome="skipped", longrepr=None)
+    unhide(report, ["door code.write ..."])
+    assert report.outcome == "failed"
+    plain = SimpleNamespace(when="call", outcome="skipped", longrepr=None)
+    unhide(plain, [])
+    assert plain.outcome == "skipped"
 
 
 def test_a_stored_path_refusal_quotes_the_stored_row(db):
@@ -447,6 +583,33 @@ def test_a_dry_run_restores_a_path_a_row_and_the_working_set(db):
     assert sb.ctx.where == Path("x.py") and sb.ctx.row is row
     assert sb.ctx.rows is rows and sb.ctx.rows[0] is row
     assert sb.ctx.working_set is ws
+
+
+class _Slots:
+    """A type with `__slots__` and the default `==`."""
+    __slots__ = ("n",)
+
+    def __init__(self, n):
+        self.n = n
+
+
+def test_a_dry_run_keeps_slots_and_copies_a_row_inside_a_tuple_or_object(db):
+    """An unchanged object with `__slots__` lost its identity, and a row
+    inside a namedtuple or an object made the dry run raise `TypeError:
+    cannot pickle 'sqlite3.Row' object` (the review of fed7c58, low 8)."""
+    import collections
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+    _, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
+                         path="q.py", body=_PRORATE + " # fixed")
+    row = db.execute("SELECT 1 AS a").fetchone()
+    pair = collections.namedtuple("Pair", "a b")(1, row)
+    slots, boxed = _Slots(1), _Plain(row)
+    sb.ctx.held = held = [slots, pair, boxed]
+    assert _admitted(sb, offers[0]) == (True, None)
+    assert held[0] is slots and held[1] is pair and held[2] is boxed
+    assert held[1].b is row and held[2].n is row
 
 
 def test_a_dry_run_does_not_send_a_commit():

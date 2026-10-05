@@ -2500,8 +2500,35 @@ def _deep(v, memo: dict):
     elif type(v) in (set, frozenset, tuple):
         out = type(v)(_deep(x, memo) for x in v)
         memo[id(v)] = out
+    elif isinstance(v, tuple) and hasattr(v, "_make"):
+        # A namedtuple can hold a row, and deepcopy cannot copy a row (the
+        # review of fed7c58, low 8).
+        out = v._make(_deep(x, memo) for x in v)
+        memo[id(v)] = out
+    elif (not hasattr(type(v), "__deepcopy__")
+          and (hasattr(v, "__dict__") or _slots(v))):
+        # A plain object: its attributes go through this function, so a row
+        # inside it stays the same row.
+        out = copy.copy(v)
+        memo[id(v)] = out
+        if hasattr(v, "__dict__"):
+            vars(out).clear()
+            vars(out).update(_deep(vars(v), memo))
+        for s in _slots(v):
+            if hasattr(v, s):
+                object.__setattr__(out, s, _deep(getattr(v, s), memo))
     else:
         return copy.deepcopy(v, memo)
+    return out
+
+
+def _slots(v) -> list[str]:
+    """The `__slots__` names of `v`'s type and its bases."""
+    out = []
+    for c in type(v).__mro__:
+        s = c.__dict__.get("__slots__", ())
+        out += [s] if isinstance(s, str) else [x for x in s
+                                                if x not in ("__dict__", "__weakref__")]
     return out
 
 
@@ -2546,9 +2573,16 @@ def _same(a, b, seen: set | None = None) -> bool:
     if type(a).__eq__ is object.__eq__:
         sa = getattr(a, "__dict__", None)
         sb_ = getattr(b, "__dict__", None)
-        if sa is None or sb_ is None:
+        names = _slots(a)
+        if (sa is None or sb_ is None) and not names:
             return False
-        return _same(sa, sb_, seen)
+        if sa is not None and not _same(sa, sb_, seen):
+            return False
+        # An object with `__slots__` has its values outside `__dict__`
+        # (the review of fed7c58, low 8).
+        gone = object()
+        return all(_same(getattr(a, s, gone), getattr(b, s, gone), seen)
+                   if hasattr(a, s) or hasattr(b, s) else True for s in names)
     try:
         return bool(a == b)
     except Exception:                                      # noqa: BLE001
@@ -2725,19 +2759,26 @@ def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
                 bad += [f"{op}: {a}" for a in args if a not in names]
         rec["bad_args"] = bad
         try:
-            res = dry_run(sb, o.op, o.args, then)
-        except DrySkipped as why:
-            rec["skipped"] = str(why)
-            same = _span_as_it_is(sb, o)
-            if same is None:
-                out.append(rec)
-                continue
-            # The text is the seat's to write, and the span is the door's.
-            # The span goes to the doors with the lines it holds now, so a
-            # door that judges the span alone reads it (frame 144's review
-            # of 8726a13, low 6).
-            rec["span_only"] = True
-            res = dry_run(sb, o.op, same)
+            try:
+                res = dry_run(sb, o.op, o.args, then)
+            except DrySkipped as why:
+                rec["skipped"] = str(why)
+                same = _span_as_it_is(sb, o)
+                if same is None:
+                    out.append(rec)
+                    continue
+                # The text is the seat's to write, and the span is the
+                # door's. The span goes to the doors with the lines it holds
+                # now, so a door that judges the span alone reads it (frame
+                # 144's review of 8726a13, low 6).
+                rec["span_only"] = True
+                res = dry_run(sb, o.op, same)
+        except Exception as crash:                         # noqa: BLE001
+            # A crash of one offer is that offer's record. The other offers
+            # of the refusal keep theirs (the review of fed7c58, low 9).
+            rec["second"] = f"the check crashed: {crash!r}"
+            out.append(rec)
+            continue
         if not res.admitted:
             if (res.step > 0 and o.then[res.step - 1] == api.AGAIN
                     and res.site != first):
@@ -2765,15 +2806,42 @@ def _line_holds(line: str, where: dict) -> tuple[bool, str]:
     """Whether `line` is the line that a `line` fact names. The door records
     the line's text from the syntax tree or the parser, never from the number,
     so a number that counts from 1 reads false (frame 144's review of
-    8726a13, high 2)."""
+    8726a13, high 2).
+
+    The quote must start the stripped line and end at a word boundary, so
+    `@dec` does not pass on `@decorate(1)` (the review of fed7c58, low 4).
+    A docstring's line starts with its quotes, and its words follow them.
+    Those words are cut at 30 characters, so they need no boundary."""
+    text = line.strip()
+    doc = where.get("docstring")
+    if doc:
+        m = re.match(r"[rRbBuUfF]{0,2}(\"\"\"|'''|\"|')", text)
+        if not m:
+            return False, f"the line is {text[:60]!r}, which opens no string"
+        text = text[m.end():].lstrip()
     quote = (where.get("quote") or "").strip()
     if quote:
-        quote = quote.splitlines()[0]
-        if quote not in line:
+        quote = quote.splitlines()[0].strip()
+        after = text[len(quote):len(quote) + 1]
+        if not text.startswith(quote) or (
+                not doc and re.match(r"\w", quote[-1]) and re.match(r"\w", after)):
             return False, f"the line is {line.strip()[:60]!r}, not {quote!r}"
-    if where.get("docstring") and not re.match(r"\s*[rRbBuUfF]{0,2}['\"]", line):
-        return False, f"the line is {line.strip()[:60]!r}, which opens no string"
     return True, ""
+
+
+def _compiled_line(text: str) -> int | None:
+    """The line, counted from 0, at which `compile` refuses `text`, or None
+    when it compiles. Python 3.14 gives no `exc.text` for an error of the
+    compile stage, so the check compiles the text itself (the review of
+    fed7c58, low 3)."""
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            compile(text, "<fact>", "exec", dont_inherit=True)
+        except SyntaxError as exc:
+            return (exc.lineno or 1) - 1
+    return None
 
 
 def _stmt_span(n, lines: list[str]) -> tuple[int, int]:
@@ -2816,6 +2884,10 @@ def _span_holds(lines: list[str], lo: int, hi: int, where: dict) -> tuple[bool, 
         if "node" in where and type(n).__name__ != where["node"]:
             continue
         if where.get("name") is not None and getattr(n, "name", None) != where["name"]:
+            continue
+        # The first line tells a nested statement of the same type from the
+        # one named (the review of fed7c58, low 10).
+        if where.get("head") and api._head_of(lines, n) != where["head"]:
             continue
         span = _stmt_span(n, lines)
         if span == (lo, hi):
@@ -2872,6 +2944,13 @@ def check_facts(sb: Sandbox, facts: list) -> list[dict]:
             elif f.kind == "lines":
                 ok = f.value == len(lines)
                 why = "" if ok else f"the file has {len(lines)} lines"
+            elif f.kind == "line" and text is not None:
+                # The line of a refusal of the parser: compile the text again.
+                at = _compiled_line(text)
+                ok = at == f.value
+                why = "" if ok else f"compile refuses the text at line {at}"
+                if ok and 0 <= f.value < len(lines):
+                    ok, why = _line_holds(lines[f.value], w)
             elif f.kind == "line":
                 ok = 0 <= f.value < len(lines)
                 why = "" if ok else f"the text has {len(lines)} lines"

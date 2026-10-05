@@ -193,18 +193,30 @@ INVENT = _Invent()
 AGAIN = ("again", {})
 
 
+# The instruments of frame 144 record offers and facts only under pytest.
+# `tests/rota/conftest.py` sets this. In a session `_offer` and `_fact`
+# return at once, so a seat's refusal does no instrument work (frame 144's
+# review of fed7c58, low 2).
+RECORD = False
+
+
 @dataclass(frozen=True)
 class Offer:
     """One call that a refusal names. `then` holds the calls that the same
-    sentence names after it, in order. `site` is the file and line of the
-    `_offer` call, so that a failed follow names its door. `said` is the
-    sentence that names the call, or a short tag where one sentence names
-    several calls."""
+    sentence names after it, in order. `frames` holds the `(code, line)`
+    pairs of the stack at the `_offer` call, innermost first. `site` reads
+    the door from them, so that a failed follow names its door. `said` is
+    the sentence that names the call, or a short tag where one sentence
+    names several calls."""
     op: str
     args: dict
     then: tuple = ()
-    site: str = ""
+    frames: tuple = ()
     said: str = ""
+
+    @property
+    def site(self) -> str:
+        return door_of(self.frames)
 
 
 def door_of(frames) -> str:
@@ -213,9 +225,11 @@ def door_of(frames) -> str:
 
     One frame is not enough. `_end_offer` serves the cut door and the
     cross-block door, and its one line read as one door for both (frame
-    144's review of 8726a13, low 4). The walk stops at an op's own function
-    or at `_code_write`, and before a frame of the binder or of a test. So a
-    dry run and a seat's call give the same identity for the same door.
+    144's review of 8726a13, low 4). The walk starts at the first frame of
+    `api.py` or `sandbox.py`, so a refusal that `ast.py` raises still names
+    its door (the review of fed7c58, low 5). It stops at an op's own
+    function or at `_code_write`, and before a frame of the binder or of a
+    test. So a dry run and a seat's call give the same identity.
     """
     import os as _os
 
@@ -231,7 +245,9 @@ def door_of(frames) -> str:
         if name == own and code.co_name == "_send":
             continue                    # the door is the helper's caller
         if name not in (own, box):
-            break
+            if out:
+                break
+            continue                    # a library frame below the door
         if name == box and code.co_name in ("call", "dry_run", "follow"):
             break
         out.append(f"{code.co_filename}:{line} in {code.co_name}")
@@ -247,6 +263,8 @@ def _offer(ctx, said: str, op: str, args: dict, then: tuple = ()) -> str:
     cases key on the prompt. The record is what a test follows (frame 144,
     after frame 135's law: a refusal names only a call the doors admit).
     """
+    if not RECORD:
+        return said
     offers = getattr(ctx, "offers", None)
     if offers is not None:
         import sys as _sys
@@ -254,7 +272,7 @@ def _offer(ctx, said: str, op: str, args: dict, then: tuple = ()) -> str:
         while f is not None:
             frames.append((f.f_code, f.f_lineno))
             f = f.f_back
-        offers.append(Offer(op, dict(args), tuple(then), door_of(frames), said))
+        offers.append(Offer(op, dict(args), tuple(then), tuple(frames), said))
     return said
 
 
@@ -268,9 +286,22 @@ class Fact:
     site: str = ""
 
 
+def _head_of(lines: list, node) -> str:
+    """A statement's first line, stripped, read at the tree's own line
+    number. A `span` fact carries it, so a nested statement of the same type
+    does not stand in for the one named (the review of fed7c58, low 10).
+    Empty for a node with no line, such as a `match_case`."""
+    k = getattr(node, "lineno", None)
+    if type(k) is not int or not 0 < k <= len(lines):
+        return ""
+    return str(lines[k - 1]).strip()[:60]
+
+
 def _fact(ctx, kind: str, value, **where):
     """Record a fact that the refusal quotes, and return `value` unchanged,
     so the sentence's text does not move (frame 144, change 1(d))."""
+    if not RECORD:
+        return value
     facts = getattr(ctx, "facts", None)
     if facts is not None:
         import sys as _sys
@@ -9624,11 +9655,13 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 # names its statement, so the check reads the syntax tree's
                 # span of that statement (the review of 8726a13, high 2).
                 _fact(ctx, "span", (lo, hi), path=wpath, node=type(named[0]).__name__,
-                      name=getattr(named[0], "name", None))
+                      name=getattr(named[0], "name", None),
+                      head=_head_of(lines, named[0]))
                 if named is not inner:
                     _fact(ctx, "span", (inner[1], inner[2]), path=wpath,
                           node=type(inner[0]).__name__,
-                          name=getattr(inner[0], "name", None))
+                          name=getattr(inner[0], "name", None),
+                          head=_head_of(lines, inner[0]))
                     parent = path[-2][0]
                     first = getattr(parent, "body", [None])[0]
                     doc = (inner[0] is first and isinstance(inner[0], _ast.Expr)
@@ -9642,10 +9675,14 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 for n, nlo, _hi in path:
                     if getattr(n, "decorator_list", None) and nlo < cut_b < n.lineno:
                         where = "below" if cut_b == n.lineno - 1 else "inside"
-                        # The line's text comes from the tree, not from the
-                        # number, so a number off by one reads false.
+                        # The line's text comes from the tree's own line of
+                        # the first decorator, not from the number, so a
+                        # number off by one reads false. Not ast.unparse: it
+                        # recurses, and 400 nested minus signs in a decorator
+                        # crashed the seat (the review of fed7c58, high 1).
                         d0 = min(n.decorator_list, key=lambda d: d.lineno)
-                        head = "@" + _ast.unparse(d0).split("(")[0]
+                        head = (lines[d0.lineno - 1] if 0 < d0.lineno <= len(lines)
+                                else "").strip().split("(")[0].rstrip()[:60]
                         parts.append(f"{label} is {where} the decorators of {_what(n)}, "
                                      f"which start at line "
                                      f"{_fact(ctx, 'line', nlo, path=wpath, quote=head)}.")
@@ -9655,7 +9692,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     verb = "also falls inside" if isinstance(o_cut, list) else "is inside"
                     on, olo, ohi = other[0]
                     _fact(ctx, "span", (olo, ohi), path=wpath, node=type(on).__name__,
-                          name=getattr(on, "name", None))
+                          name=getattr(on, "name", None), head=_head_of(lines, on))
                     parts.append(f"{o_label} {verb} {_kind(on)} (lines {olo} to {ohi}).")
                 for i in sorted({start, stop - 1, stop}):
                     if 0 <= i < len(lines):
@@ -9770,8 +9807,13 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                             and id(ns[0]) in _docs):
                         after = _end(ns[0])
                         owner = "the module" if p is None else p.name
-                        # The docstring's own first words, from the tree.
+                        # The docstring's own first words, from the tree. The
+                        # value is a str (`_docs`). The words stop before an
+                        # escape, where the value and the source differ.
                         first = str(ns[0].value.value).split(chr(10), 1)[0].strip()[:30]
+                        first = first[:next((i for i, c in enumerate(first)
+                                             if c == chr(92) or not c.isprintable()),
+                                            len(first))]
                         _fact(ctx, "line", start, path=wpath, docstring=True,
                               quote=first or None)
                         raise ValueError(_send(
@@ -10010,11 +10052,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                             lo, hi = getattr(n, "lineno", 0) - 1, getattr(n, "end_lineno", 0)
                             if isinstance(n, (_ast.Try, _ast.If, _ast.For, _ast.While)) and lo <= start < hi:
                                 if holder is None or lo >= holder[0]:
-                                    holder = (lo, hi, type(n).__name__.lower())
+                                    holder = (lo, hi, type(n).__name__.lower(), n)
                         if holder:
-                            lo, hi, kind = holder
+                            lo, hi, kind, held = holder
                             _fact(ctx, "span", (lo, hi), path=wpath,
-                                  node=kind.capitalize())
+                                  node=kind.capitalize(), head=_head_of(lines, held))
                             frag_note += _send(
                                 f" `{tail_kw}` is the tail of the {kind} statement at lines "
                                 f"{lo} to {hi}; send that whole statement, with your "

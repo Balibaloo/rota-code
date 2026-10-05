@@ -115,6 +115,13 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
 # known door (frame 144's review of c888968, point 2). Each line is a
 # finding, and a strict xfail in `test_offers_followed.py` holds it. The
 # judge makes frames of them. Remove a line when its door is fixed.
+# The doors record their offers and facts under pytest only. A session
+# leaves `api.RECORD` off and does no instrument work (the review of
+# fed7c58, low 2).
+from rota.roles import api as _api  # noqa: E402
+
+_api.RECORD = True
+
 _SB = "tests/rota/test_t0_sandbox.py::"
 _DG = "tests/rota/test_desk_guards.py::"
 _OF = "tests/rota/test_offers_followed.py::"
@@ -136,6 +143,8 @@ _CHOOSES = "the test chooses"
 _CRASH = "MemoryError"
 KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
     (_OF + "test_a_text_that_breaks_the_parser_gets_the_cut_refusal", _CRASH),
+    (_OF + "test_a_crash_of_one_offer_keeps_the_records_of_the_others", _CRASH),
+    (_OF + "test_a_session_records_no_offer_and_a_test_records_frames", _INVALID),
     (_SB + "test_a_project_id_at_its_own_path_is_refused_outside_a_challenge", _CLASH),
     (_SB + "test_a_challenge_of_another_test_does_not_open_a_project_test", _CLASH),
     (_SB + "test_a_project_id_on_another_tests_file_gets_the_id_fact_only", _CLASH),
@@ -145,6 +154,8 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
     (_DG + "test_a_start_on_a_decorated_def_line_names_the_decorators", _TWICE),
     (_DG + "test_a_span_from_a_blank_line_before_else_is_refused_with_an_offer", _INVALID),
     (_OF + "test_the_add_after_offer_of_a_cut_span_is_admitted", _TWICE),
+    *((_OF + f"test_a_cut_at_deep_decorators_gets_the_refusal_of_b2ed55b[{k}]",
+       "m.py defines a twice") for k in ("minus400", "attr2000", "spaced")),
     (_OF + "test_a_cut_refusal_quotes_lines_that_are_true", _INVALID),
     ("tests/rota/test_l1.py::test_l1_case[ACT-TS-give-the-prompt-a-stream]", _CHOOSES),
     (_OF + "test_the_added_import_offer_is_admitted", _CHOOSES),
@@ -152,18 +163,22 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
 }
 
 # The facts that a refusal quotes and the state contradicts today: the test,
-# the kind, and the function that records the fact. Kept like the list above.
+# the kind, and words of the refusal's sentence. Kept like the list above.
+# The function was the key before, and all the fact sites of code.write share
+# `_code_write`, so a false fact of another door hid behind this one (the
+# review of fed7c58, low 11).
 # Finding 5, the defines-twice door of code.write: "defines f twice (lines 4
 # and 7)" gives ast's numbers, which count from 1. code.source and every
 # other refusal count from 0, so each number names the line below the def.
 _L1 = "tests/rota/test_l1.py::test_l1_case"
+_TWICE_LINES = " twice (lines "
 KNOWN_FALSE_FACTS: set[tuple[str, str, str]] = {
-    (_DG + "test_a_file_defines_each_name_once", "line_text", "_code_write"),
-    (_DG + "test_an_overload_stub_is_not_a_second_definition", "line_text", "_code_write"),
-    (_L1 + "[L1-DV-take-a-mistake-out]", "line_text", "_code_write"),
-    (_L1 + "[L1-DV-give-the-new-parameters-defaults]", "line_text", "_code_write"),
+    (_DG + "test_a_file_defines_each_name_once", "line_text", _TWICE_LINES),
+    (_DG + "test_an_overload_stub_is_not_a_second_definition", "line_text", _TWICE_LINES),
+    (_L1 + "[L1-DV-take-a-mistake-out]", "line_text", _TWICE_LINES),
+    (_L1 + "[L1-DV-give-the-new-parameters-defaults]", "line_text", _TWICE_LINES),
     (_OF + "test_the_defines_twice_numbers_are_code_source_numbers", "line_text",
-     "_code_write"),
+     _TWICE_LINES),
 }
 
 
@@ -173,8 +188,9 @@ def _problems(nodeid: str, found: list[dict]) -> list[str]:
     out = []
     for r in found:
         if "kind" in r:
-            fn = r["site"].rsplit(" in ", 1)[-1]
-            if not r["ok"] and (nodeid, r["kind"], fn) not in KNOWN_FALSE_FACTS:
+            said = r.get("refusal") or ""
+            if not r["ok"] and not any(nodeid == t and r["kind"] == k and w in said
+                                       for t, k, w in KNOWN_FALSE_FACTS):
                 out.append(f"fact {r['kind']} {r['value']!r} {r['where']} at {r['site']}: "
                            f"{r['why']}")
             continue
@@ -218,7 +234,9 @@ def pytest_runtest_call(item):
         sandbox._ON_REFUSAL = None      # a dry run's own refusals are not followed
         try:
             if facts:
-                found.extend(sandbox.check_facts(sb, facts))
+                # The refusal's sentence keys the known false facts.
+                found.extend({**r, "refusal": str(exc)}
+                             for r in sandbox.check_facts(sb, facts))
             if offers:
                 found.extend(sandbox.follow(sb, dotted, kwargs, exc, offers))
         except Exception as crash:                         # noqa: BLE001
@@ -259,12 +277,18 @@ _FINDINGS = pytest.StashKey[list]()
 def unhide(report, bad: list[str]) -> None:
     """Turn an xfailed report red when the hook found something that no
     list above names. An xfail mark holds one known finding, and a new
-    finding in the same test is not that finding."""
-    if bad and report.when == "call" and hasattr(report, "wasxfail"):
+    finding in the same test is not that finding. A test that calls
+    `pytest.skip` after the finding is red too (the review of fed7c58,
+    low 9)."""
+    if not bad or report.when != "call":
+        return
+    if hasattr(report, "wasxfail"):
         del report.wasxfail
-        report.outcome = "failed"
-        report.longrepr = ("the follow check found, in a test marked xfail:\n"
-                           + "\n".join(bad))
+    elif report.outcome != "skipped":
+        return
+    report.outcome = "failed"
+    report.longrepr = ("the follow check found, in a test marked xfail or "
+                       "skipped:\n" + "\n".join(bad))
 
 
 # tryfirst makes this wrapper the outer one, so it reads the report after
