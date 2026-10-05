@@ -294,3 +294,80 @@ def test_only_a_function_that_writes_nothing_gets_the_third_reading():
     assert uphold[0].args["why"] == "the claim's reference"
     write = toolproto.extract("TOOL: notes.add(text" + value, sigs)
     assert isinstance(write[0], toolproto.ToolError), write
+
+
+# Night 119, `.rota/clickI_night119.db`, Critic s229: the reply of turn 8,
+# byte for byte. Each `\n` is text, as the seat wrote it.
+S229_T8 = r"""TOOL: challenge.uphold(citation='src/click/termui.py', quote='def confirm(\n    text: str,\n    default: bool | None = False,\n    abort: bool = False,\n    prompt_suffix: str = ": ",\n    show_default: bool = True,\n    err: bool = False,\n    default_on_eof: bool = False,\n) -> bool:', why='The claim asserts that confirm() takes a default_on_eof flag and returns the default when stdin is closed. The source code at lines 288-345 of src/click/termui.py explicitly defines the function with the parameter 'default_on_eof: bool = False' and includes logic in the except block for EOFError that checks this flag to return the default value if True, otherwise raising an exception.')"""
+S229_WHY = S229_T8[S229_T8.index("why='") + 5:-2]
+
+
+def _form(stray: str) -> str:
+    return (f"a quote inside {stray} ended it early, and the text after that "
+            f"quote is not an argument. Put the value of {stray} between "
+            f"triple quotes, three single quotes at each end. Write the whole "
+            f"value as it is, with no backslashes:\n"
+            f"{stray}='''the text, with its quotes and line breaks as they "
+            f"are'''")
+
+
+def test_the_refusal_names_the_value_that_holds_the_stray_quote():
+    """
+    Frame 122, night 119, s229 turn 8. The stray quotes are in `why`,
+    around `default_on_eof: bool = False`. The old refusal named
+    `citation`, and the Critic put triple quotes on `quote`. The refusal
+    now names `why`, and the form it shows parses.
+    """
+    got = toolproto.extract(S229_T8, UPHOLD)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _form("why")
+    fixed = S229_T8.replace("why='" + S229_WHY + "'", "why='''" + S229_WHY + "'''")
+    call = toolproto.extract(fixed, UPHOLD)
+    assert len(call) == 1 and isinstance(call[0], toolproto.ToolCall), call
+    assert call[0].args["why"] == S229_WHY
+    assert call[0].args["citation"] == "src/click/termui.py"
+
+
+LEDGER = {"ledger.log": ({"about_ref", "about_table", "assumption"},
+                         {"about_ref", "about_table", "assumption"})}
+
+
+@pytest.mark.parametrize("raw, sigs, stray", [
+    # s229 turn 9: an empty string, then the text.
+    ("TOOL: challenge.uphold(citation='a.py', quote=''def f(x):\n"
+     "    return x'', why='it holds 'x' twice')", UPHOLD, "quote"),
+    # s130 turn 19: four quotes open `path`, two open `text`.
+    ("TOOL: code.write(path=''''a.py''', text=''import sys\n"
+     "x = 1'')", WRITE, "text"),
+    # s160, s162 and s130 turn 18: source quotes inside `text`.
+    ("TOOL: code.write(path='a.py', text='warn(f\"'a.{name}' is old\")\n"
+     "x = 1', start=6, end=-1)", WRITE, "text"),
+    # s266 turn 1: source quotes inside `body`, and `id` comes first.
+    ("TOOL: tests.encode(id='t2', criterion_id='c2', path='t.py', "
+     "body='def test_x():\n    assert 1, f\"want 'x' in {y}\"')",
+     WRITE, "body"),
+    # s45 turns 1 and 3: a quote closes `assumption` in the prose.
+    ("TOOL: ledger.log(about_ref='how', about_table='items', assumption="
+     "'the README says: \"a\"'; the code shows: \"b\", so it's done')", LEDGER,
+     "assumption"),
+], ids=["s229-t9-empty-string", "s130-t19-four-quotes", "s160-text",
+        "s266-body", "s45-assumption"])
+def test_each_swallow_of_night_119_names_the_value_that_holds_the_quote(
+        raw, sigs, stray):
+    """Frame 122: the old refusal named the first argument in each of
+    these. The stray quote stands in a later one."""
+    got = toolproto.extract(raw, sigs)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _form(stray)
+
+
+def test_a_swallow_with_no_stray_quote_keeps_the_old_refusal():
+    """s87 turn 4 wrote a bare `about,table`, with no stray quote. The
+    refusal stays byte for byte, because cassette prompts hold it."""
+    got = toolproto.extract(
+        'TOOL: ledger.log(about_ref="@term:p", about,table="model_areas", '
+        'assumption="term")', LEDGER)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(
+        "a quote inside about_ref ended it early and the arguments after "
+        "it (assumption=...) were read as part of about_ref.")

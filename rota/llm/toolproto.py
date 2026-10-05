@@ -293,6 +293,86 @@ def _third_reading(text: str, start: int) -> tuple[str, int] | None:
     return raw, i
 
 
+def _stray_quote(raw: str) -> str | None:
+    """The argument that holds the first stray quote, read from the left.
+
+    A quote closes a value only where a comma or the end of the list
+    follows it. A closing quote with other text after it is a stray quote
+    in that value. The lenient parse reads from the right, so the first
+    value swallows the rest, and the old refusal named the first argument.
+    Night 119, s229: the stray quote was in `why`, and the refusal named
+    `citation` (frame 122, pass 4).
+
+    The answer is None on every doubt: no name before a value, a value
+    that never closes, or text after a value that is not a quote.
+    """
+    i, n = 0, len(raw)
+    while True:
+        while i < n and (raw[i].isspace() or raw[i] == ","):
+            i += 1
+        if i >= n:
+            return None
+        m = re.match(r"([A-Za-z_]\w*)\s*=\s*", raw[i:])
+        if not m:
+            return None
+        name, i = m.group(1), i + m.end()
+        if i >= n:
+            return None
+        if raw.startswith("'''", i) or raw.startswith('"""', i):
+            end = raw.find(raw[i:i + 3], i + 3)
+            if end < 0:
+                return None
+            i = end + 3
+        elif raw[i] in "'\"":
+            quote, i = raw[i], i + 1
+            while i < n and raw[i] != quote:
+                i += 2 if raw[i] == "\\" else 1
+            if i >= n:
+                return None
+            i += 1
+        elif raw[i] in "[{(":
+            # A list or a dict. Inside it, a quote closes an item only
+            # where a separator or a closing bracket follows it.
+            depth, quote = 0, None
+            while i < n:
+                ch = raw[i]
+                if quote:
+                    if ch == "\\":
+                        i += 2
+                        continue
+                    if ch == quote:
+                        quote = None
+                        rest = raw[i + 1:].lstrip()
+                        if not rest:
+                            return None
+                        if rest[0] not in ",:]})":
+                            return name
+                elif ch in "'\"":
+                    quote = ch
+                elif ch in "[{(":
+                    depth += 1
+                elif ch in "]})":
+                    depth -= 1
+                    if depth == 0:
+                        i += 1
+                        break
+                i += 1
+            if depth != 0 or quote:
+                return None
+        else:
+            while i < n and raw[i] != ",":
+                if raw[i] in "'\"()[]{}":
+                    return None
+                i += 1
+            continue
+        rest = raw[i:].lstrip()
+        if rest and rest[0] != ",":
+            # Text after the closing quote of a quoted value means that
+            # quote was stray. Text after a bracket is another fault.
+            return name if raw[i - 1] in "'\"" else None
+        i = n - len(rest)
+
+
 def _open_argument(text: str, start: int) -> str | None:
     """The argument whose quoted value never ends, by the first scan's rules.
 
@@ -890,6 +970,22 @@ def extract(text: str, signatures: dict | None = None, *,
                 # test whose body broke the list.
                 longest = max((k for k, v in args.items() if isinstance(v, str)),
                               key=lambda k: len(args[k]), default=key)
+                stray = _stray_quote(raw_args)
+                if stray:
+                    # Night 119, s229: the refusal named `citation`, the
+                    # stray quote was in `why`, and the Critic put triple
+                    # quotes on `quote`. Name the value that holds it.
+                    add(ToolError(
+                        f"{MARKER} {name}({raw_args[:80]})",
+                        f"a quote inside {stray} ended it early, and the text "
+                        f"after that quote is not an argument. Put the value "
+                        f"of {stray} between triple quotes, three single "
+                        f"quotes at each end. Write the whole value as it "
+                        f"is, with no backslashes:\n"
+                        f"{stray}='''the text, with its quotes and line "
+                        f"breaks as they are'''"), marker)
+                    cursor = args_end + 1
+                    continue
                 add(ToolError(
                     f"{MARKER} {name}({raw_args[:80]})",
                     f"a quote inside {key} ended it early and the arguments "
