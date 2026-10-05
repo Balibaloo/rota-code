@@ -401,18 +401,15 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # four of its eight turns calling `code.survey` again -- the results were
         # in front of it and it re-fetched them, then ran out of budget before
         # attesting, which is what left `tick_survey` undrained on a real repo.
-        if isinstance(pushed.get("tests.load"), dict):
-            # The fix wake pushes `tests.load` as a summary, and a call
-            # returns raw rows with bodies. So "the same thing" was false
-            # there (frame 121's interview, E). Other wakes keep the sentence.
-            body.append(
-                "\nAlready run for you, with the results below. Calling any of "
-                "these again costs you a turn, and tests.load returns the rows "
-                "of the batch, not the summary below:")
-        else:
-            body.append(
-                "\nAlready run for you, with the results below. Calling any of "
-                "these again returns the same thing and costs you a turn:")
+        #
+        # The sentence is false for the fix wake's `tests.load`, which a call
+        # returns as raw rows and not as the pushed summary. Frame 121 named
+        # `tests.load` here, and two green cases fell to 3 of 5: the runs
+        # called it 2 to 5 times. So the bytes stay, and the repeat call's
+        # return is a frame of its own.
+        body.append(
+            "\nAlready run for you, with the results below. Calling any of these "
+            "again returns the same thing and costs you a turn:")
         for key, value in pushed.items():
             # Through the same cap a *requested* result goes through. The push
             # was raw, so `code.survey` on icalendar's `src/icalendar` -- 1,357

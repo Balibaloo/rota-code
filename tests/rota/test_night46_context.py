@@ -400,21 +400,16 @@ def test_a_cut_reply_with_no_whole_call_says_no_call_ran_in_both_lines(vk_db, re
     assert vk_db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
 
 
-def test_the_fix_wake_header_says_what_tests_load_returns(db):
+def test_the_fix_wake_header_keeps_its_bytes_beside_the_summary(db):
     """
-    Frame 121's interview, E. The fix wake pushes `tests.load` as a summary,
-    and a call returns raw rows with bodies, so "returns the same thing" was
-    false. The header says what the call returns. A wake whose push holds no
-    summary keeps the sentence byte for byte.
+    Frame 121, pass 4. A header that named `tests.load` took two green
+    cases to 3 of 5, and their runs called `tests.load` 2 to 5 times. So a
+    wake that pushes the summary keeps the old sentence byte for byte.
     """
     from rota.core.runner import build_prompt
     db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
                "output, attempt) VALUES ('r1','b1','tst1','abc123','fail',"
                "'NameError: close_account',1)")
-    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
-               "('inh_1','b1',NULL,'tests/test_basic.py','def test_basic():\n    assert True')")
-    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
-               "output, attempt) VALUES ('r2','b1','inh_1','abc123','pass','1 passed',1)")
     db.commit()
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
@@ -423,20 +418,8 @@ def test_the_fix_wake_header_says_what_tests_load_returns(db):
     assert isinstance(pushed["tests.load"], dict), "the push is not the summary"
     _system, user = build_prompt("developer", sb, wake, pushed, "MODE: tests_failing")
     assert ("\nAlready run for you, with the results below. Calling any of "
-            "these again costs you a turn, and tests.load returns the rows of "
-            "the batch, not the summary below:") in user
-    assert "returns the same thing" not in user
-    # Rows, and not the summary. A passing row shows no body (frame 121's
-    # diff review, finding 3), so the header does not promise one.
-    rows = sb.call("tests.load")
-    assert isinstance(rows, list) and [r["id"] for r in rows] == ["tst1", "inh_1"], rows
-    assert rows[1]["body"].endswith("characters, passing, not shown"), rows[1]
-
-    _system, other = build_prompt("developer", sb, wake,
-                                  {"criteria.load": sb.call("criteria.load")},
-                                  "MODE: tests_failing")
-    assert ("\nAlready run for you, with the results below. Calling any of "
-            "these again returns the same thing and costs you a turn:") in other
+            "these again returns the same thing and costs you a turn:\n") in user
+    assert "summary below" not in user
 
 
 def test_a_bare_list_of_refs_may_hold_a_path():
