@@ -45,11 +45,19 @@ rewrite every assertion from this spec.
 LLM output is stochastic; the harness must treat that as a measured quantity,
 never an excuse.
 
-0. **[A] Fixtures stay tiny - three to five rows, one judgement per case.** An 8B
-   model will not fail a structural assertion, but it will drown in twenty
-   statements with three plausible readings, and then the pass rate measures the
-   fixture rather than the role. Harder variants get their own case ids so the
-   simple one survives as the regression floor.
+0. **[A] One judgement and a small output per case, so that the result is
+   measurable. The setup may be a scene.** A case asks the seat for one
+   judgement, and code decides the output: one call, one verdict or a few rows.
+   A run is then a pass or a fail, and the runs give a ratio. The setup may be
+   as large as a night's wake. A scene is built by code through the real ops on
+   every run. A scene case has three conditions. A test with no model first
+   proves that the prompt holds the fact that the judgement needs. Two builds of
+   the scene give the same prompt. The case runs at the night's window
+   (doctrine 2). A scene case keeps a twin on a tiny fixture under its own id.
+   The twin is the floor, and the difference between the two ratios measures the
+   context. (Ruled: Roman, 2026-10-05. This replaces "Fixtures stay tiny - three
+   to five rows, one judgement per case": the limit is on the output, because a
+   small output is what makes a result measurable.)
 1. **Sampled runs with thresholds.** Every T1/T2 case declares `runs: N,
    pass: k` (defaults `N=5, k=4`). A case passing 5/5 for weeks that drops to
    3/5 is a **prompt regression signal** — the pass-rate history is itself an
