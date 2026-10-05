@@ -303,8 +303,8 @@ def _stray_quote(raw: str, params) -> tuple[str, bool] | None:
     Night 119, s229: the stray quote was in `why`, and the refusal named
     `citation` (frame 122, pass 4).
 
-    The answer is the name, and whether the value has an extra quote
-    beside its opening or closing quotes. The answer is None on every
+    The answer is the name, and whether the value opens with an extra
+    quote. The answer is None on every
     doubt: a name the function lacks, no name before a value, a value
     that never closes, or text after a value that is not a quote.
     """
@@ -379,32 +379,25 @@ def _stray_quote(raw: str, params) -> tuple[str, bool] | None:
             # quote was stray. Text after a bracket is another fault.
             if raw[i - 1] not in "'\"":
                 return None
-            return name, _extra_quote(raw, begin, params)
+            return name, _extra_quote(raw, begin)
         i = n - len(rest)
 
 
-def _extra_quote(raw: str, begin: int, params) -> bool:
-    """Whether the value at `begin` opens or closes with a run of quotes
-    that is not one quote or three.
+def _extra_quote(raw: str, begin: int) -> bool:
+    """Whether the value at `begin` opens with two quotes, or four or more.
 
     Night 119, s229 turn 9 sent `quote=''def ...''`, and night 118, s241
     turn 7 sent `about_ref=''''...''''`. A seat that keeps the extra quote
     inside triple quotes is refused again (frame 122's fourth review).
-    The value ends at the first run of quotes that a parameter or the end
-    of the list follows.
+
+    The closing run decides nothing. Frame 122's fifth review: a value can
+    end with a quote of its own, `'''say 'hi''''`, and the scan can end a
+    value in the next call. No value opens with two or four quotes by
+    intent. An empty `''` closes before a comma, so the scan never names it.
     """
-    # Only the quote that opened the value counts. A closing `"'` is a
-    # double quote of the text and then the single closing quote.
     q = raw[begin]
     opening = len(raw[begin:]) - len(raw[begin:].lstrip(q))
-    if opening not in (1, 3):
-        return True
-    for m in re.finditer(r"(['\"]+)\s*(?:,\s*([A-Za-z_]\w*)\s*=|$)",
-                         raw[begin + opening:]):
-        if m.group(2) is None or m.group(2) in params:
-            run = m.group(1)
-            return len(run) - len(run.rstrip(q)) not in (1, 3)
-    return False
+    return opening not in (1, 3)
 
 
 def _open_argument(text: str, start: int) -> str | None:

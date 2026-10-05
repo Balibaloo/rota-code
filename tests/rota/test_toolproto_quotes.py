@@ -462,6 +462,47 @@ def test_a_seat_that_follows_the_refusal_for_an_extra_quote_is_read():
         assert c.args["about_table"] == "criteria"
 
 
+# The seat's `\)` makes `ast.parse` warn. The warning is the known low of
+# frame 122's third review, and not this test's subject.
+@pytest.mark.filterwarnings("ignore::SyntaxWarning")
+def test_only_the_opening_run_gives_the_extra_quote_sentence():
+    """
+    Frame 122's fifth review. Night 118, s137 turn 9 opened `body` with
+    `\"\"\"`, and the closing run read as extra. A value that ends with a
+    quote of its own is not an extra quote either: a seat that removes it
+    loses the last character. Only an opening run of two, or of four or
+    more, gives the sentence.
+    """
+    from pathlib import Path
+    raw = (Path(__file__).parent / "fixtures" / "night118_s137_t9.txt"
+           ).read_text(encoding="utf-8")
+    got = toolproto.extract(raw, WRITE)
+    assert got and all(isinstance(g, toolproto.ToolError) for g in got), got
+    assert not any("Remove the extra quote" in g.reason for g in got), got
+    assert any(g.reason == _form("body") for g in got), got
+    for value in ("'''say 'hi''''", "'x'y''"):
+        got = toolproto.extract(
+            f"TOOL: challenge.uphold(citation='a.py', quote={value}, why='w')",
+            UPHOLD)
+        assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+        assert got[0].reason == _form("quote"), value
+
+
+def test_an_empty_value_is_never_named():
+    """An empty `''` opens with a run of two. It closes before a comma or
+    the end of the list, so the scan passes it and names the value that
+    holds the stray quote."""
+    got = toolproto.extract(
+        "TOOL: challenge.uphold(why='', citation='a.py', quote='the 'x' y')",
+        UPHOLD)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _form("quote")
+    got = toolproto.extract(
+        "TOOL: challenge.uphold(citation='a.py', quote='q', why='')", UPHOLD)
+    assert isinstance(got[0], toolproto.ToolCall), got
+    assert got[0].args["why"] == ""
+
+
 def test_a_stray_quote_inside_a_list_names_the_list():
     """The list branch of the left scan: in `refs=['it's', ...]` the quote
     after `it` has a letter after it, so `refs` holds the stray quote."""
