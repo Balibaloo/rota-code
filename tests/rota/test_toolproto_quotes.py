@@ -475,7 +475,7 @@ def test_only_the_opening_run_gives_the_extra_quote_sentence():
     """
     from pathlib import Path
     raw = (Path(__file__).parent / "fixtures" / "night118_s137_t9.txt"
-           ).read_text(encoding="utf-8")
+           ).read_bytes().decode("utf-8")
     got = toolproto.extract(raw, WRITE)
     assert got and all(isinstance(g, toolproto.ToolError) for g in got), got
     assert not any("Remove the extra quote" in g.reason for g in got), got
@@ -486,6 +486,18 @@ def test_only_the_opening_run_gives_the_extra_quote_sentence():
             UPHOLD)
         assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
         assert got[0].reason == _form("quote"), value
+
+
+def test_a_value_that_opens_with_a_docstring_gets_no_extra_quote_sentence():
+    """Frame 122's sixth review: a value that opens with a docstring opens
+    with a run of six double quotes. A seat that removed one quote would
+    lose a character of the text, so a run of five or more gives no
+    sentence."""
+    got = toolproto.extract(
+        "TOOL: challenge.uphold(citation='a.py', quote=" + '"' * 6
+        + 'Doc."""\nx = 1""", why=\'w\')', UPHOLD)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _form("quote")
 
 
 def test_an_empty_value_is_never_named():

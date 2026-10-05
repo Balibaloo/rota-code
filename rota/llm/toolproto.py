@@ -384,7 +384,7 @@ def _stray_quote(raw: str, params) -> tuple[str, bool] | None:
 
 
 def _extra_quote(raw: str, begin: int) -> bool:
-    """Whether the value at `begin` opens with two quotes, or four or more.
+    """Whether the value at `begin` opens with exactly two or four quotes.
 
     Night 119, s229 turn 9 sent `quote=''def ...''`, and night 118, s241
     turn 7 sent `about_ref=''''...''''`. A seat that keeps the extra quote
@@ -392,12 +392,13 @@ def _extra_quote(raw: str, begin: int) -> bool:
 
     The closing run decides nothing. Frame 122's fifth review: a value can
     end with a quote of its own, `'''say 'hi''''`, and the scan can end a
-    value in the next call. No value opens with two or four quotes by
-    intent. An empty `''` closes before a comma, so the scan never names it.
+    value in the next call. A run of five or more is left alone: a value
+    that opens with a docstring opens with six (frame 122's sixth review).
+    An empty `''` closes before a comma, so the scan never names it.
     """
     q = raw[begin]
     opening = len(raw[begin:]) - len(raw[begin:].lstrip(q))
-    return opening not in (1, 3)
+    return opening in (2, 4)
 
 
 def _open_argument(text: str, start: int) -> str | None:
