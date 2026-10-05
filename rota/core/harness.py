@@ -176,6 +176,17 @@ def _run_one(root: Path, path: str, timeout: int,
     return "error", said
 
 
+def inherited_id(rel: str) -> str:
+    """The id `inherit` gives the project's test at `rel`, a posix path.
+
+    `tests.encode` reads the same id to tell a project row from a Tester's
+    row (frame 135). One function keeps the two from drifting apart.
+    """
+    import hashlib
+
+    return "inh_" + hashlib.sha1(rel.encode("utf-8")).hexdigest()[:8]
+
+
 def inherit(conn: sqlite3.Connection, batch_id: str, worktree: Path) -> list[str]:
     """
     The repository's own tests join the batch, with no criterion.
@@ -187,8 +198,6 @@ def inherit(conn: sqlite3.Connection, batch_id: str, worktree: Path) -> list[str
     existing tests become tests of the batch at start. Their bodies are the
     files as found, and `materialise` writes the same bytes back.
     """
-    import hashlib
-
     owned = {t["path"].replace("\\", "/") for t in tests_for(conn, batch_id)}
     found: list[str] = []
     candidates = sorted(
@@ -201,7 +210,7 @@ def inherit(conn: sqlite3.Connection, batch_id: str, worktree: Path) -> list[str
         # reads the relative parts, not the full path's.
         if rel in owned or ".rota" in relp.parts or ".venv" in relp.parts:
             continue
-        tid = "inh_" + hashlib.sha1(rel.encode("utf-8")).hexdigest()[:8]
+        tid = inherited_id(rel)
         try:
             body = f.read_text(encoding="utf-8")
         except OSError:

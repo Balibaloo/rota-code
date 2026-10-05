@@ -625,9 +625,9 @@ def test_a_new_test_under_a_project_tests_id_is_refused(db):
                 path="tests/test_utils/test_echo_json.py",
                 body=_PRORATE + " # new", batch_id="b1")
     assert str(exc.value) == (
-        "inh_022b8a87 belongs to the project's test at "
-        "tests/test_utils/test_confirm.py. Send this encode again with a new "
-        "id that you invent.")
+        "inh_022b8a87 is the id of the project's test "
+        "tests/test_utils/test_confirm.py, and an encode never replaces a "
+        "project test. Send this encode again with a new id that you invent.")
     assert sb.ctx.writes == []
 
     out = sb.call("tests.encode", id="tst_echo_json_3", criterion_id="c1",
@@ -641,12 +641,95 @@ def test_a_new_test_under_a_project_tests_id_is_refused(db):
         None, "tests/test_utils/test_confirm.py", 1)
 
 
+def test_a_project_id_at_its_own_path_is_refused_outside_a_challenge(db):
+    """Frame 135's diff review: in answer mode the project's own path was
+    admitted, and the commit gave the row the Tester's criterion and body.
+    The batch then held no project test."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
+                   path="tests/test_utils/test_confirm.py")
+    sb = _answer_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
+                path="tests/test_utils/test_confirm.py",
+                body=_PRORATE + " # new", batch_id="b1")
+    assert "an encode never replaces a project test" in str(exc.value)
+    assert sb.ctx.writes == []
+
+
+def test_a_challenge_wake_still_fixes_a_project_test_at_its_own_path(db):
+    """Frame 128 is open, so a challenge wake behaves as before. A real
+    challenge wake runs in the sandbox mode `normal`, and the trigger's verb
+    is the sign."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
+                   path="tests/test_utils/test_confirm.py")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m1','t1','developer','tester','challenge','[]',1,'open')")
+    from rota.roles import prompts
+    sb = build("tester", db, allow=prompts.mode_tools("tester", "challenge"))
+    sb.ctx.batch_id = "b1"
+    sb.ctx.trigger = "m1"
+
+    out = sb.call("tests.encode", id="inh_022b8a87", criterion_id="c1",
+                  path="tests/test_utils/test_confirm.py",
+                  body=_PRORATE + " # fix", batch_id="b1")
+    assert out == {"id": "inh_022b8a87"}, out
+    _commit(db, sb)
+    row = db.execute("SELECT criterion_id, version FROM tests "
+                     "WHERE id = 'inh_022b8a87'").fetchone()
+    assert (row["criterion_id"], row["version"]) == ("c1", 2)
+
+
+def test_a_project_row_that_holds_a_criterion_is_still_the_projects(db):
+    """After a challenge fix lands, the project row holds a criterion. Its id
+    is still the one `harness.inherit` derives from its path, so a move to a
+    new path is refused. A resumed batch's inherit would replace the row."""
+    from rota.core.harness import inherited_id
+    pid = inherited_id("tests/test_utils/test_confirm.py")
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id=pid, criterion_id="c1",
+                   path="tests/test_utils/test_confirm.py")
+    sb = _challenge_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id=pid, criterion_id="c1",
+                path="tests/test_utils/test_new.py", body=_PRORATE + " # moved")
+    assert str(exc.value).startswith(f"{pid} is the id of the project's test "
+                                     "tests/test_utils/test_confirm.py,")
+    assert sb.ctx.writes == []
+
+
+def test_a_project_id_on_another_tests_file_names_both_faults(db):
+    """s140's call 4 sent a project id and the file of another project test.
+    One refusal names both, so the next call does not meet the clash door."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    _a_stored_test(db, id="inh_01fdb170", criterion_id=None,
+                   path="tests/test_utils/test_echo_via_pager.py")
+    _a_stored_test(db, id="inh_5f7b1750", criterion_id=None,
+                   path="tests/test_utils/test_echo.py")
+    sb = _answer_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="inh_01fdb170", criterion_id="c1",
+                path="tests/test_utils/test_echo.py",
+                body=_PRORATE + " # new", batch_id="b1")
+    assert str(exc.value) == (
+        "inh_01fdb170 is the id of the project's test "
+        "tests/test_utils/test_echo_via_pager.py, and an encode never replaces "
+        "a project test. Send this encode again with a new id that you invent. "
+        "tests/test_utils/test_echo.py is inh_5f7b1750's file, so send a new "
+        "path too: tests/test_<what it checks>.py.")
+
+
 def test_a_testers_own_test_with_the_inh_prefix_is_still_replaced(db):
     """Night 119: a Tester named its own test `inh_echo_json_01`. The prefix
     is not the sign of a project test, so its own row stays replaceable."""
     _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
     _a_stored_test(db, id="inh_echo_json_01")
-    sb = _challenge_tester(db)
+    sb = _answer_tester(db)
 
     out = sb.call("tests.encode", id="inh_echo_json_01", criterion_id="c1",
                   path="p.py", body=_PRORATE + " # fixed")
