@@ -546,25 +546,41 @@ def _quote_bare_keywords(text: str) -> str:
 
 
 def _escape_newlines_in_quotes(text: str) -> str:
-    out, quote, esc = [], None, False
-    for ch in text.replace("\r\n", "\n").replace("\r", "\n"):
+    # A triple quote is one token, as Python and `_rescan_args` read it.
+    # Frame 151: a scan that counted each quote alone left the value after
+    # a lone quote, and read the next line break as a space.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    out, quote, esc, i = [], None, False, 0
+    while i < len(text):
+        ch = text[i]
         if quote:
             if esc:
                 esc = False
             elif ch == "\\":
                 esc = True
-            elif ch == quote:
+            elif text.startswith(quote, i):
+                out.append(quote)
+                i += len(quote)
                 quote = None
+                continue
             if ch == "\n":
                 out.append("\\n")
+                i += 1
                 continue
         else:
+            if text.startswith("'''", i) or text.startswith('"""', i):
+                quote = text[i:i + 3]
+                out.append(quote)
+                i += 3
+                continue
             if ch in ("'", '"'):
                 quote = ch
             elif ch == "\n":
                 out.append(" ")
+                i += 1
                 continue
         out.append(ch)
+        i += 1
     return "".join(out)
 
 
