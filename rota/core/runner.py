@@ -3101,8 +3101,13 @@ def run_session(
             # one reply is the s71 storm, and the eviction test cannot see it:
             # an answer made this turn is not in this turn's prompt.
             served_keys: set[str] = set()
+            # One test for the line and for the loop below, so the line and
+            # the skipped error never disagree on which call the cut broke.
+            cut_inside = bool(cut_note) and _cut_inside_last(
+                calls, call_at, scanned, allowed)
             if cut_note:
-                feedback.append(f"ERROR reply cut: {_reply_cut_line(calls)}")
+                feedback.append(
+                    f"ERROR reply cut: {_reply_cut_line(calls, cut_inside)}")
             held = []
             # Any tool call this turn supersedes last turn's held tail -- the
             # model revised, and its new calls are its will. Cleared here,
@@ -3137,13 +3142,15 @@ def run_session(
                     invented_tail = [c.raw or getattr(c, "name", "?")
                                      for c in calls[i:]]
                     break
+                if cut_inside and i == len(calls) - 1:
+                    # The cut is the cause and the cut note says so. clickI
+                    # night 46 (2026-09-14): the parse error's own hint
+                    # ("put it between triple quotes") was followed
+                    # literally, and four encodes arrived as a docstring.
+                    # A whole call with an error before the cut keeps its
+                    # own line (frame 121's second review, case A).
+                    continue
                 if isinstance(call, toolproto.ToolError):
-                    if cut_note and i == len(calls) - 1:
-                        # The cut is the cause and the cut note says so. clickI
-                        # night 46 (2026-09-14): the parse error's own hint
-                        # ("put it between triple quotes") was followed
-                        # literally, and four encodes arrived as a docstring.
-                        continue
                     outcome.errors.append(call.reason)
                     feedback.append(f"ERROR {call.raw}: {call.reason}")
                     continue
@@ -3875,27 +3882,58 @@ _REPLY_CUT_ADVICE = ("Send less in one reply: one or two calls, then read "
                      "not the whole file")
 
 
-def _reply_cut_line(calls: list) -> str:
+def _cut_inside_last(calls: list, call_at: list, scanned: str,
+                     allowed) -> bool:
+    """
+    Whether the output cut fell inside the last parsed call.
+
+    A parse error is not a cut by itself. A whole call with a bad argument,
+    then prose, then the cut, is an error of its own (frame 121's second
+    review, case A). The cut broke the call only when the call runs to the
+    end of the reply:
+
+    - an argument list that never closes, which the parser writes as
+      `name(...`, runs to the end by its definition;
+    - any other error, or a call whose name is not a function of the role
+      (`TOOL: code.wr`, case D1), runs to the end when its text does.
+    """
+    if not calls:
+        return False
+    last, at = calls[-1], call_at[-1]
+    whole = isinstance(last, toolproto.ToolCall) and last.name in allowed
+    if whole:
+        return False
+    raw = last.raw or ""
+    if isinstance(last, toolproto.ToolError) and raw.endswith("(..."):
+        return True
+    start = scanned.find(raw, at) if raw else -1
+    end = (start if start >= 0 else at) + len(raw)
+    return end >= len(scanned.rstrip())
+
+
+def _reply_cut_line(calls: list, inside: bool) -> str:
     """
     The cut line of a reply that held calls, built from its last call.
 
     "The last call did not run and nothing was written" was false in 39 of
     77 cut events of nights 113 to 119: the last parsed call was whole, and
-    29 of them show an `OK` line (frame 121's diff review, finding 2). Only
-    a call the cut broke parses to a `ToolError`, and that call is skipped.
-    The calls before it go through the loop, so each gets its own line.
+    29 of them show an `OK` line (frame 121's diff review, finding 2). The
+    runner skips a call the cut broke. The calls before it go through the
+    loop, which can also hold or drop them, so the line promises results
+    only for the calls that ran: 11 of 39 night events also show a `NOT
+    RUN` line (frame 121's second review, findings 1 and 2).
     """
     head = "your reply was cut at the output budget before it ended"
     if not calls:
         return (f"{head}. It held no whole call, so no call ran and nothing "
                 f"was written. {_REPLY_CUT_ADVICE}")
-    if isinstance(calls[-1], toolproto.ToolError):
-        before = (" The results of the calls before it follow."
+    if inside:
+        before = (" The results of the calls before it that ran follow."
                   if len(calls) > 1 else "")
         return (f"{head}. The cut fell inside the last call, so that call did "
                 f"not run.{before} {_REPLY_CUT_ADVICE}")
-    return (f"{head}. The cut fell after the last call, so it broke no call, "
-            f"and the results of your calls follow. {_REPLY_CUT_ADVICE}")
+    return (f"{head}. The cut fell after the last call, so it broke no call. "
+            f"The results of the calls that ran follow. {_REPLY_CUT_ADVICE}")
 
 
 def _bound_of(sb, name: str) -> str | None:

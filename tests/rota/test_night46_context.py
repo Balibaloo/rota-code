@@ -327,8 +327,8 @@ def test_a_cut_reply_does_not_also_report_the_cut_call_as_a_parse_error(vk_db):
     # Frame 121's diff review, finding 2: the line says where the cut fell.
     assert ("ERROR reply cut: your reply was cut at the output budget before "
             "it ended. The cut fell inside the last call, so that call did not "
-            "run. The results of the calls before it follow. Send less in one "
-            "reply: one or two calls, then read their results.") in second, \
+            "run. The results of the calls before it that ran follow. Send less "
+            "in one reply: one or two calls, then read their results.") in second, \
         second[-1500:]
     assert "nothing was written" not in second
     assert "unterminated argument list" not in second, second[-1500:]
@@ -362,9 +362,9 @@ def test_a_cut_reply_whose_last_call_is_whole_says_the_cut_broke_no_call(vk_db):
     assert outcome.committed, outcome.errors
     second = backend.calls[1][1]
     assert ("ERROR reply cut: your reply was cut at the output budget before "
-            "it ended. The cut fell after the last call, so it broke no call, "
-            "and the results of your calls follow. Send less in one reply: one "
-            "or two calls, then read their results.") in second, second[-1500:]
+            "it ended. The cut fell after the last call, so it broke no call. "
+            "The results of the calls that ran follow. Send less in one reply: "
+            "one or two calls, then read their results.") in second, second[-1500:]
     assert "OK problem.assert" in second, second[-1500:]
     assert "the last call did not run" not in second
     assert "nothing was written" not in second

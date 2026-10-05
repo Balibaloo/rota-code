@@ -429,17 +429,7 @@ def test_a_cut_after_a_whole_write_never_says_nothing_was_written(db, worktree):
     write lands, and the line says that the cut broke no call. "Nothing was
     written" was false there.
     """
-    from rota.llm.llm import Completion
-
-    class Cut(ScriptedBackend):
-        def complete(self, system, user, pins, tools=None):
-            c = super().complete(system, user, pins, tools)
-            if len(self.calls) == 1:
-                return Completion(text=c.text, pins=pins, backend=self.name,
-                                  raw={"done_reason": "length"})
-            return c
-
-    backend = Cut([
+    backend = _CutFirst([
         "TOOL: code.write(path='src/acct.py', text='VALUE = 1\n')\n"
         "Now I explain the change at length, because the account",
         "Done.",
@@ -447,12 +437,79 @@ def test_a_cut_after_a_whole_write_never_says_nothing_was_written(db, worktree):
     run_session(db, wake_developer(), backend=backend,
                 pins=Pins(model="scripted"), batch_id="b1")
     after = backend.calls[1][1]
-    assert ("ERROR reply cut: your reply was cut at the output budget before "
-            "it ended. The cut fell after the last call, so it broke no call, "
-            "and the results of your calls follow.") in after, after[-1500:]
+    assert _CUT_AFTER in after, after[-1500:]
     assert "nothing was written" not in after
     assert "OK code.write" in after, after[-1500:]
     assert (worktree / "src" / "acct.py").read_text() == "VALUE = 1\n"
+
+
+class _CutFirst(ScriptedBackend):
+    """The first reply stops at the output budget."""
+
+    def complete(self, system, user, pins, tools=None):
+        from rota.llm.llm import Completion
+        c = super().complete(system, user, pins, tools)
+        if len(self.calls) == 1:
+            return Completion(text=c.text, pins=pins, backend=self.name,
+                              raw={"done_reason": "length"})
+        return c
+
+
+_CUT_HEAD = "ERROR reply cut: your reply was cut at the output budget before it ended. "
+_CUT_AFTER = (_CUT_HEAD + "The cut fell after the last call, so it broke no "
+              "call. The results of the calls that ran follow. Send less")
+_CUT_INSIDE = (_CUT_HEAD + "The cut fell inside the last call, so that call "
+               "did not run. The results of the calls before it that ran "
+               "follow. Send less")
+_SRC = "TOOL: code.source(path='src/acct.py')"
+_WRITE = "TOOL: code.write(path='src/acct.py', text='VALUE = 1')"
+
+
+@pytest.mark.parametrize("reply,line,shows,hides", [
+    # Case A: a whole call with a parse error, then prose, then the cut. The
+    # cut broke no call, and the parse error keeps its own line.
+    (_SRC[:-1] + ", 5)\nNow I explain the plan at length, because the acc",
+     _CUT_AFTER, ["ERROR TOOL: code.source(path='src/acct.py', 5): could not parse"],
+     []),
+    # Case B, night 113's s32 seq 10 and night 119's s157 seq 8: an
+    # invented result drops the call after it, which gets a NOT RUN line.
+    (_SRC + "\nOK code.source -> VALUE = 0\n" + _WRITE + "\nThen I explain at len",
+     _CUT_AFTER, ["OK code.source ->", "NOT RUN, because you wrote a tool result"],
+     []),
+    # Case C: the write is held behind the read in the same reply.
+    (_SRC + "\n" + _WRITE + "\nThen I explain at len",
+     _CUT_AFTER, ["OK code.source ->", "NOT RUN, because you wrote them before"],
+     []),
+    # Case D1: a fragment with a name that is no function of the role.
+    (_SRC + "\nTOOL: code.wr", _CUT_INSIDE, ["OK code.source ->"], ["code.wr'"]),
+    # Night 117's s150 seq 14: a call before the cut call is dropped by an
+    # invented result, and the last call is cut inside its argument list.
+    (_SRC + "\nOK code.source -> VALUE = 0\n" + _WRITE + "\n"
+     "TOOL: code.write(path='src/acct.py', text='def f():\n    return",
+     _CUT_INSIDE, ["OK code.source ->", "NOT RUN, because you wrote a tool result"],
+     ["unterminated argument list"]),
+], ids=["A parse error then prose", "B invented result", "C held write",
+        "D1 cut name", "night 117 s150 inside with NOT RUN"])
+def test_the_cut_line_is_true_beside_held_and_broken_calls(db, worktree, reply,
+                                                          line, shows, hides):
+    """
+    Frame 121's second diff review. The line promises results only for the
+    calls that ran, because the runner holds or drops some: 11 of 39 night
+    events stood beside a NOT RUN line. A parse error is a cut only when the
+    call runs to the end of the reply.
+    """
+    (worktree / "src" / "acct.py").write_text("VALUE = 0\n")
+    backend = _CutFirst([reply, "Done."])
+    run_session(db, wake_developer(), backend=backend,
+                pins=Pins(model="scripted"), batch_id="b1")
+    after = backend.calls[1][1]
+    tail = after[after.rfind("ERROR reply cut"):]
+    assert line in tail, tail[:1500]
+    for text in shows:
+        assert text in tail, (text, tail[:1500])
+    for text in hides:
+        assert text not in tail, (text, tail[:1500])
+    assert "nothing was written" not in tail
 
 
 def test_an_invented_result_before_any_call_holds_every_call(db):
