@@ -5709,6 +5709,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # found that a sentence naming any other call opened a new route. A path
     # that is another test's file is the clash door's, on the next call.
     if project and (prior["path"] != path or not challenged):
+        _fact(ctx, "row", id)
+        _fact(ctx, "test_path", prior["path"], id=id)
         said = f"{id} is the id of the project's test {prior['path']}."
         again = {"id": id, "criterion_id": criterion_id, "path": path,
                  "body": body, "batch_id": batch_id}
@@ -5748,7 +5750,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # replace under a new path leaves the old file on disk.
         raise ValueError(_offer(
             ctx,
-            f"{id} is stored at {stored['path']}. To replace it, send this "
+            f"{_fact(ctx, 'row', id)} is stored at "
+            f"{_fact(ctx, 'test_path', stored['path'], id=id)}. To replace it, send this "
             f"encode again with path={stored['path']!r}.",
             "tests.encode", {"id": id, "criterion_id": criterion_id,
                              "path": stored["path"], "body": body,
@@ -5771,7 +5774,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     if other is not None:
         raise ValueError(_offer(
             ctx,
-            f"{id} is a test of batch {other['batch_id']}, and this session "
+            f"{_fact(ctx, 'row', id)} is a test of batch "
+            f"{_fact(ctx, 'row', other['batch_id'])}, and this session "
             f"writes batch {batch_id}. Choose another id.",
             "tests.encode", {"id": INVENT, "criterion_id": criterion_id,
                              "path": path, "body": body, "batch_id": batch_id}))
@@ -5789,7 +5793,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # test stayed and ran beside the fix.
         raise ValueError(_offer(
             ctx,
-            f"{path} is {clash['id']}'s file, and {clash['id']} is the test "
+            f"{_fact(ctx, 'test_path', path, id=clash['id'])} is {clash['id']}'s file, "
+            f"and {clash['id']} is the test "
             f"of this same criterion. To fix that test, send this encode "
             f"again with id={clash['id']!r}. The same id replaces it.",
             "tests.encode", {"id": clash["id"], "criterion_id": criterion_id,
@@ -5800,7 +5805,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         clash = {"id": clash[1]} if clash else None
     if clash:
         raise ValueError(
-            f"{path} is already {clash['id']}'s file; two tests in one file "
+            f"{_fact(ctx, 'test_path', path, id=clash['id'])} is already "
+            f"{clash['id']}'s file; two tests in one file "
             f"overwrite each other on disk. Name this one for its own "
             f"criterion -- tests/test_<what it checks>.py")
     # A replace supersedes every test this session staged on the criterion.
@@ -9312,6 +9318,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # slice `code.source` returns, so the numbers copy across. The
         # doors below judge the merged file, not the fragment.
         if not target.exists():
+            _fact(ctx, "file", wpath, absent=True)
             raise ValueError(_send(
                 f"{path} does not exist, so start={start}, end={end} names "
                 f"no lines to replace. Write a new file whole, with no "
@@ -9321,7 +9328,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         if start < 0 or start > len(lines) or stop < start:
             raise ValueError(
                 f"start={start}, end={end} is not a span of {path}, which "
-                f"has {len(lines)} lines")
+                f"has {_fact(ctx, 'lines', len(lines), path=wpath)} lines")
         # A blank span that leaves only blank lines is an empty write of the
         # file. Frame 94's diff reviews of 44e156a and f986adb (2026-09-30):
         # 0..3 with "" left one newline, and 0..1 left two. An insert is
@@ -9576,7 +9583,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 # One fact per sentence: the refusal is read by a small model.
                 parts = [f"start={start}, end={end}: {label} falls inside {name} "
                          f"(lines {lo} to {hi} in code.source numbering)."]
+                # The numbers each sentence quotes, for the fact check of
+                # frame 144. They speak of the file as it is now.
+                _fact(ctx, "span", (lo, hi), path=wpath)
                 if named is not inner:
+                    _fact(ctx, "span", (inner[1], inner[2]), path=wpath)
                     parent = path[-2][0]
                     first = getattr(parent, "body", [None])[0]
                     doc = (inner[0] is first and isinstance(inner[0], _ast.Expr)
@@ -9591,15 +9602,17 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     if getattr(n, "decorator_list", None) and nlo < cut_b < n.lineno:
                         where = "below" if cut_b == n.lineno - 1 else "inside"
                         parts.append(f"{label} is {where} the decorators of {_what(n)}, "
-                                     f"which start at line {nlo}.")
+                                     f"which start at line {_fact(ctx, 'line', nlo, path=wpath)}.")
                 o_cut = cuts[stop if at_start else start]
                 if other and not one_def:
                     o_label = f"end={end}" if at_start else f"start={start}"
                     verb = "also falls inside" if isinstance(o_cut, list) else "is inside"
                     on, olo, ohi = other[0]
+                    _fact(ctx, "span", (olo, ohi), path=wpath)
                     parts.append(f"{o_label} {verb} {_kind(on)} (lines {olo} to {ohi}).")
                 for i in sorted({start, stop - 1, stop}):
                     if 0 <= i < len(lines):
+                        _fact(ctx, "line_text", lines[i].rstrip()[:60], n=i, path=wpath)
                         parts.append(f"Line {i} is '{lines[i].rstrip()[:60]}'.")
                 body = text.splitlines()
 
@@ -9618,10 +9631,12 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 if body:
                     k = _near(body[0], start)
                     if k is not None:
+                        _fact(ctx, "line_text", body[0].rstrip(), n=k, path=wpath)
                         parts.append(f"Your text's first line is line {k} of the file, "
                                      f"so a span that replaces it starts at start={k}.")
                     k = _near(body[-1], stop - 1)
                     if k is not None:
+                        _fact(ctx, "line_text", body[-1].rstrip(), n=k, path=wpath)
                         parts.append(f"Your text's last line is line {k} of the file, "
                                      f"so a span that replaces it ends at end={k + 1}.")
                 # Click night 97 (2026-09-29): s215 and s217 got a moved
@@ -9675,6 +9690,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     isinstance(s, _ast.ImportFrom) and s.module == "__future__" for s in own)
                 if futs and start <= _lo(futs[-1]) and not own_fut:
                     after = _end(futs[-1])
+                    _fact(ctx, "line_text", "from __future__", n=_lo(futs[-1]), path=wpath)
                     raise ValueError(_offer(
                         ctx,
                         f"start={start}, end={end}: Python refuses any statement "
@@ -9707,6 +9723,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                             and id(ns[0]) in _docs):
                         after = _end(ns[0])
                         owner = "the module" if p is None else p.name
+                        _fact(ctx, "line", start, path=wpath)
                         raise ValueError(_send(
                             f"start={start}, end={end}: line {start} is the docstring "
                             f"of {owner}. Your text goes before it. Then the docstring "
@@ -9728,6 +9745,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                          "A span replaces whole statements of one block."]
                 for i in sorted({start, stop - 1, stop}):
                     if 0 <= i < len(lines):
+                        _fact(ctx, "line_text", lines[i].rstrip()[:60], n=i, path=wpath)
                         parts.append(f"Line {i} is '{lines[i].rstrip()[:60]}'.")
                 m = _moved_end(start, stop)
                 if m:
@@ -9903,6 +9921,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                                        "start": start, "end": end})
                 raise ValueError(msg) from None
             if stage == "compile":
+                _fact(ctx, "line", (exc.lineno or 1) - 1, text=text)
                 raise ValueError(
                     f"{path} is not valid Python ({exc.msg}, line "
                     f"{(exc.lineno or 1) - 1} in code.source numbering); the harness "
@@ -9942,10 +9961,14 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                                     holder = (lo, hi, type(n).__name__.lower())
                         if holder:
                             lo, hi, kind = holder
-                            frag_note += (f" `{tail_kw}` is the tail of the {kind} statement at lines "
-                                          f"{lo} to {hi}; send that whole statement, with your "
-                                          f"change in it: start={lo}, end={hi}.")
+                            _fact(ctx, "span", (lo, hi), path=wpath)
+                            frag_note += _send(
+                                f" `{tail_kw}` is the tail of the {kind} statement at lines "
+                                f"{lo} to {hi}; send that whole statement, with your "
+                                f"change in it: start={lo}, end={hi}.",
+                                start=lo, end=hi, text=INVENT)
             frag_note += _escape_note(fragment, exc if not span else None)
+            _fact(ctx, "line", (exc.lineno or 1) - 1, text=text)
             raise ValueError(
                 f"{path} is not valid Python ({exc.msg}, line {(exc.lineno or 1) - 1} "
                 f"in code.source numbering); the harness imports it and would die at "
@@ -9975,6 +9998,12 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                        for d in getattr(node, "decorator_list", [])):
                     continue
                 if node.name in seen:
+                    # The sentence's numbers, read as code.source numbers.
+                    head = ("class " if isinstance(node, _ast.ClassDef) else
+                            "async def " if isinstance(node, _ast.AsyncFunctionDef)
+                            else "def ") + node.name
+                    _fact(ctx, "line_text", head, n=seen[node.name], text=text)
+                    _fact(ctx, "line_text", head, n=node.lineno, text=text)
                     raise ValueError(
                         f"{path} defines {node.name} twice (lines "
                         f"{seen[node.name]} and {node.lineno}). Python keeps "

@@ -140,6 +140,7 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
     (_DG + "test_a_start_on_a_decorated_def_line_names_the_decorators", _TWICE),
     (_DG + "test_a_span_from_a_blank_line_before_else_is_refused_with_an_offer", _INVALID),
     (_OF + "test_the_add_after_offer_of_a_cut_span_is_admitted", _TWICE),
+    (_OF + "test_a_cut_refusal_quotes_lines_that_are_true", _INVALID),
     ("tests/rota/test_l1.py::test_l1_case[ACT-TS-give-the-prompt-a-stream]", _CHOOSES),
     (_OF + "test_the_added_import_offer_is_admitted", _CHOOSES),
     (_OF + "test_the_literal_offer_is_admitted_when_eight_literals_are_owed", _CHOOSES),
@@ -147,7 +148,18 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
 
 # The facts that a refusal quotes and the state contradicts today: the test,
 # the kind, and the function that records the fact. Kept like the list above.
-KNOWN_FALSE_FACTS: set[tuple[str, str, str]] = set()
+# Finding 5, the defines-twice door of code.write: "defines f twice (lines 4
+# and 7)" gives ast's numbers, which count from 1. code.source and every
+# other refusal count from 0, so each number names the line below the def.
+_L1 = "tests/rota/test_l1.py::test_l1_case"
+KNOWN_FALSE_FACTS: set[tuple[str, str, str]] = {
+    (_DG + "test_a_file_defines_each_name_once", "line_text", "_code_write"),
+    (_DG + "test_an_overload_stub_is_not_a_second_definition", "line_text", "_code_write"),
+    (_L1 + "[L1-DV-take-a-mistake-out]", "line_text", "_code_write"),
+    (_L1 + "[L1-DV-give-the-new-parameters-defaults]", "line_text", "_code_write"),
+    (_OF + "test_the_defines_twice_numbers_are_code_source_numbers", "line_text",
+     "_code_write"),
+}
 
 
 def _problems(nodeid: str, found: list[dict]) -> list[str]:

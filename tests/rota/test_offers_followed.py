@@ -216,6 +216,71 @@ def test_the_add_after_offer_of_a_cut_span_is_admitted(tmp_path):
     assert _admitted(sb, after[0]) == (True, None)
 
 
+# -- the fact check (frame 144, change 1(d)) --------------------------------------
+
+def _developer(tmp_path, src):
+    from rota.core.db import init_db
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+                 "VALUES ('i1','x','in_scope','approved',1,1)")
+    root = tmp_path / "wt"
+    root.mkdir()
+    (root / "m.py").write_text(src)
+    conn.execute("INSERT INTO batches (id, item_id, status, worktree) "
+                 "VALUES ('b1','i1','running',?)", (str(root),))
+    conn.commit()
+    from rota.roles import prompts
+    return build("developer", conn, batch_id="b1", mode="batch_start",
+                 allow=prompts.mode_tools("developer", "batch_start"))
+
+
+def test_a_cut_refusal_quotes_lines_that_are_true(tmp_path):
+    """The cut door's spans and quoted lines are checked against the file."""
+    sb = _developer(tmp_path, "def a(\n    x,\n):\n    return x\n")
+    _refused(sb, "code.write", path="m.py", start=0, end=1, text="def a(x):\n")
+    facts = sandbox.check_facts(sb, sb.ctx.facts)
+    assert {f["kind"] for f in facts} >= {"span", "line_text"}
+    assert all(f["ok"] for f in facts), facts
+
+
+def test_a_stored_path_refusal_quotes_the_stored_row(db):
+    _a_criterion(db, _PRORATES)
+    _a_stored_test(db)
+    sb = _challenge_tester(db)
+    _refused(sb, "tests.encode", id="t1", criterion_id="c1", path="q.py",
+             body=_PRORATE + " # fixed")
+    facts = sandbox.check_facts(sb, sb.ctx.facts)
+    assert [(f["kind"], f["value"]) for f in facts] == [("row", "t1"), ("test_path", "p.py")]
+    assert all(f["ok"] for f in facts), facts
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "finding of frame 144 pass 2: _code_write, the defines-twice door. "
+    "'defines f twice (lines 4 and 7)' counts from 1, and code.source counts "
+    "from 0, so each number names the line below the def"))
+def test_the_defines_twice_numbers_are_code_source_numbers(tmp_path):
+    sb = _developer(tmp_path, "def f():\n    return 0\n")
+    said, _ = _refused(sb, "code.write", path="m.py", start=2, end=2,
+                       text="def f():\n    return 1\n")
+    assert "defines f twice (lines 1 and 3)" in said
+    facts = sandbox.check_facts(sb, sb.ctx.facts)
+    assert all(f["ok"] for f in facts), facts
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "finding of frame 144 pass 2: toolproto, the unterminated-list refusal "
+    "with no open argument. It names text='''...''' for a call of an op that "
+    "has no text argument (frame 137's sign)"))
+def test_the_parser_names_only_arguments_of_the_called_op():
+    from rota.llm import toolproto
+    raw = "TOOL: tests.triage(criterion_id='c1', verdict='encodable'\n"
+    errors = [e for e in toolproto.extract(raw) if isinstance(e, toolproto.ToolError)]
+    said = " ".join(e.reason for e in errors)
+    assert "unterminated argument list" in said, said
+    params = set(sandbox.inspect.signature(api.tests_triage).parameters)
+    assert "text=" not in said or "text" in params, said
+
+
 # -- the instrument -------------------------------------------------------------
 
 def test_a_dry_run_puts_the_context_back(db):
