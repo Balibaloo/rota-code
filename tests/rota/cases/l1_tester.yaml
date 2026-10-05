@@ -215,8 +215,8 @@
   # wrote a right repair in a fence and sent no tests.encode. The runner
   # said nothing, and the session closed with nothing written. Here the
   # seat's turn 1 is s149's own reply, and the runner answers it with the
-  # nudge for a test written into a reply. The judgement is the turn after
-  # the nudge: send the test as tests.encode on the challenged test's id.
+  # nudge for a test written into a reply. The judgement is the first call
+  # after the nudge: tests.encode on the challenged test's id.
   # The night's model.
   model: qwen3.5:9b
   tier: T1
@@ -303,9 +303,15 @@
         criterion_id: <c1>
         path: tests/test_utils/test_echo_json_compact.py
         version: 2
+        # One change from the night: the night's assert compared with a
+        # string that holds both quote kinds, and the parser decodes one
+        # level of escapes, so 5 of 5 first encodes that copied it failed
+        # to parse (frame 152's review of 9684e3c, point 5). The assert
+        # now compares parsed JSON.
         body: |-
           def test_echo_json_compact():
               import sys
+              import json
               from io import StringIO
               from src.click.utils import echo_json
 
@@ -317,7 +323,7 @@
                   sys.stdout = old_stdout
 
               output = sys.stdout.getvalue()
-              assert output.strip() == "{\"key\": \"value\"}"
+              assert json.loads(output) == {"key": "value"}
               # Check for single newline at end
               assert output.endswith("\n")
               # Check no extra newlines
@@ -336,6 +342,7 @@
 
               def test_echo_json_compact():
                   import sys
+                  import json
                   from io import StringIO
                   from src.click.utils import echo_json
 
@@ -350,14 +357,18 @@
                            ^^^^^^^^^^^^^^^^^^^
           E       AttributeError: 'EncodedFile' object has no attribute 'getvalue'
 
-          tests\test_utils\test_echo_json_compact.py:13: AttributeError
+          tests\test_utils\test_echo_json_compact.py:14: AttributeError
           =========================== short test summary info ===========================
           FAILED tests/test_utils/test_echo_json_compact.py::test_echo_json_compact - A...
           1 failed in 0.14s
   expect:
-    writes:
-      # The challenged test, replaced under its own id.
-      tests: {count: "1..1", ids_include: [<tst1>]}
+    # One judgement: the first call after the nudge sends the test on the
+    # challenged id. Whether the doors then admit the body is another
+    # judgement, and the case does not score it.
+    first_call:
+      fn: tests.encode
+      args: {id: <tst1>, criterion_id: <c1>,
+             path: tests/test_utils/test_echo_json_compact.py}
   forbidden:
     writes: [criteria, items, tickets]
 

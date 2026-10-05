@@ -1869,12 +1869,19 @@ def _failed_run_blocks(inbound: dict[str, Any]) -> list[str]:
     return blocks
 
 
-def _encode_nudge(conn: sqlite3.Connection, refs: list[str]) -> str:
+# A fenced block, closed or cut at the end of the reply.
+_FENCE_BLOCK = re.compile(r"```[^\n]*\n(.*?)(?:```|\Z)", re.S)
+
+
+def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
+                  triage: bool) -> str:
     """The sentence for a test written into a reply, with the call to copy.
 
     The wake's refs give the values. A challenge names one test, and its row
-    gives the id, the criterion and the path. Another wake names one
-    criterion or none. A value the wake does not hold stays '...'.
+    gives the id, the criterion and the path. An answer names one criterion,
+    and its one stored test gives the id and the path, because a new id
+    stores a second test of the criterion. A tick names the batch. A value
+    the wake does not hold stays '...'.
     """
     tests, crits = [], []
     for ref in refs:
@@ -1886,14 +1893,26 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str]) -> str:
                           (ref,)).fetchone():
             crits.append(ref)
     args = {"id": "...", "criterion_id": "...", "path": "..."}
+    if not tests and len(crits) == 1:
+        args["criterion_id"] = crits[0]
+        tests = conn.execute("SELECT id, criterion_id, path FROM tests "
+                             "WHERE criterion_id = ?", (crits[0],)).fetchall()
     if len(tests) == 1:
         args = {k: tests[0][k] or "..." for k in args}
-    elif not tests and len(crits) == 1:
-        args["criterion_id"] = crits[0]
     named = ", ".join(f"{k}={v!r}" for k, v in args.items())
-    return ("You wrote a test into your reply, and a reply is not a stored "
-            "test -- nothing landed. Send it as a call: "
-            f"tests.encode({named}, body='...').")
+    # The encode door refuses a criterion with no triage verdict in this
+    # session, so a mode that holds the triage names it first (frame 152's
+    # review of 9684e3c, point 3).
+    call = f"tests.encode({named}, body='...')"
+    if triage:
+        call = (f"tests.triage(criterion_id={args['criterion_id']!r}, "
+                f"verdict='encodable') and then {call}")
+    # A fence with no test function is code, not a test (the same review,
+    # point 4).
+    wrote = ("a test" if any("def test" in b for b in _FENCE_BLOCK.findall(text))
+             else "code")
+    return (f"You wrote {wrote} into your reply, and a reply is not a stored "
+            f"test -- nothing landed. Send it as a call: {call}.")
 
 
 def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
@@ -3007,16 +3026,20 @@ def run_session(
             # named-act nudge, and s149 met no nudge, because a message wake
             # gets no owed-call nudge and "Let's fix" is not an INTENT.
             # Once: told, and the next fenced reply is the session's real
-            # stop, so neither nudge below answers it.
+            # stop, so neither nudge below answers it. A session that wrote
+            # is not told "nothing landed": night 120's s140 landed its
+            # encodes and showed the test in a fence at turn 6.
             test_fence = ("```" in completion.text and not calls
                           and "tests.encode" in allowed
-                          and "code.write" not in allowed)
+                          and "code.write" not in allowed
+                          and not sb.ctx.writes)
             if test_fence and not fence_warned:
                 fence_warned = True
                 outcome.errors.append("wrote a test into its reply")
                 _append(transcript, kinds, _REPLY, completion.text)
                 _append(transcript, kinds, _RESULTS, _encode_nudge(
-                    conn, inbound.get("refs") or list(wake.refs)))
+                    conn, inbound.get("refs") or list(wake.refs),
+                    completion.text, "tests.triage" in allowed))
                 continue
             if (not calls and not intent_warned and not test_fence
                     and INTENT.search(completion.text)

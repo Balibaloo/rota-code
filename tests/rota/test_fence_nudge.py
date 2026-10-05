@@ -49,9 +49,13 @@ def _reply(name: str) -> str:
 
 @pytest.fixture
 def db(tmp_path):
+    return _night(tmp_path / "rota.db")
+
+
+def _night(path):
     """Night 125's rows for m68 and m69: one criterion, its test at version
     2, and the Developer's challenge on both."""
-    conn = init_db(tmp_path / "rota.db")
+    conn = init_db(path)
     conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                  "version) VALUES ('i1', 'print an object as compact JSON', "
                  "'in_scope', 'approved', 1, 1)")
@@ -134,23 +138,170 @@ def test_s147s_fenced_repair_meets_the_test_nudge_before_the_named_act(db):
     assert "named an act and did not perform it" not in out.errors
 
 
-def test_a_tick_wake_names_the_one_criterion_it_holds(db):
-    """A wake with no test in its refs keeps '...' for what it lacks."""
+def _answer(db, refs=("echo_json_compact",)):
+    """A Terminologist's answer to the Tester. Its refs name the criterion."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m90', 'm90', 'terminologist', "
+               "'tester', 'answer', ?, 90, 'open')", (json.dumps(list(refs)),))
+    db.commit()
+    return Wake("tester", "message", message_id="m90", detail="answer")
+
+
+def _run(db, wake, script, batch="bg_1"):
+    backend = ScriptedBackend(script)
+    out = run_session(db, wake, backend=backend, pins=Pins(model="scripted"),
+                      batch_id=batch)
+    return out, backend
+
+
+def _call_of(sentence: str, **values) -> str:
+    """The call a seat copies from the sentence, with its own values."""
+    call = sentence.split("Send it as a call: ", 1)[1].rstrip(".")
+    for key, value in values.items():
+        call = call.replace(f"{key}='...'", f"{key}={value!r}")
+    return "TOOL: " + call.replace(" and then ", "\nTOOL: ")
+
+
+def test_an_answer_naming_a_criterion_with_no_test_names_the_criterion(db):
+    """A wake whose refs name one criterion and no test keeps '...' for the
+    id and the path. The second fenced reply is the stop."""
     db.execute("DELETE FROM tests")
     db.commit()
-    backend = ScriptedBackend([_reply("s149_t1"), _reply("s149_t1")])
-    out = run_session(db, Wake("tester", "tick:tests_missing",
-                               refs=("echo_json_compact",)),
-                      backend=backend, pins=Pins(model="scripted"))
+    out, backend = _run(db, _answer(db), [_reply("s149_t1")] * 2)
     assert out.errors.count("wrote a test into its reply") == 1
     _, user = backend.calls[1]
     assert user.endswith(
         "Send it as a call: tests.encode(id='...', "
         "criterion_id='echo_json_compact', path='...', body='...').")
+    assert len(backend.calls) == 2
+
+
+def test_an_answer_naming_a_criterion_with_its_one_test_names_the_test(db):
+    """The review of 9684e3c, G: the nudge printed id='...', and a new id
+    stored a second test of the criterion."""
+    out, backend = _run(db, _answer(db), [_reply("s149_t1"), ""])
+    _, user = backend.calls[1]
+    assert user.endswith(NUDGE)
+
+
+def test_the_real_tests_missing_tick_names_the_triage_and_both_land(db, tmp_path):
+    """The review of 9684e3c, F: the tick carries the batch, and the encode
+    alone is refused for a criterion with no triage in the session. The
+    sentence names both calls, and the calls copied from it land."""
+    db.execute("DELETE FROM tests")
+    db.commit()
+    tick = Wake("tester", "tick:tests_missing", refs=("bg_1",),
+                detail="without a test: echo_json_compact")
+    reply = _reply("s149_t1")
+    out, backend = _run(db, tick, [reply, reply])
+    _, user = backend.calls[1]
+    sentence = (
+        "You wrote a test into your reply, and a reply is not a stored test "
+        "-- nothing landed. Send it as a call: tests.triage(criterion_id='...', "
+        "verdict='encodable') and then tests.encode(id='...', "
+        "criterion_id='...', path='...', body='...').")
+    assert user.endswith(sentence)
     # The second fenced reply is the stop, and the owed-call nudge does not
     # answer it.
     assert len(backend.calls) == 2
     assert "ended a tick with nothing done" not in out.errors
+
+    db = _night(tmp_path / "second.db")
+    db.execute("DELETE FROM tests")
+    db.commit()
+    body = reply.split("```python\n", 1)[1].split("```", 1)[0]
+    call = _call_of(sentence, criterion_id="echo_json_compact", id="t_new",
+                    path="tests/test_utils/test_echo_json_new.py", body=body)
+    out, backend = _run(db, tick, [reply, call, ""])
+    assert out.committed, out.errors
+    assert [e for e in out.errors if not e.startswith("wrote")] == []
+    row = db.execute("SELECT criterion_id FROM tests WHERE id = 't_new'").fetchone()
+    assert row and row["criterion_id"] == "echo_json_compact"
+
+
+def test_a_fence_with_no_test_function_is_code_in_the_sentence(db):
+    """The review of 9684e3c, point 4: a fence that quotes an error is not
+    a test."""
+    reply = ("The run failed with this error:\n```\nAttributeError: "
+             "'EncodedFile' object has no attribute 'getvalue'\n```\n"
+             "The test reads the buffer too late.")
+    out, backend = _tester(db, "m69", [reply, ""])
+    _, user = backend.calls[1]
+    assert user.endswith(NUDGE.replace("You wrote a test", "You wrote code"))
+    # A test function named in the prose is not a test in a fence.
+    reply = "The test def test_echo_json_compact() fails.\n" + reply
+    out, backend = _tester(db, "m69", [reply, ""])
+    assert backend.calls[1][1].endswith(
+        NUDGE.replace("You wrote a test", "You wrote code"))
+
+
+def test_a_session_that_wrote_is_not_told_nothing_landed(db):
+    """Night 120's s140 landed its encodes and then showed the test in a
+    fence. The review of 9684e3c, I: it was told "nothing landed"."""
+    reply = _reply("s149_t1")
+    body = reply.split("```python\n", 1)[1].split("```", 1)[0]
+    call = "TOOL: " + NUDGE.split("Send it as a call: ", 1)[1].rstrip(".")
+    call = call.replace("body='...'", f"body={body!r}")
+    done = f"I have encoded the test:\n```python\n{body}```\nI am done."
+    out, backend = _tester(db, "m69", [call, done, ""])
+    assert "wrote a test into its reply" not in out.errors
+    assert len(backend.calls) == 2
+    assert all("a reply is not a stored test" not in user
+               for _, user in backend.calls)
+
+
+def test_a_wake_with_two_tests_names_neither(db):
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c2', 'tk_1', 'echo_json emits no ANSI codes')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('t2', 'bg_1', 'c2', 'tests/test_two.py', 'assert 1')")
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm69'",
+               (json.dumps(["echo_json_compact", "inh_echo_json_01", "t2"]),))
+    db.commit()
+    out, backend = _tester(db, "m69", [_reply("s149_t1"), ""])
+    _, user = backend.calls[1]
+    assert user.endswith("tests.encode(id='...', criterion_id='...', "
+                         "path='...', body='...').")
+
+
+def test_an_answer_naming_two_criteria_names_neither(db):
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c2', 'tk_1', 'echo_json emits no ANSI codes')")
+    db.commit()
+    out, backend = _run(db, _answer(db, ("echo_json_compact", "c2")),
+                        [_reply("s149_t1"), ""])
+    _, user = backend.calls[1]
+    assert user.endswith("tests.encode(id='...', criterion_id='...', "
+                         "path='...', body='...').")
+
+
+def test_a_project_test_with_no_criterion_keeps_the_dots(db):
+    """A test the repository had carries a NULL criterion. The sentence
+    says '...' and never None."""
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('inh_1', 'bg_1', NULL, 'tests/test_echo.py', 'assert 1')")
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm69'",
+               (json.dumps(["inh_1"]),))
+    db.commit()
+    out, backend = _tester(db, "m69", [_reply("s149_t1"), ""])
+    _, user = backend.calls[1]
+    assert user.endswith("tests.encode(id='inh_1', criterion_id='...', "
+                         "path='tests/test_echo.py', body='...').")
+
+
+def test_an_architects_fenced_reply_gets_no_test_sentence(db):
+    """The Architect holds neither tests.encode nor code.write."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m70', 'm70', 'developer', "
+               "'architect', 'escalate', ?, 70, 'open')",
+               (json.dumps(["echo_json_compact", "inh_echo_json_01"]),))
+    db.commit()
+    out, backend = _run(db, Wake("architect", "message", message_id="m70",
+                                 detail="escalate"),
+                        [_reply("s149_t1"), ""])
+    assert "wrote a test into its reply" not in out.errors
+    assert all("a reply is not a stored test" not in user
+               for _, user in backend.calls)
 
 
 def test_a_fence_beside_a_call_is_not_nudged(db):
@@ -177,3 +328,96 @@ def test_the_developers_fence_sentence_keeps_its_bytes(db, tmp_path):
     assert "wrote a test into its reply" not in out.errors
     _, user = backend.calls[1]
     assert user.endswith(DEVELOPER)
+
+
+def test_a_developers_second_fence_meets_the_owed_call_nudge(db, tmp_path):
+    """The Developer's second fenced reply on a tick is answered as before
+    this frame: the owed-call nudge, never the Tester's stop."""
+    root = tmp_path / "wt"
+    root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'bg_1'", (str(root),))
+    db.commit()
+    fence = "Here is the fix:\n```python\ndef echo_json(o):\n    print(o)\n```"
+    out, backend = _run(db, Wake("developer", "tick:tests_failing",
+                                 refs=("bg_1",)), [fence, fence, "Done."])
+    assert out.errors[:2] == ["wrote code into its reply",
+                              "ended a tick with nothing done"]
+    _, user = backend.calls[2]
+    assert "You were woken because something is owed here" in user
+
+
+# The case runner's `replies:` key (the review of 9684e3c, point 5).
+
+CASE_ID = "L1-TS-send-a-test-written-into-the-reply-as-tests-encode"
+
+
+class _NoModel:
+    """A model that must not be asked."""
+
+    name = "none"
+    misses = 0
+
+    def complete(self, *a, **k):
+        raise AssertionError("the model was asked")
+
+
+def _case(run_no=1):
+    from rota import paths
+    from rota.testkit import fixtures
+    case = next(c for c in fixtures.load_case(paths.CASES / "l1_tester.yaml")
+                if c["id"] == CASE_ID)
+    return fixtures.for_run(case, run_no)
+
+
+def _right_call(problem) -> str:
+    t = problem["fixture"]["tests"][0]
+    body = problem["replies"][0].split("```python\n", 1)[1].split("```", 1)[0]
+    return (f"TOOL: tests.encode(id={t['id']!r}, criterion_id="
+            f"{t['criterion_id']!r}, path={t['path']!r}, body={body!r})")
+
+
+def _run_case(problem, backend, tmp_path):
+    from rota.testkit import fixtures
+    return fixtures.run_case(problem, tmp_path / "c.db", backend,
+                             pins=Pins(model="scripted"),
+                             instructions=fixtures.instructions_for(problem))
+
+
+def test_a_case_whose_replies_end_the_session_judged_nothing(tmp_path):
+    """The passing call inside `replies:` passed the case with no model."""
+    problem = _case()
+    problem["replies"] = [problem["replies"][0], _right_call(problem), "Done."]
+    r = _run_case(problem, _NoModel(), tmp_path)
+    assert not r.passed
+    assert ("the model made no completion after the scripted replies, so "
+            "the case judged nothing") in r.problems
+    assert [x.get("scripted") for x in r.transcript() if "say" in x] == [True] * 3
+
+
+def test_the_case_judges_the_first_call_after_the_replies(tmp_path):
+    problem = _case()
+    r = _run_case(problem, ScriptedBackend([_right_call(problem), ""]), tmp_path)
+    assert r.passed, r.problems
+    says = [x for x in r.transcript() if "say" in x]
+    assert says[0].get("scripted") and not says[1].get("scripted")
+
+    problem = _case()
+    wrong = _right_call(problem).replace(problem["fixture"]["tests"][0]["id"],
+                                         "t_new", 1)
+    r = _run_case(problem, ScriptedBackend([wrong, ""]), tmp_path / "x")
+    assert not r.passed
+    assert any(p.startswith("the first tests.encode names {'id': 't_new'}")
+               for p in r.problems), r.problems
+
+    r = _run_case(_case(), ScriptedBackend(["TOOL: criteria.load()", ""]),
+                  tmp_path / "y")
+    assert ("expected a first call to tests.encode; got criteria.load"
+            in r.problems), r.problems
+
+
+def test_a_chain_refuses_scripted_replies(tmp_path):
+    from rota.testkit import fixtures
+    chain = {"id": "x", "first": {"role": "tester"}, "then": {"role": "developer"},
+             "replies": ["text"]}
+    with pytest.raises(ValueError, match="run_chain does not serve it"):
+        fixtures.run_chain(chain, tmp_path / "c.db", lambda: _NoModel())

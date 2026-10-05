@@ -705,6 +705,9 @@ class CaseResult:
     # replay and a first-seen transcript looked the same in the table (frame
     # 66, 2026-09-23).
     live_calls: int = 0
+    # How many of the first completions came from the case's `replies:` and
+    # not from the model. The transcript marks them.
+    scripted: int = 0
 
     def system_text(self) -> str:
         """
@@ -723,7 +726,8 @@ class CaseResult:
         unfair, the role under-briefed, or the model out of its depth — which is
         all of the remaining work, so it is kept with the verdict rather than
         printed once and lost."""
-        out = [{"say": t} for t in (self.outcome.completions if self.outcome else [])]
+        out = [{"say": t, "scripted": True} if i < self.scripted else {"say": t}
+               for i, t in enumerate(self.outcome.completions if self.outcome else [])]
         if self.delta:
             out.append({"called": self.delta.tool_calls,
                         "wrote": {k: len(v) for k, v in self.delta.writes.items()},
@@ -1083,8 +1087,13 @@ class _Replied:
 
         self._make = Completion
         self.replies = list(replies)
+        self.scripted = len(self.replies)
         self.inner = inner
         self.name = getattr(inner, "name", "")
+        # How often the model was asked. A case whose replies end the session
+        # judged nothing, and passes on the script alone (frame 152's review
+        # of 9684e3c, point 5).
+        self.asked = 0
 
     @property
     def misses(self) -> int:
@@ -1094,7 +1103,33 @@ class _Replied:
         if self.replies:
             return self._make(text=self.replies.pop(0), pins=pins,
                               backend="replies")
+        self.asked += 1
         return self.inner.complete(system, user, pins, tools=tools)
+
+
+def _first_call(case: dict, outcome: RunOutcome, scripted: int) -> list[str]:
+    """The case's `first_call:` against the model's first reply after the
+    scripted ones. Its keys are the function and the arguments it must
+    name, so a case can judge the first act alone."""
+    want = (case.get("expect") or {}).get("first_call")
+    if not want:
+        return []
+    from ..llm import toolproto
+
+    if len(outcome.completions) <= scripted:
+        return [f"expected a first call to {want['fn']}; the model made none"]
+    allowed = set(re.findall(r"^\s*TOOL: ([a-z_]+\.[a-z_]+)\(",
+                             outcome.system, re.M))
+    calls = toolproto.extract_lenient(outcome.completions[scripted], allowed)
+    if not calls:
+        return [f"expected a first call to {want['fn']}; the reply holds no call"]
+    first = calls[0]
+    if first.name != want["fn"]:
+        return [f"expected a first call to {want['fn']}; got {first.name}"]
+    wrong = {k: first.args.get(k) for k, v in (want.get("args") or {}).items()
+             if first.args.get(k) != v}
+    return [f"the first {want['fn']} names {wrong}, not "
+            f"{ {k: want['args'][k] for k in wrong} }"] if wrong else []
 
 
 def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
@@ -1143,6 +1178,11 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
         problems += check_same_session(conn, case["same_session"], outcome.session_id)
     if not outcome.committed and case.get("expect_commit", True):
         problems.append(f"session did not commit: {outcome.errors}")
+    scripted = backend.scripted if isinstance(backend, _Replied) else 0
+    if isinstance(backend, _Replied) and not backend.asked:
+        problems.append("the model made no completion after the scripted "
+                        "replies, so the case judged nothing")
+    problems += _first_call(case, outcome, scripted)
 
     if repo is not None:
         from . import gitfixture
@@ -1151,7 +1191,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     return CaseResult(case_id=case.get("id", "?"), run=run_no,
                       passed=not problems, problems=problems,
                       delta=delta, outcome=outcome, notes=notes,
-                      systems=[outcome.system],
+                      systems=[outcome.system], scripted=scripted,
                       # A backend without the counter made no live call: a
                       # replay-only backend never reaches a model.
                       live_calls=getattr(backend, "misses", 0))
@@ -1178,6 +1218,12 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
     """
     from ..core.loop import _batch_of
 
+    # A chain does not serve scripted replies. A key it ignored would make
+    # the chain's first leg judge a turn the case did not mean.
+    if any("replies" in spec for spec in (case, case.get("first") or {},
+                                          case.get("then") or {})):
+        raise ValueError(f"{case.get('id', '?')}: `replies:` is for a case of "
+                         f"one session; run_chain does not serve it")
     conn = init_db(db_path)
     seed(conn, case.get("fixture") or {})
     repo = (_with_repo(conn, case, Path(db_path), run_no)
