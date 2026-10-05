@@ -902,11 +902,51 @@ def test_a_key_is_served_three_times_and_then_the_room_refuses(db):
         f"the result was served a fourth time: {served[3][:200]}"
     assert "the window took it each time" in served[3], \
         f"the refusal does not name the window: {served[3][:200]}"
-    assert "narrower span" in served[3], "the refusal asks for nothing"
+    # `decisions.search` takes no span, so the refusal names no span.
+    assert ("ERROR decisions.search: served three times this session, and "
+            "the window took it each time; not served again. The result does "
+            "not change. Act on what your prompt holds now, or finish without "
+            "it.") in served[3], served[3][:300]
+    assert "narrower span" not in served[3], \
+        "the refusal names a span the call does not take"
     assert "returned earlier" not in served[3], \
         "the refusal points at an answer the window took"
     assert any("repeat refused" in e for e in outcome.errors), \
         "the fourth asking was never refused"
+
+
+def test_the_serve_cap_names_a_span_only_to_a_call_that_takes_one(db, monkeypatch):
+    """
+    Frame 121's interview, D. Night 119's s260 was told to ask
+    `tests.load` for a narrower span, and `tests.load` takes `batch_id`
+    only. The refusal reads the signature: `code.source` takes `start` and
+    `end`, and `tests.load` and `decisions.search` take no span. The span
+    wording stays byte for byte where it applies.
+    """
+    from rota.core import runner
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build("developer", db, batch_id=None, mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    assert runner._has_span(sb, "code.source")
+    assert runner._has_span(sb, "code.write")
+    assert not runner._has_span(sb, "tests.load")
+    assert not runner._has_span(sb, "criteria.load")
+
+    # The session below asks `decisions.search`. Its signature is pinned
+    # as a span here, so the span branch runs on the same eviction shape.
+    monkeypatch.setattr(runner, "_has_span", lambda sb, name: True)
+    _seed_decisions(db)
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend(_evicting_repeats(ask, askings=4))
+    run_session(db, wake_vision_keeper(), backend=backend,
+                pins=Pins(model="scripted", temperature=0.0, num_ctx=512))
+    refused = backend.calls[5][1].split("\n\n")[-1]
+    assert ("ERROR decisions.search: served three times this session, and "
+            "the window took it each time; not served again. Ask "
+            "decisions.search for a narrower span, or finish without it.") \
+        in refused, refused[:300]
 
 
 def test_three_identical_calls_in_one_reply_meet_the_refusal(db):

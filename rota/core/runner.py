@@ -401,9 +401,18 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # four of its eight turns calling `code.survey` again -- the results were
         # in front of it and it re-fetched them, then ran out of budget before
         # attesting, which is what left `tick_survey` undrained on a real repo.
-        body.append(
-            "\nAlready run for you, with the results below. Calling any of these "
-            "again returns the same thing and costs you a turn:")
+        if isinstance(pushed.get("tests.load"), dict):
+            # The fix wake pushes `tests.load` as a summary, and a call
+            # returns raw rows with bodies. So "the same thing" was false
+            # there (frame 121's interview, E). Other wakes keep the sentence.
+            body.append(
+                "\nAlready run for you, with the results below. Calling any of "
+                "these again costs you a turn, and tests.load returns each test "
+                "of the batch with its body, not the summary below:")
+        else:
+            body.append(
+                "\nAlready run for you, with the results below. Calling any of "
+                "these again returns the same thing and costs you a turn:")
         for key, value in pushed.items():
             # Through the same cap a *requested* result goes through. The push
             # was raw, so `code.survey` on icalendar's `src/icalendar` -- 1,357
@@ -567,16 +576,25 @@ _WAKE_CUT = re.compile(r"\nCUT your wake: [\d,]+ of ([\d,]+) characters are "
                        r"not shown\. " + re.escape(_WAKE_CUT_CALL) + r"\Z")
 
 
-def _render_cut(text: str, limit: int) -> str:
+def _render_cut(text: str, limit: int, reply: bool = False) -> str:
     """
     Cut, saying so. The same contract `_render` keeps for a tool result.
 
     A text that an earlier cut already holds is cut from its kept part, and
     the note keeps the uncut total. A kept part inside the limit comes back
     as it is.
+
+    A cut reply gets its own note. Night 119's s263 read `CUT your wake` on
+    its own reply and found no next call (frame 121's interview, C). The
+    caller cuts a reply only when the reply held no call, so no call ran.
     """
     if len(text) <= limit:
         return text
+    if reply:
+        return text[:limit] + chr(10) + cut_note(
+            "your reply", len(text) - limit, len(text), "characters",
+            f"The first {limit:,} characters stand above. No call in your "
+            f"reply ran. Send one call, and keep your prose short.")
     earlier = _WAKE_CUT.search(text)
     body = text[:earlier.start()] if earlier else text
     total = int(earlier.group(1).replace(",", "")) if earlier else len(text)
@@ -2928,12 +2946,19 @@ def run_session(
                 # NameError, and the same wake was dispatched 69 times over
                 # 98 minutes. A cut reply with no call is not the end: the
                 # model reads what it sent, bounded, and the cut, once.
+                #
+                # The two lines state one fact: the reply held no call, so no
+                # call ran. "The last call did not run" made night 119's s32
+                # believe a call it had sent was lost (frame 121's interview,
+                # B1). `outcome.errors` keeps the general sentence.
                 cut_retried = True
                 _append(transcript, kinds, _REPLY,
-                        _render_cut(completion.text, 4000))
+                        _render_cut(completion.text, 4000, reply=True))
                 _append(transcript, kinds, _RESULTS,
-                        f"ERROR reply cut: {cut_note} Send calls, "
-                        f"or end with one sentence.")
+                        "ERROR reply cut: your reply was cut at the output "
+                        "budget before it ended. It held no call, so no call "
+                        "ran and nothing was written. Send one call, or end "
+                        "with one sentence.")
                 continue
             if ("```" in completion.text and not calls
                     and "code.write" in allowed and not fence_warned):
@@ -3339,10 +3364,20 @@ def run_session(
                             seat_refusals = getattr(sb.ctx, "refusals", None)
                             if seat_refusals is not None:
                                 seat_refusals.append((call.name, why, "Repeat"))
+                            # A span is a step only for a call that takes one.
+                            # Night 119's s260 was told to ask `tests.load` for
+                            # a narrower span, and `tests.load` takes
+                            # `batch_id` only (frame 121's interview, D).
+                            if _has_span(sb, call.name):
+                                step = (f"Ask {call.name} for a narrower span, "
+                                        f"or finish without it.")
+                            else:
+                                step = ("The result does not change. Act on "
+                                        "what your prompt holds now, or finish "
+                                        "without it.")
                             feedback.append(
                                 f"ERROR {_call_tag(call, len(calls))}: {why}. "
-                                f"Ask {call.name} for a narrower span, or "
-                                f"finish without it.")
+                                f"{step}")
                     elif would_repeat and not evicted and (
                             stormed or repeated.get(key, 0) >= 1):
                         # The third identical call, refused. Session s71 sent
@@ -3816,6 +3851,16 @@ def _param_sets(sb) -> dict:
         req = {n for n, prm in sig.parameters.items() if prm.default is inspect.Parameter.empty}
         out[name] = (req, set(sig.parameters))
     return out
+
+
+# The parameters that bound a read to part of its result. `code.source` and
+# `code.write` take `start` and `end`. No other function takes a span.
+_SPAN_PARAMS = frozenset({"start", "end"})
+
+
+def _has_span(sb, name: str) -> bool:
+    """Whether the function `name` takes a span, read from its signature."""
+    return bool(_param_sets(sb).get(name, (set(), set()))[1] & _SPAN_PARAMS)
 
 
 def _derive_frame_record(conn, sb) -> None:

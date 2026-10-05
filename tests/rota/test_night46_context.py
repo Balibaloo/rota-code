@@ -329,6 +329,69 @@ def test_a_cut_reply_does_not_also_report_the_cut_call_as_a_parse_error(vk_db):
     assert vk_db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1, "the whole call before the cut ran"
 
 
+def test_a_cut_reply_with_no_call_says_no_call_ran_in_both_lines(vk_db):
+    """
+    Frame 121's interview, C and B1. Night 119's s263 read `CUT your wake`
+    on its own prose reply and found no next call. The retry runs only when
+    the cut reply held no call, so the cut note and the ERROR line both say
+    that no call ran, and neither says that a last call was lost.
+    """
+
+    class Cut(ScriptedBackend):
+        def complete(self, system, user, pins, tools=None):
+            c = super().complete(system, user, pins, tools)
+            if len(self.calls) == 1:
+                return Completion(text=c.text, pins=pins, backend=self.name,
+                                  raw={"done_reason": "length"})
+            return c
+
+    backend = Cut(["I think about the account. " * 400, "Done."])
+    run_session(vk_db, _vk(), backend=backend, pins=Pins(model="scripted"))
+    second = backend.calls[1][1]
+    total = len("I think about the account. " * 400)
+    assert (f"\nCUT your reply: {total - 4000:,} of {total:,} characters are "
+            f"not shown. The first 4,000 characters stand above. No call in "
+            f"your reply ran. Send one call, and keep your prose short.") \
+        in second, second[-600:]
+    assert ("ERROR reply cut: your reply was cut at the output budget before "
+            "it ended. It held no call, so no call ran and nothing was "
+            "written. Send one call, or end with one sentence.") in second
+    assert "CUT your wake" not in second
+    assert "the last call did not run" not in second
+
+
+def test_the_fix_wake_header_says_what_tests_load_returns(db):
+    """
+    Frame 121's interview, E. The fix wake pushes `tests.load` as a summary,
+    and a call returns raw rows with bodies, so "returns the same thing" was
+    false. The header says what the call returns. A wake whose push holds no
+    summary keeps the sentence byte for byte.
+    """
+    from rota.core.runner import build_prompt
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "output, attempt) VALUES ('r1','b1','tst1','abc123','fail',"
+               "'NameError: close_account',1)")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    wake = Wake("developer", "tick:tests_failing", refs=("b1",))
+    pushed = push_working_set("developer", sb, wake)
+    assert isinstance(pushed["tests.load"], dict), "the push is not the summary"
+    _system, user = build_prompt("developer", sb, wake, pushed, "MODE: tests_failing")
+    assert ("\nAlready run for you, with the results below. Calling any of "
+            "these again costs you a turn, and tests.load returns each test of "
+            "the batch with its body, not the summary below:") in user
+    assert "returns the same thing" not in user
+    rows = sb.call("tests.load")
+    assert isinstance(rows, list) and rows[0]["body"], "the sentence is false"
+
+    _system, other = build_prompt("developer", sb, wake,
+                                  {"criteria.load": sb.call("criteria.load")},
+                                  "MODE: tests_failing")
+    assert ("\nAlready run for you, with the results below. Calling any of "
+            "these again returns the same thing and costs you a turn:") in other
+
+
 def test_a_bare_list_of_refs_may_hold_a_path():
     """click night 47 (2026-09-14): the Liaison copied 44 observed refs
     unbracketed, ending `., src/click`; the slash broke the run and the

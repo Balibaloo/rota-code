@@ -48,6 +48,27 @@ def test_one_wording_for_every_cut():
         assert FORM.search(cut), f"{kind} does not use the one form: {cut[-200:]}"
 
 
+def test_a_cut_reply_names_the_reply_and_one_next_step():
+    """
+    Frame 121's interview, C. Night 119's s263 read `CUT your wake` on its
+    own reply of 38,567 characters and found no next call. The note names
+    the reply, the characters that stand, and one step.
+    """
+    out = R._render_cut("R" * 38567, 4000, reply=True)
+    assert out == "R" * 4000 + "\nCUT your reply: 34,567 of 38,567 characters " \
+        "are not shown. The first 4,000 characters stand above. No call in " \
+        "your reply ran. Send one call, and keep your prose short.", out[-300:]
+    assert "your wake" not in out
+
+
+def test_a_cut_wake_keeps_its_note_byte_for_byte():
+    """The wake's note is in recorded prompts, so frame 121 leaves it."""
+    out = R._render_cut("W" * 44201, 18064)
+    assert out == "W" * 18064 + "\nCUT your wake: 26,137 of 44,201 characters " \
+        "are not shown. Nothing returns a wake. Ask by name for the reads you " \
+        "need.", out[-300:]
+
+
 def test_no_cut_offers_a_range_the_seat_does_not_have():
     """
     Four of eighteen strings named a call that works. A pushed read was told to
