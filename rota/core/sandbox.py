@@ -3045,11 +3045,20 @@ def _line_holds(line: str, where: dict) -> tuple[bool, str]:
     quote = (where.get("quote") or "").strip()
     if quote:
         quote = quote.splitlines()[0].strip()
-        after = text[len(quote):len(quote) + 1]
+        # Outside a docstring, the line's head up to its first bracket must
+        # be the quote's head, as the decorator door cuts it. A word
+        # boundary let `@dec` pass on the line `@dec.b` (the review of
+        # ee17f70, low 3).
         if not text.startswith(quote) or (
-                not doc and re.match(r"\w", quote[-1]) and re.match(r"\w", after)):
+                not doc and _head_to_bracket(text) != _head_to_bracket(quote)):
             return False, f"the line is {line.strip()[:60]!r}, not {quote!r}"
     return True, ""
+
+
+def _head_to_bracket(s: str) -> str:
+    """The text before the first `(`, as the decorator door records its
+    quote."""
+    return s.split("(")[0].rstrip()[:60]
 
 
 def _compiled_line(text: str) -> int | None:
@@ -3100,6 +3109,12 @@ def _span_holds(lines: list[str], lo: int, hi: int, where: dict) -> tuple[bool, 
         ends = [n.end_lineno for n in tree.body if getattr(n, "name", None) == name]
         ok = lo == hi and hi in ends
         return ok, "" if ok else f"{name} ends at {ends}"
+    # A statement named by its type carries its first line. A `match_case`
+    # has no line of its own, so `api._head_of` gives it none. Any other
+    # empty head is a door that lost its quote, and the check reads it
+    # false (the review of ee17f70, low 4).
+    if "node" in where and not where.get("head") and where["node"] != "match_case":
+        return False, f"the fact names a {where['node']} and no first line"
     seen = []
     for n in ast.walk(tree):
         if not isinstance(n, (ast.stmt, ast.match_case)):

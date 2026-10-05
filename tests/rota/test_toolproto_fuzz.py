@@ -49,6 +49,24 @@ def test_the_parser_keeps_its_reads_on_the_fuzz_slice():
     assert not moved, f"{len(moved)} cases moved:\n" + "\n".join(shown)
 
 
+def test_a_moved_raw_text_moves_the_slice():
+    """The runner writes `call.raw` into a seat's `ERROR` line
+    (`runner.py`, the two `feedback.append` of an error), so the raw text
+    is part of the prompt. A parser that keeps every call and every
+    sentence and moves only `raw` must turn the slice red (the review of
+    ee17f70, low 1)."""
+    import dataclasses
+    import types
+
+    def moved(text, sig=None, **kw):
+        return [dataclasses.replace(c, raw="another text " + c.raw)
+                for c in toolproto.extract(text, sig, **kw)]
+
+    want = json.loads(fuzz.SLICE_FILE.read_text(encoding="utf-8"))
+    now = fuzz.slice_outcomes(types.SimpleNamespace(extract=moved))
+    assert fuzz.slice_changes(want, now)
+
+
 def test_the_slice_holds_frame_122s_prose_with_apostrophes():
     """Frame 122 read a quote with apostrophes, such as claim's, as text
     (fb1bdba). The slice holds such cases, so a lost reading turns it red."""

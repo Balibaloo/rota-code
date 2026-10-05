@@ -323,7 +323,7 @@ def test_the_fact_check_reads_a_span_and_a_line_against_the_tree(tmp_path):
     """A span that ends one line early and a line that counts from 1 stayed
     green under a check of bounds only (the review of 8726a13, high 2)."""
     sb = _developer(tmp_path, "@dec\ndef f():\n    return 1\nx = 1\n")
-    f_ = (("name", "f"), ("node", "FunctionDef"), ("path", "m.py"))
+    f_ = (("head", "def f():"), ("name", "f"), ("node", "FunctionDef"), ("path", "m.py"))
     dec = (("path", "m.py"), ("quote", "@dec"))
     after = (("end_of", "f"), ("path", "m.py"))
     facts = [api.Fact("span", (0, 3), f_), api.Fact("span", (0, 2), f_),
@@ -377,6 +377,37 @@ def test_a_line_quote_starts_the_line_at_a_word_boundary():
     assert not holds("x = 1  # @dec", {"quote": "@dec"})[0]
     assert holds('    """Doc and more', {"docstring": True, "quote": "Doc and mo"})[0]
     assert not holds('    """Other', {"docstring": True, "quote": "Doc"})[0]
+
+
+def test_a_decorator_line_off_by_one_reads_false_on_a_twin_decorator(tmp_path):
+    """With `@dec` above `@dec.b`, the decorator door's line moved down by
+    one still passed: `.` is a word boundary (the review of ee17f70, low
+    3). The line's head up to its bracket must be the quote."""
+    holds = sandbox._line_holds
+    assert not holds("@dec.b", {"quote": "@dec"})[0]
+    assert holds("@dec.b(1)", {"quote": "@dec.b"})[0]
+    sb = _developer(tmp_path, "@dec\n@dec.b\ndef a(x):\n    return x\n")
+    said, _ = _refused(sb, "code.write", path="m.py", start=1, end=4,
+                       text="def a(x):\n    return 1\n")
+    assert "decorators of" in said
+    [line] = [f for f in sb.ctx.facts if f.kind == "line"]
+    assert all(r["ok"] for r in sandbox.check_facts(sb, sb.ctx.facts))
+    moved = api.Fact("line", line.value + 1, line.where, line.site)
+    assert not sandbox.check_facts(sb, [moved])[0]["ok"]
+
+
+def test_a_span_that_names_a_statement_and_no_head_reads_false():
+    """A span fact with a `node` and an empty `head` skipped the head
+    check, so a door that lost its head stayed green (the review of
+    ee17f70, low 4). A `match_case` has no line of its own and keeps the
+    span check."""
+    lines = ["def f():", "    return 1"]
+    named = {"node": "FunctionDef", "name": "f"}
+    assert sandbox._span_holds(lines, 0, 2, {**named, "head": "def f():"})[0]
+    assert not sandbox._span_holds(lines, 0, 2, {**named, "head": ""})[0]
+    assert not sandbox._span_holds(lines, 0, 2, named)[0]
+    case = ["match x:", "    case 1:", "        y = 1"]
+    assert sandbox._span_holds(case, 1, 3, {"node": "match_case", "head": ""})[0]
 
 
 def test_the_line_of_a_compile_refusal_is_read_by_compiling_the_text():
@@ -439,6 +470,37 @@ def test_a_refusal_raised_in_a_library_names_its_door(tmp_path):
         sb.call("code.write", path="m.py", text="x = '" + chr(0xD800) + "'\n")
     site = sandbox._raise_site(exc.value)
     assert " in _parse_compile < " in site and site.endswith(" in _code_write")
+
+
+def test_an_argument_error_of_the_binder_names_its_door(tmp_path):
+    """`Sandbox.call` and `dry_run` raise a missing or an unknown argument
+    themselves. The walk stopped at their frame with an empty chain, so the
+    identity read '' (the review of ee17f70, low 2)."""
+    sb = _developer(tmp_path, "x = 1\n")
+    for kw in ({"path": "m.py"}, {"path": "m.py", "text": "x", "nope": 1}):
+        with pytest.raises(sandbox.ArgumentError) as exc:
+            sb.call("code.write", **kw)
+        assert sandbox._raise_site(exc.value).endswith(" in call")
+        res = sandbox.dry_run(sb, "code.write", kw)
+        assert not res.admitted and res.site.endswith(" in dry_run"), res
+    res = sandbox.dry_run(sb, "code.source", {"path": "m.py", "nope": 1})
+    assert not res.admitted and res.site.endswith(" in call"), res
+
+
+def test_a_test_that_never_drains_its_calls_leaves_them(tmp_path):
+    """The first half of a pair: this test leaves its entry in the log.
+    The next test asserts that the log starts empty."""
+    sb = _developer(tmp_path, "x = 1\n")
+    sb.call("code.source", path="m.py")
+    assert sandbox._CALL_LOG.get(id(sb.ctx))
+
+
+def test_the_next_test_starts_with_an_empty_call_log():
+    """A new `ctx` can take the id of a freed one and drain its calls, so
+    `test_s9_tool_calls_are_recorded_as_evidence` failed after this file
+    (the review of ee17f70, low 5). The conftest empties the log after each
+    test. `--dist loadfile` keeps the pair above in order on one worker."""
+    assert sandbox._CALL_LOG == {}
 
 
 def test_a_crash_of_one_offer_keeps_the_records_of_the_others(tmp_path):

@@ -156,6 +156,8 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
     (_OF + "test_the_add_after_offer_of_a_cut_span_is_admitted", _TWICE),
     *((_OF + f"test_a_cut_at_deep_decorators_gets_the_refusal_of_b2ed55b[{k}]",
        "m.py defines a twice") for k in ("minus400", "attr2000", "spaced")),
+    (_OF + "test_a_decorator_line_off_by_one_reads_false_on_a_twin_decorator",
+     "m.py defines a twice"),
     (_OF + "test_a_cut_refusal_quotes_lines_that_are_true", _INVALID),
     ("tests/rota/test_l1.py::test_l1_case[ACT-TS-give-the-prompt-a-stream]", _CHOOSES),
     (_OF + "test_the_added_import_offer_is_admitted", _CHOOSES),
@@ -272,6 +274,20 @@ def pytest_runtest_call(item):
 
 
 _FINDINGS = pytest.StashKey[list]()
+
+
+@pytest.fixture(autouse=True)
+def _empty_call_log():
+    """Empty `sandbox._CALL_LOG` after each test.
+
+    The log keys on `id(ctx)`, and a test that never drains leaves its
+    entry. A new `ctx` can take the id of a freed one and then drains calls
+    it never made (the review of ee17f70, low 5). The key dates from
+    231afe4, and a session's own behaviour does not change in frame 144.
+    """
+    yield
+    from rota.core import sandbox
+    sandbox._CALL_LOG.clear()
 
 
 def unhide(report, bad: list[str]) -> None:

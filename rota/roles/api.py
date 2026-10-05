@@ -249,6 +249,11 @@ def door_of(frames) -> str:
                 break
             continue                    # a library frame below the door
         if name == box and code.co_name in ("call", "dry_run", "follow"):
+            if not out:
+                # The binder raised the refusal itself, such as a missing
+                # argument, so its own statement is the door (the review
+                # of ee17f70, low 2).
+                out.append(f"{code.co_filename}:{line} in {code.co_name}")
             break
         out.append(f"{code.co_filename}:{line} in {code.co_name}")
         if code in ops:

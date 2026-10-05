@@ -243,17 +243,20 @@ def outcome(parser, case: Case, sig: dict) -> tuple[bool, str]:
     """Whether the parser reads the case right, and a digest of all that it
     reads. Right is the exact list of calls that the case wrote, in order,
     and nothing else. The digest holds each call with its arguments, each
-    refusal sentence, and each start offset. So a dropped call, a doubled
-    call, a wrong read that turns into another, and a deleted or reworded
-    refusal all change it (the review of fed7c58, low 6)."""
+    refusal sentence, each `raw` text, and each start offset. So a dropped
+    call, a doubled call, a wrong read that turns into another, and a
+    deleted or reworded refusal all change it (the review of fed7c58, low
+    6). The runner writes `raw` into a seat's `ERROR` line, so a moved
+    `raw` is a moved prompt (the review of ee17f70, low 1)."""
     import hashlib
     starts: list[int] = []
     got = parser.extract(case.raw, sig, starts=starts)
     calls = [(c.name, c.args) for c in got if hasattr(c, "args")]
     want = [(case.fn, case.want)] + ([("ledger.log", {"note": "ok"})] if case.ledger else [])
     seen = [("call", c.name, sorted(c.args.items(), key=lambda kv: kv[0]),
-             tuple(getattr(c, "pos", ()) or ()))
-            if hasattr(c, "args") else ("refused", c.reason) for c in got]
+             tuple(getattr(c, "pos", ()) or ()), c.raw)
+            if hasattr(c, "args") else ("refused", c.reason, c.raw)
+            for c in got]
     digest = hashlib.blake2b(repr((seen, starts)).encode("utf-8", "surrogatepass"),
                              digest_size=3).hexdigest()
     return calls == want and not any(s[0] == "refused" for s in seen), digest
