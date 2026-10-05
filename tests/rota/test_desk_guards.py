@@ -3621,7 +3621,9 @@ def _right(tmp_path, *extra):
     have = src.splitlines()
     for line in _HEAD_IMPORTS + list(extra):
         assert line in have, line
-    compile(src, "m.py", "exec", dont_inherit=True)
+    # Compile is not import (the review of 08caa8d, point 1): run the
+    # module's top level too.
+    exec(compile(src, "m.py", "exec", dont_inherit=True), {"__name__": "m"})
     return src
 
 
@@ -3662,8 +3664,8 @@ def test_a_replace_that_drops_a_used_import_is_told_to_carry_it(db, tmp_path):
     msg = _span_refusal(db, tmp_path, _HEAD, 0, 8, _NO_INSPECT)
     assert msg == (
         "start=0, end=8 removes 'import inspect', and the rest of m.py still uses "
-        "inspect. To keep it, put that line in your text below any `from __future__` "
-        "line, and send start=0, end=8 again.")
+        "inspect. To keep it, put that line at the top of your text, below any "
+        "`from __future__` line, and send start=0, end=8 again.")
     text = _NO_INSPECT.replace("annotations\n", "annotations\nimport inspect\n", 1)
     assert _write(db, tmp_path, 0, 8, text)["bytes"]
     _right(tmp_path)
@@ -3766,3 +3768,85 @@ def test_a_dry_run_leaves_the_context_and_the_disk_as_they_were(db, tmp_path, mo
     assert changed == ["refusals"], changed
     assert len(after[0]["refusals"]) == len(before[0]["refusals"] or []) + 1
     assert after[1:] == before[1:]
+
+
+# The review of 08caa8d (frame 136, pass 2). Each test is the reviewer's case.
+
+def test_a_replace_that_removes_an_assignment_gets_the_fact_and_no_call(db, tmp_path):
+    """Point 1: A2 put `logger = logging.getLogger(__name__)` above
+    `import logging`. It compiled, landed, and failed at import. Only an
+    import goes back by A2, so a removed assignment gets the fact alone."""
+    src = ("import logging\nimport os\nlogger = logging.getLogger(__name__)\n\n\n"
+           "def f():\n    logger.info(os.sep)\n")
+    msg = _span_refusal(db, tmp_path, src, 0, 3, "import logging\nimport os\nimport sys\n")
+    assert msg == ("start=0, end=3 removes 'logger = logging.getLogger(__name__)', "
+                   "and the rest of m.py still uses logger.")
+
+
+def test_the_real_header_shape_with_a_removed_assignment_names_no_call(db, tmp_path):
+    """Point 1 on decorators.py: `R = t.TypeVar("R")` is removed with the
+    imports it needs, and the step would have put it above them."""
+    src = _HEAD + "\n\ndef g() -> R:\n    return R\n"
+    msg = _span_refusal(db, tmp_path, src, 2, 8,
+                        "import inspect\nimport sys\nimport typing as t\n")
+    assert msg == ("start=2, end=8 removes 'from functools import update_wrapper', "
+                   "'from gettext import gettext as _' and 'R = t.TypeVar(\"R\")', and the "
+                   "rest of m.py still uses R, _ and update_wrapper.")
+
+
+def test_a_removed_decorated_class_is_quoted_with_its_decorator(db, tmp_path):
+    """Point 2: the quote of a decorated class starts at its decorator."""
+    src = ("import functools\nfrom dataclasses import dataclass\n\n\n@dataclass\n"
+           "class P:\n    x: int = 1\n\n\ndef f():\n    return P(x=2), functools\n")
+    msg = _span_refusal(db, tmp_path, src, 0, 7,
+                        "import functools\nfrom dataclasses import dataclass\nimport sys\n")
+    assert msg == ("start=0, end=7 removes '@dataclass\nclass P:\n    x: int = 1', and "
+                   "the rest of m.py still uses P.")
+
+
+def test_a_blank_text_over_a_used_import_gets_the_fact_and_no_call(db, tmp_path):
+    """Point 3: a blank text is a deletion, and an insert of it adds nothing."""
+    msg = _span_refusal(db, tmp_path, _HEAD, 2, 3, "")
+    assert msg == "start=2, end=3 removes 'import inspect', and the rest of m.py still uses inspect."
+
+
+def test_the_insert_goes_below_a_shebang_and_a_coding_comment(db, tmp_path):
+    """Point 4: with no docstring and no `__future__` line, the insert sat
+    at line 0, above `#!` and the coding comment."""
+    src = ("#!/usr/bin/env python\n# -*- coding: utf-8 -*-\nimport os\nimport sys\n\n\n"
+           "def f():\n    return os.sep, sys.argv\n")
+    msg = _span_refusal(db, tmp_path, src, 0, 4, "import re\n")
+    assert msg.endswith("To add your text and keep every line, send start=2, end=2.")
+    assert _write(db, tmp_path, 2, 2, "import re\n")["bytes"]
+    new = (tmp_path / "wt" / "m.py").read_text()
+    assert new.startswith("#!/usr/bin/env python\n# -*- coding: utf-8 -*-\nimport re\nimport os\n")
+    exec(compile(new, "m.py", "exec", dont_inherit=True), {"__name__": "m"})
+
+
+def test_a_future_line_in_a_mid_file_insert_keeps_the_compile_refusal(db, tmp_path):
+    """Point 5: below the file's first ordinary statement, moving a line
+    inside the text cannot help, so D does not fire."""
+    msg = _span_refusal(db, tmp_path, _HEAD, 10, 10,
+                        "import sys\nfrom __future__ import annotations\n")
+    assert msg.startswith("m.py is not valid Python (from __future__ imports must occur")
+    assert "send" not in msg.lower()
+
+
+def test_a_crash_in_a_dry_run_names_no_call_and_is_logged(db, tmp_path, monkeypatch, caplog):
+    """Point 7: only a door's refusal means no. Any other exception leaves
+    the call unnamed and leaves a trace in the log."""
+    import logging
+    from rota.roles import api
+    real = api._code_write
+
+    def boom(*a, **k):
+        if k.get("dry"):
+            raise RuntimeError("a door crashed")
+        return real(*a, **k)
+
+    monkeypatch.setattr(api, "_code_write", boom)
+    with caplog.at_level(logging.ERROR, logger="rota.roles.api"):
+        msg = _span_refusal(db, tmp_path, _HEAD, 0, 5, "import sys\n")
+    assert "send" not in msg
+    assert "code.write dry run crashed on m.py start=1 end=1" in caplog.text
+    assert "a door crashed" in caplog.text

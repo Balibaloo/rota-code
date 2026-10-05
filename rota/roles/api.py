@@ -27,11 +27,13 @@ import json as _json
 import re
 
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass
 from typing import Any, Callable
 
 REGISTRY: dict[tuple[str, str], Callable] = {}
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -9027,8 +9029,14 @@ def _admits(ctx: Ctx, path: str, text: str, start: int, end: int) -> bool:
     """
     try:
         _code_write(ctx, path, text, start, end, dry=True)
+    except ValueError:
+        return False                    # a door refuses the call
     except Exception:                                      # noqa: BLE001
-        # A call the doors refuse, or one they cannot judge, is not named.
+        # A door that crashes judges nothing, so the call is not named. The
+        # log keeps the trace, so a door's bug does not hide (frame 136's
+        # review of 08caa8d, point 7).
+        _log.exception("code.write dry run crashed on %s start=%s end=%s",
+                       path, start, end)
         return False
     return True
 
@@ -9664,8 +9672,12 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             # below named no step, and the seat gave up on a repair that
             # was one line away. The step is named only when the doors
             # admit it (frame 136, law of frame 135: one fact, one step).
+            # A text inserted below the file's first ordinary statement cannot
+            # fix the order by moving lines inside itself (the review of
+            # 08caa8d, point 5), so the bare compile refusal stays there.
             order = (_future_order(fragment)
-                     if stage == "compile" and "__future__" in (exc.msg or "") else None)
+                     if stage == "compile" and "__future__" in (exc.msg or "")
+                     and (not span or start <= _first_plain_line(lines)) else None)
             if order is not None:
                 moved, futs, above = order
                 many = len(futs) > 1
@@ -11112,6 +11124,31 @@ def _is_docstring(node) -> bool:
             and isinstance(getattr(node.value, "value", None), str))
 
 
+def _stmt_lo(s) -> int:
+    """The 0-based first line of a statement, its decorators included, the
+    rule the cut door's `_lo` uses (the review of 08caa8d, point 2)."""
+    return min([s.lineno] + [d.lineno for d in getattr(s, "decorator_list", None) or []]) - 1
+
+
+def _first_plain_line(lines: list[str]) -> int:
+    """The 0-based line of the file's first statement that is neither the
+    module docstring nor a `from __future__` import. The file's length
+    when it has none, and -1 when the file does not parse."""
+    import ast as _ast
+    try:
+        body = _ast.parse(chr(10).join(lines)).body
+    except SyntaxError:
+        return -1
+    for i, s in enumerate(body):
+        if (i == 0 and _is_docstring(s)) or _is_future(s):
+            continue
+        return _stmt_lo(s)
+    return len(lines)
+
+
+_CODING = re.compile(r"^[ \t\f]*#.*?coding[:=]")
+
+
 def _span_lost(lines: list[str], start: int, stop: int, fragment: str, tree) -> dict | None:
     """What a span write removes that the rest of the file still needs.
 
@@ -11132,7 +11169,7 @@ def _span_lost(lines: list[str], start: int, stop: int, fragment: str, tree) -> 
         return None
 
     def _in_span(s) -> bool:
-        return start <= s.lineno - 1 and getattr(s, "end_lineno", s.lineno) <= stop
+        return start <= _stmt_lo(s) and getattr(s, "end_lineno", s.lineno) <= stop
 
     binds = _top_binds(old)
     loads = {x.id for x in _ast.walk(tree)
@@ -11146,7 +11183,7 @@ def _span_lost(lines: list[str], start: int, stop: int, fragment: str, tree) -> 
     if not names and not futures:
         return None
     stmts = sorted({id(s): s for s in futures + [binds[n] for n in names]}.values(),
-                   key=lambda s: s.lineno)
+                   key=_stmt_lo)
     removed = set(_top_binds(_ast.Module(body=[s for s in old.body if _in_span(s)],
                                          type_ignores=[])))
     try:
@@ -11164,7 +11201,7 @@ def _span_lost_refusal(ctx: Ctx, path: str, lines: list[str], start: int, end: i
     import ast as _ast
 
     def _seg(s) -> str:
-        return chr(10).join(lines[s.lineno - 1:getattr(s, "end_lineno", s.lineno)]).strip()
+        return chr(10).join(lines[_stmt_lo(s):getattr(s, "end_lineno", s.lineno)]).strip()
 
     segs = [_seg(s) for s in lost["stmts"]]
     quoted = [f"'{x}'" for x in segs]
@@ -11180,9 +11217,14 @@ def _span_lost_refusal(ctx: Ctx, path: str, lines: list[str], start: int, end: i
     if dry:
         return fact
     one = len(segs) == 1
+    # A blank text is a deletion, and an insert of it adds nothing (the
+    # review of 08caa8d, point 3).
+    if not fragment.strip():
+        return fact
     if lost["insert"]:
         # The seat meant to add its text. The insert goes below a leading
-        # docstring and `from __future__` imports, as the doors require.
+        # docstring and `from __future__` imports, as the doors require,
+        # and below a `#!` line and a coding comment (review point 4).
         body = lost["old"].body
         lead = []
         for i, s in enumerate(body):
@@ -11193,11 +11235,22 @@ def _span_lost_refusal(ctx: Ctx, path: str, lines: list[str], start: int, end: i
         at = start
         if lead and start <= lead[-1].lineno - 1:
             at = max(start, lead[-1].end_lineno)
+        head = 0
+        while head < min(2, len(lines)) and (
+                (head == 0 and lines[0].startswith("#!")) or _CODING.match(lines[head])):
+            head += 1
+        at = max(at, head)
         if _admits(ctx, path, fragment, at, at):
             return (f"{fact} To add your text and keep every line, "
                     f"send start={at}, end={at}.")
         return fact
-    # A replace: the text must carry the removed lines itself.
+    # A replace: the text must carry the removed lines itself. Only an
+    # import goes back this way. A removed assignment can use a name that
+    # the text binds below it, so its order is a judgement the door cannot
+    # make, and compile does not import (the review of 08caa8d, point 1:
+    # `R = t.TypeVar("R")` landed above `import typing as t`).
+    if not all(isinstance(s, (_ast.Import, _ast.ImportFrom)) for s in lost["stmts"]):
+        return fact
     try:
         own = _ast.parse(fragment).body
     except SyntaxError:
@@ -11220,7 +11273,7 @@ def _span_lost_refusal(ctx: Ctx, path: str, lines: list[str], start: int, end: i
     if futs:
         return (f"{fact} To keep {them}, put {which} at the top of your text, the "
                 f"`from __future__` line first, and send start={start}, end={end} again.")
-    return (f"{fact} To keep {them}, put {which} in your text below any "
+    return (f"{fact} To keep {them}, put {which} at the top of your text, below any "
             f"`from __future__` line, and send start={start}, end={end} again.")
 
 
