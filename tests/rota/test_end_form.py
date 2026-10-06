@@ -154,10 +154,9 @@ def test_the_step_is_still_an_end_refusal(tmp_path, root):
 
 
 # The recorded cases, run with a scripted model. The case runner's keys
-# `replies: [{file: ...}]`, `rewrite:` and `no_call:` are frame 165's.
+# `replies: [{file: ...}]` and `no_call:` are frame 165's.
 
 CASE_ID = "L1-DV-end-the-session-when-the-door-says-end"
-OLD_ID = CASE_ID + "-the-old-step"
 
 
 class _Seen:
@@ -199,21 +198,11 @@ def test_the_case_serves_the_nights_reply_and_the_real_door(tmp_path):
     assert r.passed, r.problems
     assert r.outcome.completions[0] == _turn2()
     assert len(model.users) == 1
-    last =model.users[0].rstrip().splitlines()[-1]
+    last = model.users[0].rstrip().splitlines()[-1]
     assert last.startswith("ERROR msg.challenge_tester: you sent challenge to "
                            "tester on exactly these refs already (m_")
     assert last.endswith("and the Tester answered neither and did not change "
                          "the test. " + ENDS), last
-
-
-def test_the_old_step_case_gives_the_nights_sentence(tmp_path):
-    """The rewrite takes the form out, so the model gets the night's line."""
-    model = _Seen([ONE_LINE])
-    r = _run_case(_case(OLD_ID), model, tmp_path)
-    assert r.passed, r.problems
-    last = model.users[0].rstrip().splitlines()[-1]
-    assert last.endswith("and the Tester answered neither and did not change "
-                         "the test. End the session with no call."), last
 
 
 @pytest.mark.parametrize("reply, problem", [
@@ -228,8 +217,36 @@ def test_a_reply_with_a_call_fails_the_case(tmp_path, reply, problem):
     assert problem in r.problems, r.problems
 
 
-def test_a_rewrite_that_matches_no_prompt_fails_the_case(tmp_path):
-    case = _case(OLD_ID)
-    case["rewrite"] = [["no such text", ""]]
-    r = _run_case(case, _Seen([ONE_LINE]), tmp_path)
-    assert "the rewrite of 'no such text' matched no prompt" in r.problems
+# The review of 04407eff, finding 2: the form on other shapes of refs.
+@pytest.mark.parametrize("refs, on", [
+    (["echo_json_compact", "inh_echo_json_01", "inh_echo_json_02"],
+     "inh_echo_json_01, inh_echo_json_02"),
+    (["echo_json_compact"], "echo_json_compact"),
+    (["echo_json_compact", "inh_echo_json_01", "inh_echo_json_01"],
+     "inh_echo_json_01"),
+], ids=["two tests", "no test", "a repeated ref"])
+def test_the_form_names_the_tests_of_each_shape_of_refs(tmp_path, root,
+                                                        monkeypatch, refs,
+                                                        on):
+    """Two tests are both named. Refs with no test name every ref. A
+    repeated ref is named once. Each id is a fact whose site is the
+    function that names it."""
+    conn = _night(tmp_path / "rota.db", root)
+    conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body, "
+                 "version) VALUES ('inh_echo_json_02', 'bg_1', "
+                 "'echo_json_compact', 'tests/test_utils/test_two.py', "
+                 "'def test_two():\n    assert True', 1)")
+    conn.commit()
+    sb = sandbox.build("developer", conn, batch_id="bg_1", mode="exhausted",
+                       allow=prompts.mode_tools("developer", "exhausted"))
+    # The door offers no escalation, so the step is the end.
+    monkeypatch.setattr(sandbox, "_escalation_admitted", lambda ctx, r: False)
+    del sb.ctx.facts[:]
+    said = sandbox._escalation_or_step(sb.ctx, refs, "A fact.",
+                                       sandbox.END_STEP)
+    assert said == ("A fact. End the session with no call. Your whole next "
+                    "reply is this one line, and no TOOL: line: Nothing more "
+                    f"is owed on {on} in this session.")
+    assert [f.value for f in sb.ctx.facts] == on.split(", ")
+    assert all(f.site.endswith(" in _end_form") for f in sb.ctx.facts), \
+        [f.site for f in sb.ctx.facts]

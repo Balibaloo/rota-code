@@ -1082,7 +1082,7 @@ class _Replied:
     (frame 152, night 125: the nudge after a test written into a reply).
     """
 
-    def __init__(self, replies: list[str], inner, rewrite=()):
+    def __init__(self, replies: list[str], inner):
         from ..llm.llm import Completion
 
         self._make = Completion
@@ -1094,11 +1094,6 @@ class _Replied:
         # judged nothing, and passes on the script alone (frame 152's review
         # of 9684e3c, point 5).
         self.asked = 0
-        # The case's `rewrite:` pairs, applied to each prompt the model gets.
-        # A pair that matches no prompt is kept here, because the case then
-        # measured the runner's own text and not the text it names.
-        self.rewrite = [(str(old), str(new)) for old, new in rewrite]
-        self.unmatched = list(self.rewrite)
 
     @property
     def misses(self) -> int:
@@ -1109,11 +1104,6 @@ class _Replied:
             return self._make(text=self.replies.pop(0), pins=pins,
                               backend="replies")
         self.asked += 1
-        for pair in self.rewrite:
-            if pair[0] in user:
-                user = user.replace(*pair)
-                if pair in self.unmatched:
-                    self.unmatched.remove(pair)
         return self.inner.complete(system, user, pins, tools=tools)
 
 
@@ -1200,8 +1190,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     from ..core.loop import _batch_of
 
     if case.get("replies"):
-        backend = _Replied(_replies_of(case), backend,
-                           case.get("rewrite") or ())
+        backend = _Replied(_replies_of(case), backend)
     outcome = run_session(conn, wake, backend=backend, pins=pins,
                           instructions=instructions,
                           batch_id=_batch_of(conn, wake),
@@ -1231,9 +1220,6 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     if isinstance(backend, _Replied) and not backend.asked:
         problems.append("the model made no completion after the scripted "
                         "replies, so the case judged nothing")
-    if isinstance(backend, _Replied) and backend.asked:
-        problems += [f"the rewrite of {old!r} matched no prompt"
-                     for old, _ in backend.unmatched]
     problems += _first_call(case, outcome, scripted)
     problems += _no_call(case, outcome, scripted)
 

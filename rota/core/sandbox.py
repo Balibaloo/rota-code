@@ -1461,8 +1461,12 @@ def _end_form(ctx: api.Ctx, refs: list) -> str:
     """
     tests = [r for r in refs if isinstance(r, str) and ctx.conn.execute(
         "SELECT 1 FROM tests WHERE id = ?", (r,)).fetchone()]
-    named = tests or [r for r in refs if isinstance(r, str)]
-    on = ", ".join(api._fact(ctx, "row", r) for r in named)
+    named = []
+    # A loop and not a generator, so each fact's site names this function
+    # (frame 165's review of 04407eff, finding 3).
+    for r in tests or [r for r in refs if isinstance(r, str)]:
+        named.append(api._fact(ctx, "row", r))
+    on = ", ".join(named)
     return END_FORM.format(on=f" on {on}" if on else "")
 
 
