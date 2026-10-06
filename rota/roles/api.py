@@ -10777,9 +10777,6 @@ def _runs_said(runs: dict) -> str:
 
 _REVERT_HEAD = ("this commit puts the tree back where it stood before your last "
                 "commit: you are undoing yourself.")
-_REVERT_OLD_STEPS = ("Say what stands and why "
-                     "(a decision), challenge the test (msg.challenge_tester) or "
-                     "escalate the criterion (msg.escalate_architect); do not flip")
 
 
 def _revert_refusal(ctx: Ctx, tree) -> str | None:
@@ -10787,12 +10784,14 @@ def _revert_refusal(ctx: Ctx, tree) -> str | None:
     None when the door admits it.
 
     The door reads the stored runs of the head and of `HEAD~1`, the tree the
-    commit restores. It runs no test. It admits the commit when fewer of the
-    tests that ran at both commits fail at `HEAD~1`. Night 124 (2026-10-05):
+    commit restores. It runs no test. Of the tests that ran at both commits,
+    it admits the commit when none passes at the head and fails at `HEAD~1`,
+    and one fails at the head and passes at `HEAD~1`. Night 124 (2026-10-05):
     the head 35211b40e4 failed at import, 37 of 37 `error`. The door refused
     the repair 3 times with "The tests pass both ways", and the batch was
     given up there (frame 149). Where both commits truly pass, the sentence
-    is the old one to the byte, because the recorded cases key on the prompt.
+    is the old one to the byte up to its step. The step names a call only
+    through `_offer`, and only where the call's doors admit it.
     """
     import subprocess as _sp
 
@@ -10807,33 +10806,67 @@ def _revert_refusal(ctx: Ctx, tree) -> str | None:
     both = set(at_head) & set(at_back)
     bad_head = sum(1 for t in both if at_head[t] != "pass")
     bad_back = sum(1 for t in both if at_back[t] != "pass")
-    if both and bad_back < bad_head:
+    # Per test, never a net count: a net count admits the revert of a right
+    # fix when more unrelated tests went red at the head (frame 149's review
+    # of 9278be2, finding 1). Going back must turn no test red and one green.
+    turns_red = sorted(t for t in both if at_head[t] == "pass" and at_back[t] != "pass")
+    turns_green = [t for t in both if at_head[t] != "pass" and at_back[t] == "pass"]
+    if not turns_red and turns_green:
         return None
+    said = [_REVERT_HEAD]
     if (at_head and at_back and all(v == "pass" for v in at_head.values())
             and all(v == "pass" for v in at_back.values())):
-        return (f"{_REVERT_HEAD} The tests pass both ways, so the disagreement "
-                f"is not in the code. {_REVERT_OLD_STEPS}")
-    said = [_REVERT_HEAD]
-    said.append(f"The runs at the head {head[:10]}: {_runs_said(at_head)}." if at_head
-                else f"No run is stored at the head {head[:10]}.")
-    said.append(f"The runs at {back[:10]}, the tree this commit puts back: "
-                f"{_runs_said(at_back)}." if at_back
-                else f"No run is stored at {back[:10]}, the tree this commit puts back.")
-    if both:
-        said.append(f"Of the {len(both)} tests that ran at both, the head fails "
-                    f"{bad_head} and {back[:10]} fails {bad_back}. Going back does not "
-                    f"lower that count.")
+        # The old sentence stays to the byte up to its step. The old step
+        # named two calls with no refs and no record (the review of 9278be2,
+        # finding 5), so the step below replaces it.
+        said.append("The tests pass both ways, so the disagreement is not in the code.")
+    elif both:
+        said.append(f"The runs at the head {head[:10]}: {_runs_said(at_head)}.")
+        said.append(f"The runs at {back[:10]}, the tree this commit puts back: "
+                    f"{_runs_said(at_back)}.")
+        n, x, y = _fact(ctx, "both", (len(both), bad_head, bad_back), head=head, back=back)
+        said.append(f"Of the {n} {'test' if n == 1 else 'tests'} that ran at both, the head fails "
+                    f"{x} and {back[:10]} fails {y}.")
+        if turns_red:
+            shown = ", ".join(_fact(ctx, "turns_red", turns_red, head=head, back=back)[:5])
+            more = f" and {len(turns_red) - 5} more" if len(turns_red) > 5 else ""
+            k = len(turns_red)
+            said.append(f"Going back turns {k} {'test' if k == 1 else 'tests'} red "
+                        f"that {'passes' if k == 1 else 'pass'} at the head: {shown}{more}.")
+        else:
+            said.append("Going back makes no test pass that fails at the head.")
     else:
+        said.append(f"The runs at the head {head[:10]}: {_runs_said(at_head)}." if at_head
+                    else f"No run is stored at the head {head[:10]}.")
+        said.append(f"The runs at {back[:10]}, the tree this commit puts back: "
+                    f"{_runs_said(at_back)}." if at_back
+                    else f"No run is stored at {back[:10]}, the tree this commit puts back.")
         said.append("So no run shows that going back makes a test pass.")
+    from ..core import sandbox as _sandbox
     red = sorted(t for t, v in at_head.items() if v != "pass")
     if not red:
-        said.append(_REVERT_OLD_STEPS)
+        # The step names a call only through `_offer` and only where its
+        # doors admit it, so the follow check sends it (frame 135's law,
+        # the review of 9278be2, finding 5).
+        said.append("Say what stands and why (a decision), and do not flip.")
+        for t in sorted(t for t, v in at_back.items() if v != "pass"):
+            row = ctx.conn.execute(
+                "SELECT t.body, c.id AS crit, c.text FROM tests t "
+                "JOIN criteria c ON c.id = t.criterion_id WHERE t.id = ?", (t,)).fetchone()
+            if row is None:
+                continue
+            refs, quotes = [row["crit"], t], [row["text"] or "", row["body"] or ""]
+            if _sandbox._challenge_admitted(ctx, refs, quotes):
+                said.append(_offer(ctx, f"To dispute the test that fails at {back[:10]}, "
+                                        f"send msg.challenge_tester(refs={refs!r}) with "
+                                        f"quotes= copied from {refs[0]} and from {t}.",
+                                   "msg.challenge_tester", {"refs": refs, "quotes": quotes}))
+                break
         return " ".join(said)
     said.append("Change the code that the red tests call, then commit. Do not flip.")
     crits = sorted({r["criterion_id"] for r in ctx.conn.execute(
         f"SELECT criterion_id FROM tests WHERE id IN ({','.join('?' * len(red))})", red)
         if r["criterion_id"]})
-    from ..core import sandbox as _sandbox
     if crits and _sandbox._escalation_admitted(ctx, crits):
         said.append(_offer(ctx, f"To dispute the criterion, send "
                                 f"msg.escalate_architect(refs={crits!r}).",

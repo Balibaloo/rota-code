@@ -5,8 +5,8 @@ The door refuses a commit whose tree equals the tree before the last commit.
 Its sentence said "The tests pass both ways" and it read no run. Night 124
 (2026-10-05): the head 35211b40e4 failed at import, 37 of 37 `error`, and
 the door refused the Developer's repair 3 times. The batch was given up at
-that head. The door now admits a commit that restores a tree where fewer of
-the tests fail, and its refusal states the runs that it read.
+that head. The door now admits a commit that turns no test red and one test
+green, and its refusal states the runs that it read.
 """
 from __future__ import annotations
 
@@ -22,13 +22,13 @@ from rota.roles import api, prompts
 
 FIXTURE = Path(__file__).parent / "fixtures" / "night124_utils_617055787d.txt"
 
-# The old sentence, copied from the door at 483cba6. Where both commits truly
-# pass, the refusal stays equal to it, because the recorded cases key on it.
+# The old sentence, copied from the door at 483cba6, up to its step. Where both
+# commits truly pass, the refusal keeps these bytes. The old step named two
+# calls with no refs, and the review of 9278be2, finding 5, replaced it.
 OLD = ("this commit puts the tree back where it stood before your last "
        "commit: you are undoing yourself. The tests pass both ways, so "
        "the disagreement is not in the code. Say what stands and why "
-       "(a decision), challenge the test (msg.challenge_tester) or "
-       "escalate the criterion (msg.escalate_architect); do not flip")
+       "(a decision)")
 
 # s143's commit 35211b40e4 on night 124: these 20 lines at the end of
 # src/click/utils.py. No line of the module binds `click`.
@@ -106,16 +106,17 @@ def _repo(root: Path, path: str, *texts: str) -> list[str]:
     return shas
 
 
-def _tests(db, rows: list[tuple[str, str | None]]) -> None:
+def _tests(db, rows: list[tuple[str, str | None]], body: str = "assert True") -> None:
     for tid, crit in rows:
         db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
-                   "VALUES (?, 'b1', ?, ?, 'assert True')", (tid, crit, f"tests/test_{tid}.py"))
+                   "VALUES (?, 'b1', ?, ?, ?)", (tid, crit, f"tests/test_{tid}.py", body))
 
 
-def _runs(db, sha: str, attempt: int, results: dict) -> None:
+def _runs(db, sha: str, attempt: int, results: dict, batch: str = "b1") -> None:
     for tid, res in results.items():
         db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, attempt) "
-                   "VALUES (?, 'b1', ?, ?, ?, ?)", (f"r_{sha[:8]}_{attempt}_{tid}", tid, sha, res, attempt))
+                   "VALUES (?, ?, ?, ?, ?, ?)",
+                   (f"r_{batch}_{sha[:8]}_{attempt}_{tid}", batch, tid, sha, res, attempt))
 
 
 def _developer(db, root: Path):
@@ -158,7 +159,8 @@ def test_where_both_commits_pass_the_refusal_is_the_old_sentence(db, tmp_path):
     sb.call("code.write", path="script.py", text=a)
     with pytest.raises(ValueError) as exc:
         sb.call("code.commit", message="back to a")
-    assert str(exc.value) == f"code.commit: {OLD}" or str(exc.value) == OLD
+    assert str(exc.value) == f"{OLD}, and do not flip."
+    assert sb.ctx.offers == []
     # The sentence is the old one, and the runs it rests on are now facts
     # that frame 144's fact check reads.
     facts = [f for f in sb.ctx.facts if f.kind == "runs"]
@@ -188,7 +190,7 @@ def test_a_revert_where_the_head_is_not_worse_states_the_runs(db, tmp_path):
         f"undoing yourself. The runs at the head {head[:10]}: 1 pass, 2 red, 0 error. "
         f"The runs at {back[:10]}, the tree this commit puts back: 1 pass, 1 red, 0 error. "
         f"Of the 2 tests that ran at both, the head fails 1 and {back[:10]} fails 1. "
-        "Going back does not lower that count. Change the code that "
+        "Going back makes no test pass that fails at the head. Change the code that "
         "the red tests call, then commit. Do not flip. To dispute the criterion, send "
         "msg.escalate_architect(refs=['c1']).")
     # The escalation is the step the sentence names, and the follow check of
@@ -210,3 +212,204 @@ def test_a_runs_fact_that_the_state_contradicts_reads_false(db, tmp_path):
                                    fact({"tst1": "fail"}, "HEAD~1", head),
                                    fact({}, "HEAD~1", back)])
     assert [r["ok"] for r in got] == [True, False, False, True]
+
+
+def _refused(sb, path: str, text: str) -> str:
+    sb.call("code.write", path=path, text=text)
+    with pytest.raises(ValueError) as exc:
+        sb.call("code.commit", message="back")
+    return str(exc.value)
+
+
+A = "def close_account(x):\n    return 1\n"
+B = "def close_account(x):\n    return 2\n"
+HEAD_SAID = ("this commit puts the tree back where it stood before your last commit: "
+             "you are undoing yourself.")
+
+
+def test_the_revert_of_a_fix_that_turned_other_tests_red_is_refused(db, tmp_path):
+    """The review of 9278be2, finding 1, state `unrelated_two_red_at_head`:
+    the seat's own test goes green at the head and two project tests go red.
+    A net count admitted the revert of the fix. Going back turns the own
+    test red, so the door refuses and names it."""
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    _tests(db, [("tst1", "c1"), ("p1", None), ("p2", None)])
+    _runs(db, back, 1, {"tst1": "fail", "p1": "pass", "p2": "pass"})
+    _runs(db, head, 2, {"tst1": "pass", "p1": "fail", "p2": "fail"})
+    sb = _developer(db, root)
+    said = _refused(sb, "script.py", A)
+    assert said == (
+        f"{HEAD_SAID} The runs at the head {head[:10]}: 1 pass, 2 red, 0 error. "
+        f"The runs at {back[:10]}, the tree this commit puts back: 2 pass, 1 red, 0 error. "
+        f"Of the 3 tests that ran at both, the head fails 2 and {back[:10]} fails 1. "
+        "Going back turns 1 test red that passes at the head: tst1. Change the code "
+        "that the red tests call, then commit. Do not flip.")
+    kinds = sorted(f.kind for f in sb.ctx.facts)
+    assert kinds == ["both", "runs", "runs", "turns_red"]
+    assert all(r["ok"] for r in sandbox.check_facts(sb, sb.ctx.facts))
+
+
+def test_a_red_test_outside_both_does_not_stop_the_repair(db, tmp_path):
+    """A test red at `HEAD~1` and with no run at the head has no side in the
+    rule. The head fails the test that passed before, so the door admits."""
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    _tests(db, [("tst1", "c1"), ("tst2", "c1")])
+    _runs(db, back, 1, {"tst1": "pass", "tst2": "fail"})
+    _runs(db, head, 2, {"tst1": "error"})
+    sb = _developer(db, root)
+    sb.call("code.write", path="script.py", text=A)
+    assert sb.call("code.commit", message="back").get("committed") is True
+
+
+def test_the_runs_of_another_batch_at_the_sha_are_not_read(db, tmp_path):
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b2','i1','pending')")
+    _tests(db, [("tst1", "c1")])
+    _runs(db, back, 1, {"tst1": "pass"})
+    _runs(db, head, 2, {"tst1": "error"})
+    _runs(db, head, 2, {"tst1": "pass"}, batch="b2")
+    sb = _developer(db, root)
+    fact = api.Fact("runs", {"tst1": "error"}, (("at", "HEAD"), ("sha", head)))
+    assert [r["ok"] for r in sandbox.check_facts(sb, [fact])] == [True]
+    sb.call("code.write", path="script.py", text=A)
+    assert sb.call("code.commit", message="back").get("committed") is True
+
+
+def test_a_commit_with_no_run_does_not_get_the_old_sentence(db, tmp_path):
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    _tests(db, [("tst1", "c1")])
+    _runs(db, head, 1, {"tst1": "pass"})
+    sb = _developer(db, root)
+    said = _refused(sb, "script.py", A)
+    assert said == (
+        f"{HEAD_SAID} The runs at the head {head[:10]}: 1 pass, 0 red, 0 error. "
+        f"No run is stored at {back[:10]}, the tree this commit puts back. So no run "
+        "shows that going back makes a test pass. Say what stands and why (a "
+        "decision), and do not flip.")
+    assert sb.ctx.offers == []
+
+
+def test_an_escalation_sent_this_session_is_not_named_again(db, tmp_path):
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    _tests(db, [("tst1", "c1")])
+    _runs(db, back, 1, {"tst1": "fail"})
+    _runs(db, head, 2, {"tst1": "fail"})
+    sb = _developer(db, root)
+    sb.call("msg.escalate_architect", refs=["c1"])
+    said = _refused(sb, "script.py", A)
+    assert said.endswith("Change the code that the red tests call, then commit. Do not flip.")
+    assert sb.ctx.offers == []
+
+
+def test_a_head_with_no_red_names_the_challenge_on_the_red_test_put_back(db, tmp_path):
+    """The review of 9278be2, finding 5: the old step named two calls with
+    no refs and no record. The step now names the challenge on the test that
+    fails at `HEAD~1`, through `_offer`, so the follow check sends it."""
+    body = ("from script import close_account\n\n\ndef test_close():\n"
+            "    assert close_account('a1') == 2\n")
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    _tests(db, [("tst1", "c1")], body=body)
+    _runs(db, back, 1, {"tst1": "fail"})
+    _runs(db, head, 2, {"tst1": "pass"})
+    sb = _developer(db, root)
+    said = _refused(sb, "script.py", A)
+    assert said == (
+        f"{HEAD_SAID} The runs at the head {head[:10]}: 1 pass, 0 red, 0 error. "
+        f"The runs at {back[:10]}, the tree this commit puts back: 0 pass, 1 red, 0 error. "
+        f"Of the 1 test that ran at both, the head fails 0 and {back[:10]} fails 1. "
+        "Going back turns 1 test red that passes at the head: tst1. Say what stands "
+        "and why (a decision), and do not flip. To dispute the test that fails at "
+        f"{back[:10]}, send msg.challenge_tester(refs=['c1', 'tst1']) with quotes= "
+        "copied from c1 and from tst1.")
+    assert [(o.op, o.args["refs"]) for o in sb.ctx.offers] == [
+        ("msg.challenge_tester", ["c1", "tst1"])]
+    # The follow check of frame 144, called here as well as by the conftest.
+    exc = ValueError(said)
+    got = sandbox.follow(sb, "code.commit", {"message": "back"}, exc, list(sb.ctx.offers))
+    assert [r["second"] for r in got] == [None]
+
+
+def test_the_facts_of_a_name_git_cannot_resolve_or_a_wrong_count_read_false(db, tmp_path):
+    """The review of 9278be2, findings 3 and 4, and mutant m12."""
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    _tests(db, [("tst1", "c1"), ("tst2", None)])
+    _runs(db, back, 1, {"tst1": "fail", "tst2": "pass"})
+    _runs(db, head, 2, {"tst1": "pass", "tst2": "pass"})
+    sb = _developer(db, root)
+    runs = lambda value, at, sha: api.Fact("runs", value, (("at", at), ("sha", sha)))
+    pair = (("back", back), ("head", head))
+    got = sandbox.check_facts(sb, [
+        runs({}, "HEAD~5", None),
+        runs({"tst1": "fail", "tst2": "pass"}, "HEAD~1", "0" * 40),
+        api.Fact("both", (2, 0, 1), pair),
+        api.Fact("both", (2, 1, 1), pair),
+        api.Fact("turns_red", ["tst1"], pair),
+        api.Fact("turns_red", [], pair),
+    ])
+    assert [r["ok"] for r in got] == [False, False, True, False, True, False]
+    assert "HEAD~5" in got[0]["why"]
+
+
+def test_a_test_that_errors_at_the_tree_put_back_turns_red_too(db, tmp_path):
+    """Mutant m5: `error` at `HEAD~1` counts as red, the same as `fail`.
+    tst2 goes green, and tst1 goes from pass to `error`, so the door refuses."""
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    _tests(db, [("tst1", "c1"), ("tst2", None)])
+    _runs(db, back, 1, {"tst1": "error", "tst2": "pass"})
+    _runs(db, head, 2, {"tst1": "pass", "tst2": "fail"})
+    sb = _developer(db, root)
+    said = _refused(sb, "script.py", A)
+    assert said == (
+        f"{HEAD_SAID} The runs at the head {head[:10]}: 1 pass, 1 red, 0 error. "
+        f"The runs at {back[:10]}, the tree this commit puts back: 1 pass, 0 red, 1 error. "
+        f"Of the 2 tests that ran at both, the head fails 1 and {back[:10]} fails 1. "
+        "Going back turns 1 test red that passes at the head: tst1. Change the code "
+        "that the red tests call, then commit. Do not flip.")
+
+
+def test_the_count_at_the_tree_put_back_reads_only_the_tests_at_both(db, tmp_path):
+    """Mutant m9: tst2 is red at `HEAD~1` and has no run at the head. The
+    count of the tests at both leaves tst2 out."""
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    _tests(db, [("tst1", "c1"), ("tst2", "c1")])
+    _runs(db, back, 1, {"tst1": "fail", "tst2": "fail"})
+    _runs(db, head, 2, {"tst1": "fail"})
+    sb = _developer(db, root)
+    sb.call("msg.escalate_architect", refs=["c1"])
+    said = _refused(sb, "script.py", A)
+    assert said == (
+        f"{HEAD_SAID} The runs at the head {head[:10]}: 0 pass, 1 red, 0 error. "
+        f"The runs at {back[:10]}, the tree this commit puts back: 0 pass, 2 red, 0 error. "
+        f"Of the 1 test that ran at both, the head fails 1 and {back[:10]} fails 1. "
+        "Going back makes no test pass that fails at the head. Change the code "
+        "that the red tests call, then commit. Do not flip.")
+    assert [f.value for f in sb.ctx.facts if f.kind == "both"] == [(1, 1, 1)]
+
+
+def test_the_challenge_goes_to_the_first_red_test_that_its_doors_admit(db, tmp_path):
+    """The review of 9278be2, finding 5. tst0's criterion is not of this
+    batch, so the challenge door refuses tst0. The step names tst1."""
+    body = ("from script import close_account\n\n\ndef test_close():\n"
+            "    assert close_account('a1') == 2\n")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i1','other')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c9','tk9','close returns 2')")
+    root = tmp_path / "wt"
+    back, head = _repo(root, "script.py", A, B)
+    _tests(db, [("tst0", "c9"), ("tst1", "c1")], body=body)
+    _runs(db, back, 1, {"tst0": "fail", "tst1": "fail"})
+    _runs(db, head, 2, {"tst0": "pass", "tst1": "pass"})
+    sb = _developer(db, root)
+    said = _refused(sb, "script.py", A)
+    assert said.endswith(
+        f"To dispute the test that fails at {back[:10]}, send "
+        "msg.challenge_tester(refs=['c1', 'tst1']) with quotes= copied from c1 and from tst1.")
+    assert [o.args["refs"] for o in sb.ctx.offers] == [["c1", "tst1"]]

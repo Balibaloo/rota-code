@@ -3134,6 +3134,35 @@ def _span_holds(lines: list[str], lo: int, hi: int, where: dict) -> tuple[bool, 
     return False, f"the statement named has the spans {seen[:4]}"
 
 
+def _challenge_admitted(ctx: api.Ctx, refs: list, quotes: list) -> bool:
+    """
+    True when `msg.challenge_tester` on these refs, with these quotes,
+    passes the evidence door and the two repeat doors of `_bind_send`.
+
+    The revert door names the challenge only where the doors admit it
+    (frame 135's law, frame 149's review of 9278be2, finding 5).
+    """
+    if _sent_this_session(ctx, "tester", "challenge"):
+        return False
+    try:
+        _challenge_evidence(ctx, "tester", refs, " ... ".join(quotes))
+    except ValueError:
+        return False
+    return _same_refs_refusal(ctx, "tester", "challenge", refs) is None
+
+
+def _stored_runs(ctx: api.Ctx, sha: str) -> dict:
+    """The latest stored result of each test of the batch at `sha`. The
+    fact checks read the rows here, and not through the door's reader."""
+    latest: dict = {}
+    for r in ctx.conn.execute(
+            "SELECT test_id, result, attempt, rowid AS k FROM test_runs "
+            "WHERE batch_id = ? AND commit_sha = ?", (ctx.batch_id, sha)):
+        if r["test_id"] not in latest or (r["attempt"], r["k"]) > latest[r["test_id"]][0]:
+            latest[r["test_id"]] = ((r["attempt"], r["k"]), r["result"])
+    return {t: v[1] for t, v in latest.items()}
+
+
 def _runs_hold(ctx: api.Ctx, runs: dict, where: dict) -> tuple[bool, str]:
     """Whether `runs` are the stored runs of the commit that a revert
     refusal names. The check reads git and `test_runs` itself, and does not
@@ -3147,18 +3176,31 @@ def _runs_hold(ctx: api.Ctx, runs: dict, where: dict) -> tuple[bool, str]:
     p = subprocess.run([*worktrees.GIT, "-C", str(tree), "rev-parse", "--verify", "-q",
                         where["at"]], capture_output=True, text=True)
     sha = p.stdout.strip() if p.returncode == 0 else None
+    # A name that git cannot resolve names no commit. None equal to None
+    # read true before (the review of 9278be2, finding 3).
+    if sha is None:
+        return False, f"git resolves no commit at {where['at']}"
     if sha != where.get("sha"):
         return False, f"{where['at']} is {sha}, not {where.get('sha')}"
-    latest: dict = {}
-    for r in ctx.conn.execute(
-            "SELECT test_id, result, attempt, rowid AS k FROM test_runs "
-            "WHERE batch_id = ? AND commit_sha = ?", (ctx.batch_id, sha)):
-        if r["test_id"] not in latest or (r["attempt"], r["k"]) > latest[r["test_id"]][0]:
-            latest[r["test_id"]] = ((r["attempt"], r["k"]), r["result"])
-    stored = {t: v[1] for t, v in latest.items()}
+    stored = _stored_runs(ctx, sha)
     if stored != dict(runs):
         return False, f"the stored runs at {sha} are {stored}"
     return True, ""
+
+
+def _both_hold(ctx: api.Ctx, kind: str, value, where: dict) -> tuple[bool, str]:
+    """Whether a `both` or `turns_red` fact of the revert door follows from
+    the stored runs of `head` and `back`, computed again here (the review
+    of 9278be2, finding 4)."""
+    h, b = _stored_runs(ctx, where["head"]), _stored_runs(ctx, where["back"])
+    both = set(h) & set(b)
+    if kind == "both":
+        want = (len(both), sum(1 for t in both if h[t] != "pass"),
+                sum(1 for t in both if b[t] != "pass"))
+    else:
+        want = sorted(t for t in both if h[t] == "pass" and b[t] != "pass")
+    ok = tuple(value) == tuple(want)
+    return ok, "" if ok else f"the stored runs give {want}"
 
 
 def check_facts(sb: Sandbox, facts: list) -> list[dict]:
@@ -3181,6 +3223,9 @@ def check_facts(sb: Sandbox, facts: list) -> list[dict]:
     - `runs`: the commit `at` names in the worktree is `sha`, and the latest
       run of each test of the batch at `sha` is the result given
       (`_runs_hold`).
+    - `both`: `(N, X, Y)`, the tests that ran at `head` and at `back`, and
+      how many fail at each. `turns_red`: the tests of those that pass at
+      `head` and fail at `back`. Both are computed again (`_both_hold`).
     """
     ctx = sb.ctx
     out = []
@@ -3240,6 +3285,8 @@ def check_facts(sb: Sandbox, facts: list) -> list[dict]:
             why = "" if ok else f"{w['op']} has no argument {f.value}"
         elif f.kind == "runs":
             ok, why = _runs_hold(ctx, f.value, w)
+        elif f.kind in ("both", "turns_red"):
+            ok, why = _both_hold(ctx, f.kind, f.value, w)
         else:
             ok, why = False, f"unknown kind {f.kind}"
         out.append({"kind": f.kind, "value": f.value, "where": {
