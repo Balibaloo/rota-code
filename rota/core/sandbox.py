@@ -168,9 +168,67 @@ def _bind_positional(fn: Callable, pos: tuple, kwargs: dict,
     return {**named, **kwargs}
 
 
+_SCALARS = {int: "int", bool: "bool", float: "float"}
+# The value that a refusal of the scalar door offers in place of the text.
+_SCALAR_EXAMPLE = {"int": 1, "float": 1.0, "bool": True}
+# The words that a model writes for a truth value. JSON's spelling and
+# Python's both occur, as in `toolproto._WORDS`.
+_BOOL_WORDS = {"true": True, "false": False, "True": True, "False": False,
+               "1": True, "0": False}
+
+
+def _scalar_kind(ann) -> str | None:
+    """`int`, `bool` or `float` when `ann` declares that scalar alone or with
+    None, else None. A string annotation is read too, because the binder's
+    signature keeps the string when `eval_str` fails."""
+    if isinstance(ann, str):
+        parts = [s.strip() for s in ann.split("|") if s.strip() != "None"]
+        if len(parts) == 1 and parts[0] in _SCALARS.values():
+            return parts[0]
+        return None
+    if ann in _SCALARS:
+        return _SCALARS[ann]
+    import types
+    import typing
+    if isinstance(ann, types.UnionType) or typing.get_origin(ann) is typing.Union:
+        rest = [a for a in typing.get_args(ann) if a is not type(None)]
+        if len(rest) == 1 and rest[0] in _SCALARS:
+            return _SCALARS[rest[0]]
+    return None
+
+
+def _scalar_from_text(kind: str, text: str):
+    """The value of `kind` that `text` spells, or None when it spells none."""
+    import math
+    s = text.strip()
+    if kind == "bool":
+        return _BOOL_WORDS.get(s)
+    try:
+        v = int(s) if kind == "int" else float(s)
+    except ValueError:
+        return None
+    # `float('nan')` succeeds, and no column means a value that is no number.
+    return v if kind == "int" or math.isfinite(v) else None
+
+
+def _scalar_refusal(name: str, value: str, kind: str, dotted: str) -> str:
+    what = "a word" if any(ch.isalpha() for ch in value) else "text"
+    if kind == "bool":
+        return (f"{name}={value!r} is {what} where {dotted} takes true or "
+                f"false; send {name}=true or {name}=false")
+    if kind == "int":
+        return (f"{name}={value!r} is {what} where {dotted} takes a whole "
+                f"number; send {name}=1, {name}=2 or another whole number")
+    return (f"{name}={value!r} is {what} where {dotted} takes a number; "
+            f"send {name}=1.0, {name}=2.5 or another number")
+
+
 def validate_args(fn: Callable, kwargs: dict,
-                  op: tuple[str, str] | None = None) -> str | None:
-    """Return a human-readable problem, or None if the call is well formed."""
+                  op: tuple[str, str] | None = None, ctx=None) -> str | None:
+    """Return a human-readable problem, or None if the call is well formed.
+
+    `ctx` records the call that a refusal offers (frame 144). A caller that
+    has no session passes none, and the sentence is the same."""
     import inspect
 
     sig = inspect.signature(fn)
@@ -220,7 +278,24 @@ def validate_args(fn: Callable, kwargs: dict,
             return (f"{name} was given a {kind}; it takes a single value "
                     f"({_render_signature(fn)})")
 
-    checks = {**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
+    # Text where a number or a truth value is declared. SQLite's affinity
+    # keeps a word in an INTEGER column as text, and the scheduler's sort
+    # then crashes every step (frame 164: night 126, s249 sent
+    # priority='high'). Text that the type reads is converted here. Any
+    # other text is a refusal that names the form the argument takes.
+    dotted = f"{op[0]}.{_verb_to_attr(op[1])}" if op else ""
+    for name, p in sig.parameters.items():
+        kind = _scalar_kind(p.annotation)
+        if kind is None or not isinstance(kwargs.get(name), str):
+            continue
+        got = _scalar_from_text(kind, kwargs[name])
+        if got is not None:
+            kwargs[name] = got
+            continue
+        said = _scalar_refusal(name, kwargs[name], kind, dotted)
+        return api._offer(ctx, said, dotted, {**kwargs, name: _SCALAR_EXAMPLE[kind]})
+
+    checks ={**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
     for key, allowed in checks.items():
         if key in kwargs and isinstance(kwargs[key], str) and kwargs[key] not in allowed:
             return f"{key}={kwargs[key]!r} is not one of {list(allowed)}"
@@ -347,9 +422,19 @@ class Sandbox:
         if pos:
             kwargs = _bind_positional(target, pos, kwargs, dotted)
 
-        problem = validate_args(target, kwargs, op=(artefact, _attr_to_verb(fn)))
+        problem = validate_args(target, kwargs, op=(artefact, _attr_to_verb(fn)),
+                                ctx=self.ctx)
         if problem:
-            raise ArgumentError(f"{dotted}: {problem}")
+            try:
+                raise ArgumentError(f"{dotted}: {problem}")
+            except ArgumentError as exc:
+                # The scalar door offers a call, so the follow check of
+                # frame 144 reads this refusal too. Raised first, so the
+                # exception carries the binder's line as its door.
+                if _ON_REFUSAL is not None and (offers or facts):
+                    _ON_REFUSAL(self, dotted, dict(kwargs), exc,
+                                list(offers or ()), list(facts or ()))
+                raise
 
         try:
             return target(**kwargs)
