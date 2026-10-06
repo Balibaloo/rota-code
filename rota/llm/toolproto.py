@@ -19,8 +19,10 @@ Both are accepted because small local models drift between them mid-session.
 from __future__ import annotations
 
 import ast
+import io
 import json
 import re
+import tokenize
 from dataclasses import dataclass
 from typing import Any
 
@@ -125,12 +127,14 @@ def _literal(node: ast.AST) -> Any:
 
 
 
-def _rescan_args(text: str, start: int, marker: str) -> int | None:
+def _rescan_args(text: str, start: int, marker: str,
+                 joined: list | None = None) -> int | None:
     """A second scan of an argument list the first one could not close.
 
     Triple quotes are one token here, so a lone quote inside them does not
     flip the state. The answer is accepted only when `parse_args` parses
-    what it encloses."""
+    what it encloses. When the guard on joined strings refuses the answer,
+    the refusal goes into `joined`, so `extract` can send its reason."""
     i, depth = start, 1
     quote = None            # the active string delimiter: ', ", ''', or """
     while i < len(text):
@@ -167,6 +171,10 @@ def _rescan_args(text: str, start: int, marker: str) -> int | None:
         try:
             parse_args(text[start:i])
             return i
+        except JoinedStrings as exc:
+            if joined is not None:
+                joined.append(exc)
+            return None
         except Exception:
             return None
     return None
@@ -491,7 +499,7 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
         # parsing is tried first and is unchanged; only what it rejects reaches
         # here, so nothing that parsed before parses differently now.
         return _parse_args_lenient(safe), ()
-    _refuse_an_unpaired_triple_quote(args_str, safe)
+    _refuse_joined_strings(args_str, safe)
     call = expr.body
     if not isinstance(call, ast.Call):
         raise ValueError("not a call expression")
@@ -504,30 +512,54 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     return out, tuple(_literal(a) for a in call.args)
 
 
-def _refuse_an_unpaired_triple_quote(args_str: str, safe: str) -> None:
-    """Refuse a strict read whose triple quotes do not pair, when Python
+class JoinedStrings(ValueError):
+    """The strict read joined two string literals that the seat did not
+    write as two. `extract` sends this reason to the seat as it is."""
+
+
+def _adjacent_strings(safe: str) -> bool:
+    """Whether two string literals stand side by side in the list."""
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(f"_f({safe})").readline))
+    except (tokenize.TokenError, SyntaxError):
+        return False
+    skip = (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT)
+    prev = None
+    for tok in tokens:
+        if tok.type in skip:
+            continue
+        if tok.type == tokenize.STRING and prev == tokenize.STRING:
+            return True
+        prev = tok.type
+    return False
+
+
+def _refuse_joined_strings(args_str: str, safe: str) -> None:
+    """Refuse a strict read that joins two string literals, when Python
     refuses the list as written.
 
-    An odd count of `'''` or `\"\"\"` means one triple value has no end. The
-    escaped list can still parse, because the stray quote joins the text
-    after it to the value by implicit concatenation. The read then answers
-    a wrong value. Frame 122's rule: a wrong write is worse than a refusal
-    (frame 151, the review of e78545a, finding 1).
+    A stray quote can close a value early. The escaped list can still
+    parse, because Python joins the string literals that stand side by
+    side. The read then answers a wrong value, such as `, c=` inside `a`.
+    Frame 122's rule: a wrong write is worse than a refusal (frame 151,
+    the review of e78545a, finding 1).
 
-    A list that Python reads as written keeps its read, because a value can
-    hold a triple quote of the other kind. The lenient read keeps its path:
-    a guard there refused 47 right reads of the fuzz slice, such as code
-    that holds a `'''` in a value with single quotes."""
-    if not (safe.count("'''") % 2 or safe.count('"""') % 2):
+    The guard reads tokens, not a count of triple quotes. A count also
+    counts a `'''` inside a `"` value, and refused right reads (the review
+    of 9cb2bcbc, finding 1). A list that Python reads as written keeps its
+    read. The lenient read keeps its path, because a guard there refused
+    47 right reads of the fuzz slice."""
+    if not _adjacent_strings(safe):
         return
     try:
         ast.parse(f"_f({args_str})", mode="eval")
         return
     except SyntaxError:
         pass
-    raise ValueError(
-        "a triple quote has no partner, so a value has no end. Open and "
-        "close each value with the same three quotes")
+    raise JoinedStrings(
+        "a quote inside a value closed it early, and the text after that "
+        "quote was read as a second string. Remove the extra quote. Open "
+        "and close each value with the same three quotes")
 
 
 _BARE_KEYWORDS = ("pass",)
@@ -932,13 +964,14 @@ def extract(text: str, signatures: dict | None = None, *,
                         break
             i += 1
 
+        joined: list[JoinedStrings] = []
         if args_end is None:
             # Second reading: triple-quoted strings as one token, then the
             # last closing bracket of this call's region. Night 72
             # (2026-09-15): a challenge carrying a test's source in a quoted
             # argument died here three sessions running, the same call each
             # time. The fallback holds only when the arguments then parse.
-            args_end = _rescan_args(text, args_start, MARKER)
+            args_end = _rescan_args(text, args_start, MARKER, joined)
         sig = (signatures or {}).get(name)
         # `_param_sets` hands (required, all); a bare set is accepted too.
         params = sig[1] if isinstance(sig, tuple) and len(sig) == 2 else sig
@@ -974,7 +1007,13 @@ def extract(text: str, signatures: dict | None = None, *,
             # the model's own guess was "a multi-line string", and the cause
             # was a quote inside the text closing the string early.
             key = _open_argument(text, args_start)
-            if key:
+            if joined:
+                # The rescan closed the list, and the guard on joined strings
+                # refused it. The hint below would name a value that is
+                # already between triple quotes (the review of 9cb2bcbc,
+                # finding 3), so send the guard's reason.
+                reason = f"could not parse arguments: {joined[0]}"
+            elif key:
                 # Frame 122, night 115: the old hint named `text=`, and the
                 # Critic put triple quotes on `quote`. The apostrophe that
                 # broke the list was in `why`. Name the argument.

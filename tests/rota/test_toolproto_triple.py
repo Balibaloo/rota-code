@@ -90,28 +90,70 @@ def test_the_second_scan_honours_a_backslash_in_a_triple_quoted_value():
     assert _read(raw, LEDGER) == [("ledger.log", {"note": "can't ''' x"})]
 
 
-def test_a_stray_triple_quote_after_a_closed_value_is_refused():
-    """A stray `'''` on its own line after a closed value, with an apostrophe
-    in two values. Python refuses the text. Pass 1 read a call with a wrong
-    value, `a="it's, c=s\\\\nt"`: the escaped list parses, because the stray
-    quote joins `, c=` and a raw string `r's\\nt'` to `a` (the review of
-    e78545a, finding 1). Frame 122's rule: a wrong write is worse than a
-    refusal."""
-    q = "'''"
-    raw = "TOOL: t.f(a=" + q + "it's" + q + "\n" + q + ", c=" + q + "r's\nt" + q + ")"
-    sig = {"t.f": ({"a"}, {"a", "c"})}
+_GUARD = "a quote inside a value closed it early"
+_TF = {"t.f": ({"a"}, {"a", "b", "c", "result", "note"})}
+
+
+def _read_lenient(raw: str, sig: dict) -> list:
     calls, _, _ = toolproto.extract_lenient(raw, set(sig), signatures=sig,
                                             with_offsets=True)
-    assert [type(c).__name__ for c in calls] == ["ToolError"]
-    with pytest.raises(ValueError, match="triple quote has no partner"):
+    return [(c.name, c.args) if hasattr(c, "args") else ("refused", c.reason)
+            for c in calls]
+
+
+@pytest.mark.parametrize("q", ["'''", '"""'])
+def test_a_stray_triple_quote_after_a_closed_value_is_refused(q):
+    """A stray triple quote on its own line after a closed value, with the
+    quote's own character in two values. Python refuses the text. Pass 1
+    read a call with a wrong value, `a="it's, c=s\\\\nt"`: the escaped list
+    parses, because Python joins the stray string `, c=` and a raw string
+    `r's\\nt'` to `a` (the review of e78545a, finding 1). Frame 122's rule:
+    a wrong write is worse than a refusal. The seat reads the guard's own
+    reason, and not a hint about a value that never ends (the review of
+    9cb2bcbc, finding 3)."""
+    ch = q[0]
+    raw = ("TOOL: t.f(a=" + q + "it" + ch + "s" + q + "\n" + q + ", c=" + q
+           + "r" + ch + "s\nt" + q + ")")
+    got = _read_lenient(raw, _TF)
+    assert len(got) == 1 and got[0][0] == "refused", got
+    assert _GUARD in got[0][1]
+    with pytest.raises(toolproto.JoinedStrings):
         toolproto.parse_args(raw[len("TOOL: t.f("):-1])
 
 
-def test_a_triple_quote_inside_a_value_of_the_other_kind_still_reads():
-    """The guard counts triple quotes of each kind. A value can hold a triple
-    quote of the other kind, so a list that Python reads keeps its read."""
-    args = "a=\"x ''' y\", c='''r\nt'''"
-    assert toolproto.parse_args(args) == ({"a": "x ''' y", "c": "r\nt"}, ())
+# The guard counted triple quotes before the review of 9cb2bcbc. A count
+# also counts a triple quote inside a value of the other kind. Then a line
+# break in a one-quoted value, or a bare `pass`, made Python refuse the raw
+# list, and the guard refused a right read (finding 1). A Critic's `quote=`
+# with one `\"\"\"` and a line break is the live shape.
+@pytest.mark.parametrize("args, want", [
+    ("a=\"x ''' y\nz\"", {"a": "x ''' y\nz"}),
+    ("a='x \"\"\" y\nz'", {"a": 'x """ y\nz'}),
+    ("result=pass, note=\"x ''' y\"", {"result": "pass", "note": "x ''' y"}),
+    ("a=\"x ''' y\r\nz\"", {"a": "x ''' y\nz"}),
+    ("a='''x \"\"\" y''', b='p\nq'", {"a": 'x """ y', "b": "p\nq"}),
+    ("a='''x \"\"\" y''', result=pass", {"a": 'x """ y', "result": "pass"}),
+])
+def test_a_triple_quote_inside_a_value_of_the_other_kind_still_reads(args, want):
+    assert _read_lenient("TOOL: t.f(" + args + ")", _TF) == [("t.f", want)]
+
+
+def test_two_strings_side_by_side_keep_their_read_when_python_reads_the_list():
+    """The guard refuses only when Python refuses the list as written. Four
+    cassette calls of `criteria.specify` write `hint=''` inside a value, and
+    Python joins the two literals. The read stays Python's read."""
+    raw = "TOOL: t.f(a='code.surface(hint='')')"
+    assert _read_lenient(raw, _TF) == [("t.f", {"a": "code.surface(hint=)"})]
+
+
+def test_the_lenient_read_keeps_frame_122s_prose_with_apostrophes():
+    """The guard stands on the strict path only. Before the lenient fall it
+    would refuse this case, because its escaped text holds two string
+    literals side by side (the fuzz slice, prose-2-1000-plain #522)."""
+    raw = "TOOL: code.commit(message='order(I'm can't,' ': that 'yes', it a.')"
+    sig = {"code.commit": ({"message"}, {"message"})}
+    assert _read_lenient(raw, sig) == [
+        ("code.commit", {"message": "order(I'm can't,' ': that 'yes', it a."})]
 
 
 def _registry_sig() -> dict:
