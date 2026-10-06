@@ -223,6 +223,87 @@ a different question and the night is then opened once.
 - Reasoning: `plans/archive/stack-2026-10-05.md`, frame 132's status of 18:48.
 - Status 2026-10-05 19:49 (rota-3f): pushed by 3f72d9cb. Unclaimed, priced. Rota workflow.
 
+### 163. A Critic's fail lands while its own challenge of that criterion's test is open (2026-10-06)
+
+- **No batch. A question that frame 144's scenes raised, meta workflow first.** Site: `verdicts_emit`, `rota/roles/api.py:6575`, and the challenge rows of `messages`.
+- Rota workflow. Frame 144's pass 7 built the Critic scene and found one row with no rule: a Critic that holds an open challenge on a criterion's test can emit `fail` on that criterion in the same state, and the structure admits both. The scenes hold the row as a question, not as an invariant (observed: frame 144's status of 2026-10-05 22:25, from `plans/frame144-pass7.md`; no night case was counted).
+- Ends when: first an agent reads `LAWS.md`, `DECISIONS.md`, the Critic brief, `plans/archive/` and `git log -S` on the verdict and challenge lines for a prior ruling, about 110k on Fable, and counts the pair on nights 113 to 126. If the records answer it, the answer becomes a door or a scene invariant with one sandbox test, about 60k on Opus and one review of about 100k. If they leave it open, the frame blocks on Roman with the history cited and a recommended answer. Measured on a night: none until the rule exists.
+- Waits on: Roman's order. Recommended before frame 144's pass 9, because the nine invariants should hold the answer.
+- Reasoning: `plans/frame144-pass7.md`, the question row; frame 144's status of 2026-10-05 22:25 and 22:44.
+- Status 2026-10-06 14:40 (rota-66): pushed by 488d31af from frame 152's hand-off of 14:34, step 3. Unclaimed, priced. Meta workflow.
+
+### 162. Four refusals that frame 144's instruments found: an offered call the mode lacks, a line counted from 1, a fail with no criterion, and equal refs called different (2026-10-06)
+
+- **Batch C, the night's stall, beside frame 148.** Sites: the assumption door, `rota/roles/api.py:5700-5735`; the twice-defined door, `rota/roles/api.py:10122`; `verdicts_emit`, `rota/roles/api.py:6575`; the repeat sentence of `rota/core/sandbox.py`, near line 2372.
+- Rota workflow. Four faults, each found by frame 144's follow check or fact check and none in a frame. 1. The assumption door offers `ledger.log` to a Tester in the challenge mode, and that mode holds no such call. 2. One door counts lines from 1, `defines f twice (lines 4 and 7)`, where `code.source` counts from 0. 3. `verdicts.emit(result='fail')` with no criterion lands. 4. The sandbox says `saying it again with different refs` of refs that are equal (observed: frame 152's status of 2026-10-05 21:56, item 6, from the instruments' runs on that day; no night count was made).
+- Ends when: each of the four has a test that goes red without its repair: the offer names a call of the mode or states the fact alone, the line counts as `code.source` counts, a fail with no criterion is refused with the criteria it may name, and the sentence states the refs it compared. Frame 144's follow check and fact check admit each sentence. Measured on a night: none, 0 cases counted; the frame closes on the tests and one diff review. Price about 120k on Opus and one review of about 140k, by frame 149's pass 1 and review of 2026-10-05.
+- Waits on: Roman's order. Recommended with frame 148, three refusals name a call that the doors then refuse, because both edit the offers of `api.py`.
+- Reasoning: frame 152's status of 2026-10-05 21:56, item 6; `plans/frame144-pass3.md` and `plans/frame144-pass4.md`, the known lists.
+- Status 2026-10-06 14:40 (rota-66): pushed by 488d31af from frame 152's hand-off of 14:34, step 3. Unclaimed, priced. Rota workflow.
+
+### 161. The revert door's tests leave 11 of 20 mutants green, and a first commit that fails at import has no admitted revert (2026-10-06)
+
+- **Batch C, the night's stall, the tail of frame 149.** Site: the revert door of `code.commit`, `rota/roles/api.py`.
+- Rota workflow. Frame 149's delta review left three lows. No test holds a refusal where the head's runs are `error`. The cap of 5 and the first-admitted loop have no test, so 11 of 20 mutants survive. A repair that puts the base back from a first commit that fails at import meets `No run is stored` and is refused: 6 of 46 first commits on nights 113 to 125 are all `error`, and no seat tried that revert (observed: frame 149's status of 2026-10-06 13:40, from `scratchpad/review149b/REPORT.md` of session 2ba331e1).
+- Ends when: the door admits the revert of a first commit whose runs are all `error` when the base's runs are better, with its sentence stating the runs it read, and the three sites each have a test that one mutant turns red, so that at most 3 of 20 mutants survive. Measured on a night: none, 0 seats tried the revert; the frame closes on the tests and one diff review. Price about 100k on Opus and one review of about 120k, by frame 149's pass 2 and review of 2026-10-06.
+- Waits on: frame 149's close on night 126. Then Roman's order.
+- Reasoning: frame 149's status of 2026-10-06 13:40; `plans/frame149-pass2.md`.
+- Status 2026-10-06 14:40 (rota-66): pushed by 488d31af from frame 152's hand-off of 14:34, step 3. Unclaimed, priced. Rota workflow.
+
+### 160. The dots door admits `...` inside an id, and the owed-call nudge says `written nothing` after a landed write (2026-10-06)
+
+- **Batch C, the night's stall, the tail of frames 152 and 153.** Sites: the placeholder door of `tests_encode`, `rota/roles/api.py:4882-4890`; the owed-call nudge, `rota/core/runner.py:3099-3105`.
+- Rota workflow. Two lows that frame 153's delta review left. The dots door refuses only an id of dots and spaces, so `inh_...` lands; 0 of 551 stored ids on nights 113 to 125 hold a dot. The owed-call nudge says `this session has written nothing and sent nothing` after a landed `code.write`, which is false, equal to the parent, and no night run shows it (observed: frame 153's status of 2026-10-06 14:08, from `scratchpad/review153b/REPORT.md` of session 2ba331e1).
+- Ends when: an id that holds `...` anywhere is refused with the placeholder sentence and 0 of the 551 stored ids are refused, and the nudge states the writes that landed, with frame 144's fact check admitting the sentence, each with one test that goes red without its repair. Measured on a night: none, 0 cases; the frame closes on the tests and one diff review. Price about 60k on Opus and one review of about 80k, by frame 153's pass 2 of 2026-10-06, which carried five lows of this size.
+- Waits on: frames 152 and 153's close on night 126. Then Roman's order.
+- Reasoning: frame 153's status of 2026-10-06 14:08; `plans/frame153-pass2.md`.
+- Status 2026-10-06 14:40 (rota-66): pushed by 488d31af from frame 152's hand-off of 14:34, step 3. Unclaimed, priced. Rota workflow.
+
+### 159. The escalation door offers the end as one of two choices, and the owed-call nudge then asks for a call (2026-10-06)
+
+- **Batch C, the night's stall, the residue of frame 153.** Sites: the escalation door of `rota/core/sandbox.py:1488`, `make one real change to the code the test calls, or end the session with no call`; the owed-call nudge, `rota/core/runner.py:3099`.
+- Rota workflow. Frame 153 made the same-refs door's step `End the session with no call.` an `EndRefusal`, and the runner holds its nudge after it. The escalation door offers the end as one of two choices and raises no `EndRefusal`, so the nudge still fires. On nights 119 to 125 that refusal was the newest refusal 17 times, the nudge followed 5 times, and all 5 sessions ended with no admitted call (observed: frame 153's status of 2026-10-06 01:41, from the reviewer's probes in `scratchpad/review153` of session 2ba331e1).
+- Ends when: a refusal that offers the end as a choice holds the nudge too, or the nudge states both choices, with one runner test on one of the 5 sessions' real turns. Measured on a night: sessions whose newest refusal is this door and that then get the owed-call nudge, from 5 of 17 on nights 119 to 125 to at most 1 in 10. A session that still gets it is read, and the frame closes when its cause is not this door. Price about 120k on Opus and one review of about 150k, by frame 153's pass 1 and review.
+- Waits on: frame 153's close on night 126. Then Roman's order.
+- Reasoning: frame 153's status of 2026-10-06 01:41; `plans/frame153-pass1.md`, seen and not fixed.
+- Status 2026-10-06 14:40 (rota-66): pushed by 488d31af from frame 152's hand-off of 14:34, step 3. Unclaimed, priced. Rota workflow.
+
+### 158. One test holds an escape in a non-raw string, and a later Python makes the warning an error (2026-10-06)
+
+- **No batch. An instrument, meta workflow.** Site: `tests/rota/test_desk_guards.py:2634`, the `match=` string with `\[` and `\]`.
+- Meta workflow. Python 3.14 gives a `SyntaxWarning` for the escape, and a later Python makes it a `SyntaxError`, so the suite then fails at collection. A compile of every file under `rota/`, `tests/rota/` and `probes/` with `-W error::SyntaxWarning` finds this one file, line 2634, and no other (observed: this session's compile of the three trees at ea429a84, 2026-10-06 14:40).
+- Ends when: the string is raw or the escapes are doubled, the test asserts the same text, and the compile of the three trees with `-W error::SyntaxWarning` finds 0 files. Price about 15k on Opus and no review, because the change is one line in a test and the gate is the check. Measured on a night: none.
+- Waits on: the GPU, because the gate before the commit shares it with night 126. Then Roman's order.
+- Reasoning: frame 144's status of 2026-10-06 14:08, outside the delta.
+- Status 2026-10-06 14:40 (rota-66): pushed by 488d31af from frame 152's hand-off of 14:34, step 3. Unclaimed, priced. Meta workflow.
+
+### 157. The cockpit's frontier skips the stall quarantine, so it shows wakes that the loop never picks (2026-10-06)
+
+- **No batch. An instrument, meta workflow.** Site: `frontier_readonly`, `rota/core/scheduler.py:1221`, read by `rota/cockpit/traceview.py:160`, against `frontier` at line 1217, which runs `quarantine_stalled` first.
+- Meta workflow. The loop's frontier filters through `quarantine_stalled`, and the cockpit's read-only frontier does not, so the cockpit shows a wake that the loop never picks. On night 121's database two wakes differ (observed: frame 144's status of 2026-10-06 14:08, from `scratchpad/review144h/REPORT.md` of session 2ba331e1).
+- Ends when: the cockpit's frontier equals the loop's frontier on night 121's database, 0 wakes differ, with the quarantine's read applied and its write withheld, and one test on a scene with a stalled key that goes red without the repair. Measured on a night: none, the cockpit writes no row. Price about 60k on Opus and one review of about 80k, by frame 153's pass 2.
+- Waits on: Roman's order.
+- Reasoning: frame 144's status of 2026-10-06 14:08, outside the delta.
+- Status 2026-10-06 14:40 (rota-66): pushed by 488d31af from frame 152's hand-off of 14:34, step 3. Unclaimed, priced. Meta workflow.
+
+### 156. Five real lists hold two string literals side by side that Python joins, and every parser reads them wrong (2026-10-06)
+
+- **Batch A, the write path, the tail of frame 151.** Site: `_adjacent_strings`, `rota/llm/toolproto.py:520-534`, and its caller `_refuse_joined_strings` at line 552.
+- Rota workflow. Frame 151's pass 3 refuses a list of two adjacent literals only where Python refuses the list as written. Five real lists on nights 113 to 125 hold two adjacent literals that Python joins, 4 of them `surface_refs=['code.surface(hint='')']`, so the guard does not fire and all three parsers read the ref wrong (observed: frame 151's status of 2026-10-06 13:32 and 14:22, from `scratchpad/review151b/REPORT.md` and `review151c/REPORT.md` of session 2ba331e1).
+- Ends when: the five real lists read as a refusal that names the nested quote and the ref, or read the ref as the seat wrote it, and 0 of the other 41,021 night calls and 48,288 cassette calls move from a right read, with the fuzz slice recorded again. Measured on a night: calls with two literals side by side that land as a joined text, from 5 of 41,026 on nights 113 to 125 to 0 that land. A call that still lands joined is read, and the frame closes when its cause is not the join. Price about 130k on Opus and one review of about 140k, by frame 151's pass 1 and review; the parser's two instruments of `plans/operating-facts.md` apply.
+- Waits on: frame 151's close on night 126. Then Roman's order. Recommended with frame 155, because both edit the same scan.
+- Reasoning: frame 151's status of 2026-10-06 14:22; `plans/frame151-pass3.md`.
+- Status 2026-10-06 14:40 (rota-66): pushed by 488d31af from frame 152's hand-off of 14:34, step 3. Unclaimed, priced. Rota workflow.
+
+### 155. The keyword quoter counts each quote alone, and a `pass` statement after a lone quote reads `'pass'` (2026-10-06)
+
+- **Batch A, the write path, the tail of frame 151.** Site: `_quote_bare_keywords`, `rota/llm/toolproto.py:568-607`, called from `parse_args` at line 481 and `_third_reading` at line 297.
+- Rota workflow. The scan counts each quote character alone, as `_escape_newlines_in_quotes` did before frame 151. After a lone quote in a value, the statement `pass` inside a code body reads `'pass'`, and the body lands wrong. On nights 113 to 125, 2 of 41,026 calls, night 117's s150 seq 11 and 12 (observed: frame 151's status of 2026-10-06 01:32, from `scratchpad/review151/REPORT.md` of session 2ba331e1).
+- Ends when: the scan reads `'''` and `"""` as one token and counts a quote inside a value as `_escape_newlines_in_quotes` does, the two night calls read as Python reads them, 0 of the other night calls and 48,288 cassette calls move from a right read, and the fuzz slice is recorded again. Measured on a night: writes and encodes whose body gains a quoted keyword, from 2 of 41,026 to 0. A call that still gains one is read, and the frame closes when its cause is not the quote count. Price about 130k on Opus and one review of about 140k, by frame 151's pass 1 and review.
+- Waits on: frame 151's close on night 126. Then Roman's order.
+- Reasoning: frame 151's status of 2026-10-05 22:35, seen and not fixed, and of 2026-10-06 01:32; `plans/frame151-pass1.md`.
+- Status 2026-10-06 14:40 (rota-66): pushed by 488d31af from frame 152's hand-off of 14:34, step 3. Unclaimed, priced. Rota workflow.
+
 ### 153. A door tells the Developer to end the session, and the runner's nudge then asks for a call (2026-10-05) (488d31af)
 
 - **Batch C, the night's stall, found by night 125's cycle read.** Sites: the step `End the session with no call.` of the same-refs door, `rota/core/sandbox.py`, and the runner's nudge `something is owed here`, `rota/core/runner.py`.
