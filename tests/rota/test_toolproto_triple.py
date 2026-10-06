@@ -58,10 +58,60 @@ def test_a_value_that_opens_with_four_quotes_keeps_its_line_breaks():
 
 
 def test_a_line_break_between_arguments_is_still_a_space():
-    """The repair moves no line break outside a value. A call written one
-    argument per line reads as before."""
-    raw = "TOOL: ledger.log(\n    note='''it's\nok''',\n)"
-    assert _read(raw, LEDGER) == [("ledger.log", {"note": "it's\nok"})]
+    """The repair moves no line break outside a value. Python accepts a line
+    break between arguments, so a read cannot see the space. The test reads
+    the escape's own output (the review of e78545a, finding 3)."""
+    text = "\n    note='''it's\nok''',\n    b=1\n"
+    want = " " + "    note='''it's\\nok''',     b=1 "
+    assert toolproto._escape_newlines_in_quotes(text) == want
+
+
+def test_a_carriage_return_reads_as_a_line_break():
+    """A CRLF or a lone CR inside a value is one line break, and outside a
+    value it is one space."""
+    text = "note='''it's\r\nok\rnow''',\r\nb=1"
+    want = "note='''it's\\nok\\nnow''', b=1"
+    assert toolproto._escape_newlines_in_quotes(text) == want
+
+
+def test_an_escaped_quote_does_not_close_a_triple_quoted_value():
+    """`\\'''` inside a `'''` value is a quote and two more, as Python reads
+    it. The value goes on, so the next line break is inside it."""
+    text = "note='''x\\'''\ny'''"
+    want = "note='''x\\'''\\ny'''"
+    assert toolproto._escape_newlines_in_quotes(text) == want
+
+
+def test_the_second_scan_honours_a_backslash_in_a_triple_quoted_value():
+    """`_rescan_args` skipped an escape only in a one-character quote, so
+    `\\'''` closed the value early and the list never closed (the review of
+    e78545a, finding 2). Python reads `\\'` as a quote."""
+    raw = "TOOL: ledger.log(note='''can't \\''' x''')"
+    assert _read(raw, LEDGER) == [("ledger.log", {"note": "can't ''' x"})]
+
+
+def test_a_stray_triple_quote_after_a_closed_value_is_refused():
+    """A stray `'''` on its own line after a closed value, with an apostrophe
+    in two values. Python refuses the text. Pass 1 read a call with a wrong
+    value, `a="it's, c=s\\\\nt"`: the escaped list parses, because the stray
+    quote joins `, c=` and a raw string `r's\\nt'` to `a` (the review of
+    e78545a, finding 1). Frame 122's rule: a wrong write is worse than a
+    refusal."""
+    q = "'''"
+    raw = "TOOL: t.f(a=" + q + "it's" + q + "\n" + q + ", c=" + q + "r's\nt" + q + ")"
+    sig = {"t.f": ({"a"}, {"a", "c"})}
+    calls, _, _ = toolproto.extract_lenient(raw, set(sig), signatures=sig,
+                                            with_offsets=True)
+    assert [type(c).__name__ for c in calls] == ["ToolError"]
+    with pytest.raises(ValueError, match="triple quote has no partner"):
+        toolproto.parse_args(raw[len("TOOL: t.f("):-1])
+
+
+def test_a_triple_quote_inside_a_value_of_the_other_kind_still_reads():
+    """The guard counts triple quotes of each kind. A value can hold a triple
+    quote of the other kind, so a list that Python reads keeps its read."""
+    args = "a=\"x ''' y\", c='''r\nt'''"
+    assert toolproto.parse_args(args) == ({"a": "x ''' y", "c": "r\nt"}, ())
 
 
 def _registry_sig() -> dict:

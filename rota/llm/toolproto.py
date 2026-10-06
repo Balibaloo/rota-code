@@ -140,7 +140,10 @@ def _rescan_args(text: str, start: int, marker: str) -> int | None:
                 i += len(quote)
                 quote = None
                 continue
-            if ch == chr(92) and len(quote) == 1:
+            # A backslash escapes the next character in a triple value too,
+            # as Python and the newline escape read it (frame 151, the
+            # review of e78545a, finding 2).
+            if ch == chr(92):
                 i += 2
                 continue
         else:
@@ -488,6 +491,7 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
         # parsing is tried first and is unchanged; only what it rejects reaches
         # here, so nothing that parsed before parses differently now.
         return _parse_args_lenient(safe), ()
+    _refuse_an_unpaired_triple_quote(args_str, safe)
     call = expr.body
     if not isinstance(call, ast.Call):
         raise ValueError("not a call expression")
@@ -498,6 +502,32 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
             raise ValueError("**kwargs is not supported")
         out[kw.arg] = _literal(kw.value)
     return out, tuple(_literal(a) for a in call.args)
+
+
+def _refuse_an_unpaired_triple_quote(args_str: str, safe: str) -> None:
+    """Refuse a strict read whose triple quotes do not pair, when Python
+    refuses the list as written.
+
+    An odd count of `'''` or `\"\"\"` means one triple value has no end. The
+    escaped list can still parse, because the stray quote joins the text
+    after it to the value by implicit concatenation. The read then answers
+    a wrong value. Frame 122's rule: a wrong write is worse than a refusal
+    (frame 151, the review of e78545a, finding 1).
+
+    A list that Python reads as written keeps its read, because a value can
+    hold a triple quote of the other kind. The lenient read keeps its path:
+    a guard there refused 47 right reads of the fuzz slice, such as code
+    that holds a `'''` in a value with single quotes."""
+    if not (safe.count("'''") % 2 or safe.count('"""') % 2):
+        return
+    try:
+        ast.parse(f"_f({args_str})", mode="eval")
+        return
+    except SyntaxError:
+        pass
+    raise ValueError(
+        "a triple quote has no partner, so a value has no end. Open and "
+        "close each value with the same three quotes")
 
 
 _BARE_KEYWORDS = ("pass",)
