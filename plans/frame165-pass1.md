@@ -83,7 +83,7 @@ The first case is at least 4 of 5, so both cases stay. The second case measures 
 - **10 sessions**: night 125 s153, s156, s157, s158, and night 126 s159, s166, s167, s168, s169, s172. 0 exceptions on each tree.
 - **64 refusals with the step** on each tree. On the head, 64 of 64 carry the form, and each names `inh_echo_json_01`.
 - **9 of 10 sessions are equal to the byte less the form.** n126 s159 meets no step in the replay, because the database at the end of the night is not its state, so its prompts are equal raw.
-- **n126 s168 differs in one more way.** Prompt 11 of 12 is 3,226 characters shorter than the parent's, less the forms. The prompt before it is 26,905 characters on the head, 117 more than the parent, and the window's fit, `runner._fit`, evicts a middle reply and its results one turn earlier. The errors, the commit and the turn count are equal (observed: `why168.py`, `why168b.py`, 2026-10-06). The night's s168 met the step 11 times, so its transcript holds 11 forms.
+- **n126 s168 differs in one more way.** The last prompt, 12 of 12, is 3,226 characters shorter than the parent's, less the forms. Prompt 11 is 26,905 characters on the head, 117 more than the parent, and the window's fit, `runner._fit`, evicts a middle reply and its results one turn earlier. The errors, the commit and the turn count are equal (observed: `why168.py`, `why168b.py`, 2026-10-06). The night's s168 met the step 11 times, so its transcript holds 11 forms.
 
 ## The gate
 
@@ -122,6 +122,6 @@ The three new reds and the three reds gone are the known ones of frames 152 and 
 - The commit of the code and the tests: d7610a48. This record follows in its own commit.
 - The new sentence: `End the session with no call. Your whole next reply is this one line, and no TOOL: line: Nothing more is owed on inh_echo_json_01 in this session.`, after the door's fact.
 - The cases: the form 5 of 5, the night's step 0 of 5, both on qwen3.5:9b at 12288, every run live.
-- The replay: 10 sessions, 64 refusals with the step, 64 forms. 9 sessions equal to the byte less the form, and s168 differs by the window's fit at prompt 11.
+- The replay: 10 sessions, 64 refusals with the step, 64 forms. 9 sessions equal to the byte less the form, and s168 differs by the window's fit at its last prompt, 12 of 12.
 - The gate: the three known new reds, stale 0.
 - Usage: the harness reports the agent's usage to the holding session. This record does not estimate it.
