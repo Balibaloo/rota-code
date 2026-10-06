@@ -4,6 +4,8 @@ S5, a test at version 2 after an answered challenge.
 The Developer challenges t1 with the criterion's words and the test's,
 and the Tester replaces t1 under its stored id. The scene builds its state
 and never asserts the same-refs door's refusal.
+
+The second build is in `test_scene_challenged_again.py`.
 """
 from __future__ import annotations
 
@@ -27,4 +29,4 @@ def test_t1_is_at_version_2_and_green_on_the_same_commit(scene):
                         (scene.ids["challenge"],)).fetchone()[0] != "open"
 
 
-globals().update(make(NAME, end=["critic|tick:review|b1"], attempts=[]))
+globals().update(make(NAME, end=["critic|tick:review|b1"], attempts=[], asks=[]))

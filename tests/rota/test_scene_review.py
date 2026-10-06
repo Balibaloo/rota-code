@@ -15,7 +15,8 @@ removal is f933f25's matcher, `api._reaching_constraints`, which puts the
 bound constraint in the review wake's push.
 
 The tests of `critic` come first in this file, because the `review`
-fixture moves the same build on.
+fixture moves the same build on. The second build of the chain and its
+landings are in `test_scene_review_again.py`.
 """
 from __future__ import annotations
 
@@ -35,8 +36,8 @@ def test_the_observed_constraint_is_ruled_and_adopted(critic):
                         "AND body_refs = ?", (f'["{k}"]',)).fetchone()[0] == 1
 
 
-globals().update(make("critic", end=["critic|tick:review|b1"], attempts=[],
-                      parts=("calls",), fixture="critic"))
+globals().update(make("critic", end=["critic|tick:review|b1"], attempts=[], asks=[],
+                      fixture="critic"))
 
 
 def test_the_touch_set_reaches_the_bound_constraint_and_the_review_wake_is_held(review):
@@ -71,5 +72,5 @@ def test_the_structural_review_wake_shows_the_bound_constraint(review):
 
 
 globals().update(make("review", end=["architect|tick:structural_review|b1"],
-                      attempts=[("critic|tick:review|b1", 1, 0, 0)],
+                      attempts=[("critic|tick:review|b1", 1, 0, 0)], asks=[],
                       fixture="review", after="critic"))

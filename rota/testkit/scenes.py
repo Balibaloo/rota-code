@@ -6,21 +6,49 @@ reaches, built on every run by the loop of a night: `loop.step`, the crank
 that `rota run` turns. No scene is stored as a database (ruled: the holding
 session and the Principal, 2026-10-05).
 
-A build is a run of `loop.step` and nothing else (the rule of the review of
-2d7cc73, 2026-10-05). The loop pumps the principal, computes the frontier,
-performs a scheduler action or picks a wake, counts the dispatch, starts a
-batch, runs the session and cascades. A scene never picks a wake. It holds
-two scripts, and each answers what the loop asks:
+A build is a run of the night's walk (`probes/walk.py`) and nothing else
+(the rule of the review of 2d7cc73, and of the review of 7a056ce0,
+2026-10-05). Each step is one iteration of the walk: the principal answers
+every open ask through `principal.pump`, the walk answers every Liaison
+sentence that has no page, and then one `loop.step` runs. The loop
+computes the frontier, performs a scheduler action or picks a wake, counts
+the dispatch, starts a batch, runs the session and cascades. A scene never
+picks a wake. It holds two scripts, and each answers what the loop asks:
 
 - The seats' script answers a session by the key of the wake that the loop
   dispatched. A key is `scheduler.tick_key` for a tick or an action, and
   `role|verb|refs` for a message. A wake that the script does not answer
   fails the build, with its key and the frontier in the error.
-- The principal's script answers an ask by its verb and refs, through the
-  `principal` argument of `loop.step`. An ask with no answer is deferred.
+- The principal's script answers an ask by its verb and refs. The walk
+  answers every ask before it steps, so an ask that the script leaves open
+  fails the build.
 
-The principal also speaks between two steps, through `talk.open_with`, the
-intake of the TUI. That is the principal's own act, and not the loop's.
+The principal also says a sentence, through `talk.open_with`, the intake of
+the TUI. A night's walk says one sentence when it starts, and the walk
+before it stops at quiet or at a merge. So `say` fails the build at any
+other point.
+
+The differences from a night (the review of 7a056ce0, finding 7):
+
+- A night's walk sets `ROTA_ONESHOT=1` by default, and the gauntlet clears
+  it (`probes/gauntlet_click.sh`, line 12, `export ROTA_ONESHOT=`), so a
+  night runs each session turn by turn, and so does a scene. The two differ
+  only from a walk that runs alone, outside the gauntlet.
+- A night's principal answers a confirm or a present in words, and a
+  Liaison session then lands the verdict through `rulings.rule` (night 121,
+  s197 then s198). A scene's principal lands the verdict itself. Words on
+  every page would add a Liaison session to each ask, about one step in
+  four, so the difference stays. A clarify is answered in words, as on a
+  night.
+- Every night of 119 to 121 ends with `-|tick:constraint_zero|` at
+  (3, 1, 1), quarantined and reported. A scene runs only the survey phase
+  of onboarding, and holds no such row. The night's row names no area,
+  and the night's end holds no unbound area that explains it, so the step
+  that wrote it was not found.
+- The sentences of a scene go through `talk.open_with`, as at the TUI. A
+  night's walk writes the same two rows with its own ids, `e_p<n>` and
+  `m_p<n>`. The walk's answer to a Liaison sentence uses the walk's own SQL
+  and ids (`answer_replies`).
 
 The seams. Each one replaces one thing that a test cannot run, and nothing
 else:
@@ -123,18 +151,31 @@ def seat(sc: Scene, key: str, *sessions) -> None:
 
 
 def every(sc: Scene, role_kind: str, fn: Callable) -> None:
-    """Answer every wake of `role|kind` that no exact key answers."""
+    """Answer every wake of `role|kind` that no exact key answers. A function
+    that the loop never calls fails the build, as a session does."""
     sc.seats[role_kind] = fn
+    sc.ids.setdefault("_every_unused", set()).add(role_kind)
 
 
-def rule(sc: Scene, verb: str, refs: list[str], per_item: dict, text: str = "") -> None:
-    """The principal's answer to the ask of `verb` on exactly `refs`."""
-    sc.answers.setdefault((verb, tuple(refs)), []).append((per_item, text))
+def rule(sc: Scene, verb: str, refs: list[str], per_item: dict, text: str = "",
+         answer: str = "verdict") -> None:
+    """The principal's answer to the ask of `verb` on exactly `refs`. The
+    answer is a verdict by default. `answer="converse"` is words, as the
+    night's walk answers a clarify."""
+    sc.answers.setdefault((verb, tuple(refs)), []).append((per_item, text, answer))
 
 
 def _frontier(conn) -> list[str]:
-    return [f"{key_of(conn, w)} ({w.detail})" if w.detail else key_of(conn, w)
-            for w in scheduler.frontier_readonly(conn, True)]
+    """The loop's own frontier, with each wake's detail, for an error's text.
+    The cockpit's read-only view keeps a quarantined key that the loop
+    drops, so it would name a wake that the loop cannot pick."""
+    conn.execute("SAVEPOINT error_frontier")
+    try:
+        return [f"{key_of(conn, w)} ({w.detail})" if w.detail else key_of(conn, w)
+                for w in scheduler.frontier(conn, True)]
+    finally:
+        conn.execute("ROLLBACK TO error_frontier")
+        conn.execute("RELEASE error_frontier")
 
 
 def _session_for(sc: Scene, conn, wake: Wake) -> Session:
@@ -144,8 +185,10 @@ def _session_for(sc: Scene, conn, wake: Wake) -> Session:
     queue = sc.seats.get(key)
     if queue:
         return queue.pop(0)
-    any_ = sc.seats.get(f"{wake.role}|{wake.kind}")
+    role_kind = f"{wake.role}|{wake.kind}"
+    any_ = sc.seats.get(role_kind)
     if callable(any_):
+        sc.ids.setdefault("_every_unused", set()).discard(role_kind)
         return Session(any_)
     raise AssertionError(f"the scene's script has no answer for {key} "
                          f"(attempt {wake.attempt}, {wake.detail!r}); the frontier: "
@@ -161,6 +204,7 @@ def _seated(sc: Scene):
         s = _session_for(sc, conn, wake)
         lines = s.lines(sc, wake) if callable(s.lines) else list(s.lines)
         sc.ids["_allow"] = s.allow
+        sc.ids["_lines"] = lines
         return real(conn, wake, backend=ScriptedBackend(lines + ["done"]), **kw)
 
     loop.run_session = run
@@ -181,9 +225,12 @@ class _Principal:
         queue = self.sc.answers.get((ask.verb, tuple(ask.refs)))
         if not queue:
             return None
-        per_item, text = queue.pop(0)
+        per_item, text, verb = queue.pop(0)
         self.sc.steps.append(f"principal|{ask.verb}|{','.join(ask.refs)}")
-        return principal.Answer("verdict", text=text, per_item=per_item)
+        # The twin check replays the answers by the step they came at.
+        self.sc.ids.setdefault("log_answers", []).append(
+            (len(self.sc.ids.get("log", [])), ask.verb, list(ask.refs), per_item, text, verb))
+        return principal.Answer(verb, text=text, per_item=per_item)
 
 
 class _NoServer:
@@ -196,19 +243,68 @@ class _NoServer:
         raise AssertionError("a session reached the backend that names no seat")
 
 
-def step(sc: Scene) -> loop.Step:
-    """One `loop.step`, with the scene's scripts. Fails when the loop is
-    quiescent, or a session does not commit, or meets a refusal."""
+def _merged(conn) -> int:
+    return conn.execute("SELECT COUNT(*) FROM batches WHERE status = 'merged'").fetchone()[0]
+
+
+def answer_replies(conn, text: str) -> list[str]:
+    """The walk's answer to a Liaison sentence with no page under it: the
+    reply is marked answered, and the principal says `text` as a new turn
+    whose cause is the reply. The SQL is `probes/walk.py`'s own, so the ids
+    are the walk's: `e_p<n>` and `m_p<n>` in the thread `t_p1`."""
+    made = []
+    for rep in principal.pending_replies(conn):
+        conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
+                     (rep.message_id,))
+        n = 1 + conn.execute("SELECT COUNT(*) FROM entries WHERE id LIKE 'e_p%'").fetchone()[0]
+        seq = 1 + (conn.execute("SELECT MAX(seq) FROM messages").fetchone()[0] or 0)
+        ts = 1 + (conn.execute("SELECT MAX(ts_order) FROM entries").fetchone()[0] or 0)
+        conn.execute("INSERT INTO entries (id, author, ts_order, text) "
+                     "VALUES (?,'principal',?,?)", (f"e_p{n}", ts, text))
+        conn.execute("INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
+                     "to_role, verb, body_refs, seq) VALUES (?,?,'message','t_p1','principal',"
+                     "'liaison','converse',?,?)",
+                     (f"m_p{n}", rep.message_id, f'["e_p{n}"]', seq))
+        made.append(f"e_p{n}")
+    conn.commit()
+    return made
+
+
+def step(sc: Scene, quiet: bool = False) -> loop.Step:
+    """One iteration of the night's walk (`probes/walk.py`), with the
+    scene's scripts: the principal answers every open ask, the walk answers
+    every Liaison sentence with no page, and then one `loop.step` runs with
+    no principal, as the walk calls it. Fails when an ask stays open after
+    the principal's turn, or the loop is quiescent and `quiet` is false, or
+    a session does not commit, or meets a refusal.
+
+    The walk answers every ask before it steps, so an ask that the script
+    leaves open is a state that no night reaches."""
     conn = sc.conn
+    if principal.pending_asks(conn):
+        principal.pump(conn, _Principal(sc))
+        conn.commit()
+        left = open_asks(sc)
+        if left:
+            raise AssertionError(f"{sc.name}: the principal's script has no answer for "
+                                 f"{left}; the walk answers every ask before it steps")
+    for entry in answer_replies(conn, WALK_ANSWER):
+        sc.ids.setdefault("log_replies", []).append((len(sc.ids.get("log", [])), entry))
+    merged = _merged(conn)
     with _no_venv(), _seated(sc):
         sc.ids["_allow"] = ()
-        st = loop.step(conn, backend=_NoServer(), pins=PINS, principal=_Principal(sc),
-                       principal_present=True)
+        sc.ids["_lines"] = None
+        st = loop.step(conn, backend=_NoServer(), pins=PINS)
     conn.commit()
+    key = key_of(conn, st.wake) if st.wake is not None else None
+    sc.ids.setdefault("log", []).append({"key": key, "lines": sc.ids["_lines"]})
+    # The walk says a sentence only at quiet or after a merge.
+    sc.ids["_may_speak"] = st.wake is None or _merged(conn) > merged
     if st.wake is None:
+        if quiet:
+            return st
         raise AssertionError(f"the loop is quiescent: {st.note}; the frontier: "
                              f"{_frontier(conn)}")
-    key = key_of(conn, st.wake)
     sc.steps.append(key)
     if st.outcome is None:
         return st
@@ -234,9 +330,49 @@ def play(sc: Scene, until: Callable[[sqlite3.Connection], Any], limit: int = LIM
                          f"{sc.steps[-8:]}")
 
 
+def play_to_quiet(sc: Scene, limit: int = LIMIT) -> None:
+    """Turn the crank until a step finds the loop quiet, where the night's
+    walk ends and the next walk says the next sentence."""
+    for _ in range(limit):
+        if step(sc, quiet=True).wake is None:
+            return
+    raise AssertionError(f"{sc.name}: not quiet after {limit} steps; the last: "
+                         f"{sc.steps[-8:]}")
+
+
+def say(sc: Scene, text: str) -> str:
+    """The principal's sentence, through `talk.open_with`. A night's walk
+    says one sentence when it starts, and the walk before it ended at quiet
+    or at a merge. So a sentence at any other point fails the build, and so
+    does a second sentence with no step between."""
+    from ..tools.talk import open_with
+    if not sc.ids.get("_may_speak", "log" not in sc.ids):
+        last = sc.ids["log"][-1]["key"] if sc.ids.get("log") else "a sentence"
+        raise AssertionError(f"{sc.name}: the walk says no sentence here: the last step "
+                             f"was {last}, not quiet and no merge")
+    sc.ids["_may_speak"] = False
+    sc.ids.setdefault("log_said", []).append((len(sc.ids.get("log", [])), text))
+    return open_with(sc.conn, text)
+
+
 def end_frontier(sc: Scene) -> list[str]:
-    """The frontier at the scene's end, by key: what the loop would pick from."""
-    return [key_of(sc.conn, w) for w in scheduler.frontier_readonly(sc.conn, True)]
+    """The frontier at the scene's end, by key: what the loop would pick
+    from. It is `scheduler.frontier`, the loop's own, and not the cockpit's
+    read-only view. The loop's frontier writes its quarantines first. The
+    connection is in autocommit mode, so the read runs inside a savepoint
+    that rolls back, and the scene does not move."""
+    conn = sc.conn
+    conn.execute("SAVEPOINT end_frontier")
+    try:
+        return [key_of(conn, w) for w in scheduler.frontier(conn, True)]
+    finally:
+        conn.execute("ROLLBACK TO end_frontier")
+        conn.execute("RELEASE end_frontier")
+
+
+def open_asks(sc: Scene) -> list[tuple]:
+    """The asks open to the principal, by verb and refs."""
+    return [(a.verb, *a.refs) for a in principal.pending_asks(sc.conn)]
 
 
 @contextlib.contextmanager
@@ -294,12 +430,12 @@ def item(sc: Scene, n: int, priority: int) -> None:
     through the Liaison's present and relay, the Vision Keeper's priority,
     the slicing, the criterion and the grouping. The principal approves the
     confirm and the sign-off."""
-    from ..tools.talk import open_with
     sentence, problem, term, sense, ticket, criterion = ITEMS[n]
     conn = sc.conn
-    mid = open_with(conn, sentence)
+    mid = say(sc, sentence)
     entry = json.loads(conn.execute("SELECT body_refs FROM messages WHERE id = ?",
                                     (mid,)).fetchone()[0])[0]
+    sc.ids[f"entry{n}"] = entry
     s, i, tk = f"s{n}", f"i{n}", f"tk{n}"
     seat(sc, f"liaison|converse|{entry}", [
         f"TOOL: brief.segment(id='{s}', span_entry='{entry}', span_start=0, "
@@ -352,6 +488,31 @@ def annotate(sc: Scene, n: int, paths: list[str], read: bool = True) -> None:
         rule(sc, "present", [b, i], {i: "approve"})
 
 
+def walk_turn(sc: Scene, n: int) -> None:
+    """The seats for the walk's answer `n` to a Liaison sentence with no
+    page. The walk says its stock sentence as a new turn (`answer_replies`).
+    The Liaison reads it as work, segments it and asks the principal to
+    confirm, the principal approves, and the Liaison ratifies and delivers
+    it, as night 121 did at s279 to s281 after each park ask. The three
+    seats read their own records against the statement and find nothing to
+    add, because the sentence asks for no change."""
+    entry, s = f"e_p{n}", f"sp{n}"
+    seat(sc, f"vision_keeper|deliver|{s}", ["TOOL: problem.consult()"])
+    seat(sc, f"terminologist|deliver|{s}", ["TOOL: glossary.consult()"])
+    seat(sc, f"architect|deliver|{s}", ["TOOL: model.consult()"])
+    seat(sc, f"liaison|converse|{entry}", [
+        "TOOL: brief.intake(verdict='work')",
+        f"TOOL: brief.segment(id='{s}', span_entry='{entry}', span_start=0, "
+        f"span_end={len(WALK_ANSWER)}, text='{WALK_ANSWER}')",
+        f"TOOL: msg.confirm_principal(refs=['{s}'])"])
+    rule(sc, "confirm", [s], {s: "approve"})
+    seat(sc, f"liaison|verdict|{s}", [
+        f"TOOL: brief.ratify(id='{s}')",
+        f"TOOL: msg.deliver_vision_keeper(refs=['{s}'])",
+        f"TOOL: msg.deliver_terminologist(refs=['{s}'])",
+        f"TOOL: msg.deliver_architect(refs=['{s}'])"])
+
+
 def commit(writes: list[tuple[str, str]], message: str) -> list[str]:
     """A Developer session that writes each `(path, text)` whole and commits."""
     return ([f"TOOL: code.write(path={p!r}, text={t!r})" for p, t in writes]
@@ -375,6 +536,16 @@ def judge(batch: str, result: str = "pass") -> list[str]:
 # An empty session on a fix wake: the seat's note is the state, a dispatch
 # with no drain.
 IDLE = Session([], allow=("ended a tick with nothing done",))
+# The walk's own answer to every clarify (`probes/walk.py`, its default).
+WALK_ANSWER = "yes to all of it. keep it simple."
+# The Tester's test of c1 on `prorate` itself, for a batch with no module.
+PRORATE_TEST = ("from src.billing.charges import prorate\n\n\n"
+                "def test_an_upgrade_charges_the_days_used():\n"
+                "    assert prorate(3000, 10, 30) == 1000\n")
+# The Liaison's reading of words on a park ask. The door takes one sentence
+# back to the principal and no ruling (night 121, s278 and s283).
+PARK_REPLY = ["TOOL: rulings.rule(ask='b1 stays parked. Do you want a commit that "
+              "fixes b1, or a contest of i1?')"]
 # The Liaison's question on a parked b1.
 PARK_ASK = ["TOOL: msg.clarify_principal(refs=['i1', 'b1'], "
             "question='b1 failed four times. Change the criterion, or abandon b1?')"]
@@ -440,31 +611,55 @@ def _upgrade_wrong(k: int) -> str:
 
 def two_batches(tmp: Path) -> Scene:
     """S1. b1 starts, takes in the project's tests, and its Developer's commit
-    turns `tests/test_charges.py` red. The principal's second sentence then
-    arrives. In the loop's order, b1's fix wake goes before item 2's
-    sign-off: the Developer commits once more and stays red, then ends three
-    sessions with nothing done, and the key is quarantined. The Liaison
-    reports it. Item 2's sign-off then ranks it above item 1, and the
-    preempt defers b1. b2 starts, takes in the project's tests again under
-    the same ids (frame 130's wall), and its Developer commits the export.
-    The scene ends when the harness has run at b2's head."""
+    turns `tests/test_charges.py` red. The Developer commits once more and
+    stays red, then ends three sessions with nothing done, and the key is
+    quarantined. The Liaison reports it. The Tester's wake on b1's missing
+    test comes next. Its new test row lifts the key (`db._lift_quarantines`),
+    and three more empty sessions quarantine the key again. The Liaison
+    reports it again, and the loop is quiet. So the walk ends, and the next
+    walk says item 2.
+
+    Item 2 ranks above item 1, and right after its grouping the preempt
+    defers b1. b1 is then parked, and the Liaison asks the principal. The
+    walk answers the park ask with its stock sentence, which names neither
+    option. The Liaison sends the principal one sentence back, the walk
+    answers that sentence, and the Liaison takes the answer as a new
+    statement. The park ask comes again, three times in all, and then its
+    key is quarantined and reported. b2 then starts, takes in the project's
+    tests again under the same ids (frame 130's wall), and its Developer
+    commits the export. The scene ends when the harness has run at b2's
+    head.
+
+    Night 121 holds the same order, bg_2 from its start at s212 to bg_3's
+    start at s297: two quarantines of `tests_failing` with the Tester
+    between (s224, s226, s243), the preempt after the grouping (s276), and
+    three park asks, each answered, with the key at (3, 1, 1) (s277, s282,
+    s287, s292)."""
     sc = _base("two_batches", tmp)
+    play_to_quiet(sc)
     item(sc, 1, 1)
     annotate(sc, 1, ["src/billing/charges.py"])
     seat(sc, "developer|tick:batch_start|b1",
          commit([("src/billing/charges.py", _charges_red())], "prorate the remainder"))
-    play(sc, ran("b1"))
+    seat(sc, "developer|tick:tests_failing|b1",
+         commit([("src/billing/charges.py", _charges_red(2))], "round the remainder"),
+         IDLE, IDLE, IDLE, IDLE, IDLE, IDLE)
+    seat(sc, "liaison|tick:quarantined|b1", ["TOOL: msg.present_principal(refs=['b1'])"],
+         ["TOOL: msg.present_principal(refs=['b1'])"])
+    rule(sc, "present", ["b1"], {"b1": "approve"})
+    rule(sc, "present", ["b1"], {"b1": "approve"})
+    seat(sc, "tester|tick:tests_missing|b1", encode(PRORATE_TEST))
+    play_to_quiet(sc)
     sc.ids["head1"] = sc.conn.execute(
         "SELECT head_commit FROM batches WHERE id = 'b1'").fetchone()[0]
     item(sc, 2, 2)
-    seat(sc, "developer|tick:tests_failing|b1",
-         commit([("src/billing/charges.py", _charges_red(2))], "round the remainder"),
-         IDLE, IDLE, IDLE)
-    seat(sc, "liaison|tick:quarantined|b1", ["TOOL: msg.present_principal(refs=['b1'])"])
-    rule(sc, "present", ["b1"], {"b1": "approve"})
-    # b1 is deferred with a quarantined key, so it is parked, and the loop
-    # wakes the Liaison to ask. The principal leaves the ask open.
-    seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
+    for n in range(1, 4):
+        seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
+        rule(sc, "clarify", ["i1"], {}, WALK_ANSWER, answer="converse")
+        seat(sc, "liaison|converse|i1", PARK_REPLY)
+        walk_turn(sc, n)
+    seat(sc, "liaison|tick:quarantined|i1,b1", ["TOOL: msg.present_principal(refs=['i1', 'b1'])"])
+    rule(sc, "present", ["i1", "b1"], {"i1": "approve", "b1": "approve"})
     annotate(sc, 2, [EXPORT_PATH])
     seat(sc, "developer|tick:batch_start|b2",
          commit([(EXPORT_PATH, EXPORT)], "export invoices"))
@@ -480,16 +675,21 @@ def merged_then_next(tmp: Path) -> Scene:
     """S2. b1 runs the whole path: the Developer's module, the harness, the
     Tester's `test_upgrade.py` at the root, the harness again, a pass verdict
     and the merge, which delivers the test in a commit of its own (click
-    night 50). b2 then starts, and `harness.inherit` takes the delivered
-    file in as a project test of b2. Item 1 ranks above item 2, so b1
-    starts first and nothing preempts it. The scene ends when the harness
-    has run at b2's head."""
+    night 50). The walk stops at the merge, and the next walk says item 2.
+    The merge changed `src/billing` and the root, so the loop picks the
+    Terminologist's and the Architect's survey of both areas again, after
+    item 2's ratification. b2 then starts, and `harness.inherit` takes the
+    delivered file in as a project test of b2. The scene ends when the
+    harness has run at b2's head.
+
+    Night 120 holds the same order: bg_1's merge after s149, the next
+    sentence at s150, and the surveys of the merged areas at s155 to s158,
+    before the next batch. Night 119 merges in its second walk and says the
+    third sentence after it."""
     sc = _base("merged_then_next", tmp)
-    item(sc, 1, 2)
-    play(sc, _has("SELECT 1 FROM batches WHERE id = 'b1'"))
-    item(sc, 2, 1)
+    play_to_quiet(sc)
+    item(sc, 1, 1)
     annotate(sc, 1, [UPGRADE_PATH])
-    annotate(sc, 2, [EXPORT_PATH])
     seat(sc, "developer|tick:batch_start|b1",
          commit([(UPGRADE_PATH, UPGRADE)], "charge an upgrade"))
     seat(sc, "tester|tick:tests_missing|b1", encode())
@@ -500,6 +700,10 @@ def merged_then_next(tmp: Path) -> Scene:
     seat(sc, "architect|tick:structural_review|b1", [
         f"TOOL: findings.find(id='f1', batch_id='b1', constraint_id='k0', "
         f"status='satisfied', grain={UPGRADE_PATH!r})"])
+    play(sc, _has("SELECT 1 FROM batches WHERE status = 'merged'"))
+    # The walk stops at the merge, and the next walk says the next sentence.
+    item(sc, 2, 2)
+    annotate(sc, 2, [EXPORT_PATH])
     seat(sc, "developer|tick:batch_start|b2",
          commit([(EXPORT_PATH, EXPORT)], "export invoices"))
     play(sc, ran("b2"))
@@ -516,6 +720,7 @@ def challenged(tmp: Path) -> Scene:
     t1 is at version 2, and the harness is green on the same commit. The
     scene ends at that run."""
     sc = _base("challenged", tmp)
+    play_to_quiet(sc)
     item(sc, 1, 1)
     annotate(sc, 1, [UPGRADE_PATH])
     seat(sc, "developer|tick:batch_start|b1",
@@ -542,18 +747,23 @@ def park(tmp: Path) -> Scene:
     is red, and after each of three more commits, red each time. The
     scheduler's `tests_failing` wake is then dispatched three times with no
     commit, and the next frontier quarantines the key. The Liaison tells the
-    principal on the `quarantined` wake. Item 2 arrives and ranks above
-    item 1, the preempt defers b1, and the Liaison's `park_ask` wake opens
-    the ask, which the principal leaves open. Item 3 then arrives. The
-    scene ends when b3's touch note is sent, before the principal reads it,
-    and the loop's next pick is b2's start.
+    principal on the `quarantined` wake, and the loop is then quiet. So the
+    walk ends, and the next walk says item 2. Item 2 ranks above item 1,
+    and right after its grouping the preempt defers b1. The Liaison's
+    `park_ask` wake opens the ask, and the scene ends there, before the walk
+    answers it. Night 121 holds the same order, from bg_2's start at s212 to
+    the park ask at s277. The scene `two_batches` holds the answer.
 
     The design named b3 behind b1 by a `batch_dep_facts` row (S4). No op in
     `rota/` writes that table, and nights 119 to 124 hold no row in it
     (observed: the review of 906b765, 2026-10-05). So no night reaches "b3
-    behind b1", and the scene holds no such row. What the scene proves for
-    S4 is that the park keeps b1 out of `next_batch`."""
+    behind b1", and the scene holds no such row. In the night's order a
+    third item can come only at the next quiet, after b2 has run, so the
+    scene holds no b3 (the review of 7a056ce0, finding 1). What the scene
+    proves for S4 is that the park keeps b1 out of `next_batch`, with b2
+    pending beside it."""
     sc = _base("park", tmp)
+    play_to_quiet(sc)
     item(sc, 1, 1)
     annotate(sc, 1, [UPGRADE_PATH])
     seat(sc, "developer|tick:batch_start|b1",
@@ -565,18 +775,11 @@ def park(tmp: Path) -> Scene:
     seat(sc, "liaison|tick:quarantined|b1", ["TOOL: msg.present_principal(refs=['b1'])"])
     # The principal reads it. A present on a batch alone is acknowledged.
     rule(sc, "present", ["b1"], {"b1": "approve"})
-    play(sc, _has("SELECT 1 FROM tick_attempts WHERE reported = 1"))
+    # The walk ends at quiet, and the next walk says item 2.
+    play_to_quiet(sc)
     item(sc, 2, 2)
     seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
-    annotate(sc, 2, [EXPORT_PATH])
     play(sc, lambda conn: scheduler.open_park_ask(conn, "b1"))
-    item(sc, 3, 1)
-    # The principal answers in the pump of the step that also picks the next
-    # wake, and the next wake is b2's start. So the scene ends with b3's
-    # touch note sent and not yet read.
-    annotate(sc, 3, ["src/notify/delivery.py"], read=False)
-    play(sc, _has("SELECT 1 FROM messages WHERE verb = 'present' "
-                  "AND body_refs = '[\"b3\", \"i3\"]'"))
     sc.ids.update(key="developer|tick:tests_failing|b1",
                   ask=scheduler.open_park_ask(sc.conn, "b1"))
     return sc
@@ -643,6 +846,7 @@ def critic(tmp: Path, name: str = "critic") -> Scene:
     rule(sc, "present", [k], {k: "approve"})
     seat(sc, f"liaison|verdict|{k}", [f"TOOL: msg.relay_architect(refs=[{k!r}])"])
     seat(sc, f"architect|relay|{k}", [f"TOOL: model.adopt(ids=[{k!r}])"])
+    play_to_quiet(sc)
     item(sc, 1, 1)
     annotate(sc, 1, [CHARGES, UPGRADE_PATH])
     divides = sample(CHARGES).replace(
@@ -686,11 +890,20 @@ def build(name: str, tmp: Path, sc: Scene | None = None) -> Scene:
         sc = BUILDERS[name](tmp, sc or build(AFTER[name], tmp))
     else:
         sc = BUILDERS[name](tmp)
+    unused(sc, name)
+    return sc
+
+
+def unused(sc: Scene, name: str) -> None:
+    """Fail when a session, a function, a landing or an answer of the
+    scripts was never asked for: the scene then claims a step it did not
+    take."""
     left = {k: len(v) for k, v in sc.seats.items() if isinstance(v, list) and v}
+    left.update({k: "every" for k in sc.ids.get("_every_unused", ())})
+    left.update({k: "landing" for k in sc.landing})
     left.update({f"principal|{v}|{','.join(r)}": len(q) for (v, r), q in sc.answers.items()
                  if q})
     assert not left, f"{name}: the loop never asked for {left}"
-    return sc
 
 
 # -- the catalogue and the sweep ---------------------------------------------------
@@ -820,12 +1033,18 @@ def catalogue() -> list[Call]:
              "verdicts_emit", "you have already challenged the tester this session",
              before=(("msg.challenge_tester", _CHALLENGE),
                      ("verdicts.claim_encodes", (("criterion_id", "c1"), ("encodes", True))))),
-        # Night 120, and the review of 2d7cc73: a Critic's session fails the
-        # batch while the same Critic's challenge, sent in an earlier
-        # session, is open. Today the fail lands. No ruling says whether a
-        # door must refuse it, so the row is a question and not a strict
-        # xfail. The state is on the review's second build, after the
-        # Critic's challenge lands and before the Tester answers it.
+        # The review of 2d7cc73: a Critic's session fails the batch while the
+        # same Critic's challenge, sent in an earlier session, is open. Today
+        # the fail lands. No ruling says whether a door must refuse it, so
+        # the row is a question and not a strict xfail. The state is on the
+        # review's second build, after the Critic's challenge lands and
+        # before the Tester answers it. It is not the loop's pick: after the
+        # challenge lands, the frontier is the Tester's challenge wake and
+        # then the Critic's review (observed: pass 8's `lands8.py`,
+        # 2026-10-06). So a night reaches this state only when the Tester's
+        # session on the challenge fails or is skipped. Night 120's s146 is the
+        # other shape, the challenge and the fail in one session, and the
+        # `critic` row above holds it (the review of 7a056ce0, finding 3).
         Call("review", "a fail verdict while the same Critic's challenge is open",
              _w("critic", "tick:review", "b1"), "verdicts.emit", _FAIL,
              before=(("verdicts.claim_encodes", (("criterion_id", "c1"), ("encodes", True))),),
@@ -1008,7 +1227,7 @@ LANDINGS = {
 }
 
 
-def seat_landings(sc: Scene) -> None:
+def _seat_review_landings(sc: Scene) -> None:
     """The seats that the loop picks between the review's landings. The
     Critic upholds the violated finding, so the Developer answers it. The
     Tester answers the Critic's challenge with the test that encodes c1."""
@@ -1019,6 +1238,26 @@ def seat_landings(sc: Scene) -> None:
     seat(sc, "tester|challenge|c1,t1", [
         f"TOOL: tests.encode(id='t1', criterion_id='c1', path={TEST_PATH!r}, "
         f"body={TEST_BODY!r})"])
+
+
+# The seats that each scene's landings need, by scene (the review of
+# 7a056ce0, finding 5).
+LANDING_SEATS: dict[str, Callable[[Scene], None]] = {"review": _seat_review_landings}
+
+
+def seat_landings(sc: Scene, name: str) -> None:
+    """Seat the sessions that the loop picks between the landings of `name`."""
+    LANDING_SEATS.get(name, lambda sc: None)(sc)
+
+
+def land_all(sc: Scene, name: str, after: Callable[[str], None] = lambda call: None) -> None:
+    """Land each call of `LANDINGS[name]` in order, run `after` on the name of
+    each, then fail when a seat of the landings was never asked for."""
+    seat_landings(sc, name)
+    for key, call in LANDINGS.get(name, []):
+        land(sc, key, call)
+        after(call)
+    unused(sc, name)
 
 
 def _kw(args: dict) -> str:
@@ -1063,8 +1302,11 @@ PINNED = {"sessions.pins_json"}
 FREE: tuple[str, ...] = ()
 # The config rows whose value is the clock at onboarding.
 CLOCK_KEYS = {"created_at"}
-# The columns that hold the clock alone: SQLite's `datetime('now')`.
-CLOCKS = {"config_history.at"}
+# The columns that hold the clock alone: SQLite's `datetime('now')`. These are
+# the two columns of the schema whose default is the clock. A landed ruling
+# on a finding writes the second (observed: pass 8's twin check of the
+# review's landings, 2026-10-06).
+CLOCKS = {"config_history.at", "finding_rulings.at"}
 # pytest's own summary line: the counts, then " in <seconds>s", inside "=".
 _RUN_TIME = re.compile(
     r"((?:passed|failed|errors?|skipped|xfailed|xpassed|warnings?|deselected"

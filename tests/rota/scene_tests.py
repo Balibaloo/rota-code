@@ -1,18 +1,32 @@
 """
 The tests that every scene file shares (frame 144, item 3).
 
-Each `test_scene_<name>.py` takes these by `make(name)`. A scene is built
-once per module and read by every test in it. A catalogue call and a sweep
-call go through `Sandbox.call` and never commit, so the scene does not
-move. The conftest's follow check and fact check run on every refusal
-that a call meets. One file per scene lets the gate's workers build the
-scenes side by side. A scene that goes on from another (`scenes.AFTER`)
-shares that scene's module and its build.
+Each scene has two files. `test_scene_<name>.py` takes `make(name, ...)`:
+it builds the scene once per module and reads it in every test. A
+catalogue call and a sweep call go through `Sandbox.call` and never commit,
+so the scene does not move. `test_scene_<name>_again.py` takes
+`make_again(name)`: it builds the scene a second time and lands one right
+call of each op through a whole session, which moves that build. One build
+per file lets the gate's workers build the ten units side by side (the
+review of 7a056ce0, finding 8). A scene that goes on from another
+(`scenes.AFTER`) shares that scene's files and its build.
+
+The two builds of a scene meet in a directory that the run's workers
+share. Each file writes the rows of its build there, and the file that
+finishes second compares the two. So each run compares the two builds
+once, whatever the order of the files. A run of one file alone compares
+nothing. The second build's test prints what each scene of its chain met.
+
+The conftest's follow check and fact check run on every refusal that a
+call meets.
 """
 from __future__ import annotations
 
+import json
+import os
 import time
 import warnings
+from pathlib import Path
 
 import pytest
 
@@ -52,16 +66,40 @@ def judge(scene, call) -> str:
     return ""
 
 
-def make(name: str, end: list[str], attempts: list[tuple],
-         parts: tuple[str, ...] = ("calls", "again"),
+def _meeting(factory) -> Path:
+    """The directory that every worker of this run shares. Under xdist each
+    worker's base directory sits in the run's own directory."""
+    base = factory.getbasetemp()
+    root = base.parent if os.environ.get("PYTEST_XDIST_WORKER") else base
+    path = root / "scene-rows"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def meet(factory, name: str, side: str, rows: dict) -> str:
+    """Write this build's rows, and compare them with the other build's
+    rows when those are there. Returns what happened, in words."""
+    here = _meeting(factory)
+    mine = {t: [repr(r) for r in v] for t, v in rows.items()}
+    tmp = here / f"{name}.{side}.tmp"
+    tmp.write_text(json.dumps(mine), encoding="utf-8")
+    os.replace(tmp, here / f"{name}.{side}.json")
+    other = here / f"{name}.{'again' if side == 'first' else 'first'}.json"
+    if not other.exists():
+        return "the other build is not done yet, and it compares"
+    theirs = json.loads(other.read_text(encoding="utf-8"))
+    moved = sorted(t for t in set(mine) | set(theirs) if mine.get(t) != theirs.get(t))
+    assert not moved, f"{name}: the tables that differ between the two builds: {moved}"
+    return "equal"
+
+
+def make(name: str, end: list[str], attempts: list[tuple], asks: list[tuple],
          fixture: str = "scene", after: str | None = None) -> dict:
     """The fixture and the shared tests of the scene `name`, whose frontier
-    at its end is `end`, and whose `tick_attempts` rows at its end are
-    `attempts`. `calls` holds the catalogue, the sweep and the
-    check that the calls move nothing. `again` holds the second build of
-    the scene's whole chain and the landings. With `after`, the fixture
-    goes on from the fixture of that name, so the module's tests of that
-    scene must come first in the file."""
+    at its end is `end`, whose `tick_attempts` rows at its end are
+    `attempts`, and whose open asks at its end are `asks`, by verb and refs.
+    With `after`, the fixture goes on from the fixture of that name, so the
+    module's tests of that scene must come first in the file."""
     tag = "" if fixture == "scene" else f"_{name}"
     key = f"rows:{name}"
 
@@ -73,24 +111,30 @@ def make(name: str, end: list[str], attempts: list[tuple],
         else:
             sc = scenes.build(name, tmp_path_factory.mktemp(name))
         sc.ids[f"built_in:{name}"] = round(time.perf_counter() - t, 1)
-        sc.ids[key] = scenes.rows(sc, FREE)
         sc.ids[f"end:{name}"] = scenes.end_frontier(sc)
+        sc.ids[key] = scenes.rows(sc, FREE)
+        sc.ids[f"met:{name}"] = meet(tmp_path_factory, name, "first", sc.ids[key])
         sc.ids[f"attempts:{name}"] = [tuple(r) for r in sc.conn.execute(
             "SELECT tick_key, attempts, quarantined, reported FROM tick_attempts "
             "ORDER BY tick_key")]
+        sc.ids[f"asks:{name}"] = scenes.open_asks(sc)
         yield sc
         if not after:
             sc.close()
 
     def test_the_loop_ends_at_the_scenes_frontier(request):
-        # The action wakes and the ready wakes, by key: what the loop would
-        # pick from next. A guard that keeps a wake out, such as the park
-        # ask's once, goes red here when it is removed. The counts are the
-        # loop's bound: a lift that never runs, or a harness that spends an
-        # attempt, leaves another row.
+        # The frontier is the loop's own, `scheduler.frontier`, by key: what
+        # the loop would pick from next. A guard that keeps a wake out, such
+        # as the park ask's once, goes red here when it is removed. The
+        # counts are the loop's bound: a lift that never runs, or a harness
+        # that spends an attempt, leaves another row. The open asks are the
+        # principal's: an answer removed from the script leaves its ask open.
+        # This module is not a test module, so pytest does not rewrite its
+        # asserts, and each one names its own values.
         scene = request.getfixturevalue(fixture)
-        assert scene.ids[f"end:{name}"] == end
-        assert scene.ids[f"attempts:{name}"] == sorted(attempts)
+        assert scene.ids[f"end:{name}"] == end, scene.ids[f"end:{name}"]
+        assert scene.ids[f"attempts:{name}"] == sorted(attempts), scene.ids[f"attempts:{name}"]
+        assert scene.ids[f"asks:{name}"] == asks, scene.ids[f"asks:{name}"]
 
     @pytest.mark.parametrize("call", [_param(c) for c in scenes.catalogue()
                                       if c.scene == name and not c.at] or _none())
@@ -109,41 +153,45 @@ def make(name: str, end: list[str], attempts: list[tuple],
         scene = request.getfixturevalue(fixture)
         assert scenes.rows(scene, FREE) == scene.ids[key]
 
-    def test_a_second_build_gives_equal_rows_and_lands_a_right_call_per_op(request, tmp_path):
-        base = request.getfixturevalue(fixture)
+    return {fixture: _scene,
+            f"test_the_loop_ends_at_the_scenes_frontier{tag}":
+                test_the_loop_ends_at_the_scenes_frontier,
+            f"test_a_known_wrong_call_is_refused_by_its_door{tag}":
+                test_a_known_wrong_call_is_refused_by_its_door,
+            f"test_a_right_call_lands{tag}": test_a_right_call_lands,
+            f"test_the_calls_leave_the_scene_as_it_was_built{tag}":
+                test_the_calls_leave_the_scene_as_it_was_built}
+
+
+def make_again(name: str) -> dict:
+    """The second build of the scene `name` and of its whole chain, and the
+    landings. Each scene of the chain meets the first build's rows."""
+
+    def test_a_second_build_gives_equal_rows_and_lands_a_right_call_per_op(
+            tmp_path_factory, tmp_path):
         again = None
+        met = []
         try:
             for n in scenes.chain(name):
                 again = scenes.build(n, tmp_path, again)
-                got = scenes.rows(again, FREE)
-                moved = {t for t in got if got[t] != base.ids[f"rows:{n}"].get(t)}
-                assert not moved, f"{n}: the tables that differ: {sorted(moved)}"
-            # `send` stages a call and never commits. One right call of each
-            # op goes through a whole session on this build, each on the
-            # loop's own pick, so the doors of the commit path meet it too.
-            scenes.seat_landings(again)
-            for wake, call in scenes.LANDINGS.get(name, []):
-                scenes.land(again, wake, call)
+                met.append((n, meet(tmp_path_factory, n, "again",
+                                    scenes.rows(again, FREE))))
+
+            def rows_at(call: str) -> None:
+                # A row that only a landing reaches is sent after it.
                 for row in scenes.catalogue():
                     if row.at == call:
                         today = judge(again, row)
                         if today:
                             warnings.warn(today)
+            # `send` stages a call and never commits. One right call of each
+            # op goes through a whole session on this build, each on the
+            # loop's own pick, so the doors of the commit path meet it too.
+            scenes.land_all(again, name, rows_at)
         finally:
             if again is not None:
                 again.close()
+        print(met)
 
-    out = {fixture: _scene,
-           f"test_the_loop_ends_at_the_scenes_frontier{tag}":
-               test_the_loop_ends_at_the_scenes_frontier}
-    if "calls" in parts:
-        out.update({
-            f"test_a_known_wrong_call_is_refused_by_its_door{tag}":
-                test_a_known_wrong_call_is_refused_by_its_door,
-            f"test_a_right_call_lands{tag}": test_a_right_call_lands,
-            f"test_the_calls_leave_the_scene_as_it_was_built{tag}":
-                test_the_calls_leave_the_scene_as_it_was_built})
-    if "again" in parts:
-        out[f"test_a_second_build_gives_equal_rows_and_lands_a_right_call_per_op{tag}"] = \
-            test_a_second_build_gives_equal_rows_and_lands_a_right_call_per_op
-    return out
+    return {"test_a_second_build_gives_equal_rows_and_lands_a_right_call_per_op":
+            test_a_second_build_gives_equal_rows_and_lands_a_right_call_per_op}
