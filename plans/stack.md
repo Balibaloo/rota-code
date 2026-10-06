@@ -250,7 +250,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night126-read.md`, section 9, wall 2, and section 1, s156.
 - Status 2026-10-06 16:36 (rota-66): pushed by 488d31af from night 126's read. Unclaimed, priced. Rota workflow.
 
-### 165. A Developer told to end the session with no call sends the next call anyway (2026-10-06)
+### 165. A Developer told to end the session with no call sends the next call anyway (2026-10-06) (488d31af)
 
 - **Batch C, the night's stall, the residue of frame 153.** Site: the seat, model `qwen3.5:9b`, on the step `End the session with no call.` of the same-refs door, `rota/core/sandbox.py`.
 - Rota workflow. Frame 153 held the runner silent after the step: the owed-call nudge fired 0 times in 11 turns on night 126. The seat followed the step in 1 of 11, from 3 of 7 on night 125. In 10 of 10 unfollowed turns no runner text stood between the refusal and the next call: `code.write` 3, the same challenge again 5, `msg.escalate_architect` 2, and after the `NOTE` 7 copies of the challenge with made-up results (observed: `plans/night126-read.md`, section 2, 2026-10-06). The seat has the step in front of it and does not act on it, so the rule of 2026-10-02 applies: an interview before a second brief shape.
@@ -259,8 +259,9 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night126-read.md`, section 2; frame 153's closing status of today in `plans/archive/stack-2026-10-06.md`.
 - Status 2026-10-06 16:36 (rota-66): pushed by 488d31af from night 126's read. Unclaimed, priced. Rota workflow.
 - Status 2026-10-06 16:38 (rota-66): the start of this frame and of frame 165 was asked of Roman as a low question by notification at 16:38 with a 20-minute timer, this answer recommended: start both now, this frame first. Frame 144's pass 9 and frame 152's interview run meanwhile on their own order. Meta workflow.
+- Status 2026-10-06 16:58 (rota-66): claimed by 488d31af, taken by timeout at 16:58 on the recommended answer. The interview runs on Fable on s172 and s168 at the turn whose prompt holds the step, with the record `plans/frame165-interview.md`. The fix shape is decided from the answers. Meta workflow.
 
-### 164. `problem.prioritize` admits a string, and the scheduler's sort crashes every later step (2026-10-06)
+### 164. `problem.prioritize` admits a string, and the scheduler's sort crashes every later step (2026-10-06) (488d31af)
 
 - **Batch C, the night's stall. A batch stopper: it ended night 126, and no step can run on its database.** Sites: `problem_prioritize`, `rota/roles/api.py:1149`, which declares `priority: int` and writes the value with no check; the binder, `rota/core/sandbox.py:205-220`, which checks a container where a scalar is declared and nothing else; `next_batch`, `rota/core/scheduler.py:1382`, which sorts on `-(r["priority"] or 0)`.
 - Rota workflow. On night 126 the Vision Keeper s249, turn 5, sent `problem.prioritize(id='version_option_show_python', priority='high')` and got `OK`. No door spoke. The column is `INTEGER`, so SQLite kept `'high'` as text where it had turned `'1'` from s180 and s243 into 1. The 24th step of walk 3 crashed in `frontier` with `TypeError: bad operand type for unary -: 'str'`, before any wake, and every `loop.step` on that database crashes the same way. The prompt's signature is `problem.prioritize(id, priority)` with no type (observed: `plans/night126-read.md`, section 6, 2026-10-06; `q6.py` in `scratchpad/n126` of session 488d31af reproduces the crash read-only).
@@ -269,6 +270,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night126-read.md`, section 6 and section 9, wall 1.
 - Status 2026-10-06 16:36 (rota-66): pushed by 488d31af from night 126's read. Unclaimed, priced. Rota workflow.
 - Status 2026-10-06 16:38 (rota-66): the start of this frame and of frame 165 was asked of Roman as a low question by notification at 16:38 with a 20-minute timer, this answer recommended: start both now, this frame first. Frame 144's pass 9 and frame 152's interview run meanwhile on their own order. Meta workflow.
+- Status 2026-10-06 16:58 (rota-66): claimed by 488d31af, taken by timeout at 16:58 on the recommended answer; Roman's one message in the window, "What?", asked for the story and did not answer. Pass 1 goes to a fresh implementer on Opus in the worktree `C:/Users/roman/rota_f164` on the branch `f164` from ac35f260: the count first, then the door on every op that declares a scalar type, then the tests. Then a diff review on Fable. Meta workflow.
 
 ### 154. Six sentences and steps of the same-refs door state a fact that the rows do not hold (2026-10-05)
 
