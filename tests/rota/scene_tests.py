@@ -32,6 +32,7 @@ import pytest
 
 from rota.core import sandbox
 from rota.testkit import scenes
+from rota.tools import invariants
 
 # The columns that two builds may give differently. `scenes.rows` already
 # makes each clock's reading a token, so no column is dropped whole.
@@ -58,11 +59,17 @@ def judge(scene, call) -> str:
     # A row that a door answers names the door and its words. A held row
     # has no door yet, so it has no words to name.
     assert call.held or (call.door and call.words), call.name
+    if exc is None and call.step:
+        crash = scenes.land_and_step(scene, call)
+        raise AssertionError(f"{call.op} landed: {call.args}; the next loop.step "
+                             f"{'raised ' + crash if crash else 'ran'}")
     assert exc is not None, f"{call.op} landed: {call.args}"
     site = sandbox._raise_site(exc)
     top = site.rsplit(" in ", 1)[-1] if site else ""
     assert call.door in site.split(" < ")[-1] or top == call.door, (site, str(exc))
     assert str(exc).startswith(call.words), str(exc)
+    missing = [w for w in call.holds if w not in str(exc)]
+    assert not missing, f"the refusal does not hold {missing}: {exc}"
     return ""
 
 
@@ -93,13 +100,23 @@ def meet(factory, name: str, side: str, rows: dict) -> str:
     return "equal"
 
 
+def _invariant(name: str, known: dict[str, str]):
+    marks = ([pytest.mark.xfail(strict=True, reason=f"held by {known[name]}")]
+             if name in known else [])
+    return pytest.param(name, id=name, marks=marks)
+
+
 def make(name: str, end: list[str], attempts: list[tuple], asks: list[tuple],
-         fixture: str = "scene", after: str | None = None) -> dict:
+         fixture: str = "scene", after: str | None = None,
+         known: dict[str, str] | None = None) -> dict:
     """The fixture and the shared tests of the scene `name`, whose frontier
     at its end is `end`, whose `tick_attempts` rows at its end are
     `attempts`, and whose open asks at its end are `asks`, by verb and refs.
     With `after`, the fixture goes on from the fixture of that name, so the
-    module's tests of that scene must come first in the file."""
+    module's tests of that scene must come first in the file. `known` names
+    the invariants that the scene's end breaks today, each with the frame
+    that holds the fault."""
+    known = known or {}
     tag = "" if fixture == "scene" else f"_{name}"
     key = f"rows:{name}"
 
@@ -153,7 +170,18 @@ def make(name: str, end: list[str], attempts: list[tuple], asks: list[tuple],
         scene = request.getfixturevalue(fixture)
         assert scenes.rows(scene, FREE) == scene.ids[key]
 
+    @pytest.mark.parametrize("invariant", [_invariant(n, known) for n in invariants.INVARIANTS])
+    def test_an_invariant_holds_at_the_scenes_end(request, invariant):
+        # The design's change 2: I1 to I9, and I10, on every scene's end.
+        # The calls of the tests above never commit, so the end is the
+        # build's end.
+        scene = request.getfixturevalue(fixture)
+        found = [str(f) for f in invariants.check(scene.conn) if f.invariant == invariant]
+        assert not found, found
+
     return {fixture: _scene,
+            f"test_an_invariant_holds_at_the_scenes_end{tag}":
+                test_an_invariant_holds_at_the_scenes_end,
             f"test_the_loop_ends_at_the_scenes_frontier{tag}":
                 test_the_loop_ends_at_the_scenes_frontier,
             f"test_a_known_wrong_call_is_refused_by_its_door{tag}":

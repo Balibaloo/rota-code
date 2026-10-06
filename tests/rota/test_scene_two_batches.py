@@ -84,4 +84,8 @@ globals().update(make(
               (PARK, 3, 1, 1),
               ("liaison|tick:quarantined|b1", 1, 0, 0),
               ("liaison|tick:quarantined|i1,b1", 1, 0, 0)],
-    asks=[]))
+    asks=[],
+    # I4: b2 took in the project's tests under b1's ids, so b1's runs name
+    # tests of b2. I5: the park ask's key is quarantined after the third
+    # ask, and parked b1 then holds no open ask.
+    known={"I4": "frame 130", "I5": "frame 142"}))

@@ -119,6 +119,9 @@ class Scene:
     answers: dict = field(default_factory=dict)
     # A call that a test lands on the loop's pick of its key.
     landing: dict = field(default_factory=dict)
+    # The pins of every session of the build. S6 runs at the night's window,
+    # because its rule is about the cut at 16384 (doctrine 2).
+    pins: Pins = PINS
 
     def close(self) -> None:
         self.conn.close()
@@ -294,7 +297,7 @@ def step(sc: Scene, quiet: bool = False) -> loop.Step:
     with _no_venv(), _seated(sc):
         sc.ids["_allow"] = ()
         sc.ids["_lines"] = None
-        st = loop.step(conn, backend=_NoServer(), pins=PINS)
+        st = loop.step(conn, backend=_NoServer(), pins=sc.pins)
     conn.commit()
     key = key_of(conn, st.wake) if st.wake is not None else None
     sc.ids.setdefault("log", []).append({"key": key, "lines": sc.ids["_lines"]})
@@ -405,32 +408,38 @@ def ran(batch: str, test: str | None = None, result: str | None = None) -> Calla
     return _has(sql, *args)
 
 
-def _base(name: str, tmp: Path, bind: bool = False) -> Scene:
+def _base(name: str, tmp: Path, bind: bool = False,
+          prepare: Callable[[gitfixture.SampleRepo], None] | None = None,
+          pins: Pins = PINS) -> Scene:
     """The sample repository, a database, and the onboarding's survey phase.
     Every night is onboarded. Without an onboarding, a Developer's first
     commit indexes the code, the phase turns to `frame`, and the scheduler
-    holds every deliver until the frame is judged."""
+    holds every deliver until the frame is judged. `prepare` changes the
+    scene's copy of the repository before the onboarding reads it. The
+    template stays as it is, so no recorded case of the sample goes stale."""
     repo = gitfixture.make(tmp, name="scene")
+    if prepare is not None:
+        prepare(repo)
     conn = init_db(tmp / "rota.db")
     conn.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
                  (str(repo.root),))
     conn.commit()
-    sc = Scene(name, conn, repo, tmp)
+    sc = Scene(name, conn, repo, tmp, pins=pins)
     survey(sc, bind)
     return sc
 
 
 # -- the shared seats ------------------------------------------------------------------
 
-def item(sc: Scene, n: int, priority: int) -> None:
+def item(sc: Scene, n: int, priority: int, words: tuple | None = None) -> None:
     """The principal's sentence of item `n`, and the seats that carry it to a
     batch `b<n>` with one ticket and one criterion: the Liaison's segment
     and confirm, the three delivers, the Vision Keeper's item, the
     Terminologist's term, the Architect's read of the model, the sign-off
     through the Liaison's present and relay, the Vision Keeper's priority,
     the slicing, the criterion and the grouping. The principal approves the
-    confirm and the sign-off."""
-    sentence, problem, term, sense, ticket, criterion = ITEMS[n]
+    confirm and the sign-off. `words` replaces `ITEMS[n]`."""
+    sentence, problem, term, sense, ticket, criterion = words or ITEMS[n]
     conn = sc.conn
     mid = say(sc, sentence)
     entry = json.loads(conn.execute("SELECT body_refs FROM messages WHERE id = ?",
@@ -785,6 +794,155 @@ def park(tmp: Path) -> Scene:
     return sc
 
 
+# -- S6: a large module, and the delivery wakes at the night's window ---------------
+
+LEDGER_PATH = "src/billing/ledger.py"
+# The night's window. Nights 119 to 126 run every seat at 16384 (`num_ctx` in
+# `sessions`), and item 5's rule is about the cut at that window.
+NIGHT_PINS = Pins(model="scripted", temperature=0.0, num_ctx=16384)
+# The fee rule in the module as found, in the Developer's first commit, and in
+# the fix. The criterion asks for 150 cents on 3000 cents ten days late.
+FEE_FOUND = "amount_cents * days_late // 1000"
+FEE_FIRST = "amount_cents * days_late // 100"
+FEE_FIXED = "amount_cents * days_late * 5 // 1000"
+LATE = ("charge a fee on a late payment", "a late payment is charged a fee",
+        "late fee", "the charge for each day a payment is late",
+        "charge late fees",
+        "a payment of 3000 cents that is 10 days late is charged a fee of 150 cents")
+LATE_TEST = ("from src.billing.ledger import late_fee\n\n\n"
+             "def test_a_late_payment_is_charged_its_fee():\n"
+             "    assert late_fee(3000, 10) == 150\n")
+LATE_TEST_PATH = "test_late_fee.py"
+# The project's own test of the ledger. The Developer's first commit adds a
+# cent to every rate, so this test goes red and the diff holds every rate.
+LEDGER_TEST_PATH = "tests/test_ledger.py"
+LEDGER_TEST = ("from src.billing.ledger import rate_001, rate_199\n\n\n"
+               "def test_a_rate_is_per_mille_of_the_amount():\n"
+               "    assert rate_001(3000) == 3\n"
+               "    assert rate_199(3000) == 597\n")
+
+
+def ledger(fee: str = FEE_FOUND, extra: str = "") -> str:
+    """A module of about 1,000 lines with a `__future__` header. `late_fee`
+    sits at about line 900. `extra` goes at the end of every rate, so a
+    change of it is a diff of 199 lines. The text is the same on every
+    build, so two builds give the same rows."""
+    lines = ['"""The ledger: one small rule for each kind of charge."""',
+             "from __future__ import annotations", "", ""]
+
+    def rate(n: int) -> list[str]:
+        return [f"def rate_{n:03d}(amount_cents: int) -> int:",
+                f'    """The charge of kind {n}: {n} per mille of the amount."""',
+                f"    return amount_cents * {n} // 1000{extra}", "", ""]
+    for n in range(1, 180):
+        lines += rate(n)
+    lines += ["def late_fee(amount_cents: int, days_late: int) -> int:",
+              '    """The fee for a payment that is `days_late` days late."""',
+              f"    return {fee}", "", ""]
+    for n in range(180, 200):
+        lines += rate(n)
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def _commit_ledger(repo: gitfixture.SampleRepo) -> None:
+    """The project's own module, committed on the scene's copy before the
+    onboarding, as a module that a night's repository already holds."""
+    (repo.root / LEDGER_PATH).write_text(ledger(), encoding="utf-8", newline="\n")
+    (repo.root / LEDGER_TEST_PATH).write_text(LEDGER_TEST, encoding="utf-8", newline="\n")
+    gitfixture.git(repo.root, "add", LEDGER_PATH, LEDGER_TEST_PATH)
+    gitfixture.git(repo.root, "commit", "-q", "-m", "the ledger")
+
+
+def large_module(tmp: Path) -> Scene:
+    """S6. The repository holds `src/billing/ledger.py`, 1,000 lines with a
+    `__future__` header, and its `late_fee` at about line 900 charges too
+    little. The project's `tests/test_ledger.py` tests two rates. Every
+    session runs at the night's window, 16384. Item 1 asks for the fee that
+    the criterion names. The scene holds the four delivery wakes of one
+    batch, each a session of the loop's own pick:
+
+    1. `developer|tick:batch_start|b1`: the Developer writes the module
+       whole with a fee that is still wrong and a cent added to every rate,
+       and commits. The project's test goes red, and the diff holds 199
+       changed lines. The loop picks the fix wake before the Tester's, so
+       three empty fix sessions quarantine the key, and the Liaison reports
+       it. Night 121 holds the same order (scene `two_batches`).
+    2. `tester|tick:tests_missing|b1`: the Tester encodes the criterion's
+       test at the root. Its new row lifts the key, and the harness runs
+       the test red.
+    3. `developer|tick:tests_failing|b1`, the last fix session: the wake
+       holds the batch's red test, the project's red test and the large
+       diff, as night 119's s259 did (frame 134). The Developer writes the
+       rates back and the right fee, and commits. The harness runs green.
+    4. `developer|tick:verdict_failed|b1`, after the Critic claims that the
+       test encodes c1 and fails the batch on it. The Developer ends the
+       session with nothing done.
+
+    The first turn of a session is the wake as the seat read it, after the
+    cut. `wake_prompt` reads it. The scene ends when the fourth wake's
+    session is on record."""
+    sc = _base("large_module", tmp, prepare=_commit_ledger, pins=NIGHT_PINS)
+    play_to_quiet(sc)
+    item(sc, 1, 1, LATE)
+    annotate(sc, 1, [LEDGER_PATH])
+    seat(sc, "developer|tick:batch_start|b1",
+         commit([(LEDGER_PATH, ledger(FEE_FIRST, " + 1"))], "charge the late fee"))
+    seat(sc, "tester|tick:tests_missing|b1", [
+        "TOOL: tests.triage(criterion_id='c1', verdict='encodable')",
+        f"TOOL: tests.encode(id='t1', criterion_id='c1', path={LATE_TEST_PATH!r}, "
+        f"body={LATE_TEST!r})"])
+    seat(sc, "developer|tick:tests_failing|b1", IDLE, IDLE, IDLE,
+         commit([(LEDGER_PATH, ledger(FEE_FIXED))], "charge five per mille a day"))
+    seat(sc, "liaison|tick:quarantined|b1", ["TOOL: msg.present_principal(refs=['b1'])"])
+    rule(sc, "present", ["b1"], {"b1": "approve"})
+    seat(sc, "critic|tick:review|b1", [
+        "TOOL: criteria.load(batch_id='b1')",
+        "TOOL: tests.load(batch_id='b1')",
+        "TOOL: verdicts.claim_encodes(criterion_id='c1', encodes=True)",
+        "TOOL: verdicts.emit(batch_id='b1', result='fail', failed_criterion='c1', "
+        "reason='the fee is not rounded to whole cents for every amount')"])
+    seat(sc, "developer|tick:verdict_failed|b1", IDLE)
+    play(sc, _has("SELECT 1 FROM sessions WHERE role = 'developer' "
+                  "AND wake_kind = 'tick:verdict_failed'"))
+    return sc
+
+
+# The four delivery wakes of S6, by the role and the kind of their session.
+DELIVERY_WAKES = (("developer", "tick:batch_start"), ("tester", "tick:tests_missing"),
+                  ("developer", "tick:tests_failing"), ("developer", "tick:verdict_failed"))
+
+
+def wake_prompt(sc: Scene, role: str, kind: str) -> str:
+    """The first user prompt of the last session of `role` on `kind`: the
+    wake as the seat read it, after the cut. The last fix session is the
+    one that holds both red tests."""
+    row = sc.conn.execute(
+        "SELECT t.user FROM turns t JOIN sessions s ON s.id = t.session_id "
+        "WHERE s.role = ? AND s.wake_kind = ? ORDER BY s.rowid DESC, t.seq LIMIT 1",
+        (role, kind)).fetchone()
+    assert row is not None, f"no session of {role} on {kind}"
+    return row["user"]
+
+
+# The header of a pushed block, as `runner.build_prompt` writes it.
+# A rendered JSON list can also fill a line inside brackets, and it starts
+# with a quote, a brace or a bracket. A key never does.
+_BLOCK = re.compile(r"^\[([^\]\n\"{\[][^\]\n]*)\]$", re.MULTILINE)
+# The note that `runner._render_cut` puts at the end of a cut wake.
+_WAKE_CUT_NOTE = re.compile(r"\nCUT your wake: [\d,]+ of [\d,]+ characters are not shown\.")
+
+
+def blocks(prompt: str) -> dict[str, bool]:
+    """Each pushed block of a wake, by its key, and whether it is whole. The
+    wake cut keeps the front and ends with its note. So every block before
+    the last is whole, and the last block is whole only when no note ends
+    the wake."""
+    head, marker, pushed = prompt.partition("\nAlready run for you")
+    keys = _BLOCK.findall(pushed) if marker else []
+    cut = bool(_WAKE_CUT_NOTE.search(prompt))
+    return {k: not (cut and i == len(keys) - 1) for i, k in enumerate(keys)}
+
+
 # -- S7: review with a bound constraint ----------------------------------------------
 
 CONSTRAINT = "a charge is a whole number of cents"
@@ -871,7 +1029,8 @@ def review(tmp: Path, sc: Scene | None = None) -> Scene:
 
 
 BUILDERS = {"two_batches": two_batches, "merged_then_next": merged_then_next,
-            "challenged": challenged, "park": park, "critic": critic, "review": review}
+            "challenged": challenged, "park": park, "critic": critic, "review": review,
+            "large_module": large_module}
 # A scene that goes on from another scene's end. One module builds the chain
 # once, so the review costs one build and not two.
 AFTER = {"review": "critic"}
@@ -922,7 +1081,10 @@ class Call:
     that only a landing reaches. `before` holds the calls that the same
     session sends first, such as the triage that an encode needs. An
     argument that holds `DISK` and a path takes that file's text in the
-    batch's worktree when it is sent."""
+    batch's worktree when it is sent. `holds` names words that the refusal
+    must hold anywhere in its text. With `step`, a call that lands is
+    committed on a copy of the scene, and one `loop.step` runs on the copy,
+    so the row's failure says what the landed call does to the loop."""
     scene: str
     name: str
     wake: Wake
@@ -934,6 +1096,8 @@ class Call:
     before: tuple = ()
     question: str = ""
     at: str = ""
+    holds: tuple = ()
+    step: bool = False
 
     def __str__(self) -> str:
         return self.name
@@ -969,6 +1133,31 @@ _FAIL = (("batch_id", "b1"), ("result", "fail"), ("failed_criterion", "c1"),
 # W146: a top level that loads a name it never binds. The module imports and
 # dies with a NameError, and every test of the batch goes red.
 _UNBOUND = UPGRADE + "\n\nRATE = upgrade_rate\n"
+# Night 126's s156, turn 2: a body in single quotes that holds `\"` inside a
+# list. The parser reads `\"` as `"`, so line 5 of the body holds
+# `["{"key": "value"}"]`, which is not Python. The line is the seat's, as
+# sent. Only the test is the scene's.
+_S156 = (r"""TOOL: tests.encode(id='t_s156', criterion_id='c2', """
+         r"""path='tests/test_export_json.py', body='import json\n\n\n"""
+         r"""def test_an_export_holds_one_key():\n    rows = ["{\"key\": \"value\"}"]\n"""
+         r"""    assert json.loads(rows[0]) == {"key": "value"}\n')""")
+# The line that the parser gives, and the escape that broke it.
+_S156_LINE = 'rows = ["{"key": "value"}"]'
+_S156_QUOTE = '\\"'
+
+
+def _parsed(line: str) -> tuple[str, tuple]:
+    """The op and the arguments of one `TOOL:` line, as the parser reads it
+    from a reply, so the row carries what the seat's text became."""
+    from ..llm import toolproto
+    call, = toolproto.extract(line)
+    return call.name, tuple(call.args.items())
+
+
+def _message(role: str, verb: str, ref: str) -> Wake:
+    """The wake of the newest message of `verb` to `role` whose refs hold
+    `ref`. The scene's own id is read when the call is sent."""
+    return Wake(role, "message", f"m?{verb}:{ref}", detail=verb, refs=())
 
 
 def catalogue() -> list[Call]:
@@ -992,6 +1181,12 @@ def catalogue() -> list[Call]:
              _w("developer", "tick:batch_start", "b2"), "code.write",
              (("path", UPGRADE_PATH), ("text", _UNBOUND)),
              "_code_write", "", held="frame 146"),
+        # Night 126's s156: the seat's `\"` inside a single-quoted body. The
+        # door says that the body is no test, and names neither the line
+        # that broke nor the quote that broke it (frame 166).
+        Call("two_batches", "a body whose escaped quote breaks a line", t2,
+             *_parsed(_S156), "tests_encode", "the body is not Python",
+             held="frame 166", before=_triage("c2"), holds=(_S156_LINE, _S156_QUOTE)),
         Call("merged_then_next", "the merged batch's test id", t2, "tests.encode",
              _encode("t1", "c2", "tests/test_export.py", _EXPORT_TEST),
              "tests_encode", "t1 is", before=_triage("c2")),
@@ -1023,6 +1218,15 @@ def catalogue() -> list[Call]:
         Call("challenged", "the stored id at a new path", challenge, "tests.encode",
              _encode("t1", "c1", "test_upgrade_moved.py", TEST_BODY),
              "tests_encode", f"t1 is stored at {TEST_PATH}"),
+        # Night 126's s249, turn 5: a word in the integer column
+        # `items.priority`. The door admits it, and the next step crashes in
+        # `next_batch` on b2's sort key, as walk 3 crashed on bg_3's (frame
+        # 164). The park ends as night 126 did, b1 parked and b2 pending. On
+        # `two_batches` no batch is a candidate of `next_batch` at the end,
+        # so no step there reads the word.
+        Call("park", "a word for a priority", _message("vision_keeper", "relay", "i2"),
+             "problem.prioritize", (("id", "i2"), ("priority", "high")),
+             held="frame 164", step=True),
         Call("critic", "a fail verdict before the claim that its test encodes",
              _w("critic", "tick:review", "b1"), "verdicts.emit",
              (("batch_id", "b1"), ("result", "fail"), ("failed_criterion", "c1")),
@@ -1140,10 +1344,19 @@ def sandbox_for(sc: Scene, call: Call):
 
 
 def _real_wake(sc: Scene, wake: Wake) -> Wake:
-    """The wake with the scene's own message id where the call names `m_ch`."""
+    """The wake with the scene's own message id where the call names `m_ch`,
+    or a message by its verb and a ref (`_message`)."""
     if wake.kind == "message" and wake.message_id == "m_ch":
         return Wake(wake.role, "message", sc.ids["challenge"], detail=wake.detail,
                     refs=wake.refs)
+    if wake.kind == "message" and wake.message_id.startswith("m?"):
+        verb, _, ref = wake.message_id[2:].partition(":")
+        row = sc.conn.execute(
+            "SELECT id FROM messages WHERE to_role = ? AND verb = ? AND EXISTS "
+            "(SELECT 1 FROM json_each(body_refs) WHERE value = ?) ORDER BY seq DESC LIMIT 1",
+            (wake.role, verb, ref)).fetchone()
+        assert row is not None, f"{sc.name} holds no {verb} to {wake.role} on {ref}"
+        return Wake(wake.role, "message", row["id"], detail=wake.detail, refs=wake.refs)
     return wake
 
 
@@ -1167,7 +1380,7 @@ def send(sc: Scene, call: Call) -> Exception | None:
     None. A `code.write` changes the disk, so the file's bytes go back
     after the call, and the scene does not move."""
     sb = sandbox_for(sc, call)
-    root = _root(sc, call.wake.refs[0])
+    root = _root(sc, call.wake.refs[0] if call.wake.refs else None)
     for op, args in call.before:
         sb.call(op, **_filled(root, args))
     args = _filled(root, call.args)
@@ -1184,6 +1397,39 @@ def send(sc: Scene, call: Call) -> Exception | None:
             else:
                 target.write_bytes(before)
     return None
+
+
+def land_and_step(sc: Scene, call: Call) -> str:
+    """Commit the call's writes on a copy of the scene's database, as the
+    runner commits a session (`db.session_commit`), and run one `loop.step`
+    on the copy. Returns what the step raised, or an empty string. The
+    scene's own database does not move. The copy names the scene's
+    worktrees, so a row steps only while its door admits the call, and the
+    step that a refusal would stop never runs."""
+    from ..core import db, runner
+    copy = sqlite3.connect(":memory:", isolation_level=sc.conn.isolation_level)
+    copy.row_factory = sqlite3.Row
+    sc.conn.backup(copy)
+    try:
+        wake = _real_wake(sc, call.wake)
+        batch = call.wake.refs[0] if call.wake.refs else None
+        sb = runner.session_sandbox(copy, wake, batch_id=batch)
+        root = _root(sc, batch)
+        for op, args in call.before:
+            sb.call(op, **_filled(root, args))
+        sb.call(call.op, **_filled(root, call.args))
+        db.session_commit(copy, db.SessionResult(
+            session_id="s_catalogue", role=wake.role, wake_kind=wake.kind,
+            writes=[runner._as_write(w) for w in sb.ctx.writes]))
+        copy.commit()
+        try:
+            with _no_venv():
+                loop.step(copy, backend=_NoServer(), pins=sc.pins)
+        except Exception as exc:                           # noqa: BLE001
+            return f"{type(exc).__name__}: {exc}"
+        return ""
+    finally:
+        copy.close()
 
 
 def land(sc: Scene, key: str, name: str) -> None:

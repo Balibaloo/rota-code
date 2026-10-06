@@ -49,4 +49,7 @@ globals().update(make(
     NAME,
     end=["tester|tick:tests_missing|b2"],
     attempts=[],
-    asks=[]))
+    asks=[],
+    # I4: b2 took in the project's tests under b1's ids, so the merged b1's
+    # runs name tests of b2.
+    known={"I4": "frame 130"}))
