@@ -258,6 +258,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended with frame 152's interview, because both interview a seat that reads a step and does not act.
 - Reasoning: `plans/night126-read.md`, section 2; frame 153's closing status of today in `plans/archive/stack-2026-10-06.md`.
 - Status 2026-10-06 16:36 (rota-66): pushed by 488d31af from night 126's read. Unclaimed, priced. Rota workflow.
+- Status 2026-10-06 16:38 (rota-66): the start of this frame and of frame 165 was asked of Roman as a low question by notification at 16:38 with a 20-minute timer, this answer recommended: start both now, this frame first. Frame 144's pass 9 and frame 152's interview run meanwhile on their own order. Meta workflow.
 
 ### 164. `problem.prioritize` admits a string, and the scheduler's sort crashes every later step (2026-10-06)
 
@@ -267,6 +268,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended first of every unclaimed frame, because night 127 cannot run past a Vision Keeper's word in a number's place.
 - Reasoning: `plans/night126-read.md`, section 6 and section 9, wall 1.
 - Status 2026-10-06 16:36 (rota-66): pushed by 488d31af from night 126's read. Unclaimed, priced. Rota workflow.
+- Status 2026-10-06 16:38 (rota-66): the start of this frame and of frame 165 was asked of Roman as a low question by notification at 16:38 with a 20-minute timer, this answer recommended: start both now, this frame first. Frame 144's pass 9 and frame 152's interview run meanwhile on their own order. Meta workflow.
 
 ### 154. Six sentences and steps of the same-refs door state a fact that the rows do not hold (2026-10-05)
 
