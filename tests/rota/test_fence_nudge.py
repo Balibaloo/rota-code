@@ -11,14 +11,16 @@ into `fixtures/night125_*.txt`.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 
 from rota.core.db import init_db
 from rota.core.predicates import Wake
-from rota.core.runner import run_session
-from rota.llm.llm import Pins, ScriptedBackend
+from rota.core.runner import _body_literal, run_session
+from rota.llm import toolproto
+from rota.llm.llm import Completion, Pins, ScriptedBackend
 
 HERE = Path(__file__).parent / "fixtures"
 
@@ -34,21 +36,55 @@ TEST = ('def test_echo_json_compact():\n    import sys\n    from io import '
         '    assert output.strip() == "{\\"key\\": \\"value\\"}"\n    # Check '
         'for single newline at end\n    assert output.endswith("\\n")\n    '
         '# Check no extra newlines\n    assert output.count("\\n") == 1')
-NUDGE = ("You wrote a test into your reply, and a reply is not a stored test "
-         "-- nothing landed. Send it as a call: tests.encode("
-         "id='inh_echo_json_01', criterion_id='echo_json_compact', "
-         "path='tests/test_utils/test_echo_json_compact.py', body='...').")
+# The runner's mark. Night 126's s154 read the sentence with no mark as the
+# tail of its own reply (frame 152's interview, answers 2 and 9).
+MARK = "ERROR no call: "
+# The sentence up to the body. Pass 3 puts the body of the seat's own fence
+# after `body=`.
+HEAD = (MARK + "You wrote a test into your reply, and a reply is not a stored "
+        "test -- nothing landed. Send it as a call: tests.encode("
+        "id='inh_echo_json_01', criterion_id='echo_json_compact', "
+        "path='tests/test_utils/test_echo_json_compact.py', body=")
+NUDGE = HEAD + "'...')."
 # A fence with no test function is code. The sentence offers the end, as the
 # named-act nudge does (frame 152's review of 5e0dd71, F3).
 CODE = (NUDGE.replace("You wrote a test", "You wrote code")[:-1]
         + ", or end by saying nothing is owed.")
-DEVELOPER = ("You wrote code into your reply, and a reply is not a file -- "
-             "nothing landed. Send it as a call: "
-             "code.write(path='...', text='...') and then code.commit.")
+# The Developer's sentence before pass 3, byte for byte. Pass 3 adds the mark
+# and nothing else.
+DEVELOPER_BEFORE = ("You wrote code into your reply, and a reply is not a file "
+                    "-- nothing landed. Send it as a call: "
+                    "code.write(path='...', text='...') and then code.commit.")
+DEVELOPER = MARK + DEVELOPER_BEFORE
 
 
-def _reply(name: str) -> str:
-    return (HERE / f"night125_{name}.txt").read_bytes().decode("utf-8")
+def _reply(name: str, night: int = 125) -> str:
+    return (HERE / f"night{night}_{name}.txt").read_bytes().decode("utf-8")
+
+
+def _fence(reply: str) -> str:
+    """The text of the reply's last whole fence that holds a test."""
+    return [b for b in re.findall(r"```[^\n]*\n(.*?)```", reply, re.S)
+            if "def test" in b][-1]
+
+
+def _sentence(user: str) -> str:
+    """The runner's sentence, from its mark to the end of the prompt."""
+    return user[user.rindex(MARK):]
+
+
+def _encode_of(sentence: str) -> str:
+    """The encode call of the sentence, as the seat copies it."""
+    call = sentence.split("Send it as a call: ", 1)[1]
+    call = call[:call.rindex(")") + 1].split(" and then ")[-1]
+    return f"{toolproto.MARKER} {call}"
+
+
+def _parsed(sentence: str) -> dict:
+    """The arguments that the real parser reads from the sentence's call."""
+    calls = toolproto.extract_lenient(_encode_of(sentence), {"tests.encode"})
+    assert len(calls) == 1 and isinstance(calls[0], toolproto.ToolCall), calls
+    return calls[0].args
 
 
 @pytest.fixture
@@ -110,23 +146,26 @@ def test_s149s_fenced_repair_is_told_to_send_tests_encode(db):
     assert out.errors.count("wrote a test into its reply") == 1
     assert len(backend.calls) == 2, "the second fenced reply is the stop"
     _, user = backend.calls[1]
-    assert user.endswith(NUDGE)
+    assert _sentence(user).startswith(HEAD) and user.endswith("''').")
+    assert _parsed(_sentence(user))["body"] == _fence(reply)
     assert "named an act and did not perform it" not in out.errors
 
 
-def test_the_call_the_nudge_names_lands_with_s149s_body(db):
-    """The call copied from the nudge, with the body from s149's fence,
-    passes the encode doors and replaces version 2."""
-    reply = _reply("s149_t1")
-    body = reply.split("```python\n", 1)[1].split("```", 1)[0]
-    call = NUDGE.split("Send it as a call: ", 1)[1].rstrip(".")
-    call = "TOOL: " + call.replace("body='...'", f"body={body!r}")
+@pytest.mark.parametrize("name, night", [("s149_t1", 125), ("s154_t1", 126)])
+def test_the_call_the_nudge_names_lands_its_body_unchanged(db, name, night):
+    """The seat copies the call of the sentence as it stands. The doors
+    admit it, and the stored body is the text of the seat's fence."""
+    reply = _reply(name, night)
+    out, backend = _tester(db, "m69", [reply, ""])
+    call = _encode_of(_sentence(backend.calls[1][1]))
+    assert "'...'" not in call
+
     out, backend = _tester(db, "m69", [reply, call, ""])
     assert out.committed, out.errors
     assert not [e for e in out.errors if e.startswith("tests.encode")], out.errors
     row = db.execute("SELECT body, version FROM tests "
                      "WHERE id = 'inh_echo_json_01'").fetchone()
-    assert "redirect_stdout" in row["body"] and row["version"] > 2
+    assert row["body"] == _fence(reply) and row["version"] > 2
 
 
 def test_s147s_fenced_repair_meets_the_test_nudge_before_the_named_act(db):
@@ -137,7 +176,8 @@ def test_s147s_fenced_repair_meets_the_test_nudge_before_the_named_act(db):
     assert out.errors.count("wrote a test into its reply") == 1
     assert len(backend.calls) == 2, "the second fenced reply is the stop"
     _, user = backend.calls[1]
-    assert user.endswith(NUDGE)
+    assert _sentence(user).startswith(HEAD)
+    assert _parsed(_sentence(user))["body"] == _fence(_reply("s147_t1"))
     assert "You said what you would do" not in user
     assert "named an act and did not perform it" not in out.errors
 
@@ -174,9 +214,9 @@ def test_an_answer_naming_a_criterion_with_no_test_names_the_criterion(db):
     out, backend = _run(db, _answer(db), [_reply("s149_t1")] * 2)
     assert out.errors.count("wrote a test into its reply") == 1
     _, user = backend.calls[1]
-    assert user.endswith(
-        "Send it as a call: tests.encode(id='...', "
-        "criterion_id='echo_json_compact', path='...', body='...').")
+    assert ("Send it as a call: tests.encode(id='...', "
+            "criterion_id='echo_json_compact', path='...', body='''def test"
+            in _sentence(user))
     assert len(backend.calls) == 2
 
 
@@ -185,7 +225,7 @@ def test_an_answer_naming_a_criterion_with_its_one_test_names_the_test(db):
     stored a second test of the criterion."""
     out, backend = _run(db, _answer(db), [_reply("s149_t1"), ""])
     _, user = backend.calls[1]
-    assert user.endswith(NUDGE)
+    assert _sentence(user).startswith(HEAD)
 
 
 def test_the_real_tests_missing_tick_names_the_triage_and_both_land(db, tmp_path):
@@ -199,12 +239,13 @@ def test_the_real_tests_missing_tick_names_the_triage_and_both_land(db, tmp_path
     reply = _reply("s149_t1")
     out, backend = _run(db, tick, [reply, reply])
     _, user = backend.calls[1]
-    sentence = (
-        "You wrote a test into your reply, and a reply is not a stored test "
-        "-- nothing landed. Send it as a call: tests.triage(criterion_id='...', "
-        "verdict='encodable') and then tests.encode(id='...', "
-        "criterion_id='...', path='...', body='...').")
-    assert user.endswith(sentence)
+    sentence = _sentence(user)
+    assert sentence.startswith(
+        MARK + "You wrote a test into your reply, and a reply is not a stored "
+        "test -- nothing landed. Send it as a call: tests.triage(criterion_id="
+        "'...', verdict='encodable') and then tests.encode(id='...', "
+        "criterion_id='...', path='...', body='''def test")
+    assert _parsed(sentence)["body"] == _fence(reply)
     # The second fenced reply is the stop, and the owed-call nudge does not
     # answer it.
     assert len(backend.calls) == 2
@@ -213,9 +254,8 @@ def test_the_real_tests_missing_tick_names_the_triage_and_both_land(db, tmp_path
     db = _night(tmp_path / "second.db")
     db.execute("DELETE FROM tests")
     db.commit()
-    body = reply.split("```python\n", 1)[1].split("```", 1)[0]
     call = _call_of(sentence, criterion_id="echo_json_compact", id="t_new",
-                    path="tests/test_utils/test_echo_json_new.py", body=body)
+                    path="tests/test_utils/test_echo_json_new.py")
     out, backend = _run(db, tick, [reply, call, ""])
     assert out.committed, out.errors
     assert [e for e in out.errors if not e.startswith("wrote")] == []
@@ -245,7 +285,8 @@ def test_a_fence_left_open_at_the_end_is_a_block(db):
              "    assert True\n")
     out, backend = _tester(db, "m69", [reply, ""])
     _, user = backend.calls[1]
-    assert user.endswith(NUDGE)
+    assert user.endswith(HEAD + "'def test_echo_json_compact():\n"
+                         "    assert True\n').")
 
 
 def test_a_ledger_entry_is_not_a_stored_test(db):
@@ -259,7 +300,7 @@ def test_a_ledger_entry_is_not_a_stored_test(db):
     assert not [e for e in out.errors if e.startswith("ledger.log")], out.errors
     assert out.errors.count("wrote a test into its reply") == 1
     _, user = backend.calls[2]
-    assert user.endswith(NUDGE)
+    assert _sentence(user).startswith(HEAD)
 
 
 def test_the_encode_door_refuses_the_dots_as_an_id(db):
@@ -303,8 +344,8 @@ def test_a_wake_with_two_tests_names_neither(db):
     db.commit()
     out, backend = _tester(db, "m69", [_reply("s149_t1"), ""])
     _, user = backend.calls[1]
-    assert user.endswith("tests.encode(id='...', criterion_id='...', "
-                         "path='...', body='...').")
+    assert ("tests.encode(id='...', criterion_id='...', path='...', "
+            "body='''def test") in _sentence(user)
 
 
 def test_an_answer_naming_two_criteria_names_neither(db):
@@ -314,8 +355,8 @@ def test_an_answer_naming_two_criteria_names_neither(db):
     out, backend = _run(db, _answer(db, ("echo_json_compact", "c2")),
                         [_reply("s149_t1"), ""])
     _, user = backend.calls[1]
-    assert user.endswith("tests.encode(id='...', criterion_id='...', "
-                         "path='...', body='...').")
+    assert ("tests.encode(id='...', criterion_id='...', path='...', "
+            "body='''def test") in _sentence(user)
 
 
 def test_a_project_test_with_no_criterion_keeps_the_dots(db):
@@ -328,8 +369,8 @@ def test_a_project_test_with_no_criterion_keeps_the_dots(db):
     db.commit()
     out, backend = _tester(db, "m69", [_reply("s149_t1"), ""])
     _, user = backend.calls[1]
-    assert user.endswith("tests.encode(id='inh_1', criterion_id='...', "
-                         "path='tests/test_echo.py', body='...').")
+    assert ("tests.encode(id='inh_1', criterion_id='...', "
+            "path='tests/test_echo.py', body='''def test") in _sentence(user)
 
 
 def test_an_architects_fenced_reply_gets_no_test_sentence(db):
@@ -370,7 +411,8 @@ def test_the_developers_fence_sentence_keeps_its_bytes(db, tmp_path):
     assert "wrote code into its reply" in out.errors
     assert "wrote a test into its reply" not in out.errors
     _, user = backend.calls[1]
-    assert user.endswith(DEVELOPER)
+    # The whole block is the mark and the sentence of before, byte for byte.
+    assert user.rsplit("\n\n", 1)[1] == MARK + DEVELOPER_BEFORE
 
 
 def test_a_developers_second_fence_meets_the_owed_call_nudge(db, tmp_path):
@@ -387,6 +429,145 @@ def test_a_developers_second_fence_meets_the_owed_call_nudge(db, tmp_path):
                               "ended a tick with nothing done"]
     _, user = backend.calls[2]
     assert "You were woken because something is owed here" in user
+
+
+# Pass 3: night 126 (2026-10-06). The nudge fired for s154 and s156 and
+# moved neither (frame 152's interview).
+
+S154_SENTENCE = (
+    "ERROR no call: You wrote a test into your reply, and a reply is not a "
+    "stored test -- nothing landed. Send it as a call: tests.encode("
+    "id='inh_echo_json_01', criterion_id='echo_json_compact', "
+    "path='tests/test_utils/test_echo_json_compact.py', body='''def "
+    "test_echo_json_compact():\n"
+    "    from click.testing import CliRunner\n"
+    "    from src.click.utils import echo_json\n"
+    "    \n"
+    "    runner = CliRunner()\n"
+    "    result = runner.invoke(echo_json, ['{\"key\": \"value\"}'], "
+    "catch_exceptions=False)\n"
+    "    assert result.exit_code == 0\n"
+    "    assert result.output.strip() == '{\"key\": \"value\"}'\n"
+    "    # Check for single newline at end\n"
+    "    assert result.output.endswith('\\\\n')\n"
+    "    # Check no extra newlines\n"
+    "    assert result.output.count('\\\\n') == 1\n"
+    "''').")
+
+
+def test_s154s_turn_1_meets_a_marked_sentence_that_holds_its_body(db):
+    """s154 quoted the call line and read the sentence as the tail of its
+    own reply. It said that the call had to carry the body (the interview,
+    answers 2, 7 and 9). The sentence now stands as a block of its own with
+    the runner's mark, and its call holds the body of s154's fence."""
+    reply = _reply("s154_t1", 126)
+    out, backend = _tester(db, "m69", [reply, ""])
+    _, user = backend.calls[1]
+    assert user.endswith(reply + "\n\n" + S154_SENTENCE)
+    assert _parsed(S154_SENTENCE)["body"] == _fence(reply)
+
+
+class _Cut(ScriptedBackend):
+    """A backend whose first reply stopped at the output budget."""
+
+    def complete(self, system, user, pins, tools=None):
+        c = super().complete(system, user, pins, tools)
+        if len(self.calls) == 1:
+            return Completion(text=c.text, pins=pins, backend=self.name,
+                              raw={"done_reason": "length"})
+        return c
+
+
+CUT_LINE = ("ERROR reply cut: your reply was cut at the output budget before "
+            "it ended. It held no whole call, so no call ran and nothing was "
+            "written. Send one call, or end with one sentence.")
+
+
+def test_s156s_cut_turn_1_meets_the_nudge_after_the_cut_sentences(db):
+    """s156's turn 1 was 34,236 characters with whole fences and no call.
+    The budget cut it, and the cut sentences stood alone. The runner reads
+    the fence from the whole reply, and the nudge follows the cut line."""
+    reply = _reply("s156_t1", 126)
+    backend = _Cut([reply, reply, ""])
+    out = run_session(db, Wake("tester", "message", message_id="m69",
+                               detail="challenge"),
+                      backend=backend, pins=Pins(model="scripted"))
+    assert out.errors.count("wrote a test into its reply") == 1
+    _, user = backend.calls[1]
+    shown, said = user.rsplit("\n\n", 1)
+    assert shown.endswith("Send one call, and keep your prose short.")
+    assert said.startswith(CUT_LINE + "\n" + HEAD)
+    assert _parsed(said)["body"] == _fence(reply)
+    # The fence is not in the 4,000 characters shown, so only the whole
+    # reply could give it.
+    assert _fence(reply) not in reply[:4000]
+    # The second fenced reply is the session's stop, as after any nudge.
+    assert len(backend.calls) == 2
+
+
+def test_a_cut_reply_whose_fence_is_cut_gets_the_cut_line_alone(db):
+    """A fence that the budget cut is not the seat's whole text."""
+    reply = ("The repair:\n```python\ndef test_echo_json_compact():\n"
+             "    assert out")
+    backend = _Cut([reply, ""])
+    out = run_session(db, Wake("tester", "message", message_id="m69",
+                               detail="challenge"),
+                      backend=backend, pins=Pins(model="scripted"))
+    assert "wrote a test into its reply" not in out.errors
+    assert backend.calls[1][1].endswith("\n\n" + CUT_LINE)
+
+
+def test_a_cut_reply_gives_its_last_whole_test_and_not_the_cut_one(db):
+    """s156's later turns held whole fences and ended inside another. The
+    block that the budget cut is not offered as the body."""
+    whole = "def test_a():\n    assert True\n"
+    reply = (f"First:\n```python\n{whole}```\nThen:\n```python\n"
+             "def test_b():\n    assert out")
+    backend = _Cut([reply, ""])
+    run_session(db, Wake("tester", "message", message_id="m69",
+                         detail="challenge"),
+                backend=backend, pins=Pins(model="scripted"))
+    assert _parsed(_sentence(backend.calls[1][1]))["body"] == whole
+
+
+TRICKY = ("def test_quotes():\n"
+          "    single = 'it''s'\n"
+          '    double = "say \\"hi\\""\n'
+          "    path = 'C:\\\\tmp\\\\x'\n"
+          "    doc = '''three'''\n"
+          '    other = """three"""\n'
+          "    assert single and double and path and doc and other\n")
+
+
+@pytest.mark.parametrize("body", [
+    pytest.param(_fence((HERE / "night126_s154_t1.txt").read_bytes()
+                        .decode("utf-8")), id="s154"),
+    pytest.param(_fence((HERE / "night126_s156_t1.txt").read_bytes()
+                        .decode("utf-8")), id="s156"),
+    pytest.param(TRICKY, id="every-quote-and-a-backslash"),
+    pytest.param(TRICKY + "    tail = 'x'", id="ends-on-a-quote"),
+])
+def test_the_rendered_body_parses_back_to_the_fences_text(body):
+    """Render, parse with the real parser, compare with the fence's text."""
+    assert "\\" in TRICKY and "'''" in TRICKY and '"""' in TRICKY
+    head = ("tests.encode(id='inh_echo_json_01', criterion_id='c1', "
+            "path='tests/test_x.py'")
+    literal = _body_literal(body, {"tests.encode"}, None, head)
+    assert literal is not None
+    calls = toolproto.extract_lenient(
+        f"TOOL: {head}, body={literal})", {"tests.encode"})
+    assert len(calls) == 1 and calls[0].args["body"] == body
+
+
+def test_a_body_the_parser_cannot_return_falls_back_to_the_dots(db):
+    """The lenient parse drops the backticks of a key before `=`, so no
+    form returns this body whole. The call keeps body='...', and the
+    sentence says to paste the fence's text there."""
+    body = "def test_x():\n    # `n` = 1\n    assert True\n"
+    assert _body_literal(body, {"tests.encode"}, None, "tests.encode(id='t'") is None
+    out, backend = _tester(db, "m69", [f"The test:\n```python\n{body}```", ""])
+    assert backend.calls[1][1].endswith(
+        NUDGE + " Put the text of your fenced test in place of the dots of body.")
 
 
 # The case runner's `replies:` key (the review of 9684e3c, point 5).

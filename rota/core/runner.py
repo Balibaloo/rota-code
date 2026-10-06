@@ -1871,10 +1871,45 @@ def _failed_run_blocks(inbound: dict[str, Any]) -> list[str]:
 
 # A fenced block, closed or cut at the end of the reply.
 _FENCE_BLOCK = re.compile(r"```[^\n]*\n(.*?)(?:```|\Z)", re.S)
+# A fenced block with its closing mark. A reply cut at the output budget
+# ends inside its last block, so that block is not the seat's whole text.
+_WHOLE_FENCE = re.compile(r"```[^\n]*\n(.*?)```", re.S)
+
+# The runner's mark on the sentence after a fenced reply with no call. Night
+# 126's s154 read the sentence with no mark as the tail of its own reply, and
+# said that no such sentence stood in its prompt (frame 152's interview).
+# The cut sentence above it carries the same form: `ERROR reply cut:`.
+_NO_CALL = "ERROR no call: "
+
+
+def _body_literal(body: str, allowed: set[str], signatures: dict | None,
+                  head: str) -> str | None:
+    """`body` as a value that the call parser reads back to the same text.
+
+    The parser decodes one level of escapes, so every backslash is doubled.
+    The first quote that the body does not hold wins, so most bodies carry
+    no escaped quote. Night 126's s154 said that the call line had to carry
+    the body (frame 152's interview, answer 7). The real parser reads each
+    form back, and a form that does not return the same text is not offered.
+    """
+    text = body.replace("\\", "\\\\")
+    forms = []
+    for q in ("'", '"', "'''", '"""'):
+        if q not in body and not (len(q) == 3 and body.endswith(q[0])):
+            forms.append(f"{q}{text}{q}")
+    forms.append("'''" + text.replace("'", "\\'") + "'''")
+    for form in forms:
+        calls = toolproto.extract_lenient(
+            f"{toolproto.MARKER} {head}, body={form})", allowed, signatures)
+        if (len(calls) == 1 and isinstance(calls[0], toolproto.ToolCall)
+                and calls[0].args.get("body") == body):
+            return form
+    return None
 
 
 def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
-                  triage: bool) -> str:
+                  allowed: set[str], signatures: dict | None = None,
+                  whole: bool = False) -> str:
     """The sentence for a test written into a reply, with the call to copy.
 
     The wake's refs give the values. A challenge names one test, and its row
@@ -1882,6 +1917,10 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
     and its one stored test gives the id and the path, because a new id
     stores a second test of the criterion. A tick names the batch. A value
     the wake does not hold stays '...'.
+
+    The body is the last fenced block that holds `def test`, because the
+    seat's last version is its repair. `whole` reads closed blocks only, for
+    a reply that the output budget cut.
     """
     tests, crits = [], []
     for ref in refs:
@@ -1900,25 +1939,35 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
     if len(tests) == 1:
         args = {k: tests[0][k] or "..." for k in args}
     named = ", ".join(f"{k}={v!r}" for k, v in args.items())
+    head = f"tests.encode({named}"
+    blocks = (_WHOLE_FENCE if whole else _FENCE_BLOCK).findall(text)
+    tests = [b for b in blocks if "def test" in b]
+    literal = (_body_literal(tests[-1], allowed, signatures, head)
+               if tests else None)
+    call = f"{head}, body={literal or repr('...')})"
     # The encode door refuses a criterion with no triage verdict in this
     # session, so a mode that holds the triage names it first (frame 152's
     # review of 9684e3c, point 3).
-    call = f"tests.encode({named}, body='...')"
-    if triage:
+    if "tests.triage" in allowed:
         call = (f"tests.triage(criterion_id={args['criterion_id']!r}, "
                 f"verdict='encodable') and then {call}")
     # A fence with no test function is code, not a test (the same review,
     # point 4).
-    if any("def test" in b for b in _FENCE_BLOCK.findall(text)):
-        return (f"You wrote a test into your reply, and a reply is not a "
-                f"stored test -- nothing landed. Send it as a call: {call}.")
+    if tests:
+        # A body that no form returns whole stays '...', and the seat pastes
+        # its own text (frame 152, pass 3).
+        paste = ("" if literal else " Put the text of your fenced test in "
+                 "place of the dots of body.")
+        return (f"{_NO_CALL}You wrote a test into your reply, and a reply is "
+                f"not a stored test -- nothing landed. Send it as a call: "
+                f"{call}.{paste}")
     # Night 119's s247 fenced one import and 36k characters of comment. An
     # order to encode that is an order to store a non-test, so the code form
     # offers the end as the named-act nudge does (frame 152's review of
     # 5e0dd71, F3).
-    return (f"You wrote code into your reply, and a reply is not a stored "
-            f"test -- nothing landed. Send it as a call: {call}, or end by "
-            f"saying nothing is owed.")
+    return (f"{_NO_CALL}You wrote code into your reply, and a reply is not a "
+            f"stored test -- nothing landed. Send it as a call: {call}, or end "
+            f"by saying nothing is owed.")
 
 
 def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
@@ -2994,6 +3043,15 @@ def run_session(
                 cut_note = cut
             else:
                 cut_note = None
+            # A seat that stores a test with tests.encode and writes no file.
+            # A session that wrote is not told "nothing landed": night 120's
+            # s140 landed its encodes and showed the test in a fence at turn
+            # 6. Only a test row counts: a `ledger.log` stores no test, and the
+            # night-120 replay of s140 lost the nudge to one (frame 152's
+            # review of 5e0dd71, F1).
+            test_seat = ("tests.encode" in allowed
+                         and "code.write" not in allowed
+                         and not any(w[0] == "tests" for w in sb.ctx.writes))
             if cut_note and not calls and not cut_retried:
                 # clickI night 31 (2026-09-13): a Tester challenge reply ran
                 # to the cap with no call in it, the cut note was appended to
@@ -3011,11 +3069,23 @@ def run_session(
                 cut_retried = True
                 _append(transcript, kinds, _REPLY,
                         _render_cut(completion.text, 4000, reply=True))
-                _append(transcript, kinds, _RESULTS,
-                        "ERROR reply cut: your reply was cut at the output "
+                said = ("ERROR reply cut: your reply was cut at the output "
                         "budget before it ended. It held no whole call, so no "
                         "call ran and nothing was written. Send one call, or "
                         "end with one sentence.")
+                # Night 126's s156 wrote its repair in a whole fence, and the
+                # budget cut its reply after the fence. The cut sentences stood
+                # alone, and no test nudge followed. The runner holds the whole
+                # reply, so it reads the fence that the shown part lost
+                # (frame 152, pass 3).
+                if (test_seat and not fence_warned
+                        and _WHOLE_FENCE.search(completion.text)):
+                    fence_warned = True
+                    outcome.errors.append("wrote a test into its reply")
+                    said += "\n" + _encode_nudge(
+                        conn, inbound.get("refs") or list(wake.refs),
+                        completion.text, allowed, _param_sets(sb), whole=True)
+                _append(transcript, kinds, _RESULTS, said)
                 continue
             if ("```" in completion.text and not calls
                     and "code.write" in allowed and not fence_warned):
@@ -3028,8 +3098,8 @@ def run_session(
                 _append(transcript, kinds, _REPLY, completion.text)
                 _append(
                     transcript, kinds, _RESULTS,
-                    "You wrote code into your reply, and a reply is not a "
-                    "file -- nothing landed. Send it as a call: "
+                    f"{_NO_CALL}You wrote code into your reply, and a reply "
+                    "is not a file -- nothing landed. Send it as a call: "
                     "code.write(path='...', text='...') and then code.commit.")
                 continue
             # Night 125: the Tester s147 and s149 each wrote the repair of a
@@ -3038,23 +3108,18 @@ def run_session(
             # named-act nudge, and s149 met no nudge, because a message wake
             # gets no owed-call nudge and "Let's fix" is not an INTENT.
             # Once: told, and the next fenced reply is the session's real
-            # stop, so neither nudge below answers it. A session that wrote
-            # is not told "nothing landed": night 120's s140 landed its
-            # encodes and showed the test in a fence at turn 6. Only a test
-            # row counts: a `ledger.log` stores no test, and the night-120
-            # replay of s140 lost the nudge to one (frame 152's review of
-            # 5e0dd71, F1).
-            test_fence = ("```" in completion.text and not calls
-                          and "tests.encode" in allowed
-                          and "code.write" not in allowed
-                          and not any(w[0] == "tests" for w in sb.ctx.writes))
+            # stop, so neither nudge below answers it.
+            test_fence = "```" in completion.text and not calls and test_seat
             if test_fence and not fence_warned:
                 fence_warned = True
                 outcome.errors.append("wrote a test into its reply")
                 _append(transcript, kinds, _REPLY, completion.text)
+                # A reply that the budget cut ends inside its last block, so
+                # only whole blocks give a body.
                 _append(transcript, kinds, _RESULTS, _encode_nudge(
                     conn, inbound.get("refs") or list(wake.refs),
-                    completion.text, "tests.triage" in allowed))
+                    completion.text, allowed, _param_sets(sb),
+                    whole=bool(cut_note)))
                 continue
             if (not calls and not intent_warned and not test_fence
                     and INTENT.search(completion.text)
