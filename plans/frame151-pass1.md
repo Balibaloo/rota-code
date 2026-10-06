@@ -21,7 +21,7 @@ The 82 triple cases read right. The triple slice went from 515 right to 597 righ
 
 90 cases of the fixture moved: 82 in the triple slice and 8 in the code-wide slice. No case is lost. The other six slices did not move.
 
-The 8 code-wide cases each hold a `'''` token in the source, from the atoms `''` and `'`. So the scan now reads each one as a triple-quoted value. Python parses 5 of the 8, and the new read equals Python's read in each of the 5. Python refuses 3. In those, the new read keeps the line breaks that the old read joined.
+The 8 code-wide cases each hold a `'''` token in the source, from the atoms `''` and `'`. So the scan now reads each one as a triple-quoted value. Python parses 6 of the 8, and the new read equals Python's read in each of the 6. For #1290, Python's read is the read of the first call. Python refuses #84 and #2416. In those 2, the new read keeps the line breaks that the old read joined (corrected in pass 2: observed, the review's `p2_fuzz.py` run again, 2026-10-06).
 
 | case | before | after |
 |---|---|---|
@@ -30,7 +30,7 @@ The 8 code-wide cases each hold a `'''` token in the source, from the atoms `''`
 | code-1-2500-wide #97 | wrong, two line breaks as spaces | equal to Python's read, still not the case's want |
 | code-1-2500-wide #882 | wrong, a line break as a space | equal to Python's read, still not the case's want |
 | code-1-2500-wide #1290 | wrong, a line break as a space | equal to Python's read, still not the case's want |
-| code-1-2500-wide #1302 | wrong, a line break as a space | the line break kept, still not the case's want |
+| code-1-2500-wide #1302 | wrong, a line break as a space | equal to Python's read, still not the case's want |
 | code-1-2500-wide #1319 | wrong, a line break as a space | equal to Python's read, still not the case's want |
 | code-1-2500-wide #2416 | wrong, a line break as a space in a single-quoted value after a triple token | the line break kept, still not the case's want |
 
@@ -39,6 +39,8 @@ The case's want is the fuzz generator's intent. In these 7 the source does not h
 ## Ends-when 3: the night calls
 
 On nights 113 to 124, the old parser and the repaired one read 12 of 1,719 `code.write` and `tests.encode` calls differently. In each of the 12, the two values differ only where the new value holds a line break and the old value holds a space. The other arguments are the same (observed: `f151_check2.py`, 2026-10-05).
+
+Over every op, the count is the same 12. Nights 113 to 125 hold 41,026 calls, and 12 read differently. The cassette table holds 48,288 calls, and 0 read differently (observed: the review of e78545a, `p1_nights.py` and `p1_cassettes.py`, 2026-10-06; added in pass 2).
 
 | night | session | seq | op | line breaks restored |
 |---|---|---|---|---|
