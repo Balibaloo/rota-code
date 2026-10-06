@@ -223,6 +223,79 @@ def _scalar_refusal(name: str, value: str, kind: str, dotted: str) -> str:
             f"send {name}=1.0, {name}=2.5 or another number")
 
 
+def _must_exist_table(op: tuple[str, str]) -> str | None:
+    """The table whose row the op's `id` must name, read from the op's own
+    `_must_exist(ctx, "<table>", id)` call. None when the op holds none."""
+    impl = api.REGISTRY.get(op)
+    if impl is None:
+        return None
+    try:
+        src = inspect.getsource(impl)
+    except (OSError, TypeError):
+        return None
+    m = re.search(r"""_must_exist\(ctx,\s*["'](\w+)["'],\s*id\)""", src)
+    return m.group(1) if m else None
+
+
+def _scalar_id_fault(ctx, op, kwargs: dict) -> tuple[str, Any] | None:
+    """The id half of a call that the scalar door refuses: the words that
+    name what is wrong with `id`, and the id that the offer carries.
+
+    The id door of `_bind` and `_must_exist` run after the binder. An offer
+    that keeps a wrong id is refused by the next door (frame 164's review,
+    finding 1: 5 of 6 refusals on nights 113 to 126). So one refusal names
+    both facts. An id of a ticket, a criterion or a batch resolves to its
+    item, and the offer carries that item. Any other wrong id is the seat's
+    to choose, so the offer carries `api.INVENT`, as the id door's does.
+    """
+    conn = getattr(ctx, "conn", None)
+    rid = kwargs.get("id")
+    if conn is None or not op or not isinstance(rid, str):
+        return None
+    own = _ID_TABLES.get(op[0])
+    clash = next((t for t in _ID_TABLES.values() if t != own and conn.execute(
+        f"SELECT 1 FROM {t} WHERE id = ?", (rid,)).fetchone()), None)
+    must = _must_exist_table(op)
+    if clash is None and (must is None or conn.execute(
+            f"SELECT 1 FROM {must} WHERE id = ?", (rid,)).fetchone()):
+        return None
+    where = must or own
+    if where is None:
+        return None             # no table the id belongs to, so no fact
+    item =_item_of(conn, clash, rid) if clash and where == "items" else None
+    if item is not None:
+        api._fact(ctx, "row", item)
+        return (f". The id is wrong too: {rid!r} is a row of {clash}, not of "
+                f"{where}, and its item is {item!r}. Send id={item!r} with "
+                f"the number", item)
+    have = [r[0] for r in conn.execute(
+        f"SELECT id FROM {where} ORDER BY id LIMIT 6")]
+    for h in have:
+        api._fact(ctx, "row", h)
+    what = f"a row of {clash}, not of {where}" if clash else f"no row of {where}"
+    rows = (f"; {where} rows are {have}" if have
+            else f"; there are no {where} rows at all")
+    return (f". The id is wrong too: {rid!r} is {what}{rows}. Send the id of "
+            f"a row of {where} with the number", api.INVENT)
+
+
+def _item_of(conn, table: str, rid: str) -> str | None:
+    """The items row that a tickets, batches or criteria row belongs to."""
+    if table in ("tickets", "batches"):
+        row = conn.execute(f"SELECT item_id FROM {table} WHERE id = ?",
+                           (rid,)).fetchone()
+    elif table == "criteria":
+        row = conn.execute(
+            "SELECT t.item_id FROM criteria c JOIN tickets t "
+            "ON t.id = c.ticket_id WHERE c.id = ?", (rid,)).fetchone()
+    else:
+        return None
+    if row is None or row[0] is None or conn.execute(
+            "SELECT 1 FROM items WHERE id = ?", (row[0],)).fetchone() is None:
+        return None
+    return row[0]
+
+
 def validate_args(fn: Callable, kwargs: dict,
                   op: tuple[str, str] | None = None, ctx=None) -> str | None:
     """Return a human-readable problem, or None if the call is well formed.
@@ -283,7 +356,7 @@ def validate_args(fn: Callable, kwargs: dict,
     # then crashes every step (frame 164: night 126, s249 sent
     # priority='high'). Text that the type reads is converted here. Any
     # other text is a refusal that names the form the argument takes.
-    dotted = f"{op[0]}.{_verb_to_attr(op[1])}" if op else ""
+    dotted = f"{op[0]}.{_verb_to_attr(op[1])}" if op else fn.__name__
     for name, p in sig.parameters.items():
         kind = _scalar_kind(p.annotation)
         if kind is None or not isinstance(kwargs.get(name), str):
@@ -293,9 +366,14 @@ def validate_args(fn: Callable, kwargs: dict,
             kwargs[name] = got
             continue
         said = _scalar_refusal(name, kwargs[name], kind, dotted)
-        return api._offer(ctx, said, dotted, {**kwargs, name: _SCALAR_EXAMPLE[kind]})
+        offer = {**kwargs, name: _SCALAR_EXAMPLE[kind]}
+        wrong = _scalar_id_fault(ctx, op, kwargs)
+        if wrong:
+            said += wrong[0]
+            offer["id"] = wrong[1]
+        return api._offer(ctx, said, dotted, offer)
 
-    checks ={**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
+    checks = {**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
     for key, allowed in checks.items():
         if key in kwargs and isinstance(kwargs[key], str) and kwargs[key] not in allowed:
             return f"{key}={kwargs[key]!r} is not one of {list(allowed)}"
