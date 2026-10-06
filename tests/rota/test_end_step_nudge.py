@@ -95,11 +95,13 @@ def root(tmp_path):
     return wt
 
 
-def _s158(conn, script: list[str]):
+def _s158(conn, script: list[str], kind: str = "tick:tests_failing",
+          batch_id: str | None = None):
     backend = ScriptedBackend(script)
-    out = run_session(conn, Wake("developer", "tick:tests_failing",
+    out = run_session(conn, Wake("developer", kind,
                                  refs=("bg_1",), detail="attempt 6"),
-                      backend=backend, pins=Pins(model="scripted"))
+                      backend=backend, pins=Pins(model="scripted"),
+                      batch_id=batch_id)
     return out, backend
 
 
@@ -165,3 +167,143 @@ def test_only_the_newest_refusal_counts(tmp_path, root):
     _, user = backend.calls[2]
     assert user.endswith(REFUSED)
     assert "ended a tick with nothing done" not in out.errors
+
+
+# The pass 2 tests come from the diff review of d77bdec (2026-10-05). The
+# rule: the flag is true only while the newest answer to any call is the
+# door's refusal with the step to end.
+SOURCE = "TOOL: code.source(path='src/click/utils.py', start=0, end=2)"
+WRITE = ("TOOL: code.write(path='src/click/utils.py', text='import json\n"
+         "def echo_json(obj):\n    print(json.dumps(obj))\n')")
+
+
+def _with_code(conn, root):
+    """The file that the challenged test calls, so a read and a write land."""
+    (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "utils.py").write_text(
+        "def echo_json(obj):\n    pass\n", encoding="utf-8", newline="")
+    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                 "('project_root', ?)", (str(root),))
+    conn.commit()
+    return conn
+
+
+def test_a_write_after_the_step_brings_the_nudge_back(tmp_path, root):
+    """Case C2: the step, then a `code.write` that lands, then prose. The
+    write is the newest answer, so the step no longer stands. The parent
+    nudged here, and without the reset the session ended with the write
+    uncommitted."""
+    conn = _with_code(_night(tmp_path / "rota.db", root), root)
+    prose = _reply("s158_t2")
+    out, backend = _s158(conn, [_reply("s158_t1"), WRITE, prose, prose,
+                                "Done."], batch_id="bg_1")
+    assert len(backend.calls) == 4
+    _, user = backend.calls[2]
+    assert "\nOK code.write -> " in user, user[-600:]
+    _, user = backend.calls[3]
+    assert user.endswith(prose + "\n\n" + OWED)
+
+
+def test_a_held_challenge_that_meets_the_step_ends(tmp_path, root):
+    """Case C5: a fresh read holds the challenge, and the challenge runs
+    when the reply holds no call. The door's step then ends the session
+    after the stood-by refusal is read, and no nudge comes."""
+    conn = _with_code(_night(tmp_path / "rota.db", root), root)
+    prose = _reply("s158_t2")
+    out, backend = _s158(conn, [SOURCE + "\n" + _reply("s158_t1"), prose,
+                                prose, prose, "Done."])
+    assert len(backend.calls) == 3
+    _, user = backend.calls[2]
+    assert "The calls you stood by ran, and these were refused:" in user
+    assert REFUSED in user
+    assert "ended a tick with nothing done" not in out.errors
+
+
+def test_a_held_write_after_the_held_step_brings_the_nudge_back(tmp_path,
+                                                                root):
+    """The held challenge meets the step, and the held write behind it
+    lands. The write is the newest answer, so the nudge comes."""
+    conn = _with_code(_night(tmp_path / "rota.db", root), root)
+    prose = _reply("s158_t2")
+    out, backend = _s158(conn, [
+        SOURCE + "\n" + _reply("s158_t1") + "\n" + WRITE, prose, prose,
+        prose, "Done."], batch_id="bg_1")
+    assert len(backend.calls) == 4
+    _, user = backend.calls[2]
+    assert REFUSED in user
+    assert "code.write" not in user.rsplit("these were refused:", 1)[1], \
+        "the held write landed"
+    assert (root / "src" / "click" / "utils.py").read_text(
+        encoding="utf-8").startswith("import json\n")
+    _, user = backend.calls[3]
+    assert user.endswith(prose + "\n\n" + OWED)
+
+
+@pytest.mark.parametrize("bad", [
+    # The parser's error: an argument with no value.
+    "TOOL: criteria.load(batch_id=)",
+    # The argument check's error: the Developer holds no `tests.encode`.
+    "TOOL: tests.encode(id='t', criterion_id='c', path='p.py', body='x')",
+])
+def test_a_call_error_after_the_step_brings_the_nudge_back(tmp_path, root,
+                                                           bad):
+    """An ERROR line from the parser or the argument check answers a call
+    too, and it is newer than the step."""
+    conn = _night(tmp_path / "rota.db", root)
+    prose = _reply("s158_t2")
+    out, backend = _s158(conn, [_reply("s158_t1"), bad, prose, prose,
+                                "Done."])
+    assert len(backend.calls) == 4
+    _, user = backend.calls[2]
+    assert user.rstrip().splitlines()[-1].startswith("ERROR ")
+    assert "OK " not in user.rsplit(REFUSED, 1)[1]
+    _, user = backend.calls[3]
+    assert user.endswith(prose + "\n\n" + OWED)
+
+
+def test_a_session_with_no_refusal_gets_the_nudge(tmp_path, root):
+    """The flag starts false: no call has been answered yet."""
+    conn = _night(tmp_path / "rota.db", root)
+    prose = _reply("s158_t2")
+    out, backend = _s158(conn, [prose, prose, "Done."])
+    assert len(backend.calls) == 2
+    _, user = backend.calls[1]
+    assert user.endswith(prose + "\n\n" + OWED)
+
+
+def _judged(conn):
+    """The Tester answered m69, so the door says "they answered" and takes
+    its step from the mode. m70 is closed, so no escalation is offered."""
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                 "verb, body_refs, seq, status, cause_id) VALUES ('m71', "
+                 "'m69', 'tester', 'developer', 'answer', ?, 71, 'answered', "
+                 "'m69')", (json.dumps(REFS),))
+    conn.commit()
+    return conn
+
+
+def test_mode_exhausted_ends_on_the_code_step(tmp_path, root):
+    """Mode `exhausted` holds no `code.write`, so the step toward the code
+    is the step to end (`sandbox._code_step`). The session ends there."""
+    conn = _judged(_night(tmp_path / "rota.db", root))
+    prose = _reply("s158_t2")
+    out, backend = _s158(conn, [_reply("s158_t1"), prose, prose, "Done."],
+                         kind="tick:exhausted")
+    assert len(backend.calls) == 2
+    _, user = backend.calls[1]
+    assert user.endswith("they answered (m71). Sending it again is the same "
+                         "argument again. " + sandbox.END_STEP)
+    assert "ended a tick with nothing done" not in out.errors
+
+
+def test_the_step_toward_the_code_keeps_the_nudge(tmp_path, root):
+    """The same refusal in a mode that holds `code.write` asks for a change
+    to the code. That step is no end, so the nudge comes."""
+    conn = _judged(_night(tmp_path / "rota.db", root))
+    prose = _reply("s158_t2")
+    out, backend = _s158(conn, [_reply("s158_t1"), prose, prose, "Done."])
+    assert len(backend.calls) == 3
+    _, user = backend.calls[1]
+    assert user.endswith("Make one real change to the code the test calls.")
+    _, user = backend.calls[2]
+    assert user.endswith(prose + "\n\n" + OWED)

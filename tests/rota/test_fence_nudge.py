@@ -38,6 +38,10 @@ NUDGE = ("You wrote a test into your reply, and a reply is not a stored test "
          "-- nothing landed. Send it as a call: tests.encode("
          "id='inh_echo_json_01', criterion_id='echo_json_compact', "
          "path='tests/test_utils/test_echo_json_compact.py', body='...').")
+# A fence with no test function is code. The sentence offers the end, as the
+# named-act nudge does (frame 152's review of 5e0dd71, F3).
+CODE = (NUDGE.replace("You wrote a test", "You wrote code")[:-1]
+        + ", or end by saying nothing is owed.")
 DEVELOPER = ("You wrote code into your reply, and a reply is not a file -- "
              "nothing landed. Send it as a call: "
              "code.write(path='...', text='...') and then code.commit.")
@@ -227,12 +231,51 @@ def test_a_fence_with_no_test_function_is_code_in_the_sentence(db):
              "The test reads the buffer too late.")
     out, backend = _tester(db, "m69", [reply, ""])
     _, user = backend.calls[1]
-    assert user.endswith(NUDGE.replace("You wrote a test", "You wrote code"))
+    assert user.endswith(CODE)
     # A test function named in the prose is not a test in a fence.
     reply = "The test def test_echo_json_compact() fails.\n" + reply
     out, backend = _tester(db, "m69", [reply, ""])
-    assert backend.calls[1][1].endswith(
-        NUDGE.replace("You wrote a test", "You wrote code"))
+    assert backend.calls[1][1].endswith(CODE)
+
+
+def test_a_fence_left_open_at_the_end_is_a_block(db):
+    """The review of 5e0dd71, F5: a reply that ends inside its fence still
+    holds the test, so the sentence says "a test"."""
+    reply = ("The repair:\n```python\ndef test_echo_json_compact():\n"
+             "    assert True\n")
+    out, backend = _tester(db, "m69", [reply, ""])
+    _, user = backend.calls[1]
+    assert user.endswith(NUDGE)
+
+
+def test_a_ledger_entry_is_not_a_stored_test(db):
+    """The review of 5e0dd71, F1: a `ledger.log` stores no test, so a fence
+    after it is still told that nothing landed. The answer mode holds
+    `ledger.log`."""
+    log = ("TOOL: ledger.log(about_ref='echo_json_compact', "
+           "about_table='criteria', assumption='the test assumes the key "
+           "order of the dict where the material is silent')")
+    out, backend = _run(db, _answer(db), [log, _reply("s149_t1"), ""])
+    assert not [e for e in out.errors if e.startswith("ledger.log")], out.errors
+    assert out.errors.count("wrote a test into its reply") == 1
+    _, user = backend.calls[2]
+    assert user.endswith(NUDGE)
+
+
+def test_the_encode_door_refuses_the_dots_as_an_id(db):
+    """The review of 5e0dd71, F2: a seat that keeps `id='...'` of the
+    sentence stored a test row with the id `...`. The door asks for an id."""
+    db.execute("DELETE FROM tests")
+    db.commit()
+    call = ("TOOL: tests.encode(id='...', criterion_id='echo_json_compact', "
+            "path='tests/test_utils/test_echo_json_new.py', "
+            "body='def test_new():\\n    assert True\\n')")
+    out, backend = _run(db, _answer(db), [call, ""])
+    _, user = backend.calls[1]
+    assert ("id='...' is a placeholder, not an id. Give this test an id of "
+            "its own, a short name for what it checks, and send the encode "
+            "again") in user
+    assert db.execute("SELECT COUNT(*) FROM tests").fetchone()[0] == 0
 
 
 def test_a_session_that_wrote_is_not_told_nothing_landed(db):
@@ -412,6 +455,32 @@ def test_the_case_judges_the_first_call_after_the_replies(tmp_path):
     r = _run_case(_case(), ScriptedBackend(["TOOL: criteria.load()", ""]),
                   tmp_path / "y")
     assert ("expected a first call to tests.encode; got criteria.load"
+            in r.problems), r.problems
+
+
+def test_the_case_judges_the_first_call_of_a_reply_with_two(tmp_path):
+    """The review of 5e0dd71, F5: the first call is the act the case judges,
+    even when the right call follows it in the same reply."""
+    problem = _case()
+    reply = "TOOL: criteria.load()\n" + _right_call(problem)
+    r = _run_case(problem, ScriptedBackend([reply, ""]), tmp_path)
+    assert ("expected a first call to tests.encode; got criteria.load"
+            in r.problems), r.problems
+
+
+def test_a_first_reply_with_no_call_fails_the_case(tmp_path):
+    r = _run_case(_case(), ScriptedBackend(["I have nothing to send.", ""]),
+                  tmp_path)
+    assert not r.passed
+    assert ("expected a first call to tests.encode; the reply holds no call"
+            in r.problems), r.problems
+
+
+def test_no_completion_after_the_replies_names_the_missing_call(tmp_path):
+    problem = _case()
+    problem["replies"] = [problem["replies"][0], _right_call(problem), "Done."]
+    r = _run_case(problem, _NoModel(), tmp_path)
+    assert ("expected a first call to tests.encode; the model made none"
             in r.problems), r.problems
 
 

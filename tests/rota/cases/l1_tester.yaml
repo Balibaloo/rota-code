@@ -307,11 +307,12 @@
         # string that holds both quote kinds, and the parser decodes one
         # level of escapes, so 5 of 5 first encodes that copied it failed
         # to parse (frame 152's review of 9684e3c, point 5). The assert
-        # now compares parsed JSON.
+        # then compared parsed JSON, and 5 of 5 first encodes took that
+        # assert without its import (the review of 5e0dd71, F4). The assert
+        # now needs no import and holds one quote kind.
         body: |-
           def test_echo_json_compact():
               import sys
-              import json
               from io import StringIO
               from src.click.utils import echo_json
 
@@ -323,7 +324,7 @@
                   sys.stdout = old_stdout
 
               output = sys.stdout.getvalue()
-              assert json.loads(output) == {"key": "value"}
+              assert "key" in output and "value" in output
               # Check for single newline at end
               assert output.endswith("\n")
               # Check no extra newlines
@@ -342,7 +343,6 @@
 
               def test_echo_json_compact():
                   import sys
-                  import json
                   from io import StringIO
                   from src.click.utils import echo_json
 
@@ -357,7 +357,7 @@
                            ^^^^^^^^^^^^^^^^^^^
           E       AttributeError: 'EncodedFile' object has no attribute 'getvalue'
 
-          tests\test_utils\test_echo_json_compact.py:14: AttributeError
+          tests\test_utils\test_echo_json_compact.py:13: AttributeError
           =========================== short test summary info ===========================
           FAILED tests/test_utils/test_echo_json_compact.py::test_echo_json_compact - A...
           1 failed in 0.14s

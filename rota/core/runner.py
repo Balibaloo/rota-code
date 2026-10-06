@@ -1909,10 +1909,16 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
                 f"verdict='encodable') and then {call}")
     # A fence with no test function is code, not a test (the same review,
     # point 4).
-    wrote = ("a test" if any("def test" in b for b in _FENCE_BLOCK.findall(text))
-             else "code")
-    return (f"You wrote {wrote} into your reply, and a reply is not a stored "
-            f"test -- nothing landed. Send it as a call: {call}.")
+    if any("def test" in b for b in _FENCE_BLOCK.findall(text)):
+        return (f"You wrote a test into your reply, and a reply is not a "
+                f"stored test -- nothing landed. Send it as a call: {call}.")
+    # Night 119's s247 fenced one import and 36k characters of comment. An
+    # order to encode that is an order to store a non-test, so the code form
+    # offers the end as the named-act nudge does (frame 152's review of
+    # 5e0dd71, F3).
+    return (f"You wrote code into your reply, and a reply is not a stored "
+            f"test -- nothing landed. Send it as a call: {call}, or end by "
+            f"saying nothing is owed.")
 
 
 def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
@@ -2915,10 +2921,11 @@ def run_session(
         refused_same: dict[tuple[str, str], int] = {}
         stop_reason = ""
         turn_refusals: set[tuple[str, str]] = set()
-        # True when the newest ERROR line that answered a call told the seat
-        # to end with no call (frame 153). Every later ERROR line sets it
-        # again, because only the door's newest word counts. `ctx.refusals`
-        # cannot serve: a message's refusal never reaches it.
+        # True only while the newest answer to any call is a refusal that
+        # told the seat to end with no call (frame 153). Every later answer,
+        # an OK or an ERROR line, sets it again, because only the door's
+        # newest word counts. `ctx.refusals` cannot serve: a message's
+        # refusal never reaches it.
         told_to_end = False
 
         budget = _fit_budget(pins.num_ctx, len(system))
@@ -3033,11 +3040,14 @@ def run_session(
             # Once: told, and the next fenced reply is the session's real
             # stop, so neither nudge below answers it. A session that wrote
             # is not told "nothing landed": night 120's s140 landed its
-            # encodes and showed the test in a fence at turn 6.
+            # encodes and showed the test in a fence at turn 6. Only a test
+            # row counts: a `ledger.log` stores no test, and the night-120
+            # replay of s140 lost the nudge to one (frame 152's review of
+            # 5e0dd71, F1).
             test_fence = ("```" in completion.text and not calls
                           and "tests.encode" in allowed
                           and "code.write" not in allowed
-                          and not sb.ctx.writes)
+                          and not any(w[0] == "tests" for w in sb.ctx.writes))
             if test_fence and not fence_warned:
                 fence_warned = True
                 outcome.errors.append("wrote a test into its reply")
@@ -3108,6 +3118,7 @@ def run_session(
                 for hc in held_calls:
                     try:
                         sb.call(hc.name, *hc.pos, **hc.args)
+                        told_to_end = False
                     except Exception as exc:           # noqa: BLE001
                         outcome.errors.append(f"{hc.name} (held): {exc}")
                         refused.append(f"ERROR {hc.name}: {exc}")
@@ -3315,6 +3326,11 @@ def run_session(
                 try:
                     repeat = key in already_run
                     result = sb.call(call.name, *call.pos, **call.args)
+                    # A call that ran is the newest answer, so the door's
+                    # end no longer stands. The review of d77bdec, C2: a
+                    # write landed after the step, and without this the
+                    # session ended with the write uncommitted.
+                    told_to_end = False
                     # A write is the one act that can change an answer the
                     # session already holds, so it drops what that path has
                     # been read as. A commit names the paths it reached in its
@@ -3469,7 +3485,6 @@ def run_session(
                             feedback.append(
                                 f"ERROR {_call_tag(call, len(calls))}: {why}. "
                                 f"{step}")
-                            told_to_end = False
                     elif would_repeat and not evicted and (
                             stormed or repeated.get(key, 0) >= 1):
                         # The third identical call, refused. Session s71 sent
@@ -3520,7 +3535,6 @@ def run_session(
                             feedback.append(
                                 f"ERROR {_call_tag(call, len(calls))}: {why}. "
                                 f"The answer is in this prompt.")
-                            told_to_end = False
                     elif unchanged:
                         repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three

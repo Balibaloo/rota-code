@@ -4879,6 +4879,14 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # stored with backslashes ran as `error no tests ran` in
     # `harness._run_one` for good (frame 135's review at eb6c7ef).
     path = path.replace("\\", "/")
+    # The runner's fence nudge writes `id='...'` where the wake names no test.
+    # A seat that keeps the dots stored a test row with the id `...` (frame
+    # 152's review of 5e0dd71, F2).
+    if isinstance(id, str) and not id.strip(". "):
+        raise ValueError(
+            f"id={id!r} is a placeholder, not an id. Give this test an id of "
+            f"its own, a short name for what it checks, and send the encode "
+            f"again")
     # The fork is mandatory where the mode offers it: an encode is only legal
     # for a criterion this session has claimed encodable. The other three
     # verdicts name their owner, and taking that door is equally a completion.
