@@ -735,6 +735,10 @@ S250_V3 = dict(refs=["c3_version_option_show_python", "tst_v3"],
                round_no=0)
 QUOTES = ["closing an account leaves its invoices in place",
           "assert close_account('a1') is not None"]
+# The reply that takes the step to end, on the refused challenge's test
+# (frame 165).
+_END_FORM = (" Your whole next reply is this one line, and no TOOL: line: "
+             "Nothing more is owed on tst1 in this session.")
 
 
 def _night_rows(db, batch, ticket, rows):
@@ -879,7 +883,7 @@ def test_the_bound_names_no_escalation_that_the_door_refuses(db):
     assert str(exc.value) == (
         "you sent challenge to tester on exactly these refs already (m1, then "
         "m3), and the Tester answered neither and did not change the test. "
-        "End the session with no call.")
+        "End the session with no call." + _END_FORM)
     assert sb.ctx.offers == []
     # The door's own answer for the escalation, which the sentence left out.
     with pytest.raises(ValueError, match=r"exactly these refs already \(m4\)"):
@@ -1129,7 +1133,7 @@ def test_a_judged_challenge_in_mode_exhausted_ends_the_session(db):
     assert str(exc.value) == (
         "you sent challenge to tester on exactly these refs already (m96) and "
         "they answered (m98). Sending it again is the same argument again. "
-        "End the session with no call.")
+        "End the session with no call." + _END_FORM)
 
 
 # The chain of the review of 4968ea7 (2026-10-05): each round the Developer
@@ -1223,7 +1227,7 @@ def test_the_cap_ends_the_session_when_no_escalation_or_code_is_left(db):
         _exhausted(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
     assert str(exc.value).endswith(
         "times already (m1, m2, m3), and the test changed and is still red. "
-        "End the session with no call.")
+        "End the session with no call." + _END_FORM)
 
 
 def test_the_cap_says_only_the_count_when_the_test_is_not_red(db):

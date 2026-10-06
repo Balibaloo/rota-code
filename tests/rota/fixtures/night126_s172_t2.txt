@@ -1,0 +1,1 @@
+TOOL: msg.challenge_tester(refs=['echo_json_compact', 'inh_echo_json_01'], quotes=["The callable `echo_json` accepts any Python object and writes its JSON representation to the stream using `json.dumps(obj, separators=(',', ':'))`, followed by a single newline.", "result = runner.invoke(echo_json, ['{\"key\": \"value\"}'], catch_exceptions=False)"])

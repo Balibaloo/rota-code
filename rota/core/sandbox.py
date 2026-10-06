@@ -1237,10 +1237,15 @@ def _receipt_since_woken(conn: sqlite3.Connection, msg_id: str, refs,
 #: refusal's class and not from its words (frame 153).
 END_STEP = "End the session with no call."
 
+#: The reply that takes `END_STEP`, which the refusal names after the step
+#: (frame 165). `{on}` names the refused challenge's tests.
+END_FORM = ("Your whole next reply is this one line, and no TOOL: line: "
+            "Nothing more is owed{on} in this session.")
+
 
 class _Ending(str):
-    """A refusal's text whose step is `END_STEP`. The text is unchanged, and
-    the class carries the fact to the place that raises it."""
+    """A refusal's text whose step is `END_STEP`, followed by `END_FORM`. The
+    class carries the fact to the place that raises it."""
 
 
 def _code_step(ctx: api.Ctx) -> str:
@@ -1438,8 +1443,27 @@ def _escalation_or_step(ctx: api.Ctx, refs, fact: str, step: str) -> str:
             ctx, fact + " Send msg.escalate_architect on the same refs.",
             "msg.escalate_architect", {"refs": once})
     if step == END_STEP:
-        return _Ending(fact + " " + step)
+        return _Ending(fact + " " + step + " " + _end_form(ctx, once))
     return fact + " " + step
+
+
+def _end_form(ctx: api.Ctx, refs: list) -> str:
+    """
+    The reply that takes the step to end, named with the refused challenge's
+    test ids.
+
+    Frame 165, night 126: the seats met the step in 11 turns and sent a call
+    in 10. Interviewed in their own context, s172 and s168 read the step
+    right and had no form to send for it. s168 gave the refused challenge as
+    the way to end. In the same prompt, a refusal that named its reply,
+    `send refs=[...]`, was taken in one turn. Each id is a fact that frame
+    144's check reads.
+    """
+    tests = [r for r in refs if isinstance(r, str) and ctx.conn.execute(
+        "SELECT 1 FROM tests WHERE id = ?", (r,)).fetchone()]
+    named = tests or [r for r in refs if isinstance(r, str)]
+    on = ", ".join(api._fact(ctx, "row", r) for r in named)
+    return END_FORM.format(on=f" on {on}" if on else "")
 
 
 def _judged_by(conn: sqlite3.Connection, msg_id: str, role: str) -> str | None:

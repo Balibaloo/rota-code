@@ -43,11 +43,15 @@ OWED = ("You were woken because something is owed here, and this session has "
         "dispute it with the evidence quoted, or escalate it. If truly "
         "nothing is owed, say so and stop.")
 REFS = ["echo_json_compact", "inh_echo_json_01"]
-# The refusal that s158 met at turns 1 and 3, as the night's prompt holds it.
-# The step is the door's own constant, so a new wording turns these red.
+# The step and the reply that takes it, on the refused challenge's test
+# (frame 165). Written out, so a new wording turns these red.
+ENDS = ("End the session with no call. Your whole next reply is this one "
+        "line, and no TOOL: line: Nothing more is owed on inh_echo_json_01 "
+        "in this session.")
+# The refusal that s158 met at turns 1 and 3, with frame 165's form.
 REASON = ("you sent challenge to tester on exactly these refs already (m68, "
           "then m69), and the Tester answered neither and did not change the "
-          "test. " + sandbox.END_STEP)
+          "test. " + ENDS)
 REFUSED = "ERROR msg.challenge_tester: " + REASON
 
 
@@ -292,7 +296,7 @@ def test_mode_exhausted_ends_on_the_code_step(tmp_path, root):
     assert len(backend.calls) == 2
     _, user = backend.calls[1]
     assert user.endswith("they answered (m71). Sending it again is the same "
-                         "argument again. " + sandbox.END_STEP)
+                         "argument again. " + ENDS)
     assert "ended a tick with nothing done" not in out.errors
 
 
