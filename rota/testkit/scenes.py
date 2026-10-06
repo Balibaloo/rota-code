@@ -1219,14 +1219,17 @@ def catalogue() -> list[Call]:
              _encode("t1", "c1", "test_upgrade_moved.py", TEST_BODY),
              "tests_encode", f"t1 is stored at {TEST_PATH}"),
         # Night 126's s249, turn 5: a word in the integer column
-        # `items.priority`. The door admits it, and the next step crashes in
-        # `next_batch` on b2's sort key, as walk 3 crashed on bg_3's (frame
-        # 164). The park ends as night 126 did, b1 parked and b2 pending. On
-        # `two_batches` no batch is a candidate of `next_batch` at the end,
-        # so no step there reads the word.
+        # `items.priority`. The door admitted it, and the next step crashed
+        # in `next_batch` on bg_3's sort key. Frame 164's scalar door in
+        # `Sandbox.call` refuses it now. With `step`, a call that lands again
+        # shows what the next step raises on b2's sort key. The park ends as
+        # night 126 did, b1 parked and b2 pending. On `two_batches` no batch
+        # is a candidate of `next_batch` at the end, so no step there reads
+        # the word.
         Call("park", "a word for a priority", _message("vision_keeper", "relay", "i2"),
              "problem.prioritize", (("id", "i2"), ("priority", "high")),
-             held="frame 164", step=True),
+             "call", "problem.prioritize: priority='high' is a word where "
+                     "problem.prioritize takes a whole number", step=True),
         Call("critic", "a fail verdict before the claim that its test encodes",
              _w("critic", "tick:review", "b1"), "verdicts.emit",
              (("batch_id", "b1"), ("result", "fail"), ("failed_criterion", "c1")),
