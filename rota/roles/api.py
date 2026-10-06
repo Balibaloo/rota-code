@@ -5754,10 +5754,15 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # nothing for it to correct, so an error would only invite it to try
     # something else -- which is how a guard turns one wasted call into a lost
     # session.
+    # Trailing whitespace is no change either. Night 126's s154 fenced
+    # version 1 with one more line break, and the encode would have stored
+    # the failing test again as version 2 (frame 152's review of 1cfbe704,
+    # finding 5).
     prior = ctx.conn.execute(
         "SELECT path, body, criterion_id FROM tests WHERE id = ?",
         (id,)).fetchone()
-    if prior and prior["path"] == path and prior["body"] == body:
+    if (prior and prior["path"] == path
+            and (prior["body"] or "").rstrip() == body.rstrip()):
         return {"id": id, "unchanged": True,
                 "note": "identical to what is already on file, so nothing was "
                         "written and no version moved."}

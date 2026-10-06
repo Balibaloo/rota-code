@@ -80,9 +80,26 @@ def _encode_of(sentence: str) -> str:
     return f"{toolproto.MARKER} {call}"
 
 
+def _signatures() -> dict:
+    """The parser's signature set for `tests.encode`, as `_param_sets` builds
+    it from the bound function. The runner parses with it, so the tests do
+    too (frame 152's review of 1cfbe704, finding 4)."""
+    import inspect
+
+    from rota.roles import api
+    params = {n: p for n, p in inspect.signature(api.tests_encode)
+              .parameters.items() if n != "ctx"}
+    req = {n for n, p in params.items() if p.default is inspect.Parameter.empty}
+    return {"tests.encode": (req, set(params))}
+
+
+SIGS = _signatures()
+
+
 def _parsed(sentence: str) -> dict:
     """The arguments that the real parser reads from the sentence's call."""
-    calls = toolproto.extract_lenient(_encode_of(sentence), {"tests.encode"})
+    calls = toolproto.extract_lenient(_encode_of(sentence), {"tests.encode"},
+                                      SIGS)
     assert len(calls) == 1 and isinstance(calls[0], toolproto.ToolCall), calls
     return calls[0].args
 
@@ -552,10 +569,11 @@ def test_the_rendered_body_parses_back_to_the_fences_text(body):
     assert "\\" in TRICKY and "'''" in TRICKY and '"""' in TRICKY
     head = ("tests.encode(id='inh_echo_json_01', criterion_id='c1', "
             "path='tests/test_x.py'")
-    literal = _body_literal(body, {"tests.encode"}, None, head)
+    assert SIGS["tests.encode"][0] == {"id", "criterion_id", "path", "body"}
+    literal = _body_literal(body, {"tests.encode"}, SIGS, head)
     assert literal is not None
     calls = toolproto.extract_lenient(
-        f"TOOL: {head}, body={literal})", {"tests.encode"})
+        f"TOOL: {head}, body={literal})", {"tests.encode"}, SIGS)
     assert len(calls) == 1 and calls[0].args["body"] == body
 
 
@@ -564,10 +582,124 @@ def test_a_body_the_parser_cannot_return_falls_back_to_the_dots(db):
     form returns this body whole. The call keeps body='...', and the
     sentence says to paste the fence's text there."""
     body = "def test_x():\n    # `n` = 1\n    assert True\n"
-    assert _body_literal(body, {"tests.encode"}, None, "tests.encode(id='t'") is None
+    assert _body_literal(body, {"tests.encode"}, SIGS, "tests.encode(id='t'") is None
     out, backend = _tester(db, "m69", [f"The test:\n```python\n{body}```", ""])
     assert backend.calls[1][1].endswith(
         NUDGE + " Put the text of your fenced test in place of the dots of body.")
+
+
+# Pass 4: the review of 1cfbe704.
+
+S154_SAME = (
+    "ERROR no call: Your fenced test is the stored version 1, which failed. "
+    "Change the test and send it as a call: tests.encode("
+    "id='inh_echo_json_01', criterion_id='echo_json_compact', "
+    "path='tests/test_utils/test_echo_json_compact.py', body='...'), or answer "
+    "the challenge: msg.answer_developer(refs=['echo_json_compact', "
+    "'inh_echo_json_01'], quotes=['...']).")
+
+
+def _night126(path):
+    """Night 126's state at m76: inh_echo_json_01 at version 1, which is
+    s154's fence less one line break, and its failed run."""
+    conn = _night(path)
+    body = _fence(_reply("s154_t1", 126)).rstrip("\n")
+    conn.execute("UPDATE tests SET body = ?, version = 1 "
+                 "WHERE id = 'inh_echo_json_01'", (body,))
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+                 "result, output, attempt) VALUES ('tr326', 'bg_1', "
+                 "'inh_echo_json_01', 'a7045de', 'fail', "
+                 "'AttributeError: ''function'' object has no attribute "
+                 "''name''', 11)")
+    conn.commit()
+    return conn, body
+
+
+def test_s154s_fence_that_is_the_stored_test_is_told_so(tmp_path):
+    """Finding 1: the sentence offered to store the failing test again. It
+    now names the version and offers a change or an answer."""
+    db, _ = _night126(tmp_path / "a.db")
+    reply = _reply("s154_t1", 126)
+    out, backend = _tester(db, "m69", [reply, ""])
+    assert backend.calls[1][1].endswith(reply + "\n\n" + S154_SAME)
+
+
+def test_both_calls_of_the_same_test_sentence_pass_the_doors(tmp_path):
+    """The encode with a changed body lands, and the answer with a span of
+    the criterion is sent."""
+    reply = _reply("s154_t1", 126)
+    encode = S154_SAME.split("as a call: ", 1)[1].split(", or answer", 1)[0]
+    encode = "TOOL: " + encode.replace("body='...'",
+                                       f"body={_fence(_reply('s149_t1'))!r}")
+    db, _ = _night126(tmp_path / "a.db")
+    out, _ = _tester(db, "m69", [reply, encode, ""])
+    assert not [e for e in out.errors if e.startswith("tests.encode")], out.errors
+    assert db.execute("SELECT version FROM tests WHERE id = "
+                      "'inh_echo_json_01'").fetchone()[0] == 2
+
+    answer = S154_SAME.split("or answer the challenge: ", 1)[1][:-1]
+    answer = "TOOL: " + answer.replace(
+        "quotes=['...']", "quotes=['followed by a single newline']")
+    db, _ = _night126(tmp_path / "b.db")
+    out, _ = _tester(db, "m69", [reply, answer, ""])
+    assert not [e for e in out.errors if e.startswith("msg.")], out.errors
+    assert db.execute("SELECT COUNT(*) FROM messages WHERE from_role = "
+                      "'tester' AND verb = 'answer'").fetchone()[0] == 1
+
+
+def test_an_encode_of_the_stored_body_with_a_line_break_is_unchanged(tmp_path):
+    """Finding 5 of the review, the door: trailing whitespace is no change,
+    so no version moves."""
+    db, body = _night126(tmp_path / "a.db")
+    call = ("TOOL: tests.encode(id='inh_echo_json_01', criterion_id="
+            "'echo_json_compact', path='tests/test_utils/"
+            f"test_echo_json_compact.py', body={body + chr(10)!r})")
+    out, backend = _tester(db, "m69", [call, ""])
+    assert "identical to what is already on file" in backend.calls[1][1]
+    assert db.execute("SELECT version FROM tests WHERE id = "
+                      "'inh_echo_json_01'").fetchone()[0] == 1
+
+
+class _CutTwice(ScriptedBackend):
+    """A backend whose first two replies stopped at the output budget."""
+
+    def complete(self, system, user, pins, tools=None):
+        c = super().complete(system, user, pins, tools)
+        if len(self.calls) <= 2:
+            return Completion(text=c.text, pins=pins, backend=self.name,
+                              raw={"done_reason": "length"})
+        return c
+
+
+PROSE = "I will look at the failure first and explain it at length. " * 20
+
+
+def test_a_second_cut_reply_gives_its_whole_test_and_not_the_cut_one(db):
+    """Finding 2: the fence branch reads whole blocks only after a cut."""
+    whole = "def test_a():\n    assert True\n"
+    reply = (f"First:\n```python\n{whole}```\nThen:\n```python\n"
+             "def test_b():\n    assert out")
+    backend = _CutTwice([PROSE, reply, ""])
+    run_session(db, Wake("tester", "message", message_id="m69",
+                         detail="challenge"),
+                backend=backend, pins=Pins(model="scripted"))
+    assert _parsed(_sentence(backend.calls[2][1]))["body"] == whole
+
+
+def test_a_second_cut_reply_whose_test_is_cut_keeps_the_test_form(db):
+    """Finding 3, the review's probe p7: the sentence called a cut test
+    code. It keeps the test form and the dots, and says the budget cut the
+    test."""
+    cut = ("Here is the repair:\n```python\ndef test_echo_json_compact():\n"
+           "    assert resu")
+    backend = _CutTwice([PROSE, cut, ""])
+    run_session(db, Wake("tester", "message", message_id="m69",
+                         detail="challenge"),
+                backend=backend, pins=Pins(model="scripted"))
+    assert backend.calls[2][1].endswith(
+        HEAD.replace("nothing landed. Send", "nothing landed. The output "
+                     "budget cut your fenced test before it ended. Send")
+        + "'...'). Put the whole test in place of the dots of body.")
 
 
 # The case runner's `replies:` key (the review of 9684e3c, point 5).

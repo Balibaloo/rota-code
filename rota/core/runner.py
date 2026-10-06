@@ -1909,7 +1909,7 @@ def _body_literal(body: str, allowed: set[str], signatures: dict | None,
 
 def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
                   allowed: set[str], signatures: dict | None = None,
-                  whole: bool = False) -> str:
+                  whole: bool = False, challenge: bool = False) -> str:
     """The sentence for a test written into a reply, with the call to copy.
 
     The wake's refs give the values. A challenge names one test, and its row
@@ -1920,7 +1920,8 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
 
     The body is the last fenced block that holds `def test`, because the
     seat's last version is its repair. `whole` reads closed blocks only, for
-    a reply that the output budget cut.
+    a reply that the output budget cut. `challenge` says that the wake is a
+    challenge, so an answer to the challenger is the other exit.
     """
     tests, crits = [], []
     for ref in refs:
@@ -1938,12 +1939,27 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
                              "WHERE criterion_id = ?", (crits[0],)).fetchall()
     if len(tests) == 1:
         args = {k: tests[0][k] or "..." for k in args}
+    stored = tests[0] if len(tests) == 1 else None
     named = ", ".join(f"{k}={v!r}" for k, v in args.items())
     head = f"tests.encode({named}"
     blocks = (_WHOLE_FENCE if whole else _FENCE_BLOCK).findall(text)
     tests = [b for b in blocks if "def test" in b]
+    # A test fence that the budget cut is still a test. Its text is not
+    # whole, so the call keeps the dots (frame 152's review of 1cfbe704,
+    # finding 3).
+    cut_test = whole and not tests and any(
+        "def test" in b for b in _FENCE_BLOCK.findall(text))
+    # Night 126's s154 fenced version 1 of its test with one more line
+    # break, and said "Wait, that's the same". The call that the sentence
+    # offered stored the failing test again (the same review, finding 1).
+    same = None
+    if tests and stored is not None:
+        row = conn.execute("SELECT body, version FROM tests WHERE id = ?",
+                           (stored["id"],)).fetchone()
+        if row and (row["body"] or "").strip() == tests[-1].strip():
+            same = row
     literal = (_body_literal(tests[-1], allowed, signatures, head)
-               if tests else None)
+               if tests and same is None else None)
     call = f"{head}, body={literal or repr('...')})"
     # The encode door refuses a criterion with no triage verdict in this
     # session, so a mode that holds the triage names it first (frame 152's
@@ -1951,6 +1967,27 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
     if "tests.triage" in allowed:
         call = (f"tests.triage(criterion_id={args['criterion_id']!r}, "
                 f"verdict='encodable') and then {call}")
+    if same is not None:
+        run = conn.execute("SELECT result FROM test_runs WHERE test_id = ? "
+                           "ORDER BY rowid DESC LIMIT 1",
+                           (stored["id"],)).fetchone()
+        failed = ", which failed" if run and run["result"] != "pass" else ""
+        # The answer channel is the asker's own, so a challenge wake holds
+        # one `msg.answer_` call (`sandbox` keeps the asker's only). The
+        # answer door asks for quotes= from the criterion.
+        answers = sorted(n for n in allowed if n.startswith("msg.answer_"))
+        other = ""
+        if challenge and len(answers) == 1:
+            other = (f", or answer the challenge: {answers[0]}(refs="
+                     f"{list(refs)!r}, quotes=['...'])")
+        return (f"{_NO_CALL}Your fenced test is the stored version "
+                f"{same['version']}{failed}. Change the test and send it as a "
+                f"call: {call}{other}.")
+    if cut_test:
+        return (f"{_NO_CALL}You wrote a test into your reply, and a reply is "
+                f"not a stored test -- nothing landed. The output budget cut "
+                f"your fenced test before it ended. Send it as a call: {call}. "
+                f"Put the whole test in place of the dots of body.")
     # A fence with no test function is code, not a test (the same review,
     # point 4).
     if tests:
@@ -3084,7 +3121,8 @@ def run_session(
                     outcome.errors.append("wrote a test into its reply")
                     said += "\n" + _encode_nudge(
                         conn, inbound.get("refs") or list(wake.refs),
-                        completion.text, allowed, _param_sets(sb), whole=True)
+                        completion.text, allowed, _param_sets(sb), whole=True,
+                        challenge=inbound.get("verb") == "challenge")
                 _append(transcript, kinds, _RESULTS, said)
                 continue
             if ("```" in completion.text and not calls
@@ -3119,7 +3157,8 @@ def run_session(
                 _append(transcript, kinds, _RESULTS, _encode_nudge(
                     conn, inbound.get("refs") or list(wake.refs),
                     completion.text, allowed, _param_sets(sb),
-                    whole=bool(cut_note)))
+                    whole=bool(cut_note),
+                    challenge=inbound.get("verb") == "challenge"))
                 continue
             if (not calls and not intent_warned and not test_fence
                     and INTENT.search(completion.text)
