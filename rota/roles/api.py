@@ -4854,6 +4854,118 @@ def _shields_input(shields: set[str]) -> bool:
     return "sys.stdin" in shields or "builtins.input" in shields
 
 
+def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
+    """The first name that the test passes to `.invoke` and that the
+    project's base defines as a plain function, or None.
+
+    Returns `(name, defined_as, path, line, source)`. `read(path)` gives the
+    base's text of a project file, or None. Frame 131: on five nights the
+    Tester s139 passed the plain `echo_json` to `CliRunner.invoke`, and the
+    Developer turned the function into a command to fit the test.
+
+    The door reads only a bare name that the body imports. A name that the
+    test file binds itself is the test's own: night 119's `tst_v3` invokes
+    a local `def` that carries `@version_option` only, and stays admitted.
+    """
+    import ast as _ast
+    import posixpath as _pp
+
+    imported: dict[str, tuple[str, int, str]] = {}
+    local: set[str] = set()
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.ImportFrom):
+            for a in n.names:
+                if a.name != "*":
+                    imported[a.asname or a.name] = (n.module or "", n.level, a.name)
+        elif isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+            local.add(n.name)
+        elif isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store):
+            local.add(n.id)
+    for call in _ast.walk(tree):
+        if not (isinstance(call, _ast.Call) and isinstance(call.func, _ast.Attribute)
+                and call.func.attr == "invoke" and call.args
+                and isinstance(call.args[0], _ast.Name)):
+            continue
+        name = call.args[0].id
+        if name in local or name not in imported:
+            continue
+        module, level, orig = imported[name]
+        parts = [p for p in module.split(".") if p]
+        if level:
+            # A relative import starts at the test file's own package.
+            here = _pp.dirname(test_path)
+            for _ in range(level - 1):
+                here = _pp.dirname(here)
+            stems = ["/".join([here, *parts]).strip("/")]
+        else:
+            stems = ["/".join(parts)]
+            if parts and parts[0] != "src":
+                stems.append("/".join(["src", *parts]))
+        for stem in stems:
+            if not stem:
+                continue
+            for where in (f"{stem}.py", f"{stem}/__init__.py"):
+                segs = where.split("/")
+                # The product's module, never a test file or a conftest.
+                if "tests" in segs or segs[-1].startswith(("test_", "conftest")):
+                    continue
+                src = read(where)
+                if src is None:
+                    continue
+                try:
+                    mod = _ast.parse(src)
+                except SyntaxError:
+                    break
+                # The last top-level binding wins at import, so a wrap by
+                # assignment after the `def` makes the name a command.
+                last = None
+                for node in mod.body:
+                    if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                         _ast.ClassDef)) and node.name == orig:
+                        last = node
+                    elif isinstance(node, (_ast.Assign, _ast.AnnAssign)):
+                        targets = (node.targets if isinstance(node, _ast.Assign)
+                                   else [node.target])
+                        if any(isinstance(x, _ast.Name) and x.id == orig
+                               for t in targets for x in _ast.walk(t)):
+                            last = node
+                    elif isinstance(node, (_ast.Import, _ast.ImportFrom)):
+                        if any((a.asname or a.name.split(".")[0]) == orig
+                               for a in node.names):
+                            last = node
+                if (isinstance(last, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                        and not last.decorator_list):
+                    return name, orig, where, last.lineno, src
+                break
+            else:
+                continue
+            break
+    return None
+
+
+def _base_reader(ctx) -> Callable[[str], str | None]:
+    """A reader of the project's files at its `HEAD`, the base every batch
+    starts from. The batch's worktree can hold the Developer's change, and a
+    test written for that change is the shape frame 131 refuses."""
+    import subprocess as _sp
+
+    from ..core import worktrees as _wt
+    try:
+        root = _wt.project_root(ctx.conn)
+    except Exception:  # noqa: BLE001 -- no project: nothing to read
+        return lambda _path: None
+    seen: dict[str, str | None] = {}
+
+    def read(path: str) -> str | None:
+        if path not in seen:
+            out = _sp.run([*_wt.GIT, "-C", str(root), "show", f"HEAD:{path}"],
+                          capture_output=True, text=True, encoding="utf-8",
+                          errors="replace")
+            seen[path] = out.stdout if out.returncode == 0 else None
+        return seen[path]
+    return read
+
+
 @op("tests", "encode")
 def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                  batch_id: str | None = None) -> dict:
@@ -5571,6 +5683,24 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"or does. A test that calls something else instead (a "
                 f"mocked builtin, a different function) cannot tell a "
                 f"correct {surface[0]} from a stub that never runs")
+
+    # `CliRunner.invoke` runs a command, and a plain function fails it at
+    # `cli.name` against the base. Frame 131: s139 stored three such tests
+    # on five nights, and the Developer wrapped `echo_json` to fit them.
+    # The fact and no recipe, as the prints door says it (Roman,
+    # 2026-09-15, 6b52a09d). A ValueError and not a Wall: `db.py` reads a
+    # Wall on an answer wake as an answer that changed nothing, and s139
+    # met this door on the answer to m63.
+    plain = _plain_invoked(tree, path, _base_reader(ctx))
+    if plain:
+        name, orig, where, line, src = plain
+        _fact(ctx, "line_text",
+              src.splitlines()[line - 1].split("(", 1)[0].rstrip(),
+              n=line - 1, text=src)
+        raise ValueError(
+            f"the test {id} passes `{name}` to `.invoke`, and `{orig}` is a "
+            f"plain function in `{where}` at line {line}: `CliRunner.invoke` "
+            f"takes a command")
 
     # A body that says no more than the criterion says has encoded nothing.
     #
