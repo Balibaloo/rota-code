@@ -421,21 +421,40 @@ def _git_reader(sha: str):
 def _night(n: int) -> tuple[sqlite3.Connection, str]:
     """A night's database, read-only, and the batch's base: the commit of
     the night's first test run, the Developer's first commit, which adds
-    `echo_json` (frame 131's review of af9db8a0)."""
+    `echo_json` (frame 131's review of af9db8a0).
+
+    `mode=ro` alone: `immutable=1` ignores the WAL file, and rows in a WAL
+    would then be missing from the counts (the second look at d8dd62cd)."""
     conn = sqlite3.connect(
-        f"file:{(NIGHTS / f'clickI_night{n}.db').as_posix()}?mode=ro&immutable=1",
-        uri=True)
+        f"file:{(NIGHTS / f'clickI_night{n}.db').as_posix()}?mode=ro", uri=True)
     sha = conn.execute("SELECT commit_sha FROM test_runs WHERE commit_sha IS NOT "
                        "NULL ORDER BY rowid LIMIT 1").fetchone()[0]
     return conn, sha
 
 
-_HAVE_NIGHTS = (CLICKI / ".git").exists() and all(
-    (NIGHTS / f"clickI_night{n}.db").is_file() for n in EIGHT)
+def _have_nights() -> bool:
+    """The eight databases, and each night's base commit in the clickI
+    clone. A clone without the night commits gives no base to read."""
+    if not ((CLICKI / ".git").exists() and all(
+            (NIGHTS / f"clickI_night{n}.db").is_file() for n in EIGHT)):
+        return False
+    for n in EIGHT:
+        try:
+            conn, sha = _night(n)
+            conn.close()
+        except (sqlite3.Error, TypeError):
+            return False
+        if subprocess.run(["git", "-C", str(CLICKI), "cat-file", "-e",
+                           f"{sha}^{{commit}}"], capture_output=True).returncode:
+            return False
+    return True
+
+
+_HAVE_NIGHTS = _have_nights()
 
 
 @pytest.mark.skipif(not _HAVE_NIGHTS,
-                    reason="the night databases or the clickI repository are absent")
+                    reason="the night databases or their commits in clickI are absent")
 def test_the_stored_rows_of_eight_nights():
     """Every stored test with an `.invoke` call on nights 119 to 126, against
     the batch's base: 186 rows, 10 refused, each a test of s139."""
@@ -467,7 +486,7 @@ def test_the_stored_rows_of_eight_nights():
 
 
 @pytest.mark.skipif(not _HAVE_NIGHTS,
-                    reason="the night databases or the clickI repository are absent")
+                    reason="the night databases or their commits in clickI are absent")
 def test_the_tester_encodes_of_eight_nights():
     """Every Tester encode on nights 119 to 126, against the batch's base:
     78 refused, 70 of s139 and 8 on night 121. Night 120 holds no

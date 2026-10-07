@@ -63,6 +63,11 @@ Night 119's `tst_v3`, version 2, calls `runner.invoke(dummy_cmd)` on a local `de
 2. The door records no fact when the session has no batch. `_worktree_lines` reads only the batch's worktree, so a fact on the root would fail the check against a true refusal.
 3. A test cannot reach the night's worktree as it stood. So the eight-night tests read the base commit with `git show`, and the fixture tests prove the working-file read.
 
+## Step 7 repairs, from the second look at d8dd62cd
+
+- The eight-night tests now open each night's database with `mode=ro` alone. `immutable=1` ignores a WAL file. The counts above were right only because every WAL file was 0 bytes on 2026-10-07.
+- The two eight-night tests now skip when `git cat-file -e <sha>^{commit}` fails for any night's base commit. Before, they failed on a clickI clone without the night commits.
+
 ## Open
 
 - The gate and the stale count wait for the GPU.
