@@ -4854,6 +4854,20 @@ def _shields_input(shields: set[str]) -> bool:
     return "sys.stdin" in shields or "builtins.input" in shields
 
 
+def _imported_names(tree) -> dict[str, tuple[str, int, str]]:
+    """Each name that the test binds by `from ... import`, as
+    `(module, level, name in the module)`."""
+    import ast as _ast
+
+    imported: dict[str, tuple[str, int, str]] = {}
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.ImportFrom):
+            for a in n.names:
+                if a.name != "*":
+                    imported[a.asname or a.name] = (n.module or "", n.level, a.name)
+    return imported
+
+
 def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
     """The first name that the test passes to a runner's `.invoke` and that
     the tree the test runs against defines as a plain function, or None.
@@ -4872,22 +4886,17 @@ def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
     callback, so `ctx.invoke(f)` is right (frame 131's review of af9db8a0).
     """
     import ast as _ast
-    import posixpath as _pp
 
     def _is_runner_call(node) -> bool:
         f = node.func if isinstance(node, _ast.Call) else None
         return ((isinstance(f, _ast.Name) and f.id == "CliRunner")
                 or (isinstance(f, _ast.Attribute) and f.attr == "CliRunner"))
 
-    imported: dict[str, tuple[str, int, str]] = {}
+    imported = _imported_names(tree)
     local: set[str] = set()
     runners = {"runner"}
     for n in _ast.walk(tree):
-        if isinstance(n, _ast.ImportFrom):
-            for a in n.names:
-                if a.name != "*":
-                    imported[a.asname or a.name] = (n.module or "", n.level, a.name)
-        elif isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
             local.add(n.name)
         elif isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store):
             local.add(n.id)
@@ -4908,56 +4917,164 @@ def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
         if name in local or name not in imported:
             continue
         module, level, orig = imported[name]
-        parts = [p for p in module.split(".") if p]
-        if level:
-            # A relative import starts at the test file's own package.
-            here = _pp.dirname(test_path)
-            for _ in range(level - 1):
-                here = _pp.dirname(here)
-            stems = ["/".join([here, *parts]).strip("/")]
-        else:
-            stems = ["/".join(parts)]
-            if parts and parts[0] != "src":
-                stems.append("/".join(["src", *parts]))
-        for stem in stems:
-            if not stem:
+        found = _defined_in(module, level, orig, test_path, read)
+        if found is None:
+            continue
+        where, last, src = found
+        if (isinstance(last, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                and not last.decorator_list):
+            return name, orig, where, last.lineno, src
+    return None
+
+
+def _last_binding(src: str, orig: str):
+    """The last top-level statement of `src` that binds `orig`, or None.
+
+    The last binding wins at import, so a wrap by assignment after the
+    `def` makes the name a command. Raises SyntaxError on a broken file.
+    """
+    import ast as _ast
+
+    last = None
+    for node in _ast.parse(src).body:
+        if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                             _ast.ClassDef)) and node.name == orig:
+            last = node
+        elif isinstance(node, (_ast.Assign, _ast.AnnAssign)):
+            targets = (node.targets if isinstance(node, _ast.Assign)
+                       else [node.target])
+            if any(isinstance(x, _ast.Name) and x.id == orig
+                   for t in targets for x in _ast.walk(t)):
+                last = node
+        elif isinstance(node, (_ast.Import, _ast.ImportFrom)):
+            if any((a.asname or a.name.split(".")[0]) == orig
+                   for a in node.names):
+                last = node
+    return last
+
+
+def _defined_in(module: str, level: int, orig: str, test_path: str,
+                read: Callable[[str], str | None]):
+    """Where `from <module> import <orig>` in the test at `test_path` finds
+    the name, as `(path, last binding or None, source)`, or None.
+
+    The first product file that the import can name decides. A broken file
+    gives None. Frame 131's door and frame 177's prints door both read the
+    name's kind here, so the two doors resolve an import the same way.
+    """
+    import posixpath as _pp
+
+    parts = [p for p in module.split(".") if p]
+    if level:
+        # A relative import starts at the test file's own package.
+        here = _pp.dirname(test_path)
+        for _ in range(level - 1):
+            here = _pp.dirname(here)
+        stems = ["/".join([here, *parts]).strip("/")]
+    else:
+        stems = ["/".join(parts)]
+        if parts and parts[0] != "src":
+            stems.append("/".join(["src", *parts]))
+    for stem in stems:
+        if not stem:
+            continue
+        for where in (f"{stem}.py", f"{stem}/__init__.py"):
+            segs = where.split("/")
+            # The product's module, never a test file or a conftest.
+            if "tests" in segs or segs[-1].startswith(("test_", "conftest")):
                 continue
-            for where in (f"{stem}.py", f"{stem}/__init__.py"):
-                segs = where.split("/")
-                # The product's module, never a test file or a conftest.
-                if "tests" in segs or segs[-1].startswith(("test_", "conftest")):
-                    continue
-                src = read(where)
-                if src is None:
-                    continue
-                try:
-                    mod = _ast.parse(src)
-                except SyntaxError:
-                    break
-                # The last top-level binding wins at import, so a wrap by
-                # assignment after the `def` makes the name a command.
-                last = None
-                for node in mod.body:
-                    if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
-                                         _ast.ClassDef)) and node.name == orig:
-                        last = node
-                    elif isinstance(node, (_ast.Assign, _ast.AnnAssign)):
-                        targets = (node.targets if isinstance(node, _ast.Assign)
-                                   else [node.target])
-                        if any(isinstance(x, _ast.Name) and x.id == orig
-                               for t in targets for x in _ast.walk(t)):
-                            last = node
-                    elif isinstance(node, (_ast.Import, _ast.ImportFrom)):
-                        if any((a.asname or a.name.split(".")[0]) == orig
-                               for a in node.names):
-                            last = node
-                if (isinstance(last, (_ast.FunctionDef, _ast.AsyncFunctionDef))
-                        and not last.decorator_list):
-                    return name, orig, where, last.lineno, src
-                break
-            else:
+            src = read(where)
+            if src is None:
                 continue
-            break
+            try:
+                return where, _last_binding(src, orig), src
+            except SyntaxError:
+                return None
+    return None
+
+
+# The calls whose result is a decorator or a command. Click's `option`,
+# `argument`, `command` and `group` return a decorator. `Command` and
+# `Group` build a command.
+_FACTORY_CALLS = frozenset({"option", "argument", "command", "group",
+                            "Command", "Group"})
+
+
+def _returns_factory(node) -> bool:
+    """Whether `node` is a `def` that returns a decorator or a command.
+
+    Frame 177: `version_option` returns a decorator, and the `--version`
+    callback of the decorated command prints. A test may read what such a
+    function returns, and the prints door refused 5 such tests on night 128.
+    A nested `def` is not read for its own returns.
+    """
+    import ast as _ast
+
+    if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+        return False
+    inner: set[str] = set()
+    returned = []
+    todo = list(node.body)
+    while todo:
+        n = todo.pop()
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            inner.add(n.name)
+            continue
+        if isinstance(n, (_ast.ClassDef, _ast.Lambda)):
+            continue
+        if isinstance(n, _ast.Return) and n.value is not None:
+            returned.append(n.value)
+        todo.extend(_ast.iter_child_nodes(n))
+    for value in returned:
+        if isinstance(value, _ast.Name) and value.id in inner:
+            return True
+        if isinstance(value, _ast.Call):
+            f = value.func
+            called = (f.id if isinstance(f, _ast.Name)
+                      else f.attr if isinstance(f, _ast.Attribute) else None)
+            if called in _FACTORY_CALLS:
+                return True
+    return False
+
+
+def _definition_of(tree, test_path: str, name: str, refs: list[str],
+                   read: Callable[[str], str | None]):
+    """The definition that the test's call to `name` reaches, as
+    `(defined_as, path, node, source)`, or None.
+
+    The test's own import decides first, through frame 131's resolver. The
+    criterion's surface ref `path::name` is the second route, for a call
+    such as `click.version_option` or a name that a package re-exports. A
+    name that the test binds itself is the test's own, and gives None.
+    """
+    import ast as _ast
+
+    for n in _ast.walk(tree):
+        if ((isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))
+                and n.name == name)
+                or (isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store)
+                    and n.id == name)):
+            return None
+    imported = _imported_names(tree)
+    if name in imported:
+        module, level, orig = imported[name]
+        found = _defined_in(module, level, orig, test_path, read)
+        if found is not None and not isinstance(
+                found[1], (type(None), _ast.Import, _ast.ImportFrom)):
+            return (orig, *found)
+    for ref in refs:
+        where, _, tail = ref.rpartition("::")
+        if tail != name or not where.endswith(".py"):
+            continue
+        src = read(where)
+        if src is None:
+            continue
+        try:
+            last = _last_binding(src, name)
+        except SyntaxError:
+            continue
+        if last is not None and not isinstance(last, (_ast.Import, _ast.ImportFrom)):
+            return name, where, last, src
     return None
 
 
@@ -5790,9 +5907,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # returned None, and the fix loop ran to quarantine on both desks. The
     # same shape as an invented literal: an assumption, logged where it is
     # made, and the encode sent again unchanged.
-    surface_now = json.loads(row["surface_refs"] or "[]") if (row := ctx.conn.execute(
+    surface_refs = json.loads(row["surface_refs"] or "[]") if (row := ctx.conn.execute(
         "SELECT surface_refs FROM criteria WHERE id = ?", (criterion_id,)).fetchone()) else []
-    surface_now = {s.rsplit("::", 1)[-1] for s in surface_now}
+    surface_now = {s.rsplit("::", 1)[-1] for s in surface_refs}
     uses_return = None
     for node in _ast.walk(tree):
         call = None
@@ -5809,6 +5926,31 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             if name in surface_now:
                 uses_return = name
                 break
+    # The criterion's words say what prints, and the function's kind says
+    # what a call returns. Frame 177: on night 128 this door refused 5
+    # tests of s274 on `version_option`, a decorator factory, and the seat
+    # then read the stdout of a call that prints nothing. So the door reads
+    # the kind in the tree the test runs against, as frame 131's door does.
+    defined = (_definition_of(tree, path, uses_return, surface_refs, read)
+               if uses_return else None)
+    if defined is not None and _returns_factory(defined[2]):
+        uses_return = None
+
+    def _kind() -> str:
+        """The kind of the name as a clause of the refusal, or nothing."""
+        if defined is None:
+            return ""
+        orig, where, node, src = defined
+        if not (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                and not node.decorator_list):
+            return ""
+        if in_batch:
+            # The fact check reads the worktree, the file the seat sees.
+            _fact(ctx, "line_text",
+                  src.splitlines()[node.lineno - 1].split("(", 1)[0].rstrip(),
+                  n=node.lineno - 1, path=where)
+        return f": `{orig}` is a plain function in `{where}`"
+
     if uses_return:
         material = _material_words(ctx, criterion_id)
         logged: set[str] = set()
@@ -5844,12 +5986,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         if says_prints and not says_returns and own_prints:
             raise ValueError(
                 f"the test uses what {uses_return} returns, and the criterion "
-                f"{criterion_id} says it prints")
+                f"{criterion_id} says it prints{_kind()}")
         if says_prints and not says_returns:
             raise ValueError(_offer(
                 ctx,
                 f"the test uses what {uses_return} returns, and the criterion, "
-                f"its ticket or the principal's words say it prints; nothing "
+                f"its ticket or the principal's words say it prints{_kind()}; nothing "
                 f"says it returns anything. That is an assumption, and it is "
                 f"logged where it is made: ledger.log(about_ref={criterion_id!r}, "
                 f"about_table='criteria', assumption=\"the test assumes "
