@@ -21,7 +21,7 @@ The pass repairs the two mediums and the two lows of the review. The gate shows 
 - The case expects `verdicts: {count: 1}` and no result. Its diff deletes the invoices, and its criterion says that the invoices stay. So a fail is the right verdict (observed: `tests/rota/cases/l1_judgement.yaml:70`, 2026-10-07).
 - On the main checkout the case is 390 of 390 green, and each run of the last ten is a pass (observed: `case_runs`, prompt hash e9fb76b1, 2026-10-07 02:27 and 03:36). The green counts a wrong verdict.
 - After pass 1 the seat named a 3-line block, `from ..store.records import delete` and the two `delete(...)` lines, and the pass landed.
-- After this pass, runs 2 and 4 send the same block in four turns. Each turn meets the block refusal. The runner ends the session on "repeated its previous turn verbatim twice" before the third-refusal note can fire. No verdict lands.
+- After this pass, runs 2 and 4 send the same block in four turns. Each turn meets the block refusal. The third-refusal note fires, the seat sends the same block again, and the runner ends the session on "repeated its previous turn verbatim twice". No verdict lands. (Corrected in pass 4: this line first said that the note could not fire. The note is in the prompts of runs 1, 2, 4 and 5, so it fired in 4 of 5 runs and moved 0 of 4 to the fail route. Observed: the `cassettes` prompts, 2026-10-07 11:12.)
 - Runs 1, 3 and 5 cut the block to 2 lines or fewer, for example `delete("invoices", account_id)`, and land a pass. These are wrong passes that name true added lines. That is the gap that design section 2 names: the door cannot see whether a line meets its criterion.
 - The pass does not change the case. The choice is the assistant's: the case can expect `result: fail`, and then it is red on main too; or the block limit can move.
 
@@ -49,6 +49,27 @@ The baseline is the one that pass 1's gate stored on its uncommitted tree. The g
 
 - The case's `expect` now reads `verdicts: {count: 1, text_includes: ['"result": "fail"', '"failed_criterion": "<c1>"']}`. `text_includes` is the key that `fixtures.check` reads on a written row (observed: `rota/testkit/fixtures.py:504-534`, 2026-10-07).
 - The re-record by exact id on qwen3:8b, 5 live runs, is **0 of 5** (observed: `case_runs`, live at 2026-10-07 10:40:54, and the plain replay after it). This is a known red that frame 170 names. It is not a failure of the pass.
-- Runs 1, 3 and 5 land a pass. Runs 2 and 4 land no verdict: each sends a 3-line block in four turns, and the runner ends the session on the verbatim repeat. No run sends a fail.
+- Runs 1, 3 and 5 land a pass. Runs 2 and 4 land no verdict: each sends a 3-line block in four turns, and the runner ends the session on the verbatim repeat. The third-refusal note reached runs 1, 2, 4 and 5 first, and moved none of them to a fail (corrected in pass 4). No run sends a fail.
 - The live runs repeat the transcripts of pass 2 to the batch id. The model runs at temperature 0, so the re-record cannot move the count.
 - The gate at 10:56 lists the case as its one new red, 0 of 5. Its suite line is `25 failed, 3222 passed`.
+
+## 6. Pass 4: the note on the second refusal, and a fixture the predicate cannot reach
+
+**Record of 2026-10-07 11:42, meta workflow.**
+
+- The pass note now fires on the second identical refusal of a pass. A refused fail reads the general note. A test refuses a value of three lines (observed: `tests/rota/test_verdict_lines.py`, 2026-10-07).
+- Section 3 and section 5 are corrected. In the recordings of passes 2 and 3, the three-turn note is in the prompts of runs 1, 2, 4 and 5. It fired in 4 of 5 runs, and it moved 0 of 4 to the fail route (observed: the `cassettes` prompts, 2026-10-07 11:12).
+- **The fixture change was built, recorded and then held back.** The test asserted that the invoices stay, and its `test_runs` row read `fail`. The gate at 11:22 then named a new red, `test_case_reachability.py::test_a_tick_cases_fixture_would_actually_fire_that_predicate[L1-CR-fail-names-its-criterion]`: "tick:review produces no wake at all". `predicates.review` wakes the Critic only on a green harness (observed: `rota/core/predicates.py:1155-1186`, 2026-10-07). A test that encodes the criterion is red against this diff, so the review cannot arise. The patch is in the session scratchpad as `f170_pass4_fixture.patch`.
+- The recording of that fixture, live at 11:10, was 0 of 5. Runs 2, 3 and 5 landed a pass. Runs 1 and 4 landed none. No run sent a fail.
+- With the fixture of pass 3 and the new note, the gate's re-record at 11:42 is 0 of 5. Runs 2 and 3 land a pass. Runs 1, 4 and 5 land none. No run sends a fail.
+- `L1-CR-a-test-that-encodes-nothing-is-a-challenge` went stale on the note and re-recorded 5 of 5. `L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist` re-recorded 0 of 5, the known red.
+
+The gate at 11:42:
+
+```
+suite: 26 failed, 3224 passed, 35 skipped, 17 xfailed, 18 warnings (baseline: 29 failed, 3207 passed, 35 skipped, 17 xfailed, 18 warnings)
+new reds (1): tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion]
+reds gone (0): none
+stale (0): none
+time: 657.9s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline fb0cee1 2026-10-07 09:48
+```
