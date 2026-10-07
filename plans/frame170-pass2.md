@@ -42,3 +42,13 @@ The baseline is the one that pass 1's gate stored on its uncommitted tree. The g
 | `L1-CR-a-test-that-encodes-nothing-is-a-challenge`, gemma3:12b | 5 of 5 | 5 of 5 |
 | `L1-CR-fail-names-its-criterion` | 5 of 5 | 3 of 5 |
 | `L1-CR-finish-the-review-with-the-answer-in-hand` | 5 of 5 | 5 of 5 |
+
+## 5. Pass 3: the fail case expects a fail
+
+**Decided by the assistant, 2026-10-07, after section 3: the case expects what its name says.** Its diff deletes the invoices, and its criterion keeps them. So the one right verdict is a fail that names the criterion. A pass is a wrong verdict, and the case admitted it 390 times. The block limit stays at 2.
+
+- The case's `expect` now reads `verdicts: {count: 1, text_includes: ['"result": "fail"', '"failed_criterion": "<c1>"']}`. `text_includes` is the key that `fixtures.check` reads on a written row (observed: `rota/testkit/fixtures.py:504-534`, 2026-10-07).
+- The re-record by exact id on qwen3:8b, 5 live runs, is **0 of 5** (observed: `case_runs`, live at 2026-10-07 10:40:54, and the plain replay after it). This is a known red that frame 170 names. It is not a failure of the pass.
+- Runs 1, 3 and 5 land a pass. Runs 2 and 4 land no verdict: each sends a 3-line block in four turns, and the runner ends the session on the verbatim repeat. No run sends a fail.
+- The live runs repeat the transcripts of pass 2 to the batch id. The model runs at temperature 0, so the re-record cannot move the count.
+- The gate at 10:56 lists the case as its one new red, 0 of 5. Its suite line is `25 failed, 3222 passed`.
