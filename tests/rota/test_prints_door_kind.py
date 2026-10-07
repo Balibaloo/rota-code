@@ -143,8 +143,13 @@ def night128(tmp_path):
 FACTORY = ("`version_option` is a decorator factory in `src/click/decorators.py`: "
            "it returns a decorator and prints nothing when it is called. The "
            "message prints when a command decorated with `version_option(...)` "
-           "runs. Decorate a command with it and invoke the command with "
-           "CliRunner, then assert on `result.output`")
+           "runs")
+
+
+def test_the_factory_refusal_names_no_shape():
+    """The fact and no shape (Roman, 2026-09-15, 6b52a09d)."""
+    for word in ("CliRunner", "invoke", "result.output", "Decorate", "assert"):
+        assert word not in FACTORY
 
 needs_night = pytest.mark.skipif(
     not _HAVE_NIGHT, reason="night 128's database or clickI's commits are absent")

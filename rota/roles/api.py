@@ -6042,7 +6042,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # review of 09e60cf6: once this door admitted s274's encodes, 5 of 6
     # asserted `in` on the decorator, and night 128 stored 3 tests that read
     # the stdout of a bare call. No code passes either shape. The sentence
-    # states the worktree's fact and the shape that reads the message.
+    # states the worktree's two facts and no shape of a test (Roman,
+    # 2026-09-15, 6b52a09d: night 80's Tester wrote a handed shape, and no
+    # command ran).
     called = {(c.func.id if isinstance(c.func, _ast.Name) else c.func.attr)
               for c in _ast.walk(tree) if isinstance(c, _ast.Call)
               and isinstance(c.func, (_ast.Name, _ast.Attribute))}
@@ -6057,9 +6059,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         raise ValueError(
             f"`{orig}` is a decorator factory in `{where}`: it returns a "
             f"decorator and prints nothing when it is called. The message "
-            f"prints when a command decorated with `{orig}(...)` runs. "
-            f"Decorate a command with it and invoke the command with "
-            f"CliRunner, then assert on `result.output`")
+            f"prints when a command decorated with `{orig}(...)` runs")
 
     def _kind() -> str:
         """The kind of the name as a clause of the refusal, or nothing."""
