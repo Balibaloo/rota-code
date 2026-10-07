@@ -29,6 +29,7 @@ The review of 09e60cf6 found that pass 1 admitted all 6 of s274's turn 2 encodes
 
 - The factory door does not read the criterion's words. A factory prints nothing when it is called, so the two shapes fail whatever the criterion says (reasoned: the TypeError and the empty stdout of the review).
 - The sentence names a recipe: "Decorate a command with it and invoke the command with CliRunner". The prints door's ruling says "the fact and no recipe" (Roman, 2026-09-15, 6b52a09d). The coordinator's message gives this sentence, so the pass uses it. The coordinator's message carries no ruling from Roman, so this is open for the review.
+- Pass 3, 5336f2a6: the ruling of 6b52a09d holds (Roman, 2026-09-15: a door states the fact and no shape, because night 80's Tester wrote the handed shape and no command ran). The refusal now ends at "The message prints when a command decorated with `<name>(...)` runs". The sentence "Decorate a command with it and invoke the command with CliRunner, then assert on `result.output`" is dropped. Gate on 2026-10-07: `23 failed, 3241 passed`, new reds 0, stale 0.
 - s274's 02 and the stored 02 still land. They assert nothing that a factory can fail. That is a vacuous test, not this frame's shape.
 
 ## The gate
