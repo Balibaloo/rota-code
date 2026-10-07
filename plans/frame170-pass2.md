@@ -73,3 +73,32 @@ reds gone (0): none
 stale (0): none
 time: 657.9s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline fb0cee1 2026-10-07 09:48
 ```
+
+## 7. Pass 5: the fail case accepts either right route
+
+**Record of 2026-10-07 11:58, meta workflow. Decided by the assistant after section 6.**
+
+- The review tick fires only on a green harness (observed: `rota/core/predicates.py:1155-1186`, 2026-10-07). So no reachable fixture holds a test that encodes the criterion against this diff, and the pass 3 fixture stays.
+- The case's `expect` is an `any_of` of two branches. The first is one verdict whose row holds `"result": "fail"` and `"failed_criterion": "<c1>"`. The second is a challenge to the Tester whose refs include `<c1>` and `<tst1>`, with `verdicts: {count: 0}`, in the shape of `L1-CR-a-test-that-encodes-nothing-is-a-challenge`. A pass meets neither branch.
+- The re-record by exact id on qwen3:8b, 5 live runs at 11:46:58, is **0 of 5**. This is the known red that frame 170 names.
+
+| Run | Route |
+|---|---|
+| 1 | four passes, each refused as a 3-line block; no verdict, no message |
+| 2 | passes refused, then a pass landed |
+| 3 | passes refused, then a pass landed |
+| 4 | three passes, each refused as a 3-line block; no verdict, no message |
+| 5 | four passes, each refused as a 3-line block; no verdict, no message |
+
+- No run sends a fail or a challenge. Every run claims `encodes=True` first and then sends a pass (observed: the runs' transcripts, 2026-10-07 11:46).
+- The note keeps the words "in two turns", which match the count it fires on.
+
+The gate at 11:58:
+
+```
+suite: 25 failed, 3225 passed, 35 skipped, 17 xfailed, 18 warnings (baseline: 29 failed, 3207 passed, 35 skipped, 17 xfailed, 18 warnings)
+new reds (1): tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion]
+reds gone (0): none
+stale (0): none
+time: 595.0s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline fb0cee1 2026-10-07 09:48
+```
