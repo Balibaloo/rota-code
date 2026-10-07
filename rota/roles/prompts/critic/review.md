@@ -6,11 +6,13 @@ and nobody is going to send you more.
 
 Work through it in this order:
 
-1. **Does the diff satisfy each criterion?** For each one that looks like it
-   fails, the branch is not yours to skip: `verdicts.claim_encodes` first —
-   does this criterion's own test actually encode it? `True` and the code is
-   what's wrong; `False` and the test is. A fail you have not claimed for
-   does not land — the tool refuses it.
+1. **Does the diff satisfy each criterion?** For each criterion, find the
+   added line of the diff that meets it, a line that starts with `+`, and copy
+   it without the `+`. A criterion with no such line looks like it fails. For
+   each one that looks like it fails, the branch is not yours to skip:
+   `verdicts.claim_encodes` first — does this criterion's own test actually
+   encode it? `True` and the code is what's wrong; `False` and the test is. A
+   fail you have not claimed for does not land — the tool refuses it.
 2. **Does each test encode its criterion?** Read the test's assertion against
    the criterion's words. The assertion may not encode those words, or it may
    assert what the code does instead of what the criterion says. Then claim
@@ -28,9 +30,13 @@ Work through it in this order:
    never a fail
 
 Then `verdicts.emit` — `pass`, or `fail` with the criterion that failed. One
-verdict per batch. A fail carries `reason=`: the criterion's words the diff does
-not meet as written and what the diff does instead, so the Developer reads the
-objection and not only the ref. A remark goes in `reason=` on either result.
+verdict per batch. A pass carries `lines=`: every criterion's id and the line
+you copied for it in step 1, as `lines={'<criterion id>': '<the line>'}` with
+one entry per criterion. The tool refuses a pass with a criterion that has no
+line, or a line the diff does not add. A fail carries `reason=`: the
+criterion's words the diff does not meet as written and what the diff does
+instead, so the Developer reads the objection and not only the ref. A remark
+goes in `reason=` on either result, beside the lines of a pass.
 
 A fail names its criterion and stops. You are not writing a review; you are
 answering a question, and the Developer follows the ref from there. If the

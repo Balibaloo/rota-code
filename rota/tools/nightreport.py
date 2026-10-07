@@ -366,7 +366,8 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
 
     # 3. Verdicts.
     w("== verdicts")
-    V_COLS = ("id", "batch_id", "commit_sha", "result", "failed_criterion", "reason")
+    V_COLS = ("id", "batch_id", "commit_sha", "result", "failed_criterion", "reason",
+              "lines")
     for line in n.absent("verdicts", V_COLS) + n.absent("batches", ("id", "head_commit")):
         w(line)
     heads = {b["id"]: b["head_commit"] for b in batches}
@@ -377,11 +378,22 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
             return ABSENT
         return "head" if sha and sha == head else "old"
 
+    def named(v) -> str:
+        """The count of criteria a pass named a line for (frame 170)."""
+        if v["lines"] == ABSENT:
+            return ABSENT
+        if v["result"] != "pass":
+            return "-"
+        try:
+            return str(len(json.loads(v["lines"] or "{}")))
+        except (ValueError, TypeError):
+            return ABSENT
+
     for v in n.rows("verdicts", V_COLS):
         w(f"{cut(v['id'], 40)} batch={v['batch_id']} commit={short(v['commit_sha'])} "
           f"{at_head(v['batch_id'], v['commit_sha'])} "
           f"result={v['result']} failed={v['failed_criterion'] or '-'} "
-          f"reason={cut(v['reason'], 100) or '-'}")
+          f"named={named(v)} reason={cut(v['reason'], 100) or '-'}")
 
     # 4. Test runs.
     w("== test runs")

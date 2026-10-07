@@ -596,6 +596,7 @@ CREATE TABLE IF NOT EXISTS verdicts (
     result            TEXT NOT NULL CHECK (result IN ('pass','fail')),
     failed_criterion  TEXT REFERENCES criteria(id),
     reason            TEXT,
+    lines             TEXT,                  -- a pass's JSON: criterion id to added line (frame 170)
     version           INTEGER NOT NULL DEFAULT 1
 );
 

@@ -124,6 +124,14 @@ ARG_HINTS_BY_OP: dict[tuple[str, str], dict[str, str]] = {
         "id": "the ledger derives its own id from the assumption; if you mean "
               "what the assumption is about, that is about_ref",
     },
+    # Frame 170. The Critic's brief teaches `quotes=` for a challenge, so a
+    # seat can send it on a pass. The pass names its lines in `lines=`.
+    ("verdicts", "emit"): {
+        "line": "a pass names its lines in lines=, a dict of each criterion "
+                "id to its added line: lines={'<criterion id>': '<the line>'}",
+        "quotes": "a pass names its lines in lines=, a dict of each criterion "
+                  "id to its added line: lines={'<criterion id>': '<the line>'}",
+    },
 }
 
 

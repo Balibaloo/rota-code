@@ -7012,10 +7012,15 @@ def verdicts_claim_encodes(ctx: Ctx, criterion_id: str, encodes: bool) -> dict:
 @op("verdicts", "emit")
 def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
                   failed_criterion: str | None = None, reason: str = "",
-                  diff_ref: str = "") -> dict:
+                  diff_ref: str = "",
+                  lines: dict[str, str] | None = None) -> dict:
     """
     Judge a commit. `result` is 'pass' or 'fail'; name the criterion a fail
     fails.
+
+    `lines`, on a pass: each criterion id of the batch, and the added line
+    of the diff that meets it, copied verbatim (ruled by Roman, frame 170,
+    2026-10-07). A fail ignores it.
 
     `reason`, on a fail: the criterion's words the work does not meet, and
     what the work does instead. The Developer reads it beside the ref (ruled
@@ -7092,12 +7097,129 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
                 f". `verdicts.claim_encodes({failed_criterion!r}, encodes=...)` "
                 f"first: True and the fail can land, False and this is "
                 f"`msg.challenge_tester` instead, not a fail on the code")
-    ctx.writes.append(("verdicts", id, {
-        "batch_id": batch_id, "result": result,
-        "commit_sha": commit,
-        "failed_criterion": failed_criterion, "reason": reason,
-        "diff_ref": diff_ref}))
+    row = {"batch_id": batch_id, "result": result, "commit_sha": commit,
+           "failed_criterion": failed_criterion, "reason": reason,
+           "diff_ref": diff_ref}
+    # A fail reads no lines and stores none. An optional argument that one
+    # branch needs is ignored on the others, never refused (frame 81).
+    if result == "pass":
+        _pass_lines_check(ctx, batch_id, lines)
+        if lines:
+            # The write pipeline stores no dict, so the lines go as JSON text.
+            row["lines"] = _json.dumps(lines)
+    ctx.writes.append(("verdicts", id, row))
     return {"id": id, "result": result}
+
+
+# A named line that is part of an added line holds at this length and up. A
+# small model cuts a long line, and s279's line for cr_2 is 128 characters.
+# Twelve characters keep out `)`, `else:` and `return x` (frame 170).
+_LINE_PART_MIN = 12
+
+
+def _line_parts(value) -> list[str] | None:
+    """The lines one value of `lines=` names, or None when it names none.
+
+    Two shapes have one reading, so both are read (frame 170): a list of
+    text is several lines, and text with line breaks is one line per part.
+    """
+    if isinstance(value, str):
+        parts = value.splitlines()
+    elif isinstance(value, list) and all(isinstance(v, str) for v in value):
+        parts = [p for v in value for p in v.splitlines()]
+    else:
+        return None
+    parts = [p.strip() for p in parts if p.strip()]
+    return parts or None
+
+
+def _line_held(line: str, added: list[str]) -> bool:
+    text = line.strip()
+    if text.startswith("+"):
+        text = text[1:].strip()
+    if text in added:
+        return True
+    return len(text) >= _LINE_PART_MIN and any(text in a for a in added)
+
+
+def _pass_lines_check(ctx, batch_id: str, lines) -> None:
+    """Refuse a pass that does not name an added line for each criterion.
+
+    Ruled by Roman, 2026-10-07 08:57: the Critic names, for each criterion,
+    the line of the change that meets it, and the door refuses a pass that
+    leaves a criterion unnamed. The door cannot see whether the line meets
+    the criterion. It sees only that the line is one the batch added.
+    """
+    # The same query as `criteria.load`, so the door and the prompt name
+    # the same set in the same order.
+    ids = [r["id"] for r in ctx.conn.execute(
+        "SELECT c.id FROM criteria c "
+        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "WHERE bt.batch_id = ?", (batch_id,))]
+    if not ids:
+        return
+    named = ", ".join(ids)
+    if lines is not None and not isinstance(lines, dict):
+        raise ValueError(
+            f"lines= maps each criterion id to its line, as "
+            f"lines={{'<criterion id>': '<the line>', '<criterion id>': "
+            f"'<the line>'}}, one entry for each of {named}")
+    lines = lines or {}
+    for key in lines:
+        if key not in ids:
+            raise ValueError(
+                f"{key!r} is not a criterion of batch {batch_id}. Its criteria "
+                f"are {named}. Send the pass again with lines= naming each of "
+                f"them once")
+    parts = {cid: _line_parts(lines.get(cid)) for cid in ids}
+    missing = [cid for cid in ids if parts[cid] is None]
+    if missing:
+        claim = _offer(
+            ctx, f"`verdicts.claim_encodes({missing[0]!r}, encodes=...)` "
+                 f"first, as for any fail",
+            "verdicts.claim_encodes",
+            {"criterion_id": missing[0], "encodes": True},
+            then=(_fail_on(batch_id, missing[0]),))
+        raise ValueError(
+            f"a pass names, for each criterion, the added line of the diff "
+            f"that meets it, and {', '.join(missing)} "
+            f"{'has' if len(missing) == 1 else 'have'} no line. Send "
+            f"verdicts.emit again with lines={{'<criterion id>': '<the "
+            f"line>'}} for each of {named}, each line copied from a line of "
+            f"the [diff] block that starts with +. If no added line meets "
+            f"{missing[0]}, that is a fail on it: {claim}")
+    added = _added_lines(_batch_diff(ctx, batch_id))
+    for cid in ids:
+        for quote in parts[cid]:
+            if _line_held(quote, added):
+                continue
+            # Name the set, do not merely reject the guess.
+            best, ratio = "", 0.0
+            for a in added:
+                r = difflib.SequenceMatcher(None, quote, a).ratio()
+                if r > ratio:
+                    best, ratio = a, r
+            nearest = (f"The added line nearest to it: {best!r}. "
+                       if ratio >= 0.6 else "")
+            claim = _offer(
+                ctx, f"`verdicts.claim_encodes({cid!r}, encodes=...)` "
+                     f"first, as for any fail",
+                "verdicts.claim_encodes",
+                {"criterion_id": cid, "encodes": True},
+                then=(_fail_on(batch_id, cid),))
+            raise ValueError(
+                f"the line for {cid}, {quote!r}, is not an added line of the "
+                f"diff of batch {batch_id}. Copy one line of the [diff] block "
+                f"that starts with +, without the +, and send the pass again. "
+                f"{nearest}If no added line meets {cid}, that is a fail on "
+                f"it: {claim}")
+
+
+def _fail_on(batch_id: str, cid: str) -> tuple:
+    """The fail that a claim of True admits. The pass sent again meets the
+    same door, so the offer's next step is the fail and not AGAIN."""
+    return ("verdicts.emit", {"batch_id": batch_id, "result": "fail",
+                              "failed_criterion": cid})
 
 
 @op("verdicts", "load")
@@ -9232,6 +9354,28 @@ def _batch_base(ctx, tree) -> str:
     return _wt.base(tree, root)
 
 
+def _batch_diff(ctx, batch_id: str) -> str:
+    """The batch's diff since its fork, or "" with no batch or no worktree.
+
+    `code.read` gives this text to the Critic, and `verdicts.emit` checks a
+    pass's lines against it. One computation keeps the two the same (frame
+    170)."""
+    from ..core import worktrees as _wt
+    row = ctx.conn.execute(
+        "SELECT worktree FROM batches WHERE id = ?", (batch_id,)).fetchone()
+    if not row or not row["worktree"]:
+        return ""
+    # The whole batch since its fork. Frame 97: HEAD~1 hid every commit
+    # but the last, and night 98's s183 lost 13 lines that way.
+    return _wt.diff(row["worktree"], _batch_base(ctx, row["worktree"]))
+
+
+def _added_lines(diff_text: str) -> list[str]:
+    """Each added line of a unified diff, without its `+`, ends stripped."""
+    return [ln[1:].strip() for ln in diff_text.splitlines()
+            if ln.startswith("+") and not ln.startswith("+++")]
+
+
 def _removed_lines(diff_text: str, cap: int = 2000) -> str:
     """
     The removed lines that no added line of the same file carries, as text.
@@ -9665,10 +9809,8 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
         return {}
     out = {"batch": row["id"]}
     if row["worktree"]:
-        # The whole batch since its fork. Frame 97: HEAD~1 hid every commit
-        # but the last, and night 98's s183 lost 13 lines that way.
         fork = _batch_base(ctx, row["worktree"])
-        text = worktrees.diff(row["worktree"], fork)
+        text = _batch_diff(ctx, bid)
         # Before the diff, so a long diff's cut never reaches the block.
         removed = _removed_lines(text)
         if removed:

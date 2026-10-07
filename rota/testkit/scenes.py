@@ -536,10 +536,20 @@ def encode(body: str = None) -> list[str]:
             f"body={(body or TEST_BODY)!r})"]
 
 
-def judge(batch: str, result: str = "pass") -> list[str]:
+# The added line of `UPGRADE` that meets c1. A pass names it (frame 170).
+UPGRADE_LINE = "return prorate(amount_cents, days_used, days_in_period)"
+
+
+def judge(batch: str, result: str = "pass",
+          lines: dict | None = None) -> list[str]:
+    """The Critic's review. A pass names, by default, c1's line of `UPGRADE`,
+    the module that both scenes that judge commit."""
+    if result == "pass" and lines is None:
+        lines = {"c1": UPGRADE_LINE}
+    named = f", lines={lines!r}" if result == "pass" else ""
     return [f"TOOL: criteria.load(batch_id={batch!r})",
             f"TOOL: tests.load(batch_id={batch!r})",
-            f"TOOL: verdicts.emit(batch_id={batch!r}, result={result!r})"]
+            f"TOOL: verdicts.emit(batch_id={batch!r}, result={result!r}{named})"]
 
 
 # An empty session on a fix wake: the seat's note is the state, a dispatch

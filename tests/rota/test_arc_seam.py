@@ -33,6 +33,9 @@ from rota.testkit.fixtures import seed_provenance
 
 PINS = Pins(model="scripted", temperature=0.0, num_ctx=4096)
 SENTENCE = "add a button so people can delete their account"
+# The Critic's pass names c1's added line of `seam.py` (frame 170).
+PASS = ("TOOL: verdicts.emit(batch_id='b1', result='pass', "
+        "lines={'c1': 'return \"tombstoned\"'})")
 
 
 def drive(conn, wake: Wake, script: list[str], **kw):
@@ -187,7 +190,7 @@ def test_one_sentence_becomes_a_merged_batch(db, repo):
     drive(db, Wake("critic", "tick:review", refs=("b1",)), [
         "TOOL: criteria.load(batch_id='b1')",
         "TOOL: tests.load(batch_id='b1')",
-        "TOOL: verdicts.emit(batch_id='b1', result='pass')",
+        PASS,
     ], batch_id="b1")
 
     verdict = db.execute(
@@ -402,7 +405,7 @@ def test_a_failing_test_comes_back_and_the_second_commit_is_what_merges(db, repo
     drive(db, tick(db, "tick:review"), [
         "TOOL: criteria.load(batch_id='b1')",
         "TOOL: tests.load(batch_id='b1')",
-        "TOOL: verdicts.emit(batch_id='b1', result='pass')",
+        PASS,
     ], batch_id="b1")
 
     assert db.execute(

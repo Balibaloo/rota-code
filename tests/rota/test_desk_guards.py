@@ -275,13 +275,19 @@ def test_a_developer_challenge_does_not_block_the_verdict(db):
     assert out["result"] == "fail"
 
 
-def test_a_second_verdict_on_one_commit_is_refused(db):
+def test_a_second_verdict_on_one_commit_is_refused(db, tmp_path):
     # Frame 107. The Terminologist's answer wakes the Critic after its
     # verdict landed, so the tool refuses a second verdict on the same
     # commit (ruled: Roman, 2026-10-01: the Critic's doubt about a
     # criterion goes to the Terminologist, the writer of the criteria).
+    # A pass names a line per criterion (frame 170), so b1 gets a diff.
+    from tests.rota.test_verdict_lines import a_batch_repo
+    line = "def close_account(account_id): return 'closed'"
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'",
+               (a_batch_repo(tmp_path, line),))
+    db.commit()
     sb = build("critic", db, batch_id="b1", mode="review")
-    sb.call("verdicts.emit", batch_id="b1", result="pass")
+    sb.call("verdicts.emit", batch_id="b1", result="pass", lines={"c1": line})
     with pytest.raises(ValueError, match="already landed"):
         sb.call("verdicts.emit", batch_id="b1", result="pass")
     # A verdict on file from an earlier session counts the same.
@@ -294,7 +300,8 @@ def test_a_second_verdict_on_one_commit_is_refused(db):
     # A new commit is a new diff, and it gets its own verdict.
     db.execute("UPDATE batches SET head_commit = 'def456' WHERE id = 'b1'")
     db.commit()
-    out = sb.call("verdicts.emit", batch_id="b1", result="pass")
+    out = sb.call("verdicts.emit", batch_id="b1", result="pass",
+                  lines={"c1": line})
     assert out["id"] == "critic:b1:def456"
 
 

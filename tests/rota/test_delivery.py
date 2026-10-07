@@ -579,14 +579,17 @@ def test_a_stale_pass_does_not_merge(db):
     assert not [w for w in frontier(db) if w.kind == "do:merge"]
 
 
-def test_the_judgement_records_what_it_judged(db):
+def test_the_judgement_records_what_it_judged(db, tmp_path):
     """Filled by the system. Critic judges a diff and has no reason to know its
     sha; asking would add an argument it could get wrong."""
     from rota.core.sandbox import build
+    from tests.rota.test_verdict_lines import a_batch_repo
 
-    committed(db)
+    # A pass names a line per criterion (frame 170), so b1 gets a diff.
+    line = "def do_the_thing(): return 'done'"
+    committed(db, a_batch_repo(tmp_path, line))
     sb = build("critic", db)
-    sb.call("verdicts.emit", batch_id="b1", result="pass")
+    sb.call("verdicts.emit", batch_id="b1", result="pass", lines={"c1": line})
 
     values = sb.ctx.writes[-1][2]
     assert values["commit_sha"] == "abc123"

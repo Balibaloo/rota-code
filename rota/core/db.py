@@ -234,6 +234,10 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # since no Critic could give a reason before the column existed.
         if not _has_column(conn, "verdicts", "reason"):
             conn.execute("ALTER TABLE verdicts ADD COLUMN reason TEXT")
+        # The same for the lines a pass names (frame 170): NULL is every
+        # older verdict's truth, since no pass named a line before.
+        if not _has_column(conn, "verdicts", "lines"):
+            conn.execute("ALTER TABLE verdicts ADD COLUMN lines TEXT")
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))
     except BaseException:

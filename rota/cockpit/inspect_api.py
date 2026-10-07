@@ -34,7 +34,8 @@ LEAD_COLUMNS = {
     "findings": ("id", "batch_id", "constraint_id", "status", "grain"),
     "test_runs": ("id", "batch_id", "test_id", "result", "attempt"),
     "tests": ("id", "batch_id", "criterion_id", "path"),
-    "verdicts": ("id", "batch_id", "result", "failed_criterion", "reason"),
+    "verdicts": ("id", "batch_id", "result", "failed_criterion", "reason",
+                 "lines"),
     "ledger": ("id", "status", "author", "about_ref", "default_taken"),
     "decisions": ("id", "author", "supersedes", "text"),
 }
