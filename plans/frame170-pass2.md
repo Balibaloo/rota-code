@@ -102,3 +102,22 @@ reds gone (0): none
 stale (0): none
 time: 595.0s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline fb0cee1 2026-10-07 09:48
 ```
+
+## 8. Pass 6: the pass note follows the lines check only
+
+**Record of 2026-10-07 12:17, meta workflow.**
+
+- The runner gave the pass note to any refused `verdicts.emit` with `result='pass'`. So a landed pass sent again read "already landed" and then the pass note, which named routes that cannot land. Night 120's s148 and night 128's s142 and s195 each sent a landed pass again (the review of 9eaafc48, confirmed).
+- The checks of `_pass_lines_check` now raise `api.LinesRefusal`, a subclass of `ValueError`. The runner keys the pass note on that class. Every other refusal of `verdicts.emit` reads the general note. `_verdict_result` is gone.
+- A new test sends a landed pass again in five turns. It reads "already landed" and the general note, and never the pass note. It fails on the runner of 605b2e1e (observed: the test against the stashed change, 2026-10-07, before the gate of 12:17). The tests of the three checks still read the pass note on the second refusal.
+- No recorded case went stale. `L1-CR-fail-names-its-criterion` stays the known red at 0 of 5.
+
+The gate at 12:17:
+
+```
+suite: 25 failed, 3226 passed, 35 skipped, 17 xfailed, 18 warnings (baseline: 29 failed, 3207 passed, 35 skipped, 17 xfailed, 18 warnings)
+new reds (1): tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion]
+reds gone (0): none
+stale (0): none
+time: 598.2s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline fb0cee1 2026-10-07 09:48
+```
