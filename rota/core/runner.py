@@ -2784,15 +2784,6 @@ def session_sandbox(conn: sqlite3.Connection, wake: Wake, *,
     return sb
 
 
-def _verdict_result(call) -> str | None:
-    """The `result` a `verdicts.emit` call sent, by name or as the second
-    positional argument."""
-    if "result" in call.args:
-        return call.args["result"]
-    pos = getattr(call, "pos", ()) or ()
-    return pos[1] if len(pos) > 1 else None
-
-
 def run_session(
     conn: sqlite3.Connection,
     wake: Wake,
@@ -3014,8 +3005,9 @@ def run_session(
         # A refusal is the door's half of a conversation; the third time
         # the same refusal answers the same call, the conversation is over.
         refused_same: dict[tuple[str, str], int] = {}
-        # The refused verdicts that were passes, so the note of frame 170
-        # speaks to a pass and never to a refused fail.
+        # The refusals of a pass's lines, so the note of frame 170 speaks
+        # only where its routes are true: never to a refused fail and never
+        # to a verdict that already landed.
         refused_pass: set[tuple[str, str]] = set()
         stop_reason = ""
         turn_refusals: set[tuple[str, str]] = set()
@@ -3723,7 +3715,7 @@ def run_session(
                     # names the call by its identifying argument.
                     feedback.append(f"ERROR {_call_tag(call, len(calls))}: {exc}")
                     turn_refusals.add((call.name, str(exc)[:160]))
-                    if call.name == "verdicts.emit" and _verdict_result(call) == "pass":
+                    if isinstance(exc, api.LinesRefusal):
                         refused_pass.add((call.name, str(exc)[:160]))
                     told_to_end = isinstance(exc, api.EndRefusal)
 

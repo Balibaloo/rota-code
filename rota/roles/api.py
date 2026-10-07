@@ -443,6 +443,13 @@ class EndRefusal(ValueError):
     would contradict the door (frame 153, night 125's s158)."""
 
 
+class LinesRefusal(ValueError):
+    """A refusal of the lines a pass names (frame 170). The runner keys its
+    note on this class: the note names the routes that land a pass, and
+    those routes are false for any other refusal of `verdicts.emit`, such
+    as a verdict that already landed."""
+
+
 def _same_words(a: str, b: str) -> bool:
     """
     Two strings that say the same thing in the same order.
@@ -7163,14 +7170,14 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         return
     named = ", ".join(ids)
     if lines is not None and not isinstance(lines, dict):
-        raise ValueError(
+        raise LinesRefusal(
             f"lines= maps each criterion id to its line, as "
             f"lines={{'<criterion id>': '<the line>', '<criterion id>': "
             f"'<the line>'}}, one entry for each of {named}")
     lines = lines or {}
     for key in lines:
         if key not in ids:
-            raise ValueError(
+            raise LinesRefusal(
                 f"{key!r} is not a criterion of batch {batch_id}. Its criteria "
                 f"are {named}. Send the pass again with lines= naming each of "
                 f"them once")
@@ -7183,7 +7190,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             "verdicts.claim_encodes",
             {"criterion_id": missing[0], "encodes": True},
             then=(_fail_on(batch_id, missing[0]),))
-        raise ValueError(
+        raise LinesRefusal(
             f"a pass names, for each criterion, the added line of the diff "
             f"that meets it, and {', '.join(missing)} "
             f"{'has' if len(missing) == 1 else 'have'} no line. Send "
@@ -7197,7 +7204,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     # Two parts stay admitted, for a statement that wraps.
     for cid in ids:
         if len(parts[cid]) > _LINE_PARTS_MAX:
-            raise ValueError(
+            raise LinesRefusal(
                 f"the value for {cid} holds {len(parts[cid])} lines, and a "
                 f"pass names one added line per criterion. Copy the one line "
                 f"of the [diff] block that meets {cid}, without the +, and "
@@ -7221,7 +7228,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                 "verdicts.claim_encodes",
                 {"criterion_id": cid, "encodes": True},
                 then=(_fail_on(batch_id, cid),))
-            raise ValueError(
+            raise LinesRefusal(
                 f"the line for {cid}, {quote!r}, is not an added line of the "
                 f"diff of batch {batch_id}. Copy one line of the [diff] block "
                 f"that starts with +, without the +, and send the pass again. "

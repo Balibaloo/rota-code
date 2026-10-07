@@ -364,6 +364,21 @@ def test_a_seat_that_repeats_itself_reads_the_note_before_the_stop(s279):
     assert PASS_NOTE in backend.calls[2][1]
 
 
+def test_a_landed_pass_sent_again_gets_the_general_note(s279):
+    """Night 120's s148 and night 128's s142 and s195 sent a landed pass
+    again. The pass note would name routes that cannot land, so the refusal
+    "already landed" gets the general note."""
+    lines = repr(dict(S279_LINES))
+    calls = [f"TOOL: verdicts.emit(batch_id='bg_3', result='pass', "
+             f"reason='turn {k}', lines={lines})" for k in range(6)]
+    outcome, backend = _critic_session(s279, calls)
+    prompts = [c[1] for c in backend.calls]
+    assert any("already landed" in p for p in prompts)
+    assert all("It lands with lines=" not in p for p in prompts)
+    assert any("NOTE verdicts.emit has been refused the same way in three "
+               "turns and will not be accepted again" in p for p in prompts)
+
+
 def test_a_refused_fail_gets_the_general_note(s279):
     """A fail refused for want of a claim is not a pass: the note of a pass
     would name the wrong routes."""
