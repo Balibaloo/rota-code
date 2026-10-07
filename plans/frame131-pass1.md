@@ -2,6 +2,8 @@
 
 Meta workflow. Pass 1 on Opus, 2026-10-07, in `C:/Users/roman/rota_f131` on the branch `f131` from 5fa2ed27. No model call was made. The gate did not run, because night 127 holds the GPU.
 
+**Corrected by pass 2** (frame 131's review of af9db8a0, high 1 and high 2). The door of this pass was dead on its target. It read the project root's `HEAD`, and during a night that is clickI's `main` at 2c8cd3a, which has no `echo_json`. The function exists only in the batch's worktree, from the Developer's first commit. The test fixture committed `echo_json` on the root, so the 25 tests passed on a shape that no night has. The "s130 head" commits below are that first commit in the batch, and not the project's head. Pass 2 reads the batch's worktree: `plans/frame131-pass2.md`.
+
 ## What changed
 
 - `rota/roles/api.py`, `_plain_invoked`, before `tests_encode`. The predicate finds each call `<expr>.invoke(NAME, ...)` whose first argument is a bare name. It resolves NAME through the body's `from ... import` lines to a module file and reads that file in the base. It returns the name, the file and the `def` line when the last top-level binding of the name is a `def` with no decorator.
@@ -48,7 +50,7 @@ Night 119's `tst_v3`, version 2, calls `runner.invoke(dummy_cmd)` on a local `de
 
 ## Deviations from the brief
 
-1. The door reads the base at the project root's `HEAD`, and not at a stored base commit of the batch. No table stores the commit that a batch started from. The worktree can hold the Developer's wrap, so the worktree is not the base. After another batch merges, `HEAD` moves past the batch's base.
+1. The door reads the base at the project root's `HEAD`, and not at a stored base commit of the batch. No table stores the commit that a batch started from. The worktree can hold the Developer's wrap, so the worktree is not the base. After another batch merges, `HEAD` moves past the batch's base. **Wrong, corrected by pass 2:** the root's `HEAD` lacks the function that the test runs against, so the door refused 0 of s139's calls on a night.
 2. The refusal is a `ValueError`, and not a `Wall`. In `rota/core/db.py`, a `Wall` on an answer wake with no test written marks the question unresolved as "the answer did not change the criterion; encoding it still parrots". s139 met this door on an answer wake, the answer to m63, and its criterion is not at fault. The prints door raises a `ValueError` for the same kind of fact.
 3. The refusal names the line as `at line 689`, and not as the line inside the code span of the brief's form.
 4. The test file's literals hold empty lines where the bodies hold four spaces. The Write tool removes trailing spaces, so a list comprehension puts the spaces back. A script proved the three bodies equal to the turns.
