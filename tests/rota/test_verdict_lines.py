@@ -258,6 +258,86 @@ def test_a_context_line_is_not_an_added_line(s279):
     assert said.startswith("the line for cr_1_version_option_show_python_flag")
 
 
+def test_a_block_for_every_criterion_is_refused(s279):
+    """Frame 170's review of 845e0b80: a 4-line dump given for all three
+    criteria landed, so the lines named nothing."""
+    block = "\n".join(ln.strip() for ln in (L_FLAG, L_NOTE, L_VERSION, L_MESSAGE))
+    said = _refused(_critic(s279), batch_id="bg_3", result="pass",
+                    lines={cid: block for cid in S279_IDS})
+    assert said == (
+        "the value for cr_1_version_option_show_python_flag holds 4 lines, and "
+        "a pass names one added line per criterion. Copy the one line of the "
+        "[diff] block that meets cr_1_version_option_show_python_flag, without "
+        "the +, and send the pass again")
+
+
+def test_a_value_of_two_lines_lands(s279):
+    """A statement that wraps is two lines, and the door admits two."""
+    two = L_NOTE.strip() + "\n" + L_VERSION.strip()
+    out = _critic(s279).call("verdicts.emit", batch_id="bg_3", result="pass",
+                             lines={**S279_LINES, CR3: two})
+    assert out["result"] == "pass"
+
+
+def test_an_empty_line_is_no_line(s279):
+    said = _refused(_critic(s279), batch_id="bg_3", result="pass",
+                    lines={**S279_LINES, CR3: ""})
+    assert said == _unnamed([CR3], S279_IDS)
+
+
+def test_the_door_reads_the_diff_from_the_fork(tmp_path):
+    """A batch of two commits: the line of the first commit is in the diff
+    from the fork and not in the diff from HEAD~1. The door admits it."""
+    root = tmp_path / "root"
+    root.mkdir()
+    _git(root, "init", "-q")
+    (root / "work.py").write_bytes(b"")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "base")
+    tree = tmp_path / "batch"
+    _git(root, "worktree", "add", "-q", "-b", "batch/bg_3", str(tree))
+    first = "def first_commit_line(): return 1"
+    second = "def second_commit_line(): return 2"
+    (tree / "work.py").write_bytes((first + "\n").encode())
+    _git(tree, "commit", "-q", "-am", "one")
+    (tree / "work.py").write_bytes((first + "\n" + second + "\n").encode())
+    _git(tree, "commit", "-q", "-am", "two")
+    from rota.roles.api import _added_lines
+    assert first not in _added_lines(_git(tree, "diff", "HEAD~1", "HEAD")), \
+        "the first commit's line is only context from HEAD~1"
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
+                 (str(root),))
+    _seed(conn, "bg_3", S279_IDS, worktree=str(tree))
+    out = _critic(conn).call("verdicts.emit", batch_id="bg_3", result="pass",
+                             lines={CR1: first, CR2: second, CR3: second})
+    assert out["result"] == "pass"
+
+
+def test_the_third_refusal_names_the_routes_that_land(s279):
+    """Frame 170's review of 845e0b80: the general note says the op will not
+    be accepted again, and a verdict still lands by two routes. The fourth
+    turn ends the session as for any op."""
+    from rota.core.predicates import Wake
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    calls = [f"TOOL: verdicts.emit(batch_id='bg_3', result='pass', reason='turn {k}')"
+             for k in range(6)]
+    backend = ScriptedBackend(calls + ["Done."])
+    outcome = run_session(s279, Wake("critic", "tick:review", refs=("bg_3",)),
+                          backend=backend, pins=Pins(model="scripted"),
+                          batch_id="bg_3")
+    assert outcome.iterations == 4, outcome.iterations
+    assert any("refused the same way in four turns" in e for e in outcome.errors)
+    third = backend.calls[3][1]
+    assert ("NOTE verdicts.emit(result='pass') has been refused the same way "
+            "in three turns. It lands with lines={'<criterion id>': '<the added "
+            "line>'} for each criterion, or as a fail after "
+            "verdicts.claim_encodes on the criterion it fails") in third
+    assert "will not be accepted again" not in third
+
+
 def test_fail_ignores_lines(s279):
     sb = _critic(s279)
     sb.call("verdicts.claim_encodes", criterion_id=CR3, encodes=True)

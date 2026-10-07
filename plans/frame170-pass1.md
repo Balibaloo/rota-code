@@ -25,21 +25,21 @@ The pass builds `plans/frame170-design.md` sections 1 to 6 on the branch `f170` 
 
 ## 3. The recorded cases
 
-The gate re-recorded 7 stale cases, five live runs each, on qwen3:8b. The counts before are the main checkout's `case_runs` at the last prompt hash (observed: `tests/rota/cassettes.db`, 2026-10-07 09:50).
+The gate re-recorded 7 stale cases, five live runs each, each on its case's model. Two cases are pinned to gemma3:12b and the rest run on qwen3:8b. The counts before are the main checkout's `case_runs` at the last prompt hash (observed: `tests/rota/cassettes.db`, 2026-10-07 09:50).
 
 | Case | Before | After |
 |---|---|---|
 | `L1-CR-pass-a-conforming-diff` | 390 of 390 | 5 of 5 |
 | `L1-CR-fail-names-its-criterion` | 390 of 390 | 5 of 5 |
-| `L1-CR-a-test-that-encodes-nothing-is-a-challenge` | 0 of 20 | 5 of 5 |
-| `ACT-CR-quote-the-tests-code` | no row on qwen3:8b | 5 of 5 |
+| `L1-CR-a-test-that-encodes-nothing-is-a-challenge`, gemma3:12b | 390 of 390 | 5 of 5 |
+| `ACT-CR-quote-the-tests-code`, gemma3:12b | 390 of 390 | 5 of 5 |
 | `L1-CR-finish-the-review-with-the-answer-in-hand` | 415 of 415 | 5 of 5 |
 | `L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist` | 0 of 735 | 0 of 5 |
 | `L3-a-failed-verdict-turns-into-a-fix` | 237 of 392 | 2 of 5 |
 
 - The doubtful-criterion case is the known `L1-CR` red. Its old runs pass the batch and send no question. The cause is not the new door (observed: the run of 2026-10-07 03:57, `verdicts.emit` with no question).
 - The L3 case is not in the design's list. Its chain wakes the Critic in review mode, so its prompt changed. It is red in the stored baseline of 658abb6. It was 60 per cent green before. Its 3 red runs send a fail before `claim_encodes`, then claim False and challenge the Tester. That is the old fail-claim path, and the new door does not touch it (observed: runs 1 to 3, 2026-10-07 09:50).
-- `L1-CR-a-test-that-encodes-nothing-is-a-challenge` was 0 of 20 at its last prompt hash in the main checkout, and is 5 of 5 now. The pass does not claim it as a fix: the read of why is not done.
+- Correction of pass 2: this record first gave `0 of 20` and `no row on qwen3:8b` for the two gemma3:12b cases. The query read the wrong model. Both were 390 of 390 before and are green after, so neither moved (observed: `case_runs` by model, 2026-10-07).
 - What the new door met in the green runs: values with line breaks, read by the second tolerance; a list in place of a dict; and a criterion's words in place of a line, refused by check 2. Each seat sent the call again and landed (observed: `L1-CR-finish-the-review-with-the-answer-in-hand` runs 1 to 3).
 
 ## 4. The gate

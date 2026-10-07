@@ -3725,7 +3725,18 @@ def run_session(
             # ACT-DV-edit-inside-the-function, turn 8, 2026-09-23).
             for same in sorted(turn_refusals):
                 refused_same[same] = refused_same.get(same, 0) + 1
-                if refused_same[same] == 3:
+                if refused_same[same] == 3 and same[0] == "verdicts.emit":
+                    # Frame 170. The general note says the op will not be
+                    # accepted, and a verdict still lands by two routes. On
+                    # nights 120 and 128, 3 of 7 Critics sent one pass again
+                    # in 3 or 4 later turns.
+                    feedback.append(
+                        "NOTE verdicts.emit(result='pass') has been refused the "
+                        "same way in three turns. It lands with "
+                        "lines={'<criterion id>': '<the added line>'} for each "
+                        "criterion, or as a fail after verdicts.claim_encodes "
+                        "on the criterion it fails")
+                elif refused_same[same] == 3:
                     feedback.append(
                         f"NOTE {same[0]} has been refused the same way in three turns "
                         f"and will not be accepted again. Finish what remains "

@@ -7115,6 +7115,8 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
 # small model cuts a long line, and s279's line for cr_2 is 128 characters.
 # Twelve characters keep out `)`, `else:` and `return x` (frame 170).
 _LINE_PART_MIN = 12
+# A value with line breaks holds at most this many lines (frame 170's review).
+_LINE_PARTS_MAX = 2
 
 
 def _line_parts(value) -> list[str] | None:
@@ -7122,6 +7124,7 @@ def _line_parts(value) -> list[str] | None:
 
     Two shapes have one reading, so both are read (frame 170): a list of
     text is several lines, and text with line breaks is one line per part.
+    The door refuses more than `_LINE_PARTS_MAX` parts.
     """
     if isinstance(value, str):
         parts = value.splitlines()
@@ -7188,6 +7191,17 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             f"line>'}} for each of {named}, each line copied from a line of "
             f"the [diff] block that starts with +. If no added line meets "
             f"{missing[0]}, that is a fail on it: {claim}")
+    # A block is not a line. A whole added function given for every
+    # criterion lands on any batch, so the line names nothing (frame 170's
+    # review of 845e0b80: the answer case's runs 4 and 5 sent six lines).
+    # Two parts stay admitted, for a statement that wraps.
+    for cid in ids:
+        if len(parts[cid]) > _LINE_PARTS_MAX:
+            raise ValueError(
+                f"the value for {cid} holds {len(parts[cid])} lines, and a "
+                f"pass names one added line per criterion. Copy the one line "
+                f"of the [diff] block that meets {cid}, without the +, and "
+                f"send the pass again")
     added = _added_lines(_batch_diff(ctx, batch_id))
     for cid in ids:
         for quote in parts[cid]:
