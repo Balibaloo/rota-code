@@ -141,15 +141,17 @@ def night128(tmp_path):
 
 
 FACTORY = ("`version_option` is a decorator factory in `src/click/decorators.py`: "
-           "it returns a decorator and prints nothing when it is called. The "
-           "message prints when a command decorated with `version_option(...)` "
-           "runs")
+           "it returns a decorator and prints nothing when it is called")
 
 
 def test_the_factory_refusal_names_no_shape():
-    """The fact and no shape (Roman, 2026-09-15, 6b52a09d)."""
-    for word in ("CliRunner", "invoke", "result.output", "Decorate", "assert"):
+    """The fact and no shape (Roman, 2026-09-15, 6b52a09d). It says nothing
+    of when a decorated command prints, because that differs per factory
+    (frame 177's review of 5336f2a6)."""
+    for word in ("CliRunner", "invoke", "result.output", "Decorate", "assert",
+                 "message", "runs"):
         assert word not in FACTORY
+
 
 needs_night = pytest.mark.skipif(
     not _HAVE_NIGHT, reason="night 128's database or clickI's commits are absent")
@@ -312,12 +314,28 @@ def test_the_factory_refusal_states_a_fact_of_the_worktree(night128):
     ("@f()\ndef g():\n    pass\n", None),
     ("cmd = command()(f()(g))\n", None),
     ("r = f()\nr = 1\nassert r == 1\n", None),
+    ("r = f()\nfor r in [1]:\n    pass\nassert r == 1\n", None),
+    ("r = f()\nwith open('a') as r:\n    pass\nassert r == 1\n", None),
+    ("r = f()\nr += 1\nassert r == 1\n", None),
     ("f()\n", None),
+    ("import click as c\nassert 'x' in c.f()\n", "return"),
+    ("from click import decorators as d\nassert 'x' in d.f()\n", "return"),
+    ("assert 'x' in other.f()\n", None),
 ], ids=["in", "eq", "bare-assert", "not", "str", "len", "capsys", "stringio",
         "is-not-none", "callable", "decorates", "applied", "rebound",
-        "no-read"])
+        "rebound-for", "rebound-with", "rebound-augassign", "no-read",
+        "click-alias", "from-click", "other-object"])
 def test_the_shapes_of_a_factory_misuse(body, shape):
     assert api._factory_misuse(ast.parse(body), "f") == shape
+
+
+def test_a_regex_group_is_no_call_to_the_factory_group():
+    """`m.group(1)` on a match object reads nothing that click's `group`
+    returns (frame 177's review of 5336f2a6)."""
+    body = ("import re\n\n\ndef test_x():\n"
+            "    m = re.match('(a)', 'a')\n"
+            "    assert m.group(1) == 'a'\n")
+    assert api._factory_misuse(ast.parse(body), "group") is None
 
 
 # A worktree whose `echo_json` is a plain function that prints.
@@ -511,3 +529,31 @@ def test_a_decorated_def_gets_no_kind_clause(tmp_path):
     said, _facts = _refused(db, PLAIN_BODY)
     assert said == ("the test uses what echo_json returns, and the criterion "
                     "c1 says it prints")
+
+
+EXTRA = '''\
+import click as c
+
+
+def name_option(*decls, **kw):
+    return c.option(*decls, **kw)
+'''
+
+
+def test_a_factory_through_an_aliased_click_import_meets_the_door(tmp_path):
+    """The definition returns `c.option(...)` with `import click as c`, so
+    the door reads the module's own imports to know the call is click's."""
+    root, wt = _project(tmp_path, {"src/click/__init__.py": "",
+                                   "src/click/extra.py": "import json\n"},
+                        {"src/click/extra.py": EXTRA})
+    db = _db(tmp_path, root, wt, "add a name_option helper",
+             [("c1", "name_option adds a --name option to a command",
+               '["src/click/extra.py::name_option"]')])
+    body = ("from click.extra import name_option\n\n\n"
+            "def test_x():\n"
+            "    deco = name_option('--name')\n"
+            "    assert '--name' in deco\n")
+    said, facts = _refused(db, body)
+    assert said == ("`name_option` is a decorator factory in `src/click/extra.py`: "
+                    "it returns a decorator and prints nothing when it is called")
+    assert [(f.kind, f.value) for f in facts] == [("line_text", "def name_option")]

@@ -5000,6 +5000,23 @@ _FACTORY_CALLS = frozenset({"option", "argument", "command", "group",
                             "Command", "Group"})
 
 
+def _click_names(nodes) -> set[str]:
+    """`click` and each name that the import statements in `nodes` bind to
+    click or to a name from click. The attribute form `x.group(...)` reads
+    as click's only on such an `x` (frame 177's review of 09e60cf6)."""
+    import ast as _ast
+
+    clicks = {"click"}
+    for n in nodes:
+        if isinstance(n, _ast.Import):
+            clicks |= {a.asname or a.name for a in n.names
+                       if a.name == "click" or a.name.startswith("click.")}
+        elif (isinstance(n, _ast.ImportFrom) and not n.level
+              and (n.module or "").split(".")[0] == "click"):
+            clicks |= {a.asname or a.name for a in n.names}
+    return clicks
+
+
 def _returns_factory(node, src: str | None = None) -> bool:
     """Whether `node` is a `def` that returns a decorator or a command.
 
@@ -5016,18 +5033,10 @@ def _returns_factory(node, src: str | None = None) -> bool:
 
     if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
         return False
-    clicks = {"click"}
-    if src:
-        try:
-            for n in _ast.parse(src).body:
-                if isinstance(n, _ast.Import):
-                    clicks |= {a.asname or a.name for a in n.names
-                               if a.name == "click" or a.name.startswith("click.")}
-                elif (isinstance(n, _ast.ImportFrom) and not n.level
-                      and (n.module or "").split(".")[0] == "click"):
-                    clicks |= {a.asname or a.name for a in n.names}
-        except SyntaxError:
-            pass
+    try:
+        clicks = _click_names(_ast.parse(src).body if src else [])
+    except SyntaxError:
+        clicks = {"click"}
     inner: set[str] = set()
     returned = []
     todo = list(node.body)
@@ -5075,12 +5084,18 @@ def _factory_misuse(tree, name: str) -> str | None:
     """
     import ast as _ast
 
+    # The attribute form only on a click name, as `_returns_factory` reads
+    # it: `m.group(1)` on a regex match is no call to `group` (frame 177's
+    # review of 5336f2a6).
+    clicks = _click_names(_ast.walk(tree))
+
     def is_call(n) -> bool:
         if not isinstance(n, _ast.Call):
             return False
         f = n.func
         return ((isinstance(f, _ast.Name) and f.id == name)
-                or (isinstance(f, _ast.Attribute) and f.attr == name))
+                or (isinstance(f, _ast.Attribute) and f.attr == name
+                    and isinstance(f.value, _ast.Name) and f.value.id in clicks))
 
     # A name counts as the factory's return only when every binding of it
     # is a call to the factory.
@@ -6042,9 +6057,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # review of 09e60cf6: once this door admitted s274's encodes, 5 of 6
     # asserted `in` on the decorator, and night 128 stored 3 tests that read
     # the stdout of a bare call. No code passes either shape. The sentence
-    # states the worktree's two facts and no shape of a test (Roman,
-    # 2026-09-15, 6b52a09d: night 80's Tester wrote a handed shape, and no
-    # command ran).
+    # states the worktree's fact and no shape of a test (Roman, 2026-09-15,
+    # 6b52a09d: night 80's Tester wrote a handed shape, and no command ran).
+    # It says nothing of when a decorated command prints: `version_option`
+    # prints only on `--version`, and `command` prints no message at all
+    # (frame 177's review of 5336f2a6).
     called = {(c.func.id if isinstance(c.func, _ast.Name) else c.func.attr)
               for c in _ast.walk(tree) if isinstance(c, _ast.Call)
               and isinstance(c.func, (_ast.Name, _ast.Attribute))}
@@ -6058,8 +6075,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         _def_fact(where, node, src)
         raise ValueError(
             f"`{orig}` is a decorator factory in `{where}`: it returns a "
-            f"decorator and prints nothing when it is called. The message "
-            f"prints when a command decorated with `{orig}(...)` runs")
+            f"decorator and prints nothing when it is called")
 
     def _kind() -> str:
         """The kind of the name as a clause of the refusal, or nothing."""
