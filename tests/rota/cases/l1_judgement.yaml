@@ -121,7 +121,11 @@
       - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}
   expect:
     writes:
-      verdicts: {count: 1}
+      # The diff deletes the invoices, and the criterion keeps them, so the
+      # one right verdict is a fail on <c1>. The count alone admitted a pass
+      # in 390 of 390 runs (frame 170, 2026-10-07).
+      verdicts: {count: 1, text_includes: ['"result": "fail"',
+                                           '"failed_criterion": "<c1>"']}
   forbidden:
     # The test contradicts its criterion — invoices must survive. That is a
     # challenge to Tester, never a re-derivation of the criterion.
