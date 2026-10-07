@@ -5000,18 +5000,34 @@ _FACTORY_CALLS = frozenset({"option", "argument", "command", "group",
                             "Command", "Group"})
 
 
-def _returns_factory(node) -> bool:
+def _returns_factory(node, src: str | None = None) -> bool:
     """Whether `node` is a `def` that returns a decorator or a command.
 
     Frame 177: `version_option` returns a decorator, and the `--version`
     callback of the decorated command prints. A test may read what such a
     function returns, and the prints door refused 5 such tests on night 128.
     A nested `def` is not read for its own returns.
+
+    The attribute form `x.group(...)` counts only when `x` is `click` or a
+    name that `src`, the module, imports from click. So `m.group(1)` on a
+    regex match is not a factory (frame 177's review of 09e60cf6).
     """
     import ast as _ast
 
     if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
         return False
+    clicks = {"click"}
+    if src:
+        try:
+            for n in _ast.parse(src).body:
+                if isinstance(n, _ast.Import):
+                    clicks |= {a.asname or a.name for a in n.names
+                               if a.name == "click" or a.name.startswith("click.")}
+                elif (isinstance(n, _ast.ImportFrom) and not n.level
+                      and (n.module or "").split(".")[0] == "click"):
+                    clicks |= {a.asname or a.name for a in n.names}
+        except SyntaxError:
+            pass
     inner: set[str] = set()
     returned = []
     todo = list(node.body)
@@ -5030,11 +5046,90 @@ def _returns_factory(node) -> bool:
             return True
         if isinstance(value, _ast.Call):
             f = value.func
-            called = (f.id if isinstance(f, _ast.Name)
-                      else f.attr if isinstance(f, _ast.Attribute) else None)
-            if called in _FACTORY_CALLS:
+            if isinstance(f, _ast.Name) and f.id in _FACTORY_CALLS:
+                return True
+            if (isinstance(f, _ast.Attribute) and f.attr in _FACTORY_CALLS
+                    and isinstance(f.value, _ast.Name) and f.value.id in clicks):
                 return True
     return False
+
+
+# The calls that read what a test printed: a `StringIO` swapped in for
+# `sys.stdout`, pytest's capture fixtures, and `redirect_stdout`.
+_STDOUT_READS = frozenset({"getvalue", "readouterr", "redirect_stdout"})
+
+
+def _factory_misuse(tree, name: str) -> str | None:
+    """How the test misreads a decorator factory `name`, or None.
+
+    `"return"`: the test asserts on what a call returns, through `in`,
+    `==`, a bare `assert`, `str()` or `len()`. `"stdout"`: the test calls
+    `name(...)` as a bare statement and reads stdout. A factory prints
+    nothing when it is called, so no code can pass either shape (frame
+    177's review of 09e60cf6: 5 of s274's 6 encodes at turn 2 fail with a
+    `TypeError`, and 3 stdout tests stored on night 128 read `''`).
+
+    A test that decorates with the factory, passes its result to a call,
+    or checks it with `is` or `is not` is not a misuse. Night 119's s247
+    and night 127's s267 checked `is not None`.
+    """
+    import ast as _ast
+
+    def is_call(n) -> bool:
+        if not isinstance(n, _ast.Call):
+            return False
+        f = n.func
+        return ((isinstance(f, _ast.Name) and f.id == name)
+                or (isinstance(f, _ast.Attribute) and f.attr == name))
+
+    # A name counts as the factory's return only when every binding of it
+    # is a call to the factory.
+    bound: dict[str, bool] = {}
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Assign):
+            for t in n.targets:
+                for x in _ast.walk(t):
+                    if isinstance(x, _ast.Name):
+                        bound[x.id] = bound.get(x.id, True) and (
+                            t is x and is_call(n.value))
+        else:
+            if isinstance(n, (_ast.AnnAssign, _ast.AugAssign, _ast.For,
+                              _ast.AsyncFor, _ast.NamedExpr, _ast.comprehension)):
+                others = [n.target]
+            elif isinstance(n, (_ast.With, _ast.AsyncWith)):
+                others = [i.optional_vars for i in n.items if i.optional_vars]
+            else:
+                continue
+            for t in others:
+                for x in _ast.walk(t):
+                    if isinstance(x, _ast.Name):
+                        bound[x.id] = False
+    results = {k for k, v in bound.items() if v}
+
+    def is_return(n) -> bool:
+        return is_call(n) or (isinstance(n, _ast.Name) and n.id in results)
+
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Compare):
+            if (not all(isinstance(op, (_ast.Is, _ast.IsNot)) for op in n.ops)
+                    and any(is_return(x) for x in [n.left, *n.comparators])):
+                return "return"
+        elif isinstance(n, _ast.Assert):
+            test = n.test.operand if (isinstance(n.test, _ast.UnaryOp)
+                                      and isinstance(n.test.op, _ast.Not)) else n.test
+            if is_return(test):
+                return "return"
+        elif (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+              and n.func.id in ("str", "len") and n.args and is_return(n.args[0])):
+            return "return"
+    bare = any(isinstance(n, _ast.Expr) and is_call(n.value) for n in _ast.walk(tree))
+    reads = any(
+        (isinstance(n, _ast.Attribute) and n.attr in _STDOUT_READS)
+        or (isinstance(n, _ast.Name) and n.id in _STDOUT_READS)
+        for n in _ast.walk(tree))
+    if bare and reads:
+        return "stdout"
+    return None
 
 
 def _definition_of(tree, test_path: str, name: str, refs: list[str],
@@ -5933,8 +6028,38 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # the kind in the tree the test runs against, as frame 131's door does.
     defined = (_definition_of(tree, path, uses_return, surface_refs, read)
                if uses_return else None)
-    if defined is not None and _returns_factory(defined[2]):
+    if defined is not None and _returns_factory(defined[2], defined[3]):
         uses_return = None
+
+    def _def_fact(where: str, node, src: str) -> None:
+        if in_batch:
+            # The fact check reads the worktree, the file the seat sees.
+            _fact(ctx, "line_text",
+                  src.splitlines()[node.lineno - 1].split("(", 1)[0].rstrip(),
+                  n=node.lineno - 1, path=where)
+
+    # A decorator factory prints nothing when it is called. Frame 177's
+    # review of 09e60cf6: once this door admitted s274's encodes, 5 of 6
+    # asserted `in` on the decorator, and night 128 stored 3 tests that read
+    # the stdout of a bare call. No code passes either shape. The sentence
+    # states the worktree's fact and the shape that reads the message.
+    called = {(c.func.id if isinstance(c.func, _ast.Name) else c.func.attr)
+              for c in _ast.walk(tree) if isinstance(c, _ast.Call)
+              and isinstance(c.func, (_ast.Name, _ast.Attribute))}
+    for fname in sorted(called & surface_now):
+        found = _definition_of(tree, path, fname, surface_refs, read)
+        if found is None or not _returns_factory(found[2], found[3]):
+            continue
+        if _factory_misuse(tree, fname) is None:
+            continue
+        orig, where, node, src = found
+        _def_fact(where, node, src)
+        raise ValueError(
+            f"`{orig}` is a decorator factory in `{where}`: it returns a "
+            f"decorator and prints nothing when it is called. The message "
+            f"prints when a command decorated with `{orig}(...)` runs. "
+            f"Decorate a command with it and invoke the command with "
+            f"CliRunner, then assert on `result.output`")
 
     def _kind() -> str:
         """The kind of the name as a clause of the refusal, or nothing."""
@@ -5944,11 +6069,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         if not (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                 and not node.decorator_list):
             return ""
-        if in_batch:
-            # The fact check reads the worktree, the file the seat sees.
-            _fact(ctx, "line_text",
-                  src.splitlines()[node.lineno - 1].split("(", 1)[0].rstrip(),
-                  n=node.lineno - 1, path=where)
+        _def_fact(where, node, src)
         return f": `{orig}` is a plain function in `{where}`"
 
     if uses_return:

@@ -116,14 +116,19 @@ def _encode(db, test_id, criterion_id, path, body):
                    path=path, body=body)
 
 
+def _click_files(sha: str) -> dict:
+    out = subprocess.run(["git", "-C", str(CLICKI), "ls-tree", "-r", "--name-only",
+                          sha, "src/click"], capture_output=True, text=True,
+                         check=True)
+    return {p: _show(sha, p) for p in out.stdout.split()}
+
+
 @pytest.fixture
 def night128(tmp_path):
-    """bg_3 on night 128: clickI's `main` as the root, the worktree at
-    191e47a6, and the six criteria and the ticket of s274's batch."""
-    root, wt = _project(
-        tmp_path,
-        {"src/click/__init__.py": "", DECORATORS: _show(BASE, DECORATORS)},
-        {DECORATORS: _show(HEAD, DECORATORS)})
+    """bg_3 on night 128: clickI's `main` as the root, the worktree's
+    `src/click` at 191e47a6, and the six criteria and the ticket of s274's
+    batch."""
+    root, wt = _project(tmp_path, _click_files(BASE), _click_files(HEAD))
     conn = _night()
     try:
         rows = conn.execute("SELECT id, text, surface_refs FROM criteria WHERE "
@@ -135,29 +140,179 @@ def night128(tmp_path):
     return _db(tmp_path, root, wt, ticket, rows)
 
 
-@pytest.mark.skipif(not _HAVE_NIGHT,
-                    reason="night 128's database or clickI's commits are absent")
-def test_s274s_turn_2_encode_on_a_decorator_factory_lands(night128):
-    """`tst_version_option_show_python_04` is the encode on c4, refused on
-    night 128 by this door. Its body reads what `version_option` returns."""
+FACTORY = ("`version_option` is a decorator factory in `src/click/decorators.py`: "
+           "it returns a decorator and prints nothing when it is called. The "
+           "message prints when a command decorated with `version_option(...)` "
+           "runs. Decorate a command with it and invoke the command with "
+           "CliRunner, then assert on `result.output`")
+
+needs_night = pytest.mark.skipif(
+    not _HAVE_NIGHT, reason="night 128's database or clickI's commits are absent")
+
+
+def _outcome(db, a: dict) -> str:
+    try:
+        _encode(db, a["id"], a["criterion_id"], a["path"], a["body"])
+    except ValueError as exc:
+        return str(exc)
+    return "landed"
+
+
+@needs_night
+def test_s274s_turn_2_encodes_meet_the_factory_door(night128):
+    """On night 128 the prints door refused 02 to 06 and admitted 01. Each
+    of 01 and 03 to 06 asserts `in` on the decorator, so no code passes it,
+    and the factory door now refuses it. 02 asserts `True` inside a `try`
+    and reads nothing that the call returns, so this door admits it."""
     sent = {a["id"]: a for a in _s274_turn2()}
     assert len(sent) == 6
-    a = sent["tst_version_option_show_python_04"]
-    assert "result_true = version_option(show_python=True)" in a["body"]
-    got = _encode(night128, a["id"], a["criterion_id"], a["path"], a["body"])
-    assert got == {"id": a["id"]}
+    got = {tid[-2:]: _outcome(night128, a) for tid, a in sorted(sent.items())}
+    assert got == {"01": FACTORY, "02": "landed", "03": FACTORY,
+                   "04": FACTORY, "05": FACTORY, "06": FACTORY}
 
 
-@pytest.mark.skipif(not _HAVE_NIGHT,
-                    reason="night 128's database or clickI's commits are absent")
-def test_no_encode_of_s274s_turn_2_meets_the_prints_door(night128):
-    """The five that the door refused on night 128. Another door may still
-    refuse one of them, and that door is not this frame's."""
-    for a in _s274_turn2():
-        try:
-            _encode(night128, a["id"], a["criterion_id"], a["path"], a["body"])
-        except ValueError as exc:
-            assert "returns, and the criterion" not in str(exc), str(exc)
+def _stored_128() -> dict:
+    conn = _night()
+    try:
+        return {r[0]: {"id": r[0], "criterion_id": r[1], "path": r[2], "body": r[3]}
+                for r in conn.execute(
+                    "SELECT id, criterion_id, path, body FROM tests "
+                    "WHERE id LIKE 'tst_version_option_show_python_%'")}
+    finally:
+        conn.close()
+
+
+@needs_night
+def test_the_stdout_tests_stored_on_night_128_are_refused(night128):
+    """01, 04 and 06 read `"Python"` in the stdout of a bare call and were
+    red at 191e47a6. 03 and 05 read the same stdout and passed for nothing.
+    02 swaps stdout and never reads it, so it meets no shape of this door."""
+    stored = _stored_128()
+    got = {tid[-2:]: _outcome(night128, a) for tid, a in sorted(stored.items())}
+    for k in ("01", "03", "04", "05", "06"):
+        assert got[k] == FACTORY, (k, got[k])
+    assert got["02"] != FACTORY
+
+
+def _turn_encodes(night: int, sid: str, seq: int) -> list[dict]:
+    conn = sqlite3.connect(f"file:{(NIGHT.parent / f'clickI_night{night}.db').as_posix()}"
+                           f"?mode=ro", uri=True)
+    try:
+        completion = conn.execute("SELECT completion FROM turns WHERE "
+                                  "session_id = ? AND seq = ?", (sid, seq)).fetchone()[0]
+    finally:
+        conn.close()
+    return [c.args for c in toolproto.extract(completion)
+            if getattr(c, "name", None) == "tests.encode"]
+
+
+def _lands_after_the_ledger(db, a: dict) -> bool:
+    """The encode lands, or lands once the literal door's offered ledger
+    line is logged. The literal door is another door, and its offer is the
+    seat's next move on a night."""
+    import re
+
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id=a["criterion_id"], verdict="encodable")
+    args = dict(id=a["id"], criterion_id=a["criterion_id"], path=a["path"],
+                body=a["body"])
+    try:
+        sb.call("tests.encode", **args)
+        return True
+    except ValueError as exc:
+        m = re.search(r'assumption="(the test assumes [^"]+)"', str(exc))
+        assert str(exc).startswith("the test chooses ") and m, str(exc)
+    sb.call("ledger.log", about_ref=a["criterion_id"], about_table="criteria",
+            assumption=m.group(1))
+    return sb.call("tests.encode", **args) == {"id": a["id"]}
+
+
+def _have_lifts() -> bool:
+    return _HAVE_NIGHT and all(
+        (NIGHT.parent / f"clickI_night{n}.db").is_file() for n in (119, 127))
+
+
+# The criteria of night 128 that carry each lift's claim. The lifts were
+# written for nights 119 and 127, whose criteria ids differ.
+_ON_128 = {"c1_version_option_show_python": "c1_version_option_show_python",
+           "c2_version_option_show_python": "c2_version_option_show_python",
+           "c3_version_option_show_python": "c3_version_option_show_python",
+           "cr_1_version_option_show_python_flag": "c2_version_option_show_python",
+           "cr_2_version_option_show_python_false": "c5_version_option_show_python",
+           "cr_3_version_option_show_python_true": "c4_version_option_show_python"}
+
+
+@pytest.mark.skipif(not _have_lifts(), reason="the night databases are absent")
+@pytest.mark.parametrize("night,sid,seq", [
+    (119, "s247", 4), (119, "s247", 8), (127, "s267", 2), (127, "s267", 10),
+], ids=["s247-decorates", "s247-is-not-none", "s267-is-not-none",
+        "s267-decorates-and-invokes"])
+def test_the_lifts_of_nights_119_and_127_still_land(night128, night, sid, seq):
+    """s247 decorated a `def` and checked `opt is not None`. s267 checked
+    `decorator is not None`, then decorated a command and invoked it with
+    CliRunner. Each body is encoded against night 128's worktree."""
+    sent = _turn_encodes(night, sid, seq)
+    assert sent
+    for a in sent:
+        a = dict(a, criterion_id=_ON_128[a["criterion_id"]])
+        assert _lands_after_the_ledger(night128, a), a["body"]
+
+
+@needs_night
+def test_a_test_that_decorates_a_command_and_invokes_it_lands(night128):
+    body = ("from click.decorators import command, version_option\n"
+            "from click.testing import CliRunner\n\n\n"
+            "def test_python_in_version():\n"
+            "    @command()\n"
+            "    @version_option(show_python=True)\n"
+            "    def cli():\n"
+            "        pass\n\n"
+            "    result = CliRunner().invoke(cli, ['--version'])\n"
+            "    assert 'Python' in result.output\n")
+    a = {"id": "tst_dec", "criterion_id": "c4_version_option_show_python",
+         "path": "tests/test_dec.py", "body": body}
+    assert _outcome(night128, a) == "landed"
+
+
+@needs_night
+def test_the_factory_refusal_states_a_fact_of_the_worktree(night128):
+    from rota.core import sandbox
+
+    a = {a["id"]: a for a in _s274_turn2()}["tst_version_option_show_python_04"]
+    got = []
+    prev, sandbox._ON_REFUSAL = sandbox._ON_REFUSAL, lambda *x: got.append(x)
+    try:
+        assert _outcome(night128, a) == FACTORY
+    finally:
+        sandbox._ON_REFUSAL = prev
+    sb, name, args, exc, offers, facts = got[0]
+    assert offers == [] and sandbox.follow(sb, name, args, exc, offers) == []
+    checked = sandbox.check_facts(sb, facts)
+    assert [(f["kind"], f["value"]) for f in checked] == [
+        ("line_text", "def version_option")]
+    assert all(f["ok"] for f in checked), checked
+
+
+@pytest.mark.parametrize("body,shape", [
+    ("r = f()\nassert 'x' in r\n", "return"),
+    ("assert f() == 'x'\n", "return"),
+    ("r = f()\nassert r\n", "return"),
+    ("assert not f()\n", "return"),
+    ("assert 'x' in str(f())\n", "return"),
+    ("r = f()\nassert len(r) > 1\n", "return"),
+    ("f()\nout = capsys.readouterr().out\nassert 'x' in out\n", "stdout"),
+    ("sys.stdout = io.StringIO()\nf()\nassert 'x' in sys.stdout.getvalue()\n", "stdout"),
+    ("r = f()\nassert r is not None\n", None),
+    ("assert callable(f())\n", None),
+    ("@f()\ndef g():\n    pass\n", None),
+    ("cmd = command()(f()(g))\n", None),
+    ("r = f()\nr = 1\nassert r == 1\n", None),
+    ("f()\n", None),
+], ids=["in", "eq", "bare-assert", "not", "str", "len", "capsys", "stringio",
+        "is-not-none", "callable", "decorates", "applied", "rebound",
+        "no-read"])
+def test_the_shapes_of_a_factory_misuse(body, shape):
+    assert api._factory_misuse(ast.parse(body), "f") == shape
 
 
 # A worktree whose `echo_json` is a plain function that prints.
@@ -268,6 +423,86 @@ def test_a_def_that_returns_a_decorator_or_a_command_is_a_factory(src):
     "def f():\n    def g():\n        return option()\n    return g()\n",
     "class f:\n    pass\n",
     "f = 1\n",
-], ids=["prints", "returns-a-value", "inner-return-only", "class", "assignment"])
+    "def f(s):\n    m = re.match('(a)', s)\n    return m.group(1)\n",
+    "def f(self):\n    return self.command()\n",
+], ids=["prints", "returns-a-value", "inner-return-only", "class", "assignment",
+        "regex-group", "method"])
 def test_any_other_binding_is_not_a_factory(src):
     assert not _returns_factory(_def(src))
+
+
+@pytest.mark.parametrize("head,call,factory", [
+    ("import click as c\n", "c.group()", True),
+    ("from click import decorators as d\n", "d.command()", True),
+    ("import click.decorators\n", "click.command()", True),
+    ("import re\n", "re.group()", False),
+    ("from .core import thing\n", "thing.command()", False),
+], ids=["click-alias", "from-click", "click-submodule", "other-module", "relative"])
+def test_the_attribute_form_counts_on_a_click_name_only(head, call, factory):
+    src = f"{head}\n\ndef f():\n    return {call}\n"
+    assert _returns_factory(ast.parse(src).body[-1], src) is factory
+
+
+def _echo_db(tmp_path, utils: str, criterion: str, ticket: str = "add an echo_json helper",
+             batch: bool = True):
+    root, wt = _project(tmp_path, {"src/click/__init__.py": "",
+                                   "src/click/utils.py": utils if not batch else "import json\n"},
+                        {"src/click/utils.py": utils})
+    db = _db(tmp_path, root, wt, ticket,
+             [("c1", criterion, '["src/click/utils.py::echo_json"]')])
+    if not batch:
+        db.execute("UPDATE batches SET worktree = NULL")
+        db.commit()
+    return db
+
+
+def _refused(db, body, batch_id="b1"):
+    from rota.core import sandbox
+
+    got = []
+    prev, sandbox._ON_REFUSAL = sandbox._ON_REFUSAL, lambda *x: got.append(x)
+    try:
+        sb = build("tester", db, batch_id=batch_id, mode="tests_missing")
+        sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+        with pytest.raises(ValueError) as exc:
+            sb.call("tests.encode", id="tst_x", criterion_id="c1",
+                    path="tests/test_x.py", body=body)
+    finally:
+        sandbox._ON_REFUSAL = prev
+    # The hook fires only on a refusal with an offer or a fact.
+    return str(exc.value), got[0][5] if got else []
+
+
+def test_the_offer_refusal_carries_the_kind_clause(tmp_path):
+    """The criterion's own words do not say it prints, and the ticket's do.
+    So the door offers the ledger line, and the sentence names the kind."""
+    db = _echo_db(tmp_path, UTILS, "the helper formats the object as JSON",
+                  ticket="add a helper that prints an object as JSON")
+    said, _facts = _refused(db, PLAIN_BODY)
+    assert said == (
+        "the test uses what echo_json returns, and the criterion, its ticket "
+        "or the principal's words say it prints: `echo_json` is a plain "
+        "function in `src/click/utils.py`; nothing says it returns anything. "
+        "That is an assumption, and it is logged where it is made: "
+        "ledger.log(about_ref='c1', about_table='criteria', assumption=\"the "
+        "test assumes echo_json returns what it prints\") -- then send this "
+        "encode again unchanged. Or assert on what it prints")
+
+
+def test_a_refusal_with_no_batch_records_no_fact(tmp_path):
+    """With no batch the door reads the root, and the fact check reads the
+    worktree. So the clause stays and no fact is recorded, as in frame
+    131's door."""
+    db = _echo_db(tmp_path, UTILS, "echo_json prints the object as JSON",
+                  batch=False)
+    said, facts = _refused(db, PLAIN_BODY, batch_id=None)
+    assert said.endswith(": `echo_json` is a plain function in `src/click/utils.py`")
+    assert facts == []
+
+
+def test_a_decorated_def_gets_no_kind_clause(tmp_path):
+    utils = UTILS.replace("def echo_json", "@pass_context\ndef echo_json")
+    db = _echo_db(tmp_path, utils, "echo_json prints the object as JSON")
+    said, _facts = _refused(db, PLAIN_BODY)
+    assert said == ("the test uses what echo_json returns, and the criterion "
+                    "c1 says it prints")
