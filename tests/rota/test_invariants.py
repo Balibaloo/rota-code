@@ -170,13 +170,44 @@ def test_i9_a_challenge_on_a_test_replaced_before_it(built):
         "I9: m_c, critic to tester challenge, is answered and nothing answers it"]
 
 
+def _session(sid: str, trigger: str | None, seq: int) -> tuple[str, tuple]:
+    return ("INSERT INTO sessions (id, role, trigger_msg, committed, seq) "
+            "VALUES (?, 'tester', ?, 1, ?)", (sid, trigger, seq))
+
+
+def _receipt(sid: str, test: str, new_version: int) -> tuple[str, tuple]:
+    return ("INSERT INTO receipts (session_id, table_name, row_id, new_version) "
+            "VALUES (?, 'tests', ?, ?)", (sid, test, new_version))
+
+
 def test_i9_a_challenge_answered_by_the_replace_it_woke(built):
+    # s_a stored t1 first, and s_c, which the challenge woke, replaced it.
     assert added_all(built, ("UPDATE tests SET version = 2 WHERE id = 't1'", ()),
-                     _CHALLENGE,
-                     ("INSERT INTO sessions (id, role, trigger_msg, committed, seq) "
-                      "VALUES ('s_c', 'tester', 'm_c', 1, 9999)", ()),
-                     ("INSERT INTO receipts (session_id, table_name, row_id, new_version) "
-                      "VALUES ('s_c', 'tests', 't1', 2)", ())) == []
+                     _CHALLENGE, _session("s_a", None, 9998), _receipt("s_a", "t1", 9000),
+                     _session("s_c", "m_c", 9999), _receipt("s_c", "t1", 9001)) == []
+
+
+def test_i9_a_woken_session_that_writes_no_receipt_on_the_test(built):
+    # The session ran and committed, and wrote nothing on t1. A session
+    # alone is no replace (the review of 96fe3425, its second low).
+    assert added_all(built, ("UPDATE tests SET version = 2 WHERE id = 't1'", ()),
+                     _CHALLENGE, _session("s_c", "m_c", 9999)) == [
+        "I9: m_c, critic to tester challenge, is answered and nothing answers it"]
+
+
+def test_i9_a_woken_session_that_creates_the_test_does_not_replace_it(built):
+    # s_c, which the challenge woke, created t9 at version 1. s_d replaced
+    # it later, so t9 stands at version 2, and the woken write was no
+    # replace (the review of 96fe3425, its fourth low).
+    challenge = ("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+                 "seq, status) VALUES ('m_c', 't_c', 'critic', 'tester', 'challenge', "
+                 "'[\"c2\", \"t9\"]', 9999, 'answered')", ())
+    assert added_all(built, challenge,
+                     ("INSERT INTO tests (id, batch_id, criterion_id, path, body, version) "
+                      "VALUES ('t9', 'b2', 'c2', 'test_nine.py', '', 2)", ()),
+                     _session("s_c", "m_c", 9999), _receipt("s_c", "t9", 9000),
+                     _session("s_d", None, 10000), _receipt("s_d", "t9", 9001)) == [
+        "I9: m_c, critic to tester challenge, is answered and nothing answers it"]
 
 
 def test_i10_a_word_in_an_integer_column(built):

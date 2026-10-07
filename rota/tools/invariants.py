@@ -176,7 +176,7 @@ def i5(conn) -> list[Finding]:
         by_batch.setdefault(scheduler.park_ask_batch(a) or "", []).append(a)
     for b, status, approval, approval_ver, version in _rows(
             conn, "SELECT b.id, b.status, i.approval, i.approval_ver, i.version "
-                  "FROM batches b LEFT JOIN items i ON i.id = b.item_id ORDER BY b.id"):
+                  "FROM batches b JOIN items i ON i.id = b.item_id ORDER BY b.id"):
         try:
             owes = _owes_ask(conn, b, status, approval, approval_ver, version)
         except (sqlite3.Error, KeyError, ValueError) as e:
@@ -265,11 +265,19 @@ def _replaced(conn, msg_id: str, refs: str) -> bool:
     A version above 1 alone does not say which came first. A second
     challenge on a test at version 2 with no reply then read as answered
     (the delta review of b43b99d6, its third low). The session's receipt
-    on the test is the replace that follows the challenge."""
+    on the test is the write that follows the challenge.
+
+    The current `tests.version` does not say that this write was a replace.
+    A woken session can create the test, and a later session can replace
+    it. `receipts.new_version` is the table's version at the write
+    (`db.bump_version`), not the row's, so an earlier receipt on the same
+    row says that the row stood before the woken write (the review of
+    96fe3425, its fourth low)."""
     return any(_rows(conn, "SELECT 1 FROM receipts r JOIN sessions s ON s.id = r.session_id "
-                           "JOIN tests t ON t.id = r.row_id "
                            "WHERE s.trigger_msg = ? AND s.committed = 1 "
-                           "AND r.table_name = 'tests' AND r.row_id = ? AND t.version > 1",
+                           "AND r.table_name = 'tests' AND r.row_id = ? "
+                           "AND EXISTS (SELECT 1 FROM receipts e WHERE e.table_name = 'tests' "
+                           "AND e.row_id = r.row_id AND e.new_version < r.new_version)",
                      (msg_id, i))
                for i in _refs(refs))
 

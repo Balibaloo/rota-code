@@ -84,6 +84,16 @@ def test_the_diffs_own_headers_are_not_blocks(scene):
     assert list(got)[-1] == "code.diff" and got["code.diff"] is False, got
 
 
+def test_a_function_name_in_brackets_inside_a_block_is_no_header():
+    # The runner writes a blank line before each header. A line of a block
+    # that names a registered function in brackets after a line of text is
+    # the block's text (the review of 96fe3425, its third low).
+    prompt = ("the wake\nAlready run for you, with the results below:\n\n"
+              "[code.diff]\n--- a/src/x.py\n[tests.load]\n+++ b/src/x.py\n\n"
+              "[criteria.load]\nc1")
+    assert scenes.blocks(prompt) == {"code.diff": True, "criteria.load": True}
+
+
 def test_the_failed_verdict_wake_keeps_its_blocks_at_16384(scene):
     _keeps(scene, "developer", "tick:verdict_failed",
            ["batches.expect", "criteria.load", "verdicts.load"])

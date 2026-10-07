@@ -13,7 +13,9 @@ The second build and its landing are in `test_scene_two_batches_again.py`.
 """
 from __future__ import annotations
 
+import sqlite3
 import warnings
+from pathlib import Path
 
 import pytest
 
@@ -21,6 +23,24 @@ from tests.rota.scene_tests import make
 
 NAME = "two_batches"
 PARK = "liaison|tick:park_ask|i1,b1"
+
+
+NIGHT_126 = Path("D:/repos/rota/.rota/clickI_night126.db")
+
+
+@pytest.mark.skipif(not NIGHT_126.exists(), reason="night 126's database is not on this machine")
+def test_the_s156_row_holds_the_nights_bytes():
+    # The catalogue row claims s156's line as sent. Nothing else ties it to
+    # the night (the review of 96fe3425, its first low).
+    from rota.testkit import scenes
+
+    conn = sqlite3.connect(f"file:{NIGHT_126.as_posix()}?mode=ro&immutable=1", uri=True)
+    try:
+        row = conn.execute("SELECT completion FROM turns WHERE session_id = 's156' "
+                           "AND seq = 2").fetchone()
+    finally:
+        conn.close()
+    assert row is not None and row[0].strip() == scenes._S156_SENT
 
 
 def test_b1_failed_the_project_test_and_b2_took_the_project_tests_in(scene):
