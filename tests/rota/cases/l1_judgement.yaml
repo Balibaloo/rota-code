@@ -120,15 +120,24 @@
     test_runs:
       - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}
   expect:
-    writes:
-      # The diff deletes the invoices, and the criterion keeps them, so the
-      # one right verdict is a fail on <c1>. The count alone admitted a pass
-      # in 390 of 390 runs (frame 170, 2026-10-07).
-      verdicts: {count: 1, text_includes: ['"result": "fail"',
-                                           '"failed_criterion": "<c1>"']}
+    # The diff deletes the invoices, and the criterion keeps them, so a pass
+    # is wrong. The count alone admitted a pass in 390 of 390 runs (frame
+    # 170, 2026-10-07). Two routes are right. A fail on <c1> judges the code.
+    # The test asserts the opposite of <c1>, so a challenge to the Tester
+    # with no verdict is review.md step 2. The review tick fires only on a
+    # green harness (rota/core/predicates.py:1155-1186), so a reachable
+    # fixture cannot hold a test that encodes <c1> against this diff.
+    any_of:
+      - writes:
+          verdicts: {count: 1, text_includes: ['"result": "fail"',
+                                               '"failed_criterion": "<c1>"']}
+      - messages:
+          - {to: tester, verb: challenge, count: ">=1", refs_include: [<c1>, <tst1>]}
+        writes:
+          verdicts: {count: 0}
   forbidden:
-    # The test contradicts its criterion — invoices must survive. That is a
-    # challenge to Tester, never a re-derivation of the criterion.
+    # The verdict judges the code. It never re-derives the criterion or
+    # rewrites the test.
     writes: [criteria, tests]
 
 # Night 94 (2026-09-27): the Critic passed `bg_1`, then the Architect filed a
