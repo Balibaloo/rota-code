@@ -279,6 +279,14 @@ def test_a_value_of_two_lines_lands(s279):
     assert out["result"] == "pass"
 
 
+def test_a_value_of_three_lines_is_refused(s279):
+    """The limit is two lines. A third line is refused."""
+    three = "\n".join(ln.strip() for ln in (L_NOTE, L_VERSION, L_FLAG))
+    said = _refused(_critic(s279), batch_id="bg_3", result="pass",
+                    lines={**S279_LINES, CR3: three})
+    assert said.startswith(f"the value for {CR3} holds 3 lines")
+
+
 def test_an_empty_line_is_no_line(s279):
     said = _refused(_critic(s279), batch_id="bg_3", result="pass",
                     lines={**S279_LINES, CR3: ""})
@@ -314,28 +322,57 @@ def test_the_door_reads_the_diff_from_the_fork(tmp_path):
     assert out["result"] == "pass"
 
 
-def test_the_third_refusal_names_the_routes_that_land(s279):
-    """Frame 170's review of 845e0b80: the general note says the op will not
-    be accepted again, and a verdict still lands by two routes. The fourth
-    turn ends the session as for any op."""
+PASS_NOTE = ("NOTE verdicts.emit(result='pass') has been refused the same way "
+             "in two turns. It lands with lines={'<criterion id>': '<the added "
+             "line>'} for each criterion, or as a fail after "
+             "verdicts.claim_encodes on the criterion it fails")
+
+
+def _critic_session(conn, calls):
     from rota.core.predicates import Wake
     from rota.core.runner import run_session
     from rota.llm.llm import Pins, ScriptedBackend
 
-    calls = [f"TOOL: verdicts.emit(batch_id='bg_3', result='pass', reason='turn {k}')"
-             for k in range(6)]
     backend = ScriptedBackend(calls + ["Done."])
-    outcome = run_session(s279, Wake("critic", "tick:review", refs=("bg_3",)),
+    outcome = run_session(conn, Wake("critic", "tick:review", refs=("bg_3",)),
                           backend=backend, pins=Pins(model="scripted"),
                           batch_id="bg_3")
+    return outcome, backend
+
+
+def test_the_second_refusal_of_a_pass_names_the_routes_that_land(s279):
+    """Frame 170's reviews of 845e0b80 and a4cb5cfa: the general note says
+    the op will not be accepted again, and a verdict still lands by two
+    routes. The note comes on the second refusal. The fourth turn ends the
+    session as for any op."""
+    calls = [f"TOOL: verdicts.emit(batch_id='bg_3', result='pass', reason='turn {k}')"
+             for k in range(6)]
+    outcome, backend = _critic_session(s279, calls)
     assert outcome.iterations == 4, outcome.iterations
     assert any("refused the same way in four turns" in e for e in outcome.errors)
-    third = backend.calls[3][1]
-    assert ("NOTE verdicts.emit(result='pass') has been refused the same way "
-            "in three turns. It lands with lines={'<criterion id>': '<the added "
-            "line>'} for each criterion, or as a fail after "
-            "verdicts.claim_encodes on the criterion it fails") in third
-    assert "will not be accepted again" not in third
+    assert PASS_NOTE not in backend.calls[1][1]
+    assert PASS_NOTE in backend.calls[2][1]
+    assert all("will not be accepted again" not in c[1] for c in backend.calls)
+
+
+def test_a_seat_that_repeats_itself_reads_the_note_before_the_stop(s279):
+    """Byte-identical turns meet the verbatim stop at turn 3, before a third
+    refusal. The note on the second refusal reaches the seat first."""
+    call = "TOOL: verdicts.emit(batch_id='bg_3', result='pass')"
+    outcome, backend = _critic_session(s279, [call] * 6)
+    assert any("repeated its previous turn verbatim" in e for e in outcome.errors)
+    assert PASS_NOTE in backend.calls[2][1]
+
+
+def test_a_refused_fail_gets_the_general_note(s279):
+    """A fail refused for want of a claim is not a pass: the note of a pass
+    would name the wrong routes."""
+    calls = [f"TOOL: verdicts.emit(batch_id='bg_3', result='fail', "
+             f"failed_criterion='{CR3}', reason='turn {k}')" for k in range(6)]
+    outcome, backend = _critic_session(s279, calls)
+    assert all("result='pass'" not in c[1] for c in backend.calls)
+    assert ("NOTE verdicts.emit has been refused the same way in three turns "
+            "and will not be accepted again") in backend.calls[3][1]
 
 
 def test_fail_ignores_lines(s279):

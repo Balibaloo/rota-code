@@ -2784,6 +2784,15 @@ def session_sandbox(conn: sqlite3.Connection, wake: Wake, *,
     return sb
 
 
+def _verdict_result(call) -> str | None:
+    """The `result` a `verdicts.emit` call sent, by name or as the second
+    positional argument."""
+    if "result" in call.args:
+        return call.args["result"]
+    pos = getattr(call, "pos", ()) or ()
+    return pos[1] if len(pos) > 1 else None
+
+
 def run_session(
     conn: sqlite3.Connection,
     wake: Wake,
@@ -3005,6 +3014,9 @@ def run_session(
         # A refusal is the door's half of a conversation; the third time
         # the same refusal answers the same call, the conversation is over.
         refused_same: dict[tuple[str, str], int] = {}
+        # The refused verdicts that were passes, so the note of frame 170
+        # speaks to a pass and never to a refused fail.
+        refused_pass: set[tuple[str, str]] = set()
         stop_reason = ""
         turn_refusals: set[tuple[str, str]] = set()
         # True only while the newest answer to any call is a refusal that
@@ -3711,6 +3723,8 @@ def run_session(
                     # names the call by its identifying argument.
                     feedback.append(f"ERROR {_call_tag(call, len(calls))}: {exc}")
                     turn_refusals.add((call.name, str(exc)[:160]))
+                    if call.name == "verdicts.emit" and _verdict_result(call) == "pass":
+                        refused_pass.add((call.name, str(exc)[:160]))
                     told_to_end = isinstance(exc, api.EndRefusal)
 
             # Counted per turn, not per call: a reply with four calls refused
@@ -3725,17 +3739,23 @@ def run_session(
             # ACT-DV-edit-inside-the-function, turn 8, 2026-09-23).
             for same in sorted(turn_refusals):
                 refused_same[same] = refused_same.get(same, 0) + 1
-                if refused_same[same] == 3 and same[0] == "verdicts.emit":
+                if same in refused_pass:
                     # Frame 170. The general note says the op will not be
                     # accepted, and a verdict still lands by two routes. On
                     # nights 120 and 128, 3 of 7 Critics sent one pass again
-                    # in 3 or 4 later turns.
-                    feedback.append(
-                        "NOTE verdicts.emit(result='pass') has been refused the "
-                        "same way in three turns. It lands with "
-                        "lines={'<criterion id>': '<the added line>'} for each "
-                        "criterion, or as a fail after verdicts.claim_encodes "
-                        "on the criterion it fails")
+                    # in 3 or 4 later turns. The note comes on the second
+                    # refusal, because a seat whose turns 1 to 3 are the
+                    # same meets the verbatim stop before a third.
+                    if refused_same[same] == 2:
+                        feedback.append(
+                            "NOTE verdicts.emit(result='pass') has been refused "
+                            "the same way in two turns. It lands with "
+                            "lines={'<criterion id>': '<the added line>'} for "
+                            "each criterion, or as a fail after "
+                            "verdicts.claim_encodes on the criterion it fails")
+                    elif refused_same[same] > 3 and not stop_reason:
+                        stop_reason = (f"{same[0]} was refused the same way in "
+                                       f"four turns; the session ended on it")
                 elif refused_same[same] == 3:
                     feedback.append(
                         f"NOTE {same[0]} has been refused the same way in three turns "
