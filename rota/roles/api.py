@@ -4855,23 +4855,33 @@ def _shields_input(shields: set[str]) -> bool:
 
 
 def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
-    """The first name that the test passes to `.invoke` and that the
-    project's base defines as a plain function, or None.
+    """The first name that the test passes to a runner's `.invoke` and that
+    the tree the test runs against defines as a plain function, or None.
 
     Returns `(name, defined_as, path, line, source)`. `read(path)` gives the
-    base's text of a project file, or None. Frame 131: on five nights the
-    Tester s139 passed the plain `echo_json` to `CliRunner.invoke`, and the
+    text of a project file, or None. Frame 131: on five nights the Tester
+    s139 passed the plain `echo_json` to `CliRunner.invoke`, and the
     Developer turned the function into a command to fit the test.
 
     The door reads only a bare name that the body imports. A name that the
     test file binds itself is the test's own: night 119's `tst_v3` invokes
     a local `def` that carries `@version_option` only, and stays admitted.
+
+    The receiver is a runner: `CliRunner()`, a name bound to it in the
+    body, or a name `runner`. Click's `Context.invoke` takes a plain
+    callback, so `ctx.invoke(f)` is right (frame 131's review of af9db8a0).
     """
     import ast as _ast
     import posixpath as _pp
 
+    def _is_runner_call(node) -> bool:
+        f = node.func if isinstance(node, _ast.Call) else None
+        return ((isinstance(f, _ast.Name) and f.id == "CliRunner")
+                or (isinstance(f, _ast.Attribute) and f.attr == "CliRunner"))
+
     imported: dict[str, tuple[str, int, str]] = {}
     local: set[str] = set()
+    runners = {"runner"}
     for n in _ast.walk(tree):
         if isinstance(n, _ast.ImportFrom):
             for a in n.names:
@@ -4881,10 +4891,18 @@ def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
             local.add(n.name)
         elif isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store):
             local.add(n.id)
+        if isinstance(n, (_ast.Assign, _ast.AnnAssign)) and _is_runner_call(n.value):
+            for t in (n.targets if isinstance(n, _ast.Assign) else [n.target]):
+                if isinstance(t, _ast.Name):
+                    runners.add(t.id)
     for call in _ast.walk(tree):
         if not (isinstance(call, _ast.Call) and isinstance(call.func, _ast.Attribute)
                 and call.func.attr == "invoke" and call.args
                 and isinstance(call.args[0], _ast.Name)):
+            continue
+        recv = call.func.value
+        if not ((isinstance(recv, _ast.Name) and recv.id in runners)
+                or _is_runner_call(recv)):
             continue
         name = call.args[0].id
         if name in local or name not in imported:
@@ -4943,27 +4961,31 @@ def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
     return None
 
 
-def _base_reader(ctx) -> Callable[[str], str | None]:
-    """A reader of the project's files at its `HEAD`, the base every batch
-    starts from. The batch's worktree can hold the Developer's change, and a
-    test written for that change is the shape frame 131 refuses."""
-    import subprocess as _sp
+def _run_tree_reader(ctx) -> tuple[bool, Callable[[str], str | None]]:
+    """A reader of the files the test runs against, and whether they are
+    the batch's worktree.
 
-    from ..core import worktrees as _wt
+    The batch's worktree as it stands on disk, the Developer's uncommitted
+    write included, as the surface door reads it. The project root only
+    when the session has no batch. During a night the root is the
+    project's `main`, and `echo_json` exists only in the batch's worktree
+    (frame 131's review of af9db8a0: the root gave 0 refusals of s139)."""
     try:
-        root = _wt.project_root(ctx.conn)
-    except Exception:  # noqa: BLE001 -- no project: nothing to read
-        return lambda _path: None
-    seen: dict[str, str | None] = {}
+        root = _worktree_of(ctx)
+    except Exception:  # noqa: BLE001 -- no worktree and no project: nothing to read
+        return False, lambda _path: None
+    try:
+        in_batch = _batch_worktree(ctx) == root
+    except Exception:  # noqa: BLE001 -- no batch: the root is read
+        in_batch = False
 
     def read(path: str) -> str | None:
-        if path not in seen:
-            out = _sp.run([*_wt.GIT, "-C", str(root), "show", f"HEAD:{path}"],
-                          capture_output=True, text=True, encoding="utf-8",
-                          errors="replace")
-            seen[path] = out.stdout if out.returncode == 0 else None
-        return seen[path]
-    return read
+        f = root / path
+        try:
+            return f.read_text(encoding="utf-8", errors="replace") if f.is_file() else None
+        except OSError:
+            return None
+    return in_batch, read
 
 
 @op("tests", "encode")
@@ -5685,22 +5707,24 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"correct {surface[0]} from a stub that never runs")
 
     # `CliRunner.invoke` runs a command, and a plain function fails it at
-    # `cli.name` against the base. Frame 131: s139 stored three such tests
-    # on five nights, and the Developer wrapped `echo_json` to fit them.
-    # The fact and no recipe, as the prints door says it (Roman,
-    # 2026-09-15, 6b52a09d). A ValueError and not a Wall: `db.py` reads a
-    # Wall on an answer wake as an answer that changed nothing, and s139
-    # met this door on the answer to m63.
-    plain = _plain_invoked(tree, path, _base_reader(ctx))
+    # `cli.name`. Frame 131: s139 stored three such tests on five nights,
+    # and the Developer wrapped `echo_json` to fit them. The fact and no
+    # recipe, as the prints door says it (Roman, 2026-09-15, 6b52a09d).
+    # A ValueError and not a Wall: the fault is the test's and not the
+    # answer's or the criterion's, and the prints door raises ValueError
+    # for the same kind of fact.
+    in_batch, read = _run_tree_reader(ctx)
+    plain = _plain_invoked(tree, path, read)
     if plain:
         name, orig, where, line, src = plain
-        _fact(ctx, "line_text",
-              src.splitlines()[line - 1].split("(", 1)[0].rstrip(),
-              n=line - 1, text=src)
+        if in_batch:
+            # The fact check reads the worktree, the file the seat sees.
+            _fact(ctx, "line_text",
+                  src.splitlines()[line - 1].split("(", 1)[0].rstrip(),
+                  n=line - 1, path=where)
         raise ValueError(
             f"the test {id} passes `{name}` to `.invoke`, and `{orig}` is a "
-            f"plain function in `{where}` at line {line}: `CliRunner.invoke` "
-            f"takes a command")
+            f"plain function in `{where}`: `CliRunner.invoke` takes a command")
 
     # A body that says no more than the criterion says has encoded nothing.
     #
