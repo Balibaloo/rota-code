@@ -73,6 +73,17 @@ def test_the_fix_wake_holds_both_red_tests_and_the_diff(scene):
     assert "CUT this batch's diff" in prompt
 
 
+def test_the_diffs_own_headers_are_not_blocks(scene):
+    # `code.diff` writes `[diff]` and `[removed lines]` in its own text. The
+    # cut falls inside the diff, so the diff is the last block and not whole
+    # (the delta review of b43b99d6, its fifth low).
+    prompt = scenes.wake_prompt(scene, "developer", "tick:tests_failing")
+    assert "\n[removed lines]\n" in prompt and "\n[diff]\n" in prompt
+    got = scenes.blocks(prompt)
+    assert "removed lines" not in got and "diff" not in got, got
+    assert list(got)[-1] == "code.diff" and got["code.diff"] is False, got
+
+
 def test_the_failed_verdict_wake_keeps_its_blocks_at_16384(scene):
     _keeps(scene, "developer", "tick:verdict_failed",
            ["batches.expect", "criteria.load", "verdicts.load"])

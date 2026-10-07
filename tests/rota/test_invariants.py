@@ -13,7 +13,7 @@ import sqlite3
 
 import pytest
 
-from rota.core import harness
+from rota.core import harness, scheduler
 from rota.testkit import scenes
 from rota.tools import invariants
 
@@ -36,9 +36,18 @@ def _copy(sc) -> sqlite3.Connection:
 
 def added(sc, sql: str, args: tuple = ()) -> list[str]:
     """The findings that one changed row adds to the scene's end."""
+    return added_all(sc, (sql, args))
+
+
+def added_all(sc, *changes: tuple[str, tuple], check=None) -> list[str]:
+    """The findings that several changed rows add to the scene's end. The
+    `check` callable reads the copy first, so a test can prove its state."""
     before = {str(f) for f in invariants.check(sc.conn)}
     copy = _copy(sc)
-    copy.execute(sql, args)
+    for sql, args in changes:
+        copy.execute(sql, args)
+    if check is not None:
+        check(copy)
     return sorted(str(f) for f in invariants.check(copy) if str(f) not in before)
 
 
@@ -90,7 +99,30 @@ def test_i5_an_open_park_ask_on_a_batch_that_is_not_parked(built):
     assert added(built, "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                         "body_refs, seq) VALUES (?, 't_park', 'liaison', 'principal', "
                         "'clarify', '[\"i2\"]', 9999)", (ask,)) == [
-        f"I5: open park ask {ask} names b2, which is not parked"]
+        f"I5: open park ask {ask} names b2, which owes no ask"]
+
+
+def test_i5_a_batch_parked_on_a_quarantined_key_with_no_ask(built):
+    assert added_all(built,
+                     ("UPDATE batches SET status = 'deferred' WHERE id = 'b2'", ()),
+                     ("INSERT INTO tick_attempts (tick_key, attempts, quarantined, reported) "
+                      "VALUES ('developer|tick:tests_failing|b2', 3, 1, 1)", ())) == [
+        "I5: b2, parked on a quarantined key, holds 0 open park asks"]
+
+
+def test_i5_a_batch_past_the_loop_cap_owes_no_ask(built):
+    # The loop-cap park climbs the ladder, and `predicates.park_ask` asks
+    # nothing. Night 126's bg_1 is this park (the delta review of b43b99d6).
+    def is_parked(copy):
+        assert scheduler.parked(copy, "b2") and not scheduler.given_up(copy, "b2")
+
+    assert added_all(built,
+                     ("UPDATE batches SET status = 'deferred' WHERE id = 'b2'", ()),
+                     ("UPDATE test_runs SET result = 'fail', attempt = 10, commit_sha = "
+                      "(SELECT head_commit FROM batches WHERE id = 'b2') "
+                      "WHERE rowid = (SELECT MAX(rowid) FROM test_runs WHERE batch_id = 'b2')",
+                      ()),
+                     check=is_parked) == []
 
 
 def test_i6_a_quarantined_key_on_a_merged_batch(built):
@@ -123,6 +155,28 @@ def test_i9_a_relay_needs_no_answer_row(built):
     assert added(built, "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                         "body_refs, seq, status) VALUES ('m_r', 't_r', 'liaison', "
                         "'vision_keeper', 'relay', '[\"i1\"]', 9999, 'answered')") == []
+
+
+_CHALLENGE = ("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+              "seq, status) VALUES ('m_c', 't_c', 'critic', 'tester', 'challenge', "
+              "'[\"c1\", \"t1\"]', 9999, 'answered')", ())
+
+
+def test_i9_a_challenge_on_a_test_replaced_before_it(built):
+    # t1 is at version 2 from an earlier replace, and nothing follows the
+    # challenge. The review's tamper X2 of b43b99d6 survived this.
+    assert added_all(built, ("UPDATE tests SET version = 2 WHERE id = 't1'", ()),
+                     _CHALLENGE) == [
+        "I9: m_c, critic to tester challenge, is answered and nothing answers it"]
+
+
+def test_i9_a_challenge_answered_by_the_replace_it_woke(built):
+    assert added_all(built, ("UPDATE tests SET version = 2 WHERE id = 't1'", ()),
+                     _CHALLENGE,
+                     ("INSERT INTO sessions (id, role, trigger_msg, committed, seq) "
+                      "VALUES ('s_c', 'tester', 'm_c', 1, 9999)", ()),
+                     ("INSERT INTO receipts (session_id, table_name, row_id, new_version) "
+                      "VALUES ('s_c', 'tests', 't1', 2)", ())) == []
 
 
 def test_i10_a_word_in_an_integer_column(built):

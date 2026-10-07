@@ -924,10 +924,14 @@ def wake_prompt(sc: Scene, role: str, kind: str) -> str:
     return row["user"]
 
 
-# The header of a pushed block, as `runner.build_prompt` writes it.
-# A rendered JSON list can also fill a line inside brackets, and it starts
-# with a quote, a brace or a bracket. A key never does.
-_BLOCK = re.compile(r"^\[([^\]\n\"{\[][^\]\n]*)\]$", re.MULTILINE)
+# The header of a pushed block, as `runner.build_prompt` writes it: a blank
+# line, then the key. The key is a function name, `artefact.fn`, or the one
+# key `the item` (`runner.push_working_set`). A block's own text holds other
+# lines in brackets: `[removed lines]` and `[diff]` in `code.diff`, `[text]`
+# in `code.prose`, and JSON rows. None of them is a header (the delta review
+# of b43b99d6, its fifth low). A TOML table such as `[project.scripts]` in a
+# pushed source is dotted too, so `blocks` keeps only a registered artefact.
+_BLOCK = re.compile(r"(?<=\n\n)\[([a-z_]+\.[a-z_]+|the item)\]$", re.MULTILINE)
 # The note that `runner._render_cut` puts at the end of a cut wake.
 _WAKE_CUT_NOTE = re.compile(r"\nCUT your wake: [\d,]+ of [\d,]+ characters are not shown\.")
 
@@ -937,8 +941,11 @@ def blocks(prompt: str) -> dict[str, bool]:
     wake cut keeps the front and ends with its note. So every block before
     the last is whole, and the last block is whole only when no note ends
     the wake."""
+    from ..roles import api
     head, marker, pushed = prompt.partition("\nAlready run for you")
-    keys = _BLOCK.findall(pushed) if marker else []
+    artefacts = {t for t, _ in api.REGISTRY} | {"msg"}
+    keys = [k for k in (_BLOCK.findall(pushed) if marker else [])
+            if k == "the item" or k.split(".", 1)[0] in artefacts]
     cut = bool(_WAKE_CUT_NOTE.search(prompt))
     return {k: not (cut and i == len(keys) - 1) for i, k in enumerate(keys)}
 
@@ -1133,16 +1140,28 @@ _FAIL = (("batch_id", "b1"), ("result", "fail"), ("failed_criterion", "c1"),
 # W146: a top level that loads a name it never binds. The module imports and
 # dies with a NameError, and every test of the batch goes red.
 _UNBOUND = UPGRADE + "\n\nRATE = upgrade_rate\n"
-# Night 126's s156, turn 2: a body in single quotes that holds `\"` inside a
-# list. The parser reads `\"` as `"`, so line 5 of the body holds
-# `["{"key": "value"}"]`, which is not Python. The line is the seat's, as
-# sent. Only the test is the scene's.
-_S156 = (r"""TOOL: tests.encode(id='t_s156', criterion_id='c2', """
-         r"""path='tests/test_export_json.py', body='import json\n\n\n"""
-         r"""def test_an_export_holds_one_key():\n    rows = ["{\"key\": \"value\"}"]\n"""
-         r"""    assert json.loads(rows[0]) == {"key": "value"}\n')""")
+# Night 126's s156, turn 2, as the seat sent it (`turns.completion`): a body
+# in single quotes that holds `\"` inside a list. The parser reads `\"` as
+# `"`, so line 6 of the body holds `["{"key": "value"}"]`, which is not
+# Python. The body is the night's bytes (the delta review of b43b99d6, its
+# fourth low). The id, the criterion and the path are the scene's, and the
+# batch is the wake's.
+_S156_SENT = (
+    r"""TOOL: tests.encode(id='inh_echo_json_01', criterion_id='echo_json_compact', """
+    r"""path='tests/test_utils/test_echo_json_compact.py', body='def test_echo_json_compact():"""
+    r"""\n    from click.testing import CliRunner\n    from src.click.utils import echo_json"""
+    r"""\n    \n    runner = CliRunner()\n    result = runner.invoke(echo_json, """
+    r"""["{\"key\": \"value\"}"], catch_exceptions=False)\n    assert result.exit_code == 0"""
+    r"""\n    assert result.output.strip() == "{\\"key\\": \\"value\\"}"\n    # Check for """
+    r"""single newline at end\n    assert result.output.endswith("\\n")\n    # Check no """
+    r"""extra newlines\n    assert result.output.count("\\n") == 1', batch_id='bg_1')""")
+_S156 = (_S156_SENT
+         .replace("id='inh_echo_json_01', criterion_id='echo_json_compact', "
+                  "path='tests/test_utils/test_echo_json_compact.py'",
+                  "id='t_s156', criterion_id='c2', path='tests/test_export_json.py'")
+         .replace(", batch_id='bg_1')", ")"))
 # The line that the parser gives, and the escape that broke it.
-_S156_LINE = 'rows = ["{"key": "value"}"]'
+_S156_LINE = 'result = runner.invoke(echo_json, ["{"key": "value"}"], catch_exceptions=False)'
 _S156_QUOTE = '\\"'
 
 
@@ -1183,9 +1202,11 @@ def catalogue() -> list[Call]:
              "_code_write", "", held="frame 146"),
         # Night 126's s156: the seat's `\"` inside a single-quoted body. The
         # door says that the body is no test, and names neither the line
-        # that broke nor the quote that broke it (frame 166).
+        # that broke nor the quote that broke it (frame 166). The row pins
+        # no first words, so a repair that rewrites the sentence's start
+        # turns it green (the delta review of b43b99d6, its fourth low).
         Call("two_batches", "a body whose escaped quote breaks a line", t2,
-             *_parsed(_S156), "tests_encode", "the body is not Python",
+             *_parsed(_S156), "tests_encode", "",
              held="frame 166", before=_triage("c2"), holds=(_S156_LINE, _S156_QUOTE)),
         Call("merged_then_next", "the merged batch's test id", t2, "tests.encode",
              _encode("t1", "c2", "tests/test_export.py", _EXPORT_TEST),

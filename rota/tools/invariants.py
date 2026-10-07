@@ -31,11 +31,13 @@ INVARIANTS = {
     "I2": "an inh_ row has no criterion, and its body is the project file at the batch's base",
     "I3": "a merged batch's latest run of each of its own tests at its head is a pass",
     "I4": "a run row's test is a test of the run's batch",
-    "I5": "a parked batch holds one open park ask, and an open park ask names a parked batch",
+    "I5": "a batch parked on a quarantined key holds one open park ask, and an open park "
+          "ask names such a batch",
     "I6": "a quarantined key never names a merged or abandoned batch",
     "I7": "at most one batch runs",
     "I8": "one open batch per item",
-    "I9": "an answered message has an answer, except the rows answered by design",
+    "I9": "an answered message has an answer, except the rows answered by design "
+          "(the rest are seat faults, frame 174)",
     "I10": "an integer column holds integers",
 }
 
@@ -143,6 +145,25 @@ def i4(conn) -> list[Finding]:
     return out
 
 
+def _owes_ask(conn, batch: str, status: str, approval, approval_ver, version) -> bool:
+    """The park that `predicates.park_ask` asks about: a deferred batch with a
+    quarantined key, on an item that is not contested.
+
+    A batch at or past `loop_cap` is parked too (`scheduler.parked`), but it
+    climbs the ladder and owes no ask. Night 126's bg_1 and night 127's bg_1
+    and bg_2 are of that kind (the delta review of b43b99d6, its medium)."""
+    from ..core import scheduler
+
+    if status != "deferred" or not scheduler.given_up(conn, batch):
+        return False
+    # A contested item's batch goes to `do:cancel`, and no ask opens. The
+    # test is `predicates.park_ask`'s own, where a NULL compares false.
+    contested = ((approval is not None and approval != "approved")
+                 or (approval_ver is not None and version is not None
+                     and approval_ver < version))
+    return not contested
+
+
 def i5(conn) -> list[Finding]:
     from ..core import scheduler
 
@@ -153,17 +174,20 @@ def i5(conn) -> list[Finding]:
     by_batch: dict[str, list[str]] = {}
     for a in asks:
         by_batch.setdefault(scheduler.park_ask_batch(a) or "", []).append(a)
-    for (b,) in _rows(conn, "SELECT id FROM batches ORDER BY id"):
+    for b, status, approval, approval_ver, version in _rows(
+            conn, "SELECT b.id, b.status, i.approval, i.approval_ver, i.version "
+                  "FROM batches b LEFT JOIN items i ON i.id = b.item_id ORDER BY b.id"):
         try:
-            is_parked = scheduler.parked(conn, b)
+            owes = _owes_ask(conn, b, status, approval, approval_ver, version)
         except (sqlite3.Error, KeyError, ValueError) as e:
             out.append(Finding("I5", f"{b}: the park cannot be read ({e})"))
             continue
         held = by_batch.pop(b, [])
-        if is_parked and len(held) != 1:
-            out.append(Finding("I5", f"parked {b} holds {len(held)} open park asks"))
-        elif held and not is_parked:
-            out.append(Finding("I5", f"open park ask {held[0]} names {b}, which is not parked"))
+        if owes and len(held) != 1:
+            out.append(Finding("I5", f"{b}, parked on a quarantined key, holds {len(held)} "
+                                     f"open park asks"))
+        elif held and not owes:
+            out.append(Finding("I5", f"open park ask {held[0]} names {b}, which owes no ask"))
     for b, held in by_batch.items():
         out.append(Finding("I5", f"open park ask {held[0]} names {b!r}, which is no batch"))
     return out
@@ -206,7 +230,8 @@ def i9(conn) -> list[Finding]:
       it, and no verdict row follows (`principal.land`: "A touch note is
       read, not ruled on (P4, R7: nothing waits on it)").
     - A challenge to the Tester is answered by a new version of a test that
-      it names. The Tester's replace is the answer, and no reply row
+      it names, written by the session that the challenge woke
+      (`_replaced`). The Tester's replace is the answer, and no reply row
       follows (ruled: the judging session, 2026-10-05, frame 132's question
       4, `sandbox._same_refs_refusal`)."""
     batches = {r[0] for r in _rows(conn, "SELECT id FROM batches")}
@@ -218,7 +243,7 @@ def i9(conn) -> list[Finding]:
             continue
         if r[3] == "present" and r[2] == "principal" and batches & set(_refs(r[4])):
             continue
-        if r[3] == "challenge" and r[2] == "tester" and _replaced(conn, r[4]):
+        if r[3] == "challenge" and r[2] == "tester" and _replaced(conn, r[0], r[4]):
             continue
         out.append(Finding("I9", f"{r[0]}, {r[1]} to {r[2]} {r[3]}, is answered and "
                                  f"nothing answers it"))
@@ -233,8 +258,19 @@ def _refs(refs: str) -> list[str]:
     return [x for x in loaded if isinstance(x, str)] if isinstance(loaded, list) else []
 
 
-def _replaced(conn, refs: str) -> bool:
-    return any(_rows(conn, "SELECT 1 FROM tests WHERE id = ? AND version > 1", (i,))
+def _replaced(conn, msg_id: str, refs: str) -> bool:
+    """The challenge woke a committed session, and that session wrote a new
+    version of a test that the challenge names.
+
+    A version above 1 alone does not say which came first. A second
+    challenge on a test at version 2 with no reply then read as answered
+    (the delta review of b43b99d6, its third low). The session's receipt
+    on the test is the replace that follows the challenge."""
+    return any(_rows(conn, "SELECT 1 FROM receipts r JOIN sessions s ON s.id = r.session_id "
+                           "JOIN tests t ON t.id = r.row_id "
+                           "WHERE s.trigger_msg = ? AND s.committed = 1 "
+                           "AND r.table_name = 'tests' AND r.row_id = ? AND t.version > 1",
+                     (msg_id, i))
                for i in _refs(refs))
 
 
