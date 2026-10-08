@@ -7283,16 +7283,29 @@ def _line_held(line: str, added: list[str]) -> bool:
 # The kinds of line that do nothing a criterion can ask for, in the words
 # the refusal uses. Frame 180: night 130's s134 named `import json` for the
 # criterion that asks for a TypeError, and the door admitted it.
-_NO_BEHAVIOUR = ("a blank line, `pass`, `...`, a comment, an import or a "
+_NO_BEHAVIOUR = ("a blank line, `pass`, `...`, a comment, a plain import or a "
                  "docstring line")
 _HEADER_STARTS = ("def ", "async def ", "class ")
 _FENCES = ('"""', "'''")
+# A header line that ends in one of these continues on the next line.
+_HEADER_GOES_ON = (",", "(")
+# The diff's code lines that a refusal lists when no added line is near.
+_CODE_LINES_MAX = 8
+
+
+def _after_fence(tail: str) -> bool:
+    """True when the text after a closing fence holds code. A `,`, a `)`
+    or a comment after the fence holds none (frame 180's review, G2, G6)."""
+    tail = tail.strip()
+    return bool(tail) and tail not in (",", ")") and not tail.startswith("#")
 
 
 def _shape_kind(text: str) -> str | None:
     """The kind of a stripped line that holds no behaviour by its shape
     alone, or None. A line with a `;` after an import holds a second
-    statement, so it is not an import only."""
+    statement, so it is not an import only. An import with an `as` alias
+    names a public name, as a re-export does, so it is not a plain import
+    (frame 180's review, G4)."""
     if not text:
         return "a blank line"
     if text == "pass":
@@ -7301,8 +7314,9 @@ def _shape_kind(text: str) -> str | None:
         return "`...`"
     if text.startswith("#"):
         return "a comment"
-    if text.startswith(("import ", "from ")) and ";" not in text:
-        return "an import"
+    if (text.startswith(("import ", "from ")) and ";" not in text
+            and " as " not in text):
+        return "a plain import"
     if text in _FENCES:
         return "a docstring line"
     return None
@@ -7322,42 +7336,65 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
     A docstring line is a line inside a triple-quoted string that opens as
     the first line of a `def` or `class` body. The walk reads the new side
     of each hunk, the context lines and the added lines, so a docstring
-    opened in a context line still marks its added lines. A hunk that
-    starts inside a docstring shows no opening, so its prose lines read as
-    code and only a bare fence line is refused (frame 180).
+    opened in a context line still marks its added lines. A line inside any
+    other triple-quoted string is text in code, so its shape says nothing
+    and its kind is None. A hunk that starts inside a docstring shows no
+    opening, so its prose lines read as code and only a bare fence line is
+    refused (frame 180).
+
+    An import in a hunk of an `__init__.py` file is a re-export of the
+    package, so it is not a plain import (frame 180's review, G4).
     """
     out: list[tuple[str, str | None]] = []
-    in_doc = None
+    # The open triple-quoted string: its fence, and True for a docstring.
+    in_str: tuple[str, bool] | None = None
     in_header = expect_doc = False
+    init_file = False
     for ln in diff_text.splitlines():
         if ln.startswith(("+++", "---", "@@", "diff ")):
-            in_doc, in_header, expect_doc = None, False, False
+            in_str, in_header, expect_doc = None, False, False
+            if ln.startswith("+++ "):
+                init_file = ln.rstrip().endswith("__init__.py")
             continue
         if not ln or ln[0] not in "+ ":
             continue
         text = ln[1:].strip()
         kind = None
-        if in_doc:
-            kind = "a docstring line"
-            if in_doc in text:
-                in_doc = None
+        if in_str:
+            fence, is_doc = in_str
+            kind = "a docstring line" if is_doc else None
+            if fence in text:
+                in_str = None
+                if is_doc and _after_fence(text.split(fence, 1)[1]):
+                    kind = None
         elif not text:
             kind = "a blank line"
         elif expect_doc and text.lstrip("rRuU").startswith(_FENCES):
-            kind = "a docstring line"
-            body = text.lstrip("rRuU")
-            fence = body[:3]
-            if fence not in body[3:]:
-                in_doc = fence
             expect_doc = False
+            body = text.lstrip("rRuU")
+            fence, rest = body[:3], body[3:]
+            kind = "a docstring line"
+            if fence not in rest:
+                in_str = (fence, True)
+            elif _after_fence(rest.split(fence, 1)[1]):
+                # `"""a""".join(x)` is a call on a string, not a docstring.
+                kind = None
         else:
             expect_doc = False
             kind = _shape_kind(text)
+            if kind == "a plain import" and init_file:
+                kind = None
             code = _code_part(text)
-            if text.startswith(_HEADER_STARTS):
-                in_header = True
-            if in_header and code.endswith(":"):
-                in_header, expect_doc = False, True
+            # A header ends on its colon. A header goes on only on a line
+            # that ends in `,` or `(`, so `class A(B): pass` opens no body
+            # (frame 180's review, G1).
+            if text.startswith(_HEADER_STARTS) or in_header:
+                in_header = code.endswith(_HEADER_GOES_ON)
+                expect_doc = code.endswith(":")
+            for fence in _FENCES:
+                if text.count(fence) % 2:
+                    in_str = (fence, False)
+                    break
         if ln[0] == "+":
             out.append((text, kind))
     return out
@@ -7446,6 +7483,16 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                     best, ratio = a, r
             nearest = (f"The added line nearest to it: {best!r}. "
                        if ratio >= 0.6 else "")
+            # With no near line, name the lines the seat can name, so a
+            # correct batch does not go to the fail route (frame 180's
+            # review: s134's next value, `raise TypeError`, is not in the
+            # diff).
+            code = list(dict.fromkeys(a for a, k in kinds if k is None))
+            if not nearest and code:
+                shown = ", ".join(repr(a) for a in code[:_CODE_LINES_MAX])
+                more = (f", and {len(code) - _CODE_LINES_MAX} more"
+                        if len(code) > _CODE_LINES_MAX else "")
+                nearest = f"The added lines of code are {shown}{more}. "
             claim = _offer(
                 ctx, f"`verdicts.claim_encodes({cid!r}, encodes=...)` "
                      f"first, as for any fail",

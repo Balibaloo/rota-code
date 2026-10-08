@@ -193,7 +193,9 @@ def test_s279_pass_with_a_line_the_diff_does_not_add_is_refused(s279):
         "the line for cr_3_version_option_show_python_true, 'import sys', is "
         "not an added line of the diff of batch bg_3. Copy one line of the "
         "[diff] block that starts with +, without the +, and send the pass "
-        "again. If no added line meets cr_3_version_option_show_python_true, "
+        "again. The added lines of code are "
+        + ", ".join(repr(ln.strip()) for ln in (L_FLAG, L_VERSION, L_MESSAGE))
+        + ". If no added line meets cr_3_version_option_show_python_true, "
         "that is a fail on it: "
         "`verdicts.claim_encodes('cr_3_version_option_show_python_true', "
         "encodes=...)` first, as for any fail")
@@ -515,9 +517,9 @@ def test_ten_recorded_passes_are_refused(tmp_path, name, mode, batch_id, ids, te
 def _no_behaviour(cid, quote, kind) -> str:
     return (
         f"the line for {cid}, {quote!r}, is {kind}, and a blank line, `pass`, "
-        f"`...`, a comment, an import or a docstring line does nothing that a "
-        f"criterion asks for. Copy the added line that does what {cid} says, "
-        f"without the +, and send the pass again. If no added line meets "
+        f"`...`, a comment, a plain import or a docstring line does nothing "
+        f"that a criterion asks for. Copy the added line that does what "
+        f"{cid} says, without the +, and send the pass again. If no added line meets "
         f"{cid}, that is a fail on it: `verdicts.claim_encodes({cid!r}, "
         f"encodes=...)` first, as for any fail")
 
@@ -582,7 +584,7 @@ def test_s134_pass_naming_import_json_is_refused(s134):
     (call,) = toolproto.extract(S134_CALL)
     said = _refused(_critic(s134, "bg_1"), **call.args)
     assert said == _no_behaviour("echo_json_compact_3", "import json",
-                                 "an import")
+                                 "a plain import")
 
 
 def test_s134_pass_naming_the_dumps_line_lands(s134):
@@ -626,7 +628,7 @@ def kinds(tmp_path):
     ("...", "...", "`...`"),
     ("# the comment line of the work", "# the comment line of the work",
      "a comment"),
-    ("from x import y", "from x import y", "an import"),
+    ("from x import y", "from x import y", "a plain import"),
     ('"""', '"""', "a docstring line"),
     ('"""Do the work.', '"""Do the work.', "a docstring line"),
     ("The prose line of the docstring.", "The prose line of the docstring.",
@@ -655,3 +657,102 @@ def test_the_s279_comment_alone_is_refused(s279):
     said = _refused(_critic(s279), batch_id="bg_3", result="pass",
                     lines={**S279_LINES, CR3: L_NOTE.strip()})
     assert said == _no_behaviour(CR3, L_NOTE.strip(), "a comment")
+
+
+# Frame 180, pass 2: the findings of the diff review of 7b25da26.
+
+def _one_criterion(tmp_path, rel, before, after):
+    repo, head = _repo_of(tmp_path, rel, before, after)
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "bg_1", ["cr_1"], worktree=repo, head=head)
+    return conn
+
+
+def _pass(conn, value):
+    return _critic(conn, "bg_1").call("verdicts.emit", batch_id="bg_1",
+                                      result="pass", lines={"cr_1": value})
+
+
+@pytest.mark.parametrize("rel,line", [
+    ("src/click/utils.py", "from .utils import echo_json as echo_json"),
+    ("src/click/__init__.py", "from .utils import echo_json"),
+], ids=["alias", "init"])
+def test_a_re_export_lands(tmp_path, rel, line):
+    """G4: a re-export is the one line that meets "echo_json is available
+    from click". An `as` alias or an `__init__.py` file marks it."""
+    conn = _one_criterion(tmp_path, rel, "", line + "\n")
+    assert _pass(conn, line)["result"] == "pass"
+
+
+def test_a_line_not_in_the_diff_names_the_code_lines(s134):
+    """s134's natural next value, `raise TypeError`, is not in the diff.
+    The refusal lists the code lines the seat can name."""
+    said = _refused(_critic(s134, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"echo_json_compact": "out = json.dumps(obj",
+                           "echo_json_compact_2": "file.flush()",
+                           "echo_json_compact_3": "raise TypeError"})
+    code = ["def echo_json(obj: object) -> None:",
+            'out = json.dumps(obj, separators=(",", ":"))',
+            "file = _default_text_stdout()",
+            r'file.write(out + "\n")',
+            "file.flush()"]
+    assert ("is not an added line of the diff of batch bg_1. Copy one line "
+            "of the [diff] block that starts with +, without the +, and send "
+            "the pass again. The added lines of code are "
+            + ", ".join(repr(c) for c in code) + ". If no added line") in said
+
+
+@pytest.mark.parametrize("after,value", [
+    # G1: a one-line header opens no body.
+    ('class A(B): pass\nTABLE = {\n    "help":\n        """usage text\n'
+     '        """.strip(),\n}\n', '""".strip(),'),
+    # G2: a call on a string is not a docstring.
+    ('def f():\n    """a""".join(x)\n    return 1\n', '"""a""".join(x)'),
+    # G6: code after the closing fence.
+    ('def f():\n    """doc\n    """; x = call()\n    y = 2\n',
+     '"""; x = call()'),
+    # G3: lines inside a string that is not a docstring.
+    ('TEMPLATE = """\n# Title\nimport os\n"""\n', "import os"),
+    ('TEMPLATE = """\n# Title\nimport os\n"""\n', "# Title"),
+    # Mutant M10: a second statement after an import.
+    ("import x; y()\n", "import x; y()"),
+], ids=["G1", "G2", "G6", "G3-import", "G3-comment", "semicolon"])
+def test_code_shapes_land(tmp_path, after, value):
+    conn = _one_criterion(tmp_path, "work.py", "", after)
+    assert _pass(conn, value)["result"] == "pass"
+
+
+def test_a_docstring_opened_in_a_context_line_marks_its_lines(tmp_path):
+    """Mutant M5: the opening fence is a context line of the hunk."""
+    before = ('def work():\n    """The doc.\n    old prose.\n    """\n'
+              "    return 1\n")
+    after = before.replace('"""The doc.\n',
+                           '"""The doc.\n    new prose of the doc.\n')
+    conn = _one_criterion(tmp_path, "work.py", before, after)
+    said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": "new prose of the doc."})
+    assert said == _no_behaviour("cr_1", "new prose of the doc.",
+                                 "a docstring line")
+
+
+def test_a_docstring_left_open_ends_at_the_next_hunk():
+    """Mutant M6: the first hunk opens a docstring and shows no close. The
+    second hunk's code line is code."""
+    from rota.roles.api import _added_kinds
+    diff = "\n".join([
+        "@@ -1,1 +1,3 @@", " def f():", '+    """Open doc.', "+    prose",
+        "@@ -40,1 +42,2 @@", " x = 1", "+    total = compute(x)"])
+    assert _added_kinds(diff) == [('"""Open doc.', "a docstring line"),
+                                  ("prose", "a docstring line"),
+                                  ("total = compute(x)", None)]
+
+
+def test_a_header_over_two_lines_opens_a_docstring(tmp_path):
+    """Mutant M7: the colon of the header is on its second line."""
+    after = ('def work(\n    a,\n):\n    """Doc line one.\n\n'
+             '    the prose of the doc.\n    """\n    return a\n')
+    conn = _one_criterion(tmp_path, "work.py", "", after)
+    said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": "the prose of the doc."})
+    assert said == _no_behaviour("cr_1", "the prose of the doc.",
+                                 "a docstring line")
