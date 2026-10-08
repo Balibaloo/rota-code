@@ -234,7 +234,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night130-read.md`, sections 1 and 6.
 - Status 2026-10-08 01:53 (rota-a1): pushed by 18588d6d from night 130's read. Unclaimed, priced. Rota workflow.
 
-### 180. The lines door admits an added line that carries no behaviour, so a pass names `import json` for the TypeError criterion (2026-10-08)
+### 180. The lines door admits an added line that carries no behaviour, so a pass names `import json` for the TypeError criterion (2026-10-08) (18588d6d)
 
 - **No batch. A door fault in the lines check of `verdicts_emit`, found by night 130's read.** Site: the lines check in `verdicts_emit`, `rota/roles/api.py`, from frame 170's pass 1 at 845e0b80.
 - Rota workflow. On nights 129 and 130 the one Critic pass named three lines for three criteria. Two touch the criterion's words. The third, `    import json`, is named for the criterion that asks for a `TypeError` on an object that cannot be serialized. The door admits the line because it is an added line of the diff, and the door reads no more than that (observed: `plans/night130-read.md`, section 1, 2026-10-08). A line that imports, comments, documents or fills holds no behaviour, so it can meet no criterion, and the door can know that from the line's shape alone.
@@ -242,6 +242,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Recommended after frame 178, because both edit `rota/roles/api.py` and frame 178 has the larger count.
 - Reasoning: `plans/night130-read.md`, sections 1 and 6.
 - Status 2026-10-08 01:53 (rota-a1): pushed by 18588d6d from night 130's read. Unclaimed, priced. Rota workflow.
+- Status 2026-10-08 03:54 (rota-a1): claimed by 18588d6d beside frame 178, which validates on night 131; second on the order taken by timeout at 02:13. Both frames edit `rota/roles/api.py` in different functions, `findings_find` there and the lines check of `verdicts_emit` here, so this frame runs in its own worktree and the join waits for frame 178's night. Pass 1 goes to a fresh implementer on Opus in the worktree `C:/Users/roman/rota_f180` on the branch `f180` from 51678e1f, the joined tree. Then a diff review on Opus, the join, this session's gate, and the next night as the walk. Meta workflow.
 
 ### 179. The survey binds no constraint to the three files every item changes, so `k0` is the only constraint in every structural review (2026-10-07)
 
