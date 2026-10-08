@@ -252,7 +252,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/frame170-merges-read.md`, section 3.
 - Status 2026-10-07 08:57 (rota-52): pushed by 6cc11c8b from frame 170's merges read. Unclaimed, priced. Rota workflow.
 
-### 178. `findings.find` replaces another batch's row, admits a grain the diff does not touch, and admits a `k0` row beside bound constraints (2026-10-07)
+### 178. `findings.find` replaces another batch's row, admits a grain the diff does not touch, and admits a `k0` row beside bound constraints (2026-10-07) (18588d6d)
 
 - **No batch. Three door faults in one function, found by frame 170's merges read.** Site: `findings_find`, `rota/roles/api.py:2803-2894`.
 - Rota workflow. On nights 120 and 128 the second merge's Architect wrote `f1` again, and the receipt shows `f1` version 2 by that session, so the first merge's finding row is gone: 2 of 2 nights with two merges. The door appends the id the seat names and reads no existing row of that id, and the pushed `findings.load` is per batch, so the second seat cannot see the first row. Of 18 finding rows on the 10 merges of nights 114 to 128, 7 name `tests/test_defaults.py` or `src/click/utils.py`, files the diff does not change, each from the batch's `expected to touch` list; the door checks the grain against the diff only on `violated`. On night 118 the push held 11 constraints bound to `src/click/__init__.py`, and the Architect filed `k0` on that file and checked none; the brief allows a `k0` row only when no other constraint is in range, and the door does not refuse it (observed: `plans/frame170-merges-read.md`, sections 1 and 3, 2026-10-07).
@@ -261,6 +261,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/frame170-merges-read.md`, sections 1, 3 and 5.
 - Status 2026-10-07 08:57 (rota-52): pushed by 6cc11c8b from frame 170's merges read. Unclaimed, priced. Rota workflow.
 - Status 2026-10-08 01:53 (rota-a1): night 130: one more case, `fnd_001` by s236 during bg_3's escalation m132, a `violated` finding on bg_1 after bg_1 was merged, with a test id as its grain (observed: `plans/night130-read.md`, section 6, 2026-10-08). Rota workflow. Frame 170 is closed, so this frame is next by its own waits-on line; 18588d6d asks Roman as a low question.
+- Status 2026-10-08 02:13 (rota-a1): claimed by 18588d6d. The low question of 01:53 got no reply, taken by timeout at 02:13 on the recommended answer, frame 178 then frame 180. Pass 1 goes to a fresh implementer on Opus in the worktree `C:/Users/roman/rota_f178` on the branch `f178` from the main branch's head, from a brief that carries the three refusals, the three real calls and their night databases. Then a diff review on Opus, this session's gate, and the next night as the walk. Meta workflow.
 
 ### 176. The invoke door does not read a local wrapper under a bare decorator, and the seat moves to that shape after the refusal (2026-10-07)
 
