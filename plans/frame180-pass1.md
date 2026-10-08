@@ -101,3 +101,34 @@ time: 593.1s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 5
 ```
 
 The 25 reds are the known set of section 5. The 12 more passes are the 12 new tests.
+
+## Pass 3
+
+**Record of 2026-10-08, meta workflow.** Pass 3 answers the three findings of the delta review of 6a2381f6. The probes are in the session scratchpad, `review180b/`.
+
+| Finding | The change |
+|---|---|
+| 1, a quoted criterion leads to a false fail | When a named line is not in the diff, and it equals a criterion's text of the batch or is a part of 4 words or more of one, the door refuses with `that is the criterion's text, not a line of the diff`. The refusal lists the code lines and offers no fail route. Case and spacing are ignored |
+| 2, N1b, prose shaped as a header opens a docstring | The walk joins the lines of a header. A header opens a body only when the joined text with `pass` under it parses as Python |
+| 3, R2 and R4 stay green | Two tests: a docstring closed by `""",`, and a diff of 9 code lines whose refusal ends its list with `, and 1 more` |
+
+- The test of finding 1 copies run 1's call verbatim from the worktree's `tests/rota/cassettes.db`, opened read-only. The test's diff holds the six code lines that run 1's refusal listed. The case's real module may hold more lines of other kinds (reasoned: the refusal lists only code lines).
+- The not-added refusal keeps its shape. It shows the nearest line, else the list of code lines, as in pass 2.
+- 4 new tests, 69 in the file, all green (observed: 2026-10-08).
+- A header with a `#` inside a string still loses its colon in `_code_part`, and it then does not parse. The walk misses that docstring, which can only admit a line.
+
+### The gate
+
+The first run gave the stale case `L1-CR-finish-the-review-with-the-answer-in-hand` again, stale by its failure (observed: 2026-10-08 05:20). Its run 1 met the refusal whose words this pass changed. The re-record by exact id ran from 05:21:08 to 05:23:14, beside night 131 on the main card, and 1 passed. Of the 5 new runs, runs 1 and 2 met the new criterion-text refusal, and no run sent a fail (observed: the new runs in `cassettes.db`, 2026-10-08). The new recording is in the worktree's `tests/rota/cassettes.db`, which git does not track.
+
+The second run, on the uncommitted tree at ff75c851 (observed: 2026-10-08):
+
+```
+suite: 25 failed, 3344 passed, 35 skipped, 17 xfailed, 18 warnings (baseline: 25 failed, 3328 passed, 35 skipped, 17 xfailed, 18 warnings)
+new reds (0): none
+reds gone (0): none
+stale (0): none
+time: 651.7s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 51678e1 2026-10-08 04:11
+```
+
+The 25 reds are the known set of section 5.
