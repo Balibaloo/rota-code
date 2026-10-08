@@ -309,11 +309,13 @@ through today's door.
    The model chooses nothing on this page.
 5. `render_page` (`rota/roles/principal.py:346-506`) gains a keyword
    argument, `ask_id: str | None = None`. When `park_ask_batch(ask_id)`
-   names a batch, a park branch runs before the touch-note branch. The four
+   names a batch, a park branch runs before the touch-note branch. Four
    callers pass the id: `runner.resolve_inbound` (`runner.py:1547`),
    `api.rulings_rule` (`api.py:6695`), `api.rulings_line` (`api.py:6827`)
-   and `principal.pending_asks` (`principal.py:176`). The numbered order
-   stays the contract with `rulings.rule`.
+   and `principal.pending_asks` (`principal.py:176`). The fifth caller,
+   `principal.render_ask` (`principal.py:340-343`), passes no `ask_id`
+   (2.F, amendment 8). The numbered order stays the contract with
+   `rulings.rule`.
 6. The page reads, for night 132's bg_2:
 
    ```
@@ -322,7 +324,7 @@ through today's door.
      1. <the item's text>
    It must:
      2. <cr_1's text>
-        check: confirm eof default, expects result == True. Fails: assert False == True.
+        check: confirm eof default, calls result = confirm("y/n", default_on_eof=True), expects result == True. Fails: assert False == True.
      3. <cr_2's text>
         check: ...
    The last attempt: tests/test_confirm_eof_behavior.py failed: assert False == True.
@@ -336,10 +338,14 @@ through today's door.
 7. **The check line is mechanical** (reasoned: the three points below). A
    new helper, `principal.check_line(conn, test_id)`, writes one line from
    the test row: the words of the first `def test_<name>` with `test` and
-   the underscores removed, then `expects` and the first `assert`
-   expression of the body, then `Fails:` and the reason after ` - ` on the
-   run's `FAILED` line when the newest run is red, or `Passes.` when it is
-   green. A test with no run says `Not run yet.`
+   the underscores removed; then `calls` and the line of the body that
+   assigns the name the first `assert` reads, such as `result = ...`; then
+   `expects` and the first `assert` expression; then `Fails:` and the first
+   line of the run's output that starts with `E   `, when the newest run is
+   red, or `Passes.` when it is green. Every `#` comment is stripped from the
+   lines it copies. A test with no run says `Not run yet.` (2.F, amendment
+   5: pytest cuts the `FAILED` line's reason to the terminal width, and the
+   call is what tells two tests of one criterion apart.)
    - `render_page` renders the page from rows on every read. A line that
      the Liaison writes has no row to live in.
    - The `present` channel has no prose argument. `_bind_send` names that
@@ -350,7 +356,7 @@ through today's door.
      is a second reading between the test and the principal, and the
      principal never rules on a test.
 8. **The builder's last attempt is the newest failing run's summary.** It
-   is the `FAILED <path>::<name> - <reason>` line of the newest red run of
+   is the test's path and the first `E   ` line of the newest red run of
    each own red test at the head commit, at most two lines. The commit
    message is not in a table. No night database holds a `commits` table,
    and the message rides only in a `code.commit` call's `args_summary`
@@ -370,13 +376,23 @@ through today's door.
 
 **The park rests.** `park_ask_id` (`scheduler.py:1415-1439`) counts the
 closed park messages of the batch in its digest, so every close gives a
-new id and a new ask. That made night 132's three asks. The count changes:
-a closed park message that rests does not count. A message rests when it
-is a note (its refs hold the batch) or when its landed ruling approves
-every row. The id then stays, the message exists, and `park_ask` skips the
-batch. A new head commit or a new key still gives a new id. `_owes_ask`
-(`invariants.py:148-164`) returns False for a batch whose current park id
-names a closed message that rests, so I5 stays clean.
+new id and a new ask. That made night 132's three asks. Two things change
+(2.F, amendment 2):
+
+- A closed park message that rests does not count. A message rests when it
+  is a note (its refs hold the batch), or when its landed ruling names
+  `approve` for every ref of the page. The test reads the page's refs, so
+  an empty map, such as night 132's three `{}` rulings, never rests.
+- The digest gains the sum of the versions of the batch's criteria and of
+  its tests. A criterion move or a re-encoded test lifts the park with no
+  new head (`db._lift_quarantines`, `db.py:595-612`). The sum then moves,
+  the id is new, and a re-park asks again.
+
+So the id stays while nothing moved, the message exists, and `park_ask`
+skips the batch. A new head commit, a new key or a version move gives a
+new id. `_owes_ask` (`invariants.py:148-164`) returns False for a batch
+whose current park id names a closed message that rests, so I5 stays
+clean.
 
 **What a contest or a revision of a criterion row does today, step by
 step.**
@@ -385,11 +401,11 @@ step.**
 |---|---|---|
 | 1. The ruling lands. The `UPDATE items` matches no row, and `verdict:<id>` holds `{criterion: contest}` | `principal.land` | exists |
 | 2. The Liaison relays the ruling to the criterion's owner | `prompts/liaison/verdict_signoff.md` says "a criterion has no relay here; leave it" | **one edit**: the brief names `criteria` with `msg.relay_terminologist`, and `RULED_TABLES` (`sandbox.py:814-820`) gains `"criteria": "terminologist"`, so `_owner_of_ref` routes it. `_owner_of_ref` is its one reader |
-| 3. The Terminologist reads the ruled words | `_mode_key` gives `relay`, whose tools are `glossary.adopt`, `glossary.lookup` and `ledger.log` | **one edit**: `_mode_key` keys a Terminologist `relay` whose refs hold a criterion to a new mode, `criterion_ruling` |
-| 4. The criterion's version moves | `criteria.respecify` (`api.py:4216-4272`) | exists |
+| 3. The Terminologist reads the ruled words | `_mode_key` gives `relay`, whose tools are `glossary.adopt`, `glossary.lookup` and `ledger.log` | **one edit**: `_mode_key` keys a Terminologist `relay` whose refs hold a criterion to the existing mode `criterion_repair` (2.F, amendment 4) |
+| 4. The criterion's version moves | `criteria.respecify` (`api.py:4216-4272`) in `criterion_repair` | exists |
 | 5. The park ends | `db._lift_quarantines` (`db.py:595-612`) deletes the batch's quarantined keys and its counts on a criteria move | exists |
 | 6. The batch resumes | `tick_batch_start` (`scheduler.py:325-381`) resumes a deferred batch with `_resume_detail` | exists, while `failing_attempt` is below `loop_cap` |
-| 7. The Tester rewrites the test from the new words | "No reader reads a criterion's version" (`api.py:4254`). `tests_missing` fires only for a criterion with no test | **one edit**: `tests.criterion_ver`, stamped by `tests.encode` from `criteria.version`. A test whose `criterion_ver` is below its criterion's version is stale. `tests_missing` owes the criterion, and `harness`, `tests_failing`, `failing_attempt` and `lifecycle.mergeable` skip the stale test |
+| 7. The Tester rewrites the test from the new words | `criterion_repair` ends with `msg.answer_tester` naming the criterion, and the Tester re-encodes on that message wake | exists: night 121's s311 respecified cr_2 to version 2 and answered the Tester, and s312 re-encoded the test (copied: the design review, 2026-10-08). The brief gains one paragraph for a ruling wake |
 | 8. The cancel | `cancel` (`predicates.py:1336-1355`) | not reached. A criterion ruling leaves the item's approval as it is |
 | 9. A new batch | `grouping` | not reached. The batch keeps its id and its worktree |
 
@@ -399,28 +415,28 @@ Keeper, the amended item goes to the principal again, and `grouping` opens
 a new batch on its approval. That chain exists. Night 133 ran it six times
 (copied: `plans/night133-read.md`, section 3).
 
-The new mode's brief, `prompts/terminologist/criterion_ruling.md`, says:
+`rota/roles/prompts/terminologist/criterion_repair.md` gains one
+paragraph, and its tools do not change:
 
 ```
-MODE: criterion_ruling - the principal ruled on a criterion of a stopped change.
-
-The change stopped because a check of this criterion still fails. The principal
-read the criterion and its check, and ruled. `principal_verdict` maps each
-criterion to approve, contest or revise. The principal's words are in the entry.
-
-For each criterion with contest or revise, call `criteria.respecify` once. Write
-what the principal's words say the program does. Keep the other words of the
-criterion. Name the callable in `surface_refs`.
-
-An approved criterion needs nothing. Do not write a test, and do not answer the
-principal. Respecify, then stop.
+**A ruling of the principal.** When the message is a relay with
+`principal_verdict`, the principal read this criterion and its check on a
+stopped change, and ruled. The principal's words are the note. For each
+criterion with contest or revise, rewrite it with `criteria.respecify` to say
+what the words say. Keep the other words of the criterion. Then send
+`msg.answer_tester` with the criterion in `refs`, so the Tester encodes the
+new words. An approved criterion needs nothing.
 ```
 
-Its tools: `criteria.respecify`, `criteria.consult`, `glossary.lookup` and
-`code.callables`. A separate mode, and not a tool added to `relay`,
-because a tool in the list is an invitation (measured: `decisions.author`
-in a relay mode drew fourteen decisions a session, 2026-09-03, the comment
-in `principal.land`).
+The existing mode, and not a tool added to `relay`, because a tool in the
+list is an invitation (measured: `decisions.author` in a relay mode drew
+fourteen decisions a session, 2026-09-03, the comment in `principal.land`).
+The existing mode already holds `criteria.respecify` and
+`msg.answer_tester`, and its brief already says "Rewrite the criterion to
+say what the request says. Keep the other words". Whether the send door
+admits `msg.answer_tester` with no Tester question under it is not yet
+checked (reasoned: `_answer_evidence`, `sandbox.py:869`, checks only an
+answer to a challenge). The implementer proves it on the case of section 3.
 
 **The park-ask brief.** `rota/roles/prompts/liaison/park_ask.md` becomes:
 
@@ -432,8 +448,9 @@ batch, what the team gave up on, and `page` or `note`. The other changes go on.
 
 Send one `msg.present_principal`. Put the item and the batch in `refs`. The
 door builds the page from the records: the item, its criteria, and what each
-check expects and whether it fails. With `note`, the page tells the principal
-that the change stops here, and asks nothing.
+check expects and whether it fails. With `note`, the door files a note that
+the change stops here. The note asks nothing, and the principal reads it on
+the status page.
 
     msg.present_principal(refs=["<the item>", "<the batch>"])
 
@@ -479,30 +496,27 @@ then stop.
 **The mechanism.** When `park_reds` finds no own test red, `park_rows`
 returns `[batch_id]`, and the park message is a note.
 
-- The note is a `present` that carries the batch's ref. `lifecycle.touch_notes`
-  (`rota/core/lifecycle.py:407-427`) already reads every such present as a
-  note that waits on nobody (R7). The gates that ask "is anything open to
-  the principal", `tick_signoff`, `tick_agenda` and `observed_entries`, set
-  it aside. This is the existing note mechanism. The design adds no new
-  one.
+- The note is a `present` that carries the batch's ref, the shape that
+  `lifecycle.touch_notes` (`rota/core/lifecycle.py:407-427`) reads as a note
+  that waits on nobody (R7).
+- The door writes the note closed, with status `answered` (2.F, amendment
+  1). `pending_asks` (`principal.py:167-182`) lists every open present, and
+  `pump` sends each one to the principal, whose answer wakes the Liaison in
+  `landing`. A closed note is never asked, so no answer and no ruling
+  exists to drop.
 - `render_page`'s park branch, for a note, reads: "This change stops here.
   It breaks checks the project had before: tests/test_termui.py,
   tests/test_utils/test_confirm.py. Nothing waits on you. A new commit on
-  the change starts it again. Reply 'ok' to say you read this." It numbers
-  no line.
-- An answer acknowledges it through today's door: `rulings.rule` takes an
-  empty map on a page whose refs are batches only (`api.py:6696-6724`), and
-  `land` drops the batch ref and closes the page (`principal.py:712-724`).
+  the change starts it again." It numbers no line and asks for no reply.
 - The note rests, as 2.A says, so `park_ask` asks nothing more.
 
 **Where the batch stays visible.**
 
-- The open note is in `pending_asks` (`principal.py:167-182`), so the seat
-  lists it until the principal reads it.
-- `render_state`'s parked line (`principal.py:279-284`) changes for a batch
-  that rests: "Stuck: bg_2 stops here. It breaks <the project's red test
-  files>. A new commit on the change starts it again." The words "I ask you
-  about it next" become "I tell you about it next" while the note is owed.
+- `render_state`'s parked line (`principal.py:279-284`) carries the note's
+  text for a batch whose park message is a note: "Stuck: bg_2 stops here.
+  It breaks <the project's red test files>. A new commit on the change
+  starts it again." The words "I ask you about it next" go for a note,
+  because nothing is asked.
 - The agenda, `tick_agenda` (`scheduler.py:931-972`), reads open ledger rows
   only. It carries no park today, and the design adds none (reasoned: the
   note and the parked line already show the batch, and a ledger row would
@@ -514,8 +528,8 @@ red, the quarantined key), with bg_2 set `deferred`, the state a park
 reaches. bg_2 was `running` at s319, so this sets the one field the park
 needs and says so in the test's docstring. `park_reds` gives no own red,
 `park_rows` gives `["bg_2"]`, the door writes a present with refs
-`["bg_2"]`, the page names the two files and numbers no line, an empty
-ruling closes it, and `park_ask` then returns no wake.
+`["bg_2"]` and status `answered`, `pending_asks` does not hold it, the
+parked line names the two files, and `park_ask` then returns no wake.
 
 ### 2.C The chat intake for the principal's words goes (ruling point 4)
 
@@ -538,13 +552,17 @@ ruling closes it, and `park_ask` then returns no wake.
    <s_id>, which is on file. Ask about that row with
    `msg.clarify_principal(refs=['<s_id>'], ...)`." Night 121's s284
    segmented the walk's sentence as s5 a third time.
-6. In converse mode, `msg.clarify_principal` is refused when an earlier
-   principal entry with the same words already drew a Liaison question:
-   "you asked about these words in <message id>, and the principal said them
-   again. That question is still the question. Stop." This applies "nothing
-   is asked twice" (ruled: Roman, 2026-09-12, `rota/DECISIONS.md`, "The
-   seat's four pages are one surface", point 1). It is the bound on night
-   132's loop, which a person can also start.
+6. In every Liaison mode that can write to the principal, a send to the
+   principal (`msg.clarify_principal`, `msg.converse_principal` in `answer`
+   mode, `msg.confirm_principal` and `rulings.rule(ask=...)`) is refused
+   when the principal entry on the session's cause chain has the same text
+   as an earlier principal entry that already drew a Liaison message: "you
+   answered these words in <message id>, and the principal said them again.
+   That answer still stands. Stop." The door keys on the entry's text, so
+   it holds in `converse`, `answering`, `landing` and `answer` alike (2.F,
+   amendment 3). This applies "nothing is asked twice" (ruled: Roman,
+   2026-09-12, `rota/DECISIONS.md`, "The seat's four pages are one
+   surface", point 1).
 7. `_recent_chat` (`rota/core/runner.py:1690-1710`) reads a principal
    message whose `body_text` is empty from the entry in its `body_refs`.
 
@@ -585,22 +603,29 @@ questions, marked `asked`; the Liaison's one-sentence answers through
 `rulings.rule(ask=...)`; and the `answer` mode's replies that carry an
 owner's answer. It holds no chat reply, because no mode writes one.
 
-**Why the quarantined wake sees no chat entry** (reasoned:
-`quarantine_looping`, `scheduler.py:1640-1674`, counts more than `loop_cap`
-links of one edge on a cause chain). Night 132's chain alternated a
-principal `converse` and a Liaison `converse` reply 11 times. After the
-change, converse mode writes no Liaison `converse`. A Liaison `converse`
-comes only from `rulings.rule(ask=...)`, one per session on an open page,
-and the next answer lands on that page. So the edge `principal -> liaison :
-converse` cannot repeat 11 times without a page between, and no chat
-message is quarantined.
+**The bound on a loop is `loop_cap`** (2.F, amendment 3). A loop through
+the principal can still run: a sentence goes to the owners by `msg.ask_*`,
+the `answer` mode replies with `msg.converse_principal`, and the walk
+answers every Liaison reply with its one sentence. `rulings.rule(ask=...)`
+in `answering` also writes a Liaison `converse` with no page under it.
+Point 6 stops the second Liaison message on a repeated sentence, and
+`quarantine_looping` (`scheduler.py:1640-1674`) stays the bound at
+`loop_cap`. The design claims no more than that. A quarantined principal
+message can still reach the quarantined wake.
+
+An answer to a clarify on an entry, such as `e_p5`, lands on no row,
+because `_table_of_ref` returns None for an entry (copied: the design
+review, 2026-10-08). Pass 2's diff review checks what `answering` then does
+with it.
 
 **The test.** Night 132, s220: rebuild inline the entry `e_p5` and the
 earlier `e_p4` with the walk's sentence, the Liaison's clarify on `e_p4`,
 and the inbound m_p5. On s220's turn: `brief.intake(verdict='chat')` is
 refused with the sentence of point 1; `msg.converse_principal` is not in
 the converse tools; `recent_chat` holds `e_p4`'s text; and
-`msg.clarify_principal(refs=['e_p5'], ...)` is refused by point 6. A
+`msg.clarify_principal(refs=['e_p5'], ...)` is refused by point 6. The
+same rows with the inbound set as a reply to a clarify, which keys
+`answering`, refuse `rulings.rule(ask=...)` on the repeated sentence. A
 second case, night 121's s284: `brief.segment` of the walk's sentence,
 with s5's row on file as `ratified`, is refused and names s5.
 
@@ -662,8 +687,10 @@ own test is still red at the head commit.
   new commit on the change starts it again." No new message goes to the
   principal. The approved page is the record, and the parked line is the
   report.
-- A commit, a criterion move or a new key ends the rest, as each ends a
-  park today.
+- A commit, a new key, a criterion move or a re-encoded test ends the
+  rest, because each moves the digest (2.A, "The park rests"). A bare lift
+  of the key with nothing moved keeps the rest. That is the ceiling: the
+  principal approved the page, and nothing has changed since.
 
 **What the night read counts.** Two numbers, one line each in the night
 read's frame-142 section:
@@ -684,6 +711,62 @@ with the walk's sentence is admitted. After `apply_rulings`, the verdict is
 `answered`, `park_ask` returns no wake, I5 finds nothing, and the parked
 line holds "stops here".
 
+### 2.F Amendments after the design review
+
+The design review on Opus, 2026-10-08, on the tree at fb5fbc5f, found four
+high defects and four low ones (observed: `review142v2_findings.md` in the
+scratchpad of session acb1f403). Each amendment below takes the review's
+fix line. The sentences of 2.A to 2.E and of section 3 that each amendment
+touches are already edited, so the record reads as one design. Finding 7
+falls away with amendment 4 and has no amendment.
+
+1. **The note is written closed** (finding 1, high). The note of 2.B was
+   still a question: `pending_asks` (`principal.py:167-182`) lists every
+   open present, `pump` sends it, and the walk and the agent answer a
+   present with a reply that wakes `landing`. The door now writes the note
+   with status `answered`, so `pump` never asks it. `render_state`'s parked
+   line carries the note's text. The words "Reply 'ok'" go from the note.
+2. **The park digest moves with the versions** (finding 2, high). A rested
+   park did not come back after a criterion move at the same head, which
+   is the defect frame 87's review of 4a0ab5c found. The digest of
+   `park_ask_id` gains the sum of the versions of the batch's criteria and
+   tests. "Approves every row" is defined against the page's refs: the
+   landed ruling names `approve` for every ref of the page. An empty map,
+   such as night 132's three `{}` rulings, never rests.
+3. **The repeated-sentence refusal holds in every mode** (finding 3, high).
+   `_mode_key` sends a reply to a clarify to `answering`, and the `answer`
+   mode keeps `msg.converse_principal`, so a refusal in `converse` alone
+   left the loop open. The refusal now keys on the entry's text in every
+   Liaison mode that can write to the principal. The bound on a loop is
+   stated as `quarantine_looping` at `loop_cap`, and the design claims no
+   more.
+4. **The criterion relay goes to `criterion_repair`** (finding 4, high).
+   The step after a respecify already exists: night 121's s311 respecified
+   cr_2 and sent `msg.answer_tester`, and the Tester's s312 re-encoded the
+   test. A Terminologist `relay` whose refs hold a criterion is keyed to
+   the existing mode `criterion_repair`, whose brief gains one paragraph for
+   a ruling. The session ends with `msg.answer_tester` naming the
+   criterion. The new mode `criterion_ruling`, the column
+   `tests.criterion_ver` and its five readers are dropped.
+5. **The check line is readable** (finding 5, low). `Fails:` comes from the
+   first line of the run's output that starts with `E   `, because pytest
+   cuts the `FAILED` line to the terminal width (night 132's run `tr248`
+   ends `assert F...`). The line adds the call that assigns the asserted
+   name, which is what separates cr_1's test from cr_3's. Every `#` comment
+   is stripped, as night 121's asserts carry them.
+6. **Section 3 gains one case and three tests** (finding 6, low).
+   `L3-a-maintainers-question-reaches-the-owner` runs `prompt: converse`
+   and is re-recorded. The rewrite of the helper `_liaison_asks` covers
+   `test_next_batch.py:231`, `:481` and `:534`.
+   `test_the_verdict_vocabulary_is_two_words` is renamed, and its docstring
+   rewritten.
+7. (Finding 7, the migration of `tests.criterion_ver`: no amendment. The
+   column is dropped by amendment 4.)
+8. **`render_ask` passes no `ask_id`** (finding 8, low).
+   `principal.render_ask` (`principal.py:340-343`) is the fifth caller of
+   `render_page`. It renders a page alone for two test files, and it keeps
+   its signature.
+
 ## 3. The tests and the cassettes
 
 Each test rebuilds its rows inline, as `tests/rota/test_desk_guards.py`
@@ -697,9 +780,10 @@ here needs one.
 |---|---|---|---|---|
 | A | The park ask is a page with the item and the criteria, each with its check | night 132, m117 on `m_park_3b5cf1bd9b_bg_2` | inline | predicate, door, `render_page` |
 | A | A full map on the park page lands, and a contest of a criterion line names it | night 132, s218 | inline | sandbox and `apply_rulings` |
-| A | A criterion move ends the park, and the stale test is owed again | night 132's bg_2 rows, cr_2 respecified | inline | `_lift_quarantines`, `tests_missing`, `harness` |
-| B | A park with only project reds is a note that asks nothing | night 133, s319's dispatch, bg_2 set deferred | inline | predicate, door, `render_page`, `land` |
-| C | The chat verdict is refused, and a repeated sentence is not asked twice | night 132, s220 | inline | sandbox |
+| A | A criterion move ends the park, a re-park asks again, and a bare key lift keeps the rest | night 132's bg_2 rows, cr_2 respecified | inline | `_lift_quarantines`, `park_ask_id`, `park_ask` |
+| A | The check line takes `Fails:` from the `E   ` line, adds the call and strips comments | night 132, run `tr248`; night 121, `tst_confirm_eof_cr3` | inline | `check_line` |
+| B | A park with only project reds is a closed note that `pump` never asks | night 133, s319's dispatch, bg_2 set deferred | inline | predicate, door, `pending_asks`, `render_state` |
+| C | The chat verdict is refused, and a repeated sentence is not answered twice in `converse` or `answering` | night 132, s220 | inline | sandbox |
 | C | A segment of a statement on file is refused | night 121, s284 | inline | sandbox |
 | D | A quarantined key of a running batch still wakes the Liaison | night 133, s319 | inline | predicate |
 | D | A contest on a batch line is refused with the item named | night 133, s313, r_2e20813fbe | inline | sandbox |
@@ -729,18 +813,25 @@ verdict_signoff`, 2026-10-08):
   (`g1_segments.yaml`): `converse.md` and `converse.tools` change. Their
   expectations hold (reasoned: the G1 retention case expects a message to
   the principal with `refs_include: [<s1>]` and names no verb). Re-record.
+- `L3-a-maintainers-question-reaches-the-owner`
+  (`l3_handoffs.yaml:213`): its first step runs `prompt: converse`.
+  Re-record (2.F, amendment 6).
 - `L1-LI-relay-a-ruling-without-interpreting-it` and
   `L1-LI-a-ruling-splits-by-owner` (`l1_liaison2.yaml:68`, `:316`):
   `verdict_signoff.md` changes. Re-record.
-- One new case, `L1-TE-a-ruled-criterion-is-respecified-from-the-words`,
-  in `l1_terminologist.yaml`: a relay of `{cr_2: "contest"}` with
-  night 132's criterion and words. Record 5 runs.
+- `L1-TE-repair-the-criterion-the-tester-cannot-encode`
+  (`l1_unresolved.yaml`, `tick: criterion_repair`): `criterion_repair.md`
+  gains a paragraph. Re-record.
+- One new case, `L1-TE-a-ruled-criterion-is-respecified-and-the-tester-told`,
+  in `l1_terminologist.yaml`: a relay of `{cr_2: "contest"}` with night
+  132's criterion and words, in mode `criterion_repair`. It expects one
+  `criteria` write on cr_2 and one `answer` to the Tester with cr_2 in its
+  refs. Record 5 runs.
 - No change: the 7 `l1_landing.yaml` cases (the `no_row_to_rule` note
   rode on park pages alone), `L1-LI-surface-a-quarantined-message`, the 2
   Terminologist `relay` cases (their mode does not change), and the 7
-  `tests_missing` cases (the wake's detail changes only for a stale test).
-  The gate's stale line after the pass decides, and the agent re-records
-  what it names.
+  `tests_missing` cases. The gate's stale line after each pass decides, and
+  the agent re-records what it names.
 
 **Unit tests that assert the old words.** The agent rewrites them to the
 new page and keeps their intent:
@@ -752,9 +843,22 @@ new page and keeps their intent:
   `test_a_re_park_after_a_commit_asks_again_in_the_same_words` (414),
   `test_a_lift_with_no_head_change_asks_again_on_the_re_park` (431),
   `test_an_approve_then_a_lift_with_no_head_change_asks_again` (458) and
-  `test_a_contest_on_the_park_ask_abandons_the_batch` (497).
+  `test_a_contest_on_the_park_ask_abandons_the_batch` (497). Test 458
+  lifts by deleting the key, with nothing moved. Under the rest rule that
+  lift keeps the rest, so the test lifts by a criterion move to keep its
+  intent, and a second assertion pins that a bare lift asks nothing.
+- The helper `_liaison_asks` in `test_next_batch.py` scripts
+  `msg.clarify_principal` with `_PARK_QUESTION`, which the new
+  `park_ask.tools` refuses. The helper's rewrite to `msg.present_principal`
+  covers three more tests that call it:
+  `test_a_quarantined_batch_resumed_after_a_preempt_waits_for_the_principal`
+  (231), `test_a_park_ask_does_not_hide_a_contradiction` (481) and
+  `test_a_hand_commit_found_at_boot_ends_a_quarantine_park` (534).
 - `tests/rota/test_intake_fork.py::test_chat_claimed_means_a_bare_reply_is_legal`
   (line 75) inverts: `chat` is refused.
+  `test_the_verdict_vocabulary_is_two_words` (line 82) keeps passing, but
+  its name and docstring are no longer true. Rename it to
+  `test_the_verdict_vocabulary_is_work_alone` and rewrite its docstring.
 - Files that name `park_ask`, `no_row_to_rule` or the `chat` verdict, which
   the agent reads for the old words: `test_t0_sandbox.py` (13 lines),
   `test_scene_two_batches.py` (3), `test_scene_park.py` (2),
@@ -771,7 +875,9 @@ new page and keeps their intent:
 - The touch note stays a sense check with no gate. Only a ruling on a batch
   line is refused, and the lever stays the item's.
 - `quarantine_looping` and `loop_cap` stay. They stopped night 132's loop,
-  and 2.C removes the loop's Liaison half before the cap.
+  and they stay the bound on a loop through the principal. 2.C's point 6
+  stops a repeated sentence from drawing a second Liaison message, and
+  claims no more.
 - A quarantined message that stays quarantined still wakes the Liaison
   until its key reaches the cap. Night 133 had 7 such single presents. That
   is a separate wall if a night shows it.
@@ -821,7 +927,10 @@ Two questions stay open:
    approved at its version.
 2. **[low] Does the mechanical check line read well enough for a person?**
    The records: none on this line. On night 132 a line reads "confirm eof
-   behavior, expects result == True. Fails: assert False == True."
+   default, calls result = confirm("y/n", default_on_eof=True), expects
+   result == True. Fails: assert False == True." (observed: the body of
+   `tst_confirm_eof_default` and the `E   ` line of its newest run,
+   2026-10-08).
    Recommended: ship the mechanical line, and count in the next night read
    how many park answers ask what a check means. If the count is above 1
    in 4, a later frame has the Tester write the line at encode, on the
@@ -829,26 +938,48 @@ Two questions stay open:
 
 ## 6. Price
 
-The anchors are in `plans/operating-facts.md`, the agents' section: a cold
-implementer pass on Opus of 18 files, 666 insertions and 11 tests spent
-216.9k against a 120k cap, and a reviewer spent 146.7k on eight points
-(observed: frame 66, 2026-09-23). A cap in a brief does not bind.
+The design is two passes, each with its own implementer pass and its own
+diff review on Opus. The prices come from the design review's line: one
+pass for the whole design would cost 250k to 300k, on the anchor of 216.9k
+for a cold pass of 18 files, 666 insertions and 11 tests (frame 66,
+`plans/operating-facts.md`). A cap in a brief does not bind.
 
-- One implementer pass on Opus, about 200k. The pass touches about 20
-  files: 3 predicates and 4 gates for the stale test, the send door,
-  `render_page` and its 4 callers, `land`, `rulings_rule`, `brief_intake`,
-  `brief.segment`, `_recent_chat`, `_mode_key`, `_lift_quarantines`,
-  `_owes_ask`, one schema column, 4 briefs with their tools
-  (`park_ask.md`, `converse.md`, `verdict_signoff.md` and the new
-  `criterion_ruling.md`), about 9 new tests and about 12 rewritten ones.
-  The frame's old line, about 70k, priced the first design and is too low
-  for this one.
-- One diff review on Opus, about 130k, on six points, one per change and
-  one on the rest of the park.
-- Re-records apart, GPU only: 2 rewritten cases and 2 new cases at 5 runs
-  each, and about 8 cases re-recorded on their old expectations.
-- One night apart, to read the three ratios of the ends-when.
+**Pass 1, the park page: 2.A, 2.B, 2.D and 2.E.** About 200k for the
+implementer pass and about 120k for its diff review. Pass 1 lands first,
+because 2.B and 2.E rest on 2.A's helpers and 2.D's `park_owns`.
 
-The splits of 2.A, 2.B and 2.E share `park_reds`, `park_rows` and the rest
-rule, and 2.C and 2.D touch other files. If the pass must be cut, 2.C is
-the clean second pass.
+- Files: `rota/core/scheduler.py` (`park_reds`, `park_rows`, `park_owns`,
+  `park_ask_id`), `rota/core/predicates.py` (`park_ask`, `quarantined`),
+  `rota/core/sandbox.py` (the park door, `RULED_TABLES`),
+  `rota/roles/principal.py` (`render_page`, `check_line`, `land`,
+  `render_state`, `pending_asks`), `rota/roles/api.py` (`rulings_rule`,
+  `rulings_line`), `rota/core/runner.py` (`resolve_inbound`, `_mode_key`),
+  `rota/tools/invariants.py` (`_owes_ask`),
+  `rota/roles/prompts/liaison/park_ask.md` and `.tools`,
+  `rota/roles/prompts/liaison/verdict_signoff.md`,
+  `rota/roles/prompts/terminologist/criterion_repair.md`,
+  `rota/testkit/scenes.py`, and the tests of points A, B, D and E in
+  section 3, with the rewrites in `test_next_batch.py` and the park lines of
+  the other test files.
+- Re-records, GPU apart: the rewritten park case and the new note case at 5
+  runs each, the 2 `verdict_signoff` cases, `L1-TE-repair-the-criterion-the-tester-cannot-encode`,
+  and the new Terminologist case at 5 runs.
+
+**Pass 2, the chat intake: 2.C.** The rest of the design's price: about
+80k for the implementer pass, on the anchor of 77k for one tool of 340
+lines with 20 tests and a gate run (frame 24), and about 80k for its diff
+review, on four points.
+
+- Files: `rota/core/sandbox.py` (the enum, the intake door, the
+  repeated-sentence refusal in every mode that writes to the principal),
+  `rota/roles/api.py` (`brief_intake`, `brief.segment`, `rulings_rule`'s
+  `ask=` path), `rota/core/runner.py` (`_recent_chat`),
+  `rota/roles/prompts/liaison/converse.md` and `.tools`, and the tests of
+  point C in section 3 with the `test_intake_fork.py` rewrites.
+- Re-records, GPU apart: `L1-LI-chat-is-not-work` rewritten at 5 runs, and
+  the 7 converse cases of section 3, `L3-a-maintainers-question-reaches-the-owner`
+  included, on their old expectations.
+
+One night after both passes, apart, to read the three ratios of the
+ends-when. The frame's old line, about 70k, priced the first design and is
+too low for this one.
