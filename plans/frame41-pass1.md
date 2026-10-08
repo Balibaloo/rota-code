@@ -53,3 +53,27 @@ The baseline is 658abb6, 940 commits behind the tree. The four new reds
 are not this pass's reds (observed: 2026-10-08). The map red fails with
 the walk changes stashed. No file under `rota/` or the L1 cases imports
 the probes this pass touched.
+
+## Pass 2 (commit 51f1bf6d, 2026-10-08)
+
+The diff review on Opus at f9d8d2c2 found 1 medium and 5 low findings.
+The coordinator ordered five fixes, and this pass makes all five.
+
+1. `(nothing)` on a page counts as a failed call. The ask stays out of
+   `replied`, and a second silence raises `PrincipalDown`. This replaces
+   deviation 2 of pass 1.
+2. The end-of-walk row holds `reply_id` on each ruling and `cause_id` on
+   each ask-back. A chat entry enters `self.landed` and gets its own row.
+3. An ask-back lands through `parse_reply(ask, words)`. Words on a plain
+   clarify close it, as the script's words do.
+4. `AgentPrincipal.pump` wraps `principal.pump`. The cause of each created
+   message names the ask, and the land row keeps the landed id. This
+   replaces deviation 1 of pass 1.
+5. `principal_down` in `walk.py` writes the progress finish row with the
+   outcome `principal down` before it exits 2.
+
+Tests (observed: 2026-10-08): `tests/rota/test_agent_principal.py` 9
+passed, together with `tests/rota/test_progress.py` 10 passed. No gate
+ran in this pass, as the brief says.
+
+Deviations: none.
