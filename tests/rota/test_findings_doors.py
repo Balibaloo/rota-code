@@ -92,7 +92,7 @@ def a_night(tmp_path, batch_id: str, changed: list[str], constraints,
     _git(root, "worktree", "add", "-q", "-b", f"batch/{batch_id}", str(tree))
     for rel in changed:
         (tree / rel).write_bytes(b"x = 2\n")
-    _git(tree, "commit", "-q", "-am", "the batch")
+    _git(tree, "commit", "-q", "--allow-empty", "-am", "the batch")
     head = _git(tree, "rev-parse", "HEAD").strip()
     conn = init_db(tmp_path / "rota.db")
     conn.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
@@ -272,3 +272,122 @@ def test_a_long_headline_shows_its_first_words(night118):
     night118.commit()
     said = _refused(_architect(night118, "echo_json_group"), **_args(S145_CALL))
     assert "'unset' (a write goes through one connection ...)" in said
+
+
+# Pass 2: the findings of the diff review of af2ee732.
+
+def test_a_staged_id_of_another_batch_is_refused(night128):
+    """Finding 4: a row staged in this session holds its id as a stored
+    row does, because the pipeline writes it at commit."""
+    night128.execute("DELETE FROM findings")
+    night128.commit()
+    sb = _architect(night128, "bg_2")
+    sb.call("findings.find", id="f1", batch_id="bg_1", constraint_id="k0",
+            status="satisfied", grain="src/click/utils.py")
+    with pytest.raises(ValueError) as exc:
+        sb.call("findings.find", **_args(S196_CALL))
+    assert str(exc.value).startswith("finding id 'f1' is held by batch bg_1")
+    assert "with id='f2', which no batch holds" in str(exc.value)
+
+
+@pytest.mark.parametrize("held,named,free", [
+    ("fnd_001", "fnd_001", "fnd_002"),
+    ("fnd_", "fnd_", "fnd_2"),
+    ("fnd", "fnd", "fnd_2"),
+])
+def test_the_free_id_keeps_the_seats_form(night128, held, named, free):
+    """Finding 5: the padding width and the separator stay the seat's."""
+    night128.execute("UPDATE findings SET id = ? WHERE id = 'f1'", (held,))
+    night128.commit()
+    said = _refused(_architect(night128, "bg_2"),
+                    **{**_args(S196_CALL), "id": named})
+    assert f"with id={free!r}, which no batch holds" in said
+
+
+def test_the_free_id_skips_an_id_another_table_holds(night128):
+    """Finding 5: the sandbox refuses an id that a criterion holds, so the
+    free id skips it too."""
+    night128.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+                     "('tk1', 'i1', 'the ticket')")
+    night128.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                     "('f2', 'tk1', 'a criterion')")
+    night128.commit()
+    said = _refused(_architect(night128, "bg_2"), **_args(S196_CALL))
+    assert "with id='f3', which no batch holds" in said
+
+
+def test_a_held_id_off_the_diff_gets_the_id_fix_first(night128):
+    """Finding 6: two faults in one call. The id comes first, and the grain
+    refusal follows on the next call with the free id."""
+    sb = _architect(night128, "bg_2")
+    said = _refused(sb, **{**_args(S196_CALL), "grain": "tests/test_defaults.py"})
+    assert said.startswith("finding id 'f1' is held by batch bg_1")
+    said = _refused(sb, **{**_args(S196_CALL), "id": "f2",
+                           "grain": "tests/test_defaults.py"})
+    assert said.startswith("the batch's diff does not touch 'tests/test_defaults.py'")
+
+
+def test_a_directory_grain_that_holds_a_changed_file_lands(night114):
+    """Finding 4: check 2 admits a directory of the diff."""
+    out = _architect(night114, "bg_2").call(
+        "findings.find", **{**_args(S203_CALL), "grain": "src/click"})
+    assert out == {"id": "f2", "status": "satisfied"}
+
+
+def test_a_directory_grain_off_the_diff_is_refused(night114):
+    said = _refused(_architect(night114, "bg_2"),
+                    **{**_args(S203_CALL), "grain": "src/other"})
+    assert said.startswith("the batch's diff does not touch 'src/other'")
+
+
+def test_k0_on_a_directory_reached_below_it_is_refused(night118):
+    """Finding 1: `src/click` holds the changed `src/click/__init__.py`,
+    which 11 constraints reach, so k0 on the directory is refused."""
+    said = _refused(_architect(night118, "echo_json_group"),
+                    **{**_args(S145_CALL), "grain": "src/click"})
+    assert said.startswith("k0 is for a file that no constraint reaches, and "
+                           "11 constraints reach 'src/click': ")
+
+
+def test_k0_on_a_symbol_of_a_reached_file_is_refused(night118):
+    """Finding 4: the symbol is judged by its file."""
+    said = _refused(_architect(night118, "echo_json_group"),
+                    **{**_args(S145_CALL), "grain": "src/click/__init__.py::echo"})
+    assert said.startswith("k0 is for a file that no constraint reaches, and "
+                           "11 constraints reach 'src/click/__init__.py': ")
+
+
+def test_an_empty_diff_does_not_refuse_the_grain(tmp_path):
+    """Finding 2: an empty list of files gives the seat no file to name, so
+    the grain check stands down, as with no worktree."""
+    conn = a_night(tmp_path, "bg_2", [], K0_ONLY)
+    out = _architect(conn, "bg_2").call("findings.find", **_args(S203_CALL))
+    assert out == {"id": "f2", "status": "satisfied"}
+
+
+def test_a_test_file_the_seat_sees_in_the_diff_lands(tmp_path):
+    """Finding 3: `code.diff` shows the batch's test file, so a grain on it
+    lands, though `_diff_files` drops it as furniture."""
+    conn = a_night(tmp_path, "bg_2", ["src/click/termui.py",
+                                      "tests/test_defaults.py"], K0_ONLY)
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+                 "('tk1', 'i1', 'the ticket')")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                 "('cr_1', 'tk1', 'a criterion')")
+    conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                 "VALUES ('tst_1', 'bg_2', 'cr_1', 'tests/test_defaults.py', "
+                 "'def test_x(): pass')")
+    conn.commit()
+    out = _architect(conn, "bg_2").call("findings.find", **_args(S203_CALL))
+    assert out == {"id": "f2", "status": "satisfied"}
+
+
+def test_an_untracked_file_the_seat_never_saw_is_refused(night114):
+    """Finding 3: `code.diff` does not show an untracked file."""
+    tree = night114.execute("SELECT worktree FROM batches WHERE id = 'bg_2'"
+                            ).fetchone()[0]
+    import pathlib
+    (pathlib.Path(tree) / "src" / "click" / "scratch.py").write_bytes(b"y = 1\n")
+    said = _refused(_architect(night114, "bg_2"),
+                    **{**_args(S203_CALL), "grain": "src/click/scratch.py"})
+    assert said.startswith("the batch's diff does not touch 'src/click/scratch.py'")
