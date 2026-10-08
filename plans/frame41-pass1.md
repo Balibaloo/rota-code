@@ -77,3 +77,20 @@ passed, together with `tests/rota/test_progress.py` 10 passed. No gate
 ran in this pass, as the brief says.
 
 Deviations: none.
+
+## Pass 3 (commit e3cf6606, 2026-10-08)
+
+The delta review found one medium finding. A page that got `(nothing)` went
+back to the model on the next loop turn with the same prompt. Then the same
+silence came back, and the walk stopped with `PRINCIPAL DOWN`.
+
+- The retry prompt now carries the line `AGAIN` before the page. The line
+  says that the page is a question and needs an answer in words. A second
+  `(nothing)` on the same page still raises `PrincipalDown`.
+- `failures` counts per ask over the whole walk. A call error and a later
+  `(nothing)` on one ask add up to two, and the second one stops the walk
+  (reasoned: `_ask_model` adds one to `failures[key]` for each kind of
+  failure and never resets the count).
+
+Tests (observed: 2026-10-08): `tests/rota/test_agent_principal.py` 10
+passed. No gate ran in this pass.
