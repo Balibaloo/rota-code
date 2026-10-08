@@ -69,3 +69,19 @@ None of the three checks refuses s236's `fnd_001`, a `violated` row on merged bg
 - The review's `mutants.py` patches pass 1's text, so it does not apply to this tree. I did not run it again.
 
 The gate of pass 2 reads `suite: 26 failed, 3310 passed, 35 skipped, 17 xfailed, 18 warnings`, stale 0 (observed: 2026-10-08). The one new red is `test_handover.py::test_a_newer_watcher_retires_the_older_one`, the watcher test of the brief's known list. The gate ran the test again, and it passed, so the gate marks it flaky. The test reads the hand-off tool and not `findings.find`. The 12 new tests are the 3310 minus 3298 passed.
+
+## Pass 3
+
+**Record of 2026-10-08, meta workflow.** Pass 3 answers the three findings of the delta review of 40eaebd3. The probes are in the session scratchpad, `review178b/`.
+
+| Finding | The change |
+|---|---|
+| 1, one id sent twice in a session on another constraint or grain replaces the first row | The door refuses the second call. The refusal names the staged row's constraint and grain, and the free id as check 1 does. The same constraint and grain stays a repeat, which returns `unchanged` |
+| 2, no test holds that a `violated` row off the diff meets the `violated` check | `test_a_violated_row_off_the_diff_meets_the_violated_check` asserts the `violated` check's exact words |
+| 3, no test holds the `/` of the directory prefix in check 3 | `test_k0_on_a_sibling_directory_with_a_shared_prefix_lands` files `k0` on `src/cli` beside `src/click`, and the row lands. Without the `/`, the test fails (observed: 1 failed, 2026-10-08) |
+
+- The staged-id check runs last, just before the write, and not first with check 1. The first place broke `test_the_finding_door_names_the_constraint_ids_to_send` in `test_t0_sandbox.py`. That test sends `f1` again after `f1` landed, and it expects the content refusal of the `violated` check (observed: 1 failed, 2026-10-08). In the last place, a call with a content fault and a staged id gets the content fix first, then the id fix. The two refusals do not contradict each other (reasoned: each names a different argument).
+- The fixture's project root now holds `src/cli/main.py`, so a batch can change a file in a sibling directory. No other test reads that file.
+- `test_findings_doors.py` holds 28 tests, all green. The 234 tests of the other five files that call `findings.find` pass (observed: 2026-10-08).
+
+The gate of pass 3 reads `suite: 26 failed, 3313 passed, 35 skipped, 17 xfailed, 18 warnings`, stale 0 (observed: 2026-10-08). The one new red is `test_handover.py::test_a_reserve_that_is_all_too_full_is_a_drought`. The gate ran it again, and it passed, so the gate marks it flaky. The test reads the hand-off tool and not `findings.find`.
