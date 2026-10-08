@@ -1412,10 +1412,127 @@ PARK_ASK = "m_park_"
 _PARK_BATCH_AT = len(PARK_ASK) + 11          # 0-based start of the batch id
 
 
+def park_reds(conn: sqlite3.Connection, batch_id: str) -> tuple[list[dict], list[dict]]:
+    """
+    The batch's red tests, split in two: its own, which a criterion names,
+    and the project's. Each is the newest run of one test.
+    """
+    # The newest run per test, as `failing_attempt` reads it. "Own" is a
+    # test with a criterion: night 121's own test of cr_1 is an inherited
+    # id, so the id's prefix does not decide (frame 142's design, 2.A).
+    rows = conn.execute(
+        "SELECT r.test_id, r.output, r.commit_sha, t.path, t.criterion_id FROM test_runs r "
+        "LEFT JOIN tests t ON t.id = r.test_id "
+        "WHERE r.batch_id = ? AND r.result IN ('fail','error') "
+        "AND r.rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
+        "GROUP BY test_id) ORDER BY r.test_id", (batch_id, batch_id)).fetchall()
+    own = [dict(r) for r in rows if r["criterion_id"] is not None]
+    project = [dict(r) for r in rows if r["criterion_id"] is None]
+    return own, project
+
+
+def park_criteria(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """The batch's criteria in id order: those of its tickets, and those its
+    tests name."""
+    # A criterion move lifts the park through `batch_tickets`
+    # (`db._lift_quarantines`). A test's criterion is read too, because a
+    # night fixture can hold the tests without the tickets.
+    return [r["id"] for r in conn.execute(
+        "SELECT c.id FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "WHERE bt.batch_id = ? UNION "
+        "SELECT c.id FROM criteria c JOIN tests t ON t.criterion_id = c.id "
+        "WHERE t.batch_id = ? ORDER BY 1", (batch_id, batch_id))]
+
+
+def park_rows(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """
+    The refs of the park message: the item and the batch's criteria when a
+    criterion's own test is red, else the batch alone, which is a note.
+    """
+    # The page goes to the principal only when a criterion's own test is
+    # red. With the project's tests alone red, the builder broke what worked,
+    # and the team files a note (ruled: Roman, 2026-10-08, the park ask is a
+    # page with rows, point 3).
+    own, _ = park_reds(conn, batch_id)
+    if not own:
+        return [batch_id]
+    row = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    item = [row["item_id"]] if row and row["item_id"] else []
+    return item + park_criteria(conn, batch_id)
+
+
+def park_owns(conn: sqlite3.Connection, batch_id: str) -> bool:
+    """
+    A deferred batch with a quarantined key, on an item that `cancel` would
+    not take: the park that the park message is about.
+    """
+    row = conn.execute(
+        "SELECT b.status, i.approval, i.approval_ver, i.version FROM batches b "
+        "LEFT JOIN items i ON i.id = b.item_id WHERE b.id = ?", (batch_id,)).fetchone()
+    if row is None or row["status"] != "deferred" or not given_up(conn, batch_id):
+        return False
+    # A contested item's batch goes to `do:cancel`, so nothing is asked.
+    # The test is `cancel`'s own, where a NULL compares false.
+    unschedulable = ((row["approval"] is not None and row["approval"] != "approved")
+                     or (row["approval_ver"] is not None and row["version"] is not None
+                         and row["approval_ver"] < row["version"]))
+    return not unschedulable
+
+
+def park_message_rests(conn: sqlite3.Connection, message_id: str) -> bool:
+    """
+    Whether a closed park message ends the asking: a note, or a page whose
+    landed ruling approves every ref of the page.
+    """
+    import json
+
+    row = conn.execute("SELECT status, body_refs FROM messages WHERE id = ?",
+                       (message_id,)).fetchone()
+    batch = park_ask_batch(message_id)
+    if row is None or batch is None or row["status"] == "open":
+        return False
+    try:
+        refs = json.loads(row["body_refs"] or "[]")
+    except (TypeError, ValueError):
+        return False
+    if batch in refs:
+        return True
+    # An empty map approves nothing. Night 132's three `{}` rulings closed
+    # three asks, and each must count as a past park (frame 142's design,
+    # 2.F, amendment 2).
+    for r in conn.execute("SELECT per_item FROM rulings WHERE ask_id = ? "
+                          "AND status = 'landed'", (message_id,)):
+        try:
+            per_item = json.loads(r["per_item"] or "{}")
+        except (TypeError, ValueError):
+            continue
+        if refs and all(per_item.get(ref) == "approve" for ref in refs):
+            return True
+    return False
+
+
+def _park_versions(conn: sqlite3.Connection, batch_id: str) -> int:
+    """The sum of the versions of the batch's criteria and of its own tests."""
+    crit = park_criteria(conn, batch_id)
+    marks = ",".join("?" * len(crit))
+    total = conn.execute(
+        f"SELECT COALESCE(SUM(COALESCE(version, 0)), 0) n FROM criteria "
+        f"WHERE id IN ({marks})", tuple(crit)).fetchone()["n"] if crit else 0
+    # Own tests only. The project's tests are taken in again at each batch's
+    # start, and a sibling's start moved their rows off this batch (frame
+    # 130's wall). That ended the rest of an approved page with nothing of
+    # this change moved (observed: the scene `two_batches`, 2026-10-09).
+    return total + conn.execute(
+        "SELECT COALESCE(SUM(COALESCE(version, 0)), 0) n FROM tests "
+        "WHERE batch_id = ? AND criterion_id IS NOT NULL", (batch_id,)).fetchone()["n"]
+
+
 def park_ask_id(conn: sqlite3.Connection, batch_id: str) -> str:
     """
-    The id of the one park ask a batch's park owes, from its head, its keys
-    and the parks that ended before it.
+    The id of the one park message a batch's park owes, from its head, its
+    keys, the versions of its criteria and tests, and the parks that ended
+    before it.
     """
     import hashlib
 
@@ -1425,18 +1542,29 @@ def park_ask_id(conn: sqlite3.Connection, batch_id: str) -> str:
     keys = ",".join(given_up(conn, batch_id))
     # A lift with no new head, such as a criterion move, can park again on
     # the same key. Head and keys alone then gave the old id, and no ask
-    # opened (observed: frame 87's review of b23d17b, 2026-09-30). Every
-    # closed ask is a past park. A count that left out an approved ask gave
-    # the old id after an approve, a lift and a re-park (observed: frame 87's
-    # review of 4a0ab5c, 2026-09-30). The `-|do:park|` count does not move on
-    # a quarantine park.
-    ended = conn.execute(
-        "SELECT COUNT(*) n FROM messages WHERE status != 'open' "
-        "AND substr(id, 1, ?) = ? AND substr(id, ?) = ?",
-        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchone()["n"]
+    # opened (observed: frame 87's review of b23d17b, 2026-09-30). A closed
+    # ask that did not rest is a past park. A message that rests, a note or
+    # a page approved whole, keeps the id, so the park asks nothing more
+    # until something moves (ruled: Roman, 2026-10-08, point 5). The `-|do:park|`
+    # count does not move on a quarantine park.
+    ended = sum(
+        1 for r in conn.execute(
+            "SELECT id FROM messages WHERE status != 'open' "
+            "AND substr(id, 1, ?) = ? AND substr(id, ?) = ?",
+            (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchall()
+        if not park_message_rests(conn, r["id"]))
+    # A criterion move or a re-encoded test lifts the park with no new head.
+    # The sum moves with it, so a re-park asks again (frame 142's design,
+    # 2.F, amendment 2, after frame 87's review of 4a0ab5c).
+    versions = _park_versions(conn, batch_id)
     digest = hashlib.sha256(
-        f"{batch_id}|{head}|{keys}|{ended}".encode()).hexdigest()[:10]
+        f"{batch_id}|{head}|{keys}|{ended}|{versions}".encode()).hexdigest()[:10]
     return f"{PARK_ASK}{digest}_{batch_id}"
+
+
+def park_rests(conn: sqlite3.Connection, batch_id: str) -> bool:
+    """Whether the batch's current park message exists, is closed and rests."""
+    return park_message_rests(conn, park_ask_id(conn, batch_id))
 
 
 def park_ask_batch(message_id: str) -> str | None:

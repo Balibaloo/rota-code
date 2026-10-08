@@ -561,13 +561,9 @@ WALK_ANSWER = "yes to all of it. keep it simple."
 PRORATE_TEST = ("from src.billing.charges import prorate\n\n\n"
                 "def test_an_upgrade_charges_the_days_used():\n"
                 "    assert prorate(3000, 10, 30) == 1000\n")
-# The Liaison's reading of words on a park ask. The door takes one sentence
-# back to the principal and no ruling (night 121, s278 and s283).
-PARK_REPLY = ["TOOL: rulings.rule(ask='b1 stays parked. Do you want a commit that "
-              "fixes b1, or a contest of i1?')"]
-# The Liaison's question on a parked b1.
-PARK_ASK = ["TOOL: msg.clarify_principal(refs=['i1', 'b1'], "
-            "question='b1 failed four times. Change the criterion, or abandon b1?')"]
+# The Liaison's park message on a parked b1. The door writes the page's rows
+# from the records (frame 142, ruled: Roman, 2026-10-08).
+PARK_ASK = ["TOOL: msg.present_principal(refs=['i1', 'b1'])"]
 
 
 def worktree(sc: Scene, batch: str) -> Path:
@@ -639,21 +635,19 @@ def two_batches(tmp: Path) -> Scene:
     walk says item 2.
 
     Item 2 ranks above item 1, and right after its grouping the preempt
-    defers b1. b1 is then parked, and the Liaison asks the principal. The
-    walk answers the park ask with its stock sentence, which names neither
-    option. The Liaison sends the principal one sentence back, the walk
-    answers that sentence, and the Liaison takes the answer as a new
-    statement. The park ask comes again, three times in all, and then its
-    key is quarantined and reported. b2 then starts, takes in the project's
-    tests again under the same ids (frame 130's wall), and its Developer
-    commits the export. The scene ends when the harness has run at b2's
-    head.
+    defers b1. b1 is then parked, and the Liaison sends the park page: the
+    item and c1, whose own test is red. The walk with no words approves
+    every line. That is the ceiling: the page rests, and the park asks
+    nothing more (frame 142, ruled: Roman, 2026-10-08, point 5). b2 then
+    starts, takes in the project's tests again under the same ids (frame
+    130's wall), and its Developer commits the export. The scene ends when
+    the harness has run at b2's head.
 
-    Night 121 holds the same order, bg_2 from its start at s212 to bg_3's
-    start at s297: two quarantines of `tests_failing` with the Tester
-    between (s224, s226, s243), the preempt after the grouping (s276), and
-    three park asks, each answered, with the key at (3, 1, 1) (s277, s282,
-    s287, s292)."""
+    Night 121 holds the same order up to the park, bg_2 from its start at
+    s212: two quarantines of `tests_failing` with the Tester between (s224,
+    s226, s243), and the preempt after the grouping (s276). Night 121 then
+    asked three times, because its park ask had no row to rule (s277, s282,
+    s287). The page ends that loop."""
     sc = _base("two_batches", tmp)
     play_to_quiet(sc)
     item(sc, 1, 1)
@@ -672,13 +666,11 @@ def two_batches(tmp: Path) -> Scene:
     sc.ids["head1"] = sc.conn.execute(
         "SELECT head_commit FROM batches WHERE id = 'b1'").fetchone()[0]
     item(sc, 2, 2)
-    for n in range(1, 4):
-        seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
-        rule(sc, "clarify", ["i1"], {}, WALK_ANSWER, answer="converse")
-        seat(sc, "liaison|converse|i1", PARK_REPLY)
-        walk_turn(sc, n)
-    seat(sc, "liaison|tick:quarantined|i1,b1", ["TOOL: msg.present_principal(refs=['i1', 'b1'])"])
-    rule(sc, "present", ["i1", "b1"], {"i1": "approve", "b1": "approve"})
+    # The park page numbers the item and c1, whose own test is red. The
+    # walk with no words approves every line, which is the ceiling: the
+    # page rests, and the park asks nothing more (frame 142).
+    seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
+    rule(sc, "present", ["i1", "c1"], {"i1": "approve", "c1": "approve"})
     annotate(sc, 2, [EXPORT_PATH])
     seat(sc, "developer|tick:batch_start|b2",
          commit([(EXPORT_PATH, EXPORT)], "export invoices"))

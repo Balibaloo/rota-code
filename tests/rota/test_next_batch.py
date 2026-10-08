@@ -8,6 +8,7 @@ deferred at attempt 7 with a head commit and `b_3` is pending.
 """
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 from rota.core import predicates as P
@@ -189,6 +190,13 @@ def _night_94_parked():
                  "body_refs, status, seq) VALUES ('m_touch', 't', 'liaison', "
                  "'principal', 'present', '[\"b_1\", \"echo_json\"]', 'answered', 0)")
     conn.execute("UPDATE items SET priority = 9 WHERE id = 'version_option_show_python'")
+    # Night 93's fixture keeps the tests and not the criteria. t_ej_02, the
+    # red own test, names c_2, so the park page has a row for it (frame 142).
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+                 "('tk_ej', 'echo_json', 'echo json')")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text, version) VALUES "
+                 "('c_2', 'tk_ej', 'echo_json writes compact JSON', 1)")
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b_1', 'tk_ej')")
 
     (wake,) = P.REGISTRY["preempt"].fn(conn)
     assert (wake.kind, wake.refs) == ("do:preempt", ("b_1", "b_1_version"))
@@ -198,23 +206,21 @@ def _night_94_parked():
     return conn
 
 
-_PARK_QUESTION = (
-    "The change b_1 is parked. The team gave up on its failing tests. A new "
-    "commit on the change starts it again. A contest of echo_json stops it. "
-    "Do you want to commit a fix, or contest echo_json?")
+# The park page's rows: the item, then the criterion of b_1's red own test.
+_PAGE = ["echo_json", "c_2"]
 
 
 def _liaison_asks(conn) -> str:
     """The `park_ask` wake, run as a Liaison session with a scripted model.
-    Returns the id of the ask it wrote."""
+    Returns the id of the page it wrote."""
     from rota.core.runner import run_session
     from rota.llm.llm import Pins, ScriptedBackend
 
     (wake,) = P.REGISTRY["park_ask"].fn(conn)
     conn.commit()
-    # The session types the batch into the refs. The door keeps the item.
-    call = ('TOOL: msg.clarify_principal(refs=["echo_json", "b_1"], '
-            f'question="{_PARK_QUESTION}")')
+    # The session types the item and the batch. The door writes the page's
+    # rows from the records (frame 142).
+    call = 'TOOL: msg.present_principal(refs=["echo_json", "b_1"])'
     out = run_session(conn, wake, backend=ScriptedBackend([call, "done"]),
                       pins=Pins(model="stub", temperature=0.0), instructions="ask")
     assert out.committed, out.errors
@@ -247,7 +253,7 @@ def test_a_quarantined_batch_resumed_after_a_preempt_waits_for_the_principal():
     assert [(w.role, w.kind, w.refs, w.detail) for w in frontier(conn)
             if "b_1" in w.refs] == [
         ("liaison", "tick:park_ask", ("echo_json", "b_1"),
-         "b_1 is parked. The team gave up on: tests_failing for b_1.")]
+         "b_1 is parked. The team gave up on: tests_failing for b_1. It is a page.")]
     assert conn.execute("SELECT quarantined FROM tick_attempts WHERE tick_key = ?",
                         (key,)).fetchone()["quarantined"] == 1, "the mark stays"
 
@@ -255,10 +261,12 @@ def test_a_quarantined_batch_resumed_after_a_preempt_waits_for_the_principal():
     assert mid.startswith("m_park_") and mid.endswith("_b_1")
     assert park_ask(conn) == [], "one wake per park"
     (ask,) = pending_asks(conn)
-    assert (ask.message_id, ask.verb, ask.refs) == (mid, "clarify", ["echo_json"])
-    assert _PARK_QUESTION in ask.rendered
+    assert (ask.message_id, ask.verb, ask.refs) == (mid, "present", _PAGE)
+    assert ask.order == _PAGE
+    assert ask.rendered.startswith("This change stopped. The team tried 7 times, "
+                                   "and 1 of its 6 checks still fail.")
     page = render_state(conn)
-    assert page.startswith("Waiting on you.") and page.count("parked") == 1
+    assert page.startswith("Waiting on you.") and "This change stopped." in page
 
     # The principal's change arrives as a commit. The key lifts, the ask
     # closes, and the batch is offered again.
@@ -283,12 +291,13 @@ def _words(conn, mid: str, text: str) -> str:
     return reply
 
 
-def test_a_words_answer_leaves_the_park_ask_open_and_wakes_landing_once():
+def test_a_words_answer_leaves_the_park_page_open_and_wakes_landing_once():
     """Frame 87, pass 5. A words answer closed the ask, and the contest the
     page named then had no gate (observed: frame 87's review of b23d17b,
-    2026-09-30). Words are a reply now, as on a confirm or a present: the ask
-    stays open, the Liaison reads the words in `landing` once, it has no row
-    to rule, and `park_ask` does not fire again. The page still waits."""
+    2026-09-30). Words are a reply, as on every present: the page stays
+    open, the Liaison reads the words in `landing` once, and `park_ask` does
+    not fire again. Frame 142: the page numbers its rows, so the reading is
+    a ruling on them, or one sentence back when the words settle no row."""
     from rota.core.runner import _mode_key, resolve_inbound, run_session
     from rota.core.scheduler import open_tips
     from rota.llm.llm import Pins, ScriptedBackend
@@ -308,15 +317,12 @@ def test_a_words_answer_leaves_the_park_ask_open_and_wakes_landing_once():
     assert (wake.role, _mode_key(wake, conn)) == ("liaison", "landing")
     inbound = resolve_inbound(conn, wake)
     assert "answering" not in inbound
-    assert inbound["landing"]["lines"] == {}
+    assert inbound["landing"]["lines"] == {"1": "echo_json", "2": "c_2"}
     assert inbound["landing"]["reply"] == "Try a smaller change first."
-    assert "A contest of echo_json stops it" in inbound["landing"]["no_row_to_rule"]
-    # A ruling map is refused: the park ask has no line to rule. The one
-    # sentence back is the session's act.
-    calls = ['TOOL: rulings.rule(rulings={"echo_json": "contest"}, '
-             'words="Try a smaller change first.")',
-             'TOOL: rulings.rule(ask="The change stays parked. A new commit '
-             'starts it again, and a contest of echo_json stops it.")',
+    assert "no_row_to_rule" not in inbound["landing"]
+    # The words name no line, so the session asks one sentence back.
+    calls = ['TOOL: rulings.rule(ask="Which line do you want to change: the '
+             'request, or what it must do?")',
              "done"]
     out = run_session(conn, wake, backend=ScriptedBackend(calls),
                       pins=Pins(model="stub", temperature=0.0), instructions="land")
@@ -411,11 +417,11 @@ def test_the_parked_line_names_only_what_the_principal_can_do():
     assert "The other changes go on." not in page
 
 
-def test_a_re_park_after_a_commit_asks_again_in_the_same_words():
+def test_a_re_park_after_a_commit_asks_again_on_the_same_rows():
     """Frame 87, pass 5. The repeat-words guard refused a re-park's ask,
     because its words equal the closed ask's words, and the wake ran to its
     cap (observed: frame 87's review of b23d17b, 2026-09-30). A closed park
-    ask does not count against a park ask."""
+    page does not count against a park page."""
     conn = _night_94_parked()
     first = _liaison_asks(conn)
     _commit_head(conn, "b_1", "f1x")
@@ -425,7 +431,8 @@ def test_a_re_park_after_a_commit_asks_again_in_the_same_words():
 
     second = _liaison_asks(conn)
     assert second != first
-    assert [r["body_text"] for r in _park_asks(conn)] == [_PARK_QUESTION]
+    assert [(r["id"], json.loads(r["body_refs"])) for r in _park_asks(conn)] == [
+        (second, _PAGE)]
 
 
 def test_a_lift_with_no_head_change_asks_again_on_the_re_park():
@@ -455,23 +462,32 @@ def test_a_lift_with_no_head_change_asks_again_on_the_re_park():
     assert second != first
 
 
-def test_an_approve_then_a_lift_with_no_head_change_asks_again():
-    """Frame 87, pass 6. The id counted only the closed asks with no
-    verdict, so an approve, a lift with no head change and a re-park on the
-    same key gave the old id, and no ask opened (observed: frame 87's review
-    of 4a0ab5c, 2026-09-30). Every closed ask counts now."""
+def test_an_approve_then_a_criterion_move_asks_again_and_a_bare_lift_does_not():
+    """Frame 87, pass 6. An approve, a lift with no head change and a re-park
+    on the same key gave the old id, and no ask opened (observed: frame 87's
+    review of 4a0ab5c, 2026-09-30). Frame 142: a page approved whole rests,
+    so a bare lift with nothing moved asks nothing (ruled: Roman, 2026-10-08,
+    point 5). A criterion move lifts the key and moves the id, so the
+    re-park asks again."""
     from rota.core.scheduler import close_stale_park_asks
     from rota.roles.principal import Answer, Ask, land
 
     conn = _night_94_parked()
     first = _liaison_asks(conn)
-    land(conn, Ask(message_id=first, verb="clarify", refs=["echo_json"]),
-         Answer(verb="verdict", per_item={"echo_json": "approve"}, text="Keep it."))
+    land(conn, Ask(message_id=first, verb="present", refs=_PAGE),
+         Answer(verb="verdict", per_item={r: "approve" for r in _PAGE}, text="Keep it."))
     assert _park_asks(conn) == []
 
     _lift(conn, "b_1")
     assert P.REGISTRY["park_ask"].fn(conn) == [], "a batch out of the park"
     assert close_stale_park_asks(conn) == 0
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                 "reported) VALUES ('developer|tick:tests_failing|b_1', 3, 1, 1)")
+    assert P.REGISTRY["park_ask"].fn(conn) == [], "the approved page rests"
+
+    conn.execute("UPDATE criteria SET version = 2 WHERE id = 'c_2'")
+    _lift_quarantines(conn, SimpleNamespace(table="criteria", row_id="c_2", op="update",
+                                            values={"text": "moved"}), True)
     conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
                  "reported) VALUES ('developer|tick:tests_failing|b_1', 3, 1, 1)")
     second = _liaison_asks(conn)

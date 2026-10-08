@@ -151,17 +151,16 @@ def _owes_ask(conn, batch: str, status: str, approval, approval_ver, version) ->
 
     A batch at or past `loop_cap` is parked too (`scheduler.parked`), but it
     climbs the ladder and owes no ask. Night 126's bg_1 and night 127's bg_1
-    and bg_2 are of that kind (the delta review of b43b99d6, its medium)."""
+    and bg_2 are of that kind (the delta review of b43b99d6, its medium).
+
+    A park whose message rests owes no open ask: a note is written closed,
+    and a page approved whole is the ceiling (ruled: Roman, 2026-10-08,
+    points 3 and 5). `scheduler.park_owns` is the test that `park_ask` and
+    the quarantined wake read too."""
     from ..core import scheduler
 
-    if status != "deferred" or not scheduler.given_up(conn, batch):
-        return False
-    # A contested item's batch goes to `do:cancel`, and no ask opens. The
-    # test is `predicates.park_ask`'s own, where a NULL compares false.
-    contested = ((approval is not None and approval != "approved")
-                 or (approval_ver is not None and version is not None
-                     and approval_ver < version))
-    return not contested
+    return (scheduler.park_owns(conn, batch)
+            and not scheduler.park_rests(conn, batch))
 
 
 def i5(conn) -> list[Finding]:

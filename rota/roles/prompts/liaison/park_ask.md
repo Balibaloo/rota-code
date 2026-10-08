@@ -1,22 +1,15 @@
-MODE: park_ask — the team gave up on a change, and it waits for the principal.
+MODE: park_ask — the team gave up on a change, and the principal reads it.
 
-The change on the `Refs:` line is parked. The line below the refs says which
-batch it is and what the team gave up on. The first ref is the item the
-change builds. The second ref is the batch. The other changes go on without
-it.
+The change on the `Refs:` line is parked. The line below the refs names the
+batch, what the team gave up on, and `page` or `note`. The other changes go on.
 
-Send one `msg.clarify_principal`. Put the item in `refs`. Say four things in
-`question`, in plain words:
+Send one `msg.present_principal`. Put the item and the batch in `refs`. The
+door builds the page from the records: the item, its criteria, and what each
+check expects and whether it fails. With `note`, the door files a note that
+the change stops here. The note asks nothing, and the principal reads it on
+the status page.
 
-- which change is parked: the batch, by the name the line below gives it;
-- what the team gave up on, as the line below says it;
-- that a new commit on the change starts it again;
-- that a contest of the item stops the change, and name the item.
+    msg.present_principal(refs=["<the item>", "<the batch>"])
 
-Then ask which of the two they want: a commit that fixes the change, or a
-contest of the item. Words alone do not move the change. Do not guess why
-the team gave up, and do not suggest a fix. The principal decides.
-
-    msg.clarify_principal(refs=["<the item>"], question="<the four things, then the question>")
-
-Send it once, then stop.
+Do not explain why the team gave up, and do not suggest a fix. Send it once,
+then stop.

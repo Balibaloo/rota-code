@@ -199,3 +199,55 @@
     # same ruling written by the wrong role.
     writes: [glossary_terms, decisions, statements]
     recipients: [vision_keeper, architect, developer, tester, researcher]
+
+- id: L1-TE-a-ruled-criterion-is-respecified-and-the-tester-told
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  # The principal contested a criterion row of a park page (frame 142,
+  # ruled: Roman, 2026-10-08, the park ask is a page with rows, point 2).
+  # The Liaison relayed it, and the relay of a criterion keys the existing
+  # mode `criterion_repair`. Night 132's bg_2 holds the criterion. Night
+  # 121's s311 respecified cr_2 and answered the Tester the same way.
+  prompt: criterion_repair
+  inbound: {id: <m_relay>, from: liaison, to: terminologist, verb: relay,
+            body_refs: [<c2>], cause: <m_rule>}
+  fixture:
+    config:
+      - {key: "verdict:<m_rule>", value: '{"<i1>": "approve", "<c1>": "approve", "<c2>": "contest"}'}
+      - {key: "entry:<m_rule>", value: '"line 3 is wrong: when stdin is at EOF and the flag is on, confirm returns the default it was given at once, and it never reads stdin again"'}
+    items:
+      - {id: <i1>, text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting.",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "confirm takes a default_on_eof flag"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "confirm() must accept an optional 'default_on_eof' boolean argument. When True and stdin is closed (EOF), confirm() returns the provided default value instead of raising an exception or aborting.",
+         term_refs: '[]', surface_refs: '["src/click/termui.py::confirm"]'}
+      - {id: <c2>, ticket_id: <tk1>,
+         text: "When 'default_on_eof' is True and stdin reaches EOF, confirm() must not attempt to read further or wait for input; it immediately returns the default value.",
+         term_refs: '[]', surface_refs: '["src/click/termui.py::confirm"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: deferred, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    messages:
+      - {id: <m_present>, thread_id: <t1>, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<i1>","<c1>","<c2>"]', seq: 1, status: answered}
+      - {id: <m_rule>, cause_id: <m_present>, thread_id: <t1>,
+         from_role: principal, to_role: liaison, verb: verdict,
+         body_refs: '["<i1>","<c1>","<c2>"]', seq: 2, status: answered}
+  expect:
+    # The rewrite of the ruled row, and the Tester told, so the next encode
+    # meets the new words.
+    writes:
+      criteria: {count: 1}
+    messages:
+      - {to: tester, verb: answer, count: 1, refs_include: [<c2>]}
+  forbidden:
+    # The ruling names one row. The approved criterion and the item stay as
+    # they are, and nothing goes back to the principal.
+    writes: [items, tickets, glossary_terms, statements, decisions]
+    recipients: [principal, vision_keeper, architect, developer]

@@ -390,34 +390,140 @@
   # The wake `park_ask` emits: the item, then the batch, and the parked line
   # below the refs (frame 87, ruled 2026-09-27 and 2026-09-30). The batch
   # was deferred with its `tests_failing` key quarantined, and a sibling
-  # runs while the principal decides.
+  # runs while the principal decides. A criterion's own test is red, so the
+  # park message is a page (frame 142, ruled: Roman, 2026-10-08).
   refs: [<i1>, <b1>]
-  detail: "<b1> is parked. The team gave up on: tests_failing for <b1>."
+  detail: "<b1> is parked. The team gave up on: tests_failing for <b1>. It is a page."
   fixture:
     items:
       - {id: <i1>, text: "the tool prints its result as JSON", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
       - {id: <i2>, text: "the tool prints its version", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "print the result as JSON"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "echo_json writes one line of compact JSON",
+         term_refs: '[]', surface_refs: '["src/out.py::echo_json"]'}
+      - {id: <c2>, ticket_id: <tk1>, text: "echo_json ends its line with a newline",
+         term_refs: '[]', surface_refs: '["src/out.py::echo_json"]'}
     batches:
       - {id: <b1>, item_id: <i1>, status: deferred, head_commit: abc123}
       - {id: <b2>, item_id: <i2>, status: running, head_commit: def456}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_echo_json.py
+        body: |
+          from src.out import echo_json
+
+
+          def test_echo_json_compact(capsys):
+              echo_json({"a": 1})
+              out = capsys.readouterr().out
+              assert out == '{"a":1}\n'
+      - id: <tst2>
+        batch_id: <b1>
+        criterion_id: <c2>
+        path: tests/test_echo_json_newline.py
+        body: |
+          from src.out import echo_json
+
+
+          def test_echo_json_newline(capsys):
+              echo_json({"a": 1})
+              out = capsys.readouterr().out
+              assert out.endswith('\n')
+      - {id: <tst3>, batch_id: <b1>, path: tests/test_out.py, body: ""}
+    test_runs:
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: fail,
+         attempt: 4, output: "E       assert '{\"a\": 1}\\n' == '{\"a\":1}\\n'"}
+      - {id: <r2>, batch_id: <b1>, test_id: <tst2>, commit_sha: abc123, result: pass,
+         attempt: 4}
+      - {id: <r3>, batch_id: <b1>, test_id: <tst3>, commit_sha: abc123, result: fail,
+         attempt: 4, output: "E       assert 2 == 1"}
     tick_attempts:
       - {tick_key: "developer|tick:tests_failing|<b1>", attempts: 3,
          quarantined: 1}
   expect:
-    # One gate. The door keeps the item alone in the refs, so the batch
-    # rides in the words, and the key is what the principal is asked about.
+    # One page. The door writes its rows from the records: the item, then
+    # the criteria of the batch in id order, whatever the session typed. The
+    # fixture's ids are drawn per run, so the order is the unit test's
+    # (`test_park_page.py`), and this case names the rows.
     messages:
-      - {to: principal, verb: clarify, count: 1, refs_equal: [<i1>],
-         text_includes: [<b1>],
-         text_includes_any: [tests_failing, failing test, Failing test]}
+      - {to: principal, verb: present, count: 1, refs_include: [<i1>, <c1>, <c2>],
+         status: open}
   forbidden:
     # The principal decides. The Liaison neither contests nor re-batches
-    # anything, asks no desk, and sends the principal nothing but the one ask.
-    writes: [items, batches, tickets, statements, decisions, rulings]
+    # anything, asks no desk, and sends the principal nothing but the page.
+    writes: [items, batches, tickets, criteria, statements, decisions, rulings]
     recipients: [vision_keeper, architect, terminologist, developer, tester, critic]
     messages:
-      - {to: principal, verb: present}
+      - {to: principal, verb: clarify}
+      - {to: principal, verb: confirm}
+      - {to: principal, verb: converse}
+
+- id: L1-LI-a-parked-batch-with-only-project-reds-is-a-note
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  tick: park_ask
+  # The same park, with the criterion's own tests green and the project's
+  # test red. The builder broke what worked, so the park message is a note
+  # that asks nothing (frame 142, ruled: Roman, 2026-10-08, point 3).
+  refs: [<i1>, <b1>]
+  detail: "<b1> is parked. The team gave up on: tests_failing for <b1>. It is a note."
+  fixture:
+    items:
+      - {id: <i1>, text: "the tool prints its result as JSON", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+      - {id: <i2>, text: "the tool prints its version", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "print the result as JSON"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "echo_json writes one line of compact JSON",
+         term_refs: '[]', surface_refs: '["src/out.py::echo_json"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: deferred, head_commit: abc123}
+      - {id: <b2>, item_id: <i2>, status: running, head_commit: def456}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_echo_json.py
+        body: |
+          from src.out import echo_json
+
+
+          def test_echo_json_compact(capsys):
+              echo_json({"a": 1})
+              out = capsys.readouterr().out
+              assert out == '{"a":1}\n'
+      - {id: <tst3>, batch_id: <b1>, path: tests/test_out.py, body: ""}
+    test_runs:
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass,
+         attempt: 4}
+      - {id: <r3>, batch_id: <b1>, test_id: <tst3>, commit_sha: abc123, result: fail,
+         attempt: 4, output: "E       assert 2 == 1"}
+    tick_attempts:
+      - {tick_key: "developer|tick:tests_failing|<b1>", attempts: 3,
+         quarantined: 1}
+  expect:
+    # One note, written closed, so `pump` never asks it.
+    messages:
+      - {to: principal, verb: present, count: 1, refs_equal: [<b1>],
+         status: answered}
+  forbidden:
+    writes: [items, batches, tickets, criteria, statements, decisions, rulings]
+    recipients: [vision_keeper, architect, terminologist, developer, tester, critic]
+    messages:
+      - {to: principal, verb: clarify}
       - {to: principal, verb: confirm}
       - {to: principal, verb: converse}

@@ -17,6 +17,14 @@ the real finding.
 Then answer the asker with refs to the criterion, so the question closes and
 their next encode meets the new words.
 
+**A ruling of the principal.** When the message is a relay with
+`principal_verdict`, the principal read this criterion and its check on a
+stopped change, and ruled. The principal's words are the note. For each
+criterion with contest or revise, rewrite it with `criteria.respecify` to say
+what the words say. Keep the other words of the criterion. Then send
+`msg.answer_tester` with the criterion in `refs`, so the Tester encodes the
+new words. An approved criterion needs nothing.
+
 The note can quote the request against the criterion. The request comes
 before the criterion. Rewrite the criterion to say what the request says. Keep
 the other words of the criterion. If the request is not clear, send

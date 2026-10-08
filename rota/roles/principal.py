@@ -18,6 +18,7 @@ authority, which is the whole of its power.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -175,7 +176,7 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
             refs=json.loads(r["body_refs"]),
             rendered=(page := render_page(conn, r["verb"],
                                           json.loads(r["body_refs"]),
-                                          r["body_text"]))[0],
+                                          r["body_text"], ask_id=r["id"]))[0],
             order=page[1])
         for r in conn.execute(
             "SELECT id, verb, body_refs, body_text FROM messages "
@@ -276,12 +277,30 @@ def render_state(conn: sqlite3.Connection) -> str:
     coming = {w.refs[1] for w in _park_ask(conn) if not conn.execute(
         "SELECT 1 FROM tick_attempts WHERE tick_key = ? AND quarantined = 1",
         (tick_key(w),)).fetchone()}
-    parked_lines = [
-        f"Stuck: {b} is parked. The team gave up on: {gave_up_on(keys)}."
-        + (" The other changes go on." if running or pending else "")
-        + " A new commit on the change starts it again."
-        + (" I ask you about it next." if b in coming else "")
-        for b, keys in keyed.items() if keys]
+    from ..core.scheduler import park_ask_id, park_message_rests, park_reds
+
+    def parked_line(b: str, keys: list[str]) -> str:
+        # A park message that rests is the report: a note says the change
+        # stops here, and a page approved whole with a check still red is
+        # the ceiling (ruled: Roman, 2026-10-08, points 3 and 5).
+        mid = park_ask_id(conn, b)
+        row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                           (mid,)).fetchone()
+        if row is not None and park_message_rests(conn, mid):
+            own, project = park_reds(conn, b)
+            if b in json.loads(row["body_refs"] or "[]"):
+                files = sorted({r["path"] or r["test_id"] for r in project})
+                return (f"Stuck: {b} stops here. It breaks {', '.join(files)}. "
+                        "A new commit on the change starts it again.")
+            return (f"Stuck: {b} stops here. You approved its checks as they "
+                    f"stand, and {len(own)} of them still fail. A new commit "
+                    "on the change starts it again.")
+        return (f"Stuck: {b} is parked. The team gave up on: {gave_up_on(keys)}."
+                + (" The other changes go on." if running or pending else "")
+                + " A new commit on the change starts it again."
+                + (" I ask you about it next." if b in coming else ""))
+
+    parked_lines = [parked_line(b, keys) for b, keys in keyed.items() if keys]
     if capped:
         parked_lines.append(
             f"Stuck: {', '.join(capped)} {'is' if len(capped) == 1 else 'are'} "
@@ -343,8 +362,134 @@ def render_ask(conn: sqlite3.Connection, verb: str, refs: list[str],
     return render_page(conn, verb, refs, question)[0]
 
 
+def _strip_comment(line: str) -> str:
+    """A line of code without its `#` comment. A `#` inside a string stays."""
+    quote = ""
+    for n, ch in enumerate(line):
+        if quote:
+            if ch == quote and line[n - 1] != chr(92):
+                quote = ""
+        elif ch in "'\"":
+            quote = ch
+        elif ch == "#":
+            return line[:n].rstrip()
+    return line.rstrip()
+
+
+def _failure_line(output: str | None) -> str:
+    """The first `E   ` line of a pytest run, without its marker."""
+    # pytest cuts the `FAILED` line's reason to the terminal width: night
+    # 132's run tr248 ends `assert F...` (frame 142's design review, finding 5).
+    for line in (output or "").splitlines():
+        if line.startswith("E   "):
+            return line[1:].strip()
+    return ""
+
+
+def check_line(conn: sqlite3.Connection, test_id: str) -> str:
+    """
+    One line that says what a test checks, read from its row: the test's
+    name, the call it makes, the expression it asserts, and its last result.
+    """
+    # Mechanical, never written by a model. A model's line is a second
+    # reading between the test and the principal, and the principal never
+    # rules on a test (ruled: Roman, 2026-10-08, the park ask is a page
+    # with rows, point 2).
+    row = conn.execute("SELECT body FROM tests WHERE id = ?", (test_id,)).fetchone()
+    lines = [_strip_comment(x) for x in ((row["body"] if row else "") or "").splitlines()]
+    lines = [x for x in lines if x.strip()]
+    name = next((m.group(1) for x in lines
+                 for m in [re.match(r"\s*def test_?(\w*)\s*\(", x)] if m), "")
+    words = " ".join(name.replace("_", " ").split()) or test_id
+    assertion = next((x.strip()[len("assert"):].strip() for x in lines
+                      if x.strip().startswith("assert ")), "")
+    parts = [words]
+    if assertion:
+        # The call separates two tests of one criterion: night 132's cr_1
+        # and cr_3 differ only in the call (frame 142's design, 2.F).
+        read = set(re.findall(r"[A-Za-z_]\w*", assertion))
+        at = next(i for i, x in enumerate(lines) if x.strip().startswith("assert "))
+        call = next((x.strip() for x in reversed(lines[:at])
+                     for m in [re.match(r"\s*([A-Za-z_]\w*)\s*=[^=]", x)]
+                     if m and m.group(1) in read), "")
+        if call:
+            parts.append(f"calls {call}")
+        parts.append(f"expects {assertion}")
+    run = conn.execute("SELECT result, output FROM test_runs WHERE test_id = ? "
+                       "ORDER BY rowid DESC LIMIT 1", (test_id,)).fetchone()
+    if run is None:
+        tail = "Not run yet."
+    elif run["result"] in ("fail", "error"):
+        why = _failure_line(run["output"])
+        tail = f"Fails: {why}." if why else "Fails."
+    else:
+        tail = "Passes."
+    return ", ".join(parts) + ". " + tail
+
+
+def _park_page(conn: sqlite3.Connection, batch: str,
+               refs: list[str]) -> tuple[str, list[str]]:
+    """The park message as the principal reads it: a page with the item and
+    its criteria, or a note when the batch is its one ref."""
+    from ..core.scheduler import failing_attempt, park_reds
+
+    own, project = park_reds(conn, batch)
+    if refs == [batch]:
+        files = sorted({r["path"] or r["test_id"] for r in project})
+        return (chr(10).join([
+            "This change stops here. It breaks checks the project had before: "
+            + ", ".join(files) + ".",
+            "Nothing waits on you. A new commit on the change starts it again."]), [])
+    out: list[str] = []
+    order: list[str] = []
+    checks = conn.execute(
+        "SELECT id, criterion_id FROM tests WHERE batch_id = ? "
+        "AND criterion_id IS NOT NULL ORDER BY id", (batch,)).fetchall()
+    tries = failing_attempt(conn, batch)
+    out.append(f"This change stopped. The team tried {tries} "
+               f"time{'' if tries == 1 else 's'}, and {len(own)} of its "
+               f"{len(checks)} checks still fail.")
+    crit = {r["id"]: r["text"] for r in conn.execute(
+        f"SELECT id, text FROM criteria WHERE id IN ({','.join('?' * len(refs))})",
+        tuple(refs))} if refs else {}
+    items = {r["id"]: r["text"] for r in conn.execute(
+        f"SELECT id, text FROM items WHERE id IN ({','.join('?' * len(refs))})",
+        tuple(refs))} if refs else {}
+    asked = [r for r in refs if r in items]
+    if asked:
+        out.append("You asked:")
+        for r in asked:
+            order.append(r)
+            out.append(f"  {len(order)}. {items[r]}")
+    must = [r for r in refs if r in crit]
+    if must:
+        out.append("It must:")
+    for r in must:
+        order.append(r)
+        out.append(f"  {len(order)}. {crit[r]}")
+        mine = [c["id"] for c in checks if c["criterion_id"] == r]
+        for t in mine:
+            out.append(f"     check: {check_line(conn, t)}")
+        if not mine:
+            out.append("     check: none yet.")
+    head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                        (batch,)).fetchone()
+    at_head = [r for r in own if head is None or head["head_commit"] is None
+               or r.get("commit_sha") in (None, head["head_commit"])] or own
+    last = [f"{r['path'] or r['test_id']} failed: {_failure_line(r['output']) or 'no reason shown'}."
+            for r in at_head[:2]]
+    if last:
+        out.append("The last attempt: " + " ".join(last))
+    out.append("Reply 'ok' if every line says what you want. The team then "
+               "stops here and tells you.")
+    out.append("Name a line to correct only that line. Ask, if something here "
+               "is unclear.")
+    return chr(10).join(out), order
+
+
 def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
-                question: str | None = None) -> tuple[str, list[str]]:
+                question: str | None = None, *,
+                ask_id: str | None = None) -> tuple[str, list[str]]:
     """
     An ask as a message to a person, and the rows it numbers, in order.
 
@@ -358,9 +503,17 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     would start. Then the ids were removed from the page while the parser
     still demanded them, and the only reply that worked was "lgtm". This
     function and `parse_reply` fix both faults together.
+
+    `ask_id` names the message the page renders. A park message renders as
+    the park page or the note, from the rows, on every read.
     """
     from ..core.runner import _resolve_refs
+    from ..core.scheduler import park_ask_batch
     from ..onboarding.boot import ZERO
+
+    parked_batch = park_ask_batch(ask_id or "")
+    if parked_batch and verb == "present":
+        return _park_page(conn, parked_batch, list(refs or []))
 
     resolved = _resolve_refs(conn, refs)
     said: list[tuple[str, str]] = []
@@ -814,6 +967,14 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # 2026-09-09).
     approved_here = [r for r in closed_here if per_item.get(r) == "approve"]
     settled = per_item and not refs and closed_here and len(approved_here) == len(closed_here)
+    # A park page approved whole is the ceiling. The team stops here and the
+    # parked line says so, so no Liaison session wakes on the verdict
+    # (ruled: Roman, 2026-10-08, the park ask is a page with rows, point 5).
+    from ..core.scheduler import park_ask_batch
+
+    if (ask.verb == "present" and park_ask_batch(ask.message_id or "")
+            and ask.refs and all(per_item.get(r) == "approve" for r in ask.refs)):
+        settled = True
     conn.execute(
         "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
         "to_role, verb, body_refs, seq, status) "

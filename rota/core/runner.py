@@ -218,6 +218,23 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
             # (ruled 2026-09-10: the seat is text, no parser reads it).
             if row and row["cause_verb"] in ("confirm", "present"):
                 return "landing"
+        # A ruling on a criterion goes to the mode that respecifies it and
+        # tells the Tester. A tool added to `relay` is an invitation
+        # (measured: `decisions.author` in a relay mode, 2026-09-03), and
+        # `criterion_repair` already holds both calls (frame 142's design,
+        # 2.F, amendment 4).
+        if (verb == "relay" and wake.role == "terminologist" and conn is not None
+                and wake.message_id):
+            row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                               (wake.message_id,)).fetchone()
+            try:
+                refs = json.loads(row["body_refs"] or "[]") if row else []
+            except (TypeError, ValueError):
+                refs = []
+            if any(isinstance(r, str) and conn.execute(
+                    "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()
+                   for r in refs):
+                return "criterion_repair"
         return verb
     if wake.kind.startswith("tick:"):
         return wake.kind.split(":", 1)[1]
@@ -1544,25 +1561,17 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 from ..roles.principal import render_page
 
                 page_refs = json.loads(clarify["body_refs"] or "[]")
+                # A park page numbers the item and its criteria, so the
+                # ruling lands on its rows as on every present (ruled: Roman,
+                # 2026-10-08, the park ask is a page with rows).
                 page, order = render_page(conn, clarify["verb"], page_refs,
-                                          clarify["body_text"])
+                                          clarify["body_text"],
+                                          ask_id=clarify["id"])
                 landing: dict[str, Any] = {
                     "page_kind": clarify["verb"], "page": page,
                     "lines": {str(i + 1): ref for i, ref in enumerate(order)},
                     "reply": row["body_text"] or "",
                 }
-                # A park ask numbers no line, and words move nothing on the
-                # batch: a commit or a contest does (ruled: Roman,
-                # 2026-09-27). The note rides in the payload, so the
-                # `landing` brief and its recordings stay as they are.
-                if park:
-                    item = page_refs[0] if page_refs else "the item"
-                    landing["no_row_to_rule"] = (
-                        f"this page is a park ask, and it has no line to rule. "
-                        f"Words do not move the parked change. A new commit on "
-                        f"the change starts it again. A contest of {item} stops "
-                        f"it. Answer the reply in one sentence with `ask`, and "
-                        f"name those two ways")
                 # The rows, while they fit. A present of 77 lines sent every
                 # row twice -- `resolved_refs` and `landing.line_rows` were the
                 # same 21,402 characters -- in a 17,220 token wake against a

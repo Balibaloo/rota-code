@@ -5,7 +5,7 @@ b1's Developer turns `tests/test_charges.py` red and stays red, b1 is
 deferred by the preempt, and b2 starts and takes in the project's tests
 under the same ids. In the night's order b1's key is quarantined twice
 before item 2 comes, so b1 is parked once the preempt defers it, and the
-walk answers three park asks before b2 starts. The proof by removal is
+walk approves every line of the park page before b2 starts. The proof by removal is
 frame 135's project-id door (the design's section 5): without it, the
 catalogue's two calls with the project's id land.
 
@@ -14,7 +14,6 @@ The second build and its landing are in `test_scene_two_batches_again.py`.
 from __future__ import annotations
 
 import sqlite3
-import warnings
 from pathlib import Path
 
 import pytest
@@ -58,33 +57,26 @@ def test_b1_failed_the_project_test_and_b2_took_the_project_tests_in(scene):
         "tests/test_charges.py", "tests/test_pricing.py", "tests/test_templates.py"}
 
 
-def test_the_walk_answers_the_park_ask_and_the_loop_asks_again(scene):
+def test_the_walk_approves_the_park_page_and_the_park_rests(scene):
     # Night 121 answered bg_2's park ask three times with the walk's stock
     # sentence, s277, s282 and s287, and the key ended at (3, 1, 1) (the
-    # review of 7a056ce0, finding 2). The scene's principal answers as the
-    # walk did: words that name neither option.
+    # review of 7a056ce0, finding 2). Frame 142: the park ask is a page with
+    # the item and its criteria. The walk with no words approves every line,
+    # which is the ceiling, and the page rests (ruled: Roman, 2026-10-08).
     from rota.core import scheduler
     conn, steps = scene.conn, scene.steps
     asks = [tuple(r) for r in conn.execute(
-        "SELECT id, status FROM messages WHERE verb = 'clarify' AND to_role = 'principal' "
+        "SELECT id, verb, status, body_refs FROM messages WHERE substr(id, 1, 7) = 'm_park_' "
         "ORDER BY seq")]
-    assert len(asks) == 3 and {s for _, s in asks} == {"answered"}
-    assert {scheduler.park_ask_batch(i) for i, _ in asks} == {"b1"}
-    # What the loop does next after each answer: the Liaison reads the words
-    # and sends one sentence back, the walk answers that sentence, and the
-    # Liaison takes it in as a new statement. Then the loop asks again.
-    answered = [i for i, s in enumerate(steps) if s == "principal|clarify|i1"]
-    assert len(answered) == 3
-    for n, i in enumerate(answered, 1):
-        assert steps[i + 1:i + 5] == ["liaison|converse|i1", f"liaison|converse|e_p{n}",
-                                     f"principal|confirm|sp{n}", f"liaison|verdict|sp{n}"]
-    assert [i for i, s in enumerate(steps) if s == PARK] == [i - 1 for i in answered]
-    # After the third ask the key is quarantined, and the Liaison reports it.
-    assert steps[steps.index("liaison|tick:quarantined|i1,b1") - 1] == "architect|deliver|sp3"
-    warnings.warn(
-        "an open question, held by frame 142: may a park ask that the principal "
-        "answered in words with no option be asked again? Today the loop asks "
-        "again after each answer, three times, and then quarantines the key.")
+    assert [(v, s, r) for _, v, s, r in asks] == [("present", "answered", '["i1", "c1"]')]
+    assert scheduler.park_ask_batch(asks[0][0]) == "b1"
+    assert scheduler.park_rests(conn, "b1")
+    (verdict,) = conn.execute("SELECT status FROM messages WHERE cause_id = ? "
+                              "AND verb = 'verdict'", (asks[0][0],)).fetchall()
+    assert verdict["status"] == "answered", "the ceiling wakes no Liaison"
+    i = steps.index(PARK)
+    assert steps[i + 1:i + 3] == ["principal|present|i1,c1", "architect|tick:annotate|b2"]
+    assert "liaison|tick:quarantined|i1,b1" not in steps
 
 
 @pytest.mark.xfail(strict=True, reason=(
@@ -101,11 +93,10 @@ globals().update(make(
     NAME,
     end=["tester|tick:tests_missing|b2"],
     attempts=[("developer|tick:tests_failing|b1", 3, 1, 1),
-              (PARK, 3, 1, 1),
-              ("liaison|tick:quarantined|b1", 1, 0, 0),
-              ("liaison|tick:quarantined|i1,b1", 1, 0, 0)],
+              (PARK, 1, 0, 0),
+              ("liaison|tick:quarantined|b1", 1, 0, 0)],
     asks=[],
     # I4: b2 took in the project's tests under b1's ids, so b1's runs name
-    # tests of b2. I5: the park ask's key is quarantined after the third
-    # ask, and parked b1 then holds no open ask.
-    known={"I4": "frame 130", "I5": "frame 142"}))
+    # tests of b2. I5 holds: the approved page rests, so parked b1 owes no
+    # open ask (frame 142).
+    known={"I4": "frame 130"}))

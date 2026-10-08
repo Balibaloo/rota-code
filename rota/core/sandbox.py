@@ -18,6 +18,7 @@ Consequences worth stating:
 from __future__ import annotations
 
 import inspect
+import json
 import re
 import sqlite3
 from pathlib import PurePath
@@ -627,11 +628,28 @@ def situational(conn: sqlite3.Connection, role: str, mode: str, wake,
         source = wake.refs[0]
     if source is not None:
         row = conn.execute(
-            "SELECT from_role FROM messages WHERE id = ?", (source,)).fetchone()
+            "SELECT from_role, verb, body_refs FROM messages WHERE id = ?",
+            (source,)).fetchone()
         if row is not None:
             asker = row["from_role"]
+            # A principal's ruling on a criterion reaches the Terminologist as
+            # the Liaison's relay. Nobody asked, and the Tester encodes the
+            # ruled words next, so the answer goes to the Tester. The asker
+            # rule left the repair no answer at all (observed: the case
+            # L1-TE-a-ruled-criterion-is-respecified-and-the-tester-told, 0/5,
+            # 2026-10-09; frame 142's design, 2.A, step 7).
+            reader = asker
+            if role == "terminologist" and row["verb"] == "relay":
+                try:
+                    ruled = json.loads(row["body_refs"] or "[]")
+                except (TypeError, ValueError):
+                    ruled = []
+                if any(isinstance(r, str) and conn.execute(
+                        "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()
+                       for r in ruled):
+                    reader = "tester"
             keep -= {k for k in keep
-                     if k.startswith("msg.answer_") and k != f"msg.answer_{asker}"}
+                     if k.startswith("msg.answer_") and k != f"msg.answer_{reader}"}
             # Frame 107. The Critic's verdict landed before its question to
             # the Terminologist. The Developer can commit a new head before
             # the answer arrives. Then a verdict from this wake judges a diff
@@ -817,6 +835,10 @@ RULED_TABLES = {
     "glossary_terms": "terminologist",
     "constraints": "architect",
     "model_areas": "architect",
+    # A criterion row of the park page. The Terminologist writes the
+    # criteria, and `criterion_repair` respecifies one from the ruled words
+    # (ruled: Roman, 2026-10-08, the park ask is a page with rows, point 2).
+    "criteria": "terminologist",
 }
 
 
@@ -1737,15 +1759,18 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # that a guard threw out must be in the log or a landed send
         # scores as none (qwen2.5:14b, 2026-09-14, the forbidden challenge).
         _CALL_LOG.setdefault(id(ctx), []).append((label, f"refs={refs or []}"))
-        # A park ask carries the item alone, whatever the session typed. A
-        # batch ref would make `rulings.rule` log an unaddressed answer
-        # against the batch (observed: frame 87's pass 3 review,
-        # 2026-09-30). The wake's first ref is the item.
+        # The park message is a page built from the records, whatever the
+        # session typed: the item and its criteria, or the batch alone for
+        # a note. The model chooses nothing on it (ruled: Roman, 2026-10-08,
+        # the park ask is a page with rows). The wake's second ref is the
+        # batch.
         park = (getattr(ctx, "wake_kind", "") == "tick:park_ask"
-                and recipient == "principal" and verb == "clarify"
+                and recipient == "principal" and verb == "present"
                 and len(ctx.wake_refs or ()) == 2)
         if park:
-            refs = [ctx.wake_refs[0]]
+            from .scheduler import park_rows
+
+            refs = park_rows(ctx.conn, ctx.wake_refs[1])
         # Required, not defaulted. A message carries refs and nothing else —
         # there is no prose field on purpose — so `refs=None` advertised a
         # legal call that communicates the fact that something happened and
@@ -2324,7 +2349,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # never substituted -- and for the same reason at one remove: the
         # `observed_entries` mode cannot read the tables whose rows it
         # presents, so what it cannot enumerate must arrive enumerated.
-        if verb == "present" and getattr(ctx, "wake_refs", None):
+        if verb == "present" and getattr(ctx, "wake_refs", None) and not park:
             refs += [r for r in ctx.wake_refs
                      if isinstance(r, str) and r and r not in refs]
         # A submit's present carries the uncovered statements by the same
@@ -2630,7 +2655,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
 
             msg_id = park_ask_id(ctx.conn, ctx.wake_refs[1])
         for n, to_role in enumerate(recipients):
-            ctx.outbound.append({
+            staged = {
                 "id": msg_id if n == 0
                 else new_id("m", ctx.conn, offset=len(ctx.outbound)),
                 "to_role": to_role, "verb": verb,
@@ -2638,7 +2663,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 else list(refs or []),
                 "body_text": text,
                 "round_no": round_no, "cause_id": ctx.trigger,
-            })
+            }
+            # A note asks nothing, so it is written closed. An open note went
+            # to `pump`, the principal answered it, and the answer woke the
+            # Liaison on a page with no question (frame 142's design review,
+            # finding 1).
+            if park and refs == [ctx.wake_refs[1]]:
+                staged["status"] = "answered"
+            ctx.outbound.append(staged)
         out = {"id": msg_id, "to": recipient, "verb": verb}
         if len(recipients) > 1:
             # Said back, so the session knows it has finished asking. Left

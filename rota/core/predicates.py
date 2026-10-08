@@ -1495,10 +1495,20 @@ def quarantined(conn) -> list[Wake]:
     # said "1 abandoned" and nothing else, and the Liaison sent
     # `refs=["tick:quarantined"]` three times to a door that refused it.
     stalled: list[str] = []
+    from .scheduler import given_up, park_owns
+
     try:
         for row in conn.execute(
                 "SELECT tick_key, attempts FROM tick_attempts "
                 "WHERE quarantined = 1 AND reported = 0 ORDER BY tick_key"):
+            # A key that a park owns is said by the park page or the note.
+            # Night 133's s319 and s325 presented the batch alone, and the
+            # rulings on it moved nothing (frame 142's design, 2.D). A key
+            # of a running batch stays, because a running batch has no park.
+            subject = (row["tick_key"] or "").split("|", 2)[-1]
+            if (subject and row["tick_key"] in given_up(conn, subject)
+                    and park_owns(conn, subject)):
+                continue
             n += 1
             parts = (row["tick_key"] or "").split("|")
             role = parts[0] if parts else ""
@@ -1526,38 +1536,35 @@ def park_ask(conn) -> list[Wake]:
 
     A given-up batch put back in the chair waits for the principal (ruled:
     Roman, 2026-09-27). The principal answers through a gate, and the
-    Liaison writes the gate (ruled: Roman, 2026-09-30). One open ask per
-    park: the ask's id comes from the batch, its head commit, its keys and
-    the count of its closed asks. Words leave the ask open. A ruling that
-    closes it and leaves the batch parked opens the next ask, so a parked
-    batch always has a gate. The refs are
-    the item and the batch. The door keeps the item alone on the ask.
+    Liaison writes the gate (ruled: Roman, 2026-09-30). The park message
+    is a page with the item and its criteria when a criterion's own test is
+    red, and a note otherwise (ruled: Roman, 2026-10-08). Its id comes from
+    the batch, its head commit, its keys, the versions of its criteria and
+    tests, and the closed asks that did not rest. A note or a page approved
+    whole rests, so nothing more is asked until something moves. The refs
+    are the item and the batch. The door writes the page's own refs.
     """
-    from .scheduler import given_up, open_park_ask, park_ask_id
+    from .scheduler import (given_up, open_park_ask, park_ask_id, park_owns,
+                            park_reds)
 
     out = []
     for b in conn.execute(
-            "SELECT b.id, b.item_id, i.approval, i.approval_ver, i.version "
-            "FROM batches b JOIN items i ON i.id = b.item_id "
+            "SELECT b.id, b.item_id FROM batches b JOIN items i ON i.id = b.item_id "
             "WHERE b.status = 'deferred' ORDER BY b.id").fetchall():
-        keys = given_up(conn, b["id"])
         # A contested item's batch goes to `do:cancel`, so nothing is asked.
         # A contest closes the ask before the cancel runs, and the next id
         # would open a second ask on a batch that is going.
-        # The test is `cancel`'s own, where a NULL compares false.
-        unschedulable = ((b["approval"] is not None
-                          and b["approval"] != "approved")
-                         or (b["approval_ver"] is not None
-                             and b["version"] is not None
-                             and b["approval_ver"] < b["version"]))
-        if not keys or unschedulable or open_park_ask(conn, b["id"]) or conn.execute(
+        if not park_owns(conn, b["id"]) or open_park_ask(conn, b["id"]) or conn.execute(
                 "SELECT 1 FROM messages WHERE id = ?",
                 (park_ask_id(conn, b["id"]),)).fetchone():
             continue
+        keys = given_up(conn, b["id"])
         what = ", ".join(f"{k.split('|')[1].replace('tick:', '')} for {b['id']}"
                          for k in keys)
+        kind = "page" if park_reds(conn, b["id"])[0] else "note"
         out.append(Wake("liaison", "tick:park_ask", refs=(b["item_id"], b["id"]),
-                        detail=f"{b['id']} is parked. The team gave up on: {what}."))
+                        detail=f"{b['id']} is parked. The team gave up on: {what}. "
+                               f"It is a {kind}."))
     return out
 
 

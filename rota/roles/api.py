@@ -6678,21 +6678,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "body_refs": refs, "body_text": ask.strip(), "round_no": 0,
             "cause_id": ctx.trigger})
         return {"id": mid, "to": "principal", "said": ask.strip()}
-    # A park ask closes on a commit or a contest, and never on a reading of
-    # words. A ruling here would close it and cancel the batch on the
-    # Liaison's reading (ruled: Roman, 2026-09-27: the principal decides).
-    from ..core.scheduler import park_ask_batch
-
-    if park_ask_batch(page["id"]):
-        refs = json.loads(page["body_refs"] or "[]")
-        raise ValueError(
-            f"this page is a park ask, and it has no line to rule. A new commit "
-            f"starts the change again, and a contest of "
-            f"{refs[0] if refs else 'the item'} stops it. Answer the reply in "
-            f"one sentence with `ask`")
+    # A park page is a present with rows, so this door applies to it as to
+    # every page (ruled: Roman, 2026-10-08, the park ask is a page with rows).
     ask = page
     refs = json.loads(ask["body_refs"] or "[]")
-    order = render_page(ctx.conn, ask["verb"], refs, ask["body_text"])[1] or []
+    order = render_page(ctx.conn, ask["verb"], refs, ask["body_text"],
+                        ask_id=ask["id"])[1] or []
     # A page with no numbered line, the touch note, takes an empty ruling:
     # the reply acknowledged it. tipsAS (2026-09-11): the Liaison sent
     # rulings={} for the touch note and was refused, the only right
@@ -6750,8 +6741,26 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             raise ValueError(
                 f"{key!r} is not a line of the page. The page numbers its "
                 f"rows 1 to {len(order)}; use those numbers")
+    # A batch line is a prediction of what the change touches, and `land`
+    # drops it. Night 133's three contests of bg_2 landed and moved nothing,
+    # and the words reached no seat (frame 142's design, 2.D). The item is
+    # the lever, so the refusal names it.
+    for ref, ruling in per_item.items():
+        if ruling == "approve":
+            continue
+        batch = ctx.conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                                 (ref,)).fetchone()
+        if batch is None:
+            continue
+        item = batch["item_id"]
+        line = (f", line {order.index(item) + 1}"
+                if order and item in order else "")
+        raise ValueError(
+            f"{ref} is the change's line: a prediction of what it touches, and "
+            f"a ruling on it moves nothing. To stop the change, contest the "
+            f"item {item}{line}. Otherwise approve the line")
     if not is_clarify:
-        unnamed = [str(i + 1) for i, r in enumerate(order) if r not in per_item]
+        unnamed =[str(i + 1) for i, r in enumerate(order) if r not in per_item]
         if unnamed:
             raise ValueError(
                 f"lines {', '.join(unnamed)} have no ruling. Every line of the "
@@ -6825,7 +6834,7 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
             "Stop")
     refs = json.loads(page["body_refs"] or "[]")
     order = render_page(ctx.conn, page["verb"], refs,
-                        page["body_text"])[1] or refs
+                        page["body_text"], ask_id=page["id"])[1] or refs
     # A long page numbers its lines `"3": "l_1 (ledger)"`, so a seat that
     # copies the value back is passing the id with its kind on it.
     key = str(line).strip().split(" (")[0].strip()

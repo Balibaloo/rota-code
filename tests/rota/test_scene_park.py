@@ -26,8 +26,9 @@ def test_b1_is_parked_with_one_open_ask_and_b2_waits(scene):
     assert scheduler.failing_attempt(conn, "b1") == 5
     assert scheduler.given_up(conn, "b1") == [KEY]
     assert scheduler.parked(conn, "b1")
+    # Frame 142: the park ask is a present, a page with the item and c1.
     asks = conn.execute("SELECT id FROM messages WHERE status = 'open' AND to_role = 'principal' "
-                        "AND verb = 'clarify'").fetchall()
+                        "AND verb = 'present'").fetchall()
     assert [r["id"] for r in asks] == [scene.ids["ask"]]
     assert scheduler.park_ask_batch(scene.ids["ask"]) == "b1"
     # The park keeps b1 out of the start's order. b1 is deferred, and a
@@ -54,4 +55,4 @@ globals().update(make(
               (KEY, 3, 1, 1),
               ("liaison|tick:park_ask|i1,b1", 1, 0, 0),
               ("liaison|tick:quarantined|b1", 1, 0, 0)],
-    asks=[("clarify", "i1")]))
+    asks=[("present", "i1", "c1")]))
