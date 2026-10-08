@@ -756,3 +756,74 @@ def test_a_header_over_two_lines_opens_a_docstring(tmp_path):
                     lines={"cr_1": "the prose of the doc."})
     assert said == _no_behaviour("cr_1", "the prose of the doc.",
                                  "a docstring line")
+
+
+# Frame 180, pass 3: the findings of the delta review of 6a2381f6.
+
+# Run 1 of the re-recorded `L1-CR-finish-the-review-with-the-answer-in-hand`,
+# verbatim from the worktree's `cassettes.db`, read-only. The seat quoted the
+# criterion's text, took the fail route and failed a correct batch.
+RUN1_CALL = ('TOOL: verdicts.emit(batch_id="b_0e7a52", result="pass", '
+             'diff_ref="src/billing/prorate.py", '
+             'lines={"c_78356e": "prorate(999, 1, 3) returns 333"})')
+# The six code lines that run 1's refusal listed, in a module.
+PRORATE = (
+    "def prorate(cents, days_used, days_in_period):\n"
+    "    if days_in_period <= 0:\n"
+    '        raise ValueError("days_in_period must be positive")\n'
+    "    if days_used <= 0:\n"
+    "        return 0\n"
+    "    return round(cents * days_used / days_in_period)\n"
+)
+
+
+def test_a_quoted_criterion_is_named_as_the_criterion_text(tmp_path):
+    repo, head = _repo_of(tmp_path, "src/billing/prorate.py", "", PRORATE)
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "b_0e7a52", ["c_78356e"], worktree=repo, head=head)
+    conn.execute("UPDATE criteria SET text = ? WHERE id = 'c_78356e'",
+                 ("prorate(999, 1, 3) returns 333",))
+    conn.commit()
+    (call,) = toolproto.extract(RUN1_CALL)
+    sb = _critic(conn, "b_0e7a52", "answer")
+    said = _refused(sb, **call.args)
+    code = [ln.strip() for ln in PRORATE.splitlines()]
+    assert said == (
+        "the line for c_78356e, 'prorate(999, 1, 3) returns 333': that is "
+        "the criterion's text, not a line of the diff. Copy the added line "
+        "that does what c_78356e says, without the +, and send the pass "
+        "again. The added lines of code are "
+        + ", ".join(repr(c) for c in code) + ".")
+    assert "claim_encodes" not in said
+
+
+def test_prose_shaped_as_a_header_opens_no_docstring():
+    """N1b: the hunk starts inside a docstring. The prose line `class Foo
+    is the base, see:` does not parse, so the bare fence after it opens no
+    docstring over the code."""
+    from rota.roles.api import _added_kinds
+    q = '"""'
+    diff = "\n".join(["@@ -10,6 +10,9 @@ def f(x):",
+                      "+    class Foo is the base, see:", "+    " + q,
+                      "+    y = x + 1", "+    return y"])
+    kinds = dict(_added_kinds(diff))
+    assert kinds["y = x + 1"] is None
+    assert kinds["return y"] is None
+
+
+def test_a_docstring_closed_by_a_fence_and_a_comma_is_a_docstring_line():
+    """Mutant R2: a `,` after the closing fence holds no code."""
+    from rota.roles.api import _added_kinds
+    diff = "\n".join(["@@ -1 +1,4 @@", "+def f():", '+    """Doc.',
+                      "+    prose", '+    """,'])
+    assert _added_kinds(diff)[-1] == ('""",', "a docstring line")
+
+
+def test_the_code_list_stops_at_eight(tmp_path):
+    """Mutant R4: nine code lines list eight and the count of the rest."""
+    body = "".join(f"value_{i} = compute({i})\n" for i in range(9))
+    conn = _one_criterion(tmp_path, "work.py", "", body)
+    said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": "zz"})
+    assert "'value_7 = compute(7)', and 1 more. If no added line" in said
+    assert "value_8" not in said

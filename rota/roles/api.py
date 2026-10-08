@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from ..core.worktrees import GIT
 
+import ast as _ast
 import difflib
 import json as _json
 
@@ -7300,6 +7301,16 @@ def _after_fence(tail: str) -> bool:
     return bool(tail) and tail not in (",", ")") and not tail.startswith("#")
 
 
+def _parses(header: str) -> bool:
+    """True when a `def` or `class` header, its lines joined, parses as
+    Python with a body under it."""
+    try:
+        _ast.parse(header + "\n pass")
+    except (SyntaxError, ValueError):
+        return False
+    return True
+
+
 def _shape_kind(text: str) -> str | None:
     """The kind of a stripped line that holds no behaviour by its shape
     alone, or None. A line with a `;` after an import holds a second
@@ -7349,6 +7360,7 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
     # The open triple-quoted string: its fence, and True for a docstring.
     in_str: tuple[str, bool] | None = None
     in_header = expect_doc = False
+    header = ""
     init_file = False
     for ln in diff_text.splitlines():
         if ln.startswith(("+++", "---", "@@", "diff ")):
@@ -7388,9 +7400,13 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
             # A header ends on its colon. A header goes on only on a line
             # that ends in `,` or `(`, so `class A(B): pass` opens no body
             # (frame 180's review, G1).
+            # A header must parse as Python, so prose such as `class Foo
+            # is the base, see:` in a docstring opens no body (frame 180's
+            # delta review, N1b).
             if text.startswith(_HEADER_STARTS) or in_header:
+                header = header + "\n" + code if in_header else code
                 in_header = code.endswith(_HEADER_GOES_ON)
-                expect_doc = code.endswith(":")
+                expect_doc = code.endswith(":") and _parses(header)
             for fence in _FENCES:
                 if text.count(fence) % 2:
                     in_str = (fence, False)
@@ -7398,6 +7414,23 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
         if ln[0] == "+":
             out.append((text, kind))
     return out
+
+
+# A part of a criterion's text with this many words or more is a quote of it.
+_QUOTE_WORDS_MIN = 4
+
+
+def _quotes_a_criterion(quote: str, texts: list[str]) -> bool:
+    """True when a named line is a criterion's text, or a part of it of
+    `_QUOTE_WORDS_MIN` words or more. Case is ignored."""
+    q = " ".join(quote.split()).casefold()
+    if not q:
+        return False
+    for text in texts:
+        t = " ".join(text.split()).casefold()
+        if q == t or (q in t and len(q.split()) >= _QUOTE_WORDS_MIN):
+            return True
+    return False
 
 
 def _held_kinds(line: str, added: list[tuple[str, str | None]]) -> list:
@@ -7470,6 +7503,10 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                 f"of the [diff] block that meets {cid}, without the +, and "
                 f"send the pass again")
     kinds = _added_kinds(_batch_diff(ctx, batch_id))
+    texts = [r["text"] or "" for r in ctx.conn.execute(
+        "SELECT c.text FROM criteria c "
+        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "WHERE bt.batch_id = ?", (batch_id,))]
     added = [a for a, _ in kinds]
     for cid in ids:
         for quote in parts[cid]:
@@ -7488,11 +7525,23 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             # review: s134's next value, `raise TypeError`, is not in the
             # diff).
             code = list(dict.fromkeys(a for a, k in kinds if k is None))
-            if not nearest and code:
+            listed = ""
+            if code:
                 shown = ", ".join(repr(a) for a in code[:_CODE_LINES_MAX])
                 more = (f", and {len(code) - _CODE_LINES_MAX} more"
                         if len(code) > _CODE_LINES_MAX else "")
-                nearest = f"The added lines of code are {shown}{more}. "
+                listed = f"The added lines of code are {shown}{more}. "
+            # A quote of a criterion is not a line of the change. The fail
+            # route here sends a correct batch to a fail, so this sentence
+            # offers none (frame 180's delta review: the re-recorded answer
+            # case's run 1 quoted `prorate(999, 1, 3) returns 333`).
+            if _quotes_a_criterion(quote, texts):
+                raise LinesRefusal(
+                    f"the line for {cid}, {quote!r}: that is the criterion's "
+                    f"text, not a line of the diff. Copy the added line that "
+                    f"does what {cid} says, without the +, and send the pass "
+                    f"again. {listed}".rstrip())
+            nearest = nearest or listed
             claim = _offer(
                 ctx, f"`verdicts.claim_encodes({cid!r}, encodes=...)` "
                      f"first, as for any fail",
