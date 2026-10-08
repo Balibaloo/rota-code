@@ -82,7 +82,7 @@ def a_night(tmp_path, batch_id: str, changed: list[str], constraints,
     root.mkdir()
     _git(root, "init", "-q")
     every = {"src/click/termui.py", "src/click/utils.py", _INIT, _UTILS_,
-             _GLOBALS, "tests/test_defaults.py"}
+             _GLOBALS, "tests/test_defaults.py", "src/cli/main.py"}
     for rel in sorted(every):
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
         (root / rel).write_bytes(b"x = 1\n")
@@ -391,3 +391,55 @@ def test_an_untracked_file_the_seat_never_saw_is_refused(night114):
     said = _refused(_architect(night114, "bg_2"),
                     **{**_args(S203_CALL), "grain": "src/click/scratch.py"})
     assert said.startswith("the batch's diff does not touch 'src/click/scratch.py'")
+
+
+# Pass 3: the findings of the delta review of 40eaebd3.
+
+def test_an_id_staged_on_another_grain_is_refused(night114):
+    """Finding 1: the second call with one id would replace the first row."""
+    sb = _architect(night114, "bg_2")
+    sb.call("findings.find", **{**_args(S203_CALL), "grain": "src/click/termui.py"})
+    said = _refused_again(sb, **{**_args(S203_CALL), "grain": "src/click"})
+    assert said == (
+        "finding id 'f2' is already filed in this session, as k0 on "
+        "src/click/termui.py, and this call would replace it. One finding id "
+        "names one row. Send this finding again with id='f3', which no batch "
+        "holds")
+    again = sb.call("findings.find", **{**_args(S203_CALL),
+                                        "grain": "src/click/termui.py"})
+    assert again["unchanged"] is True
+
+
+def test_a_violated_row_off_the_diff_meets_the_violated_check(night114):
+    """Finding 2: a violated row keeps the refusal of the violated check,
+    and not the words of check 2."""
+    night114.execute("INSERT INTO constraints (id, headline) VALUES "
+                     "('k1', 'one rule')")
+    night114.commit()
+    said = _refused(_architect(night114, "bg_2"), id="f9", batch_id="bg_2",
+                    constraint_id="k1", status="violated",
+                    grain="tests/test_defaults.py")
+    assert said == (
+        "the batch's diff does not touch 'tests/test_defaults.py'; it changed "
+        "['src/click/termui.py']. A finding names what the diff broke, on a "
+        "file the diff changed. A constraint the diff did not reach is not "
+        "violated by this batch")
+
+
+def test_k0_on_a_sibling_directory_with_a_shared_prefix_lands(tmp_path):
+    """Finding 3: `src/cli` is not inside `src/click`, so the constraints
+    that reach `src/click/__init__.py` do not reach it."""
+    conn = a_night(tmp_path, "echo_json_group", [_INIT, "src/cli/main.py"],
+                   NIGHT118_CONSTRAINTS)
+    out = _architect(conn, "echo_json_group").call(
+        "findings.find", **{**_args(S145_CALL), "grain": "src/cli"})
+    assert out == {"id": "f2", "status": "satisfied"}
+
+
+def _refused_again(sb, **kwargs) -> str:
+    """A refusal after one landed call: the staged rows stay as they were."""
+    before = list(sb.ctx.writes)
+    with pytest.raises(ValueError) as exc:
+        sb.call("findings.find", **kwargs)
+    assert sb.ctx.writes == before
+    return str(exc.value)

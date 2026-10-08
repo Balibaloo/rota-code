@@ -3007,6 +3007,21 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
                 f"{_constraint_heads(ctx.conn, reach)}. Check each of them "
                 f"against the diff, and file one finding for each, satisfied "
                 f"or violated, with {grain_file!r} as the grain")
+    # The delta review of 40eaebd3, finding 1: one id sent twice in a
+    # session on another constraint or grain replaced the first row. The
+    # same constraint and grain stays a repeat, handled above. The check
+    # runs last, so a call that a content check refuses gets that refusal
+    # first, as `test_the_finding_door_names_the_constraint_ids_to_send`
+    # holds.
+    staged = [w for w in ctx.writes if w[0] == "findings" and w[1] == id]
+    if staged:
+        row = staged[0][2]
+        raise ValueError(
+            f"finding id {id!r} is already filed in this session, as "
+            f"{row.get('constraint_id')} on {row.get('grain')}, and this call "
+            f"would replace it. One finding id names one row. Send this "
+            f"finding again with id={_free_finding_id(ctx, id)!r}, which no "
+            f"batch holds")
     ctx.writes.append(("findings", id, {
         "batch_id": batch_id, "constraint_id": constraint_id,
         "commit_sha": _head_commit(ctx, batch_id),
