@@ -7280,6 +7280,101 @@ def _line_held(line: str, added: list[str]) -> bool:
     return len(text) >= _LINE_PART_MIN and any(text in a for a in added)
 
 
+# The kinds of line that do nothing a criterion can ask for, in the words
+# the refusal uses. Frame 180: night 130's s134 named `import json` for the
+# criterion that asks for a TypeError, and the door admitted it.
+_NO_BEHAVIOUR = ("a blank line, `pass`, `...`, a comment, an import or a "
+                 "docstring line")
+_HEADER_STARTS = ("def ", "async def ", "class ")
+_FENCES = ('"""', "'''")
+
+
+def _shape_kind(text: str) -> str | None:
+    """The kind of a stripped line that holds no behaviour by its shape
+    alone, or None. A line with a `;` after an import holds a second
+    statement, so it is not an import only."""
+    if not text:
+        return "a blank line"
+    if text == "pass":
+        return "`pass`"
+    if text == "...":
+        return "`...`"
+    if text.startswith("#"):
+        return "a comment"
+    if text.startswith(("import ", "from ")) and ";" not in text:
+        return "an import"
+    if text in _FENCES:
+        return "a docstring line"
+    return None
+
+
+def _code_part(text: str) -> str:
+    """The text before a trailing comment, roughly. A `#` inside a string
+    cuts the text early, and a header test then misses a colon, which only
+    loses a docstring, never refuses code."""
+    return text.split("#", 1)[0].rstrip()
+
+
+def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
+    """Each added line of a unified diff, stripped, with the kind of line
+    with no behaviour it is, or None.
+
+    A docstring line is a line inside a triple-quoted string that opens as
+    the first line of a `def` or `class` body. The walk reads the new side
+    of each hunk, the context lines and the added lines, so a docstring
+    opened in a context line still marks its added lines. A hunk that
+    starts inside a docstring shows no opening, so its prose lines read as
+    code and only a bare fence line is refused (frame 180).
+    """
+    out: list[tuple[str, str | None]] = []
+    in_doc = None
+    in_header = expect_doc = False
+    for ln in diff_text.splitlines():
+        if ln.startswith(("+++", "---", "@@", "diff ")):
+            in_doc, in_header, expect_doc = None, False, False
+            continue
+        if not ln or ln[0] not in "+ ":
+            continue
+        text = ln[1:].strip()
+        kind = None
+        if in_doc:
+            kind = "a docstring line"
+            if in_doc in text:
+                in_doc = None
+        elif not text:
+            kind = "a blank line"
+        elif expect_doc and text.lstrip("rRuU").startswith(_FENCES):
+            kind = "a docstring line"
+            body = text.lstrip("rRuU")
+            fence = body[:3]
+            if fence not in body[3:]:
+                in_doc = fence
+            expect_doc = False
+        else:
+            expect_doc = False
+            kind = _shape_kind(text)
+            code = _code_part(text)
+            if text.startswith(_HEADER_STARTS):
+                in_header = True
+            if in_header and code.endswith(":"):
+                in_header, expect_doc = False, True
+        if ln[0] == "+":
+            out.append((text, kind))
+    return out
+
+
+def _held_kinds(line: str, added: list[tuple[str, str | None]]) -> list:
+    """The kinds of the added lines that hold one named line, as
+    `_line_held` matches them."""
+    text = line.strip()
+    if text.startswith("+"):
+        text = text[1:].strip()
+    exact = [k for a, k in added if a == text]
+    if exact:
+        return exact
+    return [k for a, k in added if text in a]
+
+
 def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     """Refuse a pass that does not name an added line for each criterion.
 
@@ -7337,7 +7432,8 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                 f"pass names one added line per criterion. Copy the one line "
                 f"of the [diff] block that meets {cid}, without the +, and "
                 f"send the pass again")
-    added = _added_lines(_batch_diff(ctx, batch_id))
+    kinds = _added_kinds(_batch_diff(ctx, batch_id))
+    added = [a for a, _ in kinds]
     for cid in ids:
         for quote in parts[cid]:
             if _line_held(quote, added):
@@ -7362,6 +7458,24 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                 f"that starts with +, without the +, and send the pass again. "
                 f"{nearest}If no added line meets {cid}, that is a fail on "
                 f"it: {claim}")
+        # A line with no behaviour meets no criterion (frame 180). A value
+        # of two parts lands when one part does something, because a
+        # statement that wraps can start or end on a comment.
+        found = [_held_kinds(q, kinds) for q in parts[cid]]
+        if all(f and all(f) for f in found):
+            quote, kind = parts[cid][0], found[0][0]
+            claim = _offer(
+                ctx, f"`verdicts.claim_encodes({cid!r}, encodes=...)` "
+                     f"first, as for any fail",
+                "verdicts.claim_encodes",
+                {"criterion_id": cid, "encodes": True},
+                then=(_fail_on(batch_id, cid),))
+            raise LinesRefusal(
+                f"the line for {cid}, {quote!r}, is {kind}, and "
+                f"{_NO_BEHAVIOUR} does nothing that a criterion asks for. "
+                f"Copy the added line that does what {cid} says, without the "
+                f"+, and send the pass again. If no added line meets {cid}, "
+                f"that is a fail on it: {claim}")
 
 
 def _fail_on(batch_id: str, cid: str) -> tuple:

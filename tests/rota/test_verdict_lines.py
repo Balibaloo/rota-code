@@ -507,3 +507,151 @@ def test_ten_recorded_passes_are_refused(tmp_path, name, mode, batch_id, ids, te
     sb = _critic(conn, batch_id, mode)
     said = _refused(sb, **call.args)
     assert said == _unnamed(list(ids), ids)
+
+
+# Frame 180: a line with no behaviour meets no criterion. Night 130's s134
+# named `import json` for the criterion that asks for a TypeError.
+
+def _no_behaviour(cid, quote, kind) -> str:
+    return (
+        f"the line for {cid}, {quote!r}, is {kind}, and a blank line, `pass`, "
+        f"`...`, a comment, an import or a docstring line does nothing that a "
+        f"criterion asks for. Copy the added line that does what {cid} says, "
+        f"without the +, and send the pass again. If no added line meets "
+        f"{cid}, that is a fail on it: `verdicts.claim_encodes({cid!r}, "
+        f"encodes=...)` first, as for any fail")
+
+
+def _repo_of(tmp_path, rel, before: str, after: str) -> tuple[str, str]:
+    """A repository whose one batch commit turns `before` into `after` in
+    the file `rel`. Returns the path and the head commit."""
+    repo = tmp_path / "repo"
+    path = repo / rel
+    path.parent.mkdir(parents=True)
+    _git(tmp_path, "init", "-q", str(repo))
+    path.write_bytes(before.encode())
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "base")
+    path.write_bytes(after.encode())
+    _git(repo, "commit", "-q", "-am", "the batch")
+    return str(repo), _git(repo, "rev-parse", "HEAD").strip()
+
+
+S134_IDS = ("echo_json_compact", "echo_json_compact_2", "echo_json_compact_3")
+# s134's call on night 130, verbatim from the `turns` table of
+# `.rota/clickI_night130.db`, turn 1.
+S134_CALL = r"""TOOL: verdicts.emit(batch_id='bg_1', result='pass', failed_criterion=None, reason='', diff_ref='', lines={'echo_json_compact': '    out = json.dumps(obj, separators=(",", ":"))', 'echo_json_compact_2': '    file.write(out + "\\n")', 'echo_json_compact_3': '    import json'})"""
+# The end of `src/click/utils.py` before bg_1, the hunk's context lines.
+S134_BEFORE = (
+    "def __getattr__(name: str) -> object:\n"
+    "    if name in _deprecated:\n"
+    '        return globals()[f"_{name}"]\n'
+    "\n"
+    "    raise AttributeError(name)\n"
+)
+# The 14 lines that commit 9a4bddfd adds, verbatim.
+S134_ADDED = (
+    "def echo_json(obj: object) -> None:\n"
+    '    """Print an object as compact JSON to the stream.\n'
+    "\n"
+    "    .. versionadded:: 8.5\n"
+    "\n"
+    "    :param obj: The object to serialize and print.\n"
+    '    """\n'
+    "    import json\n"
+    "\n"
+    '    out = json.dumps(obj, separators=(",", ":"))\n'
+    "    file = _default_text_stdout()\n"
+    r'    file.write(out + "\n")' "\n"
+    "    file.flush()\n"
+    "\n"
+)
+
+
+@pytest.fixture
+def s134(tmp_path):
+    """Night 130's bg_1: the batch adds `echo_json` to `src/click/utils.py`."""
+    repo, head = _repo_of(tmp_path, "src/click/utils.py", S134_BEFORE,
+                          S134_BEFORE + S134_ADDED)
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "bg_1", S134_IDS, worktree=repo, head=head)
+    return conn
+
+
+def test_s134_pass_naming_import_json_is_refused(s134):
+    (call,) = toolproto.extract(S134_CALL)
+    said = _refused(_critic(s134, "bg_1"), **call.args)
+    assert said == _no_behaviour("echo_json_compact_3", "import json",
+                                 "an import")
+
+
+def test_s134_pass_naming_the_dumps_line_lands(s134):
+    """`json.dumps` raises the TypeError, so its line meets the criterion."""
+    (call,) = toolproto.extract(S134_CALL)
+    lines = {**call.args["lines"],
+             "echo_json_compact_3": call.args["lines"]["echo_json_compact"]}
+    out = _critic(s134, "bg_1").call(call.name, **{**call.args, "lines": lines})
+    assert out["result"] == "pass"
+
+
+KIND_ADDED = (
+    "from x import y\n"
+    "\n"
+    "\n"
+    "def work(a):\n"
+    '    """Do the work.\n'
+    "\n"
+    "    The prose line of the docstring.\n"
+    '    """\n'
+    "    # the comment line of the work\n"
+    "    total = a + 1\n"
+    "    if a:\n"
+    "        pass\n"
+    "    ...\n"
+    "    return total  # the sum of a and one\n"
+)
+
+
+@pytest.fixture
+def kinds(tmp_path):
+    repo, head = _repo_of(tmp_path, "work.py", "", KIND_ADDED)
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "bg_1", ["cr_1"], worktree=repo, head=head)
+    return conn
+
+
+@pytest.mark.parametrize("value,quote,kind", [
+    ("+", "+", "a blank line"),
+    ("pass", "pass", "`pass`"),
+    ("...", "...", "`...`"),
+    ("# the comment line of the work", "# the comment line of the work",
+     "a comment"),
+    ("from x import y", "from x import y", "an import"),
+    ('"""', '"""', "a docstring line"),
+    ('"""Do the work.', '"""Do the work.', "a docstring line"),
+    ("The prose line of the docstring.", "The prose line of the docstring.",
+     "a docstring line"),
+], ids=["blank", "pass", "ellipsis", "comment", "import", "fence", "opening",
+        "prose"])
+def test_a_line_with_no_behaviour_is_refused(kinds, value, quote, kind):
+    said = _refused(_critic(kinds, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": value})
+    assert said == _no_behaviour("cr_1", quote, kind)
+
+
+@pytest.mark.parametrize("value", [
+    "return total  # the sum of a and one",
+    "total = a + 1",
+    "if a:",
+])
+def test_a_line_that_does_something_lands(kinds, value):
+    out = _critic(kinds, "bg_1").call("verdicts.emit", batch_id="bg_1",
+                                      result="pass", lines={"cr_1": value})
+    assert out["result"] == "pass"
+
+
+def test_the_s279_comment_alone_is_refused(s279):
+    """s279's diff adds a comment line. Named alone, it is refused."""
+    said = _refused(_critic(s279), batch_id="bg_3", result="pass",
+                    lines={**S279_LINES, CR3: L_NOTE.strip()})
+    assert said == _no_behaviour(CR3, L_NOTE.strip(), "a comment")
