@@ -793,8 +793,12 @@ def test_a_quoted_criterion_is_named_as_the_criterion_text(tmp_path):
         "the criterion's text, not a line of the diff. Copy the added line "
         "that does what c_78356e says, without the +, and send the pass "
         "again. The added lines of code are "
-        + ", ".join(repr(c) for c in code) + ".")
-    assert "claim_encodes" not in said
+        + ", ".join(repr(c) for c in code) + ". If no added line meets "
+        "c_78356e, that is a fail on it: "
+        "`verdicts.claim_encodes('c_78356e', encodes=...)` first, as for any "
+        "fail")
+    # The criterion's text is named before the fail route (frame 180, pass 4).
+    assert said.index("the criterion's text") < said.index("claim_encodes")
 
 
 def test_prose_shaped_as_a_header_opens_no_docstring():

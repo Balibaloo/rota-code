@@ -7531,23 +7531,25 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                 more = (f", and {len(code) - _CODE_LINES_MAX} more"
                         if len(code) > _CODE_LINES_MAX else "")
                 listed = f"The added lines of code are {shown}{more}. "
-            # A quote of a criterion is not a line of the change. The fail
-            # route here sends a correct batch to a fail, so this sentence
-            # offers none (frame 180's delta review: the re-recorded answer
-            # case's run 1 quoted `prorate(999, 1, 3) returns 333`).
-            if _quotes_a_criterion(quote, texts):
-                raise LinesRefusal(
-                    f"the line for {cid}, {quote!r}: that is the criterion's "
-                    f"text, not a line of the diff. Copy the added line that "
-                    f"does what {cid} says, without the +, and send the pass "
-                    f"again. {listed}".rstrip())
-            nearest = nearest or listed
             claim = _offer(
                 ctx, f"`verdicts.claim_encodes({cid!r}, encodes=...)` "
                      f"first, as for any fail",
                 "verdicts.claim_encodes",
                 {"criterion_id": cid, "encodes": True},
                 then=(_fail_on(batch_id, cid),))
+            # A quote of a criterion is not a line of the change. The words
+            # say so first, so a correct batch is not sent to a fail (frame
+            # 180's delta review: the answer case's run 1 quoted `prorate(999,
+            # 1, 3) returns 333`). The fail route stays last, because a batch
+            # that truly fails has no line to name (frame 180's second look).
+            if _quotes_a_criterion(quote, texts):
+                raise LinesRefusal(
+                    f"the line for {cid}, {quote!r}: that is the criterion's "
+                    f"text, not a line of the diff. Copy the added line that "
+                    f"does what {cid} says, without the +, and send the pass "
+                    f"again. {listed}If no added line meets {cid}, that is a "
+                    f"fail on it: {claim}")
+            nearest = nearest or listed
             raise LinesRefusal(
                 f"the line for {cid}, {quote!r}, is not an added line of the "
                 f"diff of batch {batch_id}. Copy one line of the [diff] block "
