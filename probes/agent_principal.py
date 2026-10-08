@@ -23,6 +23,8 @@ from rota.core.scheduler import park_ask_batch
 
 BRIEF = Path(__file__).resolve().parent / "principal_brief.md"
 NOTHING = "(nothing)"
+AGAIN = ("You said nothing to this page last time. This page is a question to "
+         "you, and it needs an answer in words. Silence is not an answer here.")
 RECENT = 5
 # A page in the recent list is cut, because the system prompt goes on the
 # command line, and Windows caps a command line at 32767 characters.
@@ -123,6 +125,7 @@ class AgentPrincipal:
         self.calls, self.cost = 0, 0.0
         self.last_line = ""
         self._answered: dict[str, str] = {}         # ask id -> answer verb
+        self.silent: set = set()                    # pages answered with (nothing)
 
     # -- the prompt --------------------------------------------------------
 
@@ -158,6 +161,10 @@ class AgentPrincipal:
         always asks something, and a page left unanswered keeps the walk
         waiting on it (frame 41 pass 1 review, the medium finding)."""
         system = self.system_prompt()
+        if nothing_fails and key in self.silent:
+            # Nothing else changes between two asks, so the same prompt gets
+            # the same silence (frame 41 pass 2 review, the medium finding).
+            label = f"{label}\n{AGAIN}"
         res = self.call(self.model, system, f"{label}\n\n{page}", self.scratch)
         self.calls += 1
         self.cost += float(res.get("total_cost_usd") or 0.0)
@@ -174,7 +181,9 @@ class AgentPrincipal:
             self.recent.append((page, words))
             return words
         self.failures[key] = self.failures.get(key, 0) + 1
-        error = (f"{NOTHING} on a page" if silent
+        if silent:
+            self.silent.add(key)
+        error =(f"{NOTHING} on a page" if silent
                  else _first_line(res.get("error", "")) or "no words")
         self.say(f"PRINCIPAL ERROR {key}: {error}", flush=True)
         if self.failures[key] >= 2:

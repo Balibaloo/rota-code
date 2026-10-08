@@ -130,6 +130,18 @@ def test_nothing_on_a_page_is_a_failed_call_and_the_page_stays_unanswered(tmp_pa
         a.respond(ask)
 
 
+def test_a_page_asked_again_after_nothing_says_that_it_needs_words(tmp_path):
+    m = _mod()
+    stub = Stub("(nothing)", "looks right")
+    a, _ = _agent(m, _db(tmp_path), tmp_path, stub)
+    ask = Ask(message_id="m1", verb="present", rendered="p")
+    assert a.respond(ask) is None
+    assert a.respond(ask).text == "looks right"
+    first, retry = stub.sent
+    assert m.AGAIN not in first["page"]
+    assert m.AGAIN in retry["page"] and retry["page"].endswith("\n\np")
+
+
 def test_the_record_row_holds_the_page_the_words_the_cost_and_the_model(tmp_path):
     m = _mod()
     conn = _db(tmp_path)
