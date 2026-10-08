@@ -168,6 +168,24 @@ def write_snapshot() -> None:
 asked = 0
 import time as _time
 
+# A model in the seat when WALK_AGENT names one (frame 41). The script stays
+# the default (ruled: Roman, 2026-09-18), so a night without it is unchanged.
+AGENT = os.environ.get("WALK_AGENT", "")
+agent = None
+if AGENT:
+    from agent_principal import AgentPrincipal, PrincipalDown
+    agent = AgentPrincipal(conn, AGENT, run, replied, phase=PHASE, night=NIGHT)
+
+
+def principal_down(steps: int) -> None:
+    """Two failed calls on one ask end the walk. A walk with every ask
+    deferred measures nothing (plans/frame41-design.md, Landing)."""
+    conn.commit()
+    print("PRINCIPAL DOWN", flush=True)
+    record(0, steps, asked, "principal down")
+    agent.finish()
+    sys.exit(2)
+
 
 # The night has no TUI, so the card's reading goes to the log. One line per
 # change, flushed: a night that does not spill must leave the evidence that
@@ -209,14 +227,28 @@ for i in range(cap):
         record(0, i, asked, "stalled")
         break
     if [a for a in pending_asks(conn) if a.message_id not in replied]:
-        pump(conn, Principal())
+        if agent is None:
+            pump(conn, Principal())
+        else:
+            try:
+                agent.pump(conn)
+            except PrincipalDown:
+                principal_down(i)
+            _last_page = agent.last_line or _last_page
         conn.commit()
         asked += 1
         continue
     # A Liaison sentence back with no page under it is a chat turn a person
     # would answer. Answer it once with the clarify sentence, as a new turn.
     from rota.roles.principal import pending_replies
-    for rep in pending_replies(conn):
+    for rep in (pending_replies(conn) if agent is not None else []):
+        try:
+            agent.chat(conn, rep)
+        except PrincipalDown:
+            principal_down(i)
+        _last_page = agent.last_line or _last_page
+        conn.commit()
+    for rep in (pending_replies(conn) if agent is None else []):
         if rep.message_id in replied:
             continue
         replied.add(rep.message_id)
@@ -271,6 +303,8 @@ for i in range(cap):
 else:
     print(f"step cap {cap}, {asked} asks")
 conn.commit()
+if agent is not None:
+    agent.finish(quiet=_outcome == "stuck")
 print("---")
 print(render_state(conn))
 

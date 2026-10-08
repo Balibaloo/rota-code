@@ -19,6 +19,8 @@ STATE="${ROTA_RUNS:-$REPO/.rota}"; mkdir -p "$STATE"; export ROTA_RUNS="$STATE"
 export ROTA_LIVE="$STATE/live_click.md"
 export WALK_NIGHT="${GAUNTLET_NIGHT:-}"
 export WALK_WORDS="yes that all looks right, go ahead"
+# A model in the principal's seat when GAUNTLET_AGENT names one (frame 41).
+export WALK_AGENT="${GAUNTLET_AGENT:-}"
 # The sample repository starts every night at its base commit. Night 50
 # (2026-09-14) ran on the main that night 49 had merged echo_json into, so
 # the first sentence asked for what already existed and the Developer
