@@ -460,9 +460,14 @@ Stale by the change (reasoned: which prompts the change moves):
   stale line after the pass decides. Re-record those it names.
 - `L1-LI-surface-a-quarantined-message`: none. Its refs are an item.
 
-The stale lines were not read, because the gate was still running when this
-record was written (observed: `python -m rota.tools.gate` started 19:44 on
-2026-10-08, no output at the time of writing). The list above comes from the
+The gate's baseline at adaf2504 finished after this record was first
+written: `stale (0): none`, and `exit 1: 4 new reds, 0 of them flaky`. The
+4 reds are `L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist`,
+`L1-CR-fail-names-its-criterion`,
+`L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner` and
+`test_map.py::test_mode_lists_its_base_file_and_joins_every_line`. None of the
+4 is on a site of this frame (observed: `gate.out` in `d142`, 2026-10-08).
+The stale cases after the pass are not known yet. The list above comes from the
 test files alone (reasoned). The cassette the re-records and the new cases
 touch is `tests/rota/cassettes.db`. The case files are
 `tests/rota/cases/l1_liaison2.yaml` (the park-ask case) and

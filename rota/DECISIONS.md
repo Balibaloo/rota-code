@@ -1442,3 +1442,43 @@ wsff. Roman ruled:
    default to the plan path do not ship as defaults until Roman has
    driven one batch on each path at the TUI.
 
+### The park ask is a page with rows, and the principal's words always land on a row (2026-10-08)
+
+Ruled by Roman at the terminal, 2026-10-08 23:25, "sounds good" to the assistant's
+reading after he sent the count question of frame 142 back twice: "that
+depends on why it failed", and "why would an implementer fail to implement
+the fix?". The reading he took, with two refinements and one step further:
+
+1. **There is no fix word.** The principal holds intent and shape. A fix is
+   the team's verb. The builder fails for one of four reasons: the test and
+   the request disagree, the tool damaged the code, the window hid what the
+   builder needed, or the change is past the small model. A retry of the same
+   prompt at zero temperature is the same failure, so a plain "fix it" moves
+   nothing. The count of fix choices is not ruled, because the lever does not
+   exist.
+2. **The park ask is a page with rows.** The rows are the item's criteria.
+   Each criterion row shows its test's expectation beside it in one line and
+   whether that test is red, and the page carries the builder's last attempt.
+   The principal's rulings land on the criterion rows as on every page:
+   approve, contest, revise. A contest or a revision moves the criterion's
+   version, the Tester rewrites the test from the ruled words, and the batch
+   is re-derived from the records. The principal never rules on a test.
+3. **Not every parked batch reaches the principal.** The page goes to the
+   principal only when a criterion's own test is red, because that is the
+   one case where the disagreement may be about intent. When only the
+   project's own tests are red, the builder broke what worked, which is the
+   builder's regression (ruled 2026-09-14), and the team writes a note with
+   no question: the change stops here and breaks these tests. The batch stays
+   parked and visible.
+4. **The chat intake for the principal's words goes.** Every word of the
+   principal is a ruling on a row, or it earns one Liaison question that
+   names a row. A word with no row is the leak behind night 132's loop and
+   night 133's contests that moved nothing. The composition page already
+   says the Liaison's question names the row it is about.
+5. **A page approved with a failure left is the ceiling.** The team reports
+   that it stops, and the night read counts those pages. If they pile up, the
+   note path of point 3 grows to cover them.
+
+Frame 142 carries the design. Its first design, three new words with four
+doors, was reviewed and found broken in three places before any code
+(observed: `plans/stack.md`, frame 142, the status lines of 2026-10-08).
