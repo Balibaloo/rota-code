@@ -66,3 +66,38 @@ The worktree had no baseline, so the gate stored this run and compared nothing. 
 - 18 are the 18 of the stored baseline of 658abb63 that `plans/frame178-pass1.md`, section 4, lists, and no other.
 
 No Critic case changed its prompt, so no case is stale and no re-record ran.
+
+## Pass 2
+
+**Record of 2026-10-08, meta workflow.** Pass 2 answers the six findings of the diff review of 7b25da26. The probes are in the session scratchpad, `review180/`. The answer to pass 1's question: a line inside a docstring is prose, whatever it looks like (ruled: the coordinator's resume message, 2026-10-08).
+
+| Finding | The change |
+|---|---|
+| 1, G4, a re-export is refused as an import | An import with ` as ` in it, or an import in a hunk of an `__init__.py` file, has no kind. The kind words are now `a plain import`, in the kind and in the list of the refusal |
+| 2, a line not in the diff gets no hint | When no added line is near, the refusal lists the diff's code lines, the added lines of kind None, up to 8, as `The added lines of code are ...`, and the count of the rest |
+| 3, G1, a one-line header keeps the header state open | A header line goes on only when its code part ends in `,` or `(`. A header line that ends in `:` opens a body. Any other line ends the header state |
+| 4, G2 and G6, code after a closing fence | After a closing fence, text other than `,`, `)` or a comment makes the line code. This holds for a one-line string such as `"""a""".join(x)` and for a fence that closes a docstring, such as `"""; x = call()` |
+| 5, G3, lines inside a string that is not a docstring | The walk tracks any open triple-quoted string. A code line with an odd count of one fence opens a string. Its lines have kind None up to the closing fence, unless the string is a docstring |
+| 6, mutants M5, M6, M7 and M10 stay green | New tests: a docstring that opens in a context line, two hunks with a docstring left open across the `@@`, a header over two lines, and `import x; y()` |
+
+- The probe `p3_shapes.py` now gives kind None for every line of G1 to G7, except `pass` in G7 and the docstring opening line in G6 (observed: 2026-10-08).
+- 12 new tests, 65 in the file, all green. Three tests changed their words: the kind `an import` is now `a plain import` in `_no_behaviour` and in two cases, and `test_s279_pass_with_a_line_the_diff_does_not_add_is_refused` now carries the list of s279's three code lines.
+- 8 mutants of this pass's code, M5, M6, M7, M10, the alias rule, the `__init__.py` rule, the string tracking and the text after a fence, each turn the file red (observed: `p180b/mut2.py` in the session scratchpad, 2026-10-08).
+- A bare fence line outside any string still has the kind `a docstring line`, and it now also opens a string. In a hunk that starts inside a docstring, the lines after its closing fence then read as text in a string and have kind None. This can only admit a line.
+- A test of finding 6's first case needs the `def` line in the hunk's context. A docstring whose `def` line is above the hunk shows only the function name in the `@@` header, and the walk does not read that header. Its prose lines land.
+
+### The gate
+
+The first run of pass 2 gave one stale case, `L1-CR-finish-the-review-with-the-answer-in-hand`, stale by its failure (observed: 2026-10-08 04:44). Pass 1's gate had it green, so a refusal that this pass rewords is in its recorded runs (reasoned: the case is the Critic's answer mode, and it names lines). Night 131 held the main card. The re-record by exact id ran from 04:45:24 to 04:46:22 beside the night, and 1 passed. The new recording is in the worktree's `tests/rota/cassettes.db`, which git does not track.
+
+The second run, on the uncommitted tree at de86d763 (observed: 2026-10-08):
+
+```
+suite: 25 failed, 3340 passed, 35 skipped, 17 xfailed, 18 warnings (baseline: 25 failed, 3328 passed, 35 skipped, 17 xfailed, 18 warnings)
+new reds (0): none
+reds gone (0): none
+stale (0): none
+time: 593.1s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 51678e1 2026-10-08 04:11
+```
+
+The 25 reds are the known set of section 5. The 12 more passes are the 12 new tests.
