@@ -17,7 +17,8 @@ import sqlite3
 import subprocess
 from pathlib import Path
 
-from rota.roles.principal import Answer, Ask, land, parse_reply, pending_asks
+from rota.roles.principal import Answer, Ask, land, parse_reply
+from rota.roles.principal import pump as principal_pump
 from rota.core.scheduler import park_ask_batch
 
 BRIEF = Path(__file__).resolve().parent / "principal_brief.md"
@@ -121,6 +122,7 @@ class AgentPrincipal:
         self.landed: list[tuple[str, str]] = []     # (ask id, landed id)
         self.calls, self.cost = 0, 0.0
         self.last_line = ""
+        self._answered: dict[str, str] = {}         # ask id -> answer verb
 
     # -- the prompt --------------------------------------------------------
 
@@ -148,8 +150,13 @@ class AgentPrincipal:
 
     # -- the call ----------------------------------------------------------
 
-    def _ask_model(self, key: str, verb: str, label: str, page: str) -> str | None:
-        """The person's words, or None on a failure. A second failure stops."""
+    def _ask_model(self, key: str, verb: str, label: str, page: str,
+                   nothing_fails: bool = False) -> str | None:
+        """The person's words, or None on a failure. A second failure stops.
+
+        With `nothing_fails`, the words `(nothing)` count as a failure. A page
+        always asks something, and a page left unanswered keeps the walk
+        waiting on it (frame 41 pass 1 review, the medium finding)."""
         system = self.system_prompt()
         res = self.call(self.model, system, f"{label}\n\n{page}", self.scratch)
         self.calls += 1
@@ -161,12 +168,15 @@ class AgentPrincipal:
                      "duration_ms": res.get("duration_ms"),
                      "total_cost_usd": res.get("total_cost_usd"),
                      "model": self.model})
-        if res.get("ok") and res.get("words"):
-            self.recent.append((page, res["words"]))
-            return res["words"]
+        words = res.get("words") or ""
+        silent = nothing_fails and words.strip() == NOTHING
+        if res.get("ok") and words and not silent:
+            self.recent.append((page, words))
+            return words
         self.failures[key] = self.failures.get(key, 0) + 1
-        self.say(f"PRINCIPAL ERROR {key}: {_first_line(res.get('error', '')) or 'no words'}",
-                 flush=True)
+        error = (f"{NOTHING} on a page" if silent
+                 else _first_line(res.get("error", "")) or "no words")
+        self.say(f"PRINCIPAL ERROR {key}: {error}", flush=True)
         if self.failures[key] >= 2:
             raise PrincipalDown(key)
         return None
@@ -193,7 +203,8 @@ class AgentPrincipal:
             label = "The lead sends you a stopped change. Choose a way forward."
         else:
             label = "The lead asks you a question."
-        words = self._ask_model(ask.message_id, ask.verb, label, ask.rendered or "")
+        words = self._ask_model(ask.message_id, ask.verb, label,
+                                ask.rendered or "", nothing_fails=True)
         if words is None:
             return None
         self.replied.add(ask.message_id)
@@ -203,29 +214,35 @@ class AgentPrincipal:
         else:
             head = (lines[0] if lines else ask.verb)[:90]
         self._log(f"[{ask.message_id}] {ask.verb}: {head}  -> '{_flat(words)}'")
-        if words.strip() == NOTHING:
-            # A page asks something, so silence here is a deferral.
-            return None
         # The words land as the script's words do. A clarify, park asks
         # included, goes through parse_reply: a `converse` closes a park ask
         # with an empty ruling (design 4a, point 1: night 132, m117).
         if ask.verb in ("confirm", "present"):
-            return Answer(verb="reply", text=words)
-        return parse_reply(ask, words)
+            answer = Answer(verb="reply", text=words)
+        else:
+            answer = parse_reply(ask, words)
+        self._answered[ask.message_id] = answer.verb
+        return answer
 
     def pump(self, conn: sqlite3.Connection) -> list[str]:
-        """`principal.pump`, with the second record row after each land."""
-        created: list[str] = []
-        for ask in pending_asks(conn):
-            answer = self.respond(ask)
-            if answer is None:
-                continue
-            mid = land(conn, ask, answer)
-            self._write({"kind": "land", "ask_id": ask.message_id,
-                         "as": answer.verb, "landed_id": mid})
+        """`principal.pump`, then the second record row for each answer.
+
+        The pump returns the new message ids only, so each id's cause names
+        the ask it landed on."""
+        self._answered = {}
+        created = principal_pump(conn, self)
+        landed = {}
+        for mid in created:
+            row = conn.execute("SELECT cause_id FROM messages WHERE id = ?",
+                               (mid,)).fetchone()
+            if row and row["cause_id"]:
+                landed[row["cause_id"]] = mid
+        for ask_id, verb in self._answered.items():
+            mid = landed.get(ask_id)
+            self._write({"kind": "land", "ask_id": ask_id, "as": verb,
+                         "landed_id": mid})
             if mid:
-                created.append(mid)
-                self.landed.append((ask.message_id, mid))
+                self.landed.append((ask_id, mid))
         return created
 
     # -- chat --------------------------------------------------------------
@@ -279,8 +296,11 @@ class AgentPrincipal:
         if under is not None:
             ask = Ask(message_id=under["id"], verb=under["verb"],
                       refs=json.loads(under["body_refs"] or "[]"))
-            mid = land(conn, ask, Answer(verb="reply", text=words))
-            self._write({"kind": "land", "ask_id": under["id"], "as": "reply",
+            # The same door as a page answer: words on a plain clarify close
+            # it, as the script's words do (frame 41 pass 1 review).
+            answer = parse_reply(ask, words)
+            mid = land(conn, ask, answer)
+            self._write({"kind": "land", "ask_id": under["id"], "as": answer.verb,
                          "landed_id": mid, "via": reply.message_id})
             if mid:
                 self.landed.append((under["id"], mid))
@@ -295,6 +315,7 @@ class AgentPrincipal:
                      (f"m_p{n}", reply.message_id, f'["e_p{n}"]', seq))
         self._write({"kind": "land", "ask_id": reply.message_id, "as": "entry",
                      "landed_id": f"m_p{n}"})
+        self.landed.append((reply.message_id, f"m_p{n}"))
 
     # -- the end -----------------------------------------------------------
 
@@ -309,14 +330,18 @@ class AgentPrincipal:
             replies = [r["id"] for r in conn.execute(
                 "SELECT id FROM messages WHERE cause_id = ? AND from_role = 'principal'",
                 (ask_id,))]
-            rulings = [dict(id=r["id"], per_item=r["per_item"], status=r["status"])
+            # The reply id on a ruling and the cause on an ask-back name the
+            # landed reply each one answers, so a night read can join them.
+            rulings = [dict(id=r["id"], reply_id=r["reply_id"], per_item=r["per_item"],
+                            status=r["status"])
                        for r in conn.execute(
-                           "SELECT id, per_item, status FROM rulings WHERE ask_id = ?",
-                           (ask_id,))]
+                           "SELECT id, reply_id, per_item, status FROM rulings "
+                           "WHERE ask_id = ?", (ask_id,))]
             backs = []
             for rid in replies:
-                backs += [dict(id=r["id"], text=r["body_text"]) for r in conn.execute(
-                    "SELECT id, body_text FROM messages WHERE cause_id = ? "
+                backs += [dict(id=r["id"], cause_id=r["cause_id"], text=r["body_text"])
+                          for r in conn.execute(
+                    "SELECT id, cause_id, body_text FROM messages WHERE cause_id = ? "
                     "AND from_role = 'liaison' AND to_role = 'principal' "
                     "AND verb = 'converse'", (rid,))]
             nxt = "ruling" if rulings else ("ask back" if backs else "nothing")

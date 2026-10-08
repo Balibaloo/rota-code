@@ -119,21 +119,43 @@ def test_a_failed_call_defers_once_and_the_second_stops_the_walk(tmp_path):
         a.respond(ask)
 
 
+def test_nothing_on_a_page_is_a_failed_call_and_the_page_stays_unanswered(tmp_path):
+    m = _mod()
+    a, out = _agent(m, _db(tmp_path), tmp_path, Stub("(nothing)", "(nothing)"))
+    ask = Ask(message_id="m1", verb="present", rendered="p")
+    assert a.respond(ask) is None
+    assert "m1" not in a.replied
+    assert out == ["PRINCIPAL ERROR m1: (nothing) on a page"]
+    with pytest.raises(m.PrincipalDown):
+        a.respond(ask)
+
+
 def test_the_record_row_holds_the_page_the_words_the_cost_and_the_model(tmp_path):
     m = _mod()
     conn = _db(tmp_path)
     _msg(conn, "m1", "present", text="the page")
-    a, out = _agent(m, conn, tmp_path, Stub("looks right"))
+    a, out = _agent(m, conn, tmp_path, Stub("looks right", "nothing else, thanks"))
     a.pump(conn)
+    page = pending_asks(conn)[0].rendered
+    landed_id = conn.execute("SELECT id FROM messages WHERE cause_id='m1'").fetchone()[0]
+    # The Liaison rules on the reply and asks back on it.
+    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, status) "
+                 "VALUES ('r1', 'm1', ?, '{}', 'landed')", (landed_id,))
+    _msg(conn, "m9", "converse", cause=landed_id, text="anything else?", status="answered")
+    _msg(conn, "m8", "converse", text="all done.")
+    a.chat(conn, pending_replies(conn)[0])
     a.finish()
-    call, landed, nxt = _rows(tmp_path)
-    assert call["kind"] == "call" and call["page"] == pending_asks(conn)[0].rendered
+    call, landed, _, _, nxt, chat_nxt = _rows(tmp_path)
+    assert call["kind"] == "call" and call["page"] == page
     assert call["words"] == "looks right" and call["total_cost_usd"] == 0.05
     assert call["model"] == "opus" and call["night"] == "133" and call["duration_ms"] == 1200
     assert call["phase"] == "sentence 2" and call["message_id"] == "m1" and call["clock"]
-    assert landed["ask_id"] == "m1" and landed["landed_id"] and landed["as"] == "reply"
-    assert nxt["kind"] == "next" and nxt["ask_id"] == "m1" and nxt["next"] == "nothing"
-    assert out[-1] == "principal: 1 calls, 0.05 dollars on opus"
+    assert landed["ask_id"] == "m1" and landed["landed_id"] == landed_id and landed["as"] == "reply"
+    assert nxt["kind"] == "next" and nxt["ask_id"] == "m1" and nxt["next"] == "ruling"
+    assert nxt["rulings"][0]["reply_id"] == landed_id
+    assert nxt["ask_backs"] == [{"id": "m9", "cause_id": landed_id, "text": "anything else?"}]
+    assert chat_nxt["kind"] == "next" and chat_nxt["ask_id"] == "m8"
+    assert out[-1] == "principal: 2 calls, 0.10 dollars on opus"
 
 
 def test_the_binary_is_claude_bin_first_and_the_extension_folder_second(tmp_path):
@@ -166,6 +188,19 @@ def test_an_ask_back_on_an_open_page_lands_on_that_page(tmp_path):
     assert conn.execute("SELECT status FROM messages WHERE id='m3'").fetchone()[0] == "answered"
     assert conn.execute("SELECT COUNT(*) FROM entries WHERE id LIKE 'e_p%'").fetchone()[0] == entries
     assert "The lead asks about your answer to a page." in a.call.sent[0]["page"]
+
+
+def test_an_ask_back_on_a_plain_clarify_closes_it_as_the_script_words_do(tmp_path):
+    m = _mod()
+    conn = _db(tmp_path)
+    _msg(conn, "m1", "clarify", text="which name?")
+    _msg(conn, "m2", "converse", to_role="liaison", from_role="principal", cause="m1",
+         text="the short one")
+    _msg(conn, "m3", "converse", cause="m2", text="echo_json or dump_json?")
+    a, _ = _agent(m, conn, tmp_path, Stub("echo json"))
+    a.chat(conn, pending_replies(conn)[0])
+    assert conn.execute("SELECT status FROM messages WHERE id='m1'").fetchone()[0] == "answered"
+    assert _rows(tmp_path)[-1]["as"] == "converse"
 
 
 def test_a_park_ask_answer_lands_as_reply_and_the_ask_stays_open(tmp_path):

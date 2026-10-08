@@ -184,6 +184,10 @@ def principal_down(steps: int) -> None:
     print("PRINCIPAL DOWN", flush=True)
     record(0, steps, asked, "principal down")
     agent.finish()
+    # progress.py reads a walk with no finish row as one that still runs.
+    _progress.write(run, PHASE, _n0, _t0, _last_page)
+    _progress.finish(run, PHASE, conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] - _n0,
+                     (_time.time() - _t0) / 60, "principal down", NIGHT)
     sys.exit(2)
 
 
