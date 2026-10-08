@@ -131,6 +131,53 @@ Nothing else in the gauntlet changes.
 4. The record row holds the page, the words, the cost and the model.
 5. The binary search: `CLAUDE_BIN` first, the extension folder second.
 
+## 4a. The design review's changes
+
+The review ran on Opus at de914ca2, 83.4k on the harness line, six points
+(observed: the reviewer's probes in this session's scratchpad, `p1.py`,
+`p6.py`, `p6b.py`, 2026-10-08). Four changes, in the order the code meets
+them.
+
+1. **Every answer to a clarify lands through `parse_reply(ask, words)`**
+   (CONFIRMED, `rota/roles/principal.py:126-144` and `703-709`). A park
+   ask is a clarify, and a `converse` closes it at the door with an empty
+   ruling: night 132's three park asks, m117, m140 and m169, are `answered`
+   with `per_item='{}'`. `parse_reply` sends a park ask down the `reply`
+   path, which keeps it open. The backend never chooses the verb by page
+   kind.
+2. **The Liaison's ask-back lands on its open page** (CONFIRMED,
+   `probes/walk.py:211-233` and `rota/core/runner.py:213-220`). When the
+   Liaison answers a page with `rulings.rule(ask=...)`, the page stays
+   open under its id and the question reaches the principal as a
+   `converse`. The walk today answers it as a new entry, which the runner
+   routes to chat, and the page stays open and filtered by `replied`. That
+   is the walk-side half of night 132's loop. The backend follows the
+   reply's cause chain to the open ask and lands the words there as
+   `Answer(verb="reply")`, one answer per Liaison question. The script
+   keeps today's path.
+3. **No `--bare`, and the child runs from a scratch directory** (CONFIRMED
+   by the reviewer's probe: with `--bare` the call exits 1, `Not logged
+   in`, because `--bare` reads only an API key; this session's call of
+   09:58 had no `--bare` and answered). The child's working directory is
+   a scratch folder under `$ROTA_RUNS`, so rota's `CLAUDE.md` and the
+   hooks of `.claude/settings.json` do not load, and the implementer
+   proves that no peer row appears in `python rota/tools/handover.py
+   peers` after a call. `--max-turns` does not exist; `--max-budget-usd`
+   does, and the call passes `--max-budget-usd 1`.
+4. **A second record row after the land** (PLAUSIBLE): the ask id, the
+   landed message id, and at the walk's end the Liaison's next move on
+   that ask, a ruling id with its `per_item` and status, an ask back, or
+   nothing. A walk that ends quiet prints the open asks that `replied`
+   holds, so a read tells a deferral from a finished night.
+
+One fact for the night read, not a change: **a park-ask choice cannot
+land yet** (CONFIRMED, `rota/roles/api.py:6684-6691`: `rulings.rule`
+refuses any ruling on a park ask and allows `ask=` only; only a commit
+closes it, through `close_park_asks`). The person's "fix it" moves
+nothing. The night counts those pages as unlandable on frame 142, and not
+as the agent's failure. That is frame 142's work, and it starts after this
+frame.
+
 ## 5. Ends when
 
 Frame 41's line, unchanged: a night runs with the agent principal and its
