@@ -2806,6 +2806,42 @@ def _bound_exit(ctx: "Ctx", files: list[str] | None, grain: str | None) -> str:
             f"File one finding for each one you checked.")
 
 
+def _constraint_heads(conn: sqlite3.Connection, ids: list[str], cap: int = 20) -> str:
+    """Each constraint id with the first words of its headline. An id such
+    as `unset` alone does not tell the seat what to check."""
+    heads = {r["id"]: r["headline"] or "" for r in conn.execute(
+        f"SELECT id, headline FROM constraints WHERE id IN "
+        f"({','.join('?' * len(ids))})", ids)}
+    parts = []
+    for k in ids[:cap]:
+        words = heads.get(k, "").split()
+        more = " ..." if len(words) > 6 else ""
+        parts.append(f"{k!r} ({' '.join(words[:6])}{more})")
+    more = f", and {len(ids) - cap} more" if len(ids) > cap else ""
+    return ", ".join(parts) + more
+
+
+def _finding_holder(ctx: "Ctx", id: str) -> str | None:
+    """The batch whose finding row holds `id`, staged in this session or
+    stored. A staged row counts, because the pipeline writes it at commit."""
+    for w in ctx.writes:
+        if w[0] == "findings" and w[1] == id:
+            return w[2].get("batch_id")
+    row = ctx.conn.execute(
+        "SELECT batch_id FROM findings WHERE id = ?", (id,)).fetchone()
+    return row["batch_id"] if row else None
+
+
+def _free_finding_id(ctx: "Ctx", id: str) -> str:
+    """The next id in the seat's own form that no row holds: `f2` after
+    `f1`, and `name_2` after an id with no number."""
+    m = re.match(r"^(.*?)(\d+)$", id)
+    stem, n = (m.group(1), int(m.group(2)) + 1) if m else (f"{id}_", 2)
+    while _finding_holder(ctx, f"{stem}{n}") is not None:
+        n += 1
+    return f"{stem}{n}"
+
+
 @op("findings", "find")
 def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
                status: str, grain: str) -> dict:
@@ -2876,6 +2912,32 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
             f"a fact about the register, not a rule the code can break, and "
             f"a file this batch wrote is read by this review. Record it "
             f"satisfied, or check the constraints that bind {grain!r}")
+    # Frame 178: a satisfied row also names a file the diff changed. Of 18
+    # rows on nights 114 to 128, 7 named a file from `expected to touch`
+    # that the diff never changed. A directory grain counts when it holds
+    # a changed file, as a binding's grain does.
+    if status == "satisfied" or constraint_id == ZERO:
+        files = _diff_files(ctx, batch_id)
+        if files is not None and path_shaped \
+                and grain_file not in _binding_grains(files):
+            raise ValueError(
+                f"the batch's diff does not touch {grain_file!r}; it changed "
+                f"{files}. A finding names a file the diff changed, and a "
+                f"file the batch was expected to touch is not one. Send the "
+                f"finding again with one of {files} as the grain")
+    # Frame 178: night 118's s145 filed k0 on `src/click/__init__.py` while
+    # 11 bound constraints reached that file. The brief allows k0 only when
+    # no other constraint is in range.
+    if constraint_id == ZERO and path_shaped:
+        reach = sorted(k for k in _reaching_constraints(ctx.conn, [grain_file])
+                       if k != ZERO)
+        if reach:
+            raise ValueError(
+                f"{ZERO} is for a file that no constraint reaches, and "
+                f"{len(reach)} constraints reach {grain_file!r}: "
+                f"{_constraint_heads(ctx.conn, reach)}. Check each of them "
+                f"against the diff, and file one finding for each, satisfied "
+                f"or violated, with {grain_file!r} as the grain")
     # One finding per constraint and grain in a session. `findings.load`
     # does not show staged writes, so the seat cannot see its own row.
     # Frame 90's diff review, finding 5: one recorded run filed the k0 row
@@ -2894,6 +2956,18 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
             f"you have already filed {constraint_id} "
             f"{same[0][2].get('status')} on {grain} in this session; decide, "
             f"and send the one")
+    # Frame 178: a finding id names one row across every batch, and the
+    # pipeline writes a new version of the row with that id. Nights 120 and
+    # 128: the second merge's Architect wrote `f1` again, and the first
+    # merge's row was gone. `findings.load` shows one batch, so the seat
+    # cannot see the other id. Its own batch's id stays a new version.
+    holder = _finding_holder(ctx, id)
+    if holder is not None and holder != batch_id:
+        raise ValueError(
+            f"finding id {id!r} is held by batch {holder}, and this call "
+            f"would replace that batch's finding. A finding id names one row "
+            f"across every batch. Send the finding again with "
+            f"id={_free_finding_id(ctx, id)!r}, which no batch holds")
     ctx.writes.append(("findings", id, {
         "batch_id": batch_id, "constraint_id": constraint_id,
         "commit_sha": _head_commit(ctx, batch_id),
