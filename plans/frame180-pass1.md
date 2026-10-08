@@ -132,3 +132,30 @@ time: 651.7s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 5
 ```
 
 The 25 reds are the known set of section 5.
+
+## Pass 4
+
+**Record of 2026-10-08, meta workflow.** Pass 4 answers the second look at f0c08a64.
+
+**The criterion-text refusal now ends with the fail route, after the list of code lines: `If no added line meets <cid>, that is a fail on it:` and the `verdicts.claim_encodes` offer.** A batch that truly fails the criterion has no line that meets it. Without the fail route, a seat that obeys the refusal names a listed line, and a false pass lands (reasoned: the second look's probe `review180c/test_p3_quote.py`, case C). The refusal still names the criterion's text first. The pass 3 test now asserts the whole sentence and that order. The offer is recorded before both refusals of a line that is not in the diff.
+
+Seen and not fixed (observed: the second look, 2026-10-08):
+
+- `_parses` stops only prose that does not parse. A prose line such as `class Foo:` inside a docstring still opens a docstring over the code after it.
+- In the re-recorded case, runs 3 to 5 of pass 3's recording last ran live on 2026-10-07 and replayed, and pass 3 did not change their refusals. Run 3's landed pass names the `+def prorate(...)` header with its `+`. A later frame may treat a header as a line with no behaviour.
+
+### The gate
+
+The first run gave the stale case `L1-CR-finish-the-review-with-the-answer-in-hand` again, stale by its failure, because its runs 1 and 2 met the reworded refusal (observed: 2026-10-08 05:49). The re-record by exact id ran from 05:50:40 to 05:53:31, beside night 131 on the main card, and 1 passed. Of the 5 runs, runs 1 and 2 met the criterion-text refusal, and no run sent a fail (observed: the runs in `cassettes.db`, 2026-10-08). The recording is in the worktree's `tests/rota/cassettes.db`, which git does not track.
+
+The second run, on the uncommitted tree at 56163f2f (observed: 2026-10-08):
+
+```
+suite: 25 failed, 3344 passed, 35 skipped, 17 xfailed, 18 warnings (baseline: 25 failed, 3328 passed, 35 skipped, 17 xfailed, 18 warnings)
+new reds (0): none
+reds gone (0): none
+stale (0): none
+time: 644.1s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 51678e1 2026-10-08 04:11
+```
+
+The 25 reds are the known set of section 5.
