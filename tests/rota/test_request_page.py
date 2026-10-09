@@ -751,6 +751,49 @@ M202 = ("I still can't approve this, because the line names the default tests fi
         "the flag is off.")
 
 
+# The batches the eight answers rule on, as `touch_set` reads them: the
+# `expected` grains, the `possible` grains, and the item's id and text.
+# `batch_touch`, `batches` and `items` of nights 133 and 136, read with
+# `mode=ro&immutable=1` on 2026-10-09.
+CONFIRM_133 = ("confirm_default_on_eof Let confirm() take a default_on_eof flag: when "
+               "stdin is closed it returns the default instead of aborting. The flag is "
+               "optional and defaults to False.")
+CONFIRM_136 = ("confirm_with_default_on_eof Let confirm() take a default_on_eof flag: "
+               "when stdin is closed it returns the default instead of aborting. The new "
+               "flag is off by default, so nothing changes for people who already call "
+               "confirm.")
+N133_BG2 = (["src/click/termui.py", "tests/test_defaults.py"],
+            ["confirm", "test_basic_defaults", "test_default_map_source",
+             "test_flag_default_map", "test_multiple_defaults"], CONFIRM_133)
+N136_BG2 = (["src/click/termui.py", "tests/test_defaults.py"],
+            ["test_lookup_default_override_respected"], CONFIRM_136)
+N136_BG3 = (["src/click/termui.py", "tests/test_defaults.py"],
+            ["test_default_map_source", "test_lookup_default_override_respected",
+             "test_parameter_source_on_parse_result_bypass"], CONFIRM_136)
+
+
+@pytest.mark.parametrize("words, batch, moved", [
+    (M85, N136_BG2, ["tests/test_defaults.py"]),
+    (M97, N136_BG2, ["tests/test_defaults.py"]),
+    (M228, N136_BG3, ["tests/test_defaults.py", "test_default_map_source"]),
+    (M237, N136_BG2, []),
+    (M247, N136_BG3, []),
+    (M198, N133_BG2, ["tests/test_defaults.py"]),
+    (M200, N133_BG2, ["tests/test_defaults.py"]),
+    (M202, N133_BG2, ["tests/test_defaults.py"]),
+])
+def test_the_real_answers_dispute_on_their_batches_real_rows(words, batch, moved):
+    """The eight real answers against the real touch rows of the batch they
+    rule on, the way `resolve_inbound` calls the rule. On four made-up
+    paths m198 looked right and on bg_2's rows it disputed `confirm` (the
+    delta review of afecf14a, finding 1)."""
+    from rota.core.runner import disputed_paths
+
+    expected, possible, item = batch
+    assert disputed_paths(words, expected + possible, possible=possible,
+                          item=item) == moved
+
+
 @pytest.mark.parametrize("words, moved", [
     (M85, ["tests/test_defaults.py"]),
     (M97, ["tests/test_defaults.py"]),
@@ -775,12 +818,17 @@ M202 = ("I still can't approve this, because the line names the default tests fi
     ("Don't touch test_defaults.py.", ["tests/test_defaults.py"]),
     ("Don’t touch test_defaults.py.", ["tests/test_defaults.py"]),
     ("The defaults test file wasn't the place.", ["tests/test_defaults.py"]),
+    ("termui is wrong.", ["src/click/termui.py"]),
+    ("The termui module should not change.", ["src/click/termui.py"]),
+    ("Not termui.py, the decorators file is wrong, not that one.",
+     ["src/click/termui.py", "src/click/decorators.py"]),
 ])
 def test_the_words_dispute_only_the_paths_a_no_clause_names(words, moved):
     """The principal's real answers to a touch note, and literal forms. A
     sentence disputes the paths it names when it holds a "no" word (the
-    diff review of 0ffc97b7, findings 1 and 3, and the delta review of
-    af535499, findings 2 to 4)."""
+    diff review of 0ffc97b7, findings 1 and 3, the delta review of
+    af535499, findings 2 to 4, and the delta review of afecf14a, findings
+    2 and 3)."""
     from rota.core.runner import disputed_paths
 
     paths = ["src/click/termui.py", "tests/test_defaults.py", "tests/test_termui.py",
@@ -800,7 +848,9 @@ M431 = ("Line 2 lists tests/test_defaults.py, but this change has nothing to do 
 
 
 @pytest.mark.parametrize("words, moved", [
-    (M431, []),
+    pytest.param(M431, ["tests/test_defaults.py"], marks=pytest.mark.xfail(
+        strict=True, reason='"leave that file out" asks to drop the file, and '
+                            '"leave out" is not a no-word yet')),
     ("This change does not touch option defaults or the defaults test file.",
      ["tests/test_defaults.py"]),
     ("The option defaults are not part of this change.", []),

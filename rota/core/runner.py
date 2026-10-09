@@ -1355,7 +1355,15 @@ def _word(w: str) -> str:
     return w[:-1] if len(w) > 3 and w.endswith("s") else w
 
 
-def disputed_paths(said: str, paths: list[str]) -> list[str]:
+def _parts(grain: str) -> set[str]:
+    """The word parts of a grain's file name or symbol, less "test"."""
+    name = grain.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    stem = name.rsplit(".", 1)[0]
+    return {_word(w) for w in re.split(r"[_\-]+", stem) if w} - {"test", "tests"}
+
+
+def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
+                   item: str | None = None) -> list[str]:
     """
     The paths of a prediction that the principal's words call wrong.
 
@@ -1363,25 +1371,43 @@ def disputed_paths(said: str, paths: list[str]) -> list[str]:
     a "no" word. A sentence ends at punctuation that a space or the end
     follows, so a file name keeps its dot, and at "but". A sentence names a
     path by the whole path, by its file name, or by every word of the file
-    name less "test", with a trailing "s" removed. A file name of one word
-    part names a path by that word only when "test" or "file" stands within
-    three words of it. When a part of the sentence after a comma starts
-    with a "no" word and names a path, only the paths of such parts are
-    disputed: "the termui file, not the defaults test file" disputes the
-    second file alone. When the rest of the sentence holds a "no" word too
-    and names another path, the rest holds the dispute: "the defaults test
-    file is wrong, not the termui test file" disputes the first file. A
+    name less "test", with a trailing "s" removed. A test file name of one
+    word part names a path by that word only when "test" or "file" stands
+    within three words of it. When a part of the sentence after a comma
+    starts with a "no" word and names a path, those paths are disputed, and
+    the rest of the sentence disputes its own paths only when it holds a
+    "no" word: "the termui file, not the defaults test file" disputes the
+    second file alone. A part "not B" that follows a part with a "no" word
+    about A calls B right: "the defaults test file is wrong, not the termui
+    test file" disputes the first file alone. A part that starts with a
+    "no" word never disputes a grain of `possible` whose word parts the
+    item's words hold, or any grain of `possible` when `item` is None. A
     "no" before "changes", "edits" or "need" with "beyond", "except" or
     "other than" disputes nothing. Words that name no path dispute nothing.
     """
+    item_words = (None if item is None else
+                  {_word(w) for w in re.findall(r"[a-z0-9]+", item.lower())})
+
+    def kept(path: str) -> bool:
+        # "cover option defaults, not confirm" says what the tests are
+        # about, and `confirm` is the item's own symbol (the delta review
+        # of afecf14a, finding 1, m198 of night 133).
+        if path not in possible:
+            return False
+        return item_words is None or _parts(path) <= item_words
+
     def named(text: str, path: str) -> bool:
         tokens = [_word(w) for w in re.findall(r"[a-z0-9_']+", text)]
         name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
-        stem = name.rsplit(".", 1)[0]
-        parts = {_word(w) for w in re.split(r"[_\-]+", stem) if w} - {"test", "tests"}
+        parts = _parts(path)
         if path.lower() in text or name in text:
             return True
-        if len(parts) == 1:
+        # The window holds for a test file alone. "termui is wrong" names
+        # the source by its bare word (the delta review of afecf14a,
+        # finding 2).
+        under_tests = path.replace("\\", "/").lower().startswith("tests/") or (
+            "/tests/" in path.replace("\\", "/").lower())
+        if len(parts) == 1 and under_tests:
             (part,) = parts
             return any(t == part and _FILE_WORDS & set(tokens[max(0, i - 3):i + 4])
                        for i, t in enumerate(tokens))
@@ -1403,17 +1429,32 @@ def disputed_paths(said: str, paths: list[str]) -> list[str]:
         # "A, not B": the "no" part holds the dispute, and A is what the
         # words want (the diff review of 0ffc97b7, finding 3).
         parts = sentence.split(",")
-        led_parts = [part for part in parts if no_led.match(part)]
-        led = [p for part in led_parts for p in paths if named(part, p)]
-        # "A is wrong, not B": the rest holds its own "no" about another
-        # path, so the "no" part names what the dispute is not (the delta
-        # review of af535499, finding 2).
+        led: list[str] = []
+        right: list[str] = []
+        spared: list[str] = []
+        for i, part in enumerate(parts):
+            if not no_led.match(part):
+                continue
+            names = [p for p in paths if named(part, p)]
+            spared += [p for p in names if kept(p)]
+            names = [p for p in names if not kept(p)]
+            # "A is wrong, not B": a "not" part after a part that says no
+            # about a path calls B right (the delta review of af535499,
+            # finding 2). Before it, "Not A, B is wrong" disputes both (the
+            # delta review of afecf14a, finding 3).
+            if re.match(r"\s*not\b", part) and any(
+                    not no_led.match(q) and says_no(q)
+                    and any(named(q, p) for p in paths) for q in parts[:i]):
+                right += names
+            else:
+                led += names
         rest = ",".join(part for part in parts if not no_led.match(part))
-        other = [p for p in paths if named(rest, p) and p not in led]
-        if led and other and says_no(rest):
-            led = other
-        for path in (led or hits):
-            if path not in out:
+        other = ([p for p in paths if named(rest, p)
+                  and p not in led and p not in right]
+                 if says_no(rest) else [])
+        chosen = led + other if (led or right) else hits
+        for path in chosen:
+            if path not in out and path not in spared:
                 out.append(path)
     return out
 
@@ -1568,8 +1609,11 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             # `possible` too: after m85 the symbol the words called unrelated
             # stayed there, and run 4 wrote it back (the diff review of
             # 0ffc97b7, finding 5).
+            item = touch.get("item") or {}
             disputed = disputed_paths(
-                said, touch.get("expected", []) + touch.get("possible", []))
+                said, touch.get("expected", []) + touch.get("possible", []),
+                possible=touch.get("possible", []),
+                item=" ".join(filter(None, (item.get("id"), item.get("text")))) or None)
             touch["disputed"] = disputed
             for key in ("expected", "possible"):
                 touch[key] = [p for p in touch.get(key, []) if p not in disputed]

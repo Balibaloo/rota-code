@@ -382,38 +382,26 @@ def _junction_rows(conn: sqlite3.Connection, table: str,
     """
     The rows a session's receipt labels name in a junction table.
 
-    A label names the row whose key columns, joined with ":", equal the label,
-    and a label that ends in ":*" is a clear that names no row. A label that
-    names no row loads every row whose first key column is the label's first
-    key, because such a label still says which parent the session wrote.
+    A label names the row whose key columns, joined with ":", equal the label.
+    A label that names no row, a ":*" clear among them, loads nothing.
 
     `SELECT ... WHERE id IN` raised on these tables, which have no `id`, and
     the except gave an empty list. So a `text_excludes` on `batch_touch`
-    passed on no rows (frame 190, pass 3c, the re-annotate case).
+    passed on no rows (frame 190, pass 3c, the re-annotate case). A parent's
+    rows for a label that names no row were the rows of other sessions (the
+    delta review of afecf14a, finding 4).
     """
     cols = _JUNCTION_LABELS.get(table)
     out: list[dict] = []
     seen: set[tuple] = set()
     for label in labels:
-        if label.endswith(":*"):
+        if label.endswith(":*") or not cols:
             continue
         found: list[dict] = []
         try:
-            if cols:
-                joined = " || ':' || ".join(f'"{c}"' for c in cols)
-                found = [dict(r) for r in conn.execute(
-                    f"SELECT * FROM {table} WHERE {joined} = ?", (label,))]
-            if not found:
-                first = (cols or ())[:1]
-                if not first:
-                    head = conn.execute(
-                        f"SELECT name FROM pragma_table_info('{table}') "
-                        f"ORDER BY cid LIMIT 1").fetchone()
-                    first = (head[0],) if head else ()
-                if first:
-                    found = [dict(r) for r in conn.execute(
-                        f'SELECT * FROM {table} WHERE "{first[0]}" = ?',
-                        (label.split(":", 1)[0],))]
+            joined = " || ':' || ".join(f'"{c}"' for c in cols)
+            found = [dict(r) for r in conn.execute(
+                f"SELECT * FROM {table} WHERE {joined} = ?", (label,))]
         except sqlite3.Error:
             found = []
         for row in found:

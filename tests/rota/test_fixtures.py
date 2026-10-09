@@ -213,7 +213,9 @@ def test_a_junction_table_loads_the_rows_its_receipt_labels_name():
     conn.execute(
         "INSERT INTO touch_strays (batch_id, commit_sha, path, status) "
         "VALUES ('b1', 'abc', 'src/x.py', 'open')")
-    for label in ("b1:*", "b1:src/click/termui.py", "b1:tests/test_defaults.py"):
+    # "b1:tests/gone.py" names no row: it loads nothing, not the rows of b1.
+    for label in ("b1:*", "b1:src/click/termui.py", "b1:tests/test_defaults.py",
+                  "b1:tests/gone.py"):
         conn.execute(
             "INSERT INTO receipts (session_id, table_name, row_id, new_version) "
             "VALUES ('s1', 'batch_touch', ?, 1)", (label,))
