@@ -104,11 +104,33 @@ def test_a_segment_under_an_id_on_file_is_refused_and_the_row_stays(n135):
     sb = _segmenter(n135, "e_p1")
     with pytest.raises(ValueError) as refused:
         sb.call("brief.segment", id="s1", span_start=0, span_end=223, text=E_P1)
-    assert str(refused.value) == ("s1 is on file; a statement keeps its id, and a new "
-                                  "statement takes a new id")
+    # The refusal names the next free id, and the same call with it lands
+    # (the review of eee89bc8, fix 1: s267's shape).
+    assert str(refused.value) == ("s1 is on file; a statement keeps its id. Segment "
+                                  "these words as s2")
     assert sb.ctx.writes == []
     row = n135.execute("SELECT span_entry, version FROM statements WHERE id = 's1'").fetchone()
     assert (row["span_entry"], row["version"]) == ("e_m51", 1)
+    out = sb.call("brief.segment", id="s2", span_start=0, span_end=223, text=E_P1)
+    assert out["id"] == "s2" and out["span"] == [0, len(E_P1)]
+    # Words on file meet the words refusal alone, never the id refusal first.
+    with pytest.raises(ValueError, match="these words are s1, which the principal"):
+        _segmenter(n135, "e_m51").call("brief.segment", id="s1", span_start=0,
+                                       span_end=len(E_M51), text=E_M51)
+
+
+def test_a_moved_span_is_said_in_the_result(n135):
+    """The review of eee89bc8, fix 3: the move was silent, and with the
+    words twice in the entry the door picks the nearer copy."""
+    n135.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+                 "('e_x', 'principal', 'Drop line 2. Keep line 3. Drop line 2.', 3)")
+    sb = _segmenter(n135, "e_x")
+    out = sb.call("brief.segment", id="s9", span_start=10, span_end=22, text="Drop line 2.")
+    assert out == {"id": "s9", "span_entry": "e_x", "span": [0, 12],
+                   "note": "span set from the text"}
+    # A span that holds the words is not moved, and says nothing.
+    assert "note" not in sb.call("brief.segment", id="s8", span_start=13, span_end=25,
+                                 text="Keep line 3.")
 
 
 def _page(conn, upto):
@@ -156,12 +178,13 @@ def test_a_question_the_principal_answered_is_not_asked_again(n135, upto, earlie
                                          f"principal answered it in {reply}"):
         sb.call("rulings.rule", ask=ASK)
     assert sb.ctx.outbound == []
-    # A clarify to the principal is refused too. The older door on the
-    # clarify's words fires first there and names the first ask.
+    # A clarify to the principal gets the same step. The older door on the
+    # clarify's words fires first, and it now gives the answered door's
+    # message (the review of eee89bc8, fix 2).
     other = build("liaison", n135, mode="normal", session_id="s_c",
                   allow=prompts.mode_tools("liaison", "converse"))
-    with pytest.raises(ValueError, match="you have already put these words to the "
-                                         "principal, in m119"):
+    with pytest.raises(ValueError, match=f"you asked this in {question}, and the "
+                                         f"principal answered it in {reply}"):
         other.call("msg.clarify_principal", refs=["s1"], question=ASK)
     # A converse to the principal meets the new door, as in the `answer` mode.
     from rota.roles import api

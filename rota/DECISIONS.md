@@ -1306,8 +1306,8 @@ source[span_start:span_end]`, or even that `span_end - span_start` is close to
 (2026-08-30): a statement landed with `span_start=0, span_end=53` while its
 `text` held the full 89-character request, and a second statement re-captured
 the same tail under its own id — both accepted, nothing flagged either as
-inconsistent. *Not yet fixed:* an added check that the span actually bounds
-the text it claims to.
+inconsistent. *Fixed by frame 142, pass 2e:* the door sets the span from where
+the text is in the entry, and the result says so when the span moves.
 
 ---
 

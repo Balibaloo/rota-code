@@ -1936,6 +1936,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                         and park_ask_batch(row["id"])):
                     continue
                 if " ".join((row["body_text"] or "").split()) == words:
+                    # A question the principal answered gets the answered
+                    # door's step: read the reply, then rule or end. "Reframe
+                    # it" invited the same question in new words, which both
+                    # doors then passed (the review of eee89bc8, fix 2).
+                    api.refuse_answered_question(ctx, text)
                     raise ValueError(
                         f"you have already put these words to the principal, in "
                         f"{row['id']}. Asking twice spends the one budget that "

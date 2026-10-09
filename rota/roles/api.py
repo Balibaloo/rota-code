@@ -812,14 +812,6 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                 "statement to ratify. Ask the owner whose artefact holds the "
                 "answer, or ask about the row with msg.clarify_principal")
 
-    # A statement keeps its id. Night 135's s223 called brief.segment(id='s1')
-    # on another entry, and the write became an UPDATE that overwrote the
-    # ratified s1 with other words (frame 142, night 135's read, fix 3).
-    if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?", (id,)).fetchone():
-        raise ValueError(
-            f"{id} is on file; a statement keeps its id, and a new statement "
-            f"takes a new id")
-
     # The span is the way back to the words, so it must hold them. Night
     # 135's s209 sent span 0 to 6 with 254 characters of text, seven times
     # (frame 142, night 135's read, fix 2). Where the words are in the entry
@@ -829,13 +821,18 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     row = ctx.conn.execute("SELECT text FROM entries WHERE id = ?",
                            (target,)).fetchone()
     words = text.strip()
+    moved = False
     if row is not None and row["text"] and words:
         source = row["text"]
-        if source[span_start:span_end].strip() != words:
+        # A span past the end slices to the whole tail, so the words can match
+        # and the row still claims characters the entry lacks: s1 held span
+        # 0 to 223 on a 115-character entry.
+        if source[span_start:span_end].strip() != words or span_end > len(source):
             starts = [k for k in range(len(source)) if source.startswith(words, k)]
             if starts:
                 span_start = min(starts, key=lambda k: abs(k - span_start))
                 span_end = span_start + len(words)
+                moved = True
 
     # Words on file are a row already. Night 121's s284 segmented the walk's
     # sentence as s5 a third time, and each copy went to the principal to
@@ -860,6 +857,20 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
             raise ValueError(
                 f"these words are {s['id']}, on file as {s['status']}. Cite "
                 f"{s['id']}. There is nothing to segment")
+
+    # A statement keeps its id. Night 135's s223 called brief.segment(id='s1')
+    # on another entry, and the write became an UPDATE that overwrote the
+    # ratified s1 with other words (frame 142, night 135's read, fix 3). The
+    # refusal names a free id, because the converse brief's example teaches
+    # s1, and s142, s223 and s267 all sent it (the review of eee89bc8, fix 1).
+    # It runs after the words check, so one call meets one refusal.
+    if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?", (id,)).fetchone():
+        taken = {r["id"] for r in ctx.conn.execute("SELECT id FROM statements")}
+        taken |= {w[1] for w in ctx.writes if w[0] == "statements"}
+        free = next(f"s{n}" for n in range(1, len(taken) + 2) if f"s{n}" not in taken)
+        raise ValueError(
+            f"{id} is on file; a statement keeps its id. Segment these words "
+            f"as {free}")
 
     # The same span twice is the same statement twice, whatever id it is given.
     #
@@ -898,6 +909,11 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     ctx.writes.append(("statements", id, {
         "span_entry": target, "span_start": span_start,
         "span_end": span_end, "text": text, "status": "proposed"}))
+    # A moved span is said, so the seat sees which copy of the words the
+    # row holds (the review of eee89bc8, fix 3).
+    if moved:
+        return {"id": id, "span_entry": target, "span": [span_start, span_end],
+                "note": "span set from the text"}
     return {"id": id, "span_entry": target}
 
 
