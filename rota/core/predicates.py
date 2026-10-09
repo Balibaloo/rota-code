@@ -1575,7 +1575,7 @@ def park_ask(conn) -> list[Wake]:
     return out
 
 
-@predicate("agenda", wakes="liaison", band="gate", needs_principal=True,
+@predicate("agenda", wakes="liaison", band="start", needs_principal=True,
            drains=[("ledger", "status", "open")])
 def agenda(conn) -> list[Wake]:
     """
@@ -1583,9 +1583,14 @@ def agenda(conn) -> list[Wake]:
 
     Not before onboarding is done. The Critic's challenge ticks run in the
     start band and each writes one ledger row; the agenda in the gate band
-    outranks them, so every row raised its own page before the next
+    outranked them, so every row raised its own page before the next
     challenge ran: thirteen pages on one run (tipsV, 2026-09-09). One page,
     once the rows are all there; the same gate as `observed_entries`.
+
+    Band `start`, after `annotate`, `touch_note` and `batch_start` in the
+    file. On night 136 the agenda fired 13 times after s514 and bg_4 was
+    never annotated. The ruling of 2026-09-13, point 2: "After that, nothing
+    waits on a page" (frame 190's design, 2.4).
     """
     from .scheduler import onboarding_phase, tick_agenda
 

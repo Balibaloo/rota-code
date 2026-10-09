@@ -667,9 +667,10 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     _landing(bg2, reply, {"1": "approve", "2": "approve", "3": "approve",
                           "4": "approve", "5": "contest"}, M85)
     verdict, ruled = _verdict(bg2, mid)
-    # The item is the wake's own row, so its approve stands beside the
-    # contest of the prediction.
-    assert ruled == {"bg_2": "contest", ITEM_136: "approve"}, ruled
+    # An approve of the item leaves a touch note's verdict, so the contest
+    # of the prediction cannot carry it (the diff review of 2dace61b,
+    # finding 4).
+    assert ruled == {"bg_2": "contest"}, ruled
 
     (wake,) = [w for w in open_tips(bg2) if w.message_id == verdict["id"]]
     out = run_session(bg2, wake, backend=ScriptedBackend(
@@ -684,8 +685,17 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     assert _mode_key(wake, bg2) == "annotate"
     shown = resolve_inbound(bg2, wake)
     assert shown["principal_verdict"] == {"bg_2": "contest"}
-    assert shown["touch"]["bg_2"]["expected"] == ["src/click/termui.py",
-                                                  "tests/test_defaults.py"]
+    # The path the words call wrong leaves `expected`, and the test files of
+    # the index are in front of the seat (plans/frame190-interview.md).
+    assert shown["touch"]["bg_2"]["expected"] == ["src/click/termui.py"]
+    assert shown["touch"]["bg_2"]["disputed"] == ["tests/test_defaults.py"]
+    bg2.execute("INSERT INTO code_index (grain, grain_kind) VALUES "
+                "('tests/test_termui.py', 'path')")
+    sb = build("architect", bg2, mode="annotate",
+               allow=prompts.mode_tools("architect", "annotate"))
+    sb.ctx.trigger = relay["id"]
+    assert push_working_set("architect", sb, wake)["the index's test files"] == [
+        "tests/test_defaults.py", "tests/test_termui.py"]
 
     out = run_session(bg2, wake, backend=ScriptedBackend(
         ['TOOL: batches.annotate(batch_id="bg_2", paths=["src/click/termui.py", '
@@ -702,6 +712,85 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     sb = build("tester", bg2, mode="tests_missing", batch_id="bg_2",
                allow=prompts.mode_tools("tester", "tests_missing"))
     assert push_working_set("tester", sb, wake)["touch"] == ["tests/test_termui.py"]
+
+
+def test_the_words_dispute_only_the_paths_a_no_clause_names():
+    """M85's words call the defaults test file wrong and say nothing against
+    the termui source. Words that name no path dispute nothing."""
+    from rota.core.runner import disputed_paths
+
+    paths = ["src/click/termui.py", "tests/test_defaults.py"]
+    assert disputed_paths(M85, paths) == ["tests/test_defaults.py"]
+    assert disputed_paths("Everything else looks right.", paths) == []
+    assert disputed_paths("Keep the defaults test file.", paths) == []
+
+
+def test_a_touch_note_approves_no_item_and_a_closed_batch_line_is_refused(bg2):
+    """The diff review of 2dace61b, finding 4: on a touch note a contest of
+    the batch line kept the verdict, and the approve of the draft item then
+    set it approved off the sign-off page. An abandoned batch has no line
+    to correct."""
+    bg2.execute("UPDATE items SET approval = 'draft' WHERE id = ?", (ITEM_136,))
+    (wake,) = P.REGISTRY["touch_note"].fn(bg2)
+    mid = _dispatch(bg2, wake, f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
+    reply = _reply(bg2, mid, M85)
+    bg2.execute("UPDATE batches SET status = 'abandoned' WHERE id = 'bg_2'")
+    sb = _sandbox(bg2, "liaison", "landing", reply)
+    ruling = {"1": "approve", "2": "approve", "3": "approve", "4": "approve",
+              "5": "contest"}
+    with pytest.raises(ValueError, match="bg_2 is the change's line, and the change "
+                                         "is abandoned"):
+        sb.call("rulings.rule", rulings=ruling, words=M85)
+    bg2.execute("UPDATE batches SET status = 'pending' WHERE id = 'bg_2'")
+    _landing(bg2, reply, ruling, M85)
+    verdict, ruled = _verdict(bg2, mid)
+    assert ruled == {"bg_2": "contest"}, ruled
+    assert bg2.execute("SELECT approval FROM items WHERE id = ?",
+                       (ITEM_136,)).fetchone()["approval"] == "draft"
+
+
+def test_a_stalled_key_marks_only_the_criteria_of_its_batch(bg2):
+    """The diff review of 2dace61b, finding 5: with the page's batch given,
+    every criterion on the page read as given up, another item's
+    included."""
+    from rota.roles.principal import _gave_up_tries
+
+    _item(bg2, ITEM_VO, TEXT_VO, version=4)
+    _criteria(bg2, ITEM_VO, "tk_1_version_option_show_python", CRIT_VO)
+    key = "tester|tick:tests_missing|bg_2"
+    bg2.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, reported) "
+                "VALUES (?, 3, 1, 0)", (key,))
+    assert _gave_up_tries(bg2, "cr_3_confirm_eof_default_off", "bg_2", [key]) == 3
+    assert _gave_up_tries(bg2, "c1_version_option_show_python", "bg_2", [key]) is None
+
+
+def test_a_relay_of_a_report_cannot_approve_a_contested_item(db):
+    """Night 133's wall 5: s505 on m372, a relay of the Vision Keeper's own
+    report m370, set the contested confirm item approved at v8. A relay of
+    a principal verdict that approved it at that version still may (the
+    diff review of 2dace61b, finding 3)."""
+    _statement(db, "s2", "Let confirm() take a default_on_eof flag: when stdin is "
+                         "closed it returns the default instead of aborting.")
+    _item(db, ITEM_133, TEXT_133, version=8, approval="contested", statement="s2")
+    _message(db, "m370", "vision_keeper", "liaison", "report", [ITEM_133])
+    _message(db, "m372", "liaison", "vision_keeper", "relay", [ITEM_133], cause="m370",
+             status="open")
+    db.commit()
+    sb = _sandbox(db, "vision_keeper", "relay", "m372")
+    with pytest.raises(ValueError, match=f"{ITEM_133} is contested at version 8, and no "
+                                         "verdict of the principal approved it"):
+        sb.call("problem.set_approval", id=ITEM_133, approval="approved")
+    assert sb.call("problem.set_approval", id=ITEM_133, approval="contested")
+
+    _message(db, "m380", "liaison", "principal", "present", [ITEM_133])
+    _message(db, "m381", "principal", "liaison", "verdict", [ITEM_133], cause="m380")
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m381', ?)",
+               (json.dumps({ITEM_133: "approve"}),))
+    _message(db, "m382", "liaison", "vision_keeper", "relay", [ITEM_133], cause="m381",
+             status="open")
+    db.commit()
+    sb = _sandbox(db, "vision_keeper", "relay", "m382")
+    assert sb.call("problem.set_approval", id=ITEM_133, approval="approved")
 
 
 def test_after_the_head_commit_the_batch_line_is_refused_with_the_item(bg2):
@@ -809,11 +898,27 @@ def test_an_amended_item_that_is_not_delivered_is_sliced_again(db):
     assert tick_slicing(db) == []
     (wake,) = tick_criteria(db)
     assert wake.refs == (ITEM_133,)
+    # The criteria wake sees the live ticket alone, and a criterion on the
+    # retired ticket is refused with the live one named (the diff review of
+    # 2dace61b, finding 2).
+    sb = _sandbox(db, "terminologist", "criteria", None)
+    assert [r["id"] for r in sb.call("tickets.scan", item_id=ITEM_133)] == [
+        "tk_2_confirm_default_on_eof"]
+    with pytest.raises(ValueError, match="tk_1_confirm_default_on_eof is retired.*"
+                                         "tk_2_confirm_default_on_eof"):
+        sb.call("criteria.specify", id="cr_9", ticket_id="tk_1_confirm_default_on_eof",
+                text="confirm() returns the default value when stdin is closed.",
+                term_refs=[], surface_refs=[])
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
                "('cr_4', 'tk_2_confirm_default_on_eof', 'confirm() returns the default')")
     assert tick_criteria(db) == []
     (wake,) = P.REGISTRY["grouping"].fn(db)
     assert wake.refs == ("tk_2_confirm_default_on_eof",)
+    # The page numbers the new criterion alone (finding 1).
+    assert request_rows(db, [ITEM_133]) == [ITEM_133, "cr_4"]
+    page, _ = render_page(db, "present", request_rows(db, [ITEM_133]))
+    assert "confirm() returns the default" in page
+    assert not any(text in page for _, text in CRIT_133), page
 
 
 def test_a_note_contest_never_overwrites_an_approve_of_a_stamped_criterion(m399):
@@ -894,3 +999,144 @@ def test_a_repaired_criterion_reaches_the_tester_only_after_a_commit(m399):
     sb = _sandbox(m399, "terminologist", "criterion_repair", "m502")
     with pytest.raises(ValueError, match="no change built from this criterion has a commit"):
         sb.call("msg.answer_tester", refs=["c1_version_option_show_python"])
+
+
+# ---------------------------------------------------------------------------
+# Pass 3, night 136 after s514: the next page (frame 190's design, 2.4 and
+# 2.F, amendment 3).
+# ---------------------------------------------------------------------------
+
+REPLY_62 = ("The principal's contest on parametersource_commandline requires a "
+            "refactor to align line one with the exact wording provided.")
+RECONCILE_A9 = ("the README says: Users define commands and options using decorators "
+                "in Python functions, which Click then uses to parse and execute "
+                "command-line inputs; the code shows: The API reference lists "
+                "decorators like command, option, and argument which are used to "
+                "define commands and options in Click")
+
+
+def _ledger(db, lid: str, about: str, table: str, words: str, author: str,
+            session: str | None = None) -> None:
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
+               "author) VALUES (?, ?, ?, ?, 'open', ?)", (lid, about, table, words, author))
+    if session:
+        db.execute("INSERT INTO receipts (session_id, table_name, row_id, new_version) "
+                   "VALUES (?, 'ledger', ?, 1)", (session, lid))
+
+
+def _session(db, sid: str, role: str, trigger: str | None, kind: str) -> None:
+    seq = db.execute("SELECT COALESCE(MAX(seq), 0) + 1 n FROM sessions").fetchone()["n"]
+    db.execute("INSERT INTO sessions (id, role, trigger_msg, seq, wake_kind) "
+               "VALUES (?, ?, ?, ?, ?)", (sid, role, trigger, seq, kind))
+
+
+@pytest.fixture
+def bg4(db, monkeypatch):
+    """Night 136 after s514 and s567: bg_4 grouped and `pending`, with no
+    `batch_touch` row, its item approved at version 4, and the open reply
+    row `l_62ca6652d9`. s567 woke on the relay m430, which the principal's
+    verdict m429 caused, and m430 named `parametersource_commandline`."""
+    from rota.core import scheduler
+
+    monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "done")
+    _statement(db, "s3", TEXT_VO)
+    _item(db, ITEM_VO, TEXT_VO, version=4, statement="s3")
+    _criteria(db, ITEM_VO, "tk_1_version_option_show_python", CRIT_VO)
+    _item(db, "defines_commands_and_options", "Users define commands and options "
+          "using decorators in Python functions.", version=3, described=1)
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('bg_4', ?, 'pending')",
+               (ITEM_VO,))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_4', "
+               "'tk_1_version_option_show_python')")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('parametersource_commandline', 'ParameterSource.COMMANDLINE', "
+               "'a value given on the command line')")
+    _message(db, "m427", "liaison", "principal", "present", ["parametersource_commandline"])
+    _message(db, "m429", "principal", "liaison", "verdict",
+             ["parametersource_commandline"], cause="m427")
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m429', ?)",
+               (json.dumps({"l_a599c55837": "contest",
+                            "parametersource_commandline": "contest"}),))
+    _message(db, "m430", "liaison", "architect", "relay",
+             ["parametersource_commandline"], cause="m429")
+    _session(db, "s567", "architect", "m430", "message")
+    _ledger(db, "l_62ca6652d9", "parametersource_commandline", "constraints",
+            REPLY_62, "architect", session="s567")
+    db.commit()
+    return db
+
+
+def test_the_agenda_wakes_for_a_seat_row_and_carries_the_reply_row(bg4):
+    """Night 136 after s514: each round left one reply row, the agenda fired
+    13 times, and bg_4 was never annotated. A reply row alone wakes no page.
+    A `reconcile` row wakes it, the reply row rides after it, `annotate`
+    runs first, and one ruling closes both (frame 190's design, 2.4 and
+    2.F, amendment 3)."""
+    from rota.core.scheduler import frontier, reply_rows
+
+    assert reply_rows(bg4) == {"l_62ca6652d9"}
+    assert tick_agenda(bg4, principal_present=True) == []
+
+    _session(bg4, "s11", "vision_keeper", None, "tick:reconcile")
+    _ledger(bg4, "l_a9c0ca7d82", "defines_commands_and_options", "items",
+            RECONCILE_A9, "vision_keeper", session="s11")
+    bg4.commit()
+    (wake,) = tick_agenda(bg4, principal_present=True)
+    assert list(wake.refs) == ["l_a9c0ca7d82", "l_62ca6652d9"]
+
+    # The start work goes first: `annotate` for bg_4, and its touch note.
+    kinds = [w.kind for w in frontier(bg4, principal_present=True)]
+    assert kinds.index("tick:annotate") < kinds.index("tick:agenda"), kinds
+    bg4.execute("INSERT INTO code_index (grain, grain_kind) VALUES "
+                "('src/click/decorators.py', 'path')")
+    (annotate,) = P.REGISTRY["annotate"].fn(bg4)
+    bg4.commit()
+    out = run_session(bg4, annotate, backend=ScriptedBackend(
+        ['TOOL: batches.annotate(batch_id="bg_4", paths=["src/click/decorators.py"])',
+         "done"]), pins=PINS, instructions="annotate")
+    assert out.committed, out.errors
+    kinds = [w.kind for w in frontier(bg4, principal_present=True)]
+    assert "tick:annotate" not in kinds
+    assert kinds.index("tick:touch_note") < kinds.index("tick:agenda"), kinds
+
+    (wake,) = tick_agenda(bg4, principal_present=True)
+    mid = _dispatch(bg4, wake, 'TOOL: msg.present_principal(refs=["l_a9c0ca7d82"])')
+    (ask,) = [a for a in pending_asks(bg4) if a.message_id == mid]
+    assert ask.order == ([ITEM_VO] + [c for c, _ in CRIT_VO]
+                         + ["l_a9c0ca7d82", "l_62ca6652d9"])
+    page = ask.rendered
+    assert page.index(TEAM_NOTES) < page.index("  6. The principal's contest"), page
+
+    reply = _reply(bg4, mid, "ok")
+    _landing(bg4, reply, {str(n): "approve" for n in range(1, 7)}, "ok")
+    assert bg4.execute("SELECT COUNT(*) n FROM ledger WHERE status = 'open'"
+                       ).fetchone()["n"] == 0
+
+
+def test_reply_rows_alone_draw_no_agenda_and_ride_the_next_page(bg4):
+    """Night 136 ended with one open row, `l_62ca6652d9`, a reply row. A row
+    about a message is a reply row too (2.F, amendment 7). Neither raises a
+    page. The next row from any other writer wakes the agenda, the
+    request's own row leads, and the reply rows ride after the chosen rows
+    (frame 190's design, 2.F, amendment 3)."""
+    _ledger(bg4, "l_6b81c7417e", "m427", "principal_verdict",
+            "The principal's verdict contests all six observed terms because the "
+            "onboarding page failed to describe them.", "terminologist")
+    bg4.commit()
+    assert tick_agenda(bg4, principal_present=True) == []
+    assert P.REGISTRY["agenda"].fn(bg4) == []
+
+    # An older row about a description, then a newer one about the request.
+    _ledger(bg4, "l_a9c0ca7d82", "defines_commands_and_options", "items",
+            RECONCILE_A9, "vision_keeper")
+    _ledger(bg4, "l_796a449208", "c2_version_option_show_python", "criteria",
+            "The show_python flag is a keyword argument of version_option that "
+            "defaults to False.", "architect")
+    bg4.commit()
+    (wake,) = P.REGISTRY["agenda"].fn(bg4)
+    assert list(wake.refs) == ["l_796a449208", "l_a9c0ca7d82",
+                               "l_62ca6652d9", "l_6b81c7417e"]
+    mid = _dispatch(bg4, wake, 'TOOL: msg.present_principal(refs=["l_796a449208"])')
+    refs = json.loads(bg4.execute("SELECT body_refs FROM messages WHERE id = ?",
+                                  (mid,)).fetchone()["body_refs"])
+    assert {"l_62ca6652d9", "l_6b81c7417e"} <= set(refs)

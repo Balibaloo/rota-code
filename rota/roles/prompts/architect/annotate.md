@@ -16,7 +16,9 @@ rather than the ones you would accept.
 `principal_verdict` on the batch, the principal read your prediction on the
 touch note and corrected it. The words are `principal_said`. Call
 `batches.annotate` once with the paths the words name, and keep every path
-they do not dispute. Then stop.
+they do not dispute. Then stop. The paths under `the index's test files` are
+the test files that exist. A test path you write is one of them, or a new file
+you name as new.
 
 One batch. You are annotating from source, which is what makes the annotation
 worth having and also what makes doing every batch in one session useless.

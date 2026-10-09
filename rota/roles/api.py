@@ -1347,7 +1347,29 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
         raise ValueError(
             f"the principal ruled {id} {ruling}. land wrote `{landed}`{words}. "
             f"Leave it")
-    row = ctx.conn.execute("SELECT version FROM items WHERE id = ?", (id,)).fetchone()
+    row = ctx.conn.execute("SELECT version, approval FROM items WHERE id = ?",
+                           (id,)).fetchone()
+    # A relay never approves what the principal has not approved. Night
+    # 133's wall 5: 12 approvals of the contested confirm item came from
+    # relays of a Vision Keeper report, and s505 on m372 set it approved
+    # at v8 (the diff review of 2dace61b, finding 3).
+    if approval == "approved" and row["approval"] in ("contested", "draft"):
+        trigger = getattr(ctx, "trigger", None)
+        msg = ctx.conn.execute("SELECT verb, cause_id FROM messages WHERE id = ?",
+                               (trigger,)).fetchone() if trigger else None
+        # A relay with no cause is the hand-built sign-off of the arc tests.
+        # The Liaison's door gives every relay its cause, so a real relay
+        # always has a chain to read.
+        if msg is not None and msg["verb"] == "relay" and msg["cause_id"]:
+            from .principal import chain_verdict
+
+            found = chain_verdict(ctx.conn, msg["cause_id"])
+            ruled = found[1].get(id) if found else None
+            if ruled != "approve":
+                raise ValueError(
+                    f"{id} is {row['approval']} at version {row['version']}, and no "
+                    f"verdict of the principal approved it at that version. Only "
+                    f"the principal's sign-off approves an item. Leave it")
     ctx.writes.append(("items", id, {
         "approval": approval, "approval_ver": row["version"]}, False))
     return {"id": id, "approval": approval}
@@ -4012,10 +4034,16 @@ def _batch_is_subject(ctx: Ctx, tickets: list[str]) -> bool:
 
 @op("tickets", "scan")
 def tickets_scan(ctx: Ctx, item_id: str | None = None) -> list[dict]:
+    # A retired ticket is no work. The criteria wake listed it first with
+    # the old text, and a seat that wrote criteria for it alone looped to
+    # quarantine (the diff review of 2dace61b, finding 2).
+    from ..core.scheduler import not_retired
+
+    live = not_retired(ctx.conn, "id")
     if item_id:
         return _rows(ctx.conn.execute(
             "SELECT id, item_id, substr(text,1,120) AS headline FROM tickets "
-            "WHERE item_id = ? ORDER BY id", (item_id,)))
+            "WHERE item_id = ?" + live + " ORDER BY id", (item_id,)))
     # The push calls this with no arguments, and "no arguments" must not mean
     # "every row": at fifty items that is the whole backlog in every prompt,
     # the glossary incident again. The subject is the wake's, never the
@@ -4038,9 +4066,10 @@ def tickets_scan(ctx: Ctx, item_id: str | None = None) -> list[dict]:
         marks = ",".join("?" * len(woken))
         return _rows(ctx.conn.execute(
             f"SELECT id, item_id, substr(text,1,120) AS headline FROM tickets "
-            f"WHERE item_id IN ({marks}) ORDER BY id", woken))
+            f"WHERE item_id IN ({marks})" + live + " ORDER BY id", woken))
     return _rows(ctx.conn.execute(
-        "SELECT id, item_id, substr(text,1,120) AS headline FROM tickets ORDER BY id"))
+        "SELECT id, item_id, substr(text,1,120) AS headline FROM tickets "
+        "WHERE 1 = 1" + live + " ORDER BY id"))
 
 
 @op("tickets", "consult")
@@ -4378,6 +4407,21 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                                      "text": text, "term_refs": term_refs,
                                      "surface_refs": surface_refs}))
     _must_exist(ctx, "tickets", ticket_id)
+    # A retired ticket takes no criterion, and the refusal names the live
+    # one. `tick_criteria` reads live tickets only, so a criterion on the
+    # old ticket woke the seat again until quarantine (the diff review of
+    # 2dace61b, finding 2).
+    from ..core.scheduler import not_retired
+
+    cond = not_retired(ctx.conn, "id")
+    if cond and not ctx.conn.execute(
+            "SELECT 1 FROM tickets WHERE id = ?" + cond, (ticket_id,)).fetchone():
+        live = [r["id"] for r in ctx.conn.execute(
+            "SELECT id FROM tickets WHERE item_id = (SELECT item_id FROM tickets "
+            "WHERE id = ?)" + cond + " ORDER BY id", (ticket_id,))]
+        raise ValueError(
+            f"{ticket_id} is retired: its item was amended and sliced again. "
+            f"Write the criteria for {', '.join(live) or 'the new ticket'}")
     # The wake names the item whose tickets want criteria. clickI
     # (2026-09-10): woken for `show_python`, the Terminologist specified
     # criteria for `echo_json` three sessions running, and `show_python`
@@ -7080,9 +7124,17 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue
-        batch = ctx.conn.execute("SELECT item_id, head_commit FROM batches WHERE id = ?",
-                                 (ref,)).fetchone()
-        if batch is None or not batch["head_commit"]:
+        batch = ctx.conn.execute("SELECT item_id, head_commit, status FROM batches "
+                                 "WHERE id = ?", (ref,)).fetchone()
+        if batch is None:
+            continue
+        # A closed change has no prediction left to correct (the diff review
+        # of 2dace61b, finding 4).
+        if batch["status"] in ("merged", "abandoned"):
+            raise ValueError(
+                f"{ref} is the change's line, and the change is {batch['status']}. "
+                f"A ruling on it moves nothing. Approve the line")
+        if not batch["head_commit"]:
             continue
         item = batch["item_id"]
         line = (f", line {order.index(item) + 1}"

@@ -526,12 +526,19 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
         account = conn.execute(
             "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
         return ["how_it_works"] if account else []
+    # A retired ticket's criteria are no line. After a slice again, the page
+    # listed the old criteria above the new one, and a contest went to
+    # `criterion_repair` on a row nobody builds (the diff review of
+    # 2dace61b, finding 1).
+    from ..core.scheduler import not_retired
+
     out: list[str] = []
     for item in items:
         out.append(item)
         out += [r["id"] for r in conn.execute(
             "SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
-            "WHERE t.item_id = ? ORDER BY c.id", (item,))]
+            "WHERE t.item_id = ?" + not_retired(conn, "c.ticket_id")
+            + " ORDER BY c.id", (item,))]
     return out
 
 
@@ -542,8 +549,13 @@ def _gave_up_tries(conn: sqlite3.Connection, criterion: str,
     # The page's own keys, never the live quarantine. A live read put "gave
     # up" under each criterion of night 136's open touch note m84 after a
     # later quarantine (the delta review of 2c602d1b, finding 3).
+    # The page's batch counts only for a criterion of its own tickets. With
+    # the batch given, every criterion on the page read as given up, another
+    # item's included (the diff review of 2dace61b, finding 5).
     if batch:
-        batches = [batch]
+        batches = [batch] if conn.execute(
+            "SELECT 1 FROM batch_tickets bt JOIN criteria c ON c.ticket_id = bt.ticket_id "
+            "WHERE c.id = ? AND bt.batch_id = ?", (criterion, batch)).fetchone() else []
     else:
         batches = [r["batch_id"] for r in conn.execute(
             "SELECT bt.batch_id FROM batch_tickets bt "
@@ -1177,13 +1189,20 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # verdict, and the relay takes it to the Architect, who wrote the
     # prediction (frame 190's design, 2.2, the batch line, point 2). An
     # approve of it is still dropped.
+    # Only a live batch keeps its line, and an approve of an item leaves a
+    # touch note's verdict. A contest of the batch line kept the verdict
+    # alive, and the item's approve then set a draft item approved off the
+    # sign-off page (the diff review of 2dace61b, finding 4).
     per_item = dict(answer.per_item or {})
     if ask.verb == "present" and answer.verb == "verdict":
-        batches = {r["id"]: bool(r["head_commit"]) for r in conn.execute(
-            "SELECT id, head_commit FROM batches")}
+        batches = {r["id"]: (not r["head_commit"]
+                             and r["status"] not in ("merged", "abandoned"))
+                   for r in conn.execute("SELECT id, head_commit, status FROM batches")}
         if set(batches) & set(ask.refs):
-            per_item = {k: v for k, v in per_item.items() if k not in batches
-                        or (v in ("contest", "revise") and not batches[k])}
+            items = {r["id"] for r in conn.execute("SELECT id FROM items")}
+            per_item = {k: v for k, v in per_item.items()
+                        if (k not in batches and not (k in items and v == "approve"))
+                        or (k in batches and v in ("contest", "revise") and batches[k])}
             if all(v == "approve" for v in per_item.values()):
                 return None
 

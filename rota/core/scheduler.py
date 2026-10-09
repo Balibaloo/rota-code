@@ -991,21 +991,77 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     if awaiting:
         return []
 
-    open_ledger = conn.execute(
-        "SELECT COUNT(*) AS n FROM ledger WHERE status = 'open'"
-    ).fetchone()["n"]
-    if not open_ledger:
+    rows = conn.execute(
+        "SELECT id, about_ref FROM ledger WHERE status = 'open' ORDER BY rowid"
+    ).fetchall()
+    if not rows:
         return []
-    # The wake carries the rows a page may hold, oldest first, so the
-    # Liaison has real ids to copy. clickI night 20 (2026-09-12): 66 open
-    # rows, and the Liaison counted its own ids up, l_ab.., l_ac.., l_ad..,
-    # none of them rows, five turns running. Which of the rows in front of
-    # it lead the page is still the brief's; the ids are the wake's.
+    # A seat's reply row wakes no page. On night 136 each relay of a ruling
+    # left one such row, the agenda fired 13 times after s514, and
+    # `annotate` for bg_4 never ran (frame 190's design, 2.4).
+    replies = reply_rows(conn)
+    chosen = [r for r in rows if r["id"] not in replies]
+    if not chosen:
+        return []
+    # The request's own lineage first, by law 8: its assumptions are
+    # presented at its gates. Then the others, oldest first.
+    from ..roles.principal import _items_reached, open_requests
+    requests = set(open_requests(conn))
+
+    def reaches_request(row) -> bool:
+        ref = row["about_ref"]
+        test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
+                            (ref,)).fetchone()
+        if test is not None:
+            ref = test["criterion_id"]
+        return any(i in requests for i in _items_reached(conn, ref))
+
+    if requests:
+        chosen.sort(key=lambda r: not reaches_request(r))
+    # The wake carries the rows a page may hold, so the Liaison has real ids
+    # to copy. clickI night 20 (2026-09-12): 66 open rows, and the Liaison
+    # counted its own ids up, l_ab.., l_ac.., l_ad.., none of them rows, five
+    # turns running. Which of the rows in front of it lead the page is still
+    # the brief's; the ids are the wake's.
+    # The reply rows ride after the chosen rows. The door adds the wake's
+    # refs to the present, so a ruling on that page closes them (frame
+    # 190's design, 2.F, amendment 3).
     from .sandbox import PAGE_ASSUMPTIONS
-    first = tuple(r["id"] for r in conn.execute(
-        "SELECT id FROM ledger WHERE status = 'open' ORDER BY rowid LIMIT ?",
-        (PAGE_ASSUMPTIONS,)))
-    return [Wake("liaison", "tick:agenda", refs=first, detail=f"ledger={open_ledger}")]
+    first = [r["id"] for r in chosen[:PAGE_ASSUMPTIONS]]
+    first += [r["id"] for r in rows
+              if r["id"] in replies][:PAGE_ASSUMPTIONS - len(first)]
+    return [Wake("liaison", "tick:agenda", refs=tuple(first),
+                 detail=f"ledger={len(rows)}")]
+
+
+def reply_rows(conn: sqlite3.Connection) -> set[str]:
+    """
+    The open ledger rows that are a seat's reply, not an assumption.
+
+    Two kinds, the two rules `api.ledger_log` refuses at write time. The row
+    names a message as its `about_ref` (frame 190's design, 2.F, amendment
+    7). Or its writer was woken by a relay of a principal verdict, and the
+    row is about a ref of that relay (2.3.1, the join of 1.4).
+    """
+    # The predicate holds the same rule as the door. `_stage_ledger` has
+    # other callers, and `challenge_break` and `frame_assign` write rows
+    # past the door (frame 190's design, 2.F, amendment 3).
+    from .db import refs_of
+
+    out = {r["id"] for r in conn.execute(
+        "SELECT l.id FROM ledger l JOIN messages m ON m.id = l.about_ref "
+        "WHERE l.status = 'open'")}
+    for r in conn.execute(
+            "SELECT l.id, l.about_ref, m.body_refs FROM ledger l "
+            "JOIN receipts rc ON rc.table_name = 'ledger' AND rc.row_id = l.id "
+            "JOIN sessions s ON s.id = rc.session_id "
+            "JOIN messages m ON m.id = s.trigger_msg "
+            "JOIN messages c ON c.id = m.cause_id "
+            "WHERE l.status = 'open' AND m.verb = 'relay' "
+            "  AND c.from_role = 'principal' AND c.verb = 'verdict'"):
+        if r["about_ref"] in refs_of(r["body_refs"]):
+            out.add(r["id"])
+    return out
 
 
 def _reorient_wakes(conn: sqlite3.Connection) -> list[Wake]:

@@ -1333,6 +1333,37 @@ def trigger_message(conn: sqlite3.Connection, wake: Wake) -> str | None:
     return None
 
 
+# The words that mark a clause as a "no". Lower case, matched as whole words.
+_DISPUTE_WORDS = {"not", "wrong", "unrelated", "no", "never", "isn't", "aren't",
+                  "doesn't", "shouldn't", "drop", "remove"}
+
+
+def disputed_paths(said: str, paths: list[str]) -> list[str]:
+    """
+    The paths of a prediction that the principal's words call wrong.
+
+    A clause of the words disputes a path when it names the path and holds
+    a "no" word. The clause names the path by the whole path, by its file
+    name, or by every word of the file name less "test". "not the defaults
+    test file" names `tests/test_defaults.py`. Words that name no path
+    dispute nothing.
+    """
+    out: list[str] = []
+    for clause in re.split(r"[.;:,!?\n]+", (said or "").lower()):
+        words = set(re.findall(r"[a-z0-9_'./-]+", clause))
+        if not words & _DISPUTE_WORDS:
+            continue
+        for path in paths:
+            name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+            stem = name.rsplit(".", 1)[0]
+            parts = {w for w in re.split(r"[_\-]+", stem) if w} - {"test", "tests"}
+            named = (path.lower() in clause or name in words
+                     or (parts and parts <= words))
+            if named and path not in out:
+                out.append(path)
+    return out
+
+
 def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     """
     The content of the triggering message, resolved one hop.
@@ -1471,6 +1502,18 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         from .lifecycle import touch_set
 
         out["touch"] = {b: touch_set(conn, b) for b in out["refs"]}
+        # The path the words call wrong leaves `expected`. In the interview
+        # of the red re-annotate case, the seat kept `tests/test_defaults.py`
+        # because `expected` listed it, and it said that list outweighed
+        # `principal_said` (plans/frame190-interview.md, 2026-10-09).
+        said = out.get("principal_said") or ""
+        for b, touch in out["touch"].items():
+            if not touch or out.get("principal_verdict", {}).get(b) not in (
+                    "contest", "revise"):
+                continue
+            disputed = disputed_paths(said, touch.get("expected", []))
+            touch["disputed"] = disputed
+            touch["expected"] = [p for p in touch["expected"] if p not in disputed]
     # One name for one thing. Intake already calls the principal's words
     # `principal_said`, and an owner reached through the inquiry route is
     # holding the same words for the same reason -- so it is not a differently
@@ -2648,6 +2691,22 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             if r["grain"].replace("\\", "/").startswith("tests/")]
         if paths:
             pushed["touch"] = paths
+    # The Architect that corrects a prediction sees the test files that
+    # exist. In the interview of the red re-annotate case, no pre-run result
+    # carried `tests/test_termui.py`, and the seat made up
+    # `tests/test_terminal_ui.py` from the words (plans/frame190-interview.md,
+    # 2026-10-09). Only a relay of batches pushes the key, so no other
+    # recorded prompt moves.
+    if (role == "architect" and wake is not None and wake.message_id
+            and "batches.annotate" in have):
+        from .scheduler import batch_relay
+
+        if batch_relay(sb.ctx.conn, wake.message_id):
+            tests = [r["grain"] for r in sb.ctx.conn.execute(
+                "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+                "AND REPLACE(grain, '\\', '/') LIKE 'tests/%' ORDER BY grain LIMIT 80")]
+            if tests:
+                pushed["the index's test files"] = tests
     probe = pushed.get("code.probe")
     if isinstance(probe, list) and probe and isinstance(probe[0], dict) and "note" in probe[0]:
         pushed.pop("code.probe")
