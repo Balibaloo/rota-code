@@ -25,6 +25,8 @@ from rota.roles.api import repeated_sentence
 WALK = "yes that all looks right, go ahead"
 M119 = ("The Python version is captured from sys.version_info as major.minor.micro. "
         "Is there anything else I can assist with?")
+# A request with no greeting, as the reply to a clarify on a greeting.
+REQUEST = "add an echo_json helper next to echo that prints json"
 
 
 def _msg(conn, mid, cause, from_role, to_role, verb, refs, seq, text=None):
@@ -84,14 +86,58 @@ def test_the_first_time_the_words_are_said_the_clarify_goes(s220):
     s220.execute("DELETE FROM messages WHERE id = 'm119'")
     assert repeated_sentence(s220, "m_p5") is None
     sb = _converse(s220)
+    sb.call("brief.intake", verdict="work")
     out = sb.call("msg.clarify_principal", refs=["e_p5"], question="What would you like to build?")
     assert out["to"] == "principal"
 
 
+def test_a_clarify_on_the_entry_before_the_intake_is_refused_with_the_intake_named(s220):
+    """The diff review of 0baacf55, finding 4: the fork guarded a converse
+    that the mode no longer offers. A clarify on the entry answered a real
+    request with no intake, and the request was lost."""
+    s220.execute("DELETE FROM messages WHERE id = 'm119'")
+    s220.execute("UPDATE entries SET text = ? WHERE id = 'e_p5'", (REQUEST,))
+    sb = _converse(s220)
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.clarify_principal", refs=["e_p5"], question="Which format?")
+    assert "If they ask for something, claim it with brief.intake(verdict='work')" in str(
+        refused.value)
+    assert sb.ctx.outbound == []
+    # A clarify on another row is no answer to the entry, and the fork lets it go.
+    s220.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+                 "status) VALUES ('s1', 'e_p4', 0, 4, 'yes ', 'ratified')")
+    other = _converse(s220)
+    assert other.call("msg.clarify_principal", refs=["s1"],
+                      question="Is that still right?")["to"] == "principal"
+    # The guard refuses once. Words that ask for nothing keep their route,
+    # the clarify on the entry (frame 142's design, 2.C).
+    assert sb.call("msg.clarify_principal", refs=["e_p5"],
+                   question="Which format?")["to"] == "principal"
+
+
+def test_a_repeat_after_the_confirm_closed_is_a_new_request_and_gets_its_confirm(s220):
+    """The diff review of 0baacf55, finding 3: the door refused a confirm on
+    words the principal said again after the first confirm closed. The
+    ruling of 2026-09-12 is about the team's questions, not a closed
+    request. Night 132's s220 shape, with m119 open, stays refused above."""
+    s220.execute("UPDATE messages SET verb = 'confirm', body_refs = '[\"s4\"]', "
+                 "status = 'answered' WHERE id = 'm119'")
+    assert repeated_sentence(s220, "m_p5") is None
+    sb = _converse(s220)
+    sb.call("brief.intake", verdict="work")
+    sb.call("brief.segment", id="s7", span_start=0, span_end=len(WALK), text=WALK)
+    out = sb.call("msg.confirm_principal", refs=["s7"])
+    assert out["to"] == "principal"
+
+
 def test_a_repeated_sentence_as_a_reply_to_the_clarify_is_refused_in_answering(s220):
-    """The same rows with m_p5 as the reply to m119, which keys `answering`.
-    `rulings.rule(ask=...)` writes a Liaison converse, and is refused the
-    same way (frame 142's design, 2.F, amendment 3)."""
+    """The same rows with m_p5 as the reply to m119, and m119 a question on
+    a row, which keys `answering`. `rulings.rule(ask=...)` writes a Liaison
+    converse, and is refused the same way (frame 142's design, 2.F,
+    amendment 3)."""
+    s220.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+                 "status) VALUES ('s1', 'e_p4', 0, 4, 'yes ', 'ratified')")
+    s220.execute("UPDATE messages SET body_refs = '[\"s1\"]' WHERE id = 'm119'")
     s220.execute("UPDATE messages SET cause_id = 'm119' WHERE id = 'm_p5'")
     s220.commit()
     wake = Wake("liaison", "message", refs=("e_p5",), detail="converse", message_id="m_p5")
@@ -102,6 +148,47 @@ def test_a_repeated_sentence_as_a_reply_to_the_clarify_is_refused_in_answering(s
     with pytest.raises(ValueError, match="you answered these words in m119"):
         sb.call("rulings.rule", ask="Is there anything else I can help with?")
     assert sb.ctx.outbound == []
+
+
+def test_a_request_in_reply_to_a_clarify_on_an_entry_wakes_converse_and_lands(tmp_path):
+    """The diff review of 0baacf55, finding 1: the reply keyed `answering`,
+    which has no `brief.intake`, and an entry is no ledger row, so the
+    request landed on no row. The walk and the agent principal never open
+    with a greeting, so no night row shows this shape. It is rebuilt here."""
+    from rota.core.runner import run_session
+    from rota.core.scheduler import open_tips
+    from rota.llm.llm import Pins, ScriptedBackend
+    from rota.roles.principal import land, parse_reply, pending_asks
+
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO entries (id, author, text, ts_order) "
+                 "VALUES ('e_p5', 'principal', 'hey, morning!', 5)")
+    _msg(conn, "m_p5", None, "principal", "liaison", "converse", ["e_p5"], 1)
+    conn.execute("UPDATE messages SET status = 'answered' WHERE id = 'm_p5'")
+    _msg(conn, "m_c", "m_p5", "liaison", "principal", "clarify", ["e_p5"], 2,
+         "What would you like to build?")
+    conn.commit()
+    (ask,) = [a for a in pending_asks(conn) if a.message_id == "m_c"]
+    answer = parse_reply(ask, REQUEST)
+    reply = land(conn, ask, answer)
+    conn.commit()
+    (wake,) = [w for w in open_tips(conn) if w.message_id == reply]
+    assert _mode_key(wake, conn) == "converse"
+    assert "brief.intake" in prompts.mode_tools("liaison", "converse")
+
+    script = ["TOOL: brief.intake(verdict='work')",
+              f"TOOL: brief.segment(id='s1', span_start=0, span_end={len(REQUEST)}, "
+              f"text='{REQUEST}')",
+              "TOOL: msg.confirm_principal(refs=['s1'])", "done"]
+    out = run_session(conn, wake, backend=ScriptedBackend(script),
+                      pins=Pins(model="stub", temperature=0.0), instructions="x")
+    assert out.committed, out.errors
+    # The request lands on its own entry, never on the greeting it answered.
+    row = conn.execute("SELECT span_entry, text FROM statements WHERE id = 's1'").fetchone()
+    assert (row["span_entry"], row["text"]) == (f"e_{reply}", REQUEST)
+    (confirm,) = conn.execute("SELECT body_refs FROM messages WHERE verb = 'confirm'"
+                              ).fetchall()
+    assert json.loads(confirm["body_refs"]) == ["s1"]
 
 
 def test_an_owners_answer_two_hops_below_the_repeated_words_is_refused(s220):

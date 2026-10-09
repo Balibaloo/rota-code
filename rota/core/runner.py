@@ -154,6 +154,39 @@ def session_mode(wake: Wake) -> str:
     return "normal"
 
 
+def _asks_about_entries(conn: sqlite3.Connection, body_refs: str | None) -> bool:
+    """True when every ref of a question is an entry of the transcript."""
+    from .db import refs_of
+
+    refs = [r for r in refs_of(body_refs) if isinstance(r, str)]
+    return bool(refs) and all(
+        conn.execute("SELECT 1 FROM entries WHERE id = ?", (r,)).fetchone()
+        for r in refs)
+
+
+def message_entry_id(conn: sqlite3.Connection, message_id: str) -> str | None:
+    """The entry a principal message's session segments, or None."""
+    # The message's own words come first. A reply to a clarify carries the
+    # clarify's refs, and on a clarify about an entry those name the old
+    # entry, so a request in the reply was segmented against the words it
+    # answered (the diff review of 0baacf55, finding 1).
+    own = conn.execute("SELECT id FROM entries WHERE id = ?",
+                       (f"e_{message_id}",)).fetchone()
+    if own:
+        return own["id"]
+    # A driver's message names its entry in its refs: `m_p1` carries
+    # `e_p1`. A derivation by name alone refused every brief.segment of
+    # clickI night 17 with "no entry to segment against".
+    from .db import refs_of
+
+    msg = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                       (message_id,)).fetchone()
+    for ref in refs_of(msg["body_refs"]) if msg else []:
+        if conn.execute("SELECT 1 FROM entries WHERE id = ?", (ref,)).fetchone():
+            return ref
+    return None
+
+
 def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
     """
     Which prompt piece this wake selects.
@@ -203,8 +236,8 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
         if (verb == "converse" and wake.role == "liaison" and conn is not None
                 and wake.message_id):
             row = conn.execute(
-                "SELECT c.verb AS cause_verb, c.id AS cause_id FROM messages m "
-                "LEFT JOIN messages c ON c.id = m.cause_id WHERE m.id = ?",
+                "SELECT c.verb AS cause_verb, c.id AS cause_id, c.body_refs AS cause_refs "
+                "FROM messages m LEFT JOIN messages c ON c.id = m.cause_id WHERE m.id = ?",
                 (wake.message_id,)).fetchone()
             # A reply to a park ask is words on a page that stays open. It
             # has no desk to relay to, so it is not `answering` (frame 87).
@@ -212,6 +245,14 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
 
             if row and row["cause_id"] and park_ask_batch(row["cause_id"]):
                 return "landing"
+            # A clarify on an entry asked what the principal wants. The reply
+            # is a request, and only `converse` has `brief.intake` to land it.
+            # In `answering` the words landed on no row, because an entry is
+            # no ledger row (the diff review of 0baacf55, finding 1; ruled:
+            # Roman, 2026-10-08, the park ask is a page with rows, point 4).
+            if row and row["cause_verb"] == "clarify" and _asks_about_entries(
+                    conn, row["cause_refs"]):
+                return "converse"
             if row and row["cause_verb"] == "clarify":
                 return "answering"
             # And a reply to a confirm or a present is a ruling to read
@@ -2838,26 +2879,7 @@ def run_session(
             instructions = ""
 
     session_id = new_id("s", conn)
-    entry_id = None
-    if wake.message_id:
-        # The entry this session segments: the one the message carries.
-        # It used to be derived by name, `e_<message id>`, which held for
-        # the seat's own messages and not for a driver's (`m_p1` carried
-        # `e_p1`): clickI night 17, the Liaison's every brief.segment was
-        # refused "no entry to segment against" and the sentence never
-        # became a statement. The refs are the fact; the name was a guess.
-        from .db import refs_of
-        msg = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
-                           (wake.message_id,)).fetchone()
-        for ref in refs_of(msg["body_refs"]) if msg else []:
-            if conn.execute("SELECT 1 FROM entries WHERE id = ?", (ref,)).fetchone():
-                entry_id = ref
-                break
-        if entry_id is None:
-            row = conn.execute(
-                "SELECT id FROM entries WHERE id = ?",
-                (f"e_{wake.message_id}",)).fetchone()
-            entry_id = row["id"] if row else None
+    entry_id = message_entry_id(conn, wake.message_id) if wake.message_id else None
 
     # The one composition, so that a reader of the register reaches the same
     # working set and therefore the same system text. The mode is derived

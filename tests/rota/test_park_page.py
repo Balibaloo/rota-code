@@ -290,7 +290,8 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     sb.call("msg.relay_vision_keeper", refs=[ITEM_132])
     routed = {m["to_role"]: m["body_refs"] for m in sb.ctx.outbound}
     assert routed["vision_keeper"] == [ITEM_132]
-    assert routed["terminologist"] == [c[0] for c in N132]
+    # The approved criteria stay out (the diff review of 0baacf55, finding 2).
+    assert routed["terminologist"] == ["cr_2_confirm_eof_behavior"]
     assert _owner_of_ref(n132, "cr_2_confirm_eof_behavior") is None
 
     # The respecify moves cr_2's version and lifts the key. The re-park asks
@@ -304,11 +305,16 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     assert len(P.REGISTRY["park_ask"].fn(n132)) == 1
 
 
-@pytest.mark.parametrize("call", ["done", f'TOOL: msg.relay_vision_keeper(refs=["{ITEM_132}"])'])
+@pytest.mark.parametrize("call", [
+    "done", f'TOOL: msg.relay_vision_keeper(refs=["{ITEM_132}"])',
+    'TOOL: msg.relay_vision_keeper(refs=["cr_1_confirm_eof_default", '
+    '"cr_2_confirm_eof_behavior"])'])
 def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist(n132, call):
     """The delta review of 172b373b, finding 1: `verdict_signoff.md` says a
     criterion has no relay, so a session that obeys it sends none. The door
-    relays the contested criterion whatever the session sent, and once."""
+    relays the contested criterion whatever the session sent, and once. The
+    diff review of 0baacf55, finding 2: the relay holds the contested
+    criterion alone, and no approved one, whatever refs the session named."""
     from rota.core.runner import run_session
 
     mid = _liaison_presents(n132, ITEM_132)
@@ -329,10 +335,39 @@ def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist
                         (verdict["id"],)).fetchall()
     assert len(rows) == 1
     refs = json.loads(rows[0]["body_refs"])
-    assert "cr_2_confirm_eof_behavior" in refs
+    assert refs == ["cr_2_confirm_eof_behavior"]
     from rota.core.scheduler import park_criterion_relay
 
     assert park_criterion_relay(n132, rows[0]["id"])
+
+
+def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n132):
+    """The diff review of 0baacf55, finding 2: `stage_park_relay` widened a
+    held relay and kept every criterion in it. One contest and two approves
+    leave the contested criterion alone."""
+    from rota.core.sandbox import build, stage_park_relay
+    from rota.roles import prompts
+
+    mid = _liaison_presents(n132, ITEM_132)
+    reply = _reply(n132, mid, "line 3 is wrong: it must not hang")
+    ruling = {str(n): "approve" for n in range(1, 8)}
+    ruling["3"] = "contest"
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
+                                "words='line 3 is wrong: it must not hang')")
+    assert out.committed, out.errors
+    (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
+                              "AND verb = 'verdict'", (mid,)).fetchall()
+    sb = build("liaison", n132, mode="normal", session_id="s_held",
+               allow=prompts.mode_tools("liaison", "verdict_signoff"))
+    sb.ctx.trigger = verdict["id"]
+    sb.ctx.outbound.append({
+        "id": "m_held", "to_role": "terminologist", "verb": "relay",
+        "body_refs": ["cr_1_confirm_eof_default", "cr_3_confirm_eof_default_value",
+                      "@term:stdin"],
+        "body_text": None, "round_no": 0, "cause_id": verdict["id"]})
+    stage_park_relay(sb.ctx)
+    (held,) = sb.ctx.outbound
+    assert held["body_refs"] == ["@term:stdin", "cr_2_confirm_eof_behavior"]
 
 
 def test_a_relay_two_hops_below_a_park_verdict_is_no_criterion_repair(n132):

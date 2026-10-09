@@ -575,14 +575,17 @@ def refuse_second_answer(ctx: Ctx, answer: str) -> None:
 
 def message_entry(conn: sqlite3.Connection, row) -> tuple[str | None, str]:
     """
-    The entry of a principal message and its words: the entry in its refs,
-    else `e_<id>`, else none and the message's own text.
+    The entry of a principal message and its words: `e_<id>`, else the
+    entry in its refs, else none and the message's own text.
     """
+    # The own entry first, as `runner.message_entry_id` reads it. A reply to
+    # a clarify on an entry carries the old entry in its refs (the diff
+    # review of 0baacf55, finding 1).
     try:
         refs = json.loads(row["body_refs"] or "[]")
     except (TypeError, ValueError):
         refs = []
-    for ref in [r for r in refs if isinstance(r, str)] + [f"e_{row['id']}"]:
+    for ref in [f"e_{row['id']}"] + [r for r in refs if isinstance(r, str)]:
         entry = conn.execute("SELECT id, text FROM entries WHERE id = ?",
                              (ref,)).fetchone()
         if entry is not None:
@@ -596,7 +599,7 @@ def _said(text: str) -> str:
 
 def repeated_sentence(conn: sqlite3.Connection, trigger: str | None) -> str | None:
     """
-    The Liaison message to the principal that answered the principal's
+    The open Liaison message to the principal that answered the principal's
     words before, when the words on the trigger's chain are said again.
     """
     # The nearest principal message on the cause chain holds the words. An
@@ -630,10 +633,16 @@ def repeated_sentence(conn: sqlite3.Connection, trigger: str | None) -> str | No
                 break
             marks = ",".join("?" * len(level))
             below = conn.execute(
-                f"SELECT id, from_role, to_role FROM messages WHERE cause_id IN ({marks}) "
-                f"ORDER BY seq", level).fetchall()
+                f"SELECT id, from_role, to_role, status FROM messages "
+                f"WHERE cause_id IN ({marks}) ORDER BY seq", level).fetchall()
+            # Only an answer that is still open stands. A confirm that the
+            # principal closed ended that request, and the same words after it
+            # are a new request that earns its own confirm. The ruling of
+            # 2026-09-12 is about the team's questions, not a closed request
+            # (the diff review of 0baacf55, finding 3).
             hit = next((m["id"] for m in below if m["from_role"] == "liaison"
-                        and m["to_role"] == "principal"), None)
+                        and m["to_role"] == "principal"
+                        and m["status"] == "open"), None)
             if hit:
                 return hit
             level = [m["id"] for m in below if m["id"] != row["id"]]

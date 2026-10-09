@@ -2178,6 +2178,27 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # Undeclared-and-bare is the measured S0 failure -- the greeting
         # answered, the request gone. The `chat` claim is gone (ruled: Roman,
         # 2026-10-08, the park ask is a page with rows, point 4).
+        # A clarify on the entry is guarded the same way. The converse mode
+        # no longer offers a converse to the principal, so a guard on that
+        # verb alone let a clarify answer a real request with no intake (the
+        # diff review of 0baacf55, finding 4). The guard refuses once. A
+        # greeting asks for nothing, and its route is this clarify (frame
+        # 142's design, 2.C). A guard that always refused turned every
+        # greeting into work: L1-LI-chat-is-not-work segmented "hey,
+        # morning!" 5/5 (observed: 2026-10-09).
+        if (verb == "clarify" and recipient == "principal"
+                and getattr(ctx, "intake", "unarmed") is None
+                and getattr(ctx, "entry_id", None)
+                and ctx.entry_id in (refs or [])
+                and not getattr(ctx, "entry_clarify_refused", False)):
+            ctx.entry_clarify_refused = True
+            raise ValueError(api._offer(
+                ctx,
+                "this question is about the entry, so check the entry once. "
+                "If the words ask for nothing, such as a greeting, send this "
+                "same question again. If they ask for something, claim it "
+                "with brief.intake(verdict='work') and segment it",
+                "brief.intake", {"verdict": "work"}))
         if (verb == "converse" and recipient == "principal"
                 and getattr(ctx, "intake", "unarmed") != "unarmed"):
             if ctx.intake is None:
@@ -2639,15 +2660,28 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # with rows, point 2). A criterion that reached a ruling another
             # way, through a ledger row's `about_ref`, keeps the old route
             # (the diff review of b0a2086e, finding 1).
-            from .scheduler import park_verdict_page
+            from .scheduler import park_verdict_criteria, park_verdict_page
 
             on_park = park_verdict_page(ctx.conn, ctx.trigger) is not None
+            # Only the contested and revised rows of a park page travel. An
+            # approved criterion in the relay reached `criterion_repair`, where
+            # only the brief kept it unchanged (the diff review of 0baacf55,
+            # finding 2).
+            ruled = park_verdict_criteria(ctx.conn, ctx.trigger) if on_park else []
+            approved = []
             for ref in refs:
+                is_criterion = on_park and ctx.conn.execute(
+                    "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()
+                if is_criterion and ref not in ruled:
+                    approved.append(ref)
+                    continue
                 owner = _owner_of_ref(ctx.conn, ref) or (
-                    "terminologist" if on_park and ctx.conn.execute(
-                        "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()
-                    else recipient)
+                    "terminologist" if is_criterion else recipient)
                 split.setdefault(owner, []).append(ref)
+            if approved and not split:
+                raise ValueError(
+                    f"the principal approved {', '.join(approved)}. An approved "
+                    f"row stays as it is and has no relay. Your work here is done")
             already = {m["to_role"] for m in ctx.outbound if m["verb"] == "relay"}
             split = {o: r for o, r in split.items() if o not in already}
             if not split:
@@ -2923,8 +2957,12 @@ def stage_park_relay(ctx: api.Ctx) -> None:
     held = [m for m in ctx.outbound
             if m["verb"] == "relay" and m["to_role"] == "terminologist"]
     if held:
-        refs = held[0]["body_refs"]
-        refs += [c for c in contested if c not in refs]
+        # The relay carries the contested and revised criteria alone. An
+        # approved criterion never enters it (the diff review of 0baacf55,
+        # finding 2).
+        refs = [r for r in held[0]["body_refs"] if r in contested or not ctx.conn.execute(
+            "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]
+        held[0]["body_refs"] = refs + [c for c in contested if c not in refs]
         return
     ctx.outbound.append({
         "id": new_id("m", ctx.conn, offset=len(ctx.outbound)),
