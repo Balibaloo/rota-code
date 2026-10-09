@@ -393,3 +393,46 @@ main card, so the gate re-recorded nothing.
 - A park verdict that contests line 1, the item, now relays nothing. The
   split then refuses with "every owner these rows belong to has its relay
   already". No night has shown this shape.
+
+## Pass 2d, the item line and the outcome case
+
+Written by the pass 2b implementer, 2026-10-09 03:55, on the tree at
+55fe8a04. Rota workflow.
+
+**`fix(rota)` at 55fe8a04.**
+
+- The item line. `scheduler.park_verdict_rows` returns every line that a
+  park verdict contests or revises, the item and the criteria.
+  `park_verdict_criteria` keeps the criteria among them. On a park
+  verdict, the relay split sends a criterion to the Terminologist and the
+  item to its owner, the Vision Keeper. A verdict that rules on criteria
+  alone sends no item. The new test in `test_park_page.py` contests line
+  1 and approves the rest, for a session that relays the item and one that
+  relays a criterion. Each test stages one Vision Keeper relay of the item
+  and no Terminologist relay. The test on criteria alone is unchanged.
+- The case. `L1-LI-a-request-is-claimed-before-any-clarify` is now
+  `L1-LI-a-request-lands-as-a-statement-and-draws-no-clarify`. It expects
+  one statement whose row carries the entry id and the words "default
+  answer when stdin is closed", and one confirm to the principal. It
+  forbids a clarify or a converse to the principal. It does not expect a
+  `brief.intake` call.
+
+**Deviations.** None. The case allows the confirm, as pass 2c's deviation
+says.
+
+**The gate, verbatim.**
+
+```
+suite: 25 failed, 3410 passed, 32 skipped, 16 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (4): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (2): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names]
+stale (0): none
+time: 620.4s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+The 4 new reds are the 4 known reds.
+
+**Re-records.** `L1-LI-a-request-lands-as-a-statement-and-draws-no-clarify`
+was recorded before the gate, 5/5 on qwen3:8b. The gate named no stale case.
+
+**Unfinished.** Nothing from this pass.
