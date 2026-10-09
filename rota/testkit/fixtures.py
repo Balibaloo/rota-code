@@ -43,7 +43,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..core.db import ARTEFACT_TABLES, init_db
+from ..core.db import ARTEFACT_TABLES, JUNCTION_TABLES, init_db
 from ..llm.llm import Pins
 from ..core.runner import RunOutcome, run_session
 from ..roles import prompts as prompts_mod
@@ -361,6 +361,69 @@ class Delta:
         return {m["to_role"] for m in self.messages}
 
 
+# The key columns a junction table's writer joins with ":" into the receipt
+# label. Each entry copies the writer's f-string: `batches_group`,
+# `model_amend`, `surveys_attest`, `batches_annotate`, `code_commit`,
+# `batches_judge_touch` and `api.stage_ref`.
+_JUNCTION_LABELS: dict[str, tuple[str, ...]] = {
+    "batch_tickets": ("batch_id", "ticket_id"),
+    "constraint_bindings": ("constraint_id", "grain"),
+    "survey_citations": ("survey_id", "grain"),
+    "batch_touch": ("batch_id", "grain"),
+    "touch_strays": ("batch_id", "commit_sha", "path"),
+    "batch_dep_facts": ("before_batch", "after_batch"),
+    "schedule_deps": ("before_batch", "after_batch"),
+    "refs": ("src_table", "src_id", "kind", "target"),
+}
+
+
+def _junction_rows(conn: sqlite3.Connection, table: str,
+                   labels: list[str]) -> list[dict]:
+    """
+    The rows a session's receipt labels name in a junction table.
+
+    A label names the row whose key columns, joined with ":", equal the label,
+    and a label that ends in ":*" is a clear that names no row. A label that
+    names no row loads every row whose first key column is the label's first
+    key, because such a label still says which parent the session wrote.
+
+    `SELECT ... WHERE id IN` raised on these tables, which have no `id`, and
+    the except gave an empty list. So a `text_excludes` on `batch_touch`
+    passed on no rows (frame 190, pass 3c, the re-annotate case).
+    """
+    cols = _JUNCTION_LABELS.get(table)
+    out: list[dict] = []
+    seen: set[tuple] = set()
+    for label in labels:
+        if label.endswith(":*"):
+            continue
+        found: list[dict] = []
+        try:
+            if cols:
+                joined = " || ':' || ".join(f'"{c}"' for c in cols)
+                found = [dict(r) for r in conn.execute(
+                    f"SELECT * FROM {table} WHERE {joined} = ?", (label,))]
+            if not found:
+                first = (cols or ())[:1]
+                if not first:
+                    head = conn.execute(
+                        f"SELECT name FROM pragma_table_info('{table}') "
+                        f"ORDER BY cid LIMIT 1").fetchone()
+                    first = (head[0],) if head else ()
+                if first:
+                    found = [dict(r) for r in conn.execute(
+                        f'SELECT * FROM {table} WHERE "{first[0]}" = ?',
+                        (label.split(":", 1)[0],))]
+        except sqlite3.Error:
+            found = []
+        for row in found:
+            key = tuple(sorted((k, str(v)) for k, v in row.items()))
+            if key not in seen:
+                seen.add(key)
+                out.append(row)
+    return out
+
+
 def capture(conn: sqlite3.Connection, session_id: str,
             versions_before: dict[str, int],
             messages_before: set[str] | None = None) -> Delta:
@@ -405,6 +468,9 @@ def capture(conn: sqlite3.Connection, session_id: str,
     rows: dict[str, list[dict]] = {}
     for table, ids in writes.items():
         if not ids:
+            continue
+        if table in JUNCTION_TABLES:
+            rows[table] = _junction_rows(conn, table, ids)
             continue
         try:
             marks = ",".join("?" * len(ids))

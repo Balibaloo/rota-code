@@ -1336,7 +1336,18 @@ def trigger_message(conn: sqlite3.Connection, wake: Wake) -> str | None:
 # The words that mark a clause as a "no". Lower case, matched as whole words.
 _DISPUTE_WORDS = {"not", "wrong", "unrelated", "no", "never", "isn't", "aren't",
                   "doesn't", "shouldn't", "drop", "remove", "can't", "cannot",
-                  "won't"}
+                  "won't", "don't", "wasn't"}
+
+# "No changes to termui needed beyond the flag" says the file does change.
+# That "no" counts a limit, so it disputes nothing (the delta review of
+# af535499, finding 3).
+_NO_BEYOND = re.compile(r"\bno\s+(?=(?:changes?|edits?|needs?|needed)\b)")
+_BEYOND = re.compile(r"\b(?:beyond|except|other\s+than)\b")
+
+# The words that place a single word part of a file name as a file. "option
+# defaults" named `tests/test_options.py` on night 133's bg_6 without them
+# (the delta review of af535499, finding 5).
+_FILE_WORDS = {"test", "file"}
 
 
 def _word(w: str) -> str:
@@ -1352,34 +1363,55 @@ def disputed_paths(said: str, paths: list[str]) -> list[str]:
     a "no" word. A sentence ends at punctuation that a space or the end
     follows, so a file name keeps its dot, and at "but". A sentence names a
     path by the whole path, by its file name, or by every word of the file
-    name less "test", with a trailing "s" removed. When a part of the
-    sentence after a comma starts with a "no" word and names a path, only
-    the paths of such parts are disputed: "the termui file, not the
-    defaults test file" disputes the second file alone. Words that name no
-    path dispute nothing.
+    name less "test", with a trailing "s" removed. A file name of one word
+    part names a path by that word only when "test" or "file" stands within
+    three words of it. When a part of the sentence after a comma starts
+    with a "no" word and names a path, only the paths of such parts are
+    disputed: "the termui file, not the defaults test file" disputes the
+    second file alone. When the rest of the sentence holds a "no" word too
+    and names another path, the rest holds the dispute: "the defaults test
+    file is wrong, not the termui test file" disputes the first file. A
+    "no" before "changes", "edits" or "need" with "beyond", "except" or
+    "other than" disputes nothing. Words that name no path dispute nothing.
     """
     def named(text: str, path: str) -> bool:
-        words = {_word(w) for w in re.findall(r"[a-z0-9_']+", text)}
+        tokens = [_word(w) for w in re.findall(r"[a-z0-9_']+", text)]
         name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
         stem = name.rsplit(".", 1)[0]
         parts = {_word(w) for w in re.split(r"[_\-]+", stem) if w} - {"test", "tests"}
-        return bool(path.lower() in text or name in text or (parts and parts <= words))
+        if path.lower() in text or name in text:
+            return True
+        if len(parts) == 1:
+            (part,) = parts
+            return any(t == part and _FILE_WORDS & set(tokens[max(0, i - 3):i + 4])
+                       for i, t in enumerate(tokens))
+        return bool(parts and parts <= set(tokens))
 
     def says_no(text: str) -> bool:
         return bool(set(re.findall(r"[a-z']+", text)) & _DISPUTE_WORDS)
 
+    no_led = re.compile(
+        r"\s*(" + "|".join(map(re.escape, sorted(_DISPUTE_WORDS))) + r")\b")
     out: list[str] = []
     text = (said or "").lower().replace("’", "'")
     for sentence in re.split(r"[.;:!?]+(?=\s|$)|\n+|\bbut\b", text):
+        if _BEYOND.search(sentence):
+            sentence = _NO_BEYOND.sub("", sentence)
         if not says_no(sentence):
             continue
         hits = [p for p in paths if named(sentence, p)]
         # "A, not B": the "no" part holds the dispute, and A is what the
         # words want (the diff review of 0ffc97b7, finding 3).
-        led = [p for part in sentence.split(",")
-               if re.match(r"\s*(" + "|".join(map(re.escape, _DISPUTE_WORDS)) + r")\b",
-                           part)
-               for p in paths if named(part, p)]
+        parts = sentence.split(",")
+        led_parts = [part for part in parts if no_led.match(part)]
+        led = [p for part in led_parts for p in paths if named(part, p)]
+        # "A is wrong, not B": the rest holds its own "no" about another
+        # path, so the "no" part names what the dispute is not (the delta
+        # review of af535499, finding 2).
+        rest = ",".join(part for part in parts if not no_led.match(part))
+        other = [p for p in paths if named(rest, p) and p not in led]
+        if led and other and says_no(rest):
+            led = other
         for path in (led or hits):
             if path not in out:
                 out.append(path)

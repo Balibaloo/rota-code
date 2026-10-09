@@ -768,16 +768,50 @@ M202 = ("I still can't approve this, because the line names the default tests fi
      ["tests/test_defaults.py"]),
     ("Everything else looks right.", []),
     ("Keep the defaults test file.", []),
+    ("The defaults test file is wrong, not the termui test file.",
+     ["tests/test_defaults.py"]),
+    ("No changes to termui needed beyond the flag.", []),
+    ("No changes to termui.py needed beyond the flag.", []),
+    ("Don't touch test_defaults.py.", ["tests/test_defaults.py"]),
+    ("Don’t touch test_defaults.py.", ["tests/test_defaults.py"]),
+    ("The defaults test file wasn't the place.", ["tests/test_defaults.py"]),
 ])
 def test_the_words_dispute_only_the_paths_a_no_clause_names(words, moved):
     """The principal's real answers to a touch note, and literal forms. A
     sentence disputes the paths it names when it holds a "no" word (the
-    diff review of 0ffc97b7, findings 1 and 3)."""
+    diff review of 0ffc97b7, findings 1 and 3, and the delta review of
+    af535499, findings 2 to 4)."""
     from rota.core.runner import disputed_paths
 
     paths = ["src/click/termui.py", "tests/test_defaults.py", "tests/test_termui.py",
              "src/click/decorators.py"]
     assert disputed_paths(words, paths) == moved
+
+
+# Night 133's bg_6: its touch rows and the principal's m431, read with
+# `mode=ro&immutable=1` on 2026-10-09.
+BG6 = ["src/click/decorators.py", "tests/test_basic.py", "tests/test_defaults.py",
+       "tests/test_options.py"]
+M431 = ("Line 2 lists tests/test_defaults.py, but this change has nothing to do with "
+        "option defaults, so please leave that file out unless a version test really "
+        "lives there. Everything else looks right. The flag is off by default and adds "
+        "the running Python version as major.minor.micro to the end of the version "
+        "message.")
+
+
+@pytest.mark.parametrize("words, moved", [
+    (M431, []),
+    ("This change does not touch option defaults or the defaults test file.",
+     ["tests/test_defaults.py"]),
+    ("The option defaults are not part of this change.", []),
+])
+def test_one_common_word_of_a_file_name_needs_a_file_word_beside_it(words, moved):
+    """The delta review of af535499, finding 5: "option defaults" named
+    `tests/test_options.py`, because "option" is the file name's one word
+    part. A single word part names its path only beside "test" or "file"."""
+    from rota.core.runner import disputed_paths
+
+    assert disputed_paths(words, BG6) == moved
 
 
 def test_a_touch_note_approves_no_item_and_a_closed_batch_line_is_refused(bg2):

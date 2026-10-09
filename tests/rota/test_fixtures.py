@@ -193,3 +193,37 @@ def test_a_forbidden_row_fails_the_touch_and_only_the_touch():
         {"expect": {}, "forbidden": {"rows": ["items:i_other",
                                               "tickets:i_seeded"]}}, delta)
     assert clean == []
+
+
+def test_a_junction_table_loads_the_rows_its_receipt_labels_name():
+    """
+    A junction table has no `id`, so `SELECT ... WHERE id IN` raised and the
+    rows came back empty. A `text_excludes` on `batch_touch` then passed on no
+    rows, and the re-annotate case scored a path written back as green
+    (frame 190, pass 3c).
+    """
+    conn = init_db(pathlib.Path(tempfile.mkdtemp()) / "rota.db")
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("INSERT INTO sessions (id, role, seq) VALUES ('s1', 'architect', 1)")
+    for grain in ("src/click/termui.py", "tests/test_defaults.py",
+                  "tests/test_other.py"):
+        conn.execute(
+            "INSERT INTO batch_touch (batch_id, grain, grain_kind, confidence) "
+            "VALUES ('b1', ?, 'path', 'expected')", (grain,))
+    conn.execute(
+        "INSERT INTO touch_strays (batch_id, commit_sha, path, status) "
+        "VALUES ('b1', 'abc', 'src/x.py', 'open')")
+    for label in ("b1:*", "b1:src/click/termui.py", "b1:tests/test_defaults.py"):
+        conn.execute(
+            "INSERT INTO receipts (session_id, table_name, row_id, new_version) "
+            "VALUES ('s1', 'batch_touch', ?, 1)", (label,))
+    conn.execute(
+        "INSERT INTO receipts (session_id, table_name, row_id, new_version) "
+        "VALUES ('s1', 'touch_strays', 'b1:abc:src/x.py', 1)")
+    delta = fixtures.capture(conn, "s1", {})
+    assert sorted(r["grain"] for r in delta.rows["batch_touch"]) == [
+        "src/click/termui.py", "tests/test_defaults.py"]
+    assert [r["path"] for r in delta.rows["touch_strays"]] == ["src/x.py"]
+    hit = fixtures.check({"expect": {"writes": {"batch_touch": {
+        "text_excludes": ["tests/test_defaults.py"]}}}}, delta)
+    assert hit and "tests/test_defaults.py" in hit[0]
