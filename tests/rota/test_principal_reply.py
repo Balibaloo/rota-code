@@ -38,8 +38,13 @@ def _present(db):
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
                "author) VALUES ('l_1','how_it_works','items',"
                "'the percentage is typed each time','open','vision_keeper')")
+    # The sign-off page: a present caused by the Vision Keeper's `submit`.
+    # Only that page approves an item (frame 190's design, 2.F, amendment 1).
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-               "body_refs, seq, status) VALUES ('m9','th','liaison','principal',"
+               "body_refs, seq, status) VALUES ('m8','th','vision_keeper','liaison',"
+               "'submit','[]',0,'answered')")
+    db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m9','th','m8','liaison','principal',"
                "'present',?,1,'open')",
                (json.dumps(["calculate_tip", "how_it_works", "s1", "l_1"]),))
     db.commit()
@@ -49,11 +54,13 @@ def _present(db):
 def test_the_page_numbers_its_rows_in_the_order_it_shows_them(db):
     ask = _present(db)
     page = ask.rendered
+    # The request first: the words and the item. The account follows under
+    # its own heading (frame 190's design, 2.1 and 2.F, amendment 5).
     assert '1. "tip calculator pls"' in page
-    assert "2. The user types the bill" in page
-    assert "3. The software calculates the tip." in page
+    assert "2. The software calculates the tip." in page
+    assert "3. The user types the bill" in page
     assert "4. the percentage is typed each time" in page
-    assert ask.order == ["s1", "how_it_works", "calculate_tip", "l_1"], ask.order
+    assert ask.order == ["s1", "calculate_tip", "how_it_works", "l_1"], ask.order
     assert "Name a line to correct only that line." in page
     assert "how_it_works" not in page and "l_1" not in page
 
@@ -104,10 +111,10 @@ def test_the_reply_wakes_the_liaison_in_landing_with_the_page(db):
     landing = inbound["landing"]
     assert landing["page_kind"] == "present"
     assert landing["reply"] == "2 is wrong, the percentage is fixed"
-    assert landing["lines"] == {"1": "s1", "2": "how_it_works",
-                                "3": "calculate_tip", "4": "l_1"}
+    assert landing["lines"] == {"1": "s1", "2": "calculate_tip",
+                                "3": "how_it_works", "4": "l_1"}
     assert landing["line_rows"]["l_1"]["table"] == "ledger"
-    assert "2. The user types the bill" in landing["page"]
+    assert "3. The user types the bill" in landing["page"]
     assert "earlier_exchange" not in landing
     # A page this size fits, so the rows travel whole and nothing says they
     # were cut.
@@ -355,7 +362,7 @@ def test_the_ruling_door_holds_the_page(db):
         sb.call("rulings.rule", rulings={"1": "approve", "2": "contest",
                                          "3": "approve", "4": "approve"})
     # A row id names a line as well as its number does.
-    out = sb.call("rulings.rule", rulings={"s1": "approve", "how_it_works": "approve",
+    out = sb.call("rulings.rule", rulings={"s1": "approve", "calculate_tip": "approve",
                                            "3": "approve", "l_1": "approve"})
     assert set(out["per_item"].values()) == {"approve"}
 

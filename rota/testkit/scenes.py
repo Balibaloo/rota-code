@@ -226,6 +226,17 @@ class _Principal:
 
     def respond(self, ask: principal.Ask) -> principal.Answer | None:
         queue = self.sc.answers.get((ask.verb, tuple(ask.refs)))
+        if not queue and ask.verb == "present":
+            # The door appends the request's rows to the refs the Liaison
+            # sent (frame 190's design, 2.1). A script names the refs the
+            # seat sent, so the stamped tail is read off before the lookup.
+            stamped = set(principal.request_rows(self.sc.conn, ask.refs))
+            for n in range(len(ask.refs) - 1, 0, -1):
+                if not set(ask.refs[n:]) <= stamped:
+                    break
+                queue = self.sc.answers.get((ask.verb, tuple(ask.refs[:n])))
+                if queue:
+                    break
         if not queue:
             return None
         per_item, text, verb = queue.pop(0)

@@ -117,8 +117,13 @@ def _an_open_present(db):
     db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('t1',"
                "'users can close their account','in_scope','draft',0,1)")
+    # The sign-off page: a present caused by a `submit`. Only that page
+    # approves an item (frame 190's design, 2.F, amendment 1).
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-               "body_refs, seq, status) VALUES ('m9','th','liaison','principal',"
+               "body_refs, seq, status) VALUES ('m8','th','vision_keeper','liaison',"
+               "'submit',?,0,'answered')", (json.dumps(["t1"]),))
+    db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m9','th','m8','liaison','principal',"
                "'present',?,1,'open')", (json.dumps(["t1"]),))
     db.commit()
 

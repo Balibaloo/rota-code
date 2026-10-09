@@ -231,6 +231,57 @@ def test_the_park_ask_is_a_page_with_the_item_and_the_criteria_each_with_its_che
     assert "Reply 'ok' if every line says what you want." in page
 
 
+PAGE_132 = [
+    "This change stopped. The team tried 6 times, and 4 of its 6 checks still fail.",
+    "You asked:",
+    "  1. Let confirm() take a default_on_eof flag: when stdin is closed it returns "
+    "the default instead of aborting.",
+    "It must:",
+    "  2. confirm() must accept an optional 'default_on_eof' boolean argument. When "
+    "True and stdin is closed (EOF), confirm() returns the provided default value "
+    "instead of raising an exception or aborting.",
+    '     check: confirm eof default, calls result = confirm("y/n", default_on_eof=True), '
+    "expects result == True. Fails: assert False == True.",
+    "  3. When 'default_on_eof' is True and stdin reaches EOF, confirm() must not "
+    "attempt to read further or wait for input; it immediately returns the default value.",
+    '     check: confirm eof behavior, calls result = confirm("y/n", default_on_eof=True), '
+    "expects result == True. Fails: assert False == True.",
+    "  4. The default value returned by confirm() on EOF must be the same value passed "
+    "to confirm() as the 'default' argument, or a sentinel if no default was provided.",
+    '     check: confirm eof default value, calls result = confirm("y/n", '
+    "default_on_eof=True, default=False), expects result == False. Passes.",
+    "  5. When 'default_on_eof' is True, confirm() must detect the EOF condition on "
+    "stdin and treat it as a valid input state that triggers the default return path, "
+    "rather than treating it as an error or blocking wait.",
+    '     check: confirm eof input handling, calls result = confirm("y/n", '
+    "default_on_eof=True), expects result == True. Fails: assert False == True.",
+    "  6. Upon returning the default value due to EOF with 'default_on_eof' enabled, "
+    "confirm() must not perform any cleanup operations, logging, or state changes that "
+    "would differ from a normal successful return.",
+    '     check: confirm eof no side effects, calls result = confirm("y/n", '
+    "default_on_eof=True), expects result == True. Fails: assert False == True.",
+    "  7. The behavior of confirm() with 'default_on_eof' must be consistent regardless "
+    "of whether the default value is provided via a direct argument or resolved from "
+    "the context's default map.",
+    "     check: confirm eof default map consistency, calls result_direct = "
+    'confirm("y/n", default_on_eof=True, default=False), expects result_direct == '
+    "False. Passes.",
+    "The last attempt: tests/test_confirm_eof_behavior.py failed: assert False == True. "
+    "tests/test_confirm_eof_default.py failed: assert False == True.",
+    "Reply 'ok' if every line says what you want. The team then stops here and tells you.",
+    "Name a line to correct only that line. Ask, if something here is unclear.",
+]
+
+
+def test_the_park_page_renders_word_for_word_through_the_request_block(n132):
+    """Frame 190's design, 2.1, point 3: the park page renders its request
+    lines through `request_block`, the helper every present now shares. The
+    page of night 132's m117 stays as frame 142 landed it, word for word."""
+    _liaison_presents(n132, ITEM_132)
+    (ask,) = pending_asks(n132)
+    assert ask.rendered.splitlines() == PAGE_132
+
+
 def test_a_full_map_on_the_park_page_lands_and_a_contest_of_a_criterion_line_names_it(n132):
     """Night 132, s218: woken on m117, the reply to the park ask, the
     Liaison had no line to rule and sent one sentence back (m118)."""

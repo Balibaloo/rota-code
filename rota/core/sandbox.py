@@ -2417,6 +2417,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "WHERE l.status = 'open' AND s.status = 'ratified' ORDER BY l.rowid")]
                 if room > 0:
                     refs += [r for r in lineage if r not in refs][:room]
+        # And the request's own rows, by the same rule: added, never
+        # substituted. Night 136's 49 agenda pages carried no line of the
+        # request, so the principal's words landed on a seat's row and never
+        # on the item (frame 190's design, 2.1). Which rows are the request
+        # is a fact about the state. The park page keeps its own rows.
+        if verb == "present" and recipient == "principal" and not park:
+            from ..roles.principal import request_rows
+
+            refs += [r for r in request_rows(ctx.conn, refs) if r not in refs]
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,
@@ -2654,7 +2663,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # with rows, point 2). A criterion that reached a ruling another
             # way, through a ledger row's `about_ref`, keeps the old route
             # (the diff review of b0a2086e, finding 1).
-            from .scheduler import park_verdict_page, park_verdict_rows
+            from .scheduler import park_verdict_page, park_verdict_rows, verdict_rows
 
             on_park = park_verdict_page(ctx.conn, ctx.trigger) is not None
             # Only the contested and revised lines of a park page travel. An
@@ -2668,6 +2677,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             if on_park:
                 ruled = park_verdict_rows(ctx.conn, ctx.trigger)
                 refs = [r for r in refs if r in ruled]
+            # Every page now carries the request's criteria, so the filter of
+            # the park page holds for a criterion on every page: an approved
+            # criterion reaches no relay (frame 190's design, 2.F,
+            # amendment 1).
+            elif verdict_rows(ctx.conn, ctx.trigger) is not None:
+                ruled = verdict_rows(ctx.conn, ctx.trigger) or []
+                given = list(refs)
+                refs = [r for r in refs if r in ruled or not ctx.conn.execute(
+                    "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]
+                if given and not refs:
+                    raise ValueError(
+                        "the principal approved these criteria as they stand, so "
+                        "no owner has anything to change. Your work here is done")
             for ref in refs:
                 is_criterion = on_park and ctx.conn.execute(
                     "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()

@@ -432,6 +432,242 @@ def check_line(conn: sqlite3.Connection, test_id: str) -> str:
     return ", ".join(parts) + ". " + tail
 
 
+def _is_request_item(conn: sqlite3.Connection, ref: str) -> bool:
+    """Whether the row is an item of the principal's request: in scope, not
+    the account, not what the code does today, and not a description."""
+    from ..core.runner import _is_description
+
+    row = conn.execute(
+        "SELECT i.kind, p.provenance FROM items i "
+        "JOIN item_provenance p ON p.id = i.id WHERE i.id = ?", (ref,)).fetchone()
+    return bool(row and row["kind"] == "in_scope" and ref != "how_it_works"
+                and row["provenance"] != "observed"
+                and not _is_description(conn, ref))
+
+
+def _items_reached(conn: sqlite3.Connection, ref: str, hop: bool = True) -> list[str]:
+    """The items that one ref reaches. A ledger row reaches what its
+    `about_ref` reaches, one step and no further."""
+    if conn.execute("SELECT 1 FROM items WHERE id = ?", (ref,)).fetchone():
+        return [ref]
+    for sql in ("SELECT t.item_id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+                "WHERE c.id = ?",
+                "SELECT item_id FROM tickets WHERE id = ?",
+                "SELECT item_id FROM batches WHERE id = ?"):
+        row = conn.execute(sql, (ref,)).fetchone()
+        if row is not None:
+            return [row[0]]
+    cited = [r[0] for r in conn.execute(
+        "SELECT src_id FROM refs WHERE src_table = 'items' AND kind = 'statement' "
+        "AND target = ? ORDER BY src_id", (ref,))]
+    if cited:
+        return cited
+    if hop:
+        row = conn.execute("SELECT about_ref FROM ledger WHERE id = ?", (ref,)).fetchone()
+        if row is not None and row["about_ref"]:
+            return _items_reached(conn, row["about_ref"], hop=False)
+    return []
+
+
+def open_requests(conn: sqlite3.Connection) -> list[str]:
+    """The requests not yet delivered at their version, most important first.
+
+    An open request is an in-scope item that cites a ratified statement, is
+    not observed and not a description, and whose version is above its
+    `delivered:<item>` row. `tick_slicing` reads the same version rule.
+    """
+    from ..core.scheduler import not_described
+
+    # The highest priority first, as the batch list orders it
+    # (`api.batches_list`), then the id.
+    return [r["id"] for r in conn.execute(
+        "SELECT i.id FROM items i JOIN item_provenance p ON p.id = i.id "
+        "WHERE i.kind = 'in_scope' AND i.id != 'how_it_works' "
+        "  AND p.provenance != 'observed' "
+        + not_described(conn, "i.id") +
+        "  AND EXISTS (SELECT 1 FROM refs r JOIN statements s ON s.id = r.target "
+        "              WHERE r.src_table = 'items' AND r.src_id = i.id "
+        "                AND r.kind = 'statement' AND s.status = 'ratified') "
+        "  AND i.version > COALESCE((SELECT CAST(value AS INTEGER) FROM config "
+        "                            WHERE key = 'delivered:' || i.id), 0) "
+        "ORDER BY i.priority DESC, i.id")]
+
+
+def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
+    """
+    The request's own rows for a page: each item, then its criteria by id.
+
+    The items are the ones the refs reach. When the refs reach none, they
+    are every open request. When no request is open, the row is the account,
+    which renders under its own heading.
+    """
+    # Night 136's 49 agenda pages carried no line of the request, so the
+    # principal's words had no row to land on (frame 190's design, 2.1).
+    # Every open request has its own line. One line for the first request
+    # sent a revise about another request to the wrong item (frame 190's
+    # design, 2.F, amendment 2).
+    items: list[str] = []
+    for ref in refs or []:
+        if not isinstance(ref, str):
+            continue
+        for item in _items_reached(conn, ref):
+            if item not in items and _is_request_item(conn, item):
+                items.append(item)
+    if not items:
+        items = open_requests(conn)
+    if not items:
+        account = conn.execute(
+            "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
+        return ["how_it_works"] if account else []
+    out: list[str] = []
+    for item in items:
+        out.append(item)
+        out += [r["id"] for r in conn.execute(
+            "SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+            "WHERE t.item_id = ? ORDER BY c.id", (item,))]
+    return out
+
+
+def _gave_up_tries(conn: sqlite3.Connection, criterion: str,
+                   batch: str | None) -> int | None:
+    """The attempts of a quarantined `tests_missing` key of a batch that
+    holds the criterion, or None when no such key exists."""
+    if batch:
+        batches = [batch]
+    else:
+        batches = [r["batch_id"] for r in conn.execute(
+            "SELECT bt.batch_id FROM batch_tickets bt "
+            "JOIN criteria c ON c.ticket_id = bt.ticket_id "
+            "JOIN batches b ON b.id = bt.batch_id "
+            "WHERE c.id = ? AND b.status NOT IN ('merged', 'abandoned')", (criterion,))]
+    for r in conn.execute(
+            "SELECT tick_key, attempts FROM tick_attempts WHERE quarantined = 1 "
+            "AND tick_key LIKE '%|tick:tests_missing|%' ORDER BY tick_key"):
+        keyed = (r["tick_key"].split("|", 2) + [""])[2].split(",")
+        if set(keyed) & set(batches):
+            return r["attempts"]
+    return None
+
+
+def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
+                  out: list[str], *, said: list[tuple[str, str]] | None = None,
+                  near: bool = False, batch: str | None = None,
+                  park: bool = False) -> list[int]:
+    """
+    Render the request's rows of a page first: the principal's words, each
+    item, and each item's criteria with their `check:` lines. Append to
+    `out` and `order`, and return the line numbers of the items.
+
+    The park page renders through this block too, so its words stay as
+    frame 142 landed them. `park` keeps its one difference: every item
+    first, then every criterion, and no line about a test given up.
+    """
+    marks = ",".join("?" * len(refs))
+    items = {r["id"]: r["text"] for r in conn.execute(
+        f"SELECT id, text FROM items WHERE id IN ({marks})", tuple(refs))} if refs else {}
+    crit = {r["id"]: (r["text"], r["item_id"]) for r in conn.execute(
+        "SELECT c.id, c.text, t.item_id FROM criteria c "
+        "LEFT JOIN tickets t ON t.id = c.ticket_id "
+        f"WHERE c.id IN ({marks})", tuple(refs))} if refs else {}
+    asked = [r for r in refs if r in items and (park or _is_request_item(conn, r))]
+    must = [r for r in refs if r in crit]
+    if park:
+        groups = [(asked, must)]
+    else:
+        groups = [([i], [c for c in must if crit[c][1] == i]) for i in asked]
+        loose = [c for c in must if crit[c][1] not in asked]
+        if loose:
+            groups.append(([], loose))
+    lines: list[int] = []
+    headed = False
+    if said:
+        out.append("You asked:")
+        headed = True
+        for ref, text in said:
+            order.append(ref)
+            out.append(f'  {len(order)}. "{text}"')
+    after_must = False
+    for group_items, group_must in groups:
+        if group_items:
+            if not headed:
+                out.append("You asked:")
+                headed = True
+            elif after_must:
+                out.append("You also asked:")
+            for r in group_items:
+                order.append(r)
+                lines.append(len(order))
+                out.append(f"  {len(order)}. {items[r]}")
+                if near:
+                    found = near_code(conn, items[r])
+                    if found:
+                        out.append("     code that names these words: " + ", ".join(found))
+        if group_must:
+            out.append("It must:")
+        for r in group_must:
+            order.append(r)
+            out.append(f"  {len(order)}. {crit[r][0]}")
+            mine = [t["id"] for t in conn.execute(
+                "SELECT id FROM tests WHERE criterion_id = ? "
+                + ("AND batch_id = ? " if batch else "") + "ORDER BY id",
+                (r, batch) if batch else (r,))]
+            for t in mine:
+                out.append(f"     check: {check_line(conn, t)}")
+            if mine:
+                continue
+            # The Tester writes no test before the head commit, so a touch
+            # note reads "none yet". A quarantined `tests_missing` key means
+            # the team stopped trying. Night 136's m96 said nothing of cr_3
+            # (frame 190's design, 2.5).
+            tries = None if park else _gave_up_tries(conn, r, batch)
+            if tries is None:
+                out.append("     check: none yet.")
+            else:
+                out.append("     check: none. The team gave up writing it after "
+                           f"{tries} tries.")
+        after_must = bool(group_must)
+    return lines
+
+
+def _name_request(lines: list[int]) -> str:
+    """The closing sentence that names the request's lines, or ''."""
+    if not lines:
+        return ""
+    if len(lines) == 1:
+        return f" To change what you asked for, name line {lines[0]}."
+    return (" To change what you asked for, name its line, "
+            + ", ".join(str(n) for n in lines[:-1]) + f" or {lines[-1]}.")
+
+
+def _stalled_keys(conn: sqlite3.Connection, batches: list[str]) -> list[str]:
+    """The quarantined tick keys that name a batch of the page."""
+    keys: list[str] = []
+    for r in conn.execute(
+            "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
+            "AND tick_key NOT LIKE '%tick:constraint_zero%' ORDER BY tick_key"):
+        keyed = (r["tick_key"].split("|", 2) + ["", ""])[2].split(",")
+        if set(keyed) & set(batches):
+            keys.append(r["tick_key"])
+    return keys
+
+
+def _stalled_words(conn: sqlite3.Connection, keys: list[str]) -> str:
+    """'tests_missing for bg_2, 3 attempts', one part per key."""
+    parts = []
+    for key in keys:
+        bits = (key.split("|", 2) + ["", ""])[:3]
+        row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+                           (key,)).fetchone()
+        tries = row["attempts"] if row else 0
+        parts.append(f"{bits[1].replace('tick:', '')} for {bits[2] or 'the whole project'}, "
+                     f"{tries} attempt{'' if tries == 1 else 's'}")
+    return "; ".join(parts)
+
+
+TEAM_NOTES = ("The team's notes. A seat wrote each of these where your words "
+              "were silent. They are not your request.")
+
+
 def _park_page(conn: sqlite3.Connection, batch: str,
                refs: list[str]) -> tuple[str, list[str]]:
     """The park message as the principal reads it: a page with the item and
@@ -448,35 +684,13 @@ def _park_page(conn: sqlite3.Connection, batch: str,
     out: list[str] = []
     order: list[str] = []
     checks = conn.execute(
-        "SELECT id, criterion_id FROM tests WHERE batch_id = ? "
-        "AND criterion_id IS NOT NULL ORDER BY id", (batch,)).fetchall()
+        "SELECT id FROM tests WHERE batch_id = ? "
+        "AND criterion_id IS NOT NULL", (batch,)).fetchall()
     tries = failing_attempt(conn, batch)
     out.append(f"This change stopped. The team tried {tries} "
                f"time{'' if tries == 1 else 's'}, and {len(own)} of its "
                f"{len(checks)} checks still fail.")
-    crit = {r["id"]: r["text"] for r in conn.execute(
-        f"SELECT id, text FROM criteria WHERE id IN ({','.join('?' * len(refs))})",
-        tuple(refs))} if refs else {}
-    items = {r["id"]: r["text"] for r in conn.execute(
-        f"SELECT id, text FROM items WHERE id IN ({','.join('?' * len(refs))})",
-        tuple(refs))} if refs else {}
-    asked = [r for r in refs if r in items]
-    if asked:
-        out.append("You asked:")
-        for r in asked:
-            order.append(r)
-            out.append(f"  {len(order)}. {items[r]}")
-    must = [r for r in refs if r in crit]
-    if must:
-        out.append("It must:")
-    for r in must:
-        order.append(r)
-        out.append(f"  {len(order)}. {crit[r]}")
-        mine = [c["id"] for c in checks if c["criterion_id"] == r]
-        for t in mine:
-            out.append(f"     check: {check_line(conn, t)}")
-        if not mine:
-            out.append("     check: none yet.")
+    request_block(conn, refs, order, out, batch=batch, park=True)
     head = conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                         (batch,)).fetchone()
     at_head = [r for r in own if head is None or head["head_commit"] is None
@@ -494,7 +708,8 @@ def _park_page(conn: sqlite3.Connection, batch: str,
 
 def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
                 question: str | None = None, *,
-                ask_id: str | None = None) -> tuple[str, list[str]]:
+                ask_id: str | None = None,
+                stalled: list[str] | None = None) -> tuple[str, list[str]]:
     """
     An ask as a message to a person, and the rows it numbers, in order.
 
@@ -511,6 +726,11 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
 
     `ask_id` names the message the page renders. A park message renders as
     the park page or the note, from the rows, on every read.
+
+    A present renders the request's rows first, through `request_block`,
+    and the seats' rows after them under the team's notes. `stalled` names
+    the quarantined tick keys of the page. None reads them from
+    `tick_attempts` for the batches the page names.
     """
     from ..core.runner import _resolve_refs
     from ..core.scheduler import park_ask_batch
@@ -520,7 +740,18 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     if parked_batch and verb == "present":
         return _park_page(conn, parked_batch, list(refs or []))
 
+    refs = list(refs or [])
     resolved = _resolve_refs(conn, refs)
+    # The block's rows leave every group, so no id is numbered twice. The
+    # sign-off page numbered an item in the block and again under "It
+    # would:" (frame 190's design, 2.F, amendment 5).
+    in_block: set[str] = set()
+    if verb == "present":
+        crits = {r["id"] for r in conn.execute(
+            f"SELECT id FROM criteria WHERE id IN ({','.join('?' * len(refs))})",
+            tuple(refs))} if refs else set()
+        in_block = {r for r in refs if isinstance(r, str)
+                    and (r in crits or _is_request_item(conn, r))}
     said: list[tuple[str, str]] = []
     account: list[tuple[str, str]] = []
     does: list[tuple[str, str]] = []
@@ -532,12 +763,16 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     touches: list[tuple[str, str]] = []
     other: list[tuple[str, str]] = []
     zero = False
+    batches: list[str] = []
     for ref in refs:
+        if ref in in_block:
+            continue
         row = resolved.get(ref)
         if not row:
-            words = touch_words(conn, ref)
+            words = touch_words(conn, ref, mark_new=verb == "present")
             if words:
                 touches.append((ref, words))
+                batches.append(ref)
             continue
         if row.get("id") == ZERO:
             zero = True
@@ -593,17 +828,35 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         out.append("Reply 'ok' if that is what you meant. Reply with words if "
                    "it is wrong. After 'ok', I work out what to build and show "
                    "you the plan before anything is written.")
+    keys = (list(stalled) if stalled is not None
+            else _stalled_keys(conn, batches)) if verb == "present" else []
+    if verb == "present" and keys and touches:
+        # A quarantined batch is no plan any more. Night 136's m96 opened
+        # "Before I build this" on a batch the Tester had given up on
+        # (frame 190's design, 2.F, amendment 6).
+        out.append("The team stopped work on this change.")
+        asked = request_block(conn, refs, order, out, batch=batches[0])
+        numbered(does + account)
+        out.append(f"The team gave up on: {_stalled_words(conn, keys)}.")
+        out.append("The team expects to touch:")
+        numbered(touches)
+        out.append("Reply 'ok' if every line says what you want. Name a line "
+                   "to correct only that line. Ask, if something here is "
+                   "unclear." + _name_request(asked))
     elif verb == "present" and touches:
         out.append("Before I build this, here is what I expect to touch.")
+        asked = request_block(conn, refs, order, out, batch=batches[0])
         numbered(does + account)
+        out.append("The team expects to touch:")
         numbered(touches)
         if zero:
             out.append("  Some of that code has not been read yet. I cannot say "
                        "what a change there might break.")
         out.append("This is a prediction, not a promise. Reply 'ok' to go "
-                   "ahead. Reply with words if something concerns you.")
+                   "ahead. Reply with words if something concerns you."
+                   + _name_request(asked))
     elif verb == "present" and zero and not (said or account or described
-                                             or does or does_not):
+                                             or does or does_not or in_block):
         out.append("Nothing here has been read yet, so I cannot say what a "
                    "change might break. That is normal for a new or unread "
                    "project.")
@@ -611,9 +864,10 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
                    "I have not read.")
     elif verb == "present":
         out.append("Here is what I understand you want, on one page.")
-        if said:
-            out.append("You asked:")
-            numbered(said, quote=True)
+        # The request first, the principal's words with it. The seats'
+        # rows follow under the team's notes. Night 133's m122 put seven
+        # seat rows to the principal and no line of the request.
+        asked = request_block(conn, refs, order, out, said=said, near=True)
         if account:
             out.append("What we are building:")
             numbered(account)
@@ -633,6 +887,8 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         if does_not:
             out.append("It would not:")
             numbered(does_not)
+        if assumed or terms or other:
+            out.append(TEAM_NOTES)
         if assumed:
             out.append("Where you did not say, I assumed:")
             numbered(assumed)
@@ -645,7 +901,7 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
                        "anything I touch there.")
         out.append("Reply in your own words. 'ok' approves all of this and "
                    "starts building. Name a line to correct only that line. "
-                   "Ask, if something here is unclear.")
+                   "Ask, if something here is unclear." + _name_request(asked))
     elif verb == "clarify":
         out.append("I need one thing from you before I can continue.")
         if question:
@@ -758,19 +1014,33 @@ def render_refs(conn: sqlite3.Connection, refs: list[str]) -> str:
     return "\n".join(lines)
 
 
-def touch_words(conn: sqlite3.Connection, batch_id: str) -> str:
-    """The batch's predicted touch as words, or '' when the id is no batch."""
+def touch_words(conn: sqlite3.Connection, batch_id: str,
+                mark_new: bool = False) -> str:
+    """The batch's predicted touch as words, or '' when the id is no batch.
+    `mark_new` marks a predicted test path that the code index lacks."""
     from ..core.lifecycle import touch_set
 
     t = touch_set(conn, batch_id)
     if not t:
         return ""
     item = t["item"]
+
+    def shown(path: str) -> str:
+        # A test file the index does not hold does not exist yet. Night
+        # 136's principal could not tell a predicted file from a real one
+        # (frame 190's design, 2.5). The page alone marks it: a seat's
+        # working set keeps the words its recordings hash.
+        if not mark_new or "tests" not in path.replace(chr(92), "/").split("/")[:-1]:
+            return path
+        held = conn.execute("SELECT 1 FROM code_index WHERE grain = ?", (path,)).fetchone()
+        return path if held else f"{path} (a new file)"
+
     # Words, no ids: the page shows none by contract, and seat1 (2026-09-12)
     # read "the batch for s2 (...)" to the person at the seat.
     parts = ["the work for: " + (item.get("text") or "this item")]
     parts.append("expected to touch "
-                 + (", ".join(t["expected"]) if t["expected"] else "nothing named"))
+                 + (", ".join(shown(p) for p in t["expected"]) if t["expected"]
+                    else "nothing named"))
     if t["possible"]:
         parts.append("might touch " + ", ".join(t["possible"]))
     if t["unsurveyed"]:
@@ -801,6 +1071,14 @@ def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
             created.append(msg_id)
 
     return created
+
+
+def _signoff_page(conn: sqlite3.Connection, message_id: str | None) -> bool:
+    """Whether the present is the sign-off page: its cause is a `submit`."""
+    row = conn.execute(
+        "SELECT c.verb FROM messages m JOIN messages c ON c.id = m.cause_id "
+        "WHERE m.id = ?", (message_id,)).fetchone() if message_id else None
+    return bool(row and row["verb"] == "submit")
 
 
 def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
@@ -880,6 +1158,21 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             per_item = {k: v for k, v in per_item.items() if k not in batches}
             if all(v == "approve" for v in per_item.values()):
                 return None
+
+    # An "ok" off the sign-off page approves nothing of the request. The
+    # door stamps the request's rows on every page, and the item's approval
+    # belongs to the sign-off gate (law 8). An approve there would have
+    # approved a contested item before its owner amended it, night 133's
+    # wall 5 (frame 190's design, 2.F, amendment 1). The park page keeps
+    # its own rows and its own rulings.
+    from ..core.scheduler import park_ask_batch
+
+    if (ask.verb == "present" and answer.verb == "verdict" and per_item
+            and not park_ask_batch(ask.message_id or "")
+            and not _signoff_page(conn, ask.message_id)):
+        stamped = set(request_rows(conn, ask.refs))
+        per_item = {k: v for k, v in per_item.items()
+                    if k not in stamped or v in ("contest", "revise")}
 
     msg_id = new_id("m", conn)
     seq = conn.execute(
@@ -963,20 +1256,21 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             "UPDATE items SET approval = ?, approval_ver = version "
             "WHERE id = ? AND approval IS NOT ?", (state, ref, state))
 
-    refs = [r for r in (list(per_item) or ask.refs) if r not in closed_here]
+    refs = [r for r in (list(per_item) if answer.per_item else ask.refs)
+            if r not in closed_here]
     # A page whose every row closed at the keypress leaves nothing for an
     # owner to do. The verdict is the record and lands answered. Relayed,
     # it woke the Terminologist with a ruling on a done row; it adopted the
     # ledger id, was refused, logged the refusal as a new assumption, and
     # the agenda put that row to the principal: 36 rounds (tipsQ,
-    # 2026-09-09).
+    # 2026-09-09). A ruling whose every line was a request approve off the
+    # sign-off page leaves nothing either.
     approved_here = [r for r in closed_here if per_item.get(r) == "approve"]
-    settled = per_item and not refs and closed_here and len(approved_here) == len(closed_here)
+    settled = (bool(answer.per_item) and not refs
+               and len(approved_here) == len(closed_here))
     # A park page approved whole is the ceiling. The team stops here and the
     # parked line says so, so no Liaison session wakes on the verdict
     # (ruled: Roman, 2026-10-08, the park ask is a page with rows, point 5).
-    from ..core.scheduler import park_ask_batch
-
     if (ask.verb == "present" and park_ask_batch(ask.message_id or "")
             and ask.refs and all(per_item.get(r) == "approve" for r in ask.refs)):
         settled = True

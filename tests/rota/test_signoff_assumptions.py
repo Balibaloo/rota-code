@@ -129,8 +129,13 @@ def test_an_assumption_s_owner_is_its_author(db):
 
 
 def _a_present_of(db, refs):
+    # The sign-off page: a present caused by the Vision Keeper's `submit`.
+    # Only that page approves an item (frame 190's design, 2.F, amendment 1).
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-               "body_refs, seq, status) VALUES ('m9','th','liaison','principal',"
+               "body_refs, seq, status) VALUES ('m8','th','vision_keeper','liaison',"
+               "'submit',?,0,'answered')", (json.dumps(refs),))
+    db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m9','th','m8','liaison','principal',"
                "'present',?,1,'open')", (json.dumps(refs),))
     db.commit()
     return pending_asks(db)[0]
@@ -282,9 +287,10 @@ def test_observed_behaviour_is_not_shown_as_a_plan(db):
     seed_provenance(db, "items", "new", "decided")
     db.commit()
     page = render_ask(db, "present", ["seen", "new"])
-    assert "It does today:" in page and "It would:" in page
-    assert page.index("It does today:") < page.index("the program calculates the tip") < page.index("It would:")
-    assert page.index("It would:") < page.index("the program splits the bill")
+    # The request comes first, under "You asked:" (frame 190's design, 2.1).
+    assert "You asked:" in page and "It does today:" in page
+    assert page.index("You asked:") < page.index("the program splits the bill") \
+        < page.index("It does today:") < page.index("the program calculates the tip")
 
 
 def test_a_description_has_its_own_heading(db):
@@ -306,8 +312,12 @@ def test_a_description_has_its_own_heading(db):
     assert "is_description" not in _resolve_refs(db, ["new"])["new"], \
         "a request's row keeps the text the recordings hash"
     page = render_ask(db, "present", ["bg_1_summary", "new"])
+    # The request first, and a description is never a request line (frame
+    # 190's design, 2.F, amendment 5).
     heading = page.index("How it is described:")
-    assert heading < page.index("includes echo_json") < page.index("It would:")
+    assert page.index("You asked:") < page.index("the program splits the bill") \
+        < heading < page.index("includes echo_json")
+    assert page.count("includes echo_json") == 1
     assert "It does today:" not in page
 
 

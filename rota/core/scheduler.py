@@ -1558,8 +1558,18 @@ def park_verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[
 
     if park_verdict_page(conn, message_id) is None:
         return []
-    row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
-                       (message_id,)).fetchone()
+    return verdict_rows(conn, message_id) or []
+
+
+def verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[str] | None:
+    """The rows that a verdict contests or revises, in the verdict's ref
+    order, on any page. None when the message is no verdict."""
+    import json
+
+    row = conn.execute("SELECT verb, body_refs FROM messages WHERE id = ?",
+                       (message_id,)).fetchone() if message_id else None
+    if row is None or row["verb"] != "verdict":
+        return None
     ruled = conn.execute("SELECT value FROM config WHERE key = ?",
                          (f"verdict:{message_id}",)).fetchone()
     try:

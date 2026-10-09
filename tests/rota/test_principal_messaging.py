@@ -74,14 +74,18 @@ def test_a_signoff_page_reads_as_one_page_in_order(db):
     ask = _ask(db, "m9", "present", ["calculate_tip", "how_it_works", "s1", "l_a69ad6edd4", "no_gui"])
     page = ask.rendered
     assert page.startswith("Here is what I understand you want, on one page."), page
+    # The request first: the words and the item under one "You asked:". The
+    # seats' rows follow under the team's notes (frame 190's design, 2.1).
     order = [page.index(x) for x in (
-        "You asked:", '"tip calculator pls"',
+        "You asked:", '"tip calculator pls"', "calculates the tip",
         "What we are building:", "The user types the bill",
-        "It would:", "calculates the tip",
         "It would not:", "No graphical interface",
+        "The team's notes.",
         "Where you did not say, I assumed:", "typed each time",
         "Reply in your own words.")]
     assert order == sorted(order), page
+    assert page.count("You asked:") == 1 and "It would:" not in page
+    assert page.endswith("To change what you asked for, name line 2."), page
     assert "Name a line to correct only that line." in page
     assert not RAW_ID.search(page), page
     assert ": assumed:" not in page, "the old id-shaped rendering is gone from the page"
