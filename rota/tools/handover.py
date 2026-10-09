@@ -968,6 +968,11 @@ def cmd_take(args: argparse.Namespace, box: Box) -> int:
     if claim.get("note"):
         print("note: %s" % claim["note"])
     print("Claim the frame in the stack with your session id, then read the commit.")
+    sender = (claim.get("from_sid") or "")[:8]
+    if sender:
+        print("Read the sender's momentum note, plans/handoff-%s.md, after the "
+              "composition page. Message the sender for a context question "
+              "before you ask Roman." % sender)
     return 0
 
 
