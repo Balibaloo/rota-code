@@ -1368,8 +1368,8 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
             if ruled != "approve":
                 raise ValueError(
                     f"{id} is {row['approval']} at version {row['version']}, and no "
-                    f"verdict of the principal approved it at that version. Only "
-                    f"the principal's sign-off approves an item. Leave it")
+                    f"verdict of the principal approved it. Only the principal's "
+                    f"sign-off approves an item. Leave it")
     ctx.writes.append(("items", id, {
         "approval": approval, "approval_ver": row["version"]}, False))
     return {"id": id, "approval": approval}
@@ -7128,17 +7128,19 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                                  "WHERE id = ?", (ref,)).fetchone()
         if batch is None:
             continue
-        # A closed change has no prediction left to correct (the diff review
-        # of 2dace61b, finding 4).
-        if batch["status"] in ("merged", "abandoned"):
-            raise ValueError(
-                f"{ref} is the change's line, and the change is {batch['status']}. "
-                f"A ruling on it moves nothing. Approve the line")
-        if not batch["head_commit"]:
-            continue
         item = batch["item_id"]
         line = (f", line {order.index(item) + 1}"
                 if order and item in order else "")
+        # A closed change has no prediction left to correct (the diff review
+        # of 2dace61b, finding 4). The item is still the lever, so the
+        # refusal names its line (the diff review of 0ffc97b7, finding 4).
+        if batch["status"] in ("merged", "abandoned"):
+            raise ValueError(
+                f"{ref} is the change's line, and the change is {batch['status']}. "
+                f"A ruling on it moves nothing. To change what you asked for, "
+                f"contest the item {item}{line}. Otherwise approve the line")
+        if not batch["head_commit"]:
+            continue
         raise ValueError(
             f"{ref} is the change's line: a prediction of what it touches, and "
             f"a ruling on it moves nothing. To stop the change, contest the "

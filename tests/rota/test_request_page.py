@@ -714,15 +714,70 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     assert push_working_set("tester", sb, wake)["touch"] == ["tests/test_termui.py"]
 
 
-def test_the_words_dispute_only_the_paths_a_no_clause_names():
-    """M85's words call the defaults test file wrong and say nothing against
-    the termui source. Words that name no path dispute nothing."""
+# The principal's eight answers to a touch note: m85, m97, m228, m237 and
+# m247 of night 136, and m198, m200 and m202 of night 133, read with
+# `mode=ro&immutable=1` on 2026-10-09.
+M97 = ("That line still names the wrong tests. The confirm prompt's tests live in the "
+       "terminal UI test file, not the defaults test file. The \"might touch\" item is "
+       "an unrelated test about default lookup overrides, so please drop it.")
+M228 = ("I approve line one as it stands. Line two names the wrong tests. The defaults "
+        "test file and the default map and parameter source tests cover option defaults "
+        "and not confirm, so the new confirm tests belong with the other prompt tests.")
+M237 = ("Both lines of this page describe the confirm flag, which is my second change, "
+        "but the change I'm on now is the third one: a show_python flag on "
+        "version_option that adds the Python version to the message. Please send a "
+        "page for that change instead.")
+M247 = ("Both lines on that page were about the confirm flag. None of them were about "
+        "the version option change. Please send a page for that change only: a new flag "
+        "that adds the running Python version, as major.minor.micro, to the end of the "
+        "version message.")
+M198 = ("I can't approve this yet, because line 2 names the wrong tests: the file of "
+        "default tests and the four tests in it cover option defaults and default maps, "
+        "not confirm. The new confirm tests belong with the other prompt tests in the "
+        "terminal UI test file. Those tests should check that confirm returns its "
+        "default on closed stdin when the flag is on, and still aborts when the flag is "
+        "off, which is the default.")
+M200 = ("I can't approve this yet, because the line still names the default tests file "
+        "and its four tests, which are about option defaults and default maps, not "
+        "confirm. Please put the new confirm tests with the other prompt tests in the "
+        "terminal UI test file. They should check that confirm returns its default when "
+        "stdin is closed and the flag is on, and that it still aborts when the flag is "
+        "off, which is the default.")
+M202 = ("I still can't approve this, because the line names the default tests file and "
+        "its four tests again, and those cover option defaults and default maps, not "
+        "confirm. Please put the new confirm tests with the other prompt tests in the "
+        "terminal UI test file instead. The tests should check that confirm returns its "
+        "default when stdin is closed and the flag is on, and that it still aborts when "
+        "the flag is off.")
+
+
+@pytest.mark.parametrize("words, moved", [
+    (M85, ["tests/test_defaults.py"]),
+    (M97, ["tests/test_defaults.py"]),
+    (M228, ["tests/test_defaults.py"]),
+    (M237, []),
+    (M247, []),
+    (M198, ["tests/test_defaults.py"]),
+    (M200, ["tests/test_defaults.py"]),
+    (M202, ["tests/test_defaults.py"]),
+    ("tests/test_defaults.py is wrong.", ["tests/test_defaults.py"]),
+    ("test_defaults.py is wrong.", ["tests/test_defaults.py"]),
+    ("The termui source is right but the defaults test file is not.",
+     ["tests/test_defaults.py"]),
+    ("The tests go in the termui test file, not the defaults test file.",
+     ["tests/test_defaults.py"]),
+    ("Everything else looks right.", []),
+    ("Keep the defaults test file.", []),
+])
+def test_the_words_dispute_only_the_paths_a_no_clause_names(words, moved):
+    """The principal's real answers to a touch note, and literal forms. A
+    sentence disputes the paths it names when it holds a "no" word (the
+    diff review of 0ffc97b7, findings 1 and 3)."""
     from rota.core.runner import disputed_paths
 
-    paths = ["src/click/termui.py", "tests/test_defaults.py"]
-    assert disputed_paths(M85, paths) == ["tests/test_defaults.py"]
-    assert disputed_paths("Everything else looks right.", paths) == []
-    assert disputed_paths("Keep the defaults test file.", paths) == []
+    paths = ["src/click/termui.py", "tests/test_defaults.py", "tests/test_termui.py",
+             "src/click/decorators.py"]
+    assert disputed_paths(words, paths) == moved
 
 
 def test_a_touch_note_approves_no_item_and_a_closed_batch_line_is_refused(bg2):
@@ -739,7 +794,8 @@ def test_a_touch_note_approves_no_item_and_a_closed_batch_line_is_refused(bg2):
     ruling = {"1": "approve", "2": "approve", "3": "approve", "4": "approve",
               "5": "contest"}
     with pytest.raises(ValueError, match="bg_2 is the change's line, and the change "
-                                         "is abandoned"):
+                                         "is abandoned.*contest the item "
+                                         f"{ITEM_136}, line 1"):
         sb.call("rulings.rule", rulings=ruling, words=M85)
     bg2.execute("UPDATE batches SET status = 'pending' WHERE id = 'bg_2'")
     _landing(bg2, reply, ruling, M85)

@@ -1335,31 +1335,53 @@ def trigger_message(conn: sqlite3.Connection, wake: Wake) -> str | None:
 
 # The words that mark a clause as a "no". Lower case, matched as whole words.
 _DISPUTE_WORDS = {"not", "wrong", "unrelated", "no", "never", "isn't", "aren't",
-                  "doesn't", "shouldn't", "drop", "remove"}
+                  "doesn't", "shouldn't", "drop", "remove", "can't", "cannot",
+                  "won't"}
+
+
+def _word(w: str) -> str:
+    """A word with one trailing "s" removed, so "defaults" names `default`."""
+    return w[:-1] if len(w) > 3 and w.endswith("s") else w
 
 
 def disputed_paths(said: str, paths: list[str]) -> list[str]:
     """
     The paths of a prediction that the principal's words call wrong.
 
-    A clause of the words disputes a path when it names the path and holds
-    a "no" word. The clause names the path by the whole path, by its file
-    name, or by every word of the file name less "test". "not the defaults
-    test file" names `tests/test_defaults.py`. Words that name no path
-    dispute nothing.
+    A sentence of the words disputes a path when it names the path and holds
+    a "no" word. A sentence ends at punctuation that a space or the end
+    follows, so a file name keeps its dot, and at "but". A sentence names a
+    path by the whole path, by its file name, or by every word of the file
+    name less "test", with a trailing "s" removed. When a part of the
+    sentence after a comma starts with a "no" word and names a path, only
+    the paths of such parts are disputed: "the termui file, not the
+    defaults test file" disputes the second file alone. Words that name no
+    path dispute nothing.
     """
+    def named(text: str, path: str) -> bool:
+        words = {_word(w) for w in re.findall(r"[a-z0-9_']+", text)}
+        name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        stem = name.rsplit(".", 1)[0]
+        parts = {_word(w) for w in re.split(r"[_\-]+", stem) if w} - {"test", "tests"}
+        return bool(path.lower() in text or name in text or (parts and parts <= words))
+
+    def says_no(text: str) -> bool:
+        return bool(set(re.findall(r"[a-z']+", text)) & _DISPUTE_WORDS)
+
     out: list[str] = []
-    for clause in re.split(r"[.;:,!?\n]+", (said or "").lower()):
-        words = set(re.findall(r"[a-z0-9_'./-]+", clause))
-        if not words & _DISPUTE_WORDS:
+    text = (said or "").lower().replace("’", "'")
+    for sentence in re.split(r"[.;:!?]+(?=\s|$)|\n+|\bbut\b", text):
+        if not says_no(sentence):
             continue
-        for path in paths:
-            name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
-            stem = name.rsplit(".", 1)[0]
-            parts = {w for w in re.split(r"[_\-]+", stem) if w} - {"test", "tests"}
-            named = (path.lower() in clause or name in words
-                     or (parts and parts <= words))
-            if named and path not in out:
+        hits = [p for p in paths if named(sentence, p)]
+        # "A, not B": the "no" part holds the dispute, and A is what the
+        # words want (the diff review of 0ffc97b7, finding 3).
+        led = [p for part in sentence.split(",")
+               if re.match(r"\s*(" + "|".join(map(re.escape, _DISPUTE_WORDS)) + r")\b",
+                           part)
+               for p in paths if named(part, p)]
+        for path in (led or hits):
+            if path not in out:
                 out.append(path)
     return out
 
@@ -1511,9 +1533,14 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             if not touch or out.get("principal_verdict", {}).get(b) not in (
                     "contest", "revise"):
                 continue
-            disputed = disputed_paths(said, touch.get("expected", []))
+            # `possible` too: after m85 the symbol the words called unrelated
+            # stayed there, and run 4 wrote it back (the diff review of
+            # 0ffc97b7, finding 5).
+            disputed = disputed_paths(
+                said, touch.get("expected", []) + touch.get("possible", []))
             touch["disputed"] = disputed
-            touch["expected"] = [p for p in touch["expected"] if p not in disputed]
+            for key in ("expected", "possible"):
+                touch[key] = [p for p in touch.get(key, []) if p not in disputed]
     # One name for one thing. Intake already calls the principal's words
     # `principal_said`, and an owner reached through the inquiry route is
     # holding the same words for the same reason -- so it is not a differently

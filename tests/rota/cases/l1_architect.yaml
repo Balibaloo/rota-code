@@ -311,7 +311,10 @@
     writes:
       # A junction row has no id column, so the case names the receipt id,
       # the batch and the path.
-      batch_touch: {ids_include: ["<b1>:tests/test_termui.py"]}
+      # The disputed path stays out. Run 4 of pass 3 wrote it back and
+      # passed on ids_include alone (the diff review of 0ffc97b7, finding 2).
+      batch_touch: {ids_include: ["<b1>:tests/test_termui.py"],
+                    text_excludes: ["tests/test_defaults.py"]}
   forbidden:
     writes: [ledger, criteria, tickets, items, constraints]
     recipients: [principal, vision_keeper, developer, tester]
