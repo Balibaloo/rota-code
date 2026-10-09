@@ -223,6 +223,7 @@ a different question and the night is then opened once.
 - Ends when: first the mechanism: a ruling on a predicted file line lands as a correction the Architect reads before the build, and the page says when a criterion's test file does not exist; second the ratio, on a night: corrections on a prediction page that land, from 0 of 5 on night 136, to all but one; third the residue: a session that still shows the sign is read, and the frame closes when its cause is not the prediction page's route.
 - Waits on: Roman's order. Unpriced. Nearest: frame 45, what the principal sees.
 - Status 2026-10-09 10:25 (rota-68): pushed by 7d45e193 at frame 142's close. Unclaimed. Rota workflow.
+- Status 2026-10-09 10:25 (rota-68): **handed to nobody yet, commit 46f9e769, exit 5: the reserve is empty.** The hand-off waits on disk in `.handover/waiting/` as a vacancy, and the next session that arms a watcher takes it within a second. The four standby rows are all STALE, the newest from 2026-10-08 09:47, so no armed session exists; five sessions sent a prompt and arm no watcher, the sender included. Session 7d45e193 stops here at the 300k line with no frame held. Meta workflow.
 
 ### 188. A relay from the Liaison to itself wakes a session with no mode and every tool (2026-10-09)
 
