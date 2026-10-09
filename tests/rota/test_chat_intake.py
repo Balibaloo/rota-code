@@ -40,7 +40,9 @@ def _msg(conn, mid, cause, from_role, to_role, verb, refs, seq, text=None):
 def s220(tmp_path):
     """e_p4 and e_p5 hold the walk's sentence. The Liaison asked about e_p4
     in m119. The walk writes each turn as an entry and a message with no
-    `body_text`, so m_p5 carries the entry in its refs."""
+    `body_text`, so m_p5 carries the entry in its refs. The walk marks m119
+    answered before it writes m_p5, as night 132 has it
+    (`scenes.answer_replies`; the delta review of 4ef3bd9f, finding 1)."""
     conn = init_db(tmp_path / "rota.db")
     for n, eid in ((4, "e_p4"), (5, "e_p5")):
         conn.execute("INSERT INTO entries (id, author, text, ts_order) "
@@ -48,6 +50,7 @@ def s220(tmp_path):
     _msg(conn, "m_p4", None, "principal", "liaison", "converse", ["e_p4"], 4)
     _msg(conn, "m119", "m_p4", "liaison", "principal", "clarify", ["e_p4"], 5, M119)
     _msg(conn, "m_p5", None, "principal", "liaison", "converse", ["e_p5"], 6)
+    conn.execute("UPDATE messages SET status = 'answered' WHERE id IN ('m_p4', 'm119')")
     conn.commit()
     return conn
 
@@ -85,49 +88,49 @@ def test_the_first_time_the_words_are_said_the_clarify_goes(s220):
     """The door keys on an earlier answer. The first sentence drew none."""
     s220.execute("DELETE FROM messages WHERE id = 'm119'")
     assert repeated_sentence(s220, "m_p5") is None
+    # A greeting's route is one clarify on the entry with no intake (frame
+    # 142's design, 2.C). No guard refuses it (the delta review of
+    # 4ef3bd9f, finding 3).
     sb = _converse(s220)
-    sb.call("brief.intake", verdict="work")
     out = sb.call("msg.clarify_principal", refs=["e_p5"], question="What would you like to build?")
     assert out["to"] == "principal"
 
 
-def test_a_clarify_on_the_entry_before_the_intake_is_refused_with_the_intake_named(s220):
-    """The diff review of 0baacf55, finding 4: the fork guarded a converse
-    that the mode no longer offers. A clarify on the entry answered a real
-    request with no intake, and the request was lost."""
-    s220.execute("DELETE FROM messages WHERE id = 'm119'")
-    s220.execute("UPDATE entries SET text = ? WHERE id = 'e_p5'", (REQUEST,))
-    sb = _converse(s220)
-    with pytest.raises(ValueError) as refused:
-        sb.call("msg.clarify_principal", refs=["e_p5"], question="Which format?")
-    assert "If they ask for something, claim it with brief.intake(verdict='work')" in str(
-        refused.value)
-    assert sb.ctx.outbound == []
-    # A clarify on another row is no answer to the entry, and the fork lets it go.
-    s220.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
-                 "status) VALUES ('s1', 'e_p4', 0, 4, 'yes ', 'ratified')")
-    other = _converse(s220)
-    assert other.call("msg.clarify_principal", refs=["s1"],
-                      question="Is that still right?")["to"] == "principal"
-    # The guard refuses once. Words that ask for nothing keep their route,
-    # the clarify on the entry (frame 142's design, 2.C).
-    assert sb.call("msg.clarify_principal", refs=["e_p5"],
-                   question="Which format?")["to"] == "principal"
+def _confirm_m119(conn):
+    """m119 as the confirm of s4, answered by the principal."""
+    conn.execute("UPDATE messages SET verb = 'confirm', body_refs = '[\"s4\"]' "
+                 "WHERE id = 'm119'")
 
 
-def test_a_repeat_after_the_confirm_closed_is_a_new_request_and_gets_its_confirm(s220):
-    """The diff review of 0baacf55, finding 3: the door refused a confirm on
-    words the principal said again after the first confirm closed. The
-    ruling of 2026-09-12 is about the team's questions, not a closed
-    request. Night 132's s220 shape, with m119 open, stays refused above."""
-    s220.execute("UPDATE messages SET verb = 'confirm', body_refs = '[\"s4\"]', "
-                 "status = 'answered' WHERE id = 'm119'")
-    assert repeated_sentence(s220, "m_p5") is None
-    sb = _converse(s220)
+def _segment_and_confirm(conn):
+    sb = _converse(conn)
     sb.call("brief.intake", verdict="work")
     sb.call("brief.segment", id="s7", span_start=0, span_end=len(WALK), text=WALK)
-    out = sb.call("msg.confirm_principal", refs=["s7"])
-    assert out["to"] == "principal"
+    return sb, lambda: sb.call("msg.confirm_principal", refs=["s7"])
+
+
+def test_a_repeat_after_the_confirm_landed_is_a_new_request_and_gets_its_confirm(s220):
+    """The diff review of 0baacf55, finding 3: the door refused a confirm on
+    words the principal said again after the first request closed. The
+    ruling of 2026-09-12 is about the team's questions, not a closed
+    request. The request closes when its verdict lands."""
+    _confirm_m119(s220)
+    _msg(s220, "m_v1", "m119", "principal", "liaison", "verdict", ["s4"], 7)
+    s220.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, verdict_id) "
+                 "VALUES ('r_v1', 'm119', '{\"s4\": \"approve\"}', 'ok', 'landed', 'm_v1')")
+    assert repeated_sentence(s220, "m_p5") is None
+    _, confirm = _segment_and_confirm(s220)
+    assert confirm()["to"] == "principal"
+
+
+def test_a_repeat_while_the_confirm_has_no_landed_verdict_is_refused(s220):
+    """The principal answered the confirm, and no verdict landed on it yet.
+    The request is still open, so the repeat is the same request."""
+    _confirm_m119(s220)
+    assert repeated_sentence(s220, "m_p5") == "m119"
+    _, confirm = _segment_and_confirm(s220)
+    with pytest.raises(ValueError, match="you answered these words in m119"):
+        confirm()
 
 
 def test_a_repeated_sentence_as_a_reply_to_the_clarify_is_refused_in_answering(s220):

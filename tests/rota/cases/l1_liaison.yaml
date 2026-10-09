@@ -39,6 +39,34 @@
     writes: [statements, items, glossary_terms]
     recipients: [vision_keeper, terminologist, architect]
 
+- id: L1-LI-a-request-is-claimed-before-any-clarify
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  # The other half of the case above. A door that refused a clarify on the
+  # entry before an intake made the greeting's clarify a two-call shape, so
+  # the door went. This case measures what the door guarded: a real request
+  # is claimed and segmented, and no question takes its place (the delta
+  # review of 4ef3bd9f, finding 3; frame 142's design, 2.C).
+  fixture:
+    entries:
+      - {id: e_<m_in>, author: principal, ts_order: 1,
+         text: "make confirm() return the default answer when stdin is closed instead of aborting"}
+  inbound: {id: <m_in>, from: principal, to: liaison, verb: converse,
+            body_refs: []}
+  expect:
+    calls: [brief.intake]
+    writes:
+      statements: {count: 1}
+  forbidden:
+    # A question in place of the claim is how the request dies politely.
+    messages:
+      - {to: principal, verb: clarify}
+      - {to: principal, verb: converse}
+    writes: [items, glossary_terms]
+    recipients: [vision_keeper, terminologist, architect]
+
 - id: L1-LI-segment
   tier: T1
   role: liaison

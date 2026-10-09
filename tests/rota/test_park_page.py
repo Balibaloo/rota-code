@@ -289,9 +289,10 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     sb.ctx.trigger = verdict["id"]
     sb.call("msg.relay_vision_keeper", refs=[ITEM_132])
     routed = {m["to_role"]: m["body_refs"] for m in sb.ctx.outbound}
-    assert routed["vision_keeper"] == [ITEM_132]
-    # The approved criteria stay out (the diff review of 0baacf55, finding 2).
-    assert routed["terminologist"] == ["cr_2_confirm_eof_behavior"]
+    # The approved criteria stay out (the diff review of 0baacf55, finding
+    # 2), and the item is no row of the page, so no Vision Keeper relay
+    # carries it (the delta review of 4ef3bd9f, finding 2).
+    assert routed == {"terminologist": ["cr_2_confirm_eof_behavior"]}
     assert _owner_of_ref(n132, "cr_2_confirm_eof_behavior") is None
 
     # The respecify moves cr_2's version and lifts the key. The re-park asks
@@ -336,6 +337,10 @@ def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist
     assert len(rows) == 1
     refs = json.loads(rows[0]["body_refs"])
     assert refs == ["cr_2_confirm_eof_behavior"]
+    # No relay of the item to the Vision Keeper (the delta review of
+    # 4ef3bd9f, finding 2).
+    assert n132.execute("SELECT 1 FROM messages WHERE cause_id = ? AND verb = 'relay' "
+                        "AND to_role != 'terminologist'", (verdict["id"],)).fetchone() is None
     from rota.core.scheduler import park_criterion_relay
 
     assert park_criterion_relay(n132, rows[0]["id"])
@@ -344,7 +349,8 @@ def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist
 def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n132):
     """The diff review of 0baacf55, finding 2: `stage_park_relay` widened a
     held relay and kept every criterion in it. One contest and two approves
-    leave the contested criterion alone."""
+    leave the contested criterion alone, and no other ref (the delta review
+    of 4ef3bd9f, finding 2)."""
     from rota.core.sandbox import build, stage_park_relay
     from rota.roles import prompts
 
@@ -367,7 +373,7 @@ def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n1
         "body_text": None, "round_no": 0, "cause_id": verdict["id"]})
     stage_park_relay(sb.ctx)
     (held,) = sb.ctx.outbound
-    assert held["body_refs"] == ["@term:stdin", "cr_2_confirm_eof_behavior"]
+    assert held["body_refs"] == ["cr_2_confirm_eof_behavior"]
 
 
 def test_a_relay_two_hops_below_a_park_verdict_is_no_criterion_repair(n132):

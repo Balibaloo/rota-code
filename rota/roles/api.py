@@ -597,10 +597,18 @@ def _said(text: str) -> str:
     return " ".join((text or "").split()).casefold()
 
 
+def _confirm_landed(conn: sqlite3.Connection, m) -> bool:
+    """True when a Liaison confirm has a landed verdict on its request."""
+    return m["verb"] == "confirm" and conn.execute(
+        "SELECT 1 FROM rulings WHERE ask_id = ? AND status = 'landed'",
+        (m["id"],)).fetchone() is not None
+
+
 def repeated_sentence(conn: sqlite3.Connection, trigger: str | None) -> str | None:
     """
-    The open Liaison message to the principal that answered the principal's
+    The Liaison message to the principal that answered the principal's
     words before, when the words on the trigger's chain are said again.
+    A confirm whose request has a landed verdict does not count.
     """
     # The nearest principal message on the cause chain holds the words. An
     # owner's answer in the `answer` mode sits two hops below it.
@@ -633,16 +641,18 @@ def repeated_sentence(conn: sqlite3.Connection, trigger: str | None) -> str | No
                 break
             marks = ",".join("?" * len(level))
             below = conn.execute(
-                f"SELECT id, from_role, to_role, status FROM messages "
+                f"SELECT id, from_role, to_role, verb FROM messages "
                 f"WHERE cause_id IN ({marks}) ORDER BY seq", level).fetchall()
-            # Only an answer that is still open stands. A confirm that the
-            # principal closed ended that request, and the same words after it
-            # are a new request that earns its own confirm. The ruling of
-            # 2026-09-12 is about the team's questions, not a closed request
-            # (the diff review of 0baacf55, finding 3).
+            # The answer stands whatever its status. The walk and the agent
+            # principal mark a Liaison message answered before they repeat
+            # the words, so a filter on `open` disabled the door on every
+            # night path (the delta review of 4ef3bd9f, finding 1). Only a
+            # confirm whose request has a landed verdict is exempt. That
+            # request is closed, and the same words after it are a new
+            # request (the diff review of 0baacf55, finding 3).
             hit = next((m["id"] for m in below if m["from_role"] == "liaison"
                         and m["to_role"] == "principal"
-                        and m["status"] == "open"), None)
+                        and not _confirm_landed(conn, m)), None)
             if hit:
                 return hit
             level = [m["id"] for m in below if m["id"] != row["id"]]
