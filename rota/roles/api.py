@@ -676,6 +676,53 @@ def refuse_repeated_sentence(ctx: Ctx) -> None:
             f"them again. That answer still stands. Stop")
 
 
+def answered_question(conn: sqlite3.Connection, text: str | None
+                      ) -> tuple[str, str] | None:
+    """
+    The latest Liaison message to the principal with the same words as
+    `text` that a principal reply follows, and that reply, or None.
+    """
+    said = _said(text or "")
+    if not said:
+        return None
+    asked = conn.execute(
+        "SELECT id, seq, thread_id, body_text FROM messages WHERE from_role = 'liaison' "
+        "AND to_role = 'principal' AND verb IN ('clarify', 'converse', 'ask') "
+        "ORDER BY seq DESC").fetchall()
+    for q in asked:
+        if _said(q["body_text"] or "") != said:
+            continue
+        # A reply follows the question: its cause is the question, or it is
+        # the next principal message in the question's thread. A reply to a
+        # page names the page as its cause, so a cause key alone missed
+        # night 135's s220 (frame 142, night 135's read, fix 4).
+        reply = conn.execute(
+            "SELECT id FROM messages WHERE from_role = 'principal' AND seq > ? "
+            "AND (cause_id = ? OR thread_id = ?) ORDER BY seq LIMIT 1",
+            (q["seq"], q["id"], q["thread_id"])).fetchone()
+        if reply:
+            return q["id"], reply["id"]
+    return None
+
+
+def refuse_answered_question(ctx: Ctx, text: str | None) -> None:
+    """Raise when a Liaison question to the principal repeats one that the
+    principal already answered."""
+    # Nothing is asked twice (ruled: Roman, 2026-09-12, "The seat's four
+    # pages are one surface", point 1). Night 135's s220, s221, s222 and
+    # s224 each asked "What is the content of the row with id 's1'?" again
+    # after the principal answered it (frame 142, night 135's read, fix 4).
+    if getattr(ctx, "role", None) != "liaison":
+        return
+    found = answered_question(ctx.conn, text)
+    if found:
+        question, reply = found
+        raise ValueError(
+            f"you asked this in {question}, and the principal answered it in "
+            f"{reply}. Read that reply, then rule on the rows it settles, or "
+            f"end the session")
+
+
 @op("brief", "intake")
 def brief_intake(ctx: Ctx, verdict: str) -> dict:
     """
@@ -723,6 +770,22 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     target = span_entry or ctx.entry_id
     if not target:
         raise ValueError("no entry to segment against")
+    # A span_entry that names no entry staged a row whose foreign key fails,
+    # and the whole session died at commit. Night 135's s247, s248 and s249
+    # sent span_entry="s1", a statement id (frame 142, night 135's read,
+    # fix 6).
+    if not ctx.conn.execute("SELECT 1 FROM entries WHERE id = ?", (target,)).fetchone():
+        own = getattr(ctx, "entry_id", None)
+        if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?", (target,)).fetchone():
+            where = (f"The entry this session can segment is {own}" if own else
+                     "This session has no entry to segment against")
+            raise ValueError(f"{target} is a statement, and a statement is not an "
+                             f"entry. {where}")
+        if own:
+            raise ValueError(f"{target} names no entry. The entry this session can "
+                             f"segment is {own}")
+        raise ValueError(f"{target} names no entry, and there is no entry to "
+                         f"segment against")
     refuse_second_answer(ctx, "work")
 
     # You cannot ratify a question. Handed "remind me, what did we decide
@@ -749,18 +812,54 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                 "statement to ratify. Ask the owner whose artefact holds the "
                 "answer, or ask about the row with msg.clarify_principal")
 
+    # A statement keeps its id. Night 135's s223 called brief.segment(id='s1')
+    # on another entry, and the write became an UPDATE that overwrote the
+    # ratified s1 with other words (frame 142, night 135's read, fix 3).
+    if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?", (id,)).fetchone():
+        raise ValueError(
+            f"{id} is on file; a statement keeps its id, and a new statement "
+            f"takes a new id")
+
+    # The span is the way back to the words, so it must hold them. Night
+    # 135's s209 sent span 0 to 6 with 254 characters of text, seven times
+    # (frame 142, night 135's read, fix 2). Where the words are in the entry
+    # is a fact the door can find, so the door sets the span from the text.
+    # A refusal of a near span would refuse work the model did right: the
+    # intake tests send a span that ends five characters short.
+    row = ctx.conn.execute("SELECT text FROM entries WHERE id = ?",
+                           (target,)).fetchone()
+    words = text.strip()
+    if row is not None and row["text"] and words:
+        source = row["text"]
+        if source[span_start:span_end].strip() != words:
+            starts = [k for k in range(len(source)) if source.startswith(words, k)]
+            if starts:
+                span_start = min(starts, key=lambda k: abs(k - span_start))
+                span_end = span_start + len(words)
+
     # Words on file are a row already. Night 121's s284 segmented the walk's
     # sentence as s5 a third time, and each copy went to the principal to
-    # ratify again (frame 142's design, 2.C, point 5).
+    # ratify again (frame 142's design, 2.C, point 5). The step depends on
+    # the row's status. A clarify that named the row id made night 135's
+    # s209 ask the principal about "the row with id 's1'", which the
+    # principal cannot see (frame 142, night 135's read, fix 1).
     said = _said(text)
     if said:
-        for s in ctx.conn.execute("SELECT id, text FROM statements "
+        for s in ctx.conn.execute("SELECT id, text, status FROM statements "
                                   "WHERE status != 'superseded' ORDER BY rowid"):
-            if _said(s["text"]) == said:
+            if _said(s["text"]) != said:
+                continue
+            if s["status"] == "ratified":
                 raise ValueError(
-                    f"these words are {s['id']}, which is on file. Ask about "
-                    f"that row with msg.clarify_principal(refs=['{s['id']}'], "
-                    f"...)")
+                    f"these words are {s['id']}, which the principal ratified. "
+                    f"Cite {s['id']}. There is nothing to segment or ask")
+            if s["status"] == "proposed":
+                raise ValueError(
+                    f"these words are {s['id']}, which waits for the principal. "
+                    f"Send msg.confirm_principal(refs=['{s['id']}'])")
+            raise ValueError(
+                f"these words are {s['id']}, on file as {s['status']}. Cite "
+                f"{s['id']}. There is nothing to segment")
 
     # The same span twice is the same statement twice, whatever id it is given.
     #
@@ -6789,6 +6888,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if any(m["to_role"] == "principal" for m in (ctx.outbound or [])):
             raise ValueError("the principal has your sentence. Stop")
         refuse_repeated_sentence(ctx)
+        refuse_answered_question(ctx, ask)
         refs = json.loads(page["body_refs"] or "[]")
         mid = new_id("m", ctx.conn, offset=len(ctx.outbound or []))
         ctx.outbound.append({

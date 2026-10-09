@@ -1654,11 +1654,25 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                         f"the {dropped} rows behind this page do not fit this "
                         f"window. Every line is on the page. "
                         f"`rulings.line` reads the row behind one line")
-                earlier = [dict(r) for r in conn.execute(
-                    "SELECT from_role, body_text FROM messages "
-                    "WHERE cause_id = ? AND verb = 'converse' AND id != ? "
-                    "AND body_text IS NOT NULL ORDER BY seq",
-                    (clarify["id"], row["id"]))]
+                # The Liaison's own questions under the principal's replies
+                # travel too, marked asked, as `recent_chat` marks them.
+                # Night 135's s224 saw four answers and no question, and
+                # asked the answered question a fourth time (frame 142,
+                # night 135's read, fix 5).
+                earlier = []
+                for r in conn.execute(
+                        "SELECT from_role, body_text FROM messages "
+                        "WHERE ((cause_id = ? AND verb = 'converse' AND id != ?) "
+                        "  OR (from_role = 'liaison' AND to_role = 'principal' "
+                        "      AND verb IN ('clarify', 'converse') AND cause_id IN "
+                        "      (SELECT id FROM messages WHERE cause_id = ? "
+                        "       AND from_role = 'principal'))) "
+                        "AND body_text IS NOT NULL ORDER BY seq",
+                        (clarify["id"], row["id"], clarify["id"])):
+                    turn = dict(r)
+                    if turn["from_role"] == "liaison":
+                        turn["asked"] = True
+                    earlier.append(turn)
                 if earlier:
                     landing["earlier_exchange"] = earlier
                 out["landing"] = landing

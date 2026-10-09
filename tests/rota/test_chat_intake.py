@@ -223,8 +223,10 @@ def test_a_segment_of_a_statement_on_file_is_refused_and_names_it(tmp_path):
     sb.call("brief.intake", verdict="work")
     with pytest.raises(ValueError) as refused:
         sb.call("brief.segment", id="s6", span_start=0, span_end=len(WALK), text=WALK)
-    assert str(refused.value) == ("these words are s5, which is on file. Ask about that "
-                                  "row with msg.clarify_principal(refs=['s5'], ...)")
+    # A ratified row is cited, and nothing is asked about a row id (frame
+    # 142, night 135's read, fix 1).
+    assert str(refused.value) == ("these words are s5, which the principal ratified. "
+                                  "Cite s5. There is nothing to segment or ask")
     # A superseded statement is not on file.
     conn.execute("UPDATE statements SET status = 'superseded' WHERE id = 's5'")
     assert sb.call("brief.segment", id="s6", span_start=0, span_end=len(WALK),

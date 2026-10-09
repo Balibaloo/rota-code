@@ -2172,6 +2172,10 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # in `api.rulings_rule`.
         if verb in ("clarify", "converse", "confirm") and recipient == "principal":
             api.refuse_repeated_sentence(ctx)
+        # And a question the principal already answered is not asked again
+        # (frame 142, night 135's read, fix 4).
+        if verb in ("clarify", "converse") and recipient == "principal":
+            api.refuse_answered_question(ctx, text)
 
         # The intake fork, armed by the mode: a converse to the principal is
         # the reply to work, and its refs carry what intake produced.
