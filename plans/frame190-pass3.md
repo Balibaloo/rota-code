@@ -233,3 +233,93 @@ time: 636.5s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 6
 Re-records, pass 3b: the gate re-recorded `L1-AR-annotate-a-batch`, green
 5/5 to green 5/5, "stale by its failure, red cleared". The re-annotate
 case replays green under the new check.
+
+## Pass 3c
+
+Code commit `afecf14a`, the five findings of the delta review of
+`af535499`. Written by the implementer of pass 3c on 2026-10-09 17:30.
+
+1. High. `rota/testkit/fixtures.py`, `capture` and the new
+   `_junction_rows`. A junction table's rows load from the receipt labels.
+   A label names the row whose key columns, joined with ":", equal the
+   label. The new map `_JUNCTION_LABELS` copies each writer's f-string:
+   `batches_group`, `model_amend`, `surveys_attest`, `batches_annotate`,
+   `code_commit`, `batches_judge_touch` and `api.stage_ref`. A ":*" label
+   is a clear and is skipped. A label that names no row loads the rows of
+   its first key. The case `L1-AR-re-annotate-from-the-principals-correction`
+   was green 5/5 before the fix. It is green 4/5 after it, at its threshold
+   of 4. Run 4 is red: "expected writes to batch_touch not to carry
+   ['tests/test_defaults.py']". The case did not go stale, so the gate did
+   not re-record it.
+2. Low. `rota/core/runner.py`, `disputed_paths`. In a sentence with a
+   comma part that starts with a "no" word, the rest of the sentence holds
+   the dispute when the rest holds its own "no" word and names another
+   path. "The defaults test file is wrong, not the termui test file."
+   disputes `tests/test_defaults.py`.
+3. Low. `disputed_paths`, `_NO_BEYOND` and `_BEYOND`. A "no" before
+   "changes", "edits", "need" or "needed" counts as no "no" word when the
+   sentence holds "beyond", "except" or "other than".
+4. Low. `_DISPUTE_WORDS` gains "don't" and "wasn't". "isn't", "aren't",
+   "doesn't" and "shouldn't" were there. The curly apostrophe becomes the
+   straight one before the match, as before.
+5. Low. `disputed_paths`, `named`, and `_FILE_WORDS`. A file name of one
+   word part names its path by that word only when "test" or "file" stands
+   within three words of it. "option defaults" no longer names
+   `tests/test_options.py`.
+
+The reviewer's forms, `p3_forms.py` and `p2b_forms.py`, after the pass.
+Each form the findings name now gives the outcome the finding asks for:
+
+- "No changes to termui needed beyond the flag." gives `[]` (finding 3).
+- "Don't touch test_defaults.py." and "The defaults tests don't belong
+  here." give `tests/test_defaults.py` (finding 4).
+- "The defaults test file is wrong, not the termui test file." gives
+  `tests/test_defaults.py` (finding 2).
+- "I can't see why termui.py would change, the defaults tests are fine."
+  now leaves out `tests/test_termui.py`, from finding 5.
+- "This is not about defaults; the termui test file is right." moved
+  `tests/test_defaults.py` before and now moves nothing, from finding 5.
+- Three forms still over-read, and no finding names them: "The defaults
+  test file is wrong, the termui test file is right.", "No, the termui
+  tests are the right place, keep them." and "The defaults test file is
+  not the place, put them in the termui test file.".
+
+Deviations, pass 3c:
+
+- Finding 5 uses neither rule of the brief as written (reasoned: "option"
+  has six letters, so the rule "under 6 letters" keeps the bg_6 match, and
+  no other path of bg_6 holds "option", so the second rule keeps it too).
+  The pass uses the window of "test" or "file" for every one-part file
+  name. The eight real answers keep their result.
+- The bg_6 test asserts that m431 moves nothing (reasoned: m431 holds no
+  "no" word, "nothing" is not one, and its path sits in the sentence
+  before "but"). The ask of m431 is `tests/test_defaults.py`, and no rule
+  of this pass reaches it.
+- A label that names no row falls back to the rows of its first key
+  (reasoned: the brief names this fallback). Every writer's label names a
+  row, so the fallback runs only for a row that a later write removed.
+
+Tests, pass 3c: `test_the_words_dispute_only_the_paths_a_no_clause_names`
+is 20 cases, six new. The new
+`test_one_common_word_of_a_file_name_needs_a_file_word_beside_it` is three
+cases on night 133's bg_6 rows. The new
+`test_a_junction_table_loads_the_rows_its_receipt_labels_name` is in
+`tests/rota/test_fixtures.py`. `tests/rota/test_request_page.py` holds 49
+test items, and `tests/rota/test_fixtures.py` holds 12.
+
+The gate, pass 3c, verbatim:
+
+```
+suite: 24 failed, 3480 passed, 32 skipped, 16 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (4): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (3): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names], tests/rota/test_l1.py::test_l1_case[L1-TS-an-outside-fact-is-the-researchers]
+stale (0): none
+time: 622.0s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+The failed count moved from 25 to 24, and passed from 3469 to 3480. Ten
+of the eleven are the new tests. The gate does not name the one red that
+went green, and the reds lists did not move.
+
+Re-records, pass 3c: none. The stale count was 0, and the re-annotate
+case replays green 4/5 under the fixed capture.
