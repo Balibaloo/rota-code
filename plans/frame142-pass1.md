@@ -266,3 +266,61 @@ and `L3-a-maintainers-question-reaches-the-owner`.
 - The runner's guard that drops statements beside a converse to the
   principal stays. Only the `answer` mode and `rulings.rule(ask=...)` write
   that converse now.
+
+## Pass 2b, the diff review of 0baacf55
+
+Written by a fresh implementer on Opus, 2026-10-09 03:00, on the tree at
+4ef3bd9f. Rota workflow, except where a line says meta workflow.
+
+**`fix(rota)` at 4ef3bd9f.**
+
+- Finding 1, high. `runner._mode_key` keys `converse` on a principal reply
+  whose cause is a clarify with every ref an entry
+  (`runner._asks_about_entries`). A clarify on a row keeps `answering`. A
+  reply carries the clarify's refs, so the session segmented the old entry.
+  `runner.message_entry_id` and `api.message_entry` now read `e_<id>`
+  first, then the refs.
+- Finding 2, medium. The relay split in `_bind_send.stage` drops a park
+  page's criterion that `scheduler.park_verdict_criteria` does not name.
+  A relay of approved rows alone is refused. `sandbox.stage_park_relay`
+  drops an approved criterion from a held Terminologist relay.
+- Finding 3, medium. `api.repeated_sentence` returns only a Liaison
+  message to the principal whose status is `open`.
+- Finding 4, low. The intake fork refuses the first `msg.clarify_principal`
+  on the entry before any `brief.intake`. The second goes.
+- Tests: `test_chat_intake.py` gains the reply on a rebuilt row set, run as
+  a session with a scripted model, the closed confirm, and the clarify
+  refused before the intake. The `answering` test puts m119 on a statement.
+  `test_park_page.py` gains a third relay shape, an exact relay, and a held
+  relay with two approved criteria and a term.
+
+**Deviations.**
+
+- Finding 4's guard refuses once, not always (observed: 2026-10-09). The
+  brief's guard made `L1-LI-chat-is-not-work` segment "hey, morning!" 0/5.
+  The model claimed work after the refusal. A second refusal text that puts
+  the greeting route first, with the guard refusing once, gave 5/5. The
+  greeting route of design 2.C, a clarify on the entry, needs no intake.
+
+**The gate, the second run, verbatim.**
+
+```
+suite: 25 failed, 3403 passed, 32 skipped, 16 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (4): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (2): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names]
+stale (0): none
+time: 673.1s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+The 4 new reds are the 4 known reds of the brief.
+
+**Re-records.** `L1-LI-chat-is-not-work` on qwen3:8b, five runs each: the
+first gate 0/5, a manual run with the guard refusing once 0/5, a manual run
+with the new refusal text 5/5, then a plain replay green.
+
+**Unfinished.**
+
+- No case covers a real request answered with a clarify on the entry. The
+  unit test covers the door only.
+- `converse.md` still shows the greeting's clarify with no intake. The
+  guard's second pass keeps that example true.
