@@ -79,6 +79,20 @@ three warnings only:
   A hand-off is Roman's assignment, continued. Do not wait for
   Roman to name the peer.
 
+  **A hand-off carries a momentum note beside the status line** (ruled:
+  Roman, 2026-10-09 01:09, "1 yes" after the assistant said a hand-off keeps the
+  facts and drops the judgement). Write `plans/handoff-<your sid>.md`, one
+  page, before the command: the reading at altitude, what the held frame is
+  about in rota's terms, what you believe and why, what to doubt first, the
+  live agents with their note paths, and Roman's last rulings in his words
+  with their time. Not facts, which the stack holds. The taker reads it after
+  the composition page and before the stack, and messages the sender for a
+  context question before it asks Roman (ruled: Roman, the same minute, "3
+  yeah would be good for some context questions"). The note names the
+  sender's peer name in its first line for that. A pointer to the transcript
+  turns was declined as too noisy over time (ruled: Roman, the same minute).
+  The note leaves the repository when the frame it carries closes.
+
   **A hand-off means you stop and the stack goes to one session** (ruled:
   Roman, 2026-09-20). It is never a way to give side work to a second
   worker while you keep running. Run `hand` only when this session is
@@ -196,7 +210,8 @@ On wake:
    now yours. Exit 1 means nothing waits for anybody, so continue. Exit 6
    means a frame waits for you and its file will not open. Run the command
    again in a minute. Take no other work until it opens.
-2. Read `plans/composition.md`.
+2. Read `plans/composition.md`. Then the sender's momentum note,
+   `plans/handoff-<sender sid>.md`, when one exists.
 3. Read the open frames of `plans/stack.md`: yours, and any blocked on
    Roman. Not the closed ones.
 4. Read the memory files the frame names. Not all of them.
