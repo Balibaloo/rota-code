@@ -323,3 +323,91 @@ went green, and the reds lists did not move.
 
 Re-records, pass 3c: none. The stale count was 0, and the re-annotate
 case replays green 4/5 under the fixed capture.
+
+## Pass 3d
+
+Code commit `5ffa1244`, the five findings of the delta review of
+`afecf14a`. Written by the implementer of pass 3d on 2026-10-09 18:33.
+
+1. High. `rota/core/runner.py`, `disputed_paths` gains `possible` and
+   `item`, and `resolve_inbound` passes the batch's `possible` grains and
+   the item's id and text. A part that starts with a "no" word never
+   disputes a `possible` grain whose word parts the item's words hold.
+   With no item words, such a part never disputes any `possible` grain.
+   A grain that such a part spares leaves the sentence's result. On night
+   133's bg_2 rows, m198 now disputes `tests/test_defaults.py`, not
+   `confirm`. The new test
+   `test_the_real_answers_dispute_on_their_batches_real_rows` runs the
+   eight real answers against each batch's real rows, pasted inline. The
+   made-up forms stay in `test_the_words_dispute_only_the_paths_a_no_clause_names`
+   with the four paths.
+2. Low. `disputed_paths`, `named`: the "test" or "file" window holds for
+   a path under `tests/` alone. "termui is wrong." and "The termui module
+   should not change." dispute `src/click/termui.py`.
+3. Low. `disputed_paths`: a "not B" part calls B right only when an
+   earlier part of the sentence holds a "no" word and names a path. In all
+   other cases, the led paths and the rest's disputes add. "Not termui.py,
+   the decorators file is wrong, not that one." disputes both files.
+4. Low. `rota/testkit/fixtures.py`, `_junction_rows`: a label that names
+   no row loads nothing. The junction test adds the label
+   "b1:tests/gone.py" and still expects the two named rows alone.
+5. Low. The bg_6 test expects m431 to give `tests/test_defaults.py`, with
+   `pytest.mark.xfail(strict=True)`: "leave out" is not a no-word yet.
+
+The rule of finding 1 is the item-words rule, with the no-item fallback
+(reasoned: `touch_set` already returns the item's id and text, and both
+rules give the same result on every real answer of nights 133 and 136).
+
+Real rows, `p4_real.py` against the main tree, with each batch's
+`possible` grains and item passed. The lines that differ from `afecf14a`:
+
+```
+m11 converse ALL afecf14a [] now ['src/click/decorators.py']
+m198 converse bg_2 afecf14a ['confirm'] now ['tests/test_defaults.py']
+```
+
+m11 refs ledger rows and no batch, so it never reaches the rule. It moves
+because "decorators" now names the source by its bare word (finding 2).
+The answers with no batch still dispute `confirm` through a sentence
+with no comma part. No relay of a batch carries them.
+
+Known misses, pass 3d:
+
+- m68 of night 133's bg_1, "the pager tests should not need any change
+  for this helper, so leave them alone", disputes nothing. "pager tests"
+  does not hold every word part of `test_echo_via_pager.py`, and "leave
+  them alone" is not a no-word.
+- m431 of night 133's bg_6, "please leave that file out", disputes
+  nothing. The bg_6 test holds it as a strict expected failure.
+
+Deviations, pass 3d:
+
+- m228 on bg_3's real rows disputes `test_default_map_source` beside
+  `tests/test_defaults.py` (reasoned: m228 says "the default map and
+  parameter source tests cover option defaults and not confirm", so the
+  dispute is right). The four-path set keeps m228 at the defaults file
+  alone.
+- The eight real constants stay in the four-path set too, byte-equal
+  (reasoned: the brief of pass 3c kept them there, and the four-path
+  result did not move).
+
+Tests, pass 3d: the real-rows test is 8 cases. The four-path test is 23
+cases, three of them new. The bg_6 test has 3 cases, one an expected
+failure. `tests/rota/test_request_page.py` and `tests/rota/test_fixtures.py`
+give 71 passed and 1 xfailed.
+
+The gate, pass 3d, verbatim:
+
+```
+suite: 24 failed, 3490 passed, 32 skipped, 17 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (4): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (3): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names], tests/rota/test_l1.py::test_l1_case[L1-TS-an-outside-fact-is-the-researchers]
+stale (0): none
+time: 1503.2s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+The night held the main card, so the gate took 1503 seconds. Passed moved
+from 3480 to 3490 and xfailed from 16 to 17: eleven new items, and m431
+moved from passed to an expected failure.
+
+Re-records, pass 3d: none. The stale count was 0.
