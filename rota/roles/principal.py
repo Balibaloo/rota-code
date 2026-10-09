@@ -277,7 +277,8 @@ def render_state(conn: sqlite3.Connection) -> str:
     coming = {w.refs[1] for w in _park_ask(conn) if not conn.execute(
         "SELECT 1 FROM tick_attempts WHERE tick_key = ? AND quarantined = 1",
         (tick_key(w),)).fetchone()}
-    from ..core.scheduler import park_ask_id, park_message_rests, park_reds
+    from ..core.scheduler import (park_ask_id, park_message_rests, park_reds,
+                                  park_ruling)
 
     def parked_line(b: str, keys: list[str]) -> str:
         # A park message that rests is the report: a note says the change
@@ -292,6 +293,10 @@ def render_state(conn: sqlite3.Connection) -> str:
                 files = sorted({r["path"] or r["test_id"] for r in project})
                 return (f"Stuck: {b} stops here. It breaks {', '.join(files)}. "
                         "A new commit on the change starts it again.")
+            ruled = park_ruling(conn, mid) or {}
+            if any(v != "approve" for v in ruled.values()):
+                return (f"Stuck: {b} is parked. The team rewrites the lines you "
+                        "corrected, and I show you the page again after that.")
             return (f"Stuck: {b} stops here. You approved its checks as they "
                     f"stand, and {len(own)} of them still fail. A new commit "
                     "on the change starts it again.")

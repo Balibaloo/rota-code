@@ -234,16 +234,19 @@
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
     messages:
-      - {id: <m_present>, thread_id: <t1>, from_role: liaison, to_role: principal,
-         verb: present, body_refs: '["<i1>","<c1>","<c2>"]', seq: 1, status: answered}
-      - {id: <m_rule>, cause_id: <m_present>, thread_id: <t1>,
+      # The park page. Its id names the batch at a fixed offset, which is
+      # how the relay's ruling is known to come from a park page.
+      - {id: "m_park_0123456789_<b1>", thread_id: <t1>, from_role: liaison,
+         to_role: principal, verb: present, body_refs: '["<i1>","<c1>","<c2>"]',
+         seq: 1, status: answered}
+      - {id: <m_rule>, cause_id: "m_park_0123456789_<b1>", thread_id: <t1>,
          from_role: principal, to_role: liaison, verb: verdict,
          body_refs: '["<i1>","<c1>","<c2>"]', seq: 2, status: answered}
   expect:
     # The rewrite of the ruled row, and the Tester told, so the next encode
     # meets the new words.
     writes:
-      criteria: {count: 1}
+      criteria: {count: "1..1", ids_include: [<c2>]}
     messages:
       - {to: tester, verb: answer, count: 1, refs_include: [<c2>]}
   forbidden:

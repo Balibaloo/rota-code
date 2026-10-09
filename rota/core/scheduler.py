@@ -1480,10 +1480,38 @@ def park_owns(conn: sqlite3.Connection, batch_id: str) -> bool:
     return not unschedulable
 
 
+def park_ruling(conn: sqlite3.Connection, message_id: str) -> dict | None:
+    """The landed ruling of a closed park page that names every ref of the
+    page, or None."""
+    import json
+
+    row = conn.execute("SELECT status, body_refs FROM messages WHERE id = ?",
+                       (message_id,)).fetchone()
+    if row is None or park_ask_batch(message_id) is None or row["status"] == "open":
+        return None
+    try:
+        refs = json.loads(row["body_refs"] or "[]")
+    except (TypeError, ValueError):
+        return None
+    # An empty map names no row. Night 132's three `{}` rulings closed three
+    # asks, and each must count as a past park (frame 142's design, 2.F,
+    # amendment 2).
+    for r in conn.execute("SELECT per_item FROM rulings WHERE ask_id = ? "
+                          "AND status = 'landed'", (message_id,)):
+        try:
+            per_item = json.loads(r["per_item"] or "{}")
+        except (TypeError, ValueError):
+            continue
+        if refs and all(per_item.get(ref) in ("approve", "contest", "revise")
+                        for ref in refs):
+            return per_item
+    return None
+
+
 def park_message_rests(conn: sqlite3.Connection, message_id: str) -> bool:
     """
     Whether a closed park message ends the asking: a note, or a page whose
-    landed ruling approves every ref of the page.
+    landed ruling names every ref of the page, whatever the verb.
     """
     import json
 
@@ -1493,39 +1521,73 @@ def park_message_rests(conn: sqlite3.Connection, message_id: str) -> bool:
     if row is None or batch is None or row["status"] == "open":
         return False
     try:
+        if batch in json.loads(row["body_refs"] or "[]"):
+            return True
+    except (TypeError, ValueError):
+        return False
+    # A contest rests the page too. Its respecify moves the versions and so
+    # the id, and the re-park asks then. Before that move the page was the
+    # same rows again, night 132's repeated ask (the diff review of b0a2086e,
+    # finding 2).
+    return park_ruling(conn, message_id) is not None
+
+
+def park_page_of(conn: sqlite3.Connection, message_id: str | None,
+                 hops: int = 4) -> str | None:
+    """The park page on the cause chain of a message, within a few hops."""
+    while message_id and hops > 0:
+        if park_ask_batch(message_id):
+            return message_id
+        row = conn.execute("SELECT cause_id FROM messages WHERE id = ?",
+                           (message_id,)).fetchone()
+        message_id = row["cause_id"] if row else None
+        hops -= 1
+    return None
+
+
+def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
+    """
+    A relay whose every ref is a criterion and whose ruling came from a park
+    page: the principal's correction of a criterion row.
+    """
+    import json
+
+    # Only the park page puts criteria to the principal as rows. A
+    # contested ledger row reaches a criterion through `about_ref` in
+    # `land`, and a clarify can name one, and neither is a ruling on its
+    # words (the diff review of b0a2086e, finding 1: night 133's m327).
+    row = conn.execute("SELECT verb, body_refs, cause_id FROM messages WHERE id = ?",
+                       (message_id,)).fetchone() if message_id else None
+    if row is None or row["verb"] != "relay":
+        return False
+    try:
         refs = json.loads(row["body_refs"] or "[]")
     except (TypeError, ValueError):
         return False
-    if batch in refs:
-        return True
-    # An empty map approves nothing. Night 132's three `{}` rulings closed
-    # three asks, and each must count as a past park (frame 142's design,
-    # 2.F, amendment 2).
-    for r in conn.execute("SELECT per_item FROM rulings WHERE ask_id = ? "
-                          "AND status = 'landed'", (message_id,)):
-        try:
-            per_item = json.loads(r["per_item"] or "{}")
-        except (TypeError, ValueError):
-            continue
-        if refs and all(per_item.get(ref) == "approve" for ref in refs):
-            return True
-    return False
+    return bool(refs) and all(
+        isinstance(r, str) and conn.execute(
+            "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone() for r in refs
+    ) and park_page_of(conn, row["cause_id"]) is not None
 
 
-def _park_versions(conn: sqlite3.Connection, batch_id: str) -> int:
-    """The sum of the versions of the batch's criteria and of its own tests."""
+def _park_versions(conn: sqlite3.Connection, batch_id: str) -> str:
+    """The sorted `id:version` pairs of the batch's criteria and own tests."""
+    # Pairs, not a sum: a sum can go down when a sibling's start takes an own
+    # test with an `inh_` id, and a later bump then repeats an old id (the
+    # diff review of b0a2086e, finding 4).
     crit = park_criteria(conn, batch_id)
     marks = ",".join("?" * len(crit))
-    total = conn.execute(
-        f"SELECT COALESCE(SUM(COALESCE(version, 0)), 0) n FROM criteria "
-        f"WHERE id IN ({marks})", tuple(crit)).fetchone()["n"] if crit else 0
+    pairs = [f"c:{r['id']}:{r['version'] or 0}" for r in conn.execute(
+        f"SELECT id, version FROM criteria WHERE id IN ({marks})",
+        tuple(crit))] if crit else []
     # Own tests only. The project's tests are taken in again at each batch's
     # start, and a sibling's start moved their rows off this batch (frame
     # 130's wall). That ended the rest of an approved page with nothing of
     # this change moved (observed: the scene `two_batches`, 2026-10-09).
-    return total + conn.execute(
-        "SELECT COALESCE(SUM(COALESCE(version, 0)), 0) n FROM tests "
-        "WHERE batch_id = ? AND criterion_id IS NOT NULL", (batch_id,)).fetchone()["n"]
+    pairs += [f"t:{r['id']}:{r['version'] or 0}" for r in conn.execute(
+        "SELECT id, version FROM tests WHERE batch_id = ? "
+        "AND criterion_id IS NOT NULL", (batch_id,))]
+    return ",".join(sorted(pairs))
 
 
 def park_ask_id(conn: sqlite3.Connection, batch_id: str) -> str:

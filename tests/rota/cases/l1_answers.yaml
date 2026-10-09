@@ -317,3 +317,62 @@
     # the same argument again.
     messages: [{to: tester, verb: challenge}]
     writes: [criteria, tests]
+
+- id: L1-TS-encode-a-criterion-the-principal-corrected
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  # Frame 142: the principal corrected a criterion row of a park page, the
+  # Terminologist respecified it in `criterion_repair` and answered the
+  # Tester. No Tester question is under the answer: its cause is the
+  # Liaison's relay. Night 121's s312 re-encoded under the same id. The
+  # test on file asserts the criterion's old words.
+  inbound: {from: terminologist, to: tester, verb: answer, body_refs: [<c1>],
+            cause: <m_relay>}
+  repo:
+    batch: <b1>
+    onboard: true
+  fixture:
+    items:
+      - {id: <i1>, text: "closing an account keeps its invoices", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "close an account"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, version: 2,
+         text: "close_account returns False for an account id that was never opened",
+         term_refs: '[]', surface_refs: '["src/billing/accounts.py::close_account"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: deferred, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_close_account.py
+        body: |
+          from src.billing.accounts import close_account
+
+
+          def test_close_account_of_an_unknown_id():
+              assert close_account("no_such_account") is None
+    messages:
+      - {id: "m_park_0123456789_<b1>", thread_id: <t1>, from_role: liaison,
+         to_role: principal, verb: present, body_refs: '["<i1>","<c1>"]', seq: 1,
+         status: answered}
+      - {id: <m_rule>, cause_id: "m_park_0123456789_<b1>", thread_id: <t1>,
+         from_role: principal, to_role: liaison, verb: verdict,
+         body_refs: '["<i1>","<c1>"]', seq: 2, status: answered}
+      - {id: <m_relay>, cause_id: <m_rule>, thread_id: <t1>, from_role: liaison,
+         to_role: terminologist, verb: relay, body_refs: '["<c1>"]', seq: 3,
+         status: answered}
+  expect:
+    # The corrected words encoded: one test of the criterion, written now.
+    writes:
+      tests: {count: "1..1"}
+  forbidden:
+    # The criterion is the Terminologist's, and it is already rewritten.
+    writes: [criteria, glossary_terms, items]
+    recipients: [principal, vision_keeper]

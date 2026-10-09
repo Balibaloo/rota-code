@@ -639,15 +639,10 @@ def situational(conn: sqlite3.Connection, role: str, mode: str, wake,
             # L1-TE-a-ruled-criterion-is-respecified-and-the-tester-told, 0/5,
             # 2026-10-09; frame 142's design, 2.A, step 7).
             reader = asker
-            if role == "terminologist" and row["verb"] == "relay":
-                try:
-                    ruled = json.loads(row["body_refs"] or "[]")
-                except (TypeError, ValueError):
-                    ruled = []
-                if any(isinstance(r, str) and conn.execute(
-                        "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()
-                       for r in ruled):
-                    reader = "tester"
+            from .scheduler import park_criterion_relay
+
+            if role == "terminologist" and park_criterion_relay(conn, source):
+                reader = "tester"
             keep -= {k for k in keep
                      if k.startswith("msg.answer_") and k != f"msg.answer_{reader}"}
             # Frame 107. The Critic's verdict landed before its question to
@@ -835,10 +830,6 @@ RULED_TABLES = {
     "glossary_terms": "terminologist",
     "constraints": "architect",
     "model_areas": "architect",
-    # A criterion row of the park page. The Terminologist writes the
-    # criteria, and `criterion_repair` respecifies one from the ruled words
-    # (ruled: Roman, 2026-10-08, the park ask is a page with rows, point 2).
-    "criteria": "terminologist",
 }
 
 
@@ -2636,8 +2627,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # named recipient rather than being dropped.
         split: dict[str, list[str]] = {}
         if verb == "relay" and refs:
+            # A criterion row of a park page goes to its writer, the
+            # Terminologist (ruled: Roman, 2026-10-08, the park ask is a page
+            # with rows, point 2). A criterion that reached a ruling another
+            # way, through a ledger row's `about_ref`, keeps the old route
+            # (the diff review of b0a2086e, finding 1).
+            from .scheduler import park_page_of
+
+            on_park = park_page_of(ctx.conn, ctx.trigger) is not None
             for ref in refs:
-                owner = _owner_of_ref(ctx.conn, ref) or recipient
+                owner = _owner_of_ref(ctx.conn, ref) or (
+                    "terminologist" if on_park and ctx.conn.execute(
+                        "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()
+                    else recipient)
                 split.setdefault(owner, []).append(ref)
             already = {m["to_role"] for m in ctx.outbound if m["verb"] == "relay"}
             split = {o: r for o, r in split.items() if o not in already}

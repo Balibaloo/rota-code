@@ -122,10 +122,52 @@ The first gate re-recorded the 6 stale cases on qwen3:8b, five runs each:
 
 ## Unfinished
 
-- Between a criterion contest landing and the Terminologist's respecify,
-  the closed page does not rest, so `park_ask` can open a second page on
-  the same rows before the move lifts the key (reasoned: the digest counts
-  the close; not observed on a night).
+- The second page before a respecify is fixed in pass 1b, finding 2.
 - `test_roles_doc.py::test_a_verb_carries_words_or_does_not_regardless_of_recipient`
   is red on a clean checkout at 985a6e85 too, and is in the gate's
   baseline (observed: a worktree at HEAD, 2026-10-09).
+
+## Pass 1b, the diff review of b0a2086e
+
+Written by the same implementer, 2026-10-09, on the tree at 4d2bdc90. The
+findings are `review142p1_findings.md` in the scratchpad of session
+acb1f403.
+
+- Finding 1, high. `scheduler.park_criterion_relay` holds the test: a
+  relay whose every ref is a criterion and whose cause chain reaches a park
+  page within four hops (`scheduler.park_page_of`). `runner._mode_key`
+  keys `criterion_repair` on it, and `sandbox.situational` opens
+  `msg.answer_tester` on it. `RULED_TABLES` loses `criteria`. The relay
+  split in `_bind_send.stage` routes a criterion to the Terminologist only
+  when the trigger's chain reaches a park page. Any other criterion keeps
+  the old route, the named recipient. `verdict_signoff.md` is back to its
+  text before pass 1, because the door does the routing. Tests: night
+  133's m327 shape (a contest through `about_ref`) and m88's mixed refs
+  stay in `relay`.
+- Finding 2, high. `scheduler.park_ruling` returns the landed ruling that
+  names every ref of the page, whatever the verb, and a page with one
+  rests. A contest rests the page, and its respecify moves the version
+  pairs, so the re-park asks then. `render_state` says "The team rewrites
+  the lines you corrected" for a rested page with a contest. The test
+  contests line 3 and shows no second page and a clean I5 before the
+  respecify, then a new page after it.
+- Finding 3, medium. The Terminologist case pins the write to `<c2>`, and
+  its park page carries a park id. New case
+  `L1-TS-encode-a-criterion-the-principal-corrected`: a Tester answer
+  whose cause is a relay. The first criterion, about invoices that stay in
+  place, gave 1/5: the Tester tried to encode each time, and the encodes
+  failed on names the sample does not have. The criterion is now one that
+  `close_account` meets in the sample, and it gave 5/5.
+- Finding 4, low. `_park_versions` returns the sorted `id:version` pairs
+  of the criteria and the own tests, and the digest hashes them.
+- Finding 5, low. Not changed. The case matcher has `refs_include` and
+  `refs_equal` only, and no set comparison. `test_park_page.py` pins the
+  exact list.
+- Finding 6, low. Project tests stay out of the digest. The page's rows are
+  criteria, and a broken project test is the builder's regression (ruled:
+  2026-09-14). A note renders its file list live from the runs, and the
+  head commit is its exit. A re-encoded project test therefore must not
+  end a rest. A sibling's start also moves the project tests' rows off the
+  batch (frame 130's wall), which ended a rest in the scene `two_batches`
+  with nothing of the change moved (observed: 2026-10-09).
+- Finding 7, low. Not changed, as the finding says.

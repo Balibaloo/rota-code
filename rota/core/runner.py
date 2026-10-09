@@ -222,18 +222,14 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
         # tells the Tester. A tool added to `relay` is an invitation
         # (measured: `decisions.author` in a relay mode, 2026-09-03), and
         # `criterion_repair` already holds both calls (frame 142's design,
-        # 2.F, amendment 4).
+        # 2.F, amendment 4). Only a park page's ruling, and only criteria:
+        # a term ruling beside one needs `glossary.adopt`, which the repair
+        # mode lacks (the diff review of b0a2086e, finding 1).
         if (verb == "relay" and wake.role == "terminologist" and conn is not None
                 and wake.message_id):
-            row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
-                               (wake.message_id,)).fetchone()
-            try:
-                refs = json.loads(row["body_refs"] or "[]") if row else []
-            except (TypeError, ValueError):
-                refs = []
-            if any(isinstance(r, str) and conn.execute(
-                    "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()
-                   for r in refs):
+            from .scheduler import park_criterion_relay
+
+            if park_criterion_relay(conn, wake.message_id):
                 return "criterion_repair"
         return verb
     if wake.kind.startswith("tick:"):

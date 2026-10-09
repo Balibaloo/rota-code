@@ -271,10 +271,37 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     held = json.loads(n132.execute("SELECT value FROM config WHERE key = ?",
                                    (f"verdict:{verdict['id']}",)).fetchone()["value"])
     assert held["cr_2_confirm_eof_behavior"] == "contest"
-    assert not park_rests(n132, "bg_2")
+    # The contest rests the page: no second page on the same rows before
+    # the respecify (the diff review of b0a2086e, finding 2).
+    assert park_rests(n132, "bg_2")
+    assert P.REGISTRY["park_ask"].fn(n132) == []
+    assert invariants.i5(n132) == []
+    assert "The team rewrites the lines you corrected" in render_state(n132)
     (wake,) = [w for w in open_tips(n132) if w.message_id == verdict["id"]]
     assert _mode_key(wake, n132) == "verdict_signoff"
-    assert _owner_of_ref(n132, "cr_2_confirm_eof_behavior") == "terminologist"
+    # The relay door routes the park's criteria to their writer, whatever
+    # owner the session names.
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build("liaison", n132, mode="normal", session_id="s219", wake=wake,
+               allow=prompts.mode_tools("liaison", "verdict_signoff"))
+    sb.ctx.trigger = verdict["id"]
+    sb.call("msg.relay_vision_keeper", refs=[ITEM_132])
+    routed = {m["to_role"]: m["body_refs"] for m in sb.ctx.outbound}
+    assert routed["vision_keeper"] == [ITEM_132]
+    assert routed["terminologist"] == [c[0] for c in N132]
+    assert _owner_of_ref(n132, "cr_2_confirm_eof_behavior") is None
+
+    # The respecify moves cr_2's version and lifts the key. The re-park asks
+    # again under a new id.
+    n132.execute("UPDATE criteria SET version = 2 WHERE id = 'cr_2_confirm_eof_behavior'")
+    _lift_quarantines(n132, SimpleNamespace(table="criteria", row_id="cr_2_confirm_eof_behavior",
+                                            op="update", values={"text": "x"}), True)
+    n132.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, reported) "
+                 "VALUES (?, 3, 1, 1)", (KEY,))
+    assert park_ask_id(n132, "bg_2") != mid
+    assert len(P.REGISTRY["park_ask"].fn(n132)) == 1
 
 
 def test_a_criterion_move_ends_the_rest_and_a_bare_lift_keeps_it(n132):
@@ -498,18 +525,38 @@ def test_a_terminologist_relay_of_a_criterion_runs_criterion_repair(n132):
     from rota.core.scheduler import Wake
     from rota.roles import prompts
 
-    n132.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-                 "body_refs, status, seq) VALUES ('m_r', 'm_r', 'liaison', "
-                 "'terminologist', 'relay', ?, 'open', 300)",
-                 (json.dumps(["cr_2_confirm_eof_behavior"]),))
-    n132.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-                 "body_refs, status, seq) VALUES ('m_g', 'm_g', 'liaison', "
-                 "'terminologist', 'relay', ?, 'open', 301)", (json.dumps(["g_x"]),))
+    page = park_ask_id(n132, "bg_2")
+
+    def msg(mid, cause, from_role, to_role, verb, refs, seq):
+        n132.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, "
+                     "verb, body_refs, status, seq) VALUES (?, 't', ?, ?, ?, ?, ?, "
+                     "'open', ?)", (mid, cause, from_role, to_role, verb,
+                                    json.dumps(refs), seq))
+
+    crs = ["cr_2_confirm_eof_behavior"]
+    msg(page, None, "liaison", "principal", "present", [ITEM_132] + crs, 1)
+    msg("m_v", page, "principal", "liaison", "verdict", [ITEM_132] + crs, 2)
+    msg("m_r", "m_v", "liaison", "terminologist", "relay", crs, 3)
+    msg("m_g", None, "liaison", "terminologist", "relay", ["g_x"], 4)
+    # Night 133's m327 shape: a contested ledger row became a criterion
+    # contest through `about_ref` in `land`, on a page that is no park page.
+    n132.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
+                 "author) VALUES ('l_1', 'cr_1_confirm_eof_default', 'criteria', 'x', "
+                 "'resolved', 'architect')")
+    msg("m_p", None, "liaison", "principal", "present", ["l_1"], 5)
+    msg("m_v2", "m_p", "principal", "liaison", "verdict", ["cr_1_confirm_eof_default"], 6)
+    msg("m_327", "m_v2", "liaison", "terminologist", "relay", ["cr_1_confirm_eof_default"], 7)
+    # Night 133's m88 shape: a term ref beside a criterion. The repair mode
+    # has no `glossary.adopt`, so the mixed relay stays in `relay`.
+    msg("m_88", "m_v", "liaison", "terminologist", "relay", ["@term:stdin"] + crs, 8)
     n132.commit()
     wake = Wake("terminologist", "message", refs=(), detail="relay", message_id="m_r")
     assert _mode_key(wake, n132) == "criterion_repair"
     other = Wake("terminologist", "message", refs=(), detail="relay", message_id="m_g")
     assert _mode_key(other, n132) == "relay"
+    for mid in ("m_327", "m_88"):
+        assert _mode_key(Wake("terminologist", "message", refs=(), detail="relay",
+                              message_id=mid), n132) == "relay", mid
 
     # The wake narrows the answer to the reader of the ruled criterion. The
     # asker rule alone left the repair no answer: the relay's sender is the
