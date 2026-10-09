@@ -171,3 +171,98 @@ acb1f403.
   batch (frame 130's wall), which ended a rest in the scene `two_batches`
   with nothing of the change moved (observed: 2026-10-09).
 - Finding 7, low. Not changed, as the finding says.
+
+## Pass 2, the delta review of 172b373b and the chat intake
+
+Written by a fresh implementer on Opus, 2026-10-09 02:08, on the tree at
+0baacf55. Rota workflow, except where a line says meta workflow.
+
+**Part 1, `fix(rota)` at 67751385.**
+
+- Finding 1, high. `sandbox.stage_park_relay` runs in `run_session` before
+  the result is built. On a Liaison session whose trigger is a verdict on a
+  park page, it stages one relay of the contested criteria to the
+  Terminologist. A relay to the Terminologist that the session sent gains
+  the missing criteria, so a criterion gets one relay.
+  `scheduler.park_verdict_criteria` reads the contested rows from the
+  verdict's `verdict:` config map. `verdict_signoff.md` is unchanged.
+- Finding 2, low. `L1-TS-encode-a-criterion-the-principal-corrected`
+  checks `ids_include: [<tst1>]`. It replays green, so the encode keeps
+  the id (observed: 2026-10-09).
+- Finding 3, low. `scheduler.park_page_of` is gone.
+  `scheduler.park_verdict_page` takes one hop: a verdict whose cause is a
+  park page. `park_criterion_relay` needs the relay's cause to be that
+  verdict, and the relay split in `_bind_send.stage` keys on the trigger
+  being that verdict.
+- Tests: `test_park_page.py` gains the door's relay, after a session that
+  sends nothing and after one that relays the item, and the two-hop relay
+  that keys no repair. New case
+  `L1-LI-a-park-verdict-sends-its-contested-criterion-to-the-terminologist`,
+  recorded 5 runs on qwen3:8b, green.
+
+**Part 2, `feat(rota)` at 0baacf55, design 2.C with amendment 3.**
+
+- `sandbox.ENUMS_BY_OP` keeps `work` alone for `brief.intake`, and the new
+  `ENUM_REFUSALS` gives the design's sentence for `chat`. `brief_intake`
+  loses the `chat` entry and says why.
+- `converse.tools` loses `msg.converse_principal`. `converse.md` carries
+  the design's paragraph and its two examples, and its first line names
+  `work` alone.
+- The intake door in `_bind_send.stage` loses the two `chat` branches.
+- `api.brief_segment` refuses words equal to a statement on file that is
+  not `superseded`, compared with whitespace folded and case folded.
+- `api.repeated_sentence` and `api.refuse_repeated_sentence`: the nearest
+  principal message on the trigger's chain gives the words, and an earlier
+  principal entry with the same words that drew a Liaison message to the
+  principal within three levels of its cause chain gives the refusal. The
+  stage door applies it to `clarify`, `converse` and `confirm` to the
+  principal, and `rulings_rule` to `ask=`.
+- `runner._recent_chat` reads a principal turn with no `body_text` from its
+  entry (`api.message_entry`).
+- Tests: new `tests/rota/test_chat_intake.py`, 5 tests on night 132's s220
+  rows and night 121's s284 rows. `test_intake_fork.py`: the chat test
+  inverts, and the vocabulary test is renamed
+  `test_the_verdict_vocabulary_is_work_alone`. The door's tests add
+  `msg.converse_principal` to the working set themselves.
+  `test_t0_sandbox.py`: 11 chat claims become `ctx.intake = "unarmed"`, as
+  the answer mode is. `test_desk_guards.py`: the chat test that derived a
+  statement ref becomes a clarify that names the statement.
+- Case: `L1-LI-chat-is-not-work` expects one `clarify` with
+  `refs_include: [e_<m_in>]`.
+
+**Deviations.**
+
+- Part 1 is committed before part 2 was written, and one gate run covers
+  both (reasoned: the two parts share `sandbox.py` and `runner.py`).
+- The question-span refusal of `brief.segment` named
+  `msg.converse_principal`, which the converse mode no longer offers. It
+  now names the owner's ask and `msg.clarify_principal`.
+
+**The gate, the second run, verbatim.**
+
+```
+suite: 25 failed, 3398 passed, 32 skipped, 16 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (4): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (2): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names]
+stale (0): none
+time: 677.8s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+The 4 new reds are the 4 known reds of the brief.
+
+**Re-records.** The first gate re-recorded 8 stale cases on qwen3:8b,
+five runs each, all 5/5: `G1-a-reply-that-answers-something-else-ratifies-nothing`,
+`G1-scope-sounding-words-are-not-scope-yet`,
+`G1-what-the-brief-already-holds-is-answered-from-it`,
+`L1-LI-a-question-about-the-program-goes-to-its-owners`,
+`L1-LI-chat-is-not-work`, `L1-LI-no-report-no-question`, `L1-LI-segment`
+and `L3-a-maintainers-question-reaches-the-owner`.
+
+**Unfinished.**
+
+- An answer to a clarify on an entry lands on no row, because
+  `_table_of_ref` returns None for an entry. The diff review checks what
+  `answering` then does with it (frame 142's design, 2.C).
+- The runner's guard that drops statements beside a converse to the
+  principal stays. Only the `answer` mode and `rulings.rule(ask=...)` write
+  that converse now.
