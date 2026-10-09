@@ -329,6 +329,17 @@ or when in doubt. The walk runs from a worktree at the frame's closing
 commit, because the seats read the briefs at every wake. The frame stays
 open as validating while the next frame starts in the main checkout.
 
+**A night is stopped when its loop is a known open frame's wall and the
+held frame gets no new data from it** (ruled: Roman, 2026-10-09 20:19, "ok
+so in the future we need to do the same", after night 137's walk 3 looped
+on frame 186's wall, eleven batches abandoned in twenty minutes, with no
+page for frame 190, and walk 1 already held the measure). At every CYCLE
+line, name the frame the cycle belongs to. When that frame is not the held
+one and the walks before gave the held frame's ratios their shape, say the
+three facts to Roman in one line, stop the night, copy the records to
+their night names, and start the read. A night that runs to the step cap
+on another frame's wall spends the card and measures nothing.
+
 Escalate as a blocked frame: the question and a recommended answer.
 Triggers: a ruling is needed, a wall survives three cycles, a change
 touches the composition, or the budget is spent. **Before a frame blocks
