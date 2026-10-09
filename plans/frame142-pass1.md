@@ -503,3 +503,50 @@ changed refusal or a changed `earlier_exchange`.
 
 **Unfinished.** The self-relay m116 that woke s209 with no mode section
 is a frame of its own.
+
+## Pass 2f, the review of eee89bc8
+
+Written by the pass 2b implementer, 2026-10-09 06:21, on the tree at
+40691aa7. Rota workflow.
+
+**`fix(rota)` at 40691aa7.**
+
+- Fix 1, medium. `api.brief_segment` checks the words on file before the
+  id. An id on file is refused with the lowest free `sN`, counting the
+  rows on file and the session's staged rows: "s1 is on file; a statement
+  keeps its id. Segment these words as s2". The test sends s267's shape,
+  then the same call with s2, which lands.
+- Fix 2, medium. The older door on a repeated clarify in
+  `_bind_send.stage` calls `api.refuse_answered_question` before its own
+  message. When a principal reply follows, the seat gets "you asked this
+  in m119, and the principal answered it in m120", then read and rule or
+  end.
+- Fix 3, low. A moved span returns `"span": [start, end]` and
+  `"note": "span set from the text"`. A span past the end of the entry is
+  moved too, because s1 held span 0 to 223 on a 115-character entry. The
+  test uses "Drop line 2. Keep line 3. Drop line 2." with span 10 to 22,
+  which moves to 0 to 12.
+- Fix 4, low. `rota/DECISIONS.md`, "`brief.segment`'s span is never
+  checked against its own text", now reads "*Fixed by frame 142, pass
+  2e:*".
+
+**Deviations.** One addition: a span past the end of the entry is moved
+(reasoned: the slice clips at the end, so the words matched and the row
+kept span_end 223).
+
+**The gate, verbatim.**
+
+```
+suite: 25 failed, 3418 passed, 32 skipped, 16 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (4): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (2): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names]
+stale (0): none
+time: 654.8s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+The 4 new reds are the known reds.
+
+**Re-records.** None. No case went stale.
+
+**Unfinished.** For the night read: the answered door keys on the words
+alone, and `earlier_exchange` goes one level deep with no size bound.
