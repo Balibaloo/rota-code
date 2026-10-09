@@ -2182,8 +2182,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # on the entry with no intake (frame 142's design, 2.C). A guard
         # that refused it once made the model send the same clarify twice
         # and never read the entry (the delta review of 4ef3bd9f, finding 3).
-        # Whether a request is claimed first is a case,
-        # L1-LI-a-request-is-claimed-before-any-clarify, not a door.
+        # Whether a request lands with no clarify is a case,
+        # L1-LI-a-request-lands-as-a-statement-and-draws-no-clarify, not a door.
         if (verb == "converse" and recipient == "principal"
                 and getattr(ctx, "intake", "unarmed") != "unarmed"):
             if ctx.intake is None:
@@ -2645,20 +2645,24 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # with rows, point 2). A criterion that reached a ruling another
             # way, through a ledger row's `about_ref`, keeps the old route
             # (the diff review of b0a2086e, finding 1).
-            from .scheduler import park_verdict_criteria, park_verdict_page
+            from .scheduler import park_verdict_page, park_verdict_rows
 
             on_park = park_verdict_page(ctx.conn, ctx.trigger) is not None
-            # Only the contested and revised criteria of a park page travel.
-            # An approved criterion in the relay reached `criterion_repair`,
+            # Only the contested and revised lines of a park page travel. An
+            # approved criterion in the relay reached `criterion_repair`,
             # where only the brief kept it unchanged (the diff review of
-            # 0baacf55, finding 2). The batch's item went to the Vision Keeper
-            # on every contest of night 132's bg_2 (the delta review of
-            # 4ef3bd9f, finding 2).
+            # 0baacf55, finding 2). The item went to the Vision Keeper on
+            # every contest of night 132's bg_2, though only a criterion was
+            # ruled (the delta review of 4ef3bd9f, finding 2). The item is
+            # line 1 of the page (frame 142's design, 2.A), so a contest of
+            # the item still goes to its owner.
             if on_park:
-                ruled = park_verdict_criteria(ctx.conn, ctx.trigger)
+                ruled = park_verdict_rows(ctx.conn, ctx.trigger)
                 refs = [r for r in refs if r in ruled]
             for ref in refs:
-                owner = "terminologist" if on_park else (
+                is_criterion = on_park and ctx.conn.execute(
+                    "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()
+                owner = "terminologist" if is_criterion else (
                     _owner_of_ref(ctx.conn, ref) or recipient)
                 split.setdefault(owner, []).append(ref)
             already = {m["to_role"] for m in ctx.outbound if m["verb"] == "relay"}

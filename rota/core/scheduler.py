@@ -1547,6 +1547,13 @@ def park_verdict_page(conn: sqlite3.Connection, message_id: str | None) -> str |
 def park_verdict_criteria(conn: sqlite3.Connection, message_id: str | None) -> list[str]:
     """The criteria that a park verdict contests or revises, in the verdict's
     ref order."""
+    return [r for r in park_verdict_rows(conn, message_id)
+            if conn.execute("SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]
+
+
+def park_verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[str]:
+    """The rows of a park page that its verdict contests or revises, the item
+    and the criteria, in the verdict's ref order."""
     import json
 
     if park_verdict_page(conn, message_id) is None:
@@ -1561,8 +1568,7 @@ def park_verdict_criteria(conn: sqlite3.Connection, message_id: str | None) -> l
     except (TypeError, ValueError):
         return []
     return [r for r in refs if isinstance(r, str)
-            and per_item.get(r) in ("contest", "revise")
-            and conn.execute("SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]
+            and per_item.get(r) in ("contest", "revise")]
 
 
 def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:

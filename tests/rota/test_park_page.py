@@ -376,6 +376,34 @@ def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n1
     assert held["body_refs"] == ["cr_2_confirm_eof_behavior"]
 
 
+@pytest.mark.parametrize("call", [
+    f'TOOL: msg.relay_vision_keeper(refs=["{ITEM_132}"])',
+    'TOOL: msg.relay_terminologist(refs=["cr_2_confirm_eof_behavior"])'])
+def test_a_contest_of_the_item_line_relays_the_item_to_the_vision_keeper(n132, call):
+    """Line 1 of a park page is the item (frame 142's design, 2.A). A
+    contest of it is a contest of a row of the page. After pass 2c the split
+    relayed nothing on it and refused with a false sentence."""
+    from rota.core.runner import run_session
+
+    mid = _liaison_presents(n132, ITEM_132)
+    reply = _reply(n132, mid, "line 1 is wrong: it must not abort")
+    ruling = {str(n): "approve" for n in range(1, 8)}
+    ruling["1"] = "contest"
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
+                                "words='line 1 is wrong: it must not abort')")
+    assert out.committed, out.errors
+    (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
+                              "AND verb = 'verdict'", (mid,)).fetchall()
+    (wake,) = [w for w in open_tips(n132) if w.message_id == verdict["id"]]
+    out = run_session(n132, wake, backend=ScriptedBackend([call, "done"]),
+                      pins=Pins(model="stub", temperature=0.0), instructions="relay")
+    assert out.committed, out.errors
+    relays = [(r["to_role"], json.loads(r["body_refs"])) for r in n132.execute(
+        "SELECT to_role, body_refs FROM messages WHERE cause_id = ? AND verb = 'relay'",
+        (verdict["id"],))]
+    assert relays == [("vision_keeper", [ITEM_132])]
+
+
 def test_a_relay_two_hops_below_a_park_verdict_is_no_criterion_repair(n132):
     """The delta review of 172b373b, finding 3: a walk of four hops keyed a
     repair on a relay whose chain reached a park page through a clarify."""
