@@ -411,3 +411,63 @@ from 3480 to 3490 and xfailed from 16 to 17: eleven new items, and m431
 moved from passed to an expected failure.
 
 Re-records, pass 3d: none. The stale count was 0.
+
+## Pass 3e
+
+Code commit `fe9f14b6`, the four findings of the delta review of
+`5ffa1244`. Written by the implementer of pass 3e on 2026-10-09 19:25.
+This is the last parser pass. No rule was added for a form that no real
+answer of nights 133 or 136 has.
+
+1. High. `rota/core/runner.py`, `disputed_paths`. A sentence whose "no"
+   parts name only spared grains no longer falls back to every path it
+   names. It disputes nothing, with one named rule: when its one "no" part
+   follows a main clause that says what files cover (`_COVERS`: "cover",
+   "check", "is about", "are about", "was about", "were about"), the
+   main clause's files are disputed. The rule holds m198 on bg_2's real
+   rows on the first try, so the M198 row stays green.
+2. Low. The real-rows test gains m85 and m97 with
+   `test_lookup_default_override_respected` beside the defaults file, each
+   `xfail(strict=True)`: "respected" is not in the words.
+3. Low. `kept`: the item spares a `possible` grain only when the item's
+   words hold the grain's bare name, as for `confirm`. "Not
+   test_default_on_eof, that test is about the old flag." disputes that
+   symbol.
+4. Low. `named`, the new `mentions`: a path or a file name matches only
+   where no letter, digit or "_" stands before it. "test_termui.py is
+   wrong." disputes `tests/test_termui.py` alone.
+
+Real rows, `p7_real3d.py` comparing `5ffa1244` with the tree: no answer
+of nights 133 or 136 changes its outcome.
+
+Deviations, pass 3e:
+
+- `_COVERS` leaves out the verb "test" (reasoned: the noun "tests" stands
+  in "The new tests go in tests/test_termui.py, not confirm.", and that
+  form must dispute nothing).
+- "The tests go in test_termui.py, not test_confirm." is an
+  `xfail(strict=True)` row that expects nothing (reasoned: its "no" part
+  names no path, so the rule falls back to `tests/test_termui.py`; no real
+  answer has this form, so the pass adds no rule). The form
+  "test_termui.py is wrong." tests the word boundary of finding 4.
+
+Tests, pass 3e: the real-rows test is 10 cases, two of them expected
+failures. The four-path test is 25 cases, one an expected failure. The new
+`test_a_no_part_spares_only_the_items_own_symbol` is 3 cases.
+`tests/rota/test_request_page.py` and `tests/rota/test_fixtures.py` give
+75 passed and 4 xfailed.
+
+The gate, pass 3e, verbatim:
+
+```
+suite: 24 failed, 3494 passed, 32 skipped, 20 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (4): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (3): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names], tests/rota/test_l1.py::test_l1_case[L1-TS-an-outside-fact-is-the-researchers]
+stale (0): none
+time: 1390.0s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+Passed moved from 3490 to 3494 and xfailed from 17 to 20: seven new
+items, four green and three expected failures.
+
+Re-records, pass 3e: none. The stale count was 0.
