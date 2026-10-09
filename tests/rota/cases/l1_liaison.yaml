@@ -19,6 +19,10 @@
   # Both halves are pinned now. A brief that can only be tuned in one direction
   # gets tuned until the other direction breaks, and that is exactly what
   # happened here.
+  #
+  # The chat reply is gone. Words that ask for nothing earn one clarify that
+  # names a row, and a greeting names no row but its entry (frame 142, ruled:
+  # Roman, 2026-10-08, the park ask is a page with rows, point 4).
   fixture:
     entries:
       - {id: e_<m_in>, author: principal, ts_order: 1,
@@ -27,7 +31,7 @@
             body_refs: []}
   expect:
     messages:
-      - {to: principal, verb: converse, count: 1}
+      - {to: principal, verb: clarify, count: 1, refs_include: [e_<m_in>]}
   forbidden:
     # A greeting is not a commitment. Segmenting one puts a statement in front of
     # the principal to ratify and sends three roles off to work from it, which is

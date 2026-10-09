@@ -573,18 +573,107 @@ def refuse_second_answer(ctx: Ctx, answer: str) -> None:
             f"leaves them holding two. Your work here is done")
 
 
+def message_entry(conn: sqlite3.Connection, row) -> tuple[str | None, str]:
+    """
+    The entry of a principal message and its words: the entry in its refs,
+    else `e_<id>`, else none and the message's own text.
+    """
+    try:
+        refs = json.loads(row["body_refs"] or "[]")
+    except (TypeError, ValueError):
+        refs = []
+    for ref in [r for r in refs if isinstance(r, str)] + [f"e_{row['id']}"]:
+        entry = conn.execute("SELECT id, text FROM entries WHERE id = ?",
+                             (ref,)).fetchone()
+        if entry is not None:
+            return entry["id"], entry["text"] or ""
+    return None, row["body_text"] or ""
+
+
+def _said(text: str) -> str:
+    return " ".join((text or "").split()).casefold()
+
+
+def repeated_sentence(conn: sqlite3.Connection, trigger: str | None) -> str | None:
+    """
+    The Liaison message to the principal that answered the principal's
+    words before, when the words on the trigger's chain are said again.
+    """
+    # The nearest principal message on the cause chain holds the words. An
+    # owner's answer in the `answer` mode sits two hops below it.
+    mid, hops, row = trigger, 8, None
+    while mid and hops > 0:
+        row = conn.execute("SELECT id, from_role, cause_id, body_refs, body_text "
+                           "FROM messages WHERE id = ?", (mid,)).fetchone()
+        if row is None or row["from_role"] == "principal":
+            break
+        mid, hops, row = row["cause_id"], hops - 1, None
+    if row is None or row["from_role"] != "principal":
+        return None
+    entry_id, text = message_entry(conn, row)
+    said = _said(text)
+    if not said:
+        return None
+    for e in conn.execute("SELECT id, text FROM entries WHERE author = 'principal' "
+                          "AND id IS NOT ? ORDER BY ts_order", (entry_id,)):
+        if _said(e["text"]) != said:
+            continue
+        # The messages that carried the earlier words, then two levels of
+        # what they caused. A Liaison message to the principal there is the
+        # answer the words already drew.
+        level = [m["id"] for m in conn.execute(
+            "SELECT id FROM messages WHERE from_role = 'principal' AND id != ? "
+            "AND (id = ? OR body_refs LIKE ?)",
+            (row["id"], e["id"][2:], f'%"{e["id"]}"%'))]
+        for _ in range(3):
+            if not level:
+                break
+            marks = ",".join("?" * len(level))
+            below = conn.execute(
+                f"SELECT id, from_role, to_role FROM messages WHERE cause_id IN ({marks}) "
+                f"ORDER BY seq", level).fetchall()
+            hit = next((m["id"] for m in below if m["from_role"] == "liaison"
+                        and m["to_role"] == "principal"), None)
+            if hit:
+                return hit
+            level = [m["id"] for m in below if m["id"] != row["id"]]
+    return None
+
+
+def refuse_repeated_sentence(ctx: Ctx) -> None:
+    """Raise when the principal said the trigger's words before and a
+    Liaison message already answered them."""
+    # Nothing is asked twice (ruled: Roman, 2026-09-12, "The seat's four
+    # pages are one surface", point 1). The door keys on the entry's text,
+    # so it holds in every mode that writes to the principal. Night 132's
+    # walk said one sentence 27 times, and s219 to s227 answered each (frame
+    # 142's design, 2.C, point 6, and 2.F, amendment 3).
+    if getattr(ctx, "role", None) != "liaison":
+        return
+    answered = repeated_sentence(ctx.conn, getattr(ctx, "trigger", None))
+    if answered:
+        raise ValueError(
+            f"you answered these words in {answered}, and the principal said "
+            f"them again. That answer still stands. Stop")
+
+
 @op("brief", "intake")
 def brief_intake(ctx: Ctx, verdict: str) -> dict:
     """
-    The branch claim at intake: chat or work, never both silently.
+    The branch claim at intake: work, or no claim.
 
     S0's blocker, measured live: handed "Hello, Please build a python
     script...", the converse session answered the greeting and closed --
     zero statements, the request gone. The greeting-handling brief patch was
     prose and lost, prose's fourth loss this month. Same cure as the
     Tester's fork: the judgment becomes an act. `work` means the reply must
-    carry refs to what intake produced; `chat` means a bare reply is legal.
-    Two verdicts only -- the taxonomy lesson says never three.
+    carry refs to what intake produced.
+
+    `chat` is gone. Every word of the principal is a ruling on a row, or it
+    earns one Liaison question that names a row. A reply in words with no
+    row was the leak behind night 132's loop (ruled: Roman, 2026-10-08, the
+    park ask is a page with rows, point 4). The enum refuses `chat` and says
+    where the words go.
     """
     if not hasattr(ctx, "intake"):
         ctx.intake = None
@@ -594,8 +683,6 @@ def brief_intake(ctx: Ctx, verdict: str) -> dict:
                 "for (their words, spans of the entry), then "
                 "msg.confirm_principal with the statement ids. Your reply "
                 "carries refs; a bare reply is refused",
-        "chat": "no work was asked for: msg.converse_principal replies in "
-                "words, refs may be empty",
     }[verdict]
     return {"verdict": verdict, "next": nxt}
 
@@ -640,10 +727,21 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
         if stop < len(source) and source[stop] == "?":
             raise ValueError(
                 "that span is a question, and a question is never a "
-                "statement to ratify. Answer it -- msg.converse_principal "
-                "with the rows that answer it in refs -- or ask the owner "
-                "whose artefact holds the answer")
+                "statement to ratify. Ask the owner whose artefact holds the "
+                "answer, or ask about the row with msg.clarify_principal")
 
+    # Words on file are a row already. Night 121's s284 segmented the walk's
+    # sentence as s5 a third time, and each copy went to the principal to
+    # ratify again (frame 142's design, 2.C, point 5).
+    said = _said(text)
+    if said:
+        for s in ctx.conn.execute("SELECT id, text FROM statements "
+                                  "WHERE status != 'superseded' ORDER BY rowid"):
+            if _said(s["text"]) == said:
+                raise ValueError(
+                    f"these words are {s['id']}, which is on file. Ask about "
+                    f"that row with msg.clarify_principal(refs=['{s['id']}'], "
+                    f"...)")
 
     # The same span twice is the same statement twice, whatever id it is given.
     #
@@ -6671,6 +6769,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # question keeps the page open, and the next reply rules.
         if any(m["to_role"] == "principal" for m in (ctx.outbound or [])):
             raise ValueError("the principal has your sentence. Stop")
+        refuse_repeated_sentence(ctx)
         refs = json.loads(page["body_refs"] or "[]")
         mid = new_id("m", ctx.conn, offset=len(ctx.outbound or []))
         ctx.outbound.append({

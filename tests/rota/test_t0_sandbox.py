@@ -1280,10 +1280,10 @@ def test_the_empty_refs_guard_is_only_on_the_ask_channel(db):
     the payload rather than a pointer to one.
     """
     sb = build("liaison", db, mode="normal")
-    # The intake fork contract: a session touching the principal
-    # channel claims its branch first (chat covers these drives --
-    # they exercise channel semantics, not segmentation).
-    sb.call("brief.intake", verdict="chat")
+    # The chat claim is gone (frame 142, ruled 2026-10-08), so the drive
+    # disarms the intake fork, as the answer mode does. These drives
+    # exercise channel semantics, not segmentation.
+    sb.ctx.intake = "unarmed"
     sb.call("msg.converse_principal", refs=[], reply="Hello!")
     assert len(sb.ctx.outbound) == 1
 
@@ -1310,10 +1310,10 @@ def test_chat_and_ratification_refuse_each_other(db):
                "('e_m1','principal','let people export invoices',1)")
 
     sb = build("liaison", db, mode="normal")
-    # The intake fork contract: a session touching the principal
-    # channel claims its branch first (chat covers these drives --
-    # they exercise channel semantics, not segmentation).
-    sb.call("brief.intake", verdict="chat")
+    # The chat claim is gone (frame 142, ruled 2026-10-08), so the drive
+    # disarms the intake fork, as the answer mode does. These drives
+    # exercise channel semantics, not segmentation.
+    sb.ctx.intake = "unarmed"
     sb.ctx.entry_id = "e_m1"
     sb.call("brief.segment", id="s1", span_start=0, span_end=26,
             text="let people export invoices")
@@ -1333,7 +1333,7 @@ def test_chat_and_ratification_refuse_each_other(db):
                "'let people export invoices','proposed')")
     db.commit()
     sb2 = build("liaison", db, mode="normal")
-    sb2.call("brief.intake", verdict="chat")
+    sb2.ctx.intake = "unarmed"
     sb2.ctx.entry_id = "e_m1"
     sb2.call("msg.converse_principal", refs=[], reply="Hello!")
     with pytest.raises(ValueError, match="already replied to the principal"):
@@ -1347,10 +1347,10 @@ def test_clarify_is_not_exclusive_with_either(db):
     the third thing, and pairing it with either is not the failure above.
     """
     sb = build("liaison", db, mode="normal")
-    # The intake fork contract: a session touching the principal
-    # channel claims its branch first (chat covers these drives --
-    # they exercise channel semantics, not segmentation).
-    sb.call("brief.intake", verdict="chat")
+    # The chat claim is gone (frame 142, ruled 2026-10-08), so the drive
+    # disarms the intake fork, as the answer mode does. These drives
+    # exercise channel semantics, not segmentation.
+    sb.ctx.intake = "unarmed"
     sb.call("msg.converse_principal", refs=[], reply="Hello!")
     sb.call("msg.clarify_principal", refs=[], question="which dashboard?")
     assert len(sb.ctx.outbound) == 2
@@ -1406,10 +1406,10 @@ def test_routing_and_chatting_are_also_one_answer_each(db):
                "('e_m1','principal','where do recipes go?',1)")
 
     sb = build("liaison", db, mode="normal")
-    # The intake fork contract: a session touching the principal
-    # channel claims its branch first (chat covers these drives --
-    # they exercise channel semantics, not segmentation).
-    sb.call("brief.intake", verdict="chat")
+    # The chat claim is gone (frame 142, ruled 2026-10-08), so the drive
+    # disarms the intake fork, as the answer mode does. These drives
+    # exercise channel semantics, not segmentation.
+    sb.ctx.intake = "unarmed"
     sb.ctx.entry_id = "e_m1"
     sb.call("msg.ask_architect", refs=["e_m1"])
     with pytest.raises(ValueError, match="already asked an owner"):
@@ -1417,7 +1417,7 @@ def test_routing_and_chatting_are_also_one_answer_each(db):
     assert {m["verb"] for m in sb.ctx.outbound} == {"ask"}
 
     sb2 = build("liaison", db, mode="normal")
-    sb2.call("brief.intake", verdict="chat")
+    sb2.ctx.intake = "unarmed"
     sb2.ctx.entry_id = "e_m1"
     sb2.call("msg.converse_principal", refs=[], reply="Hello!")
     with pytest.raises(ValueError, match="already replied"):
@@ -1474,9 +1474,9 @@ def test_an_owner_that_could_not_answer_is_not_relayed(db):
     """
     sb = _inquiry_db(db, ["e_m1", "k0"])
     # Un-narrowed helper build arms the intake fork; production
-    # answer mode does not offer it. Claimed to reach the guard
+    # answer mode does not offer it. Disarmed to reach the guard
     # under test.
-    sb.call("brief.intake", verdict="chat")
+    sb.ctx.intake = "unarmed"
     with pytest.raises(ValueError, match="constraint zero"):
         sb.call("msg.converse_principal", refs=["e_m1", "k0"],
                 reply="That area has not been surveyed.")
@@ -1495,9 +1495,9 @@ def test_an_answer_that_names_a_real_row_is_relayed(db):
     """
     sb = _inquiry_db(db, ["g_recipe"])
     # Un-narrowed helper build arms the intake fork; production
-    # answer mode does not offer it. Claimed to reach the guard
+    # answer mode does not offer it. Disarmed to reach the guard
     # under test.
-    sb.call("brief.intake", verdict="chat")
+    sb.ctx.intake = "unarmed"
     sb.call("msg.converse_principal", refs=["g_recipe"],
             reply="A recipe is a note that seeds another.")
     assert len(sb.ctx.outbound) == 1
@@ -1517,18 +1517,10 @@ def test_the_hollow_guard_only_looks_at_an_answer(db):
                "'converse',?,1)", (_json.dumps([]),))
     db.commit()
     sb = build("liaison", db, mode="normal")
-    # The intake fork contract: a session touching the principal
-    # channel claims its branch first (chat covers these drives --
-    # they exercise channel semantics, not segmentation).
-    sb.call("brief.intake", verdict="chat")
-    # The intake fork contract: a session touching the principal
-    # channel claims its branch first (chat covers these drives --
-    # they exercise channel semantics, not segmentation).
-    sb.call("brief.intake", verdict="chat")
-    # The intake fork contract: a session touching the principal
-    # channel claims its branch first (chat covers these drives --
-    # they exercise channel semantics, not segmentation).
-    sb.call("brief.intake", verdict="chat")
+    # The chat claim is gone (frame 142, ruled 2026-10-08), so the drive
+    # disarms the intake fork, as the answer mode does. These drives
+    # exercise channel semantics, not segmentation.
+    sb.ctx.intake = "unarmed"
     sb.ctx.trigger = "m1"
     sb.call("msg.converse_principal", refs=[], reply="Morning!")
     assert len(sb.ctx.outbound) == 1
@@ -1718,10 +1710,10 @@ def test_the_one_answer_refusal_says_what_the_session_did(db):
     That is what stood between the fixture above and its diagnosis.
     """
     sb = build("liaison", db, mode="normal")
-    # The intake fork contract: a session touching the principal
-    # channel claims its branch first (chat covers these drives --
-    # they exercise channel semantics, not segmentation).
-    sb.call("brief.intake", verdict="chat")
+    # The chat claim is gone (frame 142, ruled 2026-10-08), so the drive
+    # disarms the intake fork, as the answer mode does. These drives
+    # exercise channel semantics, not segmentation.
+    sb.ctx.intake = "unarmed"
     sb.call("msg.confirm_principal", refs=[])
     with pytest.raises(ValueError, match="asked the principal to confirm"):
         sb.call("msg.converse_principal", refs=[], reply="hi")
@@ -1730,7 +1722,7 @@ def test_the_one_answer_refusal_says_what_the_session_did(db):
                "('e_m2','principal','let people export invoices',1)")
     db.commit()
     sb2 = build("liaison", db, mode="normal")
-    sb2.call("brief.intake", verdict="chat")
+    sb2.ctx.intake = "unarmed"
     sb2.ctx.entry_id = "e_m2"
     sb2.call("brief.segment", id="s2", span_start=0, span_end=26,
              text="let people export invoices")

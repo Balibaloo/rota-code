@@ -1700,19 +1700,31 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
     # the answer but not the question, cannot tell the ground has moved.
     # `interrupt_cap` says never repeat and always reframe. That needs the
     # last question in view.
-    rows = conn.execute(
-        "SELECT from_role, verb, body_text FROM messages "
-        "WHERE verb IN ('converse', 'clarify') "
-        "  AND from_role IN ('principal', 'liaison') "
-        "  AND to_role IN ('principal', 'liaison') "
-        "  AND body_text IS NOT NULL AND body_text != '' "
-        "  AND id != ? "
-        "ORDER BY seq DESC LIMIT ?",
-        (current_msg_id, limit)
-    ).fetchall()
-    return [{"from": r["from_role"], "text": r["body_text"] or ""}
-            | ({"asked": True} if r["verb"] == "clarify" else {})
-            for r in reversed(rows)]
+    #
+    # A principal turn with no `body_text` is read from its entry. The walk
+    # and the agent principal write the words as an entry alone, so night
+    # 132's s220 never saw e_p4, the same sentence one turn before (frame
+    # 142's design, 2.C, point 7).
+    from ..roles.api import message_entry
+
+    out: list[dict[str, str]] = []
+    for r in conn.execute(
+            "SELECT id, from_role, verb, body_text, body_refs FROM messages "
+            "WHERE verb IN ('converse', 'clarify') "
+            "  AND from_role IN ('principal', 'liaison') "
+            "  AND to_role IN ('principal', 'liaison') "
+            "  AND id != ? "
+            "ORDER BY seq DESC", (current_msg_id,)):
+        text = r["body_text"] or ""
+        if not text and r["from_role"] == "principal":
+            text = message_entry(conn, r)[1]
+        if not text:
+            continue
+        out.append({"from": r["from_role"], "text": text}
+                   | ({"asked": True} if r["verb"] == "clarify" else {}))
+        if len(out) >= limit:
+            break
+    return list(reversed(out))
 
 
 def _resolve_refs(conn: sqlite3.Connection, refs,

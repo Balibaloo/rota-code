@@ -108,7 +108,18 @@ ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
     ("tests", "triage"): {"verdict": ("encodable", "cannot", "ambiguous_word",
                                       "no_machine_check", "outside_fact",
                                       "contradicts_request")},
-    ("brief", "intake"): {"verdict": ("work", "chat")},
+    # `chat` is gone: the principal's words always land on a row (ruled:
+    # Roman, 2026-10-08, the park ask is a page with rows, point 4).
+    ("brief", "intake"): {"verdict": ("work",)},
+}
+
+# What a refused enum value says, where the list of values alone does not
+# say where the call goes instead.
+ENUM_REFUSALS: dict[tuple[str, str, str, str], str] = {
+    ("brief", "intake", "verdict", "chat"): (
+        "the principal's words always land on a row. Words about a row: "
+        "msg.clarify_principal(refs=[<the row>], question=...). A question "
+        "about the program: the asks. A request: verdict='work'"),
 }
 
 # What to say when a *particular* wrong argument is offered, where listing the
@@ -385,7 +396,8 @@ def validate_args(fn: Callable, kwargs: dict,
     checks = {**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
     for key, allowed in checks.items():
         if key in kwargs and isinstance(kwargs[key], str) and kwargs[key] not in allowed:
-            return f"{key}={kwargs[key]!r} is not one of {list(allowed)}"
+            said = ENUM_REFUSALS.get((*(op or ("", "")), key, kwargs[key]))
+            return said or f"{key}={kwargs[key]!r} is not one of {list(allowed)}"
 
     return None
 
@@ -2154,18 +2166,26 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"on these rows and they did not settle it. A third "
                     f"question is the same question. The exit is {door}")
 
+        # The principal said these words before, and a Liaison message
+        # answered them. A second answer is the loop of night 132 (frame
+        # 142's design, 2.C, point 6). `rulings.rule(ask=...)` asks the same
+        # in `api.rulings_rule`.
+        if verb in ("clarify", "converse", "confirm") and recipient == "principal":
+            api.refuse_repeated_sentence(ctx)
+
         # The intake fork, armed by the mode: a converse to the principal is
-        # either the reply to work (refs carry what intake produced) or a
-        # declared chat. Undeclared-and-bare is the measured S0 failure --
-        # the greeting answered, the request gone.
+        # the reply to work, and its refs carry what intake produced.
+        # Undeclared-and-bare is the measured S0 failure -- the greeting
+        # answered, the request gone. The `chat` claim is gone (ruled: Roman,
+        # 2026-10-08, the park ask is a page with rows, point 4).
         if (verb == "converse" and recipient == "principal"
                 and getattr(ctx, "intake", "unarmed") != "unarmed"):
             if ctx.intake is None:
                 raise ValueError(api._offer(
                     ctx,
                     "claim the branch first: brief.intake(verdict='work') "
-                    "if they asked for anything at all, 'chat' if not. An "
-                    "unclaimed reply is how a request dies politely",
+                    "if they asked for anything at all. An unclaimed reply "
+                    "is how a request dies politely",
                     "brief.intake", {"verdict": "work"}))
             if ctx.intake == "work" and not refs:
                 raise ValueError(
@@ -2189,19 +2209,6 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "the entry, and an entry is not a statement. brief.segment "
                     "the request into statements first, then confirm them. "
                     "A reply that only acknowledges loses the request")
-            # A chat reply that restates a statement is answered *from* it,
-            # and the trail should say so. G1-what-the-brief-already-holds
-            # went red the day the fork landed: the Liaison claimed chat,
-            # answered from the brief word for word, and ref'd the entry.
-            # Derived, not demanded -- the ref is the system's knowledge of
-            # where the words came from -- and only when exactly one
-            # statement's span is in the reply, so nothing is guessed.
-            if ctx.intake == "chat" and text:
-                hits = [r["id"] for r in ctx.conn.execute(
-                    "SELECT id, text FROM statements WHERE status != 'superseded'")
-                    if _quotes_span(r["text"] or "", text)]
-                if len(hits) == 1 and hits[0] not in (refs or []):
-                    refs = [*(refs or []), hits[0]]
 
         # Recipient and verb, not refs. Matching on refs too caught the exact
         # repeat and missed the expensive one: Terminologist answered a

@@ -1,13 +1,17 @@
 """
-The intake fork: chat or work, never both silently.
+The intake fork: work, or no claim.
 
 S0's blocker, measured live: handed "Hello, Please build a python script
 that asks for the users name...", the converse session answered the greeting
 and closed -- zero statements, the request gone politely. The brief patch
 tried before ("Improove greeting handling") was prose, and prose lost for
 the fourth measured time. Same cure as the Tester's triage fork: the
-judgment becomes an act, two verdicts only (the taxonomy lesson), and the
-reply channel enforces the claimed branch.
+judgment becomes an act, and the reply channel enforces the claimed branch.
+
+The `chat` claim is gone (ruled: Roman, 2026-10-08, the park ask is a page
+with rows, point 4). The converse mode no longer offers
+`msg.converse_principal`, so the door's tests below name the channel in the
+working set themselves.
 """
 from __future__ import annotations
 
@@ -31,8 +35,10 @@ def db(tmp_path):
 
 
 def _intake(db):
+    # The door stays for the work branch, so the channel is added here.
     return build("liaison", db, mode="converse", entry_id="e_m_in",
-                 allow=prompts.mode_tools("liaison", "converse"))
+                 allow=prompts.mode_tools("liaison", "converse")
+                 + ["msg.converse_principal"])
 
 
 def test_an_unclaimed_reply_is_refused(db):
@@ -72,18 +78,23 @@ def test_work_claimed_with_the_entry_as_its_ref_is_still_nothing(db):
     assert sb.ctx.outbound
 
 
-def test_chat_claimed_means_a_bare_reply_is_legal(db):
-    sb = _intake(db)
-    sb.call("brief.intake", verdict="chat")
-    sb.call("msg.converse_principal", refs=[], reply="Hello to you too!")
-    assert sb.ctx.outbound
+def test_chat_is_refused_and_names_where_the_words_go(db):
+    """Night 132's s220 claimed chat and sent one sentence with no row. The
+    words now land on a row or earn one question that names a row."""
+    sb = build("liaison", db, mode="converse", entry_id="e_m_in",
+               allow=prompts.mode_tools("liaison", "converse"))
+    assert "msg.converse_principal" not in prompts.mode_tools("liaison", "converse")
+    with pytest.raises(ArgumentError, match="the principal's words always land on a row"):
+        sb.call("brief.intake", verdict="chat")
 
 
-def test_the_verdict_vocabulary_is_two_words(db):
-    """Never three: the fork taxonomy lesson, applied at intake."""
+def test_the_verdict_vocabulary_is_work_alone(db):
+    """One word: `work`. Words that ask for nothing take a clarify on a
+    row, and a question about the program takes the asks."""
     sb = _intake(db)
     with pytest.raises(ArgumentError, match="not one of"):
         sb.call("brief.intake", verdict="question")
+    assert sb.call("brief.intake", verdict="work")["verdict"] == "work"
 
 
 def test_modes_without_the_fork_are_untouched(db):

@@ -16,7 +16,7 @@ import re
 import pytest
 
 from rota.core.db import init_db
-from rota.core.sandbox import build
+from rota.core.sandbox import ArgumentError, build
 from rota.core.predicates import Wake
 from rota.testkit.fixtures import seed_provenance
 
@@ -2185,10 +2185,11 @@ def test_a_fixture_the_harness_lacks_errors_at_setup(db):
                  "    assert close_account(acct) == 'invoices'")
 
 
-def test_a_chat_reply_that_restates_a_statement_carries_its_ref(db):
+def test_words_about_a_statement_go_as_a_clarify_that_names_it(db):
     """G1-what-the-brief-already-holds: the Liaison claimed chat, answered
-    from the brief word for word, and ref'd the entry. The system knows
-    where the words came from."""
+    from the brief word for word, and ref'd the entry. The chat claim is
+    gone, so the words land on their row as one clarify (ruled: Roman,
+    2026-10-08, the park ask is a page with rows, point 4)."""
     db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
                "('e1','principal',1,'how long do we keep invoices?')")
     db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
@@ -2202,11 +2203,12 @@ def test_a_chat_reply_that_restates_a_statement_carries_its_ref(db):
     sb = build("liaison", db, mode="converse",
                allow=prompts.mode_tools("liaison", "converse"),
                wake=Wake("liaison", "message", message_id="m1", refs=("m1",)))
-    sb.call("brief.intake", verdict="chat")
-    sb.call("msg.converse_principal", refs=["e1"],
-            reply="We decided that invoices are kept for seven years after the "
-                  "account is closed.")
-    assert "s1" in sb.ctx.outbound[-1]["body_refs"]
+    with pytest.raises(ArgumentError, match="always land on a row"):
+        sb.call("brief.intake", verdict="chat")
+    sb.call("msg.clarify_principal", refs=["s1"],
+            question="We decided that invoices are kept for seven years after the "
+                     "account is closed. Is that still right?")
+    assert sb.ctx.outbound[-1]["body_refs"] == ["s1"]
 
 
 def test_a_verbatim_item_assert_moves_no_version(db):
