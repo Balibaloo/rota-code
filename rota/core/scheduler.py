@@ -1532,23 +1532,44 @@ def park_message_rests(conn: sqlite3.Connection, message_id: str) -> bool:
     return park_ruling(conn, message_id) is not None
 
 
-def park_page_of(conn: sqlite3.Connection, message_id: str | None,
-                 hops: int = 4) -> str | None:
-    """The park page on the cause chain of a message, within a few hops."""
-    while message_id and hops > 0:
-        if park_ask_batch(message_id):
-            return message_id
-        row = conn.execute("SELECT cause_id FROM messages WHERE id = ?",
-                           (message_id,)).fetchone()
-        message_id = row["cause_id"] if row else None
-        hops -= 1
-    return None
+def park_verdict_page(conn: sqlite3.Connection, message_id: str | None) -> str | None:
+    """The park page that a verdict answers, or None for any other message."""
+    # One hop, not a walk. A walk up the chain reached an older park page
+    # through a clarify or a converse, and keyed a repair on a ruling that
+    # was not a park ruling (the delta review of 172b373b, finding 3).
+    row = conn.execute("SELECT verb, cause_id FROM messages WHERE id = ?",
+                       (message_id,)).fetchone() if message_id else None
+    if row is None or row["verb"] != "verdict" or not row["cause_id"]:
+        return None
+    return row["cause_id"] if park_ask_batch(row["cause_id"]) else None
+
+
+def park_verdict_criteria(conn: sqlite3.Connection, message_id: str | None) -> list[str]:
+    """The criteria that a park verdict contests or revises, in the verdict's
+    ref order."""
+    import json
+
+    if park_verdict_page(conn, message_id) is None:
+        return []
+    row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                       (message_id,)).fetchone()
+    ruled = conn.execute("SELECT value FROM config WHERE key = ?",
+                         (f"verdict:{message_id}",)).fetchone()
+    try:
+        refs = json.loads(row["body_refs"] or "[]")
+        per_item = json.loads(ruled["value"]) if ruled else {}
+    except (TypeError, ValueError):
+        return []
+    return [r for r in refs if isinstance(r, str)
+            and per_item.get(r) in ("contest", "revise")
+            and conn.execute("SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]
 
 
 def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
     """
-    A relay whose every ref is a criterion and whose ruling came from a park
-    page: the principal's correction of a criterion row.
+    A relay whose every ref is a criterion, whose cause is a verdict, and
+    whose verdict answers a park page: the principal's correction of a
+    criterion row.
     """
     import json
 
@@ -1567,7 +1588,7 @@ def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bo
     return bool(refs) and all(
         isinstance(r, str) and conn.execute(
             "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone() for r in refs
-    ) and park_page_of(conn, row["cause_id"]) is not None
+    ) and park_verdict_page(conn, row["cause_id"]) is not None
 
 
 def _park_versions(conn: sqlite3.Connection, batch_id: str) -> str:

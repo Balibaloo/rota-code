@@ -2632,9 +2632,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # with rows, point 2). A criterion that reached a ruling another
             # way, through a ledger row's `about_ref`, keeps the old route
             # (the diff review of b0a2086e, finding 1).
-            from .scheduler import park_page_of
+            from .scheduler import park_verdict_page
 
-            on_park = park_page_of(ctx.conn, ctx.trigger) is not None
+            on_park = park_verdict_page(ctx.conn, ctx.trigger) is not None
             for ref in refs:
                 owner = _owner_of_ref(ctx.conn, ref) or (
                     "terminologist" if on_park and ctx.conn.execute(
@@ -2892,6 +2892,39 @@ _CALL_LOG: dict[int, list[tuple[str, str]]] = {}
 
 def drain_calls(ctx: api.Ctx) -> list[tuple[str, str]]:
     return _CALL_LOG.pop(id(ctx), [])
+
+
+def stage_park_relay(ctx: api.Ctx) -> None:
+    """
+    Stage the relay of a park verdict's contested criteria to the
+    Terminologist, when no relay of the session carries them.
+    """
+    # The door makes this relay, and the brief is not the gate. The
+    # verdict_signoff brief says a criterion has no relay, so a session that
+    # obeyed it left the corrected criterion with nobody, and the parked line
+    # still said the team rewrites it (the delta review of 172b373b,
+    # finding 1; ruled: Roman, 2026-10-08, the park ask is a page with rows,
+    # point 2).
+    from .runner import new_id
+    from .scheduler import park_verdict_criteria
+
+    if getattr(ctx, "role", None) != "liaison" or not getattr(ctx, "trigger", None):
+        return
+    contested = park_verdict_criteria(ctx.conn, ctx.trigger)
+    if not contested:
+        return
+    held = [m for m in ctx.outbound
+            if m["verb"] == "relay" and m["to_role"] == "terminologist"]
+    if held:
+        refs = held[0]["body_refs"]
+        refs += [c for c in contested if c not in refs]
+        return
+    ctx.outbound.append({
+        "id": new_id("m", ctx.conn, offset=len(ctx.outbound)),
+        "to_role": "terminologist", "verb": "relay",
+        "body_refs": list(contested), "body_text": None,
+        "round_no": 0, "cause_id": ctx.trigger,
+    })
 
 
 def check_implementations(g: graph_mod.Graph | None = None) -> list[str]:

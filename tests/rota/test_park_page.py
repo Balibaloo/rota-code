@@ -304,6 +304,58 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     assert len(P.REGISTRY["park_ask"].fn(n132)) == 1
 
 
+@pytest.mark.parametrize("call", ["done", f'TOOL: msg.relay_vision_keeper(refs=["{ITEM_132}"])'])
+def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist(n132, call):
+    """The delta review of 172b373b, finding 1: `verdict_signoff.md` says a
+    criterion has no relay, so a session that obeys it sends none. The door
+    relays the contested criterion whatever the session sent, and once."""
+    from rota.core.runner import run_session
+
+    mid = _liaison_presents(n132, ITEM_132)
+    reply = _reply(n132, mid, "line 3 is wrong: it must not hang")
+    ruling = {str(n): "approve" for n in range(1, 8)}
+    ruling["3"] = "contest"
+    out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
+                                "words='line 3 is wrong: it must not hang')")
+    assert out.committed, out.errors
+    (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
+                              "AND verb = 'verdict'", (mid,)).fetchall()
+    (wake,) = [w for w in open_tips(n132) if w.message_id == verdict["id"]]
+    out = run_session(n132, wake, backend=ScriptedBackend([call, "done"]),
+                      pins=Pins(model="stub", temperature=0.0), instructions="relay")
+    assert out.committed, out.errors
+    rows = n132.execute("SELECT id, body_refs FROM messages WHERE cause_id = ? AND "
+                        "verb = 'relay' AND to_role = 'terminologist'",
+                        (verdict["id"],)).fetchall()
+    assert len(rows) == 1
+    refs = json.loads(rows[0]["body_refs"])
+    assert "cr_2_confirm_eof_behavior" in refs
+    from rota.core.scheduler import park_criterion_relay
+
+    assert park_criterion_relay(n132, rows[0]["id"])
+
+
+def test_a_relay_two_hops_below_a_park_verdict_is_no_criterion_repair(n132):
+    """The delta review of 172b373b, finding 3: a walk of four hops keyed a
+    repair on a relay whose chain reached a park page through a clarify."""
+    from rota.core.scheduler import park_criterion_relay
+
+    page = park_ask_id(n132, "bg_2")
+    crs = ["cr_2_confirm_eof_behavior"]
+    for mid, cause, frm, to, verb, seq in [
+            (page, None, "liaison", "principal", "present", 1),
+            ("m_v", page, "principal", "liaison", "verdict", 2),
+            ("m_c", "m_v", "liaison", "principal", "clarify", 3),
+            ("m_a", "m_c", "principal", "liaison", "converse", 4),
+            ("m_r", "m_a", "liaison", "terminologist", "relay", 5),
+            ("m_r1", "m_v", "liaison", "terminologist", "relay", 6)]:
+        n132.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, "
+                     "verb, body_refs, status, seq) VALUES (?, 't', ?, ?, ?, ?, ?, "
+                     "'open', ?)", (mid, cause, frm, to, verb, json.dumps(crs), seq))
+    assert not park_criterion_relay(n132, "m_r")
+    assert park_criterion_relay(n132, "m_r1")
+
+
 def test_a_criterion_move_ends_the_rest_and_a_bare_lift_keeps_it(n132):
     """Night 132's bg_2 rows, cr_2 respecified. A lift with nothing moved
     keeps the rest, and a criterion move asks again (frame 142's design,

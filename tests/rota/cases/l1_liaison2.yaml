@@ -527,3 +527,42 @@
       - {to: principal, verb: clarify}
       - {to: principal, verb: confirm}
       - {to: principal, verb: converse}
+
+- id: L1-LI-a-park-verdict-sends-its-contested-criterion-to-the-terminologist
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  # Frame 142: the principal approved the item and contested a criterion row
+  # of a park page. `verdict_signoff.md` says a criterion has no relay there,
+  # so the door relays the contested criterion to its writer, whatever the
+  # session sends (the delta review of 172b373b, finding 1).
+  prompt: verdict_signoff
+  inbound: {id: <m_rule>, from: principal, to: liaison, verb: verdict,
+            body_refs: [<i1>, <c1>], cause: "m_park_0123456789_<b1>"}
+  fixture:
+    config:
+      - {key: "verdict:<m_rule>", value: '{"<i1>": "approve", "<c1>": "contest"}'}
+    items:
+      - {id: <i1>, text: "the tool prints its result as JSON", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "print the result as JSON"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "echo_json writes one line of compact JSON",
+         term_refs: '[]', surface_refs: '["src/out.py::echo_json"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: deferred, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    messages:
+      - {id: "m_park_0123456789_<b1>", thread_id: t1, from_role: liaison,
+         to_role: principal, verb: present, body_refs: '["<i1>","<c1>"]', seq: 1,
+         status: answered}
+  expect:
+    messages:
+      - {to: terminologist, verb: relay, count: 1, refs_include: [<c1>]}
+  forbidden:
+    # The ruling travels as refs. The Liaison writes no row and asks no desk.
+    writes: [items, criteria, decisions, statements]
+    recipients: [architect, developer, tester]

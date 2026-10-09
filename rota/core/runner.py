@@ -3978,6 +3978,10 @@ def run_session(
             # Whatever closes it has to be an act the role can perform, not an
             # absence the loop infers.
 
+        # A park verdict's contested criteria go to the Terminologist by the
+        # door, whatever the session sent (the delta review of 172b373b,
+        # finding 1).
+        sandbox_mod.stage_park_relay(sb.ctx)
         result = SessionResult(
             session_id=session_id,
             role=wake.role,

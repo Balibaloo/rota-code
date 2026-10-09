@@ -369,9 +369,11 @@
          to_role: terminologist, verb: relay, body_refs: '["<c1>"]', seq: 3,
          status: answered}
   expect:
-    # The corrected words encoded: one test of the criterion, written now.
+    # The corrected words encoded: one test of the criterion, written now,
+    # under the id on file, so it replaces the old test and leaves none
+    # beside it (the delta review of 172b373b, finding 2).
     writes:
-      tests: {count: "1..1"}
+      tests: {count: "1..1", ids_include: [<tst1>]}
   forbidden:
     # The criterion is the Terminologist's, and it is already rewritten.
     writes: [criteria, glossary_terms, items]
