@@ -85,13 +85,38 @@ is the principal's, and there the lever is a ruling on a criterion row.
   "too noisy over time?" to a transcript pointer, "3 yeah would be good for
   some context questions" to asking the sender first.
 
-## Next, in order
+## Next, in order (updated 2026-10-09 02:20, at the hand-off)
 
-1. Pass 1b returns: read its gate's five lines, run a delta review on Opus
-   at its commit against b0a2086e, three points, the relay route on m327
-   and m88, the rest on a contest, the hashed digest.
-2. Pass 2 on a fresh implementer: design 2.C with amendment 3, cap 120k,
-   then a diff review.
-3. Night 134 from a worktree at the closing commit, `GAUNTLET_AGENT=opus`,
-   cold is not needed. Its read measures the ends-when's three ratios.
+Pass 1b landed at 172b373b and pass 2 at 67751385, 0baacf55 and ad8deae3.
+Both implementers have stopped. Night 134 runs from 02:18 at 0baacf55,
+warm, with the agent principal, log `.rota/night134.log`. Its watcher dies
+with this session, so arm your own first.
+
+1. Pass 2b on a fresh implementer, from the diff review's four findings in
+   frame 142's status line of 02:20: a reply to a clarify on an entry keys
+   `converse`; the park relay carries contest and revise criteria alone; the
+   repeated-sentence door refuses only while the earlier message is open;
+   the intake fork guards a clarify on the entry. The high one is off the
+   walk's path, so night 134 is not spoiled by it. Pass 2b can run while
+   the night runs, in the main checkout, then a delta review.
+2. Read a CYCLE line of night 134 at once. The two shapes to expect: a park
+   page on bg_2 when its own tests go red, and no chat session anywhere.
+   The repeated-sentence door fired 43 times on night 132's rows and 0 on
+   night 133's, so a confirm refused on a repeat is the medium finding
+   above, not a new wall.
+3. At `GAUNTLET-DONE`: copy the database and the principal record to
+   `_night134` names, then one read on Opus from `scratchpad/n133_brief.md`
+   of this session pointed at night 134, with frame 142's three ratios
+   first: park pages whose rulings landed on a row, Liaison sessions that
+   reply as chat, park asks asked more than once. Close the frame on the
+   three-part rule.
 4. Frame 182's read beside that night, by Roman's order of 2026-10-08 09:52.
+5. Then put to Roman the re-batch around what the principal sees, frame 45
+   nearest, before frames 184 to 186 get work.
+
+What I would doubt first now: the warm snapshot. Night 134 is the first
+warm night on a tree whose park door and intake door changed, and the
+briefs are read from the worktree at every wake, so the briefs are fine,
+but a stale cassette or a snapshot row shaped for the old park ask would
+show in the first walk's park page. If the first park page renders no
+criteria, that is the place.
