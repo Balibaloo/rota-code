@@ -118,3 +118,68 @@ tree before this pass too (observed: replay at `135d07f2`, 2026-10-09).
 - Passes 2 and 3: 2.2 beyond 2.2.3, 2.3, 2.4 and 2.7.
 - A non-park criterion still goes to `_owner_of_ref`, which knows no
   criterion. Change 2.2.7 in pass 2 sends it to the Terminologist.
+  Pass 1b took this change, see below.
+
+## Pass 1b
+
+Code commit `2c602d1b`, the four findings of the diff review of
+`358fed11`.
+
+- **Finding 1, high: an account page approved the stamped requests.**
+  `rota/core/sandbox.py`, `_bind_send.stage`, records the stamped rows in
+  the config row `stamped:<message id>`. The row rides the staged message
+  as `config`, and `db.session_commit` writes it with the message
+  (`OutboundMessage.config`, `runner._messages_from`). `principal.land`
+  drops an approve of a stamped row on every page, through `door_rows`.
+  The sign-off test by cause, `_signoff_page`, is gone.
+- **Finding 2, low: an item's own present no longer approved it.** Fixed
+  by finding 1: the item is the wake's row, so its approve lands.
+- **Finding 3, high: a contested criterion off the park page went
+  nowhere.** Change 2.2.7 came into this pass. `scheduler.
+  park_verdict_criteria` now returns the criteria a verdict contests or
+  revises as lines of its page, on any page. `park_criterion_relay`
+  accepts a relay of such criteria, so `_mode_key` gives
+  `criterion_repair`. The relay split sends every criterion to the
+  Terminologist. A criterion line goes in its own relay, keyed apart by
+  `CRITERIA_RELAY`, and a term keeps its relay. `stage_park_relay` narrows
+  only a relay that holds a criterion. `liaison/verdict_signoff.md` names
+  the criterion's relay.
+- **Finding 4, low: a live key turned an open touch note into a stopped
+  page.** A send on `tick:quarantined` records its keys in
+  `stalled:<message id>`. `render_page` reads that row and no longer
+  reads `tick_attempts`.
+- The docstring of the agenda "ok" test names m399, not m362.
+
+Deviations, pass 1b:
+
+- The record is a config row written in the session's commit (reasoned:
+  a message column needs a schema migration, and a marker in the refs
+  reaches every reader of `body_refs`; the config row is the shape that
+  2.F amendment 6 names, and a refused session writes none).
+- A criterion that reached the verdict through a contested ledger row's
+  `about_ref` goes to the Terminologist in `relay`, not in
+  `criterion_repair` (reasoned: it is no line of the page, so it is no
+  ruling on its words, the diff review of b0a2086e, finding 1).
+- `stage_park_relay` narrows a relay that mixes a term with a criterion
+  to the contested criteria, and the term drops (reasoned: the park test
+  of the diff review of 0baacf55 expects that narrowing; the split itself
+  never mixes a term with a criterion line).
+
+Tests, pass 1b: `tests/rota/test_request_page.py` now holds 10 tests. The
+criterion test asserts the Terminologist and `criterion_repair`. The
+sign-off test was replaced by night 133's m212 test. Two tests are new,
+night 136's m128 and the re-rendered m84.
+
+The gate, pass 1b, verbatim:
+
+```
+suite: 25 failed, 3429 passed, 32 skipped, 16 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (4): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (2): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names]
+stale (0): none
+time: 649.8s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+Re-records, pass 1b: none. The gate read 0 stale cases after the change
+to `verdict_signoff.md`, and the three `verdict_signoff` cases replay
+green.
