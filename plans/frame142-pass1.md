@@ -324,3 +324,72 @@ with the new refusal text 5/5, then a plain replay green.
   unit test covers the door only.
 - `converse.md` still shows the greeting's clarify with no intake. The
   guard's second pass keeps that example true.
+
+## Pass 2c, the delta review of 4ef3bd9f
+
+Written by the pass 2b implementer, 2026-10-09 03:39, on the tree at
+b9a370cd. Rota workflow, except where a line says meta workflow.
+
+**`fix(rota)` at b9a370cd.**
+
+- Finding 1, high. `api.repeated_sentence` keys on any earlier Liaison
+  message to the principal, whatever its status. `api._confirm_landed`
+  exempts a confirm that has a `rulings` row with status `landed`. On night
+  132's rows, read-only, `repeated_sentence(conn, 'm_p5')` gives m118
+  (observed: 2026-10-09). The `s220` fixture marks m_p4 and m119 answered.
+  There are two new tests: a repeat after a landed verdict gets its
+  confirm, and a repeat while the confirm has no landed verdict is refused.
+- Finding 2, medium. On a park verdict, the relay split keeps only the refs
+  that `scheduler.park_verdict_criteria` names, and routes them to the
+  Terminologist. The item is dropped. `stage_park_relay` sets a held relay
+  to the contested criteria alone. The tests assert that no relay goes to
+  any role but the Terminologist.
+- Finding 3, medium. The one-time guard and `ctx.entry_clarify_refused`
+  are gone. The fork keeps nothing for a clarify. The new case
+  `L1-LI-a-request-is-claimed-before-any-clarify` is in
+  `tests/rota/cases/l1_liaison.yaml`.
+- Finding 4, low. The refusal for a relay of approved rows alone is gone.
+  No test held it.
+
+**The new case, 0/5 on qwen3:8b.** All five runs give the same calls:
+`transcript.quote`, then
+`brief.segment(id="s1", span_start=0, span_end=113, text="make confirm() return the default answer when stdin is closed instead of aborting", span_entry=...)`
+and `msg.confirm_principal(refs=["s1"])`. The only problem is "expected a
+call to brief.intake". No run sends a clarify. The converse brief's work
+example also has no `brief.intake`. No brief is changed. That is a frame.
+
+**Deviations.**
+
+- The new case does not forbid a confirm to the principal. A segment
+  followed by a confirm is the work route of `converse.md`, and
+  `L1-LI-segment` allows it. A forbidden confirm would fail correct work.
+- The gate ran once, as the pass asked. The stale case was re-recorded
+  after it, so the stale line below is from before that re-record.
+
+**The gate, verbatim.**
+
+```
+suite: 27 failed, 3406 passed, 32 skipped, 16 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (5): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-LI-a-request-is-claimed-before-any-clarify], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (2): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names]
+stale (1): L1-LI-a-park-verdict-sends-its-contested-criterion-to-the-terminologist (+1 -0 against baseline)
+time: 867.9s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+The new reds are the 4 known reds and the new case. The night held the
+main card, so the gate re-recorded nothing.
+
+**Re-records**, on qwen3:8b, five runs each, in the foreground:
+
+- `L1-LI-a-request-is-claimed-before-any-clarify`, recorded at 0/5.
+- `L1-LI-chat-is-not-work` gave 5/5, and each run sends one clarify.
+- `L1-LI-a-park-verdict-sends-its-contested-criterion-to-the-terminologist`
+  gave 5/5. A plain replay of it and of the chat case passed.
+
+**Unfinished.**
+
+- The new case is red. Its cause is the missing `brief.intake` call, so
+  it is a frame for the converse brief.
+- A park verdict that contests line 1, the item, now relays nothing. The
+  split then refuses with "every owner these rows belong to has its relay
+  already". No night has shown this shape.
