@@ -70,18 +70,25 @@ This page holds the judgement of this session, 2026-10-09 02:20 to the hand-off.
 - The review and diagnosis probes are in this session's scratchpad:
   `r142p2e/`, `r142p2f/`, `n135live/`, `n135fk/`.
 
-## Next, in order
+## Next, in order (updated 2026-10-09 10:25, at the hand-off)
 
-1. Read a CYCLE line of night 136 at once, as the rules say. Expect a park
-   page on bg_2 when its own tests go red, and no chat session anywhere.
-2. At `GAUNTLET-DONE`: copy the database and `.rota/clickI.principal.jsonl`
-   to `_night136` names. One read on Opus, shaped on
-   `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/acb1f403-fab6-4e1b-89ba-a879c1ae39ab/scratchpad/n133_brief.md`,
-   with frame 142's three ratios first, then the residue sessions, then the
-   answered-question door's refusals and the segment door's refusals by
-   count, then frame 182's read as Roman ordered on 2026-10-08. Cap 220k.
-3. Close frame 142 on the three-part rule, or push the residue's cause as a
-   frame. Write the actual beside the estimate in the closing status; the
-   numbers so far are in the status of 2026-10-09 02:20 and after.
-4. Then the re-batch question to Roman, frame 45 nearest, before frames 184
-   to 188 get work. Frames 187 and 188 are unpriced.
+Frame 142 is closed on night 136's read, `plans/night136-read.md`, and its
+closing status is in `plans/archive/stack-2026-10-09.md`. Night 136 merged
+echo_json and the confirm change, the first confirm merge in the night reads.
+No batch parked on three nights, so the park ratio carries to the next night
+that parks. Frames 187, 188 and 189 are the walls the two nights found, all
+unpriced and unclaimed; 189 is the residue's cause, a correction on a
+prediction page refused by frame 142's own door.
+
+1. Reply to Roman with the state and put the re-batch to him: what the
+   principal sees, frame 45 nearest, before frames 184 to 189 get work. Walk
+   3's line-1 loop on night 136 is the newest evidence, measure 2 of the
+   record: an Architect ledger row as line 1 that no seat can write onto an
+   approved item, 11 presents and 1.35 dollars.
+2. Frame 182's read is in the record, measure 3: bg_3's cr_1 has no test of
+   its own and the merge check accepted the abandoned bg_2's test. Write it
+   on frame 182 as a status line.
+3. The 12 new walls of the record each name a nearest frame; push only those
+   that fit no open frame, after Roman orders.
+4. The implementer of frame 142 is spent with this session. A fresh one
+   reads `plans/frame142-pass1.md` whole.
