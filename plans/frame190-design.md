@@ -28,9 +28,9 @@ Verdicts, one line each:
   s172 set the revised item `approved`. Section 1.5.
 - The touch note shows the item and the predicted files, and no criterion.
   The quarantined page m96 did not say that cr_3 has no test. Section 1.6.
-- The blindspot session s87 wrote 56 ledger rows whose words are one label,
-  `prose`, `surface`, `term` or `source`, on both nights. 16 of them
-  reached night 136's pages. Section 1.7.
+- The blindspot session s87 made 53 `ledger.log` calls whose words are one
+  label, `prose`, `surface`, `term` or `source`, on each night, and they
+  left 16 rows. The 16 reached night 136's pages. Section 1.7.
 - Five changes, section 2: the request's own lines first on every page,
   one route from the principal's words to the item, the Architect's reply
   that writes no new row, the next page that is not a seat's reply row,
@@ -364,12 +364,12 @@ for "one entry with `ledger.log`" per gap that matters, about an area, and
 says "Say the actual thing". Frame 45's shape was five blindspot rows that
 named a Critic verdict that no row held.
 
-On both nights the one blindspot session, s87, called `ledger.log` 56
-times with the same calls, and each `assumption` is one word, the gap's
-label: `prose` 38 times, `surface` 3 times, `term` 13 times, `source`
-once (observed: `tool_calls` of s87, nights 133 and 136). 16 of these rows
-reached night 136's pages m132, m138 and m142, and 14 reached night 133's
-pages. Night 133's m122 showed `term`, `source` and `term` as lines 1, 3,
+On both nights the one blindspot session, s87, made the same 53
+`ledger.log` calls, and each `assumption` is one word, the gap's label:
+`prose`, `surface`, `term` or `source` (observed: `tool_calls` of s87,
+nights 133 and 136). The calls left 16 rows on each night (copied: the
+design review of 2026-10-09). The 16 rows reached night 136's pages m132,
+m138 and m142, and 14 of them reached night 133's pages. Night 133's m122 showed `term`, `source` and `term` as lines 1, 3,
 4, 6 and 7. These are the words of frame 184's ask-backs, `surface` and
 `prose` (copied: `plans/night133-read.md`, section 2). Night 136 shows no
 row that names a verdict, frame 45's own shape.
@@ -504,7 +504,7 @@ copy of `recent_chat` stays its own.
 
 **The test.** Night 133, s228's dispatch and s229's turn on m122. Rebuild
 inline the seven ledger rows of m122 with their authors, the item
-`confirm_with_default_on_eof` at its night-133 version and approval, its
+`confirm_default_on_eof` at its night-133 version and approval, its
 ticket and criteria, the statement s2, and bg_1 merged with
 `delivered:echo_json`. `request_rows` on m122's refs returns the confirm
 item and its criteria through the open-request rule, because no row
@@ -571,8 +571,8 @@ principal's line, the version moves to 5 and the approval to `draft`.
 `cancel` abandons bg_4, which is `pending` and built from version 4, by the
 ruling of 2026-09-12. `signoff` puts the amended item on the sign-off
 page. After the approval, `grouping` opens a new batch on the same ticket
-and criteria. Open question 5.1 asks whether the ticket and the criteria
-are sliced again.
+and criteria. Amendment 4 of 2.F replaces this sentence: change 2.7
+slices the ticket and the criteria again.
 
 **A batch line and a predicted file: frame 142's batch-line door changes.**
 A correction of a touch note's predicted files lands with the Architect,
@@ -665,7 +665,7 @@ holds this, and the brief stops asking for the row.
 2. `ledger.log` refuses an assumption of fewer than four words: "an
    assumption is a sentence a reader learns from. Name what went unread,
    why, and what a reader would get wrong." This is the blindspot brief's
-   own rule, "Say the actual thing", held at the door. s87's 56 calls with
+   own rule, "Say the actual thing", held at the door. s87's 53 calls with
    one word each would read it.
 3. `model.adopt` and `glossary.adopt` read a string `ids` as a list of one
    id. s559's call then reads `parametersource_commandline` whole, and
@@ -808,6 +808,188 @@ The team gave up writing it after 3 tries.` under cr_3.
 | 188, the Liaison's self-relay | 2.3 | no new reply row to relay back | the mode for a self-relay |
 | 189, the prediction page | 2.2, 2.5 | both halves of its mechanism | its ratio, read on the night |
 
+### 2.F Amendments from the design review of 2026-10-09
+
+The design review on Opus, 2026-10-09, read this record and the tree at
+2511355a and said do not start: five high findings and two low ones
+(copied: the coordinator's message to this agent, 2026-10-09). Each
+amendment below takes the review's fix line. Where an amendment and a
+point of 2.1 to 2.5 differ, the amendment wins. Two record errors are
+corrected in place: night 133's item is `confirm_default_on_eof`, and s87
+made 53 calls that left 16 rows. Rota workflow, except where a line says
+meta workflow.
+
+1. **An "ok" off the sign-off page approves nothing, in `land` and in the
+   relay** (finding 1, high, CONFIRMED). Changes 2.2.3 and 2.2.7.
+   - Point 2.2.3 removed only the write in `land`. The verdict still
+     carried the item and its criteria as `approve`, the relay reached the
+     Vision Keeper, and `vision_keeper/relay.md` writes
+     `set_approval('approved')`.
+   - New mechanism: `land` (`principal.py:876-966`) removes every request
+     line that the door stamped from `per_item` when the page is not the
+     sign-off page, a present whose cause is a `submit`, unless its ruling
+     is `contest` or `revise`. An approve of a stamped item or criterion
+     line off the sign-off page writes nothing, and the verdict does not
+     carry it. A request line is a ref that `request_rows(conn, ask.refs)`
+     returns.
+   - Point 2.2.7 changes. The relay split (`sandbox.py:2651-2676`) keeps
+     the park filter, ruled rows only, for every criterion relay, on every
+     page: `park_verdict_rows` widens to "the criteria that the verdict
+     names `contest` or `revise`". An approved criterion reaches no relay,
+     as the diff review of 0baacf55 fixed it for park pages. Only the
+     `on_park` condition on the owner goes.
+   - The test that changes: 2.2's test adds an agenda page whose ruling
+     approves the item line. After `apply_rulings`, the verdict's map holds
+     no item and no criterion, the `verdict_signoff` relay carries neither,
+     and a contested item stays `contested`. This is section 3's case "an
+     approve of an item line on an agenda page leaves a contested item
+     contested".
+
+2. **Every open request has its own line** (finding 2, high, PLAUSIBLE).
+   Changes 2.1.1, 2.1.5 and 2.2.1.
+   - A constraint row reaches no item, so the fallback orders the open
+     requests by `priority`, then id. On night 136 that gives confirm, then
+     version_option, then echo_json (copied: the review). "Name line 1" and
+     the refusal of 2.2.1 then name confirm while the words are about
+     version_option, and the revise cancels the wrong batch.
+   - New mechanism: `request_rows` returns every open request item, with
+     no cap of three, each followed by its criteria. `request_block`
+     numbers each item on its own line. The closing sentence of 2.1.5
+     becomes "To change what you asked for, name its line, <a> to <b>.",
+     with the line numbers of every request item, or "name line <a>." when
+     there is one. The refusal of 2.2.1 names every request line: "<line>
+     is the team's note, not your request. revise rewrites a line of what
+     the principal asked for: line <a>, <item a>, or line <b>, <item b>.
+     Revise the line the words are about. To drop the note, contest it."
+   - The test that changes: 2.2's test rebuilds the open requests of night
+     136's m399 as the review read them, with every open item numbered, and
+     the call revises the line of `version_option_show_python`. The refused
+     call `{"<note>": "revise"}` names every request line.
+
+3. **A reply row rides the next page** (finding 3, high, CONFIRMED).
+   Changes 2.4.1.
+   - Point 2.4.1 said that a skipped reply row rides the next page, and no
+     mechanism did it. Night 136 ended with one open row, `l_62ca6652d9`, a
+     reply row, and the test of 2.4 asserted no wake in that state. The row
+     would stay open with no page, against law 8. `challenge_break` and
+     `frame_assign` (`api.py:9475`, `api.py:9688`) also write reply rows
+     past the door of 2.3.
+   - New mechanism: `tick_agenda` still wakes only for a row that is not a
+     reply row. The wake carries the open reply rows in its refs after the
+     chosen rows, up to `PAGE_ASSUMPTIONS` in all. The door already adds
+     the wake's refs to the present (`sandbox.py:2365-2367`), so the reply
+     rows render under the team's notes on that page, and a ruling closes
+     them.
+   - The test that changes: the test of 2.4 keeps "`tick_agenda` returns
+     no wake" for `l_62ca6652d9` alone. With a second open row from
+     `reconcile`, the wake's refs hold the `reconcile` row first and
+     `l_62ca6652d9` after it. The present that the door writes holds both,
+     and a ruling that approves both closes both.
+
+4. **Change 2.7: an amended item that is not delivered is sliced again**
+   (finding 4, high, CONFIRMED). Closes open question 5.1, and changes the
+   passes of sections 3 and 6.
+   - Once a revise of the item's line is the main route, every landed
+     correction builds from criteria that predate it, and the next sign-off
+     page shows the stale criteria.
+   - Where the sliced-from version is recorded today: nowhere.
+     `tickets.version` is the row's own version, 1 for every ticket on both
+     nights, and `tickets.slice` writes `item_id` and `text` only
+     (`api.py:3913`). The config row `resliced:<item>` records the item
+     version at which `tick_slicing` last cleared the slicing quarantine
+     (`scheduler.py:295-304`), not the version a ticket came from
+     (observed: night 133, `confirm_default_on_eof` at version 8, its one
+     ticket `tk_1_confirm_default_on_eof` at version 1, `resliced:` at 2,
+     2026-10-09).
+   - New mechanism. A new column, `tickets.item_ver`, holds the item's
+     version when the ticket was sliced. `tickets_slice`
+     (`api.py:3819-3914`) writes it from `items.version`. A NULL reads as
+     unknown and is never sliced again, so an old database does not move.
+     `tick_slicing` (`scheduler.py:248-305`) also wakes for an in-scope
+     item, approved at its version, whose newest ticket's `item_ver` is
+     below the item's version, and whose tickets sit in no batch that is
+     live. A ticket whose `item_ver` is below the newest `item_ver` of its
+     item's tickets is retired: `tick_criteria`, `grouping` and
+     `tests_missing` read live tickets only. `tickets.slice` already
+     refuses an id that went out in an abandoned batch
+     (`api.py:3877-3888`), so the new slice writes new ids. The cancel of
+     the ruling of 2026-09-12 still takes the running batch first, because
+     `cancel` fires while the item is not approved, before the new slice
+     can exist.
+   - The test: night 133, `confirm_default_on_eof` at version 8, approved
+     at 8 for the test, its ticket `tk_1_confirm_default_on_eof` with
+     `item_ver` 2, its three criteria, and bg_8 `abandoned`. `slicing`
+     wakes on the item. After a scripted `tickets.slice` with a new id, the
+     new ticket's `item_ver` is 8, the old ticket is retired, `criteria`
+     wakes on the new ticket alone, and `grouping` offers no old ticket.
+   - Pass 1 takes 2.2.3 and the relay filter of amendment 1, and
+     re-records the 7 landing cases there, because `render_page` re-keys
+     them in pass 1. Pass 2 does not list them again. Change 2.7 goes in
+     pass 2.
+
+5. **The request block holds the request only, and once** (finding 5,
+   high, CONFIRMED). Changes 2.1.1, 2.1.3 and 2.1.4.
+   - The first bullet of `request_rows` excluded only observed items and
+     `how_it_works`. Night 133's `defines_commands_and_options` has
+     `is_description` 1 and provenance `decided`, so it would read under
+     "You asked:". The fallback put the account under "You asked:". The
+     block's rows stayed in the groups, so `does` numbered the item a
+     second time, `order` held a duplicate id, and the sign-off page showed
+     two "You asked:" headings.
+   - New mechanism: the first bullet also excludes an item with
+     `is_description`. The account renders under its own heading, "What we
+     are building:", and never under "You asked:". `render_page` removes
+     every row of the block from `said`, `account`, `described`,
+     `does_today`, `does`, `does_not` and `other` before the groups render,
+     so each ref is numbered once. On the sign-off page the statements and
+     the items stand under the block's one "You asked:" heading.
+   - The test that changes: the test of 2.1 asserts that `order` holds no
+     duplicate id. A second case renders night 133's m118 refs, the account
+     and one ledger row: the account stands under "What we are building:",
+     and no "You asked:" heading appears.
+
+6. **The quarantined page has its own branch** (finding 6, low,
+   PLAUSIBLE). Changes 2.5.4.
+   - With the item, the criteria and the batch as refs, `touches` is not
+     empty, so the page opens "Before I build this" on a dead batch.
+     `render_page` has no input for "The team gave up on".
+   - New mechanism: `render_page` gains a keyword argument, `stalled:
+     list[str] | None`, the quarantined tick keys. The door writes the
+     config row `stalled:<message id>` with the wake's keys when the
+     `quarantined` mode sends a present, and the five callers read it with
+     the message. With `stalled`, a quarantined branch runs before the
+     touch-note branch. It renders the request block, then "The team gave
+     up on: <kind> for <batch>, <n> attempts.", then the batch line under
+     "The team expects to touch:".
+   - The test that changes: the second case of 2.5, s200's dispatch,
+     asserts that the page does not start "Before I build this" and holds
+     "The team gave up on: tests_missing for bg_2, 3 attempts."
+
+7. **`ledger.log` refuses a message as `about_ref`** (finding 7, low,
+   CONFIRMED). Changes 2.3.1.
+   - 7 reply rows on the two nights name a message as `about_ref`, and
+     they pass both doors (copied: the review).
+   - New mechanism: `ledger_log` (`api.py:7102-7173`) refuses an
+     `about_ref` that is a row of `messages`: "<ref> is a message. An
+     assumption is about a row of the project, never about a message."
+   - The test: the test of 2.3 adds the call of one of the 7 rows, refused.
+
+**Two facts the review confirmed, held.**
+
+- The four-word floor of 2.3.2 refuses 16 rows on each night, all of them
+  s87's, and 0 rows that a reader can learn from (copied: the review,
+  2026-10-09).
+- A corrected prediction loops no touch note. `touch_note` sends one note
+  per batch, ever, because a batch on any present counts as presented
+  (`predicates.py:788-801`). After the Architect's `annotate`, the build
+  follows, and the principal never sees the corrected prediction (copied:
+  the review). The records: R7 of 2026-09-03 makes the note a sense check
+  that nothing waits on, and the predicate's docstring says a batch "is put
+  to them once whatever came of it". Recommended [low]: the principal sees
+  no second note. The state page carries one line read from the new
+  `batch_touch` rows, "I changed what <batch> touches as you said: <paths>.",
+  so the correction is visible and asks nothing.
+
 ## 3. The tests and the cassettes
 
 Each test rebuilds its rows inline, as `tests/rota/test_desk_guards.py`
@@ -826,6 +1008,13 @@ does with `_night_rows`. The night databases are ignored by git.
 | 2.5 | the touch note numbers the criteria with `check: none yet.`, and a contest of the prediction reaches the Architect's `annotate` | night 136, s184's dispatch and s185 on m85 | inline | door, `render_page`, sandbox, `_mode_key` |
 | 2.5 | the quarantined page says the team gave up on cr_3's test | night 136, s200's dispatch, m96 | inline | door, `render_page` |
 | 2.2 | the Architect re-annotates from the principal's words | night 136, a relay of `{bg_2: contest}` with m85's words | inline | sandbox, `batches.annotate` |
+| 2.F.1 | an approve of a request line off the sign-off page is not in the verdict, and no criterion relay carries an approve | night 136, m399's rows, approve of the item line | inline | `apply_rulings`, relay split |
+| 2.F.2 | every open request is numbered, and the refusal names each request line | night 136, m399's rows with the three items | inline | `render_page`, sandbox |
+| 2.F.3 | the agenda wake carries a reply row after a chosen row | night 136, after s567, with one `reconcile` row | inline | predicate, door |
+| 2.F.4, 2.7 | an amended item that is not delivered is sliced again, and its old ticket is retired | night 133, `confirm_default_on_eof` at version 8 | inline | `tick_slicing`, `tickets.slice`, `grouping` |
+| 2.F.5 | the account has its own heading, and no ref is numbered twice | night 133, m118's refs | inline | `render_page` |
+| 2.F.6 | the quarantined page has its own branch | night 136, s200's dispatch | inline | door, `render_page` |
+| 2.F.7 | a message as `about_ref` is refused | one of the 7 reply rows of nights 133 and 136 | inline | sandbox |
 
 **Recorded cases whose prompts change** (reasoned: the `prompt:` and
 `tick:` keys of `tests/rota/cases/*.yaml`, read by grep, 2026-10-09). The
@@ -837,7 +1026,8 @@ the gate.
 
 - The 7 `l1_landing.yaml` cases: the `landing` working set holds the page
   text (`runner.py:1604-1611`), and the page gains the request block and
-  the team's heading. Re-record.
+  the team's heading. Re-record in pass 1, because `render_page` re-keys
+  them there (2.F, amendment 4). Pass 2 does not re-record them again.
 - `L1-AR-adopt-what-the-principal-approved` (`l1_unresolved.yaml:256`):
   `architect/relay.md` changes. Re-record.
 - `L1-AR-annotate-a-batch` (`l1_architect.yaml:13`): `annotate.md` gains a
@@ -859,6 +1049,9 @@ the gate.
   `refs_include`, which the stamped refs keep. The two
   `L1-VK-amend-a-contested-item` cases change only if a fixture rules
   `revise`.
+- Change 2.7 changes no brief. The `tick: slicing` and `tick: criteria`
+  cases keep their prompts unless a fixture holds an amended item. The
+  gate's stale line decides in pass 2.
 - Two new cases, recorded at 5 runs each.
   `L1-AR-a-ruled-constraint-gets-no-new-row` replays s559's relay and
   expects no `ledger` write and no message.
@@ -894,8 +1087,7 @@ you did not say" and "Before I build this" first.
 - `rulings.rule`'s three words stay. Frame 185's fourth word, a put-off
   request, is its own frame.
 - The cancel on an amended item stays (ruled: 2026-09-12, point 3, level 2).
-  Whether the ticket and the criteria are sliced again is open question
-  5.1.
+  Change 2.7 of 2.F slices the ticket and the criteria again after it.
 - The touch note stays a sense check with no gate (R7, 2026-09-03). A
   correction of the prediction reaches the Architect and does not stop the
   batch.
@@ -918,19 +1110,12 @@ four questions that the design met, and those are not asked:
   Law 8 gives the item's approval to the sign-off gate, and law 9 stamps it
   against the version the principal saw there.
 
-Two questions stay open:
+One question stays open. Question 1, whether an amended item that is not
+delivered is sliced again, is closed by the design review of 2026-10-09:
+change 2.7 does it in pass 2 (2.F, amendment 4). The review's point: once
+a revise of the item's line is the main route, every landed correction
+would build from criteria that predate it.
 
-1. **[high] When the principal's words amend an item before it is
-   delivered, are its ticket and criteria sliced again?** The records: the
-   ruling of 2026-09-12, point 3, says an amended item "cancels a running
-   batch built from it and re-batches". `tick_slicing` slices again only an
-   item delivered at an older version (`scheduler.py:264-287`). So after
-   2.2 the item holds the principal's line, and the new batch builds from
-   the old criteria. Night 133's walls 4 and 5 sit beside this, frame 129.
-   Recommended: yes, as its own frame below frame 190, ordered next after
-   it. The cost is on the slicing path, which no change here touches, and
-   2.2 is still worth its price without it, because the line reaches the
-   item and the sign-off page.
 2. **[med] Does the Tester's wake show the batch's expected test paths?**
    The records: `tester/tests_missing.md` says the Tester chooses the path,
    "Nobody assigns them". On night 136 the tests of bg_2 and bg_3 went to
@@ -952,33 +1137,40 @@ reviews of 120k and 80k. A cap in a brief does not bind. Meta workflow.
 
 - **A design review on Opus**, on this record before any code: about 125k,
   the stack's line.
-- **Pass 1, the page: 2.1 and 2.5.** Files: `rota/roles/principal.py`
-  (`request_rows`, `request_block`, `render_page`, `_park_page`,
-  `touch_words`), `rota/core/sandbox.py` (the present door's stamp), and
-  the tests of 2.1 and 2.5 with the rewrites of section 3. About 250k for
-  the implementer and about 130k for its diff review. It lands first,
-  because 2.2's door reads the item line that 2.1 stamps.
-- **Pass 2, the route and the reply: 2.2 and 2.3.** Files:
-  `rota/roles/api.py` (`rulings_rule`, `ledger_log`, `model_adopt`,
-  `glossary_adopt`, `problem_set_approval`, `batches_annotate`),
-  `rota/roles/principal.py` (`land`), `rota/core/runner.py`
+- **Pass 1, the page: 2.1 and 2.5, with amendments 2, 5 and 6, and 2.2.3
+  with the relay filter of amendment 1.** Files: `rota/roles/principal.py`
+  (`request_rows`, `request_block`, `render_page` with its quarantined
+  branch, `_park_page`, `touch_words`, `land`), `rota/core/sandbox.py` (the
+  present door's stamp and `stalled:` row, the relay split's criterion
+  filter), `rota/core/scheduler.py` (`park_verdict_rows`), and the tests of
+  2.1, 2.5 and amendments 1, 2, 5 and 6, with the rewrites of section 3.
+  About 300k for the implementer and about 140k for its diff review.
+  Re-records, GPU apart: the 7 landing cases. It lands first, because the
+  route of pass 2 reads the lines that pass 1 stamps.
+- **Pass 2, the route, the reply and the slice: 2.2 less 2.2.3, 2.3 with
+  amendment 7, and 2.7.** Files: `rota/roles/api.py` (`rulings_rule`,
+  `ledger_log`, `model_adopt`, `glossary_adopt`, `problem_set_approval`,
+  `batches_annotate`, `tickets_slice`), `rota/core/runner.py`
   (`_resolve_contest`, `_mode_key`), `rota/core/sandbox.py`
-  (`_owner_of_ref`, the relay split), `rota/core/scheduler.py`
-  (`park_criterion_relay`), the briefs `architect/relay.md`,
+  (`_owner_of_ref`), `rota/core/scheduler.py` (`tick_slicing`,
+  `tick_criteria`, `park_criterion_relay`), `rota/core/predicates.py`
+  (`grouping`, `tests_missing`), `rota/core/schema.sql` and its migration
+  (`tickets.item_ver`), the briefs `architect/relay.md`,
   `architect/annotate.md` and `liaison/verdict_signoff.md`, and the two new
-  cases. About 280k for the implementer and about 140k for its diff
-  review. Re-records, GPU apart: the 7 landing cases, the 3
-  `verdict_signoff` cases, 2 Architect cases, and the 2 new cases at 5
-  runs.
-- **Pass 3, the next page: 2.4.** Files: `rota/core/scheduler.py`
-  (`tick_agenda`), `rota/core/predicates.py` (`agenda`'s band), and the
-  test of 2.4. About 100k for the implementer, on the anchor of 77k for one
-  tool with 20 tests and a gate run (frame 24), and about 80k for its diff
-  review.
+  cases. About 320k for the implementer and about 150k for its diff
+  review. Re-records, GPU apart: the 3 `verdict_signoff` cases, 2 Architect
+  cases, the 2 new cases at 5 runs, and what the gate names stale on the
+  slicing path. Open question 5.2, if ruled yes, adds about 20k.
+- **Pass 3, the next page: 2.4 with amendment 3.** Files:
+  `rota/core/scheduler.py` (`tick_agenda`), `rota/core/predicates.py`
+  (`agenda`'s band), and the test of 2.4. About 110k for the implementer, on
+  the anchor of 77k for one tool with 20 tests and a gate run (frame 24),
+  and about 80k for its diff review.
 - **One night after the three passes**, as the walk, to read the three
   ratios of the ends-when and the two effects of 2.4's band move.
 
-Total in agents: about 1.1M, three implementer passes and four reviews.
+Total in agents: about 1.23M, the design review of 125k, three
+implementer passes of about 730k, and three diff reviews of about 370k.
 Recommended: three passes, one implementer resumed by message for each,
 because the passes share `principal.py` and `sandbox.py` and the resume
 carries the delta.
