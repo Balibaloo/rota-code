@@ -171,3 +171,65 @@ The gate's third run, qwen3:8b, a refresh run and a plain run each:
   `awaiting_confirm` before every agenda page.
 - The relay rule of fix 3 trusts that every real relay has a cause. Nobody
   ran that claim on a night database.
+
+## Pass 3b
+
+Code commit `af535499`, six of the eight findings of the diff review of
+`0ffc97b7`. The other two go to the night read.
+
+1. High. `rota/core/runner.py`, `disputed_paths`. A sentence ends only at
+   punctuation that a space or the end follows, at a new line, and at
+   "but", so a file name keeps its dot. A word part matches with one
+   trailing "s" removed. The "no" words gain "can't", "cannot" and
+   "won't". The test holds the eight real answers: m85, m97, m228, m198,
+   m200 and m202 move `tests/test_defaults.py`, and m237 and m247 move
+   nothing.
+2. High. `tests/rota/cases/l1_architect.yaml`,
+   `L1-AR-re-annotate-from-the-principals-correction`, gains
+   `text_excludes: ["tests/test_defaults.py"]` on `batch_touch`. That is
+   the form `l1_landing.yaml` uses for an excluded value. No `ids_exclude`
+   check exists.
+3. Low. In "A, not B", the comma part that starts with a "no" word holds
+   the dispute, and A stays. "but" ends a sentence, so "The termui source
+   is right but the defaults test file is not." disputes the test file
+   alone. Both forms are cases of the test.
+4. Low. `rota/roles/api.py`, `rulings_rule`. The refusal of a ruling on a
+   merged or abandoned batch names the item's line, ", line N".
+5. Low. `resolve_inbound` runs `disputed_paths` on `possible` as well as
+   `expected`, and drops the disputed entries from both.
+6. Low. `problem_set_approval`'s refusal no longer says "at that version".
+
+Deviations, pass 3b:
+
+- Fix 3 does not use the rule "a no word counts only before the name"
+  (reasoned: the finding's own sentence, "the defaults test file is not",
+  and m228, "cover option defaults and not confirm", put the "no" word
+  after the name, so that rule disputes nothing in either).
+- The sentence split keeps commas inside a sentence (reasoned: m200 and
+  m202 put "can't" in the comma part before the name, and a comma split
+  loses it).
+- Fix 5 changes no outcome on m85 (reasoned: "an unrelated test about
+  default lookup overrides" does not name every word part of
+  `test_lookup_default_override_respected`, because "respected" is not in
+  the words).
+- The re-annotate case did not go stale, so the gate did not re-record it
+  (reasoned: an `expect` change does not move the prompt key; its replay
+  passes the new check at the pass threshold, 4 of 5).
+
+Tests, pass 3b: `test_the_words_dispute_only_the_paths_a_no_clause_names`
+is now 14 cases. The abandoned-batch test asserts the item's line.
+`tests/rota/test_request_page.py` holds 40 test items.
+
+The gate, pass 3b, verbatim:
+
+```
+suite: 25 failed, 3469 passed, 32 skipped, 16 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (4): tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (3): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names], tests/rota/test_l1.py::test_l1_case[L1-TS-an-outside-fact-is-the-researchers]
+stale (0): none
+time: 636.5s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+Re-records, pass 3b: the gate re-recorded `L1-AR-annotate-a-batch`, green
+5/5 to green 5/5, "stale by its failure, red cleared". The re-annotate
+case replays green under the new check.
