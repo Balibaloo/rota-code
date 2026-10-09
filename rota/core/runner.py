@@ -1349,6 +1349,12 @@ _BEYOND = re.compile(r"\b(?:beyond|except|other\s+than)\b")
 # (the delta review of af535499, finding 5).
 _FILE_WORDS = {"test", "file"}
 
+# The verbs by which a main clause says what a file covers, m198's "cover
+# option defaults and default maps, not confirm". "test" is left out: the
+# noun "tests" stands in "The new tests go in tests/test_termui.py, not
+# confirm", which disputes nothing (the delta review of 5ffa1244, finding 1).
+_COVERS = re.compile(r"\b(?:covers?|checks?|(?:is|are|was|were)\s+about)\b")
+
 
 def _word(w: str) -> str:
     """A word with one trailing "s" removed, so "defaults" names `default`."""
@@ -1380,27 +1386,38 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
     second file alone. A part "not B" that follows a part with a "no" word
     about A calls B right: "the defaults test file is wrong, not the termui
     test file" disputes the first file alone. A part that starts with a
-    "no" word never disputes a grain of `possible` whose word parts the
-    item's words hold, or any grain of `possible` when `item` is None. A
-    "no" before "changes", "edits" or "need" with "beyond", "except" or
+    "no" word never disputes a grain of `possible` whose bare name is a
+    word of the item, or any grain of `possible` when `item` is None. When
+    the "no" parts name only such grains, the sentence disputes nothing,
+    unless its one "no" part follows a main clause that says what files
+    cover: then the main clause's files are disputed. A file name matches
+    only where no letter, digit or "_" stands before it. A "no" before "changes", "edits" or "need" with "beyond", "except" or
     "other than" disputes nothing. Words that name no path dispute nothing.
     """
     item_words = (None if item is None else
-                  {_word(w) for w in re.findall(r"[a-z0-9]+", item.lower())})
+                  set(re.findall(r"[a-z0-9]+", item.lower()))
+                  | set(re.findall(r"[a-z0-9_]+", item.lower())))
 
     def kept(path: str) -> bool:
         # "cover option defaults, not confirm" says what the tests are
         # about, and `confirm` is the item's own symbol (the delta review
-        # of afecf14a, finding 1, m198 of night 133).
+        # of afecf14a, finding 1, m198 of night 133). The bare name counts,
+        # so a `test_` symbol whose parts the item holds stays disputable
+        # (the delta review of 5ffa1244, finding 3).
         if path not in possible:
             return False
-        return item_words is None or _parts(path) <= item_words
+        return item_words is None or path.lower() in item_words
+
+    def mentions(text: str, name: str) -> bool:
+        # A word boundary before the name: "test_termui.py" does not name
+        # `termui.py` (the delta review of 5ffa1244, finding 4).
+        return re.search(r"(?<![a-z0-9_])" + re.escape(name), text) is not None
 
     def named(text: str, path: str) -> bool:
         tokens = [_word(w) for w in re.findall(r"[a-z0-9_']+", text)]
         name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
         parts = _parts(path)
-        if path.lower() in text or name in text:
+        if mentions(text, path.lower()) or mentions(text, name):
             return True
         # The window holds for a test file alone. "termui is wrong" names
         # the source by its bare word (the delta review of afecf14a,
@@ -1452,7 +1469,20 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
         other = ([p for p in paths if named(rest, p)
                   and p not in led and p not in right]
                  if says_no(rest) else [])
-        chosen = led + other if (led or right) else hits
+        if led or right:
+            chosen = led + other
+        elif spared:
+            # A "no" part that names only the item's own symbol disputes
+            # nothing through the fallback: "Keep termui.py, not confirm"
+            # keeps the file (the delta review of 5ffa1244, finding 1). A
+            # main clause that says what files cover, "the default tests
+            # cover option defaults, not confirm", disputes those files.
+            covers = _COVERS.search(rest) and len(
+                [part for part in parts if no_led.match(part)]) == 1
+            chosen = other or ([p for p in paths if named(rest, p)
+                                and p not in spared] if covers else [])
+        else:
+            chosen = hits
         for path in chosen:
             if path not in out and path not in spared:
                 out.append(path)

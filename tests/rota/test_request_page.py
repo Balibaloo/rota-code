@@ -781,6 +781,16 @@ N136_BG3 = (["src/click/termui.py", "tests/test_defaults.py"],
     (M198, N133_BG2, ["tests/test_defaults.py"]),
     (M200, N133_BG2, ["tests/test_defaults.py"]),
     (M202, N133_BG2, ["tests/test_defaults.py"]),
+    pytest.param(M85, N136_BG2, ["tests/test_defaults.py",
+                                 "test_lookup_default_override_respected"],
+                 marks=pytest.mark.xfail(strict=True, reason=(
+                     '"an unrelated test about default lookup overrides" names the '
+                     'symbol, and "respected" is not in the words'))),
+    pytest.param(M97, N136_BG2, ["tests/test_defaults.py",
+                                 "test_lookup_default_override_respected"],
+                 marks=pytest.mark.xfail(strict=True, reason=(
+                     '"an unrelated test about default lookup overrides, so please '
+                     'drop it" names the symbol, and "respected" is not in the words'))),
 ])
 def test_the_real_answers_dispute_on_their_batches_real_rows(words, batch, moved):
     """The eight real answers against the real touch rows of the batch they
@@ -822,6 +832,11 @@ def test_the_real_answers_dispute_on_their_batches_real_rows(words, batch, moved
     ("The termui module should not change.", ["src/click/termui.py"]),
     ("Not termui.py, the decorators file is wrong, not that one.",
      ["src/click/termui.py", "src/click/decorators.py"]),
+    ("test_termui.py is wrong.", ["tests/test_termui.py"]),
+    pytest.param("The tests go in test_termui.py, not test_confirm.", [],
+                 marks=pytest.mark.xfail(strict=True, reason=(
+                     "a no part that names no path falls back to every path the "
+                     "sentence names, and no real answer has this form"))),
 ])
 def test_the_words_dispute_only_the_paths_a_no_clause_names(words, moved):
     """The principal's real answers to a touch note, and literal forms. A
@@ -862,6 +877,24 @@ def test_one_common_word_of_a_file_name_needs_a_file_word_beside_it(words, moved
     from rota.core.runner import disputed_paths
 
     assert disputed_paths(words, BG6) == moved
+
+
+@pytest.mark.parametrize("words, moved", [
+    ("Keep src/click/termui.py, not confirm.", []),
+    ("The new tests go in tests/test_termui.py, not confirm.", []),
+    ("Not test_default_on_eof, that test is about the old flag.",
+     ["test_default_on_eof"]),
+])
+def test_a_no_part_spares_only_the_items_own_symbol(words, moved):
+    """The delta review of 5ffa1244, findings 1 and 3. A "no" part that
+    names only the item's own symbol disputes nothing, and a `test_` symbol
+    is not the item's own even when the item holds its word parts."""
+    from rota.core.runner import disputed_paths
+
+    possible = ["confirm", "test_default_on_eof"]
+    paths = ["src/click/termui.py", "tests/test_defaults.py", "tests/test_termui.py"]
+    assert disputed_paths(words, paths + possible, possible=possible,
+                          item=CONFIRM_133) == moved
 
 
 def test_a_touch_note_approves_no_item_and_a_closed_batch_line_is_refused(bg2):
