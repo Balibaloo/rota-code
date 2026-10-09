@@ -190,8 +190,22 @@ def test_an_acknowledged_note_wakes_nobody_and_a_contest_lands(db):
     assert mid
     row = db.execute("SELECT verb, body_refs, cause_id FROM messages WHERE id = ?",
                      (mid,)).fetchone()
+    # Before the build, a contest of the batch line stays in the verdict, so
+    # the relay takes it to the Architect (frame 190's design, 2.2, the batch
+    # line, point 2).
     assert (row["verb"], json.loads(row["body_refs"]), row["cause_id"]) == (
-        "verdict", ["i1"], "m_note2")
+        "verdict", ["b1", "i1"], "m_note2")
+    ruling = db.execute("SELECT value FROM config WHERE key = ?",
+                        (f"verdict:{mid}",)).fetchone()
+    assert json.loads(ruling["value"]) == {"b1": "contest", "i1": "contest"}
+
+    # After the head commit the prediction moves nothing, and the batch line
+    # leaves the verdict.
+    db.execute("UPDATE batches SET head_commit = 'abc' WHERE id = 'b1'")
+    _present(db, "m_note3", ["b1", "i1"])
+    ask = Ask(message_id="m_note3", verb="present", refs=["b1", "i1"], rendered="")
+    mid = land(db, ask, Answer(verb="verdict",
+                               per_item={"b1": "contest", "i1": "contest"}))
     ruling = db.execute("SELECT value FROM config WHERE key = ?",
                         (f"verdict:{mid}",)).fetchone()
     assert json.loads(ruling["value"]) == {"i1": "contest"}

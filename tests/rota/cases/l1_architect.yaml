@@ -227,3 +227,91 @@
     # the answer going back to the role that asked, with the ref it came from.
     writes: [constraints, decisions, items]
     recipients: [vision_keeper, developer, critic, tester]
+
+- id: L1-AR-a-ruled-constraint-gets-no-new-row
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 4
+  # Night 136, s559 on m422 (frame 190's design, 2.3). The principal
+  # contested a constraint row with words about the version option item. The
+  # Architect logged a new assumption about the same constraint, and the row
+  # was the principal's next page. Its words are on file as the decision.
+  prompt: relay
+  inbound: {id: <m_relay>, from: liaison, to: architect, verb: relay,
+            body_refs: [<k1>], cause: <m_rule>}
+  fixture:
+    config:
+      - {key: "verdict:<m_rule>", value: '{"<k1>": "contest"}'}
+      - {key: "entry:<m_rule>", value: '"I can''t approve this page. Line one is still about my complaint and says nothing about what to build. Please replace line one with exactly this: a new show python flag on the version option adds the running Python version to the end of the version message, as major.minor.micro from the interpreter''s version info."'}
+    constraints:
+      - {id: <k1>, headline: "ParameterSource.COMMANDLINE",
+         text: "a value given on the command line", provenance: observed}
+    messages:
+      - {id: <m_present>, thread_id: <t1>, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<k1>"]', seq: 1, status: answered}
+      - {id: <m_rule>, cause_id: <m_present>, thread_id: <t1>,
+         from_role: principal, to_role: liaison, verb: verdict,
+         body_refs: '["<k1>"]', seq: 2, status: answered}
+  expect:
+    messages: []
+  forbidden:
+    writes: [ledger, constraints, items, decisions, model_areas]
+    recipients: [principal, liaison, vision_keeper, developer]
+
+- id: L1-AR-re-annotate-from-the-principals-correction
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 4
+  # Night 136, s185 on m85 (frame 190's design, 2.2, the batch line). The
+  # principal contested the touch note's prediction before the build: the
+  # confirm prompt's tests live in the terminal UI test file. The relay of a
+  # batch line keys `annotate`, and the new prediction replaces the old.
+  prompt: annotate
+  inbound: {id: <m_relay>, from: liaison, to: architect, verb: relay,
+            body_refs: [<b1>], cause: <m_rule>}
+  fixture:
+    config:
+      - {key: "verdict:<m_rule>", value: '{"<b1>": "contest"}'}
+      - {key: "entry:<m_rule>", value: '"Line 2 names the wrong tests: the confirm prompt''s tests live in the terminal UI test file, not the defaults test file, and that \"might touch\" item is an unrelated test about default lookup overrides. Everything else looks right."'}
+    items:
+      - {id: <i1>, text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting. The new flag is off by default, so nothing changes for people who already call confirm.",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 2, version: 2}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "confirm takes a default_on_eof flag"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "When confirm() is invoked and stdin is closed (EOF), it must return the provided default value rather than raising an error or aborting.",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: pending}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    # Night 136's index held the terminal UI test file, and the seat that
+    # corrects the prediction reads the index for the path the words name.
+    code_index:
+      - {grain: src/click/termui.py, grain_kind: path}
+      - {grain: tests/test_defaults.py, grain_kind: path}
+      - {grain: tests/test_termui.py, grain_kind: path}
+      - {grain: "src/click/termui.py::confirm", grain_kind: symbol, sym_kind: function}
+    batch_touch:
+      - {batch_id: <b1>, grain: src/click/termui.py, grain_kind: path, confidence: expected}
+      - {batch_id: <b1>, grain: tests/test_defaults.py, grain_kind: path, confidence: expected}
+      - {batch_id: <b1>, grain: test_lookup_default_override_respected, grain_kind: symbol,
+         confidence: possible}
+    messages:
+      - {id: <m_present>, thread_id: <t1>, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<b1>","<i1>"]', seq: 1, status: answered}
+      - {id: <m_rule>, cause_id: <m_present>, thread_id: <t1>,
+         from_role: principal, to_role: liaison, verb: verdict,
+         body_refs: '["<b1>","<i1>"]', seq: 2, status: answered}
+  expect:
+    calls: [batches.annotate]
+    writes:
+      # A junction row has no id column, so the case names the receipt id,
+      # the batch and the path.
+      batch_touch: {ids_include: ["<b1>:tests/test_termui.py"]}
+  forbidden:
+    writes: [ledger, criteria, tickets, items, constraints]
+    recipients: [principal, vision_keeper, developer, tester]

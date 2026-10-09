@@ -831,6 +831,10 @@ def _relaying_a_non_answer(ctx: api.Ctx) -> bool:
 # It keeps them apart from the Terminologist's other relay, and the suffix
 # never reaches a message.
 CRITERIA_RELAY = ":criteria"
+# The same for the batch lines of a touch note. A relay of batches alone
+# keys `annotate`, and a constraint beside it keeps `relay`, because
+# `annotate` holds no `model.adopt` (frame 190's design, 2.2).
+BATCH_RELAY = ":batches"
 
 
 # The tables a principal's ruling can name, each with its one writer. The
@@ -856,6 +860,11 @@ def _owner_of_ref(conn, ref: str) -> str | None:
     for table, owner in RULED_TABLES.items():
         if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
             return owner
+    # A batch line is the Architect's prediction of what the change touches.
+    # The relay split looks a ref up by table, and a batch is no ruled table,
+    # so the rule stands here (frame 190's design, 2.2).
+    if conn.execute("SELECT 1 FROM batches WHERE id = ?", (ref,)).fetchone():
+        return "architect"
     # A ledger row is a journal entry -- one author per entry (law 1) -- and
     # the author is who acts on a ruling about it: an overruled assumption
     # goes back to the desk that assumed it.
@@ -2439,14 +2448,25 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             import json as _json
             from ..roles.principal import _stalled_keys, request_rows
 
-            stamped = [r for r in request_rows(ctx.conn, refs) if r not in refs]
-            refs += stamped
+            # A row the model named is not the wake's row. A Liaison that named
+            # a contested item on an agenda page let "ok" approve it, so the
+            # stamp is every request row that the wake did not name (the
+            # delta review of 2c602d1b, finding 4).
+            rows = request_rows(ctx.conn, refs)
+            woke = set(getattr(ctx, "wake_refs", None) or ()) | api._wake_refs(ctx)
+            refs += [r for r in rows if r not in refs]
+            stamped = [r for r in rows if r not in woke]
             if stamped:
                 notes["stamped"] = _json.dumps(stamped)
-            if getattr(ctx, "wake_kind", "") == "tick:quarantined":
-                keys = _stalled_keys(ctx.conn, refs)
-                if keys:
-                    notes["stalled"] = _json.dumps(keys)
+            # The quarantined keys of the page's batches as they stand at the
+            # send, from any wake. A quarantined batch put to the principal
+            # by another wake opened "Before I build this" (the delta review
+            # of 2c602d1b, finding 2).
+            batches = [r for r in refs if ctx.conn.execute(
+                "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone()]
+            keys = _stalled_keys(ctx.conn, batches) if batches else []
+            if keys:
+                notes["stalled"] = _json.dumps(keys)
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,
@@ -2661,6 +2681,26 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # still defined in the worktree is a fact about the files.
         if verb == "escalate" and recipient == "architect":
             _escalation_over_removed_grain(ctx, refs or [])
+        # A repaired criterion reaches the Tester only when a change built
+        # from it has a commit. Off the park page the batch has often not
+        # started, and the Tester woke in `answer` for a question it never
+        # asked (the delta review of 2c602d1b, finding 5).
+        if (verb == "answer" and recipient == "tester" and ctx.role == "terminologist"
+                and getattr(ctx, "trigger", None)):
+            from .scheduler import park_criterion_relay
+
+            if park_criterion_relay(ctx.conn, ctx.trigger):
+                built = [r for r in (refs or []) if ctx.conn.execute(
+                    "SELECT 1 FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+                    "JOIN batches b ON b.id = bt.batch_id WHERE c.id = ? "
+                    "AND b.status NOT IN ('merged', 'abandoned') "
+                    "AND b.head_commit IS NOT NULL AND b.head_commit != ''",
+                    (r,)).fetchone()]
+                if not built:
+                    raise ValueError(
+                        "no change built from this criterion has a commit yet, so "
+                        "the Tester has written no test of it. The Tester reads the "
+                        "new words when it writes the test. Your work here is done")
         recipients = [recipient]
         if verb == "ask":
             g = graph_mod.load()
@@ -2727,12 +2767,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 elif ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
                                       (ref,)).fetchone():
                     owner = "terminologist"
+                elif ctx.conn.execute("SELECT 1 FROM batches WHERE id = ?",
+                                      (ref,)).fetchone():
+                    owner = _owner_of_ref(ctx.conn, ref) + BATCH_RELAY
                 else:
                     owner = _owner_of_ref(ctx.conn, ref) or recipient
                 split.setdefault(owner, []).append(ref)
             already = {m["to_role"] for m in ctx.outbound if m["verb"] == "relay"}
             split = {o: r for o, r in split.items()
-                     if o.removesuffix(CRITERIA_RELAY) not in already}
+                     if o.split(":", 1)[0] not in already}
             if not split:
                 raise ValueError(
                     "every owner these rows belong to has its relay already; "
@@ -2750,12 +2793,16 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             staged = {
                 "id": msg_id if n == 0
                 else new_id("m", ctx.conn, offset=len(ctx.outbound)),
-                "to_role": to_role.removesuffix(CRITERIA_RELAY), "verb": verb,
+                "to_role": to_role.split(":", 1)[0], "verb": verb,
                 "body_refs": split.get(to_role, list(refs or [])) if split
                 else list(refs or []),
                 "body_text": text,
                 "round_no": round_no, "cause_id": ctx.trigger,
             }
+            # The split key stays on the staged relay and never reaches the
+            # message, so `stage_park_relay` finds the criteria relay by it.
+            if split:
+                staged["split"] = to_role
             # A note asks nothing, so it is written closed. An open note went
             # to `pump`, the principal answered it, and the answer woke the
             # Liaison on a page with no question (frame 142's design review,
@@ -2777,7 +2824,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         if split:
             out["to"] = {}
             for o in recipients:
-                out["to"].setdefault(o.removesuffix(CRITERIA_RELAY), []).extend(split[o])
+                out["to"].setdefault(o.split(":", 1)[0], []).extend(split[o])
             out["note"] = ("routed each row to the owner of its table; there "
                            "was nothing to choose. Your work here is done")
         if withdrawn:
@@ -3009,12 +3056,12 @@ def stage_park_relay(ctx: api.Ctx) -> None:
         return
     held = [m for m in ctx.outbound
             if m["verb"] == "relay" and m["to_role"] == "terminologist"]
-    # A relay of terms keeps its terms. Only a relay that holds a criterion
-    # becomes the criteria relay, so a term ruled beside a criterion still
-    # reaches `relay` (frame 190's design, 2.2.7).
-    crit = [m for m in held if any(ctx.conn.execute(
-        "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()
-        for r in m["body_refs"])]
+    # A relay of terms keeps its terms, so a term ruled beside a criterion
+    # still reaches `relay` (frame 190's design, 2.2.7).
+    # The criteria relay is the one the split keyed apart. A relay of terms
+    # with a criterion that is no line of the page sorted first, and its
+    # terms were replaced (the delta review of 2c602d1b, finding 6).
+    crit = [m for m in held if m.get("split") == "terminologist" + CRITERIA_RELAY]
     for m in held:
         if m not in crit:
             m["body_refs"] = [r for r in m["body_refs"] if r not in contested]

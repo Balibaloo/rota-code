@@ -12,5 +12,11 @@ outside it. Its whole job is to make "was this change incidental?" answerable at
 review time instead of arguable, so err towards the paths you actually expect
 rather than the ones you would accept.
 
+**A ruling of the principal.** When the message is a relay with
+`principal_verdict` on the batch, the principal read your prediction on the
+touch note and corrected it. The words are `principal_said`. Call
+`batches.annotate` once with the paths the words name, and keep every path
+they do not dispute. Then stop.
+
 One batch. You are annotating from source, which is what makes the annotation
 worth having and also what makes doing every batch in one session useless.

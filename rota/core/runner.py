@@ -272,6 +272,17 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
 
             if park_criterion_relay(conn, wake.message_id):
                 return "criterion_repair"
+        # A ruling on a touch note's batch line goes to the mode that writes
+        # the prediction. `annotate` already holds `batches.annotate`, and a
+        # tool added to `relay` is an invitation, the reason of the repair key
+        # above (frame 190's design, 2.2,
+        # the batch line, point 4).
+        if (verb == "relay" and wake.role == "architect" and conn is not None
+                and wake.message_id):
+            from .scheduler import batch_relay
+
+            if batch_relay(conn, wake.message_id):
+                return "annotate"
         return verb
     if wake.kind.startswith("tick:"):
         return wake.kind.split(":", 1)[1]
@@ -1451,6 +1462,15 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                              detail=wake.detail)
     if resolved:
         out["resolved_refs"] = resolved
+    # A ruling on a batch line corrects the prediction, so the Architect sees
+    # the prediction it corrects. The brief says to keep every path the words
+    # do not dispute (frame 190's design, 2.2, the batch line, point 6).
+    from .scheduler import batch_relay
+
+    if row["verb"] == "relay" and batch_relay(conn, trigger):
+        from .lifecycle import touch_set
+
+        out["touch"] = {b: touch_set(conn, b) for b in out["refs"]}
     # One name for one thing. Intake already calls the principal's words
     # `principal_said`, and an owner reached through the inquiry route is
     # holding the same words for the same reason -- so it is not a differently
@@ -1728,11 +1748,15 @@ def _resolve_contest(conn: sqlite3.Connection, item: str) -> dict[str, Any]:
         "ORDER BY m.seq DESC").fetchall()
     for r in rows:
         ruling = json.loads(r["value"] or "{}")
-        if ruling.get(item) != "contest":
+        # A revise carries the principal's replacement words, so it wakes the
+        # owner as a contest does. Read for `contest` only, night 136's revise
+        # of the confirm item reached the Vision Keeper with the item alone
+        # (frame 190's design, 2.2.2).
+        if ruling.get(item) not in ("contest", "revise"):
             continue
         mid = r["key"][len("verdict:"):]
         out: dict[str, Any] = {"refs": [item],
-                               "principal_verdict": {item: "contest"}}
+                               "principal_verdict": {item: ruling[item]}}
         reason = entry_for(conn, mid)
         if reason:
             out["principal_said"] = reason
@@ -2613,6 +2637,17 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 _log.warning("structural_review push: model.consult not "
                              "filtered for batch %r, so it is not pushed",
                              bid, exc_info=True)
+    # The Tester sees where the principal expects the tests. On night 136
+    # the tests of bg_2 and bg_3 went to `tests/test_utils/`, and the touch
+    # set and the principal named other files (frame 190's design, question
+    # 5.2, ruled on the records by the holding session, 2026-10-09).
+    if wake is not None and wake.kind == "tick:tests_missing" and wake.refs:
+        paths = [r["grain"] for r in sb.ctx.conn.execute(
+            "SELECT grain FROM batch_touch WHERE batch_id = ? AND grain_kind = 'path' "
+            "AND confidence = 'expected' ORDER BY grain", (wake.refs[0],))
+            if r["grain"].replace("\\", "/").startswith("tests/")]
+        if paths:
+            pushed["touch"] = paths
     probe = pushed.get("code.probe")
     if isinstance(probe, list) and probe and isinstance(probe[0], dict) and "note" in probe[0]:
         pushed.pop("code.probe")
@@ -4327,8 +4362,11 @@ def _refresh_index(conn: sqlite3.Connection, result: SessionResult) -> None:
 
 
 def _as_write(staged: tuple) -> Write:
-    """Staged writes are (table, row_id, values) or (..., amends)."""
+    """Staged writes are (table, row_id, values) or (..., amends), or
+    (..., "clear") for a junction table's rows that `values` names."""
     table, row_id, values, *rest = staged
+    if rest and rest[0] == "clear":
+        return Write(table, row_id, values, op="clear", amends=False)
     return Write(table, row_id, values, amends=rest[0] if rest else True)
 
 

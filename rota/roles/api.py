@@ -1333,6 +1333,20 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
     """Approval must postdate the item's last amendment, so it is stamped with
     the item's current version at the moment it is granted."""
     _must_exist(ctx, "items", id)
+    # The relay of a ruling cannot undo it. `principal.land` wrote the state
+    # at the keypress. On night 136 the relay session s172 set a revised item
+    # `approved` twice, and the revised words drew no amendment (frame 190's
+    # design, 2.2.4).
+    relay = _principal_relay(ctx)
+    ruling = relay[1].get(id) if relay else None
+    landed = {"approve": "approved", "contest": "contested",
+              "revise": "contested"}.get(ruling or "")
+    if landed and approval != landed:
+        words = (", and the contested wake carries the words"
+                 if landed == "contested" else "")
+        raise ValueError(
+            f"the principal ruled {id} {ruling}. land wrote `{landed}`{words}. "
+            f"Leave it")
     row = ctx.conn.execute("SELECT version FROM items WHERE id = ?", (id,)).fetchone()
     ctx.writes.append(("items", id, {
         "approval": approval, "approval_ver": row["version"]}, False))
@@ -1549,6 +1563,35 @@ def _ruled_ids(ctx: Ctx) -> set[str] | None:
     return {i for i in approved if i in mine} if mine else approved
 
 
+def _principal_relay(ctx: Ctx) -> tuple[list[str], dict[str, str]] | None:
+    """The refs and the verdict map of the relay that woke this session,
+    when that relay carries a principal's verdict. None for any other wake.
+
+    The check is one hop and mechanical: the trigger's verb is `relay`, and
+    its cause is a `verdict` from the principal (frame 190's design, 2.3.1).
+    """
+    trigger = getattr(ctx, "trigger", None)
+    row = ctx.conn.execute(
+        "SELECT m.verb AS verb, m.body_refs AS refs, c.id AS cid, "
+        "       c.from_role AS sender, c.verb AS cause_verb "
+        "FROM messages m LEFT JOIN messages c ON c.id = m.cause_id "
+        "WHERE m.id = ?", (trigger,)).fetchone() if trigger else None
+    if (row is None or row["verb"] != "relay" or row["sender"] != "principal"
+            or row["cause_verb"] != "verdict"):
+        return None
+    try:
+        refs = [r for r in json.loads(row["refs"] or "[]") if isinstance(r, str)]
+    except (TypeError, ValueError):
+        refs = []
+    ruled = ctx.conn.execute("SELECT value FROM config WHERE key = ?",
+                             (f"verdict:{row['cid']}",)).fetchone()
+    try:
+        verdict = json.loads(ruled["value"]) if ruled else {}
+    except (TypeError, ValueError):
+        verdict = {}
+    return refs, verdict if isinstance(verdict, dict) else {}
+
+
 def _wake_refs(ctx: Ctx) -> set[str]:
     """The rows the wake named: the trigger message's refs, or the tick's."""
     trigger = getattr(ctx, "trigger", None)
@@ -1620,12 +1663,19 @@ def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
 @op("glossary", "adopt")
 def glossary_adopt(ctx: Ctx, ids: list[str]) -> dict:
     """The principal approved these observed senses; the project adopts them."""
+    if isinstance(ids, str):
+        ids = [ids]
     return _adopt_rows(ctx, "glossary_terms", ids)
 
 
 @op("model", "adopt")
 def model_adopt(ctx: Ctx, ids: list[str]) -> dict:
     """The principal approved these observed constraints or areas."""
+    # A string is one id. Night 136's s559 sent ids="parametersource_commandline",
+    # and the loop read it by character: "'p' is not a row of model_areas",
+    # three times (frame 190's design, 2.3.3).
+    if isinstance(ids, str):
+        ids = [ids]
     both = {"constraints": [], "model_areas": []}
     for rid in ids:
         table = ("constraints" if ctx.conn.execute(
@@ -3910,7 +3960,13 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
         return {"id": same[0][1], "unchanged": True,
                 "note": f"this slice already exists as {same[0][1]}; "
                         f"nothing was written"}
-    ctx.writes.append(("tickets", id, {"item_id": item_id, "text": text}))
+    # The item's version at the slice. An item amended before its delivery
+    # kept its old ticket, so the build read criteria older than the
+    # principal's words (frame 190's design, 2.F, amendment 4).
+    ver = ctx.conn.execute("SELECT version FROM items WHERE id = ?",
+                           (item_id,)).fetchone()["version"]
+    ctx.writes.append(("tickets", id, {"item_id": item_id, "text": text,
+                                       "item_ver": ver}))
     return {"id": id, **({"note": derived_note} if derived_note else {})}
 
 
@@ -4744,6 +4800,17 @@ def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
             f"directories here are {', '.join(top) or 'none: the modules sit at the root'}; "
             f"a new file goes beside the ones that exist, and the index says "
             f"where they are")
+    # The principal's correction replaces the prediction. Night 136's m85
+    # said "Line 2 names the wrong tests", and an upsert would keep the
+    # disputed path beside the new one (frame 190's design, 2.2,
+    # the batch line, point 5).
+    relay = _principal_relay(ctx)
+    cleared = any(w[0] == "batch_touch" and w[1] == f"{batch_id}:*"
+                  for w in ctx.writes)
+    if relay is not None and not cleared and batch_id in relay[0] and relay[1].get(
+            batch_id) in ("contest", "revise"):
+        ctx.writes.append(("batch_touch", f"{batch_id}:*", {"batch_id": batch_id},
+                           "clear"))
     for path in paths:
         ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
             "batch_id": batch_id, "grain": path, "grain_kind": "path",
@@ -5627,6 +5694,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"session. A routed criterion gets no test. Encode the others or "
             f"end the session")
     if hasattr(ctx, "triaged") and ctx.triaged.get(criterion_id) != "encodable":
+        # The offer below names a call that must land, so the id is checked
+        # first. A recording of frame 190's pass 2 sent three ids joined by
+        # commas, and the offered triage of that id was refused.
+        _must_exist(ctx, "criteria", criterion_id)
         # Said as the step, not as a name for it. qwen3.5:9b on the Titan
         # (2026-09-14) read "has no branch claim" as a field the criterion
         # lacked, triaged it `cannot` and asked the Vision Keeper what a
@@ -6857,6 +6928,13 @@ def _ask_of(ctx: Ctx):
         (trigger,)).fetchone()
 
 
+def _is_team_note(conn, ref: str) -> bool:
+    """Whether a page line is a team's note: a ledger row, a constraint, a
+    glossary term or a model area."""
+    return any(conn.execute(f"SELECT 1 FROM {t} WHERE id = ?", (ref,)).fetchone()
+               for t in ("ledger", "constraints", "glossary_terms", "model_areas"))
+
+
 @op("rulings", "rule")
 def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                  ask: str = "") -> dict:
@@ -6975,16 +7053,36 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             raise ValueError(
                 f"{key!r} is not a line of the page. The page numbers its "
                 f"rows 1 to {len(order)}; use those numbers")
-    # A batch line is a prediction of what the change touches, and `land`
-    # drops it. Night 133's three contests of bg_2 landed and moved nothing,
-    # and the words reached no seat (frame 142's design, 2.D). The item is
-    # the lever, so the refusal names it.
+    # A team's note takes no revise. Revise rewrites a line of the request,
+    # and the request has its own lines on the page. Night 136's s557 revised
+    # a constraint row with the words for the version option item, and the
+    # words reached the Architect, never the item (frame 190's design, 2.2.1
+    # and 2.F, amendment 2).
+    from .principal import _is_request_item
+
+    asked = [(i + 1, r) for i, r in enumerate(order or [])
+             if not is_clarify and _is_request_item(ctx.conn, r)]
+    for ref, ruling in per_item.items():
+        if ruling != "revise" or not asked or not _is_team_note(ctx.conn, ref):
+            continue
+        line = (f"line {order.index(ref) + 1}" if order and ref in order else ref)
+        named = ", or ".join(f"line {n}, {r}" for n, r in asked)
+        raise ValueError(
+            f"{line} is the team's note, not your request. revise rewrites a line "
+            f"of what the principal asked for: {named}. Revise the line the words "
+            f"are about. To drop the note, contest it.")
+    # A batch line is a prediction of what the change touches. Before the
+    # build, a correction of it goes to the Architect, who wrote it: night
+    # 136's five corrections of a predicted file were refused here, and bg_2
+    # built from the wrong prediction (frame 190's design, 2.2). After the
+    # head commit the prediction moves nothing, and the item is the lever, so
+    # the refusal names it (frame 142's design, 2.D).
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue
-        batch = ctx.conn.execute("SELECT item_id FROM batches WHERE id = ?",
+        batch = ctx.conn.execute("SELECT item_id, head_commit FROM batches WHERE id = ?",
                                  (ref,)).fetchone()
-        if batch is None:
+        if batch is None or not batch["head_commit"]:
             continue
         item = batch["item_id"]
         line = (f", line {order.index(item) + 1}"
@@ -7116,6 +7214,14 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # -- table names and tool names where a row id belongs, unresolvable at
     # read time. An assumption is about a row; the table half already has its
     # own parameter.
+    # A message is no row of the project. 7 reply rows of nights 133 and 136
+    # named a message and passed every other door (frame 190's design, 2.F,
+    # amendment 7).
+    if ctx.conn.execute("SELECT 1 FROM messages WHERE id = ?",
+                        (about_ref,)).fetchone():
+        raise ValueError(
+            f"{about_ref} is a message. An assumption is about a row of the "
+            f"project, never about a message.")
     if not ref_resolves(ctx, about_ref):
         raise ValueError(
             f"{about_ref!r} names no row. about_ref is the id of the row the "
@@ -7144,6 +7250,24 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
             f"about_table={home!r}",
             "ledger.log", {"about_ref": about_ref, "about_table": home,
                            "assumption": assumption}))
+    # A seat that a ruling reaches does not answer it with a row about the
+    # ruled row. On night 136, 117 of 213 lines on the agenda pages were such
+    # rows, and 31 pages held nothing else. Each one went back to the
+    # principal as the next page (frame 190's design, 2.3.1).
+    relay = _principal_relay(ctx)
+    if relay is not None and about_ref in relay[0]:
+        raise ValueError(
+            f"the principal ruled on {about_ref} in the relay that woke you, and "
+            f"their words are on file as their decision. A new assumption about "
+            f"the same row goes back on their page as your reading of their "
+            f"words. Adopt what they approved, and stop.")
+    # The blindspot brief's own rule, "Say the actual thing", held at the
+    # door. Night 136's s87 made 53 calls whose words were one label, and
+    # the 16 rows they left reached the pages (frame 190's design, 2.3.2).
+    if len((assumption or "").split()) < 4:
+        raise ValueError(
+            "an assumption is a sentence a reader learns from. Name what went "
+            "unread, why, and what a reader would get wrong.")
 
     # A disagreement names what differs. seat2 on click (2026-09-12): the
     # reconcile phase logged "the README says X. The code shows X", nineteen

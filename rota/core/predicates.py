@@ -528,13 +528,16 @@ def grouping(conn) -> list[Wake]:
     # re-grouped them and the world went quiet.
     # A described item's ticket is not grouped: a description asks for no
     # work (frame 80). The ticket may exist from before the item was described.
-    from .scheduler import not_described
+    # A retired ticket predates its item's amendment, so its criteria do not
+    # hold the principal's words (frame 190's design, 2.F, amendment 4).
+    from .scheduler import not_described, not_retired
     rows = conn.execute(
         "SELECT DISTINCT c.ticket_id AS tid FROM criteria c "
         "WHERE c.ticket_id NOT IN (SELECT bt.ticket_id FROM batch_tickets bt "
         "                          JOIN batches b ON b.id = bt.batch_id "
         "                          WHERE b.status != 'abandoned')"
         + not_described(conn, "c.ticket_id", of="ticket")
+        + not_retired(conn, "c.ticket_id")
     ).fetchall()
     if not rows:
         return []
@@ -698,6 +701,9 @@ def tests_missing(conn) -> list[Wake]:
     # The wake names the criteria it is about. clickI night 46 (2026-09-14):
     # shown six criteria and three tests, the Tester re-encoded the three
     # that had tests and asked the Terminologist about one that had none.
+    # A retired ticket's criteria owe no test (frame 190's design, 2.F,
+    # amendment 4).
+    from .scheduler import not_retired
     rows = conn.execute(
         "SELECT bt.batch_id AS bid, c.id AS cid FROM batch_tickets bt "
         "JOIN batches b ON b.id = bt.batch_id "
@@ -708,6 +714,7 @@ def tests_missing(conn) -> list[Wake]:
         "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'tester' "
         "                  AND m.verb = 'question' AND m.status IN ('open', 'unresolved') "
         "                  AND m.body_refs LIKE '%\"' || c.id || '\"%') "
+        + not_retired(conn, "bt.ticket_id") +
         "ORDER BY bt.batch_id, c.id"
     ).fetchall()
     missing: dict[str, list[str]] = {}

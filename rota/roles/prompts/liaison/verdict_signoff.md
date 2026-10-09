@@ -7,10 +7,11 @@ that owner holds:
 - glossary terms — `msg.relay_terminologist`
 - a criterion — `msg.relay_terminologist`
 - constraints and model areas — `msg.relay_architect`
+- a batch — `msg.relay_architect`
 
 Each ref in the message carries its `table`, and the table is the owner:
 `items` to the Vision Keeper, `glossary_terms` and `criteria` to the
-Terminologist, `constraints` and `model_areas` to the Architect. A ref of
+Terminologist, `constraints`, `model_areas` and `batches` to the Architect. A ref of
 any other table (a statement) has no relay here; leave it. `refs` holds the
 ids alone, never the resolved row. One call per owner
 with every ref that owner holds; a second call to the same owner is refused.

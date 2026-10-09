@@ -245,6 +245,24 @@ def not_described(conn: sqlite3.Connection, col: str, of: str = "item") -> str:
     return f" AND {col} NOT IN ({described})"
 
 
+def not_retired(conn: sqlite3.Connection, col: str) -> str:
+    """
+    An SQL condition that drops a retired ticket. `col` holds a ticket id.
+
+    A ticket is retired when a newer slice of its item exists: its
+    `item_ver` is below the newest `item_ver` of the item's tickets. A NULL
+    is unknown and stays live, so an older database does not move (frame
+    190's design, 2.F, amendment 4). The condition is empty on a run
+    database that predates the column.
+    """
+    from .db import _has_column
+
+    if not _has_column(conn, "tickets", "item_ver"):
+        return ""
+    return (f" AND {col} NOT IN (SELECT r.id FROM tickets r WHERE r.item_ver < "
+            f"(SELECT MAX(n.item_ver) FROM tickets n WHERE n.item_id = r.item_id))")
+
+
 def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     """
     Vision Keeper slices tickets from items whose approval postdates their last
@@ -267,6 +285,23 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     # Without this the corrected split sat approved at version 9 with one
     # spent ticket and the run went quiet (tipsAH, 2026-09-09, from the
     # seat).
+    # An item amended before its delivery is new work too. Its old ticket
+    # and criteria predate the principal's words, and `grouping` put them in
+    # a new batch (frame 190's design, 2.F, amendment 4). The cancel of the
+    # ruling of 2026-09-12 takes the running batch first, because it fires
+    # while the item is not approved. A ticket with no `item_ver` is unknown
+    # and never sliced again.
+    from .db import _has_column
+
+    amended = (
+        "       OR (i.version > (SELECT MAX(t.item_ver) FROM tickets t "
+        "                        WHERE t.item_id = i.id) "
+        "           AND NOT EXISTS (SELECT 1 FROM tickets t "
+        "                          JOIN batch_tickets bt ON bt.ticket_id = t.id "
+        "                          JOIN batches b ON b.id = bt.batch_id "
+        "                          WHERE t.item_id = i.id "
+        "                            AND b.status NOT IN ('merged', 'abandoned'))) "
+    ) if _has_column(conn, "tickets", "item_ver") else ""
     rows = conn.execute(
         "SELECT i.id FROM items i "
         "JOIN item_provenance p ON p.id = i.id "
@@ -283,7 +318,8 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
         "                          JOIN batches b ON b.id = bt.batch_id "
         "                          WHERE t.item_id = i.id "
         "                            AND b.status NOT IN ('merged', 'abandoned')) "
-        "          AND EXISTS (SELECT 1 FROM config WHERE key = 'delivered:' || i.id))"
+        "          AND EXISTS (SELECT 1 FROM config WHERE key = 'delivered:' || i.id)"
+        + amended + ")"
     ).fetchall()
     if not rows:
         return []
@@ -314,7 +350,7 @@ def tick_criteria(conn: sqlite3.Connection) -> list[Wake]:
     rows = conn.execute(
         "SELECT DISTINCT t.item_id AS item_id FROM tickets t "
         "WHERE t.id NOT IN (SELECT ticket_id FROM criteria)"
-        + not_described(conn, "t.item_id")
+        + not_described(conn, "t.item_id") + not_retired(conn, "t.id")
     ).fetchall()
     return [
         Wake("terminologist", "tick:criteria", refs=(r["item_id"],))
@@ -1597,6 +1633,26 @@ def verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[str] 
         return []
     return [r for r in refs if isinstance(r, str)
             and per_item.get(r) in ("contest", "revise")]
+
+
+def batch_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
+    """A relay whose every ref is a batch and whose cause is a verdict: the
+    principal's correction of a touch note's prediction."""
+    import json
+
+    row = conn.execute(
+        "SELECT m.verb AS verb, m.body_refs AS refs, c.verb AS cause_verb "
+        "FROM messages m LEFT JOIN messages c ON c.id = m.cause_id WHERE m.id = ?",
+        (message_id,)).fetchone() if message_id else None
+    if row is None or row["verb"] != "relay" or row["cause_verb"] != "verdict":
+        return False
+    try:
+        refs = json.loads(row["refs"] or "[]")
+    except (TypeError, ValueError):
+        return False
+    return bool(refs) and all(
+        isinstance(r, str) and conn.execute(
+            "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone() for r in refs)
 
 
 def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:

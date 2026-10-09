@@ -552,3 +552,345 @@ def test_an_open_touch_note_stays_a_touch_note_after_a_key_is_quarantined(bg2):
     assert ask.rendered.startswith("Before I build this"), ask.rendered
     assert bg2.execute("SELECT 1 FROM config WHERE key = ?",
                        (f"stalled:{mid}",)).fetchone() is None
+    # The check lines read the page's keys too. A live read put "gave up"
+    # under each criterion (the delta review of 2c602d1b, finding 3).
+    assert ask.rendered.count("     check: none yet.") == 3, ask.rendered
+    assert "gave up" not in ask.rendered
+
+
+# ---------------------------------------------------------------------------
+# Frame 190, pass 2: the route to the item, the Architect's reply, the slice.
+# Rows rebuilt inline from night 136 and night 133, read with
+# `mode=ro&immutable=1` on 2026-10-09.
+# ---------------------------------------------------------------------------
+
+M400 = ("I can't approve this page. Line one still talks about my complaint and only "
+        "mentions the approved line, so it still doesn't say what to build. Please make "
+        "line one exactly this: a new show python flag on the version option adds the "
+        "running Python version, as major.minor.micro from the interpreter's version "
+        "info, to the end of the version message.")
+M421_WORDS = ("I can't approve this page. Line one is still about my complaint and says "
+              "nothing about what to build. Please replace line one with exactly this: a "
+              "new show python flag on the version option adds the running Python version "
+              "to the end of the version message, as major.minor.micro from the "
+              "interpreter's version info.")
+
+
+def _sandbox(db, role: str, mode: str, trigger: str):
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build(role, db, mode=mode, allow=prompts.mode_tools(role, mode))
+    sb.ctx.trigger = trigger
+    return sb
+
+
+def _message(db, mid: str, sender: str, to: str, verb: str, refs, cause=None,
+             status: str = "answered") -> None:
+    seq = db.execute("SELECT COALESCE(MAX(seq), 0) + 1 n FROM messages").fetchone()["n"]
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, verb, "
+               "body_refs, status, seq) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+               (mid, cause, cause or mid, sender, to, verb, json.dumps(refs), status, seq))
+
+
+def test_a_revise_of_the_item_line_lands_with_the_words_on_the_item(m399):
+    """Night 136, s537 on m400. The words named line one, and the page had
+    no line of the request, so they landed on a constraint row. The item
+    line is now on the page, and a revise of it reaches the Vision Keeper's
+    contested wake with the words (frame 190's design, 2.2.1 and 2.2.2)."""
+    from rota.core.runner import _resolve_contest
+
+    (wake,) = tick_agenda(m399, principal_present=True)
+    mid = _dispatch(m399, wake, 'TOOL: msg.present_principal(refs=["l_d24f6997d1"])')
+    reply = _reply(m399, mid, M400)
+
+    # A revise of the team's note is refused, and the refusal names every
+    # request line (frame 190's design, 2.F, amendment 2).
+    sb = _sandbox(m399, "liaison", "landing", reply)
+    ruling = {str(n): "approve" for n in range(1, 10)}
+    ruling["9"] = "revise"
+    with pytest.raises(ValueError) as refused:
+        sb.call("rulings.rule", rulings=ruling, words=M400)
+    assert str(refused.value) == (
+        "line 9 is the team's note, not your request. revise rewrites a line of what "
+        f"the principal asked for: line 1, {ITEM_136}, or line 5, {ITEM_VO}. Revise "
+        "the line the words are about. To drop the note, contest it.")
+
+    ruling = {str(n): "approve" for n in range(1, 10)}
+    ruling["5"], ruling["9"] = "revise", "contest"
+    _landing(m399, reply, ruling, M400)
+    verdict, ruled = _verdict(m399, mid)
+    assert ruled[ITEM_VO] == "revise"
+    row = m399.execute("SELECT approval, version FROM items WHERE id = ?",
+                       (ITEM_VO,)).fetchone()
+    assert (row["approval"], row["version"]) == ("contested", 4)
+    woke = _resolve_contest(m399, ITEM_VO)
+    assert woke["principal_verdict"] == {ITEM_VO: "revise"}
+    assert woke["principal_said"] == M400
+
+
+def test_the_vision_keepers_relay_cannot_undo_a_revise(m399):
+    """Night 136, s172 on m76. The principal revised the confirm item, land
+    wrote `contested`, and the relay session set it `approved` twice
+    (frame 190's design, 2.2.4)."""
+    m399.execute("UPDATE items SET approval = 'contested' WHERE id = ?", (ITEM_136,))
+    _message(m399, "m73", "liaison", "principal", "present", [ITEM_136, "echo_json"])
+    _message(m399, "m75", "principal", "liaison", "verdict", [ITEM_136, "echo_json"],
+             cause="m73")
+    m399.execute("INSERT INTO config (key, value) VALUES ('verdict:m75', ?)",
+                 (json.dumps({ITEM_136: "revise", "echo_json": "contest"}),))
+    _message(m399, "m76", "liaison", "vision_keeper", "relay", [ITEM_136, "echo_json"],
+             cause="m75", status="open")
+    m399.commit()
+    sb = _sandbox(m399, "vision_keeper", "relay", "m76")
+    with pytest.raises(ValueError) as refused:
+        sb.call("problem.set_approval", id=ITEM_136, approval="approved")
+    assert str(refused.value) == (
+        f"the principal ruled {ITEM_136} revise. land wrote `contested`, and the "
+        "contested wake carries the words. Leave it")
+    assert sb.call("problem.set_approval", id=ITEM_136, approval="contested")
+
+
+def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
+    """Night 136, s185 on m85: "Line 2 names the wrong tests". The door
+    refused the batch line five times, and bg_2 built from the wrong
+    prediction. Before the build the contest lands, the relay goes to the
+    Architect in `annotate`, the touch set is replaced, and the Tester sees
+    the corrected path (frame 190's design, 2.2 and question 5.2)."""
+    from rota.core.runner import _mode_key, push_working_set, resolve_inbound
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    (wake,) = P.REGISTRY["touch_note"].fn(bg2)
+    mid = _dispatch(bg2, wake, f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
+    reply = _reply(bg2, mid, M85)
+    _landing(bg2, reply, {"1": "approve", "2": "approve", "3": "approve",
+                          "4": "approve", "5": "contest"}, M85)
+    verdict, ruled = _verdict(bg2, mid)
+    # The item is the wake's own row, so its approve stands beside the
+    # contest of the prediction.
+    assert ruled == {"bg_2": "contest", ITEM_136: "approve"}, ruled
+
+    (wake,) = [w for w in open_tips(bg2) if w.message_id == verdict["id"]]
+    out = run_session(bg2, wake, backend=ScriptedBackend(
+        ['TOOL: msg.relay_architect(refs=["bg_2"])', "done"]), pins=PINS,
+        instructions="relay")
+    assert out.committed, out.errors
+    (relay,) = bg2.execute("SELECT id, to_role, body_refs FROM messages "
+                           "WHERE cause_id = ? AND verb = 'relay' "
+                           "AND to_role = 'architect'", (verdict["id"],))
+    assert (relay["to_role"], json.loads(relay["body_refs"])) == ("architect", ["bg_2"])
+    (wake,) = [w for w in open_tips(bg2) if w.message_id == relay["id"]]
+    assert _mode_key(wake, bg2) == "annotate"
+    shown = resolve_inbound(bg2, wake)
+    assert shown["principal_verdict"] == {"bg_2": "contest"}
+    assert shown["touch"]["bg_2"]["expected"] == ["src/click/termui.py",
+                                                  "tests/test_defaults.py"]
+
+    out = run_session(bg2, wake, backend=ScriptedBackend(
+        ['TOOL: batches.annotate(batch_id="bg_2", paths=["src/click/termui.py", '
+         '"tests/test_termui.py"])', "done"]), pins=PINS, instructions="annotate")
+    assert out.committed, out.errors
+    assert {r["grain"] for r in bg2.execute(
+        "SELECT grain FROM batch_touch WHERE batch_id = 'bg_2'")} == {
+        "src/click/termui.py", "tests/test_termui.py"}
+
+    # The Tester's wake shows the path the principal expects the tests in.
+    bg2.execute("UPDATE batches SET status = 'running', head_commit = 'aa28d1d' "
+                "WHERE id = 'bg_2'")
+    (wake,) = P.REGISTRY["tests_missing"].fn(bg2)
+    sb = build("tester", bg2, mode="tests_missing", batch_id="bg_2",
+               allow=prompts.mode_tools("tester", "tests_missing"))
+    assert push_working_set("tester", sb, wake)["touch"] == ["tests/test_termui.py"]
+
+
+def test_after_the_head_commit_the_batch_line_is_refused_with_the_item(bg2):
+    """Frame 142's door holds after the build: a contest of the batch line
+    moves nothing, and the refusal names the item's line."""
+    (wake,) = P.REGISTRY["touch_note"].fn(bg2)
+    mid = _dispatch(bg2, wake, f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
+    reply = _reply(bg2, mid, M85)
+    bg2.execute("UPDATE batches SET head_commit = 'aa28d1d' WHERE id = 'bg_2'")
+    sb = _sandbox(bg2, "liaison", "landing", reply)
+    with pytest.raises(ValueError, match=f"contest the item {ITEM_136}, line 1"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve", "3": "approve",
+                                         "4": "approve", "5": "contest"}, words=M85)
+
+
+def test_a_relay_of_a_ruling_logs_no_row_about_the_ruled_row(m399):
+    """Night 136, s559 on m422. The Architect logged `l_758e5d392a` about the
+    constraint the principal had just contested, and the row was the next
+    page. Its `model.adopt` read the id by character (frame 190's design,
+    2.3)."""
+    seed_provenance(m399, "constraints", "parametersource_commandline", "observed")
+    _message(m399, "m419", "liaison", "principal", "present", ["l_d24f6997d1"])
+    _message(m399, "m421", "principal", "liaison", "verdict",
+             ["parametersource_commandline"], cause="m419")
+    m399.execute("INSERT INTO config (key, value) VALUES ('verdict:m421', ?)",
+                 (json.dumps({"l_d24f6997d1": "revise",
+                              "parametersource_commandline": "contest"}),))
+    m399.execute("INSERT INTO config (key, value) VALUES ('entry:m421', ?)",
+                 (json.dumps(M421_WORDS),))
+    m399.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, verdict_id) "
+                 "VALUES ('r_a9da44d357', 'm419', ?, ?, 'landed', 'm421')",
+                 (json.dumps({"l_d24f6997d1": "revise"}), M421_WORDS))
+    _message(m399, "m422", "liaison", "architect", "relay",
+             ["parametersource_commandline"], cause="m421", status="open")
+    m399.commit()
+    sb = _sandbox(m399, "architect", "relay", "m422")
+    with pytest.raises(ValueError) as refused:
+        sb.call("ledger.log", about_ref="parametersource_commandline",
+                about_table="constraints",
+                assumption="The principal's contest on parametersource_commandline "
+                           "requires a refactor to align with the new show python "
+                           "flag behavior.")
+    assert str(refused.value) == (
+        "the principal ruled on parametersource_commandline in the relay that woke "
+        "you, and their words are on file as their decision. A new assumption about "
+        "the same row goes back on their page as your reading of their words. Adopt "
+        "what they approved, and stop.")
+    assert sb.call("model.adopt", ids="parametersource_commandline") == {
+        "adopted": [], "skipped": ["parametersource_commandline"]}
+
+    # Night 136's l_6b81c7417e named the message m145 as its row.
+    with pytest.raises(ValueError, match="m419 is a message. An assumption is about "
+                                         "a row of the project, never about a message"):
+        sb.call("ledger.log", about_ref="m419", about_table="principal_verdict",
+                assumption="The principal's verdict contests all six observed terms.")
+
+
+def test_a_one_word_assumption_is_refused(db):
+    """Night 136, s87: 53 `ledger.log` calls whose words were one label left
+    16 rows on the pages (frame 190's design, 2.3.2)."""
+    from rota.core.sandbox import build
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) VALUES "
+               "('g_time', 'time', 'the clock')")
+    db.commit()
+    sb = build("liaison", db, mode="normal")
+    with pytest.raises(ValueError) as refused:
+        sb.call("ledger.log", about_ref="@term:time", about_table="model_areas",
+                assumption="term")
+    assert str(refused.value) == (
+        "an assumption is a sentence a reader learns from. Name what went unread, "
+        "why, and what a reader would get wrong.")
+
+
+def test_an_amended_item_that_is_not_delivered_is_sliced_again(db):
+    """Night 133, `confirm_default_on_eof` at version 8 with its one ticket
+    from version 2. The amended item kept its old ticket and criteria, and
+    `grouping` built from them (frame 190's design, 2.F, amendment 4)."""
+    from rota.core.scheduler import tick_criteria, tick_slicing
+
+    _statement(db, "s2", "Let confirm() take a default_on_eof flag: when stdin is "
+                         "closed it returns the default instead of aborting.")
+    _item(db, ITEM_133, TEXT_133, version=8, statement="s2")
+    _criteria(db, ITEM_133, "tk_1_confirm_default_on_eof", CRIT_133)
+    db.execute("UPDATE tickets SET item_ver = 2")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('bg_8', ?, 'pending')",
+               (ITEM_133,))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_8', "
+               "'tk_1_confirm_default_on_eof')")
+    db.commit()
+    # The live batch goes first: the cancel takes it while the item is not
+    # approved, by the ruling of 2026-09-12.
+    assert tick_slicing(db) == []
+    db.execute("UPDATE batches SET status = 'abandoned' WHERE id = 'bg_8'")
+    db.commit()
+    (wake,) = tick_slicing(db)
+    assert wake.refs == (ITEM_133,)
+    out = run_session(db, wake, backend=ScriptedBackend(
+        [f'TOOL: tickets.slice(id="tk_2_confirm_default_on_eof", item_id="{ITEM_133}", '
+         'text="confirm() returns its default at EOF when default_on_eof is set")',
+         "done"]), pins=PINS, instructions="slice")
+    assert out.committed, out.errors
+    assert db.execute("SELECT item_ver FROM tickets WHERE id = "
+                      "'tk_2_confirm_default_on_eof'").fetchone()["item_ver"] == 8
+    assert tick_slicing(db) == []
+    (wake,) = tick_criteria(db)
+    assert wake.refs == (ITEM_133,)
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('cr_4', 'tk_2_confirm_default_on_eof', 'confirm() returns the default')")
+    assert tick_criteria(db) == []
+    (wake,) = P.REGISTRY["grouping"].fn(db)
+    assert wake.refs == ("tk_2_confirm_default_on_eof",)
+
+
+def test_a_note_contest_never_overwrites_an_approve_of_a_stamped_criterion(m399):
+    """The delta review of 2c602d1b, finding 1, case E: a Terminologist's
+    note about c1, every line approved and the note contested. The note's
+    contest turned the approve of c1 into a contest."""
+    from rota.core.scheduler import Wake
+
+    m399.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
+                 "author) VALUES ('l_probe_e', 'c1_version_option_show_python', "
+                 "'criteria', 'The flag name is taken as show_python.', 'open', "
+                 "'terminologist')")
+    m399.commit()
+    wake = Wake("liaison", "tick:agenda", refs=("l_probe_e",), detail="ledger=1")
+    mid = _dispatch(m399, wake, 'TOOL: msg.present_principal(refs=["l_probe_e"])')
+    words = "the last line is wrong, the team should not assume the flag name"
+    reply = _reply(m399, mid, words)
+    (ask,) = [a for a in pending_asks(m399) if a.message_id == mid]
+    ruling = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
+    ruling[str(ask.order.index("l_probe_e") + 1)] = "contest"
+    _landing(m399, reply, ruling, words)
+    verdict, ruled = _verdict(m399, mid)
+    assert "c1_version_option_show_python" not in ruled, ruled
+
+
+def test_a_row_the_model_names_is_stamped_and_a_quarantined_batch_is_recorded(bg2):
+    """The delta review of 2c602d1b, findings 2 and 4. A contested item the
+    model named on an agenda page is no row of the wake, so an approve of
+    it lands nothing. A quarantined batch put to the principal by another
+    wake records its keys."""
+    from rota.core.scheduler import Wake
+
+    bg2.execute("UPDATE items SET approval = 'contested' WHERE id = ?", (ITEM_136,))
+    bg2.execute("UPDATE batches SET head_commit = 'aa28d1d' WHERE id = 'bg_2'")
+    bg2.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, reported) "
+                "VALUES ('tester|tick:tests_missing|bg_2', 3, 1, 0)")
+    bg2.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
+                "author) VALUES ('l_1', 'src/click/termui.py', 'items', 'The prompt "
+                "reads one line from stdin.', 'open', 'architect')")
+    bg2.commit()
+    wake = Wake("liaison", "tick:agenda", refs=("l_1",), detail="ledger=1")
+    mid = _dispatch(bg2, wake, f'TOOL: msg.present_principal(refs=["l_1", "{ITEM_136}", '
+                               '"bg_2"])')
+    stamped = json.loads(bg2.execute("SELECT value FROM config WHERE key = ?",
+                                     (f"stamped:{mid}",)).fetchone()["value"])
+    assert ITEM_136 in stamped
+    assert json.loads(bg2.execute("SELECT value FROM config WHERE key = ?",
+                                  (f"stalled:{mid}",)).fetchone()["value"]) == [
+        "tester|tick:tests_missing|bg_2"]
+    (ask,) = [a for a in pending_asks(bg2) if a.message_id == mid]
+    assert not ask.rendered.startswith("Before I build this"), ask.rendered
+
+
+def test_a_delivered_item_is_no_request_line(m399):
+    """The delta review of 2c602d1b, finding 7: a note about a delivered
+    criterion put echo_json, delivered at v3, under "You asked:"."""
+    _criteria(m399, "echo_json", "tk_1", [("c2", "echo_json prints one line.")])
+    assert "echo_json" not in request_rows(m399, ["c2"])
+
+
+def test_a_repaired_criterion_reaches_the_tester_only_after_a_commit(m399):
+    """The delta review of 2c602d1b, finding 5, case G: off the park page the
+    batch had not started, and the Tester woke for a question it never
+    asked."""
+    m399.execute("INSERT INTO batches (id, item_id, status) VALUES ('bg_4', ?, 'pending')",
+                 (ITEM_VO,))
+    m399.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_4', "
+                 "'tk_1_version_option_show_python')")
+    _message(m399, "m500", "liaison", "principal", "present",
+             [ITEM_VO, "c1_version_option_show_python"])
+    _message(m399, "m501", "principal", "liaison", "verdict",
+             ["c1_version_option_show_python"], cause="m500")
+    m399.execute("INSERT INTO config (key, value) VALUES ('verdict:m501', ?)",
+                 (json.dumps({"c1_version_option_show_python": "contest"}),))
+    _message(m399, "m502", "liaison", "terminologist", "relay",
+             ["c1_version_option_show_python"], cause="m501", status="open")
+    m399.commit()
+    sb = _sandbox(m399, "terminologist", "criterion_repair", "m502")
+    with pytest.raises(ValueError, match="no change built from this criterion has a commit"):
+        sb.call("msg.answer_tester", refs=["c1_version_option_show_python"])

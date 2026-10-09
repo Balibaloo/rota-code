@@ -238,6 +238,11 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # older verdict's truth, since no pass named a line before.
         if not _has_column(conn, "verdicts", "lines"):
             conn.execute("ALTER TABLE verdicts ADD COLUMN lines TEXT")
+        # The same for the item version a ticket was sliced from (frame 190):
+        # NULL is unknown, so an older ticket is never retired and never
+        # sliced again.
+        if not _has_column(conn, "tickets", "item_ver"):
+            conn.execute("ALTER TABLE tickets ADD COLUMN item_ver INTEGER")
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))
     except BaseException:
@@ -260,7 +265,7 @@ class Write:
     table: str
     row_id: str
     values: dict[str, Any]
-    op: str = "upsert"          # 'upsert' | 'update'
+    op: str = "upsert"          # 'upsert' | 'update' | 'clear'
     # Whether this write is an *amendment* to the row's content.
     #
     # Only amendments move the per-row version, because the revocation predicate
@@ -430,6 +435,19 @@ def _apply_write(conn: sqlite3.Connection, w: Write) -> bool:
     """Apply one write. Returns False when the write changes no row."""
     if w.table == REFS_TABLE:
         return _apply_ref(conn, w)
+    # A junction row set that a session replaces whole. The Architect's touch
+    # set, corrected by the principal's words, is the one writer: an upsert
+    # kept the disputed path beside the new one (frame 190's design, 2.2,
+    # the batch line, point 5).
+    if w.op == "clear":
+        if w.table not in JUNCTION_TABLES or not w.values:
+            raise ValueError(f"a clear write names a junction table and its "
+                             f"key columns, not {w.table!r}")
+        cols = list(w.values.keys())
+        conn.execute(
+            f"DELETE FROM {w.table} WHERE "
+            + " AND ".join(f"{c} = ?" for c in cols), list(w.values.values()))
+        return True
     if w.table in JUNCTION_TABLES:
         cols = list(w.values.keys())
         marks = ", ".join("?" for _ in cols)

@@ -433,7 +433,11 @@ CREATE TABLE IF NOT EXISTS tickets (         -- Vision Keeper
     id       TEXT PRIMARY KEY,
     item_id  TEXT NOT NULL REFERENCES items(id),
     text     TEXT NOT NULL,
-    version  INTEGER NOT NULL DEFAULT 1
+    version  INTEGER NOT NULL DEFAULT 1,
+    -- The item's version when the ticket was sliced. A ticket below the
+    -- newest `item_ver` of its item is retired. NULL is unknown, and an
+    -- unknown ticket is never retired and never sliced again.
+    item_ver INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS criteria (        -- Terminologist

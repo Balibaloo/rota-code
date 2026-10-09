@@ -156,7 +156,8 @@ def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
         sb.call("ledger.log", about_ref="l_1", about_table="glossary_terms",
                 assumption="The id 'l_1' is not a row in the glossary_terms table.")
     with _pytest.raises(ValueError, match="is a row of glossary_terms, not of items"):
-        sb.call("ledger.log", about_ref="g1", about_table="items", assumption="x")
+        sb.call("ledger.log", about_ref="g1", about_table="items",
+                assumption="recipe means the written one here")
     assert sb.call("ledger.log", about_ref="g1", about_table="glossary_terms",
                    assumption="recipe means the written one")["id"]
 

@@ -3,7 +3,8 @@ MODE: tests_missing — every criterion gets a verdict, then its door.
 `tickets.load` and `criteria.load`, then per criterion: `tests.triage` first.
 The wake says which criteria have no test. A criterion with `tested_by` has
 its test already. Leave it. A criterion without one is yours: you choose the
-test id and the path. Nobody assigns them. The triage and the encode of one
+test id and the path. A path under `touch` is the file the principal expects
+your tests in. Use it. The triage and the encode of one
 criterion go in the same reply, triage first. One criterion per reply:
 six encodes in one reply run past the output budget and none lands.
 The verdict is one judgement — **could a machine check this sentence?**

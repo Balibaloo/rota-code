@@ -421,7 +421,10 @@ def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n1
         "id": "m_held", "to_role": "terminologist", "verb": "relay",
         "body_refs": ["cr_1_confirm_eof_default", "cr_3_confirm_eof_default_value",
                       "@term:stdin"],
-        "body_text": None, "round_no": 0, "cause_id": verdict["id"]})
+        "body_text": None, "round_no": 0, "cause_id": verdict["id"],
+        # The door keys the criteria relay apart, and the key finds it (the
+        # delta review of 2c602d1b, finding 6).
+        "split": "terminologist:criteria"})
     stage_park_relay(sb.ctx)
     (held,) = sb.ctx.outbound
     assert held["body_refs"] == ["cr_2_confirm_eof_behavior"]

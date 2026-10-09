@@ -437,11 +437,18 @@ def _is_request_item(conn: sqlite3.Connection, ref: str) -> bool:
     the account, not what the code does today, and not a description."""
     from ..core.runner import _is_description
 
+    # A delivered item is no open request, by the version rule of
+    # `open_requests`. A note about a delivered criterion put echo_json, at
+    # v3 and delivered at v3, under "You asked:" (the delta review of
+    # 2c602d1b, finding 7).
     row = conn.execute(
-        "SELECT i.kind, p.provenance FROM items i "
+        "SELECT i.kind, i.version, p.provenance, "
+        "       (SELECT CAST(value AS INTEGER) FROM config "
+        "        WHERE key = 'delivered:' || i.id) AS delivered FROM items i "
         "JOIN item_provenance p ON p.id = i.id WHERE i.id = ?", (ref,)).fetchone()
     return bool(row and row["kind"] == "in_scope" and ref != "how_it_works"
                 and row["provenance"] != "observed"
+                and row["version"] > (row["delivered"] or 0)
                 and not _is_description(conn, ref))
 
 
@@ -529,9 +536,12 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
 
 
 def _gave_up_tries(conn: sqlite3.Connection, criterion: str,
-                   batch: str | None) -> int | None:
-    """The attempts of a quarantined `tests_missing` key of a batch that
-    holds the criterion, or None when no such key exists."""
+                   batch: str | None, keys: list[str]) -> int | None:
+    """The attempts of a `tests_missing` key of the page's `stalled` row,
+    for a batch that holds the criterion, or None when no such key exists."""
+    # The page's own keys, never the live quarantine. A live read put "gave
+    # up" under each criterion of night 136's open touch note m84 after a
+    # later quarantine (the delta review of 2c602d1b, finding 3).
     if batch:
         batches = [batch]
     else:
@@ -540,19 +550,21 @@ def _gave_up_tries(conn: sqlite3.Connection, criterion: str,
             "JOIN criteria c ON c.ticket_id = bt.ticket_id "
             "JOIN batches b ON b.id = bt.batch_id "
             "WHERE c.id = ? AND b.status NOT IN ('merged', 'abandoned')", (criterion,))]
-    for r in conn.execute(
-            "SELECT tick_key, attempts FROM tick_attempts WHERE quarantined = 1 "
-            "AND tick_key LIKE '%|tick:tests_missing|%' ORDER BY tick_key"):
-        keyed = (r["tick_key"].split("|", 2) + [""])[2].split(",")
+    for key in sorted(keys or []):
+        if "|tick:tests_missing|" not in key:
+            continue
+        keyed = (key.split("|", 2) + [""])[2].split(",")
         if set(keyed) & set(batches):
-            return r["attempts"]
+            row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+                               (key,)).fetchone()
+            return row["attempts"] if row else 0
     return None
 
 
 def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                   out: list[str], *, said: list[tuple[str, str]] | None = None,
                   near: bool = False, batch: str | None = None,
-                  park: bool = False) -> list[int]:
+                  park: bool = False, stalled: list[str] | None = None) -> list[int]:
     """
     Render the request's rows of a page first: the principal's words, each
     item, and each item's criteria with their `check:` lines. Append to
@@ -619,7 +631,7 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
             # note reads "none yet". A quarantined `tests_missing` key means
             # the team stopped trying. Night 136's m96 said nothing of cr_3
             # (frame 190's design, 2.5).
-            tries = None if park else _gave_up_tries(conn, r, batch)
+            tries = None if park else _gave_up_tries(conn, r, batch, stalled or [])
             if tries is None:
                 out.append("     check: none yet.")
             else:
@@ -838,7 +850,8 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         # "Before I build this" on a batch the Tester had given up on
         # (frame 190's design, 2.F, amendment 6).
         out.append("The team stopped work on this change.")
-        asked = request_block(conn, refs, order, out, batch=batches[0])
+        asked = request_block(conn, refs, order, out, batch=batches[0],
+                              stalled=keys)
         numbered(does + account)
         out.append(f"The team gave up on: {_stalled_words(conn, keys)}.")
         out.append("The team expects to touch:")
@@ -848,7 +861,8 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
                    "unclear." + _name_request(asked))
     elif verb == "present" and touches:
         out.append("Before I build this, here is what I expect to touch.")
-        asked = request_block(conn, refs, order, out, batch=batches[0])
+        asked = request_block(conn, refs, order, out, batch=batches[0],
+                              stalled=keys)
         numbered(does + account)
         out.append("The team expects to touch:")
         numbered(touches)
@@ -870,7 +884,8 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         # The request first, the principal's words with it. The seats'
         # rows follow under the team's notes. Night 133's m122 put seven
         # seat rows to the principal and no line of the request.
-        asked = request_block(conn, refs, order, out, said=said, near=True)
+        asked = request_block(conn, refs, order, out, said=said, near=True,
+                              stalled=keys)
         if account:
             out.append("What we are building:")
             numbered(account)
@@ -1158,11 +1173,17 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # the note closes and wakes nobody. A contest or revise on the item lands
     # as any ruling does: the owner amends it, the version moves, and the
     # revocation is what ends the batch (loop 6) -- the lever the note is for.
+    # Before the build, a contest or a revise of the batch line stays in the
+    # verdict, and the relay takes it to the Architect, who wrote the
+    # prediction (frame 190's design, 2.2, the batch line, point 2). An
+    # approve of it is still dropped.
     per_item = dict(answer.per_item or {})
     if ask.verb == "present" and answer.verb == "verdict":
-        batches = {r["id"] for r in conn.execute("SELECT id FROM batches")}
-        if batches & set(ask.refs):
-            per_item = {k: v for k, v in per_item.items() if k not in batches}
+        batches = {r["id"]: bool(r["head_commit"]) for r in conn.execute(
+            "SELECT id, head_commit FROM batches")}
+        if set(batches) & set(ask.refs):
+            per_item = {k: v for k, v in per_item.items() if k not in batches
+                        or (v in ("contest", "revise") and not batches[k])}
             if all(v == "approve" for v in per_item.values()):
                 return None
 
@@ -1227,7 +1248,14 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             about = conn.execute(
                 "SELECT provenance FROM item_provenance WHERE id = ?",
                 (row["about_ref"],)).fetchone()
-            if not (about and about["provenance"] == "observed"):
+            # A request row that the door stamped has the principal's own
+            # ruling, and a note's contest never overwrites it. The door
+            # stamps every request criterion as a line, so a note about c1
+            # turned an approve of c1 into a contest (the delta review of
+            # 2c602d1b, finding 1). A wake's own row keeps the old rule: the
+            # contest of a note about it contests it.
+            if not (about and about["provenance"] == "observed") and \
+                    row["about_ref"] not in stamped:
                 per_item[row["about_ref"]] = "contest"
         conn.execute(
             "INSERT INTO decisions (id, author, text, refs, resolves_ledger) "

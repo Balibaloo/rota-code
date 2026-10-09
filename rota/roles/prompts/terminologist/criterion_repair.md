@@ -19,11 +19,12 @@ their next encode meets the new words.
 
 **A ruling of the principal.** When the message is a relay with
 `principal_verdict`, the principal read this criterion and its check on a
-stopped change, and ruled. The principal's words are the note. For each
-criterion with contest or revise, rewrite it with `criteria.respecify` to say
-what the words say. Keep the other words of the criterion. Then send
+page, and ruled. The principal's words are the note. For each criterion with
+contest or revise, rewrite it with `criteria.respecify` to say what the words
+say. Keep the other words of the criterion. When the change has a commit, send
 `msg.answer_tester` with the criterion in `refs`, so the Tester encodes the
-new words. An approved criterion needs nothing.
+new words. Before the commit, the Tester has no test of it yet, so stop after
+the rewrite. An approved criterion needs nothing.
 
 The note can quote the request against the criterion. The request comes
 before the criterion. Rewrite the criterion to say what the request says. Keep
