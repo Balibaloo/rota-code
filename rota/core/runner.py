@@ -4344,5 +4344,6 @@ def _messages_from(sb: sandbox_mod.Sandbox, wake: Wake, session_id: str) -> list
             thread_id=None,
             status=m.get("status") or "open",
             unresolved_note=m.get("unresolved_note"),
+            config=dict(m.get("config") or {}),
         ))
     return out

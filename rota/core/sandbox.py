@@ -827,6 +827,12 @@ def _relaying_a_non_answer(ctx: api.Ctx) -> bool:
     return _names_no_source(ctx.conn, refs)
 
 
+# The split key of a relay that carries criteria ruled as lines of a page.
+# It keeps them apart from the Terminologist's other relay, and the suffix
+# never reaches a message.
+CRITERIA_RELAY = ":criteria"
+
+
 # The tables a principal's ruling can name, each with its one writer. The
 # single-writer law is what makes the relay's destination a lookup rather than
 # a judgement, and `test_the_relay_split_matches_the_graph` keeps this map from
@@ -2422,10 +2428,25 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # request, so the principal's words landed on a seat's row and never
         # on the item (frame 190's design, 2.1). Which rows are the request
         # is a fact about the state. The park page keeps its own rows.
+        # The stamped rows are recorded apart, because an approve lands on a
+        # row the wake put on the page and never on a row the door added.
+        # Night 133's m212, an account page, approved the contested confirm
+        # item that the door stamped (the diff review of 358fed11, finding
+        # 1). A quarantined wake records its keys, so a re-render of any
+        # other page never reads a key that came later (finding 4).
+        notes: dict[str, str] = {}
         if verb == "present" and recipient == "principal" and not park:
-            from ..roles.principal import request_rows
+            import json as _json
+            from ..roles.principal import _stalled_keys, request_rows
 
-            refs += [r for r in request_rows(ctx.conn, refs) if r not in refs]
+            stamped = [r for r in request_rows(ctx.conn, refs) if r not in refs]
+            refs += stamped
+            if stamped:
+                notes["stamped"] = _json.dumps(stamped)
+            if getattr(ctx, "wake_kind", "") == "tick:quarantined":
+                keys = _stalled_keys(ctx.conn, refs)
+                if keys:
+                    notes["stalled"] = _json.dumps(keys)
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,
@@ -2690,14 +2711,28 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     raise ValueError(
                         "the principal approved these criteria as they stand, so "
                         "no owner has anything to change. Your work here is done")
+            # A criterion goes to its writer, the Terminologist, on every
+            # page. Off the park page, `_owner_of_ref` knew no criterion and
+            # the contested line went nowhere (the diff review of 358fed11,
+            # finding 3; frame 190's design, 2.2.7). A criterion ruled as a
+            # line of its page travels in its own relay, which keys
+            # `criterion_repair`. A term beside it keeps `relay`, because the
+            # repair mode holds no `glossary.adopt`.
+            from .scheduler import park_verdict_criteria
+
+            lines = set(park_verdict_criteria(ctx.conn, ctx.trigger))
             for ref in refs:
-                is_criterion = on_park and ctx.conn.execute(
-                    "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()
-                owner = "terminologist" if is_criterion else (
-                    _owner_of_ref(ctx.conn, ref) or recipient)
+                if ref in lines:
+                    owner = "terminologist" + CRITERIA_RELAY
+                elif ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
+                                      (ref,)).fetchone():
+                    owner = "terminologist"
+                else:
+                    owner = _owner_of_ref(ctx.conn, ref) or recipient
                 split.setdefault(owner, []).append(ref)
             already = {m["to_role"] for m in ctx.outbound if m["verb"] == "relay"}
-            split = {o: r for o, r in split.items() if o not in already}
+            split = {o: r for o, r in split.items()
+                     if o.removesuffix(CRITERIA_RELAY) not in already}
             if not split:
                 raise ValueError(
                     "every owner these rows belong to has its relay already; "
@@ -2715,7 +2750,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             staged = {
                 "id": msg_id if n == 0
                 else new_id("m", ctx.conn, offset=len(ctx.outbound)),
-                "to_role": to_role, "verb": verb,
+                "to_role": to_role.removesuffix(CRITERIA_RELAY), "verb": verb,
                 "body_refs": split.get(to_role, list(refs or [])) if split
                 else list(refs or []),
                 "body_text": text,
@@ -2727,6 +2762,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # finding 1).
             if park and refs == [ctx.wake_refs[1]]:
                 staged["status"] = "answered"
+            if notes:
+                staged["config"] = {f"{k}:{staged['id']}": v for k, v in notes.items()}
             ctx.outbound.append(staged)
         out = {"id": msg_id, "to": recipient, "verb": verb}
         if len(recipients) > 1:
@@ -2738,7 +2775,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             out["note"] = ("asked every owner; which of them holds the answer "
                            "is not yours to work out. Your work here is done")
         if split:
-            out["to"] = {o: split[o] for o in recipients}
+            out["to"] = {}
+            for o in recipients:
+                out["to"].setdefault(o.removesuffix(CRITERIA_RELAY), []).extend(split[o])
             out["note"] = ("routed each row to the owner of its table; there "
                            "was nothing to choose. Your work here is done")
         if withdrawn:
@@ -2970,12 +3009,23 @@ def stage_park_relay(ctx: api.Ctx) -> None:
         return
     held = [m for m in ctx.outbound
             if m["verb"] == "relay" and m["to_role"] == "terminologist"]
-    if held:
+    # A relay of terms keeps its terms. Only a relay that holds a criterion
+    # becomes the criteria relay, so a term ruled beside a criterion still
+    # reaches `relay` (frame 190's design, 2.2.7).
+    crit = [m for m in held if any(ctx.conn.execute(
+        "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()
+        for r in m["body_refs"])]
+    for m in held:
+        if m not in crit:
+            m["body_refs"] = [r for r in m["body_refs"] if r not in contested]
+    if crit:
         # The relay carries the contested and revised criteria alone. An
         # approved criterion never enters it (the diff review of 0baacf55,
         # finding 2), and nor does any other ref (the delta review of
         # 4ef3bd9f, finding 2).
-        held[0]["body_refs"] = list(contested)
+        crit[0]["body_refs"] = list(contested)
+        for m in crit[1:]:
+            ctx.outbound.remove(m)
         return
     ctx.outbound.append({
         "id": new_id("m", ctx.conn, offset=len(ctx.outbound)),

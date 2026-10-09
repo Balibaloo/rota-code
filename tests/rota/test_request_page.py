@@ -415,7 +415,7 @@ def test_every_open_request_has_its_own_line(m399):
 
 
 def test_an_ok_off_the_sign_off_page_approves_no_request_line(m399):
-    """Night 136's m362 rows with the item contested. An "ok" on an agenda
+    """Night 136's m399 rows with both items contested. An "ok" on an agenda
     page approved the contested item before its owner amended it, night
     133's wall 5. The verdict carries no item and no approved criterion
     (frame 190's design, 2.F, amendment 1)."""
@@ -452,31 +452,103 @@ def test_a_contested_criterion_travels_and_an_approved_one_does_not(m399):
     assert m399.execute("SELECT approval FROM items WHERE id = ?",
                         (ITEM_VO,)).fetchone()["approval"] == "approved"
 
+    # The criterion goes to its writer, the Terminologist, from a page that
+    # is no park page, and keys the repair mode (frame 190's design, 2.2.7;
+    # the diff review of 358fed11, finding 3).
+    from rota.core.runner import _mode_key
+    from rota.core.scheduler import Wake, park_criterion_relay
+
     (wake,) = [w for w in open_tips(m399) if w.message_id == verdict["id"]]
-    call = ('TOOL: msg.relay_vision_keeper(refs=["c1_version_option_show_python", '
+    call = ('TOOL: msg.relay_terminologist(refs=["c1_version_option_show_python", '
             '"c2_version_option_show_python"])')
     out = run_session(m399, wake, backend=ScriptedBackend([call, "done"]),
                       pins=PINS, instructions="relay")
     assert out.committed, out.errors
-    relayed = [ref for r in m399.execute(
-        "SELECT body_refs FROM messages WHERE cause_id = ? AND verb = 'relay'",
-        (verdict["id"],)) for ref in json.loads(r["body_refs"])]
-    assert relayed == ["c1_version_option_show_python"]
+    relays = [(r["id"], r["to_role"], json.loads(r["body_refs"])) for r in m399.execute(
+        "SELECT id, to_role, body_refs FROM messages WHERE cause_id = ? AND verb = 'relay'",
+        (verdict["id"],))]
+    assert [(to, refs) for _, to, refs in relays] == [
+        ("terminologist", ["c1_version_option_show_python"])]
+    assert park_criterion_relay(m399, relays[0][0])
+    repair = Wake("terminologist", "message", refs=(), detail="relay",
+                  message_id=relays[0][0])
+    assert _mode_key(repair, m399) == "criterion_repair"
 
 
-def test_the_sign_off_page_still_approves_its_items(m399):
-    """The sign-off page, a present caused by a `submit`, keeps the approve
-    of an item at the keypress (law 8)."""
-    from rota.roles.principal import Answer, Ask
+def test_the_account_page_approves_the_account_and_no_stamped_request(db):
+    """Night 133's m212, the account's sign-off page, re-opened with the
+    account at draft. The door stamped the open confirm item and its
+    criteria, and an "ok" approved the contested item (the diff review of
+    358fed11, finding 1). An approve lands on the wake's own rows only."""
+    from rota.core.scheduler import Wake
 
-    m399.execute("UPDATE items SET approval = 'draft' WHERE id = ?", (ITEM_VO,))
-    m399.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-                 "body_refs, status, seq) VALUES ('m_s', 't', 'vision_keeper', "
-                 "'liaison', 'submit', ?, 'answered', 1)", (json.dumps([ITEM_VO]),))
-    m399.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, "
-                 "verb, body_refs, status, seq) VALUES ('m_p', 't', 'm_s', 'liaison', "
-                 "'principal', 'present', ?, 'open', 2)", (json.dumps([ITEM_VO]),))
-    land(m399, Ask(message_id="m_p", verb="present", refs=[ITEM_VO]),
-         Answer(verb="verdict", per_item={ITEM_VO: "approve"}, text="ok"))
-    assert m399.execute("SELECT approval FROM items WHERE id = ?",
-                        (ITEM_VO,)).fetchone()["approval"] == "approved"
+    _statement(db, "s2", "Let confirm() take a default_on_eof flag: when stdin is "
+                         "closed it returns the default instead of aborting.")
+    _item(db, "how_it_works", "The program is a command-line interface toolkit "
+          "called Click.", version=5, approval="draft", described=1,
+          provenance="observed")
+    _item(db, ITEM_133, TEXT_133, version=8, approval="contested", statement="s2")
+    _criteria(db, ITEM_133, "tk_1_confirm_default_on_eof", CRIT_133)
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
+               "author) VALUES ('l_e7c6ed5501', 'how_it_works', 'items', 'The program "
+               "is a command-line interface toolkit called Click.', 'open', "
+               "'vision_keeper')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+               "status, seq) VALUES ('m211', 'm211', 'vision_keeper', 'liaison', "
+               "'submit', ?, 'open', 1)", (json.dumps(["how_it_works"]),))
+    wake = Wake("liaison", "message", refs=(), detail="submit", message_id="m211")
+    mid = _dispatch(db, wake, 'TOOL: msg.present_principal(refs=["how_it_works"])')
+    stamped = [ITEM_133] + [c for c, _ in CRIT_133]
+    refs = json.loads(db.execute("SELECT body_refs FROM messages WHERE id = ?",
+                                 (mid,)).fetchone()["body_refs"])
+    assert refs == ["how_it_works", "l_e7c6ed5501"] + stamped
+    assert json.loads(db.execute("SELECT value FROM config WHERE key = ?",
+                                 (f"stamped:{mid}",)).fetchone()["value"]) == stamped
+
+    reply = _reply(db, mid, "ok")
+    _landing(db, reply, {str(n): "approve" for n in range(1, 7)}, "ok")
+    verdict, ruled = _verdict(db, mid)
+    assert not set(ruled) & set(stamped), ruled
+    row = db.execute("SELECT approval, version FROM items WHERE id = ?",
+                     (ITEM_133,)).fetchone()
+    assert (row["approval"], row["version"]) == ("contested", 8)
+    assert db.execute("SELECT approval FROM items WHERE id = 'how_it_works'"
+                      ).fetchone()["approval"] == "approved"
+
+
+def test_an_items_own_present_approves_it_and_not_its_stamped_criteria(m399):
+    """Night 136's m128: the amended echo_json put to the principal with no
+    `submit` cause. The item is the wake's own row, so its approve lands,
+    and `tick_signoff` does not ask again. Its criteria were stamped, so
+    their approve does not (the diff review of 358fed11, finding 2)."""
+    from rota.core.scheduler import Wake
+
+    m399.execute("UPDATE items SET version = 4, approval = 'draft' WHERE id = 'echo_json'")
+    _criteria(m399, "echo_json", "tk_1", [("c_echo_1", "echo_json prints one line.")])
+    wake = Wake("liaison", "tick:agenda", refs=("echo_json",), detail="ledger=1")
+    mid = _dispatch(m399, wake, 'TOOL: msg.present_principal(refs=["echo_json"])')
+    assert json.loads(m399.execute("SELECT value FROM config WHERE key = ?",
+                                   (f"stamped:{mid}",)).fetchone()["value"]) == ["c_echo_1"]
+    reply = _reply(m399, mid, "ok")
+    (ask,) = [a for a in pending_asks(m399) if a.message_id == mid]
+    ruling = {str(n): "approve" for n in range(1, len(ask.order) + 1)}
+    _landing(m399, reply, ruling, "ok")
+    verdict, ruled = _verdict(m399, mid)
+    assert ruled.get("echo_json") == "approve" and "c_echo_1" not in ruled
+    row = m399.execute("SELECT approval, approval_ver FROM items "
+                       "WHERE id = 'echo_json'").fetchone()
+    assert (row["approval"], row["approval_ver"]) == ("approved", 4)
+
+
+def test_an_open_touch_note_stays_a_touch_note_after_a_key_is_quarantined(bg2):
+    """Night 136's m84, the open touch note on bg_2. A key quarantined after
+    the send turned the page into the stopped page (the diff review of
+    358fed11, finding 4). The page reads the keys its own wake sent."""
+    (wake,) = P.REGISTRY["touch_note"].fn(bg2)
+    mid = _dispatch(bg2, wake, f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
+    bg2.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, reported) "
+                "VALUES ('tester|tick:tests_missing|bg_2', 3, 1, 0)")
+    (ask,) = [a for a in pending_asks(bg2) if a.message_id == mid]
+    assert ask.rendered.startswith("Before I build this"), ask.rendered
+    assert bg2.execute("SELECT 1 FROM config WHERE key = ?",
+                       (f"stalled:{mid}",)).fetchone() is None

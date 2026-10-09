@@ -729,8 +729,8 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
 
     A present renders the request's rows first, through `request_block`,
     and the seats' rows after them under the team's notes. `stalled` names
-    the quarantined tick keys of the page. None reads them from
-    `tick_attempts` for the batches the page names.
+    the quarantined tick keys of the page. None reads the keys that the
+    door recorded when the quarantined wake sent the page.
     """
     from ..core.runner import _resolve_refs
     from ..core.scheduler import park_ask_batch
@@ -828,8 +828,11 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         out.append("Reply 'ok' if that is what you meant. Reply with words if "
                    "it is wrong. After 'ok', I work out what to build and show "
                    "you the plan before anything is written.")
+    # The keys the quarantined wake sent, never the live ones. A live read
+    # turned night 136's open touch note m84 into a stopped page once a key
+    # came later (the diff review of 358fed11, finding 4).
     keys = (list(stalled) if stalled is not None
-            else _stalled_keys(conn, batches)) if verb == "present" else []
+            else door_rows(conn, ask_id, "stalled")) if verb == "present" else []
     if verb == "present" and keys and touches:
         # A quarantined batch is no plan any more. Night 136's m96 opened
         # "Before I build this" on a batch the Tester had given up on
@@ -1073,12 +1076,16 @@ def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
     return created
 
 
-def _signoff_page(conn: sqlite3.Connection, message_id: str | None) -> bool:
-    """Whether the present is the sign-off page: its cause is a `submit`."""
-    row = conn.execute(
-        "SELECT c.verb FROM messages m JOIN messages c ON c.id = m.cause_id "
-        "WHERE m.id = ?", (message_id,)).fetchone() if message_id else None
-    return bool(row and row["verb"] == "submit")
+def door_rows(conn: sqlite3.Connection, message_id: str | None, kind: str) -> list[str]:
+    """The rows the send door recorded about a message: `stamped`, the
+    request rows it added, or `stalled`, the quarantined keys of its wake."""
+    row = conn.execute("SELECT value FROM config WHERE key = ?",
+                       (f"{kind}:{message_id}",)).fetchone() if message_id else None
+    try:
+        rows = json.loads(row["value"]) if row else []
+    except (TypeError, ValueError):
+        return []
+    return [r for r in rows if isinstance(r, str)]
 
 
 def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
@@ -1159,18 +1166,17 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             if all(v == "approve" for v in per_item.values()):
                 return None
 
-    # An "ok" off the sign-off page approves nothing of the request. The
-    # door stamps the request's rows on every page, and the item's approval
-    # belongs to the sign-off gate (law 8). An approve there would have
+    # An approve lands on a row the wake put on the page, and never on a
+    # request row the door stamped. An "ok" on an agenda page would have
     # approved a contested item before its owner amended it, night 133's
-    # wall 5 (frame 190's design, 2.F, amendment 1). The park page keeps
-    # its own rows and its own rulings.
-    from ..core.scheduler import park_ask_batch
-
-    if (ask.verb == "present" and answer.verb == "verdict" and per_item
-            and not park_ask_batch(ask.message_id or "")
-            and not _signoff_page(conn, ask.message_id)):
-        stamped = set(request_rows(conn, ask.refs))
+    # wall 5 (frame 190's design, 2.F, amendment 1). An "ok" on an account
+    # page approved the stamped open requests, night 133's m212 (the diff
+    # review of 358fed11, finding 1). An item's own present after an amend
+    # still approves it, because the item is the wake's row. A contest or a
+    # revise lands on every row. The park page writes its rows itself, and
+    # the door records no stamp there.
+    stamped = set(door_rows(conn, ask.message_id, "stamped"))
+    if ask.verb == "present" and answer.verb == "verdict" and per_item and stamped:
         per_item = {k: v for k, v in per_item.items()
                     if k not in stamped or v in ("contest", "revise")}
 
@@ -1271,6 +1277,8 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # A park page approved whole is the ceiling. The team stops here and the
     # parked line says so, so no Liaison session wakes on the verdict
     # (ruled: Roman, 2026-10-08, the park ask is a page with rows, point 5).
+    from ..core.scheduler import park_ask_batch
+
     if (ask.verb == "present" and park_ask_batch(ask.message_id or "")
             and ask.refs and all(per_item.get(r) == "approve" for r in ask.refs)):
         settled = True

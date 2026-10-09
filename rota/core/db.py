@@ -289,6 +289,10 @@ class OutboundMessage:
     # asker has said what is missing already, so nobody owes a reply (frame 81).
     status: str = "open"
     unresolved_note: str | None = None
+    # Config rows the send door wrote about this message, keyed by its id:
+    # `stamped:<id>` and `stalled:<id>`. They land in the session's commit,
+    # so a refused session leaves none (frame 190's pass 1b).
+    config: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -706,6 +710,9 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     m.status, m.unresolved_note,
                 ),
             )
+            for key, value in (m.config or {}).items():
+                conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                             (key, value))
 
         # A dead answer is picked up by somebody speaking in its thread.
         #

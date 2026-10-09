@@ -1545,9 +1545,27 @@ def park_verdict_page(conn: sqlite3.Connection, message_id: str | None) -> str |
 
 
 def park_verdict_criteria(conn: sqlite3.Connection, message_id: str | None) -> list[str]:
-    """The criteria that a park verdict contests or revises, in the verdict's
-    ref order."""
-    return [r for r in park_verdict_rows(conn, message_id)
+    """The criteria that a verdict contests or revises as lines of its page,
+    in the verdict's ref order, on a park page and on every other page."""
+    import json
+
+    # Every page carries the request's criteria as lines now, so a ruling
+    # on a criterion line goes to its writer from any page (frame 190's
+    # design, 2.2.7). A criterion that reached the verdict through a
+    # contested ledger row's `about_ref` is no line of the page, and no
+    # ruling on its words (the diff review of b0a2086e, finding 1).
+    if park_verdict_page(conn, message_id) is not None:
+        rows = park_verdict_rows(conn, message_id)
+    else:
+        page = conn.execute(
+            "SELECT p.body_refs FROM messages v JOIN messages p ON p.id = v.cause_id "
+            "WHERE v.id = ?", (message_id,)).fetchone() if message_id else None
+        try:
+            lines = set(json.loads(page["body_refs"] or "[]")) if page else set()
+        except (TypeError, ValueError):
+            lines = set()
+        rows = [r for r in verdict_rows(conn, message_id) or [] if r in lines]
+    return [r for r in rows
             if conn.execute("SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]
 
 
@@ -1584,15 +1602,16 @@ def verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[str] 
 def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
     """
     A relay whose every ref is a criterion, whose cause is a verdict, and
-    whose verdict answers a park page: the principal's correction of a
-    criterion row.
+    whose verdict answers a park page or rules each criterion as a line of
+    its page: the principal's correction of a criterion row.
     """
     import json
 
-    # Only the park page puts criteria to the principal as rows. A
-    # contested ledger row reaches a criterion through `about_ref` in
+    # A contested ledger row reaches a criterion through `about_ref` in
     # `land`, and a clarify can name one, and neither is a ruling on its
     # words (the diff review of b0a2086e, finding 1: night 133's m327).
+    # Every page numbers the request's criteria now (frame 190's design,
+    # 2.2.7), so a criterion line ruled on any page counts.
     row = conn.execute("SELECT verb, body_refs, cause_id FROM messages WHERE id = ?",
                        (message_id,)).fetchone() if message_id else None
     if row is None or row["verb"] != "relay":
@@ -1604,7 +1623,8 @@ def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bo
     return bool(refs) and all(
         isinstance(r, str) and conn.execute(
             "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone() for r in refs
-    ) and park_verdict_page(conn, row["cause_id"]) is not None
+    ) and (park_verdict_page(conn, row["cause_id"]) is not None
+           or set(refs) <= set(park_verdict_criteria(conn, row["cause_id"])))
 
 
 def _park_versions(conn: sqlite3.Connection, batch_id: str) -> str:
