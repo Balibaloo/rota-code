@@ -436,3 +436,70 @@ The 4 new reds are the 4 known reds.
 was recorded before the gate, 5/5 on qwen3:8b. The gate named no stale case.
 
 **Unfinished.** Nothing from this pass.
+
+## Pass 2e, night 135's loop on a row id
+
+Written by the pass 2b implementer, 2026-10-09 05:59, on the tree at
+eee89bc8. Rota workflow. The tests rebuild night 135's rows inline in
+`tests/rota/test_night135_loop.py`.
+
+**`fix(rota)` at eee89bc8.**
+
+- Fix 1, high. `api.brief_segment` branches the on-file refusal on the
+  status. A ratified row: "these words are s1, which the principal
+  ratified. Cite s1. There is nothing to segment or ask". A proposed row
+  names `msg.confirm_principal(refs=['s1'])`. Any other status is cited.
+  No refusal names a clarify.
+- Fix 2, low. The door sets the span from where the text is in the entry,
+  the nearest occurrence to `span_start`. It does not refuse. s209's call,
+  span 0 to 6, is stored as 0 to 254, and with s1 on file it meets the
+  ratified refusal.
+- Fix 3, high. A segment whose id is on file is refused: "s1 is on file; a
+  statement keeps its id, and a new statement takes a new id". s1 stays at
+  version 1.
+- Fix 4, high. `api.answered_question` finds the latest Liaison clarify,
+  converse or ask to the principal with the same words that a principal
+  reply follows. The reply's cause is the question, or the reply is the
+  next principal message in the question's thread.
+  `api.refuse_answered_question` names both ids. `rulings.rule(ask=...)`
+  and the stage door, for clarify and converse to the principal, call it.
+  On the rebuilt rows the door gives m119 and m120 for m129, and m129 and
+  m130 for m131. On a clarify the older door "you have already put these
+  words to the principal" fires first and names m119.
+- Fix 5, medium. The landing's `earlier_exchange` in
+  `runner.resolve_inbound` adds the Liaison's clarify and converse
+  messages whose cause is a principal reply to the page, in seq order,
+  with `asked: true`. On s224's rows it shows m129, m131 and m133 beside
+  the replies.
+- Fix 6, the coordinator's addition. A `span_entry` that names no entry is
+  refused before any write. A statement id gets "s1 is a statement, and a
+  statement is not an entry", and then the entry this session can segment
+  or "This session has no entry to segment against". The test runs s247's
+  call in a session on the self-relay m156, and the session commits.
+
+**Deviations.**
+
+- Fix 2 sets the span and does not refuse (reasoned: the intake tests
+  send a span five characters short with the right text, and a refusal
+  would refuse correct work). The text must still be in the entry.
+
+**The gate, verbatim.**
+
+```
+suite: 26 failed, 3416 passed, 32 skipped, 16 xfailed, 17 warnings (baseline: 23 failed, 2324 passed, 27 skipped, 1 xfailed, 16 warnings)
+new reds (5): tests/rota/test_handover.py::test_a_newer_watcher_retires_the_older_one, tests/rota/test_l1.py::test_l1_case[L1-CR-a-doubtful-criterion-is-a-question-to-the-terminologist], tests/rota/test_l1.py::test_l1_case[L1-CR-fail-names-its-criterion], tests/rota/test_l1.py::test_l1_case[L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner], tests/rota/test_map.py::test_mode_lists_its_base_file_and_joins_every_line
+reds gone (2): tests/rota/test_l1.py::test_l1_case[L1-AR-annotate-a-batch], tests/rota/test_l1.py::test_l1_case[L1-DV-fix-what-the-verdict-names]
+stale (0): none
+time: 1272.6s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 658abb6 2026-09-27 19:24
+```
+
+The gate marks `test_a_newer_watcher_retires_the_older_one` flaky, and
+`test_handover.py` passes 53 of 53 alone (observed: 2026-10-09). The
+other 4 new reds are the known reds. The run took 1272.6 seconds,
+against about 670 seconds before.
+
+**Re-records.** None. No case went stale, so no recorded turn held a
+changed refusal or a changed `earlier_exchange`.
+
+**Unfinished.** The self-relay m116 that woke s209 with no mode section
+is a frame of its own.
