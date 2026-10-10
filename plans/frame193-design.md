@@ -1241,3 +1241,55 @@ touched existing cases re-record.
 **Ends-when, unchanged.** The three ratios of the frame's ends-when, on a
 night with three requests. Night 138 is the baseline: 0 of 2 boundaries
 fired the shift question.
+
+#### 2.G.5 to 2.G.7, from pass 3's measurement
+
+Pass 3 built 2.G.1 to 2.G.4 and recorded three cases at 5 runs
+(observed: the implementer's report, 2026-10-10 15:15). The s270 case
+passed 5 of 5 with the confirm door. The s353 case, a new request about
+another function with `current_request` present and no contest, passed 3
+of 5: in two runs the seat set `supersedes` to the earlier statement with
+the `relation` sentence and the new example in front of it. The s273 case
+passed 0 of 5: the seat called `brief.ratify` first in every run, the door
+refused it, and in three runs the seat then delivered the contested
+statement to the three desks. Two conclusions (reasoned: from the counts):
+the brief alone does not hold `supersedes` off a separate request, and a
+door on one call does not stop the next call.
+
+- **2.G.5 The `supersedes` door.** `brief.segment` with `supersedes`
+  refuses when the new text and the superseded statement's text share no
+  content word. A content word is a word of four letters or more, lower
+  case, after a split on every character that is not a letter or a digit,
+  with `_` as a split character too, minus a stoplist of English function
+  words (that, this, with, when, then, also, into, from, have, make, take,
+  give, should, would, there, their, which, where, what, does, them, they,
+  only, just, like, same, next, more, than, some, each, every, over, after,
+  before, instead, please). The refusal: "`supersedes` names `s1`, and the
+  new words share no word with it. A follow-up names the function or the
+  feature it continues. Leave `supersedes` out when the words are about
+  another function." The failure mode of this door is one extra question:
+  a follow-up refused in error becomes a new request, the shift question
+  fires, and the principal says which request is current. The failure
+  mode of the brief alone is a separate request merged into the earlier
+  one in silence, and the mechanism never runs. Roman's ruling of 04:33
+  prefers the question (reasoned). This reverses the "left out" line
+  above for this door, on the measurement.
+
+- **2.G.6 The deliver door in verdict mode.** `msg.deliver_vision_keeper`,
+  `msg.deliver_terminologist` and `msg.deliver_architect` refuse a
+  statement that `contested_statement` marks, with the ruling id named,
+  in the same words as the `brief.ratify` door. The s273 case measures
+  effects and not calls: no statement ratified again and no delivery
+  landed. A refused call is the door at work.
+
+- **2.G.7 The sentence on the restated words.** 2.G.3 said that the
+  converse wake on the principal's reply segments the restated words. The
+  reply to a confirm page wakes `landing`, not `converse`
+  (`_mode_key` in `rota/core/runner.py`, the branch on `cause_verb` in
+  `confirm` and `present`), and `landing` has no `brief.segment`. So no
+  path segments a restatement that arrives as a contest on a confirm
+  page. The verdict brief's sentence changes to: "The principal's reply
+  is already recorded as an entry. Nothing in this mode segments it." The
+  path itself is left open here: with 2.G.2 in place the first confirm
+  names the right entry, so the contest with a restatement is the rare
+  case, and a night that shows it pushes a frame.
