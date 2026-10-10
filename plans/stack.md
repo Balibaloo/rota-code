@@ -218,6 +218,30 @@ a different question and the night is then opened once.
 
 **Roman ruled the order on 2026-10-09 10:31** (ruled: Roman, chose "Re-batch around what the principal sees" from three options, the recommended one, asked by `AskUserQuestion` at 10:31 after the two momentum notes of 2026-10-09 put it as the next question). The next frame is one design frame on the present page, frame 190, what the principal sees. Frame 45, frames 184 to 189, night 133's wall 2 and night 136's walls 3, 4 and 12 are its walls. Frame 189's correction lands inside it. Frames 185 and 189 alone were the other two options and were declined. The reasoning: night 136's walk 3 showed 11 one-line pages whose one line was a seat's ledger row, and no ruling could carry the principal's exact line to the item, 1.35 dollars and 42 sessions; night 133 showed 16 whole-page contests, 11 in walk 2, each "none of these lines is about my request"; and the frames pushed since 2026-10-08 are each one symptom of that fact (observed: `plans/night136-read.md`, sections 2 and 8, and `plans/night133-read.md`, section 8, 2026-10-09). Meta workflow.
 
+### 197. The Liaison puts `words` inside the `rulings` map, and the refusal does not name the misplacement (2026-10-10)
+
+- **The ruling door's text, found on night 138's walk 1.** Site: the `rulings.rule` door in `rota/roles/api.py`. On night 138, s94 answered the principal's m12 with the `words` argument placed as a value inside the `rulings` map. The door refused with `line words: "..." is not a ruling. Each line takes approve, contest or revise.` The refusal names the line and not the misplacement, the session ended, and the answer was lost (observed: `plans/night138-read.md`, section 1). Rota workflow.
+- Ends when: first the mechanism: the refusal of a `rulings` key named `words` says that `words` is its own argument and shows the call shape; second the ratio, on a night: principal answers that draw neither a ruling nor a question from this cause, from 1 of 43 on night 138 to 0 of the next 40, with the residue rule: a session that still shows the sign is read, and the frame closes when its cause is not this one.
+- Waits on: Roman's order. A one-line door text, nearest frame 137. Unclaimed.
+- Reasoning: `plans/night138-read.md`, sections 1 and 6.
+- Status 2026-10-10 14:12 (rota-06): pushed by 4b501a17 from night 138's read. Meta workflow.
+
+### 196. A principal's "should not edit" sentence is not a disputed path, so the batch keeps the file the principal protected (2026-10-10)
+
+- **Frame 190's `disputed_paths`, found on night 138's walk 1.** Site: `disputed_paths` in the Liaison's relay path, built by frame 190's passes 3c to 3e. On night 138 the principal said on m132 "should not edit echo itself or the pager test", `disputed_paths` returned nothing on all three relays, and b_2 kept the pager test file (observed: `plans/night138-read.md`, section 2, run on the night's tree). Rota workflow.
+- Ends when: first the mechanism: a principal sentence that names a file or a function with "should not edit", "do not touch", "leave alone" or "not change" is a disputed path for the relay; second the ratio, on a night: relays whose principal words name a protected file and whose disputed set is empty, from 3 of 3 on night 138 to at most 1 in 5, with the residue rule as frame 193 writes it.
+- Waits on: Roman's order. Unclaimed. Nearest: frame 189, a correction of a predicted file lands nowhere.
+- Reasoning: `plans/night138-read.md`, section 2; frame 190 in `plans/archive/stack-2026-10-10.md`.
+- Status 2026-10-10 14:12 (rota-06): pushed by 4b501a17 from night 138's read. Meta workflow.
+
+### 195. `CliRunner` swallows a `NameError`, so the red test shows an empty output and the Developer cannot see the missing import (2026-10-10)
+
+- **The Developer's red output, found on night 138's walk 3.** Sites: the test harness that runs a batch's tests and writes `test_runs.output`, and the Developer's `tests_failing` wake. On night 138, every b_3 commit used `sys.version` with no `import sys`. `CliRunner` caught the `NameError`, the Tester's test printed `result.output` alone, and the red row showed `AssertionError: Expected Python version string in output: ` with an empty output for eight attempts. The Developer challenged the Tester four times, the first three against wrong tests and the fourth against a correct one, and never saw the exception. A probe shows the test passes once `sys` is imported (observed: `plans/night138-read.md`, section 4). Rota workflow.
+- Ends when: first the mechanism: the red output a Developer reads carries `result.exception` with its traceback whenever a `CliRunner` result holds one, or the harness runs the test with the runner's exception catching off; second the ratio, on a night: Developer attempts that end red on a hidden exception, from 8 of 8 on night 138's b_3 to at most 1 in 5, with the residue rule as frame 193 writes it.
+- Waits on: Roman's order. Unclaimed. Nearest: frame 172.
+- Reasoning: `plans/night138-read.md`, sections 4 and 6.
+- Status 2026-10-10 14:12 (rota-06): pushed by 4b501a17 from night 138's read. Meta workflow.
+
 ### 194. Two write doors contradict: the surface door wants a name in the file the criteria name, and the copy door forbids it while the name lives elsewhere (2026-10-10)
 
 - **Batch C's family, found on night 138's walk 1.** Sites: the copy door of `code.write` and `code.commit` in `rota/roles/api.py`, which refuses a second definition of a name the project has once, and the surface door of `code.commit`, which demands every criterion's `surface_refs`. Rota workflow.
@@ -226,6 +250,7 @@ a different question and the night is then opened once.
 - Waits on: night 138's read, which says whether the Architect's answer to s147's escalation moved the batch. Unclaimed.
 - Reasoning: the night 138 read when it lands.
 - Status 2026-10-10 10:38 (rota-91): pushed by 3be6b81d from the CYCLE line of 10:37 while night 138 runs. Meta workflow.
+- Status 2026-10-10 14:12 (rota-06): **night 138's read says keep it open: 3 of 23 Developer build wakes on b_1 met both doors in one session, s145, s146 and s147, and the Architect's answer to s147's escalation moved nothing** (observed: `plans/night138-read.md`, section 3). s148 then challenged the Vision Keeper, and that challenge was answered with nothing, frame 174's shape. The surface door stopped firing after the principal's m56 reached the Terminologist at s153. The copy door fired on to s166, because three Tester tests import `src.echo_json`. b_1 ended by a cancel after m110. Still unclaimed. Meta workflow.
 
 ### 193. The second request: a new request closes or parks the old one's open page, and the principal's words land on the item the request names (2026-10-10) (4b501a17)
 
@@ -263,6 +288,7 @@ a different question and the night is then opened once.
 - Status 2026-10-10 09:56 (rota-91): night 138 launched 09:18 from `C:/Users/roman/rota_night138` at 310fb80a, cold, the agent principal on Opus. Onboarding to walk 1 by 09:54. The CYCLE line of 09:55, `liaison|message|converse`, period 1, rounds 2, belongs to no frame: s94 to s97 are four converse wakes on four distinct messages, the request m12 and m_p1, the request page m11's answer m13, which revised line 1, the account item, and the confirm m14's "ok" at m15; the revise landed as contested on `how_it_works` and the Vision Keeper s100 was refused three times for setting its approval while the contest wake carries the words; s98 relayed to the Vision Keeper twice. No wall. The watcher is re-armed (observed: `.rota/night138.log` lines 36 to 41 and `.rota/clickI.db` sessions s94 to s100, 2026-10-10 09:56). Rota workflow.
 - Status 2026-10-10 10:38 (rota-91): night 138's CYCLE line of 10:37, `developer|tick:tests_failing|attempt 4|b_1`, period 1, rounds 3, belongs to frame 194, two write doors contradict, pushed above, and to frame 150 for the file a refused write left. Not frame 193's wall. Walk 1 is the first request, so frame 193's ratios have no shape yet, and the night runs on: s147 escalated to the Architect and the attempt cap ends the loop. The watcher is re-armed (observed: `.rota/night138.log` lines 42 to 55, 2026-10-10 10:38). Rota workflow.
 - Status 2026-10-10 12:15 (rota-91): night 138's walk 1 built, tested and merged b_2 by 12:10 after the Architect's answer moved batch b_1's wall, with the request page m122 drawing "Lines 4 and 7 are still wrong" and the prediction page m131 drawing "Line 8 is wrong"; walk 2 started 12:14, the second request, which is frame 193's measure. This session is past the 300k line and its frame waits on the night, so it hands off now with the momentum note `plans/handoff-3be6b81d.md` at fc8e03e4. The taker arms its own night watcher. (observed: `.rota/night138.log` lines 112 to 128, 2026-10-10 12:15). Meta workflow.
+- Status 2026-10-10 14:12 (rota-06): **night 138's read on Opus, 308.0k on the harness line against 300k, record `plans/night138-read.md`: ratio 1 fails, 12 of 30 page readings carry a request the principal moved past, baseline 3 of 21, target 1 in 10; ratio 2 holds, 0 of 3 batches abandoned at the first wake, baseline 13 of 14; ratio 3 fails on the count, 2 of 43 answers drew neither a ruling nor a question, target 1 in 30, and neither cause is this frame's** (observed: the read, 2026-10-10 14:07). Ratio 1's cause is this frame's own: request B never got a statement, and two of the eleven walk 2 presents, m153 and m160, even show request B's words because two Vision Keepers rewrote request A's item with them. Ratio 3's two causes: s94 put `words` inside the `rulings` map and the refusal did not say so, frame 197 below; s352 left a quote unclosed, frame 137's family. The grouping gate met no case, because the contested item never got a ticket. One more miss: s296 ruled the principal's `ok` on m161 as `contest`. The night's four CYCLE lines: two converse lines are false positives because the cycle key holds no message id, one register line. Frames 185, 186, 192 and 194 carry their verdicts below. Frames 195, 196 and 197 are pushed from the read. Meta workflow.
 
 ### 192. A principal's `drop` has no ruling word, and the Liaison that repeats `drop` after the refusal lands the answer nowhere (2026-10-09)
 
@@ -273,6 +299,7 @@ a different question and the night is then opened once.
 - Reasoning: this status line, and night 137's read when it lands.
 - Status 2026-10-09 17:34 (rota-8a): pushed by 45fc3fe2 from night 137's CYCLE line, read at once. Unclaimed, priced. The night runs on. Rota workflow.
 - Waits on: frame 193, the second request, which takes this frame as a wall (ruled: Roman, 2026-10-10 about 03:30). Added by 45fc3fe2.
+- Status 2026-10-10 14:12 (rota-06): **night 138: 5 of 5 principal answers that say `drop` landed, and no seat sent `drop` as a value, so the words door had no case on this night** (observed: `plans/night138-read.md`, section 1). Narrowed to the count: 15 more such answers are owed before the door is proven on a night. Meta workflow.
 
 ### 189. A correction of a predicted file on a "Before I build this" page is refused with the item named, and lands nowhere (2026-10-09) (d7cf65d1)
 
@@ -311,6 +338,7 @@ a different question and the night is then opened once.
 - Status 2026-10-08 19:36 (rota-a0): pushed by acb1f403 from night 133's read. Unclaimed, priced. Rota workflow.
 - Status 2026-10-09 20:09 (rota-8a): night 137's second CYCLE line at 20:09, `architect|tick:grouping` on `tk_1_confirm_with_default_on_eof`, period 1, rounds 3, read at once: the item `confirm_with_default_on_eof` stands contested at version 1 since walk 2, and the grouping woke the Architect eight times in walk 3, s221 and s321 to s336, each opening a batch on that item, each abandoned at its first wake as `its item is no longer schedulable`, 8 batches abandoned against night 133's 2 of 6; the Architect names the new batch after the merged `echo_json_group` in four of them (observed: `.rota/clickI.db`, the `batches`, `items`, `tickets` and `sessions` tables, read while the night ran, 2026-10-09 20:09). Rota workflow. The same mechanism, and a worse count.
 - Waits on: frame 193, the second request, which takes this frame as a wall (ruled: Roman, 2026-10-10 about 03:30). Added by 45fc3fe2.
+- Status 2026-10-10 14:12 (rota-06): **night 138: the ratio holds, 0 of 3 batches abandoned at the first wake, and the grouping gate met no case, because the contested item never got a ticket** (observed: `plans/night138-read.md`, section 1). Keep it open one more night, the night after frame 193's pass 3, so that the gate meets a case. Meta workflow.
 
 ### 185. A principal's `a separate request, for later` has no ruling word, so it lands as a contest on the item and the item's batch is abandoned (2026-10-08)
 
@@ -321,6 +349,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night133-read.md`, section 3, the abandon loop table and the walk 3 counts, and section 8, walls 3 and 9. Frame 129 holds the two abandons that followed a correction's version rise, walls 4 and 5.
 - Status 2026-10-08 19:36 (rota-a0): pushed by acb1f403 from night 133's read. Unclaimed, priced. Rota workflow.
 - Waits on: frame 193, the second request, which takes this frame as a wall (ruled: Roman, 2026-10-10 about 03:30). Added by 45fc3fe2.
+- Status 2026-10-10 14:12 (rota-06): **night 138 keeps it open as frame 193's wall: the principal put request A off in 13 walk 2 answers, all 11 walk 2 presents named request A's item, and no answer landed as a park** (observed: `plans/night138-read.md`, section 1). The next measure is the night after frame 193's pass 3. Meta workflow.
 
 ### 184. The Liaison copies its own earlier ask-back from `recent_chat`, and asks about a word that stands on no page (2026-10-08)
 
@@ -355,6 +384,7 @@ a different question and the night is then opened once.
 - Status 2026-10-08 09:52 (rota-39): order ruled: this frame's read runs beside the next night, read-only (ruled: Roman, 2026-10-08 09:52). Meta workflow.
 - Status 2026-10-08 19:36 (rota-a0): night 133: bg_1 merged with its own 3 tests, stored by the Tester s156 and s158, and 2 of 3 fail with `separators` removed, so the merge carried a test of its behaviour; no other batch merged, against night 132's bg_4 merged with 0 tests of its own (observed: `plans/night133-read.md`, section 4, 2026-10-08). Rota workflow. The read beside the next night stays as ordered.
 - Status 2026-10-09 10:28 (rota-9e): night 136, the read beside the night by Roman's order: bg_1 merged with 3 own tests and 1 of 3 catches its criterion's removal, because the c3 test splits the source on a two-character backslash-n and any import passes; bg_3 merged with 2 own tests for 3 criteria, cr_2's test catches the removal and cr_3's test puts `assert False` inside `except Exception`, so it passes whatever `confirm` does; cr_1 has no test on bg_3, and `lifecycle.mergeable` accepted the abandoned bg_2's test because the query asks for a test with the criterion's id in any batch (observed: `plans/night136-read.md`, section 3, the mutation probe `probe136.py`, 2026-10-09). Rota workflow. The second shape now has a named site: the `mergeable` query counts a sibling batch's test. The first shape, seven attempts with no test, did not recur: bg_2 ran 2 attempts. The frame's read now names the mechanism for the second shape, and the first shape's wake order is still unread.
+- Status 2026-10-10 14:12 (rota-06): **night 138 adds an instance: walk 1's b_2 merged with 0 tests of its own** (observed: `plans/night138-read.md`). The merged change raises `NameError`, frame 172. Meta workflow.
 
 ### 181. A Critic sends `verdicts.emit` three more times after its verdict landed (2026-10-08)
 
@@ -408,6 +438,7 @@ a different question and the night is then opened once.
 - Waits on: Roman's order. Rank it after frames 173 and 172, because no batch stalled on these rows on night 127.
 - Reasoning: plans/night127-read.md, section 4, the I9 row, and section 8, wall 5; frame 144's status of 2026-10-06 17:41.
 - Status 2026-10-07 02:20 (rota-b4): pushed by 86c3e06e from night 127's read. Unclaimed, priced. Rota workflow.
+- Status 2026-10-10 14:12 (rota-06): **night 138 adds an instance: s148's challenge to the Vision Keeper on b_1 was answered with nothing, invariant I9, and the batch's wall stood** (observed: `plans/night138-read.md`, section 3). Meta workflow.
 
 ### 173. The span door offers an end, and the admitted write removes a branch with no note (2026-10-07)
 
@@ -428,6 +459,7 @@ a different question and the night is then opened once.
 - Reasoning: plans/night127-read.md, section 6, the merge of bg_3, and section 8, wall 1.
 - Status 2026-10-07 02:20 (rota-b4): pushed by 86c3e06e from night 127's read. Unclaimed, priced. Rota workflow.
 - Status 2026-10-07 05:03 (rota-b4): night 128: 6 of 6 stored tests of the two merges take the added path or the path a criterion names, from 0 of 3 on night 127, with no change to the Tester (observed: `plans/night128-read.md`, section 2, 2026-10-07). Rota workflow. One night at 0 of 3 and one at 6 of 6 is a baseline on a stochastic seat, not a trend. Unclaimed.
+- Status 2026-10-10 14:12 (rota-06): **night 138 adds an instance: walk 1's b_2 merged with 0 tests of its own, the harness ran the 34 inherited tests alone, and the merged `echo_json` raises `NameError` on the name `click` on every call** (observed: `plans/night138-read.md`, section 1, the finding beyond the brief). Also frame 182's shape. Meta workflow.
 
 ### 171. The Developer's answer mode has no challenge call, so a Developer that knows the test is wrong writes the product to fit it (2026-10-07)
 
@@ -821,6 +853,7 @@ a different question and the night is then opened once.
 - Status 2026-10-04 14:38 (rota-da): Roman answered the ask with "we have already discussed this, use a subagent to search our decisions logs, etc ie meta" (ruled: Roman, 2026-10-04 14:34). The search of 70 transcripts on Opus, 124.8k on the harness line against 120k, finds the discussion: on 2026-10-03 the assistant told him law 2 settles the question with the row route, and he ruled the history-before-escalation guidance from that answer; no ruling on this frame stands in his own words (observed: `plans/frame115-history.md`, section 7, 2026-10-04). Meta workflow. **The frame is no longer blocked. It is a build frame inside law 2**, whose own words are "reached by following a ref" (reasoned: the wake that shows the row a ref names is the law's premise and not a new edge; `_resolve_refs` resolves nine other tables so). New ends-when: the Architect's `escalate.md` gains the branch "the constraint holds": `decisions.author` a row that says so, then answer with its ref; an answer whose refs add no row beyond the escalation's refs is refused, and the refusal names `decisions.author`; `_resolve_refs` resolves a `decisions` ref to the row's text in the Developer's wake; one case where the Developer's wake shows the Architect's row; the two Architect cases re-record. Measured on a night: Architect answers to a Developer that give the Developer no text it did not hold fall from 4 of 4 on night 112. An answer that is still empty is read, and the frame closes when its cause is not the missing branch or the unread row. Price about 50k on Opus, one design review of about 30k because a brief and a door move, one diff review of about 20k, and one night. Waits on: Roman's order. Recommended after frame 114, a failing inherited test has no route. Rota workflow.
 - Status 2026-10-05 12:19 (rota-5d): night 123: 3 of 3 Architect answers to the Developer, m67, m72 and m82, hold no text, and the escalate door refused 8 more escalations in 5 sessions with `no row beyond your own refs` (observed: `plans/night123-read.md`, section 3, items 5 and 7, 2026-10-05). Rota workflow.
 - Status 2026-10-07 01:10 (rota-b4): frame 131's read finds the same class on the Terminologist: on nights 119 to 126 the Tester s131 and s137 asked how to read printed output, m56 and m62, and the two answers held no words, m58 refs only and m63 a glossary row, after which the Tester stored the test that stuck bg_1 for five nights (observed: `plans/frame131-read.md`, section 2, 2026-10-07). Rota workflow. The row route this frame builds for the Architect has a second customer. Unclaimed.
+- Status 2026-10-10 14:12 (rota-06): **night 138 adds an instance: the Architect's answer m241 to the Developer's escalation s388 on b_3 carries refs and no words** (observed: `plans/night138-read.md`, section 4). Meta workflow.
 
 ### 98. A seat sends a second message after its session is complete, and a case passes on a broken file (2026-09-30)
 
@@ -1924,6 +1957,7 @@ a different question and the night is then opened once.
   or a repeated call in the stream, priced after frames 59 and 61 by the
   batch order. Correction to the batch's counts: 78 turns carry a `CUT`
   notice in `user`, none in `system`; the 39 counted the word in the briefs.
+- Status 2026-10-10 14:12 (rota-06): **night 138 adds an instance: the Developer's attempts s391 to s393 on b_3 were each cut at the output budget with nothing written, and the night's CYCLE line of 13:54 came from them** (observed: `plans/night138-read.md`, section 4). Meta workflow.
 
 ### 53. Does a prompt get more than half the window? (2026-09-20) [unruled]
 
