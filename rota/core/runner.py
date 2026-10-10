@@ -1910,11 +1910,9 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # signoff reader cannot see from the items alone. Mechanics locate it;
     # the present carries it; the principal rules on it.
     if row["to_role"] == "liaison" and row["verb"] == "submit":
-        uncovered = [dict(r) for r in conn.execute(
-            "SELECT id, text FROM statements WHERE status = 'ratified' "
-            "AND id NOT IN (SELECT target FROM refs "
-            "               WHERE src_table = 'items' AND kind = 'statement') "
-            "ORDER BY id")]
+        from ..roles.principal import uncovered_statements
+
+        uncovered = uncovered_statements(conn)
         if uncovered:
             out["uncovered_statements"] = uncovered
 

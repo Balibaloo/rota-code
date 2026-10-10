@@ -1902,6 +1902,16 @@ def close_park_asks(conn: sqlite3.Connection, batch_id: str) -> int:
         (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).rowcount or 0
 
 
+def dropped_items(conn: sqlite3.Connection) -> set[str]:
+    """The items whose newest park row is a drop."""
+    if not _has_parks(conn):
+        return set()
+    return {r["item_id"] for r in conn.execute(
+        "SELECT p.item_id FROM item_parks p WHERE p.kind = 'drop' AND p.rowid = "
+        "(SELECT q.rowid FROM item_parks q WHERE q.item_id = p.item_id "
+        "ORDER BY q.seq DESC, q.rowid DESC LIMIT 1)")}
+
+
 def resume_behind(conn: sqlite3.Connection) -> int:
     """
     Resume each item parked behind a request that is now delivered or
@@ -1935,14 +1945,16 @@ def resume_behind(conn: sqlite3.Connection) -> int:
                 entries.add(row["span_entry"])
         if not entries:
             continue
-        mine = [r["id"] for r in conn.execute("SELECT id FROM items")
+        # Only work the request asked for decides it. Night 133's account
+        # item cites s1, is never delivered, and held every resume at 0 (the
+        # review of 61a0f41d, finding 1).
+        mine = [r["id"] for r in conn.execute(
+                    "SELECT id FROM items WHERE kind = 'in_scope' "
+                    "AND is_description = 0")
                 if request_of(conn, r["id"]) in entries]
         if not mine:
             continue
-        aside = {r["item_id"] for r in conn.execute(
-            "SELECT p.item_id FROM item_parks p WHERE p.kind = 'drop' AND p.rowid = "
-            "(SELECT q.rowid FROM item_parks q WHERE q.item_id = p.item_id "
-            "ORDER BY q.seq DESC, q.rowid DESC LIMIT 1)")}
+        aside = dropped_items(conn)
         if not all(_delivered(conn, i) or i in aside for i in mine):
             continue
         request = next((m for m in conn.execute(

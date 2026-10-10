@@ -453,6 +453,11 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         running_id = wake.refs[0]
         lifecycle.defer(conn, running_id)
         conn.commit()
+        # A set-aside item's own batch is deferred, and no other item
+        # outranks it. The old note said the item outranked its own batch
+        # (the review of 61a0f41d, finding 5).
+        if wake.detail.startswith(f"{wake.refs[1]} is set aside"):
+            return f"deferred {running_id}: {wake.detail}"
         return f"deferred {running_id}; {wake.refs[1]} outranks it"
 
     if action == "park":

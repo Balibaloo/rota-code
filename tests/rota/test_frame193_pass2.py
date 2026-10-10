@@ -207,6 +207,15 @@ def test_later_parks_the_item_and_holds_its_page(db):
     assert tick_agenda(db, principal_present=True) == []
     # The live change of a parked item is deferred, not abandoned.
     assert cancel(db) == []
+    from rota.core.loop import _perform
+    from rota.core.predicates import preempt
+
+    (wake,) = preempt(db)
+    assert _perform(db, wake) == (f"deferred {BATCH}: {CONFIRM} is set aside "
+                                  f"behind s3")
+    from rota.roles.principal import aside_lines
+
+    assert not any("resume" in line for line in aside_lines(db))
 
 
 def test_drop_closes_the_page_and_its_rows_and_abandons_the_change(db):
@@ -358,7 +367,7 @@ def test_a_follow_up_on_the_same_request_is_no_boundary(db):
 FOLLOW_UP = "Write the version as major.minor.micro."
 
 
-def _segment_session(db, status: str | None = "ratified"):
+def _segment_session(db, status: str | None = "ratified", extra: tuple = ()):
     """A follow-up converse m_p4 behind request m_p3, whose s3 has `status`."""
     from rota.core.sandbox import build
     from rota.roles import prompts
@@ -371,7 +380,7 @@ def _segment_session(db, status: str | None = "ratified"):
                "'liaison', 'converse', '[\"e_p4\"]', 170, 'open')")
     db.commit()
     sb = build("liaison", db, mode="normal", session_id="sess_seg",
-               allow=prompts.mode_tools("liaison", "converse"))
+               allow=prompts.mode_tools("liaison", "converse") + list(extra))
     sb.ctx.trigger = "m_p4"
     sb.ctx.entry_id = "e_p4"
     return sb
@@ -436,6 +445,106 @@ def test_the_wake_offers_a_ratified_statement_only(db):
     db.commit()
     assert resolve_inbound(db, wake)["current_request"] == {
         "statement": "s3", "text": S3}
+
+
+def test_a_described_item_on_the_request_does_not_hold_the_resume(db):
+    """The review of 61a0f41d, finding 1: night 133's account item cites s1,
+    and it held every resume at 0."""
+    _night137(db)
+    _ask_shift(db)
+    _rule_shift(db, "later")
+    _item(db, VERSION, S3, "s3")
+    _item(db, "defines_commands", "the account: defines commands", "s3",
+          approval="draft", ver=0, described=1)
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('delivered:version_option_show_python', '1')")
+    db.commit()
+    assert resume_behind(db) == 1
+
+
+def _m283(db) -> list[str]:
+    """Night 133's m283 rebuild: three requests, and the account items."""
+    _request(db, 1, 19, 46, S1)
+    _request(db, 2, 29, 71, S2)
+    _request(db, 3, 80, 258, S3)
+    _item(db, "echo_json", S1, "s1")
+    db.execute("INSERT INTO config (key, value) VALUES ('delivered:echo_json', '1')")
+    _item(db, "confirm_default_on_eof", S2, "s2")
+    _item(db, VERSION, S3, "s3", approval="draft", ver=0)
+    _item(db, "defines_commands_and_options", "the account: defines commands",
+          "s1", approval="draft", ver=0, described=1)
+    for i in ("how_it_works", "parses_and_executes_inputs",
+              "provides_command_line_interface"):
+        _item(db, i, f"account {i}", None, approval="draft", ver=0, described=1)
+    db.commit()
+    return ["confirm_default_on_eof", "defines_commands_and_options", "echo_json",
+            "how_it_works", "parses_and_executes_inputs",
+            "provides_command_line_interface", VERSION]
+
+
+def test_m283_keeps_the_account_item_that_cites_an_earlier_statement(db):
+    """The review of 61a0f41d, finding 2."""
+    from rota.roles.principal import off_page
+
+    m283 = _m283(db)
+    assert "defines_commands_and_options" not in off_page(db, m283)
+    assert "defines_commands_and_options" in render_page(db, "present", m283)[1]
+
+
+def test_a_ratified_follow_up_keeps_the_request_and_its_coverage(db):
+    """The review of 61a0f41d, finding 3: s5 says s3 again. The item that
+    cites s3 keeps its line, and s5 counts as covered."""
+    from rota.roles.principal import open_requests, request_rows, uncovered_statements
+
+    sb = _segment_session(db, extra=("brief.ratify",))
+    _item(db, VERSION, S3, "s3")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status, supersedes) VALUES ('s5', 'e_p4', 0, ?, ?, "
+               "'proposed', 's3')", (len(FOLLOW_UP), FOLLOW_UP))
+    db.commit()
+    sb.call("brief.ratify", id="s5")
+    assert [w[:3] for w in sb.ctx.writes if w[0] == "statements"] == [
+        ("statements", "s5", {"status": "ratified"})]
+    db.execute("UPDATE statements SET status = 'ratified' WHERE id = 's5'")
+    db.commit()
+    assert open_requests(db) == [VERSION]
+    assert request_rows(db, [])[0] == VERSION
+    assert "s5" not in [s["id"] for s in uncovered_statements(db)]
+    assert request_shift(db) == []
+
+
+def _shift_land(db, item: str, req: str, stmt: str, kind: str, seq: int) -> None:
+    sid = f"m_shift_{item}_{req}"
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES (?, ?, 'liaison', 'principal', "
+               "'present', ?, ?, 'open')", (sid, sid, json.dumps([item, stmt]), seq))
+    db.commit()
+    land(db, Ask(message_id=sid, verb="present", refs=[item, stmt]),
+         Answer("verdict", text=kind, per_item={item: kind}))
+    db.commit()
+
+
+def test_a_chain_asks_nothing_once_the_last_request_is_delivered(db):
+    """The review of 61a0f41d, finding 4: A behind B, B behind C. After C and
+    B are delivered, no shift question asks about A against C."""
+    _night137(db)
+    _ask_shift(db)
+    _rule_shift(db, "later")
+    db.execute("UPDATE messages SET status = 'answered' WHERE id = 'm164'")
+    _item(db, VERSION, S3, "s3")
+    _request(db, 4, 60, 300, "Add a --color flag.", sid="s4")
+    _item(db, "colorC", "Add a --color flag.", "s4")
+    db.commit()
+    _shift_land(db, VERSION, "m_p4", "s4", "park", 301)
+    db.execute("INSERT INTO config (key, value) VALUES ('delivered:colorC', '1')")
+    db.commit()
+    assert resume_behind(db) == 1
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('delivered:version_option_show_python', '1')")
+    db.commit()
+    assert resume_behind(db) == 1
+    db.commit()
+    assert request_shift(db) == []
 
 
 def test_the_shift_page_refuses_a_ruling_word(db):

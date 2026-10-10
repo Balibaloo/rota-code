@@ -185,6 +185,23 @@ def message_tips(conn) -> list[Wake]:
     return open_tips(conn)
 
 
+def _request_finished(conn, cur: dict) -> bool:
+    """True when the request has work items and each is delivered or dropped.
+    A request with no item yet is not finished: its work is still to come."""
+    from ..roles.principal import _delivered, request_of
+    from .scheduler import dropped_items
+
+    here = set(cur["entries"])
+    mine = [r["id"] for r in conn.execute(
+                "SELECT id FROM items WHERE kind = 'in_scope' "
+                "AND is_description = 0")
+            if request_of(conn, r["id"]) in here]
+    if not mine:
+        return False
+    dropped = dropped_items(conn)
+    return all(_delivered(conn, i) or i in dropped for i in mine)
+
+
 @predicate("request_shift", wakes="liaison", band="traffic")
 def request_shift(conn) -> list[Wake]:
     """
@@ -207,6 +224,11 @@ def request_shift(conn) -> list[Wake]:
         return []
     cur = current_request(conn, unread=False)
     if not cur or not cur["statements"]:
+        return []
+    # A finished request asks nothing. At a chain's end the delivered C
+    # stayed current, and the wake asked about A against it (the review of
+    # 61a0f41d, finding 4).
+    if _request_finished(conn, cur):
         return []
     out = []
     for item in open_earlier_items(conn, cur, asked=False):
@@ -1447,11 +1469,17 @@ def preempt(conn) -> list[Wake]:
         return []
     # A running batch whose item was put aside is deferred, so its worktree
     # and commits persist as deferred work (law 9; frame 193's design, 2.F.4).
-    from .scheduler import aside_items
+    from .scheduler import aside_items, park_kind
 
     if running["item"] in aside_items(conn):
+        from ..roles.principal import park_behind
+
+        behind = (park_behind(conn, running["item"], as_id=True)
+                  if park_kind(conn, running["item"]) == "park" else None)
+        why = (f"{running['item']} is set aside behind {behind}" if behind
+               else f"{running['item']} is set aside")
         return [Wake(SCHEDULER, "do:preempt", refs=(running["bid"], running["item"]),
-                     detail=f"{running['item']} is set aside")]
+                     detail=why)]
     # The start's order, so the two never disagree. Night 92 started `b_2`
     # and preempted it for `b_3` nineteen times (observed: night 92, 2026-09-24).
     from .scheduler import next_batch

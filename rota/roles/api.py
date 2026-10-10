@@ -943,13 +943,10 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
 def brief_ratify(ctx: Ctx, id: str) -> dict:
     _must_exist(ctx, "statements", id)
     ctx.writes.append(("statements", id, {"status": "ratified"}, False))
-    # A follow-up says the earlier statement again, so the ratification
-    # leaves the earlier one clarified (frame 193's design, 2.F.6).
-    row = ctx.conn.execute("SELECT supersedes FROM statements WHERE id = ?",
-                           (id,)).fetchone()
-    if row is not None and row["supersedes"]:
-        ctx.writes.append(("statements", row["supersedes"],
-                           {"status": "clarified"}, False))
+    # A follow-up leaves the statement it says again ratified. The design's
+    # `clarified` write (2.F.6) took the version item off `open_requests`
+    # and its page. The readers follow `supersedes` to one request instead
+    # (the review of 61a0f41d, finding 3).
     return {"id": id, "status": "ratified"}
 
 

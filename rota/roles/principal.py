@@ -212,8 +212,10 @@ def pending_replies(conn: sqlite3.Connection) -> list[Ask]:
     ]
 
 
-def park_behind(conn: sqlite3.Connection, item: str) -> str | None:
-    """The statement of the request a parked item waits behind, or None."""
+def park_behind(conn: sqlite3.Connection, item: str, *,
+                as_id: bool = False) -> str | None:
+    """The statement of the request a parked item waits behind, its text or
+    with `as_id` its id, or None."""
     row = conn.execute(
         "SELECT a.body_refs FROM item_parks p JOIN messages v ON v.id = p.cause_id "
         "JOIN messages a ON a.id = v.cause_id WHERE p.item_id = ? "
@@ -223,7 +225,7 @@ def park_behind(conn: sqlite3.Connection, item: str) -> str | None:
     for ref in json.loads(row["body_refs"] or "[]"):
         s = conn.execute("SELECT text FROM statements WHERE id = ?", (ref,)).fetchone()
         if s is not None:
-            return s["text"]
+            return ref if as_id else s["text"]
     return None
 
 
@@ -259,10 +261,12 @@ def aside_lines(conn: sqlite3.Connection) -> list[str]:
             notes = sum(1 for n in conn.execute(
                 "SELECT id FROM ledger WHERE status = 'open'")
                 if item in _items_reached(conn, n["id"]))
+            # No page numbers a set-aside item, so a "resume" word has no
+            # line to land on (the review of 61a0f41d, finding 6).
             behind.setdefault(park_behind(conn, item) or "the new request", []).append(
                 f"  {text}. {asks} open page{'' if asks == 1 else 's'}, {notes} open "
                 f"note{'' if notes == 1 else 's'}. It comes back when that request "
-                f"is merged, or say resume.")
+                f"is merged.")
     out: list[str] = []
     for said, lines in behind.items():
         out.append(f"Waiting behind {said}:")
@@ -682,6 +686,22 @@ def _root_statement(conn: sqlite3.Connection, sid: str) -> str:
         seen.add(sid)
 
 
+def uncovered_statements(conn: sqlite3.Connection) -> list[dict]:
+    """
+    The ratified statements that no item reflects, as id and text.
+
+    A follow-up and the statement it says again are one request, so an item
+    that cites either covers both. The sign-off listed s5 as uncovered while
+    the version item cited s3 (the review of 61a0f41d, finding 3).
+    """
+    cited = {_root_statement(conn, r["target"]) for r in conn.execute(
+        "SELECT DISTINCT target FROM refs WHERE src_table = 'items' "
+        "AND kind = 'statement'")}
+    return [{"id": r["id"], "text": r["text"]} for r in conn.execute(
+        "SELECT id, text FROM statements WHERE status = 'ratified' ORDER BY id")
+        if _root_statement(conn, r["id"]) not in cited]
+
+
 def request_of(conn: sqlite3.Connection, item: str) -> str | None:
     """The entry of the request an item belongs to, or None when the item
     cites no statement, such as the account or an observed behaviour."""
@@ -811,6 +831,7 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
     stays, so a ruling closes it. The send door drops the same rows, so a
     page's refs and its numbered rows are one set.
     """
+    from ..core.runner import _is_description
     from ..core.scheduler import aside_items
 
     aside = aside_items(conn)
@@ -829,6 +850,12 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
             out.add(ref)
             continue
         if req is None:
+            continue
+        # The account belongs to no request, whatever statement it cites.
+        # Night 133's m283 dropped `defines_commands_and_options`, which
+        # cites s1, and each sign-off submitted it again (the review of
+        # 61a0f41d, finding 2).
+        if all(_is_description(conn, i) for i in items):
             continue
         others = [request_of(conn, i) for i in items]
         if not all(e is not None and e != req for e in others):

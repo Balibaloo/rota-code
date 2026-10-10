@@ -2410,11 +2410,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 "SELECT verb FROM messages WHERE id = ?",
                 (ctx.trigger,)).fetchone()
             if row is not None and row["verb"] == "submit":
-                uncovered = [r["id"] for r in ctx.conn.execute(
-                    "SELECT id FROM statements WHERE status = 'ratified' "
-                    "AND id NOT IN (SELECT target FROM refs "
-                    "               WHERE src_table = 'items' AND kind = 'statement') "
-                    "ORDER BY id")]
+                from ..roles.principal import uncovered_statements
+
+                uncovered = [r["id"] for r in uncovered_statements(ctx.conn)]
                 refs += [r for r in uncovered if r not in refs]
                 # And the lineage's open assumptions, by the same rule and
                 # law 8's own sentence: "a lineage's open assumptions are

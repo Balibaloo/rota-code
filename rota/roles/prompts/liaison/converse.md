@@ -67,9 +67,11 @@ where *they* would recognise a cut.
 - "hello!", "how's it going?", "thanks" are **not** statements. They ask for
   nothing.
 
-The wake carries `current_request` only when the principal has a request on the
-page. When the new words change or add to that request, set `supersedes` to the
-statement id that `current_request` names. When the wake has no
+The wake carries `current_request` only when the principal's newest request has a
+ratified statement. When the new words change or add to that request, set
+`supersedes` to the statement id that `current_request` names. Words about
+another thing are a new request and take no `supersedes`: "also add a --color
+flag" after a request about `version_option` is new. When the wake has no
 `current_request`, leave `supersedes` out.
 
 **The three are mutually exclusive.** Send one `msg.clarify_principal`, or the
