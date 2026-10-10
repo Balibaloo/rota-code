@@ -1948,8 +1948,12 @@ def resume_behind(conn: sqlite3.Connection) -> int:
         # Only work the request asked for decides it. Night 133's account
         # item cites s1, is never delivered, and held every resume at 0 (the
         # review of 61a0f41d, finding 1).
+        # A description is no item of the request: one that cites the new
+        # statement ended the park before the work items existed (the
+        # review of a1bd448f, finding 1).
         cited = [r for r in conn.execute(
-                     "SELECT id, kind, is_description FROM items")
+                     "SELECT id, kind, is_description FROM items "
+                     "WHERE is_description = 0")
                  if request_of(conn, r["id"]) in entries]
         mine = [r["id"] for r in cited
                 if r["kind"] == "in_scope" and not r["is_description"]]
