@@ -61,6 +61,37 @@
     writes: [statements, items, decisions, ledger]
     recipients: [vision_keeper, terminologist, architect, principal]
 
+# Night 137's s159 wrote `drop` on seven lines of m62, and the door refused
+# the word. The words door stores drop as contest (frame 193's design, 2.5).
+- id: L1-LI-a-dropped-line-is-a-contest
+  tier: T1
+  role: liaison
+  prompt: landing
+  runs: 5
+  pass: 4
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<i1>, <i2>, <l1>], cause: <m_present>,
+            body_text: "please drop line 3, the rest is fine"}
+  fixture:
+    items:
+      - {id: <i1>, text: "The user types the bill and the number of people.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i2>, text: "The software prints each person's share.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+    ledger:
+      - {id: <l1>, about_ref: <i1>, about_table: items, author: vision_keeper,
+         default_taken: "the bill is one number, not a list of dishes"}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<i1>","<i2>","<l1>"]', seq: 1}
+  expect:
+    writes:
+      rulings: {count: 1, text_includes: ['"<l1>": "contest"', '"<i1>": "approve"',
+                                          '"<i2>": "approve"', 'drop line 3']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]
+
 - id: L1-LI-a-correction-in-a-sentence-contests-the-line-it-is-about
   tier: T1
   role: liaison

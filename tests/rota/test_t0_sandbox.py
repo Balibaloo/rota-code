@@ -1224,8 +1224,10 @@ def test_grouping_infers_the_item_the_tickets_share(db):
 
     from rota.core import sandbox as sandbox_mod
 
-    db.execute("INSERT INTO items (id, text, kind) VALUES "
-               "('i1', 'export invoices', 'in_scope')")
+    # The item is approved at its version: the door groups no other item
+    # (frame 193's design, 2.4).
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver) VALUES "
+               "('i1', 'export invoices', 'in_scope', 'approved', 1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                "('tk1', 'i1', 'csv writer'), ('tk2', 'i1', 'download button')")
     sb = sandbox_mod.build("architect", db, session_id="s1")

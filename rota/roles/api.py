@@ -4744,6 +4744,29 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
                 f"the one the tickets already name. Make one batch per item: "
                 f"{split}. Do not invent an item id")
     _must_exist(ctx, "items", item_id)
+    # A batch waits for the principal's approval of the item's current
+    # version, and `cancel` abandons one that lacks it. The grouping wake
+    # leaves such an item out, so this door holds a stale wake or a named
+    # item outside the wake (frame 193's design, 2.4 as amended by 2.F.8).
+    item = ctx.conn.execute("SELECT approval, approval_ver, version FROM items "
+                            "WHERE id = ?", (item_id,)).fetchone()
+    if not (item["approval"] == "approved"
+            and (item["approval_ver"] or 0) >= (item["version"] or 0)):
+        # The sentence names only the wake's tickets that the door would admit.
+        others = [t for t in (ctx.wake_refs or ())
+                  if ctx.conn.execute(
+                      "SELECT 1 FROM tickets t JOIN items i ON i.id = t.item_id "
+                      "WHERE t.id = ? AND t.item_id != ? "
+                      "AND i.approval = 'approved' "
+                      "AND i.approval_ver >= i.version",
+                      (t, item_id)).fetchone()]
+        head = (f"{item_id} is {item['approval']} at version {item['version']}, "
+                f"so no batch can run it.")
+        if others:
+            raise ValueError(
+                f"{head} Group the other tickets of your wake, "
+                f"{', '.join(others)}, and leave {item_id}'s.")
+        raise ValueError(f"{head} Group nothing, and stop.")
     # A batch id is never reused. S0 walk thirty-four: after the cancel, the
     # Architect grouped the same tickets under id="b1" and the upsert
     # resurrected the abandoned batch -- its worktree, its regressed code,
@@ -6979,6 +7002,38 @@ def _is_team_note(conn, ref: str) -> bool:
                for t in ("ledger", "constraints", "glossary_terms", "model_areas"))
 
 
+# The words door: a principal's word that the three ruling words do not hold
+# lands by one named mapping. Night 137's s159 wrote `drop` on seven lines and
+# s291 wrote `ask` on one, and the bare refusal moved neither (frame 193's
+# design, 2.5 as amended by 2.F.5). Pass 1 holds the map of every page but
+# the shift page. A value of None is a question back, refused with its call.
+RULING_WORDS: dict[str, str | None] = {
+    "approve": "approve", "contest": "contest", "revise": "revise",
+    "drop": "contest", "remove": "contest", "strike": "contest",
+    "ask": None, "unclear": None, "question": None,
+}
+
+
+def _ruling_word(key: str, raw) -> str:
+    """The stored ruling for one line's word, or the refusal that names the map."""
+    word = str(raw).strip().lower()
+    first = word.split()[0] if word.split() else word
+    if word not in RULING_WORDS and first in RULING_WORDS:
+        word = first
+    if word in RULING_WORDS and RULING_WORDS[word] is not None:
+        return RULING_WORDS[word]
+    if word in RULING_WORDS:
+        # The door writes no sentence: the Liaison originates the question.
+        raise ValueError(
+            f"line {key}: {word!r} is a question back, and a question is its "
+            f"own call: rulings.rule(ask=\"<one sentence about line {key}>\") "
+            f"with no rulings.")
+    raise ValueError(
+        f"line {key}: {word!r} is not a ruling. Each line takes approve, "
+        f"contest or revise. drop, remove and strike are contest. ask, unclear "
+        f"and question are a question: rulings.rule(ask=...) with no rulings.")
+
+
 @op("rulings", "rule")
 def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                  ask: str = "") -> dict:
@@ -7079,11 +7134,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     per_item: dict[str, str] = {}
     for key, ruling in rulings.items():
         key = str(key).strip()
-        ruling = str(ruling).strip().lower()
-        if ruling not in ("approve", "contest", "revise"):
-            raise ValueError(
-                f"line {key}: {ruling!r} is not a ruling. Each line takes "
-                f"approve, contest or revise")
+        ruling = _ruling_word(key, ruling)
         if order and key.isdigit() and 1 <= int(key) <= len(order):
             per_item[order[int(key) - 1]] = ruling
         elif key in refs:

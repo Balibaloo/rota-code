@@ -530,10 +530,17 @@ def grouping(conn) -> list[Wake]:
     # work (frame 80). The ticket may exist from before the item was described.
     # A retired ticket predates its item's amendment, so its criteria do not
     # hold the principal's words (frame 190's design, 2.F, amendment 4).
+    # A ticket whose item is not approved at its version is not grouped. The
+    # batch would wait behind `next_batch`'s same test, and `cancel` would
+    # abandon it at once. Night 137's s321 grouped a contested item's ticket
+    # twice (frame 193's design, 2.4).
     from .scheduler import not_described, not_retired
     rows = conn.execute(
         "SELECT DISTINCT c.ticket_id AS tid FROM criteria c "
-        "WHERE c.ticket_id NOT IN (SELECT bt.ticket_id FROM batch_tickets bt "
+        "JOIN tickets t ON t.id = c.ticket_id "
+        "JOIN items i ON i.id = t.item_id "
+        "WHERE i.approval = 'approved' AND i.approval_ver >= i.version "
+        "  AND c.ticket_id NOT IN (SELECT bt.ticket_id FROM batch_tickets bt "
         "                          JOIN batches b ON b.id = bt.batch_id "
         "                          WHERE b.status != 'abandoned')"
         + not_described(conn, "c.ticket_id", of="ticket")

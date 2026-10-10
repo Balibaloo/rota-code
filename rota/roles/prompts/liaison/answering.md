@@ -14,8 +14,9 @@ answer the question about that row.
 
 Then call `rulings.rule` once. `rulings` is a map. Each key is a row id from
 `about`. Each value is one word: `approve` where the words settle the row,
-`contest` where the words reject it, `revise` where the words change it. Put
-the principal's words whole in `words`. Send no `ask`: the principal has
+`contest` where the words reject it, `revise` where the words change it. A
+reply that strikes or drops a row from the change is `contest`. drop, remove
+and strike are read as contest. Put the principal's words whole in `words`. Send no `ask`: the principal has
 answered, and an `ask` here returns their own question to them.
 
     rulings.rule(rulings={"c_1f2e": "approve"}, words="<their words, whole>")

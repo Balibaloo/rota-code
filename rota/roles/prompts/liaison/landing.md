@@ -33,6 +33,8 @@ Otherwise the reply is a ruling. Read each numbered line against it:
   printing.
 - The reply says the line is right in substance and asks for other words:
   `revise`.
+- The reply strikes or drops a line from the change: `contest`. drop, remove
+  and strike are read as contest.
 
 A correction counts against the line it is about, and only that line. Every
 line gets a ruling.
