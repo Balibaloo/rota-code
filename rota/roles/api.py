@@ -754,11 +754,17 @@ def brief_intake(ctx: Ctx, verdict: str) -> dict:
 
 
 # English function words that two unrelated requests share often (frame
-# 193's design, 2.G.5).
+# 193's design, 2.G.5). The second group is common feature nouns: the
+# confirm request and the version_option request share "flag", and the door
+# admitted that pair on nights 133, 136 and 137 (the review of a9de65d5,
+# finding 2).
 SUPERSEDES_STOPLIST = frozenset((
     "that this with when then also into from have make take give should "
     "would there their which where what does them they only just like same "
-    "next more than some each every over after before instead please").split())
+    "next more than some each every over after before instead please "
+    "flag option options helper function change changes request message "
+    "output value values default command line lines user users file files"
+).split())
 
 
 def _content_words(text: str) -> set[str]:
@@ -891,12 +897,43 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     # the row's status. A clarify that named the row id made night 135's
     # s209 ask the principal about "the row with id 's1'", which the
     # principal cannot see (frame 142, night 135's read, fix 1).
+    #
+    # Segmenting is not interpreting, and the span is what makes that checkable.
+    # A statement whose text is not in the entry is one the principal never
+    # said -- a live run produced "and also fix the login timeout" against a
+    # sentence about SSO and LDAP. The span was always the way back to their
+    # words; nothing had ever looked through it.
+    #
+    # It runs first. Words of another entry are not said again here, and the
+    # words check below named a confirm of the earlier statement that the
+    # confirm door then refused. That was the s270 case's red run (frame 193,
+    # the review of a9de65d5, finding 1).
+    row = ctx.conn.execute(
+        "SELECT text FROM entries WHERE id = ?", (target,)).fetchone()
+    if row is not None and text.strip() and text.strip() not in row["text"]:
+        raise ValueError(
+            f"{text.strip()[:60]!r} does not appear in the entry you are "
+            f"segmenting. A statement is a span of what they said, so its text "
+            f"has to be their words -- the entry reads: {row['text'][:120]!r}")
     said = _said(text)
+    own = getattr(ctx, "entry_id", None)
+    own_row = ctx.conn.execute("SELECT text FROM entries WHERE id = ?",
+                               (own,)).fetchone() if own else None
     if said:
         for s in ctx.conn.execute("SELECT id, text, status FROM statements "
                                   "WHERE status != 'superseded' ORDER BY rowid"):
             if _said(s["text"]) != said:
                 continue
+            # Words the trigger entry does not hold are not said again. The
+            # s270 case's seat named the earlier entry as span_entry, read
+            # "Cite s1", and the confirm door then refused the confirm of s1
+            # (the review of a9de65d5, finding 1, the re-record of pass 3c).
+            if (own_row is not None and own != target
+                    and said not in _said(own_row["text"])):
+                raise ValueError(
+                    f"these words are {s['id']}, from another entry. The words "
+                    f"that woke you are `{own}`. Segment them, and confirm that "
+                    f"statement")
             if s["status"] == "ratified":
                 raise ValueError(
                     f"these words are {s['id']}, which the principal ratified. "
@@ -949,14 +986,6 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     # said -- a live run produced "and also fix the login timeout" against a
     # sentence about SSO and LDAP. The span was always the way back to their
     # words; nothing had ever looked through it.
-    row = ctx.conn.execute(
-        "SELECT text FROM entries WHERE id = ?", (target,)).fetchone()
-    if row is not None and text.strip() and text.strip() not in row["text"]:
-        raise ValueError(
-            f"{text.strip()[:60]!r} does not appear in the entry you are "
-            f"segmenting. A statement is a span of what they said, so its text "
-            f"has to be their words -- the entry reads: {row['text'][:120]!r}")
-
     ctx.writes.append(("statements", id, {
         "span_entry": target, "span_start": span_start,
         "span_end": span_end, "text": text, "status": "proposed",
@@ -984,7 +1013,9 @@ def brief_ratify(ctx: Ctx, id: str) -> dict:
     # ratified the contested s1 and delivered it (frame 193's design, 2.G.3).
     from .principal import contested_statement
 
-    ruling = contested_statement(ctx.conn, id)
+    # The confirm pages alone, as the wake reads them (the review of
+    # a9de65d5, finding 3).
+    ruling = contested_statement(ctx.conn, id, confirm_only=True)
     if ruling:
         raise ValueError(contested_refusal(id, ruling))
     ctx.writes.append(("statements", id, {"status": "ratified"}, False))

@@ -1781,20 +1781,29 @@ def _refuse_confirm_off_entry(ctx: api.Ctx, refs: list, staged: set) -> None:
     said = ctx.conn.execute("SELECT text FROM entries WHERE id = ?",
                             (entry,)).fetchone()
     words = " ".join(((said["text"] if said else "") or "").split()).casefold()
+    # Words said again are the earlier statement's words. When the trigger
+    # entry holds them, the segment door refuses them and names this confirm,
+    # so this door admits it. Every ref from another entry must be said again,
+    # as whole words (the review of a9de65d5, finding 4).
     for ref in refs:
         if ref in staged:
             # A staged statement of this entry returned above, so this one
             # spans another entry.
-            continue
-        stmt = ctx.conn.execute("SELECT span_entry, text FROM statements WHERE id = ?",
-                                (ref,)).fetchone()
-        if stmt is None or stmt["span_entry"] == entry:
-            return
-        # Words said again are the earlier statement's words. The segment
-        # door refuses them and names this confirm, so this door admits it.
-        text = " ".join((stmt["text"] or "").split()).casefold()
-        if text and text in words:
-            return
+            text = next((w[2].get("text") or "" for w in ctx.writes
+                         if w[0] == "statements" and w[1] == ref
+                         and len(w) > 2 and isinstance(w[2], dict)), "")
+        else:
+            stmt = ctx.conn.execute(
+                "SELECT span_entry, text FROM statements WHERE id = ?",
+                (ref,)).fetchone()
+            if stmt is None or stmt["span_entry"] == entry:
+                continue
+            text = stmt["text"] or ""
+        text = " ".join(text.split()).casefold()
+        if not text or not re.search(rf"(?<!\w){re.escape(text)}(?!\w)", words):
+            break
+    else:
+        return
     raise ValueError(
         f"The words that woke you, `{entry}`, have no statement. Segment them "
         f"with `brief.segment` and confirm that statement. If they ask for "
@@ -2728,8 +2737,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         if verb == "deliver" and ctx.role == "liaison":
             from ..roles.principal import contested_statement
 
+            # The confirm pages alone, as the wake reads them. A clarify's
+            # approve lifted the doors and left the wake hidden (the review
+            # of a9de65d5, finding 3).
             for ref in refs or ():
-                ruling = contested_statement(ctx.conn, ref)
+                ruling = contested_statement(ctx.conn, ref, confirm_only=True)
                 if ruling:
                     raise ValueError(api.contested_refusal(ref, ruling))
 

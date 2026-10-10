@@ -1274,6 +1274,7 @@ door on one call does not stop the next call.
   one in silence, and the mechanism never runs. Roman's ruling of 04:33
   prefers the question (reasoned). This reverses the "left out" line
   above for this door, on the measurement.
+  Pass 3c: the stoplist also holds flag, option, options, helper, function, change, changes, request, message, output, value, values, default, command, line, lines, user, users, file, files, and no second rule is needed: 0 wrong admits of 10 pairs on nights 133 to 138 (3 before, all on "flag"), the night 138 pair refused, the brief's follow-up pair admitted on "show" and "version" (observed: the reviewer's probe, 2026-10-10).
 
 - **2.G.6 The deliver door in verdict mode.** `msg.deliver_vision_keeper`,
   `msg.deliver_terminologist` and `msg.deliver_architect` refuse a

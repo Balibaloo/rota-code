@@ -166,7 +166,66 @@ def test_words_said_again_confirm_the_earlier_statement(db):
     db.commit()
     sb = _sandbox(db, "converse", "m_p2", "e_p2")
     sb.call("brief.intake", verdict="work")
+    with pytest.raises(ValueError) as err:
+        sb.call("brief.segment", id="s2", span_start=0, span_end=len(S1), text=S1)
+    assert str(err.value) == ("these words are s1, which waits for the principal. "
+                              "Send msg.confirm_principal(refs=['s1'])")
     sb.call("msg.confirm_principal", refs=["s1"])
+    assert len(sb.ctx.outbound) == 1
+
+
+def test_words_of_another_entry_are_not_said_again(db):
+    """s270's shape: the earlier statement's words are not in the trigger
+    entry, so the segment door names the entry and never the confirm that
+    the confirm door would refuse (the review of a9de65d5, finding 1)."""
+    _night138(db, upto="m_p2")
+    db.execute("UPDATE statements SET status = 'proposed' WHERE id = 's1'")
+    db.commit()
+    sb = _sandbox(db, "converse", "m_p2", "e_p2")
+    sb.call("brief.intake", verdict="work")
+    with pytest.raises(ValueError) as err:
+        sb.call("brief.segment", id="s2", span_start=0, span_end=len(S1), text=S1)
+    assert "does not appear in the entry you are segmenting" in str(err.value)
+    assert "msg.confirm_principal" not in str(err.value)
+
+
+def test_the_earlier_entrys_words_point_back_to_the_trigger_entry(db):
+    """The pass 3c re-record: the seat segmented s1's words with span_entry set
+    to the earlier entry. The refusal names the entry that woke it and no
+    confirm of s1."""
+    _night138(db, upto="m_p2")
+    sb = _sandbox(db, "converse", "m_p2", "e_p2")
+    sb.call("brief.intake", verdict="work")
+    with pytest.raises(ValueError) as err:
+        sb.call("brief.segment", id="s1", span_start=0, span_end=len(S1), text=S1,
+                span_entry="e_p1", supersedes="s1")
+    assert str(err.value) == ("these words are s1, from another entry. The words "
+                              "that woke you are `e_p2`. Segment them, and confirm "
+                              "that statement")
+
+
+def test_every_ref_from_another_entry_must_be_said_again(db):
+    """One ref said again does not carry a second one that was not, and a
+    statement inside a longer word is not said again (finding 4)."""
+    _night138(db, upto="m_p2")
+    db.execute("UPDATE entries SET text = ? WHERE id = 'e_p2'", (S1,))
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+               "status) VALUES ('s0', 'e_p1', 0, 4, 'echo', 'proposed')")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES ('e_p0', "
+               "'principal', 'Add a json helper.', 1)")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+               "status) VALUES ('s5', 'e_p0', 0, 18, 'Add a json helper.', 'proposed')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+               "status) VALUES ('s6', 'e_p0', 0, 3, 'echo_', 'proposed')")
+    db.commit()
+    sb = _sandbox(db, "converse", "m_p2", "e_p2")
+    sb.call("brief.intake", verdict="work")
+    with pytest.raises(ValueError, match="have no statement"):
+        sb.call("msg.confirm_principal", refs=["s1", "s5"])
+    # "echo_" sits inside "echo_json", so it is no whole word of the entry.
+    with pytest.raises(ValueError, match="have no statement"):
+        sb.call("msg.confirm_principal", refs=["s6"])
+    sb.call("msg.confirm_principal", refs=["s1", "s0"])
     assert len(sb.ctx.outbound) == 1
 
 
@@ -185,14 +244,41 @@ def test_s273s_ratify_of_the_contested_statement_is_refused(db):
 
 
 def test_a_newer_approve_lifts_the_contest(db):
+    """An approve on a later confirm page lifts the doors and offers the wake
+    the statement again."""
     _night138(db, upto="m139")
-    db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
-               "('r_later', 'm135', '{\"s1\": \"approve\"}', 'ok', 'landed')")
+    _msg(db, "m300", 300, "liaison", "principal", "confirm", ["s1"], cause="m_p2")
+    _msg(db, "m301", 301, "principal", "liaison", "converse", ["s1"], cause="m300")
+    _msg(db, "m302", 302, "principal", "liaison", "verdict", ["s1"], cause="m300",
+         status="open")
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status, "
+               "verdict_id) VALUES ('r_ok', 'm300', 'm301', '{\"s1\": \"approve\"}', "
+               "'ok', 'landed', 'm302')")
     db.commit()
-    assert contested_statement(db, "s1") is None
-    sb = _sandbox(db, "verdict", "m139", None)
+    assert ratified_request(db, before_seq=301) is None
+    assert ratified_request(db, before_seq=400)["statements"] == ["s1"]
+    sb = _sandbox(db, "verdict", "m302", None)
     sb.call("brief.ratify", id="s1")
+    sb.call("msg.deliver_vision_keeper", refs=["s1"])
     assert [w[1] for w in sb.ctx.writes] == ["s1"]
+    assert len(sb.ctx.outbound) == 1
+
+
+def test_an_approve_off_a_confirm_page_lifts_nothing(db):
+    """The doors read the confirm pages, as the wake does. A clarify's approve
+    after the contest leaves all three refusing (finding 3)."""
+    _night138(db, upto="m139")
+    _msg(db, "m400", 400, "liaison", "principal", "clarify", ["s1"])
+    _msg(db, "m401", 401, "principal", "liaison", "converse", ["s1"], cause="m400")
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status) "
+               "VALUES ('r_cl', 'm400', 'm401', '{\"s1\": \"approve\"}', 'no', 'landed')")
+    db.commit()
+    assert ratified_request(db, before_seq=500) is None
+    sb = _sandbox(db, "verdict", "m139", None)
+    with pytest.raises(ValueError, match=CONTEST):
+        sb.call("brief.ratify", id="s1")
+    with pytest.raises(ValueError, match=CONTEST):
+        sb.call("msg.deliver_vision_keeper", refs=["s1"])
 
 
 def test_the_verdict_brief_has_the_contest_branch():
@@ -295,8 +381,11 @@ def test_content_words_split_on_underscore_and_drop_the_stoplist():
     from rota.roles.api import _content_words
 
     assert _content_words("Give version_option a show_python flag") == {
-        "version", "option", "show", "python", "flag"}
+        "version", "show", "python"}
     assert _content_words("also take that instead, please") == set()
+    # The confirm request and the version_option request share only "flag",
+    # a feature noun on the stoplist (the review of a9de65d5, finding 2).
+    assert not _content_words(P2) & _content_words(P3)
 
 
 # 2.G.6: the deliver door in verdict mode.
