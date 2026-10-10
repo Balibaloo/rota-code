@@ -812,6 +812,8 @@ the review's finding 6). Neither night 133 nor night 137 sent an uncaused
 follow-up, so no real turn tests it, and the test is the inline case of
 2.F.10.
 
+**Amended at pass 2c, 2026-10-10** (observed: the diff review of 61a0f41d, probe `p7_segment.py`): the ratification writes no `clarified` row. With the older statement `clarified`, `open_requests` lost the current item and the new statement read as uncovered. The older statement stays `ratified`, and `uncovered_statements` follows `supersedes` to the root, so an item that cites either statement covers both. No writer of `clarified` is left. Meta workflow.
+
 #### 2.F.7 Change 2.3, amended
 
 - `request_rows` and `render_page` keep 2.3's rule, one request per page,
