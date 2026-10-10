@@ -235,6 +235,7 @@ a different question and the night is then opened once.
 - Reasoning: the gate's own lines, and `plans/operating-facts.md`'s gate section.
 - Status 2026-10-11 00:40 (rota-06): pushed by 4b501a17 on Roman's sprint order. Roman's sprint order, ruled 2026-10-11 00:40 ("ok" to the proposal in the terminal): frame 199, the gate's baseline; frame 195, `CliRunner` swallows a `NameError`; frame 200, the build loop design; frames 198, 197 and 169 while frame 200's night runs; frames 185 and 192 close on the counts the nights give. Everything else waits for the sprint after. Meta workflow.
 - Status 2026-10-11 00:41 (rota-06): **handed off by 4b501a17 with the stack, past its line with no frame held, on Roman's ruling of 2026-10-11, "Why would i give it the frame? hand off"** (ruled: Roman, in the terminal). The momentum note is `plans/handoff-4b501a17.md`. The taker starts this frame first by the sprint order. Meta workflow.
+- Status 2026-10-11 00:43 (rota-06): **the hand command posted the claim to 84ce0759, rota-c5, at 00:41:46 and exited 4: the claim waits unread after 90 seconds, and the take never came** (observed: `handover.py hand`, 2026-10-11). The second route was taken once, a message to rota-c5 naming the take command. The claim returns to the queue by itself in 15 minutes, so the frame moves again without a person. Session 4b501a17 stops here. Meta workflow.
 
 ### 198. The agenda tick puts a merged request's open ledger rows on the next request's page (2026-10-11)
 
