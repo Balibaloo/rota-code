@@ -23,9 +23,11 @@ page holds the judgement of this session, 2026-10-09 16:46 to the hand-off.
   frame over that, frame 193, at about 03:30 on 2026-10-10, and approved its
   shape in four plain diagrams at about 03:40: a request is a boundary, the
   grouping gate, the ruling-word door, and frame 190's surfaces unchanged.
-- The design of frame 193 landed on Opus, five changes in two passes. Its
-  design review runs now, seven points, with a transcript read for Roman's
-  words on the two medium questions.
+- The design of frame 193 landed on Opus and its review said do not start:
+  the park by state parked nothing on either night. Roman ruled at 04:33
+  that a request boundary is a blocking question to the principal with the
+  context of the shift, and section 2.F rebuilt the design on that ruling.
+  Pass 1 is small and ready. Pass 2 is the question.
 
 ## What I believe and why
 
@@ -56,22 +58,31 @@ page holds the judgement of this session, 2026-10-09 16:46 to the hand-off.
 
 ## Next, in order
 
-1. Read the design review. Take its fixes into a section 2.F of the design
-   by resuming the design agent, or fold them into pass 1's brief if they
-   are small.
-2. Ask Roman the surviving medium questions by `AskUserQuestion`, rated,
-   one story each. Then pass 1 on a fresh implementer on Opus, changes 2.1
-   to 2.3, cap about 300k, in the main checkout, with the gate unpiped.
-3. One diff review per pass on a worktree. Pass 2 is changes 2.4 and 2.5
-   with the landing and answering cases re-recorded.
-4. The night runs from a worktree at the closing commit. It is the first
-   night with passes 3c to 3e. At every CYCLE line, name the frame the cycle
-   belongs to, and stop the night if it is another frame's wall and the
-   ratios have their shape. Then one read on Opus, frame 193's three ratios
-   first.
+1. Pass 1 of frame 193, small, on a fresh implementer on Opus in the main
+   checkout: change 2.4, the grouping gate with the refusal that names the
+   other tickets, and change 2.5's words door with drop, remove and strike
+   to contest, ask refused with the ask call named, no park, now, drop or
+   resume as stored values yet. Tests on night 137's s321, s159 and s291.
+   The 7 landing cases and the 1 answering case re-record. Gate unpiped.
+   One diff review on a worktree at the commit.
+2. Pass 2, the boundary question: `request_shift`, `_shift_page`, the three
+   answers, `item_parks`, `resume_behind`, `render_state`, the follow-up
+   rule through `brief.segment`'s `supersedes`, `_items_reached`, `i9`, the
+   walk's quiet line, and change 2.3 as amended. Section 2.F names the
+   tests and the re-records. Expect about 300k and a fix pass. The
+   `two_batches` scene must answer `now`.
+3. The last review before the walk, then the night from a worktree at the
+   closing commit, cold, the agent principal on Opus. It is the first night
+   with passes 3c to 3e of frame 190. At every CYCLE line, name the frame
+   the cycle belongs to, and stop the night if it is another frame's wall
+   and the ratios have their shape. Then one read on Opus, frame 193's
+   three ratios first, and frame 190's doors by count as section 2 of the
+   night 137 brief did.
+4. Frames 185, 186 and 192 close or narrow on that read, as the design's
+   table of 2.6 and 2.F says.
 
 ## Live agents
 
-- The design agent of frame 193, resumable for a section 2.F.
-- The design reviewer, probes in this session's scratchpad `r193/`.
+- The design agent of frame 193 wrote section 2.F and is spent at 320k.
+- The design reviewer is spent at 183k, probes in this session's scratchpad `r193/`.
 - The night watcher of this session is dead with the session.

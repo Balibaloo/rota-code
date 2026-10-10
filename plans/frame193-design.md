@@ -612,6 +612,363 @@ one request.
 | 41's wall, a page open at a walk's end | 2.1 | in part: when the next walk carries a new request | a walk that continues the same request. Open question 5.1 on onboarding pages |
 | 184, the ask-back copy | none | none | all |
 
+### 2.F Amendments from Roman's ruling and the design review of 2026-10-10
+
+Roman ruled on 2026-10-10 at 04:33 that a request boundary is a question to
+the principal, not a silent park (ruled: Roman, "Why not ask you blocking
+questions if you're there? There's enough context to explain the shift in
+focus", copied from `plans/stack.md`, frame 193, the status line of 04:33).
+This section replaces change 2.2 whole, the close of change 2.1, the
+waiting line of change 2.3, the words `later` and `reopen` of change 2.5,
+and section 6.
+Where this section and sections 2.1 to 2.5 differ, this section wins. The
+design review on Opus, 2026-10-10 04:24, found 6 high and 6 low. Each
+finding is answered in 2.F.9 (copied: the stack's status line of 04:24, and
+the probes `p0_schema.py` to `p20_reach.py` in the scratchpad folder `r193`
+of session 45fc3fe2, read-only). Rota workflow, except 2.F.10 and 2.F.11,
+which are meta workflow.
+
+#### 2.F.1 The shift question: its wake
+
+**When it fires.** A new predicate `request_shift` in
+`rota/core/predicates.py`, band `traffic`, wakes the Liaison. It fires when
+the current request (2.1, as amended by 2.F.6) has a statement, and an
+**open earlier request** exists: an item that belongs to an earlier request,
+is not delivered, holds no shift ruling for this current request, and is
+`approved`, `contested` or `draft`. Roman's words name approved and
+building, and contested. A draft is included, because a draft earlier item
+is submitted again by `signoff` and reaches the principal in the same way
+(reasoned: `tick_signoff`, `scheduler.py:440-462`, submits every draft).
+One wake per open earlier item, the oldest request first, refs
+`(<A item>, <B statement>)`. The detail carries the facts the page needs, so
+the brief has no lookup to do (2.F.2).
+
+**What it holds while it is open.** A question changes nothing (the
+composition, Flows), so no state moves while the question is open. A's
+approved batch keeps building. The question blocks the principal's view
+only:
+
+1. `pending_asks` (`principal.py:168-185`) returns the open shift question
+   alone while one is open. Every other open ask waits, unchanged and open.
+2. `tick_agenda` (`scheduler.py:967-1034`) and `tick_signoff`
+   (`scheduler.py:440-462`) count an open shift question as an open ask, as
+   today, so neither sends a page beside it.
+3. A's pages sent before B stay `open`. Nothing closes them while the
+   question is open. This replaces 2.1's point 3, the close by `seq`.
+
+2.1's read-time hide by `seq` stays for the step between B's insert and
+B's statement, so the agent principal does not answer m161 first, as on
+night 137 at seq 166 (observed: section 1.1).
+
+#### 2.F.2 The shift question: its page
+
+The page is a present built by the door, as the park page is
+(`_park_page`, `principal.py:695-731`). The Liaison wakes in a new mode,
+`request_shift`, whose `.tools` hold `msg.present_principal` alone. Its
+brief is three sentences: "The principal asked for something new while an
+earlier request is still open. Send one `msg.present_principal` with the
+refs of your wake. The page says the rest." The id is
+`m_shift_<A item>_<B message>`, so the door refuses a second shift page for
+the same pair, as `park_ask_id` does for a park.
+
+`render_page` gains a branch, `_shift_page`, before the touch-note branch.
+For night 137's A, it reads (reasoned: the rows of night 137 at s292's
+commit, section 1.1):
+
+```
+You asked for something new: Give version_option a show_python flag that appends the running Python version to the message.
+Before that you asked for this, and it is not finished:
+  1. Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting.
+     Where it stands: approved. The change batch_1_confirm_eof_default is built, and 3 of its 6 tests fail.
+     What it waits on: one page to you with 13 lines, and 19 notes.
+Choose one for line 1:
+  - later: put it aside until the new request is merged. Nothing more about it reaches you until then.
+  - now: answer its open page first, then the new request.
+  - drop: stop it. Its change is abandoned.
+```
+
+"Where it stands" reads the item's approval, its live batch, the batch's
+head commit, and the newest test run (`_resume_detail`,
+`scheduler.py:420-437`). "What it waits on" counts A's open asks, read
+with the hold of 2.F.1, and A's open ledger rows, through `_items_reached`
+with the prefix fix of 2.F.9, finding 7.
+
+#### 2.F.3 The three answers, as rulings, and what each writes
+
+The shift page has one numbered line, the A item. It takes one of three
+words. The words door of 2.5 maps them on this page alone:
+
+| The principal's word | Stored as | What `land` writes |
+|---|---|---|
+| later, separate, park, aside, behind | `park` | one `item_parks` row `park`, by `principal`, cause the verdict. A's held asks stay open and held (2.F.4) |
+| now, answer, first | `now` | one `item_parks` row `now`. The hold of A's open asks ends, and `pending_asks` shows them before B's asks, by `seq` |
+| drop, remove, stop | `drop` | one `item_parks` row `drop`. Every open ask of A closes, each with the config row `closed:<message>` = the verdict id. A's open ledger rows close as overruled, with the principal's words, by the existing ledger branch of `land` (`principal.py:1247-1284`) |
+
+- `approve`, `contest` and `revise` on the shift line are refused: "line 1
+  takes later, now or drop: the question is which request goes first, and
+  nothing about the request itself changes here."
+- None of the three writes `items`. A `drop` makes the item unschedulable
+  through the readers of 2.F.4, so `cancel` abandons A's live batch: `cancel`
+  (`predicates.py:1339-1362`) adds `OR` the item's newest `item_parks` row is
+  `drop`. Law 9's cascade then runs as for any revocation.
+- The verdict carries no ref of the shift line, so no relay wakes a seat.
+  A shift page ruled whole closes and wakes nobody, as an all-approve page
+  does today.
+- 2.2's park by state is gone. No row `by = 'request'` is written at a
+  boundary. A is never parked without the principal's word (ruled: Roman,
+  2026-10-10 04:33).
+
+#### 2.F.4 The park, and its way back
+
+**While A is parked.** `item_parks` (2.2 point 1) stays as the record, with
+kinds `park`, `now`, `drop` and `resume`. The readers of 2.2 point 4 read
+the newest row, and skip an item whose newest row is `park` or `drop`:
+`contested`, `tick_signoff`, `tick_slicing`, `tick_criteria`, `grouping`,
+`next_batch`, `park_ask`, `touch_note` and `quarantined`. `preempt` defers a
+running batch whose item is parked, through `do:preempt`. A's open asks stay
+`open` and `pending_asks` holds them: an open ask whose refs reach only a
+parked item is not returned, and `tick_agenda` and `tick_signoff` do not
+count it as open (2.F.9, finding 5 and finding 8).
+
+**The way back, by itself.** "Later" means behind the current request. A
+new function, `scheduler.resume_behind(conn)`, runs in `frontier` beside
+`close_stale_park_asks`. When the request that the park named as current
+is delivered, its items at their `delivered:` version, or dropped, it
+writes one `item_parks` row `resume`, `by = 'request'`, cause that
+request's message. The parked item then reads as it did before the park:
+its held asks return to `pending_asks`, and its work wakes again. Its rows
+are written by `resume_behind` alone, and `land` writes the principal's
+rows, so each row has one writer.
+
+**The way back, by the principal.** The word `resume` on a line of a parked
+item, through 2.F.5's list, or a later shift page. `reopen` is not a stored
+value and not a mapped word (2.F.9, finding 10).
+
+**`render_state`** (`principal.py:201`) gains one block, "Waiting behind
+<B's statement>:", one line per parked item: its text, its open asks, its
+open notes, and "It comes back when that request is merged, or say resume."
+A dropped item has one line under "Dropped:".
+
+**The walk's quiet end.** A walk that goes quiet while an item is parked and
+its current request is neither delivered nor dropped prints one line, for
+the read, from `probes/walk.py`'s quiet branch: "QUIET with waiting: <item>,
+behind <B>". Meta workflow. On a quiet with B delivered, `resume_behind` has
+already resumed A, so the loop is not quiet.
+
+#### 2.F.5 The words door, amended
+
+The map of 2.5 point 1 becomes two maps, and pass 1 ships the first alone:
+
+| Page | Words | Stored as |
+|---|---|---|
+| any page but the shift page | approve, contest, revise | the word |
+| any page but the shift page | drop, remove, strike | `contest` |
+| any page but the shift page | ask, unclear, question | refused, with `rulings.rule(ask=...)` named |
+| any page but the shift page | resume | `resume`, on a parked item's line only (pass 2) |
+| the shift page | later, separate, park, aside, behind / now, answer, first / drop, remove, stop | `park` / `now` / `drop` (pass 2) |
+
+- `later` and `separate` leave the general map. A put-off request is now
+  the shift question's, which names the item and the request it waits
+  behind. On a page of the current request, a line about an earlier
+  request does not exist after 2.3, so the word has no line to land on.
+- On an earlier request's own page after the shift question, which the
+  principal sees only after `now` or a `resume`, `drop` and `remove` on a
+  line contest that line, because the principal chose to work on that
+  request. Night 133's eight answers that hold "separate request" and
+  "drop" in one sentence all fall on pages of a request the principal had
+  moved past (copied: the review's `p10_words.out` and `p11_words2.out`).
+  After 2.F.1, those pages are held behind the shift question, so the
+  sentence reaches the shift page, where `drop` means drop the request and
+  `separate` means later. The Liaison's `landing.md` gains one bullet for
+  the shift page: "The page asks which request goes first. A reply that
+  says the earlier one is separate or for later is `later`, even when it
+  also says drop it from this change."
+- The unknown-word refusal names the map of the page it is on.
+
+#### 2.F.6 The follow-up on the same request is no boundary
+
+A principal `converse` with no cause and a statement is a boundary only
+when one of its statements is a new request. A statement that supersedes a
+statement of the current request, or clarifies one, is a follow-up.
+
+1. `brief.segment` (`api.py`, the `brief_segment` op) gains an optional
+   argument, `supersedes`, a statement id. The door admits only a ratified
+   statement of the current request, and writes the column
+   `statements.supersedes`, which exists and has no writer today (observed:
+   `grep supersedes rota`, 2026-10-10). The ratification sets the older
+   statement `clarified`, a status the schema already holds.
+2. `current_request` (2.1) skips a request whose every statement has
+   `supersedes`. So a follow-up keeps the current request, and its pages
+   stay.
+3. `converse.md` gains one paragraph after "Work only when obvious": "When
+   the words change or add to the request on the principal's current page,
+   segment them with `supersedes` set to that request's statement. That is
+   the same request, said again." The working set of a `converse` wake
+   gains `current_request`, the statement id and text, so the seat has the
+   id to copy.
+
+The review read this as a risk on any night with a follow-up (reasoned:
+the review's finding 6). Neither night 133 nor night 137 sent an uncaused
+follow-up, so no real turn tests it, and the test is the inline case of
+2.F.10.
+
+#### 2.F.7 Change 2.3, amended
+
+- `request_rows` and `render_page` keep 2.3's rule, one request per page,
+  with two changes. A parked or dropped item has no line on any page but
+  its own shift page. The waiting line of 2.3 point 4 goes, because
+  `render_state` carries the way back (2.F.4) and the shift page carries the
+  choice.
+- **No ref rides a page unnumbered.** The send door `_bind_send.stage`
+  (`sandbox.py:2436-2462`) removes from a present's refs every row that
+  `render_page` would drop, before it writes the message. So the message's
+  refs and the page's numbered rows are the same set, and a ruling of the
+  page closes each row it holds. A row that is dropped stays `open` and
+  countable on `render_state`.
+- **A delivered earlier item's notes.** 2.3 point 3 dropped a row that
+  reaches a delivered item of an earlier request. That rule goes. Such a
+  row, night 137's six `echo_json` rows, renders under the team's notes as
+  any note does, and a ruling closes it (2.F.9, finding 4). The delivered
+  item's own line still does not render on another request's page.
+
+#### 2.F.8 Change 2.4, amended
+
+`batches_group` refuses only the item that is not approved at its version,
+and names the tickets of the wake that it would admit: "<item> is
+<approval> at version <v>, so no batch can run it. Group the other tickets
+of your wake, <tickets>, and leave <item>'s." With no other ticket, the
+sentence ends "Group nothing, and stop." The predicate of 2.4 point 1
+already leaves an unapproved item's tickets out of the wake, so the refusal
+fires only for a stale wake or a named item outside it.
+
+#### 2.F.9 The review's twelve findings, and the answers
+
+| # | Finding | Rating | The answer |
+|---|---|---|---|
+| 1 | The boundary park reads contested or draft alone. On both nights the earlier item was `approved` when the new request landed, s224 on night 137 and s365 on night 133, so 2.2 parks nothing and the confirm pages still reach the principal | high | Dissolved by the ruling. The shift question fires for an approved, contested or draft earlier item (2.F.1), and A's pages are held until the principal answers |
+| 2 | After m161 closes, 19 open ledger rows reach the confirm item, and the agenda makes up to 3 confirm pages whose contest lands on the confirm item again | high | No close by `seq` (2.F.1). While the question is open and after `later`, `tick_agenda` skips a row that reaches only a held or parked item (2.F.4). After `drop`, `land` closes the 19 rows as overruled (2.F.3). After `now`, the rows are A's own and land on A's page |
+| 3 | Night 133 has 8 answers with "separate request" and "drop" in one sentence, so `drop` to contest on a moved-past request's line lands frame 185's contest with no refusal | high | Those pages are held behind the shift question, and on the shift page `drop` drops the request and `separate` is `later`, with one `landing.md` bullet that ranks `later` first (2.F.5) |
+| 4 | Six `echo_json` rows reach a delivered item. 2.3 drops them from the render, no ruling closes them, and they ride every agenda page | high | 2.3's drop of a delivered item's rows goes, and the door keeps a page's refs equal to its numbered rows (2.F.7, `_bind_send.stage`) |
+| 5 | A closed park note reads as rested, so the park ask never asks again | high | Nothing closes A's park ask on `later`: it stays open and held, `park_message_rests` (`scheduler.py:1603-1624`) reads it as open, and it shows again on `resume`. On `drop`, `cancel` abandons the batch and `close_stale_park_asks` closes the ask, as for any abandoned batch (2.F.4) |
+| 6 | Any uncaused converse with a statement is a boundary, so a follow-up on the same request closes its own pages | high | A statement with `supersedes` is a follow-up, and `current_request` skips it (2.F.6, `brief_segment`, `converse.md`) |
+| 7 | `_items_reached` misses an `items:` prefix | low | `_items_reached` (`principal.py:455-476`) strips a leading `<table>:` before its lookups. On night 137, `challenge_items_confirm_with_default_on_eof` has `about_ref` `items:confirm_with_default_on_eof` and reaches nothing today (observed: the review's `p20_reach.py`, 2026-10-10) |
+| 8 | The close status `answered` trips invariant I9 | low | Only `drop` closes asks now, and it writes `closed:<message>` with the verdict id. `i9` (`rota/tools/invariants.py:221-248`) skips a message with a `closed:` row, beside its three kinds answered by design. A held ask stays open, so I9 does not read it |
+| 9 | No page lists a parked item after the current request merges | low | `resume_behind` resumes it when the current request is delivered, and `render_state` lists it while it waits (2.F.4) |
+| 10 | `reopen` on night 136 means the opposite three times | low | `reopen` is neither a stored value nor a mapped word. The way back is `resume`, or the automatic resume (2.F.4, 2.F.5) |
+| 11 | The grouping refusal can end a session that holds a legitimate ticket | low | The refusal names the admissible tickets of the wake and asks the seat to group them (2.F.8) |
+| 12 | The price is about 2.5M and not 1.5M | low | Taken (2.F.11) |
+
+Point 6 of the review held both recommended answers of section 5 against
+Roman's transcripts (copied: the stack's status line of 04:24). Open
+question 1 stands as written, with one change: under 2.F.1 an onboarding
+page is held only when it reaches an open earlier request, so the question
+is about the onboarding page alone. Open question 2 is answered by 2.F.4.
+Open question 3 is gone, because the waiting line is gone.
+
+#### 2.F.10 The passes, and the tests on real turns
+
+**Pass 1, small: change 2.4 with 2.F.8, and the words door of 2.F.5 for
+pages other than the shift page, without `park`, `now`, `drop` or `resume`
+as stored values.** Files: `rota/core/predicates.py` (`grouping`),
+`rota/roles/api.py` (`RULING_WORDS`, `rulings_rule`, `batches_group`), the
+two briefs `liaison/landing.md` and `liaison/answering.md` with the `drop`
+and `ask` lines only, and the tests. Tests on real turns:
+
+- night 137, s321's dispatch and call: `grouping` returns no wake on the
+  contested confirm ticket, and the call is refused with the sentence of
+  2.F.8 (2.4's test);
+- night 137, s159 on m63: `drop` on lines 2 to 8 lands as `contest`;
+- night 137, s291 on m162: `ask` on line 8 is refused with the call named,
+  and the named call is admitted.
+
+Re-records: the 7 `l1_landing.yaml` cases and
+`L1-LI-a-reply-reaches-the-desk-that-asked`, because the briefs change. One
+new case, `L1-LI-a-dropped-line-is-a-contest`, at 5 runs. The gate's stale
+line decides the rest.
+
+**Pass 2: the shift question and its three answers, with 2.1's hide, 2.3
+as amended by 2.F.7, 2.F.4, 2.F.6 and the findings 7 and 8.** Files:
+`rota/core/predicates.py` (`request_shift`, `contested`, `park_ask`,
+`touch_note`, `quarantined`, `preempt`, `cancel`), `rota/core/scheduler.py`
+(`not_parked`, `resume_behind`, `frontier`, `tick_signoff`, `tick_slicing`,
+`tick_criteria`, `next_batch`, `tick_agenda`), `rota/roles/principal.py`
+(`current_request`, `page_request`, `pending_asks`, `request_rows`,
+`render_page` with `_shift_page`, `render_state`, `_items_reached`,
+`land`), `rota/core/sandbox.py` (`_bind_send.stage`, the shift page's id),
+`rota/roles/api.py` (`brief_segment`, the shift map in `rulings_rule`),
+`rota/core/runner.py` (`_mode_key` for `request_shift`, the `converse`
+working set), `rota/core/schema.sql` (`item_parks`),
+`rota/tools/invariants.py` (`i9`), the briefs
+`liaison/request_shift.md` and `.tools`, `liaison/converse.md` and
+`liaison/landing.md`, and `probes/walk.py`'s quiet line. Tests on real
+turns:
+
+- night 137, s292 to s299: rebuild inline the rows at s292's commit, m161
+  open at seq 163, m_p3 answered with s3 `proposed`, the confirm item
+  `approved` at version 1 with `batch_1_confirm_eof_default` built to
+  34a5e21, and the 7 rows of m161. `request_shift` returns one wake on the
+  confirm item. The door's page reads as 2.F.2. `pending_asks` returns the
+  shift page alone. The ruling `{"1": "later"}` with m163's words writes
+  one `item_parks` row `park`, and the confirm item stays `approved`.
+  `pending_asks` then returns m164 and not m161, `tick_agenda` picks none
+  of m161's rows, and s299's map of 13 contests on m161 is never asked
+  for. A second case rules `drop`: m161 closes with `closed:m161`, the 7
+  rows close as overruled, `cancel` abandons the batch, and `i9` reads no
+  finding on m161. A third case rules `now`: m161 returns before m164;
+- night 137, after the park of the first case: `version_option_show_python`
+  delivered, and `resume_behind` writes `resume`, and m161 returns;
+- night 133, s383's commit: rebuild inline m_p3 at seq 258, s3, the confirm
+  item `approved` as s365 left it, its ticket, and the version item.
+  `request_shift` returns one wake on `confirm_default_on_eof`. After the
+  ruling `later`, `grouping` offers `tk_1_version_option_show_python` alone,
+  which is s477's shape without the confirm ticket;
+- night 137, m192's refs with the confirm item parked: no confirm line,
+  `echo_json` not numbered as a request line, and the door's refs equal
+  the numbered rows (2.F.7);
+- night 137, `challenge_items_confirm_with_default_on_eof`:
+  `_items_reached` returns the confirm item;
+- an inline follow-up, not a night turn: a second uncaused converse whose
+  statement supersedes s3 is no boundary, and `request_shift` does not
+  fire.
+
+Re-records: every case whose prompt is `converse.md`, in
+`g1_segments.yaml`, `l1_liaison.yaml` and `l3_handoffs.yaml`, because
+`converse.md` changes and its working set gains `current_request`; the 7
+landing cases again, for the shift bullet. Two new cases at 5 runs:
+`L1-LI-ask-which-request-goes-first`, the `request_shift` wake of night
+137's s292 commit, expecting one present to the principal; and
+`L1-LI-a-separate-request-is-later`, night 133's m350 words on a shift page,
+expecting `{"1": "later"}`. The scenes `two_batches` and `merged_then_next`
+say a second item. `two_batches` says it while item 1 is approved and
+deferred, so the shift question fires there and the scene must answer it:
+the scene's walk answers `now`, which keeps its park page and its order.
+The scene tests decide `merged_then_next`, where item 1 is delivered and no
+question fires (reasoned: 2.F.1's rule).
+
+#### 2.F.11 The price
+
+On frame 190's actuals: a designed pass of 291.1k to 307.3k, a small pass
+of 93.7k, a review of 132.7k to 213.8k, fix passes and delta reviews of
+about 230k each in all, and a night read of 353.5k (copied: frame 190's
+closing line, `plans/archive/stack-2026-10-10.md`). Meta workflow.
+
+| Item | Tokens |
+|---|---|
+| the design so far, 290.5k, the review, 183.0k, and this section, about 80k | about 550k |
+| a review of this section on Opus | about 120k |
+| pass 1 and its diff review | about 120k and 90k |
+| pass 2 and its diff review | about 380k and 220k |
+| fix passes and delta reviews, on frame 190's two runs of about 230k | about 500k |
+| the night read | about 350k |
+| the case re-records, GPU apart | none in tokens |
+
+Total in agents: about 2.3M to 2.5M, the review's figure.
+
+Status 2026-10-10 04:35: section 2.F written by the Opus agent of session
+45fc3fe2 on its resume, read-only on the tree at 43461f47, no model call,
+not committed. Rota workflow, except 2.F.10's pass lines and 2.F.11, which
+are meta workflow.
+
 ## 3. The tests
 
 Each test rebuilds its rows inline, as `tests/rota/test_desk_guards.py`
