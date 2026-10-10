@@ -217,7 +217,11 @@ On wake:
 4. Read the memory files the frame names. Not all of them.
 5. Reply first with the state: the open frames, and each blocked
    question with a recommended answer. Then your reading of Roman's
-   ask, checked before you act.
+   ask. **A handed frame continues without a check** (ruled: Roman,
+   2026-10-10 04:47, "don't ask when you are handed over to", after this
+   session took frame 193 and asked before pass 1). The hand-off is his
+   assignment, so start the frame's next step after the state reply.
+   Check your reading first only on a frame Roman gives you fresh.
 6. Claim the frame Roman gives you with your session id, the first
    eight characters, in the frame's heading. The hook injects the id
    each turn. It is stable across a restart. The peer name is not, so
