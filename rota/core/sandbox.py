@@ -1789,6 +1789,24 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             from .scheduler import park_rows
 
             refs = park_rows(ctx.conn, ctx.wake_refs[1])
+        # The shift question is a page the door builds from the wake: the
+        # earlier item and the new request's statement. The model chooses
+        # nothing on it (frame 193's design, 2.F.2).
+        shift = (getattr(ctx, "wake_kind", "") == "tick:request_shift"
+                 and recipient == "principal" and verb == "present"
+                 and len(ctx.wake_refs or ()) == 2)
+        if shift:
+            from ..roles.principal import current_request, shift_ask_id
+
+            refs = list(ctx.wake_refs)
+            cur = current_request(ctx.conn, unread=False)
+            shift_id = shift_ask_id(refs[0], cur["id"] if cur else "none")
+            if ctx.conn.execute("SELECT 1 FROM messages WHERE id = ?",
+                                (shift_id,)).fetchone() or any(
+                    m.get("id") == shift_id for m in ctx.outbound):
+                raise ValueError(
+                    "the principal already has this question. Send nothing "
+                    "more, and stop")
         # Required, not defaulted. A message carries refs and nothing else —
         # there is no prose field on purpose — so `refs=None` advertised a
         # legal call that communicates the fact that something happened and
@@ -2377,7 +2395,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # never substituted -- and for the same reason at one remove: the
         # `observed_entries` mode cannot read the tables whose rows it
         # presents, so what it cannot enumerate must arrive enumerated.
-        if verb == "present" and getattr(ctx, "wake_refs", None) and not park:
+        if (verb == "present" and getattr(ctx, "wake_refs", None) and not park
+                and not shift):
             refs += [r for r in ctx.wake_refs
                      if isinstance(r, str) and r and r not in refs]
         # A submit's present carries the uncovered statements by the same
@@ -2444,7 +2463,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # 1). A quarantined wake records its keys, so a re-render of any
         # other page never reads a key that came later (finding 4).
         notes: dict[str, str] = {}
-        if verb == "present" and recipient == "principal" and not park:
+        if verb == "present" and recipient == "principal" and not park and not shift:
             import json as _json
             from ..roles.principal import _stalled_keys, request_rows
 
@@ -2467,6 +2486,21 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             keys = _stalled_keys(ctx.conn, batches) if batches else []
             if keys:
                 notes["stalled"] = _json.dumps(keys)
+            # No ref rides a page unnumbered. A row the page does not number
+            # leaves the refs, so a ruling of the page closes every row it
+            # holds, and the dropped row stays open and countable (frame
+            # 193's design, 2.F.7).
+            from ..roles.principal import off_page
+
+            off = off_page(ctx.conn, refs)
+            if off:
+                refs = [r for r in refs if r not in off]
+                if stamped:
+                    kept = [r for r in stamped if r not in off]
+                    if kept:
+                        notes["stamped"] = _json.dumps(kept)
+                    else:
+                        notes.pop("stamped", None)
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,
@@ -2783,6 +2817,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             recipients = sorted(split)
 
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
+        if shift:
+            msg_id = shift_id
         if park:
             # The id marks the park and names the batch, so the predicate
             # asks once per park and a commit closes this ask.

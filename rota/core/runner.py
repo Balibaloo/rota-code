@@ -317,7 +317,10 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 # Which upheld finding exhausted the loop (frame 88).
                 "tick:findings_exhausted",
                 # Which batch is parked and on which key (frame 87).
-                "tick:park_ask"}
+                "tick:park_ask",
+                # Which earlier item the shift question is about, and where
+                # it stands (frame 193's design, 2.F.1).
+                "tick:request_shift"}
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
@@ -1740,6 +1743,18 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # holds for every other mode.
     if row["to_role"] == "liaison" and row["verb"] == "converse":
         out["recent_chat"] = _recent_chat(conn, trigger)
+        # A request with no cause may follow up the current one. The seat
+        # needs that request's statement id to copy into `supersedes` (frame
+        # 193's design, 2.F.6).
+        if not row["cause_id"] and row["from_role"] == "principal":
+            from ..roles.principal import current_request
+
+            seq = conn.execute("SELECT seq FROM messages WHERE id = ?",
+                               (trigger,)).fetchone()["seq"]
+            cur = current_request(conn, before_seq=seq, unread=False)
+            if cur and cur["statements"]:
+                out["current_request"] = {"statement": cur["statements"][0],
+                                          "text": cur["texts"][0]}
 
         # An answer is an answer to something. A principal `converse` whose
         # cause is a clarify is a reply, not new work. A desk could not settle

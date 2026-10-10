@@ -120,12 +120,33 @@ def test_the_refusal_names_the_other_tickets_of_the_wake(db):
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
                "('cr_v', 'tk_1_version_option', 'it shows python')")
     db.commit()
-    out = run_session(db, Wake("architect", "tick:grouping",
-                               refs=(TICKET, "tk_1_version_option")),
+    # The real wake: the predicate leaves the contested ticket out.
+    wakes = grouping(db)
+    assert len(wakes) == 1 and wakes[0].refs == ("tk_1_version_option",)
+    out = run_session(db, wakes[0],
                       backend=ScriptedBackend([S321_CALL, "done"]), pins=PINS,
                       instructions="group")
     want = (f"{ITEM} is contested at version 1, so no batch can run it. Group the "
             f"other tickets of your wake, tk_1_version_option, and leave {ITEM}'s.")
+    assert any(want in e for e in out.errors), out.errors
+
+
+def test_a_ticket_grouped_this_session_is_not_named_again(db):
+    _confirm_item(db)
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('version_option', 'show python', 'in_scope', 'approved', 1, 1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk_1_version_option', 'version_option', 'show python')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('cr_v', 'tk_1_version_option', 'it shows python')")
+    db.commit()
+    good = ("TOOL: batches.group(id='b_v', item_id='version_option', "
+            "ticket_ids=['tk_1_version_option'])")
+    out = run_session(db, grouping(db)[0],
+                      backend=ScriptedBackend([good, S321_CALL, "done"]),
+                      pins=PINS, instructions="group")
+    want = (f"{ITEM} is contested at version 1, so no batch can run it. "
+            f"Group nothing, and stop.")
     assert any(want in e for e in out.errors), out.errors
 
 
@@ -229,8 +250,9 @@ def test_an_unknown_word_is_refused_with_the_map(db):
         sb.call("rulings.rule", rulings=rulings, words=M63)
     assert str(e.value) == (
         "line 2: 'later' is not a ruling. Each line takes approve, contest or "
-        "revise. drop, remove and strike are contest. ask, unclear and question "
-        "are a question: rulings.rule(ask=...) with no rulings.")
+        "revise. drop, remove and strike are contest. resume takes up a request "
+        "you put aside. ask, unclear and question are a question: "
+        "rulings.rule(ask=...) with no rulings.")
 
 
 def test_a_phrase_maps_by_its_first_word(db):

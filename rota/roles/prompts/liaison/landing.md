@@ -33,8 +33,12 @@ Otherwise the reply is a ruling. Read each numbered line against it:
   printing.
 - The reply says the line is right in substance and asks for other words:
   `revise`.
-- The reply strikes or drops a line from the change: `contest`. drop, remove
-  and strike are read as contest.
+- The reply strikes or drops a line from the change: `contest`. The door
+  reads `drop`, `remove` and `strike` as `contest`. A reply that drops a word
+  and keeps the line is `revise`.
+- The page asks which request goes first. A reply that says the earlier one is
+  separate or for later is `later`, even when it also says drop it from this
+  change.
 
 A correction counts against the line it is about, and only that line. Every
 line gets a ruling.

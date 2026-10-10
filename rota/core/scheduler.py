@@ -263,6 +263,54 @@ def not_retired(conn: sqlite3.Connection, col: str) -> str:
             f"(SELECT MAX(n.item_ver) FROM tickets n WHERE n.item_id = r.item_id))")
 
 
+# The items whose newest `item_parks` row puts them aside: the principal said
+# later or drop on the shift page (frame 193's design, 2.F.4).
+_ASIDE = ("SELECT p.item_id FROM item_parks p WHERE p.kind IN ('park', 'drop') "
+          "AND p.rowid = (SELECT q.rowid FROM item_parks q WHERE q.item_id = "
+          "p.item_id ORDER BY q.seq DESC, q.rowid DESC LIMIT 1)")
+
+
+def _has_parks(conn: sqlite3.Connection) -> bool:
+    return bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                             "AND name = 'item_parks'").fetchone())
+
+
+def not_parked(conn: sqlite3.Connection, col: str, of: str = "item") -> str:
+    """
+    An SQL condition that drops an item set aside, or its ticket or batch.
+    `col` holds an item id, a ticket id when `of` is "ticket", or a batch id
+    when `of` is "batch".
+
+    The shape of `not_described`. A set-aside item wakes no seat and opens no
+    batch until a resume (frame 193's design, 2.F.4). The condition is empty
+    on a database with no `item_parks` table.
+    """
+    if not _has_parks(conn):
+        return ""
+    aside = _ASIDE
+    if of == "ticket":
+        aside = f"SELECT id FROM tickets WHERE item_id IN ({aside})"
+    elif of == "batch":
+        aside = f"SELECT id FROM batches WHERE item_id IN ({aside})"
+    return f" AND {col} NOT IN ({aside})"
+
+
+def park_kind(conn: sqlite3.Connection, item_id: str) -> str | None:
+    """The kind of the item's newest `item_parks` row, or None."""
+    if not _has_parks(conn):
+        return None
+    row = conn.execute("SELECT kind FROM item_parks WHERE item_id = ? "
+                       "ORDER BY seq DESC, rowid DESC LIMIT 1", (item_id,)).fetchone()
+    return row["kind"] if row else None
+
+
+def aside_items(conn: sqlite3.Connection) -> set[str]:
+    """Every item set aside: its newest `item_parks` row is park or drop."""
+    if not _has_parks(conn):
+        return set()
+    return {r[0] for r in conn.execute(_ASIDE)}
+
+
 def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     """
     Vision Keeper slices tickets from items whose approval postdates their last
@@ -309,7 +357,9 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
         "  AND i.approval_ver >= i.version "
         "  AND i.id != 'how_it_works' "
         "  AND p.provenance != 'observed' "
-        + not_described(conn, "i.id") +
+        # An item set aside is not sliced until it resumes (frame 193's
+        # design, 2.F.4).
+        + not_described(conn, "i.id") + not_parked(conn, "i.id") +
         "  AND (i.id NOT IN (SELECT item_id FROM tickets) "
         "       OR i.version > COALESCE((SELECT CAST(value AS INTEGER) FROM config "
         "                                 WHERE key = 'delivered:' || i.id), 0) "
@@ -351,6 +401,8 @@ def tick_criteria(conn: sqlite3.Connection) -> list[Wake]:
         "SELECT DISTINCT t.item_id AS item_id FROM tickets t "
         "WHERE t.id NOT IN (SELECT ticket_id FROM criteria)"
         + not_described(conn, "t.item_id") + not_retired(conn, "t.id")
+        # An item set aside owes no criteria while it waits (2.F.4).
+        + not_parked(conn, "t.item_id")
     ).fetchall()
     return [
         Wake("terminologist", "tick:criteria", refs=(r["item_id"],))
@@ -447,17 +499,22 @@ def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     """
     from .lifecycle import touch_notes
 
+    # A draft set aside is not submitted, and an ask held behind the shift
+    # question is not an open gate (frame 193's design, 2.F.4).
+    from ..roles.principal import held_asks
+
     drafts = [r["id"] for r in conn.execute(
-        "SELECT id FROM items WHERE approval = 'draft' ORDER BY id")]
+        "SELECT id FROM items WHERE approval = 'draft'"
+        + not_parked(conn, "id") + " ORDER BY id")]
     if not drafts:
         return []
     # A touch note is set aside (P4, 2026-09-03): this guard exists so an
     # interpretation is not submitted twice, and a note nobody has to answer
     # left open would otherwise freeze every later signoff behind it.
-    pending = conn.execute(
-        "SELECT COUNT(*) n FROM messages "
-        "WHERE status = 'open' AND verb IN ('submit', 'present')"
-    ).fetchone()["n"] - len(touch_notes(conn))
+    skip = set(touch_notes(conn)) | held_asks(conn)
+    pending = sum(1 for r in conn.execute(
+        "SELECT id FROM messages WHERE status = 'open' "
+        "AND verb IN ('submit', 'present')") if r["id"] not in skip)
     if pending:
         return []
     return [Wake("vision_keeper", "tick:signoff", refs=tuple(drafts))]
@@ -983,11 +1040,15 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     # forever, because Liaison has no verb that could satisfy it.
     # Less any touch note: the principal is not being waited on for one
     # (P4, R7), so it is not the reason to hold the agenda back.
+    # An ask held behind the shift question waits, so it holds no agenda
+    # back (frame 193's design, 2.F.4).
+    from ..roles.principal import held_asks, held_items
     from .lifecycle import touch_notes
 
-    awaiting = conn.execute(
-        "SELECT COUNT(*) AS n FROM messages WHERE status = 'open' AND to_role = 'principal'"
-    ).fetchone()["n"] - len(touch_notes(conn))
+    skip = set(touch_notes(conn)) | held_asks(conn)
+    awaiting = sum(1 for r in conn.execute(
+        "SELECT id FROM messages WHERE status = 'open' AND to_role = 'principal'")
+        if r["id"] not in skip)
     if awaiting:
         return []
 
@@ -1001,6 +1062,19 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     # `annotate` for bg_4 never ran (frame 190's design, 2.4).
     replies = reply_rows(conn)
     chosen = [r for r in rows if r["id"] not in replies]
+    # A row that reaches only a held or set-aside item waits with it. After
+    # m161 closed, 19 rows of the confirm item would have made confirm pages
+    # (frame 193's design, 2.F.9, finding 2).
+    held = held_items(conn)
+    if held:
+        from ..roles.principal import _items_reached as _reach
+
+        def waits(row) -> bool:
+            items = set(_reach(conn, row["id"]))
+            return bool(items) and items <= held
+
+        chosen = [r for r in chosen if not waits(r)]
+        rows = [r for r in rows if not waits(r)]
     if not chosen:
         return []
     # The request's own lineage first, by law 8: its assumptions are
@@ -1299,6 +1373,9 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     # same pass. The Liaison writes the ask, woken by `park_ask` (ruled:
     # Roman, 2026-09-30).
     close_stale_park_asks(conn)
+    # An item put aside behind a request comes back when that request is
+    # delivered or dropped, in the same pass (frame 193's design, 2.F.4).
+    resume_behind(conn)
     # And the other kind of overrun, which that one cannot see: a chain of
     # *distinct* messages whose edge keeps causing itself. `attempts` stays at
     # one along the whole of it, so the bound above is satisfied at every link
@@ -1457,6 +1534,9 @@ def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         "FROM batches b JOIN items i ON i.id = b.item_id "
         "WHERE b.status IN ('pending','deferred') "
         "  AND i.approval = 'approved' AND i.approval_ver >= i.version "
+        # A batch of an item set aside does not start (frame 193's design,
+        # 2.F.4).
+        + not_parked(conn, "b.item_id") +
         "  AND NOT EXISTS (SELECT 1 FROM batch_dep_facts d "
         "                  JOIN batches p ON p.id = d.before_batch "
         "                  WHERE d.after_batch = b.id "
@@ -1820,6 +1900,62 @@ def close_park_asks(conn: sqlite3.Connection, batch_id: str) -> int:
         "UPDATE messages SET status = 'answered' WHERE status = 'open' "
         "AND substr(id, 1, ?) = ? AND substr(id, ?) = ?",
         (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).rowcount or 0
+
+
+def resume_behind(conn: sqlite3.Connection) -> int:
+    """
+    Resume each item parked behind a request that is now delivered or
+    dropped. "Later" means behind the current request, so the item reads as
+    it did before the park: its held asks return and its work wakes again.
+    One `request` row each, cause the request's message. `land` writes the
+    principal's rows, so each row has one writer (frame 193's design, 2.F.4).
+    """
+    if not _has_parks(conn):
+        return 0
+    from ..roles.principal import (SHIFT_ASK, _delivered, _request_entries,
+                                   _write_park, request_of)
+
+    n = 0
+    for p in conn.execute(
+            "SELECT p.item_id, p.cause_id FROM item_parks p WHERE p.kind = 'park' "
+            "AND p.rowid = (SELECT q.rowid FROM item_parks q WHERE q.item_id = "
+            "p.item_id ORDER BY q.seq DESC, q.rowid DESC LIMIT 1)").fetchall():
+        # The park's verdict answers a shift question, whose refs name the
+        # request's statement, and the statement names the request's entry.
+        page = conn.execute(
+            "SELECT a.id, a.body_refs FROM messages v JOIN messages a "
+            "ON a.id = v.cause_id WHERE v.id = ?", (p["cause_id"],)).fetchone()
+        if page is None or not page["id"].startswith(SHIFT_ASK):
+            continue
+        entries: set[str] = set()
+        for ref in json.loads(page["body_refs"] or "[]"):
+            row = conn.execute("SELECT span_entry FROM statements WHERE id = ?",
+                               (ref,)).fetchone()
+            if row is not None:
+                entries.add(row["span_entry"])
+        if not entries:
+            continue
+        mine = [r["id"] for r in conn.execute("SELECT id FROM items")
+                if request_of(conn, r["id"]) in entries]
+        if not mine:
+            continue
+        aside = {r["item_id"] for r in conn.execute(
+            "SELECT p.item_id FROM item_parks p WHERE p.kind = 'drop' AND p.rowid = "
+            "(SELECT q.rowid FROM item_parks q WHERE q.item_id = p.item_id "
+            "ORDER BY q.seq DESC, q.rowid DESC LIMIT 1)")}
+        if not all(_delivered(conn, i) or i in aside for i in mine):
+            continue
+        request = next((m for m in conn.execute(
+            "SELECT id, seq, body_refs FROM messages WHERE from_role = 'principal' "
+            "AND cause_id IS NULL AND verb = 'converse' ORDER BY seq")
+            if set(_request_entries(conn, m["body_refs"])) & entries), None)
+        if request is None:
+            continue
+        # The row's seq is now, so it is newer than the park it ends.
+        now = conn.execute("SELECT COALESCE(MAX(seq), 0) n FROM messages").fetchone()["n"]
+        _write_park(conn, p["item_id"], "resume", "request", request["id"], now)
+        n += 1
+    return n
 
 
 def close_stale_park_asks(conn: sqlite3.Connection) -> int:

@@ -244,6 +244,11 @@ def i9(conn) -> list[Finding]:
             continue
         if r[3] == "challenge" and r[2] == "tester" and _replaced(conn, r[0], r[4]):
             continue
+        # A drop on the shift page closes the earlier request's asks, and its
+        # `closed:` row names the verdict that closed each one (frame 193's
+        # design, 2.F.9, finding 8).
+        if _rows(conn, "SELECT 1 FROM config WHERE key = ?", (f"closed:{r[0]}",)):
+            continue
         out.append(Finding("I9", f"{r[0]}, {r[1]} to {r[2]} {r[3]}, is answered and "
                                  f"nothing answers it"))
     return out

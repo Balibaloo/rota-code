@@ -581,6 +581,24 @@ CREATE TABLE IF NOT EXISTS rulings (
     version     INTEGER NOT NULL DEFAULT 1
 );
 
+-- The principal's answer to the shift question, one row per answer, and the
+-- automatic resume when the request the park waited behind is delivered or
+-- dropped. An item is set aside while its newest row is `park` or `drop`.
+-- `land` writes the `shift` rows and `scheduler.resume_behind` writes the
+-- `request` rows, so each row has one writer (frame 193's design, 2.F.3 and
+-- 2.F.4). The id hashes the item and the cause (law 14).
+CREATE TABLE IF NOT EXISTS item_parks (
+    id          TEXT PRIMARY KEY,
+    item_id     TEXT NOT NULL REFERENCES items(id),
+    kind        TEXT NOT NULL CHECK (kind IN ('park','now','drop','resume')),
+    -- `shift` is a row from the principal's answer, `request` a resume by
+    -- `resume_behind`. The word `principal` is a graph node and stays one.
+    by          TEXT NOT NULL CHECK (by IN ('shift','request')),
+    cause_id    TEXT NOT NULL,
+    seq         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_item_parks_item ON item_parks(item_id, seq);
+
 CREATE TABLE IF NOT EXISTS decisions (
     id               TEXT PRIMARY KEY,
     author           TEXT NOT NULL,

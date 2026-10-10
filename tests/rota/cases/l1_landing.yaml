@@ -305,3 +305,47 @@
   forbidden:
     writes: [statements, items, decisions, ledger]
     recipients: [vision_keeper, terminologist, architect, principal]
+
+# Night 133's m350 said the confirm change is a separate request. On the
+# shift page, separate is later, even beside "leave it out of this one"
+# (frame 193's design, 2.F.3 and 2.F.5).
+- id: L1-LI-a-separate-request-is-later
+  tier: T1
+  role: liaison
+  prompt: landing
+  runs: 5
+  pass: 4
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<i1>, <s3>], cause: "m_shift_<i1>_<m3>",
+            body_text: "They're independent. The confirm change is a separate request I'll take up on its own, so leave it out of this one. This change only adds an optional flag to the version option, off by default, that puts the running Python version from the interpreter's version info, written as major.minor.micro, at the end of the version message."}
+  fixture:
+    entries:
+      - {id: <e2>, author: principal, ts_order: 1,
+         text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting."}
+      - {id: <e3>, author: principal, ts_order: 2,
+         text: "Give version_option a show_python flag that appends the running Python version to the message."}
+    statements:
+      - {id: <s2>, span_entry: <e2>, span_start: 0, span_end: 106,
+         text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting.",
+         status: ratified}
+      - {id: <s3>, span_entry: <e3>, span_start: 0, span_end: 94,
+         text: "Give version_option a show_python flag that appends the running Python version to the message.",
+         status: ratified}
+    items:
+      - {id: <i1>, text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting.",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    item_statements:
+      - {item_id: <i1>, statement_id: <s2>}
+    messages:
+      - {id: <m2>, thread_id: t1, from_role: principal, to_role: liaison,
+         verb: converse, body_refs: '["<e2>"]', seq: 1, status: answered}
+      - {id: <m3>, thread_id: t1, from_role: principal, to_role: liaison,
+         verb: converse, body_refs: '["<e3>"]', seq: 2, status: answered}
+      - {id: "m_shift_<i1>_<m3>", thread_id: t2, from_role: liaison,
+         to_role: principal, verb: present, body_refs: '["<i1>","<s3>"]', seq: 3}
+  expect:
+    writes:
+      rulings: {count: 1, text_includes: ['"<i1>": "park"', 'separate request']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]

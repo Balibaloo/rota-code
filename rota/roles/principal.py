@@ -170,7 +170,24 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
 
     `converse` replies from Liaison are displayed, not asked — they carry prose
     rather than a decision, so they do not become a principal gate.
+
+    An open shift question is returned alone, and every other ask waits
+    open and unchanged behind it. An ask about an earlier request is held
+    until the principal answers its shift question, and an ask about an item
+    set aside is held until the item resumes. Night 137's principal answered
+    walk 2's page m161 after walk 3's request (frame 193's design, 2.F.1
+    and 2.F.4).
     """
+    rows = conn.execute(
+        "SELECT id, verb, body_refs, body_text FROM messages "
+        "WHERE status = 'open' AND to_role = 'principal' "
+        "  AND verb != 'converse' ORDER BY seq").fetchall()
+    shift = [r for r in rows if r["id"].startswith(SHIFT_ASK)]
+    if shift:
+        rows = shift
+    else:
+        held = held_asks(conn)
+        rows = [r for r in rows if r["id"] not in held]
     return [
         Ask(message_id=r["id"], verb=r["verb"],
             refs=json.loads(r["body_refs"]),
@@ -178,10 +195,7 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
                                           json.loads(r["body_refs"]),
                                           r["body_text"], ask_id=r["id"]))[0],
             order=page[1])
-        for r in conn.execute(
-            "SELECT id, verb, body_refs, body_text FROM messages "
-            "WHERE status = 'open' AND to_role = 'principal' "
-            "  AND verb != 'converse' ORDER BY seq")
+        for r in rows
     ]
 
 
@@ -196,6 +210,67 @@ def pending_replies(conn: sqlite3.Connection) -> list[Ask]:
             "WHERE status = 'open' AND to_role = 'principal' AND verb = 'converse' "
             "ORDER BY seq")
     ]
+
+
+def park_behind(conn: sqlite3.Connection, item: str) -> str | None:
+    """The statement of the request a parked item waits behind, or None."""
+    row = conn.execute(
+        "SELECT a.body_refs FROM item_parks p JOIN messages v ON v.id = p.cause_id "
+        "JOIN messages a ON a.id = v.cause_id WHERE p.item_id = ? "
+        "ORDER BY p.seq DESC, p.rowid DESC LIMIT 1", (item,)).fetchone()
+    if row is None:
+        return None
+    for ref in json.loads(row["body_refs"] or "[]"):
+        s = conn.execute("SELECT text FROM statements WHERE id = ?", (ref,)).fetchone()
+        if s is not None:
+            return s["text"]
+    return None
+
+
+def aside_lines(conn: sqlite3.Connection) -> list[str]:
+    """
+    The state page's record of what the principal put aside: one block per
+    request a parked item waits behind, and the dropped items. The record
+    stays visible, as the composition's Records ask (frame 193's design,
+    2.F.4).
+    """
+    from ..core.scheduler import park_kind
+
+    try:
+        rows = conn.execute("SELECT DISTINCT item_id FROM item_parks "
+                            "ORDER BY item_id").fetchall()
+    except sqlite3.OperationalError:
+        return []
+    behind: dict[str, list[str]] = {}
+    dropped: list[str] = []
+    for r in rows:
+        item = r["item_id"]
+        kind = park_kind(conn, item)
+        text = conn.execute("SELECT text FROM items WHERE id = ?", (item,)).fetchone()
+        text = (text["text"] if text else item).rstrip(".")
+        if kind == "drop":
+            dropped.append(f"  {text}.")
+        elif kind == "park":
+            asks = sum(1 for m in conn.execute(
+                "SELECT body_refs FROM messages WHERE status = 'open' AND to_role "
+                "= 'principal' AND verb != 'converse'")
+                if (got := _reached(conn, json.loads(m["body_refs"] or "[]")))
+                and got <= {item})
+            notes = sum(1 for n in conn.execute(
+                "SELECT id FROM ledger WHERE status = 'open'")
+                if item in _items_reached(conn, n["id"]))
+            behind.setdefault(park_behind(conn, item) or "the new request", []).append(
+                f"  {text}. {asks} open page{'' if asks == 1 else 's'}, {notes} open "
+                f"note{'' if notes == 1 else 's'}. It comes back when that request "
+                f"is merged, or say resume.")
+    out: list[str] = []
+    for said, lines in behind.items():
+        out.append(f"Waiting behind {said}:")
+        out.extend(lines)
+    if dropped:
+        out.append("Dropped:")
+        out.extend(dropped)
+    return out
 
 
 def render_state(conn: sqlite3.Connection) -> str:
@@ -349,6 +424,7 @@ def render_state(conn: sqlite3.Connection) -> str:
         else:
             out.append(f"Building: {running + pending} change"
                        f"{'s' if running + pending > 1 else ''} in progress.")
+    out.extend(aside_lines(conn))
     if not out:
         if approved:
             out.append(f"Nothing waits on you and nothing is building. "
@@ -455,6 +531,12 @@ def _is_request_item(conn: sqlite3.Connection, ref: str) -> bool:
 def _items_reached(conn: sqlite3.Connection, ref: str, hop: bool = True) -> list[str]:
     """The items that one ref reaches. A ledger row reaches what its
     `about_ref` reaches, one step and no further."""
+    # A challenge row names its item as `items:<id>`. Night 137's
+    # `challenge_items_confirm_with_default_on_eof` reached nothing (frame
+    # 193's design, 2.F.9, finding 7).
+    head, sep, rest = ref.partition(":")
+    if sep and rest and head in ("items", "criteria", "tickets", "batches"):
+        ref = rest
     if conn.execute("SELECT 1 FROM items WHERE id = ?", (ref,)).fetchone():
         return [ref]
     for sql in ("SELECT t.item_id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
@@ -500,6 +582,240 @@ def open_requests(conn: sqlite3.Connection) -> list[str]:
         "ORDER BY i.priority DESC, i.id")]
 
 
+# ---------------------------------------------------------------------------
+# The request boundary (frame 193's design, 2.1 as amended by 2.F).
+#
+# A request is a principal `converse` with no cause: the walk and the TUI
+# both write one with the entry as its ref. A page sent about an earlier
+# request is held from the principal's view until the principal answers the
+# shift question, because a question changes nothing (the composition, Flows).
+# ---------------------------------------------------------------------------
+
+SHIFT_ASK = "m_shift_"
+
+
+def _request_entries(conn: sqlite3.Connection, body_refs: str | None) -> list[str]:
+    """The entries a request message carries, in their order."""
+    try:
+        refs = json.loads(body_refs or "[]")
+    except (TypeError, ValueError):
+        return []
+    return [r for r in refs if isinstance(r, str) and conn.execute(
+        "SELECT 1 FROM entries WHERE id = ?", (r,)).fetchone()]
+
+
+def current_request(conn: sqlite3.Connection, *, before_seq: int | None = None,
+                    unread: bool = True) -> dict | None:
+    """
+    The newest request boundary, or None.
+
+    A request with a statement is a boundary. A request that is still open
+    is a boundary until a seat reads it, so a page is held in the step before
+    any session runs. A request read as a question has no statement and is
+    no boundary (2.1, point 4). A request whose every statement supersedes
+    one of an earlier request is a follow-up and no boundary (2.F.6).
+    `before_seq` reads the request before that point, and `unread` False
+    skips an open request with no statement.
+    """
+    sql = ("SELECT id, seq, status, body_refs FROM messages WHERE from_role = "
+           "'principal' AND to_role = 'liaison' AND verb = 'converse' "
+           "AND cause_id IS NULL")
+    args: tuple = ()
+    if before_seq is not None:
+        sql += " AND seq < ?"
+        args = (before_seq,)
+    for m in conn.execute(sql + " ORDER BY seq DESC", args).fetchall():
+        entries = _request_entries(conn, m["body_refs"])
+        if not entries:
+            continue
+        marks = ",".join("?" * len(entries))
+        stmts = conn.execute(
+            f"SELECT id, text, supersedes FROM statements WHERE span_entry IN ({marks}) "
+            "ORDER BY id", tuple(entries)).fetchall()
+        if not stmts:
+            if unread and m["status"] == "open":
+                return {"id": m["id"], "seq": m["seq"], "entries": entries,
+                        "statements": [], "texts": []}
+            continue
+        if all(s["supersedes"] for s in stmts):
+            continue
+        own = [s for s in stmts if not s["supersedes"]]
+        return {"id": m["id"], "seq": m["seq"], "entries": entries,
+                "statements": [s["id"] for s in own],
+                "texts": [s["text"] for s in own]}
+    return None
+
+
+def _root_statement(conn: sqlite3.Connection, sid: str) -> str:
+    """Follow `supersedes` to the statement a follow-up said again."""
+    seen = {sid}
+    while True:
+        row = conn.execute("SELECT supersedes FROM statements WHERE id = ?",
+                           (sid,)).fetchone()
+        if row is None or not row["supersedes"] or row["supersedes"] in seen:
+            return sid
+        sid = row["supersedes"]
+        seen.add(sid)
+
+
+def request_of(conn: sqlite3.Connection, item: str) -> str | None:
+    """The entry of the request an item belongs to, or None when the item
+    cites no statement, such as the account or an observed behaviour."""
+    best = None
+    for r in conn.execute(
+            "SELECT r.target FROM refs r WHERE r.src_table = 'items' "
+            "AND r.src_id = ? AND r.kind = 'statement'", (item,)):
+        root = _root_statement(conn, r["target"])
+        row = conn.execute(
+            "SELECT e.id, e.ts_order FROM statements s JOIN entries e "
+            "ON e.id = s.span_entry WHERE s.id = ?", (root,)).fetchone()
+        if row is not None and (best is None or row["ts_order"] < best[1]):
+            best = (row["id"], row["ts_order"])
+    return best[0] if best else None
+
+
+def _entry_order(conn: sqlite3.Connection, entry: str) -> int:
+    row = conn.execute("SELECT ts_order FROM entries WHERE id = ?", (entry,)).fetchone()
+    return int(row["ts_order"]) if row else 0
+
+
+def _delivered(conn: sqlite3.Connection, item: str) -> bool:
+    row = conn.execute(
+        "SELECT i.version, (SELECT CAST(value AS INTEGER) FROM config "
+        "WHERE key = 'delivered:' || i.id) AS d FROM items i WHERE i.id = ?",
+        (item,)).fetchone()
+    return bool(row and row["d"] is not None and row["version"] <= row["d"])
+
+
+def shift_ask_id(item: str, request_id: str) -> str:
+    """The id of the one shift question for an earlier item and a request."""
+    return f"{SHIFT_ASK}{item}_{request_id}"
+
+
+def open_earlier_items(conn: sqlite3.Connection, cur: dict | None = None,
+                       *, asked: bool = True) -> list[str]:
+    """
+    The items of an earlier request that the shift question is about: not
+    delivered, `approved`, `contested` or `draft`, not set aside, and not yet
+    answered for the current request (2.F.1). The oldest request first.
+    `asked` False also leaves out an item whose question is already sent.
+    """
+    from ..core.scheduler import aside_items, not_described
+
+    cur = cur if cur is not None else current_request(conn)
+    if not cur:
+        return []
+    here = set(cur["entries"])
+    at = min(_entry_order(conn, e) for e in cur["entries"])
+    aside = aside_items(conn)
+    out: list[tuple[int, str]] = []
+    for r in conn.execute(
+            "SELECT i.id FROM items i WHERE i.kind = 'in_scope' "
+            "AND i.approval IN ('approved', 'contested', 'draft')"
+            + not_described(conn, "i.id") + " ORDER BY i.id"):
+        item = r["id"]
+        if item in aside or _delivered(conn, item):
+            continue
+        entry = request_of(conn, item)
+        if entry is None or entry in here or _entry_order(conn, entry) >= at:
+            continue
+        sent = conn.execute("SELECT status FROM messages WHERE id = ?",
+                            (shift_ask_id(item, cur["id"]),)).fetchone()
+        if sent is not None and (sent["status"] != "open" or not asked):
+            continue
+        out.append((_entry_order(conn, entry), item))
+    return [i for _, i in sorted(out)]
+
+
+def held_items(conn: sqlite3.Connection) -> set[str]:
+    """The items whose pages the principal does not see now: set aside, or
+    an earlier request's item while its shift question is unanswered."""
+    from ..core.scheduler import aside_items
+
+    return aside_items(conn) | set(open_earlier_items(conn))
+
+
+def _reached(conn: sqlite3.Connection, refs: list) -> set[str]:
+    items: set[str] = set()
+    for ref in refs or []:
+        if isinstance(ref, str):
+            items.update(_items_reached(conn, ref))
+    return items
+
+
+def held_asks(conn: sqlite3.Connection) -> set[str]:
+    """The open asks to the principal that wait behind the shift question:
+    every ref that reaches an item reaches a held item (2.F.1, 2.F.4)."""
+    held = held_items(conn)
+    if not held:
+        return set()
+    out: set[str] = set()
+    for r in conn.execute(
+            "SELECT id, body_refs FROM messages WHERE status = 'open' "
+            "AND to_role = 'principal' AND verb != 'converse'"):
+        if r["id"].startswith(SHIFT_ASK):
+            continue
+        reached = _reached(conn, json.loads(r["body_refs"] or "[]"))
+        if reached and reached <= held:
+            out.add(r["id"])
+    return out
+
+
+def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
+    """The newest request that a page's refs reach, set-aside items apart."""
+    from ..core.scheduler import aside_items
+
+    aside = aside_items(conn)
+    best = None
+    for item in _reached(conn, refs):
+        if item in aside:
+            continue
+        entry = request_of(conn, item)
+        if entry is None:
+            continue
+        order = _entry_order(conn, entry)
+        if best is None or order > best[1]:
+            best = (entry, order)
+    return best[0] if best else None
+
+
+def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
+    """
+    The refs that a page of one request does not number (2.F.7). A row
+    whose items are all set aside, or all of another request than the page's,
+    leaves the page. A note about a delivered item of an earlier request
+    stays, so a ruling closes it. The send door drops the same rows, so a
+    page's refs and its numbered rows are one set.
+    """
+    from ..core.scheduler import aside_items
+
+    aside = aside_items(conn)
+    # Requests are told apart by their boundaries. A run with no request
+    # message has one request, and every open item keeps its line (frame
+    # 190's design, 2.F, amendment 2).
+    req = page_request(conn, refs) if current_request(conn, unread=False) else None
+    out: set[str] = set()
+    for ref in refs or []:
+        if not isinstance(ref, str):
+            continue
+        items = _items_reached(conn, ref)
+        if not items:
+            continue
+        if all(i in aside for i in items):
+            out.add(ref)
+            continue
+        if req is None:
+            continue
+        others = [request_of(conn, i) for i in items]
+        if not all(e is not None and e != req for e in others):
+            continue
+        is_note = conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone()
+        if is_note and all(_delivered(conn, i) for i in items):
+            continue
+        out.add(ref)
+    return out
+
+
 def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     """
     The request's own rows for a page: each item, then its criteria by id.
@@ -513,15 +829,25 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     # Every open request has its own line. One line for the first request
     # sent a revise about another request to the wrong item (frame 190's
     # design, 2.F, amendment 2).
+    # One request per page: the items of the page's request, never an item
+    # set aside or held behind the shift question (frame 193's design, 2.F.7).
+    from ..core.scheduler import aside_items
+
+    off = off_page(conn, refs or [])
+    held = held_items(conn)
     items: list[str] = []
     for ref in refs or []:
-        if not isinstance(ref, str):
+        if not isinstance(ref, str) or ref in off:
             continue
         for item in _items_reached(conn, ref):
-            if item not in items and _is_request_item(conn, item):
+            if item not in items and item not in held and _is_request_item(conn, item):
                 items.append(item)
     if not items:
-        items = open_requests(conn)
+        aside = aside_items(conn) | held
+        items = [i for i in open_requests(conn) if i not in aside]
+        cur = current_request(conn, unread=False)
+        mine = [i for i in items if cur and request_of(conn, i) in cur["entries"]]
+        items = mine or items
     if not items:
         account = conn.execute(
             "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
@@ -730,6 +1056,91 @@ def _park_page(conn: sqlite3.Connection, batch: str,
     return chr(10).join(out), order
 
 
+def _shift_where(conn: sqlite3.Connection, item: str) -> str:
+    """'Where it stands' on the shift page: the approval, the live change,
+    its head commit and its newest test runs."""
+    row = conn.execute("SELECT approval FROM items WHERE id = ?", (item,)).fetchone()
+    said = f"{row['approval'] if row else 'unknown'}."
+    batch = conn.execute(
+        "SELECT id, head_commit FROM batches WHERE item_id = ? "
+        "AND status IN ('pending', 'running', 'deferred') ORDER BY id",
+        (item,)).fetchone()
+    if batch is None:
+        return said + " No change is built for it yet."
+    if not batch["head_commit"]:
+        return said + f" The change {batch['id']} is not built yet."
+    runs = conn.execute(
+        "SELECT result FROM test_runs WHERE batch_id = ? AND rowid IN "
+        "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? GROUP BY test_id)",
+        (batch["id"], batch["id"])).fetchall()
+    if not runs:
+        return said + f" The change {batch['id']} is built, and no test has run yet."
+    failing = sum(1 for r in runs if r["result"] in ("fail", "error"))
+    if not failing:
+        return said + (f" The change {batch['id']} is built, and all {len(runs)} "
+                       f"of its tests pass.")
+    return said + (f" The change {batch['id']} is built, and {failing} of its "
+                   f"{len(runs)} tests fail.")
+
+
+def _shift_waits(conn: sqlite3.Connection, item: str) -> str:
+    """'What it waits on': the item's open pages, read with the hold, and its
+    open notes."""
+    pages = []
+    for r in conn.execute(
+            "SELECT id, verb, body_refs, body_text FROM messages WHERE status = "
+            "'open' AND to_role = 'principal' AND verb != 'converse' ORDER BY seq"):
+        if r["id"].startswith(SHIFT_ASK):
+            continue
+        refs = json.loads(r["body_refs"] or "[]")
+        reached = _reached(conn, refs)
+        if reached and reached <= {item}:
+            pages.append(len(render_page(conn, r["verb"], refs, r["body_text"],
+                                         ask_id=r["id"])[1]))
+    notes = sum(1 for r in conn.execute(
+        "SELECT id FROM ledger WHERE status = 'open'")
+        if item in _items_reached(conn, r["id"]))
+    parts = []
+    if len(pages) == 1:
+        parts.append(f"one page to you with {pages[0]} lines")
+    elif pages:
+        parts.append(f"{len(pages)} pages to you with "
+                     + ", ".join(str(n) for n in pages[:-1])
+                     + f" and {pages[-1]} lines")
+    if notes:
+        parts.append(f"{notes} note{'' if notes == 1 else 's'}")
+    return ", and ".join(parts) + "." if parts else "nothing from you."
+
+
+def _shift_page(conn: sqlite3.Connection, refs: list[str]) -> tuple[str, list[str]]:
+    """
+    The shift question as the principal reads it: the new request, the
+    earlier request that is not finished, and three answers for its one line
+    (frame 193's design, 2.F.2). The refs are the earlier item and the new
+    request's statement.
+    """
+    item = next((r for r in refs if conn.execute(
+        "SELECT 1 FROM items WHERE id = ?", (r,)).fetchone()), None)
+    said = [conn.execute("SELECT text FROM statements WHERE id = ?", (r,)).fetchone()
+            for r in refs if r != item]
+    new = " ".join(s["text"] for s in said if s is not None)
+    if item is None:
+        return f"You asked for something new: {new}", []
+    text = conn.execute("SELECT text FROM items WHERE id = ?", (item,)).fetchone()["text"]
+    return chr(10).join([
+        f"You asked for something new: {new}",
+        "Before that you asked for this, and it is not finished:",
+        f"  1. {text}",
+        f"     Where it stands: {_shift_where(conn, item)}",
+        f"     What it waits on: {_shift_waits(conn, item)}",
+        "Choose one for line 1:",
+        "  - later: put it aside until the new request is merged. Nothing more "
+        "about it reaches you until then.",
+        "  - now: answer its open page first, then the new request.",
+        "  - drop: stop it. Its change is abandoned.",
+    ]), [item]
+
+
 def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
                 question: str | None = None, *,
                 ask_id: str | None = None,
@@ -763,8 +1174,15 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     parked_batch = park_ask_batch(ask_id or "")
     if parked_batch and verb == "present":
         return _park_page(conn, parked_batch, list(refs or []))
+    if (ask_id or "").startswith(SHIFT_ASK) and verb == "present":
+        return _shift_page(conn, list(refs or []))
 
     refs = list(refs or [])
+    # A page is about one request. A row of an item set aside, or of another
+    # request than the page's, is no line here (frame 193's design, 2.F.7).
+    if verb == "present":
+        off = off_page(conn, refs)
+        refs = [r for r in refs if r not in off]
     resolved = _resolve_refs(conn, refs)
     # The block's rows leave every group, so no id is numbered twice. The
     # sign-off page numbered an item in the block and again under "It
@@ -1178,6 +1596,11 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         "WHERE id = ? AND status = 'open'", (ask.message_id,)).rowcount
     if not closed:
         return None
+    # The shift question changes no item. Its answer is one `item_parks` row,
+    # and a drop closes the earlier request's open asks and notes (frame
+    # 193's design, 2.F.3).
+    if (ask.message_id or "").startswith(SHIFT_ASK) and answer.verb == "verdict":
+        return _land_shift(conn, ask, answer, ruling_id)
 
     # A touch note is read, not ruled on (P4, R7: nothing waits on it). The
     # batch's ref is never a row the principal rules, so it leaves the
@@ -1244,6 +1667,16 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # plain approve case too. The tool in the list was the invitation.
     # (`per_item` is the ruling less any batch ref -- see the touch-note
     # door above.)
+    # A resume writes one `principal` row and no `items` row, so the item
+    # returns to the state it held (frame 193's design, 2.F.4).
+    resumed = [ref for ref, ruling in per_item.items() if ruling == "resume"]
+    if resumed:
+        seq_now = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) + 1 n FROM messages").fetchone()["n"]
+        for ref in resumed:
+            for item in _items_reached(conn, ref):
+                _write_park(conn, item, "resume", "shift", msg_id, seq_now)
+            per_item.pop(ref)
     closed_here: list[str] = []
     for ref, ruling in list(per_item.items()):
         if ruling not in ("approve", "contest", "revise"):
@@ -1371,6 +1804,86 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                 "status, verdict_id) VALUES (?, ?, ?, ?, 'landed', ?)",
                 (f"r_{msg_id}", ask.message_id, json.dumps(per_item),
                  (answer.text or "").strip(), msg_id))
+    return msg_id
+
+
+def _write_park(conn: sqlite3.Connection, item: str, kind: str, by: str,
+                cause: str, seq: int) -> None:
+    """One `item_parks` row. The id hashes the item and the cause (law 14),
+    so a replay of the same answer writes the same row."""
+    import hashlib
+
+    pid = "ip_" + hashlib.sha256(f"{item}|{cause}".encode()).hexdigest()[:10]
+    conn.execute("INSERT OR IGNORE INTO item_parks (id, item_id, kind, by, "
+                 "cause_id, seq) VALUES (?, ?, ?, ?, ?, ?)",
+                 (pid, item, kind, by, cause, seq))
+
+
+def _land_shift(conn: sqlite3.Connection, ask: Ask, answer: Answer,
+                ruling_id: str | None) -> str:
+    """
+    Land the answer to the shift question: one `item_parks` row per item,
+    and no `items` row. A drop closes every open ask of the item, with a
+    `closed:<message>` row, and closes its open notes as overruled. The
+    verdict carries no ref, so no relay wakes a seat (2.F.3).
+    """
+    msg_id = new_id("m", conn)
+    seq = conn.execute(
+        "SELECT COALESCE(MAX(seq), 0) + 1 n FROM messages").fetchone()["n"]
+    thread = conn.execute("SELECT thread_id FROM messages WHERE id = ?",
+                          (ask.message_id,)).fetchone()["thread_id"]
+    conn.execute(
+        "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
+        "to_role, verb, body_refs, seq, status) VALUES (?, ?, 'message', ?, "
+        "'principal', 'liaison', 'verdict', '[]', ?, 'answered')",
+        (msg_id, ask.message_id, thread, seq))
+    said = (answer.text or "").strip()
+    for item, kind in (answer.per_item or {}).items():
+        if kind not in ("park", "now", "drop") or not conn.execute(
+                "SELECT 1 FROM items WHERE id = ?", (item,)).fetchone():
+            continue
+        _write_park(conn, item, kind, "shift", msg_id, seq)
+        if kind != "drop":
+            continue
+        for r in conn.execute(
+                "SELECT id, body_refs FROM messages WHERE status = 'open' "
+                "AND to_role = 'principal' AND verb != 'converse'").fetchall():
+            reached = _reached(conn, json.loads(r["body_refs"] or "[]"))
+            if r["id"].startswith(SHIFT_ASK) or not reached or not reached <= {item}:
+                continue
+            conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
+                         (r["id"],))
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                         (f"closed:{r['id']}", msg_id))
+        # The ledger branch of `land`, with the principal's words, and no
+        # contest of the item: the drop is the item's whole answer.
+        for r in conn.execute("SELECT id, about_ref, default_taken FROM ledger "
+                              "WHERE status = 'open'").fetchall():
+            if item not in _items_reached(conn, r["id"]):
+                continue
+            text = (f"overruled at signoff: {said or 'dropped'} "
+                    f"(was assumed: {r['default_taken']})")
+            conn.execute(
+                "INSERT INTO decisions (id, author, text, refs, resolves_ledger) "
+                "VALUES (?, 'principal', ?, ?, ?)",
+                (new_id("d", conn), text, json.dumps([r["about_ref"]]), r["id"]))
+            conn.execute("UPDATE ledger SET status = 'resolved' WHERE id = ?",
+                         (r["id"],))
+    if said:
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                     (f"entry:{msg_id}", json.dumps(said)))
+        record_entry(conn, msg_id, said)
+    if ruling_id is None:
+        conn.execute(
+            "UPDATE rulings SET status = 'landed', verdict_id = ? "
+            "WHERE ask_id = ? AND status = 'open'", (msg_id, ask.message_id))
+        if conn.execute("SELECT 1 FROM rulings WHERE ask_id = ?",
+                        (ask.message_id,)).fetchone() is None:
+            conn.execute(
+                "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
+                "status, verdict_id) VALUES (?, ?, ?, ?, 'landed', ?)",
+                (f"r_{msg_id}", ask.message_id,
+                 json.dumps(answer.per_item or {}), said, msg_id))
     return msg_id
 
 

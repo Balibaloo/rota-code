@@ -290,6 +290,15 @@ for i in range(cap):
             _outcome = "onboarded"
             break
         print(f"quiet after {i} steps, {asked} asks")
+        # A quiet with an item put aside names it, for the read. On a quiet
+        # with the request delivered, `resume_behind` already took the item
+        # up again (frame 193's design, 2.F.4).
+        from rota.core.scheduler import aside_items, park_kind
+        from rota.roles.principal import park_behind
+        for _item in sorted(aside_items(conn)):
+            if park_kind(conn, _item) == "park":
+                print(f"QUIET with waiting: {_item}, behind "
+                      f"{park_behind(conn, _item) or 'the new request'}", flush=True)
         _outcome = "stuck"
         record(0, i, asked, "quiet")
         break

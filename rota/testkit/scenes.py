@@ -677,6 +677,12 @@ def two_batches(tmp: Path) -> Scene:
     sc.ids["head1"] = sc.conn.execute(
         "SELECT head_commit FROM batches WHERE id = 'b1'").fetchone()[0]
     item(sc, 2, 2)
+    # Item 2's statement is a new request while item 1 is approved and not
+    # merged, so the Liaison asks which goes first. The walk answers now,
+    # which keeps the park page and the order (frame 193's design, 2.F.10).
+    seat(sc, "liaison|tick:request_shift|i1,s2",
+         ["TOOL: msg.present_principal(refs=['i1', 's2'])"])
+    rule(sc, "present", ["i1", "s2"], {"i1": "now"})
     # The park page numbers the item and c1, whose own test is red. The
     # walk with no words approves every line, which is the ceiling: the
     # page rests, and the park asks nothing more (frame 142).
@@ -800,6 +806,11 @@ def park(tmp: Path) -> Scene:
     # The walk ends at quiet, and the next walk says item 2.
     play_to_quiet(sc)
     item(sc, 2, 2)
+    # The shift question, answered now, as in `two_batches` (frame 193's
+    # design, 2.F.10).
+    seat(sc, "liaison|tick:request_shift|i1,s2",
+         ["TOOL: msg.present_principal(refs=['i1', 's2'])"])
+    rule(sc, "present", ["i1", "s2"], {"i1": "now"})
     seat(sc, "liaison|tick:park_ask|i1,b1", PARK_ASK)
     play(sc, lambda conn: scheduler.open_park_ask(conn, "b1"))
     sc.ids.update(key="developer|tick:tests_failing|b1",

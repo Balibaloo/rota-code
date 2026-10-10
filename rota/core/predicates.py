@@ -185,6 +185,39 @@ def message_tips(conn) -> list[Wake]:
     return open_tips(conn)
 
 
+@predicate("request_shift", wakes="liaison", band="traffic")
+def request_shift(conn) -> list[Wake]:
+    """
+    A new request has a statement while an earlier request is not finished:
+    ask the principal which goes first.
+
+    Roman ruled that a request boundary is a question to the principal, not a
+    silent park (frame 193's design, 2.F.1, ruled 2026-10-10 04:33). One wake
+    per open earlier item, the oldest request first. The refs are the earlier
+    item and the new request's statement, and the detail carries the facts
+    the page shows. The question's id names the pair, so it is asked once.
+    """
+    from ..roles.principal import (_shift_waits, _shift_where, current_request,
+                                   open_earlier_items)
+
+    # No request message, no boundary: the common case costs one query.
+    if not conn.execute(
+            "SELECT 1 FROM messages WHERE from_role = 'principal' "
+            "AND cause_id IS NULL AND verb = 'converse' LIMIT 1").fetchone():
+        return []
+    cur = current_request(conn, unread=False)
+    if not cur or not cur["statements"]:
+        return []
+    out = []
+    for item in open_earlier_items(conn, cur, asked=False):
+        out.append(Wake("liaison", "tick:request_shift",
+                        refs=(item, cur["statements"][0]),
+                        detail=(f"{item} is from an earlier request. Where it "
+                                f"stands: {_shift_where(conn, item)} What it "
+                                f"waits on: {_shift_waits(conn, item)}")))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Understanding loop — these existed, now declared
 # ---------------------------------------------------------------------------
@@ -240,8 +273,13 @@ def contested(conn) -> list[Wake]:
 
     This was a dead end: the highest-value signal in the system landed nowhere.
     It wakes the item's owner to amend it or author a decision defending it."""
+    # An item set aside wakes no owner until it resumes (frame 193's design,
+    # 2.F.4). Night 137's s304, s307 and s310 amended the confirm item after
+    # the principal had moved to the version option.
+    from .scheduler import not_parked
     rows = conn.execute(
-        "SELECT id FROM items WHERE approval = 'contested'").fetchall()
+        "SELECT id FROM items WHERE approval = 'contested'"
+        + not_parked(conn, "id")).fetchall()
     return [Wake("vision_keeper", "tick:contested", refs=(r["id"],)) for r in rows]
 
 
@@ -534,7 +572,8 @@ def grouping(conn) -> list[Wake]:
     # batch would wait behind `next_batch`'s same test, and `cancel` would
     # abandon it at once. Night 137's s321 grouped a contested item's ticket
     # twice (frame 193's design, 2.4).
-    from .scheduler import not_described, not_retired
+    # An item set aside opens no batch (frame 193's design, 2.F.4).
+    from .scheduler import not_described, not_parked, not_retired
     rows = conn.execute(
         "SELECT DISTINCT c.ticket_id AS tid FROM criteria c "
         "JOIN tickets t ON t.id = c.ticket_id "
@@ -545,11 +584,20 @@ def grouping(conn) -> list[Wake]:
         "                          WHERE b.status != 'abandoned')"
         + not_described(conn, "c.ticket_id", of="ticket")
         + not_retired(conn, "c.ticket_id")
+        + not_parked(conn, "c.ticket_id", of="ticket")
     ).fetchall()
     if not rows:
         return []
     return [Wake("architect", "tick:grouping",
                  refs=tuple(r["tid"] for r in rows))]
+
+
+def groupable_tickets(conn) -> list[str]:
+    """The tickets the grouping wakes for. `batches.group` reads the same set,
+    so its refusal names only tickets the wake would carry (frame 193's
+    review of pass 1, finding 1)."""
+    wakes = grouping(conn)
+    return list(wakes[0].refs) if wakes else []
 
 
 @predicate("observed_entries", wakes="liaison", band="start",
@@ -798,6 +846,7 @@ def touch_note(conn) -> list[Wake]:
     the batch and its item, and they ride the present mechanically.
     """
     from .db import refs_of
+    from .scheduler import not_parked
 
     presented: set[str] = set()
     for r in conn.execute("SELECT body_refs FROM messages WHERE verb = 'present'"):
@@ -808,6 +857,8 @@ def touch_note(conn) -> list[Wake]:
         "       SUM(t.confidence != 'expected') AS possible "
         "FROM batches b JOIN batch_touch t ON t.batch_id = b.id "
         "WHERE b.status IN ('pending', 'deferred', 'running') "
+        # A set-aside item's batch owes no page while it waits (2.F.4).
+        + not_parked(conn, "b.item_id") +
         "GROUP BY b.id ORDER BY b.id"
     ).fetchall()
     return [Wake("liaison", "tick:touch_note", refs=(r["id"], r["item"]),
@@ -1359,11 +1410,17 @@ def cancel(conn) -> list[Wake]:
     abandonment itself, because whether a batch may exist is a scheduling
     fact, and no session is woken to decide it.
     """
+    # A drop on the shift page stops the earlier request, so its live change
+    # is abandoned as for any revocation (frame 193's design, 2.F.3).
+    from .scheduler import _has_parks
+    dropped = ("OR (SELECT p.kind FROM item_parks p WHERE p.item_id = i.id "
+               "ORDER BY p.seq DESC, p.rowid DESC LIMIT 1) = 'drop' "
+               if _has_parks(conn) else "")
     rows = conn.execute(
         "SELECT b.id AS bid FROM batches b JOIN items i ON i.id = b.item_id "
         "WHERE b.status IN ('pending','running','deferred') "
-        "  AND (i.approval != 'approved' OR i.approval_ver < i.version) "
-        "ORDER BY b.id").fetchall()
+        "  AND (i.approval != 'approved' OR i.approval_ver < i.version "
+        + dropped + ") ORDER BY b.id").fetchall()
     return [Wake(SCHEDULER, "do:cancel", refs=(r["bid"],),
                  detail=f"{r['bid']}'s item is no longer schedulable")
             for r in rows]
@@ -1383,11 +1440,18 @@ def preempt(conn) -> list[Wake]:
     runs is a scheduling fact, and no session is woken to decide it.
     """
     running = conn.execute(
-        "SELECT b.id AS bid, i.priority AS pri FROM batches b "
+        "SELECT b.id AS bid, b.item_id AS item, i.priority AS pri FROM batches b "
         "JOIN items i ON i.id = b.item_id WHERE b.status = 'running'"
     ).fetchone()
     if not running:
         return []
+    # A running batch whose item was put aside is deferred, so its worktree
+    # and commits persist as deferred work (law 9; frame 193's design, 2.F.4).
+    from .scheduler import aside_items
+
+    if running["item"] in aside_items(conn):
+        return [Wake(SCHEDULER, "do:preempt", refs=(running["bid"], running["item"]),
+                     detail=f"{running['item']} is set aside")]
     # The start's order, so the two never disagree. Night 92 started `b_2`
     # and preempted it for `b_3` nineteen times (observed: night 92, 2026-09-24).
     from .scheduler import next_batch
@@ -1509,7 +1573,10 @@ def quarantined(conn) -> list[Wake]:
     # said "1 abandoned" and nothing else, and the Liaison sent
     # `refs=["tick:quarantined"]` three times to a door that refused it.
     stalled: list[str] = []
-    from .scheduler import given_up, park_owns
+    from ..roles.principal import _items_reached
+    from .scheduler import aside_items, given_up, park_owns
+
+    aside = aside_items(conn)
 
     try:
         for row in conn.execute(
@@ -1522,6 +1589,15 @@ def quarantined(conn) -> list[Wake]:
             subject = (row["tick_key"] or "").split("|", 2)[-1]
             if (subject and row["tick_key"] in given_up(conn, subject)
                     and park_owns(conn, subject)):
+                continue
+            # A key whose refs reach only items set aside waits with them.
+            # Night 137's m186 put the confirm item to the principal after
+            # the version option request (frame 193's design, 2.F.4).
+            keyed_items = set()
+            for ref in subject.split(","):
+                if ref:
+                    keyed_items.update(_items_reached(conn, ref))
+            if keyed_items and keyed_items <= aside:
                 continue
             n += 1
             parts = (row["tick_key"] or "").split("|")
@@ -1561,10 +1637,15 @@ def park_ask(conn) -> list[Wake]:
     from .scheduler import (given_up, open_park_ask, park_ask_id, park_owns,
                             park_reds)
 
+    from .scheduler import not_parked
+
     out = []
+    # A set-aside item's batch owes no page while it waits (frame 193's
+    # design, 2.F.4).
     for b in conn.execute(
             "SELECT b.id, b.item_id FROM batches b JOIN items i ON i.id = b.item_id "
-            "WHERE b.status = 'deferred' ORDER BY b.id").fetchall():
+            "WHERE b.status = 'deferred'" + not_parked(conn, "b.item_id")
+            + " ORDER BY b.id").fetchall():
         # A contested item's batch goes to `do:cancel`, so nothing is asked.
         # A contest closes the ask before the cancel runs, and the next id
         # would open a second ask on a batch that is going.
@@ -1762,6 +1843,10 @@ REGISTER_ENTRIES = frozenset({
     # A parked batch is owed one ask to the principal until it is written
     # (frame 87, ruled 2026-09-30).
     "park_ask",
+    # A new request is owed one shift question to the principal while an
+    # earlier request is open, until it is written (frame 193's design,
+    # 2.F.1, ruled 2026-10-10).
+    "request_shift",
 })
 
 

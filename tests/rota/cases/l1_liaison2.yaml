@@ -381,6 +381,52 @@
     writes: [items, batches, batch_touch, statements, decisions]
     recipients: [vision_keeper, architect, terminologist]
 
+- id: L1-LI-ask-which-request-goes-first
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  tick: request_shift
+  # Night 137 at s292's commit: the principal asked for the version option
+  # while the confirm item was approved and not merged. The wake names the
+  # earlier item and the new request's statement, and the door builds the
+  # page (frame 193's design, 2.F.1 and 2.F.2).
+  refs: [<i1>, <s3>]
+  detail: "<i1> is from an earlier request. Where it stands: approved. No change is built for it yet. What it waits on: nothing from you."
+  fixture:
+    entries:
+      - {id: <e2>, author: principal, ts_order: 1,
+         text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting."}
+      - {id: <e3>, author: principal, ts_order: 2,
+         text: "Give version_option a show_python flag that appends the running Python version to the message."}
+    statements:
+      - {id: <s2>, span_entry: <e2>, span_start: 0, span_end: 106,
+         text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting.",
+         status: ratified}
+      - {id: <s3>, span_entry: <e3>, span_start: 0, span_end: 94,
+         text: "Give version_option a show_python flag that appends the running Python version to the message.",
+         status: proposed}
+    items:
+      - {id: <i1>, text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting.",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    item_statements:
+      - {item_id: <i1>, statement_id: <s2>}
+    messages:
+      - {id: <m2>, thread_id: t1, from_role: principal, to_role: liaison,
+         verb: converse, body_refs: '["<e2>"]', seq: 1, status: answered}
+      - {id: <m3>, thread_id: t1, from_role: principal, to_role: liaison,
+         verb: converse, body_refs: '["<e3>"]', seq: 2, status: answered}
+  expect:
+    messages:
+      - {to: principal, verb: present, count: 1, refs_include: [<i1>, <s3>]}
+  forbidden:
+    # A question changes nothing: no item, no batch, no ruling.
+    writes: [items, batches, statements, decisions, rulings]
+    recipients: [vision_keeper, architect, terminologist]
+    messages:
+      - {to: principal, verb: clarify}
+      - {to: principal, verb: converse}
+
 - id: L1-LI-a-parked-batch-is-put-to-the-principal-once
   tier: T1
   role: liaison

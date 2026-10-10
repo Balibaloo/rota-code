@@ -755,7 +755,8 @@ def brief_intake(ctx: Ctx, verdict: str) -> dict:
 
 @op("brief", "segment")
 def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
-                  text: str, span_entry: str | None = None) -> dict:
+                  text: str, span_entry: str | None = None,
+                  supersedes: str | None = None) -> dict:
     """
     Propose one statement at principal granularity.
 
@@ -787,6 +788,27 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
         raise ValueError(f"{target} names no entry, and there is no entry to "
                          f"segment against")
     refuse_second_answer(ctx, "work")
+    # A follow-up on the current request names the statement it says again,
+    # and the request keeps its pages (frame 193's design, 2.F.6). Only a
+    # ratified statement of the current request takes one.
+    if supersedes:
+        from .principal import current_request
+
+        seq = ctx.conn.execute("SELECT seq FROM messages WHERE id = ?",
+                               (ctx.trigger,)).fetchone() if ctx.trigger else None
+        cur = current_request(ctx.conn, before_seq=seq["seq"] if seq else None,
+                              unread=False)
+        old = ctx.conn.execute("SELECT status, span_entry FROM statements "
+                               "WHERE id = ?", (supersedes,)).fetchone()
+        if (cur is None or old is None or old["status"] != "ratified"
+                or old["span_entry"] not in cur["entries"]):
+            named = (f"The current request's statements are "
+                     f"{', '.join(cur['statements'])}" if cur and cur["statements"]
+                     else "There is no current request")
+            raise ValueError(
+                f"supersedes names a ratified statement of the current request, "
+                f"and {supersedes} is not one. {named}. Leave supersedes out for "
+                f"a new request")
 
     # You cannot ratify a question. Handed "remind me, what did we decide
     # about invoice retention?", intake segmented it into three statements
@@ -908,7 +930,8 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
 
     ctx.writes.append(("statements", id, {
         "span_entry": target, "span_start": span_start,
-        "span_end": span_end, "text": text, "status": "proposed"}))
+        "span_end": span_end, "text": text, "status": "proposed",
+        **({"supersedes": supersedes} if supersedes else {})}))
     # A moved span is said, so the seat sees which copy of the words the
     # row holds (the review of eee89bc8, fix 3).
     if moved:
@@ -921,6 +944,13 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
 def brief_ratify(ctx: Ctx, id: str) -> dict:
     _must_exist(ctx, "statements", id)
     ctx.writes.append(("statements", id, {"status": "ratified"}, False))
+    # A follow-up says the earlier statement again, so the ratification
+    # leaves the earlier one clarified (frame 193's design, 2.F.6).
+    row = ctx.conn.execute("SELECT supersedes FROM statements WHERE id = ?",
+                           (id,)).fetchone()
+    if row is not None and row["supersedes"]:
+        ctx.writes.append(("statements", row["supersedes"],
+                           {"status": "clarified"}, False))
     return {"id": id, "status": "ratified"}
 
 
@@ -4752,14 +4782,16 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
                             "WHERE id = ?", (item_id,)).fetchone()
     if not (item["approval"] == "approved"
             and (item["approval_ver"] or 0) >= (item["version"] or 0)):
-        # The sentence names only the wake's tickets that the door would admit.
+        # The sentence names only the wake's tickets that the grouping would
+        # still wake for, less any this session already staged in a batch
+        # (frame 193's review of pass 1, finding 1).
+        from ..core.predicates import groupable_tickets
+
+        live = set(groupable_tickets(ctx.conn))
+        staged = {w[2].get("ticket_id") for w in (ctx.writes or [])
+                  if w[0] == "batch_tickets" and isinstance(w[2], dict)}
         others = [t for t in (ctx.wake_refs or ())
-                  if ctx.conn.execute(
-                      "SELECT 1 FROM tickets t JOIN items i ON i.id = t.item_id "
-                      "WHERE t.id = ? AND t.item_id != ? "
-                      "AND i.approval = 'approved' "
-                      "AND i.approval_ver >= i.version",
-                      (t, item_id)).fetchone()]
+                  if t in live and t not in staged]
         head = (f"{item_id} is {item['approval']} at version {item['version']}, "
                 f"so no batch can run it.")
         if others:
@@ -7010,28 +7042,54 @@ def _is_team_note(conn, ref: str) -> bool:
 RULING_WORDS: dict[str, str | None] = {
     "approve": "approve", "contest": "contest", "revise": "revise",
     "drop": "contest", "remove": "contest", "strike": "contest",
+    "resume": "resume",
+    "ask": None, "unclear": None, "question": None,
+}
+
+# The shift page's own map. Its one line takes which request goes first, and
+# nothing about the request itself changes there (frame 193's design, 2.F.3).
+# On that page drop means stop the request and separate means later.
+SHIFT_WORDS: dict[str, str | None] = {
+    "later": "park", "separate": "park", "park": "park", "aside": "park",
+    "behind": "park",
+    "now": "now", "answer": "now", "first": "now",
+    "drop": "drop", "remove": "drop", "stop": "drop",
     "ask": None, "unclear": None, "question": None,
 }
 
 
-def _ruling_word(key: str, raw) -> str:
-    """The stored ruling for one line's word, or the refusal that names the map."""
+def _ruling_word(key: str, raw, shift: bool = False) -> str:
+    """The stored ruling for one line's word, or the refusal that names the
+    map of the page it is on."""
+    words = SHIFT_WORDS if shift else RULING_WORDS
     word = str(raw).strip().lower()
     first = word.split()[0] if word.split() else word
-    if word not in RULING_WORDS and first in RULING_WORDS:
+    if word not in words and first in words:
         word = first
-    if word in RULING_WORDS and RULING_WORDS[word] is not None:
-        return RULING_WORDS[word]
-    if word in RULING_WORDS:
+    if word in words and words[word] is not None:
+        return words[word]
+    if word in words:
         # The door writes no sentence: the Liaison originates the question.
         raise ValueError(
             f"line {key}: {word!r} is a question back, and a question is its "
             f"own call: rulings.rule(ask=\"<one sentence about line {key}>\") "
             f"with no rulings.")
+    if shift and word in ("approve", "contest", "revise"):
+        raise ValueError(
+            f"line {key} takes later, now or drop: the question is which request "
+            f"goes first, and nothing about the request itself changes here.")
+    if shift:
+        raise ValueError(
+            f"line {key}: {word!r} is not an answer here. Line {key} takes later, "
+            f"now or drop. later, separate, park, aside and behind are later. "
+            f"now, answer and first are now. drop, remove and stop are drop. ask, "
+            f"unclear and question are a question: rulings.rule(ask=...) with no "
+            f"rulings.")
     raise ValueError(
         f"line {key}: {word!r} is not a ruling. Each line takes approve, "
-        f"contest or revise. drop, remove and strike are contest. ask, unclear "
-        f"and question are a question: rulings.rule(ask=...) with no rulings.")
+        f"contest or revise. drop, remove and strike are contest. resume takes "
+        f"up a request you put aside. ask, unclear and question are a question: "
+        f"rulings.rule(ask=...) with no rulings.")
 
 
 @op("rulings", "rule")
@@ -7131,14 +7189,39 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "\"2\": \"contest\"}")
     if not is_clarify:
         order = order or refs
+    from .principal import SHIFT_ASK, _items_reached, off_page
+    from ..core.scheduler import aside_items
+
+    shift = ask["id"].startswith(SHIFT_ASK)
+    off = set() if (shift or is_clarify) else off_page(ctx.conn, refs)
     per_item: dict[str, str] = {}
     for key, ruling in rulings.items():
         key = str(key).strip()
-        ruling = _ruling_word(key, ruling)
+        ruling = _ruling_word(key, ruling, shift=shift)
         if order and key.isdigit() and 1 <= int(key) <= len(order):
-            per_item[order[int(key) - 1]] = ruling
-        elif key in refs:
-            per_item[key] = ruling
+            ref = order[int(key) - 1]
+        elif key in refs and not shift:
+            ref = key
+        else:
+            ref = None
+        # resume takes up an item set aside, and only that (frame 193's
+        # design, 2.F.4 and 2.F.5).
+        if ruling == "resume" and ref is not None:
+            reached = _items_reached(ctx.conn, ref)
+            if not reached or not set(reached) <= aside_items(ctx.conn):
+                raise ValueError(
+                    f"line {key} is not waiting. resume takes up a request "
+                    f"you put aside.")
+        # A row of another request is no line of this page, so words here
+        # never change it (frame 193's design, 2.F.7).
+        if ref is not None and ref in off and ruling in ("contest", "revise"):
+            items = _items_reached(ctx.conn, ref)
+            raise ValueError(
+                f"{key} is your earlier request, {', '.join(items)}, and this "
+                f"page is about another request. Words on this page do not "
+                f"change it. Leave the row out of the ruling.")
+        if ref is not None:
+            per_item[ref] = ruling
         elif is_clarify:
             raise ValueError(
                 f"{key!r} is not a row of this question. A clarify numbers no "
