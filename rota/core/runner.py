@@ -164,6 +164,14 @@ def _asks_about_entries(conn: sqlite3.Connection, body_refs: str | None) -> bool
         for r in refs)
 
 
+# The converse wake's `current_request` carries this sentence as `relation`
+# (frame 193's design, 2.G.1).
+CURRENT_REQUEST_RELATION = (
+    "This is the request before these words. The new words continue it only "
+    "when they name the same function or the same feature. Otherwise they are "
+    "a new request, and you leave `supersedes` out.")
+
+
 def message_entry_id(conn: sqlite3.Connection, message_id: str) -> str | None:
     """The entry a principal message's session segments, or None."""
     # The message's own words come first. A reply to a clarify carries the
@@ -1753,9 +1761,14 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             seq = conn.execute("SELECT seq FROM messages WHERE id = ?",
                                (trigger,)).fetchone()["seq"]
             cur = ratified_request(conn, before_seq=seq)
+            # The relation says what the block is. Night 138's s270 and s353
+            # read the block as the request the new words belong to, and
+            # both named it as the cause in their interviews (frame 193's
+            # design, 2.G.1).
             if cur:
                 out["current_request"] = {"statement": cur["statements"][0],
-                                          "text": cur["texts"][0]}
+                                          "text": cur["texts"][0],
+                                          "relation": CURRENT_REQUEST_RELATION}
 
         # An answer is an answer to something. A principal `converse` whose
         # cause is a clarify is a reply, not new work. A desk could not settle

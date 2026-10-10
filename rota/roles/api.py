@@ -753,6 +753,22 @@ def brief_intake(ctx: Ctx, verdict: str) -> dict:
     return {"verdict": verdict, "next": nxt}
 
 
+# English function words that two unrelated requests share often (frame
+# 193's design, 2.G.5).
+SUPERSEDES_STOPLIST = frozenset((
+    "that this with when then also into from have make take give should "
+    "would there their which where what does them they only just like same "
+    "next more than some each every over after before instead please").split())
+
+
+def _content_words(text: str) -> set[str]:
+    """The content words of a text, as 2.G.5 defines them: four letters or
+    more, lower case, split on every character that is not a letter or a
+    digit, `_` included, minus the stoplist."""
+    return {w for w in re.split(r"[^a-z0-9]+", (text or "").lower())
+            if len(w) >= 4 and w not in SUPERSEDES_STOPLIST}
+
+
 @op("brief", "segment")
 def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                   text: str, span_entry: str | None = None,
@@ -808,6 +824,20 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                 f"supersedes names {supersedes}, and the current request's "
                 f"earlier statement is {cur['statements'][0]}. Pass that id, or "
                 f"leave supersedes out.")
+        # A follow-up names the function or the feature it continues. With
+        # the brief alone, the s353 case set supersedes on a separate request
+        # in 2 of 5 runs. A follow-up refused in error costs one shift
+        # question, which Roman's ruling of 04:33 prefers (frame 193's
+        # design, 2.G.5).
+        earlier = ctx.conn.execute("SELECT text FROM statements WHERE id = ?",
+                                   (supersedes,)).fetchone()
+        if not (_content_words(text) & _content_words(
+                earlier["text"] if earlier else "")):
+            raise ValueError(
+                f"`supersedes` names `{supersedes}`, and the new words share no "
+                f"word with it. A follow-up names the function or the feature "
+                f"it continues. Leave `supersedes` out when the words are about "
+                f"another function.")
 
     # You cannot ratify a question. Handed "remind me, what did we decide
     # about invoice retention?", intake segmented it into three statements
@@ -939,9 +969,24 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     return {"id": id, "span_entry": target}
 
 
+def contested_refusal(sid: str, ruling: str) -> str:
+    """The words of the ratify door and the deliver door (frame 193's
+    design, 2.G.3 and 2.G.6)."""
+    return (f"the principal contested {sid} in {ruling}, so {sid} is not "
+            f"ratified and not delivered. Ratify only what they accepted. When "
+            f"they accepted nothing, end the session with no call")
+
+
 @op("brief", "ratify")
 def brief_ratify(ctx: Ctx, id: str) -> dict:
     _must_exist(ctx, "statements", id)
+    # A statement the principal contested is not ratified. Night 138's s273
+    # ratified the contested s1 and delivered it (frame 193's design, 2.G.3).
+    from .principal import contested_statement
+
+    ruling = contested_statement(ctx.conn, id)
+    if ruling:
+        raise ValueError(contested_refusal(id, ruling))
     ctx.writes.append(("statements", id, {"status": "ratified"}, False))
     # A follow-up leaves the statement it says again ratified. The design's
     # `clarified` write (2.F.6) took the version item off `open_requests`

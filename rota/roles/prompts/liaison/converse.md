@@ -70,9 +70,10 @@ where *they* would recognise a cut.
 The wake carries `current_request` only when the principal's newest request has a
 ratified statement. When the new words change or add to that request, set
 `supersedes` to the statement id that `current_request` names. After a request
-about `version_option`, "also show the version as major.minor" is about the same
-thing, so it takes `supersedes`. After that request, "also add a --color flag"
-is about another thing, so it is a new request with no `supersedes`.
+about the `--color` and `--quiet` flags, "let --quiet also turn --color off" is
+about the same thing, so it takes `supersedes`. After a request about `echo`,
+"let confirm take a flag" names another function, so it is a new request with no
+`supersedes`.
 When the wake has no `current_request`, leave `supersedes` out.
 
 **The three are mutually exclusive.** Send one `msg.clarify_principal`, or the

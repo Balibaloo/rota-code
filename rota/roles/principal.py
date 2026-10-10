@@ -652,6 +652,40 @@ def current_request(conn: sqlite3.Connection, *, before_seq: int | None = None,
     return None
 
 
+def contested_statement(conn: sqlite3.Connection, sid: str, *,
+                        confirm_only: bool = False,
+                        before_seq: int | None = None) -> str | None:
+    """
+    The id of the newest ruling on statement `sid` when that ruling is
+    `contest`, else None.
+
+    A stale ruling does not count. `confirm_only` reads the rulings of the
+    confirm pages that name `sid`, and only landed ones. `before_seq` skips a
+    ruling whose reply came at or after that point (frame 193's design, 2.G.3
+    and 2.G.4).
+    """
+    sql = ("SELECT r.id, r.per_item FROM rulings r "
+           "JOIN messages a ON a.id = r.ask_id "
+           "LEFT JOIN messages p ON p.id = r.reply_id "
+           "WHERE r.status != 'stale' AND r.per_item LIKE ?")
+    args: list = [f'%"{sid}"%']
+    if confirm_only:
+        sql += " AND r.status = 'landed' AND a.verb = 'confirm' AND a.body_refs LIKE ?"
+        args.append(f'%"{sid}"%')
+    if before_seq is not None:
+        sql += " AND COALESCE(p.seq, a.seq) < ?"
+        args.append(before_seq)
+    for r in conn.execute(sql + " ORDER BY r.rowid DESC", tuple(args)):
+        try:
+            word = json.loads(r["per_item"] or "{}").get(sid)
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if word is None:
+            continue
+        return r["id"] if word == "contest" else None
+    return None
+
+
 def ratified_request(conn: sqlite3.Connection, *,
                      before_seq: int | None = None) -> dict | None:
     """
@@ -669,6 +703,12 @@ def ratified_request(conn: sqlite3.Connection, *,
     done = {r["id"] for r in conn.execute(
         f"SELECT id FROM statements WHERE id IN ({marks}) AND status = 'ratified'",
         tuple(cur["statements"]))}
+    # A statement the principal contested on its confirm page is not the
+    # request before the new words. Night 138's wake offered s1 after m138's
+    # contest, and s353 copied it into `supersedes` (frame 193's design,
+    # 2.G.4).
+    done = {sid for sid in done if not contested_statement(
+        conn, sid, confirm_only=True, before_seq=before_seq)}
     keep = [k for k, sid in enumerate(cur["statements"]) if sid in done]
     if not keep:
         return None

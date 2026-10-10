@@ -1754,6 +1754,53 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
     return None
 
 
+def _refuse_confirm_off_entry(ctx: api.Ctx, refs: list, staged: set) -> None:
+    """
+    Refuse a converse confirm that skips the words that woke the session.
+
+    Night 138's s270 woke on new words about `confirm()` and confirmed s1,
+    a statement of an earlier entry about `echo_json`. No statement formed
+    for the new words, so the shift question never fired (frame 193's
+    design, 2.G.2). The check holds only on a converse wake, where the
+    intake claim is armed, and only when the trigger is a principal message.
+    """
+    entry = getattr(ctx, "entry_id", None)
+    if (not refs or not entry or not ctx.trigger
+            or getattr(ctx, "intake", "unarmed") == "unarmed"):
+        return
+    row = ctx.conn.execute("SELECT from_role FROM messages WHERE id = ?",
+                           (ctx.trigger,)).fetchone()
+    if row is None or row["from_role"] != "principal":
+        return
+    if any(w[0] == "statements" and len(w) > 2 and isinstance(w[2], dict)
+           and w[2].get("span_entry") == entry for w in ctx.writes):
+        return
+    if ctx.conn.execute("SELECT 1 FROM statements WHERE span_entry = ?",
+                        (entry,)).fetchone():
+        return
+    said = ctx.conn.execute("SELECT text FROM entries WHERE id = ?",
+                            (entry,)).fetchone()
+    words = " ".join(((said["text"] if said else "") or "").split()).casefold()
+    for ref in refs:
+        if ref in staged:
+            # A staged statement of this entry returned above, so this one
+            # spans another entry.
+            continue
+        stmt = ctx.conn.execute("SELECT span_entry, text FROM statements WHERE id = ?",
+                                (ref,)).fetchone()
+        if stmt is None or stmt["span_entry"] == entry:
+            return
+        # Words said again are the earlier statement's words. The segment
+        # door refuses them and names this confirm, so this door admits it.
+        text = " ".join((stmt["text"] or "").split()).casefold()
+        if text and text in words:
+            return
+    raise ValueError(
+        f"The words that woke you, `{entry}`, have no statement. Segment them "
+        f"with `brief.segment` and confirm that statement. If they ask for "
+        f"nothing, call no confirm.")
+
+
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                prose: str = "") -> Callable:
     """
@@ -2673,6 +2720,18 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"statements with brief.segment first, and confirm those "
                     f"ids -- the entry is what they said, not what you read "
                     f"in it")
+            _refuse_confirm_off_entry(ctx, refs or [], staged)
+
+        # A contested statement is not delivered. Night 138's s273 and the
+        # pass 3 recordings delivered it after the ratify door refused it
+        # (frame 193's design, 2.G.6). Only verdict mode offers a deliver.
+        if verb == "deliver" and ctx.role == "liaison":
+            from ..roles.principal import contested_statement
+
+            for ref in refs or ():
+                ruling = contested_statement(ctx.conn, ref)
+                if ruling:
+                    raise ValueError(api.contested_refusal(ref, ruling))
 
         # One message gets one answer. `api.refuse_second_answer` holds the
         # rule and says why; the three channels that carry an intake answer

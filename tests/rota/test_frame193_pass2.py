@@ -439,7 +439,7 @@ def test_a_seat_that_names_its_own_new_id_is_refused(db):
 
 
 def test_the_wake_offers_a_ratified_statement_only(db):
-    from rota.core.runner import resolve_inbound
+    from rota.core.runner import CURRENT_REQUEST_RELATION, resolve_inbound
     from rota.core.scheduler import Wake
 
     _segment_session(db, status="proposed")
@@ -448,7 +448,7 @@ def test_the_wake_offers_a_ratified_statement_only(db):
     db.execute("UPDATE statements SET status = 'ratified' WHERE id = 's3'")
     db.commit()
     assert resolve_inbound(db, wake)["current_request"] == {
-        "statement": "s3", "text": S3}
+        "statement": "s3", "text": S3, "relation": CURRENT_REQUEST_RELATION}
 
 
 def test_a_described_item_on_the_request_does_not_hold_the_resume(db):
