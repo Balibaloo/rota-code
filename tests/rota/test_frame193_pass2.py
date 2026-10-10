@@ -355,14 +355,17 @@ def test_a_follow_up_on_the_same_request_is_no_boundary(db):
     assert pending_asks(db) == []
 
 
-def test_the_segment_door_admits_supersedes_on_the_current_request(db):
+FOLLOW_UP = "Write the version as major.minor.micro."
+
+
+def _segment_session(db, status: str | None = "ratified"):
+    """A follow-up converse m_p4 behind request m_p3, whose s3 has `status`."""
     from rota.core.sandbox import build
     from rota.roles import prompts
 
-    _request(db, 3, 49, 165, S3)
-    words = "Write the version as major.minor.micro."
+    _request(db, 3, 49, 165, S3, status=status)
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES ('e_p4', "
-               "'principal', ?, 50)", (words,))
+               "'principal', ?, 50)", (FOLLOW_UP,))
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES ('m_p4', 't_p1', 'principal', "
                "'liaison', 'converse', '[\"e_p4\"]', 170, 'open')")
@@ -371,14 +374,68 @@ def test_the_segment_door_admits_supersedes_on_the_current_request(db):
                allow=prompts.mode_tools("liaison", "converse"))
     sb.ctx.trigger = "m_p4"
     sb.ctx.entry_id = "e_p4"
-    with pytest.raises(ValueError, match="supersedes names a ratified statement"):
-        sb.call("brief.segment", id="s4", span_start=0, span_end=len(words),
-                text=words, supersedes="s9")
-    out = sb.call("brief.segment", id="s4", span_start=0, span_end=len(words),
-                  text=words, supersedes="s3")
+    return sb
+
+
+def _segment(sb, sid: str, supersedes: str):
+    return sb.call("brief.segment", id=sid, span_start=0, span_end=len(FOLLOW_UP),
+                   text=FOLLOW_UP, supersedes=supersedes)
+
+
+def test_the_segment_door_admits_supersedes_on_the_current_request(db):
+    sb = _segment_session(db)
+    with pytest.raises(ValueError, match="supersedes names s9"):
+        _segment(sb, "s4", "s9")
+    out = _segment(sb, "s4", "s3")
     assert out["id"] == "s4"
     (row,) = [w for w in sb.ctx.writes if w[0] == "statements"]
     assert row[2]["supersedes"] == "s3"
+
+
+def test_a_wrong_supersedes_is_told_the_earlier_statement(db):
+    sb = _segment_session(db)
+    with pytest.raises(ValueError) as err:
+        _segment(sb, "s4", "s9")
+    assert str(err.value) == ("supersedes names s9, and the current request's "
+                              "earlier statement is s3. Pass that id, or leave "
+                              "supersedes out.")
+    assert not [w for w in sb.ctx.writes if w[0] == "statements"]
+
+
+def test_a_supersedes_with_no_ratified_request_is_told_to_leave_it_out(db):
+    """G1's shape: the earlier request's statement waits as proposed, so the
+    page holds no request that a follow-up can say again (frame 193, pass 2b)."""
+    sb = _segment_session(db, status="proposed")
+    with pytest.raises(ValueError) as err:
+        _segment(sb, "s4", "s3")
+    assert str(err.value) == ("There is no earlier request on the page, so leave "
+                              "supersedes out.")
+    assert "s3" not in str(err.value)
+
+
+def test_a_seat_that_names_its_own_new_id_is_refused(db):
+    """G1's register line: the seat sent id and supersedes as one id. The door
+    names that id once, and the earlier statement once."""
+    sb = _segment_session(db)
+    with pytest.raises(ValueError) as err:
+        _segment(sb, "s4", "s4")
+    msg = str(err.value)
+    assert msg.startswith("supersedes names s4, and the current request's "
+                          "earlier statement is s3.")
+    assert msg.count("s4") == 1
+
+
+def test_the_wake_offers_a_ratified_statement_only(db):
+    from rota.core.runner import resolve_inbound
+    from rota.core.scheduler import Wake
+
+    _segment_session(db, status="proposed")
+    wake = Wake("liaison", "message", "m_p4")
+    assert "current_request" not in resolve_inbound(db, wake)
+    db.execute("UPDATE statements SET status = 'ratified' WHERE id = 's3'")
+    db.commit()
+    assert resolve_inbound(db, wake)["current_request"] == {
+        "statement": "s3", "text": S3}
 
 
 def test_the_shift_page_refuses_a_ruling_word(db):

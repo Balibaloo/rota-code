@@ -67,10 +67,10 @@ where *they* would recognise a cut.
 - "hello!", "how's it going?", "thanks" are **not** statements. They ask for
   nothing.
 
-When the words change or add to the request on the principal's current page,
-segment them with `supersedes` set to that request's statement. That is the
-same request, said again. `current_request` names the statement id and its
-text.
+The wake carries `current_request` only when the principal has a request on the
+page. When the new words change or add to that request, set `supersedes` to the
+statement id that `current_request` names. When the wake has no
+`current_request`, leave `supersedes` out.
 
 **The three are mutually exclusive.** Send one `msg.clarify_principal`, or the
 asks, or `brief.segment` + `msg.confirm_principal` — never two of those in one

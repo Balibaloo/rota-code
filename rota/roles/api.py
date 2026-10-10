@@ -790,25 +790,24 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     refuse_second_answer(ctx, "work")
     # A follow-up on the current request names the statement it says again,
     # and the request keeps its pages (frame 193's design, 2.F.6). Only a
-    # ratified statement of the current request takes one.
+    # ratified statement of the current request takes one. The read is the
+    # database alone, so the statement being written and a staged write never
+    # qualify. The old refusal listed a proposed s_99cb32 as the current
+    # request's statement and refused the same id (frame 193, pass 2b).
     if supersedes:
-        from .principal import current_request
+        from .principal import ratified_request
 
         seq = ctx.conn.execute("SELECT seq FROM messages WHERE id = ?",
                                (ctx.trigger,)).fetchone() if ctx.trigger else None
-        cur = current_request(ctx.conn, before_seq=seq["seq"] if seq else None,
-                              unread=False)
-        old = ctx.conn.execute("SELECT status, span_entry FROM statements "
-                               "WHERE id = ?", (supersedes,)).fetchone()
-        if (cur is None or old is None or old["status"] != "ratified"
-                or old["span_entry"] not in cur["entries"]):
-            named = (f"The current request's statements are "
-                     f"{', '.join(cur['statements'])}" if cur and cur["statements"]
-                     else "There is no current request")
+        cur = ratified_request(ctx.conn, before_seq=seq["seq"] if seq else None)
+        if cur is None:
+            raise ValueError("There is no earlier request on the page, so leave "
+                             "supersedes out.")
+        if supersedes not in cur["statements"]:
             raise ValueError(
-                f"supersedes names a ratified statement of the current request, "
-                f"and {supersedes} is not one. {named}. Leave supersedes out for "
-                f"a new request")
+                f"supersedes names {supersedes}, and the current request's "
+                f"earlier statement is {cur['statements'][0]}. Pass that id, or "
+                f"leave supersedes out.")
 
     # You cannot ratify a question. Handed "remind me, what did we decide
     # about invoice retention?", intake segmented it into three statements

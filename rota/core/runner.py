@@ -1745,14 +1745,15 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         out["recent_chat"] = _recent_chat(conn, trigger)
         # A request with no cause may follow up the current one. The seat
         # needs that request's statement id to copy into `supersedes` (frame
-        # 193's design, 2.F.6).
+        # 193's design, 2.F.6). The door admits a ratified statement only, so
+        # the wake offers no other (frame 193, pass 2b).
         if not row["cause_id"] and row["from_role"] == "principal":
-            from ..roles.principal import current_request
+            from ..roles.principal import ratified_request
 
             seq = conn.execute("SELECT seq FROM messages WHERE id = ?",
                                (trigger,)).fetchone()["seq"]
-            cur = current_request(conn, before_seq=seq, unread=False)
-            if cur and cur["statements"]:
+            cur = ratified_request(conn, before_seq=seq)
+            if cur:
                 out["current_request"] = {"statement": cur["statements"][0],
                                           "text": cur["texts"][0]}
 

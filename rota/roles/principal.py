@@ -646,6 +646,30 @@ def current_request(conn: sqlite3.Connection, *, before_seq: int | None = None,
     return None
 
 
+def ratified_request(conn: sqlite3.Connection, *,
+                     before_seq: int | None = None) -> dict | None:
+    """
+    The current request with its ratified statements only, or None.
+
+    `supersedes` names a statement the principal ratified. `current_request`
+    also lists a proposed statement, so the wake offered one and the door
+    refused it (frame 193, pass 2b: G1's s_99cb32 fell to 2 of 5). The wake
+    and the door read this one function, so they name the same statement.
+    """
+    cur = current_request(conn, before_seq=before_seq, unread=False)
+    if not cur or not cur["statements"]:
+        return None
+    marks = ",".join("?" * len(cur["statements"]))
+    done = {r["id"] for r in conn.execute(
+        f"SELECT id FROM statements WHERE id IN ({marks}) AND status = 'ratified'",
+        tuple(cur["statements"]))}
+    keep = [k for k, sid in enumerate(cur["statements"]) if sid in done]
+    if not keep:
+        return None
+    return {**cur, "statements": [cur["statements"][k] for k in keep],
+            "texts": [cur["texts"][k] for k in keep]}
+
+
 def _root_statement(conn: sqlite3.Connection, sid: str) -> str:
     """Follow `supersedes` to the statement a follow-up said again."""
     seen = {sid}
