@@ -775,6 +775,25 @@ def _content_words(text: str) -> set[str]:
             if len(w) >= 4 and w not in SUPERSEDES_STOPLIST}
 
 
+def _identifiers(text: str) -> set[str]:
+    """The whole tokens of a text that hold `_`, lower case."""
+    return {t for t in re.findall(r"[a-z0-9_]+", (text or "").lower())
+            if "_" in t.strip("_")}
+
+
+def _shares_a_word(new: str, earlier: str) -> bool:
+    """
+    Whether two texts share a whole identifier or a content word.
+
+    The identifier comes first. The split and the stoplist erased
+    `default_on_eof`, because "default" is on the stoplist and "eof" has
+    three letters. A follow-up that named it exactly was refused (the review
+    of f55c3030, finding 1).
+    """
+    return bool(_identifiers(new) & _identifiers(earlier)
+                or _content_words(new) & _content_words(earlier))
+
+
 @op("brief", "segment")
 def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                   text: str, span_entry: str | None = None,
@@ -837,8 +856,7 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
         # design, 2.G.5).
         earlier = ctx.conn.execute("SELECT text FROM statements WHERE id = ?",
                                    (supersedes,)).fetchone()
-        if not (_content_words(text) & _content_words(
-                earlier["text"] if earlier else "")):
+        if not _shares_a_word(text, earlier["text"] if earlier else ""):
             raise ValueError(
                 f"`supersedes` names `{supersedes}`, and the new words share no "
                 f"word with it. A follow-up names the function or the feature "
@@ -931,9 +949,9 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
             if (own_row is not None and own != target
                     and said not in _said(own_row["text"])):
                 raise ValueError(
-                    f"these words are {s['id']}, from another entry. The words "
-                    f"that woke you are `{own}`. Segment them, and confirm that "
-                    f"statement")
+                    f"these words are {s['id']}, from another entry. Leave "
+                    f"span_entry out. Segment the words of `{own}` with "
+                    f"brief.segment.")
             if s["status"] == "ratified":
                 raise ValueError(
                     f"these words are {s['id']}, which the principal ratified. "
@@ -981,11 +999,6 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                 "note": "this span is already segmented, as "
                         f"{same[0][1]}; nothing was written."}
 
-    # Segmenting is not interpreting, and the span is what makes that checkable.
-    # A statement whose text is not in the entry is one the principal never
-    # said -- a live run produced "and also fix the login timeout" against a
-    # sentence about SSO and LDAP. The span was always the way back to their
-    # words; nothing had ever looked through it.
     ctx.writes.append(("statements", id, {
         "span_entry": target, "span_start": span_start,
         "span_end": span_end, "text": text, "status": "proposed",

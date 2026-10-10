@@ -199,9 +199,9 @@ def test_the_earlier_entrys_words_point_back_to_the_trigger_entry(db):
     with pytest.raises(ValueError) as err:
         sb.call("brief.segment", id="s1", span_start=0, span_end=len(S1), text=S1,
                 span_entry="e_p1", supersedes="s1")
-    assert str(err.value) == ("these words are s1, from another entry. The words "
-                              "that woke you are `e_p2`. Segment them, and confirm "
-                              "that statement")
+    assert str(err.value) == ("these words are s1, from another entry. Leave "
+                              "span_entry out. Segment the words of `e_p2` with "
+                              "brief.segment.")
 
 
 def test_every_ref_from_another_entry_must_be_said_again(db):
@@ -375,6 +375,15 @@ def test_the_confirm_words_share_no_word_with_echo_json(db):
     with pytest.raises(ValueError) as err:
         _supersede(sb, P2)
     assert str(err.value) == SHARE_NO_WORD
+
+
+def test_a_follow_up_that_names_default_on_eof_is_admitted(db):
+    """The stoplist erased `default_on_eof`. A shared whole identifier now
+    admits the follow-up (the review of f55c3030, finding 1)."""
+    words = "Let default_on_eof default to False."
+    sb = _follow_up(db, P2, words)
+    out = _supersede(sb, words)
+    assert out["id"] == "s9"
 
 
 def test_content_words_split_on_underscore_and_drop_the_stoplist():
