@@ -1,0 +1,798 @@
+# Frame 193, the second request: the scope and the design
+
+Status: written by an Opus agent of session 45fc3fe2 on 2026-10-10 at
+about 04:09, before any code, read-only on the tree at 43461f47. The code
+of the tree differs from night 137's tree af535499 in three commits only,
+fe9f14b6, 5ffa1244 and afecf14a, which touch `disputed_paths` in
+`rota/core/runner.py` and the capture in `rota/testkit/fixtures.py`
+(observed: `git diff --stat af535499 HEAD -- rota tests probes`,
+2026-10-10). No site of this design is in those commits. The night facts
+come from `.rota/clickI_night137.db` with its `-wal`, opened with
+`mode=ro`, and `.rota/clickI_night133.db`, opened with
+`mode=ro&immutable=1`, by inline scripts of this agent (observed:
+2026-10-10). No model call was made. Rota workflow, except where a line
+says meta workflow.
+
+Verdicts, one line each:
+
+- The principal saw walk 2's page m161 after walk 3's request m_p3,
+  because `pending_asks` lists every open ask by `seq`, and nothing closes
+  a page when a request lands. The walk inserts m_p3 and calls
+  `pending_asks` before any session runs. Section 1.1.
+- m186 came from the `quarantined` predicate on the key
+  `vision_keeper|tick:contested|confirm_with_default_on_eof`, which the
+  `contested` predicate earned after s299's ruling. The send door stamped
+  the confirm criteria, because `request_rows` stamps what the refs reach.
+  Section 1.1.
+- s299's and s314's words reached the confirm item through `land`, which
+  writes `contested` on every ruled item, and through the relay split,
+  which sent the five criteria to the Terminologist in `criterion_repair`,
+  where s316 respecified them. Section 1.2.
+- `grouping` reads no item approval and no version. `tick_slicing`,
+  `next_batch` and `cancel` read both. So the grouping opens a batch that
+  the cancel abandons in the same pass. Section 1.3.
+- A park today is a batch state, a deferred batch the team gave up on. No
+  item can be parked, by the system or by the principal, and nothing can
+  reopen one. Section 1.4.
+- s293, s295 and s297 asked which lines relate, because the `landing`
+  brief says to ask when "you cannot tell which lines the reply is about",
+  and every line of m161 was the confirm request. Section 1.5.
+- Five changes, section 2: the request boundary, the park of an earlier
+  request's item, one request per page, the grouping guard, and the words
+  door.
+
+## 1. The scope report
+
+### 1.1 Which predicate presented m161 and m186 after walk 3's request
+
+**How the request entered** (observed: `probes/walk.py` lines 39 to 52,
+2026-10-10). Each walk is a new process. When its sentence is not the last
+principal entry, the walk inserts the entry `e_p<n>` and a message `m_p<n>`
+with no `cause_id`, verb `converse`, from `principal` to `liaison`. Then the
+loop starts. The first thing each step does is
+`pending_asks(conn)` (`probes/walk.py` line 233). The TUI path does the
+same through `talk.open_with` (`rota/tools/talk.py:55-87`): an entry and an
+uncaused `converse`. So a request is a principal `converse` with no
+`cause_id` (observed: night 137, m_p3 has `cause_id` NULL; every answer to
+a page has the page as its cause, 2026-10-10).
+
+**The order on night 137** (observed: `messages`, night 137, 2026-10-10):
+
+| seq | Message | What |
+|---|---|---|
+| 163 | m161 | walk 2's agenda page, sent by s290 on `tick:agenda`, refs the 7 ledger rows, the confirm item and its 5 criteria |
+| 164 | m162 | walk 2's answer to m161. s291 sent `ask` as a ruling word, was refused twice, and ended. m161 stayed open |
+| 165 | m_p3 | walk 3's request, `["e_p3"]`, no cause |
+| 166 | m163 | the agent principal's answer to m161: "Line 1 is the wrong change ... the change I'm working on now is the show_python flag" |
+| 167 | m164 | s292's confirm of s3, sent after m163 |
+
+So the principal answered m161 before any rota session read m_p3.
+
+**The predicate behind m161.** None in walk 3. m161 is walk 2's page, still
+open. `pending_asks` (`rota/roles/principal.py:168-185`) returns every open
+message to the principal whose verb is not `converse`, ordered by `seq`,
+and it reads no request. The agent principal answers the first ask.
+
+**The predicate behind m186.** `quarantined`
+(`rota/core/predicates.py:1465-1536`). s299's ruling on m175 contested the
+confirm item. s303 set it `contested`. `contested`
+(`predicates.py:236-245`) woke the Vision Keeper three times, s304, s307
+and s310, and the key `vision_keeper|tick:contested|confirm_with_default_on_eof`
+reached 3 attempts. s313 woke on `tick:quarantined` with the detail `1
+abandoned: contested for confirm_with_default_on_eof (vision_keeper), 3
+attempts` and refs `["confirm_with_default_on_eof"]`, and sent
+`msg.present_principal(refs=['confirm_with_default_on_eof'])`. The send
+door, `_bind_send.stage` (`rota/core/sandbox.py:2446-2462`), added
+`request_rows(conn, refs)`. `request_rows` (`principal.py:503-542`) reaches
+items through `_items_reached` (`principal.py:455-476`), so it returned the
+confirm item and its five criteria. `config` `stamped:m186` holds the five
+criteria (observed: night 137, 2026-10-10). The walk's own request,
+`version_option_show_python`, stood `draft` at version 3 and no ref
+reached it. `request_rows` falls back to `open_requests` only when the refs
+reach no item.
+
+**What `open_requests` reads** (`principal.py:479-500`). An in-scope item
+that cites a ratified statement, is not observed and not a description,
+and whose version is above its `delivered:` row. A contested item of an
+earlier request matches, for ever. On night 137 the confirm item matches
+at version 1 with no `delivered:` row. `version_option_show_python`
+matches too. `echo_json` does not, because `delivered:echo_json` is 2 and
+its version is 2 (observed: `items` and `config`, night 137, 2026-10-10).
+
+**m192, the sign-off page after m186** (observed: m191 and m192, night
+137). s318 woke on `tick:signoff` for the draft `version_option_show_python`.
+The Vision Keeper's `submit` m191 named all seven items. The page m192
+numbered `version_option_show_python` first, the confirm item second, and
+`echo_json` at line 12. The principal asked to remove lines 2 and 12, m193.
+
+### 1.2 Which code carried s299's and s314's words to the confirm item
+
+1. **The page.** m161's refs held the confirm item and its criteria, so
+   every numbered line was the confirm request: line 1 the item, lines 2 to
+   6 the criteria, lines 7 to 13 the seat notes (observed: s293's prompt,
+   `landing.page`, night 137).
+2. **The ruling.** s299, in `landing` (`_mode_key`,
+   `rota/core/runner.py:258-263`, a principal `converse` whose cause is a
+   `present`), sent `rulings.rule` with `contest` on all 13 lines and the
+   words "Yes, that's right. Please send the new page for the show_python
+   flag on version_option." `rulings_rule` (`rota/roles/api.py:6983-7193`)
+   checks that each line is on the page and has a word. It has no notion
+   of which request a line belongs to. The ruling r_7d89909888 landed
+   (observed: `rulings`, night 137).
+3. **The state write.** `land` (`principal.py:1118-1374`) closed the 7
+   ledger rows as overruled. It added each row's `about_ref` as `contest`
+   when the `about_ref` was not stamped, which put `batch_1_confirm_eof_default`
+   into the verdict through two Developer notes. Its item loop
+   (`principal.py:1297-1311`) wrote `approval='contested'` on the confirm
+   item. `verdict:m176` holds the item, the 5 criteria, the 7 rows and the
+   batch (observed: `config`, night 137).
+4. **The relay.** s300, `verdict_signoff`, relayed the batch to the
+   Architect, the criteria to the Terminologist, and the item to the
+   Vision Keeper. s303 set the item `contested` again.
+5. **s314 on m186.** The same door and the same `land`: `contest` on lines
+   1 to 6. `verdict:m188` holds the item and the 5 criteria. s315 relayed
+   the criteria to the Terminologist, m189.
+6. **s316.** `_mode_key` keyed the Terminologist's `relay` of criteria to
+   `criterion_repair` through `park_criterion_relay`
+   (`runner.py:264-275`, `scheduler.py:1714`). The brief respecifies a
+   criterion from `principal_said`. s316 called `criteria.respecify` on all
+   5 confirm criteria with `show_python` text, 7 calls (observed:
+   `tool_calls`, night 137, 2026-10-10).
+
+So no site asks whether a line belongs to the request that the principal
+is working on. The page, the ruling door, `land` and the relay each take
+the line's row as the target.
+
+### 1.3 How `tick_slicing`, the grouping and the cancel read an item's approval and version
+
+| Site | File and line | What it reads |
+|---|---|---|
+| `tick_slicing` | `rota/core/scheduler.py:266-341` | `approval = 'approved' AND approval_ver >= version`, not observed, not described, and a version above `delivered:` or above the newest ticket's `item_ver` |
+| `tick_criteria` | `scheduler.py:344-358` | tickets with no criteria, not described, not retired. No approval |
+| `grouping` | `rota/core/predicates.py:511-545` | criteria whose ticket is in no batch that is not abandoned, not described, not retired. **No approval and no version** |
+| `batches.group` | `rota/roles/api.py:4690-4804` | the tickets exist, one item, the wake's tickets, a new id, no live twin. **No approval and no version** |
+| `next_batch` | `scheduler.py:1442-1475` | `approval = 'approved' AND approval_ver >= version`, no open predecessor, not parked |
+| `cancel` | `predicates.py:1339-1362` | a live batch whose item has `approval != 'approved' OR approval_ver < version`, abandoned by the scheduler |
+
+**Night 137's loop** (observed: `batches`, `sessions`, `tool_calls`,
+night 137, 2026-10-10). The confirm item stood `contested`, `approval_ver`
+1, version 1, from s303 on. Its ticket `tk_1_confirm_with_default_on_eof`
+had criteria and no live batch after `batch_1_confirm_eof_default` was
+abandoned. So `grouping` woke the Architect on that ticket. s321 called
+`batches.group(id='batch_1_confirm_eof_default', ...)`, was refused for an
+old id, and then grouped `batch_1_confirm_eof_default_new`. `cancel`
+abandoned it in the next pass. 13 grouping sessions, s321 to s352, opened
+13 batches, and each was abandoned at its first wake. 9 of the 13 names
+copy the merged `echo_json_group`.
+
+### 1.4 What a park is today
+
+**A park is a batch state** (observed: `scheduler.parked`,
+`scheduler.py:1846-1875`, and `park_ask`, `predicates.py:1539-1575`). A
+deferred batch whose key was quarantined, or a batch at or past
+`loop_cap`, is parked. `next_batch` skips it. `park_ask` owes one ask to
+the principal: a page with the item and its criteria when a criterion's
+own test is red, and a note otherwise. The park ask's id is `m_park_<...>`.
+`close_park_asks` and `close_stale_park_asks` (`scheduler.py:1817-1844`)
+close a park ask when its batch leaves the park, and `frontier` calls the
+second in every pass (`scheduler.py:1301`).
+
+**The ruling "The park ask is a page with rows"** (`rota/DECISIONS.md`,
+2026-10-08) says five things: there is no fix word; the park ask is a
+page whose rows are the item's criteria, ruled approve, contest or
+revise; the page goes only when a criterion's own test is red, and
+otherwise the team writes a note; "Every word of the principal is a ruling
+on a row, or it earns one Liaison question that names a row"; and a park
+page approved whole is the ceiling.
+
+**An item cannot be parked.** `items.approval` takes `draft`, `pending`,
+`approved` or `contested` (`rota/core/schema.sql`, the `items` table). No
+column, config row or table says that an item waits. `rulings_rule` takes
+`approve`, `contest` and `revise` only (`api.py:7083-7087`). So the system
+cannot park an item, the principal cannot park one, and nothing can reopen
+one. A put-off request lands as `contest` (frame 185) and wakes the Vision
+Keeper to amend it (frame 187).
+
+**The word `reopen` is taken.** The predicate `reopen`
+(`predicates.py:855-880`) elects amend or restart for a batch whose item
+stopped being approved. This design names the principal's word `resume` in
+the code for that reason, and the principal may write "reopen".
+
+### 1.5 Where the Liaison's brief sends the principal's words, and why s293 to s297 asked
+
+A principal `converse` with no cause wakes the Liaison in `converse`
+(`rota/roles/prompts/liaison/converse.md`), which holds `brief.intake`
+and `brief.segment`. A `converse` whose cause is a `present` or a
+`confirm` wakes it in `landing` (`runner.py:258-263`). A `converse` whose
+cause is a `clarify` wakes it in `answering` (`runner.py:254-257`).
+
+`landing.md` gives one function, `rulings.rule`, and two uses of `ask`:
+"The reply is a question about the page", or "you cannot tell which lines
+the reply is about, or whether it agrees". s293's prompt held m161 as the
+page, all 13 lines about confirm, and the reply "Line 1 is the wrong
+change ... the change I'm working on now is the show_python flag for
+version_option". `recent_chat` held the new request and the principal's
+"ok" to its confirm (observed: s293's first turn, night 137, 2026-10-10).
+No line was about `version_option_show_python`, so the brief's second
+case applied, and s293 asked "Could you clarify which lines on the page
+relate to this change". s295 and s297 read the same page and the next
+reply. Each reply said that no line belongs, and each ask-back asked
+again. s299 then read "Yes, that's right. Please send the new page" as a
+contest of every line, because the brief says "The reply names the line,
+or corrects the thing the line says: `contest`", and a request for a new
+page has no other word.
+
+**Night 133's s481** (observed: `tool_calls`, `rulings`, `messages`, night
+133, 2026-10-10). s481 woke in `answering` on m350, the reply to the
+clarify m347, whose refs are `tk_1_confirm_default_on_eof` and
+`tk_1_version_option_show_python`. The reply said "They're independent.
+The confirm change is a separate request I'll take up on its own, so leave
+it out of this one." s481 ruled `{"tk_1_confirm_default_on_eof":
+"contest", "tk_1_version_option_show_python": "approve"}`, r_eb20127f89,
+and relayed to the Vision Keeper. s482 set the confirm item `contested`.
+`answering.md` offers the same three words.
+
+**Night 137's s159 and s291** (observed: `tool_calls`, night 137,
+2026-10-10). s159 sent `rulings.rule(rulings={1: 'approve', 2: 'drop', ...})`
+twice, and s291 sent `{..., 8: 'ask'}` twice. The refusal at
+`api.py:7084-7086`, `line N: 'drop' is not a ruling. Each line takes
+approve, contest or revise`, names no mapping, and the second call was the
+first call again.
+
+### 1.6 The four points, by site
+
+| Point | Sites | What the code does today on night 137 |
+|---|---|---|
+| 1, a request is a boundary | `principal.pending_asks`, `scheduler.frontier`, `principal.request_rows`, `principal.open_requests`, `principal.render_page`, `sandbox._bind_send.stage`, `principal.land`, `api.rulings_rule`, and the predicates `contested`, `quarantined`, `park_ask`, `touch_note`, `signoff`, with `tick_slicing`, `tick_criteria`, `next_batch`, `tick_agenda` | m161 stays open after m_p3 and is answered first. m186 carries the contested confirm item. m192 carries confirm and `echo_json`. s299 and s314 contest the confirm item with words about `version_option_show_python` |
+| 2, the grouping | `predicates.grouping`, `api.batches_group` | 13 batches on the contested confirm item, 13 abandoned at their first wake |
+| 3, the words | `api.rulings_rule` lines 7083-7087, `landing.md`, `answering.md` | `drop` on m63 and `ask` on m162 drew nothing. Night 133's `separate request` landed as `contest` |
+| 4, frame 190's surfaces | `request_block`, `rulings_rule`'s batch-line door, `architect/annotate.md`, `ledger_log` | unchanged by this design |
+
+## 2. The design
+
+Five changes, one per mechanism. Each names its file and function, the new
+behaviour, one test on a real turn, and what it does not change. Rota
+workflow, except where a line says meta workflow.
+
+The changes rest on these records:
+
+- The shape Roman approved on 2026-10-10 about 03:35, four points, copied
+  in the brief of this agent (ruled: Roman, 2026-10-10).
+- The composition, Flows: "A question changes nothing. Only a ratified
+  amendment to something approved revokes work downstream." And Records:
+  "Nothing stops quietly. Every open obligation stays visible and
+  countable until something discharges it."
+- Law 8: "No batch schedules unless its item's approval postdates the
+  item's last amendment."
+- Law 9: "A priority change alters no approved content, trips no
+  revocation ... and moves batches whole."
+- The ruling of 2026-10-08, point 4: "Every word of the principal is a
+  ruling on a row, or it earns one Liaison question that names a row."
+- The ruling of 2026-09-27 (`scheduler.parked`'s comment): "A given-up
+  batch put back in the chair waits for the principal."
+
+**Two words the changes use.**
+
+- A **request** is a principal `converse` to the Liaison with no
+  `cause_id`. Its **entry** is the one id in its `body_refs`. A request is
+  a **boundary** when its entry is the `span_entry` of a statement, or
+  while the request message is still `open`. A request that `converse`
+  read as a question or a greeting has no statement and is answered, so it
+  is no boundary. The newest boundary is the **current request**.
+- An item **belongs to** a request when it cites, through `refs` with kind
+  `statement`, a statement whose `span_entry` is that request's entry. An
+  **earlier-request item** belongs to a request older than the current
+  one, and has no `resume` after the current request (2.5). An observed
+  item, a description and `how_it_works` belong to no request.
+
+### 2.1 The request boundary: a page sent before a new request closes
+
+**The mechanism.** When a request lands, every open page to the principal
+that was sent before it leaves the principal's view at once, and closes
+once the request is read as work.
+
+1. A new helper, `principal.current_request(conn) -> sqlite3.Row | None`,
+   returns the newest boundary: its message id, `seq`, entry and the
+   entry's `ts_order`. A helper `principal.request_of(conn, item) -> str |
+   None` returns the entry of the request an item belongs to.
+2. **The read.** `pending_asks` (`principal.py:168-185`) leaves out every
+   open ask whose `seq` is below the current request's `seq`. The walk and
+   the TUI read `pending_asks`, so the principal never sees m161 after
+   m_p3 is inserted. The hide needs no write, so it holds in the step
+   before any session runs, which is when the agent principal answered
+   m161 on night 137.
+3. **The write.** A new function,
+   `scheduler.close_pages_before_request(conn) -> int`, runs in `frontier`
+   (`scheduler.py:1269-1310`) beside `close_stale_park_asks`. When the
+   current request has a statement, it sets each open message to the
+   principal with a lower `seq` to `answered`, and writes the config row
+   `closed:<message id>` with the request's message id. A ruling that the
+   Liaison staged on a closed page lands nothing: `land` already returns
+   None for a page that is not open, and `apply_rulings` marks the row
+   `stale` (`principal.py:1147-1150`, `1377-1409`).
+4. A request that `converse` reads as a question has no statement. Its
+   message is answered by the session's commit, so it is no boundary, and
+   the hidden pages come back in the next read.
+5. The ledger rows of a closed page stay `open` and countable. They reach
+   the principal again on a later page, under the order of 2.2's point 5.
+6. `render_state` (`principal.py:201`) gains one line per closed page:
+   "Set aside when you asked for <the request's first statement>: <n>
+   lines." The record stays visible, as the composition's Records ask.
+
+**What it does not change.** A page sent after the request stays, whatever
+it is about. A request that arrives while no page is open closes nothing.
+The park ask and the touch note close as any page does.
+
+**The test.** Night 137, s293's turn. Rebuild inline m161 at seq 163 with
+its 13 refs and `stamped:m161`, m162 answered, m_p3 at seq 165 open with
+`["e_p3"]`, the entries `e_p1` to `e_p3`, the statements s1 and s2
+ratified, and no s3. `pending_asks` returns nothing. Add s3 `proposed`
+from `e_p3`, and set m_p3 `answered`. `frontier` runs, m161 is `answered`,
+and `closed:m161` holds `m_p3`. A ruling row staged on m161, s299's map
+with m175's words, goes `stale` through `apply_rulings`, and the confirm
+item stays `approved` at version 1. A second case: m_p3 answered with no
+statement, as a question, and `pending_asks` returns m161 again.
+
+### 2.2 The park: an earlier request's contested or draft item parks, and every reader skips it
+
+**The mechanism.** When a request becomes the current request, each
+earlier-request item that is `contested` or `draft` at that moment parks.
+A parked item wakes no seat and opens no batch until the principal resumes
+it. An approved item of an earlier request is not parked, and its batch
+keeps its place, because only a ratified amendment revokes approved work
+(the composition, Flows). A merged item is not parked, because it is
+delivered.
+
+1. **The record.** A new table `item_parks` in `rota/core/schema.sql`:
+   `id` (a hash of the item and the cause, law 14), `item_id`, `kind`
+   (`park` or `resume`), `by` (`request` or `principal`), `cause_id` (the
+   request message or the principal's verdict message), and `seq` (the
+   cause's `seq`). Each row has one writer: `close_pages_before_request`
+   writes the `request` rows, and `land` writes the `principal` rows
+   (2.5). An item is parked when its newest row is `park`. `CREATE TABLE IF
+   NOT EXISTS` adds the table to an old database, and a reader of a
+   database with no table reads no park.
+2. **The write.** `close_pages_before_request` (2.1), in the same pass,
+   writes one `request` row for each earlier-request item that is
+   `contested` or `draft` and has no row for this request. The state is
+   read at the boundary and written once, so a later contest of an
+   approved item on its own page does not park it.
+3. **The helper.** `scheduler.not_parked(conn, col, of="item")`, the shape
+   of `not_described` and `not_retired` (`scheduler.py:228-264`): an SQL
+   condition that drops a parked item, or the ticket or batch of one. It
+   is empty when the table is missing.
+4. **The readers.** Each of these adds `not_parked`:
+   - `contested` (`predicates.py:236-245`). A parked contested item wakes
+     no Vision Keeper. Night 137's s304, s307 and s310 had this shape
+     after the item went contested.
+   - `signoff`, through `tick_signoff` (`scheduler.py:440-462`). A parked
+     draft is not submitted.
+   - `tick_slicing` (`scheduler.py:266-341`) and `tick_criteria`
+     (`scheduler.py:344-358`).
+   - `grouping` (`predicates.py:511-545`), beside 2.4's guard.
+   - `next_batch` (`scheduler.py:1442-1475`). A batch of a parked item
+     does not start. `preempt` (`predicates.py:1365`) also defers a
+     running batch whose item is parked, through the existing
+     `do:preempt`, so its worktree and commits persist as deferred work
+     (law 9's preemption).
+   - `park_ask` (`predicates.py:1539-1575`) and `touch_note`
+     (`predicates.py:776-806`). A parked item's batch owes no page while it
+     waits.
+   - `quarantined` (`predicates.py:1465-1536`). A key whose refs reach only
+     parked items is skipped, as a key that a park owns is skipped today.
+     Night 137's m186 had this shape.
+5. **The agenda's order.** `tick_agenda` (`scheduler.py:967-1034`) skips an
+   open ledger row whose `about_ref` reaches only parked items, through
+   `_items_reached`. It orders the rest as the current request's rows
+   first, then rows that reach no request, then rows of an approved
+   earlier request. No row is dropped: an approved request's assumptions
+   still reach a page before its merge, by law 8.
+6. **What the cancel does.** `cancel` (`predicates.py:1339-1362`) is
+   unchanged. A contested parked item's live batch is abandoned as today,
+   and the item's ticket waits in no batch. On a `resume` the grouping
+   offers it again.
+
+**What it does not change.** The approval of a parked item. A park writes
+no `items` row, so a `resume` returns the item to the state it held:
+`contested` wakes the Vision Keeper with the newest verdict's words,
+`draft` goes to the sign-off. An approved earlier request builds under law
+9's priority, and its own owed pages still reach the principal: the park
+page by the ruling of 2026-09-27, and its touch note. Those pages carry
+that request's lines alone, by 2.3.
+
+**The test.** Night 137, s313's dispatch. Rebuild inline the confirm item
+`contested` at version 1 with its ticket and 5 criteria,
+`version_option_show_python` `draft` at version 3 with s3 `ratified`,
+`echo_json` with `delivered:echo_json` at 2, m_p3, and the quarantined key
+`vision_keeper|tick:contested|confirm_with_default_on_eof` at 3 attempts
+with `reported` 0. Before the pass, `contested` and `quarantined` each
+return one wake on the confirm item, as on the night. After
+`close_pages_before_request`, `item_parks` holds one `request` row for
+the confirm item and none for `echo_json` or `version_option_show_python`.
+Then `contested`, `quarantined` and `grouping` return no wake on it, and
+`signoff` returns `version_option_show_python` alone. On night 137 the
+confirm item went contested after m_p3, so this test holds the item
+contested at the boundary on purpose. The rows are the night's, and the
+order is the case 2.2 exists for (reasoned: the design's own case).
+
+### 2.3 One request per page: a page carries its request's lines, and words on it never change another request's item
+
+**The mechanism.** A page is about one request. Its numbered request lines
+are that request's items and criteria, and each parked item gets one
+waiting line. A ruling on that page writes nothing on an item of another
+request.
+
+1. **The page's request.** A new helper, `principal.page_request(conn,
+   refs) -> str | None`, returns the newest request that the page's refs
+   reach. A page sent after the current request whose refs reach the
+   current request, or reach no request, is the current request's page.
+   An approved earlier request's own owed page, a park page or a touch
+   note whose refs reach only that request, is that request's page.
+2. **`request_rows`** (`principal.py:503-542`) returns the items of the
+   page's request and their criteria, then one row per parked item, then
+   nothing else. The fallback through `open_requests` returns the current
+   request's open items only, plus a resumed item. The send door stamps
+   these rows as today (`sandbox.py:2446-2462`).
+3. **`render_page`** (`principal.py:733-950`) drops from every group a row
+   whose items, by `_items_reached`, are all items of another request, or
+   all delivered items of an earlier request. A row that reaches no item
+   stays. On night 137's m192 this drops the confirm item, its five
+   criteria and `echo_json`, which are lines 2 to 7 and 12 on the night.
+4. **The waiting line.** `request_block` (`principal.py:576-655`) numbers
+   each parked item after the request's own lines under one heading,
+   "Waiting:", with one line: "<item text>. You put this aside when you
+   asked for the change above. To take it up again, say reopen line <n>."
+   The item's criteria and notes are not numbered. The line counts the
+   open ledger rows that reach the item: "<k> notes wait with it."
+5. **The door.** `rulings_rule` (`api.py:6983-7193`), after each key maps
+   to a row:
+   - A `contest` or a `revise` of a row whose items all belong to another
+     request than the page's is refused: "line <n> is your earlier
+     request, <item>, which waits. Words on this page do not change it.
+     To take it up again, rule line <n> resume. To leave it waiting,
+     approve the line."
+   - On a clarify, whose keys are row ids, the same refusal names the row
+     and adds "To put it aside, rule it later." s481's ticket of the
+     earlier request reads this refusal.
+6. **The guard in `land`.** `land` (`principal.py:1218-1311`) writes no
+   approval on a parked item and no approval on an item of another request
+   than the page's, whatever the ruling. Only `resume` and `park` (2.5)
+   write, and they write `item_parks` rows. The sign-off page needs this
+   guard: the Vision Keeper's `submit` names every item, so the confirm
+   item is a wake row on m192 and not a stamped row, and frame 190's
+   stamped filter at line 1219 would let an "ok" approve it.
+
+**What it does not change.** The request block, its "You asked:" and "It
+must:" headings, the team's notes heading, the batch-line door and the
+quarantined branch of frame 190's design stay as built (Roman's point 4).
+A page with no request item, the onboarding account page, renders as
+today.
+
+**The test.** Night 137, s299's turn and m192's render. First case: rebuild
+inline the rows of m192 with walk 3's request current, the confirm item
+parked by a `request` row, and `echo_json` delivered. `render_page`
+numbers `version_option_show_python` as line 1, then the account lines,
+then one waiting line for the confirm item, and no line for `echo_json` or
+the five confirm criteria. `order` holds no confirm criterion. The call
+`rulings.rule(rulings={<every line>: "approve"}, words="ok")` lands, and
+the confirm item is still `contested` with its `request` park row the
+newest. Second case: a page of the current request that still numbers the
+confirm item, built by giving the present the confirm item as a ref. s299's
+map, `contest` on every line with m175's words, is refused with the line
+of the confirm item named.
+
+### 2.4 The grouping opens no batch on an item whose approval does not cover its version
+
+**The mechanism.** The grouping reads the item's approval as `next_batch`
+does.
+
+1. `grouping` (`predicates.py:511-545`) adds one condition: the ticket's
+   item is `approved` with `approval_ver >= version`, and not parked
+   (2.2). The `WHERE` joins `tickets` to `items` on `item_id`, the same
+   test as `next_batch` (`scheduler.py:1454-1456`) and the complement of
+   `cancel`'s.
+2. `batches_group` (`api.py:4690-4804`) refuses an item that is not
+   approved at its version, after `_must_exist(ctx, "items", item_id)`:
+   "<item> is <approval> at version <v>, so no batch can run it: the cancel
+   would abandon it at once. A batch waits for the principal's approval of
+   the item's current version. Group nothing for it, and stop." The door
+   is the belt for a wake that predates the state, and for a seat that
+   names an item the wake did not carry.
+
+**What it does not change.** `cancel`, `next_batch` and `tick_slicing`. A
+contested item's ticket still has no live batch, and the grouping offers
+it again once the item is approved at its version. The `grouping.md`
+brief does not change, because the wake no longer fires.
+
+**The test.** Night 137, s321's dispatch. Rebuild inline the confirm item
+`contested`, `approval_ver` 1, version 1, its ticket
+`tk_1_confirm_with_default_on_eof` with `item_ver` 1, its 5 criteria,
+`batch_1_confirm_eof_default` `abandoned` with head commit 34a5e21, and
+`echo_json_group` merged. `grouping` returns no wake. Set the item
+`approved` at version 1, and `grouping` returns one wake on the ticket. A
+second case: the call `batches.group(id='batch_1_confirm_eof_default_new',
+item_id='confirm_with_default_on_eof',
+ticket_ids=['tk_1_confirm_with_default_on_eof'])` in a session with the
+contested item is refused with the sentence of point 2. Night 133's s564
+and s565 are the same shape and are not rebuilt.
+
+### 2.5 The words door: a principal word that the three ruling words do not hold lands by one named mapping
+
+**The mechanism.** `rulings_rule` maps a known word to its effect, lands
+it, and names the mapping in the refusal of an unknown word.
+
+1. **The map**, a constant `RULING_WORDS` in `rota/roles/api.py`, beside
+   `rulings_rule`:
+
+   | Words | Effect | Stored as |
+   |---|---|---|
+   | approve, contest, revise | as today | the word |
+   | drop, remove, strike | a contest of the line | `contest` |
+   | later, separate, park, defer | a park of the item the line reaches (frame 185's deferral) | `park` |
+   | resume, reopen | a resume of a parked item | `resume` |
+   | ask, unclear, question | a question back | refused, with the call named |
+
+   A word is read lower-case and stripped. A phrase such as "separate
+   request" maps by its first word when that word is in the map.
+2. **`ask` is refused with the call that lands it.** "line <n>: 'ask' is a
+   question back, and a question is its own call:
+   rulings.rule(ask=\"<one sentence about line <n>>\") with no rulings."
+   The door cannot write the sentence, because the Liaison originates the
+   question and the question names the row (the composition, the
+   Liaison). s291's second call then differs from its first (reasoned:
+   the refusal names a call that the first call was not).
+3. **An unknown word** is refused with the whole map: "line <n>: '<word>'
+   is not a ruling. Each line takes approve, contest or revise. drop,
+   remove and strike are contest. later and separate put the item aside:
+   park. reopen and resume take a waiting item up again: resume. ask,
+   unclear and question are a question: rulings.rule(ask=...) with no
+   rulings."
+4. **`park`.** The door maps the line to its request item through
+   `_items_reached`. A line that reaches no request item is refused: "line
+   <n> reaches no request. later puts a request aside, so rule the line of
+   the request." The ruling keeps `{<item>: "park"}`, and a criterion or
+   ledger line of that item leaves the map, so no relay carries it. `land`
+   writes one `principal` row `park` in `item_parks` with the verdict's id
+   and `seq`, writes no `items` row, and leaves the item out of the
+   verdict's refs. A page whose every line is the parked item or approve
+   closes and wakes nobody, as an all-approve page does today.
+5. **`resume`.** Admitted only on a waiting line (2.3) or a parked item's
+   row. `land` writes one `principal` row `resume`. On any other line the
+   door refuses: "line <n> is not waiting. resume takes up a request you
+   put aside."
+6. **The briefs.** `landing.md` and `answering.md` each gain one bullet
+   after the `revise` bullet:
+
+   ```
+   - The reply puts the line off to a separate or later request: `later`.
+     The item waits, and nothing about it is changed.
+   - The reply takes a waiting line up again: `resume`.
+   ```
+
+   `landing.md` keeps "Each line takes approve, contest or revise" as its
+   main sentence, because the door maps the other words.
+
+**What it does not change.** The three ruling words, their meaning, and the
+rule that every line takes one. The refusal of a call with an unclosed
+quote, s320 on m193, frame 137's family.
+
+**The test.** Three real turns. Night 133, s481's turn on m350: rebuild
+inline the clarify m347 with its two tickets, the confirm item and the
+version item with their statements s2 and s3, and m_p3 at seq 258. The
+call `rulings.rule(rulings={"tk_1_confirm_default_on_eof": "later",
+"tk_1_version_option_show_python": "approve"}, words=<m350's words>)` is
+admitted. After `apply_rulings`, `item_parks` holds one `principal` row
+`park` for `confirm_default_on_eof`, the item's approval is unchanged, and
+no relay to the Vision Keeper names it. Night 137, s159's turn on m63, the
+answer to m62: the call with `drop` on lines 2 to 8 is admitted, and the ruling holds
+`contest` on those lines. Night 137, s291's turn on m162, the answer to m161: the
+call with `ask` on line 8 is refused with the sentence of point 2, and the same
+call with `ask="<a sentence about line 8>"` and no rulings is admitted.
+
+### 2.6 What stays as frame 190 built it
+
+The request-first page (`request_rows`, `request_block`, the team's notes
+heading), the correction of a predicted file (the batch-line door before
+the head commit, the Architect's `annotate` relay), and the Architect's
+reply doors (`ledger.log`'s ruled-row door, the four-word floor, the
+message door) keep their behaviour (ruled: Roman, 2026-10-10, point 4).
+2.3 adds a filter before `request_rows` returns and a heading after
+`request_block`'s lines. It changes neither function's rows for a page of
+one request.
+
+### 2.7 The frames, in one table
+
+| Frame | Change | Covered | Left open |
+|---|---|---|---|
+| 190's narrowed wall, a second request's words on the first request's page and item | 2.1, 2.3 | whole: the page closes before the principal reads it, and a ruling on another request's line is refused | none in the mechanism. The ratio is the night's |
+| 185, `a separate request, for later` | 2.5 point 4, 2.2 | whole for the mechanism: `later` parks the item, and the parked item leaves every page but its waiting line | the ratio, read on the night |
+| 186, the grouping on a contested item | 2.4 | whole | none |
+| 192, `drop` | 2.5 points 1 to 3 | `drop` whole. `ask` in part: the refusal names the call, so the answer lands on the second call | the unclosed quote of s320, frame 137's family |
+| 187, the contested tick re-wakes the Vision Keeper | 2.2 point 4 | in part: a parked contested item wakes no Vision Keeper | the re-wake on a current request's contested item |
+| 41's wall, a page open at a walk's end | 2.1 | in part: when the next walk carries a new request | a walk that continues the same request. Open question 5.1 on onboarding pages |
+| 184, the ask-back copy | none | none | all |
+
+## 3. The tests
+
+Each test rebuilds its rows inline, as `tests/rota/test_desk_guards.py`
+does with `_night_rows` and `tests/rota/test_request_page.py` does for
+frame 190. The night databases are ignored by git.
+
+| Change | Case | Real turn | Kind |
+|---|---|---|---|
+| 2.1 | `pending_asks` hides m161 after m_p3, `frontier` closes it once s3 exists, and s299's staged ruling goes stale | night 137, s293 | `pending_asks`, `frontier`, `apply_rulings` |
+| 2.1 | a request read as a question closes nothing, and m161 comes back | night 137, m_p3 with no statement | `pending_asks` |
+| 2.2 | the boundary parks the contested confirm item and not `echo_json`, and `contested`, `quarantined`, `grouping` and `signoff` skip it | night 137, s313's dispatch | predicates, `close_pages_before_request` |
+| 2.2 | the agenda skips a row about a parked item and orders the current request's rows first | night 137, s290's 7 rows with the confirm item parked | `tick_agenda` |
+| 2.3 | m192 numbers the version item, one waiting line, and no confirm or `echo_json` line, and "ok" leaves the confirm item as it was | night 137, m192's refs | `render_page`, `land` |
+| 2.3 | a contest of another request's line is refused with the line named | night 137, s299's map on a page that numbers the confirm item | `rulings_rule` |
+| 2.4 | the grouping offers no ticket of the contested confirm item, and offers it once approved | night 137, s321's dispatch | `grouping` |
+| 2.4 | `batches.group` on the contested item is refused | night 137, s321's call | sandbox, `batches_group` |
+| 2.5 | `later` on the confirm ticket parks the item, writes no approval and relays nothing | night 133, s481 on m350 | `rulings_rule`, `land` |
+| 2.5 | `drop` lands as `contest` | night 137, s159 on m63 | `rulings_rule` |
+| 2.5 | `ask` is refused with the call named, and the named call is admitted | night 137, s291 on m162 | `rulings_rule` |
+| 2.5 | `resume` on the waiting line returns the parked contested item to the Vision Keeper's wake | night 137, the m192 case of 2.3 | `land`, `contested` |
+
+**Unit tests that assert the old behaviour.** The implementer runs
+`python -m rota.tools.map fn pending_asks`, `fn request_rows`, `fn
+open_requests` and `fn grouping` first, and greps the tests for "is not a
+ruling. Each line takes". `tests/rota/test_request_page.py` asserts the
+open requests of a page. `tests/rota/test_grouping_rule.py` and
+`tests/rota/test_predicates.py` build grouping fixtures that may hold a
+draft item. Each rewrite keeps the test's intent.
+
+## 4. The risks
+
+**What a seat sees differently.**
+
+- The principal: a page sent before a request is gone from the next read.
+  A page of the new request carries one waiting line per parked item. An
+  approved earlier request's owed park page still comes.
+- The Liaison in `landing` and `answering`: two new words in the brief,
+  `later` and `resume`, and three new refusals. The `drop`, `ask` and
+  unknown-word refusals change their text.
+- The Architect in `grouping`: fewer wakes. One new refusal.
+- The Vision Keeper: no `contested` wake and no `signoff` wake on a
+  parked item.
+
+**Which briefs change.** `rota/roles/prompts/liaison/landing.md` and
+`rota/roles/prompts/liaison/answering.md`, two lines each. No other brief.
+
+**Which cassette cases go stale** (reasoned: the case ids of
+`tests/rota/cases/*.yaml`, read by grep, 2026-10-10). The gate prints the
+stale set on its five lines, and decides.
+
+- The 7 `l1_landing.yaml` cases, because `landing.md` changes. Re-record.
+- `L1-LI-a-reply-reaches-the-desk-that-asked` (`l1_answering.yaml:9`),
+  because `answering.md` changes. Re-record.
+- `L1-AR-group-into-batches` (`l1_judgement.yaml:277`): its fixture item is
+  `approved` at version 1, so the new door admits its calls. No change
+  expected.
+- The present and sign-off cases, `L1-LI-present-for-signoff`,
+  `L1-LI-present-carries-the-uncovered-statement`,
+  `L1-LI-surface-a-quarantined-message` and the park cases of
+  `l1_liaison2.yaml`: their fixtures hold one request, so `render_page` is
+  unchanged for them. No change expected.
+- Two new cases, recorded at 5 runs each.
+  `L1-LI-a-separate-request-is-put-aside` replays s481's turn on m350 in
+  `answering` and expects one `rulings` write whose map holds `park` for
+  the confirm ticket's item and no contest. `L1-LI-a-dropped-line-is-a-contest`
+  replays s159's turn on m63 and expects `contest` on lines 2 to 8.
+- The scenes. `two_batches` (`rota/testkit/scenes.py:638`) says item 2
+  while item 1 is approved and its batch is deferred: 2.2 parks nothing
+  approved, so the preempt and the park page stand (reasoned: the scene's
+  docstring and 2.2's rule). `merged_then_next` says item 2 after item 1
+  merged: nothing parks. Both scenes may still read a closed page if one is
+  open at the second `say`. The scene tests decide.
+
+**Two behaviours a night may show.**
+
+- An approved earlier request keeps building, and its own owed pages
+  reach the principal while the principal works on the new request. The
+  principal may answer "for later", which now parks it. These pages count
+  in the first ratio of the frame's ends-when, "pages that carry a request
+  the principal has moved past". Night 137's walk 2 ended with the confirm
+  item `approved` and `batch_1_confirm_eof_default` `pending` after both
+  ladders were exhausted (copied: `plans/night137-read.md`, section 4), so
+  one exhausted-ladder page about it is likely in walk 3 (reasoned: the
+  ladder climbs to the Liaison).
+- A parked item stays parked when the current request merges. The
+  principal resumes it by a ruling or by asking for it again.
+
+## 5. The open questions
+
+Each question was checked against `rota/LAWS.md`, `rota/DECISIONS.md`,
+`plans/composition.md` and the Liaison's briefs. A question the records
+answer is not asked, and its answer is written here with its record.
+
+**Answered by the records, not asked.**
+
+- Does a new request park an approved earlier request that is building?
+  No. The composition, Flows: "Only a ratified amendment to something
+  approved revokes work downstream." A new request is not an amendment of
+  the earlier item. Law 9 orders the two by priority. Roman's shape names
+  merged, contested and draft, and the composition settles the fourth
+  state.
+- Does an approved earlier request's park page still reach the principal?
+  Yes. "A given-up batch put back in the chair waits for the principal"
+  (ruled: Roman, 2026-09-27, `scheduler.parked`), and the page goes when a
+  criterion's own test is red (DECISIONS, 2026-10-08, point 3).
+- Does the door write the sentence of a question back for `ask`? No. The
+  Liaison originates a question, and it names the row (the composition,
+  the Liaison). `landing.md`: "Answer it from the page and `line_rows`, in
+  your own sentence." So the door refuses and names the call.
+
+**Open.**
+
+1. **[med] Does a request also close an open onboarding page, sent before
+   any request?** Night 137's m62 was an onboarding agenda page, still open
+   at walk 1's start, and the principal answered "Line 1 only describes
+   what Click is" (copied: `plans/night137-read.md`, section 1). Roman's
+   point 1 names pages "of an earlier request", and an onboarding page
+   belongs to no request. The records hold no ruling on it. Recommended:
+   yes, every open page with a lower `seq` closes, because the rule then
+   reads one fact, and frame 41's wall shows the page answered out of
+   place. Its ledger rows stay open and reach a later page.
+2. **[med] How does the principal take a parked request up again?**
+   No record covers an item park, because none exists (section 1.4).
+   Recommended: the waiting line is numbered, and the Liaison rules it
+   `resume` when the principal writes "reopen", "resume" or "take it up
+   again". A resume returns the item to the state it held, and does not
+   park the current request, because the composition revokes nothing
+   without an amendment. The alternative is a new request that names the
+   item, which makes a second item from the same words.
+3. **[low] The waiting line's words.** Recommended: "<item text>. You put
+   this aside when you asked for the change above. To take it up again,
+   say reopen line <n>." The answer sets a sentence and no edit depends on
+   it.
+
+## 6. The passes and the price
+
+The prices come from frame 190's actuals in its closing line,
+`plans/archive/stack-2026-10-10.md`: design 361.7k, design review 152.2k,
+the three designed passes 291.1k, 307.3k and 196.9k, five fix passes of
+47.2k, 25.2k, 93.7k, 46.0k and 21.5k, reviews of 132.7k, 145.4k, 213.8k
+and 149.1k for the designed passes and 68.0k to 7.9k for the deltas, and
+a night read of 353.5k. About 2.86M in agents against an estimate of about
+1.23M. Meta workflow.
+
+**Two passes**, one implementer on Opus resumed by message, because both
+passes touch `principal.py`, `api.py` and `predicates.py`.
+
+- **A design review on Opus**, on this record before any code: about 150k.
+- **Pass 1, the boundary, the park and the page: 2.1, 2.2 and 2.3.**
+  Files: `rota/roles/principal.py` (`current_request`, `request_of`,
+  `page_request`, `pending_asks`, `open_requests`, `request_rows`,
+  `request_block`, `render_page`, `render_state`, `land`),
+  `rota/core/scheduler.py` (`close_pages_before_request`, `not_parked`,
+  `frontier`, `tick_signoff`, `tick_slicing`, `tick_criteria`,
+  `next_batch`, `tick_agenda`), `rota/core/predicates.py` (`contested`,
+  `grouping`'s park filter, `preempt`, `park_ask`, `touch_note`,
+  `quarantined`), `rota/core/schema.sql` (`item_parks`), `rota/roles/api.py`
+  (`rulings_rule`'s other-request refusal), and the tests of 2.1 to 2.3.
+  About 300k to 340k for the implementer, on 291.1k and 307.3k, and about
+  150k to 210k for its diff review. Re-records, GPU apart: none expected.
+  The scene tests run. It lands first, because 2.5's `park` and `resume`
+  write the table that pass 1 builds.
+- **Pass 2, the words and the grouping: 2.4 and 2.5.** Files:
+  `rota/roles/api.py` (`RULING_WORDS`, `rulings_rule`, `batches_group`),
+  `rota/roles/principal.py` (`land`'s `park` and `resume`),
+  `rota/core/predicates.py` (`grouping`'s approval condition), the briefs
+  `liaison/landing.md` and `liaison/answering.md`, the tests of 2.4 and
+  2.5, and the two new cases. About 150k to 200k for the implementer, on
+  frame 190's pass 3 at 196.9k, and about 130k for its diff review.
+  Re-records: the 7 landing cases, the answering case, and the two new
+  cases at 5 runs each.
+- **Fix passes after the reviews.** Frame 190 ran five, 234k in all, and
+  five delta reviews of about 230k. Expect about 150k and 150k here.
+- **One night as the walk**, three requests, with the read on Opus at
+  about 350k. The read counts the three ratios of the ends-when and the
+  residue.
+
+Total in agents: about 1.5M to 1.8M, against frame 190's 2.86M for three
+designed passes and five fix passes.
+
+Status 2026-10-10 04:09: written by an Opus agent of session 45fc3fe2,
+read-only on the tree at 43461f47, no model call, not committed. Rota
+workflow, except sections 1.1's walk facts and 6, which are meta
+workflow.
