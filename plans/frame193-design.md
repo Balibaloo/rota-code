@@ -1155,3 +1155,89 @@ Status 2026-10-10 04:09: written by an Opus agent of session 45fc3fe2,
 read-only on the tree at 43461f47, no model call, not committed. Rota
 workflow, except sections 1.1's walk facts and 6, which are meta
 workflow.
+
+### 2.G Amendment from night 138: the precondition of the shift question
+
+Written by session 4b501a17 on 2026-10-10, from the read of night 138's two
+request boundaries and the interviews of s270 and s353 in their contexts
+(`plans/frame193-interviews.md`). Rota workflow, except the status lines,
+which are meta workflow.
+
+**What the night showed** (observed: night 138, walks 2 and 3, 2026-10-10
+12:14 to 12:36). The shift question of 2.F.1 fires when the new request has
+a statement. On both boundaries no such statement formed. On walk 2 the
+Liaison s270 read the new words in `principal_said`, confirmed the earlier
+statement s1 with `msg.confirm_principal`, and segmented nothing. On walk 3
+the Liaison s353 segmented the new words with `supersedes='s1'`, and 2.F.6
+then made the new request a follow-up of the earlier one. In both, the
+mechanism of 2.F never ran: 0 shift pages, 0 parks, 14 pages of request A
+to the principal after the principal said "two separate changes". Verdict
+mode then ratified the contested s1 again and delivered it (s273).
+
+**What the seats said** (observed: the interviews, 2026-10-10 12:44). Both
+seats said that s1 and the new words name different functions. s270 named
+`current_request` naming s1 and a `recent_chat` about echo_json as the
+inputs that tied the new words to s1, and said a wake without s1 in
+`current_request` would have led it to segment. s353 said it compared the
+new words to the brief's `version_option` example, not to s1, and named
+`current_request` naming s1 as well.
+
+**The amendment.** Four changes. Each is small, and each closes one path
+that night 138 took around the shift question.
+
+- **2.G.1 The wake says what `current_request` is.** The converse wake's
+  `current_request` block gains a field `relation`, a sentence: "This is
+  the request before these words. The new words continue it only when they
+  name the same function or the same feature. Otherwise they are a new
+  request, and you leave `supersedes` out." The brief's `supersedes`
+  paragraph changes its example subject to one no night request uses
+  (`--color` and `--quiet` flags, not `version_option`, `echo_json`,
+  `confirm`), and gains the opposite example in the same sentence shape:
+  "After a request about `echo`, 'let confirm take a flag' names another
+  function, so it is a new request with no `supersedes`." (reasoned: the
+  interviews named these two inputs three times each.)
+
+- **2.G.2 The confirm door reads the trigger entry.** `msg.confirm_principal`
+  on a converse wake whose trigger is a principal entry refuses when no
+  statement, staged or stored, spans that entry, and every ref names a
+  statement from another entry. The refusal names the entry and says:
+  "The words that woke you, `e_p2`, have no statement. Segment them with
+  `brief.segment` and confirm that statement. If they ask for nothing, call
+  no confirm." One sentence, one call named. (reasoned: s270's miss is
+  exactly a confirm with refs from another entry.)
+
+- **2.G.3 Verdict mode has a contest branch.** The verdict brief gains one
+  paragraph: a statement the principal contested is not ratified and not
+  delivered. The seat ends the session with no call when every statement
+  on the page is contested. The principal's reply is already recorded as an
+  entry, and the converse wake on it segments the restated words. The
+  `brief.ratify` door refuses a statement whose newest ruling is `contest`,
+  with the ruling id named. (reasoned: s273's prompt held
+  `principal_verdict: {s1: contest}` and the brief had two steps and no
+  branch.)
+
+- **2.G.4 `ratified_request` skips a statement the principal called
+  separate.** When the newest landed ruling on a confirm page of statement
+  X is `contest`, the wake offers no `current_request` with X. The seat
+  then sees the field absent, and the brief's last sentence applies: leave
+  `supersedes` out. (reasoned: on walk 3 the wake offered s1 after m138's
+  contest, and the seat copied it.)
+
+**What stays.** The predicate 2.F.1 keeps its precondition. A backstop that
+fires the shift question on a request with no statement was considered and
+left out: the fix above makes the statement form, and a shift page built
+from an entry's raw words would name no statement for the ruling to land
+on. A door on `brief.segment` that refuses `supersedes` when the two texts
+share no identifier was considered and left out as a candidate: a
+follow-up phrased without the function's name would be refused. Both return
+as frames if a night shows the need.
+
+**Tests.** One recorded case per change on the Liaison: the confirm door's
+refusal on s270's shape, the verdict contest branch on s273's shape with
+the ratify door, the segment with no `supersedes` on s353's shape with the
+new wake field, and `ratified_request` returning None after a contest. The
+touched existing cases re-record.
+
+**Ends-when, unchanged.** The three ratios of the frame's ends-when, on a
+night with three requests. Night 138 is the baseline: 0 of 2 boundaries
+fired the shift question.
