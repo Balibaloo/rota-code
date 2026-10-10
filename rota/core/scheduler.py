@@ -1948,11 +1948,16 @@ def resume_behind(conn: sqlite3.Connection) -> int:
         # Only work the request asked for decides it. Night 133's account
         # item cites s1, is never delivered, and held every resume at 0 (the
         # review of 61a0f41d, finding 1).
-        mine = [r["id"] for r in conn.execute(
-                    "SELECT id FROM items WHERE kind = 'in_scope' "
-                    "AND is_description = 0")
-                if request_of(conn, r["id"]) in entries]
-        if not mine:
+        cited = [r for r in conn.execute(
+                     "SELECT id, kind, is_description FROM items")
+                 if request_of(conn, r["id"]) in entries]
+        mine = [r["id"] for r in cited
+                if r["kind"] == "in_scope" and not r["is_description"]]
+        # A request with items and no work item asks nothing to deliver, so
+        # the park ends. A request with no item yet still waits. B with
+        # only out-of-scope items held A for ever (the review of e406e976,
+        # finding 2).
+        if not cited:
             continue
         aside = dropped_items(conn)
         if not all(_delivered(conn, i) or i in aside for i in mine):

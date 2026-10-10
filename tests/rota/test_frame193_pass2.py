@@ -215,7 +215,11 @@ def test_later_parks_the_item_and_holds_its_page(db):
                                   f"behind s3")
     from rota.roles.principal import aside_lines
 
-    assert not any("resume" in line for line in aside_lines(db))
+    lines = aside_lines(db)
+    assert not any("resume" in line for line in lines)
+    assert lines[0] == f"Waiting behind {S3.rstrip('.')}:"
+    assert lines[1].endswith("It comes back when that request is delivered or "
+                             "dropped.")
 
 
 def test_drop_closes_the_page_and_its_rows_and_abandons_the_change(db):
@@ -460,6 +464,32 @@ def test_a_described_item_on_the_request_does_not_hold_the_resume(db):
                "('delivered:version_option_show_python', '1')")
     db.commit()
     assert resume_behind(db) == 1
+
+
+def test_a_request_with_no_work_item_ends_the_park(db):
+    """The review of e406e976, finding 2: B with only an out-of-scope item
+    held A for ever. B with no item at all still waits."""
+    _night137(db)
+    _ask_shift(db)
+    _rule_shift(db, "later")
+    assert resume_behind(db) == 0
+    _item(db, "out3", "not this", "s3", approval="contested")
+    db.execute("UPDATE items SET kind = 'out_of_scope' WHERE id = 'out3'")
+    db.commit()
+    assert resume_behind(db) == 1
+
+
+def test_a_description_on_the_newest_request_keeps_the_page_its_own(db):
+    """The review of e406e976, finding 1: d3 describes the version request,
+    and the confirm item keeps its line on its own page."""
+    from rota.roles.principal import off_page, page_request
+
+    _night137(db)
+    db.execute("UPDATE statements SET status = 'ratified' WHERE id = 's3'")
+    _item(db, "d3", "the account says version", "s3", described=1)
+    db.commit()
+    assert page_request(db, [CONFIRM, "d3"]) == "e_p2"
+    assert CONFIRM not in off_page(db, [CONFIRM, "d3"])
 
 
 def _m283(db) -> list[str]:

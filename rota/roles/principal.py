@@ -266,10 +266,12 @@ def aside_lines(conn: sqlite3.Connection) -> list[str]:
             behind.setdefault(park_behind(conn, item) or "the new request", []).append(
                 f"  {text}. {asks} open page{'' if asks == 1 else 's'}, {notes} open "
                 f"note{'' if notes == 1 else 's'}. It comes back when that request "
-                f"is merged.")
+                f"is delivered or dropped.")
     out: list[str] = []
     for said, lines in behind.items():
-        out.append(f"Waiting behind {said}:")
+        # A statement ends with a full stop, and ".:" reads as a typo (the
+        # review of e406e976, finding 3).
+        out.append(f"Waiting behind {said.rstrip('.')}:")
         out.extend(lines)
     if dropped:
         out.append("Dropped:")
@@ -806,13 +808,18 @@ def held_asks(conn: sqlite3.Connection) -> set[str]:
 
 
 def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
-    """The newest request that a page's refs reach, set-aside items apart."""
+    """The newest request that a page's refs reach, set-aside items and
+    descriptions apart."""
+    from ..core.runner import _is_description
     from ..core.scheduler import aside_items
 
     aside = aside_items(conn)
     best = None
     for item in _reached(conn, refs):
-        if item in aside:
+        # The account belongs to no request, as in `off_page`. A description
+        # citing s3 put the confirm item off its own page (the review of
+        # e406e976, finding 1).
+        if item in aside or _is_description(conn, item):
             continue
         entry = request_of(conn, item)
         if entry is None:

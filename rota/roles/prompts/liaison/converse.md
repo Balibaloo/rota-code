@@ -69,10 +69,11 @@ where *they* would recognise a cut.
 
 The wake carries `current_request` only when the principal's newest request has a
 ratified statement. When the new words change or add to that request, set
-`supersedes` to the statement id that `current_request` names. Words about
-another thing are a new request and take no `supersedes`: "also add a --color
-flag" after a request about `version_option` is new. When the wake has no
-`current_request`, leave `supersedes` out.
+`supersedes` to the statement id that `current_request` names. After a request
+about `version_option`, "also show the version as major.minor" is about the same
+thing, so it takes `supersedes`. After that request, "also add a --color flag to
+the CLI" is about another thing, so it is a new request with no `supersedes`.
+When the wake has no `current_request`, leave `supersedes` out.
 
 **The three are mutually exclusive.** Send one `msg.clarify_principal`, or the
 asks, or `brief.segment` + `msg.confirm_principal` — never two of those in one
