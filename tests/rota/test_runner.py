@@ -1044,6 +1044,81 @@ def test_the_serve_cap_names_a_bound_only_to_a_call_that_takes_one(db, monkeypat
     assert line in refused, refused[:300]
 
 
+def _third_asking_in(db, num_ctx: int) -> ScriptedBackend:
+    """
+    Night 126's s159, turns 19 and 20, in a scripted session (frame 169).
+
+    The seat asks one key three times, so the third asking meets the repeat
+    refusal. The same reply reads a second, different result. In a window of
+    8,192 tokens the next fit drops the block of the first answer. In 12,288
+    the first answer stands. Turn 4 asks once more.
+    """
+    _seed_decisions(db)
+    for i in range(60):
+        db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
+                   (f"b{i:02d}", "vision_keeper", "billing " + "ledger " * 20))
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend([
+        ask, f"Again.\n{ask}",
+        f"Once more.\n{ask}\nTOOL: decisions.search(query='billing')",
+        f"Last time.\n{ask}", "Done."])
+    run_session(db, wake_vision_keeper(), backend=backend,
+                pins=Pins(model="scripted", temperature=0.0, num_ctx=num_ctx))
+    return backend
+
+
+def test_the_repeat_refusal_says_the_window_dropped_the_answer(db):
+    """
+    Frame 169. The repeat refusal said `The answer is in this prompt`. The
+    claim was true in the prompt the runner tested, and the fit for the next
+    turn then dropped the answer. Night 126's s159 read the claim at turn 20,
+    and the span 688 to 705 was not in that prompt. 2 of 6 such refusal lines
+    on night 126 were false.
+
+    The runner checks the claim after the fit. Where the answer is gone, the
+    line says so, and it gives the step that rule 2 of frame 77 makes true.
+    """
+    from rota.core.runner import _EVICTED_PHRASE
+
+    backend = _third_asking_in(db, 8192)
+    read = backend.calls[3][1]                   # turn 4, the refusal's reader
+    assert _EVICTED_PHRASE in read, \
+        "nothing was evicted, so this shape proves nothing"
+    line = [ln for ln in read.splitlines() if "asked three times" in ln]
+    assert line == [
+        "ERROR decisions.search: asked three times this session and the "
+        "answer has not changed; not answered again. The window dropped the "
+        "answer after this line, so ask once more and it is served again."
+    ], line
+    assert "The answer is in this prompt" not in read, \
+        "the refusal points at an answer the window took"
+    # The sentence is a promise, and turn 4's asking is served again.
+    served = backend.calls[4][1].split("\n\n")[-1]
+    assert (f"OK decisions.search -> the earlier answer was {_EVICTED_PHRASE}"
+            in served), served[:300]
+
+
+def test_the_repeat_refusal_keeps_its_pointer_where_the_answer_stands(db):
+    """
+    Frame 169's other half. Frame 119 removed the pointer everywhere on
+    2026-10-04, and night 115's s33 to s35 then repeated ten calls, so
+    4d5757db put the pointer back. Where the answer stands, the line is true
+    and stays word for word.
+    """
+    from rota.core.runner import _EVICTED_PHRASE
+
+    backend = _third_asking_in(db, 12288)
+    read = backend.calls[3][1]
+    assert _EVICTED_PHRASE not in read, "the answer was evicted"
+    line = [ln for ln in read.splitlines() if "asked three times" in ln]
+    assert line == [
+        "ERROR decisions.search: asked three times this session and the "
+        "answer has not changed; not answered again. The answer is in this "
+        "prompt."
+    ], line
+    assert "The window dropped the answer" not in read
+
+
 def test_three_identical_calls_in_one_reply_meet_the_refusal(db):
     """
     The s71 storm, in its own reply. Session s71 sent 331 calls in one reply on

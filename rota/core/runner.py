@@ -692,6 +692,56 @@ _EVICTED_PHRASE = "dropped to fit the window"
 # room for its results (frame 100).
 SERVE_CAP = 3
 
+# The pointer of the repeat refusal. It stays where the answer stands: frame
+# 119 removed it everywhere, and night 115's s33 to s35 then repeated ten
+# calls (reverted by 4d5757db, 2026-10-04).
+_IN_THIS_PROMPT = "The answer is in this prompt."
+_DROPPED_AFTER = "The window dropped the answer after this line"
+
+
+def _repoint(transcript: list[str], kinds: list[str],
+             pointers: list[tuple[str, str, str]], answered: dict[str, str],
+             served: dict[str, int], sb: Any) -> None:
+    """
+    Correct a repeat refusal that the newest fit made false.
+
+    The refusal is written against the prompt the seat just read, and `_fit`
+    runs before the seat reads the refusal. Night 126's s159 was told at turn
+    20 that the answer was in the prompt, and the fit had dropped it (frame
+    169). Frame 46 found the same fault in the old repeat line, 2026-09-21.
+
+    The new sentence states the fact and the step the runner gives next. Under
+    the serve cap, the next asking is served again by rule 2 of frame 77. At
+    the cap, the next asking is refused, so the step is the cap's own step.
+    A DECISIONS.md rule says a refusal is satisfiable or says why not.
+    """
+    if not pointers:
+        return
+    user = "\n\n".join(transcript)
+    # The same test as `evicted` in the loop, so the promise below holds:
+    # the next asking is a repeat of an evicted answer.
+    if _EVICTED_PHRASE not in user:
+        return
+    for key, line, name in pointers:
+        answer = answered.get(key)
+        # A write since the refusal forgot the answer, and the next asking is
+        # served as new. The old pointer then makes no claim this check owns.
+        if answer is None or answer in user:
+            continue
+        if served.get(key, 0) >= SERVE_CAP:
+            bound = _bound_of(sb, name)
+            step = (f"{_DROPPED_AFTER}, and it was served three times. "
+                    + (f"Ask {name} for {bound}, or finish without it."
+                       if bound else "Act without it, or finish."))
+        else:
+            step = (f"{_DROPPED_AFTER}, so ask once more and it is served "
+                    f"again.")
+        for i in range(len(transcript) - 1, -1, -1):
+            if kinds[i] == _RESULTS and line in transcript[i]:
+                transcript[i] = transcript[i].replace(
+                    line, line.replace(_IN_THIS_PROMPT, step), 1)
+                break
+
 
 def _dropped_note(dropped: int) -> str:
     """What the middle eviction leaves in place of the blocks it took."""
@@ -3324,6 +3374,10 @@ def run_session(
         # newest word counts. `ctx.refusals` cannot serve: a message's
         # refusal never reaches it.
         told_to_end = False
+        # The repeat refusals that say the answer is in this prompt: the key,
+        # the exact line and the call's name. `_repoint` reads them after the
+        # next fit, and the loop top clears them.
+        pointers: list[tuple[str, str, str]] = []
 
         budget = _fit_budget(pins.num_ctx, len(system))
 
@@ -3333,6 +3387,11 @@ def run_session(
                 break
             outcome.iterations = iteration
             transcript, kinds = _fit(transcript, kinds, budget)
+            # The repeat refusals of the last turn were true in the prompt
+            # they answered. The fit above can drop the answer before the
+            # seat reads them (frame 169, night 126's s159 turn 20).
+            _repoint(transcript, kinds, pointers, answered, served, sb)
+            pointers.clear()
             user = "\n\n".join(transcript)
             # Above every backend, because the only whole-prompt measurement ran
             # on the reply and `truncated` is an Ollama field: replayed cases
@@ -3947,9 +4006,13 @@ def run_session(
                             # again" here. Night 115, s33 to s35, then repeated
                             # ten calls where night 113 attested, so the
                             # sentence was reverted (frame 119, pass 3).
-                            feedback.append(
-                                f"ERROR {_call_tag(call, len(calls))}: {why}. "
-                                f"The answer is in this prompt.")
+                            #
+                            # Frame 169 keeps the sentence and checks it once
+                            # more after the next fit, at `_repoint`.
+                            line = (f"ERROR {_call_tag(call, len(calls))}: "
+                                    f"{why}. {_IN_THIS_PROMPT}")
+                            feedback.append(line)
+                            pointers.append((key, line, call.name))
                     elif unchanged:
                         repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three
