@@ -385,10 +385,14 @@ def test_s94s_words_inside_the_map_is_refused_as_its_own_argument(db):
     # s94's call at turns 1 and 2 of night 138, to the byte: no words argument.
     with pytest.raises(ValueError) as e:
         sb.call("rulings.rule", rulings={2: "contest", 8: "contest", "words": M12})
+    # The shape carries the seat's own words, verbatim, and no placeholder. The
+    # text names the lines the seat left out, so the next call can be whole.
     assert str(e.value) == (
         "rulings has a key words, and words is its own argument, not a line of "
         "the page: rulings.rule(rulings={\"2\": \"contest\", \"8\": \"contest\"}, "
-        "words=\"<the principal's words>\"). Each key of rulings is a line number.")
+        f"words=\"{M12}\"). Lines 1, 3, 4, 5, 6, 7 still take approve, contest or "
+        "revise. Each key of rulings is a line number.")
+    assert "<the principal's words>" not in str(e.value)
     # The key ask takes the question's own call.
     with pytest.raises(ValueError) as e:
         sb.call("rulings.rule", rulings={2: "contest", "ask": "which words?"})
@@ -396,10 +400,7 @@ def test_s94s_words_inside_the_map_is_refused_as_its_own_argument(db):
         "rulings has a key ask, and ask is its own argument, not a line of the "
         "page. A question is its own call: rulings.rule(ask=\"<one sentence>\") "
         "with no rulings.")
-    # The call the refusal shows meets the next door, which names the lines.
-    with pytest.raises(ValueError) as e:
-        sb.call("rulings.rule", rulings={"2": "contest", "8": "contest"}, words=M12)
-    assert str(e.value).startswith("lines 1, 3, 4, 5, 6, 7 have no ruling.")
+    # The shape with a ruling on each named line lands with the seat's words.
     full = {str(n): "contest" if n in (2, 8) else "approve" for n in range(1, 9)}
     out = sb.call("rulings.rule", rulings=full, words=M12)
     assert sorted(out["per_item"].values()) == ["approve"] * 6 + ["contest"] * 2

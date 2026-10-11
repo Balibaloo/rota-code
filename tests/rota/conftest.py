@@ -167,12 +167,6 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
     ("tests/rota/test_l1.py::test_l1_case[ACT-TS-give-the-prompt-a-stream]", _CHOOSES),
     (_OF + "test_the_added_import_offer_is_admitted", _CHOOSES),
     (_OF + "test_the_literal_offer_is_admitted_when_eight_literals_are_owed", _CHOOSES),
-    # Frame 197: the argument-key door shows the seat's own map, and s94's map
-    # names two lines of eight. The unnamed-lines door then names the other
-    # six, and the door does not choose their ruling (frame 197's scope, item 4).
-    ("tests/rota/test_frame193_pass1.py::"
-     "test_s94s_words_inside_the_map_is_refused_as_its_own_argument",
-     "lines 1, 3, 4, 5, 6, 7 have no ruling"),
 }
 
 # The facts that a refusal quotes and the state contradicts today: the test,

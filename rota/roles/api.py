@@ -7209,9 +7209,15 @@ def _ruling_word(key: str, raw, shift: bool = False) -> str:
 _RULE_ARGS = ("rulings", "words", "ask")
 
 
-def _argument_key(ctx: "Ctx", key: str, rulings: dict) -> str:
+def _argument_key(ctx: "Ctx", key: str, rulings: dict, words: str = "",
+                  order: list | None = None, shift: bool = False) -> str:
     """The refusal of a `rulings` key that is an argument of the op. It shows
-    the seat's own map with the key moved out, as the call to send."""
+    the call's shape: the seat's own map with the key moved out, and the
+    seat's own words. It names the lines that still take a ruling.
+
+    The shape is no offer. The door does not know the seat's ruling on the
+    lines it left out, and an offer that invents one names a call the
+    seat did not decide (the review of 76521304, point 2)."""
     _fact(ctx, "arg", key, op="rulings.rule")
     if key == "ask":
         call = 'rulings.rule(ask="<one sentence>")'
@@ -7226,15 +7232,29 @@ def _argument_key(ctx: "Ctx", key: str, rulings: dict) -> str:
     else:
         rest = {str(k).strip(): v for k, v in rulings.items()
                 if str(k).strip().lower() not in _RULE_ARGS}
-    said = "the principal's words"
-    call = (f"rulings.rule(rulings={json.dumps(rest, ensure_ascii=False, default=str)}"
-            f", words=\"<{said}>\")")
+    # The seat's own words, verbatim. A placeholder in the shape is copied to
+    # the byte and lands as the ruling's words, which loses the reply again
+    # (the review of 76521304, point 1).
+    said = next((v for k, v in rulings.items()
+                 if str(k).strip().lower() == "words" and str(v).strip()), None)
+    if said is None and (words or "").strip():
+        said = words
+    call = f"rulings.rule(rulings={json.dumps(rest, ensure_ascii=False, default=str)}"
+    if said is not None:
+        call += f", words={json.dumps(str(said), ensure_ascii=False)}"
+    call += ")"
     lead = ("the map is rulings itself" if key == "rulings"
             else f"{key} is its own argument")
-    return (f"rulings has a key {key}, and {lead}, not a line of the page: "
-            + _offer(ctx, call, "rulings.rule",
-                     {"rulings": rest, "words": f"<{said}>"})
-            + ". Each key of rulings is a line number.")
+    out = f"rulings has a key {key}, and {lead}, not a line of the page: {call}."
+    named = set(rest)
+    left = [str(i + 1) for i, r in enumerate(order or [])
+            if str(i + 1) not in named and r not in named]
+    if left:
+        takes = "later, now or drop" if shift else "approve, contest or revise"
+        lines = (f"Lines {', '.join(left)} still take" if len(left) > 1
+                 else f"Line {left[0]} still takes")
+        out += f" {lines} {takes}."
+    return out + " Each key of rulings is a line number."
 
 
 @op("rulings", "rule")
@@ -7344,7 +7364,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     for key, ruling in rulings.items():
         key = str(key).strip()
         if key.lower() in _RULE_ARGS:
-            raise ValueError(_argument_key(ctx, key.lower(), rulings))
+            raise ValueError(_argument_key(ctx, key.lower(), rulings, words,
+                                           [] if is_clarify else order, shift))
         ruling = _ruling_word(key, ruling, shift=shift)
         if order and key.isdigit() and 1 <= int(key) <= len(order):
             ref = order[int(key) - 1]
