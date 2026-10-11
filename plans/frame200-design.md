@@ -1,7 +1,7 @@
 # Frame 200 design: the build loop
 
 Status: drafted 2026-10-11 by session 84ce0759 from the scope report
-`plans/frame200-scope.md`. Design review: pending. Rota workflow.
+`plans/frame200-scope.md`. Design review on Opus, 2026-10-11 06:23, `plans/frame200-design-review.md`: do not start as written, start after the fixes in the section below. Rota workflow.
 
 ## The seam
 
@@ -69,6 +69,51 @@ three.
 Left out: the Tester brief lines O1a and O1b, because the interviews show
 the seats knew the fact, and O1b touches the black-box rule, a
 composition line. O3b, the cap step, waits for a night on change 2.
+
+## The review's fixes, folded in (2026-10-11 06:30)
+
+Each replaces the item it names. The review's sections hold the evidence.
+
+1. Change 1 names both forms: the `@` form and the call form
+   `f(...)(local_def)`, which all 11 Tester bodies of night 139 use, and a
+   factory's return called with no function argument. It keeps the
+   scope's limit: a factory that adds an option, read as a factory whose
+   return or inner decorator is `option(...)`, `argument(...)` or
+   `_param_memo`, so `pass_meta_key` and `make_pass_decorator` stay
+   admitted. `.invoke` is refused on a runner receiver only, as
+   `_plain_invoked` does. 0 of 537 recorded Tester bodies and 0 of 25
+   clickI test files meet the refusal.
+2. Change 2 also moves two refusals in `rota/core/sandbox.py`: when
+   `_sent_this_session(ctx, "tester", "challenge")` holds, `_code_step`
+   and `_waits_refusal` give `END_STEP`, and the end-of-work note says
+   only that the session has sent its message and ends. 0 recorded cases
+   move: in 0 of 10 challenge cases does a write follow the challenge.
+3. Change 3 fires only when the session challenged or escalated about
+   this test, and a guard case is added: a wordless answer with a right
+   red test still expects `code.write` and `code.commit`.
+4. Change 4's site for `_resolve_refs` is `rota/core/runner.py:2012-2113`.
+   The route to the Tester (ruled: Roman, 2026-10-11 06:30, the
+   recommended of three options): the Developer's answer mode gains
+   `msg.challenge_tester`, and a challenge whose refs add a decision row
+   does not count against the per-criterion cap `LANDED_CHALLENGES`. No
+   new edge.
+5. Change 5 is limited to a session that sent nothing caused by the
+   trigger and wrote no receipt on a row the trigger refs; a decision row
+   that cites the trigger counts as a receipt. The note's text:
+   `unresolved: the woken session sent nothing and wrote no row that
+   cites this message`. Frame 174's baseline is re-counted under this
+   definition before pass 2.
+6. The measure: the wordless-answer count and the no-reply count are
+   queries on `messages`, as the review's section 6 writes them; the
+   commit-after-challenge count is a query on `tool_calls` and `receipts`
+   plus a read of the answer-mode turn; the test count is a read of the
+   stored versions in `turns`.
+7. Order: pass 1 is changes 1 and 2 with the two `sandbox.py` refusals;
+   pass 2 is change 5 first, then 3, then 4 with the ruled route. One
+   night at the end, and its third request avoids frame 202's batch
+   shape, or the residue rule names frame 202.
+
+## Why not the other options
 
 ## Passes
 
