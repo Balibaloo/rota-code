@@ -317,3 +317,65 @@ def test_an_amend_with_a_binding_is_offered_the_constraint_alone(db):
     offers = [o for o in sb.ctx.offers if o.op == "msg.answer_developer"]
     assert [o.args for o in offers] == [{"refs": ["k_new"]}]
     assert dry_run(sb, offers[0].op, offers[0].args).admitted
+
+
+# The review of frame 200 pass 2e (2026-10-11), `plans/frame200-review-2e.md`:
+# the evidence door dictated refs=[c, tst], and the answer-mode door ended
+# the session on that exact call.
+
+def _answered_with_decision(db):
+    """The answer that woke the Developer holds a decision row that says the
+    test is wrong, and the batch's test is red."""
+    sb = _answered(db)
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d1','architect','tst1 calls a plain function','[]')")
+    db.execute("UPDATE messages SET body_refs = '[\"c1\", \"tst1\", \"d1\"]' "
+               "WHERE id = 'm156'")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) "
+               "VALUES ('b1','tk1')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result) VALUES ('r1','b1','tst1','abc','fail')")
+    db.commit()
+    return sb
+
+
+def test_an_answer_wakes_challenge_without_its_decision_is_offered_the_three_refs(db):
+    """Finding 2: the answer holds d1, so the door offers the full call and
+    does not end the session."""
+    from rota.core.sandbox import dry_run
+    from rota.roles import api
+
+    sb = _answered_with_decision(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    assert not isinstance(exc.value, api.EndRefusal)
+    assert str(exc.value) == (
+        "no ref of this challenge is a decision row, and the answer m156 "
+        "holds the decision d1. Send msg.challenge_tester(refs=['c1', "
+        "'tst1', 'd1']): the criterion c1, the test tst1 and the decision "
+        "d1, with the same quotes.")
+    offers = [o for o in sb.ctx.offers if o.op == "msg.challenge_tester"]
+    assert [o.args["refs"] for o in offers] == [["c1", "tst1", "d1"]]
+    assert dry_run(sb, offers[0].op, offers[0].args).admitted
+
+
+def test_the_evidence_doors_hint_keeps_the_decision_the_seat_sent(db):
+    """Finding 1: the hint for refs=[d1] names the criterion, the test and
+    d1, so the dictated call passes the answer-mode door."""
+    sb = _answered_with_decision(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["d1"], quotes=QUOTES)
+    assert str(exc.value) == (
+        "a challenge to the tester names both sides of the conflict in refs "
+        "-- the criterion and the test -- and yours names no criterion. The "
+        "failing tests of this batch: send refs=['c1', 'tst1', 'd1']")
+
+
+def test_a_challenge_with_the_criterion_the_test_and_the_decision_lands(db):
+    """The review's probe 2, rows 3 and 4: both orders pass both doors."""
+    from rota.core.sandbox import dry_run
+
+    sb = _answered_with_decision(db)
+    for refs in (["c1", "tst1", "d1"], ["d1", "c1", "tst1"]):
+        assert dry_run(sb, "msg.challenge_tester",
+                       {"refs": refs, "quotes": QUOTES}).admitted, refs

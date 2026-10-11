@@ -932,7 +932,56 @@ def _answer_evidence(ctx: api.Ctx, refs, text: str) -> None:
             f"asks, the exit is tests.encode, not an answer")
 
 
-def _answer_mode_challenge_refusal(ctx: api.Ctx, refs) -> str | None:
+def _answer_refs(ctx: api.Ctx) -> list:
+    """The refs of the answer that woke a Developer, or [] on another wake."""
+    import json as _json
+    if ctx.role != "developer" or not getattr(ctx, "trigger", None):
+        return []
+    row = ctx.conn.execute("SELECT verb, body_refs FROM messages WHERE id = ?",
+                           (ctx.trigger,)).fetchone()
+    if row is None or row["verb"] != "answer":
+        return []
+    try:
+        refs = _json.loads(row["body_refs"] or "[]")
+    except (TypeError, ValueError):
+        return []
+    return [r for r in refs if isinstance(r, str)] if isinstance(refs, list) else []
+
+
+def _answer_decisions(ctx: api.Ctx) -> list:
+    """The decision rows that the answer which woke a Developer holds."""
+    return [r for r in _answer_refs(ctx) if _holds_decision(ctx.conn, [r])]
+
+
+def _challenge_sides(ctx: api.Ctx, refs) -> list:
+    """The criterion and the test that `refs` name, as [criterion, test].
+
+    A test knows its criterion, and a criterion with one test knows its test.
+    Return [] when the two sides cannot both be named.
+    """
+    crit = test = None
+    for r in refs or []:
+        if not isinstance(r, str):
+            continue
+        if crit is None and ctx.conn.execute(
+                "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone():
+            crit = r
+        elif test is None and ctx.conn.execute(
+                "SELECT 1 FROM tests WHERE id = ?", (r,)).fetchone():
+            test = r
+    if test and not crit:
+        row = ctx.conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
+                               (test,)).fetchone()
+        crit = row["criterion_id"] if row else None
+    elif crit and not test:
+        ids = [r["id"] for r in ctx.conn.execute(
+            "SELECT id FROM tests WHERE criterion_id = ?", (crit,))]
+        test = ids[0] if len(ids) == 1 else None
+    return [crit, test] if crit and test else []
+
+
+def _answer_mode_challenge_refusal(ctx: api.Ctx, refs,
+                                   text: str = "") -> str | None:
     """
     The Developer's challenge from an answer wake carries a decision row.
 
@@ -950,6 +999,28 @@ def _answer_mode_challenge_refusal(ctx: api.Ctx, refs) -> str | None:
         return None
     if _holds_decision(ctx.conn, refs):
         return None
+    held = _answer_decisions(ctx)
+    if held:
+        # The review of pass 2e, finding 2: the evidence door dictated
+        # refs=[c, tst], and this door then ended the session on that call.
+        # Frame 135's law: a refusal names a call that the doors admit.
+        sides = _challenge_sides(ctx, refs) or _challenge_sides(
+            ctx, _answer_refs(ctx))
+        said = (f"no ref of this challenge is a decision row, and the answer "
+                f"{ctx.trigger} holds the decision {', '.join(held)}. ")
+        if not sides:
+            # No exact call is derivable, so the text names the three parts.
+            return (said + f"Send msg.challenge_tester with the criterion, "
+                    f"the test and the decision {', '.join(held)} in refs.")
+        offered = list(dict.fromkeys(sides + held))
+        args = {"refs": offered}
+        if text:
+            args["quotes"] = text
+        return api._offer(
+            ctx, said + f"Send msg.challenge_tester(refs={offered}): the "
+            f"criterion {sides[0]}, the test {sides[1]} and the decision "
+            f"{', '.join(held)}, with the same quotes.",
+            "msg.challenge_tester", args)
     # The review of 8d090e2e, finding 9: both Tester answers to a Developer
     # challenge on nights 138 and 139 carried text. "No words" is a fact
     # only of an answer whose text is empty.
@@ -1038,6 +1109,17 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
         test = [r for r, (t, _) in rows.items() if t == "tests"]
         if not crit or not test:
             missing = "no criterion" if not crit else "no test"
+            # The review of pass 2e, finding 1: a hint of [c, tst] dropped
+            # the decision row, and the answer-mode door refused that call.
+            # So a hint keeps the decision rows the seat sent, and the ones
+            # the waking answer holds. Frame 135's law: a hint names a call
+            # that every door admits.
+            keep = list(dict.fromkeys(
+                [r for r in refs or [] if _holds_decision(ctx.conn, [r])]
+                + _answer_decisions(ctx)))
+
+            def _send(c: str, t: str) -> str:
+                return f"send refs={[c, t] + keep}"
             # Name the exact repair when it is derivable: a test knows its
             # own criterion. Measured (S0 walk four): the Developer chose
             # the right door with the right quotes three sessions running
@@ -1051,8 +1133,8 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                     (test[0],)).fetchone()
                 if row and row["criterion_id"]:
                     hint = (f". {test[0]}'s criterion is "
-                            f"{row['criterion_id']}: send "
-                            f"refs=['{row['criterion_id']}', '{test[0]}']")
+                            f"{row['criterion_id']}: "
+                            f"{_send(row['criterion_id'], test[0])}")
                 elif row:
                     # click night 47 (2026-09-14): "send refs=['None', ...]"
                     # was sent as written, four turns, on nineteen of the
@@ -1072,8 +1154,8 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                 ids = [r["id"] for r in ctx.conn.execute(
                     "SELECT id FROM tests WHERE criterion_id = ?", (crit[0],))]
                 if len(ids) == 1:
-                    hint = (f". {crit[0]}'s test is {ids[0]}: send "
-                            f"refs=['{crit[0]}', '{ids[0]}']")
+                    hint = (f". {crit[0]}'s test is {ids[0]}: "
+                            f"{_send(crit[0], ids[0])}")
             if not hint and ctx.batch_id:
                 # clickI night 26 (2026-09-12): woken for a failing test,
                 # the Developer named a criterion with no test of its own
@@ -1092,7 +1174,7 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                 owned = [r for r in failing if r["criterion_id"]]
                 if owned:
                     hint = ". The failing tests of this batch: " + "; ".join(
-                        f"send refs=['{r['criterion_id']}', '{r['test_id']}']"
+                        _send(r["criterion_id"], r["test_id"])
                         for r in owned[:3])
                 elif failing:
                     hint = (f". The {len(failing)} failing test(s) have no criterion: "
@@ -2361,9 +2443,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # A challenge pays its reading up front: quote both sides on the
         # tester channel, quote the disputed row everywhere else.
         if verb == "challenge" and recipient == "tester":
-            said = _answer_mode_challenge_refusal(ctx, refs)
+            said = _answer_mode_challenge_refusal(ctx, refs, text or "")
             if said is not None:
-                raise api.EndRefusal(said)
+                # The review of pass 2e, finding 2: an answer that holds a
+                # decision row gets the call, and the session goes on.
+                raise (api.EndRefusal if isinstance(said, _Ending)
+                       else ValueError)(said)
         if verb == "challenge":
             _challenge_evidence(ctx, recipient, refs, text or "")
         # The Tester's answer to a challenge pays the same reading. Night 80

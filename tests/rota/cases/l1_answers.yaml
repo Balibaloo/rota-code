@@ -159,11 +159,12 @@
                 right and the test is wrong.",
          refs: '["<c1>", "<tst1>"]'}
   expect:
-    # The one sentence and the end: the decision says the test is wrong, and
-    # the session escalated this test as wrong. `developer/answer.md` also
-    # admits `msg.challenge_tester` with the decision's id, so the case
-    # forbids only the landed write.
-    messages: []
+    # The decision says the test is wrong, so the decision row goes to the
+    # Tester. Design 200 change 4 makes `msg.challenge_tester` the route.
+    # The review of pass 2e, finding 4: `messages: []` admitted the silent
+    # end, so the case passed while no challenge landed.
+    messages:
+      - {to: tester, verb: challenge, count: 1, refs_include: [<d1>]}
   forbidden:
     # Fitting the code to a test that calls a plain function is s282's
     # failure. It also broke the project's own test of the function.
