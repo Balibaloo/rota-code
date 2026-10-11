@@ -30,6 +30,7 @@ from rota.core.sandbox import build
 from rota.llm import toolproto
 from rota.roles import api
 from rota.roles.api import _plain_invoked
+from rota.testkit.gitfixture import copy_template
 
 NIGHTS = Path("D:/repos/rota/.rota")
 CLICKI = Path("D:/repos/_AI/sample_repos/clickI")
@@ -131,13 +132,9 @@ def _utils(tree: Path) -> Path:
     return tree / "src" / "click" / "utils.py"
 
 
-@pytest.fixture
-def db(tmp_path):
-    """A Tester's database. The project root is a git repository whose
-    `src/click/utils.py` has no `echo_json` and whose `src/click/core.py`
-    holds a command. Batch b1's worktree is a copy of the root whose
-    `utils.py` adds a plain `echo_json`, the Developer's write."""
-    root = tmp_path / "project"
+def _trees(base: Path) -> None:
+    """Build the fixture `db`'s root and worktree under `base`."""
+    root = base / "project"
     (root / "src" / "click").mkdir(parents=True)
     (root / "src" / "click" / "__init__.py").write_bytes(b"")
     _utils(root).write_bytes(ROOT_UTILS.encode())
@@ -145,9 +142,21 @@ def db(tmp_path):
     for cmd in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "base"]):
         subprocess.run(["git", "-C", str(root), *cmd], check=True,
                        capture_output=True)
-    wt = tmp_path / "wt"
+    wt = base / "wt"
     shutil.copytree(root / "src", wt / "src")
     _utils(wt).write_bytes(UTILS.encode())
+
+
+@pytest.fixture
+def db(tmp_path):
+    """A Tester's database. The project root is a git repository whose
+    `src/click/utils.py` has no `echo_json` and whose `src/click/core.py`
+    holds a command. Batch b1's worktree is a copy of the root whose
+    `utils.py` adds a plain `echo_json`, the Developer's write."""
+    # A copy of the two trees built once per process. The git calls per
+    # test were the fixture's cost (frame 206's count, 2026-10-11).
+    copy_template("invoke_door_db", _trees, tmp_path)
+    root, wt = tmp_path / "project", tmp_path / "wt"
     conn = init_db(tmp_path / "rota.db")
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
                  "('project_root', ?)", (str(root),))

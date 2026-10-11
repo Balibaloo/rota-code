@@ -7,6 +7,7 @@ from pathlib import Path
 from rota import paths
 from rota.core.db import init_db
 from rota.core.worktrees import GIT, WorktreeError
+from rota.testkit.gitfixture import copy_template
 
 SEAM = paths.REPO / "probes" / "seam_start.py"
 
@@ -32,6 +33,17 @@ def _commit(path: Path, name: str) -> str:
 
 
 def _repo(path: Path, commit: bool = True) -> str:
+    # A copy of the tree built once per process for these values. The git
+    # calls per test were the file's cost (frame 206's count, 2026-10-11).
+    if path.exists():
+        raise FileExistsError(path)
+    return copy_template(("seam_start_repo", path.name, commit),
+                         lambda base: _build_repo(base / path.name, commit),
+                         path.parent)
+
+
+def _build_repo(path: Path, commit: bool) -> str:
+    """Build `_repo`'s repository at `path`, and return its head."""
     path.mkdir()
     _git(path, "init", "-q")
     return _commit(path, "a.txt") if commit else ""

@@ -19,6 +19,7 @@ from rota.core import sandbox
 from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.roles import api, prompts
+from rota.testkit.gitfixture import copy_template
 
 FIXTURE = Path(__file__).parent / "fixtures" / "night124_utils_617055787d.txt"
 
@@ -91,6 +92,17 @@ def db(tmp_path):
 
 def _repo(root: Path, path: str, *texts: str) -> list[str]:
     """A worktree with one commit per text of `path`. Returns the shas."""
+    # A copy of the tree built once per process for these values. The git
+    # calls per test were the file's cost (frame 206's count, 2026-10-11).
+    if root.exists():
+        raise FileExistsError(root)
+    return list(copy_template(("revert_door_repo", root.name, path, texts),
+                              lambda base: _build_repo(base / root.name, path, *texts),
+                              root.parent))
+
+
+def _build_repo(root: Path, path: str, *texts: str) -> list[str]:
+    """Build `_repo`'s worktree at `root`, and return the shas."""
     root.mkdir()
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     shas = []

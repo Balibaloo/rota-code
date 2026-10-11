@@ -29,6 +29,7 @@ from rota.core.sandbox import build
 from rota.llm import toolproto
 from rota.roles import api
 from rota.roles.api import _returns_factory
+from rota.testkit.gitfixture import copy_template
 
 NIGHT = Path("D:/repos/rota/.rota/clickI_night128.db")
 CLICKI = Path("D:/repos/_AI/sample_repos/clickI")
@@ -74,6 +75,16 @@ def _s274_turn2() -> list[dict]:
 def _project(tmp_path: Path, base: dict, work: dict) -> tuple[Path, Path]:
     """A git root holding `base`, and a worktree that is a copy of the root
     with `work` written over it."""
+    # A copy of the two trees built once per process for these files. The
+    # git calls per test were the file's cost (frame 206's count, 2026-10-11).
+    key = ("door_kind_project", tuple(sorted(base.items())),
+           tuple(sorted(work.items())))
+    copy_template(key, lambda b: _build_project(b, base, work), tmp_path)
+    return tmp_path / "project", tmp_path / "wt"
+
+
+def _build_project(tmp_path: Path, base: dict, work: dict) -> None:
+    """Build `_project`'s root and worktree under `tmp_path`."""
     root = tmp_path / "project"
     for rel, text in base.items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -86,7 +97,6 @@ def _project(tmp_path: Path, base: dict, work: dict) -> tuple[Path, Path]:
     for rel, text in work.items():
         (wt / rel).parent.mkdir(parents=True, exist_ok=True)
         (wt / rel).write_bytes(text.encode())
-    return root, wt
 
 
 def _db(tmp_path: Path, root: Path, wt: Path, ticket: str,
@@ -128,7 +138,12 @@ def night128(tmp_path):
     """bg_3 on night 128: clickI's `main` as the root, the worktree's
     `src/click` at 191e47a6, and the six criteria and the ticket of s274's
     batch."""
-    root, wt = _project(tmp_path, _click_files(BASE), _click_files(HEAD))
+    # The key is the two commits, so the clickI reads run once per process
+    # too. They were 36 git calls a setup (frame 206's count, 2026-10-11).
+    copy_template(("door_kind_night128", BASE, HEAD),
+                  lambda b: _build_project(b, _click_files(BASE), _click_files(HEAD)),
+                  tmp_path)
+    root, wt = tmp_path / "project", tmp_path / "wt"
     conn = _night()
     try:
         rows = conn.execute("SELECT id, text, surface_refs FROM criteria WHERE "
