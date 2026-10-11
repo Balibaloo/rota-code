@@ -1160,6 +1160,43 @@ def test_the_repeat_refusal_is_checked_after_every_fit(db):
         "the refusal points at an answer the window took"
 
 
+def test_every_copy_of_a_repeated_refusal_line_is_corrected(db):
+    """
+    Frame 169's second look, probe B, on parent commit ef96f550. The seat
+    asks one key four times, so turns 4 and 5 read the same refusal line.
+    The runner keeps one pointer for the two copies. The fit for turn 6
+    drops the answer, and `_repoint` replaced the newest copy only. The
+    older copy kept `The answer is in this prompt.` beside the corrected one.
+    """
+    from rota.core.runner import _EVICTED_PHRASE
+
+    _seed_decisions(db)
+    for i in range(60):
+        db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
+                   (f"b{i:02d}", "vision_keeper", "billing " + "ledger " * 20))
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend([
+        ask, f"Again.\n{ask}", f"Once more.\n{ask}",
+        f"Four.\n{ask}\nTOOL: decisions.search(query='billing')",
+        "Read more.\nTOOL: decisions.search(query='ledger')", "Done.",
+        "Done."])
+    run_session(db, wake_vision_keeper(), backend=backend,
+                pins=Pins(model="scripted", temperature=0.0, num_ctx=11264))
+
+    read = backend.calls[5][1]                   # turn 6, after the drop
+    assert _EVICTED_PHRASE in read, \
+        "nothing was evicted, so this shape proves nothing"
+    lines = [ln for ln in read.splitlines() if "asked three times" in ln]
+    assert len(lines) == 2, "the two copies of the line are not both there"
+    dropped = ("ERROR decisions.search: asked three times this session and "
+               "the answer has not changed; not answered again. The window "
+               "dropped the answer after this line, so ask once more and it "
+               "is served again.")
+    assert lines == [dropped, dropped], lines
+    assert "The answer is in this prompt" not in read, \
+        "the older copy points at an answer the window took"
+
+
 def test_three_identical_calls_in_one_reply_meet_the_refusal(db):
     """
     The s71 storm, in its own reply. Session s71 sent 331 calls in one reply on

@@ -755,8 +755,13 @@ def _repoint(transcript: list[str], kinds: list[str],
         else:
             step = (f"{_DROPPED_AFTER}, so ask once more and it is served "
                     f"again.")
-        transcript[at] = transcript[at].replace(
-            line, line.replace(_IN_THIS_PROMPT, step), 1)
+        # Every copy of the line, because one pointer stands for identical
+        # lines at two turns. The newest copy alone left the older one false
+        # (frame 169's second look, probe B).
+        for i in range(at + 1):
+            if kinds[i] == _RESULTS and line in transcript[i]:
+                transcript[i] = transcript[i].replace(
+                    line, line.replace(_IN_THIS_PROMPT, step))
     return kept
 
 
