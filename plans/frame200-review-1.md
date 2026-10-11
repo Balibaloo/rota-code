@@ -107,3 +107,55 @@ All probes are in the directory `rv200p1` of the session scratchpad named in the
 Input about 120k tokens, output about 18k tokens, total about 138k. This is an estimate from the context counter, and it is above the 100k cap. Read the harness line for the exact count.
 
 One more pass: 3 high findings, 3 low findings.
+
+
+# The second look on dd583398, pass 1b, Opus, 2026-10-11
+
+From `rv200p1b/report.md` under session be3ef742's scratchpad. 171.7k cumulative on the harness line, about 17.8k for the look.
+
+# Second look at dd583398, frame 200 (the build loop), pass 1b
+
+Reviewer: Opus, read-only, worktree `C:/Users/roman/rota_rv200` at dd583398. Date: 2026-10-11. Rota workflow.
+
+## (a) Verdicts
+
+1. The counts match the implementer report.
+   - `p1_shapes.py`: 9 of the 10 earlier right shapes land. The ledger door refuses the tenth, the nested command, on the literal "sub". The frame 200 door admits it (`_plain_decorated` returns None).
+   - `p2_night.py` at the heads 5b04c4a and 3eebc90: the door refuses 12 of 12 night bodies and the v12 body (s377 t4 c3), 13 refusals in total.
+   - `p4_door.py` runs the door with no surface limit, over all 7 factories that add an option. It refuses 0 of 25 clickI test files.
+2. Yes, one exists. The argument kinds refuse a factory return that a local helper applies to a command (finding 1). Of the other named forms:
+   - `callable(deco)`, `isinstance(...)` and `functools.wraps(deco)` refuse.
+   - A list and `cli.add_command(...)` land. The ledger door refused the `add_command` body on the literal "sub", and the frame 200 door admits it.
+   - `callable` and `isinstance` never run the option, so they are not right tests of an option criterion.
+   - The `wraps` body that applies the wrapped decorator is a right test, and it is refused.
+3. Partly. No form carries a shape or an example call. In the forms of finding 1, "passing it to a call never runs the option" is false. In the other probed forms, every text is true.
+4. Yes. `test_p5_escalate.py` reads `END_STEP` and `END_FORM` in both escalate branches, and the class is `EndRefusal`. `test_p6_note.py` reads "the change comes first: code.write, then commit" after a scope question.
+
+## (b) Findings
+
+1. `rota/roles/api.py`, the argument loop in `_plain_decorated`, kinds "decorator-argument" and "inline-argument". Severity: low. CONFIRMED.
+   - The loop refuses a factory return that is an argument of any call. A call to a local helper can apply that return to a command.
+   - Probe `p1_shapes.py` refused two right tests:
+     - `cli = build(version_option(show_python=True))`, where `build(extra)` puts `@command()` and `@extra` on a def.
+     - `opt = version_option(...)`, then `cli = build(opt)`.
+   - Probe `p1_shapes.py` also refused a `functools.wraps(deco)` wrapper that applies `deco`.
+   - Probe `p5_click.py` ran the helper form and the `wraps` form on real click 8.5. Both exited 0 and printed "x, version 9.9". So the refusal text is false for these forms.
+   - The severity is low: 0 of 25 clickI files and 0 of 537 recorded bodies, as the implementer reports, have this form. A Tester rarely writes a helper.
+   - Fix: skip the two argument kinds when the receiving call is a name that the test defines with `def`, or `functools.wraps`.
+
+## (c) Probes
+
+All probes are in `rv200p1b` under the session scratchpad. The second-look probes are:
+
+- `p1_shapes.py`: the 10 earlier shapes, and 7 new shapes for point 2, through `tests.encode`.
+- `p5_click.py`: the helper form and the `wraps` form on real click 8.5.
+- `p2_night.py`: a copy of the pass 1 probe, which runs at the batch heads 5b04c4a and 3eebc90.
+- `p4_door.py`: `_plain_decorated` over the clickI test suite, for every factory that adds an option.
+
+The reviewer ran `test_p5_escalate.py` and `test_p6_note.py` from `rv200p1` the same way as in pass 1. For each run, the reviewer copied the file into `tests/rota/` as `zz_probe_*.py`, ran it with `-n0`, and then deleted it. Each run ended with a clean `git status`. The reviewer did not run the gate.
+
+## (d) Usage
+
+This second look used about 30k input tokens and about 6k output tokens, about 36k in total. This is an estimate from the context counter. Read the harness line for the exact count.
+
+Stands: 0 high findings, 1 low finding.
