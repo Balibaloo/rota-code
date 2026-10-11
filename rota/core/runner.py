@@ -701,9 +701,14 @@ _DROPPED_AFTER = "The window dropped the answer after this line"
 
 def _repoint(transcript: list[str], kinds: list[str],
              pointers: list[tuple[str, str, str]], answered: dict[str, str],
-             served: dict[str, int], sb: Any) -> None:
+             served: dict[str, int], sb: Any) -> list[tuple[str, str, str]]:
     """
     Correct a repeat refusal that the newest fit made false.
+
+    Returns the pointers that still stand, and the loop checks them after the
+    next fit. One check was not enough: a refusal from turn N said the answer
+    was in the prompt at turn N+2, where that fit dropped it (frame 169's
+    review, finding 1, probe F).
 
     The refusal is written against the prompt the seat just read, and `_fit`
     runs before the seat reads the refusal. Night 126's s159 was told at turn
@@ -716,18 +721,32 @@ def _repoint(transcript: list[str], kinds: list[str],
     A DECISIONS.md rule says a refusal is satisfiable or says why not.
     """
     if not pointers:
-        return
+        return []
     user = "\n\n".join(transcript)
     # The same test as `evicted` in the loop, so the promise below holds:
     # the next asking is a repeat of an evicted answer.
-    if _EVICTED_PHRASE not in user:
-        return
+    evicted = _EVICTED_PHRASE in user
+    kept: list[tuple[str, str, str]] = []
     for key, line, name in pointers:
         answer = answered.get(key)
         # A write since the refusal forgot the answer, and the next asking is
-        # served as new. The old pointer then makes no claim this check owns.
-        if answer is None or answer in user:
+        # served as new. The old pointer then makes no claim this check owns,
+        # so it leaves.
+        if answer is None:
             continue
+        at = next((i for i in range(len(transcript) - 1, -1, -1)
+                   if kinds[i] == _RESULTS and line in transcript[i]), None)
+        # The fit took the line itself, so no false sentence is left to
+        # replace. The pointer leaves.
+        if at is None:
+            continue
+        # The answer stands, so the sentence is true and stays word for word.
+        # A later fit can still drop the answer, so the pointer stays.
+        if not evicted or answer in user:
+            kept.append((key, line, name))
+            continue
+        # From here the sentence is replaced once, and the pointer leaves.
+        # The new sentence makes no claim about a later prompt.
         if served.get(key, 0) >= SERVE_CAP:
             bound = _bound_of(sb, name)
             step = (f"{_DROPPED_AFTER}, and it was served three times. "
@@ -736,11 +755,9 @@ def _repoint(transcript: list[str], kinds: list[str],
         else:
             step = (f"{_DROPPED_AFTER}, so ask once more and it is served "
                     f"again.")
-        for i in range(len(transcript) - 1, -1, -1):
-            if kinds[i] == _RESULTS and line in transcript[i]:
-                transcript[i] = transcript[i].replace(
-                    line, line.replace(_IN_THIS_PROMPT, step), 1)
-                break
+        transcript[at] = transcript[at].replace(
+            line, line.replace(_IN_THIS_PROMPT, step), 1)
+    return kept
 
 
 def _dropped_note(dropped: int) -> str:
@@ -3375,8 +3392,9 @@ def run_session(
         # refusal never reaches it.
         told_to_end = False
         # The repeat refusals that say the answer is in this prompt: the key,
-        # the exact line and the call's name. `_repoint` reads them after the
-        # next fit, and the loop top clears them.
+        # the exact line and the call's name. `_repoint` reads them after
+        # every fit and returns the ones that still stand. A full render of
+        # the key removes them below (frame 169's review, finding 1).
         pointers: list[tuple[str, str, str]] = []
 
         budget = _fit_budget(pins.num_ctx, len(system))
@@ -3387,11 +3405,11 @@ def run_session(
                 break
             outcome.iterations = iteration
             transcript, kinds = _fit(transcript, kinds, budget)
-            # The repeat refusals of the last turn were true in the prompt
-            # they answered. The fit above can drop the answer before the
-            # seat reads them (frame 169, night 126's s159 turn 20).
-            _repoint(transcript, kinds, pointers, answered, served, sb)
-            pointers.clear()
+            # The repeat refusals were true in the prompt they answered. Any
+            # later fit can drop the answer before the seat reads them again
+            # (frame 169, night 126's s159 turn 20, and its review's probe F).
+            pointers = _repoint(transcript, kinds, pointers, answered,
+                                served, sb)
             user = "\n\n".join(transcript)
             # Above every backend, because the only whole-prompt measurement ran
             # on the reply and `truncated` is an Ollama field: replayed cases
@@ -4012,7 +4030,11 @@ def run_session(
                             line = (f"ERROR {_call_tag(call, len(calls))}: "
                                     f"{why}. {_IN_THIS_PROMPT}")
                             feedback.append(line)
-                            pointers.append((key, line, call.name))
+                            # An identical line from an earlier turn is one
+                            # pointer, because `_repoint` reads the newest
+                            # copy of a line.
+                            if (key, line, call.name) not in pointers:
+                                pointers.append((key, line, call.name))
                     elif unchanged:
                         repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three
@@ -4072,6 +4094,11 @@ def run_session(
                             # counts as nothing.
                             served[key] = served.get(key, 0) + 1
                             served_keys.add(key)
+                            # The key is rendered in full again, so the seat
+                            # reads the answer below the old refusal. The old
+                            # pointer no longer names the newest copy, and it
+                            # leaves (frame 169's review, finding 1).
+                            pointers = [p for p in pointers if p[0] != key]
                         feedback.append(
                             f"OK {call.name} -> the earlier answer was "
                             f"{_EVICTED_PHRASE}, so this prompt does not hold "

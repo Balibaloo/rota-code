@@ -1119,6 +1119,47 @@ def test_the_repeat_refusal_keeps_its_pointer_where_the_answer_stands(db):
     assert "The window dropped the answer" not in read
 
 
+def test_the_repeat_refusal_is_checked_after_every_fit(db):
+    """
+    Frame 169's review, finding 1 and probe F. The runner checked a refusal
+    after one fit only. A refusal from turn N still said `The answer is in
+    this prompt.` at turn N+2, where that fit had dropped the answer.
+
+    Turn 3 meets the refusal, and the fit for turn 4 keeps the first answer.
+    Turn 4 reads a second large result and does not ask again. The fit for
+    turn 5 then drops the first answer, and the line says so.
+    """
+    from rota.core.runner import _EVICTED_PHRASE
+
+    _seed_decisions(db)
+    for i in range(60):
+        db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
+                   (f"b{i:02d}", "vision_keeper", "billing " + "ledger " * 20))
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend([
+        ask, f"Again.\n{ask}",
+        f"Once more.\n{ask}\nTOOL: decisions.search(query='billing')",
+        "Read more.\nTOOL: decisions.search(query='ledger')", "Done."])
+    run_session(db, wake_vision_keeper(), backend=backend,
+                pins=Pins(model="scripted", temperature=0.0, num_ctx=11264))
+
+    kept = backend.calls[3][1]                   # turn 4, the fit at N+1
+    assert _EVICTED_PHRASE not in kept, "the fit at N+1 dropped the answer"
+    assert ("not answered again. The answer is in this prompt."
+            in kept), "the refusal never landed, so this shape proves nothing"
+    read = backend.calls[4][1]                   # turn 5, the fit at N+2
+    assert _EVICTED_PHRASE in read, \
+        "nothing was evicted at N+2, so this shape proves nothing"
+    line = [ln for ln in read.splitlines() if "asked three times" in ln]
+    assert line == [
+        "ERROR decisions.search: asked three times this session and the "
+        "answer has not changed; not answered again. The window dropped the "
+        "answer after this line, so ask once more and it is served again."
+    ], line
+    assert "The answer is in this prompt" not in read, \
+        "the refusal points at an answer the window took"
+
+
 def test_three_identical_calls_in_one_reply_meet_the_refusal(db):
     """
     The s71 storm, in its own reply. Session s71 sent 331 calls in one reply on
