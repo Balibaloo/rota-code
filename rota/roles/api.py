@@ -7202,6 +7202,41 @@ def _ruling_word(key: str, raw, shift: bool = False) -> str:
         f"rulings.rule(ask=...) with no rulings.")
 
 
+# The arguments of rulings.rule. A key of the map with one of these names is
+# a misplaced argument and not a line: night 138's s94 put `words` inside the
+# map three times, and the word door told it only that the words were no
+# ruling (frame 197).
+_RULE_ARGS = ("rulings", "words", "ask")
+
+
+def _argument_key(ctx: "Ctx", key: str, rulings: dict) -> str:
+    """The refusal of a `rulings` key that is an argument of the op. It shows
+    the seat's own map with the key moved out, as the call to send."""
+    _fact(ctx, "arg", key, op="rulings.rule")
+    if key == "ask":
+        call = 'rulings.rule(ask="<one sentence>")'
+        return (f"rulings has a key ask, and ask is its own argument, not a line "
+                f"of the page. A question is its own call: "
+                + _offer(ctx, call, "rulings.rule", {"ask": "<one sentence>"})
+                + " with no rulings.")
+    inner = next((v for k, v in rulings.items()
+                  if str(k).strip().lower() == "rulings"), None)
+    if key == "rulings" and isinstance(inner, dict) and inner:
+        rest = {str(k).strip(): v for k, v in inner.items()}
+    else:
+        rest = {str(k).strip(): v for k, v in rulings.items()
+                if str(k).strip().lower() not in _RULE_ARGS}
+    said = "the principal's words"
+    call = (f"rulings.rule(rulings={json.dumps(rest, ensure_ascii=False, default=str)}"
+            f", words=\"<{said}>\")")
+    lead = ("the map is rulings itself" if key == "rulings"
+            else f"{key} is its own argument")
+    return (f"rulings has a key {key}, and {lead}, not a line of the page: "
+            + _offer(ctx, call, "rulings.rule",
+                     {"rulings": rest, "words": f"<{said}>"})
+            + ". Each key of rulings is a line number.")
+
+
 @op("rulings", "rule")
 def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                  ask: str = "") -> dict:
@@ -7305,8 +7340,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     shift = ask["id"].startswith(SHIFT_ASK)
     off = set() if (shift or is_clarify) else off_page(ctx.conn, refs)
     per_item: dict[str, str] = {}
+    key_of: dict[str, str] = {}
     for key, ruling in rulings.items():
         key = str(key).strip()
+        if key.lower() in _RULE_ARGS:
+            raise ValueError(_argument_key(ctx, key.lower(), rulings))
         ruling = _ruling_word(key, ruling, shift=shift)
         if order and key.isdigit() and 1 <= int(key) <= len(order):
             ref = order[int(key) - 1]
@@ -7332,6 +7370,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"change it. Leave the row out of the ruling.")
         if ref is not None:
             per_item[ref] = ruling
+            key_of[ref] = key
         elif is_clarify:
             raise ValueError(
                 f"{key!r} is not a row of this question. A clarify numbers no "
@@ -7375,20 +7414,26 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         item = batch["item_id"]
         line = (f", line {order.index(item) + 1}"
                 if order and item in order else "")
+        # The refusal names the key the seat wrote. Night 139's s263 ruled
+        # line 5 and was told only bg_3, so it sent the same call three times
+        # and the repeat door ended it (frame 197).
+        key = key_of.get(ref, ref)
+        named, end = ((f"line {key}: ", f"approve line {key}") if key != ref
+                      else ("", "approve the line"))
         # A closed change has no prediction left to correct (the diff review
         # of 2dace61b, finding 4). The item is still the lever, so the
         # refusal names its line (the diff review of 0ffc97b7, finding 4).
         if batch["status"] in ("merged", "abandoned"):
             raise ValueError(
-                f"{ref} is the change's line, and the change is {batch['status']}. "
-                f"A ruling on it moves nothing. To change what you asked for, "
-                f"contest the item {item}{line}. Otherwise approve the line")
+                f"{named}{ref} is the change's line, and the change is "
+                f"{batch['status']}. A ruling on it moves nothing. To change what "
+                f"you asked for, contest the item {item}{line}. Otherwise {end}")
         if not batch["head_commit"]:
             continue
         raise ValueError(
-            f"{ref} is the change's line: a prediction of what it touches, and "
-            f"a ruling on it moves nothing. To stop the change, contest the "
-            f"item {item}{line}. Otherwise approve the line")
+            f"{named}{ref} is the change's line: a prediction of what it touches, "
+            f"and a ruling on it moves nothing. To stop the change, contest the "
+            f"item {item}{line}. Otherwise {end}")
     if not is_clarify:
         unnamed =[str(i + 1) for i, r in enumerate(order) if r not in per_item]
         if unnamed:

@@ -323,3 +323,145 @@ def test_s291s_ask_on_line_8_is_refused_with_the_call_named(db):
                       "the normal prompt to change?")
     assert out["to"] == "principal"
     assert not any(w[0] == "rulings" for w in sb.ctx.writes)
+
+
+# Frame 197: night 138's m11, a present of eight lines, seven ledger rows and
+# the description item, as s94 saw it. m12 is the principal's reply.
+M11_LEDGER = (
+    ("l_125a8d70dc", "docs/arguments.md",
+     "the README says how_it_works; the code shows Click provides a command-line "
+     "interface toolkit"),
+    ("l_12e747e99d", "docs/arguments.md",
+     "the README says defines_commands_and_options; the code shows arguments are "
+     "positional and can take nargs=-1"),
+    ("l_551dc809f0", "parses_and_executes_inputs",
+     "the README says: Click parses command-line arguments and options, then "
+     "executes the corresponding Python functions with the provided inputs; the "
+     "code shows: The API reference includes functions for parsing and executing "
+     "command-line inputs"),
+    ("l_8cac936cd4", "how_it_works",
+     "the README says: The program is a command-line interface toolkit called "
+     "Click. Users write scripts that define commands and options, and Click "
+     "handles parsing and executing them; the code shows: The API reference lists "
+     "classes and functions for building command-line interfaces, including "
+     "commands, options, and utilities"),
+    ("l_a9c0ca7d82", "defines_commands_and_options",
+     "the README says: Users define commands and options using decorators in "
+     "Python functions, which Click then uses to parse and execute command-line "
+     "inputs; the code shows: The API reference lists decorators like command, "
+     "option, and argument which are used to define commands and options in Click"),
+    ("l_ae1ec6ade4", "provides_command_line_interface",
+     "the README says: Click provides a command-line interface that users can "
+     "interact with by running scripts that define commands and options; the code "
+     "shows: The API reference includes classes and functions for building and "
+     "interacting with command-line interfaces"),
+    ("l_d5f508f6e9", "docs/arguments.md",
+     "the README says parses_and_executes_inputs; the code shows Click parses "
+     "command-line arguments and executes Python functions"),
+)
+M12 = ("Lines 2 and 8 are wrong, because on the README side they show a short label "
+       "instead of what the README actually says. Please put the README's own words "
+       "there. The rest is fine.")
+
+
+def _m11(db):
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, priority, "
+               "version, is_description) VALUES ('how_it_works', ?, 'in_scope', "
+               "'approved', 4, 1, 4, 1)",
+               ("The program is a command-line interface toolkit called Click. "
+                "Users write scripts that define commands and options, and Click "
+                "parses command-line arguments and options, then executes the "
+                "corresponding Python functions with the provided inputs.",))
+    for lid, about, text in M11_LEDGER:
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+                   "kind, status, author) VALUES (?, ?, 'items', ?, 'default', "
+                   "'open', 'vision_keeper')", (lid, about, text))
+    refs = [lid for lid, _, _ in M11_LEDGER] + ["how_it_works"]
+    return _landing(db, "m11", refs, "m12", M12, 11)
+
+
+def test_s94s_words_inside_the_map_is_refused_as_its_own_argument(db):
+    sb = _m11(db)
+    # s94's call at turns 1 and 2 of night 138, to the byte: no words argument.
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings={2: "contest", 8: "contest", "words": M12})
+    assert str(e.value) == (
+        "rulings has a key words, and words is its own argument, not a line of "
+        "the page: rulings.rule(rulings={\"2\": \"contest\", \"8\": \"contest\"}, "
+        "words=\"<the principal's words>\"). Each key of rulings is a line number.")
+    # The key ask takes the question's own call.
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings={2: "contest", "ask": "which words?"})
+    assert str(e.value) == (
+        "rulings has a key ask, and ask is its own argument, not a line of the "
+        "page. A question is its own call: rulings.rule(ask=\"<one sentence>\") "
+        "with no rulings.")
+    # The call the refusal shows meets the next door, which names the lines.
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings={"2": "contest", "8": "contest"}, words=M12)
+    assert str(e.value).startswith("lines 1, 3, 4, 5, 6, 7 have no ruling.")
+    full = {str(n): "contest" if n in (2, 8) else "approve" for n in range(1, 9)}
+    out = sb.call("rulings.rule", rulings=full, words=M12)
+    assert sorted(out["per_item"].values()) == ["approve"] * 6 + ["contest"] * 2
+    row = next(w[2] for w in sb.ctx.writes if w[0] == "rulings")
+    assert row["words"] == M12
+
+
+# Night 139's m141: the item, its three criteria and the running change bg_3,
+# which the page numbers line 5. m142 is the principal's reply.
+ITEM_139 = "version_option_show_python"
+CRITERIA_139 = (
+    ("c1_version_option_show_python",
+     "When `version_option` is invoked with `show_python=True`, the output message "
+     "must append the running Python version formatted exactly as "
+     "`{major}.{minor}.{micro}` (e.g., '3.10.4'), derived from `sys.version_info`."),
+    ("c2_version_option_show_python",
+     "The `show_python` flag must be a boolean parameter that controls whether the "
+     "Python version is appended to the standard version message, defaulting to "
+     "False when not explicitly set."),
+    ("c3_version_option_show_python",
+     "The `show_python` flag must default to False when not explicitly set, "
+     "preserving existing behavior where only the package version is shown."),
+)
+M142 = ("Please don't drop this change; I want the team to fix it. The check for "
+        "line 2 seems to call the custom version helper without its callback, so it "
+        "should test the real version option instead. The check for line 3 shows "
+        "the flag changes nothing yet, so the Python version still needs to be "
+        "appended to the message when the flag is on.")
+
+
+def _m141(db):
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, priority, "
+               "version) VALUES (?, ?, 'in_scope', 'approved', 4, 1, 4)",
+               (ITEM_139, "Give version_option a show_python flag that appends the "
+                          "running Python version to the message."))
+    db.execute("INSERT INTO tickets (id, item_id, text, version, item_ver) "
+               "VALUES ('tk_1_version_option_show_python', ?, ?, 1, 4)",
+               (ITEM_139, "give version_option a show_python flag that appends the "
+                          "running Python version to the message"))
+    for cid, text in CRITERIA_139:
+        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                   "(?, 'tk_1_version_option_show_python', ?)", (cid, text))
+    db.execute("INSERT INTO batches (id, item_id, head_commit, status, version) "
+               "VALUES ('bg_3', ?, '5b04c4ae5c6d02fa81198bd919f9ff152b2850b6', "
+               "'running', 1)", (ITEM_139,))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+               "('bg_3', 'tk_1_version_option_show_python')")
+    refs = ["bg_3", ITEM_139] + [c for c, _ in CRITERIA_139]
+    return _landing(db, "m141", refs, "m142", M142, 144)
+
+
+def test_s263s_contest_of_the_change_line_names_line_5(db):
+    sb = _m141(db)
+    # s263's call at turns 1 to 3 of night 139, to the byte.
+    rulings = {"1": "approve", "2": "contest", "3": "revise", "4": "contest",
+               "5": "contest"}
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings=rulings, words=M142)
+    assert str(e.value) == (
+        "line 5: bg_3 is the change's line: a prediction of what it touches, and a "
+        "ruling on it moves nothing. To stop the change, contest the item "
+        f"{ITEM_139}, line 1. Otherwise approve line 5")
+    out = sb.call("rulings.rule", rulings={**rulings, "5": "approve"}, words=M142)
+    assert out["per_item"]["bg_3"] == "approve"
+    assert out["per_item"]["c1_version_option_show_python"] == "contest"
