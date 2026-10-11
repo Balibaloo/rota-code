@@ -443,6 +443,22 @@ def test_a_paragraph_that_invites_a_log_names_the_words_its_mode_offers():
     assert not wrong, wrong
 
 
+def test_a_mode_without_the_log_names_no_kind_words():
+    """
+    Frame 204's review 1b, finding N1: a shared base rendered the kinds
+    sentence in 24 modes that do not offer `ledger.log`, with all nine words.
+
+    The relay modes lost the call in frame 204. Their brief must not name
+    the words, because the words invite the call that the door refuses.
+    """
+    for role in ("architect", "terminologist", "vision_keeper"):
+        assert "ledger.log" not in (prompts.mode_tools(role, "relay") or ["ledger.log"])
+        text = prompts.compose(role, "relay")
+        assert prompts.KINDS_SLOT not in text, role
+        assert "Its `kind=` is" not in text, role
+        assert "`conflict`, `scope`" not in text, role
+
+
 def test_every_mode_narrows():
     """
     An un-narrowed mode is the role's whole namespace, which is what the

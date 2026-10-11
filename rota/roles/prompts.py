@@ -101,6 +101,18 @@ def fill_kinds(text: str, role: str, mode: str = "") -> str:
     """The brief with its kinds slot replaced by the mode's words."""
     if KINDS_SLOT not in text:
         return text
+    tools = mode_tools(role, mode) if mode else None
+    if tools is not None and "ledger.log" not in tools:
+        # Frame 204, review 1b, N1: the words invite a call the mode lacks.
+        # The sentence that holds the slot goes, from the end of the last one.
+        while KINDS_SLOT in text:
+            at = text.index(KINDS_SLOT)
+            start = max(text.rfind(". ", 0, at), text.rfind(".\n", 0, at)) + 1
+            end = at + len(KINDS_SLOT)
+            if text[end:end + 1] == ".":
+                end += 1
+            text = text[:start] + text[end:]
+        return text
     words = (mode_kinds(role, mode) if mode else None)
     if not words:
         from .api import LOG_KINDS
