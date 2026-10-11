@@ -1724,6 +1724,17 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
             added = [r for i, r in enumerate(answer_refs)
                      if isinstance(r, str) and r not in own
                      and r not in answer_refs[:i]]
+            # Frame 200, the review of 2e6afd1c, finding 3: after a
+            # challenge in this session `code.write` and `code.commit`
+            # refuse, so the step is the end and not the change.
+            challenged = _sent_this_session(ctx, "tester", "challenge")
+            if added and challenged:
+                return _Ending(
+                    f"you sent {verb} to {recipient} on exactly these "
+                    f"refs already ({prior['id']}) and they answered "
+                    f"({prior['answer_id']}): the answer points at "
+                    f"{', '.join(added)}. {END_STEP} "
+                    f"{_end_form(ctx, _unique_refs(refs))}")
             if added:
                 return (
                     f"you sent {verb} to {recipient} on exactly these "
@@ -1733,6 +1744,13 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
                     f"write the change they call for, and commit")
             # A closed prior with no answer row names its status.
             answer_id = prior["answer_id"] or prior["status"]
+            if challenged:
+                return _Ending(
+                    f"you sent {verb} to {recipient} on exactly these refs "
+                    f"already ({prior['id']}) and they answered "
+                    f"({answer_id}) with no row beyond your own "
+                    f"refs. Sending it again is the same argument again. "
+                    f"{END_STEP} {_end_form(ctx, _unique_refs(refs))}")
             return (
                 f"you sent {verb} to {recipient} on exactly these refs "
                 f"already ({prior['id']}) and they answered "

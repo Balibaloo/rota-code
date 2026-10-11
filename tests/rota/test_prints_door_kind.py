@@ -692,22 +692,141 @@ S277_INLINE = S279_NO_ARGUMENT.replace(
     "custom_version_option(cmd)(show_python=True)")
 
 
-@pytest.mark.parametrize("body,text,surface,fact", [
+# Night 138's `tst_v3` v12 by s377: the factory's return read by another
+# call (frame 200's scope, section 1). The review of 2e6afd1c, point 3.
+V12_BOUND = '''\
+import re
+from click.decorators import version_option
+
+def test_v3():
+    result = version_option(show_python=True)
+    assert re.search(r"Python", result)
+'''
+
+V12_INLINE = '''\
+import re
+from click.decorators import version_option
+
+def test_v3():
+    assert re.search(r"Python", version_option(show_python=True))
+'''
+
+PASSING = "passing it to a call"
+
+
+@pytest.mark.parametrize("body,text,surface,fact,verb", [
     (S251_CALL_FORM, C2_TEXT, "version_option",
-     "`decorated_true` is a plain function"),
-    (AT_FORM, C2_TEXT, "version_option", "`cmd` is a plain function"),
+     "`decorated_true` is a plain function", "calling it"),
+    (AT_FORM, C2_TEXT, "version_option", "`cmd` is a plain function",
+     "calling it"),
     (S279_NO_ARGUMENT, C1_TEXT, "custom_version_option",
-     "`decorated` is the decorator that `custom_version_option` returns"),
+     "`decorated` is the decorator that `custom_version_option` returns",
+     "calling it"),
     (S277_INLINE, C1_TEXT, "custom_version_option",
-     "`custom_version_option(...)` returns a decorator"),
-], ids=["call-form", "at-form", "no-argument", "inline"])
+     "`custom_version_option(...)` returns a decorator", "calling it"),
+    (V12_BOUND, C2_TEXT, "version_option",
+     "`result` is the decorator that `version_option` returns", PASSING),
+    (V12_INLINE, C2_TEXT, "version_option",
+     "`version_option(...)` returns a decorator", PASSING),
+], ids=["call-form", "at-form", "no-argument", "inline", "v12-bound",
+        "v12-inline"])
 def test_a_factory_that_adds_an_option_on_a_plain_function_is_refused(
-        tmp_path, body, text, surface, fact):
+        tmp_path, body, text, surface, fact, verb):
+    """The sentence names the factory and not the criterion: night 138's
+    c3 names no option (the review of 2e6afd1c, finding 4)."""
     db = _decos_db(tmp_path, text, surface)
     said, facts = _refused(db, body)
-    assert said == (f"{fact}, and calling it never runs the option that "
-                    f"criterion c1 names")
+    assert said == (f"{fact}, and {verb} never runs the option that "
+                    f"`{surface}` adds")
     assert [(f.kind, f.value) for f in facts] == [("line_text", f"def {surface}")]
+
+
+# The review of 2e6afd1c, finding 1: a factory call whose positional
+# argument is a call may decorate a command. Click 8.5 runs these.
+CMD_HEAD = ("from click.decorators import command, version_option\n"
+            "from click.testing import CliRunner\n\n\n")
+OPTION_ON_COMMAND_OBJECT = CMD_HEAD + '''def test_v():
+    def hello():
+        pass
+
+    cli = version_option(show_python=True)(command()(hello))
+    result = CliRunner().invoke(cli, ["--version"])
+    assert "Python" in result.output
+'''
+OPTION_ON_HELPER_RETURN = CMD_HEAD + '''def make_cli():
+    @command()
+    def cli():
+        pass
+
+    return cli
+
+
+def test_v():
+    cli = version_option(show_python=True)(make_cli())
+    result = CliRunner().invoke(cli, ["--version"])
+    assert "Python" in result.output
+'''
+BARE_THEN_COMMAND_ARG = CMD_HEAD + '''def test_v():
+    def hello():
+        pass
+
+    opt = version_option(show_python=True)
+    cli = opt(command()(hello))
+    result = CliRunner().invoke(cli, ["--version"])
+    assert "Python" in result.output
+'''
+# The review of 2e6afd1c, finding 5: an aliased `command` is a command.
+ALIASED_COMMAND = '''\
+from click.decorators import command as make_command, version_option
+from click.testing import CliRunner
+
+
+def test_v():
+    @make_command()
+    @version_option(show_python=True)
+    def cli():
+        pass
+
+    result = CliRunner().invoke(cli, ["--version"])
+    assert "Python" in result.output
+'''
+# A parameter is the caller's value, as clickI's `echo(testoption)`.
+PARAMETER_ARG = '''\
+from click.decorators import version_option
+
+
+def show(testoption):
+    return repr(testoption)
+
+
+def test_v():
+    testoption = version_option(show_python=True)
+    assert show(testoption)
+'''
+
+
+@pytest.mark.parametrize("body", [
+    OPTION_ON_COMMAND_OBJECT, OPTION_ON_HELPER_RETURN, BARE_THEN_COMMAND_ARG,
+    ALIASED_COMMAND, PARAMETER_ARG,
+], ids=["command-object", "helper-return", "bare-then-command", "aliased",
+        "parameter"])
+def test_a_factory_on_a_command_lands(tmp_path, body):
+    db = _decos_db(tmp_path, C2_TEXT, "version_option")
+    _encode(db, "tst_x", "c1", "tests/test_x.py", body)
+
+
+def test_a_factory_that_returns_a_chain_on_option_adds_an_option():
+    """Night 139's commit 5b04c4a made `custom_version_option` return an
+    inner `def` that returns `option(...)(f)` (the review of 2e6afd1c,
+    finding 2)."""
+    src = ("from .decorators import option\n\n\n"
+           "def custom_version_option(callback, *param_decls, **kwargs):\n"
+           "    def decorator(f):\n"
+           "        return option(*param_decls, **kwargs)(f)\n\n"
+           "    return decorator\n")
+    node = ast.parse(src).body[1]
+    assert api._returns_factory(node, src)
+    assert api._adds_option(node, src)
 
 
 def test_the_call_shape_refusal_names_no_shape(tmp_path):

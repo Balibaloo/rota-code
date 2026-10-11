@@ -487,3 +487,63 @@ def test_the_empty_commit_note_after_a_message_names_the_end_alone(db, tmp_path)
     assert out["committed"] is False
     assert out["note"] == ("the tree is exactly as you found it. You have "
                            "sent your message: end the session")
+
+
+def test_a_scope_question_keeps_the_note_that_names_the_change(db, tmp_path):
+    """`batch_start.md` says a scope question never ends the session, so the
+    note keeps its branch toward the change (the review of 2e6afd1c,
+    finding 6)."""
+    root = tmp_path / "wt"
+    _repo(root, "script.py", A)
+    _tests(db, [("tst1", "c1")])
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    sb.call("msg.question_vision_keeper", refs=["c1"],
+            question="is the logging change in scope?")
+    note = sb.call("code.commit", message="nothing")["note"]
+    assert note.endswith("the change comes first: code.write, then commit")
+
+
+def _prior_escalation(db, answer_refs: str) -> None:
+    """An escalation on c1 and tst1 that the Architect answered."""
+    seq = db.execute("SELECT coalesce(max(seq), 0) FROM messages").fetchone()[0]
+    db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, "
+               "to_role, verb, body_refs, status, round_no, seq) VALUES "
+               "('m900', 'm900', NULL, 'developer', 'architect', 'escalate', "
+               "'[\"c1\", \"tst1\"]', 'answered', 0, ?)", (seq + 1,))
+    db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, "
+               "to_role, verb, body_refs, status, round_no, seq) VALUES "
+               "('m901', 'm900', 'm900', 'architect', 'developer', 'answer', "
+               "?, 'answered', 0, ?)", (answer_refs, seq + 2))
+    db.commit()
+
+
+ENDS_ON_TST1 = (f"{sandbox.END_STEP} Your whole next reply is this one line, "
+                "and no TOOL: line: Nothing more is owed on tst1 in this "
+                "session.")
+
+
+@pytest.mark.parametrize("answer_refs,fact", [
+    ('["c1", "tst1", "d1"]', "the answer points at d1."),
+    ('["c1", "tst1"]', "with no row beyond your own refs. Sending it again "
+                       "is the same argument again."),
+], ids=["answer-adds-a-row", "answer-adds-none"])
+def test_an_escalation_after_a_challenge_ends_on_the_end_step(
+        db, tmp_path, answer_refs, fact):
+    """The escalation door told the seat to write, and the write door then
+    refused (the review of 2e6afd1c, finding 3, `test_p5_escalate.py`)."""
+    _root, sb = _challenged(db, tmp_path)
+    _prior_escalation(db, answer_refs)
+    before = sandbox._same_refs_refusal(sb.ctx, "architect", "escalate",
+                                        ["c1", "tst1"])
+    assert not isinstance(before, sandbox._Ending)
+    sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    with pytest.raises(api.EndRefusal) as exc:
+        sb.call("msg.escalate_architect", refs=["c1", "tst1"])
+    said = str(exc.value)
+    assert said.startswith("you sent escalate to architect on exactly these "
+                           "refs already (m900) and they answered")
+    assert said.endswith(f"{fact} {ENDS_ON_TST1}")
+    assert "code.source" not in said and "change" not in said

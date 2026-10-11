@@ -5768,8 +5768,8 @@ def _factory_misuse(tree, name: str) -> str | None:
 
 def _adds_option(node, src: str | None = None) -> bool:
     """Whether the factory `node` adds an option or an argument to what it
-    decorates: it returns `option(...)` or `argument(...)`, or a `def`
-    inside it calls `_param_memo`.
+    decorates: it returns `option(...)` or `argument(...)`, or a call
+    chain on one, or a `def` inside it calls `_param_memo`.
 
     Frame 200's review of the design: `pass_meta_key` and
     `make_pass_decorator` return a decorator and add no option, and a right
@@ -5788,9 +5788,13 @@ def _adds_option(node, src: str | None = None) -> bool:
                     and isinstance(f.value, _ast.Name) and f.value.id in clicks))
 
     for n in _ast.walk(node):
-        if (isinstance(n, _ast.Return) and isinstance(n.value, _ast.Call)
-                and _named(n.value.func, {"option", "argument"})):
-            return True
+        # The chain too: night 139's commit 5b04c4a gave
+        # `custom_version_option` an inner `return option(...)(f)`.
+        v = n.value if isinstance(n, _ast.Return) else None
+        while isinstance(v, _ast.Call):
+            if _named(v.func, {"option", "argument"}):
+                return True
+            v = v.func
         if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
                 and n.func.id == "_param_memo"):
             return True
@@ -5802,7 +5806,9 @@ def _plain_decorated(tree, name: str):
     factory `name` and then runs, as `(local, line, kind)`, or None.
     `kind` is "plain" for a decorated `def`, "decorator" for a name bound
     to the factory's return, and "inline" for `name(...)()`, as s277's
-    `custom_version_option(cmd)(show_python=True)`.
+    `custom_version_option(cmd)(show_python=True)`. The kinds
+    "decorator-argument" and "inline-argument" pass that return to
+    another call.
 
     Frame 200: night 139's s251 stored `version_option(show_python=True)(cmd)`
     on a local `def cmd()`, then called the result. Night 138's s379 put
@@ -5812,8 +5818,9 @@ def _plain_decorated(tree, name: str):
 
     - `@name(...)` on a local `def` with no `command` or `group` decorator.
     - `x = name(...)(f)` with `f` such a local `def`.
-    - `x = name(...)`, then `x(...)` with no function argument, as s279's
+    - `x = name(...)`, then `x(...)` with no positional argument, as s279's
       `custom_version_option(cmd, show_python=True)` then `decorated()`.
+    - `name(...)` or such an `x` as an argument of another call.
 
     The test then calls the name, or passes it to `.invoke` on a runner,
     the receiver `_plain_invoked` reads. `ctx.invoke(f)` stays admitted.
@@ -5821,6 +5828,11 @@ def _plain_decorated(tree, name: str):
     import ast as _ast
 
     clicks = _click_names(_ast.walk(tree))
+    # `from click.decorators import command as make_command` makes
+    # `@make_command()` a command (frame 200's review of 2e6afd1c, 5).
+    aliases = {a.asname: a.name for n in _ast.walk(tree)
+               if isinstance(n, _ast.ImportFrom)
+               for a in n.names if a.asname}
 
     def _called(f) -> str | None:
         return (f.id if isinstance(f, _ast.Name)
@@ -5866,12 +5878,17 @@ def _plain_decorated(tree, name: str):
         if not (isinstance(arg, _ast.Name) and arg.id in defs
                 and len(binds.get(arg.id, [])) == 1):
             return False
-        return not any(_called(d.func if isinstance(d, _ast.Call) else d)
-                       in ("command", "group")
-                       for d in defs[arg.id].decorator_list)
+        names = (_called(d.func if isinstance(d, _ast.Call) else d)
+                 for d in defs[arg.id].decorator_list)
+        return not any(aliases.get(x, x) in ("command", "group")
+                       for x in names)
 
-    def is_fn_arg(a) -> bool:
-        return isinstance(a, (_ast.Name, _ast.Attribute, _ast.Lambda))
+    # A parameter is the caller's value, never the factory's return, as
+    # clickI's `echo(testoption)` (frame 200's review of 2e6afd1c, point 3).
+    params = {a.arg for n in _ast.walk(tree) if isinstance(n, _ast.arguments)
+              for a in [*n.posonlyargs, *n.args, *n.kwonlyargs,
+                        *([n.vararg] if n.vararg else []),
+                        *([n.kwarg] if n.kwarg else [])]}
 
     runners = {"runner"} | {k for k, vs in binds.items()
                             if any(is_runner_call(v) for v in vs)}
@@ -5893,7 +5910,7 @@ def _plain_decorated(tree, name: str):
         elif (isinstance(v, _ast.Call) and is_factory(v.func)
               and v.args and plain_def(v.args[0])):
             plain[k] = v.lineno
-        elif is_factory(v):
+        elif is_factory(v) and k not in params:
             bare[k] = v.lineno
     for c in _ast.walk(tree):
         if not isinstance(c, _ast.Call):
@@ -5901,12 +5918,20 @@ def _plain_decorated(tree, name: str):
         f = c.func
         if isinstance(f, _ast.Name) and f.id in plain:
             return f.id, plain[f.id], "plain"
-        if (isinstance(f, _ast.Name) and f.id in bare
-                and not any(is_fn_arg(a) for a in c.args)):
+        # A call with any positional argument may decorate a command,
+        # `version_option(...)(command()(hello))` (the review of 2e6afd1c, 1).
+        if isinstance(f, _ast.Name) and f.id in bare and not c.args:
             return f.id, bare[f.id], "decorator"
         # The inline forms: `name(...)()` and `name(...)(f)()`.
-        if is_factory(f) and not any(is_fn_arg(a) for a in c.args):
+        if is_factory(f) and not c.args:
             return name, c.lineno, "inline"
+        # The factory's return as an argument of another call, night 138's
+        # v12: `re.search(..., version_option(show_python=True))`.
+        for a in [*c.args, *(k.value for k in c.keywords)]:
+            if isinstance(a, _ast.Name) and a.id in bare:
+                return a.id, bare[a.id], "decorator-argument"
+            if is_factory(a):
+                return name, a.lineno, "inline-argument"
         if (isinstance(f, _ast.Call) and is_factory(f.func)
                 and f.args and plain_def(f.args[0])):
             return f.args[0].id, c.lineno, "plain"
@@ -6858,13 +6883,21 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         if plain is not None:
             local, _line, kind = plain
             _def_fact(where, node, src)
-            what = {"plain": f"`{local}` is a plain function",
-                    "decorator": (f"`{local}` is the decorator that "
-                                  f"`{orig}` returns"),
-                    "inline": f"`{orig}(...)` returns a decorator"}[kind]
+            # The factory, never the criterion: a criterion such as night
+            # 138's c3 names no option (the review of 2e6afd1c, finding 4).
+            bound = f"`{local}` is the decorator that `{orig}` returns"
+            inline = f"`{orig}(...)` returns a decorator"
+            what, verb = {
+                "plain": (f"`{local}` is a plain function", "calling"),
+                "decorator": (bound, "calling"),
+                "inline": (inline, "calling"),
+                "decorator-argument": (bound, "passing it to a call"),
+                "inline-argument": (inline, "passing it to a call"),
+            }[kind]
+            verb = "calling it" if verb == "calling" else verb
             raise ValueError(
-                f"{what}, and calling it never runs the option that "
-                f"criterion {criterion_id} names")
+                f"{what}, and {verb} never runs the option that "
+                f"`{orig}` adds")
 
     def _kind() -> str:
         """The kind of the name as a clause of the refusal, or nothing."""
@@ -12883,9 +12916,12 @@ def code_commit(ctx: Ctx, message: str) -> dict:
         #
         # Frame 200: night 139's s274 had sent its message and read "the
         # change comes first" here, then wrote a change to fit a test it
-        # had called wrong. A session that has sent a message gets the end
-        # alone.
+        # had called wrong. A session that has sent a challenge or an
+        # escalation gets the end alone. A scope question never ends the
+        # session (`batch_start.md`, the review of 2e6afd1c, finding 6).
         if any(m.get("route") != "triage"
+               and (m["to_role"], m["verb"]) in (("tester", "challenge"),
+                                                 ("architect", "escalate"))
                for m in (getattr(ctx, "outbound", None) or [])):
             return {"committed": False, "why": "nothing changed",
                     "note": ("the tree is exactly as you found it. You have "
