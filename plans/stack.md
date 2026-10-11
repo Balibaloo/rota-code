@@ -226,7 +226,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/frame199-read.md`, sections 1 and 2; frames 107 and 170 in `plans/archive/stack-2026-10-02.md` and `plans/archive/stack-2026-10-08.md`.
 - Status 2026-10-11 01:41 (rota-c5): pushed by 84ce0759 from frame 199's read. Meta workflow.
 
-### 200. The build loop: a Tester test that never runs the behaviour, a Developer that fits the wrong test, and a challenge answered with nothing (2026-10-11)
+### 200. The build loop: a Tester test that never runs the behaviour, a Developer that fits the wrong test, and a challenge answered with nothing (2026-10-11) (84ce0759)
 
 - **The build seam, the design frame over frames 171, 172, 176, 174, 115, 182 and 194, ruled 2026-10-11 00:40.** Sites: the Tester's test brief and its doors, the Developer's `tests_failing` and answer modes, the challenge and escalation paths of `msg.challenge_*` and `msg.escalate_*`, and the copy and surface doors of `code.write` and `code.commit`. Rota workflow.
 - On nights 138 and 139 the same show_python batch died at attempts 8 and 7: two Tester tests applied the decorator to a plain function and never ran `--version`, the Developer rewrote `custom_version_option` to fit them and broke the project test, four challenges and two escalations were answered with refs and no words, and on night 138 a hidden `NameError` sat under every red output (observed: `plans/night138-read.md`, section 4; `plans/night139-read.md`, section 3). Night 138's b_1 met the two write doors that contradict, frame 194, three times.
@@ -235,6 +235,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night138-read.md`, section 4; `plans/night139-read.md`, section 3; frame 193's design `plans/frame193-design.md` as the shape of a seam design.
 - Status 2026-10-11 00:40 (rota-06): pushed by 4b501a17 on Roman's sprint order. Roman's sprint order, ruled 2026-10-11 00:40 ("ok" to the proposal in the terminal): frame 199, the gate's baseline; frame 195, `CliRunner` swallows a `NameError`; frame 200, the build loop design; frames 198, 197 and 169 while frame 200's night runs; frames 185 and 192 close on the counts the nights give. Everything else waits for the sprint after. Meta workflow.
 - Measure, 2026-10-11 01:41 (rota-c5), added by 84ce0759 from frame 199's read: `L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner`, 1 of 5 since frame 110 added it on 2026-10-02 and never at its threshold of 4, is this seam's case: the seat names the fault in prose, then asks the Vision Keeper or ends with no `tests.encode`, 0 of 5 on a live re-record at 01:37 (observed: `plans/frame199-read.md`, section 3). The gate's baseline carries it as a known red until this frame's passes move it. Meta workflow.
+- Status 2026-10-11 05:38 (rota-c5): **claimed by 84ce0759.** Roman ruled at this minute, "Yes, paralelise maximally", to the question whether frame 200's scope starts beside frame 195's pass 1b (ruled: Roman, in the terminal). So this session holds frames 195, 200, 197 and 169 at once, each with its own agent, reads in parallel and the implementations one at a time in one checkout with one gate each. Frame 198 stays unclaimed, because this session's context will not carry a fifth frame to its night. The scope read on Opus runs now, brief `scratchpad/scope200_brief.md` of this session, cap 150k: three batches turn by turn, the sites, the seven frames, up to three interviews of the seats in their contexts, and the options. Meta workflow.
 
 ### 198. The agenda tick puts a merged request's open ledger rows on the next request's page (2026-10-11)
 
@@ -245,7 +246,7 @@ a different question and the night is then opened once.
 - Status 2026-10-11 00:30 (rota-06): pushed by 4b501a17 from night 139's read. Meta workflow.
 - Status 2026-10-11 00:40 (rota-06): in Roman's sprint order, while frame 200's night runs. Roman's sprint order, ruled 2026-10-11 00:40 ("ok" to the proposal in the terminal): frame 199, the gate's baseline; frame 195, `CliRunner` swallows a `NameError`; frame 200, the build loop design; frames 198, 197 and 169 while frame 200's night runs; frames 185 and 192 close on the counts the nights give. Everything else waits for the sprint after. Meta workflow.
 
-### 197. The Liaison puts `words` inside the `rulings` map, and the refusal does not name the misplacement (2026-10-10)
+### 197. The Liaison puts `words` inside the `rulings` map, and the refusal does not name the misplacement (2026-10-10) (84ce0759)
 
 - **The ruling door's text, found on night 138's walk 1.** Site: the `rulings.rule` door in `rota/roles/api.py`. On night 138, s94 answered the principal's m12 with the `words` argument placed as a value inside the `rulings` map. The door refused with `line words: "..." is not a ruling. Each line takes approve, contest or revise.` The refusal names the line and not the misplacement, the session ended, and the answer was lost (observed: `plans/night138-read.md`, section 1). Rota workflow.
 - Ends when: first the mechanism: the refusal of a `rulings` key named `words` says that `words` is its own argument and shows the call shape; second the ratio, on a night: principal answers that draw neither a ruling nor a question from this cause, from 1 of 43 on night 138 to 0 of the next 40, with the residue rule: a session that still shows the sign is read, and the frame closes when its cause is not this one.
@@ -253,6 +254,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/night138-read.md`, sections 1 and 6.
 - Status 2026-10-10 14:12 (rota-06): pushed by 4b501a17 from night 138's read. Meta workflow.
 - Status 2026-10-11 00:40 (rota-06): in Roman's sprint order, while frame 200's night runs. Roman's sprint order, ruled 2026-10-11 00:40 ("ok" to the proposal in the terminal): frame 199, the gate's baseline; frame 195, `CliRunner` swallows a `NameError`; frame 200, the build loop design; frames 198, 197 and 169 while frame 200's night runs; frames 185 and 192 close on the counts the nights give. Everything else waits for the sprint after. Meta workflow.
+- Status 2026-10-11 05:38 (rota-c5): **claimed by 84ce0759 on the same ruling, with frame 169 in one read on Opus, brief `scratchpad/scope197_169_brief.md` of this session, cap 100k.** The pass follows frame 200's scope, one implementer at a time in the checkout. Meta workflow.
 
 ### 196. A principal's "should not edit" sentence is not a disputed path, so the batch keeps the file the principal protected (2026-10-10)
 
@@ -461,7 +463,7 @@ a different question and the night is then opened once.
 - Status 2026-10-07 01:10 (rota-b4): pushed by 86c3e06e from frame 131's read. Unclaimed, priced. Rota workflow.
 - Status 2026-10-11 00:30 (rota-06): **night 139 adds an instance: the Developer changed `custom_version_option` to fit a wrong Tester test in s274 and s282, and broke the project test with an `UnboundLocalError` on `param_decls`** (observed: `plans/night139-read.md`, section 3). Meta workflow.
 
-### 169. The repeat refusal says `The answer is in this prompt` after the window dropped the answer (2026-10-06)
+### 169. The repeat refusal says `The answer is in this prompt` after the window dropped the answer (2026-10-06) (84ce0759)
 
 - **Batch C, the night's stall, found by night 126's read.** Sites: the `asked three times` refusal of `code.source` and frame 77's serve-again rule, `rota/core/runner.py`.
 - Rota workflow. On night 126, 22 `code.source` refusals of `asked three times` stood after an eviction notice. In 10 the exact span still stood in the prompt. In 12 it was gone, s155 turn 11, s159 turns 19 and 21, s165 turn 21, and the sentence `The answer is in this prompt` was false. Frame 77's serve-again rule fired 2 times each in s166 and s182 and 0 times in those three sessions. Whether its cap of 3 was reached there was not read (observed: `plans/night126-read.md`, section 8, 2026-10-06).
@@ -471,6 +473,7 @@ a different question and the night is then opened once.
 - Status 2026-10-06 16:36 (rota-66): pushed by 488d31af from night 126's read. Unclaimed, priced. Rota workflow.
 - Status 2026-10-11 00:30 (rota-06): **night 139 adds an instance: s263 ruled `contest` on the batch line `bg_3`, which the principal's words did not name, the door refused, the seat sent the same call three times, and the repeat door ended the session with the answer m142 lost** (observed: `plans/night139-read.md`, section 1). Meta workflow.
 - Status 2026-10-11 00:40 (rota-06): in Roman's sprint order, while frame 200's night runs. Roman's sprint order, ruled 2026-10-11 00:40 ("ok" to the proposal in the terminal): frame 199, the gate's baseline; frame 195, `CliRunner` swallows a `NameError`; frame 200, the build loop design; frames 198, 197 and 169 while frame 200's night runs; frames 185 and 192 close on the counts the nights give. Everything else waits for the sprint after. Meta workflow.
+- Status 2026-10-11 05:38 (rota-c5): **claimed by 84ce0759 on the same ruling, read with frame 197.** The read also says whether night 139's s263 is this door or another, because its three calls were `rulings.rule`. Meta workflow.
 
 ### 168. The same-refs step says `End the session with no call.` while a challenge on another red test lands (2026-10-06)
 
