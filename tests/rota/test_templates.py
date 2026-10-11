@@ -6,10 +6,12 @@ from __future__ import annotations
 
 import sqlite3
 import subprocess
+import tempfile
+from pathlib import Path
 
 from rota.core import db as rota_db
 from rota.core.worktrees import GIT
-from rota.testkit import dbtemplate
+from rota.testkit import dbtemplate, gitfixture
 from rota.testkit.gitfixture import copy_template
 from tests.rota.test_findings_doors import _night_repos
 from tests.rota.test_verdict_lines import _s279_repo
@@ -116,3 +118,38 @@ def test_a_copied_worktree_points_at_its_copy(tmp_path):
     assert "built" not in listed and "rota_template_" not in listed
     top = _git(tree, "rev-parse", "--show-toplevel").strip()
     assert top == tree.as_posix()
+
+
+def _one_worktree(base) -> str:
+    root = base / "root"
+    root.mkdir()
+    _git(root, "init", "-q")
+    _git(root, "commit", "-q", "--allow-empty", "-m", "root")
+    _git(root, "worktree", "add", "-q", "-b", "batch/x", str(base / "batch"))
+    return _git(base / "batch", "rev-parse", "HEAD").strip()
+
+
+def test_a_copy_under_a_case_changed_temp_owns_its_repository(
+        tmp_path, monkeypatch):
+    # Git writes the true case into `.git` and `gitdir`, and `mkdtemp` keeps
+    # the TEMP case. The review's probe found the copy then shared the
+    # template's repository (frame 203, review 1, finding 1).
+    temp = tmp_path / "Temp"
+    temp.mkdir()
+    lower = str(temp).lower()
+    assert lower != str(temp)
+    monkeypatch.setenv("TEMP", lower)
+    monkeypatch.setenv("TMP", lower)
+    monkeypatch.setattr(tempfile, "tempdir", None)
+    key = ("case", str(tmp_path))
+    copied = temp / "copied"
+    head = copy_template(key, _one_worktree, copied)
+    base = gitfixture._TEMPLATES[key][0]
+    tree = copied / "batch"
+    link = (tree / ".git").read_text().strip()
+    assert Path(link.split(" ", 1)[1]).resolve().is_relative_to(
+        copied.resolve())
+    (tree / "new.txt").write_bytes(b"n\n")
+    _git(tree, "add", "-A")
+    _git(tree, "commit", "-q", "-m", "copy only")
+    assert _git(base / "batch", "rev-parse", "HEAD").strip() == head

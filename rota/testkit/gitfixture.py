@@ -157,7 +157,10 @@ def template(key, build) -> tuple[Path, object]:
     """
     entry = _TEMPLATES.get(key)
     if entry is None or not entry[0].exists():
-        base = Path(tempfile.mkdtemp(prefix="rota_template_"))
+        # Git writes the true letter case into `.git` and `gitdir`, and
+        # `mkdtemp` keeps the case of TEMP. `_relink` matches bytes, so the
+        # base takes the true case too (frame 203, review 1, finding 1).
+        base = Path(tempfile.mkdtemp(prefix="rota_template_")).resolve()
         # One per process, and under xdist that is one per worker. Left behind
         # they accumulate in the temp directory a run at a time, which is how a
         # test suite quietly becomes something that fills a disk.
@@ -210,6 +213,14 @@ def _relink(old: Path, new: Path) -> None:
         with link.open("r+b") as handle:
             handle.write(body)
             handle.truncate()
+        # A link that still names the template makes the copy share the
+        # template's repository. A test then moves the template in silence,
+        # so the copy stops here (frame 203, review 1, finding 1).
+        text = body.decode().strip()
+        target = Path(text.removeprefix("gitdir:").strip())
+        if not target.resolve().is_relative_to(new.resolve()):
+            raise RuntimeError(
+                f"{link} still names a path outside the copy {new}: {text}")
 
 
 def _template() -> Path:
