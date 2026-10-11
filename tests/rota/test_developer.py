@@ -17,15 +17,18 @@ import sys
 
 import pytest
 
-from rota.core import lifecycle, worktrees
+from rota.core import lifecycle, provision, worktrees
 from rota.core.db import init_db
 from rota.core.sandbox import build
-from rota.testkit import gitfixture
+from rota.testkit import gitfixture, venvtemplate
 
 
 @pytest.fixture
-def project(tmp_path):
+def project(tmp_path, monkeypatch):
     """A sample repo, and a rota database pointed at it."""
+    # A batch's `.venv` is a copy of one built per worker. A venv and pip per
+    # test held one xdist worker for 326s, the suite's tail (frame 206's count).
+    monkeypatch.setattr(provision, "ensure_env", venvtemplate.ensure_env)
     repo = gitfixture.make(tmp_path)
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
@@ -54,6 +57,28 @@ def test_dispatch_creates_the_worktree(project):
     path = db.execute("SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"]
     assert path, "a running batch with nowhere to work"
     assert (worktrees.Path(path) / "src" / "store" / "records.py").exists()
+
+
+def test_the_copied_venv_runs_pip_and_pytest_on_the_base_interpreter(project):
+    """The batch's `.venv` is a copy of a template (frame 206). A copy that
+    named the template's paths would run the template, or nothing."""
+    db, _ = project
+    lifecycle.start(db, "b1")
+    root = worktrees.Path(
+        db.execute("SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"])
+    note = db.execute("SELECT value FROM config WHERE key='env:b1'").fetchone()["value"]
+    assert note == "made .venv; installed pytest", note
+    py = provision.venv_python(root)
+    for argv in (["-m", "pip", "--version"], ["-m", "pytest", "--version"]):
+        out = subprocess.run([str(py), *argv], capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+    prefix = subprocess.run([str(py), "-c", "import sys; print(sys.prefix)"],
+                            capture_output=True, text=True).stdout.strip()
+    assert worktrees.Path(prefix).resolve() == (root / ".venv").resolve(), prefix
+    cfg = (root / ".venv" / "pyvenv.cfg").read_text(encoding="utf-8")
+    home = next(line.split("=", 1)[1].strip() for line in cfg.splitlines()
+                if line.startswith("home"))
+    assert worktrees.Path(home).resolve() == worktrees.Path(sys.base_prefix).resolve(), home
 
 
 def test_a_second_run_on_the_same_root_gets_a_fresh_worktree(project):
