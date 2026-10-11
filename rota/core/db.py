@@ -667,8 +667,14 @@ def _owes_a_reply(trig: sqlite3.Row) -> bool:
     Whether `trig` is a challenge, a proposal or an escalation on a channel
     the graph declares. A test can seed a carrier on no channel, as the
     synthetic arc's Liaison challenge to the Critic. No session can send one.
+
+    The Critic's challenge to the Developer owes no reply. `developer/challenge.md`
+    says "You have no message back to Critic": the reply is the next commit or a
+    `ledger.log`, and neither cites the challenge (review of 8d090e2e, finding 1).
     """
     if trig["verb"] not in OWED_A_REPLY:
+        return False
+    if (trig["from_role"], trig["to_role"]) == ("critic", "developer"):
         return False
     from ..design import graph as graph_mod
     return any(e.s == trig["from_role"] and e.t == trig["to_role"]
@@ -676,7 +682,23 @@ def _owes_a_reply(trig: sqlite3.Row) -> bool:
                for e in graph_mod.load().of_type("messages"))
 
 
-def _received(result: SessionResult, trig: sqlite3.Row) -> bool:
+def _answers_by_message(trig: sqlite3.Row) -> bool:
+    """
+    Whether the graph gives the addressee an `answer` edge to the asker.
+
+    Such an addressee replies with a message, so its decision row is no
+    receipt. Night 127's m72 shape: the Architect authors a decision, its
+    answer never lands, and the escalation must stay owed (review of 8d090e2e,
+    finding 2).
+    """
+    from ..design import graph as graph_mod
+    return any(e.s == trig["to_role"] and e.t == trig["from_role"]
+               and e.v == "answer"
+               for e in graph_mod.load().of_type("messages"))
+
+
+def _received(conn: sqlite3.Connection, result: SessionResult,
+              trig: sqlite3.Row) -> bool:
     """
     Whether the session woken by `trig` replied to it or wrote a receipt for it.
 
@@ -687,22 +709,36 @@ def _received(result: SessionResult, trig: sqlite3.Row) -> bool:
     receipt too, because `vision_keeper/challenge.md` asks for that decision
     as the reply (design 200 pass 2b). The review of design 200 measured 8 Tester re-encodes on nights 138 and
     139 that the first text would have marked.
+
+    A decision is no receipt when the addressee has an `answer` edge to the
+    asker (finding 2 of the review of 8d090e2e). A decision that cites a
+    message id is a receipt for that message only (finding 8).
     """
     if any(m.cause_id == result.trigger_msg for m in result.messages):
         return True
     refs = {r for r in json.loads(trig["body_refs"] or "[]") if isinstance(r, str)}
+    by_message = None
     for w in result.writes:
         if receipt_of(w)[1] in refs:
             return True
         if w.table == "decisions":
+            if by_message is None:
+                by_message = _answers_by_message(trig)
+            if by_message:
+                continue
             cited = w.values.get("refs") or "[]"
             if isinstance(cited, str):
                 try:
                     cited = json.loads(cited)
                 except ValueError:
                     cited = []
-            if result.trigger_msg in (cited or []) or refs & {
-                    c for c in (cited or []) if isinstance(c, str)}:
+            cited = {c for c in (cited or []) if isinstance(c, str)}
+            if result.trigger_msg in cited:
+                return True
+            if any(conn.execute("SELECT 1 FROM messages WHERE id = ?",
+                                (c,)).fetchone() for c in cited):
+                continue
+            if refs & cited:
                 return True
     return False
 
@@ -850,7 +886,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     and result.checkpoint is None
                     and _owes_a_reply(trig)
                     and not (barren and trig["verb"] == "challenge")
-                    and not _received(result, trig)):
+                    and not _received(conn, result, trig)):
                 # Frame 174: a session that sent nothing caused by its trigger
                 # and wrote no receipt for it did not answer it. Night 127's
                 # m72 and m112 were escalations, and the Architect wrote

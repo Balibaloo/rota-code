@@ -271,8 +271,14 @@
   expect:
     # The row first, then the answer that refs it. The send door refuses an
     # answer that adds no row, so a landed answer carries the decision.
+    # The review of 8d090e2e, finding 5: two passing runs wrote "The test is
+    # valid". A Developer that gets that row fits the code, s282's failure.
+    # So the row names the test's call line, which is the fault.
     writes:
-      decisions: {count: "1..2"}
+      decisions: {count: "1..2",
+                  text_includes_any: ["decorated()", "(cmd)", "line 10",
+                                      "line 13"],
+                  text_excludes: ["is valid", "correctly identifies"]}
     messages:
       - {to: developer, verb: answer, count: ">=1"}
   forbidden:

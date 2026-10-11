@@ -117,13 +117,51 @@ def test_a_challenge_that_carries_a_decision_row_passes_the_cap(db):
                    "'tester', 'challenge', ?, ?, 'answered')",
                    (f"mc{n}", json.dumps(["c1", "tst1"]), 10 + n))
     db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
-               "('d1','architect','tst1 does not encode c1','[]')")
+               "('d1','architect','tst1 does not encode c1','[\"tst1\"]')")
     db.commit()
     sb = build("developer", db, batch_id="b1", mode="answer",
                allow=prompts.mode_tools("developer", "answer"))
     assert sandbox_mod._challenge_cap_refusal(sb.ctx, [], ["c1", "tst1"])
     assert sandbox_mod._challenge_cap_refusal(
         sb.ctx, [], ["c1", "tst1", "d1"]) is None
+
+
+def _capped(db):
+    """Three landed challenges on c1, and an older decision that cites no
+    test of them, as a decision id reaches the Developer by `rulings_line`."""
+    _rows(db)
+    for n in range(3):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, body_refs, seq, status) VALUES (?, 'tc', 'developer', "
+                   "'tester', 'challenge', ?, ?, 'answered')",
+                   (f"mc{n}", json.dumps(["c1", "tst1"]), 10 + n))
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d_old','vision_keeper','an older ruling','[\"c9\"]')")
+    db.commit()
+
+
+def test_an_unrelated_decision_does_not_pass_the_cap(db):
+    """The review of 8d090e2e, finding 7: the exemption holds for the
+    decision the challenge carries, not for any decision id."""
+    _capped(db)
+    sb = build("developer", db, batch_id="b1", mode="answer",
+               allow=prompts.mode_tools("developer", "answer"))
+    assert sandbox_mod._challenge_cap_refusal(sb.ctx, [], ["c1", "tst1", "d_old"])
+
+
+def test_a_decision_the_trigger_answer_carries_passes_the_cap(db):
+    """The decision is a ref of the answer that woke the session."""
+    _capped(db)
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, seq, status) VALUES ('m156','m155',"
+               "'th','architect','developer','answer','[\"c1\", \"d_old\"]',20,"
+               "'open')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="answer",
+               allow=prompts.mode_tools("developer", "answer"))
+    sb.ctx.trigger = "m156"
+    assert sandbox_mod._challenge_cap_refusal(
+        sb.ctx, [], ["c1", "tst1", "d_old"]) is None
 
 
 # Design 200 pass 2b: the interviews of the two cases at 0 of 5,
@@ -195,3 +233,64 @@ def test_a_criterion_in_resolves_ledger_is_refused_with_the_fact(db):
     assert str(exc.value) == (
         "c1 is a criterion, and resolves_ledger takes the id of a ledger row. "
         "Send decisions.author again without resolves_ledger.")
+
+
+# The review of 8d090e2e, findings 3, 9 and 5 (2026-10-11).
+
+def test_an_amend_then_an_answer_on_the_escalations_rows_is_offered_the_row(db):
+    """Finding 3, probe `p5.py` line 1: the escalate brief says "model.amend,
+    and say so with msg.answer_developer". The answer carried the
+    escalation's refs, and the refusal named decisions.author. It now names
+    the row the session wrote, and the doors admit the offered answer."""
+    from rota.core.sandbox import dry_run
+
+    _rows(db)
+    sb = _architect(db)
+    sb.ctx.writes.append(("constraints", "k_new", {"text": "t2"}))
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.answer_developer", refs=["c1", "tst1"])
+    assert str(exc.value) == (
+        "refs=['c1', 'tst1'] add no row to the refs of m155, so the Developer "
+        "gets back the rows it sent. This session wrote k_new. Send "
+        "msg.answer_developer(refs=['k_new']).")
+    offers = [o for o in sb.ctx.offers if o.op == "msg.answer_developer"]
+    assert [o.args for o in offers] == [{"refs": ["k_new"]}]
+    assert dry_run(sb, offers[0].op, offers[0].args).admitted
+
+
+def test_an_answer_with_words_is_not_called_wordless(db):
+    """Finding 9: m64 and m137 carried text. The refusal says "no words" only
+    when the answer's text is empty."""
+    from rota.roles import api
+
+    sb = _answered(db)
+    db.execute("UPDATE messages SET body_text = 'the test calls the command' "
+               "WHERE id = 'm156'")
+    db.commit()
+    with pytest.raises(api.EndRefusal) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    said = str(exc.value)
+    assert said.startswith(
+        "no ref of this answer is a decision row. If you still read the test "
+        "as wrong, say so in one sentence and end. End the session with no "
+        "call."), said
+    assert "no words" not in said
+
+
+def test_a_criterion_as_a_finding_on_an_escalated_test_routes_to_a_decision(db):
+    """Finding 5: failing Architect runs 1 and 5 met this refusal in the turn
+    before a wrong challenge to the Vision Keeper. The escalation holds a
+    test and no finding, so the refusal names decisions.author."""
+    _rows(db)
+    sb = _architect(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("findings.find", id="f1", batch_id="b1", constraint_id="c1",
+                status="violated", grain="tests/test_v.py")
+    assert str(exc.value) == (
+        "'c1' is a row of criteria, not a constraint. A finding names a "
+        "constraint from model.consult. The escalation m155 is about the test "
+        "tst1 and carries no finding. If tst1 does not encode its criterion, "
+        "write a decision with decisions.author, refs=['tst1'], that names the "
+        "line of tst1 that does not encode it. Then send msg.answer_developer "
+        "with the decision's id in refs.")
+    assert [o.op for o in sb.ctx.offers] == ["decisions.author"]

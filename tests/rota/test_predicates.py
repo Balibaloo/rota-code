@@ -2311,3 +2311,50 @@ def test_the_liaisons_own_question_wakes_it_once(db):
     _commit(db, "s9", "liaison", None, wake_kind="tick:unresolved",
             wake_refs=["q1"])
     assert unresolved(db) == []
+
+
+# The review of 8d090e2e, findings 1, 2 and 8 (2026-10-11), probe `p1.py`.
+
+def _status(db, mid):
+    row = db.execute("SELECT status, unresolved_note FROM messages WHERE id = ?",
+                     (mid,)).fetchone()
+    return row["status"], row["unresolved_note"]
+
+
+def test_a_critic_challenge_answered_by_the_developers_work_is_answered(db):
+    """Finding 1: `developer/challenge.md` says "You have no message back to
+    Critic". The reply is the next commit or a `ledger.log`, and neither
+    cites the challenge, so the stamp leaves the Critic's challenge alone."""
+    from rota.core.db import Write
+    from rota.core.predicates import unresolved
+
+    _owed(db, "m5", "challenge", "critic", "developer", ["c_1"])
+    _commit(db, "s2", "developer", "m5", writes=[Write(
+        "decisions", "d_b", {"author": "developer", "text": "x",
+                             "refs": '["zz"]'})])
+    assert _status(db, "m5") == ("answered", None)
+    assert not [w for w in unresolved(db) if "m5" in (w.refs or ())]
+
+
+def test_an_architect_decision_with_no_answer_leaves_the_escalation_owed(db):
+    """Finding 2: the Architect has an answer edge to the Developer. Its
+    decision on a row of the escalation is no receipt, so a cut or refused
+    answer leaves the escalation unresolved, night 127's m72 shape."""
+    from rota.core.db import Write
+
+    _owed(db, "m73", "escalate", "developer", "architect", ["c_1", "tst_1"])
+    _commit(db, "s3", "architect", "m73", writes=[Write(
+        "decisions", "d_1", {"author": "architect", "text": "x",
+                             "refs": '["c_1"]'})])
+    assert _status(db, "m73") == ("unresolved", UNRECEIVED)
+
+
+def test_a_decision_that_cites_another_message_answers_that_one_only(db):
+    """Finding 8: the decision cites m54 and the row c_1. It answers m54,
+    which the Vision Keeper was not woken by, and not its trigger m61."""
+    _owed(db, "m54", "challenge", "architect", "vision_keeper", ["c_1"])
+    _owed(db, "m61", "challenge", "terminologist", "vision_keeper",
+          ["c_1", "c_3"], seq=2)
+    _commit(db, "s4", "vision_keeper", "m61",
+            writes=[_decision("d_2", ["c_1", "m54"])])
+    assert _status(db, "m61") == ("unresolved", UNRECEIVED)

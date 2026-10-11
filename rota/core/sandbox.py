@@ -944,16 +944,20 @@ def _answer_mode_challenge_refusal(ctx: api.Ctx, refs) -> str | None:
     """
     if ctx.role != "developer" or not getattr(ctx, "trigger", None):
         return None
-    trig = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
+    trig = ctx.conn.execute("SELECT verb, body_text FROM messages WHERE id = ?",
                             (ctx.trigger,)).fetchone()
     if trig is None or trig["verb"] != "answer":
         return None
     if _holds_decision(ctx.conn, refs):
         return None
+    # The review of 8d090e2e, finding 9: both Tester answers to a Developer
+    # challenge on nights 138 and 139 carried text. "No words" is a fact
+    # only of an answer whose text is empty.
+    said = ("The answer carries the rows you sent back and no words. "
+            if not (trig["body_text"] or "").strip() else "")
     return _Ending(
-        "no ref of this answer is a decision row. The answer carries the "
-        "rows you sent back and no words. If you still read the test as "
-        f"wrong, say so in one sentence and end. {END_STEP} "
+        f"no ref of this answer is a decision row. {said}If you still read "
+        f"the test as wrong, say so in one sentence and end. {END_STEP} "
         f"{_end_form(ctx, _unique_refs(refs))}")
 
 
@@ -985,10 +989,21 @@ def _rowless_answer_refusal(ctx: api.Ctx, refs) -> str | None:
                                       (r,)).fetchone()]
     if added:
         return None
-    return (f"refs={list(refs or [])} add no row to the refs of {cause}, so "
-            f"the Developer gets back the rows it sent. Write what you found "
-            f"with decisions.author, then send msg.answer_developer with the "
-            f"decision's id in refs.")
+    said = (f"refs={list(refs or [])} add no row to the refs of {cause}, so "
+            f"the Developer gets back the rows it sent. ")
+    # The review of 8d090e2e, finding 3: the escalate brief says "model.amend,
+    # and say so with msg.answer_developer". 0 of 6 such answers on nights
+    # 138 and 139 cited the row they wrote, so the refusal names those rows.
+    mine = list(dict.fromkeys(
+        w[1] for w in ctx.writes
+        if isinstance(w[1], str) and w[0] != "refs" and w[1] != cause))
+    if mine:
+        return api._offer(
+            ctx, said + f"This session wrote {', '.join(mine)}. Send "
+            f"msg.answer_developer(refs={mine}).",
+            "msg.answer_developer", {"refs": mine})
+    return (said + "Write what you found with decisions.author, then send "
+            "msg.answer_developer with the decision's id in refs.")
 
 
 def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
@@ -1466,8 +1481,9 @@ def _challenges_on(conn: sqlite3.Connection, key: tuple,
     kind, ident = key
     out = []
     for row in conn.execute(
-            "SELECT id, body_refs FROM messages WHERE from_role = 'developer' "
-            "AND to_role = 'tester' AND verb = 'challenge' ORDER BY seq DESC"):
+            "SELECT id, cause_id, body_refs FROM messages "
+            "WHERE from_role = 'developer' AND to_role = 'tester' "
+            "AND verb = 'challenge' ORDER BY seq DESC"):
         try:
             have = _json.loads(row["body_refs"] or "[]")
         except (TypeError, ValueError):
@@ -1478,7 +1494,7 @@ def _challenges_on(conn: sqlite3.Connection, key: tuple,
         # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): a challenge
         # that carries the Architect's decision row is the row's route to the
         # Tester, and it does not count against the cap.
-        if _holds_decision(conn, strs):
+        if _carries_decision(conn, strs, row["cause_id"]):
             continue
         if ident in strs or (kind == "criterion" and any(
                 test_crit.get(r) == ident for r in strs)):
@@ -1491,6 +1507,40 @@ def _holds_decision(conn: sqlite3.Connection, refs) -> bool:
     return any(isinstance(r, str) and conn.execute(
         "SELECT 1 FROM decisions WHERE id = ?", (r,)).fetchone()
         for r in refs or [])
+
+
+def _carries_decision(conn: sqlite3.Connection, refs, cause: str | None) -> bool:
+    """
+    True when `refs` hold a decision row that the challenge carries: a ref of
+    the answer `cause`, or a decision that cites a test of `refs`.
+
+    The ruling of 06:30 exempts "a challenge whose refs add a decision row".
+    Any decision id can reach the Developer through `rulings_line`, so an
+    unrelated one does not pass the cap (the review of 8d090e2e, finding 7).
+    """
+    import json as _json
+
+    def _ids(raw) -> set:
+        try:
+            got = _json.loads(raw or "[]")
+        except (TypeError, ValueError):
+            return set()
+        return {r for r in got if isinstance(r, str)} if isinstance(got, list) else set()
+
+    strs = [r for r in refs or [] if isinstance(r, str)]
+    carried = set()
+    if cause:
+        row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                           (cause,)).fetchone()
+        carried = _ids(row["body_refs"]) if row else set()
+    tests = {r for r in strs if conn.execute(
+        "SELECT 1 FROM tests WHERE id = ?", (r,)).fetchone()}
+    for r in strs:
+        hit = conn.execute("SELECT refs FROM decisions WHERE id = ?",
+                           (r,)).fetchone()
+        if hit and (r in carried or tests & _ids(hit["refs"])):
+            return True
+    return False
 
 
 def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
@@ -1510,7 +1560,7 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): the Architect's
     # decision row reaches the Tester through this challenge. The cap does
     # not stop it, and the graph gains no edge.
-    if _holds_decision(ctx.conn, refs):
+    if _carries_decision(ctx.conn, refs, getattr(ctx, "trigger", None)):
         return None
     try:
         own = _refs_key(refs or [], as_set=True)

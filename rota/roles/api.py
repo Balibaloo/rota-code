@@ -3293,6 +3293,45 @@ def _shown_files(ctx: "Ctx", batch_id: str) -> list[str] | None:
                   _wt.touched(row["worktree"], _batch_base(ctx, row["worktree"])))
 
 
+def _escalated_test_route(ctx: "Ctx") -> str | None:
+    """
+    The decision route when the woken escalation is about a test and holds no
+    finding, or None.
+
+    The review of 8d090e2e, finding 5: failing Architect runs 1 and 5 met
+    this door's refusal in the turn before a wrong challenge to the Vision
+    Keeper. The escalate brief routes a test that does not encode its
+    criterion to `decisions.author`, so the refusal names that route.
+    """
+    cause = getattr(ctx, "trigger", None)
+    row = ctx.conn.execute(
+        "SELECT verb, body_refs FROM messages WHERE id = ?",
+        (cause,)).fetchone() if cause else None
+    if row is None or row["verb"] != "escalate":
+        return None
+    try:
+        refs = [r for r in json.loads(row["body_refs"] or "[]")
+                if isinstance(r, str)]
+    except (TypeError, ValueError):
+        return None
+
+    def has(table: str, r: str) -> bool:
+        return ctx.conn.execute(f"SELECT 1 FROM {table} WHERE id = ?",
+                                (r,)).fetchone() is not None
+
+    tests = [r for r in refs if has("tests", r)]
+    if not tests or any(has("findings", r) for r in refs):
+        return None
+    tst = tests[0]
+    return _offer(
+        ctx, f"The escalation {cause} is about the test {tst} and carries no "
+             f"finding. If {tst} does not encode its criterion, write a "
+             f"decision with decisions.author, refs=[{tst!r}], that names "
+             f"the line of {tst} that does not encode it. Then send "
+             f"msg.answer_developer with the decision's id in refs.",
+        "decisions.author", {"id": INVENT, "text": INVENT, "refs": [tst]})
+
+
 @op("findings", "find")
 def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
                status: str, grain: str) -> dict:
@@ -3362,6 +3401,10 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
             f"SELECT 1 FROM {t} WHERE id = ?", (constraint_id,)).fetchone()]
         what = (f"{constraint_id!r} is a row of {held[0]}, not a constraint"
                 if held else f"no constraints row has id={constraint_id!r}")
+        route = _escalated_test_route(ctx) if held else None
+        if route:
+            raise ValueError(f"{what}. A finding names a constraint from "
+                             f"model.consult. {route}")
         raise ValueError(
             f"{what}. A finding names a constraint from model.consult. "
             f"{_bound_exit(ctx, _diff_files(ctx, batch_id), grain_file if path_shaped else None)}")
