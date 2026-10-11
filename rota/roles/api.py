@@ -5855,7 +5855,9 @@ def _plain_decorated(tree, name: str):
     to the factory's return, and "inline" for `name(...)()`, as s277's
     `custom_version_option(cmd)(show_python=True)`. The kinds
     "decorator-argument" and "inline-argument" pass that return to
-    another call.
+    another call. The kinds "decorator-attribute" and "inline-attribute"
+    read an attribute of that return, and add the attribute's name as a
+    fourth item, as night 140's `option.callback`.
 
     Frame 200: night 139's s251 stored `version_option(show_python=True)(cmd)`
     on a local `def cmd()`, then called the result. Night 138's s379 put
@@ -5994,6 +5996,16 @@ def _plain_decorated(tree, name: str):
             if ((isinstance(recv, _ast.Name) and recv.id in runners)
                     or is_runner_call(recv)):
                 return c.args[0].id, plain[c.args[0].id], "plain"
+    # Night 140's s325 read `option.callback` on the factory's return. A
+    # decorator holds no option until a command takes it, so any attribute
+    # read on the return never runs the option (night 140's read, 2).
+    for a in _ast.walk(tree):
+        if not isinstance(a, _ast.Attribute):
+            continue
+        if isinstance(a.value, _ast.Name) and a.value.id in bare:
+            return a.value.id, bare[a.value.id], "decorator-attribute", a.attr
+        if is_factory(a.value):
+            return name, a.lineno, "inline-attribute", a.attr
     return None
 
 
@@ -6934,7 +6946,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         plain = (_plain_decorated(tree, fname)
                  if _adds_option(node, src) else None)
         if plain is not None:
-            local, _line, kind = plain
+            local, _line, kind, *attr = plain
             _def_fact(where, node, src)
             # The factory, never the criterion: a criterion such as night
             # 138's c3 names no option (the review of 2e6afd1c, finding 4).
@@ -6946,6 +6958,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 "inline": (inline, "calling"),
                 "decorator-argument": (bound, "passing it to a call"),
                 "inline-argument": (inline, "passing it to a call"),
+                "decorator-attribute": (bound, f"reading `.{''.join(attr)}` on it"),
+                "inline-attribute": (inline, f"reading `.{''.join(attr)}` on it"),
             }[kind]
             verb = "calling it" if verb == "calling" else verb
             raise ValueError(

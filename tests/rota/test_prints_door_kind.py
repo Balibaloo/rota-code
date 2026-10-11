@@ -728,6 +728,41 @@ def test_v3():
 
 PASSING = "passing it to a call"
 
+# Night 140's s325 `tst_v1_show_python` v1 and `tst_v3_show_python` v1,
+# verbatim from `clickI_night140.db`. Each reads `.callback` on the
+# factory's return, and the door admitted both (night 140's read, 2).
+N140_V1 = '''\
+from click.decorators import version_option
+import sys
+
+def test_custom_version_option():
+    # Arrange
+    def cmd(ctx, param, value):
+        return value
+    option = version_option(show_python=True)
+    # Act
+    result = option.callback(None, None, True)
+    # Assert
+    assert "Python" in result or sys.version_info[0] in result
+'''
+
+N140_V3 = '''\
+from click.decorators import version_option
+import sys
+
+def test_version_option_ambiguous_import_name_errors():
+    # Arrange
+    def cmd(ctx, param, value):
+        return value
+    option = version_option(show_python=False)
+    # Act
+    result = option.callback(None, None, False)
+    # Assert
+    assert "Python" not in result
+'''
+
+READING = "reading `.callback` on it"
+
 
 @pytest.mark.parametrize("body,text,surface,fact,verb", [
     (S251_CALL_FORM, C2_TEXT, "version_option",
@@ -743,8 +778,12 @@ PASSING = "passing it to a call"
      "`result` is the decorator that `version_option` returns", PASSING),
     (V12_INLINE, C2_TEXT, "version_option",
      "`version_option(...)` returns a decorator", PASSING),
+    (N140_V1, C1_TEXT, "version_option",
+     "`option` is the decorator that `version_option` returns", READING),
+    (N140_V3, C2_TEXT, "version_option",
+     "`option` is the decorator that `version_option` returns", READING),
 ], ids=["call-form", "at-form", "no-argument", "inline", "v12-bound",
-        "v12-inline"])
+        "v12-inline", "n140-v1-callback", "n140-v3-callback"])
 def test_a_factory_that_adds_an_option_on_a_plain_function_is_refused(
         tmp_path, body, text, surface, fact, verb):
     """The sentence names the factory and not the criterion: night 138's
