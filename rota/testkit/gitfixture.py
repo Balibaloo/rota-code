@@ -142,7 +142,74 @@ class SampleRepo:
         return removed
 
 
-_TEMPLATE: Path | None = None
+# key -> (the base directory, the value its builder returned)
+_TEMPLATES: dict[object, tuple[Path, object]] = {}
+
+
+def template(key, build) -> tuple[Path, object]:
+    """
+    The tree `build(base)` makes under a new `base`, built once per process
+    for each `key`, and the value `build` returned.
+
+    The sample project and every other per-test repository share this one
+    mechanism (frame 203). A fixture that runs `git init` and seed commits
+    per test pays one process spawn per git call, and a copy pays none.
+    """
+    entry = _TEMPLATES.get(key)
+    if entry is None or not entry[0].exists():
+        base = Path(tempfile.mkdtemp(prefix="rota_template_"))
+        # One per process, and under xdist that is one per worker. Left behind
+        # they accumulate in the temp directory a run at a time, which is how a
+        # test suite quietly becomes something that fills a disk.
+        #
+        # It did. `shutil.rmtree(..., ignore_errors=True)` cannot delete a
+        # read-only file, git marks every object read-only, and 1435 of these
+        # templates were on this machine holding 86150 files (observed: frame
+        # 63's pass 3, 2026-09-22). The bit is cleared first now.
+        atexit.register(_drop_template, base)
+        entry = (base, build(base))
+        _TEMPLATES[key] = entry
+    return entry
+
+
+def copy_template(key, build, dest: Path):
+    """
+    Copy each child of the template for `key` into `dest`, and return the
+    value its builder returned.
+
+    A linked worktree names its repository by an absolute path, and the
+    repository names the worktree the same way. Both point into the template
+    until `_relink` moves them to `dest`.
+    """
+    if not is_temp_rooted(dest):
+        raise RuntimeError(
+            f"a template is only copied under a temp directory, not {dest}")
+    base, value = template(key, build)
+    dest.mkdir(parents=True, exist_ok=True)
+    for child in base.iterdir():
+        if child.is_dir():
+            shutil.copytree(child, dest / child.name)
+        else:
+            shutil.copyfile(child, dest / child.name)
+    _relink(base, dest)
+    return value
+
+
+def _relink(old: Path, new: Path) -> None:
+    """Point each copied worktree link at the copy, not at the template."""
+    links = [p for p in new.glob("*/.git") if p.is_file()]
+    links += new.glob("*/.git/worktrees/*/gitdir")
+    pairs = [(str(old).encode(), str(new).encode()),
+             (old.as_posix().encode(), new.as_posix().encode())]
+    for link in links:
+        body = link.read_bytes()
+        for before, after in pairs:
+            body = body.replace(before, after)
+        # Git on Windows marks a worktree's `.git` file hidden, and Windows
+        # refuses to create over a hidden file. So the file is opened in place.
+        with link.open("r+b") as handle:
+            handle.write(body)
+            handle.truncate()
 
 
 def _template() -> Path:
@@ -160,21 +227,8 @@ def _template() -> Path:
     of a small repository is ~50ms and preserves the history the few tests that
     do want it depend on, which `create(commits=False)` would have thrown away.
     """
-    global _TEMPLATE
-    if _TEMPLATE is None or not _TEMPLATE.exists():
-        base = Path(tempfile.mkdtemp(prefix="rota_sample_template_"))
-        create(base / "sample")
-        _TEMPLATE = base / "sample"
-        # One per process, and under xdist that is one per worker. Left behind
-        # they accumulate in the temp directory a run at a time, which is how a
-        # test suite quietly becomes something that fills a disk.
-        #
-        # It did. `shutil.rmtree(..., ignore_errors=True)` cannot delete a
-        # read-only file, git marks every object read-only, and 1435 of these
-        # templates were on this machine holding 86150 files (observed: frame
-        # 63's pass 3, 2026-09-22). The bit is cleared first now.
-        atexit.register(_drop_template, base)
-    return _TEMPLATE
+    base, _ = template("sample", lambda b: create(b / "sample"))
+    return base / "sample"
 
 
 def make(tmp_path: Path, *, name: str = "sample") -> SampleRepo:

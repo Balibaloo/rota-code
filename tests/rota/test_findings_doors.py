@@ -27,6 +27,7 @@ from rota.core.sandbox import build
 from rota.core.worktrees import GIT
 from rota.llm import toolproto
 from rota.roles import prompts
+from rota.testkit.gitfixture import copy_template
 
 K0_HEAD = "this area has not been surveyed"
 
@@ -73,12 +74,10 @@ def _git(path, *args) -> str:
                           capture_output=True, text=True).stdout
 
 
-def a_night(tmp_path, batch_id: str, changed: list[str], constraints,
-            others=()):
-    """A project root, one batch worktree whose commit changes `changed`,
-    and the register `constraints`. `others` are further batches with no
-    worktree, as a merged batch has on the night."""
-    root = tmp_path / "root"
+def _night_repos(base, batch_id: str, changed: list[str]) -> str:
+    """Build `a_night`'s project at `base / "root"` and its batch worktree at
+    `base / "batch"`, and return the batch's head."""
+    root = base / "root"
     root.mkdir()
     _git(root, "init", "-q")
     every = {"src/click/termui.py", "src/click/utils.py", _INIT, _UTILS_,
@@ -88,12 +87,26 @@ def a_night(tmp_path, batch_id: str, changed: list[str], constraints,
         (root / rel).write_bytes(b"x = 1\n")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "click")
-    tree = tmp_path / "batch"
+    tree = base / "batch"
     _git(root, "worktree", "add", "-q", "-b", f"batch/{batch_id}", str(tree))
     for rel in changed:
         (tree / rel).write_bytes(b"x = 2\n")
     _git(tree, "commit", "-q", "--allow-empty", "-am", "the batch")
-    head = _git(tree, "rev-parse", "HEAD").strip()
+    return _git(tree, "rev-parse", "HEAD").strip()
+
+
+def a_night(tmp_path, batch_id: str, changed: list[str], constraints,
+            others=()):
+    """A project root, one batch worktree whose commit changes `changed`,
+    and the register `constraints`. `others` are further batches with no
+    worktree, as a merged batch has on the night."""
+    root = tmp_path / "root"
+    tree = tmp_path / "batch"
+    # A copy of the two trees built once per process for these values. The
+    # git calls per test were the file's cost (frame 203's count, 2026-10-11).
+    head = copy_template(("a_night", batch_id, tuple(changed)),
+                         lambda base: _night_repos(base, batch_id, changed),
+                         tmp_path)
     conn = init_db(tmp_path / "rota.db")
     conn.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
                  (str(root),))

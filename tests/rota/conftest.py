@@ -27,6 +27,12 @@ from rota.llm.cassettes import TALLY
 # second `pytest_configure` here replaced the first, so the rule that stood
 # here was dead (frame 144's review of c888968, point 10).
 from rota.llm.llm import DEFAULT_MODEL
+from rota.testkit import dbtemplate
+
+# A new database per test is a copy of one built per process. A fresh
+# `init_db` cost 140ms a setup and about 20% of the worker time (frame 203's
+# count, 2026-10-11). Bound here, before any test module imports `init_db`.
+dbtemplate.install()
 
 
 def pytest_configure(config):

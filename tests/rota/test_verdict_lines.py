@@ -22,6 +22,7 @@ from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.core.worktrees import GIT
 from rota.llm import toolproto
+from rota.testkit.gitfixture import copy_template
 
 CR1 = "cr_1_version_option_show_python_flag"
 CR2 = "cr_2_version_option_show_python_false"
@@ -114,14 +115,12 @@ def _seed(conn, batch_id: str, ids, *, worktree=None, head="abc123"):
     conn.commit()
 
 
-@pytest.fixture
-def s279(tmp_path):
-    """Night 127's bg_3: a repository whose one batch commit adds the four
-    added lines of s279's diff to `src/click/decorators.py`."""
-    repo = tmp_path / "repo"
+def _s279_repo(base) -> str:
+    """Build s279's repository at `base / "repo"`, and return its head."""
+    repo = base / "repo"
     path = repo / "src" / "click" / "decorators.py"
     path.parent.mkdir(parents=True)
-    _git(tmp_path, "init", "-q", str(repo))
+    _git(base, "init", "-q", str(repo))
     path.write_bytes(_BEFORE.format(flag="", version="",
                                     message=OLD_MESSAGE).encode())
     _git(repo, "add", "-A")
@@ -130,9 +129,18 @@ def s279(tmp_path):
         flag=L_FLAG + "\n", version=L_NOTE + "\n" + L_VERSION + "\n",
         message=L_MESSAGE + "\n").encode())
     _git(repo, "commit", "-q", "-am", "show python")
-    head = _git(repo, "rev-parse", "HEAD").strip()
+    return _git(repo, "rev-parse", "HEAD").strip()
+
+
+@pytest.fixture
+def s279(tmp_path):
+    """Night 127's bg_3: a repository whose one batch commit adds the four
+    added lines of s279's diff to `src/click/decorators.py`."""
+    # A copy of a repository built once per process. The git calls per test
+    # cost this file 36.9s against 22.0s (frame 203's count, 2026-10-11).
+    head = copy_template("s279", _s279_repo, tmp_path)
     conn = init_db(tmp_path / "rota.db")
-    _seed(conn, "bg_3", S279_IDS, worktree=str(repo), head=head)
+    _seed(conn, "bg_3", S279_IDS, worktree=str(tmp_path / "repo"), head=head)
     return conn
 
 
@@ -527,16 +535,27 @@ def _no_behaviour(cid, quote, kind) -> str:
 def _repo_of(tmp_path, rel, before: str, after: str) -> tuple[str, str]:
     """A repository whose one batch commit turns `before` into `after` in
     the file `rel`. Returns the path and the head commit."""
-    repo = tmp_path / "repo"
+    # A copy of the repository built once per process for these three values,
+    # as `s279` copies its own (frame 203).
+    head = copy_template(("repo_of", rel, before, after),
+                         lambda base: _build_repo_of(base, rel, before, after),
+                         tmp_path)
+    return str(tmp_path / "repo"), head
+
+
+def _build_repo_of(base, rel, before: str, after: str) -> str:
+    """Build `_repo_of`'s repository at `base / "repo"`, and return its
+    head."""
+    repo = base / "repo"
     path = repo / rel
     path.parent.mkdir(parents=True)
-    _git(tmp_path, "init", "-q", str(repo))
+    _git(base, "init", "-q", str(repo))
     path.write_bytes(before.encode())
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "base")
     path.write_bytes(after.encode())
     _git(repo, "commit", "-q", "-am", "the batch")
-    return str(repo), _git(repo, "rev-parse", "HEAD").strip()
+    return _git(repo, "rev-parse", "HEAD").strip()
 
 
 S134_IDS = ("echo_json_compact", "echo_json_compact_2", "echo_json_compact_3")
