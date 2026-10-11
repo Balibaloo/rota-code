@@ -5999,7 +5999,33 @@ def _plain_decorated(tree, name: str):
     # Night 140's s325 read `option.callback` on the factory's return. A
     # decorator holds no option until a command takes it, so any attribute
     # read on the return never runs the option (night 140's read, 2).
-    for a in _ast.walk(tree):
+    # A test that applies the factory and runs a command does run the
+    # option, so an extra read such as `opt.__name__` stays admitted
+    # (frame 200's review of pass 3, finding 1, probes P2d and P3c).
+    def applies(n) -> bool:
+        if isinstance(n, _ast.Call) and n.args:
+            f = n.func
+            return is_factory(f) or (isinstance(f, _ast.Name) and f.id in bare)
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            return any(is_factory(d) or (isinstance(d, _ast.Name) and d.id in bare)
+                       for d in n.decorator_list)
+        return False
+
+    def runs(n) -> bool:
+        if not isinstance(n, _ast.Call):
+            return False
+        f = n.func
+        if isinstance(f, _ast.Attribute) and f.attr == "invoke" and n.args:
+            return ((isinstance(f.value, _ast.Name) and f.value.id in runners)
+                    or is_runner_call(f.value))
+        # A call of a local `def` that carries `command` or `group`.
+        return (isinstance(f, _ast.Name) and f.id in defs
+                and len(binds.get(f.id, [])) == 1 and not plain_def(f))
+
+    nodes = list(_ast.walk(tree))
+    if any(applies(n) for n in nodes) and any(runs(n) for n in nodes):
+        return None
+    for a in nodes:
         if not isinstance(a, _ast.Attribute):
             continue
         if isinstance(a.value, _ast.Name) and a.value.id in bare:

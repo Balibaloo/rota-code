@@ -763,6 +763,17 @@ def test_version_option_ambiguous_import_name_errors():
 
 READING = "reading `.callback` on it"
 
+# Frame 200's review of pass 3, probe P3a: the inline form of the same read.
+P3A_INLINE_CALLBACK = '''\
+from click.decorators import command, version_option
+from click.testing import CliRunner
+
+
+def test_v():
+    result = version_option(show_python=True).callback(None, None, True)
+    assert "Python" in result
+'''
+
 
 @pytest.mark.parametrize("body,text,surface,fact,verb", [
     (S251_CALL_FORM, C2_TEXT, "version_option",
@@ -782,8 +793,11 @@ READING = "reading `.callback` on it"
      "`option` is the decorator that `version_option` returns", READING),
     (N140_V3, C2_TEXT, "version_option",
      "`option` is the decorator that `version_option` returns", READING),
+    (P3A_INLINE_CALLBACK, C1_TEXT, "version_option",
+     "`version_option(...)` returns a decorator", READING),
 ], ids=["call-form", "at-form", "no-argument", "inline", "v12-bound",
-        "v12-inline", "n140-v1-callback", "n140-v3-callback"])
+        "v12-inline", "n140-v1-callback", "n140-v3-callback",
+        "p3a-inline-callback"])
 def test_a_factory_that_adds_an_option_on_a_plain_function_is_refused(
         tmp_path, body, text, surface, fact, verb):
     """The sentence names the factory and not the criterion: night 138's
@@ -857,13 +871,25 @@ def test_v():
     testoption = version_option(show_python=True)
     assert show(testoption)
 '''
+# Frame 200's review of pass 3, probe P2d: the option runs through the
+# runner, and the test also reads an attribute of the factory's return.
+P2D_ATTR_BESIDE_RUNNER = CMD_HEAD + '''def test_v():
+    def hello():
+        pass
+
+    opt = version_option(show_python=True)
+    cli = command()(opt(hello))
+    result = CliRunner().invoke(cli, ["--version"])
+    assert "Python" in result.output
+    assert opt.__name__ == "decorator"
+'''
 
 
 @pytest.mark.parametrize("body", [
     OPTION_ON_COMMAND_OBJECT, OPTION_ON_HELPER_RETURN, BARE_THEN_COMMAND_ARG,
-    ALIASED_COMMAND, PARAMETER_ARG,
+    ALIASED_COMMAND, PARAMETER_ARG, P2D_ATTR_BESIDE_RUNNER,
 ], ids=["command-object", "helper-return", "bare-then-command", "aliased",
-        "parameter"])
+        "parameter", "p2d-attr-beside-runner"])
 def test_a_factory_on_a_command_lands(tmp_path, body):
     db = _decos_db(tmp_path, C2_TEXT, "version_option")
     _encode(db, "tst_x", "c1", "tests/test_x.py", body)
