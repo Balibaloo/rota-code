@@ -169,7 +169,7 @@ def test_mode_lists_its_base_file_and_joins_every_line():
     assert lines[0] == "tools rota/roles/prompts/terminologist/unresolved.tools"
 
     entries = lines[1:]
-    assert len(entries) == 9
+    assert len(entries) == 10
     ops_lines = [line for line in entries if not line.startswith("msg.")]
     assert len(ops_lines) == 4
     assert not [line for line in ops_lines if "not in REGISTRY" in line]
@@ -180,7 +180,7 @@ def test_mode_lists_its_base_file_and_joins_every_line():
     # The 119 `msg.` lines join the messages edges of the graph, never
     # `REGISTRY`.
     messages = [line for line in entries if line.startswith("msg.")]
-    assert len(messages) == 5
+    assert len(messages) == 6
     assert all(" -> message " in line for line in messages)
     assert "msg.report_liaison -> message report to liaison" in messages
 
