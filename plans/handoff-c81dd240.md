@@ -22,6 +22,9 @@ the hand-off.
   hand-off; the gate's `time:` line against 650s to 760s is the frame's
   ratio. Lever 3 keeps 16 workers. `init_db` itself is unchanged; a later
   pass may move the copy into it.
+  The review stood with one low confirmed: `_relink` misses a TEMP path
+  that differs in case, so a copy shared the template's repository. Pass
+  1b is that fix with one test, cap 30k, then a gate; it is yours.
 - Frame 204: one complete design pass on Roman's word, a design review,
   then two more design passes. Roman ruled "Start as written" at 15:44.
   He first chose the Architect reads "Every default" at 15:49, then at
