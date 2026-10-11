@@ -7067,7 +7067,32 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
             row["changed since this run, not run"] = seen[sha]
         said = row.get("said") or ""
         frames = _re.findall(r"^(?P<path>[^\s:]+\.py):(?P<line>\d+): (?P<err>\w+(?:Error|Exception|Exit))", said, _re.M)
-        if frames:
+        # Night 138 (frame 195): `CliRunner` caught a `NameError`, and the
+        # row pointed at the test's assertion in 9 Developer sessions. The
+        # harness's plugin ends its section with one line of fixed prefix.
+        # Its own pattern reads it, because the regex above misses a custom
+        # exception, a `StopIteration` and a frame in `<string>`. The words
+        # state facts and no cause: a command can echo text and then raise.
+        caught = _re.findall(r"^caught by CliRunner at (?P<path>.+):(?P<line>\d+): (?P<err>[\w.]+)\s*$",
+                             said, _re.M)
+        if caught:
+            path, line, err = caught[-1]
+            path = path.replace(chr(92), "/")
+            reach = "a file your diff touched" if path in touched else "a file your diff did not touch"
+            words = (f"{path}:{line} ({err}), caught by CliRunner inside the "
+                     f"command, in {reach}.")
+            output = _re.findall(r"^output: (empty|\d+ characters)\s*$", said, _re.M)
+            if output:
+                words += (" The command's output was empty." if output[-1] == "empty"
+                          else f" The command's output had {output[-1]}.")
+            if frames:
+                apath, aline, aerr = frames[-1]
+                apath = apath.replace(chr(92), "/")
+                words += (f" The test's own assertion then failed at {apath}:{aline}."
+                          if aerr == "AssertionError"
+                          else f" The test then raised {aerr} at {apath}:{aline}.")
+            row["raised at"] = words
+        elif frames:
             path, line, err = frames[-1]
             path = path.replace(chr(92), "/")
             if err == "AssertionError":

@@ -14,7 +14,7 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Mapping
 
 
 @dataclass(frozen=True)
@@ -26,13 +26,17 @@ class Result:
     error: str = ""
 
 
-Runner = Callable[[Path, list[str], int], Result]
+Runner = Callable[[Path, list[str], int, Mapping[str, str] | None], Result]
 
 
-def _local(worktree: Path, argv: list[str], timeout: int) -> Result:
+def _local(worktree: Path, argv: list[str], timeout: int,
+           env: Mapping[str, str] | None = None) -> Result:
+    # The mapping goes over the process environment and never replaces it,
+    # because the child still needs PATH and the venv's own variables.
+    full = None if env is None else {**os.environ, **env}
     try:
         out = subprocess.run(argv, cwd=worktree, capture_output=True,
-                             text=True, timeout=timeout)
+                             text=True, timeout=timeout, env=full)
     except subprocess.TimeoutExpired:
         return Result(-1, "", "", timed_out=True, error=f"timed out after {timeout}s")
     except OSError as exc:
@@ -51,6 +55,12 @@ def chosen(name: str | None = None) -> str:
 
 
 def run(worktree: Path | str, argv: list[str], *, timeout: int,
-        runner: str | None = None) -> Result:
-    """Run `argv` inside `worktree` on the chosen runner."""
-    return RUNNERS[chosen(runner)](Path(worktree), list(argv), timeout)
+        runner: str | None = None,
+        env: Mapping[str, str] | None = None) -> Result:
+    """Run `argv` inside `worktree` on the chosen runner.
+
+    `env` is merged over the process environment. The harness uses it to
+    put rota's pytest plugin on `PYTHONPATH` (frame 195).
+    """
+    return RUNNERS[chosen(runner)](Path(worktree), list(argv), timeout,
+                                   None if env is None else dict(env))

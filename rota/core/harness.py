@@ -18,6 +18,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .. import paths
 from . import lifecycle
 from .runner import new_id
 
@@ -25,6 +26,22 @@ from .runner import new_id
 # fails is information about the code, a test that errors is usually information
 # about the test.
 EXIT_OK, EXIT_FAILED = 0, 1
+
+# The pytest plugin that reports an exception a `CliRunner` caught (frame
+# 195). Its directory holds plugins alone, because the whole directory goes
+# on the child's `PYTHONPATH`. No file goes into the worktree, so no diff or
+# commit can carry the plugin.
+PLUGIN = "_rota_caught"
+PLUGIN_DIR = paths.PACKAGE / "core" / "plugins"
+
+
+def plugin_env() -> dict[str, str]:
+    """The child's `PYTHONPATH`, with the plugin directory first."""
+    import os
+
+    rest = os.environ.get("PYTHONPATH", "")
+    return {"PYTHONPATH": os.pathsep.join(
+        [str(PLUGIN_DIR)] + ([rest] if rest else []))}
 
 
 def tests_for(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
@@ -159,8 +176,15 @@ def _run_one(root: Path, path: str, timeout: int,
                    # DeprecationWarning inside the Tester's own test into
                    # five red tests nobody could fix. The project's tests
                    # keep the project's rules.
-                   *(["-W", "ignore::DeprecationWarning"] if own else [])],
-            timeout=timeout, runner=runner)
+                   *(["-W", "ignore::DeprecationWarning"] if own else []),
+                   # Night 138 (frame 195): click's `CliRunner` caught a
+                   # `NameError` and the red row showed the assertion alone.
+                   # The plugin adds a section with the caught exception. A
+                   # project's `--show-capture=no` hides every section, and
+                   # the command line wins over `addopts`. The plugin loads
+                   # on the project's tests and the batch's own alike.
+                   "-p", PLUGIN, "--show-capture=all"],
+            timeout=timeout, runner=runner, env=plugin_env())
     except KeyError as exc:
         return "error", str(exc)
     if out.error:

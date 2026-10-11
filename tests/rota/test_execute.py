@@ -29,8 +29,8 @@ def test_the_harness_runs_its_tests_on_the_chosen_runner(tmp_path, monkeypatch):
 
     seen = []
 
-    def fake(worktree, argv, timeout):
-        seen.append((worktree, argv[1:], timeout))
+    def fake(worktree, argv, timeout, env=None):
+        seen.append((worktree, argv[1:], timeout, env))
         return execute.Result(0, "1 passed", "")
 
     monkeypatch.setitem(execute.RUNNERS, "fake", fake)
@@ -38,6 +38,27 @@ def test_the_harness_runs_its_tests_on_the_chosen_runner(tmp_path, monkeypatch):
     assert verdict == "pass" and said == "1 passed"
     assert seen[0][0] == tmp_path and seen[0][2] == 7
     assert seen[0][1][:2] == ["-m", "pytest"]
+    # Frame 195: the plugin loads on every run, and a project's
+    # `--show-capture=no` cannot hide its section.
+    argv = seen[0][1]
+    assert argv[argv.index("-p") + 1] == "_rota_caught"
+    assert "--show-capture=all" in argv
+    import os
+    first = seen[0][3]["PYTHONPATH"].split(os.pathsep)[0]
+    assert first == str(harness.PLUGIN_DIR)
+
+
+def test_the_env_argument_reaches_the_child_over_the_process_env(tmp_path, monkeypatch):
+    import sys
+
+    from rota.core import execute
+
+    monkeypatch.setenv("ROTA_F195_KEPT", "kept")
+    out = execute.run(tmp_path, [sys.executable, "-c",
+                                 "import os; print(os.environ.get('ROTA_F195_SET'),"
+                                 " os.environ.get('ROTA_F195_KEPT'))"],
+                      timeout=30, env={"ROTA_F195_SET": "set"})
+    assert out.stdout.split() == ["set", "kept"], out
 
 
 def test_a_packaged_project_is_installable(tmp_path):
