@@ -180,10 +180,12 @@ def _run_one(root: Path, path: str, timeout: int,
                    # Night 138 (frame 195): click's `CliRunner` caught a
                    # `NameError` and the red row showed the assertion alone.
                    # The plugin adds a section with the caught exception. A
-                   # project's `--show-capture=no` hides every section, and
-                   # the command line wins over `addopts`. The plugin loads
-                   # on the project's tests and the batch's own alike.
-                   "-p", PLUGIN, "--show-capture=all"],
+                   # project's `--show-capture=no` or `--tb=no` hides every
+                   # section, and the command line wins over `addopts`.
+                   # pytest's default is already `auto`, so no recorded
+                   # output changes. The plugin loads on the project's tests
+                   # and the batch's own alike.
+                   "-p", PLUGIN, "--show-capture=all", "--tb=auto"],
             timeout=timeout, runner=runner, env=plugin_env())
     except KeyError as exc:
         return "error", str(exc)

@@ -119,17 +119,8 @@ def _wrapped(orig):
     return invoke
 
 
-def _wrap():
-    # Import only when the test process already holds click. An import of
-    # a broken `click.testing` turned a pass into a fail, and so did a
-    # warning under `filterwarnings = error` (frame 195, review point 2).
-    if "click" not in sys.modules:
-        return
+def _patch(mod):
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            import click.testing  # noqa: F401
-        mod = sys.modules.get("click.testing")
         runner = getattr(mod, "CliRunner", None)
         orig = runner.__dict__.get("invoke") if runner is not None else None
         if orig is None or not callable(orig) or getattr(orig, _MARK, False):
@@ -137,6 +128,101 @@ def _wrap():
         setattr(runner, "invoke", _wrapped(orig))
     except Exception:
         return
+
+
+def _wrap():
+    # The second route, for a `click.testing` imported before the finder
+    # was installed. Import only when the test process already holds
+    # click. An import of a broken `click.testing` turned a pass into a
+    # fail, and so did a warning under `filterwarnings = error` (frame 195,
+    # review point 2).
+    if "click" not in sys.modules:
+        return
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            import click.testing  # noqa: F401
+        _patch(sys.modules.get("click.testing"))
+    except Exception:
+        return
+
+
+def _exec_wrapped(orig):
+    @functools.wraps(orig)
+    def exec_module(module):
+        # The real import runs first and unchanged. Its exception goes to
+        # the importer as it is.
+        orig(module)
+        try:
+            if getattr(module, "__name__", None) == "click.testing":
+                _patch(module)
+        except Exception:
+            pass
+
+    setattr(exec_module, _MARK, True)
+    return exec_module
+
+
+class _Finder(object):
+    """Wrap `CliRunner.invoke` right after `click.testing` executes.
+
+    The review of 878c2352 counted 66 of 104 Tester bodies that import
+    click inside the test body. The call-time wrap needs click in
+    `sys.modules` first, so those tests got no section. The finder answers
+    for `click.testing` alone and returns the spec the other finders give.
+    A reload finds the spec again, so the new class is wrapped again.
+    """
+
+    def find_spec(self, name, path=None, target=None):
+        if name != "click.testing":
+            return None
+        try:
+            spec = None
+            for finder in list(sys.meta_path):
+                if isinstance(finder, _Finder):
+                    continue
+                find = getattr(finder, "find_spec", None)
+                if find is None:
+                    continue
+                spec = find(name, path, target)
+                if spec is not None:
+                    break
+            loader = getattr(spec, "loader", None)
+            orig = getattr(loader, "exec_module", None)
+            # A loader that is a class serves every module it loads, so a
+            # patch on it would reach them all.
+            if orig is None or isinstance(loader, type):
+                return spec
+            if not getattr(orig, _MARK, False):
+                loader.exec_module = _exec_wrapped(orig)
+            return spec
+        except Exception:
+            # None sends the import on to the next finder, as if the
+            # finder were absent.
+            return None
+
+
+_finder = _Finder()
+
+
+def _install():
+    try:
+        if not any(isinstance(f, _Finder) for f in sys.meta_path):
+            sys.meta_path.insert(0, _finder)
+    except Exception:
+        pass
+
+
+def _remove():
+    try:
+        sys.meta_path[:] = [f for f in sys.meta_path if not isinstance(f, _Finder)]
+    except Exception:
+        pass
+
+
+# At load, because pytest imports a `-p` plugin before any conftest, and a
+# conftest can import `click.testing`.
+_install()
 
 
 def _section():
@@ -194,3 +280,7 @@ def pytest_runtest_makereport(item, call):
         _state["caught"] = []
     except Exception:
         pass
+
+
+def pytest_unconfigure(config):
+    _remove()

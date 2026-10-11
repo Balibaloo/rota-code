@@ -107,7 +107,7 @@ def _pytest(root: Path, path: str, plugin: bool = True) -> subprocess.CompletedP
     env = {k: v for k, v in os.environ.items()
            if k not in ("PYTEST_ADDOPTS", "PYTHONPATH")}
     if plugin:
-        argv += ["-p", harness.PLUGIN, "--show-capture=all"]
+        argv += ["-p", harness.PLUGIN, "--show-capture=all", "--tb=auto"]
         env["PYTHONPATH"] = str(harness.PLUGIN_DIR)
     return subprocess.run(argv, cwd=root, capture_output=True, text=True,
                           timeout=120, env=env)
@@ -167,8 +167,11 @@ def test_a_system_exit_prints_no_section(tmp_path):
 
 
 def test_a_test_that_imports_the_runner_inside_its_body_is_reported(tmp_path):
+    """66 of 104 Tester bodies import click inside the body (the review of
+    878c2352). No module and no conftest imports click before the call, so
+    only the finder on `sys.meta_path` can wrap the runner."""
     root = _tree(tmp_path, {"tests/test_body.py": NL.join([
-        "import click",
+        "# click is imported inside the test body alone.",
         "",
         "class Boom(Exception):",
         "    pass",
@@ -177,6 +180,7 @@ def test_a_test_that_imports_the_runner_inside_its_body_is_reported(tmp_path):
         "    raise Boom('no')",
         "",
         "def test_body():",
+        "    import click",
         "    from click.testing import CliRunner",
         "    r = CliRunner().invoke(boom)",
         "    assert r.output == 'yes'",
@@ -449,6 +453,20 @@ def test_the_raised_at_words_name_the_caught_exception(loaded):
         "empty. The test's own assertion then failed at "
         "tests/test_version_option_version_format.py:17."), raised
     assert "before any assertion ran" not in raised and " so " not in raised
+
+
+def test_the_raised_at_words_say_when_the_diff_touched_the_file(loaded, monkeypatch, tmp_path):
+    """The fixture has no worktree, so `touched` is empty unless patched
+    (the review of 878c2352, probe p4)."""
+    from rota.core import worktrees
+    from rota.roles import api
+
+    monkeypatch.setattr(worktrees, "batch_files", lambda conn, bid: ["src/click/decorators.py"])
+    monkeypatch.setattr(worktrees, "changed_since", lambda root, sha: [])
+    monkeypatch.setattr(api, "_worktree_of", lambda ctx, bid: tmp_path)
+    raised = loaded(TR532 + SECTION + TR532_TAIL)
+    assert "src/click/decorators.py:508 (NameError)" in raised, raised
+    assert "in a file your diff touched." in raised, raised
 
 
 def test_the_raised_at_words_on_the_text_alone_stay(loaded):
