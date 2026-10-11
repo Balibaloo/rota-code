@@ -475,6 +475,9 @@ def test_the_fix_wake_separates_the_projects_own_tests_and_pushes_the_diff(tmp_p
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES ('inh_1','b1',NULL,'tests/test_echo.py',?)", (body,))
     db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, output, attempt) VALUES "
                "('r1','b1','inh_1','abc123','fail','AssertionError',1)")
+    # Frame 207: the sentence "passed before this batch" needs a base run.
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('base_run:b1', '{\"inh_1\": {\"result\": \"pass\"}}')")
     db.commit()
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
