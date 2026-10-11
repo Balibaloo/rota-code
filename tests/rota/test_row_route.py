@@ -294,3 +294,26 @@ def test_a_criterion_as_a_finding_on_an_escalated_test_routes_to_a_decision(db):
         "line of tst1 that does not encode it. Then send msg.answer_developer "
         "with the decision's id in refs.")
     assert [o.op for o in sb.ctx.offers] == ["decisions.author"]
+
+
+# The review of pass 2c, finding 3 (2026-10-11), probe `r5.py` shape one.
+
+def test_an_amend_with_a_binding_is_offered_the_constraint_alone(db):
+    """Finding 3: `model.amend` stages a `constraint_bindings` row whose id
+    names no row a ref can cite. The offer keeps the constraint only."""
+    from rota.core.sandbox import dry_run
+
+    _rows(db)
+    sb = _architect(db)
+    sb.ctx.writes.extend([
+        ("constraints", "k_new", {"headline": "h", "text": "t",
+                                  "is_global": 0}),
+        ("constraint_bindings", "k_new:src/x.py",
+         {"constraint_id": "k_new", "grain": "src/x.py",
+          "grain_kind": "path"}),
+        ("refs", "rf1", {"src_table": "constraints", "src_id": "k_new"})])
+    with pytest.raises(ValueError):
+        sb.call("msg.answer_developer", refs=["c1", "tst1"])
+    offers = [o for o in sb.ctx.offers if o.op == "msg.answer_developer"]
+    assert [o.args for o in offers] == [{"refs": ["k_new"]}]
+    assert dry_run(sb, offers[0].op, offers[0].args).admitted

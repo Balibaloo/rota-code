@@ -2358,3 +2358,32 @@ def test_a_decision_that_cites_another_message_answers_that_one_only(db):
     _commit(db, "s4", "vision_keeper", "m61",
             writes=[_decision("d_2", ["c_1", "m54"])])
     assert _status(db, "m61") == ("unresolved", UNRECEIVED)
+
+
+# The review of pass 2c, findings 1 and 2 (2026-10-11), probes `r1b.py`, `r2.py`.
+
+def test_an_item_the_vision_keeper_asserts_answers_the_proposal(db):
+    """Finding 1: `vision_keeper/propose.md` says to assert the proposal as an
+    item, and both are answers. The new item cites no row of the proposal,
+    so the stamp counts an `items` write as the receipt on this edge."""
+    from rota.core.db import Write
+    from rota.core.predicates import unresolved
+
+    _owed(db, "m9", "propose", "architect", "vision_keeper", ["k_1", "f_1"])
+    _commit(db, "s9", "vision_keeper", "m9", writes=[Write(
+        "items", "i_new", {"text": "split the seam", "kind": "in_scope",
+                           "approval": "draft"})])
+    assert _status(db, "m9") == ("answered", None)
+    assert not [w for w in unresolved(db) if "m9" in (w.refs or ())]
+
+
+def test_an_amend_with_no_answer_leaves_the_escalation_owed(db):
+    """Finding 2: the escalate brief says "model.amend, and say so with
+    msg.answer_developer". An amend on a row of the escalation with no
+    answer is night 127's m72 shape, so only the answer is the receipt."""
+    from rota.core.db import Write
+
+    _owed(db, "m7", "escalate", "developer", "architect", ["k_1", "tst_1"])
+    _commit(db, "s7", "architect", "m7", writes=[Write(
+        "constraints", "k_1", {"headline": "h", "text": "t2", "is_global": 1})])
+    assert _status(db, "m7") == ("unresolved", UNRECEIVED)

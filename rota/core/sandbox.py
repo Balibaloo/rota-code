@@ -994,9 +994,13 @@ def _rowless_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     # The review of 8d090e2e, finding 3: the escalate brief says "model.amend,
     # and say so with msg.answer_developer". 0 of 6 such answers on nights
     # 138 and 139 cited the row they wrote, so the refusal names those rows.
+    # The review of pass 2c, finding 3: `model.amend` stages a
+    # `constraint_bindings` id like `k_new:src/x.py`, which names no row a
+    # ref can cite. So only rows of the three answer tables are offered.
     mine = list(dict.fromkeys(
         w[1] for w in ctx.writes
-        if isinstance(w[1], str) and w[0] != "refs" and w[1] != cause))
+        if isinstance(w[1], str) and w[1] != cause
+        and w[0] in ("constraints", "findings", "decisions")))
     if mine:
         return api._offer(
             ctx, said + f"This session wrote {', '.join(mine)}. Send "

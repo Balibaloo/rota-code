@@ -661,6 +661,30 @@ OWED_A_REPLY = ("challenge", "propose", "escalate")
 UNRECEIVED_NOTE = ("unresolved: the woken session sent nothing and wrote no "
                    "row that cites this message")
 
+# The receipt rule of an edge whose brief names a reply other than a message
+# or a row of the trigger's refs. "none" owes no reply. "message" counts only
+# a message caused by the trigger. A table name adds any write on that table
+# to the default receipts.
+RECEIPT_RULES = {
+    # `developer/challenge.md`: "You have no message back to Critic" (review
+    # of 8d090e2e, finding 1).
+    ("critic", "developer", "challenge"): "none",
+    # `vision_keeper/propose.md`: assert the proposal as an item, and both
+    # are answers (review of pass 2c, finding 1).
+    # Any `items` write in the session counts, also one unrelated to the
+    # proposal, because the brief's item cites no proposal row (second look
+    # of pass 2d, 2026-10-11; 0 proposals on nights 138 and 139).
+    ("architect", "vision_keeper", "propose"): "items",
+    # The escalate brief: "model.amend, and say so with msg.answer_developer".
+    # An amend with no answer is night 127's m72 shape (review of pass 2c,
+    # finding 2).
+    ("developer", "architect", "escalate"): "message",
+}
+
+
+def _receipt_rule(trig: sqlite3.Row) -> str | None:
+    return RECEIPT_RULES.get((trig["from_role"], trig["to_role"], trig["verb"]))
+
 
 def _owes_a_reply(trig: sqlite3.Row) -> bool:
     """
@@ -668,13 +692,11 @@ def _owes_a_reply(trig: sqlite3.Row) -> bool:
     the graph declares. A test can seed a carrier on no channel, as the
     synthetic arc's Liaison challenge to the Critic. No session can send one.
 
-    The Critic's challenge to the Developer owes no reply. `developer/challenge.md`
-    says "You have no message back to Critic": the reply is the next commit or a
-    `ledger.log`, and neither cites the challenge (review of 8d090e2e, finding 1).
+    An edge whose rule in `RECEIPT_RULES` is "none" owes no reply.
     """
     if trig["verb"] not in OWED_A_REPLY:
         return False
-    if (trig["from_role"], trig["to_role"]) == ("critic", "developer"):
+    if _receipt_rule(trig) == "none":
         return False
     from ..design import graph as graph_mod
     return any(e.s == trig["from_role"] and e.t == trig["to_role"]
@@ -713,8 +735,18 @@ def _received(conn: sqlite3.Connection, result: SessionResult,
     A decision is no receipt when the addressee has an `answer` edge to the
     asker (finding 2 of the review of 8d090e2e). A decision that cites a
     message id is a receipt for that message only (finding 8).
+
+    An edge in `RECEIPT_RULES` with "message" counts the reply alone. An edge
+    with a table name adds a write on that table to the rules above. The
+    propose brief also names a refusing decision as an answer.
     """
     if any(m.cause_id == result.trigger_msg for m in result.messages):
+        return True
+    rule = _receipt_rule(trig)
+    if rule == "message":
+        return False
+    if rule not in (None, "none") and any(w.table == rule
+                                          for w in result.writes):
         return True
     refs = {r for r in json.loads(trig["body_refs"] or "[]") if isinstance(r, str)}
     by_message = None
