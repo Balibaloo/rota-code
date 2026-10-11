@@ -21,6 +21,12 @@ hand-off.
   `rota_rv200` were running at the hand-off; read their results first.
 - Frame 198: claimed, scoped, `plans/frame198-scope.md`. The terminal
   exchange with Roman turned it into frame 204.
+- Frame 200 pass 2c was launched at 16:05 on a fresh implementer and
+  reports to `plans/frame200-pass2c-report.md`, a tracked path; its edits
+  stay uncommitted in the checkout for you to gate on a worktree and
+  commit. Frame 203's implementer was told the same, with its report at
+  `plans/frame203-pass1-report.md`. Both reports arrive after this
+  session has stopped; read the files, not a message.
 - Frame 203: claimed at Roman's question. The count found the gate's
   largest cost is a fresh database per test, not git. The levers' pass
   was running on an implementer at the hand-off; it edits `tests/`,
@@ -28,7 +34,13 @@ hand-off.
   `C:/Users/roman/rota_i203`. Its gate decides.
 - Frame 204: pushed on Roman's word. The corpus read and the categories
   are in `plans/frame204-corpus.md` and `plans/frame204-categories.md`.
-  Four stories went to Roman at 15:50; the frame waits on his rulings.
+  Roman answered the four stories and then ruled that the frame's first
+  step is one complete design pass over the whole problem space before
+  any build, with a design review after it, and his ruling on the design
+  as one piece. His words are in the frame's last two status lines. Start
+  that design on a Fable-judged, Opus-written scope: the design agent
+  reads the three records and the rulings, and you judge it before any
+  code. Frame 198's pass waits inside it.
 
 ## Roman's rulings today, in his words, with the time
 
