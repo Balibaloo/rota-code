@@ -6,3 +6,4 @@ brief.list
 ledger.log
 references.load
 msg.question_researcher
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

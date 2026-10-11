@@ -8,3 +8,4 @@ ledger.log
 msg.answer_tester
 msg.answer_developer
 msg.challenge_vision_keeper
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

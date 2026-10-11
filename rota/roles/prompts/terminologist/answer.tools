@@ -5,3 +5,4 @@ glossary.amend
 brief.list
 ledger.log
 schedule.reask
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

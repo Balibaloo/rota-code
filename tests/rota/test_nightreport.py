@@ -142,6 +142,23 @@ def test_the_report_holds_the_rows_a_read_asks_for(tmp_path):
     assert len(lines) < 200
 
 
+def test_the_report_counts_open_faults_per_refused_call(tmp_path):
+    """Frame 204's design, section 7, reader 2: the build session reads a
+    night's fault reports here, counted per refused call."""
+    path = _night(tmp_path)
+    conn = init_db(path)
+    rows = (("f_1", "glossary.adopt", "fault", "open"), ("f_2", "glossary.adopt", "fault", "open"),
+            ("f_3", "glossary.adopt", "fault", "resolved"), ("f_4", "model.adopt", "blocked", "open"))
+    for seq, (fid, call, kind, status) in enumerate(rows, start=1):
+        conn.execute("INSERT INTO faults (id, call, text, kind, author, seq, status) "
+                     "VALUES (?, ?, 'the door refused it', ?, 'architect', ?, ?)",
+                     (fid, call, kind, seq, status))
+    conn.close()
+    assert _section(_report(path), "open faults") == ["glossary.adopt fault 2",
+                                                      "model.adopt blocked 1"]
+    assert _section(_report(_night(tmp_path / "empty")), "open faults") == ["(none)"]
+
+
 def test_a_receipt_session_joins_its_batch(tmp_path):
     lines = _report(_night(tmp_path))
     wakes = _section(lines, "wakes")

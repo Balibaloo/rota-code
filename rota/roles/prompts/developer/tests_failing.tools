@@ -11,3 +11,4 @@ references.load
 msg.question_researcher
 batches.expect
 code.diff
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

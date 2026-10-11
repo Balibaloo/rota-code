@@ -7,3 +7,4 @@ msg.question_vision_keeper
 msg.question_terminologist
 msg.challenge_tester
 msg.escalate_architect
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

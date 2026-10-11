@@ -717,8 +717,10 @@ def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
 
     fresh = tmp_path / "fresh.db"
     conn = init_db(fresh)
+    # Frame 204 moved the mark: both CHECKs of `ledger` widened, and
+    # `faults` is new.
     assert conn.execute("SELECT value FROM config WHERE key = 'schema'"
-                        ).fetchone()["value"] == "ledger-kind"
+                        ).fetchone()["value"] == "ledger-grid-faults"
     conn.close()
     init_db(fresh).close()          # the same run, opened again
 
@@ -814,6 +816,22 @@ def test_state_json_answers_for_an_old_run_with_the_sentence(tmp_path):
     assert "behind the current schema" in snap["stale"]
     assert any("behind the current schema" in d for d in snap["drift"])
     assert snap["frontier"] == {"tips": [], "predicates": []}
+    assert snap["faults"] == [], "an old run has no faults table"
+
+
+def test_the_cockpit_snapshot_holds_the_open_faults_newest_first(tmp_path):
+    """Frame 204's design, section 7, reader 1: a seat's fault report stays
+    visible on the cockpit until a build frame closes it."""
+    from rota.cockpit import server
+
+    conn = init_db(tmp_path / "run.db")
+    for fid, seq, status in (("f_a", 1, "open"), ("f_b", 2, "resolved"), ("f_c", 3, "open")):
+        conn.execute("INSERT INTO faults (id, session_id, call, text, author, seq, status) "
+                     "VALUES (?, 's1', 'glossary.adopt', 'the door refused a ruled row', "
+                     "'terminologist', ?, ?)", (fid, seq, status))
+    snap = server.snapshot(conn)
+    assert [f["id"] for f in snap["faults"]] == ["f_c", "f_a"]
+    assert snap["faults"][0]["call"] == "glossary.adopt"
 
 
 def test_no_owner_table_carries_the_old_columns(db):

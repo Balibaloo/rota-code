@@ -152,6 +152,14 @@ def snapshot(conn: sqlite3.Connection) -> dict:
         "ledger": rows(
             "SELECT id, about_ref, default_taken, status, author FROM ledger "
             "WHERE status='open'"),
+        # Frame 204: a seat's fault report stays visible until a build frame
+        # closes it (composition, Records). An old run has no table, and the
+        # cockpit still shows it.
+        "faults": rows(
+            "SELECT id, session_id, call, text, kind, author, seq FROM faults "
+            "WHERE status = 'open' ORDER BY seq DESC")
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                        "AND name = 'faults'").fetchone() else [],
         # Priority comes from the item now, so this joins rather than selecting a
         # column that no longer exists. The old query was still here because the
         # database it was reading predated the move.

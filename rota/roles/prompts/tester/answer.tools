@@ -11,3 +11,4 @@ schedule.reask
 msg.question_terminologist
 msg.question_vision_keeper
 batches.expect
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

@@ -999,13 +999,20 @@ def test_a_relay_of_a_ruling_logs_no_row_about_the_ruled_row(m399):
     _message(m399, "m422", "liaison", "architect", "relay",
              ["parametersource_commandline"], cause="m421", status="open")
     m399.commit()
+    from rota.core.sandbox import build
+
     sb = _sandbox(m399, "architect", "relay", "m422")
+    # Frame 204: the relay mode no longer offers the call. The door stays
+    # as the guard, so a sandbox with the role's whole set still meets it.
+    assert "ledger.log" not in sb.functions()
+    full = build("architect", m399, mode="relay")
+    full.ctx.trigger = "m422"
     with pytest.raises(ValueError) as refused:
-        sb.call("ledger.log", about_ref="parametersource_commandline",
-                about_table="constraints",
-                assumption="The principal's contest on parametersource_commandline "
-                           "requires a refactor to align with the new show python "
-                           "flag behavior.")
+        full.call("ledger.log", about_ref="parametersource_commandline",
+                  about_table="constraints", kind="default",
+                  assumption="The principal's contest on parametersource_commandline "
+                             "requires a refactor to align with the new show python "
+                             "flag behavior.")
     assert str(refused.value) == (
         "the principal ruled on parametersource_commandline in the relay that woke "
         "you, and their words are on file as their decision. A new assumption about "
@@ -1017,8 +1024,9 @@ def test_a_relay_of_a_ruling_logs_no_row_about_the_ruled_row(m399):
     # Night 136's l_6b81c7417e named the message m145 as its row.
     with pytest.raises(ValueError, match="m419 is a message. An assumption is about "
                                          "a row of the project, never about a message"):
-        sb.call("ledger.log", about_ref="m419", about_table="principal_verdict",
-                assumption="The principal's verdict contests all six observed terms.")
+        full.call("ledger.log", about_ref="m419", about_table="principal_verdict",
+                  kind="default",
+                  assumption="The principal's verdict contests all six observed terms.")
 
 
 def test_a_one_word_assumption_is_refused(db):
@@ -1032,10 +1040,167 @@ def test_a_one_word_assumption_is_refused(db):
     sb = build("liaison", db, mode="normal")
     with pytest.raises(ValueError) as refused:
         sb.call("ledger.log", about_ref="@term:time", about_table="model_areas",
-                assumption="term")
+                assumption="term", kind="gap")
     assert str(refused.value) == (
         "an assumption is a sentence a reader learns from. Name what went unread, "
         "why, and what a reader would get wrong.")
+
+
+# Frame 204, pass 1: the kinds at the door. The seat names the note's word,
+# and the door writes it, refuses it, or routes it (design, sections 7, 8).
+NOTE = "the criterion is silent on the separator, so the code takes a comma"
+
+
+def _log_db(db):
+    """One item, ticket, criterion, batch and test for a note to be about."""
+    db.execute("INSERT INTO items (id, text, kind) VALUES ('i1', 'print JSON', 'in_scope')")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1', 'i1', 'the ticket')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1', 'tk1', 'echo_json prints compact JSON')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1', 'i1', 'running')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst_1', 'b1', 'c1', 'tests/test_j.py', 'def test_j():\n    assert 1')")
+    db.commit()
+    return db
+
+
+def _logs(sb, table="ledger"):
+    return [w for w in sb.ctx.writes if w[0] == table]
+
+
+@pytest.mark.parametrize("word", ["invented", "default", "scope",
+                                  "gap", "finding", "other"])
+def test_each_word_of_the_grid_is_written_as_its_kind(db, word):
+    from rota.core.sandbox import build
+
+    sb = build("developer", _log_db(db), mode="normal")
+    out = sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                  assumption=NOTE, kind=word)
+    (row,) = _logs(sb)
+    assert out == {"id": row[1]}
+    assert (row[2]["kind"], row[2]["about_ref"], row[2]["author"]) == (word, "c1", "developer")
+    assert _logs(sb, "faults") == []
+
+
+@pytest.mark.parametrize("word", ["fault", "blocked"])
+def test_a_fault_or_a_block_writes_faults_and_no_ledger_row(db, word):
+    """95 tool faults and blocks reached the pages on nights 120 to 139, and
+    the principal contested 38 of them as assumptions (design, section 1)."""
+    from rota.core.db import _apply_write
+    from rota.core.runner import _as_write
+    from rota.core.sandbox import build
+    from rota.roles.api import FAULT_REPLY
+
+    sb = build("terminologist", _log_db(db), mode="normal", session_id="s9")
+    sb.ctx.refusals.append(("glossary.adopt", "the row is not yet there", "ValueError"))
+    out = sb.call("ledger.log", about_ref="c_missing", about_table="glossary_terms",
+                  assumption="the ruling names c_missing and the glossary holds no such row",
+                  kind=word)
+    assert out["note"] == FAULT_REPLY and out["call"] == "glossary.adopt"
+    assert _logs(sb) == []
+    (fault,) = _logs(sb, "faults")
+    assert fault[2]["kind"] == word and fault[2]["session_id"] == "s9"
+    # A ref that names a call is that call.
+    out = sb.call("ledger.log", about_ref="model.adopt", about_table="constraints",
+                  assumption="the adopt door refused a row that the relay names", kind=word)
+    assert out["call"] == "model.adopt"
+    for w in _logs(sb, "faults"):
+        _apply_write(db, _as_write(w))
+    rows = db.execute("SELECT call, status, closed_by, seq FROM faults ORDER BY seq").fetchall()
+    assert [tuple(r) for r in rows] == [("glossary.adopt", "open", None, 1),
+                                        ("model.adopt", "open", None, 2)]
+    assert db.execute("SELECT COUNT(*) FROM ledger").fetchone()[0] == 0
+
+
+def test_a_conflict_is_offered_as_the_owners_message_when_the_mode_holds_it(db):
+    """The two builders story (ruled: Roman, 2026-10-11 15:00): the owner of
+    the row answers a conflict before a page does."""
+    from rota.core.sandbox import build
+
+    sb = build("developer", _log_db(db), mode="normal")
+    with pytest.raises(ValueError) as refused:
+        sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                assumption="the criterion says compact and the item says pretty-printed",
+                kind="conflict")
+    assert str(refused.value).startswith(
+        "a conflict with c1 is a question for the row's owner, and the owner "
+        "answers it before a page does. Send msg.question_terminologist(refs=['c1']")
+    assert sb.ctx.offers[0].op == "msg.question_terminologist"
+    assert _logs(sb) == []
+
+
+def test_a_conflict_is_a_row_when_the_mode_holds_no_owners_call(db):
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build("developer", _log_db(db), mode="normal",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    assert "msg.question_terminologist" not in sb.functions()
+    sb.call("ledger.log", about_ref="c1", about_table="criteria",
+            assumption="the criterion says compact and the item says pretty-printed",
+            kind="conflict")
+    (row,) = _logs(sb)
+    assert row[2]["kind"] == "conflict"
+
+
+def test_two_words_keep_the_first_by_the_tie_break(db):
+    """Section 8: a cell that holds the merge, then a row's owner, then the
+    principal, then nobody."""
+    from rota.core.sandbox import build
+
+    sb = build("developer", _log_db(db), mode="normal")
+    out = sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                  assumption=NOTE, kind="default, invented")
+    assert out["kind"] == "invented"
+    out = sb.call("ledger.log", about_ref="i1", about_table="items",
+                  assumption="the batch leaves out the pretty-print half of the item",
+                  kind=["default", "scope"])
+    assert out["kind"] == "scope"
+    assert [w[2]["kind"] for w in _logs(sb)] == ["invented", "scope"]
+
+
+def test_a_missing_or_unknown_word_gets_the_three_questions(db):
+    from rota.core.sandbox import build
+    from rota.roles.api import KIND_QUESTIONS
+
+    sb = build("developer", _log_db(db), mode="normal")
+    with pytest.raises(Exception) as missing:
+        sb.call("ledger.log", about_ref="c1", about_table="criteria", assumption=NOTE)
+    assert KIND_QUESTIONS in str(missing.value)
+    with pytest.raises(ValueError) as unknown:
+        sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                assumption="Adding a parameter to the confirm function signature now",
+                kind="trace")
+    assert str(unknown.value).startswith("kind='trace' is no word this mode offers. ")
+    assert KIND_QUESTIONS in str(unknown.value)
+    assert _logs(sb) == []
+
+
+def test_a_word_the_mode_does_not_offer_is_refused_with_the_modes_words(db):
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    kinds = prompts.mode_kinds("developer", "batch_start")
+    assert kinds == ("invented", "default", "scope", "conflict", "blocked", "fault", "other")
+    sb = build("developer", _log_db(db), mode="normal")
+    sb.ctx.log_kinds = kinds
+    with pytest.raises(ValueError) as refused:
+        sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                assumption=NOTE, kind="gap")
+    assert str(refused.value).startswith("kind='gap' is no word this mode offers.")
+    assert str(refused.value).endswith(
+        "This mode offers: conflict, scope, invented, default, blocked, fault, other.")
+    assert prompts.mode_kinds("liaison", "blindspot") == ("gap", "blocked", "fault", "other")
+
+
+def test_the_relay_modes_offer_no_log_and_the_brief_asks_for_none():
+    """221 of 583 notes on nights 120 to 139 were relay wakes that echoed a
+    ruling (frame 204's design, section 7)."""
+    from rota.roles import prompts
+
+    for role in ("architect", "terminologist"):
+        assert "ledger.log" not in prompts.mode_tools(role, "relay"), role
+    assert "ledger.log" not in prompts.piece("terminologist", "relay")
 
 
 def test_an_amended_item_that_is_not_delivered_is_sliced_again(db):

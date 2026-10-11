@@ -751,3 +751,19 @@ def test_a_terminologist_relay_of_a_criterion_runs_criterion_repair(n132):
     sb.ctx.trigger = "m_g"
     with pytest.raises(Exception, match="not in this role's working set"):
         sb.call("msg.answer_tester", refs=["cr_2_confirm_eof_behavior"])
+
+
+def test_the_state_view_counts_open_faults_and_shows_no_rows(tmp_path):
+    """Frame 204's design, section 7, reader 3: the principal sees that rota
+    failed, at his altitude, and is asked nothing."""
+    conn = init_db(tmp_path / "run.db")
+    assert "Rota itself failed" not in render_state(conn)
+    for fid, seq, status in (("f_1", 1, "open"), ("f_2", 2, "open"), ("f_3", 3, "resolved")):
+        conn.execute("INSERT INTO faults (id, call, text, author, seq, status) VALUES "
+                     "(?, 'glossary.adopt', 'the door refused a ruled row', "
+                     "'terminologist', ?, ?)", (fid, seq, status))
+    page = render_state(conn)
+    assert page.endswith("Rota itself failed 2 times this run. The people who "
+                         "build it have the list.")
+    assert "glossary.adopt" not in page
+    assert page.startswith("Nothing waits on you and nothing is building.")

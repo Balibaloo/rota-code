@@ -5,3 +5,4 @@ decisions.search
 decisions.author
 ledger.log
 msg.report_liaison
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

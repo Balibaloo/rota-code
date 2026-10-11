@@ -2,3 +2,4 @@ code.gaps
 surveys.consult
 ledger.log
 surveys.attest
+# ledger.log kinds: gap, blocked, fault, other

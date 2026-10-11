@@ -312,7 +312,7 @@ def test_a_ledger_entry_is_not_a_stored_test(db):
     `ledger.log`."""
     log = ("TOOL: ledger.log(about_ref='echo_json_compact', "
            "about_table='criteria', assumption='the test assumes the key "
-           "order of the dict where the material is silent')")
+           "order of the dict where the material is silent', kind='invented')")
     out, backend = _run(db, _answer(db), [log, _reply("s149_t1"), ""])
     assert not [e for e in out.errors if e.startswith("ledger.log")], out.errors
     assert out.errors.count("wrote a test into its reply") == 1

@@ -1166,7 +1166,7 @@ def test_a_reconcile_session_logs_the_disagreement_and_attests(project):
     wake = next(w for w in frontier(db) if w.kind == "tick:reconcile")
     out = run_session(db, wake, backend=ScriptedBackend([
         'TOOL: ledger.log(about_ref="README.md", about_table="items", '
-        'assumption="README says accounts can be merged; the code shows no merge path")\n'
+        'assumption="README says accounts can be merged; the code shows no merge path", kind="conflict")\n'
         'TOOL: surveys.attest(outcome="found", citations=["README.md"])',
         "done", "done",
     ]))
@@ -1956,7 +1956,7 @@ def test_reconcile_reads_each_docs_file_as_its_own_area(project):
                 if w.kind == "tick:reconcile" and w.refs == (PROSE + ":docs/guide.md",))
     out = run_session(db, wake, backend=ScriptedBackend([
         'TOOL: ledger.log(about_ref="docs/guide.md", about_table="items", '
-        'assumption="docs/guide.md says accounts can be merged; the code shows no merge path")'
+        'assumption="docs/guide.md says accounts can be merged; the code shows no merge path", kind="conflict")'
         + chr(10) + 'TOOL: surveys.attest(outcome="found", citations=["docs/guide.md"])',
         "done", "done",
     ]))

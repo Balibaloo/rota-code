@@ -3211,6 +3211,8 @@ def session_sandbox(conn: sqlite3.Connection, wake: Wake, *,
                            allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)),
                            wake=wake)
     sb._order = prompts.mode_order(wake.role, _mode_key(wake, conn)) or []
+    # The words `ledger.log` offers in this mode (frame 204, section 8).
+    sb.ctx.log_kinds = prompts.mode_kinds(wake.role, _mode_key(wake, conn))
     # What this session is replying to, which is not always a message wake.
     #
     # A rung on the `unresolved` ladder is woken by a *tick* carrying the

@@ -6,3 +6,4 @@ problem.assert
 ledger.log
 surveys.consult
 surveys.attest
+# ledger.log kinds: default, conflict, blocked, fault, other

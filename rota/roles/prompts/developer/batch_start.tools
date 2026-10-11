@@ -10,3 +10,4 @@ ledger.log
 msg.question_vision_keeper
 msg.question_terminologist
 batches.expect
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

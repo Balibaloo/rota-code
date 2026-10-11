@@ -8,3 +8,4 @@ code.commit
 ledger.log
 msg.escalate_architect
 batches.expect
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

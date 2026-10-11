@@ -138,11 +138,8 @@ _CLASH = "tests/test_utils/test_"
 # text replaces the def, so the text after it does not compile or defines a
 # name twice.
 _TWICE, _INVALID = "m.py defines f twice", "m.py is not valid Python"
-# Finding 3, the unimported-module wall: the added import lands, and the
-# invented-literal door refuses the seat's own literal.
-# Finding 4, the invented-literal door: it names six of eight literals, and
-# the encode sent again meets it for the other two (frame 148's sentence).
-_CHOOSES = "the test chooses"
+# Findings 3 and 4, the invented-literal door, are fixed by frame 204: the
+# door stages its own `invented` row and refuses no encode.
 # Finding 6, code.write at an insert: a text that ast.parse cannot hold, such
 # as 200000 nested minus signs, raises MemoryError from `_future_door`, and
 # the session crashes. The cut door's "To add after it" offer meets it.
@@ -170,9 +167,6 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
     (_OF + "test_a_decorator_line_off_by_one_reads_false_on_a_twin_decorator",
      "m.py defines a twice"),
     (_OF + "test_a_cut_refusal_quotes_lines_that_are_true", _INVALID),
-    ("tests/rota/test_l1.py::test_l1_case[ACT-TS-give-the-prompt-a-stream]", _CHOOSES),
-    (_OF + "test_the_added_import_offer_is_admitted", _CHOOSES),
-    (_OF + "test_the_literal_offer_is_admitted_when_eight_literals_are_owed", _CHOOSES),
 }
 
 # The facts that a refusal quotes and the state contradicts today: the test,

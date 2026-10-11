@@ -133,11 +133,8 @@ def test_a_project_id_at_its_own_path_is_offered_a_new_id_that_lands(db):
     assert _admitted(sb, offers[0]) == (True, None)
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "finding of frame 144 pass 1: tests_encode, the unimported-module wall, "
-    "'Add the line `import pytest` at the top of the body and send the encode "
-    "again'. The encode with the line then meets the invented-literal door "
-    "(ACT-TS-give-the-prompt-a-stream)"))
+# The finding of frame 144 pass 1 is fixed by frame 204: the invented-literal
+# door stages its row itself and admits the encode with the added import.
 def test_the_added_import_offer_is_admitted(db):
     _a_criterion(db, _PRORATES)
     sb = _answer_tester(db)
@@ -156,21 +153,17 @@ _EIGHT = ("from billing import prorate\ndef test_it():\n"
           "'foxtrot', 'golf', 'hotel') == 1\n")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "finding of frame 144 pass 2: tests_encode, the invented-literal door. "
-    "It names six of eight owed literals (owed[:6]), and the encode sent again "
-    "after the named ledger.log meets the same door for the other two. The "
-    "sentence is frame 148's"))
-def test_the_literal_offer_is_admitted_when_eight_literals_are_owed(db):
+def test_the_literal_door_admits_eight_owed_literals_in_one_row(db):
+    """The finding of frame 144 pass 2 named six of eight literals, and the
+    encode sent again met the same door for the other two. Frame 204: the
+    door stages one `invented` row for all eight and admits the encode."""
     _a_criterion(db, _PRORATES)
     sb = _answer_tester(db)
-    said, offers = _refused(sb, "tests.encode", id="t1", criterion_id="c1",
-                            path="p.py", body=_EIGHT, batch_id="b1")
-    assert "'golf'" not in said and offers[0].op == "ledger.log"
-    res = sandbox.dry_run(sb, offers[0].op, offers[0].args, (
-        ("tests.encode", {"id": "t1", "criterion_id": "c1", "path": "p.py",
-                          "body": _EIGHT, "batch_id": "b1"}),))
-    assert res.admitted, res.refusal
+    assert sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+                   body=_EIGHT, batch_id="b1")
+    (row,) = [w for w in sb.ctx.writes if w[0] == "ledger"]
+    assert row[2]["kind"] == "invented"
+    assert "golf" in row[2]["default_taken"] and "hotel" in row[2]["default_taken"]
 
 
 def test_an_argument_error_leaves_no_offer_of_the_call_before(db):

@@ -166,7 +166,8 @@ SCHEMA_KEY = "schema"
 # before this one added `ledger.kind` and left the mark alone, so an old
 # database opened and then failed part way through the night on its first
 # ledger write. The warm snapshot is such a database.
-SCHEMA_MARK = "ledger-kind"
+# Frame 204 widened both CHECKs of `ledger` and added `faults`.
+SCHEMA_MARK = "ledger-grid-faults"
 SCHEMA_STALE = ("the run database is behind the current schema, so it needs "
                 "a fresh onboarding: wipe it, or onboard under a new name")
 

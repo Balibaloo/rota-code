@@ -6,3 +6,4 @@ decisions.search
 decisions.author
 ledger.log
 schedule.reask
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

@@ -508,8 +508,8 @@ def test_the_offer_refusal_carries_the_kind_clause(tmp_path):
         "function in `src/click/utils.py`; nothing says it returns anything. "
         "That is an assumption, and it is logged where it is made: "
         "ledger.log(about_ref='c1', about_table='criteria', assumption=\"the "
-        "test assumes echo_json returns what it prints\") -- then send this "
-        "encode again unchanged. Or assert on what it prints")
+        "test assumes echo_json returns what it prints\", kind='default') -- "
+        "then send this encode again unchanged. Or assert on what it prints")
 
 
 def test_a_refusal_with_no_batch_records_no_fact(tmp_path):

@@ -8,3 +8,4 @@ ledger.log
 msg.answer_developer
 msg.answer_liaison
 msg.report_liaison
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

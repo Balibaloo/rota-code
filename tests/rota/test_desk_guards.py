@@ -352,7 +352,7 @@ def test_a_test_that_reads_stdin_cannot_pass_under_pytest(db):
         _encode(sb, "def test_greet():\n    assert input('name: ') == 'Alice'")
     # Fed in, it is a test -- once the chosen name is on the ledger.
     sb.call("ledger.log", about_ref="c1", about_table="criteria",
-            assumption="the test assumes Alice as a sample name")
+            assumption="the test assumes Alice as a sample name", kind="invented")
     _encode(sb, "from script import greet\n"
                 "def test_greet(monkeypatch):\n"
                 "    monkeypatch.setattr('builtins.input', lambda _='': 'Alice')\n"
@@ -426,7 +426,7 @@ def test_a_shielded_test_of_a_reader_of_input_is_encoded(db, tmp_path, shield):
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     # The literal door reads 'stdin' as a chosen word, a fact apart from this one.
     sb.call("ledger.log", about_ref="c1", about_table="criteria",
-            assumption="the test assumes stdin is the stream ask reads")
+            assumption="the test assumes stdin is the stream ask reads", kind="invented")
     assert _encode(sb, _asker(shield))
 
 
@@ -2010,7 +2010,7 @@ def test_an_undefined_name_anywhere_in_a_test_is_a_nameerror(db):
     # Bound names of every shape are fine: args, with-as, loops, walrus.
     sb2 = build("tester", db, batch_id="b1", mode="tests_missing")
     sb2.call("ledger.log", about_ref="c1", about_table="criteria",
-             assumption="the test assumes closing as a sample")
+             assumption="the test assumes closing as a sample", kind="invented")
     _encode(sb2, "from script import close_account\n"
                  "def test_x(tmp_path):\n"
                  "    for name in ['closing']:\n"
@@ -2307,18 +2307,49 @@ def test_a_literal_the_material_never_said_is_an_assumption_first(db):
     """The first divergence detector: the demand for a sentence lands only
     where the material underdetermined the test. Words the criterion, its
     ticket, the glossary or the principal said are free; a chosen string is
-    owed a ledger row, and the encode goes through once it has one."""
+    owed a ledger row. Frame 204: the door stages the row itself, kind
+    `invented`, and admits the encode, so the seat spends no turn on a
+    dictated `ledger.log` (design, section 7)."""
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
-    with pytest.raises(ValueError, match="chooses 'Enter your name: '"):
-        _encode(sb, "from script import prompt_text\n"
-                    "def test_greet():\n"
-                    "    assert prompt_text() == 'Enter your name: '")
-    sb.call("ledger.log", about_ref="c1", about_table="criteria",
-            assumption="the prompt reads 'Enter your name: ' -- the material "
-                       "names no wording")
-    _encode(sb, "from script import prompt_text\n"
-                "def test_greet():\n"
-                "    assert prompt_text() == 'Enter your name: '")
+    assert _encode(sb, "from script import prompt_text\n"
+                       "def test_greet():\n"
+                       "    assert prompt_text() == 'Enter your name: '")
+    (row,) = [w for w in sb.ctx.writes if w[0] == "ledger"]
+    assert row[2]["kind"] == "invented" and row[2]["author"] == "tester"
+    assert row[2]["about_ref"] == "c1"
+    assert row[2]["default_taken"] == (
+        "the test assumes Enter your name:  where the material is silent")
+    # The row is staged with the test, and a second encode owes nothing.
+    assert [w[0] for w in sb.ctx.writes] == ["ledger", "tests"]
+    sb.ctx.writes.clear()
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, kind, "
+               "author) VALUES ('l_x', 'c1', 'criteria', ?, 'invented', 'tester')",
+               (row[2]["default_taken"],))
+    db.commit()
+    assert _encode(sb, "from script import prompt_text\n"
+                       "def test_greet():\n"
+                       "    assert prompt_text() == 'Enter your name: '")
+    assert [w[0] for w in sb.ctx.writes] == ["tests"]
+
+
+def test_the_returns_door_offers_a_default(db, tmp_path):
+    """Frame 204: a test that asserts on a return chose a behaviour, so the
+    returns door names `default` (design, section 2)."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "script.py").write_text("import json" + chr(10) + "def echo_json(obj):" + chr(10)
+                                    + "    print(json.dumps(obj))" + chr(10), encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"echo_json\"]' WHERE id = 'c1'")
+    db.execute("INSERT OR IGNORE INTO entries (id, author, ts_order, text) VALUES "
+               "('e9', 'principal', 9, 'echo_json prints the object')")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    body = ("from script import echo_json" + chr(10) + "def test_x():" + chr(10)
+            + "    result = echo_json({'a': 1})" + chr(10) + "    assert result" + chr(10))
+    with pytest.raises(ValueError, match="kind='default'"):
+        sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=body)
+    assert sb.ctx.offers[0].args["kind"] == "default"
 
 
 def test_material_words_are_never_an_assumption(db):
@@ -3168,9 +3199,9 @@ def test_an_assumption_whose_halves_match_is_a_restatement(db):
                allow=prompts.mode_tools("vision_keeper", "reconcile"))
     with pytest.raises(ValueError, match="say the same words"):
         sb.call("ledger.log", about_ref="README.md", about_table="items",
-                assumption="the README says Click parses arguments into Python objects. The code shows Click parses arguments into Python objects.")
+                assumption="the README says Click parses arguments into Python objects. The code shows Click parses arguments into Python objects.", kind="conflict")
     out = sb.call("ledger.log", about_ref="README.md", about_table="items",
-                  assumption="the README says accounts can be merged; the code shows no merge path at all")
+                  assumption="the README says accounts can be merged; the code shows no merge path at all", kind="conflict")
     assert out
 
 
@@ -3216,7 +3247,7 @@ def test_a_test_that_uses_a_printing_surfaces_return_value_logs_the_assumption(d
     # The criterion itself says it prints, so no ledger row lifts the door
     # (night 45, 2026-09-14): the test reads what printed.
     sb.call("ledger.log", about_ref="c1", about_table="criteria",
-            assumption="the test assumes echo_json returns what it prints")
+            assumption="the test assumes echo_json returns what it prints", kind="default")
     with pytest.raises(ValueError, match="says it prints"):
         sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=body)
     printed = ("from script import echo_json" + chr(10) + "def test_x(capsys):" + chr(10)

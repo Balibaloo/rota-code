@@ -66,17 +66,22 @@ def _json_type(annotation: Any) -> dict[str, Any]:
 
 
 def schema_for(dotted: str, fn: Callable) -> dict[str, Any]:
-    from ..core.sandbox import ENUMS
+    from ..core.sandbox import ENUMS, ENUMS_BY_OP
 
     sig = inspect.signature(fn)
     properties: dict[str, Any] = {}
     required: list[str] = []
+    # An argument that its op's own door reads carries no flat enum (frame
+    # 204: `ledger.log`'s `kind` is not the backlog's `kind`).
+    artefact, _, verb = dotted.partition(".")
+    own = {k for k, v in (ENUMS_BY_OP.get((artefact, verb.replace("_", " ")))
+                          or {}).items() if v is None}
 
     for name, param in sig.parameters.items():
         prop = _json_type(param.annotation)
         # Constrained columns become enums so the model is told the legal values
         # rather than discovering them through a rejected call.
-        if name in ENUMS:
+        if name in ENUMS and name not in own:
             prop = {"type": "string", "enum": list(ENUMS[name])}
         properties[name] = prop
         if param.default is inspect.Parameter.empty:

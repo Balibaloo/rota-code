@@ -86,10 +86,13 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "receipts": ("journal", "what a session touched"),
     "claims": ("journal", "who held what, when"),
     "ledger": ("journal", "assumptions as made; deduping would falsify. The "
-                          "`kind` column is the exception: a classed row keys "
-                          "on (about_table, about_ref, kind), so a paraphrase "
-                          "of the same class is one row, not a new one every "
-                          "cycle"),
+                          "`unaddressed_answer` kind is the exception: such a "
+                          "row keys on (about_table, about_ref, kind), so a "
+                          "paraphrase of the same class is one row, not a new "
+                          "one every cycle"),
+    "faults": ("journal", "one fault report per session, refused call and "
+                          "text; the id hashes the three, so a repeat in one "
+                          "session is one row (frame 204)"),
     "decisions": ("journal", "reasons as given"),
     "verdicts": ("journal", "one judgement of one commit"),
     "finding_rulings": ("journal", "one ruling on one finding at one commit; "

@@ -304,6 +304,13 @@ def render_state(conn: sqlite3.Connection) -> str:
         row = conn.execute(sql).fetchone()
         return row[0] if row else 0
 
+    # Frame 204: the count of open faults, and no rows. The principal sees
+    # that rota failed and is asked nothing (design, section 7, reader 3).
+    faults = count("SELECT COUNT(*) FROM faults WHERE status = 'open'")
+    fault_line = (f"Rota itself failed {faults} time{'s' if faults > 1 else ''} "
+                  "this run. The people who build it have the list."
+                  if faults else None)
+
     merged = count("SELECT COUNT(*) FROM batches WHERE status = 'merged'")
     running = count("SELECT COUNT(*) FROM batches WHERE status = 'running'")
     pending = count("SELECT COUNT(*) FROM batches WHERE status = 'pending'")
@@ -409,6 +416,8 @@ def render_state(conn: sqlite3.Connection) -> str:
         out.extend(parked_lines)
         if looping is not None:
             out.append(looping.line())
+        if fault_line:
+            out.append(fault_line)
         return chr(10).join(out)
     out.extend(parked_lines)
     if running or pending:
@@ -440,6 +449,8 @@ def render_state(conn: sqlite3.Connection) -> str:
                        "Tell me what you want. I take it from there.")
     if looping is not None:
         out.append(looping.line())
+    if fault_line:
+        out.append(fault_line)
     return chr(10).join(out)
 
 

@@ -6,3 +6,4 @@ code.callables
 ledger.log
 msg.challenge_vision_keeper
 code.source
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

@@ -140,6 +140,10 @@ class Ctx:
     # `Fact` each, filled by `_fact`. A test checks each one against the
     # state (frame 144, change 1(d)). Cleared like `offers`.
     facts: list = None
+    # The words `ledger.log` offers in this session's mode, from the mode's
+    # `.tools` file. None means every word of the grid, which is the case
+    # for a context that no runner built (frame 204, section 8).
+    log_kinds: tuple = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -7003,14 +7007,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"says it returns anything. That is an assumption, and it is "
                 f"logged where it is made: ledger.log(about_ref={criterion_id!r}, "
                 f"about_table='criteria', assumption=\"the test assumes "
-                f"{uses_return} returns what it prints\") -- then send this "
-                f"encode again unchanged. Or assert on what it prints",
+                f"{uses_return} returns what it prints\", kind='default') -- then "
+                f"send this encode again unchanged. Or assert on what it prints",
                 "ledger.log", {"about_ref": criterion_id, "about_table": "criteria",
                                "assumption": f"the test assumes {uses_return} "
-                                             f"returns what it prints"},
+                                             f"returns what it prints",
+                               "kind": "default"},
                 then=(AGAIN,)))
 
     invented = _invented_literals(ctx, criterion_id, tree)
+    invented_note = None
     if invented:
         said = [w for t, i, *rest in ctx.writes if t == "ledger"
                 for w in [rest[0].get("default_taken", "")]]
@@ -7023,23 +7029,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         owed = [lit for lit in invented
                 if _words(lit) - covered - _STOP - _material_words(ctx, criterion_id)]
         if owed:
-            # All of them in one refusal, one log covering all. clickI night
-            # 46 (2026-09-14): 'key', then 'nested', then 'array', one per
-            # turn, each logged and re-sent, and the session ran out.
-            named = ", ".join(repr(w) for w in owed[:6])
-            joined = " and ".join(owed[:6])
-            raise ValueError(_offer(
-                ctx,
-                f"the test chooses {named}, and nothing in the criterion, "
-                f"its ticket, the glossary or the principal's words says it. "
-                f"That is an assumption, and it is logged where it is made: "
-                f"ledger.log(about_ref={criterion_id!r}, about_table='criteria', "
-                f"assumption=\"the test assumes {joined} where the material "
-                f"is silent\") -- then send this encode again unchanged",
-                "ledger.log", {"about_ref": criterion_id, "about_table": "criteria",
-                               "assumption": f"the test assumes {joined} where "
-                                             f"the material is silent"},
-                then=(AGAIN,)))
+            # The door stages the row itself, kind `invented`, and admits the
+            # encode. The seat spent a turn on a dictated `ledger.log` for
+            # each of 103 notes over nights 120 to 139 (frame 204's design,
+            # section 7). The author stays the seat. Every owed literal goes
+            # in one row: clickI night 46 (2026-09-14) logged them one per
+            # turn, and the session ran out.
+            # Staged below with the test, so a refusal after this door
+            # leaves no row about a test that never landed.
+            invented_note = (f"the test assumes {' and '.join(owed)} where "
+                             f"the material is silent")
 
     batch_id = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
     if not batch_id:
@@ -7213,6 +7212,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                                  and w[2].get("batch_id") == batch_id and (
                                      w[1] == id
                                      or w[2].get("criterion_id") == criterion_id))]
+    if invented_note:
+        _stage_ledger(ctx, criterion_id, "criteria", invented_note, "invented")
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": criterion_id,
         "path": path, "body": body}))
@@ -7808,9 +7809,146 @@ def rulings_load(ctx: Ctx, ask_id: str | None = None) -> list[dict]:
     return _rows(ctx.conn.execute("SELECT * FROM rulings ORDER BY rowid"))
 
 
+# The words of frame 204's grid, in the order of its tie-break (design,
+# section 8): the cells that hold a merge, then a row's owner, then the
+# principal, then nobody in rota. Within one row of the grid, "could not"
+# comes before "picked", and "picked" before "did not need to".
+# The grid's `unaddressed` cell is `ledger.unaddressed`'s own class,
+# `unaddressed_answer`, so this call does not offer it. A conflict of two
+# sources of the project shares that cell, and it is `conflict` here: no
+# seat owns either source, so the door writes the row (section 3.1).
+LOG_KINDS = ("conflict", "scope", "invented", "finding", "default", "gap",
+             "blocked", "fault", "other")
+# The two words that name a fault of rota and no note. They write `faults`
+# and no ledger row (frame 204's design, section 7).
+FAULT_KINDS = ("blocked", "fault")
+
+# Section 8's three questions and its tie-break, as the door says them.
+KIND_QUESTIONS = (
+    "Answer three questions, and the word follows. "
+    "0: is the obstacle a rule of rota (a permission, a door, a tool) or the "
+    "content of a row? A rule that works as designed is no note, so log "
+    "nothing. If you believe the row behind the rule is wrong, the note is "
+    "about that row: go to question 1. A rule that failed is kind='fault'. A "
+    "record that names a row that does not exist is kind='blocked'. "
+    "1: if the note is wrong, who must say so: the principal, the owner of a "
+    "row, or nobody in rota? "
+    "2: did you pick, could you not pick, or did you not need to? "
+    "The principal, picked: 'default', or 'scope' when you left out or added "
+    "work. The principal, could not: 'conflict' when two sources of the "
+    "project disagree. The principal, did not need to: 'gap'. A row's owner, "
+    "picked: 'invented' for a value you chose, or 'finding'. A row's owner, "
+    "could not: 'conflict'. "
+    "A note that fits two words takes the first of this order: conflict, "
+    "scope, the owner's word, the principal's word, nobody's word. A note "
+    "that fits no word is 'other'. A step, a plan or a ruling said again is "
+    "no note: log nothing.")
+
+FAULT_REPLY = ("the fault is recorded for the people who build rota. No page "
+               "shows it, and nobody in rota answers it. End the session.")
+
+
+def _offered_kinds(ctx) -> tuple:
+    """The words this session's mode offers, in the tie-break's order."""
+    named = getattr(ctx, "log_kinds", None)
+    if not named:
+        return LOG_KINDS
+    return tuple(k for k in LOG_KINDS if k in named)
+
+
+def ledger_kind_door(ctx, sent=None) -> str:
+    """The door's text for a `kind` that is absent or not offered."""
+    offered = ", ".join(_offered_kinds(ctx))
+    head = (f"kind={sent!r} is no word this mode offers. " if sent
+            else "kind is one word that says what the note is. ")
+    return f"{head}{KIND_QUESTIONS} This mode offers: {offered}."
+
+
+def _read_kinds(kind) -> list[str]:
+    """The words a seat sent as `kind`, in the order it sent them."""
+    parts = kind if isinstance(kind, (list, tuple)) else [kind]
+    words: list[str] = []
+    for part in parts:
+        for w in re.split(r"[\s,;|/+]+|\band\b", str(part or "").lower()):
+            w = w.strip(" '\"`.")
+            if w and w not in words:
+                words.append(w)
+    return words
+
+
+def _refused_call(ctx, about_ref: str) -> str:
+    """The call a fault is about. A ref that names a call is that call.
+    Otherwise it is the session's last refused call before this log."""
+    ref = (about_ref or "").strip()
+    head, _, tail = ref.partition(".")
+    if tail and (head == "msg" or (head, tail.replace("_", " ")) in REGISTRY):
+        return ref
+    for label, *_ in reversed(getattr(ctx, "refusals", None) or []):
+        if label != "ledger.log":
+            return label
+    return ref or "unknown"
+
+
+def _stage_fault(ctx, call: str, text: str, kind: str) -> str:
+    """Stage one row of `faults`, and return its id. One row per session,
+    call and text, so a repeat in one session is an upsert."""
+    import hashlib
+
+    fid = "f_" + hashlib.sha256(
+        f"{ctx.session_id}|{call}|{text}".encode()).hexdigest()[:10]
+    row = ctx.conn.execute("SELECT COALESCE(MAX(seq), 0) AS n FROM faults").fetchone()
+    staged = sum(1 for t, *_ in ctx.writes if t == "faults")
+    ctx.writes.append(("faults", fid, {
+        "session_id": ctx.session_id or "", "call": call, "text": text,
+        "kind": kind, "author": ctx.role, "seq": int(row["n"]) + staged + 1,
+        "status": "open"}))
+    return fid
+
+
+def _owner_call(ctx, about_ref: str, assumption: str) -> tuple[str, dict, str] | None:
+    """The owner's message call that a `conflict` note is offered instead:
+    the call, its arguments and the words that show it. None when this
+    mode holds no call the doors admit, and then the note is a row."""
+    from ..core import sandbox as _sandbox
+
+    working = getattr(ctx, "working_set", None)
+    if working is None:
+        return None
+    test = ctx.conn.execute(
+        "SELECT t.id, t.body, c.id AS crit, c.text FROM tests t "
+        "LEFT JOIN criteria c ON c.id = t.criterion_id WHERE t.id = ?",
+        (about_ref,)).fetchone()
+    if test is not None:
+        # A test's owner is the Tester, and its channel is the challenge.
+        # Frame 204's pass 2 teaches `_owner_of_ref` the same.
+        if ctx.role == "tester" or "msg.challenge_tester" not in working:
+            return None
+        if not test["crit"]:
+            return None
+        refs = [test["crit"], test["id"]]
+        quotes = [test["text"] or "", test["body"] or ""]
+        if not _sandbox._challenge_admitted(ctx, refs, quotes):
+            return None
+        return ("msg.challenge_tester", {"refs": refs, "quotes": quotes},
+                f"msg.challenge_tester(refs={refs!r}) with quotes= copied from "
+                f"{refs[0]} and from {refs[1]}")
+    # A criterion is the Terminologist's and a ticket the Vision Keeper's
+    # (design, section 3.1). `_owner_of_ref` reads the ruled tables only.
+    owner = next((o for t, o in (("criteria", "terminologist"),
+                                 ("tickets", "vision_keeper"))
+                  if ctx.conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
+                                      (about_ref,)).fetchone()),
+                 None) or _sandbox._owner_of_ref(ctx.conn, about_ref)
+    call = f"msg.question_{owner}"
+    if owner is None or owner == ctx.role or call not in working:
+        return None
+    return (call, {"refs": [about_ref], "question": assumption},
+            f"{call}(refs=[{about_ref!r}], question=<your note>)")
+
+
 @op("ledger", "log")
 def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
-               assumption: str) -> dict:
+               assumption: str, kind: str | list[str]) -> dict:
     """
     A choice made where the criteria were silent. Logged with the diff, in the
     same session — the silent default is the failure this exists to prevent.
@@ -7822,6 +7960,27 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     Deriving the id makes a repeat an upsert instead. It also means the same
     assumption reached by two roles is one entry, which is the truth.
     """
+    # Frame 204: the seat names the note's word, and the door reads the
+    # column, never the prose. Two words keep the first by section 8's
+    # tie-break. A word outside the mode's set gets the three questions.
+    sent = _read_kinds(kind)
+    offered = _offered_kinds(ctx)
+    known = [k for k in LOG_KINDS if k in sent]
+    if not known or any(k not in offered for k in known):
+        bad = next((k for k in sent if k not in offered), None)
+        raise ValueError(ledger_kind_door(ctx, bad or kind))
+    word = known[0]
+    # A fault of rota is no note on any page (section 7). The four-word
+    # rule still holds, so a label is refused here too.
+    if word in FAULT_KINDS:
+        if len((assumption or "").split()) < 4:
+            raise ValueError(
+                "an assumption is a sentence a reader learns from. Name what went "
+                "unread, why, and what a reader would get wrong.")
+        call = _refused_call(ctx, about_ref)
+        fid = _stage_fault(ctx, call, assumption, word)
+        return {"fault": fid, "call": call, "note": FAULT_REPLY}
+
     # The world-audit found ledger rows about 'glossary' and 'problem.assert'
     # -- table names and tool names where a row id belongs, unresolvable at
     # read time. An assumption is about a row; the table half already has its
@@ -7861,7 +8020,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
             f"about_ref and about_table name one row together; send "
             f"about_table={home!r}",
             "ledger.log", {"about_ref": about_ref, "about_table": home,
-                           "assumption": assumption}))
+                           "assumption": assumption, "kind": word}))
     # A seat that a ruling reaches does not answer it with a row about the
     # ruled row. On night 136, 117 of 213 lines on the agenda pages were such
     # rows, and 31 pages held nothing else. Each one went back to the
@@ -7906,7 +8065,24 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 "agrees, that is the answer: surveys.attest(outcome='none_found', "
                 "citations=[the file]), and no ledger row")
 
-    return {"id": _stage_ledger(ctx, about_ref, about_table, assumption)}
+    # A conflict goes to the owner of the row, never to a page first
+    # (ruled: Roman, 2026-10-11 15:00, the two builders story). The door
+    # offers the owner's message when this mode holds it. Otherwise the row
+    # is written, and it holds nothing (frame 204's design, section 3.1).
+    if word == "conflict":
+        route = _owner_call(ctx, about_ref, assumption)
+        if route is not None:
+            call, args, how = route
+            raise ValueError(_offer(
+                ctx,
+                f"a conflict with {about_ref} is a question for the row's owner, "
+                f"and the owner answers it before a page does. Send {how}",
+                call, args))
+
+    out = {"id": _stage_ledger(ctx, about_ref, about_table, assumption, word)}
+    if len(known) > 1:
+        out["kind"] = word
+    return out
 
 
 # The tables a ledger row can be about, in the order `ledger.log` checks them.
@@ -7934,7 +8110,10 @@ def _stage_ledger(ctx: Ctx, about_ref: str, about_table: str, assumption: str,
     """
     import hashlib
 
-    seed = (f"{about_table}|{about_ref}|{kind}" if kind != "default"
+    # Only the parking class keys on its class. A seat's word keys on its
+    # prose, as `default` always did, so two notes on one row stay two rows
+    # (frame 204).
+    seed = (f"{about_table}|{about_ref}|{kind}" if kind == UNADDRESSED_KIND
             else f"{about_table}|{about_ref}|{assumption}")
     id = "l_" + hashlib.sha256(seed.encode()).hexdigest()[:10]
     ctx.writes.append(("ledger", id, {

@@ -548,6 +548,17 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
             ts = turns_by.get(s["id"], [])
             last = (ts[-1]["completion"] if ts else "") if have_turns else ABSENT
             w(f"{s['id']} {s['role']} {s['wake_kind']}: {cut(last, 160)}")
+
+    # 11. Open faults, per refused call (frame 204's design, section 7). A
+    # seat's fault report reaches the build session here after a night.
+    w("== open faults")
+    FT_COLS = ("call", "kind", "status")
+    for line in n.absent("faults", FT_COLS):
+        w(line)
+    per_call = Counter((f["call"], f["kind"]) for f in n.rows("faults", FT_COLS, ("seq",))
+                       if f["status"] == "open")
+    for (call, kind), k in sorted(per_call.items(), key=lambda x: (-x[1], str(x[0]))):
+        w(f"{call} {kind} {k}")
     # A section with no rows says so, so an empty section and a cut report differ.
     filled: list[str] = []
     for i, line in enumerate(out):

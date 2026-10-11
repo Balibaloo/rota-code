@@ -549,16 +549,48 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
 -- row the question was about. The ordinary class is `default`, after
 -- `default_taken`: the word `assumption` is the artefact's noun already, and
 -- one word carries one job (`tests/rota/test_vocabulary.py`).
+--
+-- Frame 204 adds the words of its grid (`plans/frame204-design.md`,
+-- section 8). A seat names one at log time. `blocked` and `fault` never
+-- land here: the door writes them to `faults`. The grid's `unaddressed`
+-- cell is `unaddressed_answer`, which `ledger.unaddressed` writes (section
+-- 7). A second word for it would collide with the operation's name
+-- (`tests/rota/test_vocabulary.py`).
 CREATE TABLE IF NOT EXISTS ledger (
     id             TEXT PRIMARY KEY,
     about_ref      TEXT NOT NULL,
     about_table    TEXT NOT NULL,
     default_taken  TEXT NOT NULL,
     kind           TEXT NOT NULL DEFAULT 'default'
-                   CHECK (kind IN ('default','unaddressed_answer')),
+                   CHECK (kind IN ('default','unaddressed_answer','invented',
+                                   'scope','gap','finding','conflict',
+                                   'blocked','fault','other')),
     status         TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
     author         TEXT NOT NULL,
     version        INTEGER NOT NULL DEFAULT 1
+);
+
+-- A fault report to the people who build rota (frame 204, section 7). A
+-- seat that meets a door that failed, or a record that names a row that
+-- does not exist, says so through `ledger.log(kind='fault')` or
+-- `kind='blocked'`. No page shows the row, and no seat answers it. The
+-- composition's Records line rules that it stays countable: the cockpit,
+-- the night report and the state view read the open rows. The door writes
+-- the row, and `rota.tools.faults close` writes `status` and `closed_by`,
+-- one writer per column as on `ledger`. `closed_by` holds the number of the
+-- build frame that fixed the cause. A discharged fault is `resolved`, the
+-- ledger's word for a discharged row, because `closed` is a graph noun
+-- already (`tests/rota/test_vocabulary.py`).
+CREATE TABLE IF NOT EXISTS faults (
+    id          TEXT PRIMARY KEY,
+    session_id  TEXT NOT NULL DEFAULT '',
+    call        TEXT NOT NULL,
+    text        TEXT NOT NULL,
+    kind        TEXT NOT NULL DEFAULT 'fault' CHECK (kind IN ('fault','blocked')),
+    author      TEXT NOT NULL,
+    seq         INTEGER NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
+    closed_by   TEXT
 );
 
 -- The principal's reply to a page, read as a ruling by the Liaison.

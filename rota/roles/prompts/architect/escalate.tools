@@ -12,3 +12,4 @@ findings.load
 ledger.log
 msg.report_liaison
 findings.find
+# ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

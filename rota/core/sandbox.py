@@ -111,6 +111,11 @@ ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
     # `chat` is gone: the principal's words always land on a row (ruled:
     # Roman, 2026-10-08, the park ask is a page with rows, point 4).
     ("brief", "intake"): {"verdict": ("work",)},
+    # None: the op's own door reads the argument. `ledger.log` takes two
+    # words in one `kind` and keeps the first by the tie-break, and a word
+    # it refuses gets section 8's three questions (frame 204). The flat
+    # `kind` above is the backlog's and would refuse every word here.
+    ("ledger", "log"): {"kind": None},
 }
 
 # What a refused enum value says, where the list of values alone does not
@@ -346,7 +351,12 @@ def validate_args(fn: Callable, kwargs: dict,
         and (name not in kwargs or kwargs[name] is None)
     )
     if missing:
-        return f"missing required argument(s) {missing}; accepts ({_render_signature(fn)})"
+        said = f"missing required argument(s) {missing}; accepts ({_render_signature(fn)})"
+        # Frame 204: a missing `kind` gets the door's three questions, so
+        # the seat learns the word from the refusal and not by guessing.
+        if op == ("ledger", "log") and "kind" in missing:
+            said += " -- " + api.ledger_kind_door(ctx)
+        return said
 
     # A container where a scalar was declared. It passes every check above,
     # stages cleanly, and dies at the database as `type 'dict' is not
@@ -395,6 +405,8 @@ def validate_args(fn: Callable, kwargs: dict,
 
     checks = {**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
     for key, allowed in checks.items():
+        if allowed is None:
+            continue
         if key in kwargs and isinstance(kwargs[key], str) and kwargs[key] not in allowed:
             said = ENUM_REFUSALS.get((*(op or ("", "")), key, kwargs[key]))
             return said or f"{key}={kwargs[key]!r} is not one of {list(allowed)}"

@@ -115,21 +115,21 @@ def test_an_at_ref_must_name_an_area_this_run_declared(tmp_path):
     with _pytest.raises(ValueError, match="names no row"):
         sb.call("ledger.log", about_ref="@constraint_zero",
                 about_table="model_areas",
-                assumption="no constraint binds the zero case")
+                assumption="no constraint binds the zero case", kind="gap")
     assert sb.call("ledger.log", about_ref="@src/click",
                    about_table="model_areas",
-                   assumption="the decorators keep their names")["id"]
+                   assumption="the decorators keep their names", kind="gap")["id"]
     # The onboarding subjects that are not directories stay legal: a survey of
     # `@program` has no area row and still has assumptions to log.
     assert sb.call("ledger.log", about_ref="@program", about_table="items",
-                   assumption="the whole program is one command")["id"]
+                   assumption="the whole program is one command", kind="gap")["id"]
     # A boundary subject is a run subject like any other. `_boundary_wakes`
     # wakes the Architect with `@surface:<file>`, and the door passed it only
     # while the session's own area was that exact string, so every other seat
     # was refused (the diff review of 8ebbae1).
     assert sb.call("ledger.log", about_ref="@surface:intents.yaml",
                    about_table="items",
-                   assumption="the schema file is the outside edge")["id"]
+                   assumption="the schema file is the outside edge", kind="gap")["id"]
 
 
 def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
@@ -154,12 +154,12 @@ def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
     sb = build("terminologist", db, mode="deliver")
     with _pytest.raises(ValueError, match="is a ledger row"):
         sb.call("ledger.log", about_ref="l_1", about_table="glossary_terms",
-                assumption="The id 'l_1' is not a row in the glossary_terms table.")
+                assumption="The id 'l_1' is not a row in the glossary_terms table.", kind="default")
     with _pytest.raises(ValueError, match="is a row of glossary_terms, not of items"):
         sb.call("ledger.log", about_ref="g1", about_table="items",
-                assumption="recipe means the written one here")
+                assumption="recipe means the written one here", kind="default")
     assert sb.call("ledger.log", about_ref="g1", about_table="glossary_terms",
-                   assumption="recipe means the written one")["id"]
+                   assumption="recipe means the written one", kind="default")["id"]
 
 
 def test_a_row_staged_this_session_is_a_legal_ref(tmp_path):
@@ -194,9 +194,9 @@ def test_the_ledger_is_about_rows_not_tables(tmp_path):
     sb = build("developer", db, mode="tests_failing")
     with _pytest.raises(ValueError, match="names no row"):
         sb.call("ledger.log", about_ref="glossary",
-                about_table="glossary_terms", assumption="terms lowercase")
+                about_table="glossary_terms", assumption="terms lowercase", kind="default")
     out = sb.call("ledger.log", about_ref="i1", about_table="items",
-                  assumption="closure includes soft delete")
+                  assumption="closure includes soft delete", kind="default")
     assert out["id"].startswith("l_")
 
 

@@ -245,13 +245,13 @@ def test_a_library_module_never_imported_gets_the_line_to_add(db):
 
 def test_every_invented_literal_is_named_in_one_refusal(db):
     """'key', then 'nested', then 'array': one literal per turn, each logged
-    and re-sent, until the session ran out."""
+    and re-sent, until the session ran out. Frame 204: the door stages one
+    `invented` row that names every literal, and admits the encode."""
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
-    with pytest.raises(ValueError) as exc:
-        _encode(sb, "from script import close_account\n"
-                    "def test_x():\n    assert close_account('alpha_corp') == 'beta_corp'")
-    text = str(exc.value)
-    assert "'alpha_corp'" in text and "'beta_corp'" in text, text
+    _encode(sb, "from script import close_account\n"
+                "def test_x():\n    assert close_account('alpha_corp') == 'beta_corp'")
+    (row,) = [w for w in sb.ctx.writes if w[0] == "ledger"]
+    text = row[2]["default_taken"]
     import re
     assert re.search(r"assumes \w+_corp and \w+_corp where the material is silent", text), text
 

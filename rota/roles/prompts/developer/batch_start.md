@@ -42,7 +42,10 @@ is built against — it is invisible in the moment and undiscoverable afterwards
 **A choice the criteria did not make is a `ledger.log`.** Not a comment, not a
 TODO. When the criteria are silent and you have to pick, log the choice and the
 default you took, in the same session as the diff. The silent default is what
-this exists to prevent.
+this exists to prevent. `kind=` names the note in one word: `default` for a
+behaviour you chose, `invented` for a value you chose, `scope` for work you left
+out or added, `conflict` when two rows disagree, `blocked` or `fault` when rota
+itself stopped you, `other` when no word fits.
 
 A session that has done its job and has not been told so fills the remaining
 turns, and what it reaches for is the last thing this brief offered it — which

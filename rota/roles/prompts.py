@@ -139,6 +139,27 @@ def mode_order(role: str, mode: str) -> list[str] | None:
             if line.strip() and not line.startswith("#")]
 
 
+KINDS_LINE = "# ledger.log kinds:"
+
+
+def mode_kinds(role: str, mode: str) -> tuple[str, ...] | None:
+    """
+    The words `ledger.log` offers in a mode, or None for every word.
+
+    A `.tools` file names them on one comment line, `# ledger.log kinds:
+    default, invented`. A comment, because `mode_tools` skips it, so the
+    advertised list and the recorded prompts do not move (frame 204).
+    """
+    path = _pick(role, f"{mode}.tools")
+    if not path.exists():
+        return None
+    for line in _read(path).splitlines():
+        if line.strip().startswith(KINDS_LINE):
+            words = line.strip()[len(KINDS_LINE):].replace(",", " ").split()
+            return tuple(words) or None
+    return None
+
+
 def available(role: str) -> list[str]:
     d = PROMPT_DIR / role
     if not d.exists():
