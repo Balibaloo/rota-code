@@ -35,6 +35,17 @@ Rules:
    An observation carries its date, because an observation ages. A check
    quoted without its date is a prediction that wears the word observed
    (adopted from the kit on 2026-09-20, frame 50).
+9. Every frame's first line starts with `Site:`, the files or the seat it
+   edits. Two frames that share a file are never held together. Every
+   price line carries cycles beside tokens: a cycle is one agent's brief,
+   report, status line and commit, about 10k of the holding session's
+   context. A door text is 2 cycles, an instrument fix 3, a seam design
+   with its night 8 to 10, a count that closes on a night 0 (ruled: Roman,
+   2026-10-11 05:51; the measurement is in `plans/operating-facts.md`).
+10. A session holds up to three agents at once and about twenty cycles
+   in all. The session that launches a design frame's night hands off
+   once every other held frame is at a commit (ruled: Roman, 2026-10-11
+   05:51, "make sure that the meta workflow adopts these").
 
 ## Stack
 

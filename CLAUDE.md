@@ -265,8 +265,7 @@ failure sat inside an escaped JSON string, which three passes had not seen.
 An agent implements,
 re-records the touched cases, and returns the diff and the result. You
 review from a context that never read the files. A one-line door is the
-exception. Bulk reading goes to agents. One frame per wall. One status
-line per cycle.
+exception. Bulk reading goes to agents, and an agent's full report goes to a file the brief names, with ten lines back. One frame per wall. One status line per cycle.
 
 Opus builds, Fable judges. An implementer or a sweeper runs on Opus.
 The session that holds the frame is Fable. The line was measured once
@@ -295,12 +294,48 @@ takes the next pass. Write each pass's tokens in the status line beside
 the cold cost, about 300k a pass. If a resumed pass costs as much, the
 rule stops.
 
-A session may hold more than one frame at once when the frames touch
-different files (ruled: Roman, 2026-09-24 20:04, after frame 83's design
-review and frame 82's read ran side by side on his word). Each frame has
-its own agent, each status line names the agent's pass, and a hand-off
-carries every held frame. The gate and the commit stay one at a time,
-because both frames share one tree.
+**A session holds up to three agents at once and about twenty cycles in
+all** (ruled: Roman, 2026-10-11 05:51, "make sure that the meta workflow
+adopts these", after "Yes, paralelise maximally" at 05:36, when frame
+200's scope started beside frame 195's pass 1b). A cycle is one agent's
+brief, its report, the status line and the stack commit. It costs the
+holding session about 10k of context whatever the agent spends (observed:
+frames 199 and 195, eleven cycles, 2026-10-11). The shapes: a door text or
+a number, 2 cycles; an instrument fix, 3; a seam design with its night, 8
+to 10; a count that closes on a night, 0. A sprint is cut at about twenty
+cycles: one seam design and three or four small frames. More than three
+agents at once buys nothing, because every report lands in the holding
+session's context when it arrives, ready or not. This extends the ruling
+of 2026-09-24 20:04 that two frames run side by side when they touch
+different files. Five rules hold it:
+
+- **Site.** Every frame's first line names its site as a fixed field,
+  `Site:`, the files or the seat it edits. Two frames that share a file
+  are never held together: the second waits on the first's commit. Reads
+  run side by side whatever their site. The map tool checks a site.
+- **Price in cycles.** Every price line carries cycles beside tokens, and
+  the closing status writes the actual cycles beside the estimate.
+- **Reports to a file.** Every agent writes its full report to the path
+  its brief names, under `plans/` for a read or a review the records
+  point to, and under the scratchpad for a pass report, and returns ten
+  lines: the verdict, the counts, the paths. The session reads the file
+  for the judgement cases only. Written reports that return whole cost
+  10k to 15k a cycle; ten lines cost about 3k.
+- **The night is the hand-off boundary.** The session that launches a
+  design frame's night writes the momentum note and hands off once every
+  other held frame is at a commit, whatever its count. A night is hours
+  on the GPU, and the read after it is the frame's largest cycle, so the
+  standby's clean context takes it. This is the one hand-off below 400k
+  that the 400k rule allows, because the held frame cannot move until the
+  night ends.
+- **One checkout.** Each held frame has its own agent, each status line
+  names the agent's pass, and a hand-off carries every held frame.
+  Implementers edit one at a time in the checkout, and the gate and the
+  commit stay one at a time, because the frames share one tree.
+
+Two features wait on a night: implementers on branches with one merge
+queue, after frame 200's night shows whether the one-checkout rule bites,
+and a `handed` column that lists more than one frame.
 
 A change that is the same edit in more than three files is a script.
 Write the script with the Write tool and run it. Print the touched
@@ -415,9 +450,7 @@ Copying a claim never observes it: a claim you take from another record
 keeps that record's mark and date, and never gains a fresh one. One unrun
 claim copied into three records reads as three records agreeing, and it is
 still one claim nobody ran. Say which workflow a statement is about: the
-meta workflow, this build session, or the rota workflow, the seats. Five
-lines per frame: what, ends when, waits on, a pointer to the reasoning, a
-dated status. A status line carries the numbers and the verdict, and the
+meta workflow, this build session, or the rota workflow, the seats. Five lines per frame: what, with its `Site:` field first, ends when, waits on, with the price in cycles beside tokens, a pointer to the reasoning, a dated status. A status line carries the numbers and the verdict, and the
 reasoning goes to a record file the pointer names (ruled: Roman, 2026-09-27,
 after frame 86's block reached 130 lines). Every frame carries a name of a few words in its heading,
 and every mention of that frame carries the name with the number. "Frame

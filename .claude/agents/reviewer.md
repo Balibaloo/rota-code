@@ -58,7 +58,10 @@ default model is not the suite's.
 ## The report
 
 The report has these sections, in this order. You are done when every
-section exists. Prose in Simplified Technical English: one topic per
+section exists. Write the whole report to the path the brief names,
+and return ten lines in your final message: the verdict, the counts and
+the paths. When the brief names no path, write it under the session's
+scratchpad directory the brief names, and say where. Prose in Simplified Technical English: one topic per
 sentence, the active voice, at most 20 words.
 
 - (a) The verdict on each numbered point, one line each.

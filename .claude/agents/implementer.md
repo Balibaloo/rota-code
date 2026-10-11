@@ -79,7 +79,10 @@ the files, the change and the tests. You change nothing outside the brief.
 ## The report
 
 The report has these sections, in this order. You are done when every
-section exists.
+section exists. Write the whole report to the path the brief names,
+and return ten lines in your final message: the verdict, the counts and
+the paths. When the brief names no path, write it under the session's
+scratchpad directory the brief names, and say where.
 
 - (a) What changed: each file with its lines and one sentence.
 - (b) The suite: the exact command, the summary line, one traceback per
