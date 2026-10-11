@@ -50,6 +50,25 @@ def tests_for(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
         (batch_id,))]
 
 
+def tester_paths(conn: sqlite3.Connection, batch_id: str) -> set[str]:
+    """The paths of tests that rota's Tester wrote for a merged batch.
+
+    Frame 207, night 140: bg_1's Tester test merged, and bg_2 inherited it
+    with no criterion. The harness then dropped the warning filter, and the
+    project's `filterwarnings = error` turned the test red. A test keeps
+    the filter of the batch that wrote it.
+    """
+    return {r["path"].replace("\\", "/") for r in conn.execute(
+        "SELECT DISTINCT t.path FROM tests t JOIN batches b ON b.id = t.batch_id "
+        "WHERE t.criterion_id IS NOT NULL AND t.batch_id != ? "
+        "AND b.status = 'merged'", (batch_id,))}
+
+
+def _own(t: dict, tester: set[str]) -> bool:
+    """True when the test runs under the batch's filter, not the project's."""
+    return bool(t.get("criterion_id")) or t["path"].replace("\\", "/") in tester
+
+
 def worktree_of(conn: sqlite3.Connection, batch_id: str) -> str | None:
     row = conn.execute(
         "SELECT worktree FROM batches WHERE id = ?", (batch_id,)).fetchone()
@@ -120,9 +139,10 @@ def run(conn: sqlite3.Connection, batch_id: str,
     runner = _config.get(conn, "runner")
     results: list[tuple[str, str]] = []
     output: dict[str, str] = {}
+    tester = tester_paths(conn, batch_id)
     for t in tests:
         verdict, said = _run_one(root, t["path"], timeout, runner=runner,
-                                 own=bool(t.get("criterion_id")))
+                                 own=_own(t, tester))
         results.append((t["id"], verdict))
         output[t["id"]] = said
 
@@ -245,4 +265,86 @@ def inherit(conn: sqlite3.Connection, batch_id: str, worktree: Path) -> list[str
             "INSERT OR REPLACE INTO tests (id, batch_id, criterion_id, path, body) "
             "VALUES (?, ?, NULL, ?, ?)", (tid, batch_id, rel, body))
         found.append(rel)
+    # The base run needs the tree as the batch found it. A resumed batch
+    # holds its own commits, so it keeps the record of its first start.
+    if (found and base_run(conn, batch_id) is None
+            and not lifecycle.head_of(conn, batch_id)):
+        record_base_run(conn, batch_id, worktree,
+                        [inherited_id(rel) for rel in found])
     return found
+
+
+def _base_key(batch_id: str) -> str:
+    return f"base_run:{batch_id}"
+
+
+def base_run(conn: sqlite3.Connection, batch_id: str) -> dict | None:
+    """The recorded base run of the batch's inherited tests, or None.
+
+    The value maps a test id to its result, and a red result to its output.
+    """
+    import json
+
+    row = conn.execute("SELECT value FROM config WHERE key = ?",
+                       (_base_key(batch_id),)).fetchone()
+    if row is None:
+        return None
+    try:
+        data = json.loads(row["value"])
+    except (TypeError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def record_base_run(conn: sqlite3.Connection, batch_id: str, worktree: Path,
+                    test_ids: list[str], *, timeout: int = 120) -> dict:
+    """
+    Run the inherited tests once at the batch's base, and record the result.
+
+    Frame 207, night 140: three doors said "it passed before this batch"
+    from a constant, and the test was red at bg_2's base. A door now says
+    that sentence only from this record. Each test runs under the filter
+    the batch's own run gives it, so the base run and the batch's runs agree.
+
+    One pytest call runs each filter group. A green group costs one child.
+    A red group runs again file by file, so each red row has its own output.
+    """
+    import json
+
+    from . import config as _config
+    from . import execute
+    from .provision import python_for
+
+    wanted = set(test_ids)
+    tests = [t for t in tests_for(conn, batch_id) if t["id"] in wanted]
+    tester = tester_paths(conn, batch_id)
+    runner = _config.get(conn, "runner")
+    root = Path(worktree)
+    record: dict[str, dict] = {}
+    for own in (True, False):
+        group = [t for t in tests if _own(t, tester) == own]
+        if not group:
+            continue
+        try:
+            out = execute.run(
+                root, [python_for(root), "-m", "pytest",
+                       *[shlex.quote(t["path"]) for t in group],
+                       "-q", "--no-header",
+                       *(["-W", "ignore::DeprecationWarning"] if own else []),
+                       "-p", PLUGIN],
+                timeout=timeout * len(group), runner=runner, env=plugin_env())
+            green = not out.error and out.returncode == EXIT_OK
+        except KeyError:
+            green = False
+        if green:
+            for t in group:
+                record[t["id"]] = {"result": "pass"}
+            continue
+        for t in group:
+            verdict, said = _run_one(root, t["path"], timeout, runner=runner,
+                                     own=own)
+            record[t["id"]] = ({"result": verdict} if verdict == "pass"
+                               else {"result": verdict, "output": said})
+    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                 (_base_key(batch_id), json.dumps(record, sort_keys=True)))
+    return record

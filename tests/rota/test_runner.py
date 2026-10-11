@@ -3254,6 +3254,11 @@ def _f120_db(tmp_path, own: list[str], project: list[str]):
         conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
                      "result, output, attempt) VALUES (?, 'b1', ?, 'abc123', "
                      "'error', ?, 1)", (f"r{n}", tid, said))
+    # Frame 207: the base run found every project test green, so the
+    # doors say "passed before this batch".
+    conn.execute("INSERT INTO config (key, value) VALUES ('base_run:b1', ?)",
+                 (json.dumps({tid: {"result": "pass"}
+                              for tid, crit, _, _ in rows if not crit}),))
     conn.commit()
     return conn
 
@@ -3378,3 +3383,85 @@ def test_red_rows_merge_on_byte_identical_outputs_only():
             {"id": "d", "path": "tests/test_d.py", "said": said + " "}]
     assert _red_rows_by_output(rows) == [
         {k: r[k] for k in ("id", "path", "said")} for r in rows]
+
+
+# Frame 207. Night 140's red line for `inh_f3b0c3db` at bg_2's base 3901a51.
+_F207_SAID = (
+    "tests/test_utils/test_confirm_closed_stdin.py:8: in test_confirm\n"
+    "    with runner.isolated_filesystem():\n"
+    "E   DeprecationWarning: 'isolated_filesystem' is deprecated and will be "
+    "removed in Click 9.0.\n"
+    "1 failed in 0.15s")
+_F207_QUOTE = ("DeprecationWarning: 'isolated_filesystem' is deprecated and "
+               "will be removed in Click 9.0")
+_F207_FACT = (
+    "the base run at this batch's start found inh_00000000 red too. The "
+    "base run said: " + _F207_QUOTE + ". Your diff did not break it, and "
+    "the fix is not yours. Send msg.escalate_architect(refs=['inh_00000000'])")
+
+
+def _f207_db(tmp_path, own: list[str], result: str):
+    """Frame 120's batch with one red project test, and a base run that
+    found that test `result`."""
+    conn = _f120_db(tmp_path, own, [_F207_SAID])
+    row = {"result": result}
+    if result != "pass":
+        row["output"] = _F207_SAID
+    conn.execute("INSERT OR REPLACE INTO config (key, value) "
+                 "VALUES ('base_run:b1', ?)",
+                 (json.dumps({"inh_00000000": row}),))
+    conn.commit()
+    return conn
+
+
+def test_the_fix_wake_quotes_the_base_run_of_a_project_test_red_at_the_base(tmp_path):
+    """Frame 207, night 140: the push said "they passed before this batch"
+    from a constant, and the test was red at bg_2's base."""
+    conn = _f207_db(tmp_path, [], "fail")
+    sb, wake, pushed = _f120_push(conn)
+    assert pushed["tests.load"]["what that means"] == (
+        "1 test(s) with no criterion are the project's, and " + _F207_FACT)
+
+
+def test_the_fix_wake_keeps_its_sentence_when_the_base_run_passed(tmp_path):
+    conn = _f207_db(tmp_path, [], "pass")
+    sb, wake, pushed = _f120_push(conn)
+    assert pushed["tests.load"]["what that means"] == (
+        "1 test(s) with no criterion are the project's, and they passed "
+        "before this batch. Your diff broke them. Read code.diff below and "
+        "restore what it changed; a challenge has no side here")
+
+
+def test_a_challenge_on_a_base_red_project_test_is_offered_an_admitted_escalation(tmp_path):
+    """Frame 207, night 140: s322 challenged `inh_f3b0c3db` and the door
+    said it passed before this batch. The door now quotes the base run and
+    names the escalation, and the doors admit that call."""
+    from rota.core.sandbox import dry_run
+
+    conn = _f207_db(tmp_path, [], "fail")
+    sb, _, _ = _f120_push(conn)
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["inh_00000000"],
+                quotes=["with runner.isolated_filesystem():"])
+    assert str(exc.value) == (
+        "a challenge to the tester names both sides of the conflict in refs "
+        "-- the criterion and the test -- and yours names no criterion. "
+        "inh_00000000 has no criterion: it is the project's own test and "
+        + _F207_FACT)
+    offers = [o for o in sb.ctx.offers if o.op == "msg.escalate_architect"]
+    assert [o.args for o in offers] == [{"refs": ["inh_00000000"]}]
+    res = dry_run(sb, offers[0].op, offers[0].args, offers[0].then)
+    assert res.admitted, res.refusal
+
+
+def test_a_challenge_pairing_a_criterion_with_a_base_red_project_test_quotes_the_base_run(tmp_path):
+    """The second door of the same challenge: a criterion of this batch
+    beside the project's test."""
+    conn = _f207_db(tmp_path, ["own failure"], "fail")
+    sb, _, _ = _f120_push(conn)
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c0", "inh_00000000"],
+                quotes=["echo_json case c0", "with runner.isolated_filesystem():"])
+    assert str(exc.value) == (
+        "inh_00000000 has no criterion: it is the project's own test and "
+        + _F207_FACT)

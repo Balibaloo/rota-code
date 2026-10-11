@@ -2905,11 +2905,15 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             if project:
                 shown["the project's own tests, not passing at your commit"] = (
                     _red_rows_by_output(project))
+                # Frame 207, night 140: this sentence was a constant, and
+                # the test was red at the base. The base run says it now.
+                fact = sandbox_mod.project_tests_fact(
+                    sb.ctx, [r["id"] for r in project], offer=False)
                 shown["what that means"] = (
                     f"{len(project)} test(s) with no criterion are the project's, and "
-                    f"they passed before this batch. Your diff broke them. Read "
-                    f"code.diff below and restore what it changed; a challenge has "
-                    f"no side here")
+                    + (fact or "they passed before this batch. Your diff broke them. "
+                       "Read code.diff below and restore what it changed; a "
+                       "challenge has no side here"))
             shown["passing, not shown"] = f"{green} test(s)"
             pushed["tests.load"] = shown
             if own and "code.source" in have:

@@ -1150,11 +1150,14 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                 elif row:
                     # click night 47 (2026-09-14): "send refs=['None', ...]"
                     # was sent as written, four turns, on nineteen of the
-                    # project's own tests.
+                    # project's own tests. Frame 207: the base run, not a
+                    # constant, says whether it passed before this batch.
+                    fact = project_tests_fact(ctx, [test[0]])
                     hint = (f". {test[0]} has no criterion: it is the project's "
-                            f"own test and it passed before this batch. A "
-                            f"challenge has no side there. Read code.diff and "
-                            f"restore what your change broke")
+                            f"own test and " + (fact or
+                            "it passed before this batch. A "
+                            "challenge has no side there. Read code.diff and "
+                            "restore what your change broke"))
             # The other direction of the same derivation. Measured the day
             # the Critic's structural fork landed: `verdicts.claim_encodes`
             # correctly named the criterion, the challenge that followed
@@ -1189,10 +1192,13 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                         _send(r["criterion_id"], r["test_id"])
                         for r in owned[:3])
                 elif failing:
+                    fact = project_tests_fact(
+                        ctx, [r["test_id"] for r in failing])
                     hint = (f". The {len(failing)} failing test(s) have no criterion: "
-                            f"they are the project's own and passed before this "
-                            f"batch. A challenge has no side there. Read code.diff "
-                            f"and restore what your change broke")
+                            f"they are the project's own and " + (fact or
+                            "passed before this "
+                            "batch. A challenge has no side there. Read code.diff "
+                            "and restore what your change broke"))
             raise ValueError(
                 f"a challenge to the tester names both sides of the conflict "
                 f"in refs -- the criterion and the test -- and yours names "
@@ -1216,10 +1222,14 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
         owner = ctx.conn.execute(
             "SELECT criterion_id FROM tests WHERE id = ?", (test[0],)).fetchone()
         if owner is not None and not owner["criterion_id"]:
+            # Frame 207: the base run, not a constant, says whether the
+            # test passed before this batch.
+            fact = project_tests_fact(ctx, [test[0]])
             raise ValueError(
                 f"{test[0]} has no criterion: it is the project's own test and "
-                f"it passed before this batch. A challenge has no side there. "
-                f"Read code.diff and restore what your change broke")
+                + (fact or "it passed before this batch. A challenge has no "
+                   "side there. Read code.diff and restore what your change "
+                   "broke"))
         for r in (crit[0], test[0]):
             # The test's side is its code. Click night 58 (2026-09-14): the
             # Tester had pasted the criterion sentence into a comment, so
@@ -1403,6 +1413,68 @@ def _escalation_admitted(ctx: api.Ctx, refs) -> bool:
     if _sent_this_session(ctx, "architect", "escalate"):
         return False
     return _same_refs_refusal(ctx, "architect", "escalate", refs) is None
+
+
+def _base_quote(output: str) -> str:
+    """The line of a red base run that says why: the first `E ` line."""
+    lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
+    said = next((ln[1:].strip() for ln in lines if ln.startswith("E ")),
+                lines[-1] if lines else "no output")
+    return said[:200].rstrip(".")
+
+
+def project_tests_fact(ctx: api.Ctx, ids: list[str], *,
+                       offer: bool = True) -> str | None:
+    """
+    What the batch's base run says about the project's red tests `ids`, or
+    None when the base run passed every one. On None the caller says its
+    own "passed before this batch" sentence.
+
+    Frame 207, night 140: the doors said "passed before this batch" from a
+    constant, and `inh_f3b0c3db` was red at bg_2's base. Now the sentence
+    comes from the record `harness.record_base_run` wrote. A test that is
+    red at the base is not the Developer's to fix. The escalation is the
+    admitted call for it, so the text names that call exactly.
+    """
+    from . import harness
+
+    base = harness.base_run(ctx.conn, ctx.batch_id) if ctx.batch_id else None
+    rows = base or {}
+    ids = list(dict.fromkeys(ids))
+    red = [i for i in ids if isinstance(rows.get(i), dict)
+           and rows[i].get("result") in ("fail", "error")]
+    passed = [i for i in ids if isinstance(rows.get(i), dict)
+              and rows[i].get("result") == "pass"]
+    unknown = [i for i in ids if i not in red and i not in passed]
+    if not red and not unknown:
+        return None
+    parts = []
+    if red:
+        quote = _base_quote(rows[red[0]].get("output", ""))
+        parts.append(
+            f"the base run at this batch's start found {', '.join(red)} red "
+            f"too. The base run said: {quote}. Your diff did not break "
+            f"{'it' if len(red) == 1 else 'them'}, and the fix is not yours")
+        if _escalation_admitted(ctx, red):
+            said = f"Send msg.escalate_architect(refs={red!r})"
+            if offer:
+                api._offer(ctx, said, "msg.escalate_architect", {"refs": red})
+            parts.append(said)
+        else:
+            parts.append("You escalated these refs already. End the session "
+                         "with no call")
+    if passed:
+        parts.append(f"{', '.join(passed)} passed before this batch. Read "
+                     f"code.diff and restore what your change broke")
+    if unknown:
+        # A push can hold 34 project rows (night 113), so a long list is a count.
+        named = (', '.join(unknown) if len(unknown) <= 3
+                 else f"{len(unknown)} of these tests")
+        parts.append(f"no base run of {named} is on record. A "
+                     f"challenge has no side there. Read code.diff and find "
+                     f"what your change broke")
+    return ". ".join(p[0].upper() + p[1:] if n else p
+                     for n, p in enumerate(parts))
 
 
 def _waits_refusal(verb: str, recipient: str, waiting_id: str,

@@ -468,6 +468,89 @@ def test_the_harness_carries_the_section_into_the_test_run(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Frame 207: an inherited Tester test keeps its batch's filter, and the base
+# run is recorded
+# ---------------------------------------------------------------------------
+
+# Night 140's shape: click's `isolated_filesystem` warns, and the project
+# sets `filterwarnings = error`.
+WARNS = NL.join([
+    "import warnings",
+    "",
+    "",
+    "def isolated():",
+    "    warnings.warn('isolated is deprecated', DeprecationWarning, stacklevel=2)",
+    "    return 1",
+    ""])
+USES_WARNS = NL.join([
+    "from click.old import isolated",
+    "",
+    "",
+    "def test_isolated():",
+    "    assert isolated() == 1",
+    ""])
+STRICT = "[pytest]" + NL + "filterwarnings =" + NL + "    error" + NL
+
+
+def _f207_db(tmp_path):
+    from rota.core.db import init_db
+
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+                 "VALUES ('i1','ship it','in_scope','approved',1,1)")
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','do it')")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','t1','it works')")
+    return conn
+
+
+def test_an_inherited_tester_test_keeps_its_batch_filter_under_filterwarnings_error(tmp_path):
+    """Night 140: bg_1's Tester test passed in bg_1 and failed in bg_2 on a
+    DeprecationWarning. A project test with the same body keeps the
+    project's filter and stays red."""
+    conn = _f207_db(tmp_path)
+    wt = _tree(tmp_path / "wt", {"pytest.ini": STRICT, "click/old.py": WARNS})
+    conn.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','merged')")
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit, worktree) "
+                 "VALUES ('b2','i1','running','abc123',?)", (str(wt),))
+    conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                 "VALUES ('tst1','b1','c1','tests/test_isolated.py',?)", (USES_WARNS,))
+    for path in ("tests/test_isolated.py", "tests/test_project.py"):
+        conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                     "VALUES (?, 'b2', NULL, ?, ?)",
+                     (harness.inherited_id(path), path, USES_WARNS))
+    results = dict(harness.run(conn, "b2"))
+    assert results == {harness.inherited_id("tests/test_isolated.py"): "pass",
+                       harness.inherited_id("tests/test_project.py"): "fail"}, results
+
+
+def test_a_base_run_with_one_red_inherited_test_is_recorded(tmp_path):
+    """Night 140: the doors said "passed before this batch" from a
+    constant. `inherit` now runs the inherited tests at the base once and
+    records each result, with the output of a red."""
+    conn = _f207_db(tmp_path)
+    wt = _tree(tmp_path / "wt", {
+        "pytest.ini": STRICT, "click/old.py": WARNS,
+        "tests/test_green.py": "def test_green():" + NL + "    assert True" + NL,
+        "tests/test_red.py": USES_WARNS})
+    conn.execute("INSERT INTO batches (id, item_id, status, worktree) "
+                 "VALUES ('b1','i1','running',?)", (str(wt),))
+    assert sorted(harness.inherit(conn, "b1", wt)) == [
+        "tests/test_green.py", "tests/test_red.py"]
+    base = harness.base_run(conn, "b1")
+    green = harness.inherited_id("tests/test_green.py")
+    red = harness.inherited_id("tests/test_red.py")
+    assert sorted(base) == sorted([green, red]), base
+    assert base[green] == {"result": "pass"}
+    assert base[red]["result"] == "fail"
+    assert "DeprecationWarning: isolated is deprecated" in base[red]["output"]
+    # A resumed batch holds its own commits, so its tree is not the base.
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit, worktree) "
+                 "VALUES ('b3','i1','running','abc123',?)", (str(wt),))
+    harness.inherit(conn, "b3", wt)
+    assert harness.base_run(conn, "b3") is None
+
+
+# ---------------------------------------------------------------------------
 # tests.load: the `raised at` words
 # ---------------------------------------------------------------------------
 
