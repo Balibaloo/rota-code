@@ -1,0 +1,15 @@
+# Frame 200: the gate on the worktree C:/Users/roman/rota_g200 at 8d090e2e, passes 2 and 2b
+
+Run by session be3ef742 after its hand-off, 2026-10-11, with the register, its WAL and the baseline copied in. The lines below are the gate's own, verbatim. The two new reds are the two seat cases this frame named as its known reds; pass 2c re-scopes both. Meta workflow.
+
+```
+rerecording 1 stale cases, five live runs each, on qwen3:8b
+rerecorded L1-DV-a-wordless-answer-leaves-a-wrong-test-alone: FAIL 2/5 -> FAIL 1/5, stale by its failure
+suite: 25 failed, 3661 passed, 35 skipped, 19 xfailed, 17 warnings (baseline: 24 failed, 3580 passed, 32 skipped, 20 xfailed, 17 warnings)
+new reds (2): tests/rota/test_l1.py::test_l1_case[L1-AR-a-test-that-misses-its-criterion-gets-a-decision-row], tests/rota/test_l1.py::test_l1_case[L1-DV-a-wordless-answer-leaves-a-wrong-test-alone]
+reds gone (0): none
+stale (0): none
+time: 1218.6s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 5d68808 2026-10-11 02:11
+note: the tree moved past the baseline (5d68808 -> 8d090e2)
+exit 1: 2 new reds, 0 of them flaky
+```
