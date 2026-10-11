@@ -183,6 +183,11 @@ class _Finder(object):
                     continue
                 find = getattr(finder, "find_spec", None)
                 if find is None:
+                    # Python 3.11 and older ask a `find_module` finder in its
+                    # place. None leaves that finder its turn (frame 195,
+                    # review of 89fd9027, finding 1).
+                    if getattr(finder, "find_module", None) is not None:
+                        return None
                     continue
                 spec = find(name, path, target)
                 if spec is not None:

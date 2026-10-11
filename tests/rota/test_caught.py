@@ -193,6 +193,61 @@ def test_a_test_that_imports_the_runner_inside_its_body_is_reported(tmp_path):
         f"caught by CliRunner at {os.path.join('tests', 'test_body.py')}:7: Boom"], out.stdout
 
 
+def test_a_runner_reloaded_inside_the_test_body_is_reported(tmp_path):
+    """The call-time wrap runs before the body, so the class that a reload
+    in the body makes is wrapped by the finder alone (the review of
+    89fd9027, finding 2)."""
+    root = _tree(tmp_path, {"tests/test_reload.py": NL.join([
+        "import importlib",
+        "",
+        "import click.testing",
+        "",
+        "def boom(*args):",
+        "    raise KeyError('no')",
+        "",
+        "def test_reload():",
+        "    importlib.reload(click.testing)",
+        "    r = click.testing.CliRunner().invoke(boom)",
+        "    assert r.output == 'yes'",
+        ""])})
+    out = _pytest(root, "tests/test_reload.py")
+    assert out.returncode == 1, out.stdout
+    assert _final(out.stdout) == [
+        f"caught by CliRunner at {os.path.join('tests', 'test_reload.py')}:6: KeyError"], out.stdout
+
+
+def test_the_finder_leaves_a_legacy_finder_its_turn(monkeypatch):
+    """Python 3.11 asks a `find_module` finder in its place on `sys.meta_path`.
+    The finder skipped it and took the next spec (the review of 89fd9027,
+    finding 1). Python 3.12 ignores such a finder, so the test calls
+    `find_spec` directly."""
+    import importlib.machinery
+    import importlib.util
+
+    # The module installs its finder at load. The copy keeps the suite's own
+    # `sys.meta_path` clean.
+    monkeypatch.setattr(sys, "meta_path", list(sys.meta_path))
+    spec = importlib.util.spec_from_file_location(
+        "_rota_caught_legacy_probe", harness.PLUGIN_DIR / (harness.PLUGIN + ".py"))
+    plugin = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(plugin)
+
+    served = importlib.machinery.ModuleSpec("click.testing", None)
+
+    class Legacy:
+        def find_module(self, name, path=None):
+            return None
+
+    class Modern:
+        def find_spec(self, name, path=None, target=None):
+            return served if name == "click.testing" else None
+
+    monkeypatch.setattr(sys, "meta_path", [plugin._finder, Modern()])
+    assert plugin._finder.find_spec("click.testing") is served
+    monkeypatch.setattr(sys, "meta_path", [plugin._finder, Legacy(), Modern()])
+    assert plugin._finder.find_spec("click.testing") is None
+
+
 def test_a_project_with_no_click_runs_unchanged(tmp_path):
     (tmp_path / "pytest.ini").write_text("[pytest]" + NL, encoding="utf-8")
     (tmp_path / "test_plain.py").write_text(
