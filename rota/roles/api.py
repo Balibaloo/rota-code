@@ -5926,8 +5926,14 @@ def _plain_decorated(tree, name: str):
         if is_factory(f) and not c.args:
             return name, c.lineno, "inline"
         # The factory's return as an argument of another call, night 138's
-        # v12: `re.search(..., version_option(show_python=True))`.
-        for a in [*c.args, *(k.value for k in c.keywords)]:
+        # v12: `re.search(..., version_option(show_python=True))`. A helper
+        # the test defines with `def`, or `functools.wraps`, can apply the
+        # return to a command. Click 8.5 ran both forms and printed the
+        # version (the second look at dd583398, finding 1).
+        receives = ([] if (_called(f) == "wraps"
+                           or (isinstance(f, _ast.Name) and f.id in defs))
+                    else [*c.args, *(k.value for k in c.keywords)])
+        for a in receives:
             if isinstance(a, _ast.Name) and a.id in bare:
                 return a.id, bare[a.id], "decorator-argument"
             if is_factory(a):
@@ -7994,6 +8000,19 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
     # a column that references `ledger(id)`. Saying so costs a turn; the commit
     # cost the session.
     staged = {i for t, i, *_ in ctx.writes if t == "decisions"}
+    # Design 200 pass 2b: interviewed in its context, an Architect run sent
+    # `resolves_ledger=["c_459e6e"]`, a criterion id, and the session lost its
+    # decision (`plans/frame200-interviews.md`). The sentence names the fact.
+    named = (resolves_ledger if isinstance(resolves_ledger, list)
+             else [resolves_ledger])
+    crit = next((r for r in named if isinstance(r, str) and ctx.conn.execute(
+        "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()), None)
+    if crit:
+        raise ValueError(_offer(
+            ctx,
+            f"{crit} is a criterion, and resolves_ledger takes the id of a "
+            f"ledger row. Send decisions.author again without resolves_ledger.",
+            "decisions.author", {"id": id, "text": text, "refs": refs or []}))
     if resolves_ledger is not None and not isinstance(resolves_ledger, str):
         raise ValueError(
             f"resolves_ledger is the id of the ledger entry this decision "
@@ -12012,15 +12031,17 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     head = ("class " if isinstance(node, _ast.ClassDef) else
                             "async def " if isinstance(node, _ast.AsyncFunctionDef)
                             else "def ") + node.name
+                    # Counted from 0, as `code.source` counts and as every
+                    # other `line_text` fact counts (design 200 pass 2b).
                     _fact(ctx, "line_text", head, n=seen[node.name], text=text)
-                    _fact(ctx, "line_text", head, n=node.lineno, text=text)
+                    _fact(ctx, "line_text", head, n=node.lineno - 1, text=text)
                     raise ValueError(
                         f"{path} defines {node.name} twice (lines "
-                        f"{seen[node.name]} and {node.lineno}). Python keeps "
+                        f"{seen[node.name]} and {node.lineno - 1}). Python keeps "
                         f"the last one and the first never runs. One name, "
                         f"one definition: give the new behaviour its own "
                         f"name, or change the one definition")
-                seen[node.name] = node.lineno
+                seen[node.name] = node.lineno - 1
         # One name, one definition, across the tree too. clickI night 35
         # (2026-09-13): the Developer wrote `src/click/main.py` with its own
         # `def echo` beside `echo_json`, when `src/click/utils.py::echo` is

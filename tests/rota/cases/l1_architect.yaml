@@ -206,6 +206,80 @@
     # behalf that the commitment did not matter.
     writes: [constraints, criteria, items]
 
+- id: L1-AR-a-test-that-misses-its-criterion-gets-a-decision-row
+  # Frame 200, design change 4, frame 115's row route. Night 139's m155: the
+  # Developer escalated a test that applies the factory to a plain function
+  # and calls the result. The criterion holds and the test does not encode
+  # it. The Architect answered with m155's own refs and no words, m156.
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 4
+  inbound: {from: developer, to: architect, verb: escalate,
+            body_refs: [<c1>, <tst1>]}
+  fixture:
+    items:
+      - {id: <i1>, text: "version_option can show the running Python version",
+         kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "add a show_python flag to version_option"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "When `version_option` is invoked with `show_python=True`, the
+                output message must append the running Python version formatted
+                exactly as `{major}.{minor}.{micro}`, derived from
+                `sys.version_info`.",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_version_option_shows_python.py
+        body: |
+          from src.notify.decorators import version_option
+          import sys
+
+          def test_version_option_shows_python_when_flag_true():
+              # Create a simple function to decorate
+              def cmd():
+                  return "version"
+
+              # Apply decorator with show_python=True
+              decorated = version_option(show_python=True)(cmd)
+
+              # Call the decorated function and check output includes Python version
+              result = decorated()
+              expected = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+              assert expected in result
+    test_runs:
+      - id: <r1>
+        batch_id: <b1>
+        test_id: <tst1>
+        commit_sha: abc123
+        result: fail
+        output: |
+          >       assert expected in result
+          E       AssertionError: assert '3.12.4' in 'version'
+
+          tests/test_version_option_shows_python.py:14: AssertionError
+          1 failed in 0.11s
+  expect:
+    # The row first, then the answer that refs it. The send door refuses an
+    # answer that adds no row, so a landed answer carries the decision.
+    writes:
+      decisions: {count: "1..2"}
+    messages:
+      - {to: developer, verb: answer, count: ">=1"}
+  forbidden:
+    # The criterion and the scope hold. Only the test is wrong.
+    writes: [constraints, criteria, items]
+    recipients: [liaison]
+
 - id: L1-AR-answer-a-question-read-only
   tier: T1
   role: architect

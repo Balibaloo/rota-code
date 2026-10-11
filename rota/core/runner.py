@@ -425,6 +425,9 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     body = [f"You were woken by: {wake.kind}"]
     if wake.message_id:
         body.append(f"Inbound message: {wake.message_id} ({wake.detail})")
+        caused = _answer_cause_line(sb.ctx.conn, wake)
+        if caused:
+            body.append(caused)
     subject_word = ""
     if wake.refs:
         body.append(f"Refs: {', '.join(wake.refs)}")
@@ -2081,6 +2084,36 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
     return list(reversed(out))
 
 
+def _answer_cause_line(conn: sqlite3.Connection, wake) -> str:
+    """
+    The line that names what an answer answers, or "".
+
+    Design 200 pass 2b: interviewed in its context, the s282 case's seat did
+    not see its own escalation, so the brief's wordless-answer branch had no
+    fact in front of it (`plans/frame200-interviews.md`). Only an answer to
+    the woken role's own challenge or escalation gets the line, so no other
+    wake's prompt moves.
+    """
+    if wake.detail != "answer" or not wake.message_id:
+        return ""
+    row = conn.execute(
+        "SELECT q.id, q.verb, q.body_refs FROM messages a "
+        "JOIN messages q ON q.id = a.cause_id "
+        "WHERE a.id = ? AND q.from_role = ? "
+        "AND q.verb IN ('challenge', 'escalate')",
+        (wake.message_id, wake.role)).fetchone()
+    if row is None:
+        return ""
+    try:
+        refs = [r for r in json.loads(row["body_refs"] or "[]")
+                if isinstance(r, str)]
+    except (TypeError, ValueError):
+        refs = []
+    noun = "escalation" if row["verb"] == "escalate" else row["verb"]
+    return (f"This answers your {noun} {row['id']} about "
+            f"{', '.join(refs) or 'no rows'}")
+
+
 def _resolve_refs(conn: sqlite3.Connection, refs,
                   role: str | None = None,
                   detail: str | None = None) -> dict[str, Any]:
@@ -2182,6 +2215,18 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                             "result": run["result"],
                             "output_tail": keep}
                 break
+        else:
+            # Frame 115, design 200 change 4: law 2 keeps words off an
+            # Architect answer, so its words travel as a decision row. A
+            # message wake shows the row's text. 10 of 10 Architect answers
+            # to the Developer on nights 138 and 139 carried refs alone. A
+            # page or a rulings line passes no role and keeps its text.
+            if role is not None:
+                hit = conn.execute(
+                    "SELECT id, author, text FROM decisions WHERE id = ?",
+                    (ref,)).fetchone()
+                if hit:
+                    resolved[ref] = {**dict(hit), "table": "decisions"}
     return resolved
 
 

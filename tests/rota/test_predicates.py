@@ -2160,3 +2160,154 @@ def test_a_fail_a_later_pass_superseded_does_not_exhaust(db):
     db.commit()
     assert [w for w in exhausted(db) if w.refs and "b1" in w.refs]
 
+
+# Frame 174, design 200 change 5: the stamp. A woken session that sends
+# nothing caused by its trigger and writes no receipt for it leaves a
+# challenge, a proposal or an escalation unresolved, and the ladder wakes
+# each rung once per row.
+UNRECEIVED = ("unresolved: the woken session sent nothing and wrote no row "
+              "that cites this message")
+
+
+def _owed(db, mid, verb, from_role, to_role, refs, thread="th1", seq=1):
+    import json as _json
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'open')",
+               (mid, thread, from_role, to_role, verb, _json.dumps(refs), seq))
+    db.commit()
+
+
+def _commit(db, sid, role, trigger, writes=(), messages=(), wake_kind="message",
+            wake_refs=()):
+    from rota.core.db import SessionResult, session_commit
+    session_commit(db, SessionResult(
+        session_id=sid, role=role, trigger_msg=trigger, wake_kind=wake_kind,
+        wake_refs=tuple(wake_refs), writes=list(writes),
+        messages=list(messages)))
+
+
+def _decision(did, refs):
+    import json as _json
+    from rota.core.db import Write
+    return Write("decisions", did, {"author": "vision_keeper",
+                                    "text": "the item holds",
+                                    "refs": _json.dumps(refs)})
+
+
+def test_night127_m70_a_decision_on_the_challenged_row_answers_it(db):
+    """Night 127 (2026-10-07), m70: the Architect challenged the Vision
+    Keeper on `echo_json_compact_3`. s150 wrote d_9548e71306 with refs
+    `['echo_json_compact_3']` and sent nothing. `vision_keeper/challenge.md`
+    asks for that decision as the reply, so it is a receipt (design 200
+    pass 2b)."""
+    _owed(db, "m70", "challenge", "architect", "vision_keeper",
+          ["echo_json_compact_3"])
+    _commit(db, "s150", "vision_keeper", "m70",
+            writes=[_decision("d_9548e71306", ["echo_json_compact_3"])])
+    assert db.execute("SELECT status FROM messages WHERE id = 'm70'"
+                      ).fetchone()["status"] == "answered"
+
+
+def test_a_decision_on_other_rows_leaves_the_challenge_unresolved(db):
+    """A decision that cites neither the trigger nor a row it refs does not
+    answer it, so the challenge stays unresolved with the note."""
+    _owed(db, "m70", "challenge", "architect", "vision_keeper",
+          ["echo_json_compact_3"])
+    _commit(db, "s150", "vision_keeper", "m70",
+            writes=[_decision("d_9548e71306", ["s1"])])
+    row = db.execute("SELECT status, unresolved_note FROM messages "
+                     "WHERE id = 'm70'").fetchone()
+    assert (row["status"], row["unresolved_note"]) == ("unresolved", UNRECEIVED)
+
+
+def test_night127_m72_a_barren_escalation_stays_unresolved(db):
+    """Night 127, m72: the Developer escalated, the Architect s155 read the
+    model, wrote nothing and sent nothing, and m72 read answered."""
+    _owed(db, "m72", "escalate", "developer", "architect", ["echo_json_compact_3"])
+    _commit(db, "s155", "architect", "m72")
+    row = db.execute("SELECT status, unresolved_note FROM messages "
+                     "WHERE id = 'm72'").fetchone()
+    assert (row["status"], row["unresolved_note"]) == ("unresolved", UNRECEIVED)
+
+
+def test_a_tester_re_encode_answers_the_challenge(db):
+    """`tester/challenge.md` answers a right challenge with `tests.encode`.
+    Nights 138 and 139 hold 8 such sessions. A new version of a test the
+    challenge refs is a receipt, so the challenge reads answered."""
+    from rota.core.db import Write
+    db.execute("INSERT INTO items (id, text, kind, approval) "
+               "VALUES ('i1','x','in_scope','approved')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
+    db.execute("INSERT INTO tests (id, batch_id, path, body) "
+               "VALUES ('tst_v3','b1','tests/test_v3.py','def test_v3(): pass')")
+    _owed(db, "m237", "challenge", "developer", "tester", ["c3", "tst_v3"])
+    _commit(db, "s379", "tester", "m237", writes=[Write(
+        "tests", "tst_v3", {"batch_id": "b1", "path": "tests/test_v3.py",
+                            "body": "def test_v3():\n    assert 1\n"})])
+    assert db.execute("SELECT status FROM messages WHERE id = 'm237'"
+                      ).fetchone()["status"] == "answered"
+
+
+def test_a_decision_that_cites_the_trigger_answers_it(db):
+    """A decision whose refs hold the trigger's id is a receipt for it."""
+    _owed(db, "m70", "challenge", "architect", "vision_keeper",
+          ["echo_json_compact_3"])
+    _commit(db, "s150", "vision_keeper", "m70",
+            writes=[_decision("d_9548e71306", ["m70", "echo_json_compact_3"])])
+    assert db.execute("SELECT status FROM messages WHERE id = 'm70'"
+                      ).fetchone()["status"] == "answered"
+
+
+def test_a_reply_caused_by_the_trigger_answers_it(db):
+    """A session that sends a message caused by the trigger is answered, as
+    before the stamp."""
+    from rota.core.db import OutboundMessage
+    _owed(db, "m72", "escalate", "developer", "architect", ["cr_6"])
+    _commit(db, "s155", "architect", "m72", messages=[OutboundMessage(
+        id="m73", to_role="developer", verb="answer", body_refs=["cr_6"],
+        cause_id="m72")])
+    assert db.execute("SELECT status FROM messages WHERE id = 'm72'"
+                      ).fetchone()["status"] == "answered"
+
+
+def test_the_ladder_wakes_each_rung_once_per_row(db):
+    """The once-guard. Before it, a rung that wrote a row and sent nothing
+    had not spoken, so `unresolved` woke it on the same row until
+    `tick_attempt_cap` quarantined the key, three wakes. Now the addressee's
+    own wake and each ladder wake count once, and the ladder climbs."""
+    from rota.core.predicates import unresolved
+
+    _owed(db, "m72", "escalate", "developer", "architect", ["cr_6"])
+    _commit(db, "s155", "architect", "m72")
+    first = [(w.role, w.refs) for w in unresolved(db)]
+    assert ("architect", ("m72",)) not in first, \
+        "the Architect had its wake on m72 and sent nothing"
+    assert len(first) == 1, first
+    rung = first[0][0]
+
+    _commit(db, "s156", rung, None, wake_kind="tick:unresolved",
+            wake_refs=["m72"])
+    second = [(w.role, w.refs) for w in unresolved(db)]
+    assert (rung, ("m72",)) not in second, "one wake per rung per row"
+    assert all(role != "architect" for role, _ in second), second
+
+
+def test_the_liaisons_own_question_wakes_it_once(db):
+    """The Liaison's branch: every rung has spoken, so the Liaison takes its
+    own question to the principal. A Liaison session on the row that sends
+    nothing ends the wakes for that row."""
+    from rota.core.predicates import unresolved
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status, unresolved_note) VALUES ('q1','tq',"
+               "'liaison','architect','relay','[]',1,'unresolved','still open')")
+    for n, role in enumerate(("architect", "vision_keeper", "terminologist"), 2):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, body_refs, seq, status, cause_id) VALUES (?, 'tq', ?, "
+                   "'liaison', 'answer', '[]', ?, 'answered', 'q1')",
+                   (f"a{n}", role, n))
+    db.commit()
+    assert [(w.role, w.refs) for w in unresolved(db)] == [("liaison", ("q1",))]
+    _commit(db, "s9", "liaison", None, wake_kind="tick:unresolved",
+            wake_refs=["q1"])
+    assert unresolved(db) == []

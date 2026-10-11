@@ -21,6 +21,14 @@ Then find which of these it is:
   does not merge while the finding says `violated`, so the answer alone
   moves nothing (night 68, 2026-09-14). Without a finding in the refs, this
   is not the case
+- **the rows hold and the code or the test does not match** — a criterion or a
+  constraint is right, and the Developer's code or test is not. A `c_` id is a
+  criterion, not a constraint, and `findings.find` and `model.amend` do not
+  take it. `decisions.author` a row that says
+  so, then `msg.answer_developer` with the decision's id in refs. When the
+  escalation is about a test, the row names the test line that does not encode
+  the criterion. An answer that sends back only the escalation's own rows tells
+  the Developer nothing
 
 If it is genuinely none of those, `msg.report_liaison` climbs the ladder one
 more rung, because the usual reason a loop exhausts itself is not knowing who

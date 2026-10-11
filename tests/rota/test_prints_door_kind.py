@@ -906,3 +906,53 @@ def test_a_factory_return_applied_to_a_command_lands(tmp_path):
             "    result = CliRunner().invoke(cmd, ['--version'])\n"
             "    assert 'Python' in result.output\n")
     _encode(db, "tst_x", "c1", "tests/test_x.py", body)
+
+
+# The second look at dd583398, finding 1: the argument kinds refused a
+# factory's return passed to a helper the test defines, or to
+# `functools.wraps`. Click 8.5 ran both forms and printed the version.
+HELPER_FORM = '''\
+from click.decorators import command, version_option
+from click.testing import CliRunner
+
+
+def build(extra):
+    @command()
+    @extra
+    def cli():
+        pass
+
+    return cli
+
+
+def test_v():
+    cli = build(version_option(show_python=True))
+    result = CliRunner().invoke(cli, ["--version"])
+    assert "Python" in result.output
+'''
+
+WRAPS_FORM = '''\
+import functools
+
+from click.decorators import command, version_option
+from click.testing import CliRunner
+
+
+def test_v():
+    deco = version_option(show_python=True)
+
+    @functools.wraps(deco)
+    def wrapper(f):
+        return deco(f)
+
+    cli = command()(wrapper(lambda: None))
+    result = CliRunner().invoke(cli, ["--version"])
+    assert "Python" in result.output
+'''
+
+
+@pytest.mark.parametrize("body", [HELPER_FORM, WRAPS_FORM],
+                         ids=["helper", "wraps"])
+def test_a_factory_return_a_helper_applies_lands(tmp_path, body):
+    db = _decos_db(tmp_path, C2_TEXT, "version_option")
+    _encode(db, "tst_x", "c1", "tests/test_x.py", body)

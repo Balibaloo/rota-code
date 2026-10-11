@@ -654,6 +654,59 @@ def _forget_batch_counts(conn: sqlite3.Connection, batch_id: str,
          f"%,{batch_id},%"))
 
 
+# The verbs whose addressee owes a reply. A woken session that sends nothing
+# caused by one of these and writes no receipt for it leaves it unresolved
+# (frame 174, design 200 change 5).
+OWED_A_REPLY = ("challenge", "propose", "escalate")
+UNRECEIVED_NOTE = ("unresolved: the woken session sent nothing and wrote no "
+                   "row that cites this message")
+
+
+def _owes_a_reply(trig: sqlite3.Row) -> bool:
+    """
+    Whether `trig` is a challenge, a proposal or an escalation on a channel
+    the graph declares. A test can seed a carrier on no channel, as the
+    synthetic arc's Liaison challenge to the Critic. No session can send one.
+    """
+    if trig["verb"] not in OWED_A_REPLY:
+        return False
+    from ..design import graph as graph_mod
+    return any(e.s == trig["from_role"] and e.t == trig["to_role"]
+               and e.v == trig["verb"]
+               for e in graph_mod.load().of_type("messages"))
+
+
+def _received(result: SessionResult, trig: sqlite3.Row) -> bool:
+    """
+    Whether the session woken by `trig` replied to it or wrote a receipt for it.
+
+    A reply is a message caused by the trigger. A receipt is a write on a row
+    the trigger refs, such as a Tester's new version of the challenged test,
+    which `tester/challenge.md` names as the answer to a right challenge. A
+    decision whose refs hold the trigger's id or a row the trigger refs is a
+    receipt too, because `vision_keeper/challenge.md` asks for that decision
+    as the reply (design 200 pass 2b). The review of design 200 measured 8 Tester re-encodes on nights 138 and
+    139 that the first text would have marked.
+    """
+    if any(m.cause_id == result.trigger_msg for m in result.messages):
+        return True
+    refs = {r for r in json.loads(trig["body_refs"] or "[]") if isinstance(r, str)}
+    for w in result.writes:
+        if receipt_of(w)[1] in refs:
+            return True
+        if w.table == "decisions":
+            cited = w.values.get("refs") or "[]"
+            if isinstance(cited, str):
+                try:
+                    cited = json.loads(cited)
+                except ValueError:
+                    cited = []
+            if result.trigger_msg in (cited or []) or refs & {
+                    c for c in (cited or []) if isinstance(c, str)}:
+                return True
+    return False
+
+
 def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
     """
     Commit a whole session atomically: session row, writes, receipts, version
@@ -788,10 +841,26 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         if result.trigger_msg:
             barren = not result.writes and not result.messages
             trig = conn.execute(
-                "SELECT status, verb FROM messages WHERE id = ?",
+                "SELECT status, verb, body_refs, from_role, to_role "
+                "FROM messages WHERE id = ?",
                 (result.trigger_msg,)).fetchone()
             was_unresolved = bool(trig and trig["status"] == "unresolved")
-            if barren and trig and trig["verb"] == "challenge" and trig["status"] == "open":
+            # A suspended session keeps its claim and can still reply.
+            if (trig and trig["status"] == "open"
+                    and result.checkpoint is None
+                    and _owes_a_reply(trig)
+                    and not (barren and trig["verb"] == "challenge")
+                    and not _received(result, trig)):
+                # Frame 174: a session that sent nothing caused by its trigger
+                # and wrote no receipt for it did not answer it. Night 127's
+                # m72 and m112 were escalations, and the Architect wrote
+                # nothing and sent nothing. Invariant I9 found such rows that
+                # read answered.
+                conn.execute(
+                    "UPDATE messages SET status = 'unresolved', "
+                    "unresolved_note = COALESCE(unresolved_note, ?) WHERE id = ?",
+                    (UNRECEIVED_NOTE, result.trigger_msg))
+            elif barren and trig and trig["verb"] == "challenge" and trig["status"] == "open":
                 # A barren session on a challenge is not an answer to it.
                 # clickI night 33 (2026-09-13): the Tester's every answer was
                 # refused as carrying nothing, the session committed with

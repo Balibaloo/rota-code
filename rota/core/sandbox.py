@@ -932,6 +932,65 @@ def _answer_evidence(ctx: api.Ctx, refs, text: str) -> None:
             f"asks, the exit is tests.encode, not an answer")
 
 
+def _answer_mode_challenge_refusal(ctx: api.Ctx, refs) -> str | None:
+    """
+    The Developer's challenge from an answer wake carries a decision row.
+
+    Design 200 change 4 gave the answer mode `msg.challenge_tester` as the
+    route of the Architect's decision row to the Tester. The interview of
+    the s282 case (`plans/frame200-interviews.md`) found the seat sent it
+    with refs that resolved to a criterion and a test only. Return the
+    refusal, or None outside an answer wake or when a ref is a decision.
+    """
+    if ctx.role != "developer" or not getattr(ctx, "trigger", None):
+        return None
+    trig = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
+                            (ctx.trigger,)).fetchone()
+    if trig is None or trig["verb"] != "answer":
+        return None
+    if _holds_decision(ctx.conn, refs):
+        return None
+    return _Ending(
+        "no ref of this answer is a decision row. The answer carries the "
+        "rows you sent back and no words. If you still read the test as "
+        f"wrong, say so in one sentence and end. {END_STEP} "
+        f"{_end_form(ctx, _unique_refs(refs))}")
+
+
+def _rowless_answer_refusal(ctx: api.Ctx, refs) -> str | None:
+    """
+    The Architect's answer to the Developer adds a row to the cause's refs.
+
+    The cause is the message that woke the session, or the row that a
+    `tick:unresolved` wake names. A row this session wrote counts as added,
+    so `model.amend` and `findings.find` on a row of the cause still answer.
+    Return the refusal, or None when the answer adds a row or has no cause.
+    """
+    import json as _json
+    cause = getattr(ctx, "trigger", None)
+    if not cause and getattr(ctx, "wake_kind", "") == "tick:unresolved":
+        cause = next(iter(ctx.wake_refs or ()), None)
+    row = ctx.conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                           (cause,)).fetchone() if cause else None
+    if row is None:
+        return None
+    try:
+        theirs = set(_json.loads(row["body_refs"] or "[]"))
+    except (TypeError, ValueError):
+        theirs = set()
+    written = {w[1] for w in ctx.writes}
+    added = [r for r in (refs or []) if isinstance(r, str) and r != cause
+             and (r not in theirs or r in written)
+             and not ctx.conn.execute("SELECT 1 FROM messages WHERE id = ?",
+                                      (r,)).fetchone()]
+    if added:
+        return None
+    return (f"refs={list(refs or [])} add no row to the refs of {cause}, so "
+            f"the Developer gets back the rows it sent. Write what you found "
+            f"with decisions.author, then send msg.answer_developer with the "
+            f"decision's id in refs.")
+
+
 def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
     """
     A challenge quotes the thing it disputes.
@@ -1416,10 +1475,22 @@ def _challenges_on(conn: sqlite3.Connection, key: tuple,
         if not isinstance(have, list):
             continue
         strs = [r for r in have if isinstance(r, str)]
+        # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): a challenge
+        # that carries the Architect's decision row is the row's route to the
+        # Tester, and it does not count against the cap.
+        if _holds_decision(conn, strs):
+            continue
         if ident in strs or (kind == "criterion" and any(
                 test_crit.get(r) == ident for r in strs)):
             out.append((row["id"], have))
     return out
+
+
+def _holds_decision(conn: sqlite3.Connection, refs) -> bool:
+    """True when `refs` name a `decisions` row."""
+    return any(isinstance(r, str) and conn.execute(
+        "SELECT 1 FROM decisions WHERE id = ?", (r,)).fetchone()
+        for r in refs or [])
 
 
 def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
@@ -1436,6 +1507,11 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     criterion counts for itself. Refs that name neither keep the count of
     the same refs.
     """
+    # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): the Architect's
+    # decision row reaches the Tester through this challenge. The cap does
+    # not stop it, and the graph gains no edge.
+    if _holds_decision(ctx.conn, refs):
+        return None
     try:
         own = _refs_key(refs or [], as_set=True)
     except TypeError:
@@ -2230,6 +2306,10 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
 
         # A challenge pays its reading up front: quote both sides on the
         # tester channel, quote the disputed row everywhere else.
+        if verb == "challenge" and recipient == "tester":
+            said = _answer_mode_challenge_refusal(ctx, refs)
+            if said is not None:
+                raise api.EndRefusal(said)
         if verb == "challenge":
             _challenge_evidence(ctx, recipient, refs, text or "")
         # The Tester's answer to a challenge pays the same reading. Night 80
@@ -2733,6 +2813,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"not carry this: send msg.report_liaison"
                     f"(refs={list(refs or [])}) with the same refs.",
                     "msg.report_liaison", {"refs": list(refs or [])}))
+
+        # Frame 115, design 200 change 4: law 2 keeps words off this channel,
+        # so an answer that hands back the escalation's own rows tells the
+        # Developer nothing. 10 of 10 such answers on nights 138 and 139 had
+        # no words. The row route stays inside law 2: a decision carries them.
+        if verb == "answer" and ctx.role == "architect" and recipient == "developer":
+            said = _rowless_answer_refusal(ctx, refs)
+            if said is not None:
+                raise ValueError(said)
 
         # A confirmation points at what is being ratified, and the only
         # thing that can be is a statement.

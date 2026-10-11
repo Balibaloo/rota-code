@@ -41,6 +41,200 @@
     calls: [msg.question_vision_keeper, msg.question_terminologist]
     writes: [criteria, glossary_terms]
 
+- id: L1-DV-a-wordless-answer-leaves-a-wrong-test-alone
+  # Frame 200, design change 3. Night 139, s282 on m156: the Developer had
+  # escalated a test that applies the factory to a plain function and calls
+  # the result, m155. The Architect answered with m155's own refs and no
+  # words. The session rewrote `custom_version_option` to fit the test, in
+  # eight writes and eight commits.
+  tier: T1
+  role: developer
+  runs: 5
+  pass: 4
+  inbound: {from: architect, to: developer, verb: answer,
+            body_refs: [<c1>, <tst1>], cause: <m_esc>}
+  repo:
+    batch: <b1>
+    message: "add a show_python flag to version_option"
+    edit:
+      src/notify/decorators.py: |
+        import sys
+
+
+        def option(*param_decls, **attrs):
+            def decorator(f):
+                params = getattr(f, "__click_params__", [])
+                params.append((param_decls, attrs))
+                f.__click_params__ = params
+                return f
+
+            return decorator
+
+
+        def version_option(version=None, *param_decls, show_python=False, **kwargs):
+            """Add a ``--version`` option that prints the version and exits."""
+            message = "%(prog)s, version %(version)s"
+            if show_python:
+                v = sys.version_info
+                message += f" (Python {v.major}.{v.minor}.{v.micro})"
+            kwargs.setdefault("is_flag", True)
+            kwargs["message"] = message
+            return option(*(param_decls or ("--version",)), **kwargs)
+
+
+        def custom_version_option(callback, *param_decls, **kwargs):
+            """Add a ``--version`` option whose output ``callback`` builds."""
+            kwargs.setdefault("is_flag", True)
+            kwargs["callback"] = callback
+            return option(*(param_decls or ("--version",)), **kwargs)
+  fixture:
+    items:
+      - {id: <i1>, text: "version_option can show the running Python version",
+         kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "add a show_python flag to version_option"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "When `version_option` is invoked with `show_python=True`, the
+                output message must append the running Python version formatted
+                exactly as `{major}.{minor}.{micro}`, derived from
+                `sys.version_info`.",
+         term_refs: '[]',
+         surface_refs: '["src/notify/decorators.py::custom_version_option"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      # s282's test, moved to this repository: the factory decorates a plain
+      # function, and the test calls the result. No call runs the option.
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_version_option_shows_python.py
+        body: |
+          from src.notify.decorators import version_option, custom_version_option
+          import sys
+
+          def test_version_option_shows_python_when_flag_true():
+              # Create a simple function to decorate
+              def cmd():
+                  return "version"
+
+              # Apply decorator with show_python=True
+              decorated = custom_version_option(cmd, show_python=True)
+
+              # Call the decorated function and check output includes Python version
+              result = decorated()
+              expected = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+              assert expected in result
+    test_runs:
+      - id: <r1>
+        batch_id: <b1>
+        test_id: <tst1>
+        commit_sha: abc123
+        result: fail
+        output: |
+          >       result = decorated()
+                           ^^^^^^^^^^^
+          E       TypeError: option.<locals>.decorator() missing 1 required positional argument: 'f'
+
+          tests/test_version_option_shows_python.py:13: TypeError
+          1 failed in 0.12s
+    messages:
+      - {id: <m_esc>, thread_id: <t1>, from_role: developer, to_role: architect,
+         verb: escalate, body_refs: '["<c1>", "<tst1>"]', seq: 1,
+         status: answered}
+  expect:
+    # The one sentence and the end: the answer has no words, and the session
+    # escalated this test as wrong.
+    messages: []
+  forbidden:
+    # Fitting the code to a test that calls a plain function is s282's
+    # failure. It also broke the project's own test of the function.
+    calls: [code.write, code.commit]
+    writes: [criteria, tests]
+
+- id: L1-DV-a-wordless-answer-on-a-right-red-test-is-carried-on
+  # Frame 200, design change 3, the guard. The answer has no words, and the
+  # session challenged and escalated nothing. The test is right and red, so
+  # the answer is the missing fact and the diff is still owed.
+  tier: T1
+  role: developer
+  runs: 5
+  pass: 4
+  inbound: {from: terminologist, to: developer, verb: answer,
+            body_refs: [<g1>], cause: <m_q>}
+  repo:
+    batch: <b1>
+    message: "format cent amounts for display"
+    edit:
+      src/notify/formatting.py: |
+        ELLIPSIS = chr(8230)
+
+
+        def truncate(text, limit=72):
+            return text if len(text) <= limit else text[: limit - 1] + ELLIPSIS
+
+
+        def plural(count, singular, plural_form=None):
+            if count == 1:
+                return f"1 {singular}"
+            return f"{count} {plural_form or singular + 's'}"
+
+
+        def format_amount(cents):
+            return f"{cents / 100:.2f}"
+  fixture:
+    items:
+      - {id: <i1>, text: "show money amounts in the invoice email", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "format cent amounts for display"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "format_amount shows an amount in the display currency",
+         term_refs: '["<g1>"]',
+         surface_refs: '["src/notify/formatting.py::format_amount"]'}
+    glossary_terms:
+      - {id: <g1>, term: "display currency", provenance: decided,
+         sense_short: "always US dollars, with a leading $ and two decimals"}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_format_amount.py
+        body: |
+          from src.notify.formatting import format_amount
+
+
+          def test_format_amount_in_display_currency():
+              assert format_amount(1234) == "$12.34"
+    test_runs:
+      - id: <r1>
+        batch_id: <b1>
+        test_id: <tst1>
+        commit_sha: abc123
+        result: fail
+        output: |
+          E       AssertionError: assert '12.34' == '$12.34'
+          1 failed in 0.02s
+    messages:
+      - {id: <m_q>, thread_id: <t1>, from_role: developer, to_role: terminologist,
+         verb: question, body_refs: '["<c1>", "<g1>"]', seq: 1,
+         status: answered}
+  expect:
+    calls: [code.write, code.commit]
+  forbidden:
+    # The test is right. A challenge or an ended session leaves it red.
+    calls: [msg.challenge_tester]
+    writes: [criteria, glossary_terms, tests]
+
 - id: L1-DV-take-out-what-nobody-asked-for
   tier: T1
   role: developer

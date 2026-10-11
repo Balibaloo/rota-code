@@ -432,12 +432,16 @@ def test_a_nested_statement_of_the_same_type_does_not_stand_in():
     assert sandbox._span_holds(lines, 1, 3, {**outer, "head": "if b:"})[0]
 
 
-def test_a_known_false_fact_is_known_by_its_sentence():
+def test_a_known_false_fact_is_known_by_its_sentence(monkeypatch):
     """The known list keyed on the function, and every fact site of
     code.write is in `_code_write`. A false fact of another door in the same
-    test was hidden (the review of fed7c58, low 11)."""
+    test was hidden (the review of fed7c58, low 11). Design 200 pass 2b
+    fixed the one known entry, so the test sets one of its own."""
+    from tests.rota import conftest
     from tests.rota.conftest import _problems
     test = _OF_ID + "test_the_defines_twice_numbers_are_code_source_numbers"
+    monkeypatch.setattr(conftest, "KNOWN_FALSE_FACTS",
+                        {(test, "line_text", " twice (lines ")})
     rec = {"kind": "line_text", "ok": False, "value": "def f", "where": {},
            "site": "api.py:1 in _code_write", "why": "no"}
     assert _problems(test, [{**rec, "refusal": "m.py defines f twice (lines 1 and 3)."}]) == []
@@ -542,16 +546,16 @@ def test_a_stored_path_refusal_quotes_the_stored_row(db):
     assert all(f["ok"] for f in facts), facts
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "finding of frame 144 pass 2: _code_write, the defines-twice door. "
-    "'defines f twice (lines 4 and 7)' counts from 1, and code.source counts "
-    "from 0, so each number names the line below the def"))
 def test_the_defines_twice_numbers_are_code_source_numbers(tmp_path):
+    """Finding 5 of frame 144 pass 2, fixed in design 200 pass 2b. The door
+    gave ast's numbers, which count from 1, so each number named the line
+    below the def. The numbers and the facts now count from 0."""
     sb = _developer(tmp_path, "def f():\n    return 0\n")
     said, _ = _refused(sb, "code.write", path="m.py", start=2, end=2,
                        text="def f():\n    return 1\n")
-    assert "defines f twice (lines 1 and 3)" in said
+    assert "defines f twice (lines 0 and 2)" in said
     facts = sandbox.check_facts(sb, sb.ctx.facts)
+    assert [f["where"]["n"] for f in facts if f["kind"] == "line_text"] == [0, 2]
     assert all(f["ok"] for f in facts), facts
 
 

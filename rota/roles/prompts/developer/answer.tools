@@ -6,3 +6,4 @@ code.write
 code.commit
 ledger.log
 schedule.reask
+msg.challenge_tester

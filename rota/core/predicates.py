@@ -1146,6 +1146,11 @@ def unresolved(conn) -> list[Wake]:
         spoken = {m["from_role"] for m in conn.execute(
             "SELECT DISTINCT from_role FROM messages WHERE thread_id = ?",
             (r["thread_id"],))}
+        # The once-guard (frame 174, design 200 change 5). A role that had a
+        # session for this row and sent nothing has not spoken, so without
+        # this it woke again on the same row until `tick_attempt_cap` stopped
+        # it. One wake per role per row: the ladder climbs past it instead.
+        spoken |= _woken_for(conn, r["id"])
         able = can_answer.get(r["from_role"], set())
         # Two shapes, because two things are being climbed.
         #
@@ -1186,10 +1191,32 @@ def unresolved(conn) -> list[Wake]:
             # wake and had no way to be reached for it: "every role that could
             # have taken it next has already spoken in this thread ... this is
             # the strongest kind of question you can put to the principal".
-            if r["from_role"] == "liaison":
+            if r["from_role"] == "liaison" and "liaison" not in _woken_for(
+                    conn, r["id"], kinds=("tick:unresolved",)):
                 wakes.append(Wake("liaison", "tick:unresolved", refs=(r["id"],),
                                   detail=r["unresolved_note"] or ""))
     return wakes
+
+
+def _woken_for(conn, msg_id: str,
+               kinds: tuple[str, ...] = ("message", "tick:unresolved")) -> set[str]:
+    """
+    The roles that had a committed session for the message `msg_id`.
+
+    `message` is the addressee's own wake, which `sessions.trigger_msg` names.
+    `tick:unresolved` is a ladder wake, which names the row in `wake_refs`.
+    """
+    roles: set[str] = set()
+    if "message" in kinds:
+        roles |= {s["role"] for s in conn.execute(
+            "SELECT DISTINCT role FROM sessions "
+            "WHERE committed = 1 AND trigger_msg = ?", (msg_id,))}
+    if "tick:unresolved" in kinds:
+        roles |= {s["role"] for s in conn.execute(
+            "SELECT DISTINCT s.role FROM sessions s, json_each(s.wake_refs) j "
+            "WHERE s.committed = 1 AND s.wake_kind = 'tick:unresolved' "
+            "  AND j.value = ?", (msg_id,))}
+    return roles
 
 
 def _names_a_criterion(conn, message_id: str) -> bool:

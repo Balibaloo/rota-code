@@ -174,19 +174,9 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
 # The function was the key before, and all the fact sites of code.write share
 # `_code_write`, so a false fact of another door hid behind this one (the
 # review of fed7c58, low 11).
-# Finding 5, the defines-twice door of code.write: "defines f twice (lines 4
-# and 7)" gives ast's numbers, which count from 1. code.source and every
-# other refusal count from 0, so each number names the line below the def.
-_L1 = "tests/rota/test_l1.py::test_l1_case"
-_TWICE_LINES = " twice (lines "
-KNOWN_FALSE_FACTS: set[tuple[str, str, str]] = {
-    (_DG + "test_a_file_defines_each_name_once", "line_text", _TWICE_LINES),
-    (_DG + "test_an_overload_stub_is_not_a_second_definition", "line_text", _TWICE_LINES),
-    (_L1 + "[L1-DV-take-a-mistake-out]", "line_text", _TWICE_LINES),
-    (_L1 + "[L1-DV-give-the-new-parameters-defaults]", "line_text", _TWICE_LINES),
-    (_OF + "test_the_defines_twice_numbers_are_code_source_numbers", "line_text",
-     _TWICE_LINES),
-}
+# Finding 5, the defines-twice door of code.write, is fixed: its numbers
+# count from 0, as code.source counts (design 200 pass 2b).
+KNOWN_FALSE_FACTS: set[tuple[str, str, str]] = set()
 
 
 def _problems(nodeid: str, found: list[dict]) -> list[str]:
