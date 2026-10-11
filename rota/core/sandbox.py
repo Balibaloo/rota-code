@@ -1233,8 +1233,19 @@ def _escalation_admitted(ctx: api.Ctx, refs) -> bool:
     return _same_refs_refusal(ctx, "architect", "escalate", refs) is None
 
 
-def _waits_refusal(verb: str, recipient: str, waiting_id: str) -> str:
-    """The refusal of a Developer's second copy of a message still open."""
+def _waits_refusal(verb: str, recipient: str, waiting_id: str,
+                   ctx: api.Ctx | None = None, refs=None) -> str:
+    """The refusal of a Developer's second copy of a message still open.
+
+    Frame 200: after a challenge in this session, `code.write` and
+    `code.commit` refuse, so the step is `END_STEP` and not the change.
+    """
+    if ctx is not None and _sent_this_session(ctx, "tester", "challenge"):
+        once = _unique_refs(refs)
+        return _Ending(
+            f"you sent {verb} to {recipient} on exactly these refs already "
+            f"({waiting_id}) and it waits for an answer. The answer comes "
+            f"to a later wake. {END_STEP} {_end_form(ctx, once)}")
     way = ("write the change that makes it pass"
            if verb == "challenge" else
            "write the change that makes it pass, and commit it")
@@ -1308,6 +1319,10 @@ def _code_step(ctx: api.Ctx) -> str:
     """
     working = getattr(ctx, "working_set", None)
     if working is not None and "code.write" not in working:
+        return END_STEP
+    # Frame 200: after a challenge in this session, `code.write` and
+    # `code.commit` refuse, so a step toward the code contradicts them.
+    if _sent_this_session(ctx, "tester", "challenge"):
         return END_STEP
     return "Make one real change to the code the test calls."
 
@@ -1607,7 +1622,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
         return _challenge_cap_refusal(ctx, rows, refs)
     prior = rows[0]
     if prior["status"] == "open":
-        return _waits_refusal("challenge", "tester", prior["id"])
+        return _waits_refusal("challenge", "tester", prior["id"], ctx, refs)
     # Frame 145, night 122 (2026-10-05): the Tester stored version 2 of the
     # test, and the challenge of version 2 met "they answered". A receipt
     # since the prior's first wake makes this a challenge of a new version.
@@ -1750,7 +1765,7 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
     # the code, so the door holds for the Developer only. Only an open
     # prior waits: the schema's open status is 'open'.
     if ctx.role == "developer" and waiting:
-        return _waits_refusal(verb, recipient, waiting["id"])
+        return _waits_refusal(verb, recipient, waiting["id"], ctx, refs)
     return None
 
 

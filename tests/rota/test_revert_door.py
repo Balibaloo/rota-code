@@ -413,3 +413,77 @@ def test_the_challenge_goes_to_the_first_red_test_that_its_doors_admit(db, tmp_p
         f"To dispute the test that fails at {back[:10]}, send "
         "msg.challenge_tester(refs=['c1', 'tst1']) with quotes= copied from c1 and from tst1.")
     assert [o.args["refs"] for o in sb.ctx.offers] == [["c1", "tst1"]]
+
+
+# Frame 200, change 2: a landed challenge closes the write doors for that
+# session. Night 139's s274 sent challenge m152, wrote that the test was
+# wrong, and then changed the code to fit it.
+DISPUTED = "def test_x():\n    assert close_account(1) == 3\n"
+QUOTES = ("the criterion says 'prints the object as compact JSON' and the "
+          "test asserts close_account(1) == 3")
+
+
+def _challenged(db, tmp_path):
+    root = tmp_path / "wt"
+    _repo(root, "script.py", A)
+    _tests(db, [("tst1", "c1")], body=DISPUTED)
+    sb = _developer(db, root)
+    return root, sb
+
+
+def test_a_session_that_challenged_the_test_writes_and_commits_nothing(db, tmp_path):
+    root, sb = _challenged(db, tmp_path)
+    sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    mid = sb.ctx.outbound[-1]["id"]
+    said = (f"you sent challenge to tester in this session ({mid}): you "
+            f"challenged the test, and a change now builds on the disputed "
+            f"test. {sandbox.END_STEP} Your whole next reply is this one "
+            f"line, and no TOOL: line: Nothing more is owed on tst1 in this "
+            f"session.")
+    with pytest.raises(api.EndRefusal) as exc:
+        sb.call("code.write", path="script.py", text=B)
+    assert str(exc.value) == said
+    assert (root / "script.py").read_bytes() == A.encode()
+    with pytest.raises(api.EndRefusal) as exc:
+        sb.call("code.commit", message="fit the test")
+    assert str(exc.value) == said
+
+
+def test_a_session_with_no_challenge_still_writes(db, tmp_path):
+    root, sb = _challenged(db, tmp_path)
+    sb.call("code.write", path="script.py", text=B)
+    assert sb.call("code.commit", message="the change")["committed"] is True
+
+
+def test_the_two_sandbox_steps_end_after_a_challenge(db, tmp_path):
+    """The review of the design, section 2: `_code_step` and
+    `_waits_refusal` asked for a change that the write doors now refuse."""
+    _root, sb = _challenged(db, tmp_path)
+    refs = ["c1", "tst1"]
+    before = sandbox._waits_refusal("challenge", "tester", "m1", sb.ctx, refs)
+    assert sandbox._code_step(sb.ctx) == ("Make one real change to the code "
+                                          "the test calls.")
+    assert not isinstance(before, sandbox._Ending)
+    assert "write the change that makes it pass" in before
+    sb.call("msg.challenge_tester", refs=refs, quotes=QUOTES)
+    after = sandbox._waits_refusal("challenge", "tester", "m1", sb.ctx, refs)
+    assert sandbox._code_step(sb.ctx) == sandbox.END_STEP
+    assert isinstance(after, sandbox._Ending)
+    assert after == (
+        "you sent challenge to tester on exactly these refs already (m1) and "
+        "it waits for an answer. The answer comes to a later wake. "
+        f"{sandbox.END_STEP} Your whole next reply is this one line, and no "
+        "TOOL: line: Nothing more is owed on tst1 in this session.")
+
+
+def test_the_empty_commit_note_after_a_message_names_the_end_alone(db, tmp_path):
+    """s274 turn 11 read "the change comes first: code.write, then commit"
+    after its message, and turn 12 wrote the change."""
+    _root, sb = _challenged(db, tmp_path)
+    note = sb.call("code.commit", message="nothing")["note"]
+    assert note.endswith("the change comes first: code.write, then commit")
+    sb.call("msg.escalate_architect", refs=["c1"])
+    out = sb.call("code.commit", message="nothing")
+    assert out["committed"] is False
+    assert out["note"] == ("the tree is exactly as you found it. You have "
+                           "sent your message: end the session")

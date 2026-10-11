@@ -557,3 +557,233 @@ def test_a_factory_through_an_aliased_click_import_meets_the_door(tmp_path):
     assert said == ("`name_option` is a decorator factory in `src/click/extra.py`: "
                     "it returns a decorator and prints nothing when it is called")
     assert [(f.kind, f.value) for f in facts] == [("line_text", "def name_option")]
+
+
+# Frame 200: the factory door reads the call shape. A clickI-like tree in
+# which `version_option` and `custom_version_option` add an option, and
+# `pass_meta_key` returns a decorator that adds none.
+DECOS = '''\
+def _param_memo(f, param):
+    if not hasattr(f, "__click_params__"):
+        f.__click_params__ = []
+    f.__click_params__.append(param)
+
+
+def option(*param_decls, **attrs):
+    def decorator(f):
+        _param_memo(f, (param_decls, attrs))
+        return f
+
+    return decorator
+
+
+def command(name=None, **attrs):
+    def decorator(f):
+        return f
+
+    return decorator
+
+
+def version_option(version=None, *param_decls, show_python=False, **kwargs):
+    if not param_decls:
+        param_decls = ("--version",)
+    return option(*param_decls, **kwargs)
+
+
+def custom_version_option(callback, *param_decls, **kwargs):
+    if not param_decls:
+        param_decls = ("--version",)
+    return option(*param_decls, **kwargs)
+
+
+def pass_meta_key(key, *, doc_description=None):
+    def decorator(f):
+        def new_func(*args, **kwargs):
+            return f(*args, **kwargs)
+
+        return new_func
+
+    return decorator
+'''
+
+TESTING = '''\
+class CliRunner:
+    def invoke(self, cli, args=None):
+        return cli
+'''
+
+# Night 139's c1 and c2, verbatim from `n139.db` (frame 200's scope, 2).
+C1_TEXT = ("When `version_option` is invoked with `show_python=True`, the output "
+           "message must append the running Python version formatted exactly as "
+           "`{major}.{minor}.{micro}` (e.g., '3.10.4'), derived from "
+           "`sys.version_info`.")
+C2_TEXT = ("The `show_python` flag must be a boolean parameter that controls "
+           "whether the Python version is appended to the standard version "
+           "message, defaulting to False when not explicitly set.")
+
+
+def _decos_db(tmp_path, text: str, surface: str):
+    root, wt = _project(tmp_path, {"src/click/__init__.py": "",
+                                   "src/click/decorators.py": DECOS,
+                                   "src/click/testing.py": TESTING}, {})
+    return _db(tmp_path, root, wt,
+               "give version_option a show_python flag that appends the "
+               "running Python version to the message",
+               [("c1", text, f'["src/click/decorators.py::{surface}"]')])
+
+
+# s251's `tst_version_option_flag_is_boolean` v1, the call form.
+S251_CALL_FORM = '''\
+from click.decorators import version_option
+
+def test_version_option_flag_is_boolean():
+    # Create a simple function to decorate
+    def cmd():
+        return "version"
+
+    # Apply decorator with show_python=True
+    decorated_true = version_option(show_python=True)(cmd)
+
+    # Apply decorator with show_python=False
+    decorated_false = version_option(show_python=False)(cmd)
+
+    # Call both and verify they produce different outputs
+    result_true = decorated_true()
+    result_false = decorated_false()
+    assert result_true != result_false
+'''
+
+# s279's `tst_version_option_shows_python`, the factory's return called with
+# no function argument.
+S279_NO_ARGUMENT = '''\
+from click.decorators import version_option, custom_version_option
+import sys
+
+def test_version_option_shows_python_when_flag_true():
+    # Create a simple function to decorate
+    def cmd():
+        return "version"
+
+    # Apply decorator with show_python=True
+    decorated = custom_version_option(cmd, show_python=True)
+
+    # Call the decorated function and check output includes Python version
+    result = decorated()
+    expected = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    assert expected in result
+'''
+
+# The `@` form of the same body, as night 138's s379 wrote it.
+AT_FORM = '''\
+from click.decorators import version_option
+
+def test_version_option_flag_is_boolean():
+    @version_option(show_python=True)
+    def cmd():
+        return "version"
+
+    assert cmd() != "version"
+'''
+
+
+# s277's turn 1, the factory's return called inline with no function.
+S277_INLINE = S279_NO_ARGUMENT.replace(
+    "custom_version_option(cmd, show_python=True)",
+    "custom_version_option(cmd)(show_python=True)")
+
+
+@pytest.mark.parametrize("body,text,surface,fact", [
+    (S251_CALL_FORM, C2_TEXT, "version_option",
+     "`decorated_true` is a plain function"),
+    (AT_FORM, C2_TEXT, "version_option", "`cmd` is a plain function"),
+    (S279_NO_ARGUMENT, C1_TEXT, "custom_version_option",
+     "`decorated` is the decorator that `custom_version_option` returns"),
+    (S277_INLINE, C1_TEXT, "custom_version_option",
+     "`custom_version_option(...)` returns a decorator"),
+], ids=["call-form", "at-form", "no-argument", "inline"])
+def test_a_factory_that_adds_an_option_on_a_plain_function_is_refused(
+        tmp_path, body, text, surface, fact):
+    db = _decos_db(tmp_path, text, surface)
+    said, facts = _refused(db, body)
+    assert said == (f"{fact}, and calling it never runs the option that "
+                    f"criterion c1 names")
+    assert [(f.kind, f.value) for f in facts] == [("line_text", f"def {surface}")]
+
+
+def test_the_call_shape_refusal_names_no_shape(tmp_path):
+    """The fact and no shape (Roman, 2026-09-15, 6b52a09d)."""
+    db = _decos_db(tmp_path, C2_TEXT, "version_option")
+    said, _facts = _refused(db, S251_CALL_FORM)
+    for word in ("CliRunner", "invoke", "command", "Decorate", "assert", "--"):
+        assert word not in said
+
+
+def test_the_call_shape_through_a_runner_is_refused(tmp_path):
+    db = _decos_db(tmp_path, C2_TEXT, "version_option")
+    body = ("from click.decorators import version_option\n"
+            "from click.testing import CliRunner\n\n\n"
+            "def test_x():\n"
+            "    @version_option(show_python=True)\n"
+            "    def cli():\n"
+            "        pass\n\n"
+            "    result = CliRunner().invoke(cli, ['--version'])\n"
+            "    assert 'Python' in result.output\n")
+    said, _facts = _refused(db, body)
+    assert said.startswith("`cli` is a plain function")
+
+
+# The review's `test_right_meta.py` (frame 200's design review, section 1):
+# a right test that calls a plain function `pass_meta_key` decorates.
+RIGHT_META = '''\
+import click
+from click.decorators import pass_meta_key
+
+
+def test_pass_meta_key_wrapper_reads_meta():
+    @pass_meta_key("v")
+    def f(v):
+        return v
+
+    @click.command()
+    def c():
+        pass
+
+    ctx = click.Context(c)
+    ctx.meta["v"] = 1
+    with ctx:
+        assert f() == 1
+'''
+
+
+def test_pass_meta_key_on_a_local_function_lands(tmp_path):
+    """`pass_meta_key` adds no option, so its wrapper is right to call."""
+    db = _decos_db(tmp_path, "`pass_meta_key` passes the meta value under the "
+                   "key to the decorated function", "pass_meta_key")
+    _encode(db, "tst_x", "c1", "tests/test_x.py", RIGHT_META)
+
+
+def test_a_command_with_the_option_lands(tmp_path):
+    db = _decos_db(tmp_path, C2_TEXT, "version_option")
+    body = ("from click.decorators import command, version_option\n"
+            "from click.testing import CliRunner\n\n\n"
+            "def test_python_in_version():\n"
+            "    @command()\n"
+            "    @version_option(show_python=True)\n"
+            "    def cli():\n"
+            "        pass\n\n"
+            "    result = CliRunner().invoke(cli, ['--version'])\n"
+            "    assert 'Python' in result.output\n")
+    _encode(db, "tst_x", "c1", "tests/test_x.py", body)
+
+
+def test_a_factory_return_applied_to_a_command_lands(tmp_path):
+    db = _decos_db(tmp_path, C2_TEXT, "version_option")
+    body = ("from click.decorators import command, version_option\n"
+            "from click.testing import CliRunner\n\n\n"
+            "def test_python_in_version():\n"
+            "    def cli():\n"
+            "        pass\n\n"
+            "    cmd = command()(version_option(show_python=True)(cli))\n"
+            "    result = CliRunner().invoke(cmd, ['--version'])\n"
+            "    assert 'Python' in result.output\n")
+    _encode(db, "tst_x", "c1", "tests/test_x.py", body)

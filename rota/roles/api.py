@@ -5766,6 +5766,159 @@ def _factory_misuse(tree, name: str) -> str | None:
     return None
 
 
+def _adds_option(node, src: str | None = None) -> bool:
+    """Whether the factory `node` adds an option or an argument to what it
+    decorates: it returns `option(...)` or `argument(...)`, or a `def`
+    inside it calls `_param_memo`.
+
+    Frame 200's review of the design: `pass_meta_key` and
+    `make_pass_decorator` return a decorator and add no option, and a right
+    test calls a plain function that they decorate (`test_right_meta.py`).
+    """
+    import ast as _ast
+
+    try:
+        clicks = _click_names(_ast.parse(src).body if src else [])
+    except SyntaxError:
+        clicks = {"click"}
+
+    def _named(f, names) -> bool:
+        return ((isinstance(f, _ast.Name) and f.id in names)
+                or (isinstance(f, _ast.Attribute) and f.attr in names
+                    and isinstance(f.value, _ast.Name) and f.value.id in clicks))
+
+    for n in _ast.walk(node):
+        if (isinstance(n, _ast.Return) and isinstance(n.value, _ast.Call)
+                and _named(n.value.func, {"option", "argument"})):
+            return True
+        if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+                and n.func.id == "_param_memo"):
+            return True
+    return False
+
+
+def _plain_decorated(tree, name: str):
+    """The name of a plain function that the test decorates with the
+    factory `name` and then runs, as `(local, line, kind)`, or None.
+    `kind` is "plain" for a decorated `def`, "decorator" for a name bound
+    to the factory's return, and "inline" for `name(...)()`, as s277's
+    `custom_version_option(cmd)(show_python=True)`.
+
+    Frame 200: night 139's s251 stored `version_option(show_python=True)(cmd)`
+    on a local `def cmd()`, then called the result. Night 138's s379 put
+    `@version_option(...)` on a local `def`. Neither is a command, so no
+    call runs the option, and the Developer then fitted the code to the
+    test. The door reads three forms:
+
+    - `@name(...)` on a local `def` with no `command` or `group` decorator.
+    - `x = name(...)(f)` with `f` such a local `def`.
+    - `x = name(...)`, then `x(...)` with no function argument, as s279's
+      `custom_version_option(cmd, show_python=True)` then `decorated()`.
+
+    The test then calls the name, or passes it to `.invoke` on a runner,
+    the receiver `_plain_invoked` reads. `ctx.invoke(f)` stays admitted.
+    """
+    import ast as _ast
+
+    clicks = _click_names(_ast.walk(tree))
+
+    def _called(f) -> str | None:
+        return (f.id if isinstance(f, _ast.Name)
+                else f.attr if isinstance(f, _ast.Attribute) else None)
+
+    def is_factory(n) -> bool:
+        if not isinstance(n, _ast.Call):
+            return False
+        f = n.func
+        return ((isinstance(f, _ast.Name) and f.id == name)
+                or (isinstance(f, _ast.Attribute) and f.attr == name
+                    and isinstance(f.value, _ast.Name) and f.value.id in clicks))
+
+    def is_runner_call(n) -> bool:
+        return isinstance(n, _ast.Call) and _called(n.func) == "CliRunner"
+
+    # Each name the test binds, with the values bound to it. A name bound
+    # twice reads as the test's own, as in `_factory_misuse`.
+    binds: dict[str, list] = {}
+    defs: dict[str, object] = {}
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            binds.setdefault(n.name, []).append(n)
+            defs[n.name] = n
+        elif isinstance(n, _ast.Assign):
+            for t in n.targets:
+                for x in _ast.walk(t):
+                    if isinstance(x, _ast.Name):
+                        binds.setdefault(x.id, []).append(n.value if t is x else None)
+        elif isinstance(n, (_ast.AnnAssign, _ast.AugAssign, _ast.For,
+                            _ast.AsyncFor, _ast.NamedExpr, _ast.comprehension)):
+            for x in _ast.walk(n.target):
+                if isinstance(x, _ast.Name):
+                    binds.setdefault(x.id, []).append(None)
+        elif isinstance(n, (_ast.With, _ast.AsyncWith)):
+            for i in n.items:
+                for x in _ast.walk(i.optional_vars) if i.optional_vars else ():
+                    if isinstance(x, _ast.Name):
+                        binds.setdefault(x.id, []).append(None)
+
+    def plain_def(arg) -> bool:
+        """A local `def` that is bound once and carries no command."""
+        if not (isinstance(arg, _ast.Name) and arg.id in defs
+                and len(binds.get(arg.id, [])) == 1):
+            return False
+        return not any(_called(d.func if isinstance(d, _ast.Call) else d)
+                       in ("command", "group")
+                       for d in defs[arg.id].decorator_list)
+
+    def is_fn_arg(a) -> bool:
+        return isinstance(a, (_ast.Name, _ast.Attribute, _ast.Lambda))
+
+    runners = {"runner"} | {k for k, vs in binds.items()
+                            if any(is_runner_call(v) for v in vs)}
+    # `plain` names a plain function the factory decorated. `bare` names a
+    # factory's return that the test has not applied to a function.
+    plain: dict[str, int] = {}
+    bare: dict[str, int] = {}
+    for k, vs in binds.items():
+        if len(vs) != 1:
+            continue
+        v = vs[0]
+        if isinstance(v, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            if plain_def(_ast.Name(id=k)) and any(
+                    is_factory(d) or (isinstance(d, _ast.Name)
+                                      and len(binds.get(d.id, [])) == 1
+                                      and is_factory(binds[d.id][0]))
+                    for d in v.decorator_list):
+                plain[k] = v.lineno
+        elif (isinstance(v, _ast.Call) and is_factory(v.func)
+              and v.args and plain_def(v.args[0])):
+            plain[k] = v.lineno
+        elif is_factory(v):
+            bare[k] = v.lineno
+    for c in _ast.walk(tree):
+        if not isinstance(c, _ast.Call):
+            continue
+        f = c.func
+        if isinstance(f, _ast.Name) and f.id in plain:
+            return f.id, plain[f.id], "plain"
+        if (isinstance(f, _ast.Name) and f.id in bare
+                and not any(is_fn_arg(a) for a in c.args)):
+            return f.id, bare[f.id], "decorator"
+        # The inline forms: `name(...)()` and `name(...)(f)()`.
+        if is_factory(f) and not any(is_fn_arg(a) for a in c.args):
+            return name, c.lineno, "inline"
+        if (isinstance(f, _ast.Call) and is_factory(f.func)
+                and f.args and plain_def(f.args[0])):
+            return f.args[0].id, c.lineno, "plain"
+        if (isinstance(f, _ast.Attribute) and f.attr == "invoke" and c.args
+                and isinstance(c.args[0], _ast.Name) and c.args[0].id in plain):
+            recv = f.value
+            if ((isinstance(recv, _ast.Name) and recv.id in runners)
+                    or is_runner_call(recv)):
+                return c.args[0].id, plain[c.args[0].id], "plain"
+    return None
+
+
 def _definition_of(tree, test_path: str, name: str, refs: list[str],
                    read: Callable[[str], str | None]):
     """The definition that the test's call to `name` reaches, as
@@ -6692,13 +6845,26 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         found = _definition_of(tree, path, fname, surface_refs, read)
         if found is None or not _returns_factory(found[2], found[3]):
             continue
-        if _factory_misuse(tree, fname) is None:
-            continue
         orig, where, node, src = found
-        _def_fact(where, node, src)
-        raise ValueError(
-            f"`{orig}` is a decorator factory in `{where}`: it returns a "
-            f"decorator and prints nothing when it is called")
+        if _factory_misuse(tree, fname) is not None:
+            _def_fact(where, node, src)
+            raise ValueError(
+                f"`{orig}` is a decorator factory in `{where}`: it returns a "
+                f"decorator and prints nothing when it is called")
+        # Frame 200: a factory that adds an option acts only on a command.
+        # The sentence states the fact and no shape (6b52a09d).
+        plain = (_plain_decorated(tree, fname)
+                 if _adds_option(node, src) else None)
+        if plain is not None:
+            local, _line, kind = plain
+            _def_fact(where, node, src)
+            what = {"plain": f"`{local}` is a plain function",
+                    "decorator": (f"`{local}` is the decorator that "
+                                  f"`{orig}` returns"),
+                    "inline": f"`{orig}(...)` returns a decorator"}[kind]
+            raise ValueError(
+                f"{what}, and calling it never runs the option that "
+                f"criterion {criterion_id} names")
 
     def _kind() -> str:
         """The kind of the name as a clause of the refusal, or nothing."""
@@ -10942,7 +11108,32 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     writes and then dies leaves the worktree ahead of the database, and boot
     reconciles the two.
     """
+    _refuse_after_challenge(ctx)
     return _code_write(ctx, path, text, start, end, dry=False)
+
+
+def _refuse_after_challenge(ctx: Ctx) -> None:
+    """
+    Refuse a write or a commit in a session that challenged the test.
+
+    Frame 200, night 139's s274: the seat sent challenge m152, wrote at turn
+    12 that the test was wrong, and then changed `custom_version_option` to
+    fit it. The challenge says the test is wrong, so a change in the same
+    session builds on the disputed test. `developer/tests_failing.md` already
+    says that a challenge ends the session. The step is `END_STEP`.
+    """
+    from ..core import sandbox as _sandbox
+
+    sent = [m for m in (getattr(ctx, "outbound", None) or [])
+            if m["to_role"] == "tester" and m["verb"] == "challenge"
+            and m.get("route") != "triage"]
+    if not sent:
+        return
+    refs = sent[-1].get("body_refs") or []
+    raise EndRefusal(
+        f"you sent challenge to tester in this session ({sent[-1]['id']}): "
+        f"you challenged the test, and a change now builds on the disputed "
+        f"test. {_sandbox.END_STEP} {_sandbox._end_form(ctx, refs)}")
 
 
 def _admits(ctx: Ctx, path: str, text: str, start: int, end: int) -> bool:
@@ -12575,6 +12766,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     """
     from ..core import worktrees
 
+    _refuse_after_challenge(ctx)
     if not ctx.batch_id:
         raise ValueError("no batch: a commit belongs to one")
     tree = _batch_worktree(ctx)
@@ -12688,6 +12880,16 @@ def code_commit(ctx: Ctx, message: str) -> dict:
         # message `developer/tests_failing.md` gives it. The note now says
         # which ending, because a mode with a single message tool reads any
         # unnamed ending as that message.
+        #
+        # Frame 200: night 139's s274 had sent its message and read "the
+        # change comes first" here, then wrote a change to fit a test it
+        # had called wrong. A session that has sent a message gets the end
+        # alone.
+        if any(m.get("route") != "triage"
+               for m in (getattr(ctx, "outbound", None) or [])):
+            return {"committed": False, "why": "nothing changed",
+                    "note": ("the tree is exactly as you found it. You have "
+                             "sent your message: end the session")}
         return {"committed": False, "why": "nothing changed",
                 "note": ("the tree is exactly as you found it. If the "
                          "criteria are already met, say so in your reply and "
