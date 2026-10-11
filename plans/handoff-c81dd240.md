@@ -33,6 +33,10 @@ the hand-off.
   sections 0 to 12. Pass 1 is the next build: the kinds at the door, the
   faults table with its three readers, the relay briefs, about 250k and a
   150k review, 4 cycles, 57 recorded cases stale at about 6 card hours.
+- At the hand-off both gates stood. Frame 200 validates at 8558e96c: the
+  Developer case reads 5/5, the Architect case 0/5 and is the known red.
+  Frame 203's gate read 707.9s with ten live re-record runs inside it, so
+  the ratio is still yours: the full gate alone, twice, no stale case.
 - Frames 169, 195 and 197 are untouched and validating.
 
 ## Roman's rulings this session, in his words, with the time
