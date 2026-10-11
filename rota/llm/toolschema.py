@@ -104,8 +104,17 @@ def schema_for(dotted: str, fn: Callable) -> dict[str, Any]:
 
 def schemas_for_sandbox(sb) -> list[dict[str, Any]]:
     """Every function in this role's (possibly mode-narrowed) working set."""
+    from ..roles.api import _offered_kinds
+
     out = []
     for dotted in sb.functions():
         artefact, fn_name = dotted.split(".", 1)
-        out.append(schema_for(dotted, getattr(sb[artefact], fn_name)))
+        schema = schema_for(dotted, getattr(sb[artefact], fn_name))
+        # `ledger.log`'s `kind` takes the words of this session's mode. A
+        # bare string taught a seat the words only through a refusal (frame
+        # 204's review 1, finding H1).
+        if dotted == "ledger.log":
+            schema["function"]["parameters"]["properties"]["kind"] = {
+                "type": "string", "enum": list(_offered_kinds(sb.ctx))}
+        out.append(schema)
     return out

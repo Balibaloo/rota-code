@@ -20,7 +20,7 @@ later role reads the behaviours with it in front of them. Where the statement
 is silent -- what the inputs are, how the thing is run, what it shows -- the
 account says what you took, and each such point is logged, one call per point:
 
-    TOOL: ledger.log(about_ref="how_it_works", about_table="items", assumption="<what you took, and what it costs if wrong>")
+    TOOL: ledger.log(about_ref="how_it_works", about_table="items", assumption="<what you took, and what it costs if wrong>", kind="default")
 
 A statement of a few words is silent on most things; three words leave at
 least one. The row rides on the page the principal signs: one they see and

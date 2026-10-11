@@ -411,6 +411,38 @@ def test_a_mode_names_no_function_it_does_not_offer():
     assert not named_but_absent, named_but_absent
 
 
+def test_a_paragraph_that_invites_a_log_names_the_words_its_mode_offers():
+    """
+    Frame 204's review 1, finding H1: 15 of 16 brief lines that invite
+    `ledger.log` named no word, and two dictated a call the door refuses.
+
+    A paragraph of the composed brief that names `ledger.log` names every
+    word of the mode's `.tools` line, or it dictates one `kind=` the mode
+    offers. A dictated word the mode refuses is red either way.
+    """
+    import re
+
+    from rota.roles.api import LOG_KINDS
+
+    wrong = {}
+    for role in sorted(graph_mod.load().roles):
+        for mode in prompts.available(role):
+            words = prompts.mode_kinds(role, mode)
+            if not words:
+                continue
+            assert prompts.KINDS_SLOT not in prompts.compose(role, mode)
+            for para in prompts.compose(role, mode).split("\n\n"):
+                if "ledger.log" not in para:
+                    continue
+                dictated = re.findall(r"""kind=["']([a-z_]+)["']""", para)
+                named = {w for w in LOG_KINDS if re.search(rf"\b{w}\b", para)}
+                ok = (set(dictated) <= set(words)) and (
+                    bool(dictated) or set(words) <= named)
+                if not ok:
+                    wrong.setdefault(f"{role}/{mode}", []).append(para[:80])
+    assert not wrong, wrong
+
+
 def test_every_mode_narrows():
     """
     An un-narrowed mode is the role's whole namespace, which is what the

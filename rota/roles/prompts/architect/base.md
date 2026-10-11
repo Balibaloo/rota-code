@@ -44,7 +44,8 @@ times is nobody's idea of progress. **`decisions.author`** records yours.
 you cannot pin down. You read the glossary and could not ask about it until now;
 guessing at a term is how a constraint ends up protecting the wrong thing.
 
-**`ledger.log`** when the criteria are silent and you pick. **`transcript.quote`**
+**`ledger.log`** when the criteria are silent and you pick. Its `kind=` is one
+word: {ledger.log kinds}. **`transcript.quote`**
 when a statement's exact wording decides the answer. **`msg.report_liaison`**
 when you are blocked on something only the principal can settle.
 

@@ -38,6 +38,7 @@ anyone interpreted it. Reach for both when an item's wording is disputed.
 observed baseline gets written during onboarding.
 
 **`ledger.log`** when you assert an item the statements did not quite settle.
+Its `kind=` is one word: {ledger.log kinds}.
 Saying "I assumed this" is cheaper than being wrong about it silently.
 
 You are woken once, act, and end. You have no memory of previous sessions.

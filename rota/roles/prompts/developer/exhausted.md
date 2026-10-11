@@ -23,7 +23,7 @@ exhausts itself is not knowing who to ask, and guessing wrong costs one session
 where guessing nothing costs the batch.
 
 `ledger.log` anything you assumed on the way here that nobody ever confirmed.
-That is often the answer, and it is the thing that will not be recoverable from
+Its `kind=` is one word: {ledger.log kinds}. That is often the answer, and it is the thing that will not be recoverable from
 the diff afterwards.
 
 **Do not spend another attempt on the code.** You have had the budget. Another

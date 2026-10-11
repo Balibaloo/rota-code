@@ -79,16 +79,36 @@ def base(role: str, verb: str = "") -> str:
     if verb:
         own = _pick(role, f"{verb}.base.md")
         if own.exists():
-            return _read(own)
-    return _read(_pick(role, "base.md"))
+            return fill_kinds(_read(own), role, verb)
+    return fill_kinds(_read(_pick(role, "base.md")), role, verb)
 
 
 def piece(role: str, verb: str) -> str:
     """The mode-specific instructions, or empty if the role has no piece for it."""
     try:
-        return _read(_pick(role, f"{verb}.md"))
+        return fill_kinds(_read(_pick(role, f"{verb}.md")), role, verb)
     except MissingPrompt:
         return ""
+
+
+# The slot a brief writes where it names the words of `ledger.log`'s `kind`.
+# A base brief is shared by modes that offer different words, so the words
+# come from the mode's `.tools` line at render time (frame 204, pass 1b).
+KINDS_SLOT = "{ledger.log kinds}"
+
+
+def fill_kinds(text: str, role: str, mode: str = "") -> str:
+    """The brief with its kinds slot replaced by the mode's words."""
+    if KINDS_SLOT not in text:
+        return text
+    words = (mode_kinds(role, mode) if mode else None)
+    if not words:
+        from .api import LOG_KINDS
+
+        words = LOG_KINDS
+    named = [f"`{w}`" for w in words]
+    said = named[0] if len(named) == 1 else ", ".join(named[:-1]) + " or " + named[-1]
+    return text.replace(KINDS_SLOT, said)
 
 
 def compose(role: str, verb: str = "") -> str:

@@ -23,7 +23,7 @@ Developer can pick up cold and finish. The item that says one thing is one
 ticket. Error handling, validation, tests, logging, edge cases the item never
 mentioned are not tickets: adding them decides scope nobody approved. If the
 item cannot be built without deciding one of those, `ledger.log` the
-undecided point against the item and slice only what the item says — the
+undecided point against the item with `kind="scope"` and slice only what the item says — the
 principal sees every open entry, and deciding is theirs, not yours.
 
 **Finished means finished.** Once the item's tickets exist, do not send more,

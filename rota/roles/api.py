@@ -7823,26 +7823,50 @@ LOG_KINDS = ("conflict", "scope", "invented", "finding", "default", "gap",
 # and no ledger row (frame 204's design, section 7).
 FAULT_KINDS = ("blocked", "fault")
 
-# Section 8's three questions and its tie-break, as the door says them.
-KIND_QUESTIONS = (
-    "Answer three questions, and the word follows. "
-    "0: is the obstacle a rule of rota (a permission, a door, a tool) or the "
-    "content of a row? A rule that works as designed is no note, so log "
-    "nothing. If you believe the row behind the rule is wrong, the note is "
-    "about that row: go to question 1. A rule that failed is kind='fault'. A "
-    "record that names a row that does not exist is kind='blocked'. "
-    "1: if the note is wrong, who must say so: the principal, the owner of a "
-    "row, or nobody in rota? "
-    "2: did you pick, could you not pick, or did you not need to? "
-    "The principal, picked: 'default', or 'scope' when you left out or added "
-    "work. The principal, could not: 'conflict' when two sources of the "
-    "project disagree. The principal, did not need to: 'gap'. A row's owner, "
-    "picked: 'invented' for a value you chose, or 'finding'. A row's owner, "
-    "could not: 'conflict'. "
-    "A note that fits two words takes the first of this order: conflict, "
-    "scope, the owner's word, the principal's word, nobody's word. A note "
-    "that fits no word is 'other'. A step, a plan or a ruling said again is "
-    "no note: log nothing.")
+# Section 8's grid as the door says it: each cell, and its words with the
+# clause that tells them apart. The door names only the words that the
+# session's mode offers (frame 204's review 1, finding L4).
+_KIND_CELLS = (
+    ("The principal, picked", (("default", "'default'"),
+                               ("scope", "'scope' when you left out or added work"))),
+    ("The principal, could not", (("conflict", "'conflict' when two sources of "
+                                               "the project disagree"),)),
+    ("The principal, did not need to", (("gap", "'gap'"),)),
+    ("A row's owner, picked", (("invented", "'invented' for a value you chose"),
+                               ("finding", "'finding'"))),
+    ("A row's owner, could not", (("conflict", "'conflict'"),)),
+)
+
+
+def kind_questions(offered=LOG_KINDS) -> str:
+    """Section 8's three questions and its tie-break, with the words of
+    `offered` alone."""
+    rules = []
+    if "fault" in offered:
+        rules.append("A rule that failed is kind='fault'.")
+    if "blocked" in offered:
+        rules.append("A record that names a row that does not exist is kind='blocked'.")
+    cells = []
+    for cell, words in _KIND_CELLS:
+        said = [clause for word, clause in words if word in offered]
+        if said:
+            cells.append(f"{cell}: {', or '.join(said)}.")
+    tail = "A note that fits no word is 'other'. " if "other" in offered else ""
+    return " ".join([
+        "Answer three questions, and the word follows.",
+        "0: is the obstacle a rule of rota (a permission, a door, a tool) or the "
+        "content of a row? A rule that works as designed is no note, so log "
+        "nothing. If you believe the row behind the rule is wrong, the note is "
+        "about that row: go to question 1.", *rules,
+        "1: if the note is wrong, who must say so: the principal, the owner of a "
+        "row, or nobody in rota?",
+        "2: did you pick, could you not pick, or did you not need to?", *cells,
+        "A note that fits two words takes the first of this order: conflict, "
+        "scope, the owner's word, the principal's word, nobody's word. " + tail
+        + "A step, a plan or a ruling said again is no note: log nothing."])
+
+
+KIND_QUESTIONS = kind_questions()
 
 FAULT_REPLY = ("the fault is recorded for the people who build rota. No page "
                "shows it, and nobody in rota answers it. End the session.")
@@ -7858,10 +7882,10 @@ def _offered_kinds(ctx) -> tuple:
 
 def ledger_kind_door(ctx, sent=None) -> str:
     """The door's text for a `kind` that is absent or not offered."""
-    offered = ", ".join(_offered_kinds(ctx))
+    offered = _offered_kinds(ctx)
     head = (f"kind={sent!r} is no word this mode offers. " if sent
             else "kind is one word that says what the note is. ")
-    return f"{head}{KIND_QUESTIONS} This mode offers: {offered}."
+    return f"{head}{kind_questions(offered)} This mode offers: {', '.join(offered)}."
 
 
 def _read_kinds(kind) -> list[str]:
@@ -7878,7 +7902,8 @@ def _read_kinds(kind) -> list[str]:
 
 def _refused_call(ctx, about_ref: str) -> str:
     """The call a fault is about. A ref that names a call is that call.
-    Otherwise it is the session's last refused call before this log."""
+    Otherwise it is the session's last refused call before this log, and
+    `unknown` when the session has none."""
     ref = (about_ref or "").strip()
     head, _, tail = ref.partition(".")
     if tail and (head == "msg" or (head, tail.replace("_", " ")) in REGISTRY):
@@ -7886,7 +7911,9 @@ def _refused_call(ctx, about_ref: str) -> str:
     for label, *_ in reversed(getattr(ctx, "refusals", None) or []):
         if label != "ledger.log":
             return label
-    return ref or "unknown"
+    # A row id is no call, so the night report and `faults close` could not
+    # name the call (frame 204's review 1, finding L2).
+    return "unknown"
 
 
 def _stage_fault(ctx, call: str, text: str, kind: str) -> str:
@@ -7965,21 +7992,24 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # tie-break. A word outside the mode's set gets the three questions.
     sent = _read_kinds(kind)
     offered = _offered_kinds(ctx)
-    known = [k for k in LOG_KINDS if k in sent]
-    if not known or any(k not in offered for k in known):
-        bad = next((k for k in sent if k not in offered), None)
-        raise ValueError(ledger_kind_door(ctx, bad or kind))
+    known = [k for k in LOG_KINDS if k in sent and k in offered]
+    dropped = [w for w in sent if w not in offered]
+    if not known:
+        raise ValueError(ledger_kind_door(ctx, dropped[0] if dropped else kind))
     word = known[0]
-    # A fault of rota is no note on any page (section 7). The four-word
-    # rule still holds, so a label is refused here too.
-    if word in FAULT_KINDS:
-        if len((assumption or "").split()) < 4:
-            raise ValueError(
-                "an assumption is a sentence a reader learns from. Name what went "
-                "unread, why, and what a reader would get wrong.")
-        call = _refused_call(ctx, about_ref)
-        fid = _stage_fault(ctx, call, assumption, word)
-        return {"fault": fid, "call": call, "note": FAULT_REPLY}
+    # A word the mode does not offer is dropped, and the seat hears so. The
+    # first offered word goes through, by section 8's tie-break. Refusing
+    # the whole call broke the tie-break (frame 204's review 1, finding L3).
+    extra = {}
+    if len(sent) > 1:
+        extra["kind"] = word
+    if dropped:
+        many = len(dropped) > 1
+        extra["dropped"] = (
+            f"kind={' and '.join(repr(w) for w in dropped)} "
+            f"{'are no words' if many else 'is no word'} this mode offers, so the "
+            f"door dropped {'them' if many else 'it'} and kept {word!r}. This mode "
+            f"offers: {', '.join(offered)}.")
 
     # The world-audit found ledger rows about 'glossary' and 'problem.assert'
     # -- table names and tool names where a row id belongs, unresolvable at
@@ -7993,6 +8023,20 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
         raise ValueError(
             f"{about_ref} is a message. An assumption is about a row of the "
             f"project, never about a message.")
+    # A fault of rota is no note on any page (section 7). The message guard
+    # above and the echo guard hold for it too, so an echo cannot move to
+    # the faults table (frame 204's review 1, finding L2). The four-word
+    # rule still holds, so a label is refused here too.
+    if word in FAULT_KINDS:
+        _refuse_an_echo(ctx, about_ref)
+        if len((assumption or "").split()) < 4:
+            raise ValueError(
+                "an assumption is a sentence a reader learns from. Name what went "
+                "unread, why, and what a reader would get wrong.")
+        call = _refused_call(ctx, about_ref)
+        fid = _stage_fault(ctx, call, assumption, word)
+        return {"fault": fid, "call": call, "note": FAULT_REPLY, **extra}
+
     if not ref_resolves(ctx, about_ref):
         raise ValueError(
             f"{about_ref!r} names no row. about_ref is the id of the row the "
@@ -8021,17 +8065,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
             f"about_table={home!r}",
             "ledger.log", {"about_ref": about_ref, "about_table": home,
                            "assumption": assumption, "kind": word}))
-    # A seat that a ruling reaches does not answer it with a row about the
-    # ruled row. On night 136, 117 of 213 lines on the agenda pages were such
-    # rows, and 31 pages held nothing else. Each one went back to the
-    # principal as the next page (frame 190's design, 2.3.1).
-    relay = _principal_relay(ctx)
-    if relay is not None and about_ref in relay[0]:
-        raise ValueError(
-            f"the principal ruled on {about_ref} in the relay that woke you, and "
-            f"their words are on file as their decision. A new assumption about "
-            f"the same row goes back on their page as your reading of their "
-            f"words. Adopt what they approved, and stop.")
+    _refuse_an_echo(ctx, about_ref)
     # The blindspot brief's own rule, "Say the actual thing", held at the
     # door. Night 136's s87 made 53 calls whose words were one label, and
     # the 16 rows they left reached the pages (frame 190's design, 2.3.2).
@@ -8079,10 +8113,24 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 f"and the owner answers it before a page does. Send {how}",
                 call, args))
 
-    out = {"id": _stage_ledger(ctx, about_ref, about_table, assumption, word)}
-    if len(known) > 1:
-        out["kind"] = word
-    return out
+    return {"id": _stage_ledger(ctx, about_ref, about_table, assumption, word),
+            **extra}
+
+
+def _refuse_an_echo(ctx, about_ref: str) -> None:
+    """Refuse a note about the row that the waking relay ruled on.
+
+    A seat that a ruling reaches does not answer it with a row about the
+    ruled row. On night 136, 117 of 213 lines on the agenda pages were such
+    rows, and 31 pages held nothing else. Each one went back to the
+    principal as the next page (frame 190's design, 2.3.1)."""
+    relay = _principal_relay(ctx)
+    if relay is not None and about_ref in relay[0]:
+        raise ValueError(
+            f"the principal ruled on {about_ref} in the relay that woke you, and "
+            f"their words are on file as their decision. A new assumption about "
+            f"the same row goes back on their page as your reading of their "
+            f"words. Adopt what they approved, and stop.")
 
 
 # The tables a ledger row can be about, in the order `ledger.log` checks them.

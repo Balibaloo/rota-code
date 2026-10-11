@@ -767,3 +767,20 @@ def test_the_state_view_counts_open_faults_and_shows_no_rows(tmp_path):
                          "build it have the list.")
     assert "glossary.adopt" not in page
     assert page.startswith("Nothing waits on you and nothing is building.")
+
+
+def test_the_agenda_refuses_a_run_from_before_the_faults_table(tmp_path, monkeypatch):
+    """Frame 204's review 1, finding L1: `rota agenda` read `faults` on an
+    old run and raised `no such table: faults`."""
+    from rota import cli
+    from rota.core.db import SCHEMA_STALE
+
+    monkeypatch.setattr(cli, "RUNS", tmp_path)
+    conn = init_db(tmp_path / "run.db")
+    conn.execute("DROP TABLE faults")
+    conn.execute("UPDATE config SET value = 'ledger-kind' WHERE key = 'schema'")
+    conn.commit()
+    conn.close()
+    with pytest.raises(SystemExit) as refused:
+        cli.main(["agenda", "run"])
+    assert str(refused.value) == f"run: {SCHEMA_STALE}"

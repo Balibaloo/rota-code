@@ -30,7 +30,7 @@ answer read and never written into the code leaves the batch exactly where it wa
 before you asked, having spent a question to get there.
 
 **If the answer still leaves you a choice to make, `ledger.log` it and take the
-choice.** That is what the ledger is for: the criteria were silent, you picked,
+choice.** Its `kind=` is one word: {ledger.log kinds}. That is what the ledger is for: the criteria were silent, you picked,
 and the picking is on the record in the same session as the diff. A silent
 default is the thing this system exists to prevent — not the fact that you had
 to make one.

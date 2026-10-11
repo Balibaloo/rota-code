@@ -979,7 +979,8 @@ def test_after_the_head_commit_the_batch_line_is_refused_with_the_item(bg2):
                                          "4": "approve", "5": "contest"}, words=M85)
 
 
-def test_a_relay_of_a_ruling_logs_no_row_about_the_ruled_row(m399):
+@pytest.mark.parametrize("word", ["default", "blocked", "fault"])
+def test_a_relay_of_a_ruling_logs_no_row_about_the_ruled_row(m399, word):
     """Night 136, s559 on m422. The Architect logged `l_758e5d392a` about the
     constraint the principal had just contested, and the row was the next
     page. Its `model.adopt` read the id by character (frame 190's design,
@@ -1009,7 +1010,7 @@ def test_a_relay_of_a_ruling_logs_no_row_about_the_ruled_row(m399):
     full.ctx.trigger = "m422"
     with pytest.raises(ValueError) as refused:
         full.call("ledger.log", about_ref="parametersource_commandline",
-                  about_table="constraints", kind="default",
+                  about_table="constraints", kind=word,
                   assumption="The principal's contest on parametersource_commandline "
                              "requires a refactor to align with the new show python "
                              "flag behavior.")
@@ -1025,8 +1026,11 @@ def test_a_relay_of_a_ruling_logs_no_row_about_the_ruled_row(m399):
     with pytest.raises(ValueError, match="m419 is a message. An assumption is about "
                                          "a row of the project, never about a message"):
         full.call("ledger.log", about_ref="m419", about_table="principal_verdict",
-                  kind="default",
+                  kind=word,
                   assumption="The principal's verdict contests all six observed terms.")
+    # Frame 204's review 1, finding L2: a fault or a block met neither guard,
+    # so an echo moved to the faults table.
+    assert [w for w in full.ctx.writes if w[0] in ("ledger", "faults")] == []
 
 
 def test_a_one_word_assumption_is_refused(db):
@@ -1191,6 +1195,88 @@ def test_a_word_the_mode_does_not_offer_is_refused_with_the_modes_words(db):
     assert str(refused.value).endswith(
         "This mode offers: conflict, scope, invented, default, blocked, fault, other.")
     assert prompts.mode_kinds("liaison", "blindspot") == ("gap", "blocked", "fault", "other")
+
+
+@pytest.mark.parametrize("word", ["blocked", "fault"])
+def test_the_ledger_refuses_a_fault_word(db, word):
+    """Frame 204's review 1, finding L5: `blocked` and `fault` live in
+    `faults` alone, so a raw writer cannot put a fault on a page."""
+    import sqlite3
+
+    with pytest.raises(sqlite3.IntegrityError):
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+                   "kind, author) VALUES ('l_x', 'c1', 'criteria', ?, ?, 'developer')",
+                   (NOTE, word))
+
+
+@pytest.mark.parametrize("word", ["blocked", "fault"])
+def test_a_fault_names_a_call_and_never_a_row(db, word):
+    """Frame 204's review 1, finding L2: a fault with no refusal before it
+    wrote the criterion id `c1` as its call."""
+    from rota.core.sandbox import build
+
+    sb = build("terminologist", _log_db(db), mode="normal")
+    out = sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                  assumption="the door failed and the session cannot go on", kind=word)
+    assert out["call"] == "unknown"
+    (fault,) = _logs(sb, "faults")
+    assert fault[2]["call"] == "unknown"
+
+
+def test_a_second_word_the_mode_does_not_offer_is_dropped_with_a_note(db):
+    """Frame 204's review 1, finding L3, in `developer/batch_start`. The
+    first word goes through by the tie-break, and the seat hears what the
+    door dropped."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build("developer", _log_db(db), mode="normal")
+    sb.ctx.log_kinds = prompts.mode_kinds("developer", "batch_start")
+    out = sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                  assumption=NOTE, kind="invented, gap")
+    assert out["kind"] == "invented"
+    assert out["dropped"].startswith("kind='gap' is no word this mode offers")
+    out = sb.call("ledger.log", about_ref="i1", about_table="items",
+                  assumption="the batch leaves out the pretty-print half of the item",
+                  kind="default, banana")
+    assert out["kind"] == "default" and "'banana'" in out["dropped"]
+    assert [w[2]["kind"] for w in _logs(sb)] == ["invented", "default"]
+    # No offered word left: the whole call is refused.
+    with pytest.raises(ValueError, match="kind='gap' is no word this mode offers"):
+        sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                assumption=NOTE, kind="gap, banana")
+
+
+def test_the_door_text_names_only_the_words_the_mode_offers(db):
+    """Frame 204's review 1, finding L4: the questions mapped a Developer to
+    `gap` and `finding`, which its mode refuses."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build("developer", _log_db(db), mode="normal")
+    sb.ctx.log_kinds = prompts.mode_kinds("developer", "batch_start")
+    with pytest.raises(ValueError) as refused:
+        sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                assumption=NOTE, kind="trace")
+    said = str(refused.value)
+    assert "'gap'" not in said and "'finding'" not in said
+    assert "'invented'" in said and "'default'" in said
+
+
+def test_the_tool_schema_carries_the_words_of_the_mode(db):
+    """Frame 204's review 1, finding H1: the native schema showed `kind` as
+    a bare string."""
+    from rota.core.sandbox import build
+    from rota.llm.toolschema import schemas_for_sandbox
+    from rota.roles import prompts
+
+    sb = build("liaison", db, mode="blindspot",
+               allow=prompts.mode_tools("liaison", "blindspot"))
+    sb.ctx.log_kinds = prompts.mode_kinds("liaison", "blindspot")
+    (log,) = [s for s in schemas_for_sandbox(sb)
+              if s["function"]["name"] == "ledger__log"]
+    assert log["function"]["parameters"]["properties"]["kind"] == {
+        "type": "string", "enum": ["gap", "blocked", "fault", "other"]}
 
 
 def test_the_relay_modes_offer_no_log_and_the_brief_asks_for_none():

@@ -43,8 +43,8 @@ names and assert on what it returns.
 A bare assertion with no function, or a sentence about the criterion, is
 refused -- pytest would collect nothing from either. A string the test
 chooses that nothing in the material says -- a sample name, a prompt's
-wording -- is an assumption: `ledger.log` it against the criterion, then
-encode.
+wording -- is an assumption. Encode the test: `tests.encode` writes the
+assumption to the ledger for you.
 
 **`cannot` needs no diagnosis, only honesty.** A criterion can fail you three
 ways — a word that could mean two things, a sentence no machine could check, a

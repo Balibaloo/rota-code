@@ -15,9 +15,10 @@ files may witness the project's most important contract; one quarantined
 survey may be the area the next question lands on. A fact that hides
 nothing — a lockfile no parser reads — is not worth an entry.
 
-For each gap that matters, one entry with `ledger.log`.
+For each gap that matters, one entry with `ledger.log` and `kind="gap"`.
 
-Each `ledger.log` is about an area: `about_ref="@<area>"` with the name
+Each `ledger.log` has one `kind=`: {ledger.log kinds}. It is about an
+area: `about_ref="@<area>"` with the name
 `code.gaps` lists, and `about_table="model_areas"`. A tick, a message or
 a counter names no row, and a row about one is refused.
 

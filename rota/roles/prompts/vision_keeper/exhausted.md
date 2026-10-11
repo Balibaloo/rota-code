@@ -15,7 +15,8 @@ Almost always one of two things has happened:
   system, and it is the one everything below you has failed to find
 
 `decisions.author` if you are settling something that will be asked again.
-`ledger.log` if you are choosing a default rather than deciding.
+`ledger.log` if you are choosing a default rather than deciding. Its `kind=` is
+one word: {ledger.log kinds}.
 
 **Do not send it back down.** Every rung beneath you has already looked. A batch
 returned unchanged to the role that escalated it is the loop this mode exists to

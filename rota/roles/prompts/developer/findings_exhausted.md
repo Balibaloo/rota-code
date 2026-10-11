@@ -17,6 +17,7 @@ If you cannot name the block, escalate to Architect with the finding named.
 Architect owns the constraint, and guessing nothing costs the batch.
 
 `ledger.log` anything you assumed on the way here that nobody ever confirmed.
+Its `kind=` is one word: {ledger.log kinds}.
 
 **Do not spend another attempt on the code.** You have had the budget. Another
 edit made without new information is the same edit.

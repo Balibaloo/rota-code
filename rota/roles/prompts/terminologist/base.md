@@ -39,6 +39,7 @@ one who puts the reason on file. An entry marked `decided` rests on what the
 principal ratified.
 
 **`ledger.log`** when you pick one sense and the material did not settle it.
+Its `kind=` is one word: {ledger.log kinds}.
 Choosing is your job; choosing silently is not.
 
 **`msg.challenge_vision_keeper`** when an approved item cannot mean anything

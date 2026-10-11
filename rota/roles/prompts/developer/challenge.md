@@ -7,7 +7,7 @@ rename noticed in passing.
 Two honest answers, and only two:
 
 - **it had to be there** — `ledger.log` what the asked-for work could not have
-  been done without, and leave the change in
+  been done without, with `kind="scope"`, and leave the change in
 - **it did not** — take it out and commit
 
 **You have no message back to Critic, and that is deliberate.** Critic sees the

@@ -552,7 +552,9 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
 --
 -- Frame 204 adds the words of its grid (`plans/frame204-design.md`,
 -- section 8). A seat names one at log time. `blocked` and `fault` never
--- land here: the door writes them to `faults`. The grid's `unaddressed`
+-- land here: the door writes them to `faults`, and the CHECK refuses them,
+-- so a raw writer cannot put a fault on a page (frame 204's review 1,
+-- finding L5). The grid's `unaddressed`
 -- cell is `unaddressed_answer`, which `ledger.unaddressed` writes (section
 -- 7). A second word for it would collide with the operation's name
 -- (`tests/rota/test_vocabulary.py`).
@@ -564,7 +566,7 @@ CREATE TABLE IF NOT EXISTS ledger (
     kind           TEXT NOT NULL DEFAULT 'default'
                    CHECK (kind IN ('default','unaddressed_answer','invented',
                                    'scope','gap','finding','conflict',
-                                   'blocked','fault','other')),
+                                   'other')),
     status         TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
     author         TEXT NOT NULL,
     version        INTEGER NOT NULL DEFAULT 1

@@ -706,13 +706,19 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 
 def cmd_agenda(args: argparse.Namespace) -> int:
     """What is waiting on the principal, and what the system does not know."""
-    from .core.db import connect_readonly
+    from .core.db import connect_readonly, schema_stale
     from .core.predicates import outstanding
     from .roles.principal import pending_asks
 
     from .roles.principal import pending_replies, render_state
 
     conn = connect_readonly(require(args.name))
+    # The read-only open skips the schema mark. A run from before the faults
+    # table then raised in `render_state` (frame 204's review 1, finding L1).
+    stale = schema_stale(conn)
+    if stale:
+        conn.close()
+        raise SystemExit(f"{args.name}: {stale}")
     asks = pending_asks(conn)
     if not asks:
         # "nothing is waiting on you" was the whole answer. A finished run, a
