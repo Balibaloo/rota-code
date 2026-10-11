@@ -1,7 +1,7 @@
 # Frame 195 design: the red row carries the exception a `CliRunner` caught
 
 Status: drafted 2026-10-11 by session 84ce0759 from the scope report
-`plans/frame195-scope.md`. Design review: pending. Rota workflow.
+`plans/frame195-scope.md`. Design review on Opus, 2026-10-11 03:03, `plans/frame195-design-review.md`: start after the fixes in the section below. Rota workflow.
 
 ## The fault
 
@@ -71,6 +71,72 @@ fails. It changes no test's result.
    the batch's own: the same plugin loads on both, and a project test that
    asserts a caught exception keeps its result.
 
+## The review's fixes, folded in (2026-10-11)
+
+The review reproduced four ways the plugin of items 1 to 4 changes a
+test's result, and found two gaps. Each fix below replaces the item it
+names.
+
+1. The module is `_rota_caught`, a name no project file is likely to
+   hold, because `python -m pytest` puts the working directory ahead of
+   `PYTHONPATH` and a project file of the same name replaced the plugin
+   (observed: the review's shadow probe). The harness adds
+   `--show-capture=all` to the command, because a project's `addopts =
+   --show-capture=no` hides every section and a command-line value wins.
+   The plugin's syntax stays old: no `match`, no new f-string forms,
+   because it runs under any Python a project venv has.
+2. The import of `click.testing` runs only when `"click"` is in
+   `sys.modules`, inside `warnings.catch_warnings()` with
+   `simplefilter("ignore")`, and catches `Exception`, not `ImportError`.
+   A stub that raised `NameError` at import, and one that warned under
+   `filterwarnings = error`, each turned a pass into a fail (observed: the
+   review's stubs).
+3. The wrapper carries `functools.wraps(orig)`, because a test that reads
+   `inspect.signature(CliRunner.invoke)` failed on `(self, *a, **k)`. The
+   inspection of the result sits in `try/except Exception`, because a diff
+   that stores `exc_info` as an exception and not a tuple raised inside
+   `invoke`. The plugin formats the traceback text at once and keeps the
+   text, never `exc_info`, so no frame stays alive into the next test.
+   The report hook is guarded the same way: an exception in it gave
+   `INTERNALERROR` and exit 3, which the harness records as `error`.
+4. The section dedupes its entries by exception type, file and line, and
+   keeps one entry plus `and N more`, because four raising calls pushed
+   the assertion line out of the 2000-character tail and five dropped the
+   title. `os.path.relpath` falls back to the absolute path when it raises
+   `ValueError`, because base Python is on `C:` and the worktrees on `D:`.
+   The section also records whether `result.output` was empty, as a fact
+   line, for example `output: empty` or `output: 42 characters`.
+5. The section's final line carries a fixed prefix:
+   `caught by CliRunner at <relative path>:<line>: <ExceptionName>`. The
+   third `raised at` wording reads that line with its own pattern and not
+   `frames[-1]`, because the regex of today misses a custom exception
+   class, a `StopIteration` and a frame in `<string>`. The wording states
+   the facts: the exception, its file and line, that the runner caught it
+   inside the command, whether the output was empty, the assertion that
+   fired, and whether the file is one the diff touched. No `so`, because
+   a command can echo text and then raise.
+6. The plugin loads on the project's tests and on the batch's own tests
+   alike. Night 138's project test `inh_dcc9ea38` failed beside `tst_v3`
+   at 3eebc90, and a plugin on the own tests alone would leave that row
+   with the false assertion pointer.
+7. The measure counts Developer `tests_failing` sessions whose turn 1
+   shows an empty-output red with no section, because `test_runs` keeps
+   only attempts 4, 6, 7 and 8 of b_3. Baseline: 10 of 11 sessions on
+   night 138's b_3, s380 to s393 (observed: the review's query on a copy
+   of `.rota/clickI_night138.db`). The query:
+
+   ```sql
+   SELECT s.id, s.wake_detail,
+          max(instr(t.user,'Expected Python version string in output: ')>0),
+          max(instr(t.user,'CliRunner caught an exception')>0)
+   FROM sessions s JOIN turns t ON t.session_id=s.id
+   WHERE s.role='developer' AND s.wake_kind='tick:tests_failing'
+     AND s.wake_refs LIKE '%"b_3"%' AND t.seq=1
+   GROUP BY s.id ORDER BY s.seq
+   ```
+
+   Target: at most 1 in 5 on the walk, with the residue rule as before.
+
 ## Why not the other options
 
 - A default of `catch_exceptions=False` turns 3 failed into 23 failed on
@@ -101,14 +167,11 @@ fails. It changes no test's result.
 
 ## The measure on the walk
 
-Developer attempts on a batch whose red row shows an `invoke` call, an
-empty output and no caught section. Baseline: 8 of 8 on night 138's b_3,
-counted from the Developer's sessions, because a run at the same commit
-deletes the older `test_runs` rows and only 4 of the 8 survive
-(observed: `plans/frame195-scope.md`, section 6). Target: at most 1 in 5
-on the walk, with the residue rule as frame 193 wrote it: an attempt that
-still shows the sign is read, and the frame closes when its cause is not
-the hidden exception.
+Superseded by fix 7 above: Developer `tests_failing` sessions whose turn
+1 shows an empty-output red with no section, 10 of 11 on night 138's b_3,
+to at most 1 in 5 on the walk, with the residue rule as frame 193 wrote
+it: a session that still shows the sign is read, and the frame closes
+when its cause is not the hidden exception.
 
 ## Cost
 
