@@ -219,8 +219,9 @@ def test_a_runner_reloaded_inside_the_test_body_is_reported(tmp_path):
 def test_the_finder_leaves_a_legacy_finder_its_turn(monkeypatch):
     """Python 3.11 asks a `find_module` finder in its place on `sys.meta_path`.
     The finder skipped it and took the next spec (the review of 89fd9027,
-    finding 1). Python 3.12 ignores such a finder, so the test calls
-    `find_spec` directly."""
+    finding 1). Python 3.12 and later ignore such a finder, and a None there
+    left `click.testing` unwrapped (the review of 969b76a2). The test calls
+    `find_spec` directly, so it runs the same way on both versions."""
     import importlib.machinery
     import importlib.util
 
@@ -232,20 +233,56 @@ def test_the_finder_leaves_a_legacy_finder_its_turn(monkeypatch):
     plugin = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(plugin)
 
-    served = importlib.machinery.ModuleSpec("click.testing", None)
+    class Loader:
+        def exec_module(self, module):
+            pass
+
+        def load_module(self, name):
+            raise AssertionError("the test never imports")
 
     class Legacy:
+        def __init__(self, serves):
+            self.serves = serves
+            self.asked = []
+
         def find_module(self, name, path=None):
-            return None
+            self.asked.append(name)
+            return Loader() if self.serves else None
 
     class Modern:
-        def find_spec(self, name, path=None, target=None):
-            return served if name == "click.testing" else None
+        def __init__(self):
+            self.served = importlib.machinery.ModuleSpec("click.testing", Loader())
 
-    monkeypatch.setattr(sys, "meta_path", [plugin._finder, Modern()])
-    assert plugin._finder.find_spec("click.testing") is served
-    monkeypatch.setattr(sys, "meta_path", [plugin._finder, Legacy(), Modern()])
-    assert plugin._finder.find_spec("click.testing") is None
+        def find_spec(self, name, path=None, target=None):
+            return self.served if name == "click.testing" else None
+
+    def wrapped(spec):
+        return getattr(spec.loader.exec_module, "_rota_caught_wrapped", False)
+
+    # No legacy finder: the spec of the next finder, wrapped.
+    modern = Modern()
+    monkeypatch.setattr(sys, "meta_path", [plugin._finder, modern])
+    assert plugin._finder.find_spec("click.testing") is modern.served
+    assert wrapped(modern.served)
+
+    # A legacy finder that serves nothing: the loop goes past it on every version.
+    modern, legacy = Modern(), Legacy(serves=False)
+    monkeypatch.setattr(sys, "meta_path", [plugin._finder, legacy, modern])
+    assert plugin._finder.find_spec("click.testing") is modern.served
+    assert wrapped(modern.served)
+
+    # A legacy finder that serves `click.testing`, ahead of the next finder.
+    modern, legacy = Modern(), Legacy(serves=True)
+    monkeypatch.setattr(sys, "meta_path", [plugin._finder, legacy, modern])
+    got = plugin._finder.find_spec("click.testing")
+    if sys.version_info >= (3, 12):
+        # The import system ignores the legacy finder, so the plugin must not ask it.
+        assert got is modern.served and wrapped(modern.served)
+        assert legacy.asked == []
+    else:
+        # The import system asks the legacy finder next, so the plugin gives way.
+        assert legacy.asked == ["click.testing"]
+        assert got is None and not wrapped(modern.served)
 
 
 def test_a_project_with_no_click_runs_unchanged(tmp_path):

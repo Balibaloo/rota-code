@@ -184,10 +184,15 @@ class _Finder(object):
                 find = getattr(finder, "find_spec", None)
                 if find is None:
                     # Python 3.11 and older ask a `find_module` finder in its
-                    # place. None leaves that finder its turn (frame 195,
-                    # review of 89fd9027, finding 1).
-                    if getattr(finder, "find_module", None) is not None:
-                        return None
+                    # place. When it gives a loader, None leaves it its turn
+                    # (frame 195, review of 89fd9027, finding 1). Python 3.12
+                    # and later ignore such a finder, so the loop goes past it.
+                    # A None there loaded `click.testing` with no wrap (frame
+                    # 195, review of 969b76a2).
+                    legacy = getattr(finder, "find_module", None)
+                    if legacy is not None and sys.version_info < (3, 12):
+                        if legacy(name, path) is not None:
+                            return None
                     continue
                 spec = find(name, path, target)
                 if spec is not None:
