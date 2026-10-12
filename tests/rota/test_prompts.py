@@ -301,9 +301,11 @@ def test_the_reconcile_and_triage_briefs_name_the_ref_and_the_literal_source():
     verdict = triage.index("could a machine check this sentence?**")
     sentence = triage[verdict:triage.index("`encodable` and you", verdict)]
     assert "`invented`" in sentence
-    assert "`cannot`" in sentence
-    assert "msg.question_terminologist" in sentence
-    assert "msg.question_researcher" not in sentence
+    # Another party's spec is the triage door's `outside_fact`, which routes
+    # to the Researcher. `cannot` stays the Terminologist's.
+    assert "`outside_fact`" in sentence
+    assert "msg.question_researcher" in sentence
+    assert "`cannot`" not in sentence
     assert "is an assumption, and\nthe encode records it" in triage
 
 
