@@ -11512,6 +11512,20 @@ _LOAD_PROBE = (
 _LOAD_CACHE: dict = {}
 
 
+def clear_load_cache(worktree) -> None:
+    """
+    Drop every probe result of one worktree.
+
+    A deferred batch resumes at the same head, and `provision.ensure_env`
+    can install a dependency then. The key holds no fact about the
+    interpreter's packages, so a cached failure outlives the install
+    (frame 215's review 1b, finding 1).
+    """
+    root = str(worktree)
+    for key in [k for k in _LOAD_CACHE if k[0] == root]:
+        del _LOAD_CACHE[key]
+
+
 def _module_load_error(ctx, dotted: str, rel_path: str) -> str | None:
     """
     The first line of the error when the module does not load in the

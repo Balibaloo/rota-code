@@ -349,6 +349,17 @@ def _night142(db):
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_2', "
                "'show_python_version_flag', 'give version_option a show_python "
                "flag that appends the running Python, version to the message')")
+    # Night 142's statement and its link, from the night's database copy.
+    db.execute("INSERT INTO entries (id, author, text, ts_order, version) VALUES "
+               "('e_p4', 'principal', ?, 83, 1)",
+               ("Give version_option a show_python flag that appends the running "
+                "Python version to the message.",))
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+               "status, version) VALUES ('s4', 'e_p4', 0, 94, ?, 'ratified', 1)",
+               ("Give version_option a show_python flag that appends the running "
+                "Python version to the message.",))
+    db.execute("INSERT INTO refs (src_table, src_id, kind, target, resolves) VALUES "
+               "('items', 'show_python_version_flag', 'statement', 's4', 1)")
     db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES "
                "('c_show_python_version', 'tk_2', 'The --version output names "
                "the Python version.', '[\"src/click/decorators.py::version_option\"]')")
@@ -442,3 +453,43 @@ def test_an_abandoned_batch_neither_admits_nor_names_a_surface(db):
                          text=_N142_TEXT, surface_refs=[_IMAGEPIPE])
     named = str(refused.value).split("expects to touch", 1)[1].split(". No word", 1)[0]
     assert named.strip() == "src/click/decorators.py, tests/test_basic.py"
+
+
+def test_only_the_statement_names_the_callable_and_the_surface_is_admitted(db):
+    """
+    Frame 215's review 1b, finding 2, probe q1 case e5: the item, the
+    ticket and the new text do not name `process_commands`. Statement `s4`
+    names it, and the door reads the item's statements, so the surface lands.
+    """
+    _night142(db)
+    db.execute("UPDATE statements SET text = text || ' process_commands' WHERE id = 's4'")
+    db.commit()
+    out = _repair(db).call("criteria.respecify", id="c_show_python_version",
+                           text=_N142_TEXT, surface_refs=[_IMAGEPIPE])
+    assert out["respecified"]
+
+
+def test_a_cleared_load_cache_sees_a_dependency_installed_at_the_same_head(db, tmp_path):
+    """
+    Frame 215's review 1b, finding 1, probe q2 `pkg.late`: a deferred batch
+    resumes at the same head, and `provision.ensure_env` installs what the
+    module imports. The cached failure outlived the install until
+    `lifecycle.start` cleared the worktree's keys.
+    """
+    import types
+
+    from rota.roles import api
+    root = tmp_path / "wt"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_bytes(b"")
+    (root / "pkg" / "late.py").write_bytes(b"import rota_late_dep\ndef f(): pass\n")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree, head_commit) "
+               "VALUES ('b_late', 'i1', 'running', ?, 'abc123')", (str(root),))
+    db.commit()
+    ctx = types.SimpleNamespace(conn=db, batch_id="b_late")
+    first = api._module_load_error(ctx, "pkg.late", "pkg/late.py")
+    assert first and "rota_late_dep" in first
+    # The install: the dependency becomes importable with no commit.
+    (root / "rota_late_dep.py").write_bytes(b"X = 1\n")
+    api.clear_load_cache(root)
+    assert api._module_load_error(ctx, "pkg.late", "pkg/late.py") is None

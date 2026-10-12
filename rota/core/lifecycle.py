@@ -118,6 +118,10 @@ def start(conn: sqlite3.Connection, batch_id: str) -> None:
                            (batch_id,)).fetchone()
         if row and row["worktree"]:
             _, note = provision.ensure_env(_Path(row["worktree"]))
+            # The install can make a module load that failed before, at the
+            # same head (frame 215's review 1b, finding 1).
+            from ..roles.api import clear_load_cache
+            clear_load_cache(_Path(row["worktree"]))
             conn.execute(
                 "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                 (f"env:{batch_id}", note))
