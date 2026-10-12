@@ -1572,8 +1572,8 @@ def _code_step(ctx: api.Ctx) -> str:
     return "Make one real change to the code the test calls."
 
 
-#: How many challenges of the Developer may land on one criterion, counted
-#: across moves of its tests, across its tests' ids and across the other refs.
+#: How many challenges of the Developer may land on one body of a criterion's
+#: tests, counted across its tests' ids and across the other refs.
 #: A moved test deletes its own runs and lifts the batch's tick quarantine
 #: (`db.py:579-610`), so on a batch of one test the attempt cap starts again
 #: at each move (the review of 4968ea7, 2026-10-05). Nights 113 to 124 hold at
@@ -1676,6 +1676,50 @@ def _challenges_on(conn: sqlite3.Connection, key: tuple,
     return out
 
 
+def _counted_tests(refs, key: tuple, test_crit: dict) -> list:
+    """
+    The tests whose body the cap's count for `key` is about: the tests of
+    the criterion that `refs` name, else every test of the criterion. A key
+    of one test is that test.
+    """
+    kind, ident = key
+    if kind != "criterion":
+        return [ident]
+    named = [r for r in _unique_refs(refs)
+             if isinstance(r, str) and test_crit.get(r) == ident]
+    return named or [t for t, c in test_crit.items() if c == ident]
+
+
+def _quoted_body_gone(conn: sqlite3.Connection, msg_id: str, tests) -> bool:
+    """
+    True when the challenge `msg_id` is about a body that no counted test
+    holds now: a `tests` receipt on `tests` landed after its wake, and no
+    test of `tests` still holds a line that it quoted.
+
+    The challenge door joins the quotes with " ... " into `body_text`. The
+    match is an exact substring with whitespace normalised. `_quotes_span`
+    is not used, because its 12-character window matches `result.output`
+    across any two versions of night 142's test. A prior with no words
+    keeps counting.
+    """
+    if not _receipt_since_woken(conn, msg_id, tests, ("tests",)):
+        return False
+    row = conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                       (msg_id,)).fetchone()
+    lines = [" ".join(part.split()).strip("'\"` ")
+             for part in ((row["body_text"] if row else None) or "").split(" ... ")]
+    lines = [line for line in lines if line]
+    if not lines:
+        return False
+    for test in tests:
+        got = conn.execute("SELECT body FROM tests WHERE id = ?",
+                           (test,)).fetchone()
+        body = " ".join(((got["body"] if got else None) or "").split())
+        if any(line in body for line in lines):
+            return False
+    return True
+
+
 def _holds_decision(conn: sqlite3.Connection, refs) -> bool:
     """True when `refs` name a `decisions` row."""
     return any(isinstance(r, str) and conn.execute(
@@ -1730,6 +1774,15 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     refused when any criterion that it names is at the cap. A test with no
     criterion counts for itself. Refs that name neither keep the count of
     the same refs.
+
+    Frame 200, night 142 (2026-10-12): the cap counted m331 to m333, which
+    quoted an assertion that version 6 no longer held, and refused the
+    challenge on version 6. A landed challenge is a claim about the body it
+    quoted. So a prior counts out only when a `tests` receipt on the counted
+    tests landed after its wake and no counted test's body still holds a
+    line that the prior quoted. A prior with no words keeps counting. The
+    chains of the reviews of 4968ea7 and 4de1555 keep the quoted line, so
+    they stay at the cap.
     """
     # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): the Architect's
     # decision row reaches the Tester through this challenge. The cap does
@@ -1742,11 +1795,14 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
         own = None
     test_crit = _criteria_of_tests(ctx.conn)
     keys = _cap_keys(ctx.conn, refs, test_crit)
-    key, priors = None, [(r["id"], None) for r in rows]
+    key, priors, tests = None, [(r["id"], None) for r in rows], []
     for k in keys:
-        counted = _challenges_on(ctx.conn, k, test_crit)
+        on = _counted_tests(refs, k, test_crit)
+        counted = [(mid, have) for mid, have in
+                   _challenges_on(ctx.conn, k, test_crit)
+                   if not _quoted_body_gone(ctx.conn, mid, on)]
         if len(counted) >= LANDED_CHALLENGES:
-            key, priors = k, counted
+            key, priors, tests = k, counted, on
             break
     if key is None and (keys or len(priors) < LANDED_CHALLENGES):
         return None
@@ -1764,16 +1820,11 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     # The sentence says only what the rows hold (the reviews of b2ed55b and
     # 4de1555): the test changed only on a `tests` receipt on a test that
     # this call reads, and the criterion changed only on a criteria receipt
-    # on the counted criterion. A chain that the cap stops moved a row at
-    # least once, so the short form is a guard.
-    tests, criteria = [], []
-    if key and key[0] == "criterion":
-        criteria = [key[1]]
-        tests = [r for r in _unique_refs(refs)
-                 if isinstance(r, str) and test_crit.get(r) == key[1]]
-        tests = tests or [t for t, c in test_crit.items() if c == key[1]]
-    elif key:
-        tests = [key[1]]
+    # on the counted criterion. A counted prior with a `tests` receipt after
+    # it still holds its quoted line, or quoted nothing (frame 200, night
+    # 142). A chain that the cap stops moved a row at least once, so the
+    # short form is a guard.
+    criteria = [key[1]] if key and key[0] == "criterion" else []
     test_changed = any(
         _receipt_since_woken(ctx.conn, mid, tests, ("tests",))
         for mid, _ in priors)
@@ -1979,6 +2030,12 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
 
     `stage` raises the refusal. `_escalation_admitted` asks the same function
     before a sentence names an escalation, so the two cannot disagree.
+
+    Frame 200, night 142 (2026-10-12): m335 answered m334 about an older
+    body of the test, and s491 t11's escalation on the new body met it. An
+    answered escalation blocks a new one only while no `tests` receipt on a
+    test of the refs landed after the prior's wake. The prior's answer is
+    about the body that the prior quoted.
     """
     # Only the Developer's challenge to the Tester reads who answered and
     # whether the test moved, and only it compares the refs as a set. Every
@@ -1997,8 +2054,17 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
     # pending branch below refused 11 escalations all night.
     import json as _json
     prior = waiting = None
+    # A prior on an older body of the test does not block (frame 200,
+    # night 142). An open prior still waits.
+    tests = ([r for r in _unique_refs(refs) if isinstance(r, str)
+              and ctx.conn.execute("SELECT 1 FROM tests WHERE id = ?",
+                                   (r,)).fetchone()]
+             if verb == "escalate" else [])
     for row in rows:
         closed = ctx.role == "developer" and row["status"] != "open"
+        if tests and (row["answer_id"] is not None or closed) and \
+                _receipt_since_woken(ctx.conn, row["id"], tests, ("tests",)):
+            continue
         if row["answer_id"] is not None or closed:
             prior = row
             break

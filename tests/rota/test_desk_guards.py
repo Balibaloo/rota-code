@@ -1380,6 +1380,76 @@ def test_the_cap_reads_a_change_at_a_middle_prior(db):
         "msg.escalate_architect on the same refs.")
 
 
+def test_night142_a_challenge_on_a_changed_body_starts_a_fresh_count(db):
+    """Frame 200, night 142 (2026-10-12): m331 to m333 landed on versions 1
+    to 3 of tst_2_flag_triggers_version_string. The Tester then stored a new
+    body, and s491 t6's challenge on it met "3 times already". A landed
+    challenge is a claim about the body it quoted, so the new body counts
+    from zero."""
+    _three_quoted_priors_and_a_new_body(db, "assert close_account('a1') == 'closed'")
+    out = _developer(db).call(
+        "msg.challenge_tester", refs=["c1", "tst1"],
+        quotes=[QUOTES[0], "assert close_account('a1') == 'closed'"])
+    assert out["to"] == "tester" and out["verb"] == "challenge"
+
+
+def test_a_new_body_that_keeps_the_quoted_line_stays_at_the_cap(db):
+    """The Tester re-encoded the test and kept the line that the priors
+    quoted, so the priors still stand on the body."""
+    _three_quoted_priors_and_a_new_body(
+        db, "x = 1\n" + QUOTES[1])
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"],
+                            quotes=QUOTES)
+    assert str(exc.value) == (
+        "you sent challenge to tester on exactly these refs 3 times already "
+        "(m1, m2, m3), and the test changed and is still red. Send "
+        "msg.escalate_architect on the same refs.")
+
+
+def _three_quoted_priors_and_a_new_body(db, body):
+    """Three landed challenges that quote QUOTES, then the Tester woken by
+    the third stores `body` as tst1, and the harness fails it."""
+    for i in (1, 2, 3):
+        _session(db, f"sd{i}", "developer", 2 * i - 1)
+        _msg(db, f"m{i}", "developer", "tester", "challenge", ["c1", "tst1"],
+             i, "answered")
+        db.execute("UPDATE messages SET body_text = ? WHERE id = ?",
+                   (" ... ".join(QUOTES), f"m{i}"))
+        _session(db, f"st{i}", "tester", 2 * i, trigger=f"m{i}")
+    db.execute("UPDATE tests SET body = ? WHERE id = 'tst1'", (body,))
+    db.execute("INSERT INTO receipts (session_id, table_name, row_id, "
+               "new_version) VALUES ('st3', 'tests', 'tst1', 4)")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+               "VALUES ('r1', 'b1', 'tst1', 'abc123', 'fail')")
+    _session(db, "sd4", "developer", 7)
+
+
+def test_night142_an_escalation_after_the_test_changed_is_admitted(db):
+    """Frame 200, night 142 (2026-10-12): s491 t11's escalation met m334's
+    answer m335, which was about an older body of the test. A `tests`
+    receipt after the prior makes the new escalation one about a new body."""
+    sb = _answered_escalation(db, '["c1", "g1"]')
+    _session(db, "sa1", "architect", 1, trigger="m1")
+    _session(db, "st2", "tester", 2, receipts=[("tests", "tst1", 3)])
+    db.commit()
+    out = sb.call("msg.escalate_architect", refs=["c1", "tst1"])
+    assert out["to"] == "architect"
+    # The op takes no words, so the door adds none to the Developer's call.
+    sent = sb.ctx.outbound[-1]
+    assert (sent["body_refs"], sent["body_text"]) == (["c1", "tst1"], None)
+
+
+def test_an_escalation_on_an_unchanged_test_stays_refused(db):
+    """No `tests` receipt after the prior: the answer is about this body."""
+    sb = _answered_escalation(db, '["c1", "g1"]')
+    _session(db, "sa1", "architect", 1, trigger="m1")
+    _session(db, "st2", "tester", 2, receipts=[("tests", "tst9", 3)])
+    db.commit()
+    with pytest.raises(ValueError, match=r"exactly these refs already \(m1\)"):
+        sb.call("msg.escalate_architect", refs=["c1", "tst1"])
+
+
 def test_a_criteria_receipt_since_the_wake_is_a_move(db):
     _judged(db)                                        # m96 woke s1, answered by m98
     _session(db, "s2", "terminologist", 2, receipts=[("criteria", "c1", 5)])
