@@ -1105,8 +1105,12 @@ def _logs(sb, table="ledger"):
                                   "gap", "finding", "other"])
 def test_each_word_of_the_grid_is_written_as_its_kind(db, word):
     from rota.core.sandbox import build
+    from rota.roles import prompts
 
-    sb = build("developer", _log_db(db), mode="normal")
+    # A mode with `msg.question_vision_keeper` turns a bare `scope` log into
+    # that question (frame 204's pass 2), so this mode has no such call.
+    sb = build("developer", _log_db(db), mode="normal",
+               allow=prompts.mode_tools("developer", "tests_failing"))
     out = sb.call("ledger.log", about_ref="c1", about_table="criteria",
                   assumption=NOTE, kind=word)
     (row,) = _logs(sb)
@@ -1180,8 +1184,11 @@ def test_two_words_keep_the_first_by_the_tie_break(db):
     """Section 8: a cell that holds the merge, then a row's owner, then the
     principal, then nobody."""
     from rota.core.sandbox import build
+    from rota.roles import prompts
 
-    sb = build("developer", _log_db(db), mode="normal")
+    # No `msg.question_vision_keeper` here, so `scope` stays a row.
+    sb = build("developer", _log_db(db), mode="normal",
+               allow=prompts.mode_tools("developer", "tests_failing"))
     out = sb.call("ledger.log", about_ref="c1", about_table="criteria",
                   assumption=NOTE, kind="default, invented")
     assert out["kind"] == "invented"

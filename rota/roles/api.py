@@ -3717,7 +3717,11 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # subject on it would lose the word or the constraint the refusal was
     # asking the session to fix. That stays a refusal, with the reason.
     refusals = getattr(ctx, "refusals", None) or []
-    refused = [why for fn, why, *_ in refusals if fn == owed_fn]
+    # A note that restated its own row asked for no fix. Its refusal offers
+    # `none_found`, and a refusal names only a call the doors admit (frame
+    # 135's law), so that refusal does not hold the attest.
+    refused = [why for fn, why, *_ in refusals
+               if fn == owed_fn and RESTATED_ROW not in why]
     held = sum(1 for fn, why, *_ in refusals
                if fn == "surveys.attest" and "was refused this session" in why)
     if not mine and refused and not held:
@@ -8320,6 +8324,9 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # offers the owner's message when this mode holds it. Otherwise the row
     # is written, and it holds nothing (frame 204's design, section 3.1).
     if word == "conflict":
+        misplaced = _misplaced_conflict(ctx, about_ref, assumption)
+        if misplaced:
+            raise ValueError(misplaced)
         route = _owner_call(ctx, about_ref, assumption)
         if route is not None:
             call, args, how = route
@@ -8329,8 +8336,104 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 f"and the owner answers it before a page does. Send {how}",
                 call, args))
 
+    # The Vision Keeper owns scope, so a bare `scope` log becomes its
+    # question, as a conflict becomes the owner's. The message's attempt cap
+    # then ends the merge hold (frame 204's design, section 4; judged: pass 3).
+    # A mode with no such call writes the row, and the row holds nothing.
+    if word == "scope":
+        call = "msg.question_vision_keeper"
+        working = getattr(ctx, "working_set", None)
+        if working is not None and call in working and ctx.role != "vision_keeper":
+            raise ValueError(_offer(
+                ctx,
+                f"a change of scope on {about_ref} is a question for the Vision "
+                f"Keeper, which owns scope, and it answers before a page does. "
+                f"Send {call}(refs=[{about_ref!r}], question=<your note>)",
+                call, {"refs": [about_ref], "question": assumption}))
+
     return {"id": _stage_ledger(ctx, about_ref, about_table, assumption, word),
             **extra}
+
+
+# The tables whose row a seat can quote as one side of a note, by the column
+# that holds the row's words.
+_ROW_WORDS = (("items", "text"), ("tickets", "text"), ("criteria", "text"),
+              ("statements", "text"), ("constraints", "headline"))
+# The words of the refusal for a note that restates its own row. The attest
+# door reads them, so that refusal leaves `none_found` open.
+RESTATED_ROW = "one side of the note is its own text"
+# The words that frame a side of a disagreement and say nothing of it.
+_SIDE_FRAME = {"the", "readme", "says", "code", "shows", "that",
+               "documentation", "docs"}
+
+
+def _restates(side: str, rows: list[set[str]]) -> bool:
+    """Whether a side of a note quotes a row: four words or more, and eight
+    in ten of them are the row's. Night 143's sides quote an item of the
+    account, at times the item beside the one the note names."""
+    words = set(_prose_words(side)) - _SIDE_FRAME
+    return len(words) >= 4 and any(len(words & r) >= 0.8 * len(words)
+                                   for r in rows)
+
+
+def _misplaced_conflict(ctx, about_ref: str, assumption: str) -> str | None:
+    """The refusal for a `conflict` note that names one row alone, or None.
+
+    Night 143 wrote 37 `conflict` rows, and 0 of 37 was a disagreement. 34
+    came from reconcile sessions that quoted the account row they were about
+    as one side, "the README says <the item's own text>". The echo guard did
+    not fire, because a reconcile wake is a tick and no relay (observed:
+    `plans/night143-read.md`, section 3, and frame 204's pass 2, step 0). A
+    decision alone is a ruling, and a note about it is the echo that
+    `_refuse_an_echo` refuses. A README claim that differs from the row stays
+    a conflict: conflicting sources always ask (DECISIONS of 2026-09-12).
+    """
+    echo = ("goes back on the principal's page as your reading of their "
+            "words")
+    if ctx.conn.execute("SELECT 1 FROM decisions WHERE id = ?",
+                        (about_ref,)).fetchone():
+        return (f"{about_ref} is a decision, and the principal's words are on "
+                f"file in it. A note about a ruling {echo}. A conflict names a "
+                f"row that disagrees with another row. If a row disagrees with "
+                f"the ruling, send about_ref=<that row's id>. Otherwise adopt "
+                f"what they ruled, and stop.")
+    home = next((t for t, col in _ROW_WORDS if ctx.conn.execute(
+        f"SELECT 1 FROM {t} WHERE id = ?", (about_ref,)).fetchone()), None)
+    if home is None:
+        return None
+    col = dict(_ROW_WORDS)[home]
+    texts = [r[0] for r in ctx.conn.execute(
+        f"SELECT {col} FROM {home} WHERE id = ?", (about_ref,))]
+    if home == "items":
+        # The account is every item, and a side can quote the item beside.
+        texts += [r[0] for r in ctx.conn.execute("SELECT text FROM items")]
+    row_words = [set(_prose_words(t or "")) - _SIDE_FRAME for t in texts]
+    lower = (assumption or "").lower()
+    cut = next(((i, c) for c in ("; the code shows", ". the code shows",
+                                 "; code shows", "the code shows")
+                for i in [lower.find(c)] if i >= 0), None)
+    if cut is None:
+        sides = [assumption]                       # one side only
+    else:
+        i, c = cut
+        readme = assumption[:i]
+        sides = [readme] if readme.strip(" .;:") else [assumption[i + len(c):]]
+    if not any(_restates(s, row_words) for s in sides):
+        return None
+    said = (f"{about_ref} is the row this note is about, and {RESTATED_ROW}. "
+            f"A note that restates the row it is about "
+            f"{echo}. A conflict names two sides that differ, each in its own "
+            f"source's words: what the README says, and what the code shows.")
+    working = getattr(ctx, "working_set", None) or ()
+    if "surveys.attest" not in working:
+        return said
+    files = [r.split(":", 1)[1] for r in (getattr(ctx, "wake_refs", ()) or ())
+             if isinstance(r, str) and r.startswith("@prose:")] or ["README.md"]
+    return _offer(
+        ctx,
+        f"{said} If no claim of the file differs from the account, that is the "
+        f"answer: surveys.attest(outcome='none_found', citations={files!r})",
+        "surveys.attest", {"outcome": "none_found", "citations": files})
 
 
 def _refuse_an_echo(ctx, about_ref: str) -> None:

@@ -431,6 +431,134 @@ def touch_notes(conn: sqlite3.Connection, status: str | None = "open") -> set[st
             if batches & set(refs_of(r["body_refs"]))}
 
 
+# The verbs whose sender waits for a reply (frame 204's design, section 3.2).
+OWED_VERBS = ("question", "challenge", "escalate")
+# The ledger words that say the change contradicts an owned row (section 2).
+HOLDING_KINDS = ("conflict", "scope")
+# The tables whose rows belong to one batch through its tickets.
+_BATCH_TABLES = ("items", "tickets", "criteria", "tests")
+
+
+def _batch_rows(conn: sqlite3.Connection, batch_id: str) -> set[str]:
+    """The batch, its item, its tickets, their criteria and their tests."""
+    rows = {batch_id}
+    b = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                     (batch_id,)).fetchone()
+    if b and b["item_id"]:
+        rows.add(b["item_id"])
+    tickets = [r["ticket_id"] for r in conn.execute(
+        "SELECT ticket_id FROM batch_tickets WHERE batch_id = ?", (batch_id,))]
+    rows.update(tickets)
+    crits: list[str] = []
+    if tickets:
+        marks = ",".join("?" * len(tickets))
+        crits = [r["id"] for r in conn.execute(
+            f"SELECT id FROM criteria WHERE ticket_id IN ({marks})", tickets)]
+    rows.update(crits)
+    marks = ",".join("?" * len(crits)) or "NULL"
+    rows.update(r["id"] for r in conn.execute(
+        f"SELECT id FROM tests WHERE batch_id = ? OR criterion_id IN ({marks})",
+        (batch_id, *crits)))
+    return rows
+
+
+def _writer_batches(conn: sqlite3.Connection, ledger_id: str) -> set[str]:
+    """The batches of the sessions that wrote a ledger row.
+
+    The route is `receipts` to `sessions.wake_refs` or `checkpoints.batch_id`
+    (frame 198's scope, section 4). The park reads the same route."""
+    from .db import refs_of
+
+    found: set[str] = set()
+    for s in conn.execute(
+            "SELECT s.id, s.wake_refs, c.batch_id FROM receipts r "
+            "JOIN sessions s ON s.id = r.session_id "
+            "LEFT JOIN checkpoints c ON c.session_id = s.id "
+            "WHERE r.table_name = 'ledger' AND r.row_id = ?", (ledger_id,)):
+        found.update(refs_of(s["wake_refs"]))
+        if s["batch_id"]:
+            found.add(s["batch_id"])
+    return found
+
+
+def _batch_notes(conn: sqlite3.Connection, batch_id: str,
+                 rows: set[str]) -> list[sqlite3.Row]:
+    """The open `conflict` and `scope` rows of the batch.
+
+    A row about one of the batch's rows is the batch's. A row about a path,
+    an area or any row that reaches no item is the batch of the session that
+    wrote it. Night 138's two rows under `tests/test_utils/` reach their
+    batch only this way (frame 204's design review, finding 4)."""
+    out = []
+    marks = ",".join("?" * len(HOLDING_KINDS))
+    for r in conn.execute(
+            f"SELECT id, about_ref FROM ledger WHERE status = 'open' "
+            f"AND kind IN ({marks}) ORDER BY id", HOLDING_KINDS):
+        if r["about_ref"] in rows:
+            out.append(r)
+            continue
+        if any(conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
+                            (r["about_ref"],)).fetchone()
+               for t in _BATCH_TABLES):
+            continue                     # a row of another batch's item
+        if batch_id in _writer_batches(conn, r["id"]):
+            out.append(r)
+    return out
+
+
+def _next_rungs(conn: sqlite3.Connection) -> dict[str, str]:
+    """Each `unresolved` message that a rung still owes, with that rung.
+
+    A question that the triage made `unresolved`, or one whose ladder ran
+    out, gets no rung, so nobody owes it a reply (`schema.sql`, messages)."""
+    from .predicates import unresolved
+
+    return {w.refs[0]: w.role for w in unresolved(conn) if w.refs}
+
+
+def waiting_on_a_seat(conn: sqlite3.Connection, batch_id: str) -> str | None:
+    """`waiting on <owner>: <ids>` while a seat owes a reply about the batch.
+
+    A `question`, `challenge` or `escalate` holds while it is `open`, or
+    `unresolved` with a next rung. A `quarantined` message holds nothing:
+    nothing moves a message out of it, so the quarantine is the release
+    (frame 204's design review, finding 2). A `conflict` or `scope` row holds
+    only through such a message about it. A row that no seat was asked about
+    waits on a page, and nothing waits on a page after intent (finding 1).
+    """
+    from .db import refs_of
+
+    msgs = conn.execute(
+        "SELECT id, to_role, body_refs, status FROM messages "
+        f"WHERE verb IN ({','.join('?' * len(OWED_VERBS))}) "
+        "AND status IN ('open', 'unresolved') ORDER BY seq, id",
+        OWED_VERBS).fetchall()
+    if not msgs:
+        return None
+    rows = _batch_rows(conn, batch_id)
+    notes = _batch_notes(conn, batch_id, rows)
+    reach = rows | {n["about_ref"] for n in notes}
+    rungs = _next_rungs(conn) if any(
+        m["status"] == "unresolved" for m in msgs) else {}
+
+    held: dict[str, list[str]] = {}
+    for m in msgs:
+        refs = set(refs_of(m["body_refs"]))
+        if not refs & reach:
+            continue
+        owner = m["to_role"] if m["status"] == "open" else rungs.get(m["id"])
+        if owner is None:
+            continue
+        ids = held.setdefault(owner, [])
+        ids.append(m["id"])
+        ids.extend(n["id"] for n in notes
+                   if n["about_ref"] in refs and n["id"] not in ids)
+    if not held:
+        return None
+    return "; ".join(f"waiting on {owner}: {', '.join(ids)}"
+                     for owner, ids in held.items())
+
+
 def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     """
     Why this batch cannot merge, or None if it can.
@@ -510,6 +638,13 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
         (batch_id, head, ZERO)).fetchone()["n"]
     if violated:
         return f"{violated} constraint(s) violated"
+
+    # A seat still owes an answer about this batch's rows. The merge waits
+    # on the seat, never on a page (frame 204's design, section 4; DECISIONS
+    # of 2026-09-12, point 2).
+    owed = waiting_on_a_seat(conn, batch_id)
+    if owed:
+        return owed
 
     if config.get(conn, "merge_gate") == "review":
         return "waiting on the principal's review"

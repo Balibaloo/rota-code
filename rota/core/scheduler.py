@@ -1403,9 +1403,14 @@ def waiting_on(conn: sqlite3.Connection, role: str) -> list[str]:
 
     Derived, like everything else in the register: an open outbound message
     with verb `question` is what waiting *is*, and no role has to declare it.
+
+    A `challenge` and an `escalate` wait the same way. A Developer that
+    challenged a test is not woken to build again before the Tester answers
+    (frame 204's design, section 3.2).
     """
     return [r["id"] for r in conn.execute(
-        "SELECT id FROM messages WHERE from_role = ? AND verb = 'question' "
+        "SELECT id FROM messages WHERE from_role = ? "
+        "AND verb IN ('question', 'challenge', 'escalate') "
         "AND status = 'open' ORDER BY seq", (role,))]
 
 
