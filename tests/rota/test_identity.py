@@ -153,6 +153,18 @@ def test_the_ref_refusal_offers_prose_when_the_account_declares_no_area(tmp_path
     assert "@prose" in str(refused.value)
     assert "@-prefixed area name" not in str(refused.value)
 
+    # Onboarding stamps `area_hashes` before the survey writes `model_areas`,
+    # and `_area_resolves` accepts both, so both keep the area advice
+    # (review 1e, L1).
+    db.execute("INSERT INTO area_hashes (area, hash) VALUES ('src/billing', 'h')")
+    db.commit()
+    sb = build("vision_keeper", db, mode="reconcile")
+    with _pytest.raises(ValueError, match="@-prefixed area name"):
+        sb.call("ledger.log", about_ref="billing", about_table="items",
+                assumption="README says invoices go monthly; the code shows a "
+                           "weekly charge run", kind="conflict")
+    db.execute("DELETE FROM area_hashes")
+
     db.execute("INSERT INTO model_areas (id, account) VALUES ('src/billing', 'x')")
     db.commit()
     sb = build("vision_keeper", db, mode="reconcile")

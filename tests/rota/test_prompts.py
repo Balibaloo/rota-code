@@ -285,25 +285,26 @@ def test_the_reconcile_and_triage_briefs_name_the_ref_and_the_literal_source():
     from a directory name (VK4). The Tester invented a header name and
     triaged `encodable` (TS1). Each sentence sits before the call it governs.
     """
+    # The facts, not the wording: the sentence before the call and the
+    # dictated call both offer the item id and `@prose` (review 1e, L3 and L4).
     reconcile = prompts.compose("vision_keeper", "reconcile")
-    ref = "A README claim's row takes `about_ref=\"@prose\"`"
-    assert ref in reconcile
-    assert reconcile.index(ref) < reconcile.index("Log it: `ledger.log(")
-    assert "an area name is a ref only when" in reconcile
-    # The dictated call and the sentence name one ref, so the seat cannot
-    # pick the other (frame 204's pass 1e).
-    template = reconcile[reconcile.index("Log it: `ledger.log("):]
-    template = template[:template.index("kind=\"conflict\")`")]
-    assert 'about_ref="@prose"' in template
-    assert "about_table=<the README's path>" in template
-    assert 'about_table="items"' not in template
-    assert "the item id it touches" not in template
+    call = reconcile.index("Log it:")
+    sentence = reconcile[reconcile.rindex("can say which.", 0, call):call]
+    template = reconcile[call:reconcile.index('kind="conflict")`', call)]
+    for part in (sentence, template):
+        assert "@prose" in part
+        assert "item" in part and "id" in part
 
+    # The new Tester sentence comes before the `encodable` line, and it
+    # agrees with the literal door and the triage door (review 1e, H1 and L2).
     triage = prompts.compose("tester", "tests_missing")
-    source = "Every literal the test asserts comes from the criterion"
-    assert source in triage
-    assert "only another spec defines is `cannot`" in triage
-    assert triage.index(source) < triage.index("`encodable` and you `tests.encode` it")
+    verdict = triage.index("could a machine check this sentence?**")
+    sentence = triage[verdict:triage.index("`encodable` and you", verdict)]
+    assert "`invented`" in sentence
+    assert "`cannot`" in sentence
+    assert "msg.question_terminologist" in sentence
+    assert "msg.question_researcher" not in sentence
+    assert "is an assumption, and\nthe encode records it" in triage
 
 
 def test_every_operation_is_offered_by_some_mode():

@@ -8017,10 +8017,20 @@ def _owner_call(ctx, about_ref: str, assumption: str) -> tuple[str, dict, str] |
 
 
 def _declares_an_area(ctx: Ctx) -> bool:
-    """Whether the account holds an area, kept or staged in this session."""
+    """Whether the run holds an area, kept or staged in this session.
+
+    `area_hashes` counts too: onboarding stamps it before the survey, and
+    `_area_resolves` accepts it (frame 204's review of pass 1e, L1).
+    """
     if any(w[0] == "model_areas" for w in ctx.writes):
         return True
-    return ctx.conn.execute("SELECT 1 FROM model_areas LIMIT 1").fetchone() is not None
+    if ctx.conn.execute("SELECT 1 FROM model_areas LIMIT 1").fetchone():
+        return True
+    try:
+        return ctx.conn.execute(
+            "SELECT 1 FROM area_hashes LIMIT 1").fetchone() is not None
+    except sqlite3.Error:             # a database older than the table
+        return False
 
 
 @op("ledger", "log")
