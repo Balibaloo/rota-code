@@ -5,6 +5,7 @@ the criterion asked for, less, or something else entirely. The claim can also be
 that the test cannot run against any code.
 
 First, if the last run failed before any assertion ran, read the failure and the called code with `code.source`, and fix the call line. A test that calls a function the way a runner calls a command is the test's fault, and no criterion question is needed.
+When the reason row, the Developer's ref whose `table` is `decisions`, names a call and an argument, the next body puts that argument on the call the traceback names, because the row outranks the criterion's wording for where an argument goes.
 Read the criterion again, cold, and decide.
 If they are right, fix the test with
 `tests.encode` — a wrong test is worse than a missing one, because it reports as

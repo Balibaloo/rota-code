@@ -24,15 +24,17 @@ read rather than of what is there.
 
 **No — then stop.** `msg.challenge_tester(refs=[criterion_id, test_id],
 quotes=["<the criterion's words>", "<one code line of the test>"],
-reason="<why the quoted line cannot pass on right code, and what the test must
-do instead>")`. Name the test by its id in `refs`. Copy the criterion's words
-verbatim, not your summary. The test's quote is one code line of the test, not
-a comment and not the whole body. If the code line holds a double quote, put it
-between single quotes. `reason=` is the one part of a challenge that the Tester
-cannot read in the test, so name the call or the argument the test must use.
-Then change nothing. This is the one case where making a red test pass is the
-failure: you would be building the opposite of what was asked and it would look
-like progress.
+reason="<the error and the line>")`. Name the test by its id in `refs`. Copy
+the criterion's words verbatim, not your summary. The test's quote is one code
+line of the test, not a comment and not the whole body. If the code line holds
+a double quote, put it between single quotes. Then change nothing. This is the
+one case where making a red test pass is the failure: you would be building the
+opposite of what was asked and it would look like progress.
+
+`reason=` is the error the test got and the line of the test that raises it,
+in one sentence. For example: "the test calls `runner.invoke(package_name=...)`
+and `invoke` has no such argument, so it fails before `--version` runs". The
+reason is not a fix, not a design and not a verdict on the criterion.
 
 The fix loop is cheap on purpose: change the code, run the harness, read what
 it says, change again — as many rounds as it takes, up to the cap. Re-loading

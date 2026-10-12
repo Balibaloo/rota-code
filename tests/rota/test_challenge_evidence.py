@@ -24,8 +24,8 @@ from rota.core.sandbox import build
 
 CRIT = "closing an account leaves its invoices in place for seven years"
 TEST = "def test_close():\n    close('a1')\n    assert invoices_for('a1') == []"
-# The Developer's reason (frame 200, pass 5): why the quoted line cannot pass
-# on right code, and what the test must do instead.
+# The Developer's reason (frame 200, pass 5). Its head holds no verdict, so
+# the verdict door of pass 5b admits it.
 REASON = ("right code keeps the invoices, so the test must assert that "
           "invoices_for('a1') still holds them")
 QUOTES = ["leaves its invoices in place", "assert invoices_for('a1') == []"]
@@ -174,12 +174,19 @@ def _refused_reason(sb, **kwargs):
     return str(exc.value)
 
 
-_CALL = ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<why the "
-         "quoted line cannot pass on right code, and what the test must do "
-         "instead>\") with the same quotes.")
-_SAID = ("reason= says why the quoted line cannot pass on right code, and "
-         "what the test must do instead. It is the one part of a challenge "
-         "the Tester cannot read in the test.")
+_CALL = ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<the error "
+         "and the line>\") with the same quotes.")
+_SAID = ("reason= names the error the test got and the line of the test "
+         "that raises it. It is the one part of a challenge the Tester "
+         "cannot read in the test.")
+
+
+def test_the_tool_line_shows_the_reason_slot_and_not_none(db):
+    """Frame 200, pass 5b, item 2: `reason=None` reads as optional."""
+    [line] = [s for s in _dev(db).signatures()
+              if s.startswith("msg.challenge_tester(")]
+    assert 'reason="<the error and the line>"' in line
+    assert "reason=None" not in line
 
 
 def test_1_a_challenge_with_no_reason_is_refused_with_the_call_written_out(db):
@@ -287,8 +294,7 @@ def test_17_the_evidence_doors_hint_names_the_reason(db):
     with pytest.raises(ValueError) as exc:
         sb.call("msg.challenge_tester", refs=["ts1", "ts1"], quotes=QUOTES)
     assert str(exc.value).endswith(
-        "send refs=['c1', 'ts1'], reason=\"<why the quoted line cannot pass on "
-        "right code, and what the test must do instead>\"")
+        "send refs=['c1', 'ts1'], reason=\"<the error and the line>\"")
     with pytest.raises(ValueError) as exc:
         sb.call("msg.challenge_tester", refs=["ts1"], quotes=QUOTES, reason=REASON)
     assert str(exc.value).endswith(f"send refs=['c1', 'ts1'], reason={REASON!r}")
@@ -301,9 +307,9 @@ def test_17_the_owner_route_of_a_conflict_about_a_test_names_the_reason(db):
         sb.call("ledger.log", about_ref="ts1", about_table="tests",
                 assumption="the criterion keeps the invoices and the test "
                            "asserts that they are gone", kind="conflict")
-    assert ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<why the "
-            "quoted line cannot pass on right code, and what the test must do "
-            "instead>\") with quotes= copied from c1 and from ts1") in str(exc.value)
+    assert ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<the "
+            "error and the line>\") with quotes= copied from c1 and from "
+            "ts1") in str(exc.value)
     [offer] = [o for o in sb.ctx.offers if o.op == "msg.challenge_tester"]
     assert offer.args["reason"] is api.INVENT
 
@@ -313,8 +319,26 @@ def test_18_the_slot_text_sent_back_unchanged_is_refused(db):
     for sent in (REASON_SLOT.split("=", 1)[1].strip('"'),
                  REASON_SLOT.split("=", 1)[1].strip('"<>')):
         said = _refused_reason(_dev(db), reason=sent)
-        assert said == ("reason= is still the slot text. Write why the quoted "
-                        "line cannot pass on right code. " + _CALL), sent
+        assert said == ("reason= is still the slot text. Name the error the "
+                        "test got and the line of the test that raises it. "
+                        + _CALL), sent
+
+
+def test_19_a_reason_that_says_the_test_passes_is_refused(db):
+    """Frame 200, pass 5b: a verdict is no fact. The door reads the head of
+    the reason's first sentence for "passes", "is met" and "is correct"."""
+    for sent in ("the test passes on the code as it stands today",
+                 "The criterion is met by the code, so nothing changes",
+                 "the test is correct and the code raises an error"):
+        said = _refused_reason(_dev(db), reason=sent)
+        assert said.startswith("reason= says the test passes or the "
+                               "criterion is met."), sent
+    # The same words past the head are a fact, and the door admits them.
+    sb = _dev(db)
+    sb.call("msg.challenge_tester", refs=["c1", "ts1"], quotes=QUOTES,
+            reason="the test calls runner.invoke with package_name, and "
+                   "invoke has no such argument, so it never passes")
+    assert sb.ctx.outbound
 
 
 def test_a_reason_past_600_characters_is_cut_and_admitted(db):

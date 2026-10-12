@@ -20,8 +20,12 @@ code to fit a test that you read as wrong.
 criterion, send `msg.challenge_tester` with that row's id in refs, beside the
 criterion and the test.** A ref is a decision row only when its `table` is
 `decisions`. Copy the criterion's words and the test's line in `quotes=`. Write
-`reason="<why the quoted line cannot pass on right code, and what the test must
-do instead>"` in your own words. Then end.
+`reason="<the error and the line>"` in your own words. Then end.
+
+`reason=` is the error the test got and the line of the test that raises it,
+in one sentence. For example: "the test calls `runner.invoke(package_name=...)`
+and `invoke` has no such argument, so it fails before `--version` runs". The
+reason is not a fix, not a design and not a verdict on the criterion.
 
 **Read the file with `code.source` first, because `code.write` takes Python source, not the criterion's words.**
 

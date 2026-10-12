@@ -317,6 +317,33 @@ def test_the_reconcile_and_triage_briefs_name_the_ref_and_the_literal_source():
     assert "is an assumption, and the encode records it" in " ".join(triage.split())
 
 
+@pytest.mark.parametrize("mode", ["tests_failing", "answer"])
+def test_the_developer_reason_asks_for_the_fact_not_the_fix(mode):
+    """Frame 200, pass 5b: the probe's Developer looped on "name the call the
+    test must use" and sent nothing. The reason is the error and the line."""
+    flat = " ".join(prompts.compose("developer", mode).split())
+    assert 'reason="<the error and the line>"' in flat
+    assert "reason=None" not in flat
+    assert ("`reason=` is the error the test got and the line of the test "
+            "that raises it, in one sentence.") in flat
+    assert ('"the test calls `runner.invoke(package_name=...)` and `invoke` '
+            'has no such argument, so it fails before `--version` runs"') in flat
+    assert ("The reason is not a fix, not a design and not a verdict on the "
+            "criterion.") in flat
+    assert "name the call or the argument the test must use" not in flat
+
+
+def test_the_tester_puts_the_argument_where_the_reason_row_says():
+    """Frame 200, pass 5b: the Tester weighed the criterion over the row and
+    moved `package_name` from one wrong call to another."""
+    flat = " ".join(prompts.compose("tester", "challenge").split())
+    assert ("When the reason row, the Developer's ref whose `table` is "
+            "`decisions`, names a call and an argument, the next body puts "
+            "that argument on the call the traceback names, because the row "
+            "outranks the criterion's wording for where an argument goes."
+            ) in flat
+
+
 def test_every_operation_is_offered_by_some_mode():
     """
     A `.tools` narrowing can only remove. Today every role still has at least
