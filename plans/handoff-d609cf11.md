@@ -51,6 +51,30 @@ hand-off.
   Frames 203 and 206 need a gate each on an idle machine from a fresh
   worktree.
 
+## Where pass 5 stands at the hand-off
+
+- Commits: 7b0a9aac the mechanism; ba2ddf5e, 445d3519, 917eab20 and
+  129cd9eb the brief text and the door's narrowing. Reviews 5, 5b and
+  5e stand, with eight lows between them for pass 5f or later, listed in
+  `plans/frame200-review-5.md`, `-5b.md` and `-5e.md`.
+- The probe, `plans/frame200-pass5-probe.md`: the first reason paragraph
+  made the Developer loop to the length cap; the second removed the
+  loop; a one-turn replay cannot follow the Developer past its first
+  read call, so the recorded cases are the night's gate.
+- The re-record gate at 129cd9eb: the Developer writes the reason, 5 of
+  5. The Tester does not use it: the measure case is 2 of 5, and two
+  Tester cases that carry no reason row went from green to 0 of 5 on
+  pass 5d's sentence in `tester/challenge.md`. That sentence is the wall.
+- The interview of the Tester in its exact context runs or is done:
+  `plans/frame200-pass5-interview.md`. Pass 5f takes its fix line, and
+  it touches `tester/challenge.md` alone, then the Tester cases
+  re-record on the card, then night 144 launches with
+  `.rota/launch_night144.sh`, already written at 129cd9eb; change its
+  SHA to pass 5f's commit. The launch line is in
+  `plans/operating-facts.md`, "Launch a night detached".
+- Do not launch on a measure case under 3 of 5. The ruling of 2026-10-02
+  puts the interview before any further brief shape.
+
 ## What to doubt first
 
 - The register. This session cut it once by copying under a running
