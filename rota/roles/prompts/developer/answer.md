@@ -24,13 +24,12 @@ criterion and the test.** A ref is a decision row only when its `table` is
 own words. Then end.
 
 `reason=` holds three facts in one sentence: the error the test got, the line
-of the test that raises it, and the callable whose signature takes the
-argument. Read that signature with `code.probe` or `code.source`, and write the
-call with the argument in place. For example: "the test calls
-`runner.invoke(package_name=...)` and `invoke` has no such argument, so it
-fails before `--version` runs; `version_option(package_name=...)` takes it, and
-`runner.invoke` does not". The callable is a fact from a signature, not a fix,
-and the reason is not a design and not a verdict on the criterion.
+of the test that raises it, and the function in the last frame of the
+traceback, the one that raises, as `name(...)` with the argument its error
+asks for. Do not name the call in the test, and do not write a fix, a design or
+a verdict on the criterion. For example: "the line `runner.invoke(cmd,
+['--version'])` fails with RuntimeError 'Try passing package_name', raised in
+`version_option(package_name=...)`".
 
 **Read the file with `code.source` first, because `code.write` takes Python source, not the criterion's words.**
 

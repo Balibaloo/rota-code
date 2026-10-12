@@ -595,11 +595,13 @@
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
     decisions:
-      # s441 turn 2, verbatim: the Developer's reason, as the binder of
-      # pass 5 stores it.
+      # Pass 5f: a reason that names the callable. s441's prose named none,
+      # so the Tester sentence never fired. These are the row words that
+      # moved the seat to `version_option` on the measure turn
+      # (`plans/frame200-pass5-interview.md`, section 3).
       - {id: <d1>, author: developer,
-         text: "`package_name` is a parameter to the decorator, not something
-                you pass when invoking.",
+         text: "`package_name` is an argument of `version_option(...)`, not
+                of `runner.invoke(...)`.",
          refs: '["ver_opt_show_py_tk2", "tst_version_option_show_python"]'}
     tests:
       # Body 5 of the night, version 17, as s440's wake showed it.

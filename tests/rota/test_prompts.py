@@ -327,18 +327,18 @@ def test_the_developer_reason_asks_for_the_fact_not_the_fix(mode):
     assert ('reason="<the error, the line, and the call that takes the '
             'argument>"') in flat
     assert "reason=None" not in flat
+    # Pass 5f: 4 of 5 reasons named `runner.invoke`, the test's own call. The
+    # reason names the raising frame's function instead.
     assert ("`reason=` holds three facts in one sentence: the error the test "
-            "got, the line of the test that raises it, and the callable whose "
-            "signature takes the argument.") in flat
-    assert ("Read that signature with `code.probe` or `code.source`, and "
-            "write the call with the argument in place.") in flat
-    assert ('"the test calls `runner.invoke(package_name=...)` and `invoke` '
-            'has no such argument, so it fails before `--version` runs; '
-            '`version_option(package_name=...)` takes it, and `runner.invoke` '
-            'does not"') in flat
-    assert ("The callable is a fact from a signature, not a fix, and the "
-            "reason is not a design and not a verdict on the criterion."
-            ) in flat
+            "got, the line of the test that raises it, and the function in "
+            "the last frame of the traceback, the one that raises, as "
+            "`name(...)` with the argument its error asks for.") in flat
+    assert ("Do not name the call in the test, and do not write a fix, a "
+            "design or a verdict on the criterion.") in flat
+    assert ('For example: "the line `runner.invoke(cmd, [\'--version\'])` '
+            "fails with RuntimeError 'Try passing package_name', raised in "
+            '`version_option(package_name=...)`".') in flat
+    assert "the callable whose signature takes the argument" not in flat
     assert "name the call or the argument the test must use" not in flat
 
 

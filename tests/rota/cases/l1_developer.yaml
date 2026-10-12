@@ -1121,7 +1121,11 @@
       - {to: tester, verb: challenge, count: "1..1",
          refs_include: [ver_opt_show_py_tk2, tst_version_option_show_python]}
     writes:
-      decisions: {count: "1..1", fields_nonempty: [text]}
+      # Pass 5f: the row names the raising frame's function, because 4 of 5
+      # reasons named `runner.invoke` and moved the Tester the wrong way
+      # (`plans/frame200-pass5-interview.md`, section 5).
+      decisions: {count: "1..1", fields_nonempty: [text],
+                  text_includes_any: ["version_option"]}
   forbidden:
     # The product code was right at attempt 1 (the cycle read, section 1).
     writes: [criteria, tests, items]
