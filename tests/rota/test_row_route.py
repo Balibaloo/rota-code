@@ -184,6 +184,9 @@ def _answered(db):
 
 QUOTES = ["When `version_option` is invoked with `show_python=True`",
           "def test_v(): pass"]
+# The Developer's reason of a challenge (frame 200, pass 5).
+REASON = ("the test calls no command, so it must invoke one decorated with "
+          "version_option and read the output")
 
 
 def test_an_answer_wakes_challenge_with_no_decision_row_is_refused(db):
@@ -352,11 +355,44 @@ def test_an_answer_wakes_challenge_without_its_decision_is_offered_the_three_ref
     assert str(exc.value) == (
         "no ref of this challenge is a decision row, and the answer m156 "
         "holds the decision d1. Send msg.challenge_tester(refs=['c1', "
-        "'tst1', 'd1']): the criterion c1, the test tst1 and the decision "
-        "d1, with the same quotes.")
+        f"'tst1', 'd1'], {sandbox_mod.REASON_SLOT}): the criterion c1, the "
+        "test tst1 and the decision d1, with the same quotes.")
     offers = [o for o in sb.ctx.offers if o.op == "msg.challenge_tester"]
     assert [o.args["refs"] for o in offers] == [["c1", "tst1", "d1"]]
+    assert offers[0].args["reason"] is api.INVENT
     assert dry_run(sb, offers[0].op, offers[0].args).admitted
+
+
+def test_17_the_answer_modes_offer_copies_the_reason_the_seat_sent(db):
+    """Frame 200, pass 5, fix 2.3: the offer is the exact call, with the
+    seat's own words."""
+    from rota.core.sandbox import dry_run
+
+    sb = _answered_with_decision(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES,
+                reason=REASON)
+    assert f"Send msg.challenge_tester(refs=['c1', 'tst1', 'd1'], " \
+           f"reason={REASON!r}): " in str(exc.value)
+    [offer] = [o for o in sb.ctx.offers if o.op == "msg.challenge_tester"]
+    assert offer.args["reason"] == REASON
+    assert dry_run(sb, offer.op, offer.args).admitted
+
+
+def test_19_the_developers_own_row_is_not_the_answers_decision(db):
+    """Frame 200, pass 5, fix 4: in answer mode, a challenge whose only
+    decision ref is the Developer's own reason row is refused, and the
+    refusal names the answer's decision."""
+    sb = _answered_with_decision(db)
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d_own000001','developer','an earlier reason of mine','[\"tst1\"]')")
+    db.commit()
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "tst1", "d_own000001"],
+                quotes=QUOTES, reason=REASON)
+    assert str(exc.value).startswith(
+        "no ref of this challenge is a decision row, and the answer m156 "
+        "holds the decision d1. Send msg.challenge_tester(refs=['c1', 'tst1', 'd1'], ")
 
 
 def test_the_evidence_doors_hint_keeps_the_decision_the_seat_sent(db):
@@ -368,7 +404,8 @@ def test_the_evidence_doors_hint_keeps_the_decision_the_seat_sent(db):
     assert str(exc.value) == (
         "a challenge to the tester names both sides of the conflict in refs "
         "-- the criterion and the test -- and yours names no criterion. The "
-        "failing tests of this batch: send refs=['c1', 'tst1', 'd1']")
+        "failing tests of this batch: send refs=['c1', 'tst1', 'd1'], "
+        + sandbox_mod.REASON_SLOT)
 
 
 def test_a_challenge_with_the_criterion_the_test_and_the_decision_lands(db):
@@ -378,4 +415,5 @@ def test_a_challenge_with_the_criterion_the_test_and_the_decision_lands(db):
     sb = _answered_with_decision(db)
     for refs in (["c1", "tst1", "d1"], ["d1", "c1", "tst1"]):
         assert dry_run(sb, "msg.challenge_tester",
-                       {"refs": refs, "quotes": QUOTES}).admitted, refs
+                       {"refs": refs, "quotes": QUOTES,
+                        "reason": REASON}).admitted, refs

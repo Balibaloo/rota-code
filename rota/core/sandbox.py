@@ -731,13 +731,15 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     # The bus. One `send` per declared (recipient, verb) pair — a role literally
     # cannot address anyone the graph does not connect it to, so T0-S12's
     # rejection happens by absence rather than by a check at the wire.
-    outgoing = [(e.t, e.v, e.prose) for e in g.of_type("messages") if e.s == role]
+    outgoing = [(e.t, e.v, e.prose, e.reason_row)
+                for e in g.of_type("messages") if e.s == role]
     if outgoing:
         fns: dict[str, Callable] = {}
         names: list[str] = []
-        for recipient, verb, prose in sorted(set(outgoing)):
+        for recipient, verb, prose, reason_row in sorted(set(outgoing)):
             attr = f"{_verb_to_attr(verb)}_{recipient}"
-            fns[attr] = _bind_send(ctx, recipient, verb, f"msg.{attr}", prose)
+            fns[attr] = _bind_send(ctx, recipient, verb, f"msg.{attr}", prose,
+                                   reason_row)
             names.append(attr)
         grouped["msg"] = fns
         available["msg"] = names
@@ -961,8 +963,11 @@ def _answer_refs(ctx: api.Ctx) -> list:
 
 
 def _answer_decisions(ctx: api.Ctx) -> list:
-    """The decision rows that the answer which woke a Developer holds."""
-    return [r for r in _answer_refs(ctx) if _holds_decision(ctx.conn, [r])]
+    """The decision rows that the answer which woke a Developer holds. The
+    Developer's own reason row is not the answer's decision (frame 200,
+    pass 5, fix 4)."""
+    return [r for r in _answer_refs(ctx)
+            if _holds_decision(ctx.conn, [r], exclude_author=ctx.role)]
 
 
 def _challenge_sides(ctx: api.Ctx, refs) -> list:
@@ -992,8 +997,8 @@ def _challenge_sides(ctx: api.Ctx, refs) -> list:
     return [crit, test] if crit and test else []
 
 
-def _answer_mode_challenge_refusal(ctx: api.Ctx, refs,
-                                   text: str = "") -> str | None:
+def _answer_mode_challenge_refusal(ctx: api.Ctx, refs, text: str = "",
+                                   reason=None) -> str | None:
     """
     The Developer's challenge from an answer wake carries a decision row.
 
@@ -1009,7 +1014,9 @@ def _answer_mode_challenge_refusal(ctx: api.Ctx, refs,
                             (ctx.trigger,)).fetchone()
     if trig is None or trig["verb"] != "answer":
         return None
-    if _holds_decision(ctx.conn, refs):
+    # The seat's own reason row is not the row route of pass 2e (frame 200,
+    # pass 5, fix 4).
+    if _holds_decision(ctx.conn, refs, exclude_author=ctx.role):
         return None
     held = _answer_decisions(ctx)
     if held:
@@ -1022,14 +1029,23 @@ def _answer_mode_challenge_refusal(ctx: api.Ctx, refs,
                 f"{ctx.trigger} holds the decision {', '.join(held)}. ")
         if not sides:
             # No exact call is derivable, so the text names the three parts.
+            slot = (f", and {REASON_SLOT}"
+                    if _takes_reason(ctx.role, "tester", "challenge") else "")
             return (said + f"Send msg.challenge_tester with the criterion, "
-                    f"the test and the decision {', '.join(held)} in refs.")
+                    f"the test and the decision {', '.join(held)} in "
+                    f"refs{slot}.")
         offered = list(dict.fromkeys(sides + held))
         args = {"refs": offered}
         if text:
             args["quotes"] = text
+        # Frame 200, pass 5, fix 2: the call names reason=, with the seat's
+        # own words when the reason door admits them, else the slot.
+        slot = ""
+        if _takes_reason(ctx.role, "tester", "challenge"):
+            args["reason"] = _reason_offered(ctx.conn, reason, text, sides)
+            slot = ", " + _reason_arg(ctx.conn, reason, text, sides)
         return api._offer(
-            ctx, said + f"Send msg.challenge_tester(refs={offered}): the "
+            ctx, said + f"Send msg.challenge_tester(refs={offered}{slot}): the "
             f"criterion {sides[0]}, the test {sides[1]} and the decision "
             f"{', '.join(held)}, with the same quotes.",
             "msg.challenge_tester", args)
@@ -1093,7 +1109,8 @@ def _rowless_answer_refusal(ctx: api.Ctx, refs) -> str | None:
             "msg.answer_developer with the decision's id in refs.")
 
 
-def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
+def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
+                        reason=None) -> None:
     """
     A challenge quotes the thing it disputes.
 
@@ -1126,12 +1143,20 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
             # So a hint keeps the decision rows the seat sent, and the ones
             # the waking answer holds. Frame 135's law: a hint names a call
             # that every door admits.
+            # The seat's own reason row is not kept: the binder adds it again
+            # (frame 200, pass 5, fix 4).
             keep = list(dict.fromkeys(
-                [r for r in refs or [] if _holds_decision(ctx.conn, [r])]
+                [r for r in refs or []
+                 if _holds_decision(ctx.conn, [r], exclude_author=ctx.role)]
                 + _answer_decisions(ctx)))
+            reasoned = _takes_reason(ctx.role, recipient, "challenge")
 
             def _send(c: str, t: str) -> str:
-                return f"send refs={[c, t] + keep}"
+                # Frame 200, pass 5, fix 2: the hint names reason=, with the
+                # seat's own words when the reason door admits them.
+                slot = (", " + _reason_arg(ctx.conn, reason, text, [c])
+                        if reasoned else "")
+                return f"send refs={[c, t] + keep}{slot}"
             # Name the exact repair when it is derivable: a test knows its
             # own criterion. Measured (S0 walk four): the Developer chose
             # the right door with the right quotes three sessions running
@@ -1356,7 +1381,8 @@ def _refs_key(refs, as_set: bool = False) -> list:
 
 
 def _same_refs_rows(conn: sqlite3.Connection, role: str, recipient: str,
-                    verb: str, refs, as_set: bool = False) -> list:
+                    verb: str, refs, as_set: bool = False,
+                    drop_own: bool = False) -> list:
     """
     The messages that `role` sent to `recipient` with `verb` on these refs,
     newest first. Each row carries the id and the refs of its newest answer
@@ -1365,11 +1391,15 @@ def _same_refs_rows(conn: sqlite3.Connection, role: str, recipient: str,
     The refs match as a sorted list. Frame 111's design review (2026-10-02):
     the same refs in another order escaped the door. With `as_set`, they
     match as a set, so a repeated ref is the same refs (the review of
-    b2ed55b, 2026-10-05).
+    b2ed55b, 2026-10-05). With `drop_own`, both sides match without the
+    `decisions` rows that `role` wrote (frame 200, pass 5, fix 1).
     """
     import json as _json
+
+    def _mine_out(got):
+        return _without_own_reasons(conn, got, role) if drop_own else got
     try:
-        want = _refs_key(refs or [], as_set)
+        want = _refs_key(_mine_out(refs or []), as_set)
     except TypeError:
         want = _refs_key(refs or [])
     rows = []
@@ -1382,7 +1412,8 @@ def _same_refs_rows(conn: sqlite3.Connection, role: str, recipient: str,
             "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
             "ORDER BY m.seq DESC", (role, recipient, verb)):
         try:
-            if _refs_key(_json.loads(row["body_refs"] or "[]"), as_set) != want:
+            if _refs_key(_mine_out(_json.loads(row["body_refs"] or "[]")),
+                         as_set) != want:
                 continue
         except (TypeError, ValueError):
             continue
@@ -1674,8 +1705,9 @@ def _challenges_on(conn: sqlite3.Connection, key: tuple,
         strs = [r for r in have if isinstance(r, str)]
         # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): a challenge
         # that carries the Architect's decision row is the row's route to the
-        # Tester, and it does not count against the cap.
-        if _carries_decision(conn, strs, row["cause_id"]):
+        # Tester, and it does not count against the cap. The Developer's own
+        # reason row is no such route (frame 200, pass 5).
+        if _carries_decision(conn, strs, row["cause_id"], "developer"):
             continue
         if ident in strs or (kind == "criterion" and any(
                 test_crit.get(r) == ident for r in strs)):
@@ -1783,14 +1815,164 @@ def _quoted_body_gone(conn: sqlite3.Connection, msg_id: str, tests) -> bool:
     return True
 
 
-def _holds_decision(conn: sqlite3.Connection, refs) -> bool:
-    """True when `refs` name a `decisions` row."""
+def _holds_decision(conn: sqlite3.Connection, refs,
+                    exclude_author: str | None = None) -> bool:
+    """True when `refs` name a `decisions` row. A row by `exclude_author`
+    does not count."""
     return any(isinstance(r, str) and conn.execute(
-        "SELECT 1 FROM decisions WHERE id = ?", (r,)).fetchone()
+        "SELECT 1 FROM decisions WHERE id = ? AND author IS NOT ?",
+        (r, exclude_author)).fetchone()
         for r in refs or [])
 
 
-def _carries_decision(conn: sqlite3.Connection, refs, cause: str | None) -> bool:
+def _without_own_reasons(conn: sqlite3.Connection, refs, role: str) -> list:
+    """
+    `refs` without the `decisions` rows that `role` wrote.
+
+    Frame 200, pass 5, fix 1: the binder adds the sender's reason row to the
+    stored refs after the doors ran. The same-refs door compares the refs
+    without that row, so a reasoned prior still matches the seat's refs.
+    """
+    return [r for r in refs or [] if not (isinstance(r, str) and conn.execute(
+        "SELECT 1 FROM decisions WHERE id = ? AND author = ?",
+        (r, role)).fetchone())]
+
+
+#: The reason slot that every hint writes for `msg.challenge_tester`. The
+#: seat fills it, because mechanics cannot write the seat's judgement (frame
+#: 200, pass 5, fix 2).
+REASON_SLOT = ('reason="<why the quoted line cannot pass on right code, and '
+               'what the test must do instead>"')
+
+#: The fewest words a reason may have. A shorter one names no call that the
+#: test must make (frame 200, pass 5, section 3.1).
+REASON_WORDS_MIN = 6
+
+#: The most characters of a reason the row keeps, as `_THREAD_ANSWER_CHARS`
+#: keeps of an answer's words.
+REASON_CHARS = 600
+
+# What every reason refusal says. It is the one part of a challenge that the
+# Tester cannot read in the test (frame 200, pass 5, section 3.1).
+_REASON_SAID = ("reason= says why the quoted line cannot pass on right code, "
+                "and what the test must do instead. It is the one part of a "
+                "challenge the Tester cannot read in the test.")
+
+
+def _takes_reason(sender: str, recipient: str, verb: str) -> str:
+    """The table where the edge `sender` to `recipient` stores a reason, or
+    "". The edge declares it, so no door knows a role name."""
+    return next((e.reason_row for e in graph_mod.load().of_type("messages")
+                 if e.s == sender and e.t == recipient and e.v == verb
+                 and e.reason_row), "")
+
+
+def _reason_problem(conn: sqlite3.Connection, reason, quotes: str,
+                    refs) -> str | None:
+    """
+    The first fact that makes `reason` no reason, or None.
+
+    The doors, in order: no reason, the slot text sent back, fewer than
+    REASON_WORDS_MIN words, and a copy of the quotes or of the criterion.
+    The quotes already travel, so a copy tells the Tester nothing new.
+    """
+    words = (reason or "").split() if isinstance(reason, str) else []
+    if not words:
+        return "a challenge to the tester carries reason=, and yours has none."
+    flat = " ".join(words).lower()
+    slot = REASON_SLOT.split("=", 1)[1].strip('"<>').lower()
+    if flat.removeprefix("reason=").strip("\"'<> ") == slot:
+        return ("reason= is still the slot text. Write why the quoted line "
+                "cannot pass on right code.")
+    if len(words) < REASON_WORDS_MIN:
+        return (f"a challenge to the tester carries a reason= of "
+                f"{REASON_WORDS_MIN} words or more, and yours has {len(words)}.")
+    bare = flat.strip("\"'` .")
+    crit = " ".join(_flat(r["text"]).lower() for r in conn.execute(
+        "SELECT text FROM criteria WHERE id IN "
+        f"({','.join('?' * len(refs or []))})",
+        tuple(r for r in refs or [] if isinstance(r, str)))) if refs else ""
+    if bare in _flat(quotes).lower() or (crit and bare in crit):
+        return ("reason= copies the quotes or the criterion. The quotes "
+                "already travel, and reason= says why they conflict.")
+    return None
+
+
+def _reason_offered(conn: sqlite3.Connection, reason, quotes: str, refs):
+    """The reason an offer carries: the seat's own words when the reason
+    door admits them, else `api.INVENT`, the slot the seat fills. Fix 2.3
+    of frame 200's pass 5: the offer is then the exact call."""
+    if _reason_problem(conn, reason, quotes, refs) is None:
+        return reason
+    return api.INVENT
+
+
+def _reason_arg(conn: sqlite3.Connection, reason, quotes: str, refs) -> str:
+    """The reason as a hint writes it: the seat's own words when the reason
+    door admits them, else REASON_SLOT."""
+    got = _reason_offered(conn, reason, quotes, refs)
+    return REASON_SLOT if got is api.INVENT else f"reason={got!r}"
+
+
+def _stage_reason(ctx: api.Ctx, table: str, refs, quotes: str,
+                  reason) -> tuple[str, str]:
+    """
+    Stage the reason of a challenge as the sender's own row of `table`, and
+    return its id and a note for the sender, which is "" unless the reason
+    was cut.
+
+    Frame 200, pass 5: law 2 keeps words off a message, and law 2 says the
+    reasoning is written into the decision record by whoever decided. The id
+    derives from the reason and its two refs (law 14), so the same reason on
+    the same refs is one row. Raise the refusal when the reason door refuses,
+    or when the id is another author's row.
+    """
+    import hashlib
+
+    from .runner import cut_note
+
+    sides = _challenge_sides(ctx, refs) or [r for r in _unique_refs(refs)
+                                            if isinstance(r, str)][:2]
+    problem = _reason_problem(ctx.conn, reason, quotes, sides)
+    if problem is not None:
+        if problem.startswith("a challenge to the tester carries"):
+            problem += " " + _REASON_SAID
+        once = _unique_refs(refs)
+        # Frame 135's law: the refusal names a call that every door admits
+        # once the seat fills the slot.
+        raise ValueError(api._offer(
+            ctx, f"{problem} Send msg.challenge_tester(refs={once}, "
+            f"{REASON_SLOT}) with the same quotes.",
+            "msg.challenge_tester",
+            {"refs": once, "quotes": quotes, "reason": api.INVENT}))
+    text, note = " ".join(reason.split()), ""
+    if len(text) > REASON_CHARS:
+        note = cut_note("your reason", len(text) - REASON_CHARS, len(text),
+                        "characters", f"The Tester reads the first "
+                        f"{REASON_CHARS} characters in the row.")
+        text = text[:REASON_CHARS] + chr(10) + cut_note(
+            "the reason", len(text) - REASON_CHARS, len(text), "characters",
+            "Nothing returns the rest. Act on what is shown.")
+    rid = "d_" + hashlib.sha256(
+        f"{text}|{'|'.join(sides)}".encode()).hexdigest()[:10]
+    # Frame 219's shape: a seat that writes under another author's id
+    # overwrites that author's record.
+    row = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
+                           (rid,)).fetchone()
+    if row is not None and row["author"] != ctx.role:
+        raise ValueError(
+            f"the reason's id {rid} is a decision by {row['author']}. A "
+            f"decision is its author's record, so write the reason in your "
+            f"own words.")
+    if not any(w[0] == table and w[1] == rid for w in ctx.writes):
+        ctx.writes.append((table, rid, {
+            "author": ctx.role, "text": text, "refs": json.dumps(sides),
+            "supersedes": None, "resolves_ledger": None}))
+    return rid, note
+
+
+def _carries_decision(conn: sqlite3.Connection, refs, cause: str | None,
+                      exclude_author: str | None = None) -> bool:
     """
     True when `refs` hold a decision row that the challenge carries: a ref of
     the answer `cause`, or a decision that cites a test of `refs`.
@@ -1798,6 +1980,8 @@ def _carries_decision(conn: sqlite3.Connection, refs, cause: str | None) -> bool
     The ruling of 06:30 exempts "a challenge whose refs add a decision row".
     Any decision id can reach the Developer through `rulings_line`, so an
     unrelated one does not pass the cap (the review of 8d090e2e, finding 7).
+    A row by `exclude_author`, the sender, is its own reason and not a route
+    of another seat's row. It does not pass the cap (frame 200, pass 5).
     """
     import json as _json
 
@@ -1817,8 +2001,8 @@ def _carries_decision(conn: sqlite3.Connection, refs, cause: str | None) -> bool
     tests = {r for r in strs if conn.execute(
         "SELECT 1 FROM tests WHERE id = ?", (r,)).fetchone()}
     for r in strs:
-        hit = conn.execute("SELECT refs FROM decisions WHERE id = ?",
-                           (r,)).fetchone()
+        hit = conn.execute("SELECT refs FROM decisions WHERE id = ? "
+                           "AND author IS NOT ?", (r, exclude_author)).fetchone()
         if hit and (r in carried or tests & _ids(hit["refs"])):
             return True
     return False
@@ -1852,11 +2036,16 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     """
     # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): the Architect's
     # decision row reaches the Tester through this challenge. The cap does
-    # not stop it, and the graph gains no edge.
-    if _carries_decision(ctx.conn, refs, getattr(ctx, "trigger", None)):
+    # not stop it, and the graph gains no edge. The sender's own reason row
+    # does not lift the cap (frame 200, pass 5).
+    if _carries_decision(ctx.conn, refs, getattr(ctx, "trigger", None),
+                         ctx.role):
         return None
+    # The stored refs hold the sender's reason row, and the seat's refs do
+    # not, so both sides drop it (frame 200, pass 5, fix 1).
     try:
-        own = _refs_key(refs or [], as_set=True)
+        own = _refs_key(_without_own_reasons(ctx.conn, refs, ctx.role),
+                        as_set=True)
     except TypeError:
         own = None
     test_crit = _criteria_of_tests(ctx.conn)
@@ -1881,8 +2070,9 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     if key is None and (keys or len(priors) < LANDED_CHALLENGES):
         return None
     ids = ", ".join(mid for mid, _ in reversed(priors))
-    exact = all(have is None or _refs_key(have, as_set=True) == own
-                for _, have in priors)
+    exact = all(have is None or _refs_key(
+        _without_own_reasons(ctx.conn, have, ctx.role), as_set=True) == own
+        for _, have in priors)
     if exact:
         where = "on exactly these refs"
     elif key[0] == "criterion":
@@ -2145,8 +2335,10 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
     # other sender and verb keeps its branch (ruled: the judging session,
     # 2026-10-05, frame 132's question 4).
     if ctx.role == "developer" and recipient == "tester" and verb == "challenge":
+        # The stored refs hold the sender's reason row, so the compare drops
+        # it on both sides (frame 200, pass 5, fix 1).
         rows = _same_refs_rows(ctx.conn, ctx.role, recipient, verb, refs,
-                               as_set=True)
+                               as_set=True, drop_own=True)
         return _challenge_repeat_refusal(ctx, rows, refs)
     rows = _same_refs_rows(ctx.conn, ctx.role, recipient, verb, refs)
     # A prior is answered when an answer row names it. For the
@@ -2313,7 +2505,7 @@ def _refuse_confirm_off_entry(ctx: api.Ctx, refs: list, staged: set) -> None:
 
 
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
-               prose: str = "") -> Callable:
+               prose: str = "", reason_row: str = "") -> Callable:
     """
     Stage an outbound message.
 
@@ -2329,7 +2521,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
     """
     from .runner import new_id
 
-    def stage(refs: list[str], round_no: int = 0, text: str | None = None):
+    def stage(refs: list[str], round_no: int = 0, text: str | None = None,
+              reason: str | None = None):
         # Logged first, before any guard, as `_bind` logs a tool call: the
         # register subtracts the refused count from the log, so a reach
         # that a guard threw out must be in the log or a landed send
@@ -2701,14 +2894,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # A challenge pays its reading up front: quote both sides on the
         # tester channel, quote the disputed row everywhere else.
         if verb == "challenge" and recipient == "tester":
-            said = _answer_mode_challenge_refusal(ctx, refs, text or "")
+            said = _answer_mode_challenge_refusal(ctx, refs, text or "", reason)
             if said is not None:
                 # The review of pass 2e, finding 2: an answer that holds a
                 # decision row gets the call, and the session goes on.
                 raise (api.EndRefusal if isinstance(said, _Ending)
                        else ValueError)(said)
         if verb == "challenge":
-            _challenge_evidence(ctx, recipient, refs, text or "")
+            _challenge_evidence(ctx, recipient, refs, text or "", reason)
         # The Tester's answer to a challenge pays the same reading. Night 80
         # (2026-09-15): the answer said "the developer is right, the test
         # asserts more than the criterion asks" and the test stood; the
@@ -3404,6 +3597,16 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "saying it again is a second answer. Your work here is done")
             recipients = sorted(split)
 
+        # Frame 200, pass 5: the reason of a challenge travels as the
+        # sender's own row, reached by a ref (law 2). The door runs after
+        # every other door, so an earlier hint can carry the slot first.
+        reason_note = ""
+        if reason_row:
+            rid, reason_note = _stage_reason(ctx, reason_row, refs,
+                                             text or "", reason)
+            if rid not in (refs or []):
+                refs = list(refs or []) + [rid]
+
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
         if shift:
             msg_id = shift_id
@@ -3437,6 +3640,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 staged["config"] = {f"{k}:{staged['id']}": v for k, v in notes.items()}
             ctx.outbound.append(staged)
         out = {"id": msg_id, "to": recipient, "verb": verb}
+        if reason_note:
+            out["note"] = reason_note
         if len(recipients) > 1:
             # Said back, so the session knows it has finished asking. Left
             # unsaid, the model reaches for the other two and meets the
@@ -3516,8 +3721,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # questions as well as challenges, and only the answer to a challenge
         # must quote the criterion (_answer_evidence reads the trigger).
         default = " = None" if verb == "answer" else ""
+        # Frame 200, pass 5: an edge with a reason row takes reason=. The
+        # default is None, so the reason door refuses a missing reason with
+        # the call written out, after every other door.
+        extra = ", reason: str | None = None" if reason_row else ""
+        passed = ", reason=reason" if reason_row else ""
         src = (
-            f"def send(refs: list[str], {arg}: {ann}{default}, round_no: int = 0):\n"
+            f"def send(refs: list[str], {arg}: {ann}{default}{extra}, round_no: int = 0):\n"
             f"    if isinstance({arg}, dict):\n"
             f"        {arg} = ' ... '.join(str(v) for v in {arg}.values())\n"
             f"    if isinstance({arg}, list) and any(not str(x).strip() for x in {arg}):\n"
@@ -3526,7 +3736,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             f"        {arg} = ' ... '.join(str(x) for x in {arg})\n"
             f"    if not {arg}:\n"
             "        raise ValueError(f'{_label} needs {_prose}=: {_why}')\n"
-            f"    return _stage(refs, round_no, text={arg})\n"
+            f"    return _stage(refs, round_no, text={arg}{passed})\n"
         )
         exec(src, ns)  # noqa: S102 - the name is the graph's, not a session's
         send = ns["send"]
@@ -3548,6 +3758,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                    f"rows; `quotes=` copies their exact words -- the span of "
                    f"each row your challenge stands on, verbatim, not a "
                    f"paraphrase.")
+            if reason_row:
+                # Frame 200, pass 5: the reason is stored as your row, and
+                # the message refs it.
+                doc += (" `reason=` says why the quoted line cannot pass on "
+                        "right code, and what the test must do instead. It "
+                        "is stored as your decision row, and the message "
+                        "refs it.")
         else:
             doc = (f"Ask {recipient} a question. The refs say what it is about; "
                    f"`{prose}=` says what you need to know about them, which no "
@@ -3902,6 +4119,13 @@ def _fill(args: dict, n: int) -> dict:
     stands for it, so the offer is not sent."""
     out = {}
     for k, v in args.items():
+        if v is api.INVENT and k == "reason":
+            # The reason door reads only the call's own reason, so a stand-in
+            # that it admits sends the other doors the seat's call (frame
+            # 200, pass 5, fix 2).
+            out[k] = (f"x_follow{n} stands in for the seat's reason: the "
+                      f"quoted line cannot pass on right code")
+            continue
         if v is api.INVENT:
             if k != "id" and not k.endswith("_id"):
                 raise DrySkipped(f"the {k} of the offered call is the seat's to write")

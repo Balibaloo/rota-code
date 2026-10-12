@@ -754,11 +754,18 @@ def challenged(tmp: Path) -> Scene:
     seat(sc, "developer|tick:batch_start|b1",
          commit([(UPGRADE_PATH, UPGRADE)], "charge an upgrade"))
     seat(sc, "tester|tick:tests_missing|b1", encode(TEST_BODY.replace("== 1000", "== 3000")))
+    # Frame 200, pass 5: a Developer challenge carries its reason, and the
+    # message refs the reason's row. The row's id derives from the reason
+    # and the two refs, so the Tester's key names it.
+    import hashlib
+    reason = ("right code charges 1000 cents for 10 of 30 days, so the test "
+              "must assert 1000")
+    rid = "d_" + hashlib.sha256(f"{reason}|c1|t1".encode()).hexdigest()[:10]
     seat(sc, "developer|tick:tests_failing|b1", [
         "TOOL: msg.challenge_tester(refs=['c1', 't1'], quotes=["
         "'an upgrade of 3000 cents used 10 of 30 days charges 1000 cents', "
-        "'assert upgrade_charge(3000, 10, 30) == 3000'])"])
-    seat(sc, "tester|challenge|c1,t1", [
+        f"'assert upgrade_charge(3000, 10, 30) == 3000'], reason={reason!r})"])
+    seat(sc, f"tester|challenge|c1,t1,{rid}", [
         f"TOOL: tests.encode(id='t1', criterion_id='c1', path={TEST_PATH!r}, "
         f"body={TEST_BODY!r})"])
     play(sc, ran("b1", "t1", "pass"))

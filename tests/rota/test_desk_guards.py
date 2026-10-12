@@ -824,7 +824,7 @@ def test_a_closed_challenge_with_no_answer_row_admits_one_resend(db):
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
-    out = sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+    out = sb.call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"],
                   quotes=["closing an account leaves its invoices in place",
                           "assert close_account('a1') is not None"])
     assert out == {"id": "m2", "to": "tester", "verb": "challenge"}
@@ -880,6 +880,10 @@ S250_V3 = dict(refs=["c3_version_option_show_python", "tst_v3"],
                round_no=0)
 QUOTES = ["closing an account leaves its invoices in place",
           "assert close_account('a1') is not None"]
+# The Developer's reason of a challenge (frame 200, pass 5): the binder stores
+# it as the Developer's own decision row, and the message refs the row.
+REASON = ("right code keeps the invoices, so the test must assert the "
+          "invoices that close_account leaves")
 # The reply that takes the step to end, on the refused challenge's test
 # (frame 165).
 _END_FORM = (" Your whole next reply is this one line, and no TOOL: line: "
@@ -942,7 +946,7 @@ def test_night122_a_challenge_of_the_tests_new_version_lands(db):
     _session(db, "s144", "tester", 144, trigger="m66",
              receipts=[("tests", "inh_echo_json_01", 5)])
     sb = _developer(db, "bg_1")
-    out = sb.call("msg.challenge_tester", refs=['echo_json_compact', 'inh_echo_json_01'], quotes=['The callable `echo_json` accepts any Python object and writes its JSON representation to the stream using `json.dumps(obj, separators=(",", ":"))`, followed by a single newline.', 'assert output.getvalue() == "{\\"key\\": \\"value\\"}\\n"'])
+    out = sb.call("msg.challenge_tester", reason=REASON, refs=['echo_json_compact', 'inh_echo_json_01'], quotes=['The callable `echo_json` accepts any Python object and writes its JSON representation to the stream using `json.dumps(obj, separators=(",", ":"))`, followed by a single newline.', 'assert output.getvalue() == "{\\"key\\": \\"value\\"}\\n"'])
     assert out == {"id": "m67", "to": "tester", "verb": "challenge"}
 
 
@@ -960,14 +964,14 @@ def test_night119_a_challenge_the_tester_left_unanswered_lands(db):
     _msg(db, "m136", "developer", "tester", "challenge", S250_V1["refs"], 139,
          "unresolved", note=NOTE)
     _session(db, "s249", "tester", 249, trigger="m136")
-    out = _developer(db, "bg_3").call("msg.challenge_tester", **S250_V1)
+    out = _developer(db, "bg_3").call("msg.challenge_tester", reason=REASON, **S250_V1)
     assert out == {"id": "m137", "to": "tester", "verb": "challenge"}
     # The Architect's rung answers with no words, and the sweep closes m136.
     # The rung is not the Tester's judgement, so the re-send still lands.
     _msg(db, "m143", "architect", "developer", "answer", S250_V1["refs"], 146,
          "answered", cause="m136")
     db.execute("UPDATE messages SET status = 'answered' WHERE id = 'm136'")
-    out = _developer(db, "bg_3").call("msg.challenge_tester", **S250_V1)
+    out = _developer(db, "bg_3").call("msg.challenge_tester", reason=REASON, **S250_V1)
     assert out == {"id": "m144", "to": "tester", "verb": "challenge"}
 
 
@@ -989,7 +993,7 @@ def test_night123_a_challenge_after_an_empty_rung_lands(db):
     _msg(db, "m67", "architect", "developer", "answer", refs, 68, "answered",
          cause="m64")
     sb = _developer(db, "bg_1")
-    out = sb.call("msg.challenge_tester", refs=["echo_json_compact_3", "inh_echo_json_03"], quotes=['The callable `echo_json` must handle non-serializable objects by raising a `TypeError` consistent with the behavior of standard library JSON serialization, rather than silently failing or printing a fallback.', 'result = runner.invoke(echo_json, [str(BadObj())], catch_exceptions=False)'], round_no=0)
+    out = sb.call("msg.challenge_tester", reason=REASON, refs=["echo_json_compact_3", "inh_echo_json_03"], quotes=['The callable `echo_json` must handle non-serializable objects by raising a `TypeError` consistent with the behavior of standard library JSON serialization, rather than silently failing or printing a fallback.', 'result = runner.invoke(echo_json, [str(BadObj())], catch_exceptions=False)'], round_no=0)
     assert out == {"id": "m68", "to": "tester", "verb": "challenge"}
 
 
@@ -1141,9 +1145,9 @@ def test_night119_a_burst_lands_its_first_challenge_and_guards_the_second(db):
          "unresolved", note=NOTE)
     _session(db, "s249", "tester", 249, trigger="m136")
     sb = _developer(db, "bg_3")
-    assert sb.call("msg.challenge_tester", **S250_V1)["id"] == "m137"
+    assert sb.call("msg.challenge_tester", reason=REASON, **S250_V1)["id"] == "m137"
     with pytest.raises(ValueError) as exc:
-        sb.call("msg.challenge_tester", **S250_V3)
+        sb.call("msg.challenge_tester", reason=REASON, **S250_V3)
     assert str(exc.value) == (
         "you have already sent challenge to tester; saying it again with "
         "different refs is a second answer to one question, and the recipient "
@@ -1177,7 +1181,7 @@ def test_night122_a_judged_challenge_whose_test_moved_at_the_wake_lands(db):
     the session that m64 woke. The move admits the challenge of version 2,
     and a receipt at the woken session itself counts (the review of 4968ea7)."""
     _night122_m64(db, "woken")
-    out = _developer(db, "bg_1").call("msg.challenge_tester", **S145_T7)
+    out = _developer(db, "bg_1").call("msg.challenge_tester", reason=REASON, **S145_T7)
     assert out == {"id": "m66", "to": "tester", "verb": "challenge"}
 
 
@@ -1212,7 +1216,7 @@ def test_the_count_stops_at_a_moved_prior(db):
     _msg(db, "m3", "developer", "tester", "challenge", ["c1", "tst1"], 3,
          "unresolved", note=NOTE)
     _session(db, "s3", "tester", 3, trigger="m3")
-    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    out = _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert out == {"id": "m4", "to": "tester", "verb": "challenge"}
 
 
@@ -1221,7 +1225,7 @@ def test_the_count_stops_at_a_judged_prior(db):
     _msg(db, "m99", "developer", "tester", "challenge", ["c1", "tst1"], 3,
          "unresolved", note=NOTE)
     _session(db, "s2", "tester", 2, trigger="m99")
-    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    out = _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert out == {"id": "m100", "to": "tester", "verb": "challenge"}
 
 
@@ -1299,13 +1303,26 @@ def _sender(db, sid):
                "VALUES (?, 1, '', ?, '')", (sid, shown))
 
 
+def _store_reasons(db, sb):
+    """Write the reason rows that `sb` staged, and return the refs of its
+    staged challenge, which hold the rows' ids."""
+    for table, rid, row, *_ in sb.ctx.writes:
+        if table == "decisions":
+            db.execute("INSERT OR IGNORE INTO decisions (id, author, text, refs) "
+                       "VALUES (?, ?, ?, ?)", (rid, row["author"], row["text"],
+                                               row["refs"]))
+    return sb.ctx.outbound[-1]["body_refs"]
+
+
 def _chain(db, tests, refs_of=lambda i: ["c1", "tst1"], tester="moves",
-           quotes_of=lambda i: QUOTES, words=True):
+           quotes_of=lambda i: QUOTES, words=True, reasoned=False):
     """Each round the Developer challenges on `refs_of(i)`. The Tester then
     `moves` the test through a real encode and commit, stores a `new id` of
     the criterion's test the same way, `moves the criterion` through a
     Terminologist's receipt, stays `barren`, or `judges` with an answer. The
-    harness records a failing run of each test of the batch."""
+    harness records a failing run of each test of the batch. A `reasoned`
+    chain stores each challenge as the binder staged it: the reason row, and
+    the refs that hold its id (frame 200, pass 5)."""
     from rota.core import lifecycle
     from rota.core.db import SessionResult, session_commit
     from rota.core.runner import _as_write
@@ -1323,10 +1340,13 @@ def _chain(db, tests, refs_of=lambda i: ["c1", "tst1"], tester="moves",
         _sender(db, f"sd{i}")
         sb = _developer(db)
         try:
-            out = sb.call("msg.challenge_tester", refs=refs, quotes=quotes_of(i))
+            out = sb.call("msg.challenge_tester", reason=REASON, refs=refs, quotes=quotes_of(i))
         except ValueError as exc:
             return rounds, i, str(exc), sb
-        _msg(db, out["id"], "developer", "tester", "challenge", refs,
+        stored = refs
+        if reasoned:
+            stored = _store_reasons(db, sb)
+        _msg(db, out["id"], "developer", "tester", "challenge", stored,
              100 + 2 * i, "answered")
         # A real challenge carries its quotes as words (the review of
         # bef80289, finding 2).
@@ -1385,7 +1405,7 @@ def test_the_cap_ends_the_session_when_no_escalation_or_code_is_left(db):
     _msg(db, "m90", "developer", "architect", "escalate", ["c1", "tst1"], 90,
          "answered")
     with pytest.raises(ValueError) as exc:
-        _exhausted(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+        _exhausted(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert str(exc.value).endswith(
         "times already (m1, m2, m3), and the test changed and is still red. "
         "End the session with no call." + _END_FORM)
@@ -1395,7 +1415,7 @@ def test_the_cap_says_only_the_count_when_the_test_is_not_red(db):
     _, _, _, _ = _chain(db, ("tst1",))
     db.execute("DELETE FROM test_runs")
     with pytest.raises(ValueError) as exc:
-        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+        _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert str(exc.value) == (
         "you sent challenge to tester on exactly these refs 3 times already "
         "(m1, m2, m3). Send msg.escalate_architect on the same refs.")
@@ -1501,7 +1521,7 @@ def test_the_cap_reads_an_error_as_red(db):
     _chain(db, ("tst1",))
     db.execute("UPDATE test_runs SET result = 'error'")
     with pytest.raises(ValueError, match=r"and the test changed and is still red\."):
-        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+        _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
 
 
 def test_the_cap_reads_the_newest_run_and_a_pass_after_a_fail_is_not_red(db):
@@ -1509,7 +1529,7 @@ def test_the_cap_reads_the_newest_run_and_a_pass_after_a_fail_is_not_red(db):
     db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
                "VALUES ('r99', 'b1', 'tst1', 'abc123', 'pass')")
     with pytest.raises(ValueError) as exc:
-        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+        _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert str(exc.value) == (
         "you sent challenge to tester on exactly these refs 3 times already "
         "(m1, m2, m3). Send msg.escalate_architect on the same refs.")
@@ -1542,7 +1562,7 @@ def test_night142_a_challenge_on_a_changed_body_starts_a_fresh_count(db):
     from zero."""
     _three_quoted_priors_and_a_new_body(db, "assert close_account('a1') == 'closed'")
     out = _developer(db).call(
-        "msg.challenge_tester", refs=["c1", "tst1"],
+        "msg.challenge_tester", reason=REASON, refs=["c1", "tst1"],
         quotes=[QUOTES[0], "assert close_account('a1') == 'closed'"])
     assert out["to"] == "tester" and out["verb"] == "challenge"
 
@@ -1601,7 +1621,7 @@ def test_a_tester_that_rewords_the_defect_each_round_meets_the_ceiling(db):
         _sender(db, f"sd{i}")
         sb = _developer(db)
         try:
-            out = sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+            out = sb.call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"],
                           quotes=[QUOTES[0], line])
         except ValueError as exc:
             said = str(exc)
@@ -1622,6 +1642,130 @@ def test_a_tester_that_rewords_the_defect_each_round_meets_the_ceiling(db):
         "you sent challenge to tester on exactly these refs 6 times already "
         "(m1, m2, m3, m4, m5, m6). Send msg.escalate_architect on the same refs.")
     assert "Make one real change" not in said
+
+
+# Frame 200, pass 5 (rota workflow): the binder stores the Developer's reason
+# as its own decision row, and the stored refs hold the row's id. The doors
+# compare the refs without that id, and the row lifts no cap. The numbers are
+# the tests of `plans/frame200-pass5-design.md`, sections 6 and 11.
+
+def test_7_three_reasoned_challenges_on_one_body_meet_the_cap(db):
+    from rota.core.sandbox import LANDED_CHALLENGES
+    landed, refused_at, said, _ = _chain(db, ("tst1",), reasoned=True)
+    assert len(landed) == LANDED_CHALLENGES and refused_at == LANDED_CHALLENGES + 1
+    # Test 16: the cap's sentence stays "on exactly these refs".
+    assert said == (
+        f"you sent challenge to tester on exactly these refs {LANDED_CHALLENGES} "
+        f"times already ({', '.join(landed)}), and the test changed and is "
+        f"still red. Send msg.escalate_architect on the same refs.")
+    stored = [json.loads(r[0]) for r in db.execute(
+        "SELECT body_refs FROM messages WHERE verb = 'challenge' ORDER BY seq")]
+    assert all(len(r) == 3 and r[2].startswith("d_") for r in stored), stored
+
+
+def test_7_six_reasoned_challenges_across_six_bodies_meet_the_ceiling(db):
+    """As the ceiling test above, with each challenge stored as the binder
+    staged it. Without the sender skip, each reason row exempts its prior."""
+    line = QUOTES[1]
+    for i in range(1, 10):
+        _sender(db, f"sd{i}")
+        sb = _developer(db)
+        try:
+            out = sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+                          quotes=[QUOTES[0], line], reason=REASON)
+        except ValueError as exc:
+            said = str(exc)
+            break
+        _msg(db, out["id"], "developer", "tester", "challenge",
+             _store_reasons(db, sb), 100 + i, "answered")
+        db.execute("UPDATE messages SET body_text = ? WHERE id = ?",
+                   (" ... ".join([QUOTES[0], line]), out["id"]))
+        line = f"assert close_account('a{i + 1}') is not None"
+        seq = db.execute("SELECT MAX(seq) + 1 FROM sessions").fetchone()[0]
+        _session(db, f"st{i}", "tester", seq, trigger=out["id"],
+                 receipts=[("tests", "tst1", i + 1)])
+        db.execute("UPDATE tests SET body = ? WHERE id = 'tst1'", (line,))
+        db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+                   "result) VALUES (?, 'b1', 'tst1', 'abc123', 'fail')", (f"r{i}",))
+    assert i == 7
+    assert said == (
+        "you sent challenge to tester on exactly these refs 6 times already "
+        "(m1, m2, m3, m4, m5, m6). Send msg.escalate_architect on the same refs.")
+
+
+def test_8_an_architects_decision_row_still_passes_the_cap(db):
+    """Design 200 change 4 stands for every author but the sender."""
+    _chain(db, ("tst1",), reasoned=True)
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d_arch','architect','tst1 does not encode c1','[\"tst1\"]')")
+    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1", "d_arch"],
+                              quotes=QUOTES, reason=REASON)
+    assert out["to"] == "tester"
+
+
+def _reasoned_prior(db, status):
+    """One reasoned challenge, stored as the binder staged it."""
+    sb = _developer(db)
+    out = sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES,
+                  reason=REASON)
+    refs = _store_reasons(db, sb)
+    _msg(db, out["id"], "developer", "tester", "challenge", refs, 1, status)
+    return out["id"], refs
+
+
+def test_14_an_open_reasoned_prior_meets_the_open_prior_wait(db):
+    mid, refs = _reasoned_prior(db, "open")
+    assert len(refs) == 3
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"],
+                            quotes=QUOTES, reason=REASON)
+    assert str(exc.value).startswith(
+        f"you sent challenge to tester on exactly these refs already ({mid}) "
+        f"and it waits for an answer.")
+
+
+def test_15_an_answered_reasoned_prior_meets_they_answered(db):
+    mid, refs = _reasoned_prior(db, "answered")
+    _session(db, "s1", "tester", 1, trigger=mid)
+    _msg(db, "m98", "tester", "developer", "answer", ["c1", "tst1"], 2,
+         "answered", cause=mid)
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["tst1", "c1"],
+                            quotes=QUOTES, reason=REASON)
+    assert str(exc.value).startswith(
+        f"you sent challenge to tester on exactly these refs already ({mid}) "
+        f"and they answered (m98).")
+
+
+def test_20_a_vision_keeper_cannot_write_under_the_developers_reason_id(db):
+    """Fix 7, which frame 219 inherits: night 143's s443 wrote under the id
+    of another author's decision, and the row and its author changed."""
+    _, refs = _reasoned_prior(db, "answered")
+    rid = refs[2]
+    db.commit()
+    vk = build("vision_keeper", db, mode="normal")
+    with pytest.raises(ValueError) as exc:
+        vk.call("decisions.author", id=rid, text="the test should be adjusted",
+                refs=["tst1"])
+    assert str(exc.value) == (
+        f"{rid} is a decision by developer. A decision is its author's record, "
+        f"so write yours under a new id.")
+    assert not [w for w in vk.ctx.writes if w[0] == "decisions"]
+    row = db.execute("SELECT author, text FROM decisions WHERE id = ?", (rid,)).fetchone()
+    assert tuple(row) == ("developer", REASON)
+
+
+def test_21_after_that_refusal_the_reasoned_priors_still_count(db):
+    landed, refused_at, said, _ = _chain(db, ("tst1",), reasoned=True)
+    rid = json.loads(db.execute("SELECT body_refs FROM messages WHERE id = ?",
+                                (landed[0],)).fetchone()[0])[2]
+    vk = build("vision_keeper", db, mode="normal")
+    with pytest.raises(ValueError, match="is a decision by developer"):
+        vk.call("decisions.author", id=rid, text="keep it", refs=["tst1"])
+    with pytest.raises(ValueError) as exc:
+        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"],
+                            quotes=QUOTES, reason=REASON)
+    assert f"3 times already ({', '.join(landed)})" in str(exc.value)
 
 
 def _three_quoted_priors_and_a_new_body(db, body, quotes=QUOTES, prompts=True):
@@ -1678,7 +1822,7 @@ def test_an_escalation_on_an_unchanged_test_stays_refused(db):
 def test_a_criteria_receipt_since_the_wake_is_a_move(db):
     _judged(db)                                        # m96 woke s1, answered by m98
     _session(db, "s2", "terminologist", 2, receipts=[("criteria", "c1", 5)])
-    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    out = _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert out == {"id": "m99", "to": "tester", "verb": "challenge"}
 
 
@@ -1688,7 +1832,7 @@ def test_a_move_after_the_first_of_two_wakes_counts(db):
     _judged(db)
     _session(db, "s2", "tester", 2, receipts=[("tests", "tst1", 2)])
     _session(db, "s3", "tester", 3, trigger="m96")
-    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    out = _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert out == {"id": "m99", "to": "tester", "verb": "challenge"}
 
 
@@ -1723,7 +1867,7 @@ def _night124_m64(db, encodes):
 
 def test_night124_an_answer_after_refused_encodes_admits_one_resend(db):
     _night124_m64(db, encodes=4)
-    out = _developer(db, "bg_1").call("msg.challenge_tester", **S144_T9)
+    out = _developer(db, "bg_1").call("msg.challenge_tester", reason=REASON, **S144_T9)
     assert out == {"id": "m66", "to": "tester", "verb": "challenge"}
 
 
@@ -1813,7 +1957,7 @@ def test_the_cap_offers_the_escalation_on_each_ref_once(db):
          "answered")
     sb = _developer(db)
     with pytest.raises(ValueError) as exc:
-        sb.call("msg.challenge_tester", refs=["c1", "c1", "tst1"], quotes=QUOTES)
+        sb.call("msg.challenge_tester", reason=REASON, refs=["c1", "c1", "tst1"], quotes=QUOTES)
     # No other test of the batch is red, so the step is the end and not a
     # change to the code (the review of bef80289, finding 7).
     assert str(exc.value) == (
@@ -1874,7 +2018,7 @@ def test_only_a_tests_receipt_of_the_tester_lands_a_change(db, receipt):
     _session(db, "s2", "architect", 2, trigger="m96")
     db.execute("INSERT INTO receipts (session_id, table_name, row_id, new_version) "
                "VALUES (?, ?, ?, 1)", receipt)
-    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    out = _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert out == {"id": "m99", "to": "tester", "verb": "challenge"}
 
 
@@ -1903,7 +2047,7 @@ def test_the_cap_counts_only_the_developers_challenges_to_the_tester(db):
             + [("developer", "architect", "challenge")] * 3
             + [("developer", "tester", "question")] * 3, start=1):
         _msg(db, f"x{i}", frm, to, verb, ["c1", "tst1"], i, "answered")
-    out = _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    out = _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert out["to"] == "tester"
 
 
@@ -1988,7 +2132,7 @@ def test_the_criterion_form_needs_a_red_test(db):
     db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
                "VALUES ('r99', 'b1', 'tst1', 'abc123', 'pass')")
     with pytest.raises(ValueError) as exc:
-        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+        _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     assert str(exc.value) == (
         "you sent challenge to tester on exactly these refs 3 times already "
         "(m1, m2, m3). Send msg.escalate_architect on the same refs.")
@@ -1998,7 +2142,7 @@ def test_the_test_form_comes_before_the_criterion_form(db):
     _chain(db, ("tst1",))
     _session(db, "sc", "terminologist", 9000, receipts=[("criteria", "c1", 9)])
     with pytest.raises(ValueError, match=r"and the test changed and is still red\."):
-        _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+        _developer(db).call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
 
 
 def test_the_criterion_form_reads_only_the_criterion_of_this_call(db):
@@ -2284,7 +2428,7 @@ def test_a_misplaced_quote_is_told_whose_words_it_quotes(db):
     # Walks twenty-three to twenty-seven: told whose words they were, the
     # Developer sent the identical call nine times a walk. The test's words
     # are the bar; a criterion of the same batch, verbatim, goes through.
-    sb.call("msg.challenge_tester", refs=["c2", "tst2"],
+    sb.call("msg.challenge_tester", reason=REASON, refs=["c2", "tst2"],
             quotes=["closing an account leaves its invoices in place",
                     "assert tombstone('a') == 'gone'"])
     assert sb.ctx.outbound[-1]["to_role"] == "tester"
@@ -2292,7 +2436,7 @@ def test_a_misplaced_quote_is_told_whose_words_it_quotes(db):
     sb2 = build("developer", db, batch_id="b1", mode="tests_failing",
                 allow=prompts.mode_tools("developer", "tests_failing"))
     with pytest.raises(ValueError, match="Quote, not paraphrase"):
-        sb2.call("msg.challenge_tester", refs=["c2", "tst2"],
+        sb2.call("msg.challenge_tester", reason=REASON, refs=["c2", "tst2"],
                  quotes=["the criterion wants the ledger balanced monthly",
                          "assert tombstone('a') == 'gone'"])
 

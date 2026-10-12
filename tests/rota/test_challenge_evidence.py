@@ -24,6 +24,11 @@ from rota.core.sandbox import build
 
 CRIT = "closing an account leaves its invoices in place for seven years"
 TEST = "def test_close():\n    close('a1')\n    assert invoices_for('a1') == []"
+# The Developer's reason (frame 200, pass 5): why the quoted line cannot pass
+# on right code, and what the test must do instead.
+REASON = ("right code keeps the invoices, so the test must assert that "
+          "invoices_for('a1') still holds them")
+QUOTES = ["leaves its invoices in place", "assert invoices_for('a1') == []"]
 
 
 @pytest.fixture
@@ -56,7 +61,7 @@ def test_a_challenge_quoting_both_sides_lands(db):
     sb = _dev(db)
     sb.call("msg.challenge_tester", refs=["c1", "ts1"],
             quotes="the criterion says 'leaves its invoices in place' and "
-                   "the test asserts invoices_for('a1') == []")
+                   "the test asserts invoices_for('a1') == []", reason=REASON)
     assert sb.ctx.outbound, "the challenge staged"
 
 
@@ -115,7 +120,7 @@ def test_a_quote_survives_the_line_wrap_it_was_copied_across(db):
     sb = _dev(db)
     sb.call("msg.challenge_tester", refs=["c1", "ts1"],
             quotes="it says 'leaves its invoices\n   in place' yet asserts "
-                   "invoices_for('a1')\n== []")
+                   "invoices_for('a1')\n== []", reason=REASON)
     assert sb.ctx.outbound
 
 
@@ -147,3 +152,176 @@ def test_the_refusal_writes_the_repair_out_when_it_can(db):
     with pytest.raises(ValueError, match=r"send refs=\['c1', 'ts1'\]"):
         sb.call("msg.challenge_tester", refs=["ts1", "ts1"],
                 quotes="leaves its invoices in place ... invoices_for('a1')")
+
+
+# ---------------------------------------------------------------------------
+# Frame 200, pass 5 (rota workflow): the reason of a Developer's challenge
+# travels as the Developer's own `decisions` row, and the message refs it.
+# Night 143's bg_5: 0 of 6 challenges carried a reason, and 0 of 6 Tester
+# bodies reached the code (`plans/night143-cycle-bg5.md`, section 2). The
+# numbers below are the tests of `plans/frame200-pass5-design.md`.
+# ---------------------------------------------------------------------------
+
+def _reason_id(text, crit="c1", test="ts1"):
+    import hashlib
+    return "d_" + hashlib.sha256(f"{text}|{crit}|{test}".encode()).hexdigest()[:10]
+
+
+def _refused_reason(sb, **kwargs):
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["c1", "ts1"], quotes=QUOTES,
+                **kwargs)
+    return str(exc.value)
+
+
+_CALL = ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<why the "
+         "quoted line cannot pass on right code, and what the test must do "
+         "instead>\") with the same quotes.")
+_SAID = ("reason= says why the quoted line cannot pass on right code, and "
+         "what the test must do instead. It is the one part of a challenge "
+         "the Tester cannot read in the test.")
+
+
+def test_1_a_challenge_with_no_reason_is_refused_with_the_call_written_out(db):
+    sb = _dev(db)
+    said = _refused_reason(sb)
+    assert said == ("a challenge to the tester carries reason=, and yours has "
+                    "none. " + _SAID + " " + _CALL)
+    assert not sb.ctx.outbound and not sb.ctx.writes
+    [offer] = [o for o in sb.ctx.offers if o.op == "msg.challenge_tester"]
+    assert offer.args["refs"] == ["c1", "ts1"] and "reason" in offer.args
+
+
+def test_2_a_reason_of_five_words_is_refused_with_the_six_word_sentence(db):
+    said = _refused_reason(_dev(db), reason="the test is simply wrong")
+    assert said == ("a challenge to the tester carries a reason= of 6 words or "
+                    "more, and yours has 5. " + _SAID + " " + _CALL)
+
+
+def test_3_a_reason_that_copies_a_quote_is_refused(db):
+    said = _refused_reason(_dev(db), reason="assert invoices_for('a1') == []")
+    assert said.startswith(
+        "a challenge to the tester carries a reason= of 6 words or more")
+    said = _refused_reason(
+        _dev(db), reason="closing an account leaves its invoices in place")
+    assert said == ("reason= copies the quotes or the criterion. The quotes "
+                    "already travel, and reason= says why they conflict. " + _CALL)
+
+
+def test_4_an_admitted_challenge_stages_the_reason_as_the_developers_row(db):
+    import json
+    sb = _dev(db)
+    out = sb.call("msg.challenge_tester", refs=["c1", "ts1"], quotes=QUOTES,
+                  reason=REASON)
+    rid = _reason_id(REASON)
+    assert sb.ctx.writes == [("decisions", rid, {
+        "author": "developer", "text": REASON, "refs": json.dumps(["c1", "ts1"]),
+        "supersedes": None, "resolves_ledger": None})]
+    [msg] = sb.ctx.outbound
+    assert msg["body_refs"] == ["c1", "ts1", rid]
+    assert msg["body_text"] == " ... ".join(QUOTES), "the message keeps no new words"
+    assert out == {"id": msg["id"], "to": "tester", "verb": "challenge"}
+
+
+def test_5_the_same_reason_on_the_same_refs_is_one_row(db):
+    first, second = _dev(db), _dev(db)
+    for sb in (first, second):
+        sb.call("msg.challenge_tester", refs=["ts1", "c1"], quotes=QUOTES,
+                reason=REASON)
+    assert first.ctx.writes[0][1] == second.ctx.writes[0][1] == _reason_id(REASON)
+
+
+@pytest.mark.parametrize("author", ["principal", "vision_keeper"])
+def test_6_a_derived_id_of_another_author_is_refused_and_the_row_stays(db, author):
+    rid = _reason_id(REASON)
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES (?, ?, "
+               "'keep the invoices', '[]')", (rid, author))
+    db.commit()
+    sb = _dev(db)
+    said = _refused_reason(sb, reason=REASON)
+    assert said == (f"the reason's id {rid} is a decision by {author}. A "
+                    f"decision is its author's record, so write the reason in "
+                    f"your own words.")
+    assert not sb.ctx.writes and not sb.ctx.outbound
+    row = db.execute("SELECT author, text FROM decisions WHERE id = ?", (rid,)).fetchone()
+    assert tuple(row) == (author, "keep the invoices")
+
+
+def test_9_a_critics_challenge_takes_no_reason_and_stages_no_row(db):
+    import inspect
+    sb = build("critic", db, batch_id="b1", mode="review")
+    fn = sb["msg"].challenge_tester
+    assert "reason" not in inspect.signature(fn).parameters
+    sb.call("msg.challenge_tester", refs=["c1", "ts1"], quotes=QUOTES)
+    assert [m["body_refs"] for m in sb.ctx.outbound] == [["c1", "ts1"]]
+    assert not [w for w in sb.ctx.writes if w[0] == "decisions"]
+
+
+def test_10_the_testers_challenge_wake_shows_the_reason_row(db):
+    """End to end through the binder and the commit: the Tester's wake on
+    the challenge resolves the reason ref to the row's author and text."""
+    from rota.core.db import OutboundMessage, SessionResult, session_commit
+    from rota.core.runner import _as_write, resolve_inbound
+    from rota.core.scheduler import Wake
+
+    sb = _dev(db)
+    out = sb.call("msg.challenge_tester", refs=["c1", "ts1"], quotes=QUOTES,
+                  reason=REASON)
+    session_commit(db, SessionResult(
+        session_id="s1", role="developer",
+        writes=[_as_write(w) for w in sb.ctx.writes],
+        messages=[OutboundMessage(id=m["id"], to_role=m["to_role"], verb=m["verb"],
+                                  body_refs=m["body_refs"], body_text=m["body_text"])
+                  for m in sb.ctx.outbound]))
+    inbound = resolve_inbound(db, Wake("tester", "message", message_id=out["id"],
+                                       detail="challenge"))
+    rid = _reason_id(REASON)
+    assert inbound["resolved_refs"][rid] == {
+        "id": rid, "author": "developer", "text": REASON, "table": "decisions"}
+
+
+def test_17_the_evidence_doors_hint_names_the_reason(db):
+    """Fix 2: the hint writes reason= as the slot, and copies a reason that
+    the refused call carried."""
+    sb = _dev(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["ts1", "ts1"], quotes=QUOTES)
+    assert str(exc.value).endswith(
+        "send refs=['c1', 'ts1'], reason=\"<why the quoted line cannot pass on "
+        "right code, and what the test must do instead>\"")
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["ts1"], quotes=QUOTES, reason=REASON)
+    assert str(exc.value).endswith(f"send refs=['c1', 'ts1'], reason={REASON!r}")
+
+
+def test_17_the_owner_route_of_a_conflict_about_a_test_names_the_reason(db):
+    from rota.roles import api
+    sb = _dev(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("ledger.log", about_ref="ts1", about_table="tests",
+                assumption="the criterion keeps the invoices and the test "
+                           "asserts that they are gone", kind="conflict")
+    assert ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<why the "
+            "quoted line cannot pass on right code, and what the test must do "
+            "instead>\") with quotes= copied from c1 and from ts1") in str(exc.value)
+    [offer] = [o for o in sb.ctx.offers if o.op == "msg.challenge_tester"]
+    assert offer.args["reason"] is api.INVENT
+
+
+def test_18_the_slot_text_sent_back_unchanged_is_refused(db):
+    from rota.core.sandbox import REASON_SLOT
+    for sent in (REASON_SLOT.split("=", 1)[1].strip('"'),
+                 REASON_SLOT.split("=", 1)[1].strip('"<>')):
+        said = _refused_reason(_dev(db), reason=sent)
+        assert said == ("reason= is still the slot text. Write why the quoted "
+                        "line cannot pass on right code. " + _CALL), sent
+
+
+def test_a_reason_past_600_characters_is_cut_and_admitted(db):
+    sb = _dev(db)
+    long = REASON + " " + "and the body must call it with the account id " * 20
+    out = sb.call("msg.challenge_tester", refs=["c1", "ts1"], quotes=QUOTES,
+                  reason=long)
+    text = sb.ctx.writes[0][2]["text"]
+    assert text.startswith(" ".join(long.split())[:600] + "\nCUT the reason: ")
+    assert out["note"].startswith("CUT your reason: ")

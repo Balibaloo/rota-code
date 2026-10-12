@@ -420,6 +420,16 @@
       "rows": "single"
     },
     {
+      "s": "developer",
+      "t": "decisions",
+      "type": "writes",
+      "v": "author",
+      "n": "own reason for a challenge",
+      "rows": "single",
+      "actor": "system",
+      "label": "frame 200 pass 5: the binder of msg.challenge_tester writes it, and the id derives from the reason and its two refs"
+    },
+    {
       "s": "architect",
       "t": "ledger",
       "type": "writes",
@@ -1259,7 +1269,8 @@
       "expects": "answer",
       "n": "test disputes criterion",
       "rows": "single",
-      "prose": "quotes"
+      "prose": "quotes",
+      "reason_row": "decisions"
     },
     {
       "s": "critic",

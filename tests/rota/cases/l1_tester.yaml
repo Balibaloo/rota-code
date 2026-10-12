@@ -547,3 +547,163 @@
     # A test on the return value is the night 91 fault. The criterion is the
     # Terminologist's to rewrite, not the Tester's.
     writes: [tests, criteria, items]
+
+- id: L1-TS-act-on-the-reason-of-a-challenge
+  # Frame 200, pass 5, night 143's bg_5 (2026-10-12): the Tester s440, woken
+  # by the challenge m291, had Click's hint "Try passing 'package_name'
+  # instead" and passed the argument to runner.invoke, not to the decorator
+  # (`plans/night143-cycle-bg5.md`, section 2). m291 carried two quotes and no
+  # reason. Here the challenge refs the Developer's reason row, s441's own
+  # sentence, verbatim. The case measures the seat, not a red of the code: a
+  # hand-made ref shows the row at 3a3cd94f too. Its first tally comes from
+  # the probe of the design, section 5. The criterion and the test keep the
+  # night's ids. The night's model. The case waits on the card for its
+  # recording.
+  model: qwen3.5:9b
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 3
+  inbound:
+    id: m291
+    from: developer
+    to: tester
+    verb: challenge
+    body_refs: [ver_opt_show_py_tk2, tst_version_option_show_python, <d1>]
+    body_text: "The version message format includes the Python version only
+      when `show_python` is enabled. ... assert \"Python\" in
+      result_enabled.output"
+  fixture:
+    items:
+      - {id: <i1>, text: "The `version_option` includes a `show_python` flag
+           that is off by default. When enabled, it appends the running
+           Python version (in the format major.minor.micro) to the message.",
+         kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "the `version_option` includes a
+           `show_python` flag that is off by default"}
+    criteria:
+      - id: ver_opt_show_py_tk2
+        ticket_id: <tk1>
+        text: "The version message format includes the Python version only
+          when `show_python` is enabled."
+        term_refs: '["version_option"]'
+        surface_refs: '["src/click/decorators.py::version_option"]'
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    decisions:
+      # s441 turn 2, verbatim: the Developer's reason, as the binder of
+      # pass 5 stores it.
+      - {id: <d1>, author: developer,
+         text: "`package_name` is a parameter to the decorator, not something
+                you pass when invoking.",
+         refs: '["ver_opt_show_py_tk2", "tst_version_option_show_python"]'}
+    tests:
+      # Body 5 of the night, version 17, as s440's wake showed it.
+      - id: tst_version_option_show_python
+        batch_id: <b1>
+        criterion_id: ver_opt_show_py_tk2
+        path: tests/test_version_option.py
+        body: |
+          from click.decorators import version_option
+          import inspect
+          from unittest.mock import patch
+          from click.testing import CliRunner
+          import click
+
+          def test_version_option_show_python():
+              # Test that show_python flag exists and is off by default
+              sig = inspect.signature(version_option)
+              assert "show_python" in sig.parameters
+
+              # Get the default value for show_python
+              default_value = sig.parameters["show_python"].default
+              assert default_value == False
+
+              # Test that enabling show_python appends Python version
+              @click.command()
+              @version_option(show_python=True)
+              def cmd_enabled():
+                  pass
+
+              @click.command()
+              @version_option(show_python=False)
+              def cmd_disabled():
+                  pass
+
+              runner = CliRunner()
+
+              # No mock needed; use real package name lookup
+              result_enabled = runner.invoke(cmd_enabled, ["--version"])
+              assert "Python" in result_enabled.output
+
+              result_disabled = runner.invoke(cmd_disabled, ["--version"])
+              assert "Python" not in result_disabled.output
+    test_runs:
+      - id: <r1>
+        batch_id: <b1>
+        test_id: tst_version_option_show_python
+        commit_sha: abc123
+        result: fail
+        output: |
+          [100%]
+          ================================== FAILURES ===================================
+          _______________________ test_version_option_show_python _______________________
+
+              def test_version_option_show_python():
+                  # Test that show_python flag exists and is off by default
+                  sig = inspect.signature(version_option)
+                  assert "show_python" in sig.parameters
+
+                  # Get the default value for show_python
+                  default_value = sig.parameters["show_python"].default
+                  assert default_value == False
+
+                  # Test that enabling show_python appends Python version
+                  @click.command()
+                  @version_option(show_python=True)
+                  def cmd_enabled():
+                      pass
+
+                  @click.command()
+                  @version_option(show_python=False)
+                  def cmd_disabled():
+                      pass
+
+                  runner = CliRunner()
+
+                  # No mock needed; use real package name lookup
+                  result_enabled = runner.invoke(cmd_enabled, ["--version"])
+          >       assert "Python" in result_enabled.output
+          E       assert 'Python' in ''
+          E        +  where '' = <Result RuntimeError("'test_version_option' is not installed. Try passing 'package_name' instead.")>.output
+
+          tests\test_version_option.py:31: AssertionError
+          ------------------------ CliRunner caught an exception ------------------------
+            File "src\click\core.py", line 3660, in process_value
+              return super().process_value(ctx, value)
+            File "src\click\core.py", line 2640, in process_value
+              value = self.callback(ctx, self, value)
+            File "src\click\decorators.py", line 537, in callback
+              raise RuntimeError(
+          RuntimeError: 'test_version_option' is not installed. Try passing 'package_name' instead.
+          output: empty
+          caught by CliRunner at src\click\decorators.py:537: RuntimeError
+          =========================== short test summary info ===========================
+          FAILED tests/test_version_option.py::test_version_option_show_python - assert...
+          1 failed in 0.30s
+  expect:
+    writes:
+      # The argument goes to the decorator, not to runner.invoke.
+      tests: {count: "1..1",
+              text_includes_any: ["version_option(version=",
+                                  "version_option(package_name=",
+                                  "version_option(\"", "version_option('",
+                                  "show_python=True, version=",
+                                  "show_python=True, package_name="],
+              text_excludes: ["package_name=\"test_version_option\")"]}
+  forbidden:
+    writes: [criteria, items]

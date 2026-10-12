@@ -8111,9 +8111,14 @@ def _owner_call(ctx, about_ref: str, assumption: str) -> tuple[str, dict, str] |
         quotes = [test["text"] or "", test["body"] or ""]
         if not _sandbox._challenge_admitted(ctx, refs, quotes):
             return None
-        return ("msg.challenge_tester", {"refs": refs, "quotes": quotes},
-                f"msg.challenge_tester(refs={refs!r}) with quotes= copied from "
-                f"{refs[0]} and from {refs[1]}")
+        # Frame 200, pass 5, fix 2: the call names reason= as a slot, which
+        # the seat fills. Mechanics cannot write the seat's judgement.
+        args, slot = {"refs": refs, "quotes": quotes}, ""
+        if _sandbox._takes_reason(ctx.role, "tester", "challenge"):
+            args["reason"], slot = INVENT, ", " + _sandbox.REASON_SLOT
+        return ("msg.challenge_tester", args,
+                f"msg.challenge_tester(refs={refs!r}{slot}) with quotes= "
+                f"copied from {refs[0]} and from {refs[1]}")
     # A criterion is the Terminologist's and a ticket the Vision Keeper's
     # (design, section 3.1). `_owner_of_ref` reads the ruled tables only.
     owner = next((o for t, o in (("criteria", "terminologist"),
@@ -8503,6 +8508,15 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
         _must_exist(ctx, "ledger", resolves_ledger)
     if supersedes and supersedes not in staged:
         _must_exist(ctx, "decisions", supersedes)
+    # Frame 200, pass 5, fix 7, which frame 219 inherits: a write under an
+    # existing id overwrites the row and its author. Night 143's s443 wrote
+    # over the principal's own decision that way.
+    owner = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
+                             (id,)).fetchone()
+    if owner is not None and owner["author"] and owner["author"] != ctx.role:
+        raise ValueError(
+            f"{id} is a decision by {owner['author']}. A decision is its "
+            f"author's record, so write yours under a new id.")
 
     ctx.writes.append(("decisions", id, {
         "author": ctx.role, "text": text, "refs": json.dumps(refs or []),
@@ -13390,10 +13404,14 @@ def _revert_refusal(ctx: Ctx, tree) -> str | None:
                 continue
             refs, quotes = [row["crit"], t], [row["text"] or "", row["body"] or ""]
             if _sandbox._challenge_admitted(ctx, refs, quotes):
+                # Frame 200, pass 5, fix 2: reason= is a slot the seat fills.
+                args, slot = {"refs": refs, "quotes": quotes}, ""
+                if _sandbox._takes_reason(ctx.role, "tester", "challenge"):
+                    args["reason"], slot = INVENT, ", " + _sandbox.REASON_SLOT
                 said.append(_offer(ctx, f"To dispute the test that fails at {back[:10]}, "
-                                        f"send msg.challenge_tester(refs={refs!r}) with "
-                                        f"quotes= copied from {refs[0]} and from {t}.",
-                                   "msg.challenge_tester", {"refs": refs, "quotes": quotes}))
+                                        f"send msg.challenge_tester(refs={refs!r}{slot}) "
+                                        f"with quotes= copied from {refs[0]} and from {t}.",
+                                   "msg.challenge_tester", args))
                 break
         return " ".join(said)
     said.append("Change the code that the red tests call, then commit. Do not flip.")

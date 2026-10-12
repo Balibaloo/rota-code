@@ -204,7 +204,35 @@ def test_owners_can_read_what_they_own(g):
     # also be the wrong grant -- the frontier is the scheduler's, and a role that
     # could see what it is about to be offered could work to be offered it.
     blind -= {(w, "schedule") for w in g.writer_of("schedule")}
+    # The Developer's reason row is the same case as the ledger: the binder of
+    # `msg.challenge_tester` derives its id from the reason and its two refs,
+    # so a repeat is an upsert and the seat names no id to check first. A
+    # read would also give the seat `decisions.search`, and an Architect's id
+    # copied from it would pass the answer-mode door (frame 200, pass 5, fix 3).
+    blind -= {("developer", "decisions")}
     assert not blind, sorted(blind)
+
+
+def test_the_developers_reason_row_is_a_write_and_no_contact(g):
+    """
+    Frame 200, pass 5, test 11. The Developer writes its own reason row, and
+    the binder performs the write, so the seat holds no `decisions.author`.
+    Law 3: `decisions` is a fact artefact, so the derived contacts do not
+    move, and the boot assertion stays green.
+    """
+    from rota.design.graph import Graph, check_all
+
+    [edge] = [e for e in g.writes("developer") if e.t == "decisions"]
+    assert (edge.v, edge.actor) == ("author", "system")
+    [send] = [e for e in g.of_type("messages")
+              if (e.s, e.t, e.v) == ("developer", "tester", "challenge")]
+    assert send.reason_row == "decisions"
+    assert not g.nodes["decisions"].contact
+    before = Graph(list(g.nodes.values()), [e for e in g.edges if e is not edge],
+                   g.contact_exceptions)
+    for role in g.roles:
+        assert g.derived_contacts(role) == before.derived_contacts(role), role
+    assert check_all(g) == []
 
 
 # ---------------------------------------------------------------------------

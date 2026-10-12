@@ -63,6 +63,10 @@ class Edge:
     # a role in the sandbox keeps it one fact in one place, and makes any second
     # exception something somebody has to declare.
     prose: str = ""
+    # Messages only. The table where the binder stores the sender's reason as
+    # the sender's own row, and refs it from the message. Law 2 keeps the
+    # words off the message (frame 200, pass 5).
+    reason_row: str = ""
 
     @property
     def model_callable(self) -> bool:
@@ -209,6 +213,7 @@ def _load(path: Path) -> Graph:
             cascade=e.get("cascade", True),
             actor=e.get("actor", "role"),
             prose=e.get("prose", ""),
+            reason_row=e.get("reason_row", ""),
         )
         for e in raw["edges"]
     ]

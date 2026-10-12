@@ -337,10 +337,12 @@ def test_a_head_with_no_red_names_the_challenge_on_the_red_test_put_back(db, tmp
         f"Of the 1 test that ran at both, the head fails 0 and {back[:10]} fails 1. "
         "Going back turns 1 test red that passes at the head: tst1. Say what stands "
         "and why (a decision), and do not flip. To dispute the test that fails at "
-        f"{back[:10]}, send msg.challenge_tester(refs=['c1', 'tst1']) with quotes= "
-        "copied from c1 and from tst1.")
+        f"{back[:10]}, send msg.challenge_tester(refs=['c1', 'tst1'], "
+        f"{sandbox.REASON_SLOT}) with quotes= copied from c1 and from tst1.")
     assert [(o.op, o.args["refs"]) for o in sb.ctx.offers] == [
         ("msg.challenge_tester", ["c1", "tst1"])]
+    # Frame 200, pass 5, test 17: reason= is a slot that the seat fills.
+    assert sb.ctx.offers[0].args["reason"] is api.INVENT
     # The follow check of frame 144, called here as well as by the conftest.
     exc = ValueError(said)
     got = sandbox.follow(sb, "code.commit", {"message": "back"}, exc, list(sb.ctx.offers))
@@ -423,7 +425,8 @@ def test_the_challenge_goes_to_the_first_red_test_that_its_doors_admit(db, tmp_p
     said = _refused(sb, "script.py", A)
     assert said.endswith(
         f"To dispute the test that fails at {back[:10]}, send "
-        "msg.challenge_tester(refs=['c1', 'tst1']) with quotes= copied from c1 and from tst1.")
+        f"msg.challenge_tester(refs=['c1', 'tst1'], {sandbox.REASON_SLOT}) with "
+        "quotes= copied from c1 and from tst1.")
     assert [o.args["refs"] for o in sb.ctx.offers] == [["c1", "tst1"]]
 
 
@@ -433,6 +436,9 @@ def test_the_challenge_goes_to_the_first_red_test_that_its_doors_admit(db, tmp_p
 DISPUTED = "def test_x():\n    assert close_account(1) == 3\n"
 QUOTES = ("the criterion says 'prints the object as compact JSON' and the "
           "test asserts close_account(1) == 3")
+# The Developer's reason of a challenge (frame 200, pass 5).
+REASON = ("right code prints compact JSON, so the test must assert the "
+          "printed object and not close_account")
 
 
 def _challenged(db, tmp_path):
@@ -445,7 +451,7 @@ def _challenged(db, tmp_path):
 
 def test_a_session_that_challenged_the_test_writes_and_commits_nothing(db, tmp_path):
     root, sb = _challenged(db, tmp_path)
-    sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    sb.call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     mid = sb.ctx.outbound[-1]["id"]
     said = (f"you sent challenge to tester in this session ({mid}): you "
             f"challenged the test, and a change now builds on the disputed "
@@ -477,7 +483,7 @@ def test_the_two_sandbox_steps_end_after_a_challenge(db, tmp_path):
                                           "the test calls.")
     assert not isinstance(before, sandbox._Ending)
     assert "write the change that makes it pass" in before
-    sb.call("msg.challenge_tester", refs=refs, quotes=QUOTES)
+    sb.call("msg.challenge_tester", reason=REASON, refs=refs, quotes=QUOTES)
     after = sandbox._waits_refusal("challenge", "tester", "m1", sb.ctx, refs)
     assert sandbox._code_step(sb.ctx) == sandbox.END_STEP
     assert isinstance(after, sandbox._Ending)
@@ -551,7 +557,7 @@ def test_an_escalation_after_a_challenge_ends_on_the_end_step(
     before = sandbox._same_refs_refusal(sb.ctx, "architect", "escalate",
                                         ["c1", "tst1"])
     assert not isinstance(before, sandbox._Ending)
-    sb.call("msg.challenge_tester", refs=["c1", "tst1"], quotes=QUOTES)
+    sb.call("msg.challenge_tester", reason=REASON, refs=["c1", "tst1"], quotes=QUOTES)
     with pytest.raises(api.EndRefusal) as exc:
         sb.call("msg.escalate_architect", refs=["c1", "tst1"])
     said = str(exc.value)

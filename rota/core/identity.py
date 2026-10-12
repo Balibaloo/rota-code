@@ -93,7 +93,10 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "faults": ("journal", "one fault report per session, refused call and "
                           "text; the id hashes the three, so a repeat in one "
                           "session is one row (frame 204)"),
-    "decisions": ("journal", "reasons as given"),
+    "decisions": ("journal", "reasons as given; a Developer's challenge "
+                             "reason keys on its text and its two refs, so "
+                             "the same reason re-sent on the same test is one "
+                             "row"),
     "verdicts": ("journal", "one judgement of one commit"),
     "finding_rulings": ("journal", "one ruling on one finding at one commit; "
                                    "verdicts.rule derives the id from both"),

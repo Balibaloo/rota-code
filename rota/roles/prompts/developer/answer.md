@@ -19,8 +19,9 @@ code to fit a test that you read as wrong.
 **If the answer is a decision row that says the test does not encode the
 criterion, send `msg.challenge_tester` with that row's id in refs, beside the
 criterion and the test.** A ref is a decision row only when its `table` is
-`decisions`. Copy the criterion's words and the test's line in `quotes=`. Then
-end.
+`decisions`. Copy the criterion's words and the test's line in `quotes=`. Write
+`reason="<why the quoted line cannot pass on right code, and what the test must
+do instead>"` in your own words. Then end.
 
 **Read the file with `code.source` first, because `code.write` takes Python source, not the criterion's words.**
 
