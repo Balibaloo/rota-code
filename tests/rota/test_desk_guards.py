@@ -94,6 +94,78 @@ def test_a_bare_call_of_the_surface_name_is_a_call_of_the_surface(db):
                      "    assert calculate_tip(100, 10) == 10\n")
 
 
+def test_the_encode_doors_never_force_an_import_that_does_not_load(db, tmp_path):
+    """
+    Frame 215, night 142's s542 on m382: the surface was
+    `examples/imagepipe/imagepipe.py::process_commands`, and the module
+    imports `PIL`, which the sandbox lacks. The Tester sent tst_4 without
+    the import. The surface door and the NameError door told it to import
+    the module 17 times, and every landed test failed at import. The doors
+    now check that the module loads before they offer the line.
+    """
+    root = tmp_path / "wt"
+    (root / "examples" / "imagepipe").mkdir(parents=True)
+    pipe = root / "examples" / "imagepipe" / "imagepipe.py"
+    # The first import is a module the sandbox lacks, as `PIL` was.
+    pipe.write_text("import rota_absent_pil_module\n\n\n"
+                    "def process_commands():\n    return None\n", encoding="utf-8")
+    (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "src" / "click" / "testing.py").write_text(
+        "class CliRunner:\n    pass\n", encoding="utf-8")
+    (root / "src" / "click" / "decorators.py").write_text(
+        "def version_option():\n    return None\n", encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = "
+               "'[\"examples/imagepipe/imagepipe.py::process_commands\"]' "
+               "WHERE id = 'c1'")
+    db.execute("DELETE FROM tests")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    # s542's tst_4 (seq 4): the imagepipe line swapped for another
+    # module's callable. The surface door refused it.
+    no_import = ("from click.testing import CliRunner\n"
+                 "import sys\n"
+                 "from src.click.decorators import version_option\n"
+                 "\n"
+                 "def test_version_output_includes_python():\n"
+                 "    runner = CliRunner()\n"
+                 "    result = runner.invoke(version_option, ['--show-python', '--version'])\n"
+                 "    assert result.exit_code == 0\n"
+                 "    expected_version = f\"{sys.version_info.major}.{sys.version_info.minor}"
+                 ".{sys.version_info.micro}\"\n"
+                 "    assert expected_version in result.output\n")
+    with pytest.raises(ValueError) as refused:
+        sb.call("tests.encode", id="tst_4", criterion_id="c1",
+                path="tests/test_version_option_include_python.py", body=no_import)
+    said = str(refused.value)
+    assert "Import the surface from its own module" not in said
+    assert "does not load in the sandbox" in said
+    assert "rota_absent_pil_module" in said
+    assert "msg.question_terminologist(refs=['c1']" in said
+    # The NameError door: the test calls the surface and never imports it.
+    calls = ("from click.testing import CliRunner\n"
+             "def test_version_output_includes_python():\n"
+             "    assert process_commands() is None\n")
+    with pytest.raises(ValueError) as refused:
+        sb.call("tests.encode", id="tst_4", criterion_id="c1",
+                path="tests/test_version_option_include_python.py", body=calls)
+    said = str(refused.value)
+    assert "add `from examples.imagepipe.imagepipe import" not in said
+    assert "does not load in the sandbox" in said
+    assert "msg.question_terminologist(refs=['c1']" in said
+    # A module that loads keeps today's two doors word for word.
+    pipe.write_text("def process_commands():\n    return None\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Import the surface from its own module"):
+        sb.call("tests.encode", id="tst_4", criterion_id="c1",
+                path="tests/test_version_option_include_python.py", body=no_import)
+    with pytest.raises(ValueError, match="add `from examples.imagepipe.imagepipe import "
+                                         "process_commands`"):
+        sb.call("tests.encode", id="tst_4", criterion_id="c1",
+                path="tests/test_version_option_include_python.py", body=calls)
+
+
 def test_a_rewrite_keeps_what_the_criteria_and_other_files_use(db, tmp_path):
     """
     tipsO, 2026-09-09: the Developer writes before the Tester now, so on

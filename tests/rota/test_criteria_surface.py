@@ -324,3 +324,68 @@ def test_a_bare_lowercase_name_after_helper_is_lost_by_decision(db):
     word reads like English, and no night text names a callable that way.
     A rule on "not an English word" would be a stop list under another name."""
     assert _named(db, "add a helper slugify that lowers a title") == []
+
+
+def test_a_repair_surface_outside_the_batch_files_is_refused(db):
+    """
+    Frame 215, night 142's s536 (seq 15 to 19): the relay of the principal's
+    m376 woke the repair. s536 set the surface of `tk_2`'s criteria to the
+    first row of `[code.callables]`, a module in `examples/` that imports
+    `PIL`. The batch expected `src/click/decorators.py` and
+    `tests/test_basic.py`, and no word of the request or the criterion
+    names `process_commands`. The rows are night 142's.
+    """
+    _index(db, "examples/imagepipe/imagepipe.py::process_commands",
+           "src/click/decorators.py::version_option")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('show_python_version_flag', ?, 'in_scope', "
+               "'approved', 1, 1)",
+               ("Give version_option a show_python flag that appends the running "
+                "Python version to the message. The version should come from the "
+                "running interpreter's version info as major.minor.micro. The "
+                "check should confirm that the Python version is in the output "
+                "and not just look at the exit code. The tests should put the "
+                "version option on a real command, not on a plain function.",))
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_2', "
+               "'show_python_version_flag', 'give version_option a show_python "
+               "flag that appends the running Python, version to the message')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES "
+               "('c_show_python_version', 'tk_2', 'The --version output names "
+               "the Python version.', '[\"src/click/decorators.py::version_option\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES "
+               "('batch_3_show_python_version_flag', 'show_python_version_flag', 'running')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+               "('batch_3_show_python_version_flag', 'tk_2')")
+    for grain, kind, conf in (("src/click/decorators.py", "path", "expected"),
+                              ("tests/test_basic.py", "path", "expected"),
+                              ("custom_version_option", "symbol", "possible"),
+                              ("version_option", "symbol", "possible")):
+        db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind, confidence) "
+                   "VALUES ('batch_3_show_python_version_flag', ?, ?, ?)",
+                   (grain, kind, conf))
+    db.commit()
+    text = ("When show_python=True, the command's output when --version is used "
+            "must include a line containing the Python version string derived "
+            "from sys.version_info.")
+    sb = build("terminologist", db, mode="criterion_repair",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    with pytest.raises(ValueError) as refused:
+        sb.call("criteria.respecify", id="c_show_python_version", text=text,
+                term_refs=["show_python"],
+                surface_refs=["examples/imagepipe/imagepipe.py::process_commands"])
+    said = str(refused.value)
+    assert "src/click/decorators.py" in said and "tests/test_basic.py" in said
+    assert "process_commands" in said
+    # The callable in the expected file lands, as today.
+    out = sb.call("criteria.respecify", id="c_show_python_version", text=text,
+                  term_refs=["show_python"],
+                  surface_refs=["src/click/decorators.py::version_option"])
+    assert out["respecified"]
+    # A ticket in no batch passes as today.
+    db.execute("DELETE FROM batch_tickets")
+    db.commit()
+    sb2 = build("terminologist", db, mode="criterion_repair",
+                allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    assert sb2.call("criteria.respecify", id="c_show_python_version", text=text,
+                    surface_refs=["examples/imagepipe/imagepipe.py::process_commands"]
+                    )["respecified"]

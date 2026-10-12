@@ -8,7 +8,9 @@ turned into an assertion a machine could check.
 Rewrite it with `criteria.respecify`: same id, words that name an observable
 outcome, and `surface_refs` naming the callable a test would exercise — this
 repair exists because the words alone could not be tested, so words alone are
-never the fix. `[code.callables]` lists the candidates the note's words touch; if
+never the fix. `[code.callables]` lists the candidates the note's words touch. The
+list ranks by fan-in, not by fit: the surface is a callable in a file the batch
+expects to touch or the request names. If
 the right callable does not exist yet, name it the way you intend it. "The email address stored in the database is lowercase" is checkable;
 "emails should be handled properly" is not. Keep `term_refs` honest — if the
 rewrite leans on a term, name it, and if the term does not exist, that gap is

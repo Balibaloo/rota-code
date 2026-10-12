@@ -4404,6 +4404,67 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
     return vetted
 
 
+def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str],
+                           texts: tuple) -> None:
+    """
+    A repair's surface sits in a file the batch expects to touch, or the
+    request or the criterion names it.
+
+    Night 142 (frame 215): s536 took the first row of an unhinted callable
+    list, `examples/imagepipe/imagepipe.py::process_commands`, for four
+    criteria. The batch expected `src/click/decorators.py` and
+    `tests/test_basic.py`, and no word of the request named `imagepipe`.
+    The module imports `PIL`, the sandbox lacks it, and 15 tests failed
+    at import. The touch rows are the ones `batches.expect` reads.
+    """
+    if not ticket_id or not surface:
+        return
+    batches = ctx.conn.execute(
+        "SELECT b.id AS id, b.item_id AS item_id, i.text AS item_text "
+        "FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
+        "LEFT JOIN items i ON i.id = b.item_id WHERE bt.ticket_id = ? "
+        "ORDER BY b.id", (ticket_id,)).fetchall()
+    touch: list = []
+    words_from = list(texts)
+    for b in batches:
+        # The same query as `batches_expect`, so the door and the read agree.
+        touch += [dict(r) for r in ctx.conn.execute(
+            "SELECT grain, grain_kind, confidence FROM batch_touch WHERE batch_id = ? "
+            "ORDER BY confidence, grain_kind, grain", (b["id"],))]
+        words_from.append(b["item_text"] or "")
+        words_from += [r["text"] for r in ctx.conn.execute(
+            "SELECT s.text AS text FROM refs x "
+            "JOIN statements s ON s.id = x.target "
+            "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
+            "AND s.status != 'superseded' ORDER BY s.id", (b["item_id"] or "",))]
+    paths = [_grain_path(t["grain"]) for t in touch if t["grain_kind"] == "path"]
+    if not paths:
+        return                    # no file predicted: no file to hold it to
+    symbols = {t["grain"].split("::")[-1] for t in touch if t["grain_kind"] == "symbol"}
+    expected = list(dict.fromkeys(
+        _grain_path(t["grain"]) for t in touch
+        if t["grain_kind"] == "path" and t["confidence"] == "expected"))
+    words = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", " ".join(w or "" for w in words_from)))
+    for ref in surface:
+        if "::" not in ref:
+            continue              # a bare name names no file to judge
+        path = _grain_path(ref)
+        name = ref.split("::", 1)[1]
+        if any(path == p or path.startswith(p.rstrip("/") + "/") for p in paths):
+            continue
+        if set(name.split(".")) & (words | symbols):
+            continue
+        # A file the request names by its stem is a file the request names.
+        if path.rsplit("/", 1)[-1][:-3] in words and path.endswith(".py"):
+            continue
+        raise Wall(
+            f"{ref!r} lives in {path}, and the batch expects to touch "
+            f"{', '.join(expected or paths)}. No word of the request or the "
+            f"criterion names {name}. The surface is a callable in a file the "
+            f"batch expects to touch, or a callable the request names. "
+            f"Name that callable in surface_refs")
+
+
 def _about_the_tests(text: str) -> bool:
     """A criterion whose subject is the tests names the Tester's job, not a
     behaviour of the program. S0 walks eleven to twenty-eight: "Unit tests
@@ -4741,10 +4802,11 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                         "what a test can assert, and this did not. If this "
                         "criterion is right as it stands, the one that cannot "
                         "be encoded is a different row"}
-    payload: dict = {"text": text,
-                     "surface_refs": json.dumps(
-                         _vet_surface(ctx, surface_refs, required=True,
-                                      ticket_id=cur["ticket_id"] if cur else None))}
+    surface = _vet_surface(ctx, surface_refs, required=True,
+                           ticket_id=cur["ticket_id"] if cur else None)
+    _surface_outside_batch(ctx, cur["ticket_id"] if cur else None, surface,
+                           (text, cur["text"] if cur else ""))
+    payload: dict = {"text": text, "surface_refs": json.dumps(surface)}
     # A respecified criterion is an amendment, so its version moves and the
     # Tester that gave up on it wakes. No reader reads a criterion's version.
     ctx.writes.append(("criteria", id, payload, True))
@@ -6422,6 +6484,13 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                                  keep_root=not _installed) if named else "")
         if module:
             symbol = named[0].split("::", 1)[1].split(".", 1)[0]
+            # Night 142 (frame 215): this door added an import line the
+            # sandbox cannot load, four times. The line is offered only
+            # when the module loads.
+            broken = _module_load_error(ctx, module, named[0].split("::", 1)[0])
+            if broken:
+                raise Wall(_unloadable_surface(ctx, criterion_id, named[0],
+                                               module, broken))
             raise Wall(
                 f"the test uses {unbound[0]} and never imports or defines it: "
                 f"a NameError against any code. The criterion's surface is "
@@ -6811,6 +6880,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                          for m in imported_from for d in surface_dotted)
         if surface_dotted and imported_from and not imports_ok:
             want = sorted(surface_dotted)[0]
+            # Night 142 (frame 215): this door made the Tester put back an
+            # import the sandbox cannot load, 13 times.
+            want_path = next(s.split("::", 1)[0] for s in surface
+                             if "::" in s and _dotted(s.split("::", 1)[0]) == want)
+            broken = _module_load_error(ctx, want, want_path)
+            if broken:
+                raise Wall(_unloadable_surface(
+                    ctx, criterion_id,
+                    next(s for s in surface if s.startswith(want_path + "::")),
+                    want, broken))
             raise Wall(
                 f"the surface {surface[0]!r} lives in "
                 f"{sorted(surface_mods)[0]}.py and this test imports from "
@@ -11372,6 +11451,75 @@ def _dotted_module(path: str, keep_root: bool = False) -> str:
     if dotted == "__init__":
         return ""
     return dotted.removesuffix(".__init__")
+
+
+# The probe prints one marked line, so a module that prints on import cannot
+# pass for the error. It catches BaseException, because a module that calls
+# `sys.exit` at import also fails a test at collection.
+_LOAD_PROBE = (
+    "import sys\n"
+    "try:\n"
+    "    __import__(sys.argv[1])\n"
+    "except BaseException as e:\n"
+    "    m = (str(e).splitlines() or [''])[0]\n"
+    "    print('ROTA-LOAD', type(e).__name__, getattr(e, 'name', None) or '-',\n"
+    "          type(e).__name__ + ': ' + m)\n"
+    "    sys.exit(1)\n")
+
+
+def _module_load_error(ctx, dotted: str, rel_path: str) -> str | None:
+    """
+    The first line of the error when the module does not load in the
+    sandbox the tests run in, or None.
+
+    Night 142 (frame 215): the encode doors told the Tester to import
+    `examples.imagepipe.imagepipe`, which imports `PIL`, and the sandbox
+    lacks `PIL`. All 15 landed tests imported it, and four failed at import.
+    The probe runs the harness's interpreter in the worktree, as a test does.
+    A module whose file does not exist yet is the Developer's to write, so
+    the doors keep their words for it.
+    """
+    try:
+        root = _worktree_of(ctx)
+    except Exception:  # noqa: BLE001 -- no worktree: nothing to load from
+        return None
+    if not dotted or not (root / _grain_path(rel_path)).is_file():
+        return None
+    from ..core import execute
+    from ..core.provision import python_for
+    try:
+        out = execute.run(root, [python_for(root), "-c", _LOAD_PROBE, dotted],
+                          timeout=60)
+    except Exception:  # noqa: BLE001 -- a probe that cannot run proves nothing
+        return None
+    if out.error or out.returncode == 0:
+        return None
+    marked = [ln for ln in (out.stdout or "").splitlines() if ln.startswith("ROTA-LOAD ")]
+    if not marked:
+        return None
+    _, kind, missing, first = marked[-1].split(" ", 3)
+    # The module's own name not found is a path the interpreter does not
+    # see, not a load that fails: the doors keep their words.
+    if kind == "ModuleNotFoundError" and (
+            dotted == missing or dotted.startswith(missing + ".")):
+        return None
+    return first
+
+
+def _unloadable_surface(ctx, criterion_id: str, surface: str, module: str,
+                        error: str) -> str:
+    """The refusal when the surface's module does not load in the sandbox.
+    The criterion names the surface, so the Terminologist repairs it."""
+    question = "the surface does not load in the sandbox: which callable does a test call?"
+    said = (f"msg.question_terminologist(refs=['{criterion_id}'], "
+            f"question='{question}')")
+    _offer(ctx, said, "msg.question_terminologist",
+           {"refs": [criterion_id], "question": question})
+    return (f"the criterion's surface {surface!r} lives in {module}, and {module} "
+            f"does not load in the sandbox the tests run in: {error}. A test "
+            f"that imports it fails at import against any code. The surface "
+            f"is the criterion's, and the Terminologist repairs the criterion. "
+            f"Do not import {module}. Send {said}")
 
 
 def _indexed_like(ctx, path: str) -> str | None:

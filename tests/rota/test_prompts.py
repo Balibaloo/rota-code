@@ -473,6 +473,19 @@ def test_a_paragraph_that_invites_a_log_names_the_words_its_mode_offers():
     assert not wrong, wrong
 
 
+def test_the_criterion_repair_brief_says_where_a_surface_lives():
+    """
+    Frame 215, night 142: s536 took the first row of `[code.callables]`, a
+    module in `examples/`, outside the batch's files. The sentence follows
+    the list's own line, so the seat reads both together.
+    """
+    repair = prompts.compose("terminologist", "criterion_repair")
+    head = repair.index("`[code.callables]` lists the candidates")
+    sentence = " ".join(repair[head:head + 400].split())
+    assert ("The list ranks by fan-in, not by fit: the surface is a callable "
+            "in a file the batch expects to touch or the request names.") in sentence
+
+
 def test_a_mode_without_the_log_names_no_kind_words():
     """
     Frame 204's review 1b, finding N1: a shared base rendered the kinds
