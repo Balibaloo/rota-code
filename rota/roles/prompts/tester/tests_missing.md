@@ -41,10 +41,10 @@ The test calls the program: import the function the criterion's surface
 names and assert on what it returns.
 
 A bare assertion with no function, or a sentence about the criterion, is
-refused -- pytest would collect nothing from either. A string the test
-chooses that nothing in the material says -- a sample name, a prompt's
-wording -- is an assumption. Encode the test: `tests.encode` writes the
-assumption to the ledger for you.
+refused -- pytest would collect nothing from either. A string the material
+does not fix -- a sample name, a prompt's wording -- is an assumption, and
+the encode records it by itself. A function or a format that the material
+does not name is not a test, and the criterion is `cannot`.
 
 **`cannot` needs no diagnosis, only honesty.** A criterion can fail you three
 ways — a word that could mean two things, a sentence no machine could check, a
