@@ -212,7 +212,8 @@ def test_3_a_reason_that_copies_a_quote_is_refused(db):
     said = _refused_reason(
         _dev(db), reason="closing an account leaves its invoices in place")
     assert said == ("reason= copies the quotes or the criterion. The quotes "
-                    "already travel, and reason= says why they conflict. " + _CALL)
+                    "already travel, and reason= names the error the test "
+                    "got and the line of the test that raises it. " + _CALL)
 
 
 def test_4_an_admitted_challenge_stages_the_reason_as_the_developers_row(db):
@@ -333,12 +334,21 @@ def test_19_a_reason_that_says_the_test_passes_is_refused(db):
         said = _refused_reason(_dev(db), reason=sent)
         assert said.startswith("reason= says the test passes or the "
                                "criterion is met."), sent
-    # The same words past the head are a fact, and the door admits them.
-    sb = _dev(db)
-    sb.call("msg.challenge_tester", refs=["c1", "ts1"], quotes=QUOTES,
-            reason="the test calls runner.invoke with package_name, and "
-                   "invoke has no such argument, so it never passes")
-    assert sb.ctx.outbound
+    # The same words past the head are a fact, and the door admits them. So
+    # is "passes" with an object (review 5b, finding 1).
+    for fact in ("the test calls runner.invoke with package_name, and "
+                 "invoke has no such argument, so it never passes",
+                 "the test passes package_name to invoke",
+                 "The test passes package_name to runner.invoke, and invoke "
+                 "raises TypeError on it",
+                 "The test passes `package_name` to `runner.invoke`, and "
+                 "`invoke` raises TypeError on it",
+                 "runner.invoke(package_name=...) passes an argument invoke "
+                 "does not take, TypeError"):
+        sb = _dev(db)
+        sb.call("msg.challenge_tester", refs=["c1", "ts1"], quotes=QUOTES,
+                reason=fact)
+        assert sb.ctx.outbound, fact
 
 
 def test_a_reason_past_600_characters_is_cut_and_admitted(db):

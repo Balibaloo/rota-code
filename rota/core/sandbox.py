@@ -1860,8 +1860,11 @@ REASON_CHARS = 600
 REASON_HEAD_WORDS = 4
 
 # A reason whose head is a verdict on the test or the criterion (frame 200,
-# pass 5b, item 4).
-_REASON_VERDICT = re.compile(r"\bpasses\b|\bis (?:met|correct)\b")
+# pass 5b, item 4). "passes" with an object is a fact, as in "the test
+# passes package_name to invoke" (review 5b, finding 1).
+_REASON_VERDICT = re.compile(
+    r"\bpasses(?=\s*(?:$|[.,;!?]|on\b|as\b|already\b|now\b|today\b))"
+    r"|\bis (?:met|correct)\b")
 
 # What every reason refusal says. It is the one part of a challenge that the
 # Tester cannot read in the test (frame 200, pass 5, section 3.1). Pass 5b
@@ -1902,9 +1905,11 @@ def _reason_problem(conn: sqlite3.Connection, reason, quotes: str,
                 f"{REASON_WORDS_MIN} words or more, and yours has {len(words)}.")
     # Frame 200, pass 5b: a verdict is no fact. The probe's Developer argued
     # the test right or wrong in a loop, and never named the error.
-    head = " ".join(re.split(r"[.!?;:]\s", flat, maxsplit=1)[0].split()
-                    [:REASON_HEAD_WORDS])
-    if _REASON_VERDICT.search(head):
+    # The lookahead reads the whole sentence, so a head cut after "passes"
+    # does not hide its object.
+    first = re.split(r"[.!?;:]\s", flat, maxsplit=1)[0]
+    said = _REASON_VERDICT.search(first)
+    if said and len(first[:said.start()].split()) < REASON_HEAD_WORDS:
         return ("reason= says the test passes or the criterion is met. Name "
                 "the error the test got and the line of the test that "
                 "raises it.")
@@ -1915,7 +1920,8 @@ def _reason_problem(conn: sqlite3.Connection, reason, quotes: str,
         tuple(r for r in refs or [] if isinstance(r, str)))) if refs else ""
     if bare in _flat(quotes).lower() or (crit and bare in crit):
         return ("reason= copies the quotes or the criterion. The quotes "
-                "already travel, and reason= says why they conflict.")
+                "already travel, and reason= names the error the test got "
+                "and the line of the test that raises it.")
     return None
 
 
