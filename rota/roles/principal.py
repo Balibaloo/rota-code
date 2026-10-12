@@ -1798,7 +1798,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         if ruling not in ("approve", "contest", "revise"):
             continue
         row = conn.execute(
-            "SELECT id, about_ref, default_taken FROM ledger "
+            "SELECT id, about_ref, default_taken, kind FROM ledger "
             "WHERE id = ? AND status = 'open'", (ref,)).fetchone()
         if row is None:
             continue
@@ -1822,7 +1822,14 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             # turned an approve of c1 into a contest (the delta review of
             # 2c602d1b, finding 1). A wake's own row keeps the old rule: the
             # contest of a note about it contests it.
-            if not (about and about["provenance"] == "observed") and \
+            # A1 (ruled 2026-09-03) names an assumption, which is a default
+            # taken where the criteria were silent. A note of another kind is
+            # a seat's claim about the record, and its contest stays on the
+            # note. Night 144 lost bg_1 when a scope note's contest reached
+            # the item that the principal had approved.
+            is_default = (row["kind"] or "default") == "default"
+            if is_default and \
+                    not (about and about["provenance"] == "observed") and \
                     row["about_ref"] not in stamped:
                 per_item[row["about_ref"]] = "contest"
         conn.execute(

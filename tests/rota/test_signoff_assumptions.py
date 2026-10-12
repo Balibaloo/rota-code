@@ -233,6 +233,66 @@ def test_contesting_an_assumption_overrules_it_and_contests_its_row(db):
     assert _owner_of_ref(db, "L1") == "vision_keeper"
 
 
+def _a_decided_item_with_a_note(db, kind):
+    # Night 144, walk 1, 2026-10-13: page m101 carried echo_json and a
+    # Terminologist's scope note about it.
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('echo_json',"
+               "'The program echoes its input as JSON','in_scope','draft',0,1)")
+    seed_provenance(db, "items", "echo_json", "decided")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "kind, status, author) VALUES ('L9','echo_json','items',"
+               "'The function echo_json already exists as an artefact row.',"
+               "?,'open','terminologist')", (kind,))
+    db.commit()
+
+
+def test_a_scope_note_s_contest_stays_on_the_note(db):
+    """
+    Night 144, walk 1 (2026-10-13): the principal approved echo_json and
+    contested a scope note about it. The fold turned the approve into a
+    contest. The scheduler then abandoned the batch before a build.
+    """
+    _a_decided_item_with_a_note(db, "scope")
+    ask = _a_present_of(db, ["echo_json", "L9"])
+    mid = land(db, ask, Answer(verb="verdict",
+                               per_item={"echo_json": "approve", "L9": "contest"},
+                               text="the note is wrong"))
+    db.commit()
+    assert verdict_for(db, mid).get("echo_json") == "approve"
+    assert db.execute("SELECT approval FROM items WHERE id = 'echo_json'"
+                      ).fetchone()["approval"] != "contested"
+    assert db.execute("SELECT status FROM ledger WHERE id = 'L9'"
+                      ).fetchone()["status"] == "resolved"
+    dec = db.execute("SELECT text FROM decisions WHERE resolves_ledger = 'L9'"
+                     ).fetchone()
+    assert dec is not None and dec["text"].startswith("overruled at signoff")
+
+
+def test_a_default_s_contest_reaches_its_item_the_ruling_does_not_name(db):
+    """A1 (2026-09-03) holds: a contested default contests its item."""
+    _a_decided_item_with_a_note(db, "default")
+    ask = _a_present_of(db, ["echo_json", "L9"])
+    mid = land(db, ask, Answer(verb="verdict", per_item={"L9": "contest"},
+                               text="the note is wrong"))
+    db.commit()
+    assert verdict_for(db, mid).get("echo_json") == "contest"
+
+
+def test_a_conflict_note_s_contest_leaves_an_unnamed_item_alone(db):
+    """A conflict note is a seat's claim about the record, not a default."""
+    _a_decided_item_with_a_note(db, "conflict")
+    ask = _a_present_of(db, ["echo_json", "L9"])
+    mid = land(db, ask, Answer(verb="verdict", per_item={"L9": "contest"},
+                               text="the note is wrong"))
+    db.commit()
+    assert "echo_json" not in verdict_for(db, mid)
+    assert db.execute("SELECT approval FROM items WHERE id = 'echo_json'"
+                      ).fetchone()["approval"] == "draft"
+    assert db.execute("SELECT status FROM ledger WHERE id = 'L9'"
+                      ).fetchone()["status"] == "resolved"
+
+
 def test_the_signoff_page_names_the_code_that_carries_each_items_words(db):
     """P4 piece 2 in its mechanical form (2026-09-12): beside each item, the
     files whose symbols carry a word of the item's text, read from the
