@@ -7303,6 +7303,9 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     bid = batch_id or ctx.batch_id
     if not bid:
         return []
+    # The latest run is the latest run in this batch. An inherited test keeps
+    # its id across batches. Night 141 (frame 210): bg_1's attempt 3 beat
+    # bg_2's attempt 1, and s198 read 35 of 35 passing while 2 were red.
     rows = _rows(ctx.conn.execute(
         "SELECT t.id AS id, t.criterion_id AS criterion_id, t.path AS path, "
         "       t.body AS body, r.result AS last_result, "
@@ -7310,7 +7313,7 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
         "       r.commit_sha AS run_sha "
         "FROM tests t "
         "LEFT JOIN test_runs r ON r.id = ("
-        "    SELECT id FROM test_runs WHERE test_id = t.id "
+        "    SELECT id FROM test_runs WHERE test_id = t.id AND batch_id = t.batch_id "
         "    ORDER BY attempt DESC, rowid DESC LIMIT 1) "
         "WHERE t.batch_id = ? "
         "ORDER BY t.criterion_id IS NULL, t.rowid", (bid,)))

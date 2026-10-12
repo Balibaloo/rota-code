@@ -2199,7 +2199,10 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                 # exactly that.
                 if table == "tests":
                     run = conn.execute(
+                        # The test's own batch only: an inherited test keeps
+                        # its id across batches (frame 210).
                         "SELECT result, output FROM test_runs WHERE test_id = ? "
+                        "AND batch_id = (SELECT batch_id FROM tests WHERE id = test_runs.test_id) "
                         "ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone()
                     if run:
                         out = run["output"] or ""

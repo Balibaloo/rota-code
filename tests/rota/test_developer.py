@@ -776,6 +776,43 @@ def test_the_batch_own_tests_come_first_and_green_inherited_bodies_stay_out(proj
     assert not any("the file is at" in (r["body"] or "") for r in loaded)
 
 
+def test_an_inherited_test_reads_its_latest_run_in_the_batch_that_asks(project):
+    """
+    Night 141 (frame 210). An inherited test keeps its id across batches.
+    `inh_022b8a87` passed in bg_1 at attempts 2 and 3 and failed in bg_2 at
+    attempt 1. The latest-run pick ordered by attempt alone and took bg_1's
+    pass, so s198 read 35 of 35 passing while 2 were red. The rows below
+    are the night's rows, with the output cut.
+    """
+    from rota.core.sandbox import build
+
+    db, _ = project
+    # bg_1 is the older batch and bg_2 inherits its test. No worktree is
+    # needed, because the pick is a fact of the database.
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b2','i1','pending')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('inh_022b8a87', 'b2', NULL, 'tests/test_utils/test_confirm.py', "
+               "'def test_prompts(runner): CONFIRM_BODY')")
+    passed = "..                                                                       [100%]\n2 passed in 0.05s"
+    failed = ("FF                                                                       [100%]\n"
+              "================================== FAILURES ===================================\n"
+              "________________________________ test_prompts _________________________________\n")
+    for rid, bid, sha, result, output, attempt in (
+            ("tr2", "b1", "b12a2ecb", "pass", passed, 2),
+            ("tr37", "b1", "5224d1f1", "pass", passed, 3),
+            ("tr72", "b2", "d6314349", "fail", failed, 1)):
+        db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, output, attempt) "
+                   "VALUES (?, ?, 'inh_022b8a87', ?, ?, ?, ?)", (rid, bid, sha, result, output, attempt))
+    db.commit()
+
+    row = next(r for r in build("developer", db, batch_id="b2").call("tests.load")
+               if r["id"] == "inh_022b8a87")
+    assert row["last_result"] == "fail", row
+    assert "test_prompts" in row["said"], row
+    # A red inherited test keeps its body.
+    assert row["body"] == "def test_prompts(runner): CONFIRM_BODY"
+
+
 def test_a_finding_names_a_file_the_diff_changed(project):
     """
     Night 65 (2026-09-14): the structural review filed violated findings on

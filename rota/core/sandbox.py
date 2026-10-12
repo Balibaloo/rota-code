@@ -1179,8 +1179,9 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                 failing = ctx.conn.execute(
                     "SELECT DISTINCT tr.test_id, t.criterion_id FROM test_runs tr "
                     "JOIN tests t ON t.id = tr.test_id "
-                    "WHERE t.batch_id = ? AND tr.result IN ('fail', 'error') "
-                    "AND tr.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id)",
+                    "WHERE t.batch_id = ? AND tr.batch_id = t.batch_id "
+                    "AND tr.result IN ('fail', 'error') "
+                    "AND tr.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY batch_id, test_id)",
                     (ctx.batch_id,)).fetchall()
                 # A test with no criterion is the project's own, broken by
                 # the diff. click night 47 (2026-09-14): the hint said
@@ -1587,7 +1588,10 @@ def _test_is_red(conn: sqlite3.Connection, refs) -> bool:
     for ref in refs or []:
         row = conn.execute(
             "SELECT tr.result FROM test_runs tr JOIN tests t ON t.id = tr.test_id "
-            "WHERE tr.test_id = ? ORDER BY tr.rowid DESC LIMIT 1", (ref,)).fetchone()
+            # The test's own batch only: an inherited test keeps its id
+            # across batches (frame 210).
+            "WHERE tr.test_id = ? AND tr.batch_id = t.batch_id "
+            "ORDER BY tr.rowid DESC LIMIT 1", (ref,)).fetchone()
         if row is not None and row["result"] in ("fail", "error"):
             return True
     return False
@@ -2468,6 +2472,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             for r in (refs or []):
                 run = ctx.conn.execute(
                     "SELECT output FROM test_runs WHERE test_id = ? "
+                    "AND batch_id = (SELECT batch_id FROM tests WHERE id = test_runs.test_id) "
                     "ORDER BY rowid DESC LIMIT 1", (r,)).fetchone()
                 if run and "reading from stdin while output is captured" in (run["output"] or ""):
                     raise ValueError(

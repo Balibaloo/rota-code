@@ -513,7 +513,10 @@ def check_line(conn: sqlite3.Connection, test_id: str) -> str:
         if call:
             parts.append(f"calls {call}")
         parts.append(f"expects {assertion}")
+    # The test's own batch only: an inherited test keeps its id across
+    # batches (frame 210).
     run = conn.execute("SELECT result, output FROM test_runs WHERE test_id = ? "
+                       "AND batch_id = (SELECT batch_id FROM tests WHERE id = test_runs.test_id) "
                        "ORDER BY rowid DESC LIMIT 1", (test_id,)).fetchone()
     if run is None:
         tail = "Not run yet."
