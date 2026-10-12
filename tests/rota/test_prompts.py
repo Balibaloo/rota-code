@@ -290,6 +290,14 @@ def test_the_reconcile_and_triage_briefs_name_the_ref_and_the_literal_source():
     assert ref in reconcile
     assert reconcile.index(ref) < reconcile.index("Log it: `ledger.log(")
     assert "an area name is a ref only when" in reconcile
+    # The dictated call and the sentence name one ref, so the seat cannot
+    # pick the other (frame 204's pass 1e).
+    template = reconcile[reconcile.index("Log it: `ledger.log("):]
+    template = template[:template.index("kind=\"conflict\")`")]
+    assert 'about_ref="@prose"' in template
+    assert "about_table=<the README's path>" in template
+    assert 'about_table="items"' not in template
+    assert "the item id it touches" not in template
 
     triage = prompts.compose("tester", "tests_missing")
     source = "Every literal the test asserts comes from the criterion"
