@@ -29,8 +29,13 @@ Rota workflow, except where a line says meta workflow.
 - **Before the code, one replay probe** measures whether the 9B Developer
   writes a usable reason and whether the 9B Tester acts on it. A prediction
   does not gate the pass (reasoned: section 5).
-- **Price:** 5 cycles, about 450k in agents, one night. The pass fits one
-  fresh implementer (reasoned: section 8).
+- **Price:** 6 to 7 cycles, about 600k to 700k in agents, one night. The
+  pass fits one fresh implementer (reasoned: section 8, as corrected by
+  section 11).
+- **The review of 2026-10-12, `plans/frame200-pass5-design-review.md`, is
+  folded in at section 11.** Its two high findings change the same-refs door
+  and every hint that writes `msg.challenge_tester`. Section 11 overrides any
+  line above it that it names.
 
 ## 1. The path at the night's commit
 
@@ -143,6 +148,8 @@ Three facts decide the weight of each row:
 - `_received` does not move. A Tester's re-encode is still the receipt
   (observed: `db.py:744-756`).
 - The thread `_thread_on_tests` does not move in this pass.
+- Correction by section 11: the same-refs door, the answer-mode door, four
+  hint sites and `decisions_author` do move. Section 11 names each.
 
 ### 3.3 What it costs at night
 
@@ -158,7 +165,8 @@ Three facts decide the weight of each row:
 - The rows show in `decisions.search` for the Vision Keeper, the Liaison and
   the Architect. A seat that copies an id from a search is frame 219's wall,
   and the author check in 3.1 item 3 stops the Developer side only
-  (reasoned).
+  (reasoned). Section 11, fix 7, closes the other side in
+  `decisions_author`.
 
 ## 4. The three candidates weighed
 
@@ -200,7 +208,7 @@ The report goes to `plans/frame200-pass5-probe.md`, with ten lines back.
 ## 6. The tests
 
 All red at 3a3cd94f, and green after the pass, except where a line says
-measure.
+measure. Section 11 adds tests 14 to 21.
 
 Door tests, `tests/rota/test_challenge_evidence.py` and
 `tests/rota/test_desk_guards.py`:
@@ -263,7 +271,9 @@ list). Tester cases do not move unless the probe adds a line.
    written in a wake that shows a Developer reason row, and of those, the
    bodies whose run reaches the `show_python` branch: the run is green, or
    its red is at the test's own assertion with the version message in the
-   output. Baseline: 0 of 6 bodies reached the code on night 143's bg_5, and
+   output. The source is the `[tests.load]` block of the next Developer
+   wake in `turns`, by the query and the text rule of section 11, fix 6.
+   Baseline: 0 of 6 bodies reached the code on night 143's bg_5, and
    0 of 6 challenges carried a reason (observed: `plans/night143-cycle-bg5.md`,
    section 2). Target: at least 1 in 2 of the bodies written after a
    reasoned challenge. Frame 200's own line stands beside it: a merge within
@@ -300,13 +310,11 @@ one test file (reasoned: the anchors above). The frame's earlier implementer
 context holds passes 2 to 4b, so a fresh agent with this design and the
 probe's report costs less than a resume that re-reads `sandbox.py`.
 
-Site of the pass: `rota/core/sandbox.py`, `rota/design/graph.json`,
-`rota/roles/prompts/developer/tests_failing.md`,
-`rota/roles/prompts/developer/answer.md`, the tests and the cases named in
-section 6. It shares no file with frame 219's site, the decision write path
-in `rota/roles/api.py` (reasoned: the stack's frame 219 heading). It shares
-`sandbox.py` with any frame that edits the doors there, and the map tool
-checks that before the pass starts.
+Site of the pass: section 11, fix 9, replaces this paragraph. The pass now
+edits `rota/roles/api.py` too, which is frame 219's site.
+
+The price above is corrected by section 11, fix 10: 6 to 7 cycles, about
+600k to 700k in agents.
 
 ## 9. What stays its own frame
 
@@ -339,3 +347,252 @@ Three points, for the session that holds the frame:
    that ruling's words before the pass, if the judge doubts it.
 3. The probe gates the brief, not the mechanism. The mechanism is a door and
    a row, and the tests hold it whatever the 9B seat writes.
+
+## 11. The review's fixes, folded in (2026-10-12 15:58)
+
+Source: `plans/frame200-pass5-design-review.md`, Opus, at HEAD 402eb146,
+with its probes in `scratchpad/rvd5/`. The review said: do not start as
+written, start after findings 1 and 2 are folded. Each fix below replaces
+the lines it names. Line numbers are at HEAD 402eb146 (observed: the review
+and this fold's reads, 2026-10-12 15:50 to 15:58).
+
+### Fix 1, high: the same-refs door ignores the sender's own reason id
+
+The cause: the doors see the seat's refs before the binder appends the
+reason id. A reasoned prior stores `[c, tst, d_...]`, so `_same_refs_rows`
+with `as_set=True` never matches the seat's `[c, tst]`. The open-prior wait,
+the "they answered" refusal and the one re-send per version go silent
+(observed: the probe `rvd5/p_samerefs.py` matched m1 without the id and not
+m2 with it).
+
+The decision: **the stored refs keep the reason id, and the door compares
+the refs without it.** The id must stay in `body_refs`, because
+`_resolve_refs` reads `body_refs` to show the row to the Tester (reasoned:
+section 1, item 3). So the comparison moves, and not the row.
+
+1. A new helper in `sandbox.py`, `_without_own_reasons(conn, refs, role)`,
+   drops each ref that is a `decisions` id with `author = role`.
+2. `_same_refs_rows` applies the helper to both sides, the seat's refs and
+   each stored `body_refs`, only on the Developer-to-Tester challenge
+   branch: the call at `sandbox.py:2148`, with `as_set=True`. Every other
+   sender and verb keeps its comparison, by the ruling of 2026-10-05, frame
+   132's question 4 (ruled: the judging session, quoted at
+   `sandbox.py:2143-2146`). The Architect's own row in an answer's refs is
+   the row route of change 4, and a filter there would change that door.
+3. The `exact` test at `sandbox.py:1884` applies the helper to `have` and to
+   `own`, so the cap's "on exactly these refs" sentence stays true for a
+   reasoned prior.
+4. Test 14: an open reasoned prior `[c, tst, d_own]` and a new challenge on
+   `[c, tst]` meet the open-prior wait, as an unreasoned prior does. Test
+   15: an answered reasoned prior meets the "they answered" refusal. Test
+   16: the cap's sentence says "on exactly these refs" for three reasoned
+   priors on the same refs.
+
+### Fix 2, high: every hint and offer that writes the challenge names `reason=`
+
+The sites (observed: the review, and this fold's reads):
+
+- `sandbox.py:1012-1035`, `_answer_mode_challenge_refusal`, the offer with
+  the decision of the answer.
+- `sandbox.py:1130-1139`, `_challenge_evidence`, the `_send` hint that
+  writes `refs=[c, t] + keep`.
+- `api.py:8103-8116`, the owner route for a test, gated by
+  `_challenge_admitted`.
+- `api.py:13390-13396`, the revert door's step, gated by
+  `_challenge_admitted`.
+
+The decision:
+
+1. **`_challenge_admitted` does not run the reason door.** The reason door
+   reads only the call's own `reason` and its quotes, and no row of the
+   state. So a call that the other doors admit is admitted with any reason
+   the seat writes (reasoned: section 3.1, item 2). The two gated hints keep
+   their gate.
+2. **Each hint names `reason=` as a slot the seat fills.** The text is fixed
+   in one constant, `REASON_SLOT`: `reason="<why the quoted line cannot pass
+   on right code, and what the test must do instead>"`. The `_offer` args
+   carry no `reason` key, because mechanics cannot write the seat's
+   judgement. The implementer checks that the follow check in
+   `tests/rota/test_offers_followed.py` matches on the call and its refs
+   with the key absent, and names the line.
+3. **When the refused call carried a reason, the offer copies it.** The
+   answer-mode door and the evidence door run inside `stage`, so `stage`
+   passes the seat's `reason` to them beside `text`. Then the offer is the
+   exact call, with the seat's own words.
+4. **The reason door refuses the slot copied verbatim.** The sentence:
+   "reason= is still the slot text. Write why the quoted line cannot pass
+   on right code." This keeps frame 135's law: the hint names a call that
+   every door admits once the seat fills the slot.
+5. Test 17: each of the four sites, driven to its hint, writes `reason=`.
+   Test 18: a reason equal to `REASON_SLOT` is refused.
+
+### Fix 3, low: the law test on owners that cannot read
+
+What `test_owners_can_read_what_they_own` asserts
+(`tests/rota/test_laws.py:182-207`): every writer of an artefact also reads
+it, minus a named set. The set holds the Critic and `verdicts` by design,
+every writer of `ledger` because `ledger.log` derives its id, and every
+writer of `schedule` for the same reason. The new edge adds the pair
+developer and `decisions` as a blind writer (observed: the probe
+`rvd5/p_graph.py`).
+
+The decision: **the test changes, and the edge does not gain a read.**
+
+- The Developer's reason id is derived by the binder from the reason and
+  the two refs. A repeat is an upsert. The seat names no id, so there is
+  nothing it would read the record to check first. This is the reason the
+  test already gives for `ledger` and `schedule` (reasoned: the test's own
+  comments at lines 197-205).
+- A `reads` edge would give the Developer `decisions.search`. The seat
+  could then copy an Architect's id into its refs, and the answer-mode door
+  of pass 2e admits any decision ref (reasoned: fix 4).
+- Under law 3, `decisions` is a fact artefact and generates no contact, so
+  the derived set does not move whichever way this goes (observed: the
+  probe, `check_all` with no problems and no contact moved). Law 3 leaves
+  the choice open, and the derived-id reason settles it.
+
+The exemption: `blind -= {("developer", "decisions")}`, with a comment that
+names the derived id, as the `ledger` line does. Test 11 of section 6 is
+this edit.
+
+### Fix 4, low: the answer-mode door and the Developer's own row
+
+`_answer_mode_challenge_refusal` admits when `_holds_decision(refs)`,
+whatever the author (`sandbox.py:1012`). A Developer that puts its own
+earlier reason id in refs passes the row route of pass 2e (observed: the
+probe, `_holds_decision` True on a `developer` row).
+
+The decision: `_holds_decision` gains an `exclude_author` argument. The
+answer-mode door at `sandbox.py:1012` and the `keep` list at
+`sandbox.py:1130` pass the sending role, so only an Architect's, a Vision
+Keeper's, a Terminologist's or the principal's row counts there. This is the
+same skip as `_carries_decision` in section 3.1, item 4. Test 19: in answer
+mode, a challenge whose only decision ref is the Developer's own row is
+refused with the answer's decision named.
+
+### Fix 5: `identity.py` and the content id
+
+`rota/core/identity.py:96` declares `decisions` a journal, "reasons as
+given". The design gives the Developer's row a content id.
+
+The decision: **`decisions` stays a journal, and the declaration names one
+exception, as the `ledger` and `faults` lines do.** The new text:
+`("journal", "reasons as given; a Developer's challenge reason keys on its
+text and its two refs, so the same reason re-sent on the same test is one
+row")`.
+
+Why: a journal keeps every distinct record. A different reason is still a
+new row, so no reason is lost. The same words on the same refs are the same
+claim, and the cap counts messages, not rows, so one row loses no count
+(reasoned: `_challenges_on` reads `messages`). A free id per send would make
+six identical rows for one claim. That is the duplicate the `faults` line
+exists to stop (observed: `identity.py:93-95`).
+
+### Fix 6, the numerator from `turns`
+
+Per-body runs are not in `test_runs` when the head does not move, because
+`harness.run` deletes the runs at the same commit (observed: the review,
+`harness.py:154-156`). So the numerator reads the next Developer wake.
+
+The denominator, a query on the night's database:
+
+```sql
+SELECT s.id AS tester_sid, s.seq, m.id AS challenge, r.row_id AS test_id,
+       r.new_version
+FROM sessions s
+JOIN messages m ON m.id = s.trigger_msg
+JOIN receipts r ON r.session_id = s.id AND r.table_name = 'tests'
+WHERE s.role = 'tester' AND m.from_role = 'developer'
+  AND m.verb = 'challenge'
+  AND EXISTS (SELECT 1 FROM json_each(m.body_refs) j
+              JOIN decisions d ON d.id = j.value
+              WHERE d.author = 'developer')
+ORDER BY s.seq;
+```
+
+The numerator source, per row of the denominator:
+
+```sql
+SELECT t.user FROM sessions d
+JOIN turns t ON t.session_id = d.id AND t.seq = 1
+WHERE d.role = 'developer' AND d.wake_kind = 'tick:tests_failing'
+  AND d.seq > :tester_seq
+ORDER BY d.seq LIMIT 1;
+```
+
+The text rule, written before the night:
+
+1. Parse the JSON after `[tests.load]` in that `user` text, as
+   `scratchpad/n143/wake.py` does, and take the entry whose `id` is
+   `test_id`.
+2. No entry for the test, or the next harness run green: the body counts.
+3. A red counts when both hold: the output's raise line names the test file
+   and "the test's own assertion", and the output matches
+   `Python \d+\.\d+\.\d+`, the version message the branch builds.
+4. Every other red does not count: `failed before any assertion`, a raise
+   under `src/`, or `output: empty`.
+
+On night 143 this rule gives 0 of 6, the cycle read's baseline (reasoned:
+the six reds in section 2 of the cycle read, none with a Python version in
+the output).
+
+### Fix 7, low: a seat that copies the Developer's id
+
+`decisions_author` takes a seat's id freely. A Vision Keeper or an Architect
+that copies a Developer's id from `decisions.search` overwrites the row by
+`UPDATE` (`db.py:463-478`). The author then changes, so `_carries_decision`
+exempts that prior again, and the Tester reads the other seat's text
+(reasoned: the review, finding 8).
+
+The decision: **`decisions_author` refuses a write under an existing id
+whose `author` differs from the writing role** (`api.py:8389`). The
+sentence: "<id> is a decision by <author>. A decision is its author's
+record, so write yours under a new id." The binder's check in 3.1 item 3 is
+the same rule on the Developer path. **Frame 219 inherits this check:** its
+first ends-when part, a write under a principal's id refused, is met by it,
+and frame 219 keeps its night count and its residue rule. Test 20: a Vision
+Keeper's `decisions.author` under a Developer's id is refused, and the row
+and its author do not change. Test 21: after that refusal, the reasoned
+prior still counts against the cap.
+
+### Fix 8: the order with frame 219
+
+Pass 5 now edits `rota/roles/api.py`, which is frame 219's site. Two frames
+that share a file are never held together (ruled: Roman, 2026-10-11 05:51).
+If frame 219 has not started when pass 5 starts, pass 5 takes its first
+part with fix 7, and frame 219 waits on pass 5's commit. If frame 219 has
+started, pass 5 waits on frame 219's commit, and fix 7 becomes a check that
+frame 219's refusal covers a Developer's row.
+
+### Fix 9: the site line
+
+Site: `rota/core/sandbox.py` (the binder, the reason door,
+`_carries_decision`, `_holds_decision`, `_same_refs_rows` on the Developer
+branch, the `exact` test, two hint sites); `rota/roles/api.py` (two hint
+sites, `decisions_author`); `rota/core/identity.py` (one declaration);
+`rota/design/graph.json` (one edge, one field);
+`rota/roles/prompts/developer/tests_failing.md` and `answer.md`;
+`tests/rota/test_laws.py` (one exemption); the door tests 1 to 21 and the
+two cases of section 6.
+
+### Fix 10: the price
+
+The night read is about 270k to 330k on Opus (observed:
+`plans/operating-facts.md:368`, 272.3k). Night 143's 206.6k was a cycle
+read, not a night read. This review and its second look are cycles too.
+
+| Cycle | Work | Tokens |
+|---|---|---|
+| 1 | the probe of section 5, after night 143 ends | about 60k |
+| 2 | one implementer pass, fresh, on Opus, with fixes 1 to 7 | about 200k |
+| 3 | the diff review on Opus | about 70k |
+| 4 | a resumed second look, or a second pass, on the review's fixes | about 20k to 60k |
+| 5 | the gate from a worktree and the night's launch | about 6k in this session |
+| 6 | the night read | about 270k to 330k |
+| 7 | a Tester line, only when the probe asks for one, with about 4 re-records | about 40k |
+
+Total: 6 to 7 cycles, about 600k to 700k in agents, one night. This design
+review, about 117k by its own estimate and not from the harness line, is
+spent and is not in the total. The implementer pass rises to about 200k for
+the four hint sites, the two `api.py` sites and 8 more tests. It stays under
+the 350k line, so it fits one fresh agent (reasoned: pass 4b's 182.1k).
