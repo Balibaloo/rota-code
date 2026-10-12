@@ -235,7 +235,7 @@ a different question and the night is then opened once.
 - Ends when: first, the mechanism: a note's contest never overwrites a ruling the principal gave on the note's item in the same `per_item`, and reaches the item only when the ruling names no item, with one test on `r_5e13077aa3`'s per_item, red before the fix; second, on a night, batches abandoned before a build after the principal approved their item on the same page, from 1 of 1 on night 144's walk 1 to 0 of the next 3; third, an abandon that remains is read, and the frame closes when its cause is not the fold.
 - Waits on: frame 204's pass 2 commit, because that pass edits `principal.py`. One pass and a review, 2 cycles, about 100k in agents (reasoned: a one-door precedence fix by the anchors of 2026-10-11).
 - Sprint: this sprint, after frame 204's pass 2, because the fold takes a batch off every night that measures frame 200 and costs under three cycles (reasoned: the rule of 2026-10-12 23:40).
-- Pointer: the status line of frame 200 at 00:30 on 2026-10-13, and `scratchpad/n144/c2.db` of session 80cae596.
+- Pointer: frame 200's status line on the cancel of bg_1, and `scratchpad/n144/c2.db` of session 80cae596.
 - Status 2026-10-13 00:28 (rota-ea): pushed by 80cae596 from night 144's second mark, the cancel of bg_1. Meta workflow.
 
 ### 224. Three Developer cases dropped under pass 5's system text, and no door refused a call (2026-10-12)
