@@ -174,6 +174,27 @@ def test_the_ref_refusal_offers_prose_when_the_account_declares_no_area(tmp_path
                            "weekly charge run", kind="conflict")
 
 
+def test_the_ref_refusal_keeps_prose_advice_off_a_seat_outside_reconcile(tmp_path):
+    """
+    Frame 204's review 1f, L5: the empty-account refusal told every seat
+    that a README or docs claim takes `@prose`. A Tester's ref is about
+    code, so the refusal names the table the ref comes from instead.
+    """
+    import pytest as _pytest
+
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+
+    db = init_db(tmp_path / "rota.db")
+    sb = build("tester", db, mode="tests_missing")
+    with _pytest.raises(ValueError, match="names no row") as refused:
+        sb.call("ledger.log", about_ref="billing", about_table="items",
+                assumption="the billing module has no test for the weekly "
+                           "charge run", kind="gap")
+    assert "@prose" not in str(refused.value)
+    assert "a row of items" in str(refused.value)
+
+
 def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
     """
     tipsQ, 2026-09-09: the Terminologist logged an assumption about a ledger

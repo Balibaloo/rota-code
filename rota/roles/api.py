@@ -8145,6 +8145,13 @@ def _declares_an_area(ctx: Ctx) -> bool:
         return False
 
 
+def _is_prose_ref(ref: str) -> bool:
+    """Whether a ref names the README, a docs file or the prose pseudo area."""
+    r = (ref or "").lstrip("@").lower()
+    return (r.startswith(("prose", "readme", "docs/"))
+            or r.endswith((".md", ".rst")))
+
+
 @op("ledger", "log")
 def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                assumption: str, kind: str | list[str]) -> dict:
@@ -8213,10 +8220,16 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
         # An empty account declares no area, so the area advice sent the
         # reconcile seat to '@billing' and a second refusal (frame 204's
         # interview, VK4). '@prose' is a pseudo area and always resolves.
-        whole = ("if it is about the whole area, use the @-prefixed area name"
-                 if _declares_an_area(ctx) else
-                 "the account declares no area, so a row about a README or "
-                 "docs claim takes about_ref='@prose'")
+        # Only the reconcile seat or a prose ref gets the '@prose' advice.
+        # Other seats got README advice for a code ref (review 1f, L5).
+        if _declares_an_area(ctx):
+            whole = "if it is about the whole area, use the @-prefixed area name"
+        elif ctx.mode == "reconcile" or _is_prose_ref(about_ref):
+            whole = ("the account declares no area, so a row about a README or "
+                     "docs claim takes about_ref='@prose'")
+        else:
+            whole = (f"the account declares no area, so send the id of a row "
+                     f"of {about_table} that the assumption is about")
         raise ValueError(
             f"{about_ref!r} names no row. about_ref is the id of the row the "
             f"assumption is about (about_table says which table); {whole}")

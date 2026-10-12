@@ -293,7 +293,11 @@ def test_the_reconcile_and_triage_briefs_name_the_ref_and_the_literal_source():
     template = reconcile[call:reconcile.index('kind="conflict")`', call)]
     for part in (sentence, template):
         assert "@prose" in part
-        assert "item" in part and "id" in part
+    # Whole words, because "item" and "id" alone pass on "never an item id"
+    # (review 1f, L4).
+    assert "that item's id" in sentence
+    assert "the item id" in template
+    assert '"items"' in template
 
     # The new Tester sentence comes before the `encodable` line, and it
     # agrees with the literal door and the triage door (review 1e, H1 and L2).
@@ -306,7 +310,8 @@ def test_the_reconcile_and_triage_briefs_name_the_ref_and_the_literal_source():
     assert "`outside_fact`" in sentence
     assert "msg.question_researcher" in sentence
     assert "`cannot`" not in sentence
-    assert "is an assumption, and\nthe encode records it" in triage
+    # A re-wrap of the paragraph moves the line breaks (review 1f, L4).
+    assert "is an assumption, and the encode records it" in " ".join(triage.split())
 
 
 def test_every_operation_is_offered_by_some_mode():
