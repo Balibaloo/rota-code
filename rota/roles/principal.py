@@ -545,9 +545,13 @@ def _is_request_item(conn: sqlite3.Connection, ref: str) -> bool:
                 and not _is_description(conn, ref))
 
 
-def _items_reached(conn: sqlite3.Connection, ref: str, hop: bool = True) -> list[str]:
+def _items_reached(conn: sqlite3.Connection, ref: str | None, hop: bool = True) -> list[str]:
     """The items that one ref reaches. A ledger row reaches what its
     `about_ref` reaches, one step and no further."""
+    # No ref reaches no item. A caller can pass a NULL column, as the
+    # agenda's swap did for an inherited test on night 141 (frame 209).
+    if not ref:
+        return []
     # A challenge row names its item as `items:<id>`. Night 137's
     # `challenge_items_confirm_with_default_on_eof` reached nothing (frame
     # 193's design, 2.F.9, finding 7).

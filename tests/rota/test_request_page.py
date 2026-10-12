@@ -397,6 +397,35 @@ def m399(db):
     return db
 
 
+def test_a_note_about_an_inherited_test_reaches_no_request(db):
+    """Night 141's s198 logged two `default` notes about inherited tests.
+    An inherited test has no criterion, so the agenda's swap made the ref
+    None, and every `frontier` call after that raised (frame 209). The notes
+    reach no request, so they ride after the row that does."""
+    _statement(db, "s1", "confirm takes a default on EOF")
+    _item(db, "i_req", "confirm takes a default on EOF", version=1, statement="s1")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+               "VALUES ('bg_2', 'i_req', 'running', 'abc')")
+    for tid, path in (("inh_022b8a87", "tests/test_utils/test_confirm.py"),
+                      ("inh_c95b73db", "tests/test_defaults.py")):
+        db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                   "VALUES (?, 'bg_2', NULL, ?, 'def test_x(): pass')", (tid, path))
+    rows = [("l_a94d65762d", "inh_022b8a87", "tests",
+             "The test inh_022b8a87 is a project-owned test that passed before "
+             "this batch. It has no criterion_id and therefore cannot be challenged."),
+            ("l_96c403d182", "inh_c95b73db", "tests",
+             "The test inh_c95b73db tests default_map behavior and does not "
+             "exercise confirm() with EOF, so it is unaffected by the new parameter."),
+            ("l_req", "i_req", "items", "EOF takes the default the caller gave.")]
+    for lid, ref, table, text in rows:
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+                   "kind, status, author) VALUES (?, ?, ?, ?, 'default', 'open', "
+                   "'developer')", (lid, ref, table, text))
+    db.commit()
+    (wake,) = tick_agenda(db, principal_present=True)
+    assert wake.refs == ("l_req", "l_a94d65762d", "l_96c403d182")
+
+
 def test_every_open_request_has_its_own_line(m399):
     """Night 136's m399 held one constraint row. Every open request is
     numbered with its criteria, and the closing sentence names each request

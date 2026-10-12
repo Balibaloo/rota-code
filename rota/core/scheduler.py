@@ -1086,7 +1086,10 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
         ref = row["about_ref"]
         test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
                             (ref,)).fetchone()
-        if test is not None:
+        # An inherited test has no criterion, so its ref stays the test's
+        # own and reaches no request. Night 141's s198 notes on two `inh_*`
+        # tests made the ref None, and every `frontier` call raised (frame 209).
+        if test is not None and test["criterion_id"]:
             ref = test["criterion_id"]
         return any(i in requests for i in _items_reached(conn, ref))
 
