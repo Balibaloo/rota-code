@@ -1151,8 +1151,18 @@ def test_a_judged_challenge_in_mode_exhausted_ends_the_session(db):
 TEST_BODIES = {"tst2": "assert 1 == 2", "tst3": "assert 3 == 4"}
 
 
+def _sender(db, sid):
+    """A Developer session whose first prompt shows the batch's test bodies,
+    as the sender of the next challenge saw them."""
+    seq = db.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM sessions").fetchone()[0]
+    _session(db, sid, "developer", seq)
+    shown = "\n\n".join(r[0] for r in db.execute("SELECT body FROM tests"))
+    db.execute("INSERT INTO turns (session_id, seq, system, user, completion) "
+               "VALUES (?, 1, '', ?, '')", (sid, shown))
+
+
 def _chain(db, tests, refs_of=lambda i: ["c1", "tst1"], tester="moves",
-           quotes_of=lambda i: QUOTES):
+           quotes_of=lambda i: QUOTES, words=True):
     """Each round the Developer challenges on `refs_of(i)`. The Tester then
     `moves` the test through a real encode and commit, stores a `new id` of
     the criterion's test the same way, `moves the criterion` through a
@@ -1172,6 +1182,7 @@ def _chain(db, tests, refs_of=lambda i: ["c1", "tst1"], tester="moves",
     rounds = []
     for i in range(1, 8):
         refs = refs_of(i)
+        _sender(db, f"sd{i}")
         sb = _developer(db)
         try:
             out = sb.call("msg.challenge_tester", refs=refs, quotes=quotes_of(i))
@@ -1179,6 +1190,11 @@ def _chain(db, tests, refs_of=lambda i: ["c1", "tst1"], tester="moves",
             return rounds, i, str(exc), sb
         _msg(db, out["id"], "developer", "tester", "challenge", refs,
              100 + 2 * i, "answered")
+        # A real challenge carries its quotes as words (the review of
+        # bef80289, finding 2).
+        if words:
+            db.execute("UPDATE messages SET body_text = ? WHERE id = ?",
+                       (" ... ".join(quotes_of(i)), out["id"]))
         if tester in ("moves", "new id"):
             test = "tst1" if tester == "moves" else f"tstn{i}"
             tsb = build("tester", db, batch_id="b1", mode="challenge")
@@ -1407,15 +1423,86 @@ def test_a_new_body_that_keeps_the_quoted_line_stays_at_the_cap(db):
         "msg.escalate_architect on the same refs.")
 
 
-def _three_quoted_priors_and_a_new_body(db, body):
-    """Three landed challenges that quote QUOTES, then the Tester woken by
-    the third stores `body` as tst1, and the harness fails it."""
+def test_a_loose_quote_keeps_counting_after_the_body_changed(db):
+    """The review of bef80289, finding 4: a quote with added words passes the
+    evidence door on one window and never stood in a body. It ties the prior
+    to no body, so the prior keeps counting."""
+    loose = QUOTES[1] + "  # returns None here"
+    _three_quoted_priors_and_a_new_body(
+        db, "assert close_account('a1') == 'closed'", quotes=[QUOTES[0], loose])
+    with pytest.raises(ValueError, match=r"3 times already \(m1, m2, m3\)"):
+        _developer(db).call(
+            "msg.challenge_tester", refs=["c1", "tst1"],
+            quotes=[QUOTES[0], "assert close_account('a1') == 'closed'"])
+
+
+def test_a_prior_whose_sender_left_no_prompt_keeps_counting(db):
+    """No row holds the body that the prior saw, so the prior keeps counting."""
+    _three_quoted_priors_and_a_new_body(
+        db, "assert close_account('a1') == 'closed'", prompts=False)
+    with pytest.raises(ValueError, match=r"3 times already \(m1, m2, m3\)"):
+        _developer(db).call(
+            "msg.challenge_tester", refs=["c1", "tst1"],
+            quotes=[QUOTES[0], "assert close_account('a1') == 'closed'"])
+
+
+def test_a_chain_with_no_words_stays_at_the_cap(db):
+    """A prior with no words ties no body, so it keeps counting."""
+    landed, refused_at, _, _ = _chain(db, ("tst1",), words=False)
+    assert (landed, refused_at) == (["m1", "m2", "m3"], 4)
+
+
+def test_a_tester_that_rewords_the_defect_each_round_meets_the_ceiling(db):
+    """The review of bef80289, finding 3: each round the Tester stores a new
+    body that drops the quoted line and keeps the defect in other words.
+    Each body counts from zero, so the ceiling across bodies ends the
+    chain at the 7th challenge, and the step is the escalation."""
+    from rota.core.sandbox import LANDED_CHALLENGES_CEILING
+    line = QUOTES[1]
+    for i in range(1, 10):
+        _sender(db, f"sd{i}")
+        sb = _developer(db)
+        try:
+            out = sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+                          quotes=[QUOTES[0], line])
+        except ValueError as exc:
+            said = str(exc)
+            break
+        _msg(db, out["id"], "developer", "tester", "challenge", ["c1", "tst1"],
+             100 + i, "answered")
+        db.execute("UPDATE messages SET body_text = ? WHERE id = ?",
+                   (" ... ".join([QUOTES[0], line]), out["id"]))
+        line = f"assert close_account('a{i + 1}') is not None"
+        seq = db.execute("SELECT MAX(seq) + 1 FROM sessions").fetchone()[0]
+        _session(db, f"st{i}", "tester", seq, trigger=out["id"],
+                 receipts=[("tests", "tst1", i + 1)])
+        db.execute("UPDATE tests SET body = ? WHERE id = 'tst1'", (line,))
+        db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+                   "result) VALUES (?, 'b1', 'tst1', 'abc123', 'fail')", (f"r{i}",))
+    assert i == LANDED_CHALLENGES_CEILING + 1 == 7
+    assert said == (
+        "you sent challenge to tester on exactly these refs 6 times already "
+        "(m1, m2, m3, m4, m5, m6). Send msg.escalate_architect on the same refs.")
+    assert "Make one real change" not in said
+
+
+def _three_quoted_priors_and_a_new_body(db, body, quotes=QUOTES, prompts=True):
+    """Three landed challenges that quote `quotes`, each sent by a Developer
+    whose first prompt showed the old body as JSON, as night 142's prompts
+    did. The Tester woken by the third stores `body` as tst1, and the
+    harness fails it."""
+    import json
+    old = db.execute("SELECT body FROM tests WHERE id = 'tst1'").fetchone()[0]
     for i in (1, 2, 3):
         _session(db, f"sd{i}", "developer", 2 * i - 1)
+        if prompts:
+            db.execute("INSERT INTO turns (session_id, seq, system, user, "
+                       "completion) VALUES (?, 1, '', ?, '')",
+                       (f"sd{i}", json.dumps({"tst1": old + '\n# "kept"'})))
         _msg(db, f"m{i}", "developer", "tester", "challenge", ["c1", "tst1"],
              i, "answered")
         db.execute("UPDATE messages SET body_text = ? WHERE id = ?",
-                   (" ... ".join(QUOTES), f"m{i}"))
+                   (" ... ".join(quotes), f"m{i}"))
         _session(db, f"st{i}", "tester", 2 * i, trigger=f"m{i}")
     db.execute("UPDATE tests SET body = ? WHERE id = 'tst1'", (body,))
     db.execute("INSERT INTO receipts (session_id, table_name, row_id, "
@@ -1589,10 +1676,12 @@ def test_the_cap_offers_the_escalation_on_each_ref_once(db):
     sb = _developer(db)
     with pytest.raises(ValueError) as exc:
         sb.call("msg.challenge_tester", refs=["c1", "c1", "tst1"], quotes=QUOTES)
+    # No other test of the batch is red, so the step is the end and not a
+    # change to the code (the review of bef80289, finding 7).
     assert str(exc.value) == (
         "you sent challenge to tester on exactly these refs 3 times already "
-        "(m1, m2, m3), and the test changed and is still red. Make one real "
-        "change to the code the test calls.")
+        "(m1, m2, m3), and the test changed and is still red. End the session "
+        "with no call." + _END_FORM)
     assert sb.ctx.offers == []
 
 

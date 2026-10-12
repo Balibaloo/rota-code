@@ -1582,6 +1582,13 @@ def _code_step(ctx: api.Ctx) -> str:
 #: 132's pass 2).
 LANDED_CHALLENGES = 3
 
+#: How many challenges of the Developer may land on one criterion across all
+#: bodies of its tests. A reworded body deletes the test's runs and lifts the
+#: batch's quarantine (`db.py:606-635`), so it restarts the attempt cap. The
+#: count per body then restarts too, and the step budget of the night was the
+#: only bound (the review of bef80289, finding 3: 8 of 8 landed).
+LANDED_CHALLENGES_CEILING = 2 * LANDED_CHALLENGES
+
 
 def _test_is_red(conn: sqlite3.Connection, refs) -> bool:
     """True when a test of `refs` has its newest run at fail or error."""
@@ -1690,31 +1697,87 @@ def _counted_tests(refs, key: tuple, test_crit: dict) -> list:
     return named or [t for t, c in test_crit.items() if c == ident]
 
 
+#: The shortest quoted line that can tie a challenge to one body. A shorter
+#: fragment, such as `assert result`, holds in any version of a test (the
+#: review of bef80289, finding 5).
+QUOTED_LINE_MIN = 20
+
+
+def _flat(text: str | None) -> str:
+    """`text` with each run of whitespace made one space."""
+    return " ".join((text or "").split())
+
+
+def _sender_prompt(conn: sqlite3.Connection, msg_id: str) -> str | None:
+    """
+    The first prompt of the Developer session that sent `msg_id`, flat and
+    with its JSON escapes undone, or None when no turn is on file.
+
+    No row stores a test's old body (frame 200, pass 4b). The prompt shows
+    the failing tests as the sender saw them. A message stores no session,
+    and one session commits at a time, so the sender is the last Developer
+    session before the first session that `msg_id` woke. Only the first
+    turn is read: a later turn can echo the challenge's own quotes.
+    """
+    woke = conn.execute("SELECT MIN(seq) AS s FROM sessions WHERE trigger_msg = ?",
+                        (msg_id,)).fetchone()
+    if woke is None or woke["s"] is None:
+        return None
+    sender = conn.execute(
+        "SELECT id FROM sessions WHERE role = 'developer' AND seq < ? "
+        "ORDER BY seq DESC LIMIT 1", (woke["s"],)).fetchone()
+    if sender is None:
+        return None
+    turn = conn.execute("SELECT user FROM turns WHERE session_id = ? "
+                        "ORDER BY seq LIMIT 1", (sender["id"],)).fetchone()
+    if turn is None:
+        return None
+    # Night 142's prompts show a body inside a JSON string: `\"` and `\n`.
+    text = (turn["user"].replace("\\n", "\n").replace('\\"', '"')
+            .replace("\\'", "'").replace("\\\\", "\\"))
+    return _flat(text)
+
+
 def _quoted_body_gone(conn: sqlite3.Connection, msg_id: str, tests) -> bool:
     """
-    True when the challenge `msg_id` is about a body that no counted test
-    holds now: a `tests` receipt on `tests` landed after its wake, and no
-    test of `tests` still holds a line that it quoted.
+    True when the challenge `msg_id` is about a body that no test of `tests`
+    holds now. Three facts must hold:
 
-    The challenge door joins the quotes with " ... " into `body_text`. The
-    match is an exact substring with whitespace normalised. `_quotes_span`
+    - a `tests` receipt on `tests` landed after the prior's wake;
+    - a line that the prior quoted stood exactly in the body that the
+      sender's prompt showed;
+    - no test of `tests` holds that line now.
+
+    The challenge door joins the quotes with " ... " into `body_text`. A
+    line is an exact substring with whitespace normalised. `_quotes_span`
     is not used, because its 12-character window matches `result.output`
-    across any two versions of night 142's test. A prior with no words
-    keeps counting.
+    across any two versions of night 142's test. A quote that matched only
+    by that window is not exact, so it keeps counting (the review of
+    bef80289, finding 4). A line under QUOTED_LINE_MIN or a line of the
+    criterion's words ties the prior to no body. When no line is tied, the
+    prior keeps counting.
     """
     if not _receipt_since_woken(conn, msg_id, tests, ("tests",)):
         return False
     row = conn.execute("SELECT body_text FROM messages WHERE id = ?",
                        (msg_id,)).fetchone()
-    lines = [" ".join(part.split()).strip("'\"` ")
+    crit = " ".join(_flat(r["text"]) for r in conn.execute(
+        "SELECT c.text FROM criteria c JOIN tests t ON t.criterion_id = c.id "
+        f"WHERE t.id IN ({','.join('?' * len(tests))})", tuple(tests)))
+    lines = [_flat(part).strip("'\"` ")
              for part in ((row["body_text"] if row else None) or "").split(" ... ")]
-    lines = [line for line in lines if line]
+    lines = [line for line in lines
+             if len(line) >= QUOTED_LINE_MIN and line not in crit]
+    if not lines:
+        return False
+    seen = _sender_prompt(conn, msg_id)
+    lines = [line for line in lines if seen is not None and line in seen]
     if not lines:
         return False
     for test in tests:
         got = conn.execute("SELECT body FROM tests WHERE id = ?",
                            (test,)).fetchone()
-        body = " ".join(((got["body"] if got else None) or "").split())
+        body = _flat(got["body"] if got else None)
         if any(line in body for line in lines):
             return False
     return True
@@ -1778,11 +1841,14 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     Frame 200, night 142 (2026-10-12): the cap counted m331 to m333, which
     quoted an assertion that version 6 no longer held, and refused the
     challenge on version 6. A landed challenge is a claim about the body it
-    quoted. So a prior counts out only when a `tests` receipt on the counted
-    tests landed after its wake and no counted test's body still holds a
-    line that the prior quoted. A prior with no words keeps counting. The
+    quoted. So a prior counts out only when a `tests` receipt on a test of
+    the criterion landed after its wake, its quoted line stood exactly in
+    the body its sender saw, and no test of the criterion holds that line
+    now (`_quoted_body_gone`). A prior with no words keeps counting. The
     chains of the reviews of 4968ea7 and 4de1555 keep the quoted line, so
-    they stay at the cap.
+    they stay at the cap. Across all bodies, LANDED_CHALLENGES_CEILING
+    landed challenges on a criterion end the count, and the step is the
+    escalation.
     """
     # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): the Architect's
     # decision row reaches the Tester through this challenge. The cap does
@@ -1796,11 +1862,19 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     test_crit = _criteria_of_tests(ctx.conn)
     keys = _cap_keys(ctx.conn, refs, test_crit)
     key, priors, tests = None, [(r["id"], None) for r in rows], []
+    ceiling = False
     for k in keys:
         on = _counted_tests(refs, k, test_crit)
-        counted = [(mid, have) for mid, have in
-                   _challenges_on(ctx.conn, k, test_crit)
-                   if not _quoted_body_gone(ctx.conn, mid, on)]
+        landed = _challenges_on(ctx.conn, k, test_crit)
+        if len(landed) >= LANDED_CHALLENGES_CEILING:
+            key, priors, tests, ceiling = k, landed, on, True
+            break
+        # A prior on another test of the criterion is read against that
+        # test's body too (the review of bef80289, finding 1).
+        every = ([t for t, c in test_crit.items() if c == k[1]]
+                 if k[0] == "criterion" else [k[1]])
+        counted = [(mid, have) for mid, have in landed
+                   if not _quoted_body_gone(ctx.conn, mid, every)]
         if len(counted) >= LANDED_CHALLENGES:
             key, priors, tests = k, counted, on
             break
@@ -1817,6 +1891,10 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
         where = f"with {key[1]} in the refs"
     fact = (f"you sent challenge to tester {where} "
             f"{len(priors)} times already ({ids})")
+    if ceiling:
+        # The Tester changed the body each round, so a change to the code
+        # is not the step (the review of bef80289, finding 3).
+        return _escalation_or_step(ctx, refs, fact + ".", END_STEP)
     # The sentence says only what the rows hold (the reviews of b2ed55b and
     # 4de1555): the test changed only on a `tests` receipt on a test that
     # this call reads, and the criterion changed only on a criteria receipt
@@ -1832,13 +1910,38 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
         _receipt_since_woken(ctx.conn, mid, criteria, ("criteria",))
         for mid, _ in priors)
     red = _test_is_red(ctx.conn, tests)
+    step = _code_step(ctx)
     if test_changed and red:
         fact += ", and the test changed and is still red."
+        # The Tester kept the disputed line. A change to the code is the
+        # step only while another test of the batch is red (the review of
+        # bef80289, finding 7).
+        if not _other_test_red(ctx.conn, tests):
+            step = END_STEP
     elif criterion_changed and red:
         fact += ", and the criterion changed and the test is still red."
     else:
         fact += "."
-    return _escalation_or_step(ctx, refs, fact, _code_step(ctx))
+    return _escalation_or_step(ctx, refs, fact, step)
+
+
+def _other_test_red(conn: sqlite3.Connection, tests) -> bool:
+    """
+    True when the newest harness attempt of the batch of `tests` holds a red
+    run of a test outside `tests`.
+    """
+    ids = [t for t in tests or [] if isinstance(t, str)]
+    if not ids:
+        return False
+    marks = ",".join("?" * len(ids))
+    return conn.execute(
+        f"SELECT 1 FROM test_runs r WHERE r.batch_id IN ("
+        f"  SELECT batch_id FROM tests WHERE id IN ({marks})) "
+        f"AND r.attempt = (SELECT MAX(x.attempt) FROM test_runs x "
+        f"  WHERE x.batch_id = r.batch_id) "
+        f"AND r.result IN ('fail', 'error') "
+        f"AND r.test_id NOT IN ({marks}) LIMIT 1",
+        (*ids, *ids)).fetchone() is not None
 
 
 def _escalation_or_step(ctx: api.Ctx, refs, fact: str, step: str) -> str:
@@ -1964,8 +2067,8 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     3.1). An open prior waits. A prior after which a row of the refs moved
     admits. A prior that the Tester answered refuses. A prior with neither
     admits, until two such priors stand on one version. Each admit stops at
-    `LANDED_CHALLENGES` landed challenges on a test of the refs, counted
-    across moves and across the other refs.
+    `LANDED_CHALLENGES` landed challenges on one quoted body of a criterion
+    of the refs, and at `LANDED_CHALLENGES_CEILING` across all bodies.
     """
     if not rows:
         # The review of b2ed55b (2026-10-05): a new refs list beside the same
