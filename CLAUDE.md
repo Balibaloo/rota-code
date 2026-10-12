@@ -332,6 +332,22 @@ different files. Five rules hold it:
   names the agent's pass, and a hand-off carries every held frame.
   Implementers edit one at a time in the checkout, and the gate and the
   commit stay one at a time, because the frames share one tree.
+- **A push is a placement** (ruled: Roman, 2026-10-12 23:40, "update
+  guidance to make pushing frames a prioritization operation also", after
+  twenty-four frames pushed since the order of 2026-10-11 sat unplaced and
+  thirteen carried "waits on Roman's order"). The session that pushes a
+  frame places it in the same commit, on a `Sprint:` line after the
+  `Waits on:` line: `this sprint, after frame <n>` when the frame is a
+  wall of a held frame, or shares a held frame's site and costs under
+  three cycles; otherwise `next sprint, rank <k>` among the parked, by the
+  wall it closes and the cycles it costs. The placement is (reasoned)
+  until Roman rules it, and he rules at the sprint boundary, not at the
+  push. "Waits on: Roman's order" is not a line a frame carries. A sprint
+  ends at its design frame's night read: the session that reads the night
+  crosses off the closed frames, moves the frames the night pushed from
+  their placements into one order, and brings Roman that order as a grill,
+  one question with a recommended answer. The order Roman rules is the
+  next sprint, written at the top of `plans/stack.md` with its date.
 
 Two features wait on a night: implementers on branches with one merge
 queue, after frame 200's night shows whether the one-checkout rule bites,
