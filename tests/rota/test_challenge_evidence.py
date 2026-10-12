@@ -174,8 +174,9 @@ def _refused_reason(sb, **kwargs):
     return str(exc.value)
 
 
-_CALL = ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<the error "
-         "and the line>\") with the same quotes.")
+_CALL = ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<the error, "
+         "the line, and the call that takes the argument>\") with the same "
+         "quotes.")
 _SAID = ("reason= names the error the test got and the line of the test "
          "that raises it. It is the one part of a challenge the Tester "
          "cannot read in the test.")
@@ -185,7 +186,8 @@ def test_the_tool_line_shows_the_reason_slot_and_not_none(db):
     """Frame 200, pass 5b, item 2: `reason=None` reads as optional."""
     [line] = [s for s in _dev(db).signatures()
               if s.startswith("msg.challenge_tester(")]
-    assert 'reason="<the error and the line>"' in line
+    assert ('reason="<the error, the line, and the call that takes the '
+            'argument>"') in line
     assert "reason=None" not in line
 
 
@@ -295,7 +297,8 @@ def test_17_the_evidence_doors_hint_names_the_reason(db):
     with pytest.raises(ValueError) as exc:
         sb.call("msg.challenge_tester", refs=["ts1", "ts1"], quotes=QUOTES)
     assert str(exc.value).endswith(
-        "send refs=['c1', 'ts1'], reason=\"<the error and the line>\"")
+        "send refs=['c1', 'ts1'], reason=\"<the error, the line, and the call "
+        "that takes the argument>\"")
     with pytest.raises(ValueError) as exc:
         sb.call("msg.challenge_tester", refs=["ts1"], quotes=QUOTES, reason=REASON)
     assert str(exc.value).endswith(f"send refs=['c1', 'ts1'], reason={REASON!r}")
@@ -309,7 +312,8 @@ def test_17_the_owner_route_of_a_conflict_about_a_test_names_the_reason(db):
                 assumption="the criterion keeps the invoices and the test "
                            "asserts that they are gone", kind="conflict")
     assert ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<the "
-            "error and the line>\") with quotes= copied from c1 and from "
+            "error, the line, and the call that takes the argument>\") with "
+            "quotes= copied from c1 and from "
             "ts1") in str(exc.value)
     [offer] = [o for o in sb.ctx.offers if o.op == "msg.challenge_tester"]
     assert offer.args["reason"] is api.INVENT
@@ -317,8 +321,10 @@ def test_17_the_owner_route_of_a_conflict_about_a_test_names_the_reason(db):
 
 def test_18_the_slot_text_sent_back_unchanged_is_refused(db):
     from rota.core.sandbox import REASON_SLOT
+    # Pass 5e: the briefs' slot, copied as a reason, is the slot text too.
     for sent in (REASON_SLOT.split("=", 1)[1].strip('"'),
-                 REASON_SLOT.split("=", 1)[1].strip('"<>')):
+                 REASON_SLOT.split("=", 1)[1].strip('"<>'),
+                 "<the error, the line, and the call that takes the argument>"):
         said = _refused_reason(_dev(db), reason=sent)
         assert said == ("reason= is still the slot text. Name the error the "
                         "test got and the line of the test that raises it. "
