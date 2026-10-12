@@ -706,6 +706,10 @@
                                   "version_option(\"", "version_option('",
                                   "show_python=True, version=",
                                   "show_python=True, package_name="],
-              text_excludes: ["package_name=\"test_version_option\")"]}
+              # The exclude names the invoke form alone: the keyword after
+              # the argument list. The decorator form carries the keyword
+              # after `show_python=True,`, and the value it carries is the
+              # value wall, which is its own frame (frame 200, pass 5).
+              text_excludes: ["], package_name="]}
   forbidden:
     writes: [criteria, items]
