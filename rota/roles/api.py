@@ -8146,10 +8146,18 @@ def _declares_an_area(ctx: Ctx) -> bool:
 
 
 def _is_prose_ref(ref: str) -> bool:
-    """Whether a ref names the README, a docs file or the prose pseudo area."""
-    r = (ref or "").lstrip("@").lower()
-    return (r.startswith(("prose", "readme", "docs/"))
-            or r.endswith((".md", ".rst")))
+    """Whether a ref names the README, a docs file or the prose pseudo area.
+
+    A code file such as `readme_parser.py` is no prose ref (review 1g, L3).
+    """
+    r = (ref or "").lower()
+    if r.startswith("@prose"):
+        return True
+    r = r.lstrip("@")
+    name = r.rsplit("/", 1)[-1]
+    if name.endswith((".md", ".rst", ".txt")) or name == "readme":
+        return True
+    return r.startswith("docs/") and "." not in name
 
 
 @op("ledger", "log")
@@ -8222,14 +8230,26 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
         # interview, VK4). '@prose' is a pseudo area and always resolves.
         # Only the reconcile seat or a prose ref gets the '@prose' advice.
         # Other seats got README advice for a code ref (review 1f, L5).
+        # The night gives the reconcile seat mode "normal", so the wake
+        # kind names the seat (review 1g, H1).
         if _declares_an_area(ctx):
             whole = "if it is about the whole area, use the @-prefixed area name"
-        elif ctx.mode == "reconcile" or _is_prose_ref(about_ref):
+        elif (getattr(ctx, "wake_kind", "") == "tick:reconcile"
+              or _is_prose_ref(about_ref)):
             whole = ("the account declares no area, so a row about a README or "
                      "docs claim takes about_ref='@prose'")
-        else:
+        elif about_table in _id_tables(ctx.conn):
             whole = (f"the account declares no area, so send the id of a row "
                      f"of {about_table} that the assumption is about")
+        else:
+            # A table name the ledger does not know sends the seat to a
+            # second refusal (review 1g, L1). The wake's refs are rows.
+            refs = [r for r in (getattr(ctx, "wake_refs", ()) or ())
+                    if isinstance(r, str)]
+            where = (f"a row your wake names: {', '.join(refs)}" if refs else
+                     "a row you read in this session")
+            whole = (f"{about_table!r} is no table, so send the id of {where}, "
+                     f"with the table that row is in")
         raise ValueError(
             f"{about_ref!r} names no row. about_ref is the id of the row the "
             f"assumption is about (about_table says which table); {whole}")

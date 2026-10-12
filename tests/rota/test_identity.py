@@ -132,6 +132,17 @@ def test_an_at_ref_must_name_an_area_this_run_declared(tmp_path):
                    assumption="the schema file is the outside edge", kind="gap")["id"]
 
 
+def _reconcile_seat(build, db):
+    """The reconcile seat as a night builds it (frame 204's review 1g, H1).
+
+    `session_mode` gives the seat mode "normal", and the wake kind carries
+    the reconcile tick. No night builds `mode="reconcile"`.
+    """
+    sb = build("vision_keeper", db, mode="normal")
+    sb.ctx.wake_kind = "tick:reconcile"
+    return sb
+
+
 def test_the_ref_refusal_offers_prose_when_the_account_declares_no_area(tmp_path):
     """
     Frame 204's interview (VK4, 2026-10-12): the reconcile seat sent
@@ -145,7 +156,7 @@ def test_the_ref_refusal_offers_prose_when_the_account_declares_no_area(tmp_path
     from rota.core.sandbox import build
 
     db = init_db(tmp_path / "rota.db")
-    sb = build("vision_keeper", db, mode="reconcile")
+    sb = _reconcile_seat(build, db)
     with _pytest.raises(ValueError, match="names no row") as refused:
         sb.call("ledger.log", about_ref="billing", about_table="items",
                 assumption="README says invoices go monthly; the code shows a "
@@ -158,7 +169,7 @@ def test_the_ref_refusal_offers_prose_when_the_account_declares_no_area(tmp_path
     # (review 1e, L1).
     db.execute("INSERT INTO area_hashes (area, hash) VALUES ('src/billing', 'h')")
     db.commit()
-    sb = build("vision_keeper", db, mode="reconcile")
+    sb = _reconcile_seat(build, db)
     with _pytest.raises(ValueError, match="@-prefixed area name"):
         sb.call("ledger.log", about_ref="billing", about_table="items",
                 assumption="README says invoices go monthly; the code shows a "
@@ -167,7 +178,7 @@ def test_the_ref_refusal_offers_prose_when_the_account_declares_no_area(tmp_path
 
     db.execute("INSERT INTO model_areas (id, account) VALUES ('src/billing', 'x')")
     db.commit()
-    sb = build("vision_keeper", db, mode="reconcile")
+    sb = _reconcile_seat(build, db)
     with _pytest.raises(ValueError, match="@-prefixed area name"):
         sb.call("ledger.log", about_ref="billing", about_table="items",
                 assumption="README says invoices go monthly; the code shows a "
@@ -193,6 +204,40 @@ def test_the_ref_refusal_keeps_prose_advice_off_a_seat_outside_reconcile(tmp_pat
                            "charge run", kind="gap")
     assert "@prose" not in str(refused.value)
     assert "a row of items" in str(refused.value)
+
+    # A code file whose name starts with "readme" is no prose ref
+    # (review 1g, L3).
+    with _pytest.raises(ValueError, match="names no row") as refused:
+        sb.call("ledger.log", about_ref="readme_parser.py", about_table="items",
+                assumption="the README parser has no test for an empty "
+                           "heading", kind="gap")
+    assert "@prose" not in str(refused.value)
+
+
+def test_the_ref_refusal_names_the_wake_refs_when_the_table_is_unknown(tmp_path):
+    """
+    Frame 204's review 1g, L1: the L3 case's Developer sends
+    `about_table="criterion_deviation"`, which is no table. The advice
+    named "a row of criterion_deviation". It now says the table is unknown
+    and names the refs the wake carries.
+    """
+    import pytest as _pytest
+
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+
+    db = init_db(tmp_path / "rota.db")
+    sb = build("tester", db, mode="tests_missing")
+    sb.ctx.wake_refs = ("c_459e6e",)
+    with _pytest.raises(ValueError, match="names no row") as refused:
+        sb.call("ledger.log", about_ref="billing",
+                about_table="criterion_deviation",
+                assumption="the billing module has no test for the weekly "
+                           "charge run", kind="gap")
+    text = str(refused.value)
+    assert "a row of criterion_deviation" not in text
+    assert "'criterion_deviation' is no table" in text
+    assert "c_459e6e" in text
 
 
 def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):

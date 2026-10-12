@@ -295,6 +295,9 @@ def test_the_reconcile_and_triage_briefs_name_the_ref_and_the_literal_source():
         assert "@prose" in part
     # Whole words, because "item" and "id" alone pass on "never an item id"
     # (review 1f, L4).
+    # A re-wrap moves the line breaks, so the words are read joined
+    # (review 1g, L2).
+    sentence, template = " ".join(sentence.split()), " ".join(template.split())
     assert "that item's id" in sentence
     assert "the item id" in template
     assert '"items"' in template
