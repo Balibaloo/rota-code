@@ -348,6 +348,16 @@ different files. Five rules hold it:
   their placements into one order, and brings Roman that order as a grill,
   one question with a recommended answer. The order Roman rules is the
   next sprint, written at the top of `plans/stack.md` with its date.
+  **The session picks the next night's wall itself** (ruled: Roman,
+  2026-10-12 23:52, "debug planing is relatively intuitive as long as it
+  doesn't open large questions that lead you to do autonomous
+  investigations first"). A night is debugging, and the wall to debug
+  next follows from the read. Roman rules only when the order crosses
+  his intent or the composition, who talks to whom, what the principal
+  sees, what ships without him, or when a night's design would open a
+  question large enough to need an investigation frame before the
+  design. The grill at the boundary then asks that one question, or
+  none.
 
 Two features wait on a night: implementers on branches with one merge
 queue, after frame 200's night shows whether the one-checkout rule bites,
