@@ -326,16 +326,16 @@ def test_a_bare_lowercase_name_after_helper_is_lost_by_decision(db):
     assert _named(db, "add a helper slugify that lowers a title") == []
 
 
-def test_a_repair_surface_outside_the_batch_files_is_refused(db):
-    """
-    Frame 215, night 142's s536 (seq 15 to 19): the relay of the principal's
-    m376 woke the repair. s536 set the surface of `tk_2`'s criteria to the
-    first row of `[code.callables]`, a module in `examples/` that imports
-    `PIL`. The batch expected `src/click/decorators.py` and
-    `tests/test_basic.py`, and no word of the request or the criterion
-    names `process_commands`. The rows are night 142's.
-    """
-    _index(db, "examples/imagepipe/imagepipe.py::process_commands",
+_N142_TEXT = ("When show_python=True, the command's output when --version is used "
+              "must include a line containing the Python version string derived "
+              "from sys.version_info.")
+_IMAGEPIPE = "examples/imagepipe/imagepipe.py::process_commands"
+
+
+def _night142(db):
+    """Night 142's rows for `tk_2` and `batch_3`. The criterion's text before
+    s536 is not on record, so the old text here is a stand-in."""
+    _index(db,"examples/imagepipe/imagepipe.py::process_commands",
            "src/click/decorators.py::version_option")
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('show_python_version_flag', ?, 'in_scope', "
@@ -364,9 +364,24 @@ def test_a_repair_surface_outside_the_batch_files_is_refused(db):
                    "VALUES ('batch_3_show_python_version_flag', ?, ?, ?)",
                    (grain, kind, conf))
     db.commit()
-    text = ("When show_python=True, the command's output when --version is used "
-            "must include a line containing the Python version string derived "
-            "from sys.version_info.")
+
+
+def _repair(db):
+    return build("terminologist", db, mode="criterion_repair",
+                 allow=prompts.mode_tools("terminologist", "criterion_repair"))
+
+
+def test_a_repair_surface_outside_the_batch_files_is_refused(db):
+    """
+    Frame 215, night 142's s536 (seq 15 to 19): the relay of the principal's
+    m376 woke the repair. s536 set the surface of `tk_2`'s criteria to the
+    first row of `[code.callables]`, a module in `examples/` that imports
+    `PIL`. The batch expected `src/click/decorators.py` and
+    `tests/test_basic.py`, and no word of the request or the criterion
+    names `process_commands`. The rows are night 142's.
+    """
+    _night142(db)
+    text = _N142_TEXT
     sb = build("terminologist", db, mode="criterion_repair",
                allow=prompts.mode_tools("terminologist", "criterion_repair"))
     with pytest.raises(ValueError) as refused:
@@ -389,3 +404,41 @@ def test_a_repair_surface_outside_the_batch_files_is_refused(db):
     assert sb2.call("criteria.respecify", id="c_show_python_version", text=text,
                     surface_refs=["examples/imagepipe/imagepipe.py::process_commands"]
                     )["respecified"]
+
+
+def test_a_name_the_seat_writes_into_its_own_text_does_not_admit_the_surface(db):
+    """
+    Frame 215's review 1, finding 1, probe p1 case e2: the door read its
+    words from the new text, so `process_commands` in the rewrite admitted
+    the imagepipe surface, and the refusal told the seat how. The words
+    come from the item, its statements and the ticket.
+    """
+    _night142(db)
+    with pytest.raises(ValueError, match="tests/test_basic.py"):
+        _repair(db).call(
+            "criteria.respecify", id="c_show_python_version",
+            text="When show_python=True, process_commands output names the Python version.",
+            surface_refs=[_IMAGEPIPE])
+
+
+def test_an_abandoned_batch_neither_admits_nor_names_a_surface(db):
+    """
+    Frame 215's review 1, finding 6, probe p1 case g: `tk_2` also sat in
+    the abandoned `batch_2`, whose touch rows held imagepipe.py, and the
+    union admitted the surface. An abandoned batch's prediction is not
+    the work's.
+    """
+    _night142(db)
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES "
+               "('batch_2_show_python_version_flag', 'show_python_version_flag', 'abandoned')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+               "('batch_2_show_python_version_flag', 'tk_2')")
+    db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind, confidence) VALUES "
+               "('batch_2_show_python_version_flag', 'examples/imagepipe/imagepipe.py', "
+               "'path', 'expected')")
+    db.commit()
+    with pytest.raises(ValueError) as refused:
+        _repair(db).call("criteria.respecify", id="c_show_python_version",
+                         text=_N142_TEXT, surface_refs=[_IMAGEPIPE])
+    named = str(refused.value).split("expects to touch", 1)[1].split(". No word", 1)[0]
+    assert named.strip() == "src/click/decorators.py, tests/test_basic.py"

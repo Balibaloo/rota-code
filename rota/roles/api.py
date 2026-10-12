@@ -4404,11 +4404,10 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
     return vetted
 
 
-def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str],
-                           texts: tuple) -> None:
+def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) -> None:
     """
     A repair's surface sits in a file the batch expects to touch, or the
-    request or the criterion names it.
+    request or the ticket names it.
 
     Night 142 (frame 215): s536 took the first row of an unhinted callable
     list, `examples/imagepipe/imagepipe.py::process_commands`, for four
@@ -4416,16 +4415,24 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str],
     `tests/test_basic.py`, and no word of the request named `imagepipe`.
     The module imports `PIL`, the sandbox lacks it, and 15 tests failed
     at import. The touch rows are the ones `batches.expect` reads.
+
+    The words come from the item, its statements and the ticket only. The
+    criterion's text is the seat's own, old or new, so a name the seat
+    writes into it proves nothing (frame 215's review 1, finding 1).
     """
     if not ticket_id or not surface:
         return
+    # An abandoned batch's prediction is no longer the work's (frame 215's
+    # review 1, finding 6): its files neither admit nor name a surface.
     batches = ctx.conn.execute(
         "SELECT b.id AS id, b.item_id AS item_id, i.text AS item_text "
         "FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
         "LEFT JOIN items i ON i.id = b.item_id WHERE bt.ticket_id = ? "
-        "ORDER BY b.id", (ticket_id,)).fetchall()
+        "AND b.status != 'abandoned' ORDER BY b.id", (ticket_id,)).fetchall()
     touch: list = []
-    words_from = list(texts)
+    ticket = ctx.conn.execute(
+        "SELECT text FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    words_from = [ticket["text"] if ticket else ""]
     for b in batches:
         # The same query as `batches_expect`, so the door and the read agree.
         touch += [dict(r) for r in ctx.conn.execute(
@@ -4460,7 +4467,7 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str],
         raise Wall(
             f"{ref!r} lives in {path}, and the batch expects to touch "
             f"{', '.join(expected or paths)}. No word of the request or the "
-            f"criterion names {name}. The surface is a callable in a file the "
+            f"ticket names {name}. The surface is a callable in a file the "
             f"batch expects to touch, or a callable the request names. "
             f"Name that callable in surface_refs")
 
@@ -4804,8 +4811,7 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                         "be encoded is a different row"}
     surface = _vet_surface(ctx, surface_refs, required=True,
                            ticket_id=cur["ticket_id"] if cur else None)
-    _surface_outside_batch(ctx, cur["ticket_id"] if cur else None, surface,
-                           (text, cur["text"] if cur else ""))
+    _surface_outside_batch(ctx, cur["ticket_id"] if cur else None, surface)
     payload: dict = {"text": text, "surface_refs": json.dumps(surface)}
     # A respecified criterion is an amendment, so its version moves and the
     # Tester that gave up on it wakes. No reader reads a criterion's version.
@@ -6748,6 +6754,25 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             plain = sorted(m for m in _known - set(getattr(_sys2, "stdlib_module_names", ()))
                            if not m.startswith(".") and m not in ("tests", "docs", "pytest"))
             want = ", ".join(dotted_surfaces or plain[:6])
+            # Frame 215's review 1, finding 2: this hint offers the same
+            # import as the surface door, so it checks the load first.
+            if dotted_surfaces and _root is not None:
+                hinted = dotted_surfaces[0]
+                hinted_path = next(
+                    (s.split("::", 1)[0] for s in surface if "::" in s
+                     and _dotted(s.split("::", 1)[0]) == hinted), None)
+                if hinted_path is None:
+                    hinted_path = next(
+                        (p.relative_to(_root).as_posix() for p in _root.rglob("*.py")
+                         if not any(part.startswith(".")
+                                    for part in p.relative_to(_root).parts)
+                         and _dotted(p.relative_to(_root).as_posix()) == hinted), "")
+                broken = _module_load_error(ctx, hinted, hinted_path) if hinted_path else None
+                if broken:
+                    raise Wall(_unloadable_surface(
+                        ctx, criterion_id,
+                        f"{hinted_path}::{surface[0].rsplit('::', 1)[-1]}",
+                        hinted, broken))
             hint = (f" Import the surface from its own module: `from {dotted_surfaces[0]} "
                     f"import {surface[0].rsplit('::', 1)[-1]}`") if dotted_surfaces else ""
             raise Wall(
@@ -6848,6 +6873,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                         f"harness dies at collection. Import only what the module "
                         f"defines, or the surface the criterion names")
                 where = None
+                where_path = ""
                 pat = _re2.compile(rf"^\s*(?:def|class)\s+{_re2.escape(misplaced[0])}(?!\w)", _re2.M)
                 for py in _root.rglob("*.py"):
                     rel = py.relative_to(_root).parts
@@ -6856,9 +6882,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     try:
                         if pat.search(py.read_text(encoding="utf-8", errors="replace")):
                             where = _dotted("/".join(rel))
+                            where_path = "/".join(rel)
                             break
                     except OSError:
                         continue
+                # Frame 215's review 1, finding 2: the line offered here must
+                # load in the sandbox.
+                broken = _module_load_error(ctx, where, where_path) if where else None
+                if broken:
+                    raise Wall(_unloadable_surface(
+                        ctx, criterion_id, f"{where_path}::{misplaced[0]}", where, broken))
                 raise Wall(
                     f"{found.relative_to(_root).as_posix()} does not define "
                     f"{misplaced[0]}, and this test imports it from there; the "
@@ -11455,16 +11488,28 @@ def _dotted_module(path: str, keep_root: bool = False) -> str:
 
 # The probe prints one marked line, so a module that prints on import cannot
 # pass for the error. It catches BaseException, because a module that calls
-# `sys.exit` at import also fails a test at collection.
+# `sys.exit` at import also fails a test at collection. The fields go through
+# `ascii()`, because a cp1252 console cannot print every error text (frame
+# 215's review 1, finding 3). Stdin is the null device, so a top-level
+# `input()` reads EOF and does not wait for the timeout (finding 4). The
+# runner seam takes no stdin, so the child closes its own.
 _LOAD_PROBE = (
-    "import sys\n"
+    "import os, sys\n"
+    "os.dup2(os.open(os.devnull, os.O_RDONLY), 0)\n"
+    "sys.stdin = open(os.devnull)\n"
     "try:\n"
     "    __import__(sys.argv[1])\n"
     "except BaseException as e:\n"
     "    m = (str(e).splitlines() or [''])[0]\n"
-    "    print('ROTA-LOAD', type(e).__name__, getattr(e, 'name', None) or '-',\n"
-    "          type(e).__name__ + ': ' + m)\n"
+    "    print('ROTA-LOAD', type(e).__name__,\n"
+    "          ascii(getattr(e, 'name', None) or '-')[1:-1].replace(' ', '_'),\n"
+    "          type(e).__name__ + ': ' + ascii(m)[1:-1])\n"
     "    sys.exit(1)\n")
+
+# One probe per worktree, head, module and file stamp, for the process.
+# A module that sleeps at import cost its full time on every refusal (frame
+# 215's review 1, finding 4, 5.04 s a call).
+_LOAD_CACHE: dict = {}
 
 
 def _module_load_error(ctx, dotted: str, rel_path: str) -> str | None:
@@ -11478,13 +11523,31 @@ def _module_load_error(ctx, dotted: str, rel_path: str) -> str | None:
     The probe runs the harness's interpreter in the worktree, as a test does.
     A module whose file does not exist yet is the Developer's to write, so
     the doors keep their words for it.
+
+    The probe is a plain import, not a pytest collection. It reads no
+    `conftest.py`, no pytest `pythonpath` and no plugin environment. So a
+    module that pytest loads through a stub in a conftest can read as
+    unloadable here (frame 215's review 1, finding 4).
     """
     try:
         root = _worktree_of(ctx)
     except Exception:  # noqa: BLE001 -- no worktree: nothing to load from
         return None
-    if not dotted or not (root / _grain_path(rel_path)).is_file():
+    target = root / _grain_path(rel_path)
+    if not dotted or not target.is_file():
         return None
+    head = None
+    if getattr(ctx, "batch_id", None):
+        row = ctx.conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                               (ctx.batch_id,)).fetchone()
+        head = row["head_commit"] if row else None
+    try:
+        stamp = target.stat().st_mtime_ns
+    except OSError:
+        stamp = None
+    key = (str(root), head, dotted, stamp)
+    if key in _LOAD_CACHE:
+        return _LOAD_CACHE[key]
     from ..core import execute
     from ..core.provision import python_for
     try:
@@ -11493,17 +11556,25 @@ def _module_load_error(ctx, dotted: str, rel_path: str) -> str | None:
     except Exception:  # noqa: BLE001 -- a probe that cannot run proves nothing
         return None
     if out.error or out.returncode == 0:
+        # A timeout is not cached: the next refusal may find a faster host.
+        if not out.error:
+            _LOAD_CACHE[key] = None
         return None
     marked = [ln for ln in (out.stdout or "").splitlines() if ln.startswith("ROTA-LOAD ")]
     if not marked:
         return None
-    _, kind, missing, first = marked[-1].split(" ", 3)
+    fields = marked[-1].split(" ", 3)
+    if len(fields) < 4:
+        return None
+    _, kind, missing, first = fields
     # The module's own name not found is a path the interpreter does not
     # see, not a load that fails: the doors keep their words.
     if kind == "ModuleNotFoundError" and (
             dotted == missing or dotted.startswith(missing + ".")):
+        _LOAD_CACHE[key] = None
         return None
-    return first
+    _LOAD_CACHE[key] = first or kind
+    return first or kind
 
 
 def _unloadable_surface(ctx, criterion_id: str, surface: str, module: str,

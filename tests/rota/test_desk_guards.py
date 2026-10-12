@@ -11,6 +11,7 @@ or supplied where the state already says what is right.
 """
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
@@ -92,6 +93,71 @@ def test_a_bare_call_of_the_surface_name_is_a_call_of_the_surface(db):
                 body="from billing import calculate_tip\n"
                      "def test_calculate_tip():\n"
                      "    assert calculate_tip(100, 10) == 10\n")
+
+
+def _unloadable_tree(db, tmp_path, module_text, surface):
+    """A worktree whose surface module fails at import, and the criterion on it."""
+    root = tmp_path / "wt"
+    rel = surface.split("::", 1)[0]
+    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+    (root / rel).write_text(module_text, encoding="utf-8")
+    (root / "src" / "click").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "click" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "src" / "click" / "decorators.py").write_text(
+        "def version_option():\n    return None\n", encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = ? WHERE id = 'c1'",
+               (json.dumps([surface]),))
+    db.execute("DELETE FROM tests")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    return sb
+
+
+@pytest.mark.parametrize("body, old", [
+    # The "no module of that name" hint.
+    ("from imagepipe import process_commands\n"
+     "def test_x():\n    assert process_commands() is None\n",
+     "Import the surface from its own module"),
+    # The "It is defined in" refusal.
+    ("from src.click.decorators import process_commands\n"
+     "def test_x():\n    assert process_commands() is None\n",
+     "It is defined in examples.imagepipe.imagepipe"),
+])
+def test_the_import_hints_never_offer_a_module_that_does_not_load(db, tmp_path, body, old):
+    """
+    Frame 215's review 1, finding 2, probe p3: two more refusals offered
+    the import of a module that fails at import in the sandbox.
+    """
+    sb = _unloadable_tree(db, tmp_path, "import rota_absent_pil_module\n\n\n"
+                          "def process_commands():\n    return None\n",
+                          "examples/imagepipe/imagepipe.py::process_commands")
+    with pytest.raises(ValueError) as refused:
+        sb.call("tests.encode", id="tst_4", criterion_id="c1",
+                path="tests/test_v.py", body=body)
+    said = str(refused.value)
+    assert old not in said
+    assert "does not load in the sandbox" in said
+    assert "msg.question_terminologist(refs=['c1']" in said
+
+
+def test_an_error_text_the_console_cannot_print_still_reads_as_a_load_failure(db, tmp_path):
+    """
+    Frame 215's review 1, finding 3, probe p2's `pkg.uni`: the child's print
+    failed on a non-cp1252 character, the probe returned an empty string,
+    and the door offered the import again.
+    """
+    sb = _unloadable_tree(db, tmp_path,
+                          "raise RuntimeError('café ☃ fails')\n\n\n"
+                          "def uni_run():\n    return None\n",
+                          "pkg/uni.py::uni_run")
+    with pytest.raises(ValueError) as refused:
+        sb.call("tests.encode", id="tst_4", criterion_id="c1", path="tests/test_v.py",
+                body="def test_x():\n    assert uni_run() is None\n")
+    said = str(refused.value)
+    assert "add `from pkg.uni import uni_run`" not in said
+    assert "does not load in the sandbox" in said and "RuntimeError" in said
 
 
 def test_the_encode_doors_never_force_an_import_that_does_not_load(db, tmp_path):
