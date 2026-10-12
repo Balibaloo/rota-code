@@ -279,6 +279,25 @@ def test_a_reading_mode_can_search_before_it_reads():
             f"{role}/{mode} holds the tool and never names it"
 
 
+def test_the_reconcile_and_triage_briefs_name_the_ref_and_the_literal_source():
+    """
+    Frame 204's interviews (2026-10-12). The reconcile seat took `about_ref`
+    from a directory name (VK4). The Tester invented a header name and
+    triaged `encodable` (TS1). Each sentence sits before the call it governs.
+    """
+    reconcile = prompts.compose("vision_keeper", "reconcile")
+    ref = "A README claim's row takes `about_ref=\"@prose\"`"
+    assert ref in reconcile
+    assert reconcile.index(ref) < reconcile.index("Log it: `ledger.log(")
+    assert "an area name is a ref only when" in reconcile
+
+    triage = prompts.compose("tester", "tests_missing")
+    source = "Every literal the test asserts comes from the criterion"
+    assert source in triage
+    assert "only another spec defines is `cannot`" in triage
+    assert triage.index(source) < triage.index("`encodable` and you `tests.encode` it")
+
+
 def test_every_operation_is_offered_by_some_mode():
     """
     A `.tools` narrowing can only remove. Today every role still has at least

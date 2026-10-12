@@ -8016,6 +8016,13 @@ def _owner_call(ctx, about_ref: str, assumption: str) -> tuple[str, dict, str] |
             f"{call}(refs=[{about_ref!r}], question=<your note>)")
 
 
+def _declares_an_area(ctx: Ctx) -> bool:
+    """Whether the account holds an area, kept or staged in this session."""
+    if any(w[0] == "model_areas" for w in ctx.writes):
+        return True
+    return ctx.conn.execute("SELECT 1 FROM model_areas LIMIT 1").fetchone() is not None
+
+
 @op("ledger", "log")
 def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                assumption: str, kind: str | list[str]) -> dict:
@@ -8081,10 +8088,16 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
         return {"fault": fid, "call": call, "note": FAULT_REPLY, **extra}
 
     if not ref_resolves(ctx, about_ref):
+        # An empty account declares no area, so the area advice sent the
+        # reconcile seat to '@billing' and a second refusal (frame 204's
+        # interview, VK4). '@prose' is a pseudo area and always resolves.
+        whole = ("if it is about the whole area, use the @-prefixed area name"
+                 if _declares_an_area(ctx) else
+                 "the account declares no area, so a row about a README or "
+                 "docs claim takes about_ref='@prose'")
         raise ValueError(
             f"{about_ref!r} names no row. about_ref is the id of the row the "
-            f"assumption is about (about_table says which table); if it is "
-            f"about the whole area, use the @-prefixed area name")
+            f"assumption is about (about_table says which table); {whole}")
     # A row of the table it says. tipsQ (2026-09-09): the Terminologist
     # logged `about_table="glossary_terms"` with a ledger id as the ref and
     # a tool refusal as the assumption, the agenda put it to the principal,

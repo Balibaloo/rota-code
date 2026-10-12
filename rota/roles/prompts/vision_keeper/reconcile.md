@@ -12,7 +12,9 @@ it. For each claim, one of three things is true:
 - the README says something the code did not show, or contradicts the
   account — that is a disagreement to log, and you cannot rule on it: "the README is
   stale" and "the code has a bug" are both possible, and only the principal
-  can say which. Log it: `ledger.log(about_ref=<the item id it touches, or
+  can say which. A README claim's row takes `about_ref="@prose"` and
+  `about_table=` the README's path, because an area name is a ref only when
+  `[problem.baseline]` lists that area. Log it: `ledger.log(about_ref=<the item id it touches, or
   the README's path>, about_table="items", assumption="README says <X>;
   the code shows <Y>", kind="conflict")` — one call per disagreement, the
   two sides in it, in the words each source uses;

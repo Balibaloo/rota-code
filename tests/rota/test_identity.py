@@ -132,6 +132,36 @@ def test_an_at_ref_must_name_an_area_this_run_declared(tmp_path):
                    assumption="the schema file is the outside edge", kind="gap")["id"]
 
 
+def test_the_ref_refusal_offers_prose_when_the_account_declares_no_area(tmp_path):
+    """
+    Frame 204's interview (VK4, 2026-10-12): the reconcile seat sent
+    `about_ref='billing'`, and the refusal said to use the @-prefixed area
+    name. The account was empty, so `'@billing'` was refused again. With no
+    area declared, the refusal names `@prose`, which resolves.
+    """
+    import pytest as _pytest
+
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+
+    db = init_db(tmp_path / "rota.db")
+    sb = build("vision_keeper", db, mode="reconcile")
+    with _pytest.raises(ValueError, match="names no row") as refused:
+        sb.call("ledger.log", about_ref="billing", about_table="items",
+                assumption="README says invoices go monthly; the code shows a "
+                           "weekly charge run", kind="conflict")
+    assert "@prose" in str(refused.value)
+    assert "@-prefixed area name" not in str(refused.value)
+
+    db.execute("INSERT INTO model_areas (id, account) VALUES ('src/billing', 'x')")
+    db.commit()
+    sb = build("vision_keeper", db, mode="reconcile")
+    with _pytest.raises(ValueError, match="@-prefixed area name"):
+        sb.call("ledger.log", about_ref="billing", about_table="items",
+                assumption="README says invoices go monthly; the code shows a "
+                           "weekly charge run", kind="conflict")
+
+
 def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
     """
     tipsQ, 2026-09-09: the Terminologist logged an assumption about a ledger

@@ -8,6 +8,9 @@ your tests in. Use it. The triage and the encode of one
 criterion go in the same reply, triage first. One criterion per reply:
 six encodes in one reply run past the output budget and none lands.
 The verdict is one judgement — **could a machine check this sentence?**
+Every literal the test asserts comes from the criterion, surface or material,
+and a header or format only another spec defines is `cannot`, for
+`msg.question_researcher`.
 `encodable` and you `tests.encode` it; `cannot` and you route it:
 `msg.question_terminologist` with the criterion in refs and what stops you in
 the question. You do not have to know whose problem it is — an answer that
