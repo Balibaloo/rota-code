@@ -65,7 +65,7 @@ hand-off.
   5. The Tester does not use it: the measure case is 2 of 5, and two
   Tester cases that carry no reason row went from green to 0 of 5 on
   pass 5d's sentence in `tester/challenge.md`. That sentence is the wall.
-- The interview of the Tester in its exact context runs or is done:
+- Pass 5f at 1add7c65 took the interview's fix. The re-record gate at it: the Developer names `version_option` 5 of 5; the Tester measure case is 1 of 5 on a row that names it, the value wall the interview predicted. Read its four failing runs first; a frame for the value of `package_name` is the likely next step, and night 144 launches only on a measure pair at or above 3 of 5. The interview:
   `plans/frame200-pass5-interview.md`. Pass 5f takes its fix line, and
   it touches `tester/challenge.md` alone, then the Tester cases
   re-record on the card, then night 144 launches with
@@ -94,8 +94,7 @@ hand-off.
 
 ## Live agents at the hand-off
 
-- None expected; the section below the stack's last status line says
-  which, if any, still run.
+- None. Every agent of this session has returned.
 - Scratchpad: `C:\Users\roman\AppData\Local\Temp\claude\d--repos-rota\d609cf11-e3b0-446b-b02a-29ab3633c919\scratchpad`,
   briefs `impl215p1c_brief.md`, `review215p1c_brief.md`,
   `impl204p1g_brief.md`, `review204p1g_brief.md`, `review204p1h_brief.md`,
