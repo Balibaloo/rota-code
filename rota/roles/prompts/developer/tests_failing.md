@@ -24,17 +24,22 @@ read rather than of what is there.
 
 **No — then stop.** `msg.challenge_tester(refs=[criterion_id, test_id],
 quotes=["<the criterion's words>", "<one code line of the test>"],
-reason="<the error and the line>")`. Name the test by its id in `refs`. Copy
-the criterion's words verbatim, not your summary. The test's quote is one code
-line of the test, not a comment and not the whole body. If the code line holds
-a double quote, put it between single quotes. Then change nothing. This is the
+reason="<the error, the line, and the call that takes the argument>")`. Name
+the test by its id in `refs`. Copy the criterion's words verbatim, not your
+summary. The test's quote is one code line of the test, not a comment and not
+the whole body. If the code line holds a double quote, put it between single
+quotes. Then change nothing. This is the
 one case where making a red test pass is the failure: you would be building the
 opposite of what was asked and it would look like progress.
 
-`reason=` is the error the test got and the line of the test that raises it,
-in one sentence. For example: "the test calls `runner.invoke(package_name=...)`
-and `invoke` has no such argument, so it fails before `--version` runs". The
-reason is not a fix, not a design and not a verdict on the criterion.
+`reason=` holds three facts in one sentence: the error the test got, the line
+of the test that raises it, and the callable whose signature takes the
+argument. Read that signature with `code.probe` or `code.source`, and write the
+call with the argument in place. For example: "the test calls
+`runner.invoke(package_name=...)` and `invoke` has no such argument, so it
+fails before `--version` runs; `version_option(package_name=...)` takes it, and
+`runner.invoke` does not". The callable is a fact from a signature, not a fix,
+and the reason is not a design and not a verdict on the criterion.
 
 The fix loop is cheap on purpose: change the code, run the harness, read what
 it says, change again — as many rounds as it takes, up to the cap. Re-loading

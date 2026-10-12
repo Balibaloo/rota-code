@@ -322,14 +322,23 @@ def test_the_developer_reason_asks_for_the_fact_not_the_fix(mode):
     """Frame 200, pass 5b: the probe's Developer looped on "name the call the
     test must use" and sent nothing. The reason is the error and the line."""
     flat = " ".join(prompts.compose("developer", mode).split())
-    assert 'reason="<the error and the line>"' in flat
+    # Pass 5d: the probe's Tester moved only on a reason that wrote out the
+    # callable that takes the argument, so the reason names it too.
+    assert ('reason="<the error, the line, and the call that takes the '
+            'argument>"') in flat
     assert "reason=None" not in flat
-    assert ("`reason=` is the error the test got and the line of the test "
-            "that raises it, in one sentence.") in flat
+    assert ("`reason=` holds three facts in one sentence: the error the test "
+            "got, the line of the test that raises it, and the callable whose "
+            "signature takes the argument.") in flat
+    assert ("Read that signature with `code.probe` or `code.source`, and "
+            "write the call with the argument in place.") in flat
     assert ('"the test calls `runner.invoke(package_name=...)` and `invoke` '
-            'has no such argument, so it fails before `--version` runs"') in flat
-    assert ("The reason is not a fix, not a design and not a verdict on the "
-            "criterion.") in flat
+            'has no such argument, so it fails before `--version` runs; '
+            '`version_option(package_name=...)` takes it, and `runner.invoke` '
+            'does not"') in flat
+    assert ("The callable is a fact from a signature, not a fix, and the "
+            "reason is not a design and not a verdict on the criterion."
+            ) in flat
     assert "name the call or the argument the test must use" not in flat
 
 
@@ -338,10 +347,12 @@ def test_the_tester_puts_the_argument_where_the_reason_row_says():
     moved `package_name` from one wrong call to another."""
     flat = " ".join(prompts.compose("tester", "challenge").split())
     assert ("When the reason row, the Developer's ref whose `table` is "
-            "`decisions`, names a call and an argument, the next body puts "
-            "that argument on the call the traceback names, because the row "
-            "outranks the criterion's wording for where an argument goes."
-            ) in flat
+            "`decisions`, names the callable that takes an argument, the next "
+            "body puts that argument on that callable, because the row "
+            "outranks the criterion's wording and the traceback for where an "
+            "argument goes.") in flat
+    # Pass 5d: the traceback names `runner.invoke`, the wrong call.
+    assert "on the call the traceback names" not in flat
 
 
 def test_every_operation_is_offered_by_some_mode():
