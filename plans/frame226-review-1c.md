@@ -45,3 +45,47 @@ Caution: the reviewer piped the gate through tail, so the summary, stale and tim
 ## (d) Usage
 
 About 52k tokens in total by the harness budget: about 43k input and about 9k output. No sub-agents.
+
+## Second look: pass 1d at 04b0579f
+
+Reviewer: the same agent, worktree `C:/Users/roman/rota_rv226d` at 04b0579f, 2026-10-13. Meta workflow.
+Verdict: accept. The two fixes hold. One low residue stays.
+Counts: 0 high, 1 low.
+
+### (a) Verdicts on the points
+
+1. CONFIRMED. The 14 rulings take the routes that the implementer named. Check alone: r_3ccc52bcda, r_b29281299a, r_b33e2979e0. Both: r_b0241f8ce0, r_58e66ff63f, r_f38b69e7c3, r_58c63355f6. Words alone: the other seven (observed: probe q4).
+   The verb in "then check the printed output" no longer matches. r_c8757431e3 now takes the words route on "should say".
+   No ruling that faults a line's words with a named pattern gets "The criterion stands" alone. Finding 4 covers one residue.
+2. CONFIRMED. A greenfield index with `surface_refs=[]` on a row with a surface answers `unchanged` and stages no write. P1c still gets the surface refusal (observed: probe P1c, P1d).
+3. CONFIRMED. The commit's test file on the parent 8bf5478d: 2 failed, 15 passed, the 2 new tests. At the commit: 17 passed (observed: probe P7).
+4. CONFIRMED. The gate's five lines are below. The 8 new reds are the 7 known reds and the flaky `test_scene_challenged_again`. The flaky test passed on the rerun: 7 failed, 1 passed.
+
+The gate's five lines (observed: worktree gate, 2026-10-13, unpiped):
+
+    suite: 30 failed, 3847 passed, 35 skipped, 17 xfailed, 32 warnings (baseline: 24 failed, 3580 passed, 32 skipped, 20 xfailed, 17 warnings)
+    new reds (8): test_invoke_door::test_a_session_with_no_batch_reads_the_root, L1-AR-a-test-that-misses-its-criterion-gets-a-decision-row, L1-AR-route-an-escalation, L1-DV-apply-the-answer-and-carry-on, L2-DV-name-the-block-rather-than-retry, L2-DV-name-the-deferred-batch-not-the-running-one, test_scene_challenged_again::test_a_second_build_gives_equal_rows_and_lands_a_right_call_per_op, test_scene_two_batches::test_a_right_call_lands[the project test tests/test_templates.py as an encode]
+    reds gone (1): L1-VK-a-statement-on-an-existing-account-is-a-behaviour
+    stale (0): none
+    time: 662.0s, model qwen3:8b, temp root C:\Users\roman\rota_gate\tmp, baseline 5d68808 2026-10-11 02:11
+
+The new reds against the known set: the 2 HEAD reds (`test_invoke_door`, `test_scene_two_batches`), the 2 Architect cases, frame 224's `apply-the-answer`, and frame 204's 2 L2 cases. The eighth is the flaky `test_scene_challenged_again`. No new red falls outside the known set.
+
+### (b) Findings
+
+4. `rota/roles/api.py`, `_WORDS_FAULT` and the check-alone branch. Low. PLAUSIBLE (reasoned: night 145 read, section 2.1, and the texts of r_b33e2979e0).
+   r_b33e2979e0 takes the check-alone route. Its words "the flag belongs to the decorator, not the command line" also fault cr_1's text "invoking the resulting command via CLI with the flag on".
+   The door then tells a relay that sends cr_1's same text that "The criterion stands". The text with "via CLI" stays, and the night 145 read names that phrase as the Tester's misreading.
+   The branch fires only on a same-text call, which landed nothing before either. So the cost is a missed repair, and not a regression.
+   Fix: in the check-alone branch, add one clause: "If his words also contradict this criterion's text, rewrite the text."
+
+### (c) Probes
+
+- Scratchpad `rv1c/q4.py`: runs the 14 contested rulings of the copy of `clickI_night145.db` through `_CHECK_FAULT` and `_WORDS_FAULT`, prints the route and the match, and prints four phrases.
+- Scratchpad `rv1c/test_probe_1d.py`, run with `--rootdir` at the worktree: P1c (bad surface, same text) and P1d (greenfield index, `surface_refs=[]`). 2 passed.
+- P7: the commit's `test_criterion_contest.py` run in a second worktree `C:/Users/roman/rota_rv226q` at 8bf5478d, then the file at the commit.
+- Gate: `python -m rota.tools.gate` in the worktree, unpiped, with the checkout's `.rota-gate.json`, `tests/rota/cassettes.db` and its WAL copied in. The harness moved the gate to the background at 600 s, and the reviewer read the five lines from the task output.
+
+### (d) Usage
+
+This look: about 14k tokens by the harness budget, about 10k input and 4k output. No sub-agents.

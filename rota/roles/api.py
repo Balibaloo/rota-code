@@ -4902,7 +4902,9 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                 and not _WORDS_FAULT.search(contested["words"])):
             raise ValueError(
                 f"the principal faulted the check and not these words: "
-                f"{contested['words']!r}. The criterion stands. {route}")
+                f"{contested['words']!r}. The criterion stands. {route}. "
+                f"If his words also contradict this criterion's text, "
+                f"rewrite the text")
         if _CHECK_FAULT.search(contested["words"]):
             raise ValueError(
                 f"the principal contested these words: {contested['words']!r}. "
