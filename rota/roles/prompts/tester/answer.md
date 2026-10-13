@@ -10,7 +10,7 @@ leaves the criterion exactly as untested as it was before you asked.
 
 **Encode the test against the criterion id the answer names, and call the function its surface names after you read it with `code.source`.**
 
-**When the message holds `principal_said`, those words are the principal's words about the test of this criterion.**
+**When the message holds `principal_said`, those words are the principal's ruling on this criterion or its test, and the test checks what the words ask.**
 
 **If the answer does not tell you which reading, say so: `schedule.reask`.**
 A test encoded from a guess passes, and a passing test is what everyone

@@ -29,6 +29,12 @@ contested. Keep the other words of the criterion. When the change has a commit, 
 new words. Before the commit, the Tester has no test of it yet, so stop after
 the rewrite. An approved criterion needs nothing.
 
+**A ruling on a test.** When the message holds `principal_test_verdict`, the
+principal ruled on the test of the criterion, not on its words. If the
+criterion is approved, do not call `criteria.respecify`. Send
+`msg.answer_tester` with the criterion in `refs`, so the Tester rewrites the
+test from the principal's words.
+
 The note can quote the request against the criterion. The request comes
 before the criterion. Rewrite the criterion to say what the request says. Keep
 the other words of the criterion. If the request is not clear, send

@@ -1584,6 +1584,46 @@ def test_a_revised_test_row_wakes_the_terminologist_in_the_repair_mode(m399):
         prompts.mode_tools("terminologist", mode))
 
 
+def test_an_approved_criterion_keeps_its_verdict_beside_its_revised_test(m399):
+    """The review of f252df24, finding 1: on m400's shape the wake read
+    `{c1: revise}`, though the principal approved c1 and revised its test.
+    The repair brief then told the seat to rewrite his approved words."""
+    from pathlib import Path
+
+    import rota.roles
+    from rota.core.runner import resolve_inbound
+    from rota.core.scheduler import Wake
+
+    _vo_test(m399, "bg_4", "running", "aa28d1d")
+    _message(m399, "m399", "liaison", "principal", "clarify", [C1_VO, TST_VO])
+    _message(m399, "m400", "principal", "liaison", "converse", [], cause="m399",
+             status="open")
+    n = m399.execute("SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM entries").fetchone()["n"]
+    m399.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+                 "('e_m400', 'principal', ?, ?)", (M400_WORDS, n))
+    m399.commit()
+    (wake,) = [w for w in open_tips(m399) if w.message_id == "m400"]
+    calls = [f"TOOL: rulings.rule(rulings={json.dumps({C1_VO: 'approve', TST_VO: 'revise'})}, "
+             f"words={M400_WORDS!r})",
+             f'TOOL: msg.relay_vision_keeper(refs=["{TST_VO}"])', "done"]
+    out = run_session(m399, wake, backend=ScriptedBackend(calls), pins=PINS,
+                      instructions="answering")
+    assert out.committed, out.errors
+    (relay,) = m399.execute("SELECT id FROM messages WHERE cause_id = 'm400' "
+                            "AND verb = 'relay'").fetchall()
+    inbound = resolve_inbound(m399, Wake("terminologist", "message", refs=(),
+                                         detail="relay", message_id=relay["id"]))
+    assert inbound.get("principal_verdict", {}).get(C1_VO) == "approve"
+    assert inbound.get("principal_test_verdict") == {TST_VO: "revise"}
+    assert inbound.get("principal_said") == M400_WORDS
+    brief = (Path(rota.roles.__file__).parent / "prompts" / "terminologist"
+             / "criterion_repair.md").read_text(encoding="utf-8")
+    assert "`principal_test_verdict`" in brief
+    # The seat answers the Tester with the criterion and no rewrite.
+    sb = _sandbox(m399, "terminologist", "criterion_repair", relay["id"])
+    assert sb.call("msg.answer_tester", refs=[C1_VO])["to"] == "tester"
+
+
 @pytest.mark.parametrize("status", ["abandoned", "deferred"])
 def test_a_criterion_whose_test_waits_on_a_stopped_batch_reaches_the_tester(m399, status):
     """Night 142, walk 1: the test of `uses_stdlib` sat in the abandoned

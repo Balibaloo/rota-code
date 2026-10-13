@@ -1117,8 +1117,8 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
     """The refusal of a challenge whose quote misses the line a red test
     fails at, or None when the quote holds that line or no run names one.
 
-    The failing line is the run's `>` line when it asserts, else the test's
-    first `assert` line. The run's first `E` line counts as the same line.
+    The failing line is the run's `>` line, else the test's first `assert`
+    line. The run's first `E` line counts as the same line.
     Night 142's m83 quoted the `expected` line of inh_echo_04 and left out
     the `.strip()` that made it red. The Vision Keeper s185 then wrote a
     false decision from the quote (frame 213).
@@ -1133,8 +1133,11 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
         if not run or run["result"] not in ("fail", "error"):
             continue
         out = (run["output"] or "").splitlines()
+        # The `>` line is where the run failed, whatever it holds. The
+        # body's first assert stands in only when the run marks no line
+        # (the review of f252df24, finding 2).
         marked = next((ln[1:].strip() for ln in out
-                       if ln.startswith(">") and ln[1:].strip().startswith("assert")), None)
+                       if ln.startswith(">") and ln[1:].strip()), None)
         first = next((ln.strip() for ln in _code_only(test["body"] or "").splitlines()
                       if ln.strip().startswith("assert")), None)
         line = marked or first

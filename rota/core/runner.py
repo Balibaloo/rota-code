@@ -1744,18 +1744,24 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         found = chain_verdict(conn, row["cause_id"])
         carried = found[1] if found else {}
         mine = {r: v for r, v in carried.items() if r in out["refs"]}
-        # A ruling on a test row is a ruling on its criterion, and the relay
-        # split sends it as one (frame 213, route B). The principal never
-        # rules on a test (ruled: Roman, 2026-10-08, point 2).
+        # A ruled test row travels as its criterion (frame 213, route B).
+        # Its ruling keeps its own key, beside the criterion's own ruling.
+        # Written over the criterion, an approve became a revise, and the
+        # repair brief told the seat to rewrite approved words (the review
+        # of f252df24, finding 1).
+        tested = {}
         for r, v in carried.items():
             if v not in ("contest", "revise"):
                 continue
             test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
                                 (r,)).fetchone()
             if test and test["criterion_id"] in out["refs"]:
-                mine[test["criterion_id"]] = v
+                tested[r] = v
+        if tested:
+            out["principal_test_verdict"] = tested
         if mine:
             out["principal_verdict"] = mine
+        if mine or tested:
             reason = entry_for(conn, found[0])
             if reason:
                 out.setdefault("principal_said", reason)
