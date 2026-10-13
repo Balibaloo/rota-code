@@ -5462,6 +5462,29 @@ def test_the_quote_door_names_the_runs_marked_line_when_it_does_not_assert(db):
     assert "`assert output == expected`" not in str(refused.value)
 
 
+def test_the_quote_door_skips_a_marked_line_of_library_code(db):
+    """The review of 126b8c4e, finding 5: on nights 143 to 145 the first `>`
+    line was often click's code, and the refusal named a click line. The
+    door names the first `>` line that is in the test's body."""
+    from rota.roles import prompts
+
+    _n142(db)
+    db.execute("UPDATE test_runs SET output = ? WHERE id = 'tr_142'", (
+        N142_RUN.replace(
+            ">       assert output == expected",
+            ">       prog_name = ctx.find_root().info_name\n"
+            "E       AttributeError: 'NoneType' object has no attribute 'info_name'\n\n"
+            "src/click/core.py:1012: AttributeError\n"
+            ">       output = captured.getvalue().strip()"),))
+    db.commit()
+    sb = build("architect", db, batch_id="bg_142", mode="exhausted",
+               allow=prompts.mode_tools("architect", "exhausted"))
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.challenge_vision_keeper", refs=N142_REFS, quotes=[N142_QUOTE])
+    assert "`output = captured.getvalue().strip()`" in str(refused.value)
+    assert "prog_name = ctx.find_root().info_name" not in str(refused.value)
+
+
 # Frame 173: the span door's offer and the `dropped` note read the seat's
 # text. The fixtures are the files the seats wrote to, from clickI.
 _FIXTURES = __import__("pathlib").Path(__file__).parent / "fixtures"

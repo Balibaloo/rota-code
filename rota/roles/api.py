@@ -4833,6 +4833,22 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
             "a criterion names what the program does; this one names the "
             "Tester's job. Rewrite it as what the script does for a valid "
             "name and for an empty or wrong one")
+    # The principal approved these words and ruled their test. A rewrite
+    # changes words he approved, and the brief paragraph alone did not stop
+    # it (the review of 126b8c4e, finding 2).
+    found = _verdict_of(ctx)
+    verdict = found[1] if found else {}
+    if verdict.get(id) in ("approve", "approved", "confirm", "confirmed"):
+        tests = [r for r, v in verdict.items() if v in ("contest", "revise")
+                 and ctx.conn.execute("SELECT 1 FROM tests WHERE id = ? AND "
+                                      "criterion_id = ?", (r, id)).fetchone()]
+        if tests:
+            raise ValueError(_offer(
+                ctx, f"the principal approved {id} and ruled its test "
+                f"{', '.join(tests)}. Keep the words. Send "
+                f"msg.answer_tester(refs=['{id}']), so the Tester rewrites "
+                f"the test from his words",
+                "msg.answer_tester", {"refs": [id]}))
     # Rewording with the same words repairs nothing. The repair session on
     # walk twenty-eight respecified three criteria with their own text and
     # left the fourth, which was the one that could not be encoded.

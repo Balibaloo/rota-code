@@ -1584,16 +1584,9 @@ def test_a_revised_test_row_wakes_the_terminologist_in_the_repair_mode(m399):
         prompts.mode_tools("terminologist", mode))
 
 
-def test_an_approved_criterion_keeps_its_verdict_beside_its_revised_test(m399):
-    """The review of f252df24, finding 1: on m400's shape the wake read
-    `{c1: revise}`, though the principal approved c1 and revised its test.
-    The repair brief then told the seat to rewrite his approved words."""
-    from pathlib import Path
-
-    import rota.roles
-    from rota.core.runner import resolve_inbound
-    from rota.core.scheduler import Wake
-
+def _m400_relay(m399) -> str:
+    """Night 144's m400: the Liaison rules c1 approved and its test revised,
+    and relays the test row. The id of the relay to the Terminologist."""
     _vo_test(m399, "bg_4", "running", "aa28d1d")
     _message(m399, "m399", "liaison", "principal", "clarify", [C1_VO, TST_VO])
     _message(m399, "m400", "principal", "liaison", "converse", [], cause="m399",
@@ -1611,6 +1604,20 @@ def test_an_approved_criterion_keeps_its_verdict_beside_its_revised_test(m399):
     assert out.committed, out.errors
     (relay,) = m399.execute("SELECT id FROM messages WHERE cause_id = 'm400' "
                             "AND verb = 'relay'").fetchall()
+    return relay["id"]
+
+
+def test_an_approved_criterion_keeps_its_verdict_beside_its_revised_test(m399):
+    """The review of f252df24, finding 1: on m400's shape the wake read
+    `{c1: revise}`, though the principal approved c1 and revised its test.
+    The repair brief then told the seat to rewrite his approved words."""
+    from pathlib import Path
+
+    import rota.roles
+    from rota.core.runner import resolve_inbound
+    from rota.core.scheduler import Wake
+
+    relay = {"id": _m400_relay(m399)}
     inbound = resolve_inbound(m399, Wake("terminologist", "message", refs=(),
                                          detail="relay", message_id=relay["id"]))
     assert inbound.get("principal_verdict", {}).get(C1_VO) == "approve"
@@ -1622,6 +1629,48 @@ def test_an_approved_criterion_keeps_its_verdict_beside_its_revised_test(m399):
     # The seat answers the Tester with the criterion and no rewrite.
     sb = _sandbox(m399, "terminologist", "criterion_repair", relay["id"])
     assert sb.call("msg.answer_tester", refs=[C1_VO])["to"] == "tester"
+
+
+def test_an_approved_criterion_with_a_ruled_test_refuses_a_respecify(m399):
+    """The review of 126b8c4e, finding 2: on m400's shape the door admitted a
+    `criteria.respecify` of the approved c1, and the text of c1 changed. The
+    brief paragraph alone stopped the rewrite of approved words."""
+    relay = _m400_relay(m399)
+    sb = _sandbox(m399, "terminologist", "criterion_repair", relay)
+    with pytest.raises(ValueError, match="msg.answer_tester"):
+        sb.call("criteria.respecify", id=C1_VO,
+                text="The version option prints the Python version.")
+
+
+def test_the_repair_brief_reads_the_test_ruling_before_an_approved_criterion(m399):
+    """The review of 126b8c4e, findings 3 and 4: "An approved criterion
+    needs nothing." came first, and "approved" named no field the seat
+    reads when the Liaison rules the test row alone."""
+    from pathlib import Path
+
+    import rota.roles
+
+    brief = " ".join((Path(rota.roles.__file__).parent / "prompts" / "terminologist"
+                      / "criterion_repair.md").read_text(encoding="utf-8").split())
+    condition = ("If `principal_verdict` holds no contest or revise for the "
+                 "criterion and the message holds `principal_test_verdict`")
+    assert condition in brief
+    assert brief.index(condition) < brief.index("An approved criterion needs nothing.")
+
+
+def test_the_testers_answer_brief_says_the_test_checks_the_principals_words(m399):
+    """The review of 126b8c4e, finding 6: the Tester's line on
+    `principal_said` had no test. The line says the words rule the test or
+    its criterion, and the test checks what the words ask."""
+    from pathlib import Path
+
+    import rota.roles
+
+    brief = (Path(rota.roles.__file__).parent / "prompts" / "tester"
+             / "answer.md").read_text(encoding="utf-8")
+    (line,) = [ln for ln in brief.splitlines() if "`principal_said`" in ln]
+    assert "ruling on this criterion or its test" in line
+    assert "the test checks what the words ask" in line
 
 
 @pytest.mark.parametrize("status", ["abandoned", "deferred"])
