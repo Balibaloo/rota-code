@@ -4783,6 +4783,10 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
 # rewording, so only these can show that a contested name came back.
 _QUOTED_SPAN = re.compile(r"`([^`]+)`")
 _NAMED_TOKEN = re.compile(r"(?<![\w-])(--[A-Za-z][\w-]*)|\b([A-Za-z]\w*_\w*)\b")
+# The principal's words fault a check when they name one. Night 145's relays
+# said "Line 3's check is wrong" and "Line 3's check only shows the option
+# exists" (frame 226, candidate E).
+_CHECK_FAULT = re.compile(r"\bchecks?\b|\bline \d+'s test\b", re.IGNORECASE)
 
 
 def _named_tokens(text: str) -> set[str]:
@@ -4824,8 +4828,27 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # Rewording with the same words repairs nothing. The repair session on
     # walk twenty-eight respecified three criteria with their own text and
     # left the fourth, which was the one that could not be encoded.
-    cur = ctx.conn.execute("SELECT text, ticket_id FROM criteria WHERE id = ?", (id,)).fetchone()
+    cur = ctx.conn.execute("SELECT text, ticket_id, surface_refs FROM criteria "
+                           "WHERE id = ?", (id,)).fetchone()
     from .principal import last_ruling_on
+
+    # The surface is read before the text is judged. A new surface with the
+    # same text is a repair. Night 145's s272, s292 and s321 sent cr_1's own
+    # text with `version_option`, and the text checks dropped each (frame 226).
+    surface = None
+    surface_changed = False
+    was: list = []
+    if surface_refs is not None:
+        surface = _vet_surface(ctx, surface_refs, required=True,
+                               ticket_id=cur["ticket_id"] if cur else None)
+        _surface_outside_batch(ctx, cur["ticket_id"] if cur else None, surface)
+        try:
+            was = json.loads(cur["surface_refs"] or "[]") if cur else []
+        except (TypeError, ValueError):
+            was = []
+        # A row with no surface on file keeps the `unchanged` note. Walk
+        # twenty-eight's same-words repairs named a surface for such a row.
+        surface_changed = bool(was) and set(surface) != set(was)
 
     ruled = last_ruling_on(ctx.conn, id)
     contested = (ruled if ruled and ruled["verdict"] in ("contest", "revise")
@@ -4838,10 +4861,14 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # A name that the principal's own words use is one he asked for. The
         # review of 33cd99b2, finding 1: `version_option` was refused, and
         # his words ask for a parameter of `version_option`.
+        # A name matches his words on word bounds. A substring test let a
+        # contested `--show` back when he named `--show-python` (the review
+        # of frame 226, finding 1).
         his = contested["words"].lower()
         back = sorted(t for t in (_named_tokens(contested["text"])
                                   - _named_tokens(cur["text"]))
-                      & _named_tokens(text) if t not in his)
+                      & _named_tokens(text)
+                      if not re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", his))
         if back:
             raise ValueError(
                 f"the principal contested {', '.join(back)} in this criterion. "
@@ -4850,20 +4877,31 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # A contested sentence sent back is not a repair. Night 144's s583 and
     # s591 sent it back, and the note below did not say that the principal
     # contested it (frame 227).
-    if (contested and cur and _same_words(text, cur["text"])
+    if (contested and cur and not surface_changed
+            and _same_words(text, cur["text"])
             and _same_words(contested["text"], cur["text"])):
+        # His ruling on a line's check is not a ruling on these words. Night
+        # 145's s272, s321, s430 and s438 got "Write what he asked for" on
+        # such an answer, and landed nothing (frame 226, candidate E).
+        if _CHECK_FAULT.search(contested["words"]):
+            raise ValueError(
+                f"the principal faulted the check and not these words: "
+                f"{contested['words']!r}. The criterion stands. Send his words "
+                f"to the Tester with msg.answer_tester, with this criterion "
+                f"in refs")
         raise ValueError(
             f"the principal contested these words: {contested['words']!r}. "
             f"Write what he asked for")
-    if cur and _same_words(text, cur["text"]):
+    if cur and not surface_changed and _same_words(text, cur["text"]):
         return {"id": id, "unchanged": True,
                 "note": "those are the criterion's own words; a repair changes "
                         "what a test can assert, and this did not. If this "
                         "criterion is right as it stands, the one that cannot "
                         "be encoded is a different row"}
-    surface = _vet_surface(ctx, surface_refs, required=True,
-                           ticket_id=cur["ticket_id"] if cur else None)
-    _surface_outside_batch(ctx, cur["ticket_id"] if cur else None, surface)
+    if surface is None:
+        surface = _vet_surface(ctx, surface_refs, required=True,
+                               ticket_id=cur["ticket_id"] if cur else None)
+        _surface_outside_batch(ctx, cur["ticket_id"] if cur else None, surface)
     payload: dict = {"text": text, "surface_refs": json.dumps(surface)}
     # A respecified criterion is an amendment, so its version moves and the
     # Tester that gave up on it wakes. No reader reads a criterion's version.
@@ -4883,6 +4921,9 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         for ref in wanted:
             stage_ref(ctx, "criteria", id, "term", ref)
         # The refs read back by rowid, as a set: the list's order is not kept.
+    if surface_changed:
+        return {"id": id, "respecified": True, "surface_changed": True,
+                "from": was, "to": surface}
     return {"id": id, "respecified": True}
 
 

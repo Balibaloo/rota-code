@@ -178,6 +178,85 @@ def test_the_same_words_with_no_contest_keep_the_unchanged_note(db):
     assert "those are the criterion's own words" in out["note"]
 
 
+# --- frame 226, pass 1c: the surface before the text -------------------------
+
+CUSTOM = "src/click/decorators.py::custom_version_option"
+# cr_1_show_python_flag on night 145, the text every repair sent back.
+CR1 = ("The `version_option` decorator with `show_python=True` appends the "
+       "running Python version as major.minor.micro to the version output.")
+# r_b33e2979e0, the reply to page m170.
+WORDS_170 = ("Line 3's check is wrong because the flag belongs to the "
+             "decorator, not the command line.")
+
+
+def _on_custom_surface(conn, text: str) -> None:
+    conn.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) "
+                 "VALUES (?, 'tk_1', ?, ?)", (CID, text, json.dumps([CUSTOM])))
+    conn.commit()
+
+
+def _respecify_staged(conn, text: str):
+    """The door's result and the criterion write it staged."""
+    from rota.core.runner import _as_write
+
+    sb = build("terminologist", conn, mode="criterion_repair",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    out = sb.call("criteria.respecify", id=CID, text=text,
+                  surface_refs=[SURFACE])
+    staged = [_as_write(w) for w in sb.ctx.writes]
+    return out, [w for w in staged if w.table == "criteria"]
+
+
+def test_the_same_words_on_a_new_surface_land_as_a_surface_change(db):
+    """s292's call: the criterion's own text, and the surface moved from
+    `custom_version_option` to `version_option`."""
+    _on_custom_surface(db, CR1)
+    out, (crit,) = _respecify_staged(db, CR1)
+    assert out.get("surface_changed") is True
+    assert out["from"] == [CUSTOM] and out["to"] == [SURFACE]
+    assert json.loads(crit.values["surface_refs"]) == [SURFACE]
+    assert crit.values["text"] == CR1
+    assert crit.amends, "a surface change moves the version"
+
+
+def test_a_surface_change_lands_under_a_standing_contest(db):
+    """s272's call: the principal contested this text, and the relay sent
+    the same text with the surface repaired."""
+    _on_custom_surface(db, CR1)
+    _ruling(db, "r_b33e2979e0", "m170", "contest", WORDS_170, CR1)
+    out, (crit,) = _respecify_staged(db, CR1)
+    assert out.get("surface_changed") is True
+    assert json.loads(crit.values["surface_refs"]) == [SURFACE]
+
+
+def test_a_contest_of_the_check_names_the_answer_route(db):
+    """s321's call: the same text and the same surface, and his words fault
+    line 3's check and not the criterion's words."""
+    _criterion(db, CR1)
+    _ruling(db, "r_b33e2979e0", "m170", "contest", WORDS_170, CR1)
+    with pytest.raises(ValueError) as refused:
+        _respecify(db, CR1)
+    said = str(refused.value)
+    assert "faulted the check" in said
+    assert "msg.answer_tester" in said
+    assert WORDS_170 in said
+    assert "Write what he asked for" not in said
+
+
+def test_a_contested_flag_inside_a_longer_name_of_his_is_refused(db):
+    """The review of frame 226, finding 1: `--show` is a substring of the
+    `--show-python` his words name, and it is not a name he asked for."""
+    contested = ("The command decorated with `version_option` prints the Python "
+                 "version when invoked with `--show`.")
+    _criterion(db, V15)
+    _ruling(db, "r_sub", "m500", "contest",
+            "I asked for `--show-python` on the decorator.", contested)
+    with pytest.raises(ValueError, match="--show"):
+        _respecify(db, "The command decorated with `version_option` and "
+                       "`show_python=True` prints the Python version when "
+                       "invoked with `--show`.")
+
+
 # --- frame 226, the wake ----------------------------------------------------
 
 def test_the_repair_wake_carries_the_principals_last_word(db):
