@@ -1794,6 +1794,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                 _write_park(conn, item, "resume", "shift", msg_id, seq_now)
             per_item.pop(ref)
     closed_here: list[str] = []
+    ruled = set(per_item)
     for ref, ruling in list(per_item.items()):
         if ruling not in ("approve", "contest", "revise"):
             continue
@@ -1822,13 +1823,13 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             # turned an approve of c1 into a contest (the delta review of
             # 2c602d1b, finding 1). A wake's own row keeps the old rule: the
             # contest of a note about it contests it.
-            # A1 (ruled 2026-09-03) names an assumption, which is a default
-            # taken where the criteria were silent. A note of another kind is
-            # a seat's claim about the record, and its contest stays on the
-            # note. Night 144 lost bg_1 when a scope note's contest reached
-            # the item that the principal had approved.
+            # A1 (ruled 2026-09-03): a contested default always contests its
+            # item. A contested note of another kind contests its item only
+            # when the answer gives no ruling on that item. The principal's
+            # "no" needs a desk, but his explicit ruling wins over an
+            # inferred one: night 144 lost bg_1 to the inferred one.
             is_default = (row["kind"] or "default") == "default"
-            if is_default and \
+            if (is_default or row["about_ref"] not in ruled) and \
                     not (about and about["provenance"] == "observed") and \
                     row["about_ref"] not in stamped:
                 per_item[row["about_ref"]] = "contest"

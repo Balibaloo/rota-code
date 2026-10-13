@@ -279,18 +279,27 @@ def test_a_default_s_contest_reaches_its_item_the_ruling_does_not_name(db):
     assert verdict_for(db, mid).get("echo_json") == "contest"
 
 
-def test_a_conflict_note_s_contest_leaves_an_unnamed_item_alone(db):
-    """A conflict note is a seat's claim about the record, not a default."""
+def test_a_conflict_note_s_contest_reaches_an_item_the_ruling_does_not_name(db):
+    """The test is green on the parent of fca24dbc and red on fca24dbc."""
     _a_decided_item_with_a_note(db, "conflict")
     ask = _a_present_of(db, ["echo_json", "L9"])
     mid = land(db, ask, Answer(verb="verdict", per_item={"L9": "contest"},
                                text="the note is wrong"))
     db.commit()
-    assert "echo_json" not in verdict_for(db, mid)
+    assert verdict_for(db, mid).get("echo_json") == "contest"
     assert db.execute("SELECT approval FROM items WHERE id = 'echo_json'"
-                      ).fetchone()["approval"] == "draft"
-    assert db.execute("SELECT status FROM ledger WHERE id = 'L9'"
-                      ).fetchone()["status"] == "resolved"
+                      ).fetchone()["approval"] == "contested"
+
+
+def test_a_conflict_note_s_contest_never_overwrites_the_principal_s_approve_of_its_item(db):
+    """The principal's own ruling on the item wins over the note's contest."""
+    _a_decided_item_with_a_note(db, "conflict")
+    ask = _a_present_of(db, ["echo_json", "L9"])
+    mid = land(db, ask, Answer(verb="verdict",
+                               per_item={"echo_json": "approve", "L9": "contest"},
+                               text="the note is wrong"))
+    db.commit()
+    assert verdict_for(db, mid).get("echo_json") == "approve"
 
 
 def test_the_signoff_page_names_the_code_that_carries_each_items_words(db):
