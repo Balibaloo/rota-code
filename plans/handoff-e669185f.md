@@ -62,6 +62,24 @@ frame 200 at 11:26 on 2026-10-13 to the hand-off at the launch of night
   session's transcript, and the second is the reading above.
 - No ruling on the sprint 3 order; taken by timeout.
 
+## The order at the hand-off, ruled by Roman's "Ok" at 19:3x
+
+1. Frame 213: the review of 126b8c4e is owed. The implementer was stopped
+   by Roman's interrupt and this session committed its finished edits
+   after the touched test files passed. Review it on a worktree first.
+2. Frame 232, the stream's stop at the first invented result line: a
+   design read of the 78 shapes, then one pass and a review, before the
+   night. No token cap: Roman ruled the cut is done intelligently.
+3. One gate in the checkout at the sprint's commit for the stale cases.
+4. Night 146 from that commit, with `ollama serve` logging to a file so
+   the fixed 2 to 3 seconds a turn, 79 minutes a night, gets a cause.
+5. The read, the boundary, then frame 233 first in the next sprint.
+
+Frame 231's two reports are the reading: the walks cannot be reused,
+under 9 of 263 minutes repeat; the card's time is invented tool results
+and the fixed cost per turn. Roman asked for the second read on Fable and
+said the first step idea sounded convoluted; he wants the plan above.
+
 ## Live agents at the hand-off
 
 - See the stack's last status lines of frames 213, 229 and 228 for the
