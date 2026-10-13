@@ -54,7 +54,10 @@ on its counts. The order below is the recommended next sprint (reasoned:
 `plans/night144-read.md`, section 9, ranked by what stopped night 144's
 batches, then by price). It is proposed until Roman rules it at the
 boundary, by the rule of 2026-10-12 23:40. Each row names the wall it
-closes on night 144's count.
+closes on night 144's count. Roman got one notification, rated low, at
+05:47, and the order was taken by timeout at 06:07 (observed: the timer's
+exit, 2026-10-13). Work starts on row 1 when rota-2f's gate in the
+checkout ends.
 
 1. Frame 226, the criterion repair writes back contested words, with frame
    227, the silent `unchanged` note, in the same pass: 3 and 2 cycles. The
