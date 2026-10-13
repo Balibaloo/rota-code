@@ -228,7 +228,8 @@ def test_3_a_reason_that_copies_a_quote_is_refused(db):
         _dev(db), reason="closing an account leaves its invoices in place")
     assert said == ("reason= copies the quotes or the criterion. The quotes "
                     "already travel, and reason= names the error the test "
-                    "got and the line of the test that raises it. " + _CALL)
+                    "got, the test's id, and the line of the test that raises "
+                    "it. " + _CALL)
 
 
 def test_4_an_admitted_challenge_stages_the_reason_as_the_developers_row(db):
@@ -339,11 +340,16 @@ def test_18_the_slot_text_sent_back_unchanged_is_refused(db):
     for sent in (REASON_SLOT.split("=", 1)[1].strip('"'),
                  REASON_SLOT.split("=", 1)[1].strip('"<>'),
                  "<the error, the test, the line, and the call that takes "
-                 "the argument>"):
+                 "the argument>",
+                 # Pass 5h: the slot before pass 5g, which night 144's hints
+                 # hold (review 5g, finding 2).
+                 "the error, the line, and the call that takes the argument",
+                 "<the error, the line, and the call that takes the "
+                 "argument>"):
         said = _refused_reason(_dev(db), reason=sent)
         assert said == ("reason= is still the slot text. Name the error the "
-                        "test got and the line of the test that raises it. "
-                        + _CALL), sent
+                        "test got, the test's id, and the line of the test "
+                        "that raises it. " + _CALL), sent
 
 
 def test_19_a_reason_that_says_the_test_passes_is_refused(db):
@@ -373,7 +379,13 @@ def test_19_a_reason_that_says_the_test_passes_is_refused(db):
                  "The test passes `package_name` to `runner.invoke`, and "
                  "`invoke` raises TypeError on it",
                  "runner.invoke(package_name=...) passes an argument invoke "
-                 "does not take, TypeError"):
+                 "does not take, TypeError",
+                 # Pass 5h: a preposition after "passes" starts a fact too
+                 # (review 5g, finding 3).
+                 "the test passes in the args list to runner.invoke and "
+                 "invoke raises TypeError",
+                 "tst_v1 passes with package_name missing to version_option, "
+                 "RuntimeError"):
         sb = _dev(db)
         sb.call("msg.challenge_tester", refs=["c1", "ts1"], quotes=QUOTES,
                 reason=fact)

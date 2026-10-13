@@ -331,7 +331,7 @@ def test_the_developer_reason_asks_for_the_fact_not_the_fix(mode):
     # reason names the raising frame's function instead. Pass 5g: the error
     # carries the test, because night 144's Tester fixed the sibling test.
     assert ("`reason=` holds three facts in one sentence: the error the test "
-            "got, with the test's id or its file and function, the line of "
+            "got, with the test's id or its file and test name, the line of "
             "the test that raises it, and the function in the last frame of "
             "the traceback, the one that raises, as `name(...)` with the "
             "argument its error asks for.") in flat

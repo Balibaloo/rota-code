@@ -1849,6 +1849,11 @@ def _without_own_reasons(conn: sqlite3.Connection, refs, role: str) -> list:
 REASON_SLOT = ('reason="<the error, the test, the line, and the call that '
                'takes the argument>"')
 
+# The slot before pass 5g. A run database of night 144 still holds hints
+# with it, so a seat can copy it as its reason (review 5g, finding 2).
+_REASON_SLOTS_OLD = ("the error, the line, and the call that takes the "
+                     "argument",)
+
 #: The fewest words a reason may have. A shorter one names no call that the
 #: test must make (frame 200, pass 5, section 3.1).
 REASON_WORDS_MIN = 6
@@ -1864,20 +1869,22 @@ REASON_HEAD_WORDS = 4
 # A reason whose head is a verdict on the test or the criterion (frame 200,
 # pass 5b, item 4). "passes" with an object is a fact, as in "the test
 # passes package_name to invoke" (review 5b, finding 1). Pass 5g refuses
-# "passes for me", "with", "in CI", "cleanly", "fine" and "green" (review 5e,
-# low 3).
+# "passes for me", "with the current code", "in CI", "cleanly", "fine" and
+# "green" (review 5e, low 3). Pass 5h matches the tails and not the bare
+# prepositions, because "passes in the args list" is a fact (review 5g,
+# finding 3). The door reads the reason in lower case.
 _REASON_VERDICT = re.compile(
-    r"\bpasses(?=\s*(?:$|[.,;!?]|on\b|as\b|already\b|now\b|today\b|for\b"
-    r"|with\b|in\b|cleanly\b|fine\b|green\b))"
+    r"\bpasses(?=\s*(?:$|[.,;!?]|on\b|as\b|already\b|now\b|today\b"
+    r"|for me\b|with the current code\b|in ci\b|cleanly\b|fine\b|green\b))"
     r"|\bis (?:met|correct)\b")
 
 # What every reason refusal says. It is the one part of a challenge that the
 # Tester cannot read in the test (frame 200, pass 5, section 3.1). Pass 5b
 # asks for the fact and not the fix, because the probe's Developer looped on
 # the fix.
-_REASON_SAID = ("reason= names the error the test got and the line of the "
-                "test that raises it. It is the one part of a challenge the "
-                "Tester cannot read in the test.")
+_REASON_SAID = ("reason= names the test by its id, the error it got and the "
+                "line of the test that raises it. It is the one part of a "
+                "challenge the Tester cannot read in the test.")
 
 
 def _takes_reason(sender: str, recipient: str, verb: str) -> str:
@@ -1901,10 +1908,11 @@ def _reason_problem(conn: sqlite3.Connection, reason, quotes: str,
     if not words:
         return "a challenge to the tester carries reason=, and yours has none."
     flat = " ".join(words).lower()
-    slot = REASON_SLOT.split("=", 1)[1].strip('"<>').lower()
-    if flat.removeprefix("reason=").strip("\"'<> ") == slot:
-        return ("reason= is still the slot text. Name the error the test got "
-                "and the line of the test that raises it.")
+    slots = (REASON_SLOT.split("=", 1)[1].strip('"<>').lower(),
+             *_REASON_SLOTS_OLD)
+    if flat.removeprefix("reason=").strip("\"'<> ") in slots:
+        return ("reason= is still the slot text. Name the error the test got, "
+                "the test's id, and the line of the test that raises it.")
     if len(words) < REASON_WORDS_MIN:
         return (f"a challenge to the tester carries a reason= of "
                 f"{REASON_WORDS_MIN} words or more, and yours has {len(words)}.")
@@ -1916,8 +1924,8 @@ def _reason_problem(conn: sqlite3.Connection, reason, quotes: str,
     said = _REASON_VERDICT.search(first)
     if said and len(first[:said.start()].split()) < REASON_HEAD_WORDS:
         return ("reason= says the test passes or the criterion is met. Name "
-                "the error the test got and the line of the test that "
-                "raises it.")
+                "the error the test got, the test's id, and the line of the "
+                "test that raises it.")
     bare = flat.strip("\"'` .")
     crit = " ".join(_flat(r["text"]).lower() for r in conn.execute(
         "SELECT text FROM criteria WHERE id IN "
@@ -1925,8 +1933,8 @@ def _reason_problem(conn: sqlite3.Connection, reason, quotes: str,
         tuple(r for r in refs or [] if isinstance(r, str)))) if refs else ""
     if bare in _flat(quotes).lower() or (crit and bare in crit):
         return ("reason= copies the quotes or the criterion. The quotes "
-                "already travel, and reason= names the error the test got "
-                "and the line of the test that raises it.")
+                "already travel, and reason= names the error the test got, "
+                "the test's id, and the line of the test that raises it.")
     return None
 
 

@@ -33,7 +33,7 @@ one case where making a red test pass is the failure: you would be building the
 opposite of what was asked and it would look like progress.
 
 `reason=` holds three facts in one sentence: the error the test got, with the
-test's id or its file and function, the line of the test that raises it, and
+test's id or its file and test name, the line of the test that raises it, and
 the function in the last frame of the traceback, the one that raises, as
 `name(...)` with the argument its error asks for. Do not name the call in the
 test, and do not write a fix, a design or a verdict on the criterion. For
