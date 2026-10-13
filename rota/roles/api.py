@@ -13369,12 +13369,31 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         cycle = _own_package_import(root, path, tree)
         if cycle:
             pkg, init_rel, name = cycle
+            # Frame 229, click night 145 (2026-10-13): the hint named
+            # `from .core import ...` for Click, which no module defines.
+            # s386 obeyed, and 37 of 37 tests failed at import. Name the
+            # module that defines the name, or say that none does.
+            owners = _package_definers(root, init_rel, path, name)
+            if name == pkg:
+                fix = (f"Import each name you need from the module that defines "
+                       f"it (a relative import), or import {pkg} inside the "
+                       f"function that uses it")
+            elif not owners:
+                fix = (f"No module of {pkg} defines {name}. Check the name "
+                       f"against the surface and the material, and import a "
+                       f"name that exists, or define it in this file")
+            elif len(owners) == 1:
+                fix = (f"Import {name} from {owners[0]}, `from .{owners[0]} "
+                       f"import {name}`, or import inside the function that "
+                       f"uses it")
+            else:
+                fix = (f"Import {name} from one of the modules that define it, "
+                       f"{', '.join(f'`from .{m} import {name}`' for m in owners)}, "
+                       f"or import inside the function that uses it")
             raise ValueError(
                 f"{path} imports {name} from {pkg} at module level, and "
                 f"{init_rel} imports {path}: a cycle, and every import of "
-                f"{pkg} fails. Import {name} from the module that defines it "
-                f"(a relative import, `from .core import ...`), or import "
-                f"inside the function that uses it")
+                f"{pkg} fails. {fix}")
     # A span write that removes a line the rest of the file still needs.
     # Click night 120 (2026-10-05): s227 meant to add `import sys` and sent
     # start=0, end=5, which replaced the first five lines, and 43 of 43
@@ -14273,6 +14292,34 @@ def _own_package_import(root, path: str, tree) -> tuple[str, str, str] | None:
         if isinstance(node, _ast.Import) and any(a.name == pkg for a in node.names):
             return (pkg, (pkg_dir / "__init__.py").as_posix(), pkg)
     return None
+
+
+def _package_definers(root, init_rel: str, path: str, name: str) -> list[str]:
+    """
+    The module stems beside `init_rel` that define `name` at top level,
+    sorted. The file under write and the package's __init__ do not count.
+
+    An import binds a name and does not define it: click's utils.py binds
+    Command by `from .core import Command`, and only core.py defines it
+    (frame 229). A file that does not parse defines nothing.
+    """
+    import ast as _ast
+    from pathlib import Path as _Path
+    pkg_dir = root / _Path(init_rel).parent
+    me = _Path(path.replace("\\", "/")).name
+    out: list[str] = []
+    for f in sorted(pkg_dir.glob("*.py")):
+        if f.name in ("__init__.py", me):
+            continue
+        try:
+            tree = _ast.parse(f.read_text(encoding="utf-8", errors="replace"))
+        except (SyntaxError, ValueError):
+            continue
+        tree.body = [n for n in tree.body
+                     if not isinstance(n, (_ast.Import, _ast.ImportFrom))]
+        if name in _top_binds(tree):
+            out.append(f.stem)
+    return out
 
 
 def _criteria_surface_names(ctx: Ctx) -> set[str]:

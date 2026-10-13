@@ -655,6 +655,37 @@ def test_a_module_may_not_import_its_own_package_at_module_level(tmp_path):
     assert sb.call("code.write", path="src/click/utils.py", text=relative)["bytes"]
 
 
+def test_the_cycle_door_names_the_module_that_defines_the_name_or_says_none_does(tmp_path):
+    """Click night 145 (2026-10-13), frame 229: s386 wrote `from click import
+    Click` in decorators.py and the door said `from .core import ...`. No
+    module of click defines Click, so 37 of 37 tests failed at import."""
+    wt = tmp_path / "wt"; pkg = wt / "src" / "click"; pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text('from .core import Command as Command\nfrom .decorators import command as command\n')
+    (pkg / "core.py").write_text('class Command:\n    pass\n')
+    (pkg / "utils.py").write_text('from .core import Command\n')
+    (pkg / "decorators.py").write_text('def command():\n    return None\n')
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES ('i1','x','in_scope','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','group works','[\"src/click/decorators.py::group\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    tail = '\n\n\ndef command():\n    return None\n\n\ndef group():\n    return None\n'
+    with pytest.raises(ValueError) as ex:
+        sb.call("code.write", path="src/click/decorators.py", text="from click import Click" + tail)
+    msg = str(ex.value)
+    assert "a cycle" in msg and "No module of click defines Click" in msg, msg
+    assert "from .core import" not in msg, "s386 was sent to core for a name core lacks"
+    with pytest.raises(ValueError) as ex:
+        sb.call("code.write", path="src/click/decorators.py", text="from click import Command" + tail)
+    msg = str(ex.value)
+    assert "Import Command from core, `from .core import Command`" in msg, msg
+    assert "utils" not in msg, "an import of the name is not its definition"
+
+
 def test_a_function_reading_input_by_another_name_is_seen(db, tmp_path):
     """Click night 52 (2026-09-14): `visible_prompt_func = input` at module
     level, confirm() reads through it, a test called confirm() directly and
