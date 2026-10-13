@@ -652,8 +652,8 @@ INTENT = re.compile(r"\b(?:I will|I'll|I am going to|I should|next step is to|"
 # The mandatory forks: verdicts a session claims, not answers it looks up.
 CLAIMS = {"tests.triage", "brief.intake"}
 
-FABRICATED_RESULT = re.compile(r"^\s*(?:OK|ERROR)\s+[a-z_]+\.[a-z_]+\s*(?:->|:)",
-                               re.MULTILINE)
+# The name stays because nightcount.py counts the sign with it (frame 232).
+FABRICATED_RESULT = toolproto.INVENTED_RESULT
 
 
 # The rows behind a page, while they fit beside the page itself. Half a 12,288
@@ -3828,6 +3828,16 @@ def run_session(
             fabricated = FABRICATED_RESULT.search(scanned)
             if fabricated:
                 outcome.errors.append("wrote its own tool results")
+                # The line above stays word for word, because nightcount
+                # compares the sign across nights. The stream stop gets its
+                # own line (frame 232).
+                if (completion.raw or {}).get("done_reason") == "invented_result":
+                    found = fabricated.group(0)
+                    at = fabricated.start() + len(found) - len(found.lstrip())
+                    outcome.errors.append(
+                        f'the stream stopped at the invented result "{found.strip()}" '
+                        f'on line {scanned.count(chr(10), 0, at) + 1} of the reply, '
+                        f'so nothing after it was generated')
                 feedback.append(
                     "You wrote tool results into your own reply -- the lines "
                     "beginning `OK ...` or `ERROR ...`. Those did not come from "

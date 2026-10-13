@@ -294,6 +294,13 @@ def _consume_stream(lines, live: "LiveView", deadline: float | None = None) -> d
     # stops the generation. What was produced is kept, and the parser sees
     # three identical calls, which dispatch as one write and two "unchanged".
     line_buf, last_lines, stopped = "", [], False
+    # A reply that writes a call and then the call's result for itself has
+    # stopped acting. Night 145 (frame 232): 20 such turns ran 104k tokens past
+    # the invented line. The runner runs nothing after that line (rule 1 of
+    # frame 77), so the stream ends at its head. The head is tested before the
+    # line ends, because s117#4 wrote one result line of 8,269 tokens.
+    saw_tool = False
+    from .toolproto import INVENTED_RESULT, MARKER
     import time as _time
     for raw in lines:
         # The socket timeout guards a silent connection; a stream that keeps
@@ -318,10 +325,20 @@ def _consume_stream(lines, live: "LiveView", deadline: float | None = None) -> d
             content.append(piece)
             live.token(piece)
             line_buf += piece
+            invented = False
             while "\n" in line_buf:
                 done_line, line_buf = line_buf.split("\n", 1)
                 if done_line.strip():
                     last_lines = (last_lines + [done_line.strip()])[-48:]
+                if saw_tool and INVENTED_RESULT.match(done_line):
+                    invented = True
+                    break
+                if MARKER in done_line:
+                    saw_tool = True
+            if invented or (saw_tool and INVENTED_RESULT.match(line_buf)):
+                stopped = "invented"
+                live.token("\n[stopped: the reply wrote a tool result it was not given]\n")
+                break
             # The same line three times, or the same cycle of up to eight
             # lines three times. clickI night 40 (2026-09-13): a reconcile
             # reply cycled five `code.source` calls for 84 seconds to the
@@ -329,7 +346,7 @@ def _consume_stream(lines, live: "LiveView", deadline: float | None = None) -> d
             # the reply's length. A cycle of substantial lines repeated
             # three times is a fact about the stream.
             if _cycling(last_lines):
-                stopped = True
+                stopped = "repeating"
                 live.token("\n[stopped: the same lines three times over]\n")
                 break
         for call in msg.get("tool_calls") or []:
@@ -341,7 +358,11 @@ def _consume_stream(lines, live: "LiveView", deadline: float | None = None) -> d
     final = dict(final)
     final["message"] = {"role": "assistant", "content": "".join(content),
                         "tool_calls": tool_calls}
-    if stopped:
+    # Never "length" for a stop: the runner reads "length" as the output cap
+    # and sends the seat a cut note.
+    if stopped == "invented":
+        final["done_reason"] = "invented_result"
+    elif stopped:
         final["done_reason"] = "repeating"
     return final
 

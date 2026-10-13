@@ -422,6 +422,39 @@ def test_the_calls_after_an_invented_result_never_run(db, worktree):
         "the write behind the invention landed, or the next turn's did not"
 
 
+def test_a_stream_stopped_at_an_invented_result_says_where_and_runs_the_call(db, worktree):
+    """
+    Frame 232: the stream ends at the head of the first invented result line.
+    The account keeps "wrote its own tool results" for the count across
+    nights, and one more line says where the stream stopped. The call before
+    the head runs, as rule 1 of frame 77 runs it on the full text.
+    """
+    from rota.llm.llm import Completion
+
+    class Stopped(ScriptedBackend):
+        def complete(self, system, user, pins, tools=None):
+            c = super().complete(system, user, pins, tools)
+            if len(self.calls) == 1:
+                return Completion(text=c.text, pins=pins, backend=self.name,
+                                  raw={"done_reason": "invented_result"})
+            return c
+
+    (worktree / "src" / "acct.py").write_text("def delete(x):\n    return x\n")
+    backend = Stopped([
+        "TOOL: code.source(path='src/acct.py')\n\nOK code.source ->",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert "wrote its own tool results" in outcome.errors
+    assert ('the stream stopped at the invented result "OK code.source ->" on '
+            'line 3 of the reply, so nothing after it was generated') in outcome.errors
+    after = backend.calls[1][1]
+    assert "OK code.source -> path: src/acct.py" in after, \
+        "the call before the invented head did not run"
+
+
 def test_a_cut_after_a_whole_write_never_says_nothing_was_written(db, worktree):
     """
     Frame 121's diff review, finding 2. A reply whose last call is a whole

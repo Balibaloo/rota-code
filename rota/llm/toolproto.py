@@ -28,6 +28,14 @@ from typing import Any
 
 MARKER = "TOOL:"
 
+# A result line the model wrote for itself: `OK code.source -> ...` or
+# `ERROR tests.run: ...`. It lives beside MARKER because the stream reader in
+# llm.py stops on it, and llm.py cannot import the runner (frame 232). On one
+# line, `.match` tests the line head. The runner searches whole replies, so
+# the flag stays.
+INVENTED_RESULT = re.compile(r"^\s*(?:OK|ERROR)\s+[a-z_]+\.[a-z_]+\s*(?:->|:)",
+                             re.MULTILINE)
+
 
 @dataclass(frozen=True)
 class ToolCall:
