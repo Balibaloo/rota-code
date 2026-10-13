@@ -5444,6 +5444,24 @@ def test_the_exhaustion_challenge_over_a_red_test_quotes_the_failing_line(db, qu
     assert out["verb"] == "challenge"
 
 
+def test_the_quote_door_names_the_runs_marked_line_when_it_does_not_assert(db):
+    """The review of f252df24, finding 2: the run's `>` line was no assert,
+    and the refusal named the body's first assert as the failing line."""
+    from rota.roles import prompts
+
+    _n142(db)
+    db.execute("UPDATE test_runs SET output = ? WHERE id = 'tr_142'", (
+        N142_RUN.replace(">       assert output == expected",
+                         ">       output = captured.getvalue().strip()"),))
+    db.commit()
+    sb = build("architect", db, batch_id="bg_142", mode="exhausted",
+               allow=prompts.mode_tools("architect", "exhausted"))
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.challenge_vision_keeper", refs=N142_REFS, quotes=[N142_QUOTE])
+    assert "`output = captured.getvalue().strip()`" in str(refused.value)
+    assert "`assert output == expected`" not in str(refused.value)
+
+
 # Frame 173: the span door's offer and the `dropped` note read the seat's
 # text. The fixtures are the files the seats wrote to, from clickI.
 _FIXTURES = __import__("pathlib").Path(__file__).parent / "fixtures"
@@ -5508,8 +5526,32 @@ def test_s386s_span_over_version_option_names_the_body_it_removes(db, tmp_path):
                         "night145_decorators_9375672e.txt")
     out = sb.call("code.write", path="src/click/decorators.py", start=421,
                   end=568, text=S386_TEXT)
-    assert "`return option(*param_decls, **kwargs)` at line 567" in out["dropped"]
-    assert "`kwargs[\"callback\"] = callback` at line 566" in out["dropped"]
+    note = out["dropped"]
+    assert note.startswith("This write removes 10 statements")
+    assert "`if message is None:` at line 487" in note
+    # The review of 319c7f19, P3: the first eight by line are named, and
+    # the rest are counted. The callback binding and the return are 9 and 10.
+    assert "`kwargs.setdefault(\"help\", _(\"Show the version and exit.\"))` at line 565" in note
+    assert note.endswith(" and 2 more.")
+    assert "at line 566" not in note and "at line 567" not in note
+
+
+def test_a_nested_assignment_in_the_text_does_not_hold_a_removed_one(db, tmp_path):
+    """The review of 319c7f19, P2: `rv = 0` inside a new nested def hid the
+    removed `rv = load()` at the span's own level."""
+    root = tmp_path / "wt"; root.mkdir()
+    old = _lines("def f():", "    rv = load()", "    check(rv)")
+    (root / "m.py").write_text(chr(10).join(old) + chr(10))
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    text = _lines("    def inner():", "        rv = 0", "    check(rv)")
+    out = sb.call("code.write", path="m.py", start=1, end=3,
+                  text=chr(10).join(text) + chr(10))
+    assert out["dropped"] == ("This write removes 1 statement that your text "
+                              "does not hold: `rv = load()` at line 1.")
 
 
 S552_TEXT = ("    if not param_decls:\n        param_decls = (\"--version\",)\n"

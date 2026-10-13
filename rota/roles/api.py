@@ -12365,7 +12365,8 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 if not lost:
                     return ""
                 # The lines the sentence quotes, for frame 144's fact check.
-                for i, _h in lost:
+                # The sentence names the first eight by line, and no more.
+                for i, _h in sorted(lost)[:_LOST_NAMED]:
                     _fact(ctx, "line_text", lines[i].rstrip()[:60], n=i, path=wpath)
                 return (f" A write to start={start}, end={m[3]} removes "
                         f"{_lost_sentence(lost)}, and your text does not "
@@ -15083,22 +15084,34 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
             m = re.match(r"\s*(?:async\s+)?(?:def|class)\s+(\w+)", x)
             if m:
                 names.add(m.group(1))
+        def indent(t):
+            return len(t) - len(t.lstrip())
+
+        # The review of 319c7f19, P2: an assignment in a nested def of the
+        # text hid a removed assignment to the same name at the span's own
+        # level. So a target counts with its depth, the indent of its line
+        # past the text's least indent.
+        base = min((indent(x) for x in new
+                    if x.strip() and not x.strip().startswith("#")), default=0)
         bound = set()
         import textwrap as _tw
+        # Each tree with the text's line its own line 1 stands on.
         try:
-            trees = [_ast.parse(_tw.dedent(text))]
+            trees = [(_ast.parse(_tw.dedent(text)), 0)]
         except Exception:                                  # noqa: BLE001
             # An indented fragment, such as an except clause alone, does
             # not parse whole. Its lines may parse one at a time.
             trees = []
-            for x in new:
+            for k, x in enumerate(new):
                 try:
-                    trees.append(_ast.parse(x.strip()))
+                    trees.append((_ast.parse(x.strip()), k))
                 except Exception:                          # noqa: BLE001
                     pass
-        for t in trees:
+        for t, k in trees:
             for n in _ast.walk(t):
-                bound |= targets(n)
+                if targets(n):
+                    row = new[k + n.lineno - 1]
+                    bound |= {(d, indent(row) - base) for d in targets(n)}
         tree = _ast.parse(chr(10).join(old_lines))
         # The outermost list that holds whole statements of the span.
         level = tree.body
@@ -15111,6 +15124,7 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
                 return []
             level = kids(host[0])
         lost = []
+        top = indent(old_lines[head_at(pool[0])])
 
         def walk(ns):
             for s in ns:
@@ -15119,9 +15133,10 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
                         or (isinstance(s, _ast.Expr) and isinstance(s.value, calls))):
                     continue
                 i = head_at(s)
+                depth = indent(old_lines[i]) - top
                 kept = (s.name in names if isinstance(s, defs)
                         else key(old_lines[i]) in held
-                        or bool(targets(s) and targets(s) <= bound))
+                        or bool(targets(s) and {(d, depth) for d in targets(s)} <= bound))
                 if kept:
                     walk(kids(s))
                 else:
@@ -15133,10 +15148,19 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
         return []
 
 
+_LOST_NAMED = 8
+
+
 def _lost_sentence(lost: list[tuple[int, str]]) -> str:
     # The head is cut at 60 characters, the cut the span door's own
-    # `Line N is` sentences use.
-    return ", ".join(f"`{h[:60]}` at line {i}" for i, h in lost)
+    # `Line N is` sentences use. The review of 319c7f19, P3: 150 removed
+    # statements gave a 4085-character note, so the first eight by line
+    # are named and the rest are counted.
+    first = sorted(lost)[:_LOST_NAMED]
+    out = ", ".join(f"`{h[:60]}` at line {i}" for i, h in first)
+    if len(lost) > _LOST_NAMED:
+        out += f" and {len(lost) - _LOST_NAMED} more"
+    return out
 
 
 def _drop_note(old_lines: list[str], start: int, stop: int, text: str) -> str | None:
