@@ -1827,7 +1827,42 @@ def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bo
         isinstance(r, str) and conn.execute(
             "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone() for r in refs
     ) and (park_verdict_page(conn, row["cause_id"]) is not None
-           or set(refs) <= set(park_verdict_criteria(conn, row["cause_id"])))
+           or set(refs) <= set(park_verdict_criteria(conn, row["cause_id"]))
+           | set(ruled_test_criteria(conn, row["cause_id"])))
+
+
+def ruled_test_criteria(conn: sqlite3.Connection, message_id: str | None) -> list[str]:
+    """The criteria of the test rows that the ruling on `message_id` contests
+    or revises. The ruling is a verdict's own, or the landed `rulings` row
+    of a reply the Liaison read.
+
+    The relay split sends a ruled test row as its criterion (frame 213,
+    route B), because the principal never rules on a test (ruled: Roman,
+    2026-10-08, the park ask is a page with rows, point 2). A clarify's
+    relay has the `converse` reply as its cause, and no verdict. Night
+    144's m400 reached `relay` mode, which cannot respecify (frame 213,
+    pass 1b). One hop only: a ruling further up rules no row of this relay
+    (the delta review of 172b373b, finding 3).
+    """
+    import json
+
+    if not message_id:
+        return []
+    found = conn.execute("SELECT value FROM config WHERE key = ?",
+                         (f"verdict:{message_id}",)).fetchone()
+    if found is None:
+        found = conn.execute(
+            "SELECT per_item AS value FROM rulings WHERE status = 'landed' "
+            "AND (reply_id = ? OR verdict_id = ?) ORDER BY rowid DESC LIMIT 1",
+            (message_id, message_id)).fetchone()
+    try:
+        per_item = json.loads(found["value"] or "{}") if found else {}
+    except (TypeError, ValueError):
+        return []
+    ruled = [r for r, v in per_item.items() if v in ("contest", "revise")]
+    return [t["criterion_id"] for r in ruled for t in conn.execute(
+        "SELECT criterion_id FROM tests WHERE id = ? AND criterion_id IS NOT NULL",
+        (r,))]
 
 
 def _park_versions(conn: sqlite3.Connection, batch_id: str) -> str:

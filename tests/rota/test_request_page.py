@@ -1553,6 +1553,37 @@ def test_a_revise_of_a_test_row_travels_to_the_criterions_writer(m399):
     assert routed == {"terminologist": [C1_VO]}
 
 
+def test_a_revised_test_row_wakes_the_terminologist_in_the_repair_mode(m399):
+    """Route B end to end, night 144's m400 (frame 213, pass 1b). The relay's
+    cause is the principal's `converse` reply, not a verdict, so the
+    Terminologist woke in `relay`, which holds no `criteria.respecify` and
+    no `msg.answer_tester`."""
+    from rota.core.runner import _mode_key
+    from rota.core.scheduler import Wake
+    from rota.roles import prompts
+
+    _vo_test(m399, "bg_4", "running", "aa28d1d")
+    _message(m399, "m399", "liaison", "principal", "clarify", [C1_VO, TST_VO])
+    _message(m399, "m400", "principal", "liaison", "converse", [], cause="m399",
+             status="open")
+    m399.commit()
+    (wake,) = [w for w in open_tips(m399) if w.message_id == "m400"]
+    calls = [f"TOOL: rulings.rule(rulings={json.dumps({C1_VO: 'approve', TST_VO: 'revise'})}, "
+             f"words={M400_WORDS!r})",
+             f'TOOL: msg.relay_vision_keeper(refs=["{TST_VO}"])', "done"]
+    out = run_session(m399, wake, backend=ScriptedBackend(calls), pins=PINS,
+                      instructions="answering")
+    assert out.committed, out.errors
+    (relay,) = m399.execute("SELECT id, to_role, body_refs FROM messages WHERE "
+                            "cause_id = 'm400' AND verb = 'relay'").fetchall()
+    assert (relay["to_role"], json.loads(relay["body_refs"])) == ("terminologist", [C1_VO])
+    mode = _mode_key(Wake("terminologist", "message", refs=(), detail="relay",
+                          message_id=relay["id"]), m399)
+    assert mode == "criterion_repair"
+    assert {"criteria.respecify", "msg.answer_tester"} <= set(
+        prompts.mode_tools("terminologist", mode))
+
+
 @pytest.mark.parametrize("status", ["abandoned", "deferred"])
 def test_a_criterion_whose_test_waits_on_a_stopped_batch_reaches_the_tester(m399, status):
     """Night 142, walk 1: the test of `uses_stdlib` sat in the abandoned
