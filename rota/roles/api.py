@@ -8348,7 +8348,10 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 ctx,
                 f"a change of scope on {about_ref} is a question for the Vision "
                 f"Keeper, which owns scope, and it answers before a page does. "
-                f"Send {call}(refs=[{about_ref!r}], question=<your note>)",
+                f"If the item's words need the thing and do not name it, it is "
+                f"scope, so send {call}(refs=[{about_ref!r}], question=<your "
+                f"note>), and if a criterion is silent and you chose a reading, "
+                f"it is ledger.log(kind='default'), which holds nothing.",
                 call, {"refs": [about_ref], "question": assumption}))
 
     return {"id": _stage_ledger(ctx, about_ref, about_table, assumption, word),

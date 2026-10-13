@@ -178,6 +178,27 @@ def test_a_role_that_challenged_or_escalated_waits(ready, verb, to):
     assert waiting_filter(ready, [work, tip]) == [tip]
 
 
+def test_an_architect_tick_with_its_own_open_challenge_is_not_skipped(ready):
+    """Night 143: 15 of 23 Architect ticks fell inside its open challenges
+    to the Vision Keeper, one a `structural_review` a merge waits on."""
+    from rota.core.scheduler import waiting_filter
+
+    review = Wake("architect", "tick:structural_review", refs=("b1",))
+    _msg(ready, "m1", "architect", "vision_keeper", "challenge", ["c1"])
+    assert waiting_filter(ready, [review]) == [review]
+
+
+def test_a_developer_tick_waits_and_an_architect_tick_does_not(ready):
+    """The design reasons the wait for the Developer alone (section 3.2)."""
+    from rota.core.scheduler import waiting_filter
+
+    fix = Wake("developer", "tick:tests_failing", refs=("b1",))
+    review = Wake("architect", "tick:structural_review", refs=("b1",))
+    _msg(ready, "m1", "developer", "tester", "challenge", ["c1", "tst1"])
+    _msg(ready, "m2", "architect", "vision_keeper", "challenge", ["c1"], seq=2)
+    assert waiting_filter(ready, [fix, review]) == [review]
+
+
 # ---------------------------------------------------------------------------
 # The `ledger.log` door: night 143's misplaced conflicts.
 # ---------------------------------------------------------------------------
@@ -300,4 +321,39 @@ def test_a_scope_log_in_a_mode_with_no_such_call_is_a_row(batch):
                   assumption="the confirm function does not exist, and building "
                              "it is outside this batch",
                   kind="scope")
+    assert out["id"].startswith("l_")
+
+
+# ---------------------------------------------------------------------------
+# Pass 2b: the challenge mode splits scope from default (review 2, the high).
+# ---------------------------------------------------------------------------
+
+def test_a_scope_refusal_in_the_challenge_mode_names_both_kinds(batch):
+    """"It had to be there" is scope only when the item's words need the
+    thing. A silent criterion's reading is a default, and it holds nothing."""
+    sb = _seat(batch, "challenge")
+    with pytest.raises(ValueError) as exc:
+        sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                assumption="the ellipsis character is required to indicate "
+                           "truncation",
+                kind="scope")
+    said = str(exc.value)
+    assert "msg.question_vision_keeper" in said
+    assert "the item's words need" in said
+    assert "kind='default'" in said and "holds nothing" in said
+
+
+def test_a_default_in_the_challenge_mode_is_a_row_and_the_brief_says_so(batch):
+    """The brief names both cases, so the seat logs a silent criterion's
+    reading as a default and asks the Vision Keeper for a need."""
+    from rota.roles import prompts
+
+    brief = prompts.piece("developer", "challenge")
+    assert 'kind="default"' in brief
+    assert "msg.question_vision_keeper" in brief
+    sb = _seat(batch, "challenge")
+    out = sb.call("ledger.log", about_ref="c1", about_table="criteria",
+                  assumption="the ellipsis character is required to indicate "
+                             "truncation",
+                  kind="default")
     assert out["id"].startswith("l_")
