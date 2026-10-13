@@ -4783,10 +4783,18 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
 # rewording, so only these can show that a contested name came back.
 _QUOTED_SPAN = re.compile(r"`([^`]+)`")
 _NAMED_TOKEN = re.compile(r"(?<![\w-])(--[A-Za-z][\w-]*)|\b([A-Za-z]\w*_\w*)\b")
-# The principal's words fault a check when they name one. Night 145's relays
-# said "Line 3's check is wrong" and "Line 3's check only shows the option
-# exists" (frame 226, candidate E).
-_CHECK_FAULT = re.compile(r"\bchecks?\b|\bline \d+'s test\b", re.IGNORECASE)
+# The principal's words fault a check when they name one as a noun. Night
+# 145's relays said "Line 3's check is wrong" and "The tests in lines 2 to 4
+# are wrong" (frame 226, candidate E). The verb in "then check the printed
+# output" is not a fault (the review of 84a06216, finding 1).
+_CHECK_FAULT = re.compile(
+    r"(?:'s|\btheir|\bits|\bthe|\bevery|\bone|\banother|\bsimple|\btwo)"
+    r"\s+checks?\b|\btests? in lines?\b|\bline \d+'s tests?\b", re.IGNORECASE)
+# The principal's words fault a line's words: "Line 2 is wrong because it
+# says", "Line 2 should say", "Line 2 also needs to say" (night 145).
+_WORDS_FAULT = re.compile(
+    r"\blines? \d+(?:(?:,| and| to) \d+)* (?:is|are) (?:also |still )*wrong\b"
+    r"|\bshould (?:also )?say\b|\bneeds? to say\b", re.IGNORECASE)
 
 
 def _named_tokens(text: str) -> set[str]:
@@ -4848,7 +4856,9 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
             was = []
         # A row with no surface on file keeps the `unchanged` note. Walk
         # twenty-eight's same-words repairs named a surface for such a row.
-        surface_changed = bool(was) and set(surface) != set(was)
+        # An empty vetted surface clears nothing. On a greenfield index
+        # `_vet_surface` returns [] (the review of 84a06216, finding 3).
+        surface_changed = bool(was) and bool(surface) and set(surface) != set(was)
 
     ruled = last_ruling_on(ctx.conn, id)
     contested = (ruled if ruled and ruled["verdict"] in ("contest", "revise")
@@ -4883,12 +4893,20 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # His ruling on a line's check is not a ruling on these words. Night
         # 145's s272, s321, s430 and s438 got "Write what he asked for" on
         # such an answer, and landed nothing (frame 226, candidate E).
-        if _CHECK_FAULT.search(contested["words"]):
+        # An answer that also faults a line's words keeps frame 227's
+        # sentence first. The review of 84a06216, finding 1: r_c8757431e3
+        # said "Line 2 should say" and was told that the criterion stands.
+        route = ("Send his words about the check to the Tester with "
+                 "msg.answer_tester, with this criterion in refs")
+        if (_CHECK_FAULT.search(contested["words"])
+                and not _WORDS_FAULT.search(contested["words"])):
             raise ValueError(
                 f"the principal faulted the check and not these words: "
-                f"{contested['words']!r}. The criterion stands. Send his words "
-                f"to the Tester with msg.answer_tester, with this criterion "
-                f"in refs")
+                f"{contested['words']!r}. The criterion stands. {route}")
+        if _CHECK_FAULT.search(contested["words"]):
+            raise ValueError(
+                f"the principal contested these words: {contested['words']!r}. "
+                f"Write what he asked for. {route}")
         raise ValueError(
             f"the principal contested these words: {contested['words']!r}. "
             f"Write what he asked for")

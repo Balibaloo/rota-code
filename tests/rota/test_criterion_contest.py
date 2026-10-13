@@ -257,6 +257,42 @@ def test_a_contested_flag_inside_a_longer_name_of_his_is_refused(db):
                        "invoked with `--show`.")
 
 
+# r_c8757431e3 on night 145: it faults line 2's words and asks that the tests
+# "check its printed output".
+WORDS_C875 = ("Please keep going with this change. Line 2 should say the "
+              "command has a fixed program version like 1.0, not a fixed "
+              "Python version, and lines 3 and 4 still call the version option "
+              "directly when they should run that command and check its printed "
+              "output. Line 6 is still wrong because the work should touch only "
+              "the version option code and its tests in test_basic, not the "
+              "tests for option flags and default maps.")
+
+
+def test_an_answer_that_faults_the_words_keeps_write_what_he_asked_for(db):
+    """The review of 84a06216, finding 1: the verb "check" made this answer
+    read as a fault of the check, and the door said the criterion stands."""
+    _criterion(db, CR1)
+    _ruling(db, "r_c8757431e3", "m255", "contest", WORDS_C875, CR1)
+    with pytest.raises(ValueError) as refused:
+        _respecify(db, CR1)
+    said = str(refused.value)
+    assert "Write what he asked for" in said
+    assert "The criterion stands" not in said
+
+
+def test_an_empty_surface_on_a_greenfield_index_clears_nothing(db):
+    """The review of 84a06216, finding 3: with no symbols in the index the
+    door vets `[]`, and a same-text call cleared the surface on file."""
+    db.execute("DELETE FROM code_index")
+    db.commit()
+    _on_custom_surface(db, CR1)
+    sb = build("terminologist", db, mode="criterion_repair",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    out = sb.call("criteria.respecify", id=CID, text=CR1, surface_refs=[])
+    assert out.get("unchanged"), out
+    assert not any(w[0] == "criteria" for w in sb.ctx.writes)
+
+
 # --- frame 226, the wake ----------------------------------------------------
 
 def test_the_repair_wake_carries_the_principals_last_word(db):
