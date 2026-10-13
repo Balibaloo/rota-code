@@ -704,6 +704,34 @@ def contested_statement(conn: sqlite3.Connection, sid: str, *,
     return None
 
 
+def last_ruling_on(conn: sqlite3.Connection, ref: str) -> dict | None:
+    """
+    The newest ruling whose per_item names `ref`, or None.
+
+    The dict holds the ruling's id, the verdict on `ref`, the principal's
+    words, and the text `ref` held when he ruled, or None for an older
+    ruling. A stale ruling does not count, as in `contested_statement`. The
+    repair wake and the respecify door read this one function (frame 226).
+    """
+    for r in conn.execute(
+            "SELECT * FROM rulings WHERE status != 'stale' AND per_item LIKE ? "
+            "ORDER BY rowid DESC", (f'%"{ref}"%',)):
+        try:
+            verdict = json.loads(r["per_item"] or "{}").get(ref)
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if verdict is None:
+            continue
+        try:
+            texts = json.loads(r["texts"] or "{}") if "texts" in r.keys() else {}
+        except (TypeError, ValueError):
+            texts = {}
+        text = texts.get(ref) if isinstance(texts, dict) else None
+        return {"id": r["id"], "verdict": verdict, "words": r["words"] or "",
+                "text": text if isinstance(text, str) else None}
+    return None
+
+
 def ratified_request(conn: sqlite3.Connection, *,
                      before_seq: int | None = None) -> dict | None:
     """

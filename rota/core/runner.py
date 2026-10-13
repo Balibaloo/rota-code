@@ -407,6 +407,41 @@ def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
     return system
 
 
+def _last_word_lines(conn, wake: Wake) -> list[str]:
+    """
+    The principal's last ruling on each criterion the repair's question names.
+
+    Night 144's s546 woke on the Tester's question m379. Its prompt held no
+    word of ruling r_c4bf70291d, so it put back the flag he had contested
+    (frame 226). None when no ruling names the criterion.
+    """
+    from ..roles.principal import last_ruling_on
+
+    lines: list[str] = []
+    for mid in wake.refs:
+        row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                           (mid,)).fetchone()
+        try:
+            refs = json.loads(row["body_refs"] or "[]") if row else []
+        except (TypeError, ValueError):
+            refs = []
+        for ref in refs:
+            if not isinstance(ref, str) or not conn.execute(
+                    "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone():
+                continue
+            ruled = last_ruling_on(conn, ref)
+            if ruled is None:
+                continue
+            lines.append(
+                f"\nThe principal's last word on this criterion, {ref} "
+                f"(ruling {ruled['id']}, {ruled['verdict']}):\n"
+                f"{ruled['words']}")
+            if ruled["verdict"] in ("contest", "revise"):
+                lines.append("Write the criterion in the principal's words. "
+                             "Do not send the sentence he contested.")
+    return lines
+
+
 def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                  pushed: dict[str, Any], instructions: str,
                  inbound: dict[str, Any] | None = None,
@@ -466,6 +501,8 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # the tick's own name (a case wake's default detail) and not the
         # word already said above.
         body.append(wake.detail)
+    if wake.kind == "tick:criterion_repair":
+        body.extend(_last_word_lines(sb.ctx.conn, wake))
     if inbound and role == "tester" and wake.detail == "challenge":
         # Frame 110's interview: inside an escaped JSON string the seat read
         # the challenge as a criterion question. Asked in plain words, it

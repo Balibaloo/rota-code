@@ -612,7 +612,12 @@ CREATE TABLE IF NOT EXISTS rulings (
     status      TEXT NOT NULL DEFAULT 'open'
                 CHECK (status IN ('open','landed','stale')),
     verdict_id  TEXT REFERENCES messages(id),
-    version     INTEGER NOT NULL DEFAULT 1
+    version     INTEGER NOT NULL DEFAULT 1,
+    -- The text of each criterion the ruling contests or revises, as it stood
+    -- when the principal ruled: a JSON map of criterion id to text. No other
+    -- record keeps a criterion's old text. Night 144's s546 put back the
+    -- contested flag, and no door could see it (frame 226).
+    texts       TEXT NOT NULL DEFAULT '{}'
 );
 
 -- The principal's answer to the shift question, one row per answer, and the

@@ -4778,6 +4778,24 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     return out
 
 
+# The words of a criterion that name a thing: a quoted span, a flag, or an
+# identifier with an underscore. Plain English words change with every
+# rewording, so only these can show that a contested name came back.
+_QUOTED_SPAN = re.compile(r"`([^`]+)`")
+_NAMED_TOKEN = re.compile(r"(?<![\w-])(--[A-Za-z][\w-]*)|\b([A-Za-z]\w*_\w*)\b")
+
+
+def _named_tokens(text: str) -> set[str]:
+    """The quoted spans, flags and identifiers of `text`, in lower case."""
+    text = text or ""
+    found = {m.group(1).strip().lower() for m in _QUOTED_SPAN.finditer(text)
+             if m.group(1).strip()}
+    # A flag inside a quoted span counts as the same flag outside one.
+    found |= {(m.group(1) or m.group(2)).lower()
+              for m in _NAMED_TOKEN.finditer(text.replace("`", " "))}
+    return found
+
+
 @op("criteria", "respecify")
 def criteria_respecify(ctx: Ctx, id: str, text: str,
                        term_refs: list[str] | None = None,
@@ -4807,6 +4825,31 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # walk twenty-eight respecified three criteria with their own text and
     # left the fourth, which was the one that could not be encoded.
     cur = ctx.conn.execute("SELECT text, ticket_id FROM criteria WHERE id = ?", (id,)).fetchone()
+    from .principal import last_ruling_on
+
+    ruled = last_ruling_on(ctx.conn, id)
+    contested = (ruled if ruled and ruled["verdict"] in ("contest", "revise")
+                 and ruled["text"] is not None else None)
+    # The principal's contested words never come back. Night 144's s546 woke
+    # on the Tester's question with no word of his ruling. It put back
+    # `--show-python`, which he had contested, and the batch never merged
+    # (frame 226).
+    if contested and cur:
+        back = sorted((_named_tokens(contested["text"])
+                       - _named_tokens(cur["text"])) & _named_tokens(text))
+        if back:
+            raise ValueError(
+                f"the principal contested {', '.join(back)} in this criterion. "
+                f"His words: {contested['words']!r}. Write what he asked for, "
+                f"without {', '.join(back)}")
+    # A contested sentence sent back is not a repair. Night 144's s583 and
+    # s591 sent it back, and the note below did not say that the principal
+    # contested it (frame 227).
+    if (contested and cur and _same_words(text, cur["text"])
+            and _same_words(contested["text"], cur["text"])):
+        raise ValueError(
+            f"the principal contested these words: {contested['words']!r}. "
+            f"Write what he asked for")
     if cur and _same_words(text, cur["text"]):
         return {"id": id, "unchanged": True,
                 "note": "those are the criterion's own words; a repair changes "
@@ -7898,11 +7941,20 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             _stage_ledger(ctx, r, table, f"{UNADDRESSED_ANSWER}: {asked}",
                           UNADDRESSED_KIND)
             parked.append(r)
+    # The text the principal ruled on. A criterion keeps no history, so the
+    # repair door reads the contested words from here (frame 226).
+    texts = {}
+    for ref, ruling in per_item.items():
+        if ruling in ("contest", "revise"):
+            row = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
+                                   (ref,)).fetchone()
+            if row is not None:
+                texts[ref] = row["text"]
     rid = new_id("r", ctx.conn)
     ctx.writes.append(("rulings", rid, {
         "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
         "per_item": json.dumps(per_item), "words": (words or "").strip(),
-        "status": "open"}))
+        "status": "open", "texts": json.dumps(texts)}))
     out = {"id": rid, "per_item": per_item}
     if parked:
         out["parked"] = parked

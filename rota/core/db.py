@@ -244,6 +244,11 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # sliced again.
         if not _has_column(conn, "tickets", "item_ver"):
             conn.execute("ALTER TABLE tickets ADD COLUMN item_ver INTEGER")
+        # The same for the contested texts of a ruling (frame 226): an empty
+        # map is every older ruling's truth, since no ruling kept one before.
+        if not _has_column(conn, "rulings", "texts"):
+            conn.execute("ALTER TABLE rulings ADD COLUMN texts TEXT "
+                         "NOT NULL DEFAULT '{}'")
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))
     except BaseException:
