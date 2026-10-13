@@ -4835,8 +4835,13 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # `--show-python`, which he had contested, and the batch never merged
     # (frame 226).
     if contested and cur:
-        back = sorted((_named_tokens(contested["text"])
-                       - _named_tokens(cur["text"])) & _named_tokens(text))
+        # A name that the principal's own words use is one he asked for. The
+        # review of 33cd99b2, finding 1: `version_option` was refused, and
+        # his words ask for a parameter of `version_option`.
+        his = contested["words"].lower()
+        back = sorted(t for t in (_named_tokens(contested["text"])
+                                  - _named_tokens(cur["text"]))
+                      & _named_tokens(text) if t not in his)
         if back:
             raise ValueError(
                 f"the principal contested {', '.join(back)} in this criterion. "
@@ -7943,13 +7948,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             parked.append(r)
     # The text the principal ruled on. A criterion keeps no history, so the
     # repair door reads the contested words from here (frame 226).
-    texts = {}
-    for ref, ruling in per_item.items():
-        if ruling in ("contest", "revise"):
-            row = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
-                                   (ref,)).fetchone()
-            if row is not None:
-                texts[ref] = row["text"]
+    from .principal import contested_texts
+
+    texts = contested_texts(ctx.conn, per_item)
     rid = new_id("r", ctx.conn)
     ctx.writes.append(("rulings", rid, {
         "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,

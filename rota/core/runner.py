@@ -429,16 +429,18 @@ def _last_word_lines(conn, wake: Wake) -> list[str]:
             if not isinstance(ref, str) or not conn.execute(
                     "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone():
                 continue
+            # An approve's words are about other lines of its page. Night
+            # 144's r_373fbae7da approved this criterion and asked about
+            # line 3 (the review of 33cd99b2, finding 4).
             ruled = last_ruling_on(conn, ref)
-            if ruled is None:
+            if ruled is None or ruled["verdict"] not in ("contest", "revise"):
                 continue
             lines.append(
                 f"\nThe principal's last word on this criterion, {ref} "
                 f"(ruling {ruled['id']}, {ruled['verdict']}):\n"
                 f"{ruled['words']}")
-            if ruled["verdict"] in ("contest", "revise"):
-                lines.append("Write the criterion in the principal's words. "
-                             "Do not send the sentence he contested.")
+            lines.append("Write the criterion in the principal's words. "
+                         "Do not send the sentence he contested.")
     return lines
 
 

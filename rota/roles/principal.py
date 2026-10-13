@@ -704,6 +704,25 @@ def contested_statement(conn: sqlite3.Connection, sid: str, *,
     return None
 
 
+def contested_texts(conn: sqlite3.Connection, per_item: dict) -> dict[str, str]:
+    """
+    The current text of each criterion that `per_item` contests or revises.
+
+    A criterion keeps no history, so every writer of a ruling row stores the
+    text the principal ruled on here (frame 226, the review of 33cd99b2,
+    finding 3).
+    """
+    texts: dict[str, str] = {}
+    for ref, ruling in (per_item or {}).items():
+        if ruling not in ("contest", "revise"):
+            continue
+        row = conn.execute("SELECT text FROM criteria WHERE id = ?",
+                           (ref,)).fetchone()
+        if row is not None:
+            texts[ref] = row["text"]
+    return texts
+
+
 def last_ruling_on(conn: sqlite3.Connection, ref: str) -> dict | None:
     """
     The newest ruling whose per_item names `ref`, or None.
@@ -1954,9 +1973,10 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         if on_file is None:
             conn.execute(
                 "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
-                "status, verdict_id) VALUES (?, ?, ?, ?, 'landed', ?)",
+                "status, verdict_id, texts) VALUES (?, ?, ?, ?, 'landed', ?, ?)",
                 (f"r_{msg_id}", ask.message_id, json.dumps(per_item),
-                 (answer.text or "").strip(), msg_id))
+                 (answer.text or "").strip(), msg_id,
+                 json.dumps(contested_texts(conn, per_item))))
     return msg_id
 
 
@@ -2034,9 +2054,10 @@ def _land_shift(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                         (ask.message_id,)).fetchone() is None:
             conn.execute(
                 "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
-                "status, verdict_id) VALUES (?, ?, ?, ?, 'landed', ?)",
+                "status, verdict_id, texts) VALUES (?, ?, ?, ?, 'landed', ?, ?)",
                 (f"r_{msg_id}", ask.message_id,
-                 json.dumps(answer.per_item or {}), said, msg_id))
+                 json.dumps(answer.per_item or {}), said, msg_id,
+                 json.dumps(contested_texts(conn, answer.per_item or {}))))
     return msg_id
 
 

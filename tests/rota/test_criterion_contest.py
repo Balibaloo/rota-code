@@ -119,6 +119,37 @@ def test_a_repair_that_changes_other_words_is_admitted(db):
     assert out["respecified"]
 
 
+def test_a_name_the_principal_asked_for_is_admitted(db):
+    """The review of 33cd99b2, probe p3 case C: the current text dropped
+    `version_option`, and WORDS_374 asks for a parameter of
+    `version_option`. V15 names it again and lands. s546's `--show-python`
+    is not in his words, so it stays refused."""
+    _criterion(db, "The decorator appends the running Python version "
+                   "(major.minor.micro) when the `show_python` parameter is "
+                   "True.")
+    _ruling(db, "r_c4bf70291d", "m374", "contest", WORDS_374, V14)
+    assert _respecify(db, V15)["respecified"]
+    with pytest.raises(ValueError, match="--show-python"):
+        _respecify(db, V16)
+
+
+def test_a_contest_that_land_writes_keeps_the_text_it_contested(db):
+    """The review of 33cd99b2, finding 3: a verdict straight from the seat
+    lands through `land`, whose raw INSERT wrote no texts."""
+    from rota.roles.principal import Answer, Ask, land
+
+    _criterion(db, V14)
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m374', 'm374', 'liaison', "
+               "'principal', 'present', ?, 1, 'open')", (json.dumps([CID]),))
+    db.commit()
+    msg = land(db, Ask(message_id="m374", verb="present", refs=[CID]),
+               Answer(verb="verdict", text=WORDS_374, per_item={CID: "contest"}))
+    assert msg is not None
+    (row,) = db.execute("SELECT texts FROM rulings WHERE ask_id = 'm374'").fetchall()
+    assert json.loads(row["texts"]) == {CID: V14}
+
+
 def test_any_repair_is_admitted_when_no_ruling_contested_the_criterion(db):
     """No ruling names the criterion, so s546's text lands as today."""
     _criterion(db, V15)
@@ -172,8 +203,16 @@ def test_the_repair_wake_carries_the_principals_last_word(db):
     assert "Do not send the sentence he contested." in user
 
 
-def test_a_repair_wake_with_no_ruling_keeps_todays_prompt(db):
+@pytest.mark.parametrize("approve", [False, True], ids=["no ruling", "approve"])
+def test_a_repair_wake_with_no_contest_keeps_todays_prompt(db, approve):
+    """An approve's words are about other lines of its page. Night 144's
+    r_373fbae7da approved the criterion and asked about line 3 (the review
+    of 33cd99b2, finding 4)."""
     _criterion(db, V15)
+    if approve:
+        _ruling(db, "r_373fbae7da", "m439", "approve",
+                "Lines 2 and 4 are right now. I don't follow line 3. What is "
+                "\"custom_version_option\"?", None)
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES ('m379', 'm379', 'tester', "
                "'terminologist', 'question', ?, 2, 'unresolved')",
