@@ -12355,6 +12355,22 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                         best = (p, f, ns, min(ok))
                 return best
 
+            def _end_lost(m):
+                # Night 127 (2026-10-07): s214 took the offered end=352 with
+                # a text of one except clause, and the y/n branch went. So the
+                # offer names what its span removes that the text does not
+                # hold (frame 173). The sentence sits outside `_end_offer`, so
+                # the offer keeps its door identity (the review of 8726a13).
+                lost = _lost_statements(lines, start, m[3], text)
+                if not lost:
+                    return ""
+                # The lines the sentence quotes, for frame 144's fact check.
+                for i, _h in lost:
+                    _fact(ctx, "line_text", lines[i].rstrip()[:60], n=i, path=wpath)
+                return (f" A write to start={start}, end={m[3]} removes "
+                        f"{_lost_sentence(lost)}, and your text does not "
+                        f"hold {'it' if len(lost) == 1 else 'them'}.")
+
             def _end_offer(m):
                 p, f, ns, x = m
                 if p is not None and ns and x == _end(ns[-1]):
@@ -12503,7 +12519,8 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 if start < stop and not isinstance(o_cut, list):
                     m = _moved_start(start, stop) if at_start else _moved_end(start, stop)
                     if m:
-                        parts.append(_start_offer(m) if at_start else _end_offer(m))
+                        parts.append(_start_offer(m) if at_start
+                                     else _end_offer(m) + _end_lost(m))
                     else:
                         w = _whole_parent(stop if at_start else start)
                         if w:
@@ -12611,7 +12628,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                         parts.append(f"Line {i} is '{lines[i].rstrip()[:60]}'.")
                 m = _moved_end(start, stop)
                 if m:
-                    parts.append(_end_offer(m))
+                    parts.append(_end_offer(m) + _end_lost(m))
                 m = _moved_start(start, stop)
                 if m:
                     parts.append(_start_offer(m))
@@ -12642,10 +12659,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         new = text.splitlines() if text.strip() else []
         text = nl.join(lines[:start] + new + lines[stop:]) + nl
         # Frame 95: a text that stops short still parses. The result names
-        # the lines the write drops, and the write lands.
+        # the lines the write drops, and the write lands. Frame 173: the
+        # note also names each statement of the span the text does not hold.
         if path.endswith(".py"):
             try:
-                tail_note = _tail_drop(lines, start, stop, fragment)
+                tail_note = _drop_note(lines, start, stop, fragment)
             except Exception:
                 tail_note = None    # a note never refuses a write
     from ..core import fence as _fence
@@ -12752,7 +12770,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     repair_note = _repair_sentence(joined, crlf)
                     if span:
                         try:
-                            tail_note = _tail_drop(lines, start, stop, fragment)
+                            tail_note = _drop_note(lines, start, stop, fragment)
                         except Exception:                  # noqa: BLE001
                             tail_note = None    # a note never refuses a write
         if fail is not None:
@@ -14836,7 +14854,8 @@ def _whole_drop(old_lines: list[str], text: str) -> str | None:
         return None
 
 
-def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | None:
+def _tail_drop(old_lines: list[str], start: int, stop: int, text: str,
+               gone_out: list[int] | None = None) -> str | None:
     """
     One sentence that names the lines a write drops after the text's last
     terminator, or None.
@@ -14850,6 +14869,9 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | 
     A note and never a refusal, because a rewrite may mean to drop a tail.
     So a shape this walk does not expect returns None: a crash in a note is
     a refusal (ruled: frame 95's coordinator, 2026-09-30).
+
+    `gone_out` gets the dropped line numbers, so `_drop_note` does not name
+    a statement of the tail twice (frame 173).
     """
     import ast as _ast
     fields = ("body", "handlers", "orelse", "finalbody", "cases")
@@ -14976,10 +14998,160 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str) -> str | 
         if not gone:
             return None
         word = "line" if len(gone) == 1 else "lines"
+        if gone_out is not None:
+            gone_out.extend(gone)
         return (f"This write drops {len(gone)} {word} that came after "
                 f"`{head(merged, n)}`, from `{old_lines[gone[0]].strip()}`.")
     except Exception:                                      # noqa: BLE001
         return None
+
+
+def _lost_statements(old_lines: list[str], start: int, stop: int,
+                     text: str) -> list[tuple[int, str]]:
+    """
+    The statements a span write over `start`..`stop` removes that the text
+    does not hold, as (line, head) in code.source numbering.
+
+    Frame 173: night 127's s214, night 144's s552 and night 145's s386 each
+    removed a branch or a body inside the span, and `_tail_drop` reads only
+    the tail after the text's last terminator. This walk reads the whole
+    span. A statement is a compound statement, a clause, or a `return`,
+    `raise`, `yield`, assignment or call. A compound statement whose header
+    the text holds is kept, and its own statements are read in turn.
+
+    The text holds a line when the line has the same syntax tree, or the
+    same characters outside spaces. So a rewrite in a new order, spacing or
+    quoting keeps every statement. A shape this walk does not expect gives
+    an empty list, because a note never refuses a write.
+    """
+    import ast as _ast
+    fields = ("body", "handlers", "orelse", "finalbody", "cases")
+    defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
+    plain = (_ast.Return, _ast.Raise, _ast.Assign, _ast.AugAssign, _ast.AnnAssign)
+    calls = (_ast.Call, _ast.Yield, _ast.YieldFrom, _ast.Await)
+    clauses = (_ast.ExceptHandler, _ast.match_case)
+
+    def key(line):
+        t = line.strip()
+        if t.startswith("elif "):
+            t = t[2:]
+        try:
+            src = t + " pass" if t.endswith(":") else t
+            return _ast.dump(_ast.parse(src))
+        except Exception:                                  # noqa: BLE001
+            return "".join(t.split())
+
+    def lo(n):
+        if isinstance(n, _ast.match_case):
+            k = n.pattern.lineno - 1
+            while k > 0 and not re.match(r"\s*case(?![\w.])", old_lines[k]):
+                k -= 1
+            return k
+        decs = getattr(n, "decorator_list", None) or []
+        return min([n.lineno] + [d.lineno for d in decs]) - 1
+
+    def end(n):
+        if isinstance(n, _ast.match_case):
+            return end(n.body[-1])
+        return n.end_lineno
+
+    def head_at(n):
+        return lo(n) if isinstance(n, _ast.match_case) else n.lineno - 1
+
+    def kids(n):
+        return [x for f in fields for x in getattr(n, f, None) or []
+                if hasattr(x, "lineno") or isinstance(x, _ast.match_case)]
+
+    def targets(n):
+        # The names an assignment binds. A new value for the same name is a
+        # new wording of the statement, not a removed statement.
+        if isinstance(n, _ast.Assign):
+            return {_ast.dump(t) for t in n.targets}
+        if isinstance(n, (_ast.AugAssign, _ast.AnnAssign)):
+            return {_ast.dump(n.target)}
+        return set()
+
+    try:
+        new = text.splitlines()
+        held = {key(x) for x in new if x.strip()}
+        names = set()
+        for x in new:
+            m = re.match(r"\s*(?:async\s+)?(?:def|class)\s+(\w+)", x)
+            if m:
+                names.add(m.group(1))
+        bound = set()
+        import textwrap as _tw
+        try:
+            trees = [_ast.parse(_tw.dedent(text))]
+        except Exception:                                  # noqa: BLE001
+            # An indented fragment, such as an except clause alone, does
+            # not parse whole. Its lines may parse one at a time.
+            trees = []
+            for x in new:
+                try:
+                    trees.append(_ast.parse(x.strip()))
+                except Exception:                          # noqa: BLE001
+                    pass
+        for t in trees:
+            for n in _ast.walk(t):
+                bound |= targets(n)
+        tree = _ast.parse(chr(10).join(old_lines))
+        # The outermost list that holds whole statements of the span.
+        level = tree.body
+        while True:
+            pool = [x for x in level if start <= lo(x) and end(x) <= stop]
+            if pool:
+                break
+            host = [x for x in level if lo(x) <= start and stop <= end(x)]
+            if not host:
+                return []
+            level = kids(host[0])
+        lost = []
+
+        def walk(ns):
+            for s in ns:
+                compound = bool(kids(s)) or isinstance(s, clauses)
+                if not (compound or isinstance(s, plain)
+                        or (isinstance(s, _ast.Expr) and isinstance(s.value, calls))):
+                    continue
+                i = head_at(s)
+                kept = (s.name in names if isinstance(s, defs)
+                        else key(old_lines[i]) in held
+                        or bool(targets(s) and targets(s) <= bound))
+                if kept:
+                    walk(kids(s))
+                else:
+                    lost.append((i, old_lines[i].strip()))
+
+        walk(pool)
+        return lost
+    except Exception:                                      # noqa: BLE001
+        return []
+
+
+def _lost_sentence(lost: list[tuple[int, str]]) -> str:
+    # The head is cut at 60 characters, the cut the span door's own
+    # `Line N is` sentences use.
+    return ", ".join(f"`{h[:60]}` at line {i}" for i, h in lost)
+
+
+def _drop_note(old_lines: list[str], start: int, stop: int, text: str) -> str | None:
+    """
+    The `dropped` note of a span write: the tail note of `_tail_drop`, then
+    each statement the span removes that the text does not hold (frame 173).
+    A statement inside the tail note's lines is not named twice.
+    """
+    gone: list[int] = []
+    tail = _tail_drop(old_lines, start, stop, text, gone_out=gone)
+    lost = [(i, h) for i, h in _lost_statements(old_lines, start, stop, text)
+            if i not in gone]
+    if not lost:
+        return tail
+    # A fact and not an order, as the tail note is: the seat decides.
+    word = "statement" if len(lost) == 1 else "statements"
+    span = (f"This write removes {len(lost)} {word} that your text does not "
+            f"hold: {_lost_sentence(lost)}.")
+    return f"{tail} {span}" if tail else span
 
 
 def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:

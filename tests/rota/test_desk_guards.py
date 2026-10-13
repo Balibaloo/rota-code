@@ -5442,3 +5442,111 @@ def test_the_exhaustion_challenge_over_a_red_test_quotes_the_failing_line(db, qu
     out = sb.call("msg.challenge_vision_keeper", refs=N142_REFS,
                   quotes=[N142_CRIT, quote])
     assert out["verb"] == "challenge"
+
+
+# Frame 173: the span door's offer and the `dropped` note read the seat's
+# text. The fixtures are the files the seats wrote to, from clickI.
+_FIXTURES = __import__("pathlib").Path(__file__).parent / "fixtures"
+
+
+def _night_file(db, tmp_path, rel, fixture):
+    root = tmp_path / "wt"
+    (root / rel).parent.mkdir(parents=True)
+    (root / rel).write_bytes((_FIXTURES / fixture).read_bytes())
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    return sb, root / rel
+
+
+S214_TEXT = ("\n        except (KeyboardInterrupt, EOFError):\n"
+             "            if default_on_eof:\n                return default\n"
+             "            raise Abort() from None\n")
+
+
+def test_s214s_end_offer_names_the_branch_the_offered_span_removes(db, tmp_path):
+    """Night 127 (2026-10-07): s214 turn 2 sent only an except clause for
+    lines 342 to the end. The door offered end=352, the seat sent it, and the
+    y/n branch of confirm() went with no note."""
+    sb, target = _night_file(db, tmp_path, "src/click/termui.py",
+                             "night127_termui_6330805a.txt")
+    with pytest.raises(ValueError) as err:
+        sb.call("code.write", path="src/click/termui.py", start=342, end=-1,
+                text=S214_TEXT)
+    msg = str(err.value)
+    assert "To stop where while ends send end=352." in msg
+    assert ("A write to start=342, end=352 removes "
+            "`if value in (\"y\", \"yes\"):` at line 342") in msg
+    out = sb.call("code.write", path="src/click/termui.py", start=342, end=352,
+                  text=S214_TEXT)
+    assert "`if value in (\"y\", \"yes\"):` at line 342" in out["dropped"]
+    assert "if value in" not in target.read_text()
+
+
+S386_TEXT = (
+    "from .core import Click\nimport sys\n\ndef version_option(show_python=False):\n"
+    "    def decorator(f):\n        def wrapper(*args, **kwargs):\n"
+    "            ctx = kwargs.get('ctx')\n            if ctx and show_python:\n"
+    "                version_msg = f\"Python {sys.version_info.major}."
+    "{sys.version_info.minor}.{sys.version_info.micro}\"\n"
+    "                return f\"{version_msg}\\n{f(*args, **kwargs)}\"\n"
+    "            return f(*args, **kwargs)\n        wrapper.__name__ = f.__name__\n"
+    "        return wrapper\n    return decorator\n\n@click.command()\n"
+    "@version_option(show_python=True)\ndef cli():\n    return \"Hello World\"\n\n"
+    "if __name__ == '__main__':\n    cli()\n")
+
+
+def test_s386s_span_over_version_option_names_the_body_it_removes(db, tmp_path):
+    """Night 145 (2026-10-13): s386 wrote lines 421 to 568, the span the
+    full-file door offered, and a 14-line wrapper replaced the whole body of
+    version_option with no note. 37 of 37 tests went red."""
+    sb, _ = _night_file(db, tmp_path, "src/click/decorators.py",
+                        "night145_decorators_9375672e.txt")
+    out = sb.call("code.write", path="src/click/decorators.py", start=421,
+                  end=568, text=S386_TEXT)
+    assert "`return option(*param_decls, **kwargs)` at line 567" in out["dropped"]
+    assert "`kwargs[\"callback\"] = callback` at line 566" in out["dropped"]
+
+
+S552_TEXT = ("    if not param_decls:\n        param_decls = (\"--version\",)\n"
+             "    elif show_python and \"--show-python\" not in param_decls:\n"
+             "        param_decls += (\"--show-python\",)")
+
+
+def test_s552s_span_names_the_return_and_the_setdefault_lines(db, tmp_path):
+    """Night 144 (2026-10-13): s552 wrote lines 554 to 564 and removed four
+    kwargs.setdefault lines, the callback binding and the return of
+    version_option at 4df3ef63, with no note."""
+    sb, _ = _night_file(db, tmp_path, "src/click/decorators.py",
+                        "night144_decorators_f484f63d.txt")
+    out = sb.call("code.write", path="src/click/decorators.py", start=554,
+                  end=564, text=S552_TEXT)
+    note = out["dropped"]
+    assert "`return option(*param_decls, **kwargs)` at line 563" in note
+    assert "`kwargs.setdefault(\"is_flag\", True)` at line 558" in note
+    assert "`kwargs[\"callback\"] = callback` at line 562" in note
+    # The text holds the `if not param_decls:` branch, so the note keeps it out.
+    assert "if not param_decls" not in note
+
+
+def test_a_span_rewrite_that_keeps_every_statement_has_no_dropped_note(db, tmp_path):
+    """Frame 173: a true rewrite lands with no note. The text holds every
+    statement of the span in a new order, spacing and quoting, and binds
+    `a` to a new value."""
+    root = tmp_path / "wt"; root.mkdir()
+    old = _lines("def f(x):", "    a = 1", "    b = \"two\"", "    g(a, b)",
+                 "    if x:", "        return a", "    return b")
+    (root / "m.py").write_text(chr(10).join(old) + chr(10))
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    text = _lines("    b = 'two'", "    a=3", "    if x :", "        return  a",
+                  "    g(a,b)", "    return b")
+    out = sb.call("code.write", path="m.py", start=1, end=7,
+                  text=chr(10).join(text) + chr(10))
+    assert "dropped" not in out
+    assert "b = 'two'" in (root / "m.py").read_text()
