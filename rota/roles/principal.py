@@ -1733,6 +1733,8 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # alive, and the item's approve then set a draft item approved off the
     # sign-off page (the diff review of 2dace61b, finding 4).
     per_item = dict(answer.per_item or {})
+    # The answer as given names the item, whatever a filter or a resume drops.
+    ruled = set(answer.per_item or {})
     if ask.verb == "present" and answer.verb == "verdict":
         batches = {r["id"]: (not r["head_commit"]
                              and r["status"] not in ("merged", "abandoned"))
@@ -1794,7 +1796,6 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                 _write_park(conn, item, "resume", "shift", msg_id, seq_now)
             per_item.pop(ref)
     closed_here: list[str] = []
-    ruled = set(per_item)
     for ref, ruling in list(per_item.items()):
         if ruling not in ("approve", "contest", "revise"):
             continue

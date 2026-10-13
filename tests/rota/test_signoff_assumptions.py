@@ -269,6 +269,25 @@ def test_a_scope_note_s_contest_stays_on_the_note(db):
     assert dec is not None and dec["text"].startswith("overruled at signoff")
 
 
+def test_a_scope_note_s_contest_on_a_batch_page_leaves_the_approved_item_alone(db):
+    """
+    The batch filter drops an item's approve before the fold. The review of
+    df474208 found that the scope note's contest then contested the item.
+    """
+    _a_decided_item_with_a_note(db, "scope")
+    db.execute("INSERT INTO batches (id, item_id, status) "
+               "VALUES ('b1','echo_json','running')")
+    db.commit()
+    ask = _a_present_of(db, ["b1", "echo_json", "L9"])
+    mid = land(db, ask, Answer(verb="verdict",
+                               per_item={"echo_json": "approve", "L9": "contest"},
+                               text="the note is wrong"))
+    db.commit()
+    assert verdict_for(db, mid).get("echo_json") != "contest"
+    assert db.execute("SELECT approval FROM items WHERE id = 'echo_json'"
+                      ).fetchone()["approval"] != "contested"
+
+
 def test_a_default_s_contest_reaches_its_item_the_ruling_does_not_name(db):
     """A1 (2026-09-03) holds: a contested default contests its item."""
     _a_decided_item_with_a_note(db, "default")
