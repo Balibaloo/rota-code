@@ -178,9 +178,9 @@ _CALL = ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<the error, "
          "the test, the line, and the call that takes the argument>\") with "
          "the same "
          "quotes.")
-_SAID = ("reason= names the error the test got and the line of the test "
-         "that raises it. It is the one part of a challenge the Tester "
-         "cannot read in the test.")
+_SAID = ("reason= names the test by its id, the error it got and the line "
+         "of the test that raises it. It is the one part of a challenge "
+         "the Tester cannot read in the test.")
 
 
 def test_the_tool_line_shows_the_reason_slot_and_not_none(db):
