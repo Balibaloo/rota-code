@@ -1727,12 +1727,33 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # relay m101 to m129 had the report as its cause, none carried a verdict,
     # and the Terminologist's `glossary.adopt` was refused for three sessions
     # in a row.
-    if row["verb"] == "relay" and not ruling and row["cause_id"]:
+    #
+    # The Terminologist's answer to the Tester walks the same chain. The
+    # principal's words about a check ruled a criterion, the Terminologist
+    # repaired it and answered with refs alone, and the Tester rewrote the
+    # test from the criterion text in all 6 such wakes of night 145
+    # (frame 213, route A). The ruling says the Tester rewrites the test
+    # from the ruled words (ruled: Roman, 2026-10-08, the park ask is a page
+    # with rows, point 2). No new edge: law 2 holds, the words arrive as
+    # `principal_said` through the ruling's own chain.
+    answered = (row["verb"] == "answer" and row["from_role"] == "terminologist"
+                and wake.role == "tester")
+    if (row["verb"] == "relay" or answered) and not ruling and row["cause_id"]:
         from ..roles.principal import chain_verdict
 
         found = chain_verdict(conn, row["cause_id"])
         carried = found[1] if found else {}
         mine = {r: v for r, v in carried.items() if r in out["refs"]}
+        # A ruling on a test row is a ruling on its criterion, and the relay
+        # split sends it as one (frame 213, route B). The principal never
+        # rules on a test (ruled: Roman, 2026-10-08, point 2).
+        for r, v in carried.items():
+            if v not in ("contest", "revise"):
+                continue
+            test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
+                                (r,)).fetchone()
+            if test and test["criterion_id"] in out["refs"]:
+                mine[test["criterion_id"]] = v
         if mine:
             out["principal_verdict"] = mine
             reason = entry_for(conn, found[0])

@@ -5367,3 +5367,78 @@ def test_a_crash_in_a_dry_run_names_no_call_and_is_logged(db, tmp_path, monkeypa
     assert "send" not in msg
     assert "code.write dry run crashed on m.py start=1 end=1" in caplog.text
     assert "a door crashed" in caplog.text
+
+
+# Frame 213, pass 1, fix 5: a challenge over a red test quotes the failing
+# line. Night 142, walk 1: the Architect's challenge m83 quoted the
+# `expected` line of inh_echo_04 and left out the `.strip()` line, and the
+# Vision Keeper s185 then wrote a false decision from it. The rows are
+# rebuilt from `plans/night142-walk1-read.md`, section 1.
+N142_CRIT = ("The callable `echo_json` serialises the object with the standard "
+             "library `json` module.")
+N142_LINES = [
+    "import io",
+    "import json as stdlib_json",
+    "from click.utils import echo_json",
+    "",
+    "def test_echo_json_uses_stdlib():",
+    "    obj = {\"a\": 1}",
+    "    captured = io.StringIO()",
+    "    echo_json(obj, file=captured)",
+    "    expected = stdlib_json.dumps(obj, separators=(\",\", \":\")) + \"\\n\"",
+    "    output = captured.getvalue().strip()",
+    "    assert output == expected",
+]
+N142_TEST = "\n".join(N142_LINES) + "\n"
+# The run of attempt 12 at 1cda5cb7, in pytest's own shape.
+N142_RUN = ("F    [100%]\n=== FAILURES ===\n___ test_echo_json_uses_stdlib ___\n\n"
+            "    def test_echo_json_uses_stdlib():\n"
+            "        obj = {\"a\": 1}\n"
+            ">       assert output == expected\n"
+            "E       AssertionError: assert '{\"a\":1}' == '{\"a\":1}\\n'\n\n"
+            "=== short test summary info ===\n"
+            "FAILED tests/test_utils/test_echo_json_uses_stdlib.py::"
+            "test_echo_json_uses_stdlib - AssertionError\n1 failed in 0.05s\n")
+# m83's quote: a line of the test that asserts nothing.
+N142_QUOTE = N142_LINES[8].strip()
+N142_REFS = ["echo_json_uses_stdlib", "inh_echo_04"]
+
+
+def _n142(db):
+    _night_rows(db, "bg_142", "tk_142", [(
+        "echo_json_uses_stdlib", N142_CRIT, "inh_echo_04",
+        "tests/test_utils/test_echo_json_uses_stdlib.py", N142_TEST, 4)])
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+               "output, attempt) VALUES ('tr_142', 'bg_142', 'inh_echo_04', "
+               "'1cda5cb7', 'fail', ?, 12)", (N142_RUN,))
+    db.commit()
+
+
+def test_a_challenge_to_the_tester_over_a_red_test_quotes_the_failing_line(db):
+    """The Developer's channel holds the same door: the test side of the
+    quote is the line the run names."""
+    _n142(db)
+    sb = _developer(db, "bg_142")
+    with pytest.raises(ValueError, match="assert output == expected"):
+        sb.call("msg.challenge_tester", reason=REASON, refs=N142_REFS,
+                quotes=[N142_CRIT, N142_QUOTE])
+    out = sb.call("msg.challenge_tester", reason=REASON, refs=N142_REFS,
+                  quotes=[N142_CRIT, "assert output == expected"])
+    assert out["verb"] == "challenge"
+
+
+@pytest.mark.parametrize("quote", ["assert output == expected",
+                                   "AssertionError: assert '{\"a\":1}' == '{\"a\":1}\\n'"])
+def test_the_exhaustion_challenge_over_a_red_test_quotes_the_failing_line(db, quote):
+    """Night 142, m83: the Architect's exhausted challenge quoted the
+    `expected` line, and the door took it."""
+    from rota.roles import prompts
+
+    _n142(db)
+    sb = build("architect", db, batch_id="bg_142", mode="exhausted",
+               allow=prompts.mode_tools("architect", "exhausted"))
+    with pytest.raises(ValueError, match="assert output == expected"):
+        sb.call("msg.challenge_vision_keeper", refs=N142_REFS, quotes=[N142_QUOTE])
+    out = sb.call("msg.challenge_vision_keeper", refs=N142_REFS,
+                  quotes=[N142_CRIT, quote])
+    assert out["verb"] == "challenge"

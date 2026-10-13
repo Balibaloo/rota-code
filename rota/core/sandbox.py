@@ -1113,6 +1113,44 @@ def _rowless_answer_refusal(ctx: api.Ctx, refs) -> str | None:
             "msg.answer_developer with the decision's id in refs.")
 
 
+def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
+    """The refusal of a challenge whose quote misses the line a red test
+    fails at, or None when the quote holds that line or no run names one.
+
+    The failing line is the run's `>` line when it asserts, else the test's
+    first `assert` line. The run's first `E` line counts as the same line.
+    Night 142's m83 quoted the `expected` line of inh_echo_04 and left out
+    the `.strip()` that made it red. The Vision Keeper s185 then wrote a
+    false decision from the quote (frame 213).
+    """
+    for ref in refs or []:
+        if not isinstance(ref, str):
+            continue
+        test = ctx.conn.execute("SELECT body FROM tests WHERE id = ?", (ref,)).fetchone()
+        run = ctx.conn.execute(
+            "SELECT result, output FROM test_runs WHERE test_id = ? "
+            "ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone() if test else None
+        if not run or run["result"] not in ("fail", "error"):
+            continue
+        out = (run["output"] or "").splitlines()
+        marked = next((ln[1:].strip() for ln in out
+                       if ln.startswith(">") and ln[1:].strip().startswith("assert")), None)
+        first = next((ln.strip() for ln in _code_only(test["body"] or "").splitlines()
+                      if ln.strip().startswith("assert")), None)
+        line = marked or first
+        said = next((ln[1:].strip() for ln in out
+                     if re.match(r"E\s{2,}\S", ln)), None)
+        if not line and not said:
+            continue
+        if any(_quotes_span(s, text) for s in (line, said) if s):
+            continue
+        named = " or ".join(f"`{s}`" for s in (line, said) if s)
+        return (f"{ref} is red, and its run names the line it fails at: {named}. "
+                f"quotes= copies that line verbatim, because a quote of "
+                f"another line of the test names the wrong conflict")
+    return None
+
+
 def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
                         reason=None) -> None:
     """
@@ -2965,6 +3003,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 # class tells the runner that this refusal ends the session.
                 raise (api.EndRefusal if isinstance(said, _Ending)
                        else ValueError)(said)
+        # After the same-refs door, so a repeat still meets the refusal
+        # that ends the session (frame 165's end form).
+        if verb == "challenge":
+            red = _red_line_refusal(ctx, refs, text or "")
+            if red:
+                raise ValueError(red)
         if verb == "question" and refs:
             # A question answered twice on the same rows is not a third
             # question. tipsAB (2026-09-09): the Tester asked the
@@ -3551,7 +3595,23 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "AND b.status NOT IN ('merged', 'abandoned') "
                     "AND b.head_commit IS NOT NULL AND b.head_commit != ''",
                     (r,)).fetchone()]
-                if not built:
+                # The rows say whether a test exists, so the door reads them
+                # first. A test of an abandoned or deferred batch is one the
+                # Tester rewrites. Night 142's walk 1 heard "has written no
+                # test of it" over such a test, four times (frame 213).
+                written = [] if built else [t for r in (refs or []) for t in ctx.conn.execute(
+                    "SELECT t.id, t.criterion_id, t.batch_id, b.status FROM tests t "
+                    "LEFT JOIN batches b ON b.id = t.batch_id WHERE t.criterion_id = ? "
+                    "ORDER BY t.id", (r,))]
+                stopped = [t for t in written if t["status"] in ("abandoned", "deferred")]
+                if written and not stopped:
+                    t = written[0]
+                    raise ValueError(
+                        f"{t['id']} is the test of {t['criterion_id']}, and its "
+                        f"batch {t['batch_id']} is {t['status'] or 'gone'}. The "
+                        f"Tester rewrites a test when its change has a commit or "
+                        f"has stopped. Your work here is done")
+                if not built and not written:
                     raise ValueError(
                         "no change built from this criterion has a commit yet, so "
                         "the Tester has written no test of it. The Tester reads the "
@@ -3617,6 +3677,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
 
             lines = set(park_verdict_criteria(ctx.conn, ctx.trigger))
             for ref in refs:
+                # A test row of a ruling travels as its criterion, to the
+                # criterion's writer. The principal never rules on a test
+                # (ruled: Roman, 2026-10-08, the park ask is a page with
+                # rows, point 2). A relay straight to the Tester is a new
+                # edge in the graph, which Roman has not ruled. Night 144's
+                # m402 took the revise of a test row to the Vision Keeper
+                # (frame 213, route B).
+                test = ctx.conn.execute(
+                    "SELECT criterion_id FROM tests WHERE id = ?", (ref,)).fetchone()
+                if test and test["criterion_id"]:
+                    split.setdefault("terminologist" + CRITERIA_RELAY, []).append(
+                        test["criterion_id"])
+                    continue
                 if ref in lines:
                     owner = "terminologist" + CRITERIA_RELAY
                 elif ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
@@ -3628,6 +3701,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 else:
                     owner = _owner_of_ref(ctx.conn, ref) or recipient
                 split.setdefault(owner, []).append(ref)
+            # A criterion and its ruled test name one row twice.
+            split = {o: list(dict.fromkeys(r)) for o, r in split.items()}
             already = {m["to_role"] for m in ctx.outbound if m["verb"] == "relay"}
             split = {o: r for o, r in split.items()
                      if o.split(":", 1)[0] not in already}
@@ -3933,7 +4008,7 @@ def stage_park_relay(ctx: api.Ctx) -> None:
     # finding 1; ruled: Roman, 2026-10-08, the park ask is a page with rows,
     # point 2).
     from .runner import new_id
-    from .scheduler import park_verdict_criteria
+    from .scheduler import park_verdict_criteria, verdict_rows
 
     if getattr(ctx, "role", None) != "liaison" or not getattr(ctx, "trigger", None):
         return
@@ -3956,7 +4031,14 @@ def stage_park_relay(ctx: api.Ctx) -> None:
         # approved criterion never enters it (the diff review of 0baacf55,
         # finding 2), and nor does any other ref (the delta review of
         # 4ef3bd9f, finding 2).
-        crit[0]["body_refs"] = list(contested)
+        # A ruled test row travels as its criterion (frame 213, route B), so
+        # that criterion stays beside the contested lines.
+        tested = [r["criterion_id"] for r in ctx.conn.execute(
+            "SELECT criterion_id FROM tests WHERE criterion_id IS NOT NULL AND id IN "
+            "(SELECT value FROM json_each(?))",
+            (json.dumps(verdict_rows(ctx.conn, ctx.trigger) or []),))]
+        crit[0]["body_refs"] = list(dict.fromkeys(
+            list(contested) + [r for r in tested if r in crit[0]["body_refs"]]))
         for m in crit[1:]:
             ctx.outbound.remove(m)
         return

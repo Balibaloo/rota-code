@@ -1120,9 +1120,15 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
         for r in group_must:
             order.append(r)
             out.append(f"  {len(order)}. {crit[r][0]}")
+            # A test of an abandoned batch checks nothing that will ship, so
+            # it is no check line, except on a page about that batch. Night
+            # 142's pages m109 to m191 showed such a test as the check, and
+            # no seat could change it (frame 213).
             mine = [t["id"] for t in conn.execute(
-                "SELECT id FROM tests WHERE criterion_id = ? "
-                + ("AND batch_id = ? " if batch else "") + "ORDER BY id",
+                "SELECT t.id FROM tests t LEFT JOIN batches b ON b.id = t.batch_id "
+                "WHERE t.criterion_id = ? "
+                + ("AND t.batch_id = ? " if batch else
+                   "AND COALESCE(b.status, '') != 'abandoned' ") + "ORDER BY t.id",
                 (r, batch) if batch else (r,))]
             for t in mine:
                 out.append(f"     check: {check_line(conn, t)}")

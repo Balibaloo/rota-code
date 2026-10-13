@@ -1462,6 +1462,141 @@ def test_a_repaired_criterion_reaches_the_tester_only_after_a_commit(m399):
 
 
 # ---------------------------------------------------------------------------
+# Frame 213, pass 1: the principal's words about a test reach the Tester
+# (`plans/frame213-scope.md`, sections 1 to 3). The rows copy night 144's
+# m399 page and night 145's m141 page.
+# ---------------------------------------------------------------------------
+
+C1_VO = "c1_version_option_show_python"
+TST_VO = "tst_ver_opt_show_py_01"
+TST_VO_BODY = ("from click.decorators import version_option\n\n"
+               "def test_ver_opt_show_py_01():\n"
+               "    result = version_option(show_python=True)\n"
+               "    assert result is not None\n")
+# Night 145's m142, the principal's words on the m141 page.
+M142_WORDS = ("I want this fixed, not dropped. Line 3's check only shows the option "
+              "exists, so it should run the version option with the flag on and check "
+              "that the message ends with the Python version written as "
+              "major.minor.micro.")
+# Night 144's m400, the principal's words on the m399 clarify.
+M400_WORDS = ("Change the test so it calls the normal version flag, because show_python "
+              "is a setting the developer passes to the decorator and not a new flag "
+              "that users type.")
+
+
+def _vo_test(db, batch: str, status: str, head: str | None) -> None:
+    """One batch of the version option request with its one test of c1."""
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES (?, ?, ?, ?)",
+               (batch, ITEM_VO, status, head))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES (?, "
+               "'tk_1_version_option_show_python')", (batch,))
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body, version) "
+               "VALUES (?, ?, ?, 'tests/test_ver_opt_show_py_01.py', ?, 1)",
+               (TST_VO, batch, C1_VO, TST_VO_BODY))
+
+
+def _criterion_relay(db, words: str) -> None:
+    """Night 145's route A: the m141 page, the verdict m143 that contests c1
+    with the principal's words, and the Liaison's relay m144."""
+    _message(db, "m141", "liaison", "principal", "present", [ITEM_VO, C1_VO])
+    _message(db, "m143", "principal", "liaison", "verdict", [C1_VO], cause="m141")
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m143', ?)",
+               (json.dumps({C1_VO: "contest"}),))
+    n = db.execute("SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM entries").fetchone()["n"]
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m143', 'principal', ?, ?)", (words, n))
+    _message(db, "m144", "liaison", "terminologist", "relay", [C1_VO], cause="m143",
+             status="open")
+
+
+def test_the_testers_wake_on_a_repaired_criterion_carries_the_principals_words(m399):
+    """Route A, night 145: s272 respecified the criteria and answered the
+    Tester with refs alone (m145). The Tester s273 woke with no
+    `principal_said` and rewrote the test from the criterion text."""
+    from rota.core.runner import resolve_inbound
+    from rota.core.scheduler import Wake
+
+    _vo_test(m399, "bg_3", "deferred", "aa28d1d")
+    _criterion_relay(m399, M142_WORDS)
+    sb = _sandbox(m399, "terminologist", "criterion_repair", "m144")
+    assert sb.call("msg.answer_tester", refs=[C1_VO])["to"] == "tester"
+    _message(m399, "m145", "terminologist", "tester", "answer", [C1_VO], cause="m144",
+             status="open")
+    m399.commit()
+    inbound = resolve_inbound(m399, Wake("tester", "message", refs=(), detail="answer",
+                                         message_id="m145"))
+    assert inbound.get("principal_said") == M142_WORDS
+    assert inbound.get("principal_verdict") == {C1_VO: "contest"}
+    # The Tester's brief says whose words they are.
+    from pathlib import Path
+
+    import rota.roles
+
+    brief = Path(rota.roles.__file__).parent / "prompts" / "tester" / "answer.md"
+    assert "principal_said" in brief.read_text(encoding="utf-8")
+
+
+def test_a_revise_of_a_test_row_travels_to_the_criterions_writer(m399):
+    """Route B, night 144's m400: the principal revised the test row of a
+    clarify. The relay split knew no owner of a `tests` row, so s577's relay
+    went to the Vision Keeper, and no Tester woke."""
+    _vo_test(m399, "bg_4", "running", "aa28d1d")
+    _message(m399, "m399", "liaison", "principal", "clarify", [C1_VO, TST_VO])
+    _message(m399, "m400", "principal", "liaison", "converse", [], cause="m399",
+             status="open")
+    m399.commit()
+    sb = _sandbox(m399, "liaison", "answering", "m400")
+    sb.call("rulings.rule", rulings={C1_VO: "approve", TST_VO: "revise"},
+            words=M400_WORDS)
+    sb.call("msg.relay_vision_keeper", refs=[TST_VO])
+    routed = {m["to_role"]: m["body_refs"] for m in sb.ctx.outbound}
+    assert routed == {"terminologist": [C1_VO]}
+
+
+@pytest.mark.parametrize("status", ["abandoned", "deferred"])
+def test_a_criterion_whose_test_waits_on_a_stopped_batch_reaches_the_tester(m399, status):
+    """Night 142, walk 1: the test of `uses_stdlib` sat in the abandoned
+    batch, and the refusal said the Tester had written no test of it
+    (s210, s218, s238, s274)."""
+    _vo_test(m399, "bg_3", status, None)
+    _criterion_relay(m399, M142_WORDS)
+    m399.commit()
+    sb = _sandbox(m399, "terminologist", "criterion_repair", "m144")
+    assert sb.call("msg.answer_tester", refs=[C1_VO])["to"] == "tester"
+
+
+def test_a_refusal_over_a_written_test_names_the_test_and_its_batch(m399):
+    """The refusal reads `tests` first. A test of a merged batch exists, so
+    the sentence names it and never says that no test was written."""
+    _vo_test(m399, "bg_1", "merged", "aa28d1d")
+    _criterion_relay(m399, M142_WORDS)
+    m399.commit()
+    sb = _sandbox(m399, "terminologist", "criterion_repair", "m144")
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.answer_tester", refs=[C1_VO])
+    assert TST_VO in str(refused.value) and "merged" in str(refused.value)
+    assert "has written no test" not in str(refused.value)
+
+
+def test_a_test_of_an_abandoned_batch_is_no_check_line(m399):
+    """Night 142, walk 1: the pages m109, m128, m159 and m191 showed the
+    test of the abandoned batch as the criterion's check. A page about that
+    batch still shows the test."""
+    from rota.roles.principal import check_line, request_block
+
+    _vo_test(m399, "bg_3", "abandoned", "aa28d1d")
+    m399.commit()
+    line = f"     check: {check_line(m399, TST_VO)}"
+    out: list[str] = []
+    request_block(m399, [ITEM_VO, C1_VO], [], out)
+    assert line not in out
+    assert "     check: none yet." in out
+    out = []
+    request_block(m399, [ITEM_VO, C1_VO], [], out, batch="bg_3")
+    assert line in out
+
+
+# ---------------------------------------------------------------------------
 # Pass 3, night 136 after s514: the next page (frame 190's design, 2.4 and
 # 2.F, amendment 3).
 # ---------------------------------------------------------------------------
