@@ -5529,11 +5529,13 @@ def test_s386s_span_over_version_option_names_the_body_it_removes(db, tmp_path):
     note = out["dropped"]
     assert note.startswith("This write removes 10 statements")
     assert "`if message is None:` at line 487" in note
-    # The review of 319c7f19, P3: the first eight by line are named, and
-    # the rest are counted. The callback binding and the return are 9 and 10.
-    assert "`kwargs.setdefault(\"help\", _(\"Show the version and exit.\"))` at line 565" in note
-    assert note.endswith(" and 2 more.")
-    assert "at line 566" not in note and "at line 567" not in note
+    # The review of 319c7f19, P3: eight are named, and the rest are counted.
+    # Pass 1d: the `return` the night broke on is named first, then seven
+    # by line, so the lines 565 and 566 are counted.
+    assert note.endswith(
+        "`kwargs.setdefault(\"is_eager\", True)` at line 564, "
+        "`return option(*param_decls, **kwargs)` at line 567 and 2 more.")
+    assert "at line 565" not in note and "at line 566" not in note
 
 
 def test_a_nested_assignment_in_the_text_does_not_hold_a_removed_one(db, tmp_path):

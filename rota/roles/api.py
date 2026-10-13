@@ -12365,8 +12365,8 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 if not lost:
                     return ""
                 # The lines the sentence quotes, for frame 144's fact check.
-                # The sentence names the first eight by line, and no more.
-                for i, _h in sorted(lost)[:_LOST_NAMED]:
+                # The facts cover the eight lines the sentence names, no more.
+                for i, _h in _lost_named(lost):
                     _fact(ctx, "line_text", lines[i].rstrip()[:60], n=i, path=wpath)
                 return (f" A write to start={start}, end={m[3]} removes "
                         f"{_lost_sentence(lost)}, and your text does not "
@@ -15151,13 +15151,22 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
 _LOST_NAMED = 8
 
 
+def _lost_named(lost: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    # The review of 319c7f19, P3: 150 removed statements gave a
+    # 4085-character note, so eight are named and the rest are counted.
+    # Pass 1d (ruled: the coordinator, 2026-10-13): the `return` and
+    # `raise` lines come first, because s386's lost `return` broke 37
+    # tests. Then the cap fills by line. The sentence reads by line.
+    def last(h):
+        return not re.match(r"(return|raise)\b", h)
+    first = sorted(lost, key=lambda x: (last(x[1]), x[0]))[:_LOST_NAMED]
+    return sorted(first)
+
+
 def _lost_sentence(lost: list[tuple[int, str]]) -> str:
     # The head is cut at 60 characters, the cut the span door's own
-    # `Line N is` sentences use. The review of 319c7f19, P3: 150 removed
-    # statements gave a 4085-character note, so the first eight by line
-    # are named and the rest are counted.
-    first = sorted(lost)[:_LOST_NAMED]
-    out = ", ".join(f"`{h[:60]}` at line {i}" for i, h in first)
+    # `Line N is` sentences use.
+    out = ", ".join(f"`{h[:60]}` at line {i}" for i, h in _lost_named(lost))
     if len(lost) > _LOST_NAMED:
         out += f" and {len(lost) - _LOST_NAMED} more"
     return out
