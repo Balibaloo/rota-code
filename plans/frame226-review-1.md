@@ -61,3 +61,36 @@ All probes are in C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/fb74282
 ## (d) Usage
 
 The reviewer has no harness count. The estimate is about 60k input tokens, 9k output tokens, 69k total. Read the harness line for the true count.
+
+## Second look at 81ce21b7
+
+Reviewer: a read-only agent on Opus, worktree C:/Users/roman/rota_rv226b at 81ce21b7, 2026-10-13. Workflow: the rota workflow, frames 226 and 227, pass 1b.
+
+### (a) Verdicts
+
+1. The high is closed. Probe p3 at 81ce21b7 admits case C (`version_option` in his words) and refuses s546's `--show-python`.
+2. Holds. `land` and `_land_shift` call `contested_texts`, and `rulings_rule` calls it. The stored form is the same JSON dict on all three paths.
+3. Holds. An approve no longer adds the block. A contest or a revise adds the same two lines as at the parent. `build_prompt` calls the block only on `tick:criterion_repair`.
+4. Holds for the commit. 81ce21b7 alone touches the four files. The three new tests fail on the parent source and pass at the commit. The diff holds no CR byte.
+
+### (b) Findings
+
+1. rota/roles/api.py:4841-4844, low, CONFIRMED. The new filter `t not in his` is a substring test. A contested `--show` is admitted again when his words name `--show-python`. Probe p8 printed `back= []`. Fix: match a token against `_named_tokens(contested["words"])`, or on word bounds.
+2. rota/roles/principal.py:2060, low, CONFIRMED. `_land_shift` rules park, now and drop on items, never contest or revise. Its new `texts` is always `{}`. Probe p7 stored `'{}'` for r_m445. The call is harmless. Fix: none needed, or drop the call and write `'{}'`.
+3. Range note, low, CONFIRMED. The range 0302650d..81ce21b7 holds nine commits. Eight are plans commits, and 0af8c129 edits tests/rota/cases/l1_answers.yaml for frame 204. The "four files" holds for 81ce21b7 against 81ce21b7^ only. Fix: name the parent as 81ce21b7^ in the next brief.
+
+Outside the points: none. The approve-after-contest case is consistent. The wake and `criteria_respecify` both read the newest ruling through `last_ruling_on`, so an approve hides an older contest in both places.
+
+### (c) Probes
+
+All probes are under C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/fb742825-a1dc-4485-a872-f0c34a3f30b0/scratchpad/rv226.
+
+- p3.py: re-run at 81ce21b7 with PYTHONPATH set to the worktree. A, B and B2 refuse. C admits. D admits as unchanged. E and F refuse.
+- p7.py: copies n144copy.db to n144p7.db. It runs `land` with a contest on `ver_opt_show_py` and `_land_shift` with a drop on `cj_serializable_revised`. Row r_m444 stores the criterion text. The text equals what `contested_texts` returns, which is the `rulings_rule` helper. Row r_m445 stores `{}`. The `rulings_rule` path is shown by the test `test_a_contest_of_a_criterion_line_keeps_the_text_it_contested` on night 132's fixture, which passes.
+- par/: `git archive` of rota at 0302650d plus tests at 81ce21b7. pytest on test_criterion_contest.py: 3 failed, 8 passed. The three failures are the three new tests. At 81ce21b7: 11 passed.
+- p8 (inline `python -c`): the substring test on `--show` against words that name `--show-python`.
+- CR count: `git diff 0302650d 81ce21b7 | grep -c` on the CR byte printed 0.
+
+### (d) Usage
+
+Input tokens: about 21k. Output tokens: about 4k. Total: about 25k. The harness line is the authority.
