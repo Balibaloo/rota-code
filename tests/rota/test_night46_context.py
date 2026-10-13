@@ -684,6 +684,18 @@ def test_the_cycle_door_names_the_module_that_defines_the_name_or_says_none_does
     msg = str(ex.value)
     assert "Import Command from core, `from .core import Command`" in msg, msg
     assert "utils" not in msg, "an import of the name is not its definition"
+    # Frame 229's review, low 2: the file under write defines command itself.
+    with pytest.raises(ValueError) as ex:
+        sb.call("code.write", path="src/click/decorators.py", text="from click import command" + tail)
+    msg = str(ex.value)
+    assert "This file defines command already; drop the import of command" in msg, msg
+    assert "No module of click defines command" not in msg, msg
+    # Frame 229's review, low 3: every imported name gets its own hint.
+    with pytest.raises(ValueError) as ex:
+        sb.call("code.write", path="src/click/decorators.py", text="from click import Command, Click" + tail)
+    msg = str(ex.value)
+    assert "imports Command, Click from click" in msg, msg
+    assert "`from .core import Command`" in msg and "No module of click defines Click" in msg, msg
 
 
 def test_a_function_reading_input_by_another_name_is_seen(db, tmp_path):

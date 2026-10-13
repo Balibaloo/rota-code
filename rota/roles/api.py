@@ -13373,27 +13373,42 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             # `from .core import ...` for Click, which no module defines.
             # s386 obeyed, and 37 of 37 tests failed at import. Name the
             # module that defines the name, or say that none does.
-            owners = _package_definers(root, init_rel, path, name)
-            if name == pkg:
-                fix = (f"Import each name you need from the module that defines "
-                       f"it (a relative import), or import {pkg} inside the "
-                       f"function that uses it")
-            elif not owners:
-                fix = (f"No module of {pkg} defines {name}. Check the name "
-                       f"against the surface and the material, and import a "
-                       f"name that exists, or define it in this file")
-            elif len(owners) == 1:
-                fix = (f"Import {name} from {owners[0]}, `from .{owners[0]} "
-                       f"import {name}`, or import inside the function that "
-                       f"uses it")
-            else:
-                fix = (f"Import {name} from one of the modules that define it, "
-                       f"{', '.join(f'`from .{m} import {name}`' for m in owners)}, "
-                       f"or import inside the function that uses it")
+            # The written file's own definitions count first: `command` in
+            # decorators.py got "no module defines it" (frame 229's review).
+            own = _top_binds(_ast.Module(body=[
+                n for n in tree.body
+                if not isinstance(n, (_ast.Import, _ast.ImportFrom))],
+                type_ignores=[]))
+            fixes: list[str] = []
+            for one in name.split(", "):
+                owners = _package_definers(root, init_rel, path, one)
+                if one == pkg:
+                    fixes.append(
+                        f"Import each name you need from the module that defines "
+                        f"it (a relative import), or import {pkg} inside the "
+                        f"function that uses it")
+                elif one in own:
+                    fixes.append(f"This file defines {one} already; drop the "
+                                 f"import of {one}")
+                elif not owners:
+                    fixes.append(
+                        f"No module of {pkg} defines {one}. Check the name "
+                        f"against the surface and the material, and import a "
+                        f"name that exists, or define it in this file")
+                elif len(owners) == 1:
+                    fixes.append(
+                        f"Import {one} from {owners[0]}, `from .{owners[0]} "
+                        f"import {one}`, or import inside the function that "
+                        f"uses it")
+                else:
+                    fixes.append(
+                        f"Import {one} from one of the modules that define it, "
+                        f"{', '.join(f'`from .{m} import {one}`' for m in owners)}, "
+                        f"or import inside the function that uses it")
             raise ValueError(
                 f"{path} imports {name} from {pkg} at module level, and "
                 f"{init_rel} imports {path}: a cycle, and every import of "
-                f"{pkg} fails. {fix}")
+                f"{pkg} fails. {'. '.join(fixes)}")
     # A span write that removes a line the rest of the file still needs.
     # Click night 120 (2026-10-05): s227 meant to add `import sys` and sent
     # start=0, end=5, which replaced the first five lines, and 43 of 43
@@ -13913,8 +13928,9 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
     # `src/click/core.py::Click` for the stray `src/click/core.py`. The
     # exact match dropped it three times, and the batch went to
     # quarantine. A symbol judges the stray path it lives in.
+    # `_grain_path` also drops a leading `./` or `/` (frame 228's review).
     def _grain(p: str) -> str:
-        return p if p in open_rows else p.split("::", 1)[0]
+        return p if p in open_rows else _grain_path(p)
 
     unknown = [p for p in foreseen + mistakes if _grain(p) not in open_rows]
     foreseen = list(dict.fromkeys(_grain(p) for p in foreseen if _grain(p) in open_rows))
@@ -14299,8 +14315,11 @@ def _own_package_import(root, path: str, tree) -> tuple[str, str, str] | None:
     if not imports_me:
         return None
     for node in tree.body:
+        # Every name of the line: `from click import A, B` read A alone,
+        # and the hint for B never came (frame 229's review).
         if isinstance(node, _ast.ImportFrom) and node.level == 0 and node.module == pkg:
-            return (pkg, (pkg_dir / "__init__.py").as_posix(), node.names[0].name)
+            return (pkg, (pkg_dir / "__init__.py").as_posix(),
+                    ", ".join(a.name for a in node.names))
         if isinstance(node, _ast.Import) and any(a.name == pkg for a in node.names):
             return (pkg, (pkg_dir / "__init__.py").as_posix(), pkg)
     return None

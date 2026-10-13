@@ -119,6 +119,10 @@ def test_a_stray_named_at_symbol_grain_is_judged_and_a_dropped_name_is_said(db):
     assert "src/click/decorators.py::group" in out["ignored"]
     statuses = {w[2]["path"]: w[2]["status"] for w in sb.ctx.writes if w[0] == "touch_strays"}
     assert statuses == {"src/click/core.py": "mistake"}
+    # Frame 228's review, low 1: a leading `./` names the same stray.
+    sb.ctx.writes.clear()
+    out = sb.call("batches.judge_touch", batch_id="b1", foreseen=["./src/click/core.py::Click"])
+    assert out["foreseen"] == ["src/click/core.py"], out
 
 
 def test_a_mistake_wakes_the_developer_and_a_new_head_leaves_it_behind(db):
