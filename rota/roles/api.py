@@ -15016,8 +15016,11 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
     removed a branch or a body inside the span, and `_tail_drop` reads only
     the tail after the text's last terminator. This walk reads the whole
     span. A statement is a compound statement, a clause, or a `return`,
-    `raise`, `yield`, assignment or call. A compound statement whose header
-    the text holds is kept, and its own statements are read in turn.
+    `raise`, `break`, `continue`, `yield`, assignment or call. A compound
+    statement whose header the text holds is kept, and its own statements
+    are read in turn. Pass 1b counts `break` and `continue`: s214's lost
+    `break` made `confirm()` loop on a y or n answer (ruled: the
+    coordinator, frame 173 pass 1b, 2026-10-13).
 
     The text holds a line when the line has the same syntax tree, or the
     same characters outside spaces. So a rewrite in a new order, spacing or
@@ -15027,7 +15030,8 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
     import ast as _ast
     fields = ("body", "handlers", "orelse", "finalbody", "cases")
     defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
-    plain = (_ast.Return, _ast.Raise, _ast.Assign, _ast.AugAssign, _ast.AnnAssign)
+    plain = (_ast.Return, _ast.Raise, _ast.Break, _ast.Continue,
+             _ast.Assign, _ast.AugAssign, _ast.AnnAssign)
     calls = (_ast.Call, _ast.Yield, _ast.YieldFrom, _ast.Await)
     clauses = (_ast.ExceptHandler, _ast.match_case)
 

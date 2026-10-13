@@ -5478,10 +5478,12 @@ def test_s214s_end_offer_names_the_branch_the_offered_span_removes(db, tmp_path)
     msg = str(err.value)
     assert "To stop where while ends send end=352." in msg
     assert ("A write to start=342, end=352 removes "
-            "`if value in (\"y\", \"yes\"):` at line 342") in msg
+            "`if value in (\"y\", \"yes\"):` at line 342, `break` at line 351") in msg
     out = sb.call("code.write", path="src/click/termui.py", start=342, end=352,
                   text=S214_TEXT)
-    assert "`if value in (\"y\", \"yes\"):` at line 342" in out["dropped"]
+    # Pass 1b: the lost `break` makes confirm() loop on a y or n answer.
+    assert ("`if value in (\"y\", \"yes\"):` at line 342, `break` at line 351"
+            in out["dropped"])
     assert "if value in" not in target.read_text()
 
 
