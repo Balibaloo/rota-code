@@ -324,18 +324,21 @@ def test_the_developer_reason_asks_for_the_fact_not_the_fix(mode):
     flat = " ".join(prompts.compose("developer", mode).split())
     # Pass 5d: the probe's Tester moved only on a reason that wrote out the
     # callable that takes the argument, so the reason names it too.
-    assert ('reason="<the error, the line, and the call that takes the '
-            'argument>"') in flat
+    assert ('reason="<the error, the test, the line, and the call that '
+            'takes the argument>"') in flat
     assert "reason=None" not in flat
     # Pass 5f: 4 of 5 reasons named `runner.invoke`, the test's own call. The
-    # reason names the raising frame's function instead.
+    # reason names the raising frame's function instead. Pass 5g: the error
+    # carries the test, because night 144's Tester fixed the sibling test.
     assert ("`reason=` holds three facts in one sentence: the error the test "
-            "got, the line of the test that raises it, and the function in "
-            "the last frame of the traceback, the one that raises, as "
-            "`name(...)` with the argument its error asks for.") in flat
+            "got, with the test's id or its file and function, the line of "
+            "the test that raises it, and the function in the last frame of "
+            "the traceback, the one that raises, as `name(...)` with the "
+            "argument its error asks for.") in flat
     assert ("Do not name the call in the test, and do not write a fix, a "
             "design or a verdict on the criterion.") in flat
     assert ('For example: "the line `runner.invoke(cmd, [\'--version\'])` '
+            "of `tst_version_01` "
             "fails with RuntimeError 'Try passing package_name', raised in "
             '`version_option(package_name=...)`".') in flat
     assert "the callable whose signature takes the argument" not in flat
@@ -353,6 +356,15 @@ def test_the_tester_puts_the_argument_where_the_reason_row_says():
             "argument goes.") in flat
     # Pass 5d: the traceback names `runner.invoke`, the wrong call.
     assert "on the call the traceback names" not in flat
+
+
+def test_the_tester_edits_the_test_the_reason_row_names():
+    """Frame 200, pass 5g: on night 144 the row named a function that two
+    tests call, and the Tester fixed the sibling test. The next body goes on
+    the challenged test alone."""
+    flat = " ".join(prompts.compose("tester", "challenge").split())
+    assert ("The next body goes on the test the row names, and on no other "
+            "test, even when another test calls the same function.") in flat
 
 
 def test_every_operation_is_offered_by_some_mode():

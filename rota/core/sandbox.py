@@ -1844,9 +1844,10 @@ def _without_own_reasons(conn: sqlite3.Connection, refs, role: str) -> list:
 
 #: The reason slot that every hint writes for `msg.challenge_tester`. The
 #: seat fills it, because mechanics cannot write the seat's judgement (frame
-#: 200, pass 5, fix 2).
-REASON_SLOT = ('reason="<the error, the line, and the call that takes the '
-               'argument>"')
+#: 200, pass 5, fix 2). Pass 5g adds the test, because night 144's reasons
+#: named a function that two tests call, and the Tester fixed the sibling.
+REASON_SLOT = ('reason="<the error, the test, the line, and the call that '
+               'takes the argument>"')
 
 #: The fewest words a reason may have. A shorter one names no call that the
 #: test must make (frame 200, pass 5, section 3.1).
@@ -1862,9 +1863,12 @@ REASON_HEAD_WORDS = 4
 
 # A reason whose head is a verdict on the test or the criterion (frame 200,
 # pass 5b, item 4). "passes" with an object is a fact, as in "the test
-# passes package_name to invoke" (review 5b, finding 1).
+# passes package_name to invoke" (review 5b, finding 1). Pass 5g refuses
+# "passes for me", "with", "in CI", "cleanly", "fine" and "green" (review 5e,
+# low 3).
 _REASON_VERDICT = re.compile(
-    r"\bpasses(?=\s*(?:$|[.,;!?]|on\b|as\b|already\b|now\b|today\b))"
+    r"\bpasses(?=\s*(?:$|[.,;!?]|on\b|as\b|already\b|now\b|today\b|for\b"
+    r"|with\b|in\b|cleanly\b|fine\b|green\b))"
     r"|\bis (?:met|correct)\b")
 
 # What every reason refusal says. It is the one part of a challenge that the

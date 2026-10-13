@@ -175,7 +175,8 @@ def _refused_reason(sb, **kwargs):
 
 
 _CALL = ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<the error, "
-         "the line, and the call that takes the argument>\") with the same "
+         "the test, the line, and the call that takes the argument>\") with "
+         "the same "
          "quotes.")
 _SAID = ("reason= names the error the test got and the line of the test "
          "that raises it. It is the one part of a challenge the Tester "
@@ -186,9 +187,21 @@ def test_the_tool_line_shows_the_reason_slot_and_not_none(db):
     """Frame 200, pass 5b, item 2: `reason=None` reads as optional."""
     [line] = [s for s in _dev(db).signatures()
               if s.startswith("msg.challenge_tester(")]
-    assert ('reason="<the error, the line, and the call that takes the '
-            'argument>"') in line
+    assert ('reason="<the error, the test, the line, and the call that '
+            'takes the argument>"') in line
     assert "reason=None" not in line
+
+
+def test_20_the_reason_slot_names_the_test_beside_the_line(db):
+    """Frame 200, pass 5g: night 144's reasons named a function that both
+    test files hold, and the Tester fixed the sibling test. The slot asks
+    for the test, so the row names the challenged one."""
+    from rota.core.sandbox import REASON_SLOT
+    assert REASON_SLOT == ('reason="<the error, the test, the line, and the '
+                           'call that takes the argument>"')
+    [line] = [s for s in _dev(db).signatures()
+              if s.startswith("msg.challenge_tester(")]
+    assert REASON_SLOT in line
 
 
 def test_1_a_challenge_with_no_reason_is_refused_with_the_call_written_out(db):
@@ -297,8 +310,8 @@ def test_17_the_evidence_doors_hint_names_the_reason(db):
     with pytest.raises(ValueError) as exc:
         sb.call("msg.challenge_tester", refs=["ts1", "ts1"], quotes=QUOTES)
     assert str(exc.value).endswith(
-        "send refs=['c1', 'ts1'], reason=\"<the error, the line, and the call "
-        "that takes the argument>\"")
+        "send refs=['c1', 'ts1'], reason=\"<the error, the test, the line, "
+        "and the call that takes the argument>\"")
     with pytest.raises(ValueError) as exc:
         sb.call("msg.challenge_tester", refs=["ts1"], quotes=QUOTES, reason=REASON)
     assert str(exc.value).endswith(f"send refs=['c1', 'ts1'], reason={REASON!r}")
@@ -312,7 +325,8 @@ def test_17_the_owner_route_of_a_conflict_about_a_test_names_the_reason(db):
                 assumption="the criterion keeps the invoices and the test "
                            "asserts that they are gone", kind="conflict")
     assert ("Send msg.challenge_tester(refs=['c1', 'ts1'], reason=\"<the "
-            "error, the line, and the call that takes the argument>\") with "
+            "error, the test, the line, and the call that takes the "
+            "argument>\") with "
             "quotes= copied from c1 and from "
             "ts1") in str(exc.value)
     [offer] = [o for o in sb.ctx.offers if o.op == "msg.challenge_tester"]
@@ -324,7 +338,8 @@ def test_18_the_slot_text_sent_back_unchanged_is_refused(db):
     # Pass 5e: the briefs' slot, copied as a reason, is the slot text too.
     for sent in (REASON_SLOT.split("=", 1)[1].strip('"'),
                  REASON_SLOT.split("=", 1)[1].strip('"<>'),
-                 "<the error, the line, and the call that takes the argument>"):
+                 "<the error, the test, the line, and the call that takes "
+                 "the argument>"):
         said = _refused_reason(_dev(db), reason=sent)
         assert said == ("reason= is still the slot text. Name the error the "
                         "test got and the line of the test that raises it. "
@@ -336,7 +351,15 @@ def test_19_a_reason_that_says_the_test_passes_is_refused(db):
     the reason's first sentence for "passes", "is met" and "is correct"."""
     for sent in ("the test passes on the code as it stands today",
                  "The criterion is met by the code, so nothing changes",
-                 "the test is correct and the code raises an error"):
+                 "the test is correct and the code raises an error",
+                 # Pass 5g: review 5e's low 3 found four verdicts that the
+                 # lookahead admitted. The review's "it passes in CI
+                 # already" has 5 words, so "the test" puts it past the
+                 # word door.
+                 "the test passes for me on the current code",
+                 "the test passes with the current code",
+                 "the test passes in CI already",
+                 "the test passes cleanly against the code"):
         said = _refused_reason(_dev(db), reason=sent)
         assert said.startswith("reason= says the test passes or the "
                                "criterion is met."), sent

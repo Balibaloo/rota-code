@@ -600,8 +600,9 @@
       # moved the seat to `version_option` on the measure turn
       # (`plans/frame200-pass5-interview.md`, section 3).
       - {id: <d1>, author: developer,
-         text: "`package_name` is an argument of `version_option(...)`, not
-                of `runner.invoke(...)`.",
+         text: "In `tst_version_option_show_python`, `package_name` is an
+                argument of `version_option(...)`, not of
+                `runner.invoke(...)`.",
          refs: '["ver_opt_show_py_tk2", "tst_version_option_show_python"]'}
     tests:
       # Body 5 of the night, version 17, as s440's wake showed it.
