@@ -96,6 +96,31 @@ def test_the_architect_judges_every_stray_foreseen_or_mistake(db):
     assert statuses == {"src/echo_json.py": "foreseen", "src/click/main.py": "mistake"}
 
 
+def test_a_stray_named_at_symbol_grain_is_judged_and_a_dropped_name_is_said(db):
+    """Click night 145 (2026-10-13), frame 228: s432 to s434 named
+    `src/click/core.py::Click` for the one stray `src/click/core.py`, were
+    refused three times with no word on the dropped name, and the batch
+    went to quarantine."""
+    db.execute("UPDATE batches SET head_commit = 'abc' WHERE id = 'b1'")
+    db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path) VALUES ('b1','abc','src/click/core.py')")
+    db.commit()
+    sb = build("architect", db, mode="touch_strayed",
+               allow=prompts.mode_tools("architect", "touch_strayed"))
+    with pytest.raises(ValueError) as ex:
+        sb.call("batches.judge_touch", batch_id="b1", foreseen=["src/click/decorators.py"],
+                mistakes=["tests/test_basic.py"])
+    msg = str(ex.value)
+    assert "src/click/decorators.py" in msg and "tests/test_basic.py" in msg, msg
+    assert msg.index("tests/test_basic.py") < msg.index("still unjudged"), msg
+    out = sb.call("batches.judge_touch", batch_id="b1",
+                  mistakes=["src/click/core.py::Click", "src/click/decorators.py::group"],
+                  reason="the Click alias is a stray")
+    assert out["mistakes"] == ["src/click/core.py"], out
+    assert "src/click/decorators.py::group" in out["ignored"]
+    statuses = {w[2]["path"]: w[2]["status"] for w in sb.ctx.writes if w[0] == "touch_strays"}
+    assert statuses == {"src/click/core.py": "mistake"}
+
+
 def test_a_mistake_wakes_the_developer_and_a_new_head_leaves_it_behind(db):
     db.execute("UPDATE batches SET head_commit = 'abc' WHERE id = 'b1'")
     db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status) "

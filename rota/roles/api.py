@@ -13909,17 +13909,29 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
     # of the prediction beside the one stray, three sessions of three
     # identical refused calls. The judgement on the strays it did name is
     # the work; the rest is noise, and is said to be.
-    unknown = [p for p in foreseen + mistakes if p not in open_rows]
-    foreseen = [p for p in foreseen if p in open_rows]
-    mistakes = [p for p in mistakes if p in open_rows]
+    # Frame 228, click night 145 (2026-10-13): s432 to s434 named
+    # `src/click/core.py::Click` for the stray `src/click/core.py`. The
+    # exact match dropped it three times, and the batch went to
+    # quarantine. A symbol judges the stray path it lives in.
+    def _grain(p: str) -> str:
+        return p if p in open_rows else p.split("::", 1)[0]
+
+    unknown = [p for p in foreseen + mistakes if _grain(p) not in open_rows]
+    foreseen = list(dict.fromkeys(_grain(p) for p in foreseen if _grain(p) in open_rows))
+    mistakes = list(dict.fromkeys(_grain(p) for p in mistakes if _grain(p) in open_rows))
     both = sorted(set(foreseen) & set(mistakes))
     if both:
         raise ValueError(f"{', '.join(both)} cannot be both foreseen and a mistake")
     left = [p for p in open_rows if p not in foreseen and p not in mistakes]
     if left:
+        # The refusal is the only text the seat reads, so it says which
+        # names it dropped. Night 145's three refusals said nothing of them.
+        dropped = (f"{', '.join(unknown)} {'is' if len(unknown) == 1 else 'are'} "
+                   f"not an open stray of {batch_id}, so the judgement drops "
+                   f"{'it' if len(unknown) == 1 else 'them'}. ") if unknown else ""
         raise ValueError(
-            f"{', '.join(left)} {'is' if len(left) == 1 else 'are'} still unjudged. "
-            f"Every open stray is foreseen or a mistake; say which")
+            f"{dropped}{', '.join(left)} {'is' if len(left) == 1 else 'are'} still "
+            f"unjudged. Every open stray is foreseen or a mistake; say which")
     for path in foreseen:
         ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
             "batch_id": batch_id, "grain": path, "grain_kind": "path",
