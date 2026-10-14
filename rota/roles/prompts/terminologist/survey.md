@@ -11,8 +11,8 @@ glossary does not already carry. Write each word as one call on its own line:
 `TOOL: glossary.amend(term="...", sense_body="...", sense_short="...")`.
 `sense_body` is the explanation. `sense_short` is one clause that summarises
 it. Both say something you could only know from having read this code. A list
-under a call name runs nothing. Two to five words is the common count when an
-area has new words. A word already in the glossary
+under a call name runs nothing. Record at most five words. A word already in
+the glossary
 needs nothing from you unless this area uses it to mean something else — and
 then say what, because that is the collision the glossary exists to surface.
 

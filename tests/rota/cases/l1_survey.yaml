@@ -25,12 +25,16 @@
   repo:
     onboard: true
   expect:
-    # The area's source is pushed (`code.area`); what the session calls is the
-    # file it wants whole. The per-area pass runs after the define phase and
-    # usually finds the words already defined, so zero terms is a pass too.
-    calls: [code.source]
+    # The area's source is pushed (`code.area`), and here it holds every file
+    # whole. The brief asks for `code.source` only for what the area left out,
+    # so no read is owed. Under frame 237's brief the seat wrote four terms
+    # and attested from the pushed page, and the old `calls: [code.source]`
+    # failed that right session. The per-area pass runs after the define
+    # phase and usually finds the words already defined, so zero terms is a
+    # pass too.
     writes:
-      glossary_terms: {count: "0..4"}
+      # The brief caps the count at five (frame 237's pass 1d).
+      glossary_terms: {count: "0..5"}
       survey_records: {count: 1}
   forbidden:
     # Terms first, and only terms. Constraints are Architect's pass over the
@@ -321,10 +325,10 @@
   # No hole to salt, so five runs replay one reply (frame 66).
   runs: 1
   pass: 1
-  # Attributed 2026-09-13 on qwen3:8b, 0/5: four terms where the ceiling is
-  # three, and no code.source of the moved area. The 2026-09-12 criteria
-  # brief says six is many; the resurvey ceiling is not that brief's, and
-  # stays.
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: four terms where the ceiling was
+  # three, and no code.source of the moved area. On 2026-10-14, frame 237,
+  # the survey brief's cap of five replaced the ceiling of three. The pushed
+  # page holds every file of the area whole, so no code.source is owed.
   tick: survey
   # Loop 5's case: the area was surveyed, the tree moved past the survey, and
   # the freshness view reopens exactly that area. The wake firing at all is
@@ -348,10 +352,10 @@
     # A re-survey is a survey: read the area as it now is, attest what was
     # found. The new file brings a word the glossary does not hold
     # (proration), so a term is plausible but not owed -- the attest is.
-    calls: [code.source]
     writes:
       survey_records: {count: 1}
-      glossary_terms: {count: "0..3"}
+      # The brief caps the count at five (frame 237).
+      glossary_terms: {count: "0..5"}
   forbidden:
     writes: [constraints, items, criteria]
     recipients: [architect, vision_keeper, liaison]
