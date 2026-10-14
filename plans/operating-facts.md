@@ -87,6 +87,7 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 
 ## Models and Ollama
 
+- A request to `http://localhost:11434` on this machine pays a refused IPv6 connect first: `localhost` resolves to `::1`, Ollama listens on IPv4 alone, and the connect is refused after 2.04 s before the IPv4 retry. Every turn of night 146 ran 2.06 s longer than its Ollama request, 83 of 218 minutes. The defaults name `http://127.0.0.1` since a6d715dc, frame 235. Sign: `turns.ms` exceeds the `[GIN]` request duration by a constant two seconds (observed: `plans/night146-read.md`, section 1.5, 2026-10-14).
 - `llama3.1:8b` was the only viable local model for the test suites at the first measurement. The model is 4.9 GB, has a 0.2s warm round-trip, and fits entirely in VRAM at `num_ctx=12288`. The model is now only the code default.
 - An early measurement ruled out two models. `qwen3.5:9b` has native tool calling but spills ~27% to CPU once its KV cache is allocated. The model then takes >100s per turn. `gemma4:31b` needs ~20 GB and swaps until the machine stops responding.
 - Since the 2026-08-25 bakeoff (probes/bench/), `qwen3:8b` with `think: false` is the understanding engine. The flag goes in the ollama payload in rota/llm/llm.py. The `/no_think` prompt prefix does NOT work.
