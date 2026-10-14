@@ -534,6 +534,82 @@ def test_the_attestation_outcome_follows_the_writes(project):
     assert got["outcome"] == "none_found"
 
 
+# s187's turn 1 on night 147 (`.rota/clickI_night147.db`, `turns`), whole: 16
+# lines. The seat wrote each call name as a heading and the words as a list
+# under it, and no call ran (frame 237).
+S187_TURN1 = """\
+This area defines the core machinery for parsing command-line arguments and executing commands, handling the lifecycle of a `Command` object from invocation to completion. It manages the internal state via a `Context`, interprets raw input using a `parser`, and resolves parameters against their declared types and constraints.
+
+`glossary.amend`:
+- `term:context` -> sense_body: "The active execution environment for a command, holding mutable state like color settings, help flags, and the current parameter map; it is pushed onto a thread-local stack by Click to be accessible deep in the call chain." | sense_short: "Thread-local container for command execution state."
+- `term:parser` -> sense_body: "The internal component that tokenizes raw CLI input into structured arguments and options, validating them against the command's parameter definitions before invoking the callback function." | sense_short: "Internal tokenizer and validator for CLI input."
+- `term:callback` -> sense_body: "The Python function attached to a Command or Group that is invoked after successful argument parsing; it receives the populated Context and any resolved arguments as its inputs." | sense_short: "Function executed after argument validation succeeds."
+
+`code.source`:
+src/click/core.py
+src/click/parser.py
+src/click/exceptions.py
+src/click/formatting.py
+src/click/types.py
+src/click/decorators.py
+src/click/_termui_impl.py
+src/click/_textwrap.py"""
+
+# s69's turn 1 on the same night: bare calls, one a line, and they ran.
+S69_TURN1 = """\
+This area covers the core Click library source code and its associated documentation, defining how commands, groups, parameters, and options are constructed and executed within a CLI framework. It introduces concepts like `context` for managing state across invocations, `group` for organizing subcommands, and various decorators that configure behavior.
+
+glossary.amend(term='context', sense_body='A context object passed to commands and groups via the @pass_context decorator or implicitly, holding shared state like the current working directory, shell environment, and callback chain.', sense_short='Shared state container passed through the command execution chain.')
+glossary.amend(term='group', sense_body='A specialized command that can contain other commands (subcommands), forming a hierarchical CLI structure where the group itself acts as a parent node in the command tree.', sense_short='A command capable of containing subcommands to form a hierarchy.')
+glossary.amend(term='callback', sense_body='A function registered to run before or after a command executes, allowing for side effects like logging, validation, or modifying the context without altering the main command logic.', sense_short='A function invoked at specific points in the command lifecycle.')
+
+surveys.attest(outcome="found", citations=["src/click/__init__.py"])"""
+
+
+def test_a_call_name_over_a_list_is_named_as_no_call():
+    """Night 147: 8 of 8 surveys of `src/click` wrote "`glossary.amend`:" and a
+    list, and nothing ran. The interview of s187 called the list "descriptions
+    of what I would record, not runnable calls" (frame 237)."""
+    from rota.core.runner import listed_not_called
+
+    assert listed_not_called(S187_TURN1) == ["glossary.amend", "code.source"]
+
+
+def test_calls_written_one_a_line_are_not_a_list():
+    from rota.core.runner import listed_not_called
+
+    assert listed_not_called(S69_TURN1) == []
+    assert listed_not_called(
+        "`glossary.amend`:\nTOOL: glossary.amend(term='x', sense_body='y')") == []
+
+
+def test_the_account_names_a_list_written_under_a_call_name(project):
+    """The account beside the "written no glossary_terms" refusal above: a
+    reader of the record sees why no word landed (frame 237)."""
+    from rota.core.runner import run_session
+    from rota.llm.llm import ScriptedBackend
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    _oriented(db)
+    _reconciled(db)
+    config.set(db, "define_terms", 0)
+    db.commit()
+    wake = tick_survey(db)[0]
+    out = run_session(db, wake, backend=ScriptedBackend([S187_TURN1, S187_TURN1]))
+    line = ("written as a list under its name, not as calls: "
+            "`glossary.amend`. None ran. Each call is one line, "
+            "`TOOL: glossary.amend(...)`.")
+    assert sum(e == line for e in out.errors) == 1, out.errors
+    # Never headed by a dotted name: the fixtures count that prefix as a
+    # refused call.
+    assert "." not in line.split(":", 1)[0]
+    account = db.execute(
+        "SELECT completion FROM turns WHERE session_id = ? AND completion LIKE "
+        "'SESSION ENDED%'", (out.session_id,)).fetchone()
+    assert out.committed and account and line in account[0], out.errors
+
+
 def test_a_define_session_ends_when_its_word_has_landed(project):
     from rota.core.runner import run_session
     from rota.llm.llm import ScriptedBackend

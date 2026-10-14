@@ -655,6 +655,41 @@ CLAIMS = {"tests.triage", "brief.intake"}
 # The name stays because nightcount.py counts the sign with it (frame 232).
 FABRICATED_RESULT = toolproto.INVENTED_RESULT
 
+# A call name in backticks alone on its line, then a colon. Night 147's
+# surveys wrote "`glossary.amend`:" over a list of words (frame 237).
+_LISTED_HEAD = re.compile(r"^\s*`([A-Za-z_]\w*\.[A-Za-z_]\w*)`\s*:\s*$")
+
+
+def listed_not_called(text: str) -> list[str]:
+    """
+    The call names a reply writes as a heading over a list, with no call.
+
+    On night 147, 8 of 8 surveys of `src/click` wrote "`glossary.amend`:"
+    and the words as a list under it. The parser finds no call in a list, so
+    nothing ran and the record showed only the refused attest. Interviewed,
+    the seat called its list "descriptions of what I would record, not
+    runnable calls" (frame 237). A name counts as called when any line of the
+    reply starts a call of it, with `TOOL:` or bare, because the parser runs
+    both. Names come in the order of the reply, each once.
+    """
+    lines = text.splitlines()
+
+    def called(name: str) -> bool:
+        return bool(re.search(
+            rf"^\s*(?:{re.escape(toolproto.MARKER)}\s*)?{re.escape(name)}\s*\(",
+            text, re.M))
+
+    names: list[str] = []
+    for i, line in enumerate(lines):
+        head = _LISTED_HEAD.match(line)
+        if not head or head.group(1) in names:
+            continue
+        under = next((nxt for nxt in lines[i + 1:] if nxt.strip()), "")
+        if under and not called(head.group(1)) and not under.lstrip().startswith(
+                toolproto.MARKER):
+            names.append(head.group(1))
+    return names
+
 
 # The rows behind a page, while they fit beside the page itself. Half a 12,288
 # window is the budget on overflow (finding 79), the brief and the page take
@@ -3578,6 +3613,16 @@ def run_session(
             calls, call_at, scanned = toolproto.extract_lenient(
                 completion.text, allowed, signatures=_param_sets(sb),
                 with_offsets=True)
+            # The account's half of frame 237. The record of night 147 showed
+            # a refused attest and no reason that no word landed. The line is
+            # headed without a dotted name, because the fixtures count such a
+            # head as a refused call (the note at `session_note` below).
+            for name in listed_not_called(completion.text):
+                listed = (f"written as a list under its name, not as calls: "
+                          f"`{name}`. None ran. Each call is one line, "
+                          f"`{toolproto.MARKER} {name}(...)`.")
+                if listed not in outcome.errors:
+                    outcome.errors.append(listed)
             if (completion.raw or {}).get("done_reason") == "length":
                 # clickI night 16 (2026-09-12): a 688-line whole-file write
                 # stopped at the output cap mid-string, the parser called it
