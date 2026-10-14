@@ -8353,8 +8353,10 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
         return None
     # A sentence with no line number can correct an item line it never
     # numbers. Night 143's m263 corrected the request so (frame 234, review
-    # 1, finding 2). Such a sentence never corrects a team note. One added
-    # sentence let s281's contest of the notes land (review 3, finding 1).
+    # 1, finding 2). It spares the request and its criteria alone, so a
+    # statement line is refused like a note; no ruling on nights 143 to 147
+    # met that case (review 4, finding 1). One added sentence let s281's
+    # contest of the notes land (review 3, finding 1).
     # A bare agreement corrects nothing, so it spares no line.
     if any(s.strip() and not _LINE_REF.search(s)
            and not _BARE_AGREEMENT.fullmatch(s) for s in sentences):
