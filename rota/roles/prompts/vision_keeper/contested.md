@@ -15,6 +15,7 @@ decides it is whether they told you the answer:
 
       TOOL: problem.assert(id="<the item's id>", text="<what they meant>", kind="in_scope")
 
+  The new text carries their words. A text in your own words is refused.
   That is the whole answer. Amending drops the approval, which is correct,
   because they have not approved the new wording. There is nothing here to
   defend: they are the only authority on what they want, they have just

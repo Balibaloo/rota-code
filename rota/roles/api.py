@@ -1213,6 +1213,115 @@ for _artefact, _tables in _CITE_TABLES.items():
 # problem statement
 # ---------------------------------------------------------------------------
 
+def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
+    """
+    The refusal for an assert that puts the seat's words on the principal's
+    item, or None.
+
+    Night 146: s354, on a challenge, rewrote a decided item with its own text,
+    and the scheduler abandoned bg_5. s399, on `tick:contested`, wrote
+    "without requiring a flag", and the principal said nothing of the kind.
+    Night 145's s328 answered a challenge with a new id, and the page showed
+    it as the principal's ask (frame 221, candidate G). The wake is the
+    signal: the trigger message's verb, or the tick kind.
+    """
+    if getattr(ctx, "onboarding", False):
+        return None
+    wake = getattr(ctx, "wake_kind", "") or ""
+    trigger = getattr(ctx, "trigger", None)
+    row = ctx.conn.execute(
+        "SELECT verb, cause_id, body_refs FROM messages WHERE id = ?",
+        (trigger,)).fetchone() if trigger else None
+    verb = row["verb"] if row else None
+    cur = ctx.conn.execute("SELECT text, kind FROM items WHERE id = ?",
+                           (id,)).fetchone()
+    # The challenge mode offers no msg.report_liaison, so the route names
+    # the one call the mode offers, as the describe door does. The re-record
+    # of L1-VK-decide-a-challenge-to-an-approved-item sent `supersedes` with
+    # the item's id in 3 of 5 runs, and each refusal ended the session.
+    route = ("Answer the challenge with decisions.author under an id of its "
+             "own, and say which work the item asks for. A decision has no "
+             "supersedes for an item")
+    if cur is None:
+        if verb == "challenge":
+            try:
+                refs = [r for r in json.loads(row["body_refs"] or "[]")
+                        if isinstance(r, str)]
+            except (TypeError, ValueError):
+                refs = []
+            return _offer(
+                ctx, f"{id} is not an item. A challenge creates no request, "
+                f"because only the principal asks for work. {route}",
+                "decisions.author", {"id": INVENT, "text": INVENT, "refs": refs})
+        return None
+    decided = ctx.conn.execute(
+        "SELECT 1 FROM item_provenance WHERE id = ? AND provenance = 'decided'",
+        (id,)).fetchone()
+    if not decided:
+        return None
+    # The item's own words go to the `unchanged` return below.
+    if cur["kind"] == kind and _same_words(text, cur["text"]):
+        return None
+    if verb == "challenge":
+        return _offer(
+            ctx, f"{id} is the principal's own words. A challenge does not "
+            f"rewrite them. {route}",
+            "decisions.author", {"id": INVENT, "text": INVENT, "refs": [id]})
+    if wake == "tick:exhausted":
+        return (f"{id} is the principal's own words. An exhausted batch does "
+                f"not rewrite them. Answer with decisions.author and say which "
+                f"work the item asks for, or msg.report_liaison so the "
+                f"principal rules")
+    # A contest rewrites the item with the principal's words. The words come
+    # from the verdict the contested tick reads, the relay's verdict, or the
+    # ruling row, whichever this database holds.
+    from .principal import entry_for, last_ruling_on
+
+    contest = False
+    words: list[str] = []
+    if wake == "tick:contested" and id in (getattr(ctx, "wake_refs", ()) or ()):
+        from ..core.runner import _resolve_contest
+
+        contest = True
+        said = _resolve_contest(ctx.conn, id).get("principal_said")
+        if said:
+            words.append(said)
+    relay = _principal_relay(ctx)
+    if relay and relay[1].get(id) in ("contest", "revise"):
+        contest = True
+        said = entry_for(ctx.conn, row["cause_id"]) if row else ""
+        if said:
+            words.append(said)
+    if not contest:
+        return None
+    ruled = last_ruling_on(ctx.conn, id)
+    if ruled and ruled["verdict"] in ("contest", "revise") and ruled["words"]:
+        words.append(ruled["words"])
+    if not words:
+        return None
+    # The principal types "%" for "percent" (l1_gatekeeper2, "bill + tip %").
+    carried = (set(_prose_words(" ".join(words).replace("%", " percent ")))
+               | set(_prose_words(cur["text"] or "")))
+
+    # One stem: "tips" carries "tip", "closing" carries "close".
+    def _stem_in(word: str) -> bool:
+        for said in carried:
+            n = 0
+            while n < min(len(word), len(said)) and word[n] == said[n]:
+                n += 1
+            if n >= 3 and n >= min(len(word), len(said)) - 1:
+                return True
+        return False
+
+    new = [w for w in dict.fromkeys(_prose_words(text)) if not _stem_in(w)]
+    if not new:
+        return None
+    return (f"{id} is the principal's own words. The new text says "
+            f"{', '.join(f'`{w}`' for w in new)}, and the principal said "
+            f"{words[0]!r}. Write what the principal said, or keep the item "
+            f"and answer with decisions.author")
+
+
 @op("problem", "assert")
 def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict:
     """
@@ -1238,6 +1347,13 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             f"you have already put {id} {clash[2]['kind']} in this session and "
             f"this says {kind}. Those are the two answers this call chooses "
             f"between, so both is not an answer; decide, and send the one")
+
+    # The principal's words stay the principal's. The describe door already
+    # refuses a decided item. This door refused nothing, and night 146 lost
+    # two batches to a seat's rewrite (frame 221).
+    fault = _assert_words_fault(ctx, id, text, kind)
+    if fault:
+        raise ValueError(fault)
 
     # Found never overwrites decided. tipsU (2026-09-09): the principal's
     # `split_bill` was delivered as decided, then orient and reorient
