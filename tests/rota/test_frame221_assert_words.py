@@ -190,7 +190,7 @@ def test_s399_a_ruling_that_approves_the_item_is_no_contest_on_it(db):
     _ruling(db, "r_8b2329d2da", {"version_option_show_python": "approve",
                                  "l_cee175bedd": "contest"}, VOPT_SAID)
     sb = _contested(db, "version_option_show_python")
-    with pytest.raises(ValueError, match="does not contest the item") as err:
+    with pytest.raises(ValueError, match="rules .* approve, not contest") as err:
         sb.call("problem.assert", id="version_option_show_python",
                 kind="in_scope",
                 text="The `version_option` will display the running Python "
@@ -215,7 +215,7 @@ def test_s128_a_criterion_contest_in_the_principals_words_is_refused(db):
                            "c_line3": "contest"},
             "Line 3 isn't right: objects should go straight to the json module.")
     sb = _contested(db, "confirm_default_on_eof")
-    with pytest.raises(ValueError, match="does not contest the item"):
+    with pytest.raises(ValueError, match="rules .* approve, not contest"):
         sb.call("problem.assert", id="confirm_default_on_eof", kind="in_scope",
                 text=CONFIRM + " Objects go straight to the json module.")
 
@@ -230,3 +230,44 @@ def test_an_exhausted_batch_does_not_rewrite_a_decided_item(db):
     msg = str(err.value)
     assert msg.index("msg.report_liaison") < msg.index("decisions.author")
     assert not _item_writes(sb)
+
+
+def test_a_removal_in_plain_words_admits_the_drop(db):
+    # The second review's probe P3: the words never hold the identifier.
+    _ruling(db, "r_p3", {"version_option_show_python": "contest"},
+            "I don't want a flag. Always append the running Python version, "
+            "shown as major.minor.micro.")
+    sb = _contested(db, "version_option_show_python")
+    out = sb.call("problem.assert", id="version_option_show_python",
+                  kind="in_scope",
+                  text="The `version_option` always appends the running "
+                       "Python version, shown as major.minor.micro.")
+    assert out == {"id": "version_option_show_python"}
+
+
+def test_an_open_ruling_does_not_hide_a_landed_contest(db):
+    _ruling(db, "r_landed", {"version_option_show_python": "contest"},
+            VOPT_SAID)
+    db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
+               "VALUES ('r_open', 'm249', ?, 'Ok', 'open')",
+               (json.dumps({"version_option_show_python": "approve"}),))
+    db.commit()
+    sb = _contested(db, "version_option_show_python")
+    out = sb.call("problem.assert", id="version_option_show_python",
+                  kind="in_scope",
+                  text="The `version_option` will include a `show_python` "
+                       "flag that appends the running Python version, shown "
+                       "as major.minor.micro.")
+    assert out == {"id": "version_option_show_python"}
+
+
+def test_an_item_the_wake_did_not_name_is_refused(db):
+    _ruling(db, "r_landed", {"version_option_show_python": "contest"},
+            VOPT_SAID)
+    sb = _contested(db, "tip_split")
+    with pytest.raises(ValueError, match="names no contest on "
+                                         "version_option_show_python"):
+        sb.call("problem.assert", id="version_option_show_python",
+                kind="in_scope",
+                text="The `version_option` will include a `show_python` "
+                     "flag, shown as major.minor.micro.")

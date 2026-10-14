@@ -1213,6 +1213,27 @@ for _artefact, _tables in _CITE_TABLES.items():
 # problem statement
 # ---------------------------------------------------------------------------
 
+_KIND_WORDS = ("flag", "option", "switch", "argument", "parameter", "helper",
+               "function", "check", "test")
+_REMOVE_CUES = ("no", "not", "without", "drop", "remove", "never", "instead")
+
+
+def _words_remove_a_kind(said: str) -> bool:
+    """
+    True when a sentence of `said` puts a removal cue at most four words
+    before a kind word: "I don't want a flag", "drop the switch".
+    """
+    for sentence in re.split(r"[.!?;]+", said.lower()):
+        words = [w.strip(",:'\"()`") for w in sentence.split()]
+        for i, w in enumerate(words):
+            if w.rstrip("s") not in _KIND_WORDS and w not in _KIND_WORDS:
+                continue
+            for cue in words[max(0, i - 4):i]:
+                if cue in _REMOVE_CUES or cue.endswith(("n't", "n’t")):
+                    return True
+    return False
+
+
 def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     """
     The refusal for an assert that puts the seat's words on the principal's
@@ -1279,14 +1300,35 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     if wake != "tick:contested":
         return None
     from ..core.runner import _resolve_contest
-    from .principal import last_ruling_on
 
     # A contest on the item is a verdict on the item's own id. Night 146's
     # m250 approved the item and contested a criterion, and s399 rewrote the
     # item anyway (the review of 81f27127, finding 2). A ruling row is the
     # record. A database with no ruling row keeps the verdict in config.
+    keep = (f"Keep the item. Send msg.report_liaison with what the contest "
+            f"needs, or answer with decisions.author")
+    # The wake names the contested item. An assert on another item reads a
+    # contest that an earlier rewrite already applied (the review of
+    # 5e2f0e57, finding 2).
+    if id not in (getattr(ctx, "wake_refs", ()) or ()):
+        return (f"{id} is the principal's own words, and this wake names no "
+                f"contest on {id}. {keep}")
     words: list[str] = []
-    ruled = last_ruling_on(ctx.conn, id)
+    # Only a landed ruling counts. An `open` row exists between
+    # `rulings.rule` and `principal.land`, and it hid a landed contest (the
+    # review of 5e2f0e57, finding 3).
+    ruled = None
+    for r in ctx.conn.execute(
+            "SELECT id, per_item, words FROM rulings WHERE status = 'landed' "
+            "AND per_item LIKE ? ORDER BY rowid DESC", (f'%"{id}"%',)):
+        try:
+            ruled_on = json.loads(r["per_item"] or "{}").get(id)
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if ruled_on is not None:
+            ruled = {"id": r["id"], "verdict": ruled_on, "words": r["words"]}
+            break
+    found: dict = {}
     if ruled is not None:
         verdict = ruled["verdict"]
         if ruled["words"]:
@@ -1302,10 +1344,16 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
                 "SELECT 1 FROM items WHERE id = ? AND approval = 'contested'",
                 (id,)).fetchone() else None
     if verdict not in ("contest", "revise"):
-        return (f"{id} is the principal's own words, and the principal's "
-                f"ruling does not contest the item. The contest names other "
-                f"lines. Keep the item. Send msg.report_liaison with what "
-                f"those lines need, or answer with decisions.author")
+        # Each branch says only what is true of it (the review of 5e2f0e57,
+        # finding 4).
+        if ruled is not None:
+            why = (f"the principal's ruling {ruled['id']} rules {id} "
+                   f"{verdict}, not contest")
+        elif verdict is not None:
+            why = f"the principal's verdict rules {id} {verdict}, not contest"
+        else:
+            why = f"no ruling of the principal contests {id}"
+        return f"{id} is the principal's own words, and {why}. {keep}"
     if not words:
         return None
     # A dropped or negated name is a change too. s399 dropped `show_python`,
@@ -1323,6 +1371,11 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
                 break
     lost = [t for t in dict.fromkeys(lost)
             if not re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", said_low)]
+    # The principal removes a name in plain words: "I don't want a flag".
+    # The words never hold the identifier, and the drop check refused the
+    # contest it exists to admit (the review of 5e2f0e57, finding 1).
+    if lost and _words_remove_a_kind(said_low):
+        lost = []
     if lost:
         return (f"{id} is the principal's own words. The new text drops "
                 f"{', '.join(f'`{t}`' for t in lost)}, and the principal said "
