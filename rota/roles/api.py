@@ -7752,8 +7752,13 @@ _LINE_FAULT = re.compile(
 _LINE_MATCH = re.compile(
     r"\b(?:match(?:es)?|are right|is right|(?:are|is|looks?) fine|"
     r"looks? reasonable|is correct|are correct|ok|good)\b", re.I)
-# A sentence that only agrees, such as s427's "Ok, go ahead.".
-_AGREE = r"(?:ok(?:ay)?|yes|fine|go ahead|approved|looks good)"
+# A sentence that only agrees, such as s427's "Ok, go ahead." or night 144's
+# "The rest of the page looks fine to me." (frame 234, review 2, findings 1
+# and 2). Such a sentence corrects nothing, so it opens no door.
+_AGREE = (r"(?:ok(?:ay)?|yes|fine|go ahead|approved?|looks? good|sounds good|"
+          r"thanks|that works|to me|good|right|correct|"
+          r"(?:the rest|everything else|the others?)(?: of the page)?"
+          r"(?: looks?| is| are| seems?)?)")
 _BARE_AGREEMENT = re.compile(rf"\W*{_AGREE}(?:\W+{_AGREE})*\W*", re.I)
 
 

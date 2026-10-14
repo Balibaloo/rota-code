@@ -285,3 +285,16 @@ def test_the_reader_on_the_recorded_replies(session):
 
     words, faulted, matched = RECORDED[session]
     assert _line_reading(words) == (faulted, matched)
+
+
+def test_a_sentence_that_only_agrees_is_a_bare_agreement():
+    """Frame 234, review 2, findings 1 and 2: an agreeing sentence with no line
+    number corrects nothing, so it does not open the line-1 door."""
+    from rota.roles.api import _BARE_AGREEMENT
+
+    for s in ("Ok, go ahead.", "Yes.", "Looks good to me.", "Approved, thanks.",
+              "The rest of the page looks fine to me.", "Everything else is fine."):
+        assert _BARE_AGREEMENT.fullmatch(s), s
+    for s in ("Fine, but line 3 is wrong.", "Take the version from the interpreter.",
+              "Also drop the pager test."):
+        assert not _BARE_AGREEMENT.fullmatch(s), s
