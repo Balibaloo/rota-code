@@ -4808,6 +4808,98 @@ def _named_tokens(text: str) -> set[str]:
     return found
 
 
+# A backticked span names a callable when it is a bare identifier, a
+# `module::name` ref, a dotted name or a call `name(...)`. A flag is not one.
+_CALLABLE_SPAN = re.compile(
+    r"^(?:[\w./\\-]+::)?(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)(?:\(.*\))?$")
+# The principal names a callable as a comparison after these cues. Night 146:
+# m64 "the way echo does", m120 "next to echo" (frame 202).
+_COMPARE_CUES = (r"the way {n} does", r"like {n}", r"next to {n}",
+                 r"beside {n}", r"same as {n}", r"as {n} does",
+                 r"alongside {n}", r"similar to {n}")
+
+
+def _surface_symbol(ref: str) -> str:
+    """The callable name a surface ref ends in."""
+    return str(ref).split("::")[-1].rsplit(".", 1)[-1].strip()
+
+
+def _backticked_callables(text: str, *, called: bool = False) -> list[str]:
+    """
+    The callable names that `text` puts in backticks, in order.
+
+    With `called`, a span counts only in a callable's form: a call, a
+    `module::name` ref, or a name before "function", "helper" or a like
+    word. Night 145's item put the flag `show_python` in backticks, and the
+    door then told a seat to name the flag as a surface (frame 202).
+    """
+    found = []
+    text = text or ""
+    for m in _QUOTED_SPAN.finditer(text):
+        span = m.group(1).strip()
+        hit = _CALLABLE_SPAN.match(span)
+        if not hit or hit.group(1) in found:
+            continue
+        if called and not ("(" in span or "::" in span or re.match(
+                r"\s+(?:function|helper|callable|method|decorator)\b",
+                text[m.end():])):
+            continue
+        found.append(hit.group(1))
+    return found
+
+
+def _surface_move_fault(text: str, was: list, surface: list,
+                        item_id: str | None, item_text: str | None,
+                        words: list[str]) -> str | None:
+    """
+    The refusal for a surface move away from the callable the item asks for,
+    or None.
+
+    Night 146 moved the surface of `echo_json` criteria to `echo` 6 times.
+    Each relay named `echo` as a comparison, and the Testers then called
+    `echo` (frame 202, candidate B of the night's read).
+    """
+    old = {_surface_symbol(r) for r in was if r}
+    new = {_surface_symbol(r) for r in surface if r}
+    carried = set(_backticked_callables(item_text or "", called=True))
+    if item_id:
+        carried.add(item_id)
+    to = ", ".join(f"`{_surface_symbol(r)}`" for r in surface)
+    # The text rule. The surface is what the test calls, so a criterion that
+    # names the item's callable keeps that callable as its surface.
+    for name in _backticked_callables(text):
+        if name in new or not (name in old or name in carried):
+            continue
+        kept = [r for r in was if _surface_symbol(r) == name]
+        keep = (f"Keep `{kept[0]}`" if kept
+                else f"Name `{name}` in surface_refs")
+        return (f"The criterion says `{name}`, and the surface moves to {to}. "
+                f"The surface is what the test calls. {keep}, or rewrite the "
+                f"text to {to} if the principal asked for {to} itself")
+    # The comparison rule. A name after a cue is a model for the new
+    # callable, not the callable itself.
+    if not old & carried:
+        return None
+    for name in sorted(new - old):
+        bare = rf"`?(?:\w+\.)*{re.escape(name)}`?(?![\w-])"
+        cues = [re.compile(r"(?<![\w-])" + c.format(n=bare), re.IGNORECASE)
+                for c in _COMPARE_CUES]
+        for said in words:
+            if not said:
+                continue
+            for cue in cues:
+                hit = cue.search(said)
+                if not hit:
+                    continue
+                asked = sorted(old & carried)[0]
+                kept = [r for r in was if _surface_symbol(r) == asked]
+                return (f"The principal names `{name}` as a comparison: "
+                        f"{hit.group(0)!r}. The callable the principal asks "
+                        f"for is `{asked}`. Keep the surface on "
+                        f"`{kept[0] if kept else asked}`")
+    return None
+
+
 @op("criteria", "respecify")
 def criteria_respecify(ctx: Ctx, id: str, text: str,
                        term_refs: list[str] | None = None,
@@ -4875,6 +4967,27 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # An empty vetted surface clears nothing. On a greenfield index
         # `_vet_surface` returns [] (the review of 84a06216, finding 3).
         surface_changed = bool(was) and bool(surface) and set(surface) != set(was)
+    if surface_changed:
+        # The surface is what the test calls. Night 146 moved `echo_json`
+        # criteria to `echo` 6 times, and the Testers then rewrote `echo`
+        # (frame 202).
+        item = ctx.conn.execute(
+            "SELECT i.id, i.text FROM tickets t JOIN items i ON i.id = t.item_id "
+            "WHERE t.id = ?", (cur["ticket_id"],)).fetchone()
+        words = [r["words"] for r in (last_ruling_on(ctx.conn, id),
+                                      last_ruling_on(ctx.conn, item["id"])
+                                      if item else None) if r]
+        trigger = getattr(ctx, "trigger", None)
+        relay = ctx.conn.execute(
+            "SELECT body_text FROM messages WHERE id = ? AND verb = 'relay'",
+            (trigger,)).fetchone() if trigger else None
+        if relay and relay["body_text"]:
+            words.append(relay["body_text"])
+        fault = _surface_move_fault(text, was, surface,
+                                    item["id"] if item else None,
+                                    item["text"] if item else None, words)
+        if fault:
+            raise ValueError(fault)
 
     ruled = last_ruling_on(ctx.conn, id)
     contested = (ruled if ruled and ruled["verdict"] in ("contest", "revise")
