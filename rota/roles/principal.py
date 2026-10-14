@@ -1920,9 +1920,19 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                  "revise": "contested"}.get(ruling)
         if state is None:
             continue
-        conn.execute(
+        moved = conn.execute(
             "UPDATE items SET approval = ?, approval_ver = version "
-            "WHERE id = ? AND approval IS NOT ?", (state, ref, state))
+            "WHERE id = ? AND approval IS NOT ?", (state, ref, state)).rowcount
+        # An approval change is an exit from a quarantine. This raw write
+        # skipped the lift, so night 147's approve left the contested tick
+        # quarantined, and the walk's end said the team gave up (frame 240).
+        # Frame 87 fixed the same shape in `boot.py`. The rowcount keeps frame
+        # 80's rule: a same-value write revives nothing. Law 6.
+        if moved:
+            from ..core.db import Write, _lift_quarantines
+
+            _lift_quarantines(conn, Write("items", ref, {"approval": state},
+                                          op="update", amends=False), True)
 
     refs = [r for r in (list(per_item) if answer.per_item else ask.refs)
             if r not in closed_here]
