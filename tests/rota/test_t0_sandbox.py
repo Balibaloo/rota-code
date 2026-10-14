@@ -539,6 +539,42 @@ def test_a_stored_test_of_another_batch_is_refused_as_a_first_write(db):
     assert sb.ctx.writes == []
 
 
+def test_a_same_body_encode_of_another_batchs_test_lands_in_this_batch(db):
+    """Night 147 (frame 239's review, finding 2): bg_3's Tester could send
+    bg_2's test byte for byte. The door said `unchanged` and wrote nothing,
+    so bg_3 kept no test. The other-batch guard now answers, and the new id
+    lands in this batch."""
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    db.execute("INSERT INTO batches (id, item_id, status) "
+               "VALUES ('b2','i1','abandoned')")
+    _a_stored_test(db, batch_id="b2")
+    sb = _challenge_tester(db)
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="t1", criterion_id="c1", path="p.py",
+                body=_PRORATE)
+    assert "t1 is a test of batch b2" in str(exc.value)
+    assert sb.ctx.writes == []
+    sb.call("tests.encode", id="t1_b1", criterion_id="c1", path="p.py",
+            body=_PRORATE)
+    assert [(w[1], w[2]["batch_id"]) for w in sb.ctx.writes] == [("t1_b1", "b1")]
+
+
+def test_criteria_load_names_only_this_batchs_tests(db):
+    """Night 147 (frame 239's review, finding 2): `criteria_load` showed
+    bg_3's Tester the tests of bg_2 under `tested_by`."""
+    from rota.roles.api import criteria_load
+    _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
+    db.execute("INSERT INTO batches (id, item_id, status) "
+               "VALUES ('b2','i1','abandoned')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) "
+               "VALUES ('b2','tk1')")
+    _a_stored_test(db, batch_id="b2")
+    sb = _challenge_tester(db)
+    assert [r.get("tested_by") for r in criteria_load(sb.ctx, "b1")] == [None]
+    assert [r.get("tested_by") for r in criteria_load(sb.ctx, "b2")] == ["t1"]
+
+
 def test_a_replace_keeps_another_batchs_staged_test(db):
     """The removal is the replace's own batch. A test staged for `c1` in
     `b2` stays, and the note does not name it."""

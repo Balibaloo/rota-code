@@ -646,6 +646,22 @@ def test_a_batch_with_its_own_tests_wakes_no_tester(db):
     assert not any(w.kind == "tick:tests_missing" for w in P.all_wakes(db))
 
 
+def test_an_abandoned_batchs_tests_never_wake_the_critic_for_the_next(db):
+    """
+    Night 147, walk 2 (frame 239's review, finding 1): bg_2's tests let
+    `review` wake the Critic on bg_3 before its Tester ran. The verdict is
+    keyed to the commit, so a later test never reached the Critic.
+    """
+    _two_batches_on_one_ticket(db)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('inh_1','bg_3',NULL,'tests/test_old.py','def test_old(): pass')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+               "VALUES ('tr1','bg_3','inh_1','16588ec9','pass')")
+    wakes = P.all_wakes(db)
+    assert not any(w.kind == "tick:review" for w in wakes), wakes
+    assert [w.refs for w in wakes if w.kind == "tick:tests_missing"] == [("bg_3",)]
+
+
 def test_an_abandoned_batchs_tests_never_merge_the_next_batch(db):
     """
     Night 147, walk 2 (frame 239): bg_3 merged on its inherited tests and

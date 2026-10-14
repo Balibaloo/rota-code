@@ -583,6 +583,9 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     # batch whose only tests are inherited.
     # A test counts for its own batch only. Night 147, walk 2: bg_3 merged
     # on the tests of bg_2, an abandoned batch on the same ticket (frame 239).
+    # The check ran on bg_3 only because bg_3 held 37 inherited tests then.
+    # `harness.inherit` later moved those rows to bg_4, so the night's
+    # database shows bg_3 with no test (frame 239's review, finding 4).
     has_tests = conn.execute(
         "SELECT 1 FROM tests WHERE batch_id = ? LIMIT 1", (batch_id,)).fetchone()
     untested = [r["id"] for r in conn.execute(

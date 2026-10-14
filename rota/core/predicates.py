@@ -782,7 +782,8 @@ def tests_missing(conn) -> list[Wake]:
     # amendment 4).
     # A test counts for its own batch only. Night 147, walk 2: bg_2 was
     # abandoned with three tests, and bg_3 took its criteria. Those tests
-    # kept this predicate quiet, and bg_3 merged with no test (frame 239).
+    # satisfied the NOT EXISTS, so this predicate gave no wake. bg_3 merged
+    # with no test of its own (frame 239).
     from .scheduler import not_retired
     rows = conn.execute(
         "SELECT bt.batch_id AS bid, c.id AS cid FROM batch_tickets bt "
@@ -1295,11 +1296,14 @@ def review(conn) -> list[Wake]:
         # here: tipsZ (2026-09-09) merged on the inherited test alone, with
         # no test of either criterion and no Tester session. The Tester's tick
         # is in the start band; review waits for it.
+        # The test must be of this batch. Night 147, walk 2: bg_2's tests
+        # let the Critic judge bg_3 before its Tester ran (frame 239).
         "  AND NOT EXISTS (SELECT 1 FROM batch_tickets bt "
         "                  JOIN criteria c ON c.ticket_id = bt.ticket_id "
         "                  WHERE bt.batch_id = b.id "
         "                    AND NOT EXISTS (SELECT 1 FROM tests t "
-        "                                    WHERE t.criterion_id = c.id))"
+        "                                    WHERE t.criterion_id = c.id "
+        "                                      AND t.batch_id = b.id))"
     ).fetchall()
     return [Wake("critic", "tick:review", refs=(r["bid"],)) for r in rows]
 

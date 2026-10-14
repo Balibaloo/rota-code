@@ -5437,10 +5437,13 @@ def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
         # all four -- the mode could not see which debt was its own.
         rows = _rows(ctx.conn.execute(
             "SELECT c.id, c.ticket_id, c.text, c.surface_refs, "
-            "(SELECT t.id FROM tests t WHERE t.criterion_id = c.id LIMIT 1) "
+            "(SELECT t.id FROM tests t WHERE t.criterion_id = c.id "
+            " AND t.batch_id = bt.batch_id LIMIT 1) "
             "AS tested_by "
             "FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
             "WHERE bt.batch_id = ?", (bid,)))
+        # A test of another batch is not this batch's test. Night 147: the
+        # Tester of bg_3 saw bg_2's tests here (frame 239's review, finding 2).
         for r in rows:
             if r.get("tested_by") is None:
                 del r["tested_by"]
@@ -7807,10 +7810,13 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # version 1 with one more line break, and the encode would have stored
     # the failing test again as version 2 (frame 152's review of 1cfbe704,
     # finding 5).
+    # The prior row must be of this batch. Night 147: a same-body encode of a
+    # bg_2 id in bg_3 wrote nothing and skipped the other-batch guard below
+    # (frame 239's review, finding 2).
     prior = ctx.conn.execute(
-        "SELECT path, body, criterion_id FROM tests WHERE id = ?",
+        "SELECT path, body, criterion_id, batch_id FROM tests WHERE id = ?",
         (id,)).fetchone()
-    if (prior and prior["path"] == path
+    if (prior and prior["batch_id"] == batch_id and prior["path"] == path
             and (prior["body"] or "").rstrip() == body.rstrip()):
         return {"id": id, "unchanged": True,
                 "note": "identical to what is already on file, so nothing was "
