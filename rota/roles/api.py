@@ -1268,37 +1268,66 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
             f"rewrite them. {route}",
             "decisions.author", {"id": INVENT, "text": INVENT, "refs": [id]})
     if wake == "tick:exhausted":
+        # No rung follows the Vision Keeper, so a decision alone leaves the
+        # batch exhausted with no page (the review of 81f27127, finding 4).
         return (f"{id} is the principal's own words. An exhausted batch does "
-                f"not rewrite them. Answer with decisions.author and say which "
-                f"work the item asks for, or msg.report_liaison so the "
-                f"principal rules")
-    # A contest rewrites the item with the principal's words. The words come
-    # from the verdict the contested tick reads, the relay's verdict, or the
-    # ruling row, whichever this database holds.
-    from .principal import entry_for, last_ruling_on
-
-    contest = False
-    words: list[str] = []
-    if wake == "tick:contested" and id in (getattr(ctx, "wake_refs", ()) or ()):
-        from ..core.runner import _resolve_contest
-
-        contest = True
-        said = _resolve_contest(ctx.conn, id).get("principal_said")
-        if said:
-            words.append(said)
-    relay = _principal_relay(ctx)
-    if relay and relay[1].get(id) in ("contest", "revise"):
-        contest = True
-        said = entry_for(ctx.conn, row["cause_id"]) if row else ""
-        if said:
-            words.append(said)
-    if not contest:
+                f"not rewrite them. Send msg.report_liaison with the "
+                f"exhaustion and what the item should say, so the principal "
+                f"rules. Or answer with decisions.author")
+    # The relay mode offers no problem.assert, so the door reads no relay
+    # (the review of 81f27127, finding 7). The contested tick is the wake.
+    if wake != "tick:contested":
         return None
+    from ..core.runner import _resolve_contest
+    from .principal import last_ruling_on
+
+    # A contest on the item is a verdict on the item's own id. Night 146's
+    # m250 approved the item and contested a criterion, and s399 rewrote the
+    # item anyway (the review of 81f27127, finding 2). A ruling row is the
+    # record. A database with no ruling row keeps the verdict in config.
+    words: list[str] = []
     ruled = last_ruling_on(ctx.conn, id)
-    if ruled and ruled["verdict"] in ("contest", "revise") and ruled["words"]:
-        words.append(ruled["words"])
+    if ruled is not None:
+        verdict = ruled["verdict"]
+        if ruled["words"]:
+            words.append(ruled["words"])
+    else:
+        found = _resolve_contest(ctx.conn, id)
+        verdict = (found.get("principal_verdict") or {}).get(id)
+        if found.get("principal_said"):
+            words.append(found["principal_said"])
+        # A seed with no verdict at all names the contest by the approval.
+        if verdict is None and not found:
+            verdict = "contest" if ctx.conn.execute(
+                "SELECT 1 FROM items WHERE id = ? AND approval = 'contested'",
+                (id,)).fetchone() else None
+    if verdict not in ("contest", "revise"):
+        return (f"{id} is the principal's own words, and the principal's "
+                f"ruling does not contest the item. The contest names other "
+                f"lines. Keep the item. Send msg.report_liaison with what "
+                f"those lines need, or answer with decisions.author")
     if not words:
         return None
+    # A dropped or negated name is a change too. s399 dropped `show_python`,
+    # which the principal kept, and the added-word check let a drop pass
+    # (the review of 81f27127, finding 1).
+    said_low = " ".join(words).lower()
+    new_low = (text or "").lower().replace("`", " ")
+    new_tokens = _named_tokens(text)
+    lost = [t for t in sorted(_named_tokens(cur["text"]) - new_tokens)]
+    for t in sorted(new_tokens):
+        for m in re.finditer(rf"(?<![\w-]){re.escape(t)}(?![\w-])", new_low):
+            before = " ".join(new_low[:m.start()].split()[-3:])
+            if re.search(r"\b(?:not|without|no longer|instead of|no)\b", before):
+                lost.append(t)
+                break
+    lost = [t for t in dict.fromkeys(lost)
+            if not re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", said_low)]
+    if lost:
+        return (f"{id} is the principal's own words. The new text drops "
+                f"{', '.join(f'`{t}`' for t in lost)}, and the principal said "
+                f"{words[0]!r}. Keep what the principal did not contest, or "
+                f"keep the item and answer with decisions.author")
     # The principal types "%" for "percent" (l1_gatekeeper2, "bill + tip %").
     carried = (set(_prose_words(" ".join(words).replace("%", " percent ")))
                | set(_prose_words(cur["text"] or "")))

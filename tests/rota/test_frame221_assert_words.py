@@ -111,8 +111,7 @@ def test_s399_a_contest_admits_only_the_principals_words(db):
                      "version as major.minor.micro without requiring a flag.")
     msg = str(err.value)
     assert "version_option_show_python is the principal's own words" in msg
-    assert "requiring" in msg and "display" in msg
-    assert "major" not in msg.split("the principal said")[0]
+    assert "drops `show_python`" in msg
     assert not _item_writes(sb)
 
 
@@ -153,8 +152,9 @@ def test_a_ruling_row_carries_the_words_too(db):
     sb = _contested(db, "version_option_show_python")
     out = sb.call("problem.assert", id="version_option_show_python",
                   kind="in_scope",
-                  text="The `version_option` shows the running Python version "
-                       "from the interpreter's version info as "
+                  text="The `version_option` will include a `show_python` "
+                       "flag that appends the running Python version from "
+                       "the interpreter's version info, shown as "
                        "major.minor.micro.")
     assert out == {"id": "version_option_show_python"}
 
@@ -172,4 +172,61 @@ def test_the_items_own_words_stay_unchanged_on_a_challenge(db):
     out = sb.call("problem.assert", id="confirm_default_on_eof",
                   kind="in_scope", text=CONFIRM)
     assert out.get("unchanged"), out
+    assert not _item_writes(sb)
+
+
+def _ruling(conn, rid, per_item, said):
+    conn.execute("INSERT OR IGNORE INTO messages (id, thread_id, from_role, "
+                 "to_role, verb, seq) VALUES ('m249', 'th', 'liaison', "
+                 "'principal', 'present', 4)")
+    conn.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
+                 "VALUES (?, 'm249', ?, ?, 'landed')",
+                 (rid, json.dumps(per_item), said))
+    conn.commit()
+
+
+def test_s399_a_ruling_that_approves_the_item_is_no_contest_on_it(db):
+    # r_8b2329d2da: the item approve, a criterion contest (night 146, m250).
+    _ruling(db, "r_8b2329d2da", {"version_option_show_python": "approve",
+                                 "l_cee175bedd": "contest"}, VOPT_SAID)
+    sb = _contested(db, "version_option_show_python")
+    with pytest.raises(ValueError, match="does not contest the item") as err:
+        sb.call("problem.assert", id="version_option_show_python",
+                kind="in_scope",
+                text="The `version_option` will display the running Python "
+                     "version as major.minor.micro without requiring a flag.")
+    assert "msg.report_liaison" in str(err.value)
+    assert not _item_writes(sb)
+
+
+def test_a_negated_name_is_a_drop(db):
+    _contest(db, "version_option_show_python", VOPT_SAID, "m250")
+    sb = _contested(db, "version_option_show_python")
+    with pytest.raises(ValueError, match="drops `show_python`"):
+        sb.call("problem.assert", id="version_option_show_python",
+                kind="in_scope",
+                text="The `version_option` will not include a `show_python` "
+                     "flag and appends the running Python version to the "
+                     "message.")
+
+
+def test_s128_a_criterion_contest_in_the_principals_words_is_refused(db):
+    _ruling(db, "r_s128", {"confirm_default_on_eof": "approve",
+                           "c_line3": "contest"},
+            "Line 3 isn't right: objects should go straight to the json module.")
+    sb = _contested(db, "confirm_default_on_eof")
+    with pytest.raises(ValueError, match="does not contest the item"):
+        sb.call("problem.assert", id="confirm_default_on_eof", kind="in_scope",
+                text=CONFIRM + " Objects go straight to the json module.")
+
+
+def test_an_exhausted_batch_does_not_rewrite_a_decided_item(db):
+    sb = build("vision_keeper", db, mode="exhausted",
+               allow=prompts.mode_tools("vision_keeper", "exhausted"),
+               wake=Wake("vision_keeper", "tick:exhausted", refs=("bg_5",)))
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="confirm_default_on_eof", kind="in_scope",
+                text="confirm() takes a default_on_eof argument.")
+    msg = str(err.value)
+    assert msg.index("msg.report_liaison") < msg.index("decisions.author")
     assert not _item_writes(sb)

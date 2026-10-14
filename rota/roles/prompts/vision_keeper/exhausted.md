@@ -7,9 +7,12 @@ person. So this ends here, one way or the other, and leaving it is not available
 `problem.consult` for the item and `tickets.consult` for what was sliced from it.
 Almost always one of two things has happened:
 
-- **the item asks for something nobody has decided the shape of.** Amend it with
-  `problem.assert` so it says what was actually meant. That drops the approval
-  and stops the batch, which is correct — the batch was building the wrong thing
+- **the item asks for something nobody has decided the shape of.** For an item
+  with provenance `decided`, send `msg.report_liaison` with the exhaustion and
+  what you believe the item should say. That item is the principal's own words,
+  so do not assert it. For any other item, amend it with `problem.assert` so it
+  says what was actually meant. That drops the approval and stops the batch, which is
+  correct — the batch was building the wrong thing
 - **the item is fine and the project cannot answer it.** `msg.report_liaison`,
   so it reaches the principal as a question. This is the only route out of the
   system, and it is the one everything below you has failed to find
