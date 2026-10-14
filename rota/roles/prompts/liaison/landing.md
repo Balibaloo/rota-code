@@ -38,12 +38,12 @@ Otherwise the reply is a ruling. Read each numbered line against it:
   and keeps the line is `revise`.
 - The page asks which request goes first. A reply that says the earlier one is
   separate or for later is `later`, even when it also says drop it from this
-  change.
+  change. On that page, line 1 is a request to order, not to judge: `later`,
+  `now` or `drop` only.
 
-A correction counts against the line it is about, and only that line. On a
-page that starts with the request, line 1 is the request. Contest it only when
-the words name line 1 or say the request itself is wrong. A correction of a criterion, a check or the files contests
-that line alone. Every line gets a ruling.
+A correction counts against the line it is about, and only that line. A
+correction of a criterion, a check or the files contests that line, not line 1.
+Every line gets a ruling.
 
 Call `rulings.rule` once, with `rulings` for every line and the whole reply as
 `words`. Then stop. The ruling lands after this session, and the owner of a
