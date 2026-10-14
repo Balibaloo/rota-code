@@ -32,11 +32,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from night_cassette import REASON_SCHEMA  # noqa: E402
 from rota.llm.cassettes import key_for, open_dev_db  # noqa: E402
 from rota.llm.llm import Pins  # noqa: E402
 
 PIN_FIELDS = ("model", "temperature", "num_ctx", "prompt_hash", "max_tokens",
               "top_p", "seed", "repeat_penalty", "think")
+
+# Both cut shapes of `run_session` open the turn's results block with this
+# prefix, and the block stays in the later prompts. So a turn is cut when the
+# next prompt holds one more copy than its own prompt. Night 146 gives five,
+# the five sessions night 147 ran live (frame 233, pass 4). The runner writes
+# no sign of `invented_result` or `repeating` into the next prompt, so the
+# seed infers neither.
+CUT_LINE = "ERROR reply cut:"
+
+
+def _cut(turn, after) -> bool:
+    return after is not None and after["user"].count(CUT_LINE) > turn["user"].count(CUT_LINE)
 
 
 def _native_run(night: sqlite3.Connection) -> bool:
@@ -59,8 +72,9 @@ def seed(night_path, cassette_path) -> dict:
     night.row_factory = sqlite3.Row
     Path(cassette_path).parent.mkdir(parents=True, exist_ok=True)
     out = open_dev_db(cassette_path)
+    out.execute(REASON_SCHEMA)
     counts = {"sessions": 0, "turns": 0, "present": 0, "notes": 0,
-              "native": 0, "walk": 0}
+              "native": 0, "walk": 0, "cut": 0}
     native_run = _native_run(night)
     start = _walk_start(night)
     try:
@@ -89,7 +103,7 @@ def seed(night_path, cassette_path) -> dict:
             # A replayed session reads `cassette:ollama`, and its row keeps `ollama`.
             backend = (s["backend"] or "").removeprefix("cassette:")
             added = 0
-            for t in turns:
+            for n, t in enumerate(turns):
                 key = key_for(t["system"], t["user"], pins, "text")
                 cur = out.execute(
                     "INSERT OR IGNORE INTO cassettes (key, model, temperature, num_ctx, "
@@ -99,6 +113,22 @@ def seed(night_path, cassette_path) -> dict:
                      t["system"], t["user"], t["completion"], backend))
                 added += cur.rowcount
                 counts["present"] += 1 - cur.rowcount
+                if not _cut(t, turns[n + 1] if n + 1 < len(turns) else None):
+                    continue
+                if not cur.rowcount:
+                    # Night 147's wrap ran before pass 4, so its live cut rows
+                    # hold no reason. A present key gains one only when it
+                    # stores this reply and no reason (frame 233, pass 4b).
+                    if out.execute("SELECT 1 FROM done_reasons WHERE key = ?",
+                                   (key,)).fetchone():
+                        continue
+                    row = out.execute("SELECT completion FROM cassettes WHERE key = ?",
+                                      (key,)).fetchone()
+                    if row[0] != t["completion"]:
+                        continue
+                cur = out.execute("INSERT OR IGNORE INTO done_reasons (key, done_reason) "
+                                  "VALUES (?, 'length')", (key,))
+                counts["cut"] += cur.rowcount
             counts["turns"] += added
             counts["sessions"] += 1 if added else 0
     finally:
@@ -117,7 +147,8 @@ def main(argv: list[str]) -> int:
     print(f"into {dst}")
     print(f"seeded {c['sessions']} sessions, {c['turns']} turns; "
           f"{c['present']} turns already present; skipped {c['native']} native "
-          f"and {c['walk']} walk sessions and {c['notes']} note turns")
+          f"and {c['walk']} walk sessions and {c['notes']} note turns; "
+          f"marked {c['cut']} turns cut")
     return 0
 
 

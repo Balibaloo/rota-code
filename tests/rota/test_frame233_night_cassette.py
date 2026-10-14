@@ -158,7 +158,7 @@ def test_the_seed_fills_the_night_cassette_from_the_onboarding_turns(tmp_path, m
     cassette = tmp_path / "night_cassettes.db"
     counts = _module(SEED).seed(tmp_path / "night.db", cassette)
     assert counts == {"sessions": 2, "turns": 3, "present": 0, "notes": 0,
-                      "native": 1, "walk": 1}, counts
+                      "native": 1, "walk": 1, "cut": 0}, counts
     assert (tmp_path / "night.db").read_bytes() == before, "the seed wrote the night"
 
     # The seeded key is the key the wrap looks up.
@@ -202,6 +202,110 @@ def test_the_seed_skips_a_note_turn_and_needs_its_destination(tmp_path, capsys):
     assert seed.main([str(tmp_path / "night.db"), str(cassette)]) == 0
     out = capsys.readouterr().out
     assert str(tmp_path / "night.db") in out and str(cassette) in out, out
+
+
+class Cut(Counting):
+    """A model whose reply stops at the output budget, as Ollama says it."""
+
+    def complete(self, system, user, pins, tools=None):
+        self.calls += 1
+        return Completion(text="TOOL: code.write(", pins=pins, backend=self.name,
+                          raw={"done_reason": "length"})
+
+
+def test_a_cut_reply_replays_cut_and_a_whole_reply_replays_whole(tmp_path, monkeypatch):
+    """Night 147's s71, s24, s41, s9 and s81 replayed a cut reply as whole. The
+    runner then ran the call that the cut had blocked, and the session ran live
+    from the next turn (frame 233, pass 4)."""
+    night = _module()
+    monkeypatch.setenv("ROTA_NIGHT_CASSETTES", str(tmp_path / "cassettes.db"))
+    monkeypatch.setenv("WALK_REPLAY", "1")
+    pins = Pins(model="scripted")
+    cut, whole = Cut(), Counting()
+    night.wrap(cut, "onboarding").complete("sys", "cut", pins)
+    night.wrap(whole, "onboarding").complete("sys", "whole", pins)
+
+    replayed = night.wrap(Counting(), "onboarding")
+    again = replayed.complete("sys", "cut", pins)
+    assert replayed.hits == 1 and again.text == "TOOL: code.write("
+    assert again.raw.get("done_reason") == "length", again.raw
+    plain = replayed.complete("sys", "whole", pins)
+    assert replayed.hits == 2 and not plain.raw, plain.raw
+
+
+def test_a_cassette_without_the_reason_table_replays_and_gains_it(tmp_path, monkeypatch):
+    """A night cassette written before pass 4 holds no reason table."""
+    from rota.llm.cassettes import RecordingBackend, open_dev_db
+
+    path = tmp_path / "old.db"
+    RecordingBackend(Counting(), open_dev_db(path)).complete(
+        "sys", "old", Pins(model="scripted"))
+    tables = {r[0] for r in sqlite3.connect(path).execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "done_reasons" not in tables
+
+    night = _module()
+    monkeypatch.setenv("ROTA_NIGHT_CASSETTES", str(path))
+    monkeypatch.setenv("WALK_REPLAY", "1")
+    fake = Counting()
+    replayed = night.wrap(fake, "onboarding").complete("sys", "old", Pins(model="scripted"))
+    assert fake.calls == 0 and replayed.text == "nothing to do" and not replayed.raw
+    tables = {r[0] for r in sqlite3.connect(path).execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "done_reasons" in tables
+
+
+def test_the_seed_marks_a_turn_whose_next_prompt_gains_the_cut_line(tmp_path, monkeypatch):
+    """A night database stores no `done_reason`. The runner opens the results
+    block of a cut turn with `ERROR reply cut:`, and the line stays in the
+    later prompts. So a cut is a turn whose next prompt holds one more line
+    (night 146: s71's turns 2 to 4 all hold the line of turn 1)."""
+    _night_db(tmp_path / "night.db")
+    line = "ERROR reply cut: your reply was cut at the output budget before it ended."
+    conn = sqlite3.connect(tmp_path / "night.db")
+    conn.execute("DELETE FROM turns WHERE session_id = 's1'")
+    for n, user, completion in ((1, "user a1", "TOOL: code.write("),
+                                (2, f"user a1\n\nTOOL: code.write(\n\n{line}", "TOOL: x()"),
+                                (3, f"user a1\n\n{line}\n\nTOOL: x()\n\nOK x", "Done.")):
+        conn.execute("INSERT INTO turns (session_id, seq, system, user, completion) "
+                     "VALUES ('s1', ?, 'sys a', ?, ?)", (n, user, completion))
+    conn.commit()
+    conn.close()
+    cassette = tmp_path / "night_cassettes.db"
+    counts = _module(SEED).seed(tmp_path / "night.db", cassette)
+    assert counts["cut"] == 1 and counts["turns"] == 4, counts
+
+    monkeypatch.setenv("ROTA_NIGHT_CASSETTES", str(cassette))
+    monkeypatch.setenv("WALK_REPLAY", "1")
+    wrapped = _module().wrap(Counting(), "onboarding")
+    pins = Pins(model="qwen3:8b", num_ctx=16384)
+    assert wrapped.complete("sys a", "user a1", pins).raw == {"done_reason": "length"}
+    assert not wrapped.complete("sys a", f"user a1\n\nTOOL: code.write(\n\n{line}", pins).raw
+    assert not wrapped.complete("sys b", "user b", pins).raw
+    assert wrapped.hits == 3
+
+    # Night 147's wrap ran before pass 4, so its live cut rows hold no reason.
+    # A second seed gives a present key its reason when the reply is the same
+    # (frame 233, pass 4b).
+    out = sqlite3.connect(cassette)
+    out.execute("DELETE FROM done_reasons")
+    out.execute("UPDATE cassettes SET completion = 'other' WHERE user = 'user b'")
+    out.commit()
+    out.close()
+    again = _module(SEED).seed(tmp_path / "night.db", cassette)
+    assert again["cut"] == 1 and again["turns"] == 0, again
+    rows = sqlite3.connect(cassette).execute(
+        "SELECT COUNT(*) FROM done_reasons").fetchone()[0]
+    assert rows == 1
+    assert _module(SEED).seed(tmp_path / "night.db", cassette)["cut"] == 0
+
+    # A present key whose stored reply differs keeps no reason.
+    out = sqlite3.connect(cassette)
+    out.execute("DELETE FROM done_reasons")
+    out.execute("UPDATE cassettes SET completion = 'other' WHERE user = 'user a1'")
+    out.commit()
+    out.close()
+    assert _module(SEED).seed(tmp_path / "night.db", cassette)["cut"] == 0
 
 
 class _Model:
