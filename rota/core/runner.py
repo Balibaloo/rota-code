@@ -660,34 +660,33 @@ FABRICATED_RESULT = toolproto.INVENTED_RESULT
 _LISTED_HEAD = re.compile(r"^\s*`([A-Za-z_]\w*\.[A-Za-z_]\w*)`\s*:\s*$")
 
 
-def listed_not_called(text: str) -> list[str]:
+def listed_not_called(text: str, called: Any, allowed: Any) -> list[str]:
     """
     The call names a reply writes as a heading over a list, with no call.
 
-    On night 147, 8 of 8 surveys of `src/click` wrote "`glossary.amend`:"
-    and the words as a list under it. The parser finds no call in a list, so
-    nothing ran and the record showed only the refused attest. Interviewed,
-    the seat called its list "descriptions of what I would record, not
-    runnable calls" (frame 237). A name counts as called when any line of the
-    reply starts a call of it, with `TOOL:` or bare, because the parser runs
-    both. Names come in the order of the reply, each once.
+    On night 147, 5 of 8 survey sessions on `src/click` wrote
+    "`glossary.amend`:" and the words as a list under it. The parser finds
+    no call in such a list, so nothing ran, and the record showed only the
+    refused attest. Interviewed, the seat called its list "descriptions of
+    what I would record, not runnable calls" (frame 237).
+
+    `called` is the names the parser found in the same reply. The parser
+    alone decides what ran, because it reads bullets and bare calls that a
+    line pattern misses (frame 237's review, finding 1). `allowed` is the
+    calls the mode offers, so a heading for any other name is prose. Names
+    come in the order of the reply, each once.
     """
     lines = text.splitlines()
-
-    def called(name: str) -> bool:
-        return bool(re.search(
-            rf"^\s*(?:{re.escape(toolproto.MARKER)}\s*)?{re.escape(name)}\s*\(",
-            text, re.M))
-
     names: list[str] = []
     for i, line in enumerate(lines):
         head = _LISTED_HEAD.match(line)
-        if not head or head.group(1) in names:
+        if not head:
             continue
-        under = next((nxt for nxt in lines[i + 1:] if nxt.strip()), "")
-        if under and not called(head.group(1)) and not under.lstrip().startswith(
-                toolproto.MARKER):
-            names.append(head.group(1))
+        name = head.group(1)
+        if name in names or name in called or name not in allowed:
+            continue
+        if any(nxt.strip() for nxt in lines[i + 1:]):
+            names.append(name)
     return names
 
 
@@ -3613,16 +3612,26 @@ def run_session(
             calls, call_at, scanned = toolproto.extract_lenient(
                 completion.text, allowed, signatures=_param_sets(sb),
                 with_offsets=True)
-            # The account's half of frame 237. The record of night 147 showed
-            # a refused attest and no reason that no word landed. The line is
-            # headed without a dotted name, because the fixtures count such a
-            # head as a refused call (the note at `session_note` below).
-            for name in listed_not_called(completion.text):
+            # Frame 237. The record of night 147 showed a refused attest and
+            # no cause for the empty glossary, and s187 read only the general
+            # nudge and wrote the list again for five turns. So the account
+            # gets one line, and the seat reads one line on its next turn.
+            # The account line has no dotted name before its first colon,
+            # because the fixtures count such a head as a refused call (the
+            # note at `session_note` below).
+            listed_note = []
+            for name in listed_not_called(
+                    completion.text,
+                    {getattr(c, "name", None) for c in calls}, allowed):
                 listed = (f"written as a list under its name, not as calls: "
                           f"`{name}`. None ran. Each call is one line, "
                           f"`{toolproto.MARKER} {name}(...)`.")
                 if listed not in outcome.errors:
                     outcome.errors.append(listed)
+                listed_note.append(
+                    f"NOTE You wrote `{name}` as a heading over a list. A list "
+                    f"runs nothing, so no `{name}` ran. Write each call on its "
+                    f"own line: `{toolproto.MARKER} {name}(...)`.")
             if (completion.raw or {}).get("done_reason") == "length":
                 # clickI night 16 (2026-09-12): a 688-line whole-file write
                 # stopped at the output cap mid-string, the parser called it
@@ -3736,10 +3745,10 @@ def run_session(
                 outcome.errors.append("named an act and did not perform it")
                 _append(transcript, kinds, _REPLY, completion.text)
                 _append(
-                    transcript, kinds, _RESULTS,
-                    "You said what you would do and did not do it -- a reply "
-                    "is not a call. Send the call you named, as TOOL: ..., "
-                    "or end by saying nothing is owed.")
+                    transcript, kinds, _RESULTS, "\n".join(listed_note + [
+                        "You said what you would do and did not do it -- a "
+                        "reply is not a call. Send the call you named, as "
+                        "TOOL: ..., or end by saying nothing is owed."]))
                 continue
             # Night 125: the door told s158 "End the session with no call.",
             # s158 obeyed, and this nudge then told it to act with a call.
@@ -3759,13 +3768,13 @@ def run_session(
                 outcome.errors.append("ended a tick with nothing done")
                 _append(transcript, kinds, _REPLY, completion.text)
                 _append(
-                    transcript, kinds, _RESULTS,
-                    "You were woken because something is owed here, and this "
-                    "session has written nothing and sent nothing -- the same "
-                    "wake will fire again with the same material. Act on your "
-                    "conclusion with a call: fix it, dispute it with the "
-                    "evidence quoted, or escalate it. If truly nothing is "
-                    "owed, say so and stop.")
+                    transcript, kinds, _RESULTS, "\n".join(listed_note + [
+                        "You were woken because something is owed here, and "
+                        "this session has written nothing and sent nothing -- "
+                        "the same wake will fire again with the same material. "
+                        "Act on your conclusion with a call: fix it, dispute "
+                        "it with the evidence quoted, or escalate it. If truly "
+                        "nothing is owed, say so and stop."]))
                 continue
             if not calls:
                 # A session ending with held calls never superseded is the
@@ -3821,7 +3830,9 @@ def run_session(
                 outcome.errors.append("repeated its previous turn verbatim twice; ended")
                 break
 
-            feedback = []
+            # Frame 237: a reply with a list and some real calls reads the
+            # note beside their results.
+            feedback = list(listed_note)
             # The room this turn's results share, spent in call order. A
             # result takes the smaller of its own cap and what is left, so the
             # first read of a turn is never cut by a later one, and the refusal

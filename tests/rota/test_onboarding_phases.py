@@ -566,21 +566,53 @@ glossary.amend(term='callback', sense_body='A function registered to run before 
 surveys.attest(outcome="found", citations=["src/click/__init__.py"])"""
 
 
-def test_a_call_name_over_a_list_is_named_as_no_call():
-    """Night 147: 8 of 8 surveys of `src/click` wrote "`glossary.amend`:" and a
-    list, and nothing ran. The interview of s187 called the list "descriptions
-    of what I would record, not runnable calls" (frame 237)."""
-    from rota.core.runner import listed_not_called
+SURVEY_CALLS = {"code.area", "code.source", "glossary.amend", "glossary.consult",
+                "problem.baseline", "surveys.attest", "surveys.consult"}
 
-    assert listed_not_called(S187_TURN1) == ["glossary.amend", "code.source"]
+
+def _listed(text):
+    """`listed_not_called` as the runner calls it: with the names the parser
+    found in the same reply, and the calls the mode offers."""
+    from rota.core.runner import listed_not_called
+    from rota.llm import toolproto
+
+    calls = toolproto.extract_lenient(text, SURVEY_CALLS)
+    return listed_not_called(text, {getattr(c, "name", None) for c in calls},
+                             SURVEY_CALLS)
+
+
+def test_a_call_name_over_a_list_is_named_as_no_call():
+    """Night 147: 5 of 8 survey sessions wrote "`glossary.amend`:" over a
+    list, and nothing ran. The interview of s187 called the list
+    "descriptions of what I would record, not runnable calls" (frame 237)."""
+    assert _listed(S187_TURN1) == ["glossary.amend", "code.source"]
 
 
 def test_calls_written_one_a_line_are_not_a_list():
-    from rota.core.runner import listed_not_called
-
-    assert listed_not_called(S69_TURN1) == []
-    assert listed_not_called(
+    assert _listed(S69_TURN1) == []
+    assert _listed(
         "`glossary.amend`:\nTOOL: glossary.amend(term='x', sense_body='y')") == []
+
+
+@pytest.mark.parametrize("under", [
+    "- TOOL: glossary.amend(term='x', sense_body='y', sense_short='z')",
+    "1. TOOL: glossary.amend(term='x', sense_body='y', sense_short='z')",
+    "- glossary.amend(term='x', sense_body='y', sense_short='z')",
+])
+def test_a_call_the_parser_runs_under_a_heading_is_called(under):
+    """The review of pass 1 found "None ran" over bullet calls that the parser
+    runs. Called is what the parser found, never a line pattern."""
+    assert _listed("`glossary.amend`:\n" + under) == []
+
+
+def test_a_heading_twice_is_named_once_and_an_empty_one_not_at_all():
+    head = "`glossary.amend`:\n- `term:context` -> sense_body: \"a\"\n\n"
+    assert _listed(head + head) == ["glossary.amend"]
+    assert _listed("Some prose.\n\n`glossary.amend`:\n") == []
+
+
+def test_a_heading_that_names_no_call_of_the_mode_is_not_named():
+    assert _listed("`foo.bar`:\n- one\n- two") == []
 
 
 def test_the_account_names_a_list_written_under_a_call_name(project):
@@ -608,6 +640,30 @@ def test_the_account_names_a_list_written_under_a_call_name(project):
         "SELECT completion FROM turns WHERE session_id = ? AND completion LIKE "
         "'SESSION ENDED%'", (out.session_id,)).fetchone()
     assert out.committed and account and line in account[0], out.errors
+
+
+def test_the_seat_reads_that_its_list_ran_nothing_on_its_next_turn(project):
+    """On night 147, s187 read only the general nudge on turn 2 and wrote the
+    list again for five turns. The seat now reads the line before its next
+    reply, by the route the owed-call nudge takes (frame 237)."""
+    from rota.core.runner import run_session
+    from rota.llm.llm import ScriptedBackend
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    _oriented(db)
+    _reconciled(db)
+    config.set(db, "define_terms", 0)
+    db.commit()
+    wake = tick_survey(db)[0]
+    backend = ScriptedBackend([S187_TURN1, "Nothing more."])
+    run_session(db, wake, backend=backend)
+    assert len(backend.calls) == 2
+    turn2 = backend.calls[1][1]
+    assert ("You wrote `glossary.amend` as a heading over a list. A list runs "
+            "nothing, so no `glossary.amend` ran. Write each call on its own "
+            "line: `TOOL: glossary.amend(...)`.") in turn2
+    assert "`TOOL: code.source(...)`" in turn2
 
 
 def test_a_define_session_ends_when_its_word_has_landed(project):
