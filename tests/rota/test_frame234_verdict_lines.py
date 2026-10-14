@@ -16,6 +16,7 @@ import pytest
 from rota.core.db import init_db
 
 from .test_principal_reply import _landing, _present
+from .test_request_page import bg2  # noqa: F401  (a fixture, night 136's page)
 
 
 @pytest.fixture
@@ -317,14 +318,16 @@ M65 = ("Line 2's check is wrong because it compares against the default spaced "
        "expect a custom \"Cannot serialize\" message.")
 
 
-def _refusal(words, contested, size):
+def _refusal(words, contested, size, batch_lines=frozenset(),
+             item_lines=frozenset({1, 2, 3, 4})):
     """The door's reading of a page of `size` lines that opens with a request
-    item, as `rulings_rule` calls it."""
+    item, as `rulings_rule` calls it. Lines 1 to 4 are the request and its
+    criteria on m131's and m65's pages."""
     from rota.roles.api import _line_reading, _line_refusal
 
     faulted, matched = _line_reading(words)
     return _line_refusal(words, set(contested), faulted, matched, size, True,
-                         False)
+                         False, frozenset(batch_lines), frozenset(item_lines))
 
 
 def test_s281s_contest_of_lines_the_words_do_not_name_is_refused():
@@ -389,3 +392,107 @@ def test_a_bare_agreement_names_no_line(db):
               {"1": "approve", "2": "contest", "3": "contest", "4": "approve"})
     assert str(e.value).startswith("The words name line 3 and do not name "
                                    "line 2.")
+
+
+# Frame 234, pass 2b (review 3, finding 1): one sentence with no line number
+# silenced the refusal on m131. Such a sentence can correct an item line, as
+# night 143's m263 did, but never a team note.
+UNNUMBERED = " Please also keep the tests small."
+S281 = {str(n): ("contest" if n in (3, 4, 5, 6, 8, 9, 10, 11) else "approve")
+        for n in range(1, 12)}
+
+
+def _page11(db):
+    """m131's page shape on the `_present` fixture: line 1 the request item,
+    lines 2 to 4 its criteria, lines 5 to 11 seven team notes."""
+    from rota.roles.principal import pending_asks
+
+    _present(db)
+    for iid in ("c1", "c2", "c3"):
+        db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                   "version) VALUES (?,?,'in_scope','draft',0,1)",
+                   (iid, "criterion " + iid))
+    for k in range(2, 8):
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, "
+                   "default_taken, status, author) VALUES (?,'how_it_works',"
+                   "'items',?,'open','critic')", (f"l_{k}", f"note text {k}"))
+    refs = ["calculate_tip", "c1", "c2", "c3"] + [f"l_{k}" for k in range(1, 8)]
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm9'",
+               (json.dumps(refs),))
+    db.commit()
+    ask = pending_asks(db)[0]
+    assert ask.order == refs, ask.order
+    return ask
+
+
+def _rule11(db, words, rulings):
+    ask = _page11(db)
+    sb, _ = _landing(db, ask, words)
+    return sb.call("rulings.rule", rulings=rulings, words=words)
+
+
+@pytest.mark.parametrize("extra", ["", UNNUMBERED])
+def test_s281s_call_is_refused_through_the_door(db, extra):
+    with pytest.raises(ValueError) as e:
+        _rule11(db, M131 + extra, S281)
+    assert str(e.value).startswith("The words name lines 3, 4 and 7 and do not "
+                                   "name lines 5, 6 and 8 to 11.")
+
+
+def test_an_unnumbered_sentence_spares_a_criterion_line(db):
+    # m263's shape: a numbered fault and an unnumbered correction. The
+    # contest of the unnamed criterion line 4 lands.
+    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
+             "in cents.")
+    rulings = {str(n): "approve" for n in range(1, 12)}
+    rulings.update({"3": "contest", "4": "contest"})
+    out = _rule11(db, words, rulings)
+    assert out["per_item"]["c3"] == "contest"
+
+
+def test_an_unnumbered_sentence_never_spares_a_note_line(db):
+    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
+             "in cents.")
+    rulings = {str(n): "approve" for n in range(1, 12)}
+    rulings.update({"3": "contest", "4": "contest", "6": "contest"})
+    with pytest.raises(ValueError) as e:
+        _rule11(db, words, rulings)
+    assert str(e.value).startswith("The words name line 3 and do not name "
+                                   "line 6.")
+
+
+def test_a_batch_line_the_words_never_name_lands_its_contest(bg2):
+    """Review 3, finding 2, through the door: night 136's page with bg_2
+    unbuilt on line 5. The words number line 2 and nothing else, and the
+    contest of line 5 lands, because the batch door rules a batch line. The
+    contest reaches the verdict before the build."""
+    from .test_request_page import ITEM_136, P, _dispatch, _reply, _verdict
+    from .test_request_page import _landing as _land_session
+
+    (wake,) = P.REGISTRY["touch_note"].fn(bg2)
+    mid = _dispatch(bg2, wake,
+                    f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
+    words = "Line 2 names the wrong tests. Everything else looks right."
+    reply = _reply(bg2, mid, words)
+    _land_session(bg2, reply, {"1": "approve", "2": "contest", "3": "approve",
+                               "4": "approve", "5": "contest"}, words)
+    _, ruled = _verdict(bg2, mid)
+    assert ruled.get("bg_2") == "contest", ruled
+
+
+@pytest.mark.parametrize("words, contested, batch", [
+    # m28 s112: no line reference, so the words name nothing.
+    ("ok. Please use only the standard library json module for this, with no "
+     "new dependency.", {2, 3}, frozenset()),
+    # m181 s343: a bare agreement and a contest of the batch line.
+    ("Ok, go ahead.", {3}, frozenset({3})),
+])
+def test_words_that_name_no_line_refuse_nothing(words, contested, batch):
+    assert _refusal(words, contested, 3, batch, frozenset({1})) is None
+
+
+def test_a_range_of_notes_names_each_note():
+    words = "Line 3 is wrong. Notes 8 to 11 are wrong too."
+    assert _refusal(words, {3, 8, 9, 10, 11}, 11) is None
+    assert _refusal(words, {3, 5, 8}, 11).startswith(
+        "The words name lines 3 and 8 to 11 and do not name line 5.")

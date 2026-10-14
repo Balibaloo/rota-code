@@ -8287,14 +8287,15 @@ def _line_reading(words: str) -> tuple[set[int], set[int]]:
 
 def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   matched: set[int], size: int, request_first: bool,
-                  quoted: bool, batch_lines: frozenset[int] = frozenset()
-                  ) -> str | None:
+                  quoted: bool, batch_lines: frozenset[int] = frozenset(),
+                  item_lines: frozenset[int] = frozenset()) -> str | None:
     """The refusal of a contest the words do not support, or None.
 
     `faulted` and `matched` come from `_line_reading`, after the batch lift.
     `size` is the count of lines on the page. `request_first` says that line
     1 is a request item. `quoted` says that the words quote line 1.
     `batch_lines` are the lines that show a batch's prediction.
+    `item_lines` are the lines that show a request item or a criterion.
     """
     reversed_ = sorted((matched - faulted) & contested)
     if reversed_:
@@ -8305,7 +8306,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                 f"{_line_set(reversed_)}.")
     sentences = re.split(r"(?<=[.!?])\s+", (words or "").strip())
     unnamed = _unnamed_contest(sentences, contested - batch_lines,
-                               faulted | matched, size)
+                               faulted | matched, size, item_lines)
     if unnamed:
         return unnamed
     if not request_first or 1 not in contested or quoted:
@@ -8329,7 +8330,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
 
 
 def _unnamed_contest(sentences: list[str], contested: set[int],
-                     read: set[int], size: int) -> str | None:
+                     read: set[int], size: int,
+                     item_lines: frozenset[int] = frozenset()) -> str | None:
     """The refusal of a contest on a line the words never name, or None.
 
     Night 147 (frame 234, pass 2): s281's words named lines 3, 4 and 7, and
@@ -8349,12 +8351,16 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     unnamed = sorted(n for n in contested - named if n != 1)
     if not named or not unnamed:
         return None
-    # A sentence with no line number can correct a line it never numbers.
-    # Night 143's m263 corrected the request so (frame 234, review 1,
-    # finding 2). A bare agreement corrects nothing, so it opens no door.
+    # A sentence with no line number can correct an item line it never
+    # numbers. Night 143's m263 corrected the request so (frame 234, review
+    # 1, finding 2). Such a sentence never corrects a team note. One added
+    # sentence let s281's contest of the notes land (review 3, finding 1).
+    # A bare agreement corrects nothing, so it spares no line.
     if any(s.strip() and not _LINE_REF.search(s)
            and not _BARE_AGREEMENT.fullmatch(s) for s in sentences):
-        return None
+        unnamed = [n for n in unnamed if n not in item_lines]
+        if not unnamed:
+            return None
     return (f"The words name {_lines(sorted(named))} and do not name "
             f"{_lines(unnamed)}. A contest rests on the principal's words. "
             f"Approve the lines the words do not name, or rule them as the "
@@ -8678,9 +8684,14 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         batch_lines = frozenset(
             i + 1 for i, r in enumerate(order) if ctx.conn.execute(
                 "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone())
+        item_lines = frozenset(
+            i + 1 for i, r in enumerate(order) if ctx.conn.execute(
+                "SELECT 1 FROM items WHERE id = ? UNION ALL "
+                "SELECT 1 FROM criteria WHERE id = ?", (r, r)).fetchone())
         refusal = _line_refusal(
             words, contested, faulted, matched, len(order), request_first,
-            request_first and _quotes_line(words, page_text, 1), batch_lines)
+            request_first and _quotes_line(words, page_text, 1), batch_lines,
+            item_lines)
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():
