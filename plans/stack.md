@@ -317,7 +317,7 @@ a different question and the night is then opened once.
 - Pointer: `plans/night147-read.md`, sections 6 and 13.
 - Status 2026-10-14 17:51 (rota-7e): pushed by f3b11814 at night 147's read. Meta workflow.
 
-### 240. A quarantined tick outlives the approve of the item it waits on, and the walk's end says Stuck (2026-10-14)
+### 240. A quarantined tick outlives the approve of the item it waits on, and the walk's end says Stuck (2026-10-14) (4a757f92)
 
 - **Site: `tick_attempts` and the walk-end account.** Rota workflow. On night 147 the key `vision_keeper|tick:contested|defines_commands_and_options` quarantined after frame 238's seat contested the item, stayed quarantined after m148 approved the item, and walk 3's end told the principal "Stuck. The team gave up on: contested for defines_commands_and_options" with nothing left to clear; 1 on this night, no batch cost, one false line to the principal (observed: `plans/night147-read.md`, section 6, candidate D, 2026-10-14). Frame 87's shape on a contested key.
 - Ends when: first, the mechanism: a quarantined key whose item is approved again is cleared at the approve, with one test on the night's key, red first; second, on a night, walk ends that name a quarantine whose cause is gone, from 1 of 1 toward 0 of the next 3; third, a line that remains is read, and the frame closes when its cause is not a stale quarantine.
@@ -325,7 +325,7 @@ a different question and the night is then opened once.
 - Sprint: next sprint, rank 6 (reasoned: the read's section 14.2).
 - Pointer: `plans/night147-read.md`, section 6.
 - Status 2026-10-14 17:51 (rota-7e): pushed by f3b11814 at night 147's read. Meta workflow.
-
+- Status 2026-10-14 19:15 (rota-92): **claimed by 4a757f92, peer name rota-92, as sprint 5's row 6, pulled ahead of rows 5 and 7 as a read only, because its site is `rota/core/db.py` and the checkout is frame 234's until its commit** (reasoned: the one-checkout rule of 2026-10-11; a read runs beside any site). The scope read launches on one agent on Opus, cap 70k, read-only: the write path m148's approve took, why `_lift_quarantines` kept the key, the rulings the lift carries, and the pass 1 shape with its test; brief `scope240_brief.md` in this session's scratchpad, report to `plans/frame240-scope.md`. The pass waits on frame 234's commit. Cycles: 1 of 2. Meta workflow.
 ### 239. A re-dispatched batch merges with no test of its criteria, because `tests_missing` counts the abandoned batch's tests (2026-10-14) (4a757f92)
 
 - **Site: `tests_missing` at `rota/core/predicates.py:755-802`, the `NOT EXISTS (SELECT 1 FROM tests t WHERE t.criterion_id = c.id)` with no batch filter, and the encode door's "belongs to no batch" refusal.** Rota workflow. On night 147's walk 2, bg_3 took bg_2's three criteria after the cancel; bg_2's three tests satisfied the predicate, so the Tester never woke for bg_3, s315's encodes were refused, "exists and belongs to no batch, and this session was not woken for one", and bg_3 merged at attempt 1 on the 37 inherited tests with no test of `default_on_eof`, after the principal asked twice for one test with the flag True and one with the flag left out; 1 of 1 re-dispatched batch (observed: `plans/night147-read.md`, section 13, candidate A, from `tests`, `test_runs`, `verdicts` and s315, 2026-10-14).
