@@ -25,7 +25,7 @@ import urllib.request
 # The environment's host, never a literal. The recorder runs on 11435 and
 # both servers answer on this box, so a fixed host measures the wrong card
 # and the reading looks plausible instead of failing.
-OLLAMA = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
 # The window a run uses, read from the shipped profile. 8192 was below every
 # real window, so this probe measured tool calling through a window no desk

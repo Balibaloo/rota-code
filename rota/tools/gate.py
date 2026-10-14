@@ -62,7 +62,7 @@ SUITE = "tests/rota"
 
 #: The server the children use when `OLLAMA_HOST` is unset, the fallback of
 #: `rota/llm/llm.py:44`. A night holds this server for hours.
-DEFAULT_HOST = "http://localhost:11434"
+DEFAULT_HOST = "http://127.0.0.1:11434"
 
 #: The exit code of a run whose stale cases wait for the main card. It is
 #: not 1, because a wait is no red.

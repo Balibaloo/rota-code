@@ -29,7 +29,7 @@ from .llm import OLLAMA_HOST
 # recorder runs on 11435, and both servers answer on this box, so the
 # reading looked plausible instead of failing.
 OLLAMA = OLLAMA_HOST
-LLAMACPP = "http://localhost:8080"
+LLAMACPP = "http://127.0.0.1:8080"
 
 
 @dataclass(frozen=True)

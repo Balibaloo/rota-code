@@ -756,7 +756,7 @@ def test_a_held_card_names_each_model_with_its_expiry(monkeypatch):
     asked = _held(monkeypatch, {"models": [
         {"name": "qwen3.5:9b", "expires_at": WHEN}, {"name": "qwen3:8b"}]})
     assert gate.main_card_held({}) == [f"qwen3.5:9b until {WHEN}", "qwen3:8b"]
-    assert asked == ["http://localhost:11434/api/ps"]
+    assert asked == ["http://127.0.0.1:11434/api/ps"]
 
 
 def test_the_probe_asks_the_server_the_children_use(monkeypatch):

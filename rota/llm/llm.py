@@ -41,7 +41,7 @@ DEFAULT_MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 # and the front is the system prompt: the role losing its instructions is the
 # one failure that looks exactly like the role ignoring them.
 DEFAULT_NUM_CTX = int(os.environ.get("ROTA_NUM_CTX", "12288"))
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
 # Reasoning-by-default models (the qwen3 family) burn invisible tokens at the
 # acting register's expense -- measured at 0.1 visible tok/s on the bench. The
