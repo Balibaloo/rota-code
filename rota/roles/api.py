@@ -5092,7 +5092,7 @@ _COMPARE_CUES = (r"the way {n} does", r"like {n} does", r"next to {n}",
 _REQUEST_CUES = (r"{n} to take", r"{n} to accept", r"extend {n}",
                  r"change {n}", r"modify {n}", r"update {n}",
                  r"add\b[^.;]*?\bto {n}", r"make {n}", r"{n} should",
-                 r"{n} itself", r"in {n}")
+                 r"{n} itself", r"in {n}", r"give {n}")
 # A clause with a negation is no request: "Don't change echo itself" (m134)
 # and "echo itself should not change" (m146) keep echo as it is.
 _NEGATION = re.compile(r"\b(?:not|never|no)\b|n't\b", re.IGNORECASE)
@@ -5134,6 +5134,40 @@ def _item_names(item_id: str | None, item_text: str | None) -> set[str]:
     its call forms. A move to one of them goes toward the item."""
     found = set(_backticked_callables(item_text or ""))
     found |= set(_CALL_FORM.findall(item_text or ""))
+    return found | ({item_id} if item_id else set())
+
+
+# A location or a comparison ends the request's verb phrase. In "Add an
+# echo_json(obj) helper next to echo", `echo` is where the helper goes, not
+# the callable the item asks for (frame 202, night 147, s130).
+_LOCATION_CUE = re.compile(r"\b(?:next to|beside|alongside|near|like|the way|"
+                           r"similar to|same as|as in)\b", re.IGNORECASE)
+_SNAKE_NAME = re.compile(r"(?<![\w.])([A-Za-z_]\w*_\w*)\b")
+# A request verb names its object as the callable: "give echo a json
+# parameter" puts no underscore, backticks or call form on `echo`.
+_REQUEST_VERB = re.compile(r"^\s*(?:please\s+)?(?:give|extend|change|modify|"
+                           r"update|make|let|teach)\s+`?([A-Za-z_]\w*)`?",
+                           re.IGNORECASE)
+_NOT_A_NAME = {"a", "an", "the", "it", "its", "this", "that", "each", "every",
+               "all", "our", "my"}
+
+
+def _request_callables(item_text: str | None, item_id: str | None) -> set[str]:
+    """
+    The callables the item asks for: its id, and the names in the request's
+    first verb phrase, cut before a location cue.
+
+    A name counts when it is a call form, a backticked callable, a name with
+    an underscore, or the object of a request verb.
+    """
+    first = re.split(r"(?<=[.;:])\s", item_text or "", maxsplit=1)[0]
+    cut = _LOCATION_CUE.search(first)
+    head = first[:cut.start()] if cut else first
+    found = set(_backticked_callables(head)) | set(_CALL_FORM.findall(head))
+    found |= set(_SNAKE_NAME.findall(head.replace("`", " ")))
+    verb = _REQUEST_VERB.match(head)
+    if verb and verb.group(1).lower() not in _NOT_A_NAME:
+        found.add(verb.group(1))
     return found | ({item_id} if item_id else set())
 
 
@@ -5247,7 +5281,26 @@ def _surface_move_fault(text: str, was: list, surface: list,
             return (f"The principal names `{name}` as a comparison: "
                     f"{hit.group(0)!r}. The callable the principal asks for "
                     f"is `{keep}`.{both} {route(keep)}")
-    return None
+    # The request rule. Frame 202, night 147: s130 moved `cj_serializable`
+    # from `echo_json` to `echo`. The text named no callable and the words
+    # held no cue, so both rules above let the move pass. The item named
+    # `echo` only as a location, "next to echo", and bg_1 then changed
+    # click's own `echo`. A move that drops every callable of the request
+    # is refused, unless the text or a request cue names the new callable.
+    items = _request_callables(item_text, item_id)
+    held = sorted(old & items)
+    if not held or new & items or new & set(named):
+        return None
+    said = [w for w in words if w]
+    if any(_cue_hit(_REQUEST_CUES, name, w, request=True)
+           for name in sorted(new - old) for w in said):
+        return None
+    kept = [r for r in was if _surface_symbol(r) == held[0]]
+    out = (f"The item asks for `{held[0]}`, and this move drops `{held[0]}` "
+           f"from the surface. The surface is what the test calls. "
+           f"Keep `{kept[0]}` in surface_refs. If the principal asked for "
+           f"{to} itself, name {to} in backticks in the criterion's text.")
+    return f"{out} {ask}" if ask else out
 
 
 @op("criteria", "respecify")

@@ -330,6 +330,9 @@ _N142_TEXT = ("When show_python=True, the command's output when --version is use
               "must include a line containing the Python version string derived "
               "from sys.version_info.")
 _IMAGEPIPE = "examples/imagepipe/imagepipe.py::process_commands"
+# Night 142's text with the new callable in backticks, for frame 202's door.
+_N142_TEXT_NAMED = ("When show_python=True, the output of `process_commands` "
+                    "names the Python version from sys.version_info.")
 
 
 def _night142(db):
@@ -412,7 +415,10 @@ def test_a_repair_surface_outside_the_batch_files_is_refused(db):
     db.commit()
     sb2 = build("terminologist", db, mode="criterion_repair",
                 allow=prompts.mode_tools("terminologist", "criterion_repair"))
-    assert sb2.call("criteria.respecify", id="c_show_python_version", text=text,
+    # Frame 202's request rule refuses a move that drops `version_option`
+    # unless the text names the new callable, so this text names it.
+    assert sb2.call("criteria.respecify", id="c_show_python_version",
+                    text=_N142_TEXT_NAMED,
                     surface_refs=["examples/imagepipe/imagepipe.py::process_commands"]
                     )["respecified"]
 
@@ -464,8 +470,10 @@ def test_only_the_statement_names_the_callable_and_the_surface_is_admitted(db):
     _night142(db)
     db.execute("UPDATE statements SET text = text || ' process_commands' WHERE id = 's4'")
     db.commit()
+    # Frame 202's request rule needs the new callable in the text. A name in
+    # the text does not admit frame 215's door, so the statement still decides.
     out = _repair(db).call("criteria.respecify", id="c_show_python_version",
-                           text=_N142_TEXT, surface_refs=[_IMAGEPIPE])
+                           text=_N142_TEXT_NAMED, surface_refs=[_IMAGEPIPE])
     assert out["respecified"]
 
 

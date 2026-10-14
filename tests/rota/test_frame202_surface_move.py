@@ -332,3 +332,58 @@ def test_the_question_route_is_absent_where_the_mode_lacks_it(db):
     said = str(refused.value)
     assert "The criterion says `echo_json`" in said
     assert "msg.challenge_vision_keeper" not in said
+
+
+# --- pass 2: night 147's s130 (`plans/frame202-scope2.md`) ------------------
+
+# r_0dd76d63e1, the reply that the relay m44 carried to s130.
+WORDS_44 = ("Line 3 is wrong: there should be no conversion of arbitrary "
+            "objects, so the standard json module's usual error should stand "
+            "when an object cannot be serialized. Line 5 also lists a pager "
+            "test, but I did not ask for anything about the pager, so please "
+            "keep the work to utils and the echo tests.")
+# s130's text for cj_serializable.
+S130 = ("The function must raise an error if serialization fails (no "
+        "conversion of arbitrary objects).")
+
+
+def _s130_criterion(conn) -> str:
+    cid = "cj_serializable"
+    _criterion(conn, cid, "tk_2", "The function must handle arbitrary Python "
+               "objects by converting them.", [ECHO_JSON])
+    _ruling(conn, "r_0dd76d63e1", "m42",
+            {"echo_json": "approve", cid: "contest"}, WORDS_44)
+    return cid
+
+
+def test_a_location_in_the_request_is_not_the_surface(db):
+    """s130's call: the text names no callable, the words carry no cue, and
+    the item names `echo` only as a location, "next to echo"."""
+    cid = _s130_criterion(db)
+    with pytest.raises(ValueError) as refused:
+        _respecify(db, cid, S130, [ECHO])
+    said = str(refused.value)
+    assert ("The item asks for `echo_json`, and this move drops `echo_json` "
+            "from the surface. The surface is what the test calls.") in said
+    assert f"Keep `{ECHO_JSON}` in surface_refs." in said
+    assert ("If the principal asked for `echo` itself, name `echo` in "
+            "backticks in the criterion's text.") in said
+
+
+def test_a_location_move_whose_text_names_the_new_callable_lands(db):
+    """The same move lands when the criterion's text names `echo` in
+    backticks. That is the route the refusal names."""
+    cid = _s130_criterion(db)
+    out = _respecify(db, cid, "`echo` must raise an error if serialization "
+                              "fails.", [ECHO])
+    assert out.get("surface_changed") is True
+    assert out["to"] == [ECHO]
+
+
+def test_the_request_callables_stop_at_a_location_cue():
+    """The item's callables come from the request's first verb phrase, cut
+    before a location cue."""
+    from rota.roles.api import _request_callables
+
+    assert _request_callables(ITEM_ECHO_JSON, None) == {"echo_json"}
+    assert _request_callables("give echo a json parameter", None) == {"echo"}
