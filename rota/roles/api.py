@@ -8214,8 +8214,10 @@ _RULE_ARGS = ("rulings", "words", "ask")
 
 # A line reference in the principal's words: "line 3", "lines 1 to 4",
 # "lines 2, 4 and 5", or a bare "4 is wrong" at the start of a sentence.
+# "Note 7" is line 7 too. The page calls lines 5 and up the team's notes, and
+# night 147's m131 faulted line 7 as "Note 7" (frame 234, pass 2).
 _LINE_REF = re.compile(
-    r"\blines?\s+(\d+(?:\s*(?:to|-)\s*\d+)?(?:\s*,\s*\d+)*(?:\s*,?\s*and\s+\d+)?)"
+    r"\b(?:lines?|notes?)\s+(\d+(?:\s*(?:to|-)\s*\d+)?(?:\s*,\s*\d+)*(?:\s*,?\s*and\s+\d+)?)"
     r"|^\s*(\d+)(?=\s*(?:is\b|are\b|'s\b|:))", re.I | re.M)
 _LINE_FAULT = re.compile(
     r"\b(?:wrong|isn't right|is not right|goes too far|still|drop|remove|"
@@ -8285,12 +8287,14 @@ def _line_reading(words: str) -> tuple[set[int], set[int]]:
 
 def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   matched: set[int], size: int, request_first: bool,
-                  quoted: bool) -> str | None:
+                  quoted: bool, batch_lines: frozenset[int] = frozenset()
+                  ) -> str | None:
     """The refusal of a contest the words do not support, or None.
 
     `faulted` and `matched` come from `_line_reading`, after the batch lift.
     `size` is the count of lines on the page. `request_first` says that line
     1 is a request item. `quoted` says that the words quote line 1.
+    `batch_lines` are the lines that show a batch's prediction.
     """
     reversed_ = sorted((matched - faulted) & contested)
     if reversed_:
@@ -8299,12 +8303,16 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                 f"match{'es' if one else ''} what the principal asked for, and a "
                 f"contest reverses the principal. Approve line{'' if one else 's'} "
                 f"{_line_set(reversed_)}.")
+    sentences = re.split(r"(?<=[.!?])\s+", (words or "").strip())
+    unnamed = _unnamed_contest(sentences, contested - batch_lines,
+                               faulted | matched, size)
+    if unnamed:
+        return unnamed
     if not request_first or 1 not in contested or quoted:
         return None
     named = sorted(n for n in faulted if n <= size)
     if not named or 1 in faulted:
         return None
-    sentences = re.split(r"(?<=[.!?])\s+", (words or "").strip())
     # Any reference to line 1 can carry a fault the cues miss. Night 144's
     # m193 said "Line 1 isn't a request" (frame 234, review 1, finding 1).
     if any(1 in _ref_lines(r) for s in sentences for r in _LINE_REF.finditer(s)):
@@ -8318,6 +8326,44 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     lines = f"line{'' if len(named) == 1 else 's'} {_line_set(named)}"
     return (f"The words fault {lines}. Line 1 is the request, and they do "
             f"not fault it. Rule {lines}, and approve the rest.")
+
+
+def _unnamed_contest(sentences: list[str], contested: set[int],
+                     read: set[int], size: int) -> str | None:
+    """The refusal of a contest on a line the words never name, or None.
+
+    Night 147 (frame 234, pass 2): s281's words named lines 3, 4 and 7, and
+    s281 contested lines 5, 6 and 8 to 11. The contest of the Critic's notes
+    on lines 5 and 6 went to the Vision Keeper and cost bg_2. `read` holds
+    the faulted and matched lines after the batch lift, so a batch line's
+    item counts as named. Line 1 stays with the line-1 refusal and its
+    guards, a quote and a page that opens with no request. The caller
+    leaves out a batch line, which the batch door rules. Its prediction
+    spans several lines of text, and night 136's m85 said "Line 2" for one
+    of them (`test_request_page.py`).
+    """
+    named = {n for n in read if 1 <= n <= size}
+    for s in sentences:
+        for ref in _LINE_REF.finditer(s):
+            named |= {n for n in _ref_lines(ref) if 1 <= n <= size}
+    unnamed = sorted(n for n in contested - named if n != 1)
+    if not named or not unnamed:
+        return None
+    # A sentence with no line number can correct a line it never numbers.
+    # Night 143's m263 corrected the request so (frame 234, review 1,
+    # finding 2). A bare agreement corrects nothing, so it opens no door.
+    if any(s.strip() and not _LINE_REF.search(s)
+           and not _BARE_AGREEMENT.fullmatch(s) for s in sentences):
+        return None
+    return (f"The words name {_lines(sorted(named))} and do not name "
+            f"{_lines(unnamed)}. A contest rests on the principal's words. "
+            f"Approve the lines the words do not name, or rule them as the "
+            f"words say.")
+
+
+def _lines(ns: list[int]) -> str:
+    """"line 3" or "lines 3, 4 and 7"."""
+    return f"line{'' if len(ns) == 1 else 's'} {_line_set(ns)}"
 
 
 def _quotes_line(words: str, page_text: str, n: int) -> bool:
@@ -8629,9 +8675,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # line 1 is the request only when it is a request item (frame 234,
         # review 1, finding 1).
         request_first = not shift and _is_request_item(ctx.conn, order[0])
+        batch_lines = frozenset(
+            i + 1 for i, r in enumerate(order) if ctx.conn.execute(
+                "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone())
         refusal = _line_refusal(
             words, contested, faulted, matched, len(order), request_first,
-            request_first and _quotes_line(words, page_text, 1))
+            request_first and _quotes_line(words, page_text, 1), batch_lines)
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():

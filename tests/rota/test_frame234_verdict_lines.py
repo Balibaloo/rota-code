@@ -298,3 +298,94 @@ def test_a_sentence_that_only_agrees_is_a_bare_agreement():
     for s in ("Fine, but line 3 is wrong.", "Take the version from the interpreter.",
               "Also drop the pager test."):
         assert not _BARE_AGREEMENT.fullmatch(s), s
+
+
+# Night 147 (frame 234, pass 2): s281 contested six lines the words never
+# name, and approved line 7, which the words fault as "Note 7". The contest
+# of lines 5 and 6 went to the Vision Keeper and cost bg_2. Verbatim from
+# the `rulings` table of `.rota/clickI_night147.db`.
+M131 = ("Line 4 is wrong: it has to say the flag defaults to False so current "
+        "callers still get an abort on closed stdin, and that can be tested by "
+        "calling confirm without the flag. Note 7 was wrong to drop it. Line 3 "
+        "also needs a check for the False case, and its True check currently "
+        "crashes with an unbound variable error, so please fix that crash.")
+M65 = ("Line 2's check is wrong because it compares against the default spaced "
+       "output, so it should check that the whole output equals the compact "
+       "string with one newline at the end. Line 8 is wrong because there "
+       "should be no pickle check and no str conversion, so the standard json "
+       "module's own TypeError stands. For the same reason, line 7 should not "
+       "expect a custom \"Cannot serialize\" message.")
+
+
+def _refusal(words, contested, size):
+    """The door's reading of a page of `size` lines that opens with a request
+    item, as `rulings_rule` calls it."""
+    from rota.roles.api import _line_reading, _line_refusal
+
+    faulted, matched = _line_reading(words)
+    return _line_refusal(words, set(contested), faulted, matched, size, True,
+                         False)
+
+
+def test_s281s_contest_of_lines_the_words_do_not_name_is_refused():
+    out = _refusal(M131, {3, 4, 5, 6, 8, 9, 10, 11}, 11)
+    assert out == ("The words name lines 3, 4 and 7 and do not name lines 5, 6 "
+                   "and 8 to 11. A contest rests on the principal's words. "
+                   "Approve the lines the words do not name, or rule them as "
+                   "the words say.")
+
+
+@pytest.mark.parametrize("contested", [{3, 4, 7}, {3, 4}])
+def test_m131s_words_land_a_contest_on_the_lines_they_name(contested):
+    # {3, 4} is the ruling with line 7 `revise`, which is no contest.
+    assert _refusal(M131, contested, 11) is None
+
+
+def test_a_note_number_is_a_line_reference():
+    from rota.roles.api import _line_reading
+
+    assert _line_reading("Note 7 was wrong to drop it.") == ({7}, set())
+    # Night 146's words: "Please drop note 8. Note 9 is fine." The reader
+    # reads a cue after a reference only, so "drop note 8" takes no direction.
+    assert _line_reading("Please drop note 8. Note 9 is fine.") == (set(), {9})
+    assert _line_reading("Notes 5 to 6 are fine.") == (set(), {5, 6})
+
+
+def test_s171s_contest_of_a_line_the_words_do_not_name_is_refused():
+    out = _refusal(M65, {2, 3, 7, 8}, 9)
+    assert out is not None
+    assert out.startswith("The words name lines 2, 7 and 8 and do not name "
+                          "line 3.")
+
+
+def test_a_sentence_with_no_line_number_lets_an_unnamed_line_be_contested(db):
+    # Night 143's m263: such a sentence can correct a line it never numbers.
+    words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
+             "in cents.")
+    out = _rule(db, words, {"1": "approve", "2": "contest", "3": "contest",
+                            "4": "approve"})
+    assert out["per_item"]["how_it_works"] == "contest"
+
+
+def test_a_contest_of_a_batch_line_is_left_to_the_batch_door():
+    # Night 136's m85 said "Line 2" for a line of the batch's prediction, and
+    # the right ruling contested the batch line 5 (`test_request_page.py`).
+    from rota.roles.api import _line_reading, _line_refusal
+
+    words = ("Line 2 names the wrong tests: the confirm prompt's tests live in "
+             "the terminal UI test file, not the defaults test file. Everything "
+             "else looks right.")
+    faulted, matched = _line_reading(words)
+    assert _line_refusal(words, {5}, faulted, matched, 5, True, False,
+                         frozenset({5})) is None
+    assert _line_refusal(words, {3, 5}, faulted, matched, 5, True, False,
+                         frozenset({5})).startswith(
+        "The words name line 2 and do not name line 3.")
+
+
+def test_a_bare_agreement_names_no_line(db):
+    with pytest.raises(ValueError) as e:
+        _rule(db, "Line 3 is wrong. The rest looks fine.",
+              {"1": "approve", "2": "contest", "3": "contest", "4": "approve"})
+    assert str(e.value).startswith("The words name line 3 and do not name "
+                                   "line 2.")
