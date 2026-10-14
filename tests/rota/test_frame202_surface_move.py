@@ -118,7 +118,7 @@ def test_a_callable_named_as_a_comparison_is_not_the_surface(db):
     assert "as a comparison" in said
     assert "the way echo does" in said
     assert "Keep `echo_json` in surface_refs" in said
-    assert "rewrite the criterion's text to name `echo`" in said
+    assert "name `echo` in backticks in the criterion's text" in said
 
 
 def test_a_relay_reads_the_comparison_from_the_item_ruling(db):
@@ -251,11 +251,84 @@ def test_a_flag_the_item_puts_in_backticks_is_no_callable():
         []) is None
 
 
-def test_a_comparison_off_the_item_callable_is_not_refused():
-    """The old surface is no callable of the item, so a comparison cue
-    holds nothing in place."""
+def test_a_restore_whose_text_names_only_the_echo_helper_lands():
+    """Probe H1 of the review of 3de76eaf: the move goes to `echo_json`,
+    which the item names, and the text names only `echo`."""
     from rota.roles.api import _surface_move_fault
 
     assert _surface_move_fault(
-        S160, ["src/click/utils.py::secho"], [ECHO], "echo_json",
-        ITEM_ECHO_JSON, [WORDS_64]) is None
+        "Output uses the `echo` helper and is compact JSON.", [ECHO],
+        [ECHO_JSON], "echo_json_support", ITEM_SUPPORT,
+        ["Keep it compact."]) is None
+
+
+def test_a_call_form_in_the_item_is_not_the_item_callable():
+    """Probe N2: "works like echo(msg)" does not make `echo` the item's
+    callable, so the restore to `echo_json` lands."""
+    from rota.roles.api import _surface_move_fault
+
+    assert _surface_move_fault(
+        "Output goes through the `echo` helper.", [ECHO], [ECHO_JSON],
+        "echo_json_support",
+        "Add an echo_json(obj) helper that works like echo(msg).",
+        ["Keep it compact."]) is None
+
+
+def test_a_text_that_names_both_callables_reads_the_words(db):
+    """Probe N1 and H2 of the review of 3de76eaf: the text names `echo_json`
+    and `echo`, and the words name `echo` as a comparison."""
+    cid = "echo_json_compact"
+    _criterion(db, cid, "tk_2", S160, [ECHO_JSON])
+    _ruling(db, "r_n1", "m73", {cid: "contest"}, "Do it the way echo does.")
+    with pytest.raises(ValueError) as refused:
+        _respecify(db, cid, "`echo_json` wraps `echo` and prints compact "
+                            "JSON.", [ECHO])
+    said = str(refused.value)
+    assert "The criterion's text names `echo_json` and `echo`." in said
+    assert f"Keep `{ECHO_JSON}` in surface_refs." in said
+
+
+def _wake_sandbox(conn, wake):
+    from rota.core.runner import session_sandbox
+
+    return session_sandbox(conn, wake)
+
+
+def test_the_question_route_shows_on_a_runner_built_repair_wake(db):
+    """Finding 1 of the review of 3de76eaf: the runner builds the sandbox in
+    mode `normal`, and the repair wake's prompt mode offers the route."""
+    from rota.core.scheduler import Wake
+
+    cid = "echo_json_support_compact"
+    _criterion(db, cid, "tk_1_echo_json_support", S248, [ECHO_JSON])
+    sb = _wake_sandbox(db, Wake(role="terminologist",
+                                kind="tick:criterion_repair", refs=(cid,)))
+    assert sb.ctx.mode == "normal"
+    with pytest.raises(ValueError) as refused:
+        sb.call("criteria.respecify", id=cid, text=S248, surface_refs=[ECHO])
+    said = str(refused.value)
+    assert "The criterion says `echo_json`" in said
+    assert "send msg.challenge_vision_keeper with this criterion." in said
+
+
+def test_the_question_route_is_absent_where_the_mode_lacks_it(db):
+    """A relay wake keys the `relay` mode, which offers no
+    msg.challenge_vision_keeper, so the refusal names no question route."""
+    from rota.core.scheduler import Wake
+    from rota.roles import api
+
+    cid = "echo_json_support_compact"
+    _criterion(db, cid, "tk_1_echo_json_support", S248, [ECHO_JSON])
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m9', 'm9', 'liaison', "
+               "'terminologist', 'relay', ?, 2)", (json.dumps(["echo_json"]),))
+    db.commit()
+    sb = _wake_sandbox(db, Wake(role="terminologist", kind="message",
+                                message_id="m9", refs=("echo_json",),
+                                detail="relay"))
+    assert "msg.challenge_vision_keeper" not in api._wake_mode_tools(sb.ctx)
+    with pytest.raises(ValueError) as refused:
+        api.criteria_respecify(sb.ctx, id=cid, text=S248, surface_refs=[ECHO])
+    said = str(refused.value)
+    assert "The criterion says `echo_json`" in said
+    assert "msg.challenge_vision_keeper" not in said

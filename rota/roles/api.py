@@ -4973,9 +4973,6 @@ _REQUEST_CUES = (r"{n} to take", r"{n} to accept", r"extend {n}",
 # A clause with a negation is no request: "Don't change echo itself" (m134)
 # and "echo itself should not change" (m146) keep echo as it is.
 _NEGATION = re.compile(r"\b(?:not|never|no)\b|n't\b", re.IGNORECASE)
-# The item names a callable by a call form too: "Add an echo_json(obj)
-# helper" on night 146 put no backticks around `echo_json`.
-_CALL_FORM = re.compile(r"(?<![\w.`])([A-Za-z_]\w*)\(")
 
 
 def _surface_symbol(ref: str) -> str:
@@ -4983,37 +4980,66 @@ def _surface_symbol(ref: str) -> str:
     return str(ref).split("::")[-1].rsplit(".", 1)[-1].strip()
 
 
-def _backticked_callables(text: str, *, called: bool = False) -> list[str]:
-    """
-    The callable names that `text` puts in backticks, in order.
-
-    With `called`, a span counts only in a callable's form: a call, a
-    `module::name` ref, or a name before "function", "helper" or a like
-    word. Night 145's item put the flag `show_python` in backticks, and the
-    door then told a seat to name the flag as a surface (frame 202).
-    """
+def _backticked_callables(text: str) -> list[str]:
+    """The callable names that `text` puts in backticks, in order."""
     found = []
-    text = text or ""
-    for m in _QUOTED_SPAN.finditer(text):
-        span = m.group(1).strip()
-        hit = _CALLABLE_SPAN.match(span)
-        if not hit or hit.group(1) in found:
-            continue
-        if called and not ("(" in span or "::" in span or re.match(
-                r"\s+(?:function|helper|callable|method|decorator)\b",
-                text[m.end():])):
-            continue
-        found.append(hit.group(1))
+    for m in _QUOTED_SPAN.finditer(text or ""):
+        hit = _CALLABLE_SPAN.match(m.group(1).strip())
+        if hit and hit.group(1) not in found:
+            found.append(hit.group(1))
     return found
 
 
-def _item_callables(item_id: str | None, item_text: str | None) -> set[str]:
-    """The item's own callables: its id, and the callables its text names."""
-    found = set(_backticked_callables(item_text or "", called=True))
+def _item_callables(item_id: str | None, old: set[str]) -> set[str]:
+    """
+    The item's own callables: the item's id and the old surface's symbols.
+
+    A call form or a backticked name of the item text is not one by
+    itself. "works like echo(msg)" named `echo` as a model, and a right
+    restore was refused (the review of 3de76eaf, finding 3).
+    """
+    return set(old) | ({item_id} if item_id else set())
+
+
+# The item names a callable by a call form too: "Add an echo_json(obj)
+# helper" on night 146 put no backticks around `echo_json`.
+_CALL_FORM = re.compile(r"(?<![\w.`])([A-Za-z_]\w*)\(")
+
+
+def _item_names(item_id: str | None, item_text: str | None) -> set[str]:
+    """The callables the item names: its id, its backticked callables and
+    its call forms. A move to one of them goes toward the item."""
+    found = set(_backticked_callables(item_text or ""))
     found |= set(_CALL_FORM.findall(item_text or ""))
-    if item_id:
-        found.add(item_id)
-    return found
+    return found | ({item_id} if item_id else set())
+
+
+def _wake_mode_tools(ctx: Ctx) -> list[str]:
+    """
+    The ops that the wake's prompt mode offers, as the runner reads them.
+
+    `ctx.mode` is the sandbox mode, `normal` on every mover session of
+    nights 145 and 146. So the door keys the mode by the wake, as
+    `session_sandbox` does (the review of 3de76eaf, finding 1).
+    """
+    from ..core.runner import _mode_key
+    from ..core.scheduler import Wake
+    from . import prompts as _prompts
+
+    kind = getattr(ctx, "wake_kind", "") or ""
+    trigger = getattr(ctx, "trigger", None)
+    if not kind:
+        # A sandbox built with no wake has only its own mode to go on.
+        return _prompts.mode_tools(ctx.role, ctx.mode) or []
+    verb = ""
+    if kind == "message" and trigger:
+        row = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
+                               (trigger,)).fetchone()
+        verb = row["verb"] if row else ""
+    wake = Wake(role=ctx.role, kind=kind,
+                message_id=trigger if kind == "message" else None,
+                refs=tuple(getattr(ctx, "wake_refs", ()) or ()), detail=verb)
+    return _prompts.mode_tools(ctx.role, _mode_key(wake, ctx.conn)) or []
 
 
 def _cue_hit(cues: tuple, name: str, said: str, *, request: bool = False):
@@ -5049,32 +5075,39 @@ def _surface_move_fault(text: str, was: list, surface: list,
     old = {_surface_symbol(r) for r in was if r}
     new = {_surface_symbol(r) for r in surface if r}
     named = _backticked_callables(text)
-    # A text that names the new surface's symbol admits the move. The review
-    # of ee535945, finding 1: a restore whose text also names `echo` as a
-    # helper was refused, and the refusal named the wrong callable.
-    if new & set(named):
-        return None
-    asked = _item_callables(item_id, item_text)
+    asked = _item_callables(item_id, old)
+    mine = [n for n in named if n in asked and n not in new]
     to = ", ".join(f"`{_surface_symbol(r)}`" for r in surface)
-    then = f" {ask}" if ask else ""
 
     def route(name: str) -> str:
+        # One instruction per sentence, at most 20 words (STE, the review of
+        # 3de76eaf, finding 7).
         kept = [r for r in was if _surface_symbol(r) == name]
-        keep = (f"Keep `{kept[0]}` in surface_refs" if kept
-                else f"Name `{name}` in surface_refs")
-        return (f"{keep}, or rewrite the criterion's text to name {to} in "
-                f"backticks if the principal asked for {to} itself.{then}")
+        keep = (f"Keep `{kept[0]}` in surface_refs." if kept
+                else f"Name `{name}` in surface_refs.")
+        said = (f"{keep} If the principal asked for {to} itself, name {to} "
+                f"in backticks in the criterion's text, in place of `{name}`.")
+        return f"{said} {ask}" if ask else said
+    # A text that names the new surface's symbol and not the item's callable
+    # admits the move. The review of ee535945, finding 1: a restore whose
+    # text names `echo` as a helper was refused.
+    if new & set(named) and not mine:
+        return None
     # The text rule. The surface is what the test calls, so a criterion that
-    # names the item's own callable keeps that callable as its surface. A
+    # names only the item's callable keeps that callable as its surface. A
     # second callable of the text is not the item's, so a move away from it
     # lands (the review of ee535945, finding 3).
-    for name in named:
-        if name in asked:
-            return (f"The criterion says `{name}`, and the surface moves to "
-                    f"{to}. The surface is what the test calls. {route(name)}")
-    # The comparison rule. A name after a comparison cue is a model for the
-    # new callable, not the callable itself. A request cue on the same name
-    # admits the move.
+    # A move to a callable the item names goes toward the item, so the text
+    # rule lets it pass. Probe H1 of the review of 3de76eaf: a restore to
+    # `echo_json` whose text names only the `echo` helper.
+    toward = new & _item_names(item_id, item_text)
+    if mine and not new & set(named) and not toward:
+        return (f"The criterion says `{mine[0]}`, and the surface moves to "
+                f"{to}. The surface is what the test calls. {route(mine[0])}")
+    # The comparison rule. A text that names both callables does not decide,
+    # so the principal's words do (the review of 3de76eaf, finding 2). A name
+    # after a comparison cue is a model for the new callable, not the
+    # callable itself. A request cue on the same name admits the move.
     if not old & asked:
         return None
     for name in sorted(new - old):
@@ -5083,11 +5116,14 @@ def _surface_move_fault(text: str, was: list, surface: list,
             continue
         for w in said:
             hit = _cue_hit(_COMPARE_CUES, name, w)
-            if hit:
-                mine = sorted(old & asked)[0]
-                return (f"The principal names `{name}` as a comparison: "
-                        f"{hit.group(0)!r}. The callable the principal asks "
-                        f"for is `{mine}`. {route(mine)}")
+            if not hit:
+                continue
+            keep = mine[0] if mine else sorted(old & asked)[0]
+            both = (f" The criterion's text names `{keep}` and `{name}`."
+                    if mine else "")
+            return (f"The principal names `{name}` as a comparison: "
+                    f"{hit.group(0)!r}. The callable the principal asks for "
+                    f"is `{keep}`.{both} {route(keep)}")
     return None
 
 
@@ -5171,12 +5207,10 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # A relay's words reach the door through the item's ruling. No relay
         # of nights 144 to 146 filled `body_text`, so the door does not read
         # it (the review of ee535945, finding 4).
-        from . import prompts as _prompts
-
-        offered = _prompts.mode_tools(ctx.role, ctx.mode) or []
         ask = ("If the principal's words leave the surface unclear, send "
                "msg.challenge_vision_keeper with this criterion."
-               if "msg.challenge_vision_keeper" in offered else "")
+               if "msg.challenge_vision_keeper" in _wake_mode_tools(ctx)
+               else "")
         fault = _surface_move_fault(text, was, surface,
                                     item["id"] if item else None,
                                     item["text"] if item else None, words,
