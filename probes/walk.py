@@ -127,6 +127,13 @@ if _prof is not None:
     print(f"profile {_prof.name}: default {_prof.default_model}; roles {_prof.routing()}")
 else:
     pins, backend = Pins(model="qwen3:8b", temperature=0.0), None
+# An onboarding wake with a recorded prompt takes the recording, and a walk
+# never does (frame 233, plans/night-reuse-investigation.md, part 4 D).
+import night_cassette as _night
+backend = _night.wrap(backend, PHASE)
+if isinstance(backend, _night.NightBackend):
+    print(f"night cassette: {_night.cassette_path()}, replay "
+          f"{'on' if backend.replay else 'off'}", flush=True)
 def record(merged: int, steps: int, asks: int, note: str) -> None:
     """The walk's own result row (plans/model-setup.md, step 1)."""
     import datetime, json as _json
