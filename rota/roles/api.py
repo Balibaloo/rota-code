@@ -497,9 +497,36 @@ def _must_exist(ctx: "Ctx", table: str, id: str) -> None:
             f"SELECT id FROM {table} ORDER BY id LIMIT 6")]
         known = (f"; {table} rows are {have}" if have
                  else f"; there are no {table} rows at all")
+        # On a relay, the relay's refs are the ids the seat was given. Night
+        # 147's s285 took the first two ids of the table's list instead, and
+        # contested an approved item (frame 238).
+        relayed = _relay_refs(ctx)
+        if relayed:
+            hits = [r["id"] for r in ctx.conn.execute(
+                f"SELECT id FROM {table} WHERE id IN "
+                f"({', '.join('?' * len(relayed))}) ORDER BY id", relayed)]
+            known = (f"; the relay names {relayed}, and the {table} rows among "
+                     f"them are {hits}" if hits else
+                     f"; the relay names {relayed}, and they are not {table} "
+                     f"rows. Answer what the relay names, or end the session")
         raise ValueError(
             f"no {table} row with id={id!r}; this changes an existing row, so "
             f"the id has to be one you were given{known}")
+
+
+def _relay_refs(ctx: "Ctx") -> list[str]:
+    """The refs of the relay that woke this session. Empty for any other wake."""
+    trigger = getattr(ctx, "trigger", None)
+    row = ctx.conn.execute(
+        "SELECT verb, body_refs FROM messages WHERE id = ?",
+        (trigger,)).fetchone() if trigger else None
+    if row is None or row["verb"] != "relay":
+        return []
+    try:
+        refs = json.loads(row["body_refs"] or "[]")
+    except (TypeError, ValueError):
+        return []
+    return [r for r in refs if isinstance(r, str)] if isinstance(refs, list) else []
 
 
 # ---------------------------------------------------------------------------
@@ -1664,6 +1691,19 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
         raise ValueError(
             f"the principal ruled {id} {ruling}. land wrote `{landed}`{words}. "
             f"Leave it")
+    # A relay cannot contest what the landed ruling approved and the relay
+    # does not name. Night 147's relay m136 named two constraints, and s285
+    # contested the approved confirm item off a refusal's id list (frame 238).
+    if approval == "contested" and ruling is None and _relay_refs(ctx):
+        approved = _landed_approval(ctx, id)
+        if approved:
+            rid, ask = approved
+            route = (" To raise a doubt about it, author a decision with "
+                     "`decisions.author` under an id of its own, with the words."
+                     if "decisions.author" in _wake_mode_tools(ctx) else "")
+            raise ValueError(
+                f"the principal approved {id} on {ask}, ruling {rid}, and this "
+                f"relay does not name it. Leave it.{route}")
     row = ctx.conn.execute("SELECT version, approval FROM items WHERE id = ?",
                            (id,)).fetchone()
     # A relay never approves what the principal has not approved. Night
@@ -1690,6 +1730,49 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
     ctx.writes.append(("items", id, {
         "approval": approval, "approval_ver": row["version"]}, False))
     return {"id": id, "approval": approval}
+
+
+def _landed_approval(ctx: Ctx, id: str) -> tuple[str, str] | None:
+    """(ruling id, ask id) when the latest landed ruling on `id` approves it.
+
+    The relay's cause chain comes first, because the relay was sent from
+    that ruling. The `config` verdict holds only the rows the relay carries,
+    so the door reads the `rulings` row's own `per_item` (frame 238). When the
+    chain's ruling does not name the id, the newest landed ruling that names
+    it decides.
+    """
+    from .principal import chain_verdict
+
+    def ruled(rid: str | None) -> tuple[str | None, str | None]:
+        row = ctx.conn.execute(
+            "SELECT ask_id, per_item FROM rulings WHERE id = ?",
+            (rid,)).fetchone() if rid else None
+        try:
+            per_item = json.loads(row["per_item"] or "{}") if row else {}
+        except (TypeError, ValueError):
+            per_item = {}
+        word = per_item.get(id) if isinstance(per_item, dict) else None
+        return word, (row["ask_id"] if row else None)
+
+    trigger = getattr(ctx, "trigger", None)
+    cause = ctx.conn.execute("SELECT cause_id FROM messages WHERE id = ?",
+                             (trigger,)).fetchone() if trigger else None
+    found = (chain_verdict(ctx.conn, cause["cause_id"])
+             if cause and cause["cause_id"] else None)
+    rid = found[2] if found else None
+    word, ask = ruled(rid)
+    if word is None:
+        rid = None
+        for row in ctx.conn.execute(
+                "SELECT id FROM rulings WHERE status = 'landed' AND per_item LIKE ? "
+                "ORDER BY rowid DESC", (f"%{json.dumps(id)}%",)):
+            word, ask = ruled(row["id"])
+            if word is not None:
+                rid = row["id"]
+                break
+    if rid and word in ("approve", "approved", "confirm", "confirmed"):
+        return rid, ask
+    return None
 
 
 @op("problem", "describe")

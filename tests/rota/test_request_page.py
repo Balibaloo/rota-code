@@ -995,6 +995,81 @@ def test_a_relay_of_a_report_cannot_approve_a_contested_item(db):
     assert sb.call("problem.set_approval", id=ITEM_133, approval="approved")
 
 
+ITEM_DEF = "defines_commands_and_options"
+CONSTRAINTS_147 = ["constraints:click_context", "constraints:click_log"]
+
+
+def _night147_relay(db, relay_verdict: dict, relay_refs) -> None:
+    """Night 147, walk 2: ruling r_6b1268aa4d on ask m131 approves the item,
+    and relay m136 carries only the rows of `relay_verdict`."""
+    _item(db, ITEM_133, TEXT_133, version=3)
+    _item(db, ITEM_DEF, "Define the commands and the options.", version=1)
+    _message(db, "m131", "liaison", "principal", "present",
+             [ITEM_133, "challenge_constraints_click_context"])
+    _message(db, "m132", "principal", "liaison", "reply", [], cause="m131")
+    _message(db, "m133", "principal", "liaison", "verdict", relay_refs, cause="m131")
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m133', ?)",
+               (json.dumps(relay_verdict),))
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, status, "
+               "verdict_id) VALUES ('r_6b1268aa4d', 'm131', 'm132', ?, 'landed', "
+               "'m133')", (json.dumps({
+                   ITEM_133: "approve",
+                   "challenge_constraints_click_context": "contest",
+                   "challenge_constraints_click_log": "contest"}),))
+    _message(db, "m136", "liaison", "vision_keeper", "relay", relay_refs,
+             cause="m133", status="open")
+    db.commit()
+
+
+def test_a_relay_cannot_contest_an_item_the_landed_ruling_approved(db):
+    """Night 147, s285 on m136. The relay named two constraints. The seat
+    contested the approved confirm item, and the scheduler abandoned bg_2
+    (frame 238)."""
+    _night147_relay(db, {c: "contest" for c in CONSTRAINTS_147}, CONSTRAINTS_147)
+    sb = _sandbox(db, "vision_keeper", "relay", "m136")
+    with pytest.raises(ValueError) as refused:
+        sb.call("problem.set_approval", id=ITEM_133, approval="contested")
+    assert str(refused.value) == (
+        f"the principal approved {ITEM_133} on m131, ruling r_6b1268aa4d, and this "
+        "relay does not name it. Leave it.")
+    assert not [w for w in sb.ctx.writes if w[0] == "items"]
+    assert db.execute("SELECT approval FROM items WHERE id = ?",
+                      (ITEM_133,)).fetchone()["approval"] == "approved"
+
+
+def test_a_relay_that_names_the_item_with_contest_still_contests_it(db):
+    """The relay's own verdict on the id still wins over an older ruling."""
+    _night147_relay(db, {ITEM_133: "contest"}, [ITEM_133])
+    sb = _sandbox(db, "vision_keeper", "relay", "m136")
+    assert sb.call("problem.set_approval", id=ITEM_133, approval="contested") == {
+        "id": ITEM_133, "approval": "contested"}
+
+
+def test_a_wake_that_is_not_a_relay_still_contests_an_approved_item(db):
+    """The door reads a relay. A wake of another kind keeps the old rule,
+    because no mode but the relay offers the call and names a route."""
+    _night147_relay(db, {c: "contest" for c in CONSTRAINTS_147}, CONSTRAINTS_147)
+    sb = _sandbox(db, "vision_keeper", "normal", None)
+    sb.ctx.wake_kind = "tick"
+    sb.ctx.wake_refs = (ITEM_133,)
+    assert sb.call("problem.set_approval", id=ITEM_133, approval="contested") == {
+        "id": ITEM_133, "approval": "contested"}
+
+
+def test_a_missing_row_on_a_relay_lists_the_relays_refs(db):
+    """Night 147, s285 turn 2 took the first two ids of the table's list.
+    On a relay the list names what the relay names (frame 238)."""
+    _night147_relay(db, {c: "contest" for c in CONSTRAINTS_147}, CONSTRAINTS_147)
+    sb = _sandbox(db, "vision_keeper", "relay", "m136")
+    with pytest.raises(ValueError) as refused:
+        sb.call("problem.set_approval", id=CONSTRAINTS_147[0], approval="contested")
+    assert str(refused.value) == (
+        f"no items row with id={CONSTRAINTS_147[0]!r}; this changes an existing row, "
+        f"so the id has to be one you were given; the relay names {CONSTRAINTS_147}, "
+        "and they are not items rows. Answer what the relay names, or end the session")
+    assert ITEM_133 not in str(refused.value)
+
+
 def test_after_the_head_commit_the_batch_line_is_refused_with_the_item(bg2):
     """Frame 142's door holds after the build: a contest of the batch line
     moves nothing, and the refusal names the item's line."""
