@@ -92,7 +92,11 @@ fi
 # After the fresh check, which counts sessions: onboarding alone, then the snapshot: no sentence in it, so a warm night
 # can start at any sentence (GAUNTLET_FROM). The yes-only principal answers
 # onboarding's pages the same way.
-[ "${WALK_FROM_WARM:-}" = "1" ] || WALK_PHASE=onboarding WALK_ONBOARD_ONLY=1 python "$W" clickI "" "" 250
+# Onboarding replays a wake whose whole prompt is recorded in the night
+# cassette (frame 233). GAUNTLET_REPLAY=0 runs it live and records. The walks
+# get neither variable, so a walk never reads or writes the night cassette.
+NIGHT_CASSETTES="${GAUNTLET_NIGHT_CASSETTES:-$STATE/night_cassettes.db}"
+[ "${WALK_FROM_WARM:-}" = "1" ] || WALK_PHASE=onboarding WALK_ONBOARD_ONLY=1 WALK_REPLAY="${GAUNTLET_REPLAY:-1}" ROTA_NIGHT_CASSETTES="$NIGHT_CASSETTES" python "$W" clickI "" "" 250
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 1 ]; then
 echo "== walk 1 $(date +%H:%M)"

@@ -275,6 +275,8 @@ for i in range(cap):
                      "body_refs, seq) VALUES (?,?,'message','t_p1','principal','liaison','converse',?,?)",
                      (f"m_p{n}", rep.message_id, f'["e_p{n}"]', seq))
         conn.commit()
+    if isinstance(backend, _night.NightBackend):
+        backend.begin()
     s = step(conn, pins=pins, backend=backend)
     # The warm snapshot: the database at the first slicing wake, before any
     # batch exists. Onboarding is 119 of a night's first 150 sessions and

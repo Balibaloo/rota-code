@@ -39,13 +39,22 @@ class NightBackend(RecordingBackend):
     after the last turn. So the name reports the calls since the previous
     read: `cassette:<inner>` when every call hit, the inner name when one call
     ran live or no call ran. The column then counts the replayed sessions, as
-    the frame's ends-when asks.
+    the frame's ends-when asks. The walk calls `begin` before each step,
+    because a failed session never reads the name.
+
+    The replay is valid for the text protocol only. The key holds the
+    protocol and not the native tool schemas, so a changed schema keeps the
+    key (frame 233's review, finding 2). The night runs the text protocol.
     """
 
     def __init__(self, inner: llm.Backend, dev_conn, *, replay: bool):
         super().__init__(inner, dev_conn, replay=replay)
         self._calls = 0
         self._hits = 0
+
+    def begin(self) -> None:
+        """Start the count of one session (frame 233's review, finding 1)."""
+        self._calls = self._hits = 0
 
     @property
     def name(self) -> str:
