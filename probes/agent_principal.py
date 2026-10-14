@@ -127,16 +127,16 @@ class AgentPrincipal:
         self._answered: dict[str, str] = {}         # ask id -> answer verb
         self.silent: set = set()                    # pages answered with (nothing)
         self.replays = 0
-        self.recorded = self._recorded()            # page -> recorded words
+        self.recorded = self._recorded()            # (verb, page) -> words
 
-    def _recorded(self) -> dict[str, str]:
+    def _recorded(self) -> dict[tuple[str, str], str]:
         """
         The recorded onboarding answers, by the whole page text (frame 233).
 
         Onboarding only, and only under `WALK_REPLAY=1`. The principal's
         answers are the walks' main variance, so a replayed walk answer
         would turn three nights into one sample (night-reuse-investigation,
-        part 4 E). The key is the page alone and not the system prompt, so
+        part 4 E). The key is the verb and the page, not the system prompt, so
         the recent pages before a page do not change its answer. A missing
         record is an empty one. The latest row of a page wins.
         """
@@ -157,7 +157,7 @@ class AgentPrincipal:
             words = str(row.get("words") or "").strip()
             if (row.get("kind") == "call" and row.get("phase") == "onboarding"
                     and row.get("ok") and words and words != NOTHING):
-                found[row.get("page") or ""] = row["words"]
+                found[(str(row.get("verb") or ""), row.get("page") or "")] = row["words"]
         return found
 
     # -- the prompt --------------------------------------------------------
@@ -193,8 +193,8 @@ class AgentPrincipal:
         With `nothing_fails`, the words `(nothing)` count as a failure. A page
         always asks something, and a page left unanswered keeps the walk
         waiting on it (frame 41 pass 1 review, the medium finding)."""
-        if page in self.recorded:
-            words = self.recorded[page]
+        if (verb, page) in self.recorded:
+            words = self.recorded[(verb, page)]
             self.replays += 1
             self._write({"kind": "call", "night": self.night, "phase": self.phase,
                          "message_id": key, "verb": verb, "page": page,

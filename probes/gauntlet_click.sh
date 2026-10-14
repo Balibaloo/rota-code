@@ -98,7 +98,7 @@ fi
 # The agent principal answers a recorded onboarding page from the principal
 # record, a copy of the last night's `clickI.principal.jsonl`.
 NIGHT_CASSETTES="${GAUNTLET_NIGHT_CASSETTES:-$STATE/night_cassettes.db}"
-PRINCIPAL_REPLAY="${GAUNTLET_PRINCIPAL_REPLAY:-$STATE/principal_replay.jsonl}"
+PRINCIPAL_REPLAY="${GAUNTLET_PRINCIPAL_REPLAY:-$STATE/clickI.principal.jsonl}"
 [ "${WALK_FROM_WARM:-}" = "1" ] || WALK_PHASE=onboarding WALK_ONBOARD_ONLY=1 WALK_REPLAY="${GAUNTLET_REPLAY:-1}" ROTA_NIGHT_CASSETTES="$NIGHT_CASSETTES" ROTA_PRINCIPAL_REPLAY="$PRINCIPAL_REPLAY" python "$W" clickI "" "" 250
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 1 ]; then
