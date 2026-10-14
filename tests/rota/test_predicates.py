@@ -646,6 +646,23 @@ def test_a_batch_with_its_own_tests_wakes_no_tester(db):
     assert not any(w.kind == "tick:tests_missing" for w in P.all_wakes(db))
 
 
+def test_an_abandoned_batchs_tests_never_merge_the_next_batch(db):
+    """
+    Night 147, walk 2 (frame 239): bg_3 merged on its inherited tests and
+    on bg_2's tests of its criteria. bg_3 held no test of its own.
+    """
+    from rota.core import lifecycle
+
+    _two_batches_on_one_ticket(db)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('inh_1','bg_3',NULL,'tests/test_old.py','def test_old(): pass')")
+    assert lifecycle.mergeable(db, "bg_3") == "criteria without a test: c1"
+    # The batch's own test clears the check, and the next one is the verdict.
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst_eof_3','bg_3','c1','tests/test_eof3.py','def test_eof(): pass')")
+    assert lifecycle.mergeable(db, "bg_3") == "no verdict"
+
+
 def test_a_dead_answer_climbs_to_somebody_who_has_not_spoken(db):
     """
     The register's one declared entry, and everything after it derived.

@@ -581,12 +581,15 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     # Once the batch has any test. A batch with none never reaches a
     # verdict, since review waits for a test run; the check is for the
     # batch whose only tests are inherited.
+    # A test counts for its own batch only. Night 147, walk 2: bg_3 merged
+    # on the tests of bg_2, an abandoned batch on the same ticket (frame 239).
     has_tests = conn.execute(
         "SELECT 1 FROM tests WHERE batch_id = ? LIMIT 1", (batch_id,)).fetchone()
     untested = [r["id"] for r in conn.execute(
         "SELECT c.id FROM batch_tickets bt JOIN criteria c ON c.ticket_id = bt.ticket_id "
         "WHERE bt.batch_id = ? AND NOT EXISTS (SELECT 1 FROM tests t "
-        "                                       WHERE t.criterion_id = c.id) "
+        "                                       WHERE t.criterion_id = c.id "
+        "                                       AND t.batch_id = bt.batch_id) "
         "ORDER BY c.id", (batch_id,))] if has_tests else []
     if untested:
         return f"criteria without a test: {', '.join(untested)}"
