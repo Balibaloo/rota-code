@@ -7752,16 +7752,32 @@ _LINE_FAULT = re.compile(
 _LINE_MATCH = re.compile(
     r"\b(?:match(?:es)?|are right|is right|(?:are|is|looks?) fine|"
     r"looks? reasonable|is correct|are correct|ok|good)\b", re.I)
+# A sentence that only agrees, such as s427's "Ok, go ahead.".
+_AGREE = r"(?:ok(?:ay)?|yes|fine|go ahead|approved|looks good)"
+_BARE_AGREEMENT = re.compile(rf"\W*{_AGREE}(?:\W+{_AGREE})*\W*", re.I)
+
+
+def _ref_lines(ref: re.Match) -> set[int]:
+    """The line numbers of one reference, with "N to M" read as a range."""
+    nums = re.findall(r"\d+|to|-", ref.group(1) or ref.group(2))
+    lines: set[int] = set()
+    for j, tok in enumerate(nums):
+        if tok.isdigit():
+            lines.add(int(tok))
+        elif 0 < j < len(nums) - 1:
+            lines.update(range(int(nums[j - 1]), int(nums[j + 1]) + 1))
+    return lines
 
 
 def _line_reading(words: str) -> tuple[set[int], set[int]]:
     """The lines the principal's words fault, and the lines they say match.
 
-    Each line reference takes the direction of the first cue after it, in
-    the same clause and before the next reference. A reference with no cue
-    takes no direction. Night 146 (frame 234): nine of 22 verdicts contested
-    lines the words never faulted, and s427 contested four lines the words
-    said match. Measured on the 22 recorded replies, `f234/pass1-report.md`.
+    Each line reference reads the clause after it, up to the next reference.
+    A fault cue there faults the lines. Otherwise a match cue within two
+    words matches them. A reference with no cue takes no direction. Night
+    146 (frame 234): nine of 22 verdicts contested lines the words never
+    faulted, and s427 contested four lines the words said match. Measured on
+    the recorded replies of nights 143 to 146, `f234/pass1-report.md`.
     """
     faulted: set[int] = set()
     matched: set[int] = set()
@@ -7776,27 +7792,64 @@ def _line_reading(words: str) -> tuple[set[int], set[int]]:
             # counts only when it follows the reference within two words.
             if match is not None and len(window[:match.start()].split()) > 2:
                 match = None
-            if fault is None and match is None:
-                continue
-            nums = re.findall(r"\d+|to|-", ref.group(1) or ref.group(2))
-            lines: set[int] = set()
-            for j, tok in enumerate(nums):
-                if tok.isdigit():
-                    lines.add(int(tok))
-                elif 0 < j < len(nums) - 1:
-                    lines.update(range(int(nums[j - 1]), int(nums[j + 1]) + 1))
-            if match is None or (fault is not None and fault.start() < match.start()):
-                faulted |= lines
-            else:
-                matched |= lines
+            # "doesn't match" is a fault (frame 234, review 1, finding 4).
+            if match is not None and any(
+                    w.lower() in ("not", "never") or w.lower().endswith("n't")
+                    for w in window[:match.start()].split()[-2:]):
+                fault, match = match, None
+            if fault is not None:
+                # A fault anywhere in the clause wins. Night 143's m339:
+                # "Line 2's text is right now, but its check still passes"
+                # (frame 234, review 1, finding 3).
+                faulted |= _ref_lines(ref)
+            elif match is not None:
+                matched |= _ref_lines(ref)
     return faulted, matched
+
+
+def _line_refusal(words: str, contested: set[int], faulted: set[int],
+                  matched: set[int], size: int, request_first: bool,
+                  quoted: bool) -> str | None:
+    """The refusal of a contest the words do not support, or None.
+
+    `faulted` and `matched` come from `_line_reading`, after the batch lift.
+    `size` is the count of lines on the page. `request_first` says that line
+    1 is a request item. `quoted` says that the words quote line 1.
+    """
+    reversed_ = sorted((matched - faulted) & contested)
+    if reversed_:
+        one = len(reversed_) == 1
+        return (f"The words say line{'' if one else 's'} {_line_set(reversed_)} "
+                f"match{'es' if one else ''} what the principal asked for, and a "
+                f"contest reverses the principal. Approve line{'' if one else 's'} "
+                f"{_line_set(reversed_)}.")
+    if not request_first or 1 not in contested or quoted:
+        return None
+    named = sorted(n for n in faulted if n <= size)
+    if not named or 1 in faulted:
+        return None
+    sentences = re.split(r"(?<=[.!?])\s+", (words or "").strip())
+    # Any reference to line 1 can carry a fault the cues miss. Night 144's
+    # m193 said "Line 1 isn't a request" (frame 234, review 1, finding 1).
+    if any(1 in _ref_lines(r) for s in sentences for r in _LINE_REF.finditer(s)):
+        return None
+    # A sentence with no line number can correct the request itself. Night
+    # 143's m263: "Also, take the version from the running interpreter's
+    # version info" (frame 234, review 1, finding 2).
+    if any(s.strip() and not _LINE_REF.search(s)
+           and not _BARE_AGREEMENT.fullmatch(s) for s in sentences):
+        return None
+    lines = f"line{'' if len(named) == 1 else 's'} {_line_set(named)}"
+    return (f"The words fault {lines}. Line 1 is the request, and they do "
+            f"not fault it. Rule {lines}, and approve the rest.")
 
 
 def _quotes_line(words: str, page_text: str, n: int) -> bool:
     """Whether the words quote line `n` of the rendered page: a run of five
-    or more of the line's words, case-folded."""
-    found = re.search(rf"^\s*{n}\.\s+(.*(?:\n(?!\s*\d+\.\s|\s*$).*)*)", page_text or "",
-                      re.M)
+    or more of the line's words, case-folded. The capture takes the line's
+    indented sub-lines and stops at a section header, which has no indent."""
+    found = re.search(rf"^\s*{n}\.\s+(.*(?:\n(?!\s*\d+\.\s|\s*$)[ \t]+.*)*)",
+                      page_text or "", re.M)
     if not found:
         return False
     said = re.findall(r"[\w']+", found.group(1).casefold())
@@ -8096,23 +8149,15 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 faulted.add(order.index(batch["item_id"]) + 1)
         contested = {i + 1 for i, r in enumerate(order)
                      if per_item.get(r) == "contest"}
-        reversed_ = sorted((matched - faulted) & contested)
-        if reversed_:
-            one = len(reversed_) == 1
-            raise ValueError(
-                f"The words say line{'' if one else 's'} {_line_set(reversed_)} "
-                f"match{'es' if one else ''} what the principal asked for, and a "
-                f"contest reverses the principal. Approve line{'' if one else 's'} "
-                f"{_line_set(reversed_)}.")
-        # A shift page numbers requests, so its line 1 is no request line.
-        if (not shift and 1 in contested and faulted and 1 not in faulted
-                and not _quotes_line(words, page_text, 1)):
-            named = sorted(n for n in faulted if n <= len(order))
-            lines = (f"line{'' if len(named) == 1 else 's'} {_line_set(named)}"
-                     if named else "the lines they name")
-            raise ValueError(
-                f"The words fault {lines}. Line 1 is the request, and they do "
-                f"not fault it. Rule {lines}, and approve the rest.")
+        # A shift page numbers requests, and a page can open with a note, so
+        # line 1 is the request only when it is a request item (frame 234,
+        # review 1, finding 1).
+        request_first = not shift and _is_request_item(ctx.conn, order[0])
+        refusal = _line_refusal(
+            words, contested, faulted, matched, len(order), request_first,
+            request_first and _quotes_line(words, page_text, 1))
+        if refusal:
+            raise ValueError(refusal)
     if is_clarify and not (words or "").strip():
         # A reading rests on the principal's words. The door cannot read them,
         # so it holds the one fact it can check: a ruling with no words on

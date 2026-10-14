@@ -40,9 +40,9 @@ Otherwise the reply is a ruling. Read each numbered line against it:
   separate or for later is `later`, even when it also says drop it from this
   change.
 
-A correction counts against the line it is about, and only that line. Line 1
-is the request. Contest it only when the words name line 1 or say the request
-itself is wrong. A correction of a criterion, a check or the files contests
+A correction counts against the line it is about, and only that line. On a
+page that starts with the request, line 1 is the request. Contest it only when
+the words name line 1 or say the request itself is wrong. A correction of a criterion, a check or the files contests
 that line alone. Every line gets a ruling.
 
 Call `rulings.rule` once, with `rulings` for every line and the whole reply as

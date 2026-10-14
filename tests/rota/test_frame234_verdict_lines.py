@@ -9,6 +9,8 @@ when the words faulted lines 3 and 5. Each cancelled a batch. The door
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from rota.core.db import init_db
@@ -24,10 +26,34 @@ def db(tmp_path):
 S122_SHAPE = ("Line 3 isn't right: the user should not type the bill at all. "
               "Line 4 also goes too far, because I didn't ask for a typed "
               "percentage, so please drop it.")
+# The same shape on the request page, which has three lines.
+S122_ON_REQUEST = ("Line 2 isn't right: the user should not type the bill at "
+                   "all. Line 3 also goes too far, because I didn't ask for a "
+                   "typed percentage.")
 
 
 def _rule(db, words, rulings):
     ask = _present(db)
+    sb, _ = _landing(db, ask, words)
+    return sb.call("rulings.rule", rulings=rulings, words=words)
+
+
+def _request_page(db, verb="present"):
+    """The present page without the quoted statement: line 1 is the request
+    item calculate_tip, line 2 how_it_works, line 3 the note l_1."""
+    from rota.roles.principal import pending_asks
+
+    _present(db)
+    db.execute("UPDATE messages SET body_refs = ?, verb = ? WHERE id = 'm9'",
+               (json.dumps(["calculate_tip", "how_it_works", "l_1"]), verb))
+    db.commit()
+    return pending_asks(db)[0]
+
+
+def _rule_request(db, words, rulings, verb="present"):
+    ask = _request_page(db, verb)
+    if verb == "present":
+        assert ask.order == ["calculate_tip", "how_it_works", "l_1"], ask.order
     sb, _ = _landing(db, ask, words)
     return sb.call("rulings.rule", rulings=rulings, words=words)
 
@@ -50,19 +76,136 @@ def test_the_refusal_names_only_the_matched_lines_contested(db):
 
 def test_a_contest_on_the_request_line_the_words_do_not_fault_is_refused(db):
     with pytest.raises(ValueError) as e:
-        _rule(db, S122_SHAPE, {"1": "contest", "2": "approve", "3": "contest",
-                               "4": "contest"})
+        _rule_request(db, S122_ON_REQUEST,
+                      {"1": "contest", "2": "contest", "3": "contest"})
     text = str(e.value)
     assert "Line 1 is the request" in text
-    assert text.startswith("The words fault lines 3 and 4.")
-    assert "Rule lines 3 and 4, and approve the rest." in text
+    assert text.startswith("The words fault lines 2 and 3.")
+    assert "Rule lines 2 and 3, and approve the rest." in text
 
 
 def test_the_same_words_land_when_line_1_is_approved(db):
-    out = _rule(db, S122_SHAPE, {"1": "approve", "2": "approve", "3": "contest",
-                                 "4": "contest"})
-    assert out["per_item"] == {"s1": "approve", "calculate_tip": "approve",
+    out = _rule_request(db, S122_ON_REQUEST,
+                        {"1": "approve", "2": "contest", "3": "contest"})
+    assert out["per_item"] == {"calculate_tip": "approve",
                                "how_it_works": "contest", "l_1": "contest"}
+
+
+def test_a_page_that_opens_with_a_quote_takes_a_contest_on_line_1(db):
+    # Line 1 is the statement s1, not a request item (review 1, finding 1).
+    out = _rule(db, S122_SHAPE, {"1": "contest", "2": "approve", "3": "contest",
+                                 "4": "contest"})
+    assert out["per_item"]["s1"] == "contest"
+
+
+def test_a_reference_to_line_1_with_no_cue_lets_it_be_contested(db):
+    words = ("Line 1 isn't a request, so please take it off the page. Line 2 "
+             "is also wrong.")
+    out = _rule_request(db, words, {"1": "contest", "2": "contest", "3": "approve"})
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+def test_a_sentence_with_no_line_number_lets_line_1_be_contested(db):
+    words = ("Line 2 is wrong because the bill is typed once. Also, take the "
+             "tip in cents.")
+    out = _rule_request(db, words, {"1": "contest", "2": "contest", "3": "approve"})
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+def test_a_bare_agreement_is_no_correction_of_the_request(db):
+    words = "Ok, go ahead. Line 2 is wrong because the bill is typed once."
+    with pytest.raises(ValueError, match="Line 1 is the request"):
+        _rule_request(db, words, {"1": "contest", "2": "contest", "3": "approve"})
+
+
+def test_a_quote_of_line_1_inside_the_door_lets_it_be_contested(db):
+    with pytest.raises(ValueError, match="Line 1 is the request"):
+        _rule_request(db, "Line 2 is wrong, and the tip is wrong too.",
+                      {"1": "contest", "2": "contest", "3": "approve"})
+
+
+def test_the_quote_branch_lands(tmp_path):
+    db = init_db(tmp_path / "rota.db")
+    words = "Line 2 is wrong, and the software calculates the tip wrong too."
+    out = _rule_request(db, words, {"1": "contest", "2": "contest", "3": "approve"})
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+def test_a_fault_past_the_end_of_the_page_refuses_nothing(db):
+    # Review 1, finding 7: the refusal names lines, so it needs one.
+    out = _rule_request(db, "Line 9 is wrong.",
+                        {"1": "contest", "2": "approve", "3": "approve"})
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+def test_a_fault_after_a_match_in_one_clause_lands_the_contest(db):
+    words = "Line 2's text is right now, but its check still types the bill."
+    out = _rule_request(db, words, {"1": "approve", "2": "contest", "3": "approve"})
+    assert out["per_item"]["how_it_works"] == "contest"
+
+
+def test_a_negated_match_lands_the_contest(db):
+    out = _rule_request(db, "Line 2 doesn't match what I asked for.",
+                        {"1": "approve", "2": "contest", "3": "approve"})
+    assert out["per_item"]["how_it_works"] == "contest"
+
+
+def test_a_clarify_is_not_read_for_lines(db):
+    words = "Lines 1 to 4 match what I asked for."
+    out = _rule_request(db, words, {"calculate_tip": "contest",
+                                    "how_it_works": "contest"}, verb="clarify")
+    assert out["per_item"]["calculate_tip"] == "contest"
+
+
+def test_a_page_with_no_numbered_line_takes_the_empty_ruling(db):
+    # The touch note numbers no line, so `order` is empty and the door
+    # acknowledges the reply.
+    from rota.roles.principal import pending_asks
+
+    _present(db)
+    db.execute("UPDATE messages SET body_refs = '[]' WHERE id = 'm9'")
+    db.commit()
+    ask = pending_asks(db)[0]
+    words = "Lines 1 to 4 match what I asked for."
+    sb, _ = _landing(db, ask, words)
+    out = sb.call("rulings.rule", rulings={}, words=words)
+    assert out["per_item"] == {}
+
+
+# Night 143 and 144: four right verdicts that review 1 found refused by the
+# pass 1 door. Verbatim from the `rulings` table of each night's database.
+RIGHT_143_144 = {
+    "144 m193": ("Line 1 isn't a request, so please take it off the page. It was "
+                 "only my note on the scope of the JSON helper. Line 2 is also "
+                 "wrong because it says the pager test file must stay untouched, "
+                 "but I said the team may make the smallest fix there if the new "
+                 "helper is what broke those tests, and should leave the file "
+                 "alone otherwise.", {"1": "contest", "2": "contest", "3": "approve"}),
+    "144 m236": ("Line 12 is wrong: I never overruled the helper. I still want it "
+                 "added next to echo, and my note about line 1 was only about which "
+                 "test files it points at. On line 1, the echo tests are right, but "
+                 "the termui and context test files don't belong there.",
+                 {"1": "contest", "2": "approve", "3": "approve"}),
+    "143 m263": ("Line 3 is wrong because the flag should be off by default, so the "
+                 "Python version shows only when someone turns it on. Also, take the "
+                 "version from the running interpreter's version info, written as "
+                 "major.minor.micro.", {"1": "contest", "2": "approve", "3": "contest"}),
+    "143 m339": ("Line 2's text is right now, but its check still passes a show "
+                 "python switch on the command line, and no such switch exists. The "
+                 "check should call each command with its normal version switch. "
+                 "Then it should confirm that the word Python appears only for the "
+                 "command that turned the flag on.",
+                 {"1": "approve", "2": "contest", "3": "approve"}),
+}
+
+
+@pytest.mark.parametrize("night_ask", sorted(RIGHT_143_144))
+def test_a_right_verdict_of_nights_143_and_144_lands(db, night_ask):
+    words, rulings = RIGHT_143_144[night_ask]
+    out = _rule_request(db, words, rulings)
+    assert sorted(k for k, v in rulings.items() if v == "contest") == sorted(
+        str(["calculate_tip", "how_it_works", "l_1"].index(r) + 1)
+        for r, v in out["per_item"].items() if v == "contest")
 
 
 def test_words_that_fault_line_1_land_a_contest_on_it(db):
@@ -131,6 +274,8 @@ RECORDED = {
              "that the helper fails with the usual json error when it can't "
              "serialize an object, so please put both back.",
              {1}, set()),
+    "143 m339": (RIGHT_143_144["143 m339"][0], {2}, set()),
+    "a negated match": ("Line 4 doesn't match what I asked for.", {4}, set()),
 }
 
 
