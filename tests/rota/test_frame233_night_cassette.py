@@ -157,7 +157,7 @@ def test_the_seed_fills_the_night_cassette_from_the_onboarding_turns(tmp_path, m
     before = (tmp_path / "night.db").read_bytes()
     cassette = tmp_path / "night_cassettes.db"
     counts = _module(SEED).seed(tmp_path / "night.db", cassette)
-    assert counts == {"sessions": 2, "turns": 3, "present": 0,
+    assert counts == {"sessions": 2, "turns": 3, "present": 0, "notes": 0,
                       "native": 1, "walk": 1}, counts
     assert (tmp_path / "night.db").read_bytes() == before, "the seed wrote the night"
 
@@ -175,3 +175,83 @@ def test_the_seed_fills_the_night_cassette_from_the_onboarding_turns(tmp_path, m
     assert fake.calls == 2, "a native or a walk turn was seeded"
     again = _module(SEED).seed(tmp_path / "night.db", cassette)
     assert again["present"] == 3 and again["turns"] == 0, again
+
+
+def test_the_seed_skips_a_note_turn_and_needs_its_destination(tmp_path, capsys):
+    """`db.session_note` writes a turn with an empty system and an empty user
+    text. Night 146 holds 61 in onboarding, and they counted as turns and as
+    present (frame 233's review 2, finding 1)."""
+    _night_db(tmp_path / "night.db")
+    conn = sqlite3.connect(tmp_path / "night.db")
+    for n in (3, 4):
+        conn.execute("INSERT INTO turns (session_id, seq, system, user, completion) "
+                     "VALUES ('s1', ?, '', '', 'a note')", (n,))
+    conn.commit()
+    conn.close()
+    seed = _module(SEED)
+    cassette = tmp_path / "out" / "night_cassettes.db"
+    counts = seed.seed(tmp_path / "night.db", cassette)
+    assert (counts["turns"], counts["present"], counts["notes"]) == (3, 0, 2), counts
+    rows = sqlite3.connect(cassette).execute(
+        "SELECT COUNT(*) FROM cassettes WHERE system = '' AND user = ''").fetchone()[0]
+    assert rows == 0, "a note turn became a cassette row"
+
+    # The destination is required, so a seed from a worktree cannot land in
+    # that worktree's `.rota/` (frame 233's review 2, finding 2).
+    assert seed.main([str(tmp_path / "night.db")]) == 2
+    assert seed.main([str(tmp_path / "night.db"), str(cassette)]) == 0
+    out = capsys.readouterr().out
+    assert str(tmp_path / "night.db") in out and str(cassette) in out, out
+
+
+class _Model:
+    """The principal's model: counts the pages that reach it."""
+
+    def __init__(self):
+        self.pages = []
+
+    def __call__(self, model, system, page, cwd):
+        self.pages.append(page)
+        return {"ok": True, "words": "live words", "error": "", "duration_ms": 900,
+                "total_cost_usd": 0.05}
+
+
+def _principal(tmp_path, phase, model):
+    import sys
+    sys.path.insert(0, str(paths.REPO / "probes"))
+    mod = _module(paths.REPO / "probes" / "agent_principal.py")
+    return mod.AgentPrincipal(None, "opus", "r", set(), phase=phase, night="147",
+                              runs=tmp_path / "runs", call=model, say=lambda *a, **k: None)
+
+
+def test_an_onboarding_page_takes_the_recorded_words_and_a_walk_page_never(tmp_path, monkeypatch):
+    record = tmp_path / "night146.principal.jsonl"
+    rows = [{"kind": "call", "phase": "onboarding", "page": "page one", "verb": "present",
+             "words": "recorded words", "ok": True},
+            {"kind": "call", "phase": "sentence 1", "page": "page two", "verb": "present",
+             "words": "walk words", "ok": True},
+            {"kind": "land", "ask_id": "m2", "as": "reply", "landed_id": "m3"}]
+    record.write_bytes("".join(json.dumps(r) + "\n" for r in rows).encode("utf-8"))
+    monkeypatch.setenv("ROTA_PRINCIPAL_REPLAY", str(record))
+    monkeypatch.setenv("WALK_REPLAY", "1")
+
+    model = _Model()
+    onboarding = _principal(tmp_path, "onboarding", model)
+    assert onboarding._ask_model("m2", "present", "label", "page one") == "recorded words"
+    assert model.pages == [], "a recorded onboarding page reached the model"
+    assert onboarding._ask_model("m4", "present", "label", "page two") == "live words"
+    assert onboarding._ask_model("m5", "present", "label", "page three") == "live words"
+    assert len(model.pages) == 2
+
+    walk = _principal(tmp_path, "sentence 1", model)
+    assert walk._ask_model("m6", "present", "label", "page one") == "live words"
+    assert len(model.pages) == 3, "a walk page took a recording"
+
+    written = [json.loads(line) for line in
+               (tmp_path / "runs" / "r.principal.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [r["model"] for r in written] == ["replay", "opus", "opus", "opus"], written
+    assert written[0]["words"] == "recorded words" and written[0]["total_cost_usd"] == 0.0
+
+    monkeypatch.delenv("WALK_REPLAY")
+    unset = _principal(tmp_path, "onboarding", model)
+    assert unset._ask_model("m7", "present", "label", "page one") == "live words"

@@ -1,13 +1,16 @@
 """
 Fill the night cassette from a night database's onboarding turns.
 
-    python probes/seed_night_cassettes.py <night.db> [<cassettes.db>]
+    python probes/seed_night_cassettes.py <night.db> <cassettes.db>
 
 Frame 233, step 2. A night's `turns` table holds the system text, the user
 text and the completion of every call, and `sessions.pins_json` holds the
 rest of the key. So one night seeds the next night with no recording night
 (plans/night-reuse-investigation.md, part 2.5). The night database opens
-read-only. The cassette file defaults to `night_cassette.cassette_path()`.
+read-only. The cassette file is a required argument. A default under
+`paths.RUNS` is the `.rota/` of the checkout that holds this script, and a
+night worktree's `.rota/` is not the file the gauntlet reads (frame 233's
+review 2, finding 2).
 
 The onboarding sessions are the sessions before the first session that the
 first sentence, `m_p1`, woke. Nights 145 and 146 both give 104 sessions
@@ -56,7 +59,8 @@ def seed(night_path, cassette_path) -> dict:
     night.row_factory = sqlite3.Row
     Path(cassette_path).parent.mkdir(parents=True, exist_ok=True)
     out = open_dev_db(cassette_path)
-    counts = {"sessions": 0, "turns": 0, "present": 0, "native": 0, "walk": 0}
+    counts = {"sessions": 0, "turns": 0, "present": 0, "notes": 0,
+              "native": 0, "walk": 0}
     native_run = _native_run(night)
     start = _walk_start(night)
     try:
@@ -69,6 +73,12 @@ def seed(night_path, cassette_path) -> dict:
             turns = night.execute(
                 "SELECT system, user, completion FROM turns WHERE session_id = ? "
                 "ORDER BY seq", (s["id"],)).fetchall()
+            # `db.session_note` writes the runner's account as a turn with an
+            # empty system and user text. No model saw it, so it is no wake
+            # (frame 233's review 2, finding 1: 61 in night 146's onboarding).
+            notes = [t for t in turns if t["system"] == "" and t["user"] == ""]
+            counts["notes"] += len(notes)
+            turns = [t for t in turns if t not in notes]
             if not turns:
                 continue
             if native_run or any(t["completion"] == "" for t in turns):
@@ -98,16 +108,16 @@ def seed(night_path, cassette_path) -> dict:
 
 
 def main(argv: list[str]) -> int:
-    if not argv:
+    if len(argv) != 2:
         print(__doc__.strip().splitlines()[2].strip())
         return 2
-    import night_cassette
-
-    dst = Path(argv[1]) if len(argv) > 1 else night_cassette.cassette_path()
-    c = seed(argv[0], dst)
-    print(f"seeded {c['sessions']} sessions, {c['turns']} turns into {dst}; "
+    src, dst = Path(argv[0]).resolve(), Path(argv[1]).resolve()
+    c = seed(src, dst)
+    print(f"from {src}")
+    print(f"into {dst}")
+    print(f"seeded {c['sessions']} sessions, {c['turns']} turns; "
           f"{c['present']} turns already present; skipped {c['native']} native "
-          f"and {c['walk']} walk sessions")
+          f"and {c['walk']} walk sessions and {c['notes']} note turns")
     return 0
 
 
