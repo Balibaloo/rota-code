@@ -20,7 +20,7 @@ after frame 233's last review.
   nights have found: 83 of 218 minutes on night 146 were a refused IPv6
   connect to `localhost` on every request.
 - Frame 233, the replayed onboarding: three steps on one implementer,
-  5d5d7556 in code, with two accepted reviews and the third running at the
+  5d5d7556 in code, with three accepted reviews, the last two lows fixed by this session at the
   hand-off. It validates on night 147.
 
 ## What I believe and why
