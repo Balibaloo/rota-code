@@ -1692,18 +1692,21 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
             f"the principal ruled {id} {ruling}. land wrote `{landed}`{words}. "
             f"Leave it")
     # A relay cannot contest what the landed ruling approved and the relay
-    # does not name. Night 147's relay m136 named two constraints, and s285
-    # contested the approved confirm item off a refusal's id list (frame 238).
-    if approval == "contested" and ruling is None and _relay_refs(ctx):
+    # holds no ruling on. Night 147's relay m136 named two constraints, and
+    # s285 contested the approved confirm item off a refusal's id list (frame
+    # 238). The relay mode offers no other route, so the text ends at "Leave
+    # it" (the review of 252feb0e, finding 4).
+    relayed = _relay_refs(ctx)
+    if approval == "contested" and ruling is None and relayed:
         approved = _landed_approval(ctx, id)
         if approved:
             rid, ask = approved
-            route = (" To raise a doubt about it, author a decision with "
-                     "`decisions.author` under an id of its own, with the words."
-                     if "decisions.author" in _wake_mode_tools(ctx) else "")
+            # Relay m147 named the item with no word on it (finding 1).
+            names = ("names it with no ruling of its own" if id in relayed
+                     else "does not name it")
             raise ValueError(
                 f"the principal approved {id} on {ask}, ruling {rid}, and this "
-                f"relay does not name it. Leave it.{route}")
+                f"relay {names}. Leave it.")
     row = ctx.conn.execute("SELECT version, approval FROM items WHERE id = ?",
                            (id,)).fetchone()
     # A relay never approves what the principal has not approved. Night
@@ -1733,45 +1736,29 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
 
 
 def _landed_approval(ctx: Ctx, id: str) -> tuple[str, str] | None:
-    """(ruling id, ask id) when the latest landed ruling on `id` approves it.
+    """(ruling id, ask id) when the newest landed ruling on `id` approves it.
 
-    The relay's cause chain comes first, because the relay was sent from
-    that ruling. The `config` verdict holds only the rows the relay carries,
-    so the door reads the `rulings` row's own `per_item` (frame 238). When the
-    chain's ruling does not name the id, the newest landed ruling that names
-    it decides.
+    The door reads each `rulings` row's own `per_item`. The `config` verdict
+    holds only the rows the relay carries (frame 238). The newest landed row
+    in rowid order is the principal's latest word. The relay's chain ruling
+    is one of these rows, so a newer ruling wins over it (the review of
+    252feb0e, finding 2).
     """
-    from .principal import chain_verdict
-
-    def ruled(rid: str | None) -> tuple[str | None, str | None]:
-        row = ctx.conn.execute(
-            "SELECT ask_id, per_item FROM rulings WHERE id = ?",
-            (rid,)).fetchone() if rid else None
+    # The LIKE only narrows the scan. The parse decides, because `_` and a
+    # value word can widen the match.
+    for row in ctx.conn.execute(
+            "SELECT id, ask_id, per_item FROM rulings WHERE status = 'landed' "
+            "AND per_item LIKE ? ORDER BY rowid DESC", (f"%{json.dumps(id)}%",)):
         try:
-            per_item = json.loads(row["per_item"] or "{}") if row else {}
+            per_item = json.loads(row["per_item"] or "{}")
         except (TypeError, ValueError):
-            per_item = {}
+            continue
         word = per_item.get(id) if isinstance(per_item, dict) else None
-        return word, (row["ask_id"] if row else None)
-
-    trigger = getattr(ctx, "trigger", None)
-    cause = ctx.conn.execute("SELECT cause_id FROM messages WHERE id = ?",
-                             (trigger,)).fetchone() if trigger else None
-    found = (chain_verdict(ctx.conn, cause["cause_id"])
-             if cause and cause["cause_id"] else None)
-    rid = found[2] if found else None
-    word, ask = ruled(rid)
-    if word is None:
-        rid = None
-        for row in ctx.conn.execute(
-                "SELECT id FROM rulings WHERE status = 'landed' AND per_item LIKE ? "
-                "ORDER BY rowid DESC", (f"%{json.dumps(id)}%",)):
-            word, ask = ruled(row["id"])
-            if word is not None:
-                rid = row["id"]
-                break
-    if rid and word in ("approve", "approved", "confirm", "confirmed"):
-        return rid, ask
+        if word is None:
+            continue
+        if word in ("approve", "approved", "confirm", "confirmed"):
+            return row["id"], row["ask_id"]
+        return None
     return None
 
 

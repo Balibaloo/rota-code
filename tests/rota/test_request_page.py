@@ -1056,6 +1056,79 @@ def test_a_wake_that_is_not_a_relay_still_contests_an_approved_item(db):
         "id": ITEM_133, "approval": "contested"}
 
 
+def _ruling(db, rid: str, ask: str, per_item: dict, rowid: int | None = None) -> None:
+    _message(db, ask, "liaison", "principal", "present", list(per_item))
+    db.execute("INSERT INTO rulings (rowid, id, ask_id, per_item, status) "
+               "VALUES (?, ?, ?, ?, 'landed')", (rowid, rid, ask, json.dumps(per_item)))
+    db.commit()
+
+
+def test_an_older_ruling_decides_when_the_chains_ruling_does_not_name_the_item(db):
+    """Night 147, s285's second call: r_6b1268aa4d does not name the item,
+    and the older r_fc68f68228 on m86 approved it (the review of 252feb0e,
+    finding 3)."""
+    _night147_relay(db, {c: "contest" for c in CONSTRAINTS_147}, CONSTRAINTS_147)
+    _ruling(db, "r_fc68f68228", "m86", {ITEM_DEF: "approve"}, rowid=0)
+    sb = _sandbox(db, "vision_keeper", "relay", "m136")
+    with pytest.raises(ValueError) as refused:
+        sb.call("problem.set_approval", id=ITEM_DEF, approval="contested")
+    assert str(refused.value) == (
+        f"the principal approved {ITEM_DEF} on m86, ruling r_fc68f68228, and this "
+        "relay does not name it. Leave it.")
+
+
+def test_a_newer_ruling_that_contests_the_item_wins_over_the_chains_approve(db):
+    """The principal's latest word on the item decides, in rowid order (the
+    review of 252feb0e, finding 2)."""
+    _night147_relay(db, {c: "contest" for c in CONSTRAINTS_147}, CONSTRAINTS_147)
+    _ruling(db, "r_newer", "m150", {ITEM_133: "contest"})
+    sb = _sandbox(db, "vision_keeper", "relay", "m136")
+    assert sb.call("problem.set_approval", id=ITEM_133, approval="contested") == {
+        "id": ITEM_133, "approval": "contested"}
+
+
+def test_a_relay_with_no_cause_reads_the_newest_landed_ruling(db):
+    """A relay with a null cause has no chain, so the newest landed ruling
+    on the item decides (the review of 252feb0e, finding 3)."""
+    _night147_relay(db, {c: "contest" for c in CONSTRAINTS_147}, CONSTRAINTS_147)
+    _message(db, "m137", "liaison", "vision_keeper", "relay", CONSTRAINTS_147,
+             status="open")
+    db.commit()
+    sb = _sandbox(db, "vision_keeper", "relay", "m137")
+    with pytest.raises(ValueError) as refused:
+        sb.call("problem.set_approval", id=ITEM_133, approval="contested")
+    assert str(refused.value) == (
+        f"the principal approved {ITEM_133} on m131, ruling r_6b1268aa4d, and this "
+        "relay does not name it. Leave it.")
+
+
+def test_a_relay_that_names_the_item_with_no_ruling_says_so(db):
+    """Relay m147 names the item, and its verdict holds no word on it. The
+    refusal says what the relay holds (the review of 252feb0e, finding 1)."""
+    refs = [ITEM_133, *CONSTRAINTS_147]
+    _night147_relay(db, {c: "contest" for c in CONSTRAINTS_147}, refs)
+    sb = _sandbox(db, "vision_keeper", "relay", "m136")
+    with pytest.raises(ValueError) as refused:
+        sb.call("problem.set_approval", id=ITEM_133, approval="contested")
+    assert str(refused.value) == (
+        f"the principal approved {ITEM_133} on m131, ruling r_6b1268aa4d, and this "
+        "relay names it with no ruling of its own. Leave it.")
+
+
+def test_a_missing_row_on_a_relay_names_the_relays_items_rows(db):
+    """When the relay names an item and the call names another id, the
+    refusal shows the item (the review of 252feb0e, finding 3)."""
+    refs = [ITEM_133, *CONSTRAINTS_147]
+    _night147_relay(db, {c: "contest" for c in CONSTRAINTS_147}, refs)
+    sb = _sandbox(db, "vision_keeper", "relay", "m136")
+    with pytest.raises(ValueError) as refused:
+        sb.call("problem.set_approval", id="confirm", approval="contested")
+    assert str(refused.value) == (
+        "no items row with id='confirm'; this changes an existing row, so the id "
+        f"has to be one you were given; the relay names {refs}, and the items rows "
+        f"among them are [{ITEM_133!r}]")
+
+
 def test_a_missing_row_on_a_relay_lists_the_relays_refs(db):
     """Night 147, s285 turn 2 took the first two ids of the table's list.
     On a relay the list names what the relay names (frame 238)."""
