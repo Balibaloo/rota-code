@@ -52,4 +52,5 @@ second defence is almost always a restatement of the first with more words.
 
 If you cannot tell *what* they objected to — the wording, the scope, the premise
 — that is a question, not a guess. `msg.report_liaison` and say which of the
-three you need.
+three you need. On a tick wake with no words from the principal, when
+`transcript.quote` returns nothing, report with `msg.report_liaison` and stop.

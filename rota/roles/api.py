@@ -9496,6 +9496,36 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
             f"{resolves_ledger!r}. Leave it out if no assumption is resolved.")
     if resolves_ledger:
         _must_exist(ctx, "ledger", resolves_ledger)
+    # Frames 187 and 219, night 147: s287 sent supersedes with the item's id.
+    # `_must_exist` then said "no decisions row with id=", so the seat changed
+    # the id and tried the principal's decision ids. Law 11 sends the contest
+    # of an observed item to a ruling, so the text closes with the report.
+    # The route names msg.report_liaison only where the wake's mode offers
+    # it, because a refusal names only a call the doors admit (frame 135).
+    if (supersedes and isinstance(supersedes, str) and supersedes not in staged
+            and ctx.conn.execute("SELECT 1 FROM items WHERE id = ?",
+                                 (supersedes,)).fetchone()):
+        tools = _wake_mode_tools(ctx)
+        close = (", and close with `msg.report_liaison`"
+                 if not tools or "msg.report_liaison" in tools else "")
+        # s288 sent the principal's d_26efd6365c as the id. The author check
+        # below refuses that id, so the text asks for an id of its own.
+        owner = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
+                                 (id,)).fetchone()
+        taken = bool(owner is not None and owner["author"]
+                     and owner["author"] != ctx.role)
+        args = {"id": INVENT if taken else id, "text": text,
+                "refs": refs or []}
+        if resolves_ledger:
+            args["resolves_ledger"] = resolves_ledger
+        again = (f"{id} is a decision by {owner['author']}, so send the call "
+                 f"again without supersedes, under an id of its own"
+                 if taken else "Send the same call without supersedes")
+        raise ValueError(_offer(
+            ctx,
+            f"A decision has no supersedes for an item. `{supersedes}` is an "
+            f"items row, not a decision. {again}{close}.",
+            "decisions.author", args))
     if supersedes and supersedes not in staged:
         _must_exist(ctx, "decisions", supersedes)
     # Frame 200, pass 5, fix 7, which frame 219 inherits: a write under an

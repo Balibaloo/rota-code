@@ -1768,6 +1768,98 @@ def test_21_after_that_refusal_the_reasoned_priors_still_count(db):
     assert f"3 times already ({', '.join(landed)})" in str(exc.value)
 
 
+ITEM147 = "defines_commands_and_options"
+
+
+def _night147(db):
+    """Night 147's state for s287 and s288: the observed item is contested,
+    and the principal's decision d_26efd6365c is a row."""
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES (?, 'Users define commands and options', "
+               "'in_scope', 'contested', 1, 1)", (ITEM147,))
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d_26efd6365c', 'principal', 'default taken at signoff', '[]')")
+    db.commit()
+    return build("vision_keeper", db, mode="normal",
+                 wake=Wake("vision_keeper", "tick:contested", refs=(ITEM147,)))
+
+
+SUPERSEDES_ITEM = (
+    f"A decision has no supersedes for an item. `{ITEM147}` is an items row, "
+    f"not a decision. Send the same call without supersedes, and close with "
+    f"`msg.report_liaison`.")
+
+
+def test_night147_s287_supersedes_on_the_item_is_refused_by_name(db):
+    """Frame 187, night 147: s287 moved to a new id and kept `supersedes` on
+    the item. The refusal named the id, so the seat then tried the
+    principal's decision ids."""
+    vk = _night147(db)
+    with pytest.raises(ValueError) as exc:
+        vk.call("decisions.author", id=f"{ITEM147}_defense",
+                text="Users define commands and options, as written.",
+                refs=[ITEM147], supersedes=ITEM147)
+    assert str(exc.value) == SUPERSEDES_ITEM
+    assert not [w for w in vk.ctx.writes if w[0] == "decisions"]
+
+
+def test_night147_s288_supersedes_on_the_item_under_a_principal_id(db):
+    """Frame 187, night 147: s288 took the principal's d_26efd6365c as the id
+    and kept `supersedes` on the item. The supersedes refusal fires first."""
+    vk = _night147(db)
+    with pytest.raises(ValueError) as exc:
+        vk.call("decisions.author", id="d_26efd6365c",
+                text="The original wording stands.", refs=[ITEM147],
+                supersedes=ITEM147)
+    assert str(exc.value) == (
+        f"A decision has no supersedes for an item. `{ITEM147}` is an items "
+        f"row, not a decision. d_26efd6365c is a decision by principal, so "
+        f"send the call again without supersedes, under an id of its own, and "
+        f"close with `msg.report_liaison`.")
+    assert not [w for w in vk.ctx.writes if w[0] == "decisions"]
+    row = db.execute("SELECT author, text FROM decisions WHERE id = "
+                     "'d_26efd6365c'").fetchone()
+    assert tuple(row) == ("principal", "default taken at signoff")
+
+
+def test_night143_s443_cannot_write_under_a_principal_decision(db):
+    """Frame 219, night 143: s443 wrote under d_04589009a6, the principal's
+    "overruled at signoff" row, with no supersedes. The author check of
+    7b0a9aac refuses the call, and the principal's row stays."""
+    said = ("overruled at signoff: Lines 2 to 8 are wrong. Each one pastes the "
+            "README description next to an unrelated passage from the docs or "
+            "the word None, so none of them records a real assumption")
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d_04589009a6', 'principal', ?, '[]')", (said,))
+    db.commit()
+    vk = build("vision_keeper", db, mode="normal")
+    with pytest.raises(ValueError) as exc:
+        vk.call("decisions.author", id="d_04589009a6",
+                text="The `package_name` argument is not a valid keyword "
+                     "argument for the `Context.__init__()` method in Click.",
+                refs=["tst_version_option_show_python"])
+    assert str(exc.value) == (
+        "d_04589009a6 is a decision by principal. A decision is its author's "
+        "record, so write yours under a new id.")
+    assert not [w for w in vk.ctx.writes if w[0] == "decisions"]
+    row = db.execute("SELECT author, text FROM decisions WHERE id = "
+                     "'d_04589009a6'").fetchone()
+    assert tuple(row) == ("principal", said)
+
+
+def test_a_supersedes_on_a_decision_row_still_lands(db):
+    """Frame 187's refusal reads items rows only. A real supersedes lands."""
+    vk = _night147(db)
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d_vk1', 'vision_keeper', 'the first reason', '[]')")
+    db.commit()
+    out = vk.call("decisions.author", id="d_vk2", text="the second reason",
+                  refs=[ITEM147], supersedes="d_vk1")
+    assert out["id"] == "d_vk2"
+    [write] = [w for w in vk.ctx.writes if w[0] == "decisions"]
+    assert write[2]["supersedes"] == "d_vk1"
+
+
 def _three_quoted_priors_and_a_new_body(db, body, quotes=QUOTES, prompts=True):
     """Three landed challenges that quote `quotes`, each sent by a Developer
     whose first prompt showed the old body as JSON, as night 142's prompts
