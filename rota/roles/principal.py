@@ -1827,10 +1827,10 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # author a ruling has. Law 11 (an entry is resolved by a decision that
     # names it, in the same commit, and by nothing else) and SEAT.md's
     # contract (a decided row enters the record only from a keypress).
-    # Approve takes the default. Contest overrules it, with the words, and
-    # contests the row the assumption was about: the principal rejected the
-    # reading, so the row is amended by its owner through the contested
-    # loop, with `principal_said` in front of it. Either way the ledger id
+    # Approve takes the default. Contest overrules it, with the words. The
+    # contest reaches the row the assumption was about only when the answer
+    # gives no ruling on that row (frame 225's pass 2, below). Either way
+    # the ledger id
     # leaves the relay's refs -- the owner has nothing to apply to it, and
     # told to `set_approval` a ledger id it would only be refused. Measured
     # first the other way (2026-09-03): `decisions.author` handed to the
@@ -1877,13 +1877,17 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             # turned an approve of c1 into a contest (the delta review of
             # 2c602d1b, finding 1). A wake's own row keeps the old rule: the
             # contest of a note about it contests it.
-            # A1 (ruled 2026-09-03): a contested default always contests its
-            # item. A contested note of another kind contests its item only
-            # when the answer gives no ruling on that item. The principal's
-            # "no" needs a desk, but his explicit ruling wins over an
-            # inferred one: night 144 lost bg_1 to the inferred one.
-            is_default = (row["kind"] or "default") == "default"
-            if (is_default or row["about_ref"] not in ruled) and \
+            # Roman ruled that a contest with words goes back to the desk that
+            # assumed it (ruled: Roman, 2026-09-03, DECISIONS.md, the seed
+            # interview). The build session chose the carrier on 2026-09-04:
+            # the contested note contests its item, and the owner amends it.
+            # Frame 225's pass 2 keeps that carrier only when the answer gives
+            # no ruling on the item (2026-10-14, plans/frame225-history-read.md).
+            # An explicit ruling on the item wins over an inferred one, for a
+            # note of every kind. The inferred one lost bg_1 on night 144 and
+            # bg_6 on night 146. On an approve, the relay takes the words to
+            # the item's owner as `principal_said`, and the decision keeps them.
+            if row["about_ref"] not in ruled and \
                     not (about and about["provenance"] == "observed") and \
                     row["about_ref"] not in stamped:
                 per_item[row["about_ref"]] = "contest"

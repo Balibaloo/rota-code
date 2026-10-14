@@ -341,7 +341,9 @@ def test_the_liaison_records_the_ruling_by_line_and_the_door_lands_it(db):
     assert db.execute("SELECT status FROM ledger WHERE id = 'l_1'").fetchone()[0] == "resolved"
     d = db.execute("SELECT text FROM decisions WHERE resolves_ledger = 'l_1'").fetchone()
     assert "overruled at signoff: 4 is wrong" in d["text"]
-    assert db.execute("SELECT approval FROM items WHERE id = 'how_it_works'").fetchone()[0] == "contested"
+    # The answer approved the item, so the contest of its assumption does not
+    # overwrite that (frame 225's pass 2, plans/frame225-history-read.md).
+    assert db.execute("SELECT approval FROM items WHERE id = 'how_it_works'").fetchone()[0] == "approved"
     assert db.execute("SELECT approval FROM items WHERE id = 'calculate_tip'").fetchone()[0] == "approved"
     # Landing twice lands nothing more: the ask is closed.
     assert apply_rulings(db) == []

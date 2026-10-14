@@ -202,10 +202,11 @@ def test_contesting_an_assumption_overrules_it_and_contests_its_row(db):
     """
     Contest with words closes the entry at the keypress too -- a decision under
     the principal's name carrying the words -- and contests the row the
-    assumption was about, even where the principal approved that row in the
-    same breath: they rejected the reading, so the owner amends it through the
-    contested loop with `principal_said` in front of it. The ledger id leaves
-    the relay's refs; the owner has nothing to apply to it.
+    assumption was about when the answer gives no ruling on that row: the owner
+    amends it through the contested loop with `principal_said` in front of it.
+    An approve of the row in the same answer wins, because no ruling of Roman
+    says otherwise (plans/frame225-history-read.md). The ledger id leaves the
+    relay's refs; the owner has nothing to apply to it.
 
     Measured first the other way (2026-09-03): `decisions.author` handed to
     the relay mode drew fourteen decisions a session, five of five, on the
@@ -214,7 +215,7 @@ def test_contesting_an_assumption_overrules_it_and_contests_its_row(db):
     _an_item_with_an_assumption(db)
     ask = _a_present_of(db, ["how_it_works", "L1"])
     mid = land(db, ask, Answer(verb="verdict",
-                               per_item={"how_it_works": "approve", "L1": "contest"},
+                               per_item={"L1": "contest"},
                                text="no, a fixed 15 percent, always"))
     db.commit()
     assert mid
@@ -231,6 +232,45 @@ def test_contesting_an_assumption_overrules_it_and_contests_its_row(db):
                       ).fetchone()["approval"] == "contested", (
         "the contest lands on the row at the keypress, so the contested tick fires")
     assert _owner_of_ref(db, "L1") == "vision_keeper"
+
+
+def test_an_approve_of_the_item_wins_over_a_contest_of_its_default(db):
+    """
+    Night 146, m190 (2026-10-13): the principal approved line 1 and added a
+    detail to the default on line 2. The fold wrote a contest over the
+    approve, and on m250 the contested wake s399 cancelled bg_6. The item
+    keeps the approve. The words reach its owner as `principal_said` on the
+    relay of the approve, and the decision row keeps them
+    (plans/frame225-history-read.md).
+    """
+    from rota.roles.principal import entry_for
+
+    _an_item_with_an_assumption(db)
+    ask = _a_present_of(db, ["how_it_works", "L1"])
+    said = ("Ok, approved. One thing to add to line 2: the flag should "
+            "default to False, so nothing changes for people who already call confirm.")
+    mid = land(db, ask, Answer(verb="verdict",
+                               per_item={"how_it_works": "approve", "L1": "contest"},
+                               text=said))
+    db.commit()
+    assert verdict_for(db, mid) == {"how_it_works": "approve", "L1": "contest"}
+    item = db.execute("SELECT approval, approval_ver, version FROM items "
+                      "WHERE id = 'how_it_works'").fetchone()
+    assert item["approval"] == "approved"
+    assert item["approval_ver"] == item["version"]
+    assert db.execute("SELECT status FROM ledger WHERE id = 'L1'"
+                      ).fetchone()["status"] == "resolved"
+    dec = db.execute("SELECT text, refs FROM decisions WHERE resolves_ledger = 'L1'"
+                     ).fetchone()
+    assert dec["text"].startswith("overruled at signoff") and "default to False" in dec["text"]
+    assert json.loads(dec["refs"]) == ["how_it_works"]
+    # The carrier: the verdict stays open with the item in its refs, so the
+    # Liaison relays the approve to the item's owner with the words.
+    sent = db.execute("SELECT status, body_refs FROM messages WHERE id = ?",
+                      (mid,)).fetchone()
+    assert sent["status"] == "open"
+    assert json.loads(sent["body_refs"]) == ["how_it_works"]
+    assert "default to False" in (entry_for(db, mid) or "")
 
 
 def _a_decided_item_with_a_note(db, kind):
@@ -289,7 +329,8 @@ def test_a_scope_note_s_contest_on_a_batch_page_leaves_the_approved_item_alone(d
 
 
 def test_a_default_s_contest_reaches_its_item_the_ruling_does_not_name(db):
-    """A1 (2026-09-03) holds: a contested default contests its item."""
+    """A contested default with no ruling on its item contests the item (the
+    build session's carrier of 2026-09-04, kept by frame 225's pass 2)."""
     _a_decided_item_with_a_note(db, "default")
     ask = _a_present_of(db, ["echo_json", "L9"])
     mid = land(db, ask, Answer(verb="verdict", per_item={"L9": "contest"},
