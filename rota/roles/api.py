@@ -4930,9 +4930,23 @@ _CALLABLE_SPAN = re.compile(
     r"^(?:[\w./\\-]+::)?(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)(?:\(.*\))?$")
 # The principal names a callable as a comparison after these cues. Night 146:
 # m64 "the way echo does", m120 "next to echo" (frame 202).
-_COMPARE_CUES = (r"the way {n} does", r"like {n}", r"next to {n}",
+# A bare "like {n}" is not a cue: "I would like echo to take a json flag"
+# asks for echo itself (the review of ee535945, finding 2).
+_COMPARE_CUES = (r"the way {n} does", r"like {n} does", r"next to {n}",
                  r"beside {n}", r"same as {n}", r"as {n} does",
                  r"alongside {n}", r"similar to {n}")
+# The principal asks for the callable itself after these cues, and a request
+# outweighs a comparison in the same words (the review of ee535945, finding 2).
+_REQUEST_CUES = (r"{n} to take", r"{n} to accept", r"extend {n}",
+                 r"change {n}", r"modify {n}", r"update {n}",
+                 r"add\b[^.;]*?\bto {n}", r"make {n}", r"{n} should",
+                 r"{n} itself", r"in {n}")
+# A clause with a negation is no request: "Don't change echo itself" (m134)
+# and "echo itself should not change" (m146) keep echo as it is.
+_NEGATION = re.compile(r"\b(?:not|never|no)\b|n't\b", re.IGNORECASE)
+# The item names a callable by a call form too: "Add an echo_json(obj)
+# helper" on night 146 put no backticks around `echo_json`.
+_CALL_FORM = re.compile(r"(?<![\w.`])([A-Za-z_]\w*)\(")
 
 
 def _surface_symbol(ref: str) -> str:
@@ -4964,55 +4978,87 @@ def _backticked_callables(text: str, *, called: bool = False) -> list[str]:
     return found
 
 
+def _item_callables(item_id: str | None, item_text: str | None) -> set[str]:
+    """The item's own callables: its id, and the callables its text names."""
+    found = set(_backticked_callables(item_text or "", called=True))
+    found |= set(_CALL_FORM.findall(item_text or ""))
+    if item_id:
+        found.add(item_id)
+    return found
+
+
+def _cue_hit(cues: tuple, name: str, said: str, *, request: bool = False):
+    """The first span of `said` where a cue names `name`, or None."""
+    bare = rf"`?(?:\w+\.)*{re.escape(name)}`?(?![\w-])"
+    for c in cues:
+        pat = re.compile(r"(?<![\w-])" + c.format(n=bare), re.IGNORECASE)
+        for hit in pat.finditer(said):
+            if request:
+                # The clause around the cue decides. A negation in it turns
+                # the request into a refusal of that callable.
+                start = max(said.rfind(p, 0, hit.start()) for p in ".;,:!?")
+                ends = [i for i in (said.find(p, hit.end()) for p in ".;,:!?")
+                        if i >= 0]
+                if _NEGATION.search(said[start + 1:min(ends, default=len(said))]):
+                    continue
+            return hit
+    return None
+
+
 def _surface_move_fault(text: str, was: list, surface: list,
                         item_id: str | None, item_text: str | None,
-                        words: list[str]) -> str | None:
+                        words: list[str], ask: str = "") -> str | None:
     """
     The refusal for a surface move away from the callable the item asks for,
     or None.
 
     Night 146 moved the surface of `echo_json` criteria to `echo` 6 times.
     Each relay named `echo` as a comparison, and the Testers then called
-    `echo` (frame 202, candidate B of the night's read).
+    `echo` (frame 202, candidate B of the night's read). `ask` is the
+    sentence that names the question route, when the mode offers one.
     """
     old = {_surface_symbol(r) for r in was if r}
     new = {_surface_symbol(r) for r in surface if r}
-    carried = set(_backticked_callables(item_text or "", called=True))
-    if item_id:
-        carried.add(item_id)
+    named = _backticked_callables(text)
+    # A text that names the new surface's symbol admits the move. The review
+    # of ee535945, finding 1: a restore whose text also names `echo` as a
+    # helper was refused, and the refusal named the wrong callable.
+    if new & set(named):
+        return None
+    asked = _item_callables(item_id, item_text)
     to = ", ".join(f"`{_surface_symbol(r)}`" for r in surface)
-    # The text rule. The surface is what the test calls, so a criterion that
-    # names the item's callable keeps that callable as its surface.
-    for name in _backticked_callables(text):
-        if name in new or not (name in old or name in carried):
-            continue
+    then = f" {ask}" if ask else ""
+
+    def route(name: str) -> str:
         kept = [r for r in was if _surface_symbol(r) == name]
-        keep = (f"Keep `{kept[0]}`" if kept
+        keep = (f"Keep `{kept[0]}` in surface_refs" if kept
                 else f"Name `{name}` in surface_refs")
-        return (f"The criterion says `{name}`, and the surface moves to {to}. "
-                f"The surface is what the test calls. {keep}, or rewrite the "
-                f"text to {to} if the principal asked for {to} itself")
-    # The comparison rule. A name after a cue is a model for the new
-    # callable, not the callable itself.
-    if not old & carried:
+        return (f"{keep}, or rewrite the criterion's text to name {to} in "
+                f"backticks if the principal asked for {to} itself.{then}")
+    # The text rule. The surface is what the test calls, so a criterion that
+    # names the item's own callable keeps that callable as its surface. A
+    # second callable of the text is not the item's, so a move away from it
+    # lands (the review of ee535945, finding 3).
+    for name in named:
+        if name in asked:
+            return (f"The criterion says `{name}`, and the surface moves to "
+                    f"{to}. The surface is what the test calls. {route(name)}")
+    # The comparison rule. A name after a comparison cue is a model for the
+    # new callable, not the callable itself. A request cue on the same name
+    # admits the move.
+    if not old & asked:
         return None
     for name in sorted(new - old):
-        bare = rf"`?(?:\w+\.)*{re.escape(name)}`?(?![\w-])"
-        cues = [re.compile(r"(?<![\w-])" + c.format(n=bare), re.IGNORECASE)
-                for c in _COMPARE_CUES]
-        for said in words:
-            if not said:
-                continue
-            for cue in cues:
-                hit = cue.search(said)
-                if not hit:
-                    continue
-                asked = sorted(old & carried)[0]
-                kept = [r for r in was if _surface_symbol(r) == asked]
+        said = [w for w in words if w]
+        if any(_cue_hit(_REQUEST_CUES, name, w, request=True) for w in said):
+            continue
+        for w in said:
+            hit = _cue_hit(_COMPARE_CUES, name, w)
+            if hit:
+                mine = sorted(old & asked)[0]
                 return (f"The principal names `{name}` as a comparison: "
                         f"{hit.group(0)!r}. The callable the principal asks "
-                        f"for is `{asked}`. Keep the surface on "
-                        f"`{kept[0] if kept else asked}`")
+                        f"for is `{mine}`. {route(mine)}")
     return None
 
 
@@ -5093,15 +5139,19 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         words = [r["words"] for r in (last_ruling_on(ctx.conn, id),
                                       last_ruling_on(ctx.conn, item["id"])
                                       if item else None) if r]
-        trigger = getattr(ctx, "trigger", None)
-        relay = ctx.conn.execute(
-            "SELECT body_text FROM messages WHERE id = ? AND verb = 'relay'",
-            (trigger,)).fetchone() if trigger else None
-        if relay and relay["body_text"]:
-            words.append(relay["body_text"])
+        # A relay's words reach the door through the item's ruling. No relay
+        # of nights 144 to 146 filled `body_text`, so the door does not read
+        # it (the review of ee535945, finding 4).
+        from . import prompts as _prompts
+
+        offered = _prompts.mode_tools(ctx.role, ctx.mode) or []
+        ask = ("If the principal's words leave the surface unclear, send "
+               "msg.challenge_vision_keeper with this criterion."
+               if "msg.challenge_vision_keeper" in offered else "")
         fault = _surface_move_fault(text, was, surface,
                                     item["id"] if item else None,
-                                    item["text"] if item else None, words)
+                                    item["text"] if item else None, words,
+                                    ask)
         if fault:
             raise ValueError(fault)
 

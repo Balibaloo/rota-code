@@ -100,7 +100,9 @@ def test_a_text_that_names_the_old_callable_keeps_its_surface(db):
         _respecify(db, cid, S248, [ECHO])
     said = str(refused.value)
     assert "The criterion says `echo_json`" in said
-    assert f"Keep `{ECHO_JSON}`" in said
+    assert f"Keep `{ECHO_JSON}` in surface_refs" in said
+    # The repair mode offers the question route, so the refusal names it.
+    assert "msg.challenge_vision_keeper" in said
 
 
 def test_a_callable_named_as_a_comparison_is_not_the_surface(db):
@@ -115,17 +117,19 @@ def test_a_callable_named_as_a_comparison_is_not_the_surface(db):
     said = str(refused.value)
     assert "as a comparison" in said
     assert "the way echo does" in said
-    assert "Keep the surface on `echo_json`" in said
+    assert "Keep `echo_json` in surface_refs" in said
+    assert "rewrite the criterion's text to name `echo`" in said
 
 
-def test_a_relay_that_names_a_comparison_is_read(db):
-    """The relay's own words carry the comparison, and no ruling does."""
+def test_a_relay_reads_the_comparison_from_the_item_ruling(db):
+    """The night's shape: the relay m67 holds no text, and the item's ruling
+    holds the principal's words."""
     cid = "echo_json_compact"
     _criterion(db, cid, "tk_2", S160, ["echo_json"])
+    _ruling(db, "r_dae83a8c5c", "m63", {"echo_json": "contest"}, WORDS_64)
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-               "body_refs, body_text, seq) VALUES ('m67', 'm63', 'liaison', "
-               "'terminologist', 'relay', ?, ?, 2)",
-               (json.dumps([cid]), "The helper prints the JSON like echo does."))
+               "body_refs, seq) VALUES ('m67', 'm63', 'liaison', "
+               "'terminologist', 'relay', ?, 2)", (json.dumps([cid]),))
     db.commit()
     with pytest.raises(ValueError) as refused:
         _respecify(db, cid, S160, [ECHO], trigger="m67")
@@ -164,3 +168,94 @@ def test_a_respecify_with_no_surface_is_untouched(db):
     said = str(refused.value)
     assert "names no surface" in said
     assert "comparison" not in said and "The criterion says" not in said
+
+
+# --- pass 1b: the review of ee535945 ---------------------------------------
+
+def test_a_restore_whose_text_names_echo_as_a_helper_lands(db):
+    """Finding 1, probe case A: the text names `echo_json` and `echo`, and
+    the surface moves back from `echo` to `echo_json`."""
+    cid = "echo_json_compact"
+    text = ("`echo_json` serialises the object and writes the string "
+            "through `echo`.")
+    _criterion(db, cid, "tk_2", text, [ECHO])
+    out = _respecify(db, cid, text, [ECHO_JSON])
+    assert out.get("surface_changed") is True
+    assert out["to"] == [ECHO_JSON]
+
+
+def test_a_request_for_echo_itself_lands(db):
+    """Finding 2, probe case D: "I would like echo to take a json flag"."""
+    cid = "echo_json_compact"
+    _criterion(db, cid, "tk_2", S160, [ECHO_JSON])
+    _ruling(db, "r_d", "m71", {cid: "contest"},
+            "Drop echo_json. I would like echo to take a json flag instead.")
+    out = _respecify(db, cid, S160, [ECHO])
+    assert out.get("surface_changed") is True
+
+
+def test_a_request_beside_a_comparison_lands(db):
+    """Finding 2, probe case E: a request cue outweighs a comparison cue."""
+    cid = "echo_json_compact"
+    _criterion(db, cid, "tk_2", S160, [ECHO_JSON])
+    _ruling(db, "r_e", "m72", {cid: "contest"},
+            "No new helper. Put the flag on echo itself, and have it handle "
+            "the newline the way echo does today.")
+    out = _respecify(db, cid, S160, [ECHO])
+    assert out.get("surface_changed") is True
+
+
+def test_a_negated_request_is_no_request():
+    """m134 "Don't change echo itself" keeps the comparison in force."""
+    from rota.roles.api import _surface_move_fault
+
+    said = _surface_move_fault(
+        S160, [ECHO_JSON], [ECHO], "echo_json", ITEM_ECHO_JSON,
+        ["Make it a separate function next to echo. Don't change echo "
+         "itself."])
+    assert said and "as a comparison" in said and "next to echo" in said
+
+
+def test_a_move_away_from_a_second_callable_lands():
+    """Finding 3, probe case B: the text names two callables, and the move
+    goes to the item's own one."""
+    from rota.roles.api import _surface_move_fault
+
+    assert _surface_move_fault(
+        "`parse_version` returns a tuple that `version_option` prints.",
+        ["decorators::version_option"], ["utils::parse_version"],
+        "parse_ver", "Add a `parse_version()` helper.", []) is None
+
+
+def test_a_text_rule_on_a_callable_off_the_old_surface_names_it():
+    """The item's callable is not the old surface, so the refusal names it
+    as the surface to write."""
+    from rota.roles.api import _surface_move_fault
+
+    said = _surface_move_fault(
+        S248, ["src/click/utils.py::secho"], [ECHO], "echo_json",
+        ITEM_ECHO_JSON, [])
+    assert "Name `echo_json` in surface_refs" in said
+
+
+def test_a_flag_the_item_puts_in_backticks_is_no_callable():
+    """Night 145: the item put the flag `show_python` in backticks. A text
+    that names the flag does not hold the surface."""
+    from rota.roles.api import _surface_move_fault
+
+    assert _surface_move_fault(
+        "When `show_python` is True, the message ends with the version.",
+        ["decorators::custom_version_option"], ["decorators::version_option"],
+        "cr_3_show_python_append",
+        "The `version_option` decorator must support a `show_python` flag.",
+        []) is None
+
+
+def test_a_comparison_off_the_item_callable_is_not_refused():
+    """The old surface is no callable of the item, so a comparison cue
+    holds nothing in place."""
+    from rota.roles.api import _surface_move_fault
+
+    assert _surface_move_fault(
+        S160, ["src/click/utils.py::secho"], [ECHO], "echo_json",
+        ITEM_ECHO_JSON, [WORDS_64]) is None
