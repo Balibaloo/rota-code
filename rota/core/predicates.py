@@ -780,6 +780,9 @@ def tests_missing(conn) -> list[Wake]:
     # that had tests and asked the Terminologist about one that had none.
     # A retired ticket's criteria owe no test (frame 190's design, 2.F,
     # amendment 4).
+    # A test counts for its own batch only. Night 147, walk 2: bg_2 was
+    # abandoned with three tests, and bg_3 took its criteria. Those tests
+    # kept this predicate quiet, and bg_3 merged with no test (frame 239).
     from .scheduler import not_retired
     rows = conn.execute(
         "SELECT bt.batch_id AS bid, c.id AS cid FROM batch_tickets bt "
@@ -787,7 +790,8 @@ def tests_missing(conn) -> list[Wake]:
         "JOIN criteria c ON c.ticket_id = bt.ticket_id "
         "WHERE b.status = 'running' "
         "  AND b.head_commit IS NOT NULL AND b.head_commit != '' "
-        "  AND NOT EXISTS (SELECT 1 FROM tests t WHERE t.criterion_id = c.id) "
+        "  AND NOT EXISTS (SELECT 1 FROM tests t WHERE t.criterion_id = c.id "
+        "                  AND t.batch_id = bt.batch_id) "
         "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'tester' "
         "                  AND m.verb = 'question' AND m.status IN ('open', 'unresolved') "
         "                  AND m.body_refs LIKE '%\"' || c.id || '\"%') "

@@ -608,6 +608,44 @@ def test_a_merged_batch_never_wakes_the_tester_again(db):
     assert any(w.kind == "tick:tests_missing" for w in P.all_wakes(db))
 
 
+def _two_batches_on_one_ticket(db):
+    """Night 147's bg_2 and bg_3: one ticket, the first batch abandoned."""
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','confirm takes default_on_eof','in_scope','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','eof')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','eof returns the default when the flag is True')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+               "VALUES ('bg_2','i1','abandoned','e1d1795d')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+               "VALUES ('bg_3','i1','running','16588ec9')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_2','tk1')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_3','tk1')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst_eof','bg_2','c1','tests/test_eof.py','def test_eof(): pass')")
+
+
+def test_an_abandoned_batchs_tests_owe_the_next_batch_nothing(db):
+    """
+    Night 147, walk 2 (frame 239): bg_2 was abandoned with three tests, and
+    bg_3 took its criteria. Those tests satisfied `tests_missing`, so the
+    Tester never woke for bg_3. bg_3 merged with no test of its criteria.
+    """
+    _two_batches_on_one_ticket(db)
+    wakes = [w for w in P.all_wakes(db) if w.kind == "tick:tests_missing"]
+    assert [w.refs for w in wakes] == [("bg_3",)], wakes
+    assert wakes[0].detail == "without a test: c1"
+
+
+def test_a_batch_with_its_own_tests_wakes_no_tester(db):
+    """The old rule holds: a criterion with a test of this batch owes none."""
+    _two_batches_on_one_ticket(db)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst_eof_3','bg_3','c1','tests/test_eof3.py','def test_eof(): pass')")
+    assert not any(w.kind == "tick:tests_missing" for w in P.all_wakes(db))
+
+
 def test_a_dead_answer_climbs_to_somebody_who_has_not_spoken(db):
     """
     The register's one declared entry, and everything after it derived.
