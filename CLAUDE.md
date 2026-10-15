@@ -268,37 +268,42 @@ review from a context that never read the files. A one-line door is the
 exception. Bulk reading goes to agents, and an agent's full report goes to a file the brief names, with ten lines back. One frame per wall. One status line per cycle.
 
 **A wall's fix is chosen from a ladder of change kinds, and the kind is
-named in the frame before the pass** (ruled: Roman, 2026-10-15 01:54, "when we
-hit walls the solutions can range from simple to complex but there's only
+named in the frame before the pass** (ruled: Roman, 2026-10-15 01:54, "when
+we hit walls the solutions can range from simple to complex but there's only
 so many kind of changes we can make", after frame 243's first design was a
-four-condition word rule written from one night's sentence). The kinds,
-cheapest first:
+four-condition word rule written from one night's sentence; reviewed: a Fable agent, `plans/ladder-review-2026-10-15.md`, whose block this is). The kinds, by
+the loop each one shortens, shortest first:
 
-1. A door: a tool result at one call that states a fact and a step. Sound
-   only when the fact holds for every instance of the call, an API shape,
-   a record's owner, a path the criteria name. A door whose predicate
-   needs a word list taken from the case is a brief line in disguise, and
-   it goes up a rung.
-2. A call shape: a field on the call that turns a judgement into a
-   declared fact the door can check, `dropped` on a span write, `keeps` on
-   a respecify. The seat states what it did, and the door checks the
-   statement against the record.
-3. A predicate or a route: who wakes, when, and who receives a relay.
-4. A record shape: what a row carries to the seats that read it, so a
-   downstream seat reads the source and not a paraphrase.
-5. A brief line: the wording of a judgement. Only after the interview says
-   the seat lacked the sentence; a seat that had the sentence and judged
+1. A door: a tool result at one call that states a fact and a step, and
+   may offer the corrected call. The fact is a row, an owner, a landed
+   ruling, a path, or a reading of the principal's words that the count in
+   the test below supports.
+2. A declared field: the call states what the seat did, and the door checks
+   the statement against the record. The brief's call line names the field.
+3. A predicate or a state rule: who wakes, when, who receives a relay, and
+   what a batch does by itself: cancel, merge, lift.
+4. A mode's tools: what the seat can call. No brief grants what is not
+   wired.
+5. A record shape: what a reader gets, a seat or the principal: the source,
+   never a paraphrase of it. The reply reader is here: what the runner says
+   back to a reply with no call.
+6. A brief line: the wording of a judgement. Only after the interview says
+   the seat lacked the sentence. A seat that had the sentence and judged
    wrong is not moved by a second sentence.
-6. The reader: the judgement moves to a reader that can make it, the
-   principal on one line, or a stronger model for that one step, or an
-   executable check that the wrong result fails.
-7. The composition: who sees what and who rules. A grill to Roman.
+7. The reader: the judgement moves to the principal on one line, to a
+   stronger model for that one step, or to an executable check that the
+   wrong result fails.
+8. The composition: who sees what and who rules. A grill to Roman.
 
-The overfit test, before any pass: state the fix's predicate without the
-night's words. If it cannot be stated, the rung is wrong. The interview
-places the case on the ladder: a seat that lacked a fact is rung 1 or 2,
-a seat that had the fact and judged wrong is rung 4 or above. A night's
-read names the rung beside each candidate, and the price follows the rung.
+The overfit test, before any pass, is a count and not a wording. Run the
+predicate on the records of every night that holds the wall. It fires on
+each known instance and on no right call, or the rung is wrong. A predicate
+that fires on one instance is overfit whatever its words say. The interview
+reads the case and the count places it: a seat that lacked a row or a
+result is rung 1 to 5; a seat that read the words and judged wrong is rung
+1 only with the count, else rung 7. A placement from one replay is a
+prediction and does not gate a pass. A night's read names the rung and the
+count beside each candidate, and the price follows the count.
 
 Opus builds, Fable judges. An implementer or a sweeper runs on Opus.
 The session that holds the frame is Fable. The line was measured once
