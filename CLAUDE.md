@@ -267,43 +267,46 @@ re-records the touched cases, and returns the diff and the result. You
 review from a context that never read the files. A one-line door is the
 exception. Bulk reading goes to agents, and an agent's full report goes to a file the brief names, with ten lines back. One frame per wall. One status line per cycle.
 
-**Provisional until frame 251 closes** (ruled: Roman, 2026-10-15 02:22, "this wall ladder is not sound"; the method gets its own design and review passes). **A wall's fix is chosen from a ladder of change kinds, and the kind is
-named in the frame before the pass** (ruled: Roman, 2026-10-15 01:54, "when
-we hit walls the solutions can range from simple to complex but there's only
-so many kind of changes we can make", after frame 243's first design was a
-four-condition word rule written from one night's sentence; reviewed: a Fable agent, `plans/ladder-review-2026-10-15.md`, whose block this is). The kinds, by
-the loop each one shortens, shortest first:
+**A wall's fix comes from a loop. Each move is tried in its shortest loop
+before a pass** (proposed: frame 251, 2026-10-15 02:43, for Roman's ruling; designed on Opus and reviewed on Fable, `plans/wall-method-design.md` and `plans/wall-method-review.md`).
 
-1. A door: a tool result at one call that states a fact and a step, and
-   may offer the corrected call. The fact is a row, an owner, a landed
-   ruling, a path, or a reading of the principal's words that the count in
-   the test below supports.
-2. A declared field: the call states what the seat did, and the door checks
-   the statement against the record. The brief's call line names the field.
-3. A predicate or a state rule: who wakes, when, who receives a relay, and
-   what a batch does by itself: cancel, merge, lift.
-4. A mode's tools: what the seat can call. No brief grants what is not
-   wired.
-5. A record shape: what a reader gets, a seat or the principal: the source,
-   never a paraphrase of it. The reply reader is here: what the runner says
-   back to a reply with no call.
-6. A brief line: the wording of a judgement. Only after the interview says
-   the seat lacked the sentence. A seat that had the sentence and judged
-   wrong is not moved by a second sentence.
-7. The reader: the judgement moves to the principal on one line, to a
-   stronger model for that one step, or to an executable check that the
-   wrong result fails.
-8. The composition: who sees what and who rules. A grill to Roman.
+On the first turn after a night's read, push one frame per wall: a `Site:`
+line, a pointer to the read's chain, and a status line with the placement,
+marked (reasoned), and the move's test. A wall that is neither a seat's
+call nor a rule is an instrument fix, priced by `plans/operating-facts.md`.
 
-The overfit test, before any pass, is a count and not a wording. Run the
-predicate on the records of every night that holds the wall. It fires on
-each known instance and on no right call, or the rung is wrong. A predicate
-that fires on one instance is overfit whatever its words say. The interview
-reads the case and the count places it: a seat that lacked a row or a
-result is rung 1 to 5; a seat that read the words and judged wrong is rung
-1 only with the count, else rung 7. A placement from one replay is a
-prediction and does not gate a pass. A night's read names the rung and the
-count beside each candidate, and the price follows the count.
+1. Seam and corpus. The read's section is the record when it names one
+   seam. Else a scope read, `plans/frame<n>-scope.md`, names the seam, every
+   known instance and the right calls of the mode, over every night with it.
+2. Reproduce. Replay each instance unchanged first. The replay must give
+   the recorded reply byte for byte. Then interview in the conversation,
+   one question a turn, with the night's reply in view. Record:
+   `plans/frame<n>-interview.md`. A rule's wall skips this step.
+3. Place. Ask in order and take the first yes. A rule did it: the rule. The
+   runner read the reply wrong: the reply reader. A result stated a wrong
+   fact: its text. The prompt lacked the fact: the record the seat reads,
+   or a door that states it. The fact was there in a form the seat
+   missed: the record's shape. The seat lacked a call: the mode's tools.
+   None of these: a counted door, then an iterated brief line, then the
+   source for the next reader, then the reader itself.
+4. Try. A text move is replayed on every instance and on up to three
+   right calls, each prompt under five fixed whitespace perturbations.
+   The unchanged brief and a placebo line take the same five. A turn the
+   null moves in 2 of 5 is not counted. A turn is moved at 4 of 5. A line
+   passes when it moves half the counted instances and breaks no right
+   call in 2 of 5. A door or a rule is counted on every night's records:
+   fires on a of n instances, b of N right calls, its condition on m of M
+   turns. Fires on one of several instances is overfit. Record:
+   `plans/frame<n>-try.md`, with the scores and the hand labels.
+5. Pass. Red tests first, on the night's rows. The re-record runs at the
+   gate, never as the try. One review per pass.
+6. Night. The ratio line with its three parts and the residue rule. A door
+   on the principal's words counts its false refusals at every read.
+
+A try stops after two rounds with no pass, and the move goes to the next
+answer of step 3. Three failed moves, or a move at the reader or the
+composition, block on Roman with a rating. The try's count gates the pass.
+The night gates the close. A placement from one replay never gates.
 
 Opus builds, Fable judges. An implementer or a sweeper runs on Opus.
 The session that holds the frame is Fable. The line was measured once
