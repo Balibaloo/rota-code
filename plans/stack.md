@@ -47,7 +47,7 @@ Rules:
    once every other held frame is at a commit (ruled: Roman, 2026-10-11
    05:51, "make sure that the meta workflow adopts these").
 
-## Sprint 7, proposed 2026-10-15
+## Sprint 7, taken by timeout at 2026-10-15 16:46
 
 Night 149 ended sprint 6 of 2026-10-15 01:21, because it was that sprint's
 night. Frames 202, 187 and 236 closed on its read, `plans/night149-read.md`, and moved to
@@ -62,8 +62,8 @@ at the verdict three ways, frames 255, 256 and 250, reaching the criteria
 only when a ruling quoted the phrase, and then a propose wake rewrote his
 item and cancelled the batch, frame 129. The order below is the recommended
 next sprint (reasoned: the read, section 13.2, by the wall that cost the
-most steps or asks on the night, then by price). It is proposed until Roman
-rules it; the notification of 2026-10-15 16:24 carries it, rated low, with a 20-minute
+most steps or asks on the night, then by price). It is taken by timeout at 2026-10-15 16:46, by the rule of
+2026-10-02, after the notification of 2026-10-15 16:24 carries it, rated low, with a 20-minute
 timer. Rows 1 to 6 are about 14 cycles and the two interviews 2 more, one
 sprint by the rule of 2026-10-11 05:51. Night 150 runs from row 6's commit
 and counts frames 243, 239, 245, 246, 230 and 204 again. The next night's
@@ -1212,7 +1212,7 @@ a different question and the night is then opened once.
 - Reasoning: `plans/frame123-read.md`, section 2.
 - Status 2026-10-04 15:26 (rota-da): pushed by 419281dc. Unclaimed, priced. Rota workflow.
 
-### 129. A Vision Keeper that answers a challenge authors a decision and then asserts it as a new item (2026-10-04)
+### 129. A Vision Keeper that answers a challenge authors a decision and then asserts it as a new item (2026-10-04) (cd6300cd)
 
 - **No batch. A seat's act in challenge mode, found by frame 125's pass 1.** Sites: the Vision Keeper's challenge-mode brief, "If it does: amend it with `problem.assert`... If it does not: author a decision saying why.", and `problem.assert`.
 - Rota workflow. On night 116 the Vision Keeper s198 was challenged on the item `confirm_default_on_eof`. It called `decisions.author` under the item's id and was refused, sent the decision again as `confirm_default_on_eof_resolved`, and then called `problem.assert` with the same id and text, `kind='in_scope'`. The night then held an in-scope item whose text is "The confirm() function already takes a default_on_eof flag as described in s2. The challenge is resolved as the item is ratified and in scope.", and three Terminologist sessions wrote criteria for it (observed: the implementer's read of s198's turns, 2026-10-04; `plans/night116-read.md`).
@@ -1224,6 +1224,7 @@ a different question and the night is then opened once.
 - Status 2026-10-08 09:42 (rota-39): night 132: the Vision Keeper s317 answered challenge m211 with `decisions.author` and then `problem.assert` on the item, and bg_3 was abandoned on it, so this frame's shape is the cause of the night's one abandonment, a second night running (observed: `plans/night132-read.md`, section 4, 2026-10-08). Rota workflow.
 - Status 2026-10-08 19:36 (rota-a0): night 133, two walls the read names nearest this frame: a correction that reaches an item's text raises its version, and the cancel abandons the item's live batch, 2, bg_2 by s342 and bg_4 by s517; and the Vision Keeper approves an item on the relay of its own report, so the item flips back each round, 12 approvals of confirm in walk 3, s479, s489, s497, s505 and s510 among them (observed: `plans/night133-read.md`, section 3 and section 8, walls 4 and 5, 2026-10-08). Rota workflow.
 - Status 2026-10-15 16:24 (rota-3e): **night 149, walk 3: the Vision Keeper s232, woken in propose mode by the Architect's `msg.propose_vision_keeper` on cr_5, authored `d_5_confirm_default_on_eof` and then sent `problem.assert` on the approved item, which landed; the item went to version 3, draft, lost "The flag defaults to False" that he said at m57, m66 and m70, and bg_2 was cancelled, "its item is no longer schedulable", after 145 steps and 14 asks; the item-rewrite door in `_assert_door` fires on a challenge, an exhausted and a contested wake and admits a propose wake; over every night database 24 propose-wake asserts on an existing item, 7 landed, nights 119 to 149** (observed: `plans/night149-read.md`, sections 1.4 and 12, 2026-10-15). Cause 8 by the guide, a door's predicate is not its fact, the wake kind for the row's owner. Site: `_assert_door` in `rota/roles/api.py`, lines 1305 to 1430 at 401bbf3f. Sprint 7, row 1: the door reads the row's owner on every wake, 2 cycles, with s232's call as the red test (reasoned: the read, section 13.2, the wall that cost the most). Meta workflow.
+- Status 2026-10-15 16:46 (rota-3e): **taken by cd6300cd as sprint 7's row 1, taken by timeout at 2026-10-15 16:46 on the notification of 16:25, which Roman read in the terminal and answered with a question on the pace and no ruling** (observed: the terminal, 2026-10-15). Pass 1 runs on Opus, cap 60k, from `f129/pass1_brief.md` in this session's scratchpad: the door refuses a rewrite of a decided item on every wake that is not a contest on it, with s232's call as the red test, and the count of the 7 landed propose-wake rewrites that touched a decided item. Site: `_assert_door` in `rota/roles/api.py`. Cycles: 0 of 2. Meta workflow.
 
 ### 128. A Tester that fixes an inherited test is sent to a new file, and the inherited test stays (2026-10-04)
 
