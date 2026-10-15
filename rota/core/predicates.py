@@ -1128,7 +1128,7 @@ def unresolved(conn) -> list[Wake]:
     from ..design import graph as graph_mod
 
     rows = conn.execute(
-        "SELECT id, from_role, thread_id, verb, body_refs, unresolved_note "
+        "SELECT id, from_role, to_role, thread_id, verb, body_refs, unresolved_note "
         "FROM messages WHERE status = 'unresolved' ORDER BY seq").fetchall()
     if not rows:
         return []
@@ -1145,8 +1145,13 @@ def unresolved(conn) -> list[Wake]:
         # challenge names a red test. A green newest run answers the
         # challenge, and the status row does not change. Night 148 woke two
         # rungs on m76 after run 4 passed. The Liaison then asked the
-        # principal about a passing test at m81.
-        if r["verb"] == "challenge" and _tests_green(conn, r["body_refs"]):
+        # principal about a passing test at m81. The Developer's challenge
+        # only: a Critic challenge says a green test misses its criterion,
+        # so a green run is its premise and not its answer (law 6, never
+        # silence; frame 245 review 1, finding 1).
+        if (r["verb"] == "challenge" and r["from_role"] == "developer"
+                and r["to_role"] == "tester"
+                and _tests_green(conn, r["body_refs"])):
             continue
         # The Tester's criteria-ref questions belong to `criterion_repair`,
         # which wakes the criterion's writer in a mode that can rewrite it.

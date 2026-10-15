@@ -2512,3 +2512,29 @@ def test_a_challenge_on_a_test_red_at_its_newest_run_still_climbs(db):
 
     _night148_challenge(db, "fail")
     assert [w.role for w in unresolved(db)] == ["architect"]
+
+
+def test_a_critic_challenge_on_a_green_test_still_climbs(db):
+    """Review 1, finding 1: the Critic challenges a test from review.
+
+    Review runs on a green batch, so a green run is the premise of the
+    challenge and not its answer. The row still climbs (law 6).
+    """
+    from rota.core.predicates import unresolved
+
+    _night148_challenge(db, "pass")
+    db.execute("UPDATE messages SET from_role = 'critic' WHERE id = 'm76'")
+    db.commit()
+    assert [w.role for w in unresolved(db)] == ["liaison"]
+
+
+def test_a_red_run_after_the_green_one_revives_the_challenge(db):
+    """Review 1, low: the newest run counts, so a later red run climbs."""
+    from rota.core.predicates import unresolved
+
+    _night148_challenge(db, "pass")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, result, "
+               "attempt) VALUES ('tr113','bg_3','tst_ver_opt_show_py',"
+               "'fail',5)")
+    db.commit()
+    assert [w.role for w in unresolved(db)] == ["architect"]
