@@ -2017,6 +2017,48 @@ def test_the_gaps_name_a_quarantine_in_words_and_never_the_key(tmp_path):
                         "of .readthedocs.yaml after 3 tries"], facts
 
 
+def test_the_gaps_name_the_readme_reconcile_in_words(tmp_path):
+    """The README's reconcile ref is `@prose` with no colon. Review 1 of
+    frame 246 found that the fact printed `@prose` to the principal. So
+    `@prose` reads as "the README", and no fact holds an `@`."""
+    from rota.roles.api import Ctx, code_gaps
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES ('vision_keeper|tick:reconcile|@prose', 3, 1, 0)")
+
+    facts = code_gaps(Ctx(conn=db, role="liaison"))["facts"]
+    assert not [f for f in facts if "@" in f], facts
+    assert [f for f in facts if "the README" in f] == [
+        "The Vision Keeper could not finish comparing the account with "
+        "the README after 3 tries"], facts
+
+
+def test_the_gaps_keep_the_first_quarantines_whatever_the_seat(tmp_path):
+    """The facts show six quarantines at most. Review 1 of frame 246 found
+    that an order by key cut the Vision Keeper's rows first, by its name.
+    So the first six quarantines win, whatever the seat."""
+    from rota.roles.api import Ctx, code_gaps
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    keys = ["vision_keeper|tick:reconcile|@prose:docs/usage.md",
+            "vision_keeper|tick:reconcile|@prose:docs/api.md"]
+    keys += [f"architect|tick:boundary|@surface:conf{i}.yaml" for i in range(3)]
+    keys += [f"critic|tick:challenge|@claim:constraints:c{i}" for i in range(3)]
+    for key in keys:
+        db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                   "reported) VALUES (?, 3, 1, 0)", (key,))
+
+    facts = code_gaps(Ctx(conn=db, role="liaison"))["facts"]
+    tries = [f for f in facts if f.endswith("after 3 tries")]
+    assert len(tries) == 6, facts
+    assert any("docs/usage.md" in f for f in tries), facts
+    assert any("docs/api.md" in f for f in tries), facts
+    assert not any("claim c1 " in f or "claim c2 " in f for f in tries), facts
+
+
 def test_vacuity_is_a_readings_verdict_for_empty_claims(tmp_path):
     """No quote required -- the finding is that no quote can bear on it --
     but the reading is: an unfounded verdict without opened files is
