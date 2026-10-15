@@ -47,7 +47,7 @@ Rules:
    once every other held frame is at a commit (ruled: Roman, 2026-10-11
    05:51, "make sure that the meta workflow adopts these").
 
-## Sprint 6, proposed 2026-10-15
+## Sprint 6, ruled 2026-10-15 01:21
 
 Night 148 ended sprint 5 of 2026-10-14 17:59, because it was that sprint's
 night. Frames 238, 234, 237, 240, 233, 229, 228 and 219 closed on its read,
@@ -60,8 +60,8 @@ The wall that cost the most is frame 243: bg_3 took 54 steps and the night's
 last ask, and its merge carries the format the principal declined twice. The
 order below is the recommended next sprint (reasoned: the read, section
 13.2, by the wall that cost the most steps or asks on the night, then by
-price). It is proposed until Roman rules it; the notification of 2026-10-15 01:16
-carries it, rated low, with a 20-minute timer.
+price). It is ruled: Roman, 2026-10-15 01:21, "Ok yes" in the terminal, on the
+notification of 01:15, rated low, before its 20-minute timer ran out.
 Rows 1 to 5 are about 10 cycles plus frame 243's design, about 18 cycles
 with one night, one sprint by the rule of 2026-10-11 05:51. Night 149 runs
 from the design's commit and counts frames 239, 202, 187, 236 and 204 again.
