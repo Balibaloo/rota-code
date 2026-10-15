@@ -274,8 +274,9 @@ def test_night148_the_builders_wake_carries_his_contest_words(tmp_path, role, mo
     assert keys[keys.index("criteria.load") + 1] == CONTESTS_KEY
     contested = json.loads(RULING148["texts"])[CRIT148]
     assert pushed[CONTESTS_KEY] == (
-        f"{CRIT148}, ruling r_4c8fd5d3ad:\n"
-        f"He contested this text: {contested}\n"
+        f"ruling r_4c8fd5d3ad:\n"
+        f"He contested {CRIT148}.\n"
+        f"{CRIT148}: He contested this text: {contested}\n"
         f"He said: {RULING148['words']}")
     # The criteria keep their table: a contest adds no key to any row.
     assert _render(pushed["criteria.load"], PUSH_CHARS).startswith(
@@ -420,22 +421,103 @@ def test_night149_the_terminologists_relay_wake_carries_his_contest_words(tmp_pa
     assert message < user.index(head)
     if "Already run for you" in user:
         assert user.index(head) < user.index("Already run for you")
-    old, new = RULINGS149
-    cid = CR149[1]
-    assert (f"{cid}, ruling {old['id']}:\n"
-            f"He contested this text: {old['texts'][cid]}\n"
-            f"He said: {old['words']}\n"
-            f"{cid}, ruling {new['id']}:\n"
-            f"He contested this text: {new['texts'][cid]}\n"
-            f"He said: {new['words']}\n") in user
-    block = user[user.index(head) + len(head):]
-    assert [ln.split(",")[0] for ln in block.splitlines()
-            if ", ruling r_" in ln][:12] == [c for c in CR149 for _ in RULINGS149]
+    # Pass 2b: the block lists each ruling once, oldest first (review 2,
+    # finding 2). The texts stand under the ruling, one per criterion.
+    for r in RULINGS149:
+        assert (f"ruling {r['id']}:\n"
+                f"He contested {', '.join(CR149)}.\n"
+                + "".join(f"{c}: He contested this text: {r['texts'][c]}\n"
+                          for c in CR149)
+                + f"He said: {r['words']}") in user
+    assert user.index(f"ruling {RULINGS149[0]['id']}:") < user.index(
+        f"ruling {RULINGS149[1]['id']}:")
 
 
 def test_a_terminologist_relay_with_no_contest_shows_no_block(tmp_path):
     """Frame 243: a relay on criteria he never contested keeps its wake."""
     user = _relay149(_seed149(tmp_path, False))
     assert f"[{CONTESTS_KEY}]" not in user
+
+
+# --- frame 243, pass 2b: review 2's high and lows -----------------------------
+
+# Night 149's r_ba8ce505c0, the reply m132 to the clarify m131. He approved
+# cr_5, and the Liaison relayed the approve as m133. The words are cut here.
+APPROVE149 = {
+    "id": "r_ba8ce505c0", "ask_id": "m131", "reply_id": "m132",
+    "per_item": {CR149[4]: "approve", "test_cr5": "revise"},
+    "words": ("Change the implementation, not the line: when the flag is on and "
+              "confirm reads end of input, it should return the default it was "
+              "given rather than abort, and it should only abort when the flag "
+              "is off."),
+}
+
+
+def test_night149_a_relay_of_his_approve_shows_no_old_contest(tmp_path):
+    """Review 2, finding 1: m133 relayed his approve on cr_5. Its wake showed
+    two old contests on cr_5 as if the criterion were still open."""
+    from rota.core.runner import build_prompt, resolve_inbound
+    db = _seed149(tmp_path, True)
+    r = APPROVE149
+    ref = json.dumps([CR149[4]])
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m131', 'm131', 'liaison', 'principal', "
+               "'clarify', ?, 130)", (ref,))
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq) VALUES ('m132', 'm131', 'm131', 'principal', "
+               "'liaison', 'converse', ?, 131)", (ref,))
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq) VALUES ('m133', 'm132', 'm131', 'liaison', "
+               "'terminologist', 'relay', ?, 132)", (ref,))
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status) "
+               "VALUES (?, ?, ?, ?, ?, 'landed')",
+               (r["id"], r["ask_id"], r["reply_id"], json.dumps(r["per_item"]),
+                r["words"]))
+    db.commit()
+    wake = Wake("terminologist", "message", message_id="m133", detail="relay")
+    sb = build("terminologist", db, mode="relay",
+               allow=prompts.mode_tools("terminologist", "relay"))
+    inbound = resolve_inbound(db, wake)
+    assert inbound["principal_verdict"] == {CR149[4]: "approve"}
+    _, user = build_prompt("terminologist", sb, wake,
+                           push_working_set("terminologist", sb, wake), "", inbound)
+    assert f"[{CONTESTS_KEY}]" not in user
+    assert RULINGS149[0]["texts"][CR149[4]] not in user
+
+
+def test_night149_the_block_says_each_ruling_once(tmp_path):
+    """Review 2, finding 2: s190's block said each ruling's words once per
+    criterion, 12 entries. Grouped, each ruling heads one entry."""
+    user = _relay149(_seed149(tmp_path, True))
+    block = user[user.index(f"[{CONTESTS_KEY}]"):]
+    for r in RULINGS149:
+        assert block.count(f"ruling {r['id']}:") == 1
+        assert block.count(r["words"]) == 1
+        for c in CR149:
+            assert f"{c}: He contested this text: {r['texts'][c]}" in block
+
+
+def test_night149_the_criterion_repair_wake_shows_the_block(tmp_path):
+    """Review 2, finding 5: s178 woke on the Tester's question m78 with his
+    words six times and no text he contested. It kept "UsageError" in 3 of
+    6 criteria. The wake now shows the block, as the relay wake does."""
+    from rota.core.runner import build_prompt
+    db = _seed149(tmp_path, True)
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m78', 'm78', 'tester', "
+               "'terminologist', 'question', ?, 91, 'unresolved')",
+               (json.dumps(CR149),))
+    db.commit()
+    sb = build("terminologist", db, mode="criterion_repair",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    wake = Wake("terminologist", "tick:criterion_repair", refs=("m78",))
+    _, user = build_prompt("terminologist", sb, wake, {}, "MODE: criterion_repair")
+    head = f"\n[{CONTESTS_KEY}]\n"
+    assert head in user
+    block = user[user.index(head):]
+    old = RULINGS149[0]
+    assert (f"ruling {old['id']}:\nHe contested {', '.join(CR149)}.\n") in block
+    for c in CR149:
+        assert f"{c}: He contested this text: {old['texts'][c]}" in block
 
 

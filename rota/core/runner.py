@@ -418,6 +418,7 @@ def _last_word_lines(conn, wake: Wake) -> list[str]:
     from ..roles.principal import last_ruling_on
 
     lines: list[str] = []
+    ruled_refs: list[str] = []
     for mid in wake.refs:
         row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
                            (mid,)).fetchone()
@@ -441,6 +442,14 @@ def _last_word_lines(conn, wake: Wake) -> list[str]:
                 f"{ruled['words']}")
             lines.append("Write the criterion in the principal's words. "
                          "Do not send the sentence he contested.")
+            if ref not in ruled_refs:
+                ruled_refs.append(ref)
+    # Night 149's s178 held his words six times and no text he contested.
+    # It wrote "UsageError" back into 3 of 6 criteria (frame 243, review 2,
+    # finding 5). The block shows the texts, as on the relay wake.
+    block = _contest_block(conn, [{"id": ref} for ref in ruled_refs])
+    if block:
+        lines.append(f"\n[{CONTESTS_KEY}]\n{block}")
     return lines
 
 
@@ -458,7 +467,7 @@ def contests_on(conn, ref: str) -> list[dict]:
     """
     out: list[dict] = []
     for r in conn.execute(
-            "SELECT id, per_item, words, texts FROM rulings "
+            "SELECT rowid, id, per_item, words, texts FROM rulings "
             "WHERE status != 'stale' AND per_item LIKE ? ORDER BY rowid",
             (f'%"{ref}"%',)):
         try:
@@ -473,7 +482,7 @@ def contests_on(conn, ref: str) -> list[dict]:
             texts = {}
         text = texts.get(ref) if isinstance(texts, dict) else None
         out.append({"id": r["id"], "text": text if isinstance(text, str) else None,
-                    "words": r["words"]})
+                    "words": r["words"], "seq": r["rowid"]})
     return out
 
 
@@ -485,16 +494,27 @@ def _contest_block(conn, rows: list) -> str:
     makes `_as_table` refuse the list, and the whole push turns into JSON
     (frame 243, review 1, finding 2). His words refer to the text he read,
     so that text goes first (finding 1). Empty when he contested none.
+
+    One entry per ruling, oldest first, with each criterion's text under it
+    and his words once. On night 149's s190, one entry per criterion said
+    each ruling's words six times (frame 243, review 2, finding 2).
     """
-    lines: list[str] = []
+    rulings: dict[str, dict] = {}
     for r in rows:
         if not (isinstance(r, dict) and isinstance(r.get("id"), str)):
             continue
         for c in contests_on(conn, r["id"]):
-            lines.append(f"{r['id']}, ruling {c['id']}:")
-            if c["text"]:
-                lines.append(f"He contested this text: {c['text']}")
-            lines.append(f"He said: {c['words']}")
+            entry = rulings.setdefault(
+                c["id"], {"seq": c["seq"], "words": c["words"], "on": []})
+            entry["on"].append((r["id"], c["text"]))
+    lines: list[str] = []
+    for rid, entry in sorted(rulings.items(), key=lambda kv: kv[1]["seq"]):
+        lines.append(f"ruling {rid}:")
+        lines.append(f"He contested {', '.join(cid for cid, _ in entry['on'])}.")
+        for cid, text in entry["on"]:
+            if text:
+                lines.append(f"{cid}: He contested this text: {text}")
+        lines.append(f"He said: {entry['words']}")
     return "\n".join(lines)
 
 
@@ -504,14 +524,23 @@ def _relay_contest_block(conn, role: str, inbound: dict[str, Any]) -> str:
     respecify. Empty for any other wake.
 
     This wake pushes no `criteria.load`. The relay's refs list the criteria,
-    so the block follows the relay. Night 149's s190 read the relay's
-    paraphrase alone, and wrote back the words he had declined three times
-    (frame 243, interview 2).
+    so the block follows the relay. Night 149's s190 held the ruling's words
+    in `principal_said` and no text he contested. It wrote back the words he
+    had declined three times (frame 243, interview 2). The block adds the
+    contested texts and the earlier rulings' words.
+
+    Only a criterion this relay contests gets the block. Night 149's m133
+    relayed his approve on cr_5, and old contests there would invite a
+    rewrite of a criterion he kept (frame 243, review 2, finding 1).
     """
     if role != "terminologist" or inbound.get("verb") != "relay":
         return ""
+    verdict = inbound.get("principal_verdict")
+    if not isinstance(verdict, dict):
+        return ""
     rows = [{"id": ref} for ref in inbound.get("refs") or ()
-            if isinstance(ref, str) and conn.execute(
+            if isinstance(ref, str) and verdict.get(ref) == "contest"
+            and conn.execute(
                 "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()]
     return _contest_block(conn, rows)
 
