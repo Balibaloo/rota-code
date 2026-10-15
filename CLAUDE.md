@@ -271,10 +271,12 @@ exception. Bulk reading goes to agents, and an agent's full report goes to a fil
 2026-10-15, "Yes rule it", frame 251). After a night's read, the session
 places each wall under one of the guide's causes by the questions of its
 section 4, in order, and stops at the first answer that places it. The
-cause's entry gives the cheap fix with its count, what overfits, when to
-leave the wall, and when to escalate. A fix is cheap or it goes to Roman
-(ruled: Roman, 2026-10-15, "for now there is only cheap and escalate to
-me"). A door or a predicate carries its count on every night's records
+cause's entry gives the cheap fix with its count, what overfits, and when
+to escalate. A fix is cheap or it goes to Roman (ruled: Roman, 2026-10-15,
+"for now there is only cheap and escalate to me"). Every wall a read
+names is fixed, cheaply or by escalation, and a wall not fixed now stays
+an open frame with its reason written (ruled: Roman, 2026-10-15, "try to
+fix everything", then "Reasonably"). A door or a predicate carries its count on every night's records
 before its pass: fires on a of n instances, refuses b of N right calls. A
 seat that had the fact and did not act on it is interviewed in its context
 before a second brief shape (ruled: Roman, 2026-10-02 15:02), and a seat
