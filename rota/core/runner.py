@@ -444,52 +444,58 @@ def _last_word_lines(conn, wake: Wake) -> list[str]:
     return lines
 
 
-CONTEST_WORDS_KEY = "the principal said, contesting it"
+CONTESTS_KEY = "the principal contested these criteria"
 
 
-def contest_words(conn, ref: str) -> list[str]:
+def contests_on(conn, ref: str) -> list[dict]:
     """
-    The principal's words of every contest ruling on criterion `ref`, oldest
-    first.
+    Every contest ruling on criterion `ref`, oldest first: its id, the text
+    he contested, and his words.
 
-    The words come from the `rulings` row whole. A stale ruling does not
-    count, as in `last_ruling_on`. An empty list when no ruling contests
-    `ref` (frame 243).
+    The words and the text come from the `rulings` row whole. `text` is None
+    for a ruling older than `rulings.texts`. A stale ruling does not count,
+    as in `last_ruling_on` (frame 243).
     """
-    words: list[str] = []
+    out: list[dict] = []
     for r in conn.execute(
-            "SELECT per_item, words FROM rulings WHERE status != 'stale' "
-            "AND per_item LIKE ? ORDER BY rowid", (f'%"{ref}"%',)):
+            "SELECT id, per_item, words, texts FROM rulings "
+            "WHERE status != 'stale' AND per_item LIKE ? ORDER BY rowid",
+            (f'%"{ref}"%',)):
         try:
             verdict = json.loads(r["per_item"] or "{}").get(ref)
         except (TypeError, ValueError, AttributeError):
             continue
-        if verdict == "contest" and r["words"]:
-            words.append(r["words"])
-    return words
-
-
-def _with_contest_words(conn, rows: list) -> list:
-    """
-    Each criterion row with the principal's contest words after its text.
-
-    A row with no contest ruling comes back unchanged, so a criterion he
-    never contested shows nothing new.
-    """
-    out = []
-    for r in rows:
-        said = (contest_words(conn, r["id"])
-                if isinstance(r, dict) and isinstance(r.get("id"), str) else [])
-        if not said:
-            out.append(r)
+        if verdict != "contest" or not r["words"]:
             continue
-        row: dict = {}
-        for k, v in r.items():
-            row[k] = v
-            if k == "text":
-                row[CONTEST_WORDS_KEY] = said
-        out.append(row)
+        try:
+            texts = json.loads(r["texts"] or "{}")
+        except (TypeError, ValueError):
+            texts = {}
+        text = texts.get(ref) if isinstance(texts, dict) else None
+        out.append({"id": r["id"], "text": text if isinstance(text, str) else None,
+                    "words": r["words"]})
     return out
+
+
+def _contest_block(conn, rows: list) -> str:
+    """
+    The principal's contests on the pushed criteria, as plain lines.
+
+    The block stands apart from the criteria rows. A key on one row only
+    makes `_as_table` refuse the list, and the whole push turns into JSON
+    (frame 243, review 1, finding 2). His words refer to the text he read,
+    so that text goes first (finding 1). Empty when he contested none.
+    """
+    lines: list[str] = []
+    for r in rows:
+        if not (isinstance(r, dict) and isinstance(r.get("id"), str)):
+            continue
+        for c in contests_on(conn, r["id"]):
+            lines.append(f"{r['id']}, ruling {c['id']}:")
+            if c["text"]:
+                lines.append(f"He contested this text: {c['text']}")
+            lines.append(f"He said: {c['words']}")
+    return "\n".join(lines)
 
 
 def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
@@ -2879,10 +2885,17 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # Frame 243, rung 5 of the ladder: the builder reads the source, not a
     # paraphrase. Night 148's s190 built from the criterion alone and
     # merged the format that ruling r_4c8fd5d3ad declined.
+    # The block goes right after the criteria, which stay as they were.
     if role in ("developer", "tester") and isinstance(
             pushed.get("criteria.load"), list):
-        pushed["criteria.load"] = _with_contest_words(
-            sb.ctx.conn, pushed["criteria.load"])
+        block = _contest_block(sb.ctx.conn, pushed["criteria.load"])
+        if block:
+            ordered: dict[str, Any] = {}
+            for key, value in pushed.items():
+                ordered[key] = value
+                if key == "criteria.load":
+                    ordered[CONTESTS_KEY] = block
+            pushed = ordered
 
     # One read needs an argument the *wake* already knows, and leaving it to
     # the model cost the whole inquiry route.

@@ -11,8 +11,6 @@ not name his contest. The texts below are the night's.
 from __future__ import annotations
 
 import json
-import sqlite3
-from pathlib import Path
 
 import pytest
 
@@ -364,22 +362,30 @@ def test_a_contest_of_a_criterion_line_keeps_the_text_it_contested(n132):  # noq
 
 # --- frame 243, a seat's supersede of the principal's decision -----------------
 
-NIGHT148 = Path(__file__).resolve().parents[2] / ".rota" / "clickI_night148.db"
+# Night 148's two decisions rows, copied verbatim from
+# `.rota/clickI_night148.db` on 2026-10-15, so the tests run in a checkout
+# without the run's database (frame 243, review 1, finding 4).
+DECISIONS148 = {
+    "d_565d2845d4": {
+        "id": "d_565d2845d4", "author": "principal",
+        "text": ("default taken at signoff: The version_option includes a "
+                 "show_python flag that appends the running Python version to "
+                 "the message."),
+        "supersedes": None, "refs": '["version_option_show_python"]'},
+    "d_74_challenge_ver_opt_show_py": {
+        "id": "d_74_challenge_ver_opt_show_py", "author": "vision_keeper",
+        "text": ("The version_option's show_python flag must append the running "
+                 'Python version to the message in the format "{command} '
+                 '{python_version}" where python_version is derived from '
+                 "sys.version_info.major.minor.micro."),
+        "supersedes": "d_565d2845d4",
+        "refs": '["ver_opt_show_py", "tk_1_version_option_show_python"]'},
+}
 
 
 def _night148_decisions() -> dict:
-    """The principal's d_565d2845d4 and s189's d_74_challenge_ver_opt_show_py,
-    read from night 148's database."""
-    if not NIGHT148.exists():
-        pytest.skip("night 148's database is not in this checkout")
-    conn = sqlite3.connect(f"file:{NIGHT148.as_posix()}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    try:
-        return {r["id"]: dict(r) for r in conn.execute(
-            "SELECT * FROM decisions WHERE id IN "
-            "('d_565d2845d4', 'd_74_challenge_ver_opt_show_py')")}
-    finally:
-        conn.close()
+    """The principal's d_565d2845d4 and s189's d_74_challenge_ver_opt_show_py."""
+    return {k: dict(v) for k, v in DECISIONS148.items()}
 
 
 def _seed_decision(conn, row: dict) -> None:

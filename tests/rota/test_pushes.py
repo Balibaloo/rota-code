@@ -1,9 +1,6 @@
 """What a wake pushes, read as the person doing the job would (the wake
 audit, plans/wake-audit.md)."""
 import json
-import sqlite3
-from pathlib import Path
-
 import pytest
 
 from rota.core.db import init_db
@@ -195,33 +192,40 @@ def test_a_quarantined_tick_names_the_batch_it_stalled_on(tmp_path):
 
 # --- frame 243, the contest words beside the criterion ------------------------
 
-NIGHT148 = Path(__file__).resolve().parents[2] / ".rota" / "clickI_night148.db"
+# Night 148's rows, copied verbatim from `.rota/clickI_night148.db` on
+# 2026-10-15, so the tests run in a checkout without the run's database
+# (frame 243, review 1, finding 4).
 CRIT148 = "ver_opt_show_py"
-# The label is the wake's text, so the test names it whole.
-CONTEST_WORDS_KEY = "the principal said, contesting it"
+# The criterion's text when s190 woke, after s188's respecify.
+TEXT148 = ('If the show_python flag is enabled on version_option, the output '
+           'format must be "{command} {python_version}" where python_version '
+           'is obtained from sys.version_info.major.minor.micro and appended '
+           'to the end of the normal version message.')
+# r_4c8fd5d3ad, the reply m71 to page m70.
+RULING148 = {
+    "id": "r_4c8fd5d3ad", "ask_id": "m70", "reply_id": "m71",
+    "per_item": json.dumps({"version_option_show_python": "approve",
+                            CRIT148: "contest", "bg_3": "approve"}),
+    "words": ("Line 2 is wrong because the Python version should come from "
+              "sys.version_info as major.minor.micro, not from sys.version. It "
+              "should also be added to the end of the normal version message, "
+              "not replace that message with just the command name and the "
+              "Python version."),
+    "texts": json.dumps({CRIT148: (
+        'If the show_python flag is enabled, the output format must be '
+        '"{command} {python_version}" where python_version is obtained from '
+        'sys.version.')}),
+}
+# A second criterion of the batch that he never contested. Not the night's.
+OTHER148 = ("ver_opt_plain", "Without show_python the version message is unchanged.")
+# The block's key and lines are the wake's text, so the tests name them whole.
+CONTESTS_KEY = "the principal contested these criteria"
 
 
-def _night148_ruling() -> dict:
-    """Ruling r_4c8fd5d3ad of night 148, read from the run's database."""
-    if not NIGHT148.exists():
-        pytest.skip("night 148's database is not in this checkout")
-    conn = sqlite3.connect(f"file:{NIGHT148.as_posix()}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    try:
-        ruling = dict(conn.execute("SELECT * FROM rulings WHERE id = "
-                                   "'r_4c8fd5d3ad'").fetchone())
-        text = conn.execute("SELECT text FROM criteria WHERE id = ?",
-                            (CRIT148,)).fetchone()["text"]
-    finally:
-        conn.close()
-    return {**ruling, "criterion_text": text}
-
-
-def _seed148(tmp_path, ruled: dict | None):
-    """Night 148's bg_3 with its criterion, and the contest ruling when one
-    is given."""
+def _seed148(tmp_path, contested: bool):
+    """Night 148's bg_3 with its two criteria, and r_4c8fd5d3ad when
+    `contested`."""
     db = init_db(tmp_path / "rota.db")
-    text = ruled["criterion_text"] if ruled else "the version message ends with the Python version"
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
                "VALUES ('version_option_show_python', 'show_python on version_option', "
                "'in_scope', 'approved', 1, 1)")
@@ -230,26 +234,29 @@ def _seed148(tmp_path, ruled: dict | None):
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                "('tk_1', 'version_option_show_python', 'show_python on version_option')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_3', 'tk_1')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES (?, 'tk_1', ?)",
-               (CRIT148, text))
-    if ruled:
-        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-                   "body_refs, seq) VALUES (?, ?, 'liaison', 'principal', 'present', "
-                   "?, 1)", (ruled["ask_id"], ruled["ask_id"], json.dumps([CRIT148])))
-        db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, texts) "
-                   "VALUES (?, ?, ?, ?, 'landed', ?)",
-                   (ruled["id"], ruled["ask_id"], ruled["per_item"], ruled["words"],
-                    ruled["texts"]))
+    for cid, text in ((CRIT148, TEXT148), OTHER148):
+        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES (?, 'tk_1', ?)",
+                   (cid, text))
+    if contested:
+        r = RULING148
+        for mid, verb in ((r["ask_id"], "present"), (r["reply_id"], "reply")):
+            db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                       "body_refs, seq) VALUES (?, ?, 'liaison', 'principal', ?, ?, 1)",
+                       (mid, r["ask_id"], verb, json.dumps([CRIT148])))
+        db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+                   "status, texts) VALUES (?, ?, ?, ?, ?, 'landed', ?)",
+                   (r["id"], r["ask_id"], r["reply_id"], r["per_item"], r["words"],
+                    r["texts"]))
     db.commit()
     return db
 
 
-def _criteria_push(db, role: str, mode: str, kind: str) -> list:
+def _push148(db, role: str, mode: str, kind: str) -> dict:
     sb = build(role, db, batch_id="bg_3", mode=mode,
                allow=prompts.mode_tools(role, mode))
     pushed = push_working_set(role, sb, Wake(role, kind, refs=("bg_3",)))
     assert "criteria.load" in pushed, sorted(pushed)
-    return pushed["criteria.load"]
+    return pushed
 
 
 WAKES148 = [("developer", "batch_start", "tick:batch_start"),
@@ -259,24 +266,29 @@ WAKES148 = [("developer", "batch_start", "tick:batch_start"),
 @pytest.mark.parametrize("role,mode,kind", WAKES148, ids=["developer", "tester"])
 def test_night148_the_builders_wake_carries_his_contest_words(tmp_path, role, mode, kind):
     """Frame 243, night 148: s190 built bg_3 from the criterion alone, and
-    its prompt held no word of r_4c8fd5d3ad. The words now sit beside the
-    criterion's text, verbatim, in the Developer's and the Tester's wake."""
-    ruled = _night148_ruling()
-    db = _seed148(tmp_path, ruled)
-    (row,) = _criteria_push(db, role, mode, kind)
-    keys = list(row)
-    assert keys[keys.index("text") + 1] == CONTEST_WORDS_KEY
-    assert row[CONTEST_WORDS_KEY] == [ruled["words"]]
-    assert ("not replace that message with just the command name and the "
-            "Python version") in row[CONTEST_WORDS_KEY][0]
+    its prompt held no word of r_4c8fd5d3ad. The words now follow the
+    criteria, verbatim, after the text he contested."""
+    from rota.core.runner import _render, PUSH_CHARS
+    pushed = _push148(_seed148(tmp_path, True), role, mode, kind)
+    keys = list(pushed)
+    assert keys[keys.index("criteria.load") + 1] == CONTESTS_KEY
+    contested = json.loads(RULING148["texts"])[CRIT148]
+    assert pushed[CONTESTS_KEY] == (
+        f"{CRIT148}, ruling r_4c8fd5d3ad:\n"
+        f"He contested this text: {contested}\n"
+        f"He said: {RULING148['words']}")
+    # The criteria keep their table: a contest adds no key to any row.
+    assert _render(pushed["criteria.load"], PUSH_CHARS).startswith(
+        "id | ticket_id | text | term_refs")
 
 
 @pytest.mark.parametrize("role,mode,kind", WAKES148, ids=["developer", "tester"])
 def test_a_criterion_with_no_contest_ruling_shows_nothing_new(tmp_path, role, mode, kind):
-    """Frame 243: a criterion the principal never contested keeps the row
-    the wake pushed before."""
-    db = _seed148(tmp_path, None)
-    (row,) = _criteria_push(db, role, mode, kind)
-    assert CONTEST_WORDS_KEY not in row
-    assert set(row) <= {"id", "ticket_id", "text", "term_refs", "surface_refs",
-                        "tested_by"}
+    """Frame 243: a batch whose criteria he never contested keeps the push
+    it had before, with the same rows."""
+    pushed = _push148(_seed148(tmp_path, False), role, mode, kind)
+    assert CONTESTS_KEY not in pushed
+    assert [list(r) for r in pushed["criteria.load"]] == [
+        ["id", "ticket_id", "text", "term_refs"]] * 2
+
+
