@@ -292,3 +292,150 @@ def test_a_criterion_with_no_contest_ruling_shows_nothing_new(tmp_path, role, mo
         ["id", "ticket_id", "text", "term_refs"]] * 2
 
 
+# --- frame 243, pass 2: the seat that writes the text reads his words --------
+
+# Night 149's rows, copied verbatim from `.rota/clickI_night149.db` on
+# 2026-10-15. s190 is the Terminologist's relay wake m88. It held the relay's
+# paraphrase alone and wrote "instead of raising UsageError" back into the
+# criteria (frame 243, interview 2).
+CR149 = [f"cr_{n}_confirm_default_on_eof" for n in range(1, 7)]
+# The criteria's text when s190 woke, from the wake's `resolved_refs`.
+TEXTS149 = dict(zip(CR149, [
+    "When 'default_on_eof' is True and stdin is closed, confirm() returns the "
+    "default passed to confirm itself (not an option's default).",
+    "The 'default_on_eof' argument defaults to False; when it is True and stdin "
+    "is closed, confirm() returns the default passed to confirm itself instead "
+    "of raising UsageError.",
+    "When 'default_on_eof' is True and stdin is closed, confirm() returns the "
+    "default passed to confirm itself (not the option's default).",
+    "The 'default_on_eof' parameter defaults to False; when it is True and stdin "
+    "is closed, confirm() returns the default passed to confirm itself instead "
+    "of raising UsageError.",
+    "When default_on_eof is True and stdin is closed, confirm() returns the "
+    "default passed to confirm itself (not the option's default).",
+    "When default_on_eof is True and stdin is closed, confirm() returns the "
+    "default passed to confirm itself instead of raising UsageError.",
+]))
+# The two rulings that had landed when s190 woke, oldest first.
+RULINGS149 = [
+    {"id": "r_3aa5b4358e", "ask_id": "m73", "reply_id": "m74",
+     "per_item": {"confirm_default_on_eof": "approve", **{c: "contest" for c in CR149},
+                  "bg_2": "contest"},
+     "words": ("Lines 2, 3, 5 and 7 are wrong: today confirm aborts when stdin is "
+               "closed, it doesn't raise a usage error. Lines 4 and 6 are also "
+               "wrong, because it should return the default that was passed to "
+               "confirm itself, not an option's default. Line 8 lists the defaults "
+               "tests and the short help code in utils, which have nothing to do "
+               "with this change, and it leaves out the termui tests where confirm "
+               "is actually tested."),
+     "texts": dict(zip(CR149, [
+         "confirm() accepts an optional 'default_on_eof' boolean argument; when "
+         "True and stdin is closed, it returns the configured default value "
+         "instead of raising UsageError.",
+         "The 'default_on_eof' argument defaults to False; existing callers "
+         "without this flag continue to raise UsageError on EOF as before.",
+         "When 'default_on_eof' is True and stdin is closed, confirm() returns "
+         "the value specified by the option's default (or None if no default "
+         "exists).",
+         "The 'default_on_eof' parameter defaults to False, maintaining backward "
+         "compatibility where EOF raises UsageError.",
+         "When default_on_eof is True and stdin is closed, confirm() returns the "
+         "option's configured default value (or None if unset).",
+         "When default_on_eof is True and stdin is closed, confirm() must not "
+         "raise UsageError.",
+     ]))},
+    {"id": "r_cb56c527ea", "ask_id": "m85", "reply_id": "m86",
+     "per_item": {"confirm_default_on_eof": "approve", **{c: "contest" for c in CR149},
+                  "bg_2": "approve"},
+     "words": ("Please keep working on this rather than drop it. The tests fail "
+               "because they call confirm with no input stream at all, so they "
+               "should run it through the test runner with empty input to act "
+               "like a closed stdin. Lines 3, 5 and 7 still say it raises a usage "
+               "error when today it aborts, and line 8 should touch only termui "
+               "and the termui tests, not utils, the defaults tests or a new test "
+               "file."),
+     "texts": dict(TEXTS149)},
+]
+
+
+def _seed149(tmp_path, contested: bool):
+    """Night 149's ticket with its six criteria and the relay m88 to the
+    Terminologist. The two rulings land when `contested`."""
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('confirm_default_on_eof', 'default_on_eof on confirm', "
+               "'in_scope', 'approved', 1, 1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk_1_confirm_default_on_eof', 'confirm_default_on_eof', "
+               "'let confirm() take a default_on_eof flag')")
+    for cid in CR149:
+        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                   "(?, 'tk_1_confirm_default_on_eof', ?)", (cid, TEXTS149[cid]))
+    refs = json.dumps(CR149)
+    if contested:
+        for n, r in enumerate(RULINGS149):
+            for mid, verb in ((r["ask_id"], "present"), (r["reply_id"], "reply")):
+                db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                           "verb, body_refs, seq) VALUES (?, ?, 'liaison', "
+                           "'principal', ?, ?, ?)", (mid, r["ask_id"], verb, refs, n))
+            db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+                       "status, texts) VALUES (?, ?, ?, ?, ?, 'landed', ?)",
+                       (r["id"], r["ask_id"], r["reply_id"], json.dumps(r["per_item"]),
+                        r["words"], json.dumps(r["texts"])))
+    else:
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                   "body_refs, seq) VALUES ('m85', 'm85', 'liaison', 'principal', "
+                   "'present', ?, 87)", (refs,))
+    # The principal's verdict m87, which the Liaison relayed as m88.
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq) VALUES ('m87', 'm85', 'm85', 'principal', "
+               "'liaison', 'verdict', ?, 89)", (refs,))
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq) VALUES ('m88', 'm87', 'm85', 'liaison', "
+               "'terminologist', 'relay', ?, 90)", (refs,))
+    db.commit()
+    return db
+
+
+def _relay149(db) -> str:
+    """The user prompt of s190's wake, the Terminologist on the relay m88."""
+    from rota.core.runner import build_prompt, resolve_inbound
+    wake = Wake("terminologist", "message", message_id="m88", detail="relay")
+    sb = build("terminologist", db, mode="relay",
+               allow=prompts.mode_tools("terminologist", "relay"))
+    inbound = resolve_inbound(db, wake)
+    _, user = build_prompt("terminologist", sb, wake,
+                           push_working_set("terminologist", sb, wake), "", inbound)
+    return user
+
+
+def test_night149_the_terminologists_relay_wake_carries_his_contest_words(tmp_path):
+    """Frame 243, night 149: s190 respecified the six criteria from the
+    relay's paraphrase. His words now follow the message, whole, after the
+    text each ruling contested, as on the builders' wakes."""
+    user = _relay149(_seed149(tmp_path, True))
+    head = f"\n[{CONTESTS_KEY}]\n"
+    assert head in user
+    message = user.index("The message that woke you:")
+    assert message < user.index(head)
+    if "Already run for you" in user:
+        assert user.index(head) < user.index("Already run for you")
+    old, new = RULINGS149
+    cid = CR149[1]
+    assert (f"{cid}, ruling {old['id']}:\n"
+            f"He contested this text: {old['texts'][cid]}\n"
+            f"He said: {old['words']}\n"
+            f"{cid}, ruling {new['id']}:\n"
+            f"He contested this text: {new['texts'][cid]}\n"
+            f"He said: {new['words']}\n") in user
+    block = user[user.index(head) + len(head):]
+    assert [ln.split(",")[0] for ln in block.splitlines()
+            if ", ruling r_" in ln][:12] == [c for c in CR149 for _ in RULINGS149]
+
+
+def test_a_terminologist_relay_with_no_contest_shows_no_block(tmp_path):
+    """Frame 243: a relay on criteria he never contested keeps its wake."""
+    user = _relay149(_seed149(tmp_path, False))
+    assert f"[{CONTESTS_KEY}]" not in user
+
+

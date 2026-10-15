@@ -498,6 +498,24 @@ def _contest_block(conn, rows: list) -> str:
     return "\n".join(lines)
 
 
+def _relay_contest_block(conn, role: str, inbound: dict[str, Any]) -> str:
+    """
+    The contest block for the criteria a relay asks the Terminologist to
+    respecify. Empty for any other wake.
+
+    This wake pushes no `criteria.load`. The relay's refs list the criteria,
+    so the block follows the relay. Night 149's s190 read the relay's
+    paraphrase alone, and wrote back the words he had declined three times
+    (frame 243, interview 2).
+    """
+    if role != "terminologist" or inbound.get("verb") != "relay":
+        return ""
+    rows = [{"id": ref} for ref in inbound.get("refs") or ()
+            if isinstance(ref, str) and conn.execute(
+                "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()]
+    return _contest_block(conn, rows)
+
+
 def _files_contest_block(inbound: dict[str, Any]) -> tuple[dict[str, Any], str]:
     """
     The message to show, and the principal's words on a files contest.
@@ -600,6 +618,9 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         body.append(json.dumps(shown, indent=2, default=str))
         if block:
             body.append("\n" + block)
+        contests = _relay_contest_block(sb.ctx.conn, role, inbound)
+        if contests:
+            body.append(f"\n[{CONTESTS_KEY}]\n{contests}")
     if pushed:
         # Say that these have *already run*. Without it a survey session spent
         # four of its eight turns calling `code.survey` again -- the results were
