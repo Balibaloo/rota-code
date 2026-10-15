@@ -267,7 +267,7 @@ re-records the touched cases, and returns the diff and the result. You
 review from a context that never read the files. A one-line door is the
 exception. Bulk reading goes to agents, and an agent's full report goes to a file the brief names, with ten lines back. One frame per wall. One status line per cycle.
 
-**A wall's fix is chosen from a ladder of change kinds, and the kind is
+**Provisional until frame 251 closes** (ruled: Roman, 2026-10-15 02:22, "this wall ladder is not sound"; the method gets its own design and review passes). **A wall's fix is chosen from a ladder of change kinds, and the kind is
 named in the frame before the pass** (ruled: Roman, 2026-10-15 01:54, "when
 we hit walls the solutions can range from simple to complex but there's only
 so many kind of changes we can make", after frame 243's first design was a
