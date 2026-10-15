@@ -5083,8 +5083,11 @@ _CHECK_FAULT = re.compile(
     r"\s+checks?\b|\btests? in lines?\b|\bline \d+'s tests?\b", re.IGNORECASE)
 # The principal's words fault a line's words: "Line 2 is wrong because it
 # says", "Line 2 should say", "Line 2 also needs to say" (night 145).
+# "through" and "-" are range words as "to" is, as in `_LINE_REF` (frame
+# 256, review 1).
 _WORDS_FAULT = re.compile(
-    r"\blines? \d+(?:(?:,| and| to) \d+)* (?:is|are) (?:also |still )*wrong\b"
+    r"\blines? \d+(?:(?:(?:,| and| to| through) |\s*-\s*)\d+)* (?:is|are) "
+    r"(?:also |still )*wrong\b"
     r"|\bshould (?:also )?say\b|\bneeds? to say\b", re.IGNORECASE)
 
 
@@ -8398,7 +8401,9 @@ _BARE_AGREEMENT = re.compile(rf"\W*{_AGREE}(?:\W+{_AGREE})*\W*", re.I)
 
 def _ref_lines(ref: re.Match) -> set[int]:
     """The line numbers of one reference, with "N to M" read as a range."""
-    nums = re.findall(r"\d+|to|through|-", ref.group(1) or ref.group(2))
+    # The reference itself matches in any case, so its range word does too.
+    # "lines 2 Through 7" read line 2 and line 7 alone (frame 256, review 1).
+    nums = re.findall(r"\d+|to|through|-", ref.group(1) or ref.group(2), re.I)
     lines: set[int] = set()
     for j, tok in enumerate(nums):
         if tok.isdigit():
@@ -8418,7 +8423,23 @@ def _line_reading(words: str) -> tuple[set[int], set[int]]:
     faulted, and s427 contested four lines the words said match. Measured on
     the recorded replies of nights 143 to 146, `f234/pass1-report.md`.
     """
-    faulted: set[int] = set()
+    cues, matched = _line_cues(words)
+    return set(cues), matched
+
+
+# Cues that only add to another cue. The refusal names a stronger cue of
+# the same clause when it has one: "are also wrong" names "wrong".
+_WEAK_CUES = ("also", "still", "not")
+
+
+def _line_cues(words: str) -> tuple[dict[int, tuple[str, str]], set[int]]:
+    """`_line_reading`, with the fault cue and the clause of each faulted line.
+
+    The approve door of `_line_refusal` names the cue, so the seat sees
+    which words fault the line it approved (frame 250). The door reads the
+    clause for the words of a batch's prediction.
+    """
+    faulted: dict[int, tuple[str, str]] = {}
     matched: set[int] = set()
     for sentence in re.split(r"(?<=[.!?])\s+|[:;]", words or ""):
         refs = list(_LINE_REF.finditer(sentence))
@@ -8432,15 +8453,22 @@ def _line_reading(words: str) -> tuple[set[int], set[int]]:
             if match is not None and len(window[:match.start()].split()) > 2:
                 match = None
             # "doesn't match" is a fault (frame 234, review 1, finding 4).
+            cue = None
             if match is not None and any(
                     w.lower() in ("not", "never") or w.lower().endswith("n't")
                     for w in window[:match.start()].split()[-2:]):
                 fault, match = match, None
+                cue = " ".join(window[:fault.end()].split()[-2:])
             if fault is not None:
                 # A fault anywhere in the clause wins. Night 143's m339:
                 # "Line 2's text is right now, but its check still passes"
                 # (frame 234, review 1, finding 3).
-                faulted |= _ref_lines(ref)
+                if cue is None:
+                    found = [m.group(0) for m in _LINE_FAULT.finditer(window)]
+                    strong = [c for c in found if c.lower() not in _WEAK_CUES]
+                    cue = (strong or found)[0]
+                for n in _ref_lines(ref):
+                    faulted.setdefault(n, (cue, window))
             elif match is not None:
                 matched |= _ref_lines(ref)
     return faulted, matched
@@ -8475,14 +8503,19 @@ def built_line_faulted(words: str, order: list[str] | None, ref: str,
 def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   matched: set[int], size: int, request_first: bool,
                   quoted: bool, batch_lines: frozenset[int] = frozenset(),
-                  item_lines: frozenset[int] = frozenset()) -> str | None:
-    """The refusal of a contest the words do not support, or None.
+                  item_lines: frozenset[int] = frozenset(),
+                  approved: frozenset[int] = frozenset(),
+                  cues: dict[int, tuple[str, str]] | None = None
+                  ) -> str | None:
+    """The refusal of a ruling the words do not support, or None.
 
     `faulted` and `matched` come from `_line_reading`, after the batch lift.
     `size` is the count of lines on the page. `request_first` says that line
     1 is a request item. `quoted` says that the words quote line 1.
     `batch_lines` are the lines that show a batch's prediction.
     `item_lines` are the lines that show a request item or a criterion.
+    `approved` are the lines ruled approve. `cues` maps each line the words
+    fault, before the batch lift, to its fault cue and clause (`_line_cues`).
     """
     reversed_ = sorted((matched - faulted) & contested)
     if reversed_:
@@ -8496,6 +8529,10 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                                faulted | matched, size, item_lines)
     if unnamed:
         return unnamed
+    approve = _faulted_approve(approved, cues or {}, size, request_first,
+                               batch_lines)
+    if approve:
+        return approve
     if not request_first or 1 not in contested or quoted:
         return None
     named = sorted(n for n in faulted if n <= size)
@@ -8516,6 +8553,49 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
             f"not fault it. Rule {lines}, and approve the rest.")
 
 
+# The words of a batch's prediction: what the change touches.
+_TOUCH_WORDS = re.compile(r"\b(?:files?|tests?|touch(?:es|ed)?)\b", re.I)
+
+
+def _faulted_approve(approved: frozenset[int],
+                     cues: dict[int, tuple[str, str]], size: int,
+                     request_first: bool,
+                     batch_lines: frozenset[int]) -> str | None:
+    """The refusal of an approve of a line the words fault, or None.
+
+    Night 149's s212 approved lines 6 and 7 against "Lines 2, 3, 5, 6 and 7
+    are also wrong", and cr_5 and cr_6 kept the declined words (frame 250).
+    A batch line stays with the batch door, which tells a seat to approve a
+    closed change's line (frame 255). A request on line 1 stays too: a
+    contest of it cancels the work, and night 146's m164 faulted only the
+    code that line 1 names. On a page with a batch line, a clause that
+    names files or tests can number a text line of the prediction. Night
+    136's m85 said "Line 2 names the wrong tests" of bg_2 on line 5
+    (`test_request_page.py`).
+
+    Over the 177 landed present and confirm verdicts of nights 143 to 149
+    with words and an approve, the door fires on 5. Four approved a line
+    the words fault: night 143's m133, 145's m245, 146's m162 and 149's
+    m105. One was right: night 147's m86, where "Line 7 just repeats line
+    2" reads as a fault of line 2. The guard on line 1 spares m164
+    (observed: `f250/count_present.py`, 2026-10-16).
+    """
+    wrong = sorted(
+        n for n in approved if n in cues and 1 <= n <= size
+        and n not in batch_lines and not (request_first and n == 1)
+        and not (batch_lines and _TOUCH_WORDS.search(cues[n][1])))
+    if not wrong:
+        return None
+    one = len(wrong) == 1
+    parts = [f'line {n}, "{cues[n][0]}"' for n in wrong]
+    said = (parts[0] if one
+            else f"{', '.join(parts[:-1])}, and {parts[-1]}")
+    return (f"The words fault {said}. An approve keeps the line as it is, "
+            f"and his words reach nobody. Rule {_lines(wrong)} contest or "
+            f"revise, as the words say, and pass the words. "
+            f"{'It takes' if one else 'They take'} no approve.")
+
+
 def _unnamed_contest(sentences: list[str], contested: set[int],
                      read: set[int], size: int,
                      item_lines: frozenset[int] = frozenset()) -> str | None:
@@ -8524,8 +8604,8 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     Night 147 (frame 234, pass 2): s281's words named lines 3, 4 and 7, and
     s281 contested lines 5, 6 and 8 to 11. The contest of the Critic's notes
     on lines 5 and 6 went to the Vision Keeper and cost bg_2. `read` holds
-    the faulted and matched lines after the batch lift, so a batch line's
-    item counts as named. Line 1 stays with the line-1 refusal and its
+    the faulted and matched lines after the batch lift, so the item of a
+    merged or abandoned batch's line counts as named. Line 1 stays with the line-1 refusal and its
     guards, a quote and a page that opens with no request. The caller
     leaves out a batch line, which the batch door rules. Its prediction
     spans several lines of text, and night 136's m85 said "Line 2" for one
@@ -8812,7 +8892,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # the words fault, and `land` keeps it on the same predicate. A line the
     # words do not fault is refused: 9 of 9 such contests on nights 136 to
     # 149 were the seat's error (`built_line_faulted`).
-    read_faulted, read_matched = _line_reading(words)
+    read_cues, read_matched = _line_cues(words)
+    read_faulted = set(read_cues)
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue
@@ -8891,7 +8972,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         refusal = _line_refusal(
             words, contested, faulted, matched, len(order), request_first,
             request_first and _quotes_line(words, page_text, 1), batch_lines,
-            item_lines)
+            item_lines, frozenset(i + 1 for i, r in enumerate(order)
+                                  if per_item.get(r) == "approve"), read_cues)
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():

@@ -68,6 +68,10 @@ M105 = ("Lines 3 and 5 can be checked simply: call confirm without the flag whil
 # s199's call at turn 1 on m92, and s212's call at turn 1 on m105.
 MAP = {"1": "approve", "2": "contest", "3": "contest", "4": "approve",
        "5": "contest", "6": "approve", "7": "approve", "8": "contest"}
+# MAP approves lines 4, 6 and 7, and m92's "Lines 2 through 7 still say"
+# faults them. Frame 250's door refuses that approve, so the line 8 tests
+# rule lines 2 to 7 as the words say.
+M92_MAP = dict(MAP, **{"4": "contest", "6": "contest", "7": "contest"})
 
 
 @pytest.fixture
@@ -136,7 +140,7 @@ def test_m92s_files_correction_lands_as_a_contest_of_bg_2(m91):
     """s199 on m92. The door refused line 8 three times, and the reply
     landed no ruling row (frame 255)."""
     sb = _sandbox(m91, _reply(m91, M92))
-    out = sb.call("rulings.rule", rulings=MAP, words=M92)
+    out = sb.call("rulings.rule", rulings=M92_MAP, words=M92)
     assert out["per_item"]["bg_2"] == "contest"
     assert out["per_item"][ITEM] == "approve"
 
@@ -147,7 +151,7 @@ def test_land_keeps_bg_2_and_the_relay_reaches_the_architect(m91):
     section 3)."""
     reply = _reply(m91, M92)
     (wake,) = [w for w in open_tips(m91) if w.message_id == reply]
-    call = f"TOOL: rulings.rule(rulings={json.dumps(MAP)}, words={M92!r})"
+    call = f"TOOL: rulings.rule(rulings={json.dumps(M92_MAP)}, words={M92!r})"
     out = run_session(m91, wake, backend=ScriptedBackend([call, "done"]),
                       pins=PINS, instructions="land")
     assert out.committed, out.errors
