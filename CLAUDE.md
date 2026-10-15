@@ -267,8 +267,8 @@ re-records the touched cases, and returns the diff and the result. You
 review from a context that never read the files. A one-line door is the
 exception. Bulk reading goes to agents, and an agent's full report goes to a file the brief names, with ten lines back. One frame per wall. One status line per cycle.
 
-**A wall's fix is decided from `plans/wall-guide.md`** (proposed: frame
-251, 2026-10-15, for Roman's ruling). After a night's read, the session
+**A wall's fix is decided from `plans/wall-guide.md`** (ruled: Roman,
+2026-10-15, "Yes rule it", frame 251). After a night's read, the session
 places each wall under one of the guide's causes by the questions of its
 section 4, in order, and stops at the first answer that places it. The
 cause's entry gives the cheap fix with its count, what overfits, when to
