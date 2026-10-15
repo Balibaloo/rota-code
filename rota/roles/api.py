@@ -8444,6 +8444,32 @@ def _line_reading(words: str) -> tuple[set[int], set[int]]:
     return faulted, matched
 
 
+def built_line_faulted(words: str, order: list[str] | None, ref: str,
+                       faulted: set[int] | None = None) -> bool:
+    """The principal's words fault the page line of the built batch `ref`.
+
+    The one predicate of two doors: `rulings_rule` admits a contest or a
+    revise of a built batch's line on it, and `principal.land` keeps that
+    row in the verdict on it, so the two doors cannot drift. Frame 142's
+    design, 2.D, refused every such ruling, because `land` dropped the
+    batch ref and the words reached nobody. For a files correction that
+    fear does not hold: the relay takes the words to the Architect, and
+    the new touch list moves what the Developer, the Tester and the stray
+    detector read (frame 255, `plans/frame255-scope.md`, section 3).
+
+    Over nights 136 to 149 the predicate fires on 14 of 16 files
+    corrections and refuses 9 of 9 contests the words do not support.
+    `_line_refusal` stops none of those 9, because it leaves batch lines
+    out of its check (observed: `pred.py`, 2026-10-15). `faulted` is the
+    first set of `_line_reading(words)` when the caller has it already.
+    """
+    if not order or ref not in order:
+        return False
+    if faulted is None:
+        faulted = _line_reading(words)[0]
+    return order.index(ref) + 1 in faulted
+
+
 def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   matched: set[int], size: int, request_first: bool,
                   quoted: bool, batch_lines: frozenset[int] = frozenset(),
@@ -8779,8 +8805,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # build, a correction of it goes to the Architect, who wrote it: night
     # 136's five corrections of a predicted file were refused here, and bg_2
     # built from the wrong prediction (frame 190's design, 2.2). After the
-    # head commit the prediction moves nothing, and the item is the lever, so
-    # the refusal names it (frame 142's design, 2.D).
+    # head commit, frame 142's design, 2.D, refused every ruling of the line,
+    # because `land` dropped it. Frame 255 admits a contest or a revise that
+    # the words fault, and `land` keeps it on the same predicate. A line the
+    # words do not fault is refused: 9 of 9 such contests on nights 136 to
+    # 149 were the seat's error (`built_line_faulted`).
+    read_faulted, read_matched = _line_reading(words)
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue
@@ -8807,10 +8837,14 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"you asked for, contest the item {item}{line}. Otherwise {end}")
         if not batch["head_commit"]:
             continue
+        if ruling in ("contest", "revise") and built_line_faulted(
+                words, order, ref, read_faulted):
+            continue
+        # No reply of nights 136 to 149 asked to stop the change, so the
+        # refusal no longer offers the item contest (frame 255's scope, 5).
         raise ValueError(
-            f"{named}{ref} is the change's line: a prediction of what it touches, "
-            f"and a ruling on it moves nothing. To stop the change, contest the "
-            f"item {item}{line}. Otherwise {end}")
+            f"{named}the words do not fault {ref}'s files. "
+            f"{end[0].upper()}{end[1:]}.")
     if not is_clarify:
         unnamed =[str(i + 1) for i, r in enumerate(order) if r not in per_item]
         if unnamed:
@@ -8822,7 +8856,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # four lines the words said match, and s122 contested line 1, the
     # request, when the words faulted lines 3 and 5. Each cancelled a batch.
     if (words or "").strip() and not is_clarify and order:
-        faulted, matched = _line_reading(words)
+        faulted, matched = set(read_faulted), set(read_matched)
         # A fault of a built change's line is a fault of its item, because
         # the batch door above sends that contest to the item (frame 142's
         # design, 2.D). Night 133's s313 faulted bg_2 and contested line 1.

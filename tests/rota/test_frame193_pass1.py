@@ -459,10 +459,9 @@ def test_s263s_contest_of_the_change_line_names_line_5(db):
                "5": "contest"}
     with pytest.raises(ValueError) as e:
         sb.call("rulings.rule", rulings=rulings, words=M142)
+    # M142 faults lines 2 and 3, not line 5, so the door holds (frame 255).
     assert str(e.value) == (
-        "line 5: bg_3 is the change's line: a prediction of what it touches, and a "
-        "ruling on it moves nothing. To stop the change, contest the item "
-        f"{ITEM_139}, line 1. Otherwise approve line 5")
+        "line 5: the words do not fault bg_3's files. Approve line 5.")
     out = sb.call("rulings.rule", rulings={**rulings, "5": "approve"}, words=M142)
     assert out["per_item"]["bg_3"] == "approve"
     assert out["per_item"]["c1_version_option_show_python"] == "contest"

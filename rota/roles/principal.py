@@ -1702,6 +1702,17 @@ def door_rows(conn: sqlite3.Connection, message_id: str | None, kind: str) -> li
     return [r for r in rows if isinstance(r, str)]
 
 
+def _page_order(conn: sqlite3.Connection, ask: Ask) -> list[str]:
+    """The rows the page numbers, as `rulings_rule` reads them. A ruling
+    from `apply_rulings` carries no order, and the line numbers of the
+    words need one."""
+    row = conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                       (ask.message_id,)).fetchone()
+    return render_page(conn, ask.verb, list(ask.refs),
+                       row["body_text"] if row else None,
+                       ask_id=ask.message_id)[1]
+
+
 def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
          ruling_id: str | None = None) -> str | None:
     """
@@ -1789,9 +1800,28 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # The answer as given names the item, whatever a filter or a resume drops.
     ruled = set(answer.per_item or {})
     if ask.verb == "present" and answer.verb == "verdict":
+        rows = conn.execute("SELECT id, head_commit, status FROM batches").fetchall()
         batches = {r["id"]: (not r["head_commit"]
                              and r["status"] not in ("merged", "abandoned"))
-                   for r in conn.execute("SELECT id, head_commit, status FROM batches")}
+                   for r in rows}
+        # After the head commit, a contest or a revise of the batch line stays
+        # when the words fault that line. `rulings_rule` admits the row on the
+        # same predicate, so the row it admits relays to the Architect as
+        # before the commit (frame 255). Over nights 136 to 149 the predicate
+        # fires on 14 of 16 files corrections and refuses 9 of 9 contests the
+        # words do not support. `_line_refusal` stops none of the 9 (observed:
+        # `pred.py`, 2026-10-15). Frame 142's design, 2.D, dropped every such
+        # row, and a files correction now reaches the Architect who wrote it.
+        built = [r["id"] for r in rows if r["head_commit"]
+                 and r["status"] not in ("merged", "abandoned")
+                 and per_item.get(r["id"]) in ("contest", "revise")]
+        if built and (answer.text or "").strip():
+            from .api import _line_reading, built_line_faulted
+
+            faulted = _line_reading(answer.text)[0]
+            order = ask.order or (_page_order(conn, ask) if faulted else [])
+            for ref in built:
+                batches[ref] = built_line_faulted(answer.text, order, ref, faulted)
         if set(batches) & set(ask.refs):
             items = {r["id"] for r in conn.execute("SELECT id FROM items")}
             per_item = {k: v for k, v in per_item.items()

@@ -1144,14 +1144,15 @@ def test_a_missing_row_on_a_relay_lists_the_relays_refs(db):
 
 
 def test_after_the_head_commit_the_batch_line_is_refused_with_the_item(bg2):
-    """Frame 142's door holds after the build: a contest of the batch line
-    moves nothing, and the refusal names the item's line."""
+    """Frame 142's door holds after the build for words that do not fault
+    the batch line. M85 faults line 2, so the contest of line 5 is refused
+    (frame 255)."""
     (wake,) = P.REGISTRY["touch_note"].fn(bg2)
     mid = _dispatch(bg2, wake, f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
     reply = _reply(bg2, mid, M85)
     bg2.execute("UPDATE batches SET head_commit = 'aa28d1d' WHERE id = 'bg_2'")
     sb = _sandbox(bg2, "liaison", "landing", reply)
-    with pytest.raises(ValueError, match=f"contest the item {ITEM_136}, line 1"):
+    with pytest.raises(ValueError, match="line 5: the words do not fault bg_2's files"):
         sb.call("rulings.rule", rulings={"1": "approve", "2": "approve", "3": "approve",
                                          "4": "approve", "5": "contest"}, words=M85)
 

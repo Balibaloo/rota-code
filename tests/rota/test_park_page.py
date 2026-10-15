@@ -641,15 +641,21 @@ def _touch_reply(conn):
     return sb
 
 
-def test_a_contest_on_a_batch_line_is_refused_with_the_item_named(n133):
+def test_a_files_correction_of_a_built_batch_line_is_admitted(n133):
     """Night 133, s313: r_2e20813fbe contested bg_2, landed, and moved
-    nothing. The principal's words reached no seat."""
+    nothing. The principal's words reached no seat. M198 faults line 2, the
+    batch line, so the contest is admitted, and `land` keeps it for the
+    Architect (frame 255). Before frame 255 the door refused it."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
     sb = _touch_reply(n133)
-    with pytest.raises(ValueError) as refused:
-        sb.call("rulings.rule", rulings={ITEM_133: "approve", "bg_2": "contest"},
-                words=M198)
-    assert str(refused.value).startswith("bg_2 is the change's line")
-    assert f"contest the item {ITEM_133}, line 1" in str(refused.value)
+    out = sb.call("rulings.rule", rulings={ITEM_133: "approve", "bg_2": "contest"},
+                  words=M198)
+    assert out["per_item"] == {ITEM_133: "approve", "bg_2": "contest"}
+    sb = build("liaison", n133, mode="normal", session_id="s313",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = "m198"
     out = sb.call("rulings.rule", rulings={ITEM_133: "contest", "bg_2": "approve"},
                   words=M198)
     assert out["per_item"] == {ITEM_133: "contest", "bg_2": "approve"}
