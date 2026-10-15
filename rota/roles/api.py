@@ -1324,13 +1324,31 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
                 f"rules. Or answer with decisions.author")
     # A decided item is rewritten only under a contest on it. Night 149's
     # s232, on a propose wake, rewrote confirm_default_on_eof, and the batch
-    # was cancelled (frame 129, plans/night149-read.md W1).
+    # was cancelled (frame 129, plans/night149-read.md W1). A deliver wake
+    # carries a newly ratified statement, the principal's own record, and its
+    # brief keeps the existing id (the review of 0bf6a5ea, finding 3).
+    if verb == "deliver":
+        return None
     if wake != "tick:contested":
         named = verb or wake or "this"
-        return (f"{id} is the principal's own words. A {named} wake does not "
-                f"rewrite them. Send msg.report_liaison with what the item "
-                f"should say, so the principal rules. Or answer with "
-                f"decisions.author")
+        article = "An" if named[0] in "aeiou" else "A"
+        # A refusal names only a call the mode offers (frame 135's law). The
+        # answer mode offers msg.submit_liaison and no decisions.author (the
+        # review of 0bf6a5ea, finding 1).
+        tools = _wake_mode_tools(ctx)
+        ask = next((t for t in ("msg.report_liaison", "msg.submit_liaison")
+                    if t in tools), None)
+        steps = []
+        if ask:
+            steps.append(f"Send {ask} with what the item should say, so the "
+                         f"principal rules.")
+        if "decisions.author" in tools:
+            steps.append("Or answer with decisions.author" if ask
+                         else "Answer with decisions.author")
+        if not steps:
+            steps.append("End the session with no call on this item")
+        return (f"{id} is the principal's own words. {article} {named} wake "
+                f"does not rewrite them. {' '.join(steps)}")
     from ..core.runner import _resolve_contest
 
     # A contest on the item is a verdict on the item's own id. Night 146's

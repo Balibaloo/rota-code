@@ -11,6 +11,7 @@ id, and the page showed the new item as the principal's own ask
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -18,6 +19,7 @@ from rota.core.db import init_db
 from rota.core.predicates import Wake
 from rota.core.sandbox import build
 from rota.roles import prompts
+from rota.roles.api import _wake_mode_tools
 from rota.testkit.fixtures import seed_provenance
 
 CONFIRM = ("Let confirm() take a default_on_eof flag: when stdin is closed, "
@@ -307,6 +309,45 @@ def test_s232_text_on_a_landed_contest_takes_the_words_branch(db):
         sb.call("problem.assert", id="confirm_default_on_eof",
                 kind="in_scope", text=S232)
     assert "the principal said" in str(err.value)
+    assert not _item_writes(sb)
+
+
+def _woken(conn, mid, sender, verb):
+    """A Vision Keeper session on a message wake, in the verb's mode."""
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, body_text, seq) VALUES (?, 't3', ?, "
+                 "'vision_keeper', ?, ?, 'the default on EOF', 3)",
+                 (mid, sender, verb, json.dumps(["confirm_default_on_eof"])))
+    conn.commit()
+    sb = build("vision_keeper", conn, mode=verb,
+               allow=prompts.mode_tools("vision_keeper", verb),
+               wake=Wake("vision_keeper", "message", message_id=mid,
+                         detail=verb))
+    sb.ctx.trigger = mid
+    return sb
+
+
+def test_a_deliver_wake_amends_a_decided_item(db):
+    # The review of 0bf6a5ea, finding 3: a deliver wake carries a newly
+    # ratified statement, and its brief keeps the existing id.
+    sb = _woken(db, "m_del", "liaison", "deliver")
+    out = sb.call("problem.assert", id="confirm_default_on_eof",
+                  kind="in_scope", text=CONFIRM + " The flag defaults to False.")
+    assert out == {"id": "confirm_default_on_eof"}
+    assert _item_writes(sb)
+
+
+def test_an_answer_wake_names_only_calls_the_mode_offers(db):
+    # The review of 0bf6a5ea, findings 1 and 4.
+    sb = _woken(db, "m_ans", "researcher", "answer")
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="confirm_default_on_eof",
+                kind="in_scope", text=S232)
+    msg = str(err.value)
+    assert "An answer wake does not rewrite them" in msg
+    offered = set(_wake_mode_tools(sb.ctx))
+    named = set(re.findall(r"\b[a-z]+\.[a-z_]+\b", msg))
+    assert named <= offered, named - offered
     assert not _item_writes(sb)
 
 
