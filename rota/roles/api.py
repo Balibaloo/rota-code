@@ -6311,6 +6311,75 @@ def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
     return None
 
 
+def _callable_invoked(tree):
+    """What the test passes to a runner's `.invoke` when the test itself
+    makes it a plain callable, as `(name, line)`, or None.
+
+    `name` is None for a lambda, or the name of a local `def` with no
+    decorator, or of a name bound once to a lambda. Frame 230: night 145's
+    s227 and night 148's s154 landed `runner.invoke(lambda: confirm(...))`,
+    and each body stayed red on `'function' object has no attribute 'name'`.
+
+    A local `def` with any decorator stays admitted, because the decorator
+    can make it a command, and frame 200's door reads a factory on it. A
+    name the test binds twice can be a wrap, `f = command()(f)`, and stays
+    admitted. The receiver is the one `_plain_invoked` reads.
+    """
+    import ast as _ast
+
+    def _is_runner_call(node) -> bool:
+        f = node.func if isinstance(node, _ast.Call) else None
+        return ((isinstance(f, _ast.Name) and f.id == "CliRunner")
+                or (isinstance(f, _ast.Attribute) and f.attr == "CliRunner"))
+
+    # Each name the test binds, with a `def` where one binds it. A name in
+    # `lambdas` is bound to a lambda by one of its bindings.
+    binds: dict[str, list] = {}
+    lambdas: set[str] = set()
+    runners = {"runner"}
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+            binds.setdefault(n.name, []).append(n)
+        elif isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store):
+            binds.setdefault(n.id, []).append(None)
+        elif isinstance(n, _ast.arg):
+            binds.setdefault(n.arg, []).append(None)
+        elif isinstance(n, _ast.alias):
+            binds.setdefault((n.asname or n.name).split(".")[0], []).append(None)
+        if isinstance(n, (_ast.Assign, _ast.AnnAssign)) and n.value is not None:
+            targets = n.targets if isinstance(n, _ast.Assign) else [n.target]
+            for t in targets:
+                if isinstance(t, _ast.Name):
+                    if _is_runner_call(n.value):
+                        runners.add(t.id)
+                    if isinstance(n.value, _ast.Lambda):
+                        lambdas.add(t.id)
+
+    def plain(arg) -> bool:
+        if isinstance(arg, _ast.Lambda):
+            return True
+        if not isinstance(arg, _ast.Name) or len(binds.get(arg.id, [])) != 1:
+            return False
+        v = binds[arg.id][0]
+        return (arg.id in lambdas
+                or (isinstance(v, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                    and not v.decorator_list))
+
+    for call in _ast.walk(tree):
+        if not (isinstance(call, _ast.Call) and isinstance(call.func, _ast.Attribute)
+                and call.func.attr == "invoke"):
+            continue
+        recv = call.func.value
+        if not ((isinstance(recv, _ast.Name) and recv.id in runners)
+                or _is_runner_call(recv)):
+            continue
+        first = (call.args[0] if call.args
+                 else next((k.value for k in call.keywords if k.arg == "cli"), None))
+        if first is not None and plain(first):
+            return (first.id if isinstance(first, _ast.Name) else None), call.lineno
+    return None
+
+
 def _last_binding(src: str, orig: str):
     """The last top-level statement of `src` that binds `orig`, or None.
 
@@ -7606,6 +7675,20 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         raise ValueError(
             f"the test {id} passes `{name}` to `.invoke`, and `{orig}` is a "
             f"plain function in `{where}`: `CliRunner.invoke` takes a command")
+    # Frame 230: the same fact when the test makes the callable itself, a
+    # lambda or a local `def`. The door admitted s154's lambdas, and the
+    # Developer and the Tester took 7 wakes to green (night 148). Frame
+    # 230's pass 1 brief asks for one step after the fact.
+    made = _callable_invoked(tree)
+    if made:
+        local, _line = made
+        what = ("a lambda" if local is None
+                else f"`{local}`, a plain function that the test defines,")
+        raise ValueError(
+            f"the test {id} passes {what} to `.invoke`, and `CliRunner.invoke` "
+            f"takes a click command, not a plain function. Pass a function "
+            f"that `@click.command` decorates, or call the function without "
+            f"a runner.")
 
     # A body that says no more than the criterion says has encoded nothing.
     #

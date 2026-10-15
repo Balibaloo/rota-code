@@ -227,14 +227,20 @@ def test_a_decorated_command_is_admitted(db):
     assert _encode(db, "tst_hello", "tests/test_hello.py", body) == {"id": "tst_hello"}
 
 
-def test_a_local_function_is_admitted(db):
+def test_a_local_plain_function_is_refused(db):
+    """Frame 230: a local `def` with no decorator is a plain function too.
+    Before frame 230 this test asserted that the body landed."""
     body = ("from click.testing import CliRunner\n\n\n"
             "def echo_json():\n"
             "    pass\n\n\n"
             "def test_local():\n"
             "    result = CliRunner().invoke(echo_json)\n"
             "    assert result.exit_code == 0\n")
-    assert _encode(db, "tst_local", "tests/test_local.py", body) == {"id": "tst_local"}
+    with pytest.raises(ValueError) as exc:
+        _encode(db, "tst_local", "tests/test_local.py", body)
+    assert str(exc.value).startswith(
+        "the test tst_local passes `echo_json`, a plain function that the "
+        "test defines, to `.invoke`")
 
 
 @pytest.mark.parametrize("arg,head", [
@@ -532,5 +538,84 @@ def test_the_tester_encodes_of_eight_nights():
     assert {k: v for k, v in refused.items() if k[1] == "s139"} == {
         (n, "s139"): 10 for n in EIGHT if n != 120}
     assert names == {"echo_json", "confirm", "version_option"}
+
+
+# Frame 230: s154's bodies on night 148, read from `.rota/clickI_night148.db`,
+# `turns.completion` of s154. Turn 2 holds s154's first call with a lambda,
+# and turn 5's first call is the version that landed in bg_2. Each stayed
+# red on `'function' object has no attribute 'name'`.
+S154_T2 = ('from click.testing import CliRunner\nfrom click.termui import confirm\n'
+           'import io\n\ndef test_confirm_eof_returns_default():\n'
+           '    runner = CliRunner()\n    with runner.isolated_filesystem():\n'
+           '        # Test that when stdin is closed (EOF), confirm returns the default\n'
+           '        result = runner.invoke(lambda: confirm("y", default_on_eof=True))\n'
+           '        assert result.exit_code == 0')
+S154_T5 = ('from click.testing import CliRunner\nfrom click.termui import confirm\n'
+           'import io\n\ndef test_confirm_eof_returns_default(monkeypatch):\n'
+           '    runner = CliRunner()\n    with runner.isolated_filesystem():\n'
+           '        # Test that when stdin is closed (EOF), confirm returns the default\n'
+           '        monkeypatch.setattr("sys.stdin", io.StringIO(""))\n'
+           '        result = runner.invoke(lambda: confirm("y", default_on_eof=True))\n'
+           '        assert result.exit_code == 0')
+
+
+@pytest.mark.parametrize("body", [S154_T2, S154_T5], ids=["turn2", "turn5"])
+def test_s154s_lambda_is_refused_and_named(db, body):
+    """The refusal says what the seat passed and names a click command as
+    what `invoke` takes, in one sentence. A second sentence gives the step."""
+    with pytest.raises(ValueError) as exc:
+        _encode(db, "tst_confirm_eof_returns_default",
+                "tests/test_confirm_eof.py", body)
+    assert str(exc.value) == (
+        "the test tst_confirm_eof_returns_default passes a lambda to "
+        "`.invoke`, and `CliRunner.invoke` takes a click command, not a "
+        "plain function. Pass a function that `@click.command` decorates, "
+        "or call the function without a runner.")
+    assert not isinstance(exc.value, api.Wall)
+
+
+def test_a_command_the_test_defines_or_the_surface_holds_is_admitted(db):
+    """A local `def` under `@command()` and the surface's `hello`, a
+    command in `core.py`, both stay admitted."""
+    body = ("from click import command\n"
+            "from click.testing import CliRunner\n"
+            "from src.click.core import hello\n\n\n"
+            "@command()\n"
+            "def cli():\n"
+            "    pass\n\n\n"
+            "def test_x():\n"
+            "    runner = CliRunner()\n"
+            "    assert runner.invoke(cli, []).exit_code == 0\n"
+            "    assert runner.invoke(hello, []).exit_code == 0\n")
+    assert _encode(db, "tst_x", "tests/test_x.py", body) == {"id": "tst_x"}
+
+
+@pytest.mark.parametrize("body,want", [
+    ("f = lambda: 1\n\ndef test_x():\n    runner.invoke(f)\n", ("f", 4)),
+    ("def test_x():\n    CliRunner().invoke(cli=lambda: 1)\n", (None, 2)),
+    ("def f():\n    pass\n\nf = command()(f)\n\n"
+     "def test_x():\n    runner.invoke(f)\n", None),
+    ("def test_x(f):\n    runner.invoke(f)\n", None),
+    ("def test_x(ctx):\n    ctx.invoke(lambda: 1)\n", None),
+], ids=["bound-lambda", "keyword", "wrapped", "parameter", "context"])
+def test_the_callable_reader(body, want):
+    assert api._callable_invoked(ast.parse(body)) == want
+
+
+def test_s291s_version_option_keeps_frame_131s_refusal():
+    """Night 145's s291 passed the imported `version_option` to `.invoke`.
+    Frame 131's door reads it, and frame 230's door does not."""
+    body = ("from click.testing import CliRunner\n"
+            "from click.decorators import version_option\n\n"
+            "def test_custom_version_option_receives_context():\n"
+            "    runner = CliRunner()\n"
+            "    result = runner.invoke(version_option)\n"
+            '    assert "Python" not in result.output')
+    tree = ast.parse(body)
+    got = _plain_invoked(tree, "tests/test_v.py", _reader(
+        {"src/click/decorators.py": "def version_option(*a, **k):\n    pass\n"}))
+    assert got is not None and got[:3] == (
+        "version_option", "version_option", "src/click/decorators.py")
+    assert api._callable_invoked(tree) is None
 
 
