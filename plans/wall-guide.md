@@ -17,15 +17,21 @@ Roman's purpose, in his words (ruled: Roman, 2026-10-15, in the terminal,
 
 - "It's a guide to making decisions about how to fix walls. So night reader
   maybe, solution designer definitely."
-- It makes three decisions easier: where the fix goes, by kind of problem.
-  Whether to fix at all. Whether a fix overfits the night. Not how much to
-  spend.
+- It makes two decisions easier: where the fix goes, by cause. Whether a
+  fix overfits the night. Not how much to spend.
+- Whether to fix at all is answered: yes, cheaply or by escalation. The
+  morning's line, "if a wall is only a small inefficiency and we can't fix
+  it easily then leave it ... we either can fix it cheaply (which is what
+  the guide documents) ... or ... escalate all the way to the top" (ruled:
+  Roman, 2026-10-15 10:51 UTC, superseded), gave way the same day to "I
+  guess if we don't detect it then it's not that big of a deal, but ignore
+  this, try to fix everything", then "Reasonably" (ruled: Roman, 2026-10-15,
+  in the terminal, the same minute). So the default for every wall a read
+  names is a fix, cheap or escalated. A wall is not fixed only with a
+  stated reason in its frame, and the frame stays open and visible on the
+  stack. It is never dropped silently and never closed as left. "For now
+  there is only cheap and escalate to me."
 - Two walls are one kind by "the same cause in the structure".
-- "If a wall is only a small inefficiency and we can't fix it easily then
-  leave it ... we either can fix it cheaply (which is what the guide
-  documents) ... or if we dont expect anything in the wall ladder to fix
-  it, escalate all the way to the top." Then: "for now there is only cheap
-  and escalate to me."
 - On overfit: "this is the kind of knowledge that we just have about the
   project."
 
@@ -117,7 +123,10 @@ entry has the same fields. The October frames under each cause are this
 pass's placement from the research's rows (reasoned:
 `plans/wall-research/frames.md`, columns 3 and 4, re-read against the
 structure, no turn read). Each "Cheap fix" gives one or two worked cases.
-The other closes are in `frames.md`. Where this pass differs from the
+The other closes are in `frames.md`. "Not now, when" is not a decision to
+leave a wall. It is the reason a session may write in the frame when the
+fix waits, and the frame stays open on the stack (ruled: Roman, 2026-10-15,
+"try to fix everything", "Reasonably"). Where this pass differs from the
 research's placement, section 6 says so.
 
 ### Cause 1. His words change on a hop
@@ -163,8 +172,8 @@ research's placement, section 6 says so.
   `plans/frame243-brief-loop.md`). The design prices this cause's closes
   at 7 to 10 cycles a wall, the most of any kind (reasoned: the design's
   cost table, quoted in `plans/wall-method-fit-review.md` section 3).
-- **Leave it.** Never, when the effect reaches a merge or a page. A seat's
-  row then stands over his.
+- **Not now, when.** Never. The effect reaches a merge or a page, and a
+  seat's row then stands over his.
 - **Escalate.** When no door passes the rule of 2026-09-09, "would this
   door refuse a correct act by a stronger model? If yes, the check is a
   judgement" (ruled: `plans/operating-facts.md` lines 304 to 305), and the
@@ -201,7 +210,7 @@ research's placement, section 6 says so.
   `failed-fixes.md` row 2). A larger push is not the fix: "pushing more of
   the artefact is not the same as pushing the right part" (observed:
   `rota/DECISIONS.md` line 417).
-- **Leave it.** When the seat recovers the fact by a call the mode has, and
+- **Not now, when.** The seat recovers the fact by a call the mode has, and
   the cost is steps only.
 - **Escalate.** When the fact does not fit the window beside the brief,
   because every cap is his ruling (law 7).
@@ -234,7 +243,7 @@ research's placement, section 6 says so.
   `hello.main` and `self.runner.invoke` are still admitted (observed: frame
   230's review 1, via `plans/stack.md`). A door that enumerates shapes is a
   list the next shape escapes.
-- **Leave it.** When the harness catches it at the merge gate and the cost
+- **Not now, when.** The harness catches it at the merge gate and the cost
   is one attempt.
 - **Escalate.** When the fact is about the target project and a seat should
   learn it, because the Researcher is the one seat that brings the world
@@ -273,7 +282,7 @@ research's placement, section 6 says so.
   (observed: `plans/operating-facts.md`, the rulings on briefs and doors).
   One replay is one sample that whitespace moves (observed:
   `plans/frame243-brief-loop.md`).
-- **Leave it.** When the seat reaches the act by its second turn and no
+- **Not now, when.** The seat reaches the act by its second turn and no
   door loops it.
 - **Escalate.** Never for the shape. The brief is the session's to write
   and measure (ruled: Roman, 2026-09-02, "the system prompt is where the
@@ -319,7 +328,7 @@ research's placement, section 6 says so.
   reminder" (ruled: Roman, 2026-10-15 00:51 UTC). A door on the judgement:
   "every judgement-shaped guard regressed a register case or gained nothing"
   (observed: `plans/operating-facts.md`, 2026-09-02).
-- **Leave it.** When a downstream check catches the act every time and the
+- **Not now, when.** A downstream check catches the act every time and the
   cost is steps: a challenge, the Critic on `gemma3:12b`, the merge gate.
   The Critic case no 8B passes runs on the larger model and is not fixed
   (observed: `small-model.md` H1, 2026-09-12).
@@ -358,7 +367,7 @@ research's placement, section 6 says so.
   (observed: `failed-fixes.md` row 10). A premise read from the status
   line: frame 112's design was "wrong in two parts" at the scope read
   (observed: `failed-fixes.md` row 6).
-- **Leave it.** When a cap bounds the repeat and the cost is wakes only.
+- **Not now, when.** A cap bounds the repeat and the cost is wakes only.
   Frame 112 closed on the cap at three.
 - **Escalate.** When the rows are what he sees (cause 11), or the rule
   enforces a law: the cascade (law 9), the single writer (law 1), the
@@ -390,7 +399,7 @@ research's placement, section 6 says so.
   for a transport hint" (observed: `plans/operating-facts.md`, 2026-09-12).
   A one-time nudge: frame 152's fence nudge was spent on a reply with no
   test, frame 175 (observed: `frames.md`).
-- **Leave it.** Frame 113, a Developer writes its own tool results, is
+- **Not now, when.** Frame 113, a Developer writes its own tool results, is
   parked at 29 of 35 sessions, and frame 232's cut at the protocol boundary
   bounds its cost (observed: `small-model.md` E1; `frames.md`).
 - **Escalate.** Never. The runner is wiring.
@@ -434,8 +443,12 @@ research's placement, section 6 says so.
   nights, unproved on a night (observed: `failed-fixes.md` B.2). Across the
   26 named doors, 2 held on a later night, 7 did not, and 17 have no later
   count (observed: `doors.md`, 2026-10-15).
-- **Leave it.** When the door had 0 cases over three nights and its unit
-  test is green: close by the door test and let the residue rule reopen.
+- **Close rule.** A door with 0 cases over three nights and a green unit
+  test closes its frame on the door test, and the count line stays in the
+  night read so a later fire reopens the frame by the residue rule (ruled:
+  Roman, 2026-10-15, "Yeah", on the recommended answer of section 5's
+  former question 3). Frames 228 and 229 closed that way.
+- **Not now, when.** Never. A door is one or two cycles.
 - **Escalate.** When the predicate would read his words for a meaning
   (cause 1), or would bound a judgement: slicing, triage, review (ruled:
   Roman, 2026-09-02, "prompts over guards"). Already ruled for his rows:
@@ -475,7 +488,7 @@ research's placement, section 6 says so.
   advice opened a hole (observed: `plans/operating-facts.md` line 356). The
   hint "prefix it with what it is" produced `c_` plus the item id
   (observed: `plans/operating-facts.md` line 319, 2026-09-01).
-- **Leave it.** When the wrong step costs one refused turn and the seat
+- **Not now, when.** The wrong step costs one refused turn and the seat
   then takes the right one.
 - **Escalate.** Never. The text is wiring. 44 of 118 October walls sit in
   code an earlier fix wrote (reasoned: `plans/wall-research.md` finding 1,
@@ -508,7 +521,7 @@ research's placement, section 6 says so.
   the list of what this session is for". `decisions.author` on the Vision
   Keeper relay wrote 14 decisions. Relay tools on the Liaison took G1 from
   10 of 10 to 0 of 5 (observed: `plans/operating-facts.md`, 2026-09-09).
-- **Leave it.** When the act climbs the ladder and lands one rung up at a
+- **Not now, when.** The act climbs the ladder and lands one rung up at a
   bounded cost (law 6).
 - **Escalate.** When the route is new, because who talks to whom is the
   composition's, and law 3 derives every edge. Frame 114's route was
@@ -536,7 +549,7 @@ research's placement, section 6 says so.
   `frames.md`).
 - **Overfits.** A route change per row kind. Frame 190's residue became
   193, then 198 and 185's path (observed: `frames.md`, column 9).
-- **Leave it.** Never on a page.
+- **Not now, when.** Never. A page costs the scarcest budget.
 - **Escalate.** Always, as a design question, because what the principal
   sees is the composition's (ruled: Roman, 2026-10-09 10:31, frame 190;
   2026-10-12 23:52).
@@ -560,7 +573,7 @@ research's placement, section 6 says so.
   open.
 - **Overfits.** A door on one record that reads the other's words: frame
   202's surface-move door is a phrase list, held on one case.
-- **Leave it.** When the cascade reaches the second record on the next
+- **Not now, when.** The cascade reaches the second record on the next
   wake.
 - **Escalate.** Which record wins is a law question (law 1, law 9, law 11's
   ranks).
@@ -584,7 +597,7 @@ research's placement, section 6 says so.
 - **Overfits.** A fix to the seat for an instrument's fault. Finding 79:
   "the instrument was the wall. The model was never the wall" (observed:
   `plans/operating-facts.md`, 2026-09-15).
-- **Leave it.** Never. A wrong instrument misplaces every other cause.
+- **Not now, when.** Never. A wrong instrument misplaces every other cause.
 - **Escalate.** Never. Say the count that lied in the register.
 - **October frames, 2:** 207, 235.
 
@@ -606,7 +619,7 @@ research's placement, section 6 says so.
   one test on that state (reasoned: frame 150's ends-when, 2026-10-05).
 - **Overfits.** A door on the wake's text. The fault is the tree, not the
   wake.
-- **Leave it.** Never. The composition's sentence is absolute.
+- **Not now, when.** Never. The composition's sentence is absolute.
 - **Escalate.** Never. The clean-workspace rule returned on 2026-09-16 for
   this sentence (ruled: Roman, 2026-09-16, the composition, Open).
 - **October frames, 1:** 150.
@@ -631,7 +644,7 @@ research's placement, section 6 says so.
 - **Overfits.** A door on the lines' shape: frame 180's lines check admitted
   `import json`, and frame 201 loops a Critic case to no verdict (observed:
   `frames.md`; `failed-fixes.md` B.3).
-- **Leave it.** Never. A merge on an unchecked conclusion is the composition's
+- **Not now, when.** Never. A merge on an unchecked conclusion is the composition's
   "no work stays invisible" broken.
 - **Escalate.** When the pointer's shape changes what a finding carries,
   because law 2 fixes it: ids and states, no `why` column.
@@ -664,8 +677,9 @@ instance, so its walls are the same walls one level up.
   and 190, were that (observed: the fit review section 2).
 - **Overfits.** A sign table. One sign can come from five causes, and a
   session that enters by sign reaches for the cheapest cause's fix.
-- **Leave it.** A wall the session cannot name after a scope read and an
-  interview is a wall for the next night's read, with its count.
+- **Not now, when.** The session cannot name the wall after a scope read
+  and an interview. The frame stays open with that reason and its count,
+  and the next night's read takes it.
 - **Escalate.** Three failed moves, a wall that survives three cycles, or a
   change at the composition (ruled: `CLAUDE.md`).
 
@@ -767,45 +781,36 @@ interview. The interview is step 7's own step.
    context, one cycle. The seat did not read the fact: cause 4. The seat
    read it and judged against it: cause 5, and the ruling in cause 5
    applies before any escalation.
-8. **Decide.** The cause's cheap fix with its count, when the entry has one
-   and the count is in hand. Leave it, when the entry's "leave it" holds and
-   the cost is steps only, and write the close as left, with the number.
-   Escalate to Roman, when the entry's "escalate" holds, as the problem at
-   the composition's level, with the rulings the entry cites, so the
-   question is only what is open. Before any question, two reads: what the
-   records say, and whether the recommended answer holds against the
-   frame's evidence (ruled: Roman, 2026-10-04 14:52).
+8. **Decide.** Three ends, beside the case added to an open frame in step
+   1. The cheap fix with its count, when the entry has one and the count is
+   in hand. The escalation to Roman, when the entry's "escalate" holds, as
+   the problem at the composition's level, with the rulings the entry cites,
+   so the question is only what is open. Or an open frame with its reason
+   written, when the entry's "not now, when" holds: the frame stays on the
+   stack, visible, and is never closed as left (ruled: Roman, 2026-10-15,
+   "try to fix everything", "Reasonably"). Before any question, two reads:
+   what the records say, and whether the recommended answer holds against
+   the frame's evidence (ruled: Roman, 2026-10-04 14:52).
 
 ## 5. For Roman
 
-Two questions the structure and the evidence do not settle. Each is a
-story with a recommended answer and a rating. Two earlier questions left
-this section: a seat that judges against his words is now the ruling in
-cause 5, and whether a door may read his words is answered by the rule of
-2026-09-09, cited in cause 1 and section 3.
+No question is open for Roman as of 2026-10-15. The four this guide
+raised are rulings now, each cited where it applies:
 
-### Question 1 [low]. When the alarm never rings
-
-A shop installs an alarm after a break-in. For three nights nothing
-happens. Today the shop calls the alarm proven on its bench test alone, and
-two frames closed that way, 228 and 229 (observed: `failed-fixes.md` B.2).
-The alternative keeps the frame open until the alarm rings once.
-
-Recommended: close on the door's unit test after three nights at 0 of 0,
-with the count line kept in the night read so a later fire reopens the
-frame by the residue rule. Rated low: it sets an order and no edit depends
-on it.
-
-### Question 2 [low]. What "a small inefficiency" is
-
-A workshop has a drawer that sticks. Every job takes a minute longer and no
-job is wrong. Roman ruled that such a wall is left when it cannot be fixed
-easily. The records measure a night in steps, asks, dollars and minutes
-(observed: `plans/night148-read.md`, section 13.3, via the stack).
-
-Recommended: a wall is small when it reaches no page and no merge, a cap
-bounds it, and it costs steps or card time only. The night's steps and asks
-are the measure. Rated low.
+- A seat that reads his words and judges against them: the ruling in cause
+  5 (ruled: Roman, 2026-10-15, "That sounds rare, we have to interview the
+  model, if it's just so weak then we have to be sure of it").
+- Whether a door may read his words: the rule of 2026-09-09, cited in cause
+  1 and section 3.
+- The door that never fires: cause 8's close rule (ruled: Roman,
+  2026-10-15, "Yeah", on the recommended answer: a frame closes after three
+  nights at 0 of 0 on the door's unit test, and the count line stays in the
+  night read so a later fire reopens the frame by the residue rule).
+- What a small inefficiency is: section 0 (ruled: Roman, 2026-10-15, "I
+  guess if we don't detect it then it's not that big of a deal, but ignore
+  this, try to fix everything", then "Reasonably"). There is no decision to
+  leave a wall. Every wall a read names is fixed cheaply, escalated, or
+  held open with its reason written.
 
 ## 6. What this pass could not settle
 
