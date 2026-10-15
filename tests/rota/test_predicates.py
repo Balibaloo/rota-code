@@ -2458,3 +2458,57 @@ def test_an_amend_with_no_answer_leaves_the_escalation_owed(db):
     _commit(db, "s7", "architect", "m7", writes=[Write(
         "constraints", "k_1", {"headline": "h", "text": "t2", "is_global": 1})])
     assert _status(db, "m7") == ("unresolved", UNRECEIVED)
+
+
+# Frame 245 (2026-10-15): `tick:unresolved` escalated a challenge after its
+# test went green. Wall guide cause 6: the row outlives its cause.
+
+def _night148_challenge(conn, result: str) -> None:
+    """Night 148's m76 chain, rows inline: a Developer challenge on a test.
+
+    The Tester's s195 sent nothing, so m76 is unresolved. The harness then
+    ran attempt 4 with the given result for the test the challenge names.
+    """
+    conn.execute("INSERT INTO items (id, text, kind) "
+                 "VALUES ('i1','version_option show_python','in_scope')")
+    conn.execute("INSERT INTO batches (id, item_id, status) "
+                 "VALUES ('bg_3','i1','running')")
+    conn.execute("INSERT INTO tickets (id, item_id, text) "
+                 "VALUES ('tk_1','i1','show python')")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) "
+                 "VALUES ('ver_opt_show_py','tk_1','the python version "
+                 "is appended to the normal version message')")
+    conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                 "VALUES ('tst_ver_opt_show_py','bg_3','ver_opt_show_py',"
+                 "'tests/test_version_option_show_python_flag.py','b')")
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                 "verb, body_refs, body_text, seq, status, unresolved_note) "
+                 "VALUES ('m76','m76','developer','tester','challenge',"
+                 "'[\"ver_opt_show_py\", \"tst_ver_opt_show_py\", "
+                 "\"d_f422882cbd\"]','assert expected_version in "
+                 "result.output',79,'unresolved','the session woken by it "
+                 "wrote nothing and sent nothing')")
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, result, "
+                 "attempt) VALUES ('tr112','bg_3','tst_ver_opt_show_py',"
+                 "?,4)", (result,))
+    conn.commit()
+
+
+def test_a_challenge_on_a_test_green_at_its_newest_run_does_not_climb(db):
+    """Night 148: run 4 passed, and s200 and s201 still woke on m76.
+
+    s201 reported, and the Liaison asked the principal about a passing
+    test at m81. The green run answers the challenge, so no rung wakes.
+    """
+    from rota.core.predicates import unresolved
+
+    _night148_challenge(db, "pass")
+    assert unresolved(db) == [], "the test passed, so the challenge is moot"
+
+
+def test_a_challenge_on_a_test_red_at_its_newest_run_still_climbs(db):
+    """The ladder still holds for a red test (law 6)."""
+    from rota.core.predicates import unresolved
+
+    _night148_challenge(db, "fail")
+    assert [w.role for w in unresolved(db)] == ["architect"]

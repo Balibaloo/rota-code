@@ -1128,8 +1128,8 @@ def unresolved(conn) -> list[Wake]:
     from ..design import graph as graph_mod
 
     rows = conn.execute(
-        "SELECT id, from_role, thread_id, unresolved_note FROM messages "
-        "WHERE status = 'unresolved' ORDER BY seq").fetchall()
+        "SELECT id, from_role, thread_id, verb, body_refs, unresolved_note "
+        "FROM messages WHERE status = 'unresolved' ORDER BY seq").fetchall()
     if not rows:
         return []
 
@@ -1141,6 +1141,13 @@ def unresolved(conn) -> list[Wake]:
 
     wakes = []
     for r in rows:
+        # Frame 245, wall guide cause 6: the row outlives its cause. A
+        # challenge names a red test. A green newest run answers the
+        # challenge, and the status row does not change. Night 148 woke two
+        # rungs on m76 after run 4 passed. The Liaison then asked the
+        # principal about a passing test at m81.
+        if r["verb"] == "challenge" and _tests_green(conn, r["body_refs"]):
+            continue
         # The Tester's criteria-ref questions belong to `criterion_repair`,
         # which wakes the criterion's writer in a mode that can rewrite it.
         # Ceded here rather than raced: two predicates offering one question
@@ -1222,6 +1229,28 @@ def _woken_for(conn, msg_id: str,
             "WHERE s.committed = 1 AND s.wake_kind = 'tick:unresolved' "
             "  AND j.value = ?", (msg_id,))}
     return roles
+
+
+def _tests_green(conn, body_refs: str | None) -> bool:
+    """
+    True when the refs name a test with a run, and every such test passes.
+
+    The newest run of the test's own batch counts, because an inherited test
+    keeps its id across batches (frame 210). A ref with no run is not a test
+    the harness has spoken about, so it does not count either way.
+    """
+    seen = False
+    for ref in _refs_of(body_refs):
+        row = conn.execute(
+            "SELECT tr.result FROM test_runs tr JOIN tests t ON t.id = tr.test_id "
+            "WHERE tr.test_id = ? AND tr.batch_id = t.batch_id "
+            "ORDER BY tr.rowid DESC LIMIT 1", (ref,)).fetchone()
+        if row is None:
+            continue
+        if row["result"] != "pass":
+            return False
+        seen = True
+    return seen
 
 
 def _names_a_criterion(conn, message_id: str) -> bool:
