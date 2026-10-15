@@ -498,6 +498,35 @@ def _contest_block(conn, rows: list) -> str:
     return "\n".join(lines)
 
 
+def _files_contest_block(inbound: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """
+    The message to show, and the principal's words on a files contest.
+
+    On a relay that contests a batch's touch list, his words leave
+    `principal_said` and stand in a block under the list, as frame 243 puts
+    contest words under `[criteria.load]`. On night 148, s152 and s119 read
+    his words in `principal_said` and kept the files he declined. Try 2's
+    shape E, this block with the annotate brief's dispute sentence, moved
+    s152 in 5 of 5 and s119 in 3 of 5, and broke 0 of 15 right calls
+    (`plans/frame244-try-2.md`, 2026-10-15). The inbound itself keeps the
+    words for the session row. Any other message shows as before.
+    """
+    touch = inbound.get("touch")
+    said = inbound.get("principal_said")
+    verdict = inbound.get("principal_verdict")
+    if not (isinstance(touch, dict) and said and isinstance(verdict, dict)):
+        return inbound, ""
+    contested = [b for b in touch if verdict.get(b) == "contest"]
+    if not contested:
+        return inbound, ""
+    shown = {k: v for k, v in inbound.items() if k != "principal_said"}
+    lines = ["he contested these files:"]
+    for b in contested:
+        lines += (touch[b] or {}).get("expected", [])
+    lines.append(f"he said: {said}")
+    return shown, "\n".join(lines)
+
+
 def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                  pushed: dict[str, Any], instructions: str,
                  inbound: dict[str, Any] | None = None,
@@ -567,7 +596,10 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     if inbound:
         body.append("\nThe reports that came back:" if "reports" in inbound
                     else "\nThe message that woke you:")
-        body.append(json.dumps(inbound, indent=2, default=str))
+        shown, block = _files_contest_block(inbound)
+        body.append(json.dumps(shown, indent=2, default=str))
+        if block:
+            body.append("\n" + block)
     if pushed:
         # Say that these have *already run*. Without it a survey session spent
         # four of its eight turns calling `code.survey` again -- the results were
@@ -1859,8 +1891,9 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     if resolved:
         out["resolved_refs"] = resolved
     # A ruling on a batch line corrects the prediction, so the Architect sees
-    # the prediction it corrects. The brief says to keep every path the words
-    # do not dispute (frame 190's design, 2.2, the batch line, point 6).
+    # the prediction it corrects. The brief says to drop a path the words
+    # dispute and keep the others (frame 190's design, 2.2, the batch line,
+    # point 6; frame 244's try 2, shape C).
     from .scheduler import batch_relay
 
     if row["verb"] == "relay" and batch_relay(conn, trigger):

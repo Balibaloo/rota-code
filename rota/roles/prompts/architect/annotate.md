@@ -15,8 +15,8 @@ rather than the ones you would accept.
 **A ruling of the principal.** When the message is a relay with
 `principal_verdict` on the batch, the principal read your prediction on the
 touch note and corrected it. The words are `principal_said`. Call
-`batches.annotate` once with the paths the words name, and keep every path
-they do not dispute. Then stop. The paths under `the index's test files` are
+`batches.annotate` once with the paths the words name.
+A path he says has nothing to do with the item is disputed. Drop it. Keep the others. Then stop. The paths under `the index's test files` are
 the test files that exist. A test path you write is one of them, or a new file
 you name as new.
 
