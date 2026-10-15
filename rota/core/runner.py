@@ -109,6 +109,14 @@ def routed_pins(conn: sqlite3.Connection, pins: "llm.Pins", wake: Wake) -> "llm.
     the run's pins for that model. Rebuilding Pins from three fields dropped
     every other pin on the way to a night; the profile's per-model think
     (finding 81, 2026-09-15) is the one that mattered.
+
+    The Architect's relay wake runs with think on, and every other wake
+    keeps the profile's think (frame 244, pass 2b). On 2026-10-15, think on
+    left the declined files in 0 of 5 samples on s152, s119 and s172, and
+    in 4 or 5 of 5 on s125. With think off they stayed on all four seats
+    (`f244/p2_think_replay.out`, `f244/p2_think_replay_148.out`). On night
+    149 the rule reaches 5 Architect relay wakes, and 2 of 5 contest a
+    batch's files.
     """
     import dataclasses as _dc
     routed = config_mod.routed_model(
@@ -127,8 +135,12 @@ def routed_pins(conn: sqlite3.Connection, pins: "llm.Pins", wake: Wake) -> "llm.
         window = (prof.context or {}).get(wake.role) if prof else None
     except Exception:
         think = None
-    if not routed and not window:
+    relay_think = (wake.role == "architect" and wake.kind == "message"
+                   and wake.detail == "relay")
+    if not routed and not window and not relay_think:
         return pins
+    if relay_think:
+        think = True
     return _dc.replace(pins, model=model,
                        think=think if think is not None else pins.think,
                        num_ctx=window if window else pins.num_ctx)
@@ -557,6 +569,14 @@ def _files_contest_block(inbound: dict[str, Any]) -> tuple[dict[str, Any], str]:
     s152 in 5 of 5 and s119 in 3 of 5, and broke 0 of 15 right calls
     (`plans/frame244-try-2.md`, 2026-10-15). The inbound itself keeps the
     words for the session row. Any other message shows as before.
+
+    The block never lists a path of `expected` or `possible`. The night-149
+    interview found that s125 and s172 read the old heading, "he contested
+    these files", as his own list of the files the change touches
+    (`plans/frame244-interview-2.md`, 2026-10-15). That list was the touch
+    note's prediction, with kept files beside declined ones. So the block
+    lists the parser's disputed paths alone. When the parser found none,
+    the block lists no path and points to his words.
     """
     touch = inbound.get("touch")
     said = inbound.get("principal_said")
@@ -567,10 +587,19 @@ def _files_contest_block(inbound: dict[str, Any]) -> tuple[dict[str, Any], str]:
     if not contested:
         return inbound, ""
     shown = {k: v for k, v in inbound.items() if k != "principal_said"}
-    lines = ["he contested these files:"]
+    disputed: list[str] = []
     for b in contested:
-        lines += (touch[b] or {}).get("expected", [])
-    lines.append(f"he said: {said}")
+        for path in (touch[b] or {}).get("disputed") or ():
+            if isinstance(path, str) and path not in disputed:
+                disputed.append(path)
+    if disputed:
+        lines = ["The principal said these files have nothing to do with "
+                 "this change. Leave them out:", *disputed]
+    else:
+        lines = ["The principal said that some of the files above have "
+                 "nothing to do with this change. His words name them. "
+                 "Leave them out."]
+    lines.append(f"He said: {said}")
     return shown, "\n".join(lines)
 
 

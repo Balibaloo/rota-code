@@ -205,6 +205,22 @@ def test_a_wake_runs_with_the_profiles_think_for_its_model(tmp_path):
     # The role's own window reaches the session (night 81, 2026-09-16).
     assert developer.num_ctx == 16384
 
+def test_the_architects_relay_wake_thinks(tmp_path):
+    """Frame 244, pass 2b: thinking moved the re-annotate after a files
+    contest on 3 of 4 seats in replay (2026-10-15). The rule reaches the
+    Architect's relay wake alone, with or without a profile."""
+    from rota.core.runner import routed_pins
+    from rota.core.scheduler import Wake
+    from rota.llm import llm
+    db = init_db(tmp_path / "r.db")
+    base = llm.Pins(model="qwen3:8b", num_ctx=16384)
+    relay = routed_pins(db, base, Wake("architect", "message", message_id="m76", detail="relay"))
+    assert relay.think is True
+    assert relay.model == "qwen3:8b" and relay.num_ctx == 16384
+    liaison = routed_pins(db, base, Wake("liaison", "message", message_id="m76", detail="relay"))
+    tick = routed_pins(db, base, Wake("architect", "tick:annotate"))
+    assert liaison.think is None and tick.think is None
+
 def test_a_role_can_have_its_own_context_window():
     """Night 81 (2026-09-16): the Developer's wake overran the shared window."""
     from rota.llm.profile import Profile
