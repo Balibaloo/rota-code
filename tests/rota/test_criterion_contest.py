@@ -11,6 +11,8 @@ not name his contest. The texts below are the night's.
 from __future__ import annotations
 
 import json
+import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -358,3 +360,67 @@ def test_a_contest_of_a_criterion_line_keeps_the_text_it_contested(n132):  # noq
     (row,) = n132.execute("SELECT texts FROM rulings WHERE ask_id = ?",
                           (mid,)).fetchall()
     assert json.loads(row["texts"]) == {"cr_2_confirm_eof_behavior": text}
+
+
+# --- frame 243, a seat's supersede of the principal's decision -----------------
+
+NIGHT148 = Path(__file__).resolve().parents[2] / ".rota" / "clickI_night148.db"
+
+
+def _night148_decisions() -> dict:
+    """The principal's d_565d2845d4 and s189's d_74_challenge_ver_opt_show_py,
+    read from night 148's database."""
+    if not NIGHT148.exists():
+        pytest.skip("night 148's database is not in this checkout")
+    conn = sqlite3.connect(f"file:{NIGHT148.as_posix()}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        return {r["id"]: dict(r) for r in conn.execute(
+            "SELECT * FROM decisions WHERE id IN "
+            "('d_565d2845d4', 'd_74_challenge_ver_opt_show_py')")}
+    finally:
+        conn.close()
+
+
+def _seed_decision(conn, row: dict) -> None:
+    conn.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+                 "(?, ?, ?, ?)", (row["id"], row["author"], row["text"],
+                                  row["refs"]))
+    conn.commit()
+
+
+def test_night148_s189_supersedes_the_principals_decision_is_refused(db):
+    """Frame 243, night 148: s189, turn 1, wrote its decision with
+    supersedes on d_565d2845d4, the principal's signoff decision, and the
+    call landed. The door refuses it and offers the call without
+    supersedes."""
+    rows = _night148_decisions()
+    principal, s189 = rows["d_565d2845d4"], rows["d_74_challenge_ver_opt_show_py"]
+    assert principal["author"] == "principal"
+    _seed_decision(db, principal)
+    vk = build("vision_keeper", db, mode="normal")
+    refs = json.loads(s189["refs"])
+    with pytest.raises(ValueError) as exc:
+        vk.call("decisions.author", id=s189["id"], text=s189["text"],
+                refs=refs, supersedes=s189["supersedes"])
+    assert str(exc.value) == (
+        "`d_565d2845d4` is the principal's decision. A seat's decision does "
+        "not replace his. Send the same call again without supersedes.")
+    assert not [w for w in vk.ctx.writes if w[0] == "decisions"]
+    [offer] = [o for o in vk.ctx.offers if o.op == "decisions.author"]
+    assert offer.args == {"id": s189["id"], "text": s189["text"], "refs": refs}
+    assert "supersedes" not in offer.args
+
+
+def test_a_seats_supersedes_on_another_seats_decision_is_admitted(db):
+    """Frame 243: the door reads the author. A Vision Keeper that supersedes
+    an Architect's decision lands as before."""
+    _seed_decision(db, {"id": "d_arch_1", "author": "architect",
+                        "text": "the flag is a keyword argument", "refs": "[]"})
+    vk = build("vision_keeper", db, mode="normal")
+    out = vk.call("decisions.author", id="d_vk_1",
+                  text="the flag is a keyword argument of version_option",
+                  refs=[CID], supersedes="d_arch_1")
+    assert out["id"] == "d_vk_1"
+    [(_t, _id, row, *_)] = [w for w in vk.ctx.writes if w[0] == "decisions"]
+    assert row["supersedes"] == "d_arch_1"

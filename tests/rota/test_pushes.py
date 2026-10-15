@@ -1,5 +1,11 @@
 """What a wake pushes, read as the person doing the job would (the wake
 audit, plans/wake-audit.md)."""
+import json
+import sqlite3
+from pathlib import Path
+
+import pytest
+
 from rota.core.db import init_db
 from rota.core.runner import push_working_set
 from rota.core.sandbox import build
@@ -185,3 +191,92 @@ def test_a_quarantined_tick_names_the_batch_it_stalled_on(tmp_path):
     wakes = P.quarantined(db)
     assert wakes and wakes[0].refs == ("bg_2",)
     assert "batch_start for bg_2 (developer), 3 attempts" in wakes[0].detail
+
+
+# --- frame 243, the contest words beside the criterion ------------------------
+
+NIGHT148 = Path(__file__).resolve().parents[2] / ".rota" / "clickI_night148.db"
+CRIT148 = "ver_opt_show_py"
+# The label is the wake's text, so the test names it whole.
+CONTEST_WORDS_KEY = "the principal said, contesting it"
+
+
+def _night148_ruling() -> dict:
+    """Ruling r_4c8fd5d3ad of night 148, read from the run's database."""
+    if not NIGHT148.exists():
+        pytest.skip("night 148's database is not in this checkout")
+    conn = sqlite3.connect(f"file:{NIGHT148.as_posix()}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        ruling = dict(conn.execute("SELECT * FROM rulings WHERE id = "
+                                   "'r_4c8fd5d3ad'").fetchone())
+        text = conn.execute("SELECT text FROM criteria WHERE id = ?",
+                            (CRIT148,)).fetchone()["text"]
+    finally:
+        conn.close()
+    return {**ruling, "criterion_text": text}
+
+
+def _seed148(tmp_path, ruled: dict | None):
+    """Night 148's bg_3 with its criterion, and the contest ruling when one
+    is given."""
+    db = init_db(tmp_path / "rota.db")
+    text = ruled["criterion_text"] if ruled else "the version message ends with the Python version"
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('version_option_show_python', 'show_python on version_option', "
+               "'in_scope', 'approved', 1, 1)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES "
+               "('bg_3', 'version_option_show_python', 'running')")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk_1', 'version_option_show_python', 'show_python on version_option')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_3', 'tk_1')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES (?, 'tk_1', ?)",
+               (CRIT148, text))
+    if ruled:
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                   "body_refs, seq) VALUES (?, ?, 'liaison', 'principal', 'present', "
+                   "?, 1)", (ruled["ask_id"], ruled["ask_id"], json.dumps([CRIT148])))
+        db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, texts) "
+                   "VALUES (?, ?, ?, ?, 'landed', ?)",
+                   (ruled["id"], ruled["ask_id"], ruled["per_item"], ruled["words"],
+                    ruled["texts"]))
+    db.commit()
+    return db
+
+
+def _criteria_push(db, role: str, mode: str, kind: str) -> list:
+    sb = build(role, db, batch_id="bg_3", mode=mode,
+               allow=prompts.mode_tools(role, mode))
+    pushed = push_working_set(role, sb, Wake(role, kind, refs=("bg_3",)))
+    assert "criteria.load" in pushed, sorted(pushed)
+    return pushed["criteria.load"]
+
+
+WAKES148 = [("developer", "batch_start", "tick:batch_start"),
+            ("tester", "tests_missing", "tick:tests_missing")]
+
+
+@pytest.mark.parametrize("role,mode,kind", WAKES148, ids=["developer", "tester"])
+def test_night148_the_builders_wake_carries_his_contest_words(tmp_path, role, mode, kind):
+    """Frame 243, night 148: s190 built bg_3 from the criterion alone, and
+    its prompt held no word of r_4c8fd5d3ad. The words now sit beside the
+    criterion's text, verbatim, in the Developer's and the Tester's wake."""
+    ruled = _night148_ruling()
+    db = _seed148(tmp_path, ruled)
+    (row,) = _criteria_push(db, role, mode, kind)
+    keys = list(row)
+    assert keys[keys.index("text") + 1] == CONTEST_WORDS_KEY
+    assert row[CONTEST_WORDS_KEY] == [ruled["words"]]
+    assert ("not replace that message with just the command name and the "
+            "Python version") in row[CONTEST_WORDS_KEY][0]
+
+
+@pytest.mark.parametrize("role,mode,kind", WAKES148, ids=["developer", "tester"])
+def test_a_criterion_with_no_contest_ruling_shows_nothing_new(tmp_path, role, mode, kind):
+    """Frame 243: a criterion the principal never contested keeps the row
+    the wake pushed before."""
+    db = _seed148(tmp_path, None)
+    (row,) = _criteria_push(db, role, mode, kind)
+    assert CONTEST_WORDS_KEY not in row
+    assert set(row) <= {"id", "ticket_id", "text", "term_refs", "surface_refs",
+                        "tested_by"}
