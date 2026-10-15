@@ -24,6 +24,21 @@ holds the judgement.
   Opus, two Fable reviews, the block in `CLAUDE.md` is the second review's
   text, marked proposed. A `[high]` notification asks Roman to rule it.
 
+## Roman's re-scope at 10:5x, read first
+
+Frame 251 is no longer a method to rule. Roman: "I just want to spend time
+to reason about all the kinds of problems that we can have with walls in
+rota and make a reasoning guide for future sessions to offload that work
+off them." The judge at the merge gate was declined as the next design
+frame. Your first act: a design pass on Opus for `plans/wall-guide.md`,
+the kinds of walls placed under the composition's lines, each with how it
+shows on a night, how to tell it apart, what closed it and what failed
+with the archive's counts, and the questions to ask; then the grill with
+Roman in the terminal, one kind at a time; then a Fable review; then
+`CLAUDE.md` points at the guide and tonight's block shrinks to that
+pointer. The fit review, `plans/wall-method-fit-review.md`, holds the
+month's counts; the two method reviews hold what a method must not do.
+
 ## What I believe and why
 
 - The method's block is right in shape and will be ruled with small
