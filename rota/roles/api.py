@@ -8375,8 +8375,10 @@ _RULE_ARGS = ("rulings", "words", "ask")
 # "lines 2, 4 and 5", or a bare "4 is wrong" at the start of a sentence.
 # "Note 7" is line 7 too. The page calls lines 5 and up the team's notes, and
 # night 147's m131 faulted line 7 as "Note 7" (frame 234, pass 2).
+# "through" is a range word too. Night 149's m96 wrote "Lines 2 through 7",
+# and the reader read line 2 alone (frame 256).
 _LINE_REF = re.compile(
-    r"\b(?:lines?|notes?)\s+(\d+(?:\s*(?:to|-)\s*\d+)?(?:\s*,\s*\d+)*(?:\s*,?\s*and\s+\d+)?)"
+    r"\b(?:lines?|notes?)\s+(\d+(?:\s*(?:to|through|-)\s*\d+)?(?:\s*,\s*\d+)*(?:\s*,?\s*and\s+\d+)?)"
     r"|^\s*(\d+)(?=\s*(?:is\b|are\b|'s\b|:))", re.I | re.M)
 _LINE_FAULT = re.compile(
     r"\b(?:wrong|isn't right|is not right|goes too far|still|drop|remove|"
@@ -8396,7 +8398,7 @@ _BARE_AGREEMENT = re.compile(rf"\W*{_AGREE}(?:\W+{_AGREE})*\W*", re.I)
 
 def _ref_lines(ref: re.Match) -> set[int]:
     """The line numbers of one reference, with "N to M" read as a range."""
-    nums = re.findall(r"\d+|to|-", ref.group(1) or ref.group(2))
+    nums = re.findall(r"\d+|to|through|-", ref.group(1) or ref.group(2))
     lines: set[int] = set()
     for j, tok in enumerate(nums):
         if tok.isdigit():

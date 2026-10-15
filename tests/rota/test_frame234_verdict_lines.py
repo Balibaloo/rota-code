@@ -354,6 +354,18 @@ def test_a_note_number_is_a_line_reference():
     assert _line_reading("Notes 5 to 6 are fine.") == (set(), {5, 6})
 
 
+def test_through_reads_as_a_range():
+    from rota.roles.api import _line_reading
+
+    # Night 149's m96, its first sentence. The reader read line 2 alone, so
+    # the Liaison's contest of lines 3 to 7 met the door (frame 256).
+    m96 = ("Lines 2 through 7 still say confirm raises a usage error, but "
+           "today it aborts, so please fix that wording.")
+    assert _line_reading(m96) == (set(range(2, 8)), set())
+    assert _line_reading("notes 8 through 11 are fine") == (
+        set(), set(range(8, 12)))
+
+
 def test_s171s_contest_of_a_line_the_words_do_not_name_is_refused():
     out = _refusal(M65, {2, 3, 7, 8}, 9)
     assert out is not None
