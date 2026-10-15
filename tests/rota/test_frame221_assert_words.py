@@ -261,6 +261,55 @@ def test_an_open_ruling_does_not_hide_a_landed_contest(db):
     assert out == {"id": "version_option_show_python"}
 
 
+S232 = ("Let confirm() take a default_on_eof flag: when stdin is closed it "
+        "returns the default instead of aborting. The flag default is passed "
+        "to confirm itself.")
+
+
+def _proposed(conn):
+    # Night 149's walk 3: the Architect's msg.propose_vision_keeper woke s232.
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, body_text, seq) VALUES ('m_prop', 't2', "
+                 "'architect', 'vision_keeper', 'propose', ?, 'a default "
+                 "passed to confirm', 2)",
+                 (json.dumps(["confirm_default_on_eof"]),))
+    conn.commit()
+    sb = build("vision_keeper", conn, mode="propose",
+               allow=prompts.mode_tools("vision_keeper", "propose"),
+               wake=Wake("vision_keeper", "message", message_id="m_prop",
+                         detail="propose"))
+    sb.ctx.trigger = "m_prop"
+    return sb
+
+
+def test_s232_a_propose_wake_does_not_rewrite_a_decided_item(db):
+    # Frame 129: s232's assert landed, the item went to version 3 and draft,
+    # and the scheduler cancelled the batch (plans/night149-read.md, W1).
+    sb = _proposed(db)
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="confirm_default_on_eof",
+                kind="in_scope", text=S232)
+    msg = str(err.value)
+    assert "confirm_default_on_eof is the principal's own words" in msg
+    assert "A propose wake does not rewrite them" in msg
+    assert msg.index("msg.report_liaison") < msg.index("decisions.author")
+    assert not _item_writes(sb)
+    row = db.execute("SELECT text, version FROM items "
+                     "WHERE id = 'confirm_default_on_eof'").fetchone()
+    assert (row["text"], row["version"]) == (CONFIRM, 1)
+
+
+def test_s232_text_on_a_landed_contest_takes_the_words_branch(db):
+    _ruling(db, "r_s232", {"confirm_default_on_eof": "contest"},
+            "Let confirm take a default. The flag defaults to False.")
+    sb = _contested(db, "confirm_default_on_eof")
+    with pytest.raises(ValueError, match="The new text says") as err:
+        sb.call("problem.assert", id="confirm_default_on_eof",
+                kind="in_scope", text=S232)
+    assert "the principal said" in str(err.value)
+    assert not _item_writes(sb)
+
+
 def test_an_item_the_wake_did_not_name_is_refused(db):
     _ruling(db, "r_landed", {"version_option_show_python": "contest"},
             VOPT_SAID)

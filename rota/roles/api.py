@@ -1322,10 +1322,15 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
                 f"not rewrite them. Send msg.report_liaison with the "
                 f"exhaustion and what the item should say, so the principal "
                 f"rules. Or answer with decisions.author")
-    # The relay mode offers no problem.assert, so the door reads no relay
-    # (the review of 81f27127, finding 7). The contested tick is the wake.
+    # A decided item is rewritten only under a contest on it. Night 149's
+    # s232, on a propose wake, rewrote confirm_default_on_eof, and the batch
+    # was cancelled (frame 129, plans/night149-read.md W1).
     if wake != "tick:contested":
-        return None
+        named = verb or wake or "this"
+        return (f"{id} is the principal's own words. A {named} wake does not "
+                f"rewrite them. Send msg.report_liaison with what the item "
+                f"should say, so the principal rules. Or answer with "
+                f"decisions.author")
     from ..core.runner import _resolve_contest
 
     # A contest on the item is a verdict on the item's own id. Night 146's
