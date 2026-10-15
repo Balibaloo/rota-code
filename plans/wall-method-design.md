@@ -147,7 +147,7 @@ give the recorded completion byte for byte. Three cases are on record.
   review's replay, 9 of 10 sessions equal to the byte).
 - Frame 237: the control did not reproduce. s187's turn 1 matched 80
   characters and then wrote `code.source` calls where the night wrote a
-  prose list, 3 of 3 runs (observed: `plans/frame237-interview.md`, section
+  prose list, 3 of 3 (reasoned: two prompts read, the review of 2026-10-15 point 9; not observed) runs (observed: `plans/frame237-interview.md`, section
   5; `plans/operating-facts.md`, the probe line of 2026-10-14).
 - Frame 135's seam probe: the control held at 3 of 4 turns (observed: the
   seam line in `plans/operating-facts.md`).
@@ -368,7 +368,7 @@ and down between the turns of one session").
    - **Right calls, by script.** "Broken" means the reply changes its call,
      its count or its form against the recorded right call. That is
      countable. The whole reply is scored, not the target call alone:
-     frame 237's candidate moved the form 3 of 3 and wrote 54 calls where
+     frame 237's candidate moved the form 3 of 3 (reasoned: two prompts read, the review of 2026-10-15 point 9; not observed) and wrote 54 calls where
      the brief asks for a few (observed: `plans/frame237-interview.md`,
      section 5); frame 243's line 1 moved s173's `cj_compact` and lost
      "TypeError" from `cj_serializable` (observed: the report, section 3).
@@ -514,7 +514,7 @@ The equivalent of the count has three parts.
 2. **Reach.** Count over every night's records how often the rule's input
    condition occurs, and how many of those the change alters. Frame 243's
    record-shape candidate counts the declined merges where the builder's
-   prompt lacked a ruling with words: 3 of 3 (observed: the review, section
+   prompt lacked a ruling with words: 3 of 3 (reasoned: two prompts read, the review of 2026-10-15 point 9; not observed) (observed: the review, section
    5). A reach of one, on a shape seen once, is not overfit by itself. It
    closes on its red test with three nights of no sign beside it (reasoned:
    the review, point 4).
@@ -731,7 +731,7 @@ rule.
 
 ```
 **A wall's fix comes from a loop. Each move is tried in its shortest loop
-before a pass** (ruled: Roman, 2026-10-15 02:22; `plans/wall-method-design.md`).
+before a pass** (proposed: frame 251, for Roman's ruling; `plans/wall-method-design.md`).
 
 On the first turn after a night's read, push one frame per wall: a `Site:`
 line, a pointer to the read's chain, and a status line with the placement,
