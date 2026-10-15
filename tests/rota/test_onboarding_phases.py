@@ -1992,6 +1992,31 @@ def test_blindspots_run_last_and_the_facts_are_mechanical(tmp_path):
     assert tick_blindspot(db) == []
 
 
+def test_the_gaps_name_a_quarantine_in_words_and_never_the_key(tmp_path):
+    """The Liaison copies each gap fact into a note the principal reads.
+    Night 148's page showed a raw key, and the principal asked at m12 what
+    it meant. So a fact holds words, and the constraint-zero quarantine
+    leaves the facts, as it leaves `render_state` since 865db3e6."""
+    from rota.roles.api import Ctx, code_gaps
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    # The rows of night 148's s89 and night 90's boundary quarantine.
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES ('-|tick:constraint_zero|', 3, 1, 1)")
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES "
+               "('architect|tick:boundary|@surface:.readthedocs.yaml', 3, 1, 0)")
+
+    facts = code_gaps(Ctx(conn=db, role="liaison"))["facts"]
+    assert not [f for f in facts if "tick:" in f or "|" in f], facts
+    assert not [f for f in facts if "constraint_zero" in f
+                or "constraint zero" in f], facts
+    boundary = [f for f in facts if ".readthedocs.yaml" in f]
+    assert boundary == ["The Architect could not finish settling the boundary "
+                        "of .readthedocs.yaml after 3 tries"], facts
+
+
 def test_vacuity_is_a_readings_verdict_for_empty_claims(tmp_path):
     """No quote required -- the finding is that no quote can bear on it --
     but the reading is: an unfounded verdict without opened files is

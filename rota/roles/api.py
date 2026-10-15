@@ -11532,10 +11532,29 @@ def code_gaps(ctx: Ctx) -> dict:
         if n >= 3:
             lines.append(f"{n} {ext} files no parser reads: their contents "
                          f"never reached a session")
-    quarantined = [r["tick_key"] for r in ctx.conn.execute(
-        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1")]
-    for q in quarantined[:6]:
-        lines.append(f"given up after the attempt bound: {q}")
+    # The Liaison copies each fact into a note, and the principal's page
+    # prints the note. So a fact holds words and never the tick key: night
+    # 148's page showed the key, and the principal asked at m12 what it
+    # meant (frame 246). The constraint-zero quarantine is the scheduler's
+    # own bookkeeping, so it leaves the facts, as in `render_state`.
+    kind_words = {"boundary": "settling the boundary of",
+                  "challenge": "checking the claim",
+                  "reconcile": "comparing the account with"}
+    quarantined = [(r["tick_key"], r["attempts"]) for r in ctx.conn.execute(
+        "SELECT tick_key, attempts FROM tick_attempts WHERE quarantined = 1 "
+        "AND tick_key NOT LIKE '%tick:constraint_zero%' ORDER BY tick_key")]
+    for key, attempts in quarantined[:6]:
+        parts = key.split("|")
+        role = parts[0] if parts[0] not in ("", "-") else ""
+        seat = ("The " + role.replace("_", " ").title()) if role else "The team"
+        kind = parts[1].replace("tick:", "") if len(parts) > 1 else ""
+        # A ref is `@area:name` or `@claim:table:id`. The name is the part
+        # a person knows, so the prefix goes.
+        refs = [r.rsplit(":", 1)[-1] if r.startswith("@") else r
+                for r in (parts[2] if len(parts) > 2 else "").split(",") if r]
+        what = ", ".join(refs) or "the whole project"
+        lines.append(f"{seat} could not finish {kind_words.get(kind, 'work on')} "
+                     f"{what} after {attempts} tries")
     checked = ctx.conn.execute(
         "SELECT COUNT(*) FROM survey_records WHERE area = '@prose'").fetchone()[0]
     if prose > 3 and checked:
