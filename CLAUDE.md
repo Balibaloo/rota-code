@@ -267,6 +267,39 @@ re-records the touched cases, and returns the diff and the result. You
 review from a context that never read the files. A one-line door is the
 exception. Bulk reading goes to agents, and an agent's full report goes to a file the brief names, with ten lines back. One frame per wall. One status line per cycle.
 
+**A wall's fix is chosen from a ladder of change kinds, and the kind is
+named in the frame before the pass** (ruled: Roman, 2026-10-15 01:54, "when we
+hit walls the solutions can range from simple to complex but there's only
+so many kind of changes we can make", after frame 243's first design was a
+four-condition word rule written from one night's sentence). The kinds,
+cheapest first:
+
+1. A door: a tool result at one call that states a fact and a step. Sound
+   only when the fact holds for every instance of the call, an API shape,
+   a record's owner, a path the criteria name. A door whose predicate
+   needs a word list taken from the case is a brief line in disguise, and
+   it goes up a rung.
+2. A call shape: a field on the call that turns a judgement into a
+   declared fact the door can check, `dropped` on a span write, `keeps` on
+   a respecify. The seat states what it did, and the door checks the
+   statement against the record.
+3. A predicate or a route: who wakes, when, and who receives a relay.
+4. A record shape: what a row carries to the seats that read it, so a
+   downstream seat reads the source and not a paraphrase.
+5. A brief line: the wording of a judgement. Only after the interview says
+   the seat lacked the sentence; a seat that had the sentence and judged
+   wrong is not moved by a second sentence.
+6. The reader: the judgement moves to a reader that can make it, the
+   principal on one line, or a stronger model for that one step, or an
+   executable check that the wrong result fails.
+7. The composition: who sees what and who rules. A grill to Roman.
+
+The overfit test, before any pass: state the fix's predicate without the
+night's words. If it cannot be stated, the rung is wrong. The interview
+places the case on the ladder: a seat that lacked a fact is rung 1 or 2,
+a seat that had the fact and judged wrong is rung 4 or above. A night's
+read names the rung beside each candidate, and the price follows the rung.
+
 Opus builds, Fable judges. An implementer or a sweeper runs on Opus.
 The session that holds the frame is Fable. The line was measured once
 and held (ruled: Roman, 2026-09-24 01:07, on frame 74's count: Opus 5.5
