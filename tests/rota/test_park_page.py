@@ -644,8 +644,12 @@ def _touch_reply(conn):
 def test_a_files_correction_of_a_built_batch_line_is_admitted(n133):
     """Night 133, s313: r_2e20813fbe contested bg_2, landed, and moved
     nothing. The principal's words reached no seat. M198 faults line 2, the
-    batch line, so the contest is admitted, and `land` keeps it for the
-    Architect (frame 255). Before frame 255 the door refused it."""
+    batch line, so the contest is admitted (frame 255). Before frame 255 the
+    door refused it. `land` keeps the contest for the Architect: see
+    `test_frame255_files_correction.py::
+    test_land_keeps_bg_2_and_the_relay_reaches_the_architect`. M198 does not
+    fault line 1, so a contest of the item is refused (frame 255, review 1,
+    finding 1)."""
     from rota.core.sandbox import build
     from rota.roles import prompts
 
@@ -656,9 +660,11 @@ def test_a_files_correction_of_a_built_batch_line_is_admitted(n133):
     sb = build("liaison", n133, mode="normal", session_id="s313",
                allow=prompts.mode_tools("liaison", "landing"))
     sb.ctx.trigger = "m198"
-    out = sb.call("rulings.rule", rulings={ITEM_133: "contest", "bg_2": "approve"},
-                  words=M198)
-    assert out["per_item"] == {ITEM_133: "contest", "bg_2": "approve"}
+    with pytest.raises(ValueError, match=(
+            r"The words fault line 2\. Line 1 is the request, and they do not "
+            r"fault it\. Rule line 2, and approve the rest\.")):
+        sb.call("rulings.rule", rulings={ITEM_133: "contest", "bg_2": "approve"},
+                words=M198)
 
 
 # Night 121's bg_2: five own tests red, cr_2's green.

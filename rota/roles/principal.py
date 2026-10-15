@@ -1706,6 +1706,11 @@ def _page_order(conn: sqlite3.Connection, ask: Ask) -> list[str]:
     """The rows the page numbers, as `rulings_rule` reads them. A ruling
     from `apply_rulings` carries no order, and the line numbers of the
     words need one."""
+    # This order can differ from the order the Liaison ruled on. The window
+    # is an earlier open ruling that lands first in the same `apply_rulings`
+    # loop and moves a row. The batch's line then shifts, and `land` drops
+    # the contest with no error (frame 255, review 1, finding 2). Night 150
+    # counts it before a frame stages the refs on the `rulings` row.
     row = conn.execute("SELECT body_text FROM messages WHERE id = ?",
                        (ask.message_id,)).fetchone()
     return render_page(conn, ask.verb, list(ask.refs),
@@ -1782,16 +1787,19 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     if (ask.message_id or "").startswith(SHIFT_ASK) and answer.verb == "verdict":
         return _land_shift(conn, ask, answer, ruling_id)
 
-    # A touch note is read, not ruled on (P4, R7: nothing waits on it). The
-    # batch's ref is never a row the principal rules, so it leaves the
-    # ruling; what is left, if it is all approve, is an acknowledgement --
+    # A touch note is read, not ruled on (P4, R7: nothing waits on it). A
+    # batch's ref leaves the ruling, except in two cases that keep a contest
+    # or a revise of it: before the head commit, and after the head commit
+    # when the words fault the batch's line (frame 190, frame 255). What is
+    # left, if it is all approve, is an acknowledgement --
     # the note closes and wakes nobody. A contest or revise on the item lands
     # as any ruling does: the owner amends it, the version moves, and the
     # revocation is what ends the batch (loop 6) -- the lever the note is for.
     # Before the build, a contest or a revise of the batch line stays in the
     # verdict, and the relay takes it to the Architect, who wrote the
-    # prediction (frame 190's design, 2.2, the batch line, point 2). An
-    # approve of it is still dropped.
+    # prediction (frame 190's design, 2.2, the batch line, point 2). After the
+    # head commit, a contest or a revise stays only when the words fault the
+    # line (frame 255, below). An approve of a batch line is always dropped.
     # Only a live batch keeps its line, and an approve of an item leaves a
     # touch note's verdict. A contest of the batch line kept the verdict
     # alive, and the item's approve then set a draft item approved off the
@@ -1866,8 +1874,9 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # first the other way (2026-09-03): `decisions.author` handed to the
     # relay mode drew fourteen decisions a session, five of five, on the
     # plain approve case too. The tool in the list was the invitation.
-    # (`per_item` is the ruling less any batch ref -- see the touch-note
-    # door above.)
+    # (`per_item` is the ruling less the batch refs that the touch-note door
+    # above drops. A contest or a revise of a batch line stays before the
+    # head commit, and after it when the words fault the line.)
     # A resume writes one `principal` row and no `items` row, so the item
     # returns to the state it held (frame 193's design, 2.F.4).
     resumed = [ref for ref, ruling in per_item.items() if ruling == "resume"]

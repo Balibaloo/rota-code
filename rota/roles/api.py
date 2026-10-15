@@ -8859,18 +8859,21 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # request, when the words faulted lines 3 and 5. Each cancelled a batch.
     if (words or "").strip() and not is_clarify and order:
         faulted, matched = set(read_faulted), set(read_matched)
-        # A fault of a built change's line is a fault of its item, because
-        # the batch door above sends that contest to the item (frame 142's
-        # design, 2.D). Night 133's s313 faulted bg_2 and contested line 1.
+        # A fault of a merged or abandoned change's line is a fault of its
+        # item, because the batch door above sends that contest to the item.
+        # A built change that is open keeps the fault on its own line: frame
+        # 255's door admits the contest there. 16 of 16 files corrections on
+        # nights 136 to 149 asked to keep the change, so an item contest
+        # beside them cancels what the principal wanted (frame 255, review 1,
+        # finding 1). Night 133's s313 faulted bg_2 and contested line 1.
         for n in list(faulted):
             if not 1 <= n <= len(order):
                 continue
             batch = ctx.conn.execute(
-                "SELECT item_id, head_commit, status FROM batches WHERE id = ?",
+                "SELECT item_id, status FROM batches WHERE id = ?",
                 (order[n - 1],)).fetchone()
             if batch is not None and batch["item_id"] in order and (
-                    batch["head_commit"]
-                    or batch["status"] in ("merged", "abandoned")):
+                    batch["status"] in ("merged", "abandoned")):
                 faulted.add(order.index(batch["item_id"]) + 1)
         contested = {i + 1 for i, r in enumerate(order)
                      if per_item.get(r) == "contest"}
