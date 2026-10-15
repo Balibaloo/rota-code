@@ -444,6 +444,54 @@ def _last_word_lines(conn, wake: Wake) -> list[str]:
     return lines
 
 
+CONTEST_WORDS_KEY = "the principal said, contesting it"
+
+
+def contest_words(conn, ref: str) -> list[str]:
+    """
+    The principal's words of every contest ruling on criterion `ref`, oldest
+    first.
+
+    The words come from the `rulings` row whole. A stale ruling does not
+    count, as in `last_ruling_on`. An empty list when no ruling contests
+    `ref` (frame 243).
+    """
+    words: list[str] = []
+    for r in conn.execute(
+            "SELECT per_item, words FROM rulings WHERE status != 'stale' "
+            "AND per_item LIKE ? ORDER BY rowid", (f'%"{ref}"%',)):
+        try:
+            verdict = json.loads(r["per_item"] or "{}").get(ref)
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if verdict == "contest" and r["words"]:
+            words.append(r["words"])
+    return words
+
+
+def _with_contest_words(conn, rows: list) -> list:
+    """
+    Each criterion row with the principal's contest words after its text.
+
+    A row with no contest ruling comes back unchanged, so a criterion he
+    never contested shows nothing new.
+    """
+    out = []
+    for r in rows:
+        said = (contest_words(conn, r["id"])
+                if isinstance(r, dict) and isinstance(r.get("id"), str) else [])
+        if not said:
+            out.append(r)
+            continue
+        row: dict = {}
+        for k, v in r.items():
+            row[k] = v
+            if k == "text":
+                row[CONTEST_WORDS_KEY] = said
+        out.append(row)
+    return out
+
+
 def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                  pushed: dict[str, Any], instructions: str,
                  inbound: dict[str, Any] | None = None,
@@ -2828,6 +2876,13 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # (frame 101, night 103).
     if "code.read" in pushed:
         pushed["code.read"] = pushed.pop("code.read")
+    # Frame 243, rung 5 of the ladder: the builder reads the source, not a
+    # paraphrase. Night 148's s190 built from the criterion alone and
+    # merged the format that ruling r_4c8fd5d3ad declined.
+    if role in ("developer", "tester") and isinstance(
+            pushed.get("criteria.load"), list):
+        pushed["criteria.load"] = _with_contest_words(
+            sb.ctx.conn, pushed["criteria.load"])
 
     # One read needs an argument the *wake* already knows, and leaving it to
     # the model cost the whole inquiry route.

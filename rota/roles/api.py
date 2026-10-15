@@ -9611,6 +9611,22 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
             "decisions.author", args))
     if supersedes and supersedes not in staged:
         _must_exist(ctx, "decisions", supersedes)
+    # Frame 243, the composition: "The tool never rules for the Principal".
+    # Night 148's s189 superseded his signoff decision d_565d2845d4.
+    if (supersedes and isinstance(supersedes, str) and ctx.role != "principal"
+            and supersedes not in staged):
+        over = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
+                                (supersedes,)).fetchone()
+        if over is not None and over["author"] == "principal":
+            args = {"id": id, "text": text, "refs": refs or []}
+            if resolves_ledger:
+                args["resolves_ledger"] = resolves_ledger
+            raise ValueError(_offer(
+                ctx,
+                f"`{supersedes}` is the principal's decision. A seat's "
+                f"decision does not replace his. Send the same call again "
+                f"without supersedes.",
+                "decisions.author", args))
     # Frame 200, pass 5, fix 7, which frame 219 inherits: a write under an
     # existing id overwrites the row and its author. Night 143's s443 wrote
     # over the principal's own decision that way.
