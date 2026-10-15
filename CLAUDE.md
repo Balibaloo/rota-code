@@ -267,46 +267,21 @@ re-records the touched cases, and returns the diff and the result. You
 review from a context that never read the files. A one-line door is the
 exception. Bulk reading goes to agents, and an agent's full report goes to a file the brief names, with ten lines back. One frame per wall. One status line per cycle.
 
-**A wall's fix comes from a loop. Each move is tried in its shortest loop
-before a pass** (proposed: frame 251, 2026-10-15, for Roman's ruling; `plans/wall-method-design.md` and its two reviews). On the first turn after a night's read, push one frame per wall, placed per seat and per rule.
-Each frame carries a `Site:` line, a pointer to the read's chain, and a
-status line with the placement, marked (reasoned), and the move's test. A
-wall that is neither a seat's call nor a rule is an instrument fix.
-1. Seam and corpus. The read's section is the record when it names one
-   seam and every known instance over every night with the mode. Else a
-   scope read, `plans/frame<n>-scope.md`, names them and the right calls.
-2. Reproduce, when the chain shows the fact in the seat's prompt. Replay
-   each instance unchanged first, to the recorded reply byte for byte.
-   Then interview in the conversation, one question a turn, with the
-   night's reply in view. Record: `plans/frame<n>-interview.md`.
-3. Place by the first yes. A rule did it, or a door refused a right call:
-   that rule. The runner read the reply wrong, or a reply with no call:
-   the reply reader. A result stated a wrong fact: its text. The prompt
-   lacked the fact: the record the seat reads, or a door that states it.
-   The fact was there in a form the seat missed: the record's shape. The
-   seat lacked a call: the mode's tools. None of these: a counted door, an
-   iterated brief line, the source for the seat downstream, then the
-   judge: the principal on one line, a stronger model or an executable check.
-4. Try. A text move is any move of step 3 but a rule or a door. Replay it
-   on every instance and up to three right calls under the design's five
-   perturbations, beside the unchanged brief and a placebo line. A turn
-   the unchanged brief moves in 2 of 5 is not counted. A turn is moved at
-   4 of 5 with the placebo at 1 of 5 or less. A line passes when it moves
-   half the counted instances and breaks no right call in 2 of 5. A door
-   or a rule is counted in the pass brief on every night's records: fires
-   on a of n instances, b of N right calls, its condition on m of M turns.
-   One of several instances is overfit. A rule that admits what it refused
-   is probed past the admit. Record: `plans/frame<n>-try.md`.
-5. Pass. Red tests first, on the night's rows. The re-record runs at the
-   gate, never as the try. One review per pass.
-6. Night. The ratio line with its three parts and the residue rule. A door
-   on the principal's words counts its false refusals at every read.
-
-A try stops after two rounds with no pass, and the move goes to the next
-answer of step 3. Three failed moves, or a move at the judge or the
-composition, block on Roman with a rating. The try's count gates the pass.
-A pass that landed before its try writes the try record before the night's
-read. The night gates the close. A placement from one replay never gates.
+**A wall's fix is decided from `plans/wall-guide.md`** (proposed: frame
+251, 2026-10-15, for Roman's ruling). After a night's read, the session
+places each wall under one of the guide's causes by the questions of its
+section 4, in order, and stops at the first answer that places it. The
+cause's entry gives the cheap fix with its count, what overfits, when to
+leave the wall, and when to escalate. A fix is cheap or it goes to Roman
+(ruled: Roman, 2026-10-15, "for now there is only cheap and escalate to
+me"). A door or a predicate carries its count on every night's records
+before its pass: fires on a of n instances, refuses b of N right calls. A
+seat that had the fact and did not act on it is interviewed in its context
+before a second brief shape (ruled: Roman, 2026-10-02 15:02), and a seat
+that read the fact and judged against it is escalated only after the
+interview shows it on more than one sample (ruled: Roman, 2026-10-15,
+"we have to be sure of it"). A placement from one replay never gates,
+and the night gates the close.
 
 Opus builds, Fable judges. An implementer or a sweeper runs on Opus.
 The session that holds the frame is Fable. The line was measured once
