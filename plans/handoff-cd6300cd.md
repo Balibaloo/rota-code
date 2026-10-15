@@ -28,14 +28,14 @@ on their first night.
 
 ## What to believe, per held frame
 
-- Frame 243 validates at cc6cbf57, and pass 2b is briefed in
-  `f243/pass2b_brief.md` under this session's scratchpad: the high, an
-  approve relay must not show old contests, the grouped block, the
-  criterion-repair wake. Run it, gate it, commit, one review, then the
-  frame waits on night 150. Its ratio on night 149 is 0 of 1, but the
+- Frame 243 validates at 966a978f, pass 2b committed on a green gate:
+  the block shows on a contest alone, groups by ruling, and reaches the
+  criterion-repair wake. Review 3 of it runs now to
+  `plans/frame243-review-3.md`; read it, commit it, act on a high only,
+  then the frame waits on night 150. Its ratio on night 149 is 0 of 1, but the
   night had one merge, so the number is weak.
-- Frame 129 at 0bf6a5ea plus pass 1b in the checkout, under this
-  session's gate when this note was written. The deliver wake keeps its
+- Frame 129 validates at 254f04e4, pass 1b committed and reviewed,
+  three lows. The deliver wake keeps its
   admit by design: a ratified statement is his record. Night 150 counts
   the deliver rewrites apart. A resumed pass cost 95.9k against 75.0k
   cold, one observation against the resume rule.
@@ -68,9 +68,9 @@ on their first night.
 
 ## Live agents at the hand-off
 
-- The gate for frame 129's pass 1b, unpiped, in this session's task
-  output; if it is gone, run it again before the commit.
-- No agent edits the checkout once that gate's commit lands. The
+- Frame 243's review 3 on Opus, read-only on a worktree at 966a978f,
+  report to `plans/frame243-review-3.md`, ten lines to this session only.
+- No agent edits the checkout. The
   implementer for frame 129 and the one for frame 243 are resumable by
   message from this session only, so a fresh agent takes each next pass.
 - Briefs and reports of every cycle are under this session's scratchpad:
