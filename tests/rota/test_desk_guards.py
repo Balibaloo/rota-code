@@ -232,6 +232,155 @@ def test_the_encode_doors_never_force_an_import_that_does_not_load(db, tmp_path)
                 path="tests/test_version_option_include_python.py", body=calls)
 
 
+def _click_tree(db, tmp_path, surface):
+    """A worktree whose surface modules load, a conftest with one fixture,
+    and the criterion on `surface`."""
+    root = tmp_path / "wt"
+    for rel, text in {
+            "src/click/__init__.py": "",
+            "src/click/termui.py": "def confirm(text, default=False):\n    return default\n",
+            "src/click/decorators.py": "def version_option(*a, **k):\n    return lambda f: f\n",
+            "src/click/testing.py": "class CliRunner:\n    pass\n",
+            "src/billing/__init__.py": "",
+            "src/billing/accounts.py": "def close_account(account_id):\n    return False\n",
+            "tests/conftest.py": "import pytest\n\n\n@pytest.fixture(scope='function')\n"
+                                "def runner(request):\n    return None\n"}.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text, encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = ? WHERE id = 'c1'",
+               (json.dumps([surface]),))
+    db.execute("DELETE FROM tests")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    return sb
+
+
+def _refused(sb, body):
+    with pytest.raises(ValueError) as refused:
+        sb.call("tests.encode", id="tst_4", criterion_id="c1",
+                path="tests/test_v.py", body=body)
+    return str(refused.value)
+
+
+def test_the_name_error_hint_names_the_surface_import_for_the_surface_and_its_module(db, tmp_path):
+    """
+    Frame 222, shape 1: the unbound name is the surface's symbol or its
+    module, so the surface import binds it. The module form names the
+    line that binds the module, not the symbol.
+    """
+    sb = _click_tree(db, tmp_path, "src/click/termui.py::confirm")
+    said = _refused(sb, "def test_confirm_default_off():\n"
+                        "    assert confirm('y/n') is False\n")
+    assert "add `from src.click.termui import confirm`" in said, said
+    said = _refused(sb, "def test_confirm_default_off():\n"
+                        "    assert termui.confirm('y/n') is False\n")
+    assert "add `from src.click import termui`" in said, said
+    assert "import confirm`" not in said, said
+
+
+def test_the_name_error_hint_takes_a_pytest_fixture_as_a_test_argument(db, tmp_path):
+    """
+    Frame 222, shape 2: night 143's s320 used `monkeypatch` in a test that
+    did not take it, and the door said four times to add the surface
+    import, which binds no fixture. A conftest's fixture is the same shape.
+    """
+    sb = _click_tree(db, tmp_path, "src/click/termui.py::confirm")
+    said = _refused(sb, "from click.termui import confirm\nimport sys\nimport io\n\n"
+                        "def test_confirm_default_off():\n"
+                        "    # default_on_eof is False by default.\n"
+                        "    # When stdin is closed (EOF), confirm() should raise an exception,\n"
+                        "    # not return a default value.\n"
+                        "    with monkeypatch.context() as mp:\n"
+                        "        mp.setattr(sys, \"stdin\", io.StringIO(\"\"))\n"
+                        "        with pytest.raises(SystemExit):\n"
+                        "            confirm(\"y/n\")\n"
+                        "        assert True")
+    assert "monkeypatch is a pytest fixture" in said, said
+    assert "def test_confirm_default_off(monkeypatch)" in said, said
+    assert "add `from" not in said, said
+    # The project's tests/conftest.py defines `runner`.
+    said = _refused(sb, "def test_version_option_show_python():\n"
+                        "    def cli():\n        pass\n"
+                        "    result = runner.invoke(cli, ['--version'])\n"
+                        "    assert 'Python' in result.output\n")
+    assert "runner is a pytest fixture" in said, said
+    assert "add `from" not in said, said
+
+
+@pytest.mark.parametrize("surface, body, name, line", [
+    # Night 143's s464: the body never calls version_option, and `cli`
+    # stands in for it.
+    ("src/click/decorators.py::version_option",
+     "def test_version_option_show_python():\n"
+     "    # Run command with version option enabled\n"
+     "    result = runner.invoke(cli, [\"--version\", \"--show-python\"])\n"
+     "    assert \"Python\" in result.output\n"
+     "    \n"
+     "    # Run command with version option disabled (default)\n"
+     "    result = runner.invoke(cli, [\"--version\"])\n"
+     "    assert \"Python\" not in result.output", "cli",
+     "add `from src.click.decorators import version_option`"),
+    # The register case L1-TS-apply-a-term-and-write-the-test, as the
+    # recording holds it: `ledger` stands in for close_account. On pass 1's
+    # text the Tester wrote `ledger = []` as a fake, four runs of five.
+    ("src/billing/accounts.py::close_account",
+     "def test_closing_account_leaves_invoices_in_ledger():\n"
+     "    assert 'invoices for closed accounts' in ledger.log", "ledger",
+     "add `from src.billing.accounts import close_account`"),
+])
+def test_the_name_error_hint_calls_the_surface_in_place_of_a_stand_in(
+        db, tmp_path, surface, body, name, line):
+    """
+    Frame 222, shape 3a: the body never calls the surface, so the unbound
+    name stands in for it, as frame 82 saw with `ledger`, `app` and
+    `create_account`. The hint names the surface's line, and it asks for
+    no definition of the name.
+    """
+    sb = _click_tree(db, tmp_path, surface)
+    said = _refused(sb, body)
+    assert f"{name} is not the criterion's surface" in said, said
+    assert line in said, said
+    assert "owes a definition" not in said, said
+
+
+def test_the_name_error_hint_says_the_test_owes_a_helper_beside_the_surface(db, tmp_path):
+    """
+    Frame 222, shape 3b: the register case
+    L1-TS-encode-a-criterion-the-principal-corrected calls the surface and
+    a helper it never defines. The door said four times to add the surface
+    import, which binds no helper.
+    """
+    sb = _click_tree(db, tmp_path, "src/billing/accounts.py::close_account")
+    said = _refused(sb, "from src.billing.accounts import close_account\n"
+                        "def test_close_account_returns_false_for_never_opened_account():\n"
+                        "    account_id = generate_unique_account_id()\n"
+                        "    result = close_account(account_id)\n"
+                        "    assert result is False")
+    assert "The test owes a definition of generate_unique_account_id" in said, said
+    assert "If a library defines generate_unique_account_id" in said, said
+    assert "add `from" not in said, said
+
+
+def test_the_name_error_hint_imports_a_name_the_project_defines(db, tmp_path):
+    """
+    Frame 222, shape 4: night 149's s195 used `CliRunner`, which the
+    project defines in `testing.py`. The hint of pass 1b said to call
+    confirm in place of it, 14 times of 15. The fixture tree is not
+    installed, so the line keeps `src.`.
+    """
+    sb = _click_tree(db, tmp_path, "src/click/termui.py::confirm")
+    said = _refused(sb, "from click.termui import confirm\n\n"
+                        "def test_confirm_default_on_eof():\n"
+                        "    runner = CliRunner()\n"
+                        "    result = runner.invoke(runner.make_click_command(lambda: None), input=\"\")\n"
+                        "    assert result.exit_code == 0")
+    assert ("CliRunner is defined in src.click.testing of the project: "
+            "add `from src.click.testing import CliRunner`") in said, said
+    assert "in place of CliRunner" not in said, said
+
+
 def test_a_rewrite_keeps_what_the_criteria_and_other_files_use(db, tmp_path):
     """
     tipsO, 2026-09-09: the Developer writes before the Tester now, so on
@@ -626,16 +775,24 @@ def test_a_name_the_test_never_imports_is_a_nameerror(db):
 
 def test_an_unbound_name_is_told_the_import_the_surface_names(db):
     """Frame 82: a Tester invented ledger, app and create_account five runs
-    of five. The criterion carries the surface, so the Wall names the line."""
+    of five. The criterion carries the surface, so the Wall names the line.
+    Frame 222: the surface's own name gets the line, which binds it. The
+    `ledger` body never calls the surface, so `ledger` stands in for it,
+    and the hint names the surface's line and asks for no definition."""
     db.execute("UPDATE criteria SET surface_refs = "
                "'[\"src/billing/accounts.py::close_account\"]' WHERE id = 'c1'")
     db.commit()
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     with pytest.raises(ValueError) as exc:
-        _encode(sb, "def test_close():\n    assert ledger.close('a1') == 'kept'")
+        _encode(sb, "def test_close():\n    assert close_account('a1') is False")
     assert "The criterion's surface is src/billing/accounts.py::close_account" in str(exc.value)
     # The fake repository has no build system, so pytest imports from its root.
     assert "add `from src.billing.accounts import close_account`" in str(exc.value)
+    with pytest.raises(ValueError) as exc:
+        _encode(sb, "def test_close():\n    assert ledger.close('a1') == 'kept'")
+    assert "ledger is not the criterion's surface" in str(exc.value)
+    assert "add `from src.billing.accounts import close_account`" in str(exc.value)
+    assert "owes a definition" not in str(exc.value)
 
 
 def test_an_installed_project_is_told_the_import_without_src(db, tmp_path):
@@ -648,7 +805,7 @@ def test_an_installed_project_is_told_the_import_without_src(db, tmp_path):
     db.commit()
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     with pytest.raises(ValueError) as exc:
-        _encode(sb, "def test_close():\n    assert ledger.close('a1') == 'kept'")
+        _encode(sb, "def test_close():\n    assert close_account('a1') is False")
     assert "add `from billing import close_account`" in str(exc.value)
 
 

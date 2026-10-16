@@ -7332,6 +7332,21 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                        and c.func.value.id not in defined
                        and not hasattr(_builtins, c.func.value.id)})
     if unbound:
+        # Frame 222: a pytest fixture is bound by a test argument, never by
+        # an import. Night 143's s320 used `monkeypatch` unbound, and the
+        # surface import hint fired four times.
+        try:
+            _fixtures = _PYTEST_FIXTURES | _conftest_fixtures(_worktree_of(ctx))
+        except Exception:  # noqa: BLE001 -- no worktree yet: pytest's own fixtures
+            _fixtures = set(_PYTEST_FIXTURES)
+        if unbound[0] in _fixtures:
+            _owners = [f.name for f in _ast.walk(tree)
+                       if isinstance(f, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                       and any(isinstance(x, _ast.Name) and x.id == unbound[0]
+                               for x in _ast.walk(f))]
+            _owner = next((o for o in _owners if o.startswith("test")),
+                          _owners[0] if _owners else "test_x")
+            raise Wall(_unbound_name_hint(unbound[0], "", "", _fixtures, _owner)[1])
         # A library module used and never imported gets the line to add.
         # clickI night 46 (2026-09-14): `json.loads` with no `import json`,
         # the hint said "import the function the criterion's surface names",
@@ -7370,7 +7385,30 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         module = (_dotted_module(_grain_path(named[0].split("::", 1)[0]),
                                  keep_root=not _installed) if named else "")
         if module:
-            symbol = named[0].split("::", 1)[1].split(".", 1)[0]
+            # Frame 222: the surface import binds the surface's symbol and
+            # its module only. Another name is a helper the test owes when
+            # the body calls the surface, and a stand-in for the surface
+            # when it does not (frame 82: `ledger`, `app`, `create_account`).
+            # The called set is the one the surface door builds.
+            _called = ({c.func.id for c in calls if isinstance(c.func, _ast.Name)}
+                       | {c.func.attr for c in calls if isinstance(c.func, _ast.Attribute)}
+                       | {n.id for n in _ast.walk(tree)
+                          if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Load)})
+            # Frame 222, pass 1c: a name the project's package defines gets
+            # its own module's line. Night 149 met `CliRunner` 15 times.
+            _defined_in = ""
+            if unbound[0] not in _fixtures:
+                try:
+                    _found = _package_definer(_worktree_of(ctx), unbound[0],
+                                              keep_root=not _installed)
+                except Exception:  # noqa: BLE001 -- no worktree yet: no shape 4
+                    _found = None
+                if _found and not _module_load_error(ctx, *_found):
+                    _defined_in = _found[0]
+            shape, hint = _unbound_name_hint(unbound[0], named[0], module, _fixtures,
+                                             called=_called, defined_in=_defined_in)
+            if shape not in ("1", "3a"):
+                raise Wall(hint)
             # Night 142 (frame 215): this door added an import line the
             # sandbox cannot load, four times. The line is offered only
             # when the module loads.
@@ -7378,11 +7416,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             if broken:
                 raise Wall(_unloadable_surface(ctx, criterion_id, named[0],
                                                module, broken))
-            raise Wall(
-                f"the test uses {unbound[0]} and never imports or defines it: "
-                f"a NameError against any code. The criterion's surface is "
-                f"{named[0]}: add `from {module} import {symbol}` and assert "
-                f"on what it returns.")
+            raise Wall(hint)
         raise Wall(
             f"the test uses {unbound[0]} and never imports or defines it: a "
             f"NameError against any code. A test calls the program -- import "
@@ -13101,6 +13135,199 @@ def _unloadable_surface(ctx, criterion_id: str, surface: str, module: str,
             f"that imports it fails at import against any code. The surface "
             f"is the criterion's, and the Terminologist repairs the criterion. "
             f"Do not import {module}. Send {said}")
+
+
+# pytest's own fixtures a test takes by argument. A name here is never bound
+# by an import, so the NameError door must not offer one for it.
+_PYTEST_FIXTURES = frozenset({
+    "monkeypatch", "tmp_path", "tmp_path_factory", "tmpdir", "tmpdir_factory",
+    "capsys", "capsysbinary", "capfd", "capfdbinary", "caplog", "recwarn",
+    "request", "pytestconfig", "pytester", "record_property"})
+
+_FIXTURE_SKIP_DIRS = {"node_modules", "__pycache__", "venv", "build", "dist"}
+
+
+def _conftest_fixtures(root) -> set[str]:
+    """
+    The fixture names the project's `conftest.py` files define.
+
+    A fixture is a function under `@pytest.fixture` or `@fixture`, with or
+    without a call. The `name=` keyword renames it. click's
+    `tests/conftest.py` defines `runner` this way.
+    """
+    import os as _os
+
+    names: set[str] = set()
+    try:
+        walk = _os.walk(root)
+        for here, dirs, files in walk:
+            dirs[:] = [d for d in dirs
+                       if not d.startswith(".") and d not in _FIXTURE_SKIP_DIRS]
+            if "conftest.py" not in files:
+                continue
+            try:
+                with open(_os.path.join(here, "conftest.py"), encoding="utf-8") as fh:
+                    tree = _ast.parse(fh.read())
+            except (OSError, SyntaxError, ValueError):
+                continue
+            for node in _ast.walk(tree):
+                if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                    continue
+                for dec in node.decorator_list:
+                    func = dec.func if isinstance(dec, _ast.Call) else dec
+                    attr = (func.attr if isinstance(func, _ast.Attribute)
+                            else func.id if isinstance(func, _ast.Name) else "")
+                    if attr != "fixture":
+                        continue
+                    renamed = [k.value.value for k in getattr(dec, "keywords", [])
+                               if k.arg == "name" and isinstance(k.value, _ast.Constant)
+                               and isinstance(k.value.value, str)]
+                    names.add(renamed[0] if renamed else node.name)
+    except OSError:
+        pass
+    return names
+
+
+def _package_definer(root, name: str, keep_root: bool = False) -> tuple[str, str] | None:
+    """
+    The module of the project that defines `name` at module level, and its
+    path, or None.
+
+    A definition is a `class` or `def` at column 0, an assignment to the
+    name at column 0, or the name in a module's `__all__`. When two modules
+    define it, the shortest dotted path wins. The walk skips the tests and
+    the hidden and build directories, as `_conftest_fixtures` does.
+    """
+    import os as _os
+
+    found: list[tuple[str, str]] = []
+    try:
+        for here, dirs, files in _os.walk(root):
+            # A package directory holds `__init__.py`. Only the root's `src`
+            # and `lib` are entered without one. The replay of pass 1c found
+            # `cli` in clickI's `examples/repo/repo.py`, which no test imports.
+            top = _os.path.normpath(here) == _os.path.normpath(str(root))
+            dirs[:] = [d for d in dirs
+                       if not d.startswith(".") and d not in _FIXTURE_SKIP_DIRS
+                       and d not in ("tests", "test")
+                       and ((top and d in ("src", "lib"))
+                            or _os.path.isfile(_os.path.join(here, d, "__init__.py")))]
+            for fname in files:
+                if not fname.endswith(".py") or fname == "conftest.py":
+                    continue
+                full = _os.path.join(here, fname)
+                try:
+                    with open(full, encoding="utf-8") as fh:
+                        text = fh.read()
+                except (OSError, ValueError):
+                    continue
+                if name not in text:
+                    continue
+                try:
+                    tree = _ast.parse(text)
+                except (SyntaxError, ValueError):
+                    continue
+                if not any(_binds_at_module_level(node, name) for node in tree.body):
+                    continue
+                rel = _os.path.relpath(full, root).replace("\\", "/")
+                dotted = _dotted_module(rel, keep_root=keep_root)
+                if dotted:
+                    found.append((dotted, rel))
+    except OSError:
+        return None
+    return min(found, key=lambda f: (f[0].count("."), len(f[0]), f[0])) if found else None
+
+
+def _binds_at_module_level(node, name: str) -> bool:
+    """True when one statement at column 0 defines `name` or lists it in `__all__`."""
+    if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+        return node.name == name
+    targets = (node.targets if isinstance(node, _ast.Assign)
+               else [node.target] if isinstance(node, (_ast.AnnAssign, _ast.AugAssign))
+               else [])
+    for t in targets:
+        if isinstance(t, _ast.Name) and t.id == name:
+            return True
+        if (isinstance(t, _ast.Name) and t.id == "__all__"
+                and isinstance(getattr(node, "value", None), (_ast.List, _ast.Tuple))):
+            if any(isinstance(e, _ast.Constant) and e.value == name
+                   for e in node.value.elts):
+                return True
+    return False
+
+
+def _unbound_name_hint(name: str, surface: str, module: str,
+                       fixtures: set[str], owner: str = "test_x",
+                       called: frozenset[str] | set[str] = frozenset(),
+                       defined_in: str = "") -> tuple[str, str]:
+    """
+    The NameError door's hint for one unbound name, and its shape.
+
+    Shape 1: the name is the surface's symbol or its module, so the surface
+    import binds it. Shape 2: the name is a pytest fixture, so the test
+    takes it as an argument. Shape 3a: the body never calls the surface,
+    so the name stands in for it, and the hint names the surface's line
+    (frame 82: `ledger`, `app`, `create_account`). Shape 3b: the body
+    calls the surface, so the name is a helper the test owes. Neither 3a
+    nor 3b names a line for the name. The caller checks that the module
+    loads before it offers the line of shape 1 or 3a. `called` is the set
+    of names the body calls or reads, as the surface door builds it.
+    Shape 4, read before shape 3: `defined_in` is the module of the
+    project's package that defines the name, from `_package_definer`, and
+    the hint names its line. The caller checks that the module loads.
+
+    Frame 222 counted the door's refusals on clickI nights 143 to 149, from
+    the tool calls in `turns.completion` and the refusals after them. The
+    count is 112. The stdlib branch fired 40 times, and its `import <name>`
+    bound the name 40 of 40 times. The surface hint fired 69 times. Its
+    line bound the name 11 of 69 times, and 0 of 5 on night 143. Replayed
+    on the same 69 bodies, shape 1 takes 11, shape 2 takes 4 and shape 4
+    takes 17, and all three bind the name, 32 of 69. Shape 4 gives
+    `CliRunner` `from click.testing import CliRunner` 15 times, and
+    `version_option` its own module twice. Shape 3a takes 25 stand-ins
+    that no library defines, such as `cli_app` and `cli`. Shape 3b takes
+    12 names that the standard library defines, such as `patch`, `mock`
+    and `__builtin__`. Pass 1b bound 15 of 69, and pass 1 counted 40 of 69
+    with the 25 stand-ins as definitions owed. On night 143, shape 2 takes
+    s320's 4 and shape 3a takes s464's `cli`. The 3 refusals with no
+    surface keep the old text.
+    """
+    symbol = surface.split("::", 1)[1].split(".", 1)[0] if "::" in surface else ""
+    parent, _, leaf = module.rpartition(".")
+    if module and name == symbol:
+        return "1", (f"the test uses {name} and never imports or defines it: a "
+                   f"NameError against any code. The criterion's surface is "
+                   f"{surface}: add `from {module} import {symbol}` and assert "
+                   f"on what it returns.")
+    if module and name == leaf:
+        line = f"from {parent} import {leaf}" if parent else f"import {leaf}"
+        return "1", (f"the test uses {name} and never imports or defines it: a "
+                   f"NameError against any code. {name} is the module of the "
+                   f"criterion's surface {surface}: add `{line}` and send the "
+                   f"encode again.")
+    if name in fixtures:
+        return "2", (f"the test uses {name} and never takes or defines it: a "
+                   f"NameError against any code. {name} is a pytest fixture, "
+                   f"and no import binds it. Take it as an argument of the test "
+                   f"function that uses it, as `def {owner}({name}):`, and send "
+                   f"the encode again.")
+    if defined_in:
+        return "4", (f"the test uses {name} and never imports or defines it: a "
+                     f"NameError against any code. {name} is defined in "
+                     f"{defined_in} of the project: add `from {defined_in} import "
+                     f"{name}` and send the encode again.")
+    if module and symbol and symbol not in called:
+        return "3a", (f"the test uses {name} and never imports or defines it: "
+                      f"a NameError against any code. {name} is not the "
+                      f"criterion's surface. A test calls the criterion's "
+                      f"surface {surface}: add `from {module} import {symbol}`, "
+                      f"call {symbol} in place of {name}, and assert on what it "
+                      f"returns.")
+    where = f" The criterion's surface {surface} does not bind {name}." if surface else ""
+    return "3b", (f"the test uses {name} and never imports or defines it: a "
+                  f"NameError against any code. The test owes a definition of "
+                  f"{name}: define it in the test body. If a library defines "
+                  f"{name}, import it from that library.{where}")
 
 
 def _indexed_like(ctx, path: str) -> str | None:
