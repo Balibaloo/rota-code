@@ -65,8 +65,11 @@ item through a note of another request, 3 asks, 14 sessions and a false
 not the behaviour, through a test that cannot fail, frame 273, a replaced
 criterion, frame 257, a commit beside a `dropped` note, frames 173 and 140,
 and a Critic pass on the parameter line, frame 201. The order below is the
-recommended next sprint (reasoned: the read, section 15.2, by the wall that
-cost the most steps or asks on the night, then by price). Rows 0 to 8 are
+next sprint (reasoned: the read, section 15.2, by the wall that
+cost the most steps or asks on the night, then by price; ruled: Roman,
+2026-10-16 22:33, "Stop pausing for sprint orders, I will re prioritise if
+something changes", to the notification of 22:31 with the order, so the
+20-minute timer is dropped and the session starts row 1 at once). Rows 0 to 8 are
 about 18 cycles, one sprint by the rule of 2026-10-11 05:51. The next night
 runs from frame 266's pass 2 commit after row 2, held on frame 274.
 

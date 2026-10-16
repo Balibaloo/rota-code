@@ -375,7 +375,14 @@ different files. Five rules hold it:
   sees, what ships without him, or when a night's design would open a
   question large enough to need an investigation frame before the
   design. The grill at the boundary then asks that one question, or
-  none.
+  none. **The sprint order itself never pauses the session** (ruled:
+  Roman, 2026-10-16 22:33, "Stop pausing for sprint orders, I will re
+  prioritise if something changes", after the session armed a 20-minute
+  timer on sprint 10's order). The session that reads the night writes
+  the order at the top of `plans/stack.md` as the next sprint, sends one
+  notification that names it and the next night's wall, and starts row 1
+  at once, with no timer. Roman re-prioritises when he reads it. Only the
+  one question named above, if the read opens one, waits on him.
 
 Two features wait on a night: implementers on branches with one merge
 queue, after frame 200's night shows whether the one-checkout rule bites,
