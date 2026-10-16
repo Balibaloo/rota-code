@@ -1738,6 +1738,147 @@ def test_a_barren_session_on_a_challenge_leaves_it_unresolved(db):
     assert row["unresolved_note"]
 
 
+# --- a reply that lands no ruling (frame 267) -------------------------------
+#
+# Night 151's s336 woke on m178, the principal's reply to the page m177. It
+# met this refusal three times, the repeat door ended it, and the commit
+# marked m178 answered. m177 stayed open and nothing woke on it.
+
+S336_REFUSAL = ("line 11: 'ask' is a question back, and a question is its own "
+                "call: rulings.rule(ask=\"<one sentence about line 11>\") with "
+                "no rulings.")
+
+
+def _page_and_reply(db, attempts):
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m177','t9','liaison','principal','present','[]',177,'open')")
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_text, seq, status, attempts) VALUES "
+               "('m178','m177','t9','principal','liaison','converse',"
+               "'1 ok, 11 is not about this page',178,'open',?)", (attempts,))
+    db.commit()
+
+
+def _commit_reply_session(db, sid, **kw):
+    from rota.core.db import SessionResult, session_commit
+
+    session_commit(db, SessionResult(
+        session_id=sid, role="liaison", trigger_msg="m178",
+        wake_kind="message", wake_detail="converse",
+        refusals=[("rulings.rule", S336_REFUSAL, "ValueError")],
+        errors=["rulings.rule: " + S336_REFUSAL,
+                "repeated its previous turn verbatim twice; ended"], **kw))
+
+
+def _status(db, mid):
+    return dict(db.execute("SELECT status, unresolved_note FROM messages "
+                           "WHERE id = ?", (mid,)).fetchone())
+
+
+def test_a_reply_that_lands_no_ruling_stays_open_with_the_refusal(db):
+    """The first session on the reply lands nothing, so the reply stays open
+    and keeps the last refusal for the next wake (frame 267, 5.1)."""
+    _page_and_reply(db, attempts=1)
+    _commit_reply_session(db, "s336")
+    reply = _status(db, "m178")
+    assert reply["status"] == "open", reply
+    assert reply["unresolved_note"] == "rulings.rule: " + S336_REFUSAL
+    assert _status(db, "m177") == {"status": "open", "unresolved_note": None}
+
+
+def test_the_second_wake_on_a_missed_reply_says_the_last_refusal(db):
+    """The same prompt at temperature zero gives the same calls, so the
+    second wake carries the reason line, and only that wake does."""
+    from rota.core.runner import _missed_reply_line
+
+    _page_and_reply(db, attempts=1)
+    wake = Wake(role="liaison", kind="message", message_id="m178", detail="converse")
+    assert _missed_reply_line(db, wake) == ""
+    _commit_reply_session(db, "s336")
+    assert _missed_reply_line(db, wake) == (
+        "A session on this reply ended with no ruling. Its last refusal: "
+        "rulings.rule: " + S336_REFUSAL)
+    assert _missed_reply_line(db, wake_vision_keeper()) == ""
+
+
+def test_a_second_reply_that_lands_no_ruling_returns_the_page(db):
+    """The second session closes the reply and puts the reason on the page.
+    The page shows one line about it, with no id and no tool name (5.2)."""
+    from rota.roles.principal import pending_asks
+
+    _page_and_reply(db, attempts=2)
+    _commit_reply_session(db, "s337")
+    assert _status(db, "m178")["status"] == "answered"
+    page = _status(db, "m177")
+    assert page["status"] == "open"
+    assert page["unresolved_note"] == "m178: rulings.rule: " + S336_REFUSAL
+    rendered = {a.message_id: a.rendered for a in pending_asks(db)}["m177"]
+    first = rendered.splitlines()[0]
+    assert first == (
+        "Your last answer to this page did not reach the team. The team could "
+        "not turn your words about line 11 into a ruling. Answer the page "
+        "again, and say for each line you want changed what to do with it.")
+    for word in ("m178", "rulings", "refus", "lead"):
+        assert word not in first
+
+
+def test_s336s_end_through_the_runner_keeps_then_returns_the_page(db):
+    """The replay of s336's end: one refused call three times, the repeat
+    door, a barren commit. The first run keeps the reply open, and the
+    second run's wake says why and returns the page (frame 267, 5.4)."""
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('i1','delete an account','in_scope','pending',0,1)")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m177','t9','liaison','principal','present','[\"i1\"]',177,'open')")
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_text, seq, status) VALUES "
+               "('m178','m177','t9','principal','liaison','converse',"
+               "'line 1 is a question',178,'open')")
+    db.commit()
+    call = 'TOOL: rulings.rule(rulings={"1": "ask"}, words="line 1 is a question")'
+    wake = Wake(role="liaison", kind="message", message_id="m178", detail="converse")
+    shown = []
+    for _ in range(2):
+        backend = ScriptedBackend([call] * 5)
+        outcome = run_session(db, wake, backend=backend, pins=Pins(model="scripted"))
+        assert outcome.committed, outcome.errors
+        assert outcome.errors[-1] == "repeated its previous turn verbatim twice; ended"
+        shown.append(backend.calls[0][1])
+        if len(shown) == 1:
+            assert _status(db, "m178")["status"] == "open"
+            assert "line 1: 'ask' is a question back" in _status(db, "m178")["unresolved_note"]
+    assert "ended with no ruling" not in shown[0]
+    assert ("A session on this reply ended with no ruling. Its last refusal: "
+            "rulings.rule: line 1: 'ask' is a question back") in shown[1]
+    assert _status(db, "m178")["status"] == "answered"
+    assert _status(db, "m177")["status"] == "open"
+    assert _status(db, "m177")["unresolved_note"].startswith("m178: rulings.rule: line 1:")
+
+
+def test_a_reply_that_stages_a_ruling_is_answered_as_before(db):
+    from rota.core.db import Write
+
+    _page_and_reply(db, attempts=1)
+    _commit_reply_session(db, "s338", writes=[Write(
+        "rulings", "r_1", {"ask_id": "m177", "reply_id": "m178",
+                           "per_item": "{}", "words": "ok"})])
+    assert _status(db, "m178") == {"status": "answered", "unresolved_note": None}
+    assert _status(db, "m177")["unresolved_note"] is None
+
+
+def test_a_reply_answered_with_an_ask_back_is_answered_as_before(db):
+    from rota.core.db import OutboundMessage
+
+    _page_and_reply(db, attempts=1)
+    _commit_reply_session(db, "s339", messages=[OutboundMessage(
+        id="m179", to_role="principal", verb="converse",
+        body_text="What should line 11 say?", cause_id="m178")])
+    assert _status(db, "m178") == {"status": "answered", "unresolved_note": None}
+    assert _status(db, "m177")["unresolved_note"] is None
+
+
 def test_the_same_refusal_three_times_ends_the_session(db):
     """clickI night 42 (2026-09-13): six encodes a turn against the same six
     refusals for twenty-two turns. The third identical refusal of the same

@@ -62,6 +62,9 @@ CONTEST = os.environ.get("WALK_CONTEST", "")
 C_RE, _, C_WORDS = CONTEST.partition("::")
 # Only pages matching this regex are contested; empty means every page.
 PAGE_RE = os.environ.get("WALK_CONTEST_PAGE", "")
+# A page's key is its id, and its note when it came back (frame 267), so a
+# returned page is answered once more.
+from agent_principal import page_key
 replied: set = set()
 
 
@@ -91,9 +94,9 @@ class Principal:
         head = ask.rendered.splitlines()[0] if ask.rendered else ask.verb
         if ask.verb in ("confirm", "present"):
             if WORDS:
-                if ask.message_id in replied:
+                if page_key(conn, ask.message_id) in replied:
                     return None
-                replied.add(ask.message_id)
+                replied.add(page_key(conn, ask.message_id))
                 said = reply_for(ask.rendered)
                 if os.environ.get("WALK_FULL"):
                     # The whole page, then the reply: a chat log a person judges.
@@ -109,10 +112,10 @@ class Principal:
         # Once per ask. An empty answer lands nothing and the ask stays
         # open (clickI, 2026-09-16: the same clarify pumped seventeen
         # times); a second visit is a deferral.
-        if ask.message_id in replied:
+        if page_key(conn, ask.message_id) in replied:
             return None
-        replied.add(ask.message_id)
-        q = ask.rendered.splitlines()[1].strip() if ask.rendered else ""
+        replied.add(page_key(conn, ask.message_id))
+        q =ask.rendered.splitlines()[1].strip() if ask.rendered else ""
         _last_page = f"[{ask.message_id}] clarify: {q[:110]}  -> {answer[:50]}"
         print(_last_page)
         return Answer(verb="converse", text=answer)
@@ -237,7 +240,8 @@ for i in range(cap):
         print(f"STALLED: no committed session in 30 min after {i} steps", flush=True)
         record(0, i, asked, "stalled")
         break
-    if [a for a in pending_asks(conn) if a.message_id not in replied]:
+    if [a for a in pending_asks(conn)
+            if page_key(conn, a.message_id) not in replied]:
         if agent is None:
             pump(conn, Principal())
         else:

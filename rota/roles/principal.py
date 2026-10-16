@@ -1310,10 +1310,50 @@ def _shift_page(conn: sqlite3.Connection, refs: list[str]) -> tuple[str, list[st
     ]), [item]
 
 
+def returned_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
+    """
+    The line that tells the principal a page came back, or "".
+
+    Frame 267: two sessions on a reply landed no ruling, so `session_commit`
+    put the reason on the open page. The person has no name for the
+    mechanism, so the line holds no id, no tool name and no refusal text.
+    It keeps the line number that the refusal named.
+    """
+    if not ask_id:
+        return ""
+    row = conn.execute(
+        "SELECT unresolved_note FROM messages WHERE id = ? AND status = 'open' "
+        "AND to_role = 'principal' AND unresolved_note IS NOT NULL",
+        (ask_id,)).fetchone()
+    if row is None:
+        return ""
+    line = re.search(r"\bline (\d+)\b", row["unresolved_note"])
+    about = f" about line {line.group(1)}" if line else ""
+    return ("Your last answer to this page did not reach the team. The team "
+            f"could not turn your words{about} into a ruling. Answer the page "
+            "again, and say for each line you want changed what to do with it.")
+
+
 def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
                 question: str | None = None, *,
                 ask_id: str | None = None,
                 stalled: list[str] | None = None) -> tuple[str, list[str]]:
+    """
+    The page of `_page_body`, with the line of `returned_line` on top.
+
+    The line is not numbered, so the order that `parse_reply` reads does not
+    move.
+    """
+    page, order = _page_body(conn, verb, refs, question, ask_id=ask_id,
+                             stalled=stalled)
+    back = returned_line(conn, ask_id)
+    return (f"{back}\n{page}" if back else page), order
+
+
+def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
+               question: str | None = None, *,
+               ask_id: str | None = None,
+               stalled: list[str] | None = None) -> tuple[str, list[str]]:
     """
     An ask as a message to a person, and the rows it numbers, in order.
 

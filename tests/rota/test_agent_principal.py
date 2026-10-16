@@ -227,3 +227,22 @@ def test_a_park_ask_answer_lands_as_reply_and_the_ask_stays_open(tmp_path):
     a.pump(conn)
     assert conn.execute("SELECT status FROM messages WHERE id=?", (PARK,)).fetchone()[0] == "open"
     assert conn.execute("SELECT COUNT(*) FROM messages WHERE cause_id=?", (PARK,)).fetchone()[0] == 1
+
+
+def test_a_returned_page_is_answered_once_more_and_no_more(tmp_path):
+    """Frame 267: a page whose reply landed no ruling comes back with a note.
+    The driver answers it a second time, and then defers as before."""
+    m = _mod()
+    conn = _db(tmp_path)
+    _msg(conn, "m1", "present", text="the page")
+    a, _ = _agent(m, conn, tmp_path, Stub("1 ok, 2 is wrong", "line 2: drop it"))
+    assert a.respond(pending_asks(conn)[0]).verb == "reply"
+    assert a.respond(pending_asks(conn)[0]) is None, "once per ask"
+    conn.execute("UPDATE messages SET unresolved_note = 'm2: rulings.rule: line 2: "
+                 "no ruling' WHERE id = 'm1'")
+    conn.commit()
+    returned = pending_asks(conn)[0]
+    assert returned.rendered.startswith("Your last answer to this page did not reach")
+    assert a.respond(returned).verb == "reply"
+    assert a.respond(pending_asks(conn)[0]) is None, "the returned page once"
+    assert len(a.call.sent) == 2

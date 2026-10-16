@@ -34,6 +34,20 @@ RECENT_CHARS = 1500
 CHAIN_CAP = 8
 
 
+def page_key(conn: sqlite3.Connection, ask_id: str):
+    """
+    The key of `replied` for a page: its id, and its note when it has one.
+
+    Frame 267: a page whose reply landed no ruling comes back with a note.
+    The note is a new key, so the driver answers the returned page once
+    more. A page with no note keeps its bare id, as before.
+    """
+    row = conn.execute("SELECT unresolved_note FROM messages WHERE id = ?",
+                       (ask_id,)).fetchone()
+    note = row["unresolved_note"] if row else None
+    return (ask_id, note) if note else ask_id
+
+
 class PrincipalDown(RuntimeError):
     """The model failed twice on one ask. The walk stops."""
 
@@ -246,7 +260,9 @@ class AgentPrincipal:
 
     def respond(self, ask: Ask) -> Answer | None:
         # Once per ask: a second visit is a deferral (clickI, 2026-09-16).
-        if ask.message_id in self.replied:
+        # A returned page carries a note, which is a new key (frame 267).
+        key = page_key(self.conn, ask.message_id)
+        if key in self.replied:
             return None
         if ask.verb in ("confirm", "present"):
             label = "The lead sends you a page for your approval."
@@ -258,7 +274,7 @@ class AgentPrincipal:
                                 ask.rendered or "", nothing_fails=True)
         if words is None:
             return None
-        self.replied.add(ask.message_id)
+        self.replied.add(key)
         lines = (ask.rendered or "").splitlines()
         if ask.verb == "clarify" and len(lines) > 1:
             head = lines[1].strip()[:110]
@@ -407,7 +423,7 @@ class AgentPrincipal:
         if quiet:
             open_ids = [r["id"] for r in conn.execute(
                 "SELECT id FROM messages WHERE status = 'open' AND to_role = 'principal'")
-                if r["id"] in self.replied]
+                if page_key(conn, r["id"]) in self.replied]
             # A quiet walk with answered asks still open is a deferral, not
             # a finished night (design 4a, point 4).
             self.say(f"principal: open asks already answered: "

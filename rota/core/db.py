@@ -346,6 +346,10 @@ class SessionResult:
     # the derived reask below turns on a refusal the session met after being
     # answered, and the commit is the one place session and database meet.
     refusals: list = field(default_factory=list)
+    # The runner's account of the session, the lines `session_note` writes.
+    # A reply that lands no ruling keeps the last one when no refusal exists
+    # (frame 267, a parse error is no refusal).
+    errors: list = field(default_factory=list)
 
 
 def _next_seq(conn: sqlite3.Connection, table: str) -> int:
@@ -688,6 +692,51 @@ RECEIPT_RULES = {
 }
 
 
+# The pages a principal reply answers with a ruling. A reply to one of them
+# that lands no ruling is not consumed at once (frame 267).
+PAGE_VERBS = ("confirm", "present", "clarify")
+# The sessions a reply gets before its page goes back to the principal. The
+# count is `messages.attempts`, which `run_session` raises at dispatch.
+REPLY_SESSIONS = 2
+
+
+def _page_under_reply(conn: sqlite3.Connection, trig: sqlite3.Row,
+                      result: SessionResult) -> str | None:
+    """
+    The open page that `trig` replies to, when the session landed nothing on it.
+
+    Night 151's s336 woke on m178, the reply to the page m177. It met one
+    refusal three times and the repeat door ended it. No ruling was staged,
+    and the commit marked m178 answered, so m177 waited on nobody (frame 267's
+    scope read, sections 1 to 3). A `rulings` row or a message to the
+    principal is an answer, as before.
+    """
+    if not (trig and trig["status"] == "open" and trig["verb"] == "converse"
+            and trig["from_role"] == "principal" and trig["cause_id"]
+            and result.checkpoint is None):
+        return None
+    if any(w.table == "rulings" for w in result.writes):
+        return None
+    if any(m.to_role == "principal" for m in result.messages):
+        return None
+    page = conn.execute(
+        "SELECT id FROM messages WHERE id = ? AND status = 'open' "
+        "AND to_role = 'principal' AND verb IN (?, ?, ?)",
+        (trig["cause_id"], *PAGE_VERBS)).fetchone()
+    return page["id"] if page else None
+
+
+def _why_no_ruling(result: SessionResult) -> str:
+    """The last refusal the session met, else the runner's last error."""
+    for r in reversed(result.refusals or []):
+        if len(r) > 1 and r[1]:
+            return f"{r[0]}: {r[1]}"
+    for e in reversed(result.errors or []):
+        if e:
+            return str(e)
+    return "the session wrote no ruling and sent nothing"
+
+
 def _receipt_rule(trig: sqlite3.Row) -> str | None:
     return RECEIPT_RULES.get((trig["from_role"], trig["to_role"], trig["verb"]))
 
@@ -915,10 +964,11 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         if result.trigger_msg:
             barren = not result.writes and not result.messages
             trig = conn.execute(
-                "SELECT status, verb, body_refs, from_role, to_role "
-                "FROM messages WHERE id = ?",
+                "SELECT status, verb, body_refs, from_role, to_role, "
+                "cause_id, attempts FROM messages WHERE id = ?",
                 (result.trigger_msg,)).fetchone()
             was_unresolved = bool(trig and trig["status"] == "unresolved")
+            page = _page_under_reply(conn, trig, result)
             # A suspended session keeps its claim and can still reply.
             if (trig and trig["status"] == "open"
                     and result.checkpoint is None
@@ -947,11 +997,27 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     "COALESCE(unresolved_note, 'the session woken by it wrote "
                     "nothing and sent nothing') WHERE id = ?",
                     (result.trigger_msg,))
+            elif page is not None and (trig["attempts"] or 0) < REPLY_SESSIONS:
+                # Frame 267, the first miss: the reply stays open, so the
+                # Liaison wakes on it again. The note goes into that wake's
+                # head, because the same prompt at temperature zero gives
+                # the same calls.
+                conn.execute(
+                    "UPDATE messages SET unresolved_note = ? WHERE id = ?",
+                    (_why_no_ruling(result), result.trigger_msg))
             elif not (barren and was_unresolved):
                 conn.execute(
                     "UPDATE messages SET status = 'answered' WHERE id = ?",
                     (result.trigger_msg,),
                 )
+                if page is not None:
+                    # Frame 267, the second miss: the page goes back to the
+                    # principal. It stays open, so `pending_asks` shows it,
+                    # and the note puts the reason line on it.
+                    conn.execute(
+                        "UPDATE messages SET unresolved_note = ? WHERE id = ?",
+                        (f"{result.trigger_msg}: {_why_no_ruling(result)}",
+                         page))
             # And a compose wake answers its whole round: the trigger was the
             # harvest's carrier, and its siblings were never addressed to a
             # session of their own. Left open they would tip one by one after

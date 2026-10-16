@@ -624,6 +624,9 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         caused = _answer_cause_line(sb.ctx.conn, wake)
         if caused:
             body.append(caused)
+        missed = _missed_reply_line(sb.ctx.conn, wake)
+        if missed:
+            body.append(missed)
     subject_word = ""
     if wake.refs:
         body.append(f"Refs: {', '.join(wake.refs)}")
@@ -2378,6 +2381,35 @@ def _answer_cause_line(conn: sqlite3.Connection, wake) -> str:
     noun = "escalation" if row["verb"] == "escalate" else row["verb"]
     return (f"This answers your {noun} {row['id']} about "
             f"{', '.join(refs) or 'no rows'}")
+
+
+def _missed_reply_line(conn: sqlite3.Connection, wake) -> str:
+    """
+    The line that says an earlier session on this reply landed no ruling, or "".
+
+    Frame 267: a reply to a page that a session ended on with no ruling
+    stays open and wakes the Liaison again. At temperature zero the same
+    prompt gives the same calls, so the second wake must differ. Only a
+    principal reply that carries `session_commit`'s note gets the line, so
+    no other wake's prompt moves.
+    """
+    if wake.detail != "converse" or not wake.message_id:
+        return ""
+    from .db import PAGE_VERBS
+
+    row = conn.execute(
+        "SELECT r.unresolved_note FROM messages r "
+        "JOIN messages p ON p.id = r.cause_id "
+        "WHERE r.id = ? AND r.verb = 'converse' AND r.from_role = 'principal' "
+        "AND r.status = 'open' AND r.unresolved_note IS NOT NULL "
+        f"AND p.verb IN ({','.join('?' * len(PAGE_VERBS))})",
+        (wake.message_id, *PAGE_VERBS)).fetchone()
+    if row is None:
+        return ""
+    note = row["unresolved_note"].strip()
+    stop = "" if note.endswith((".", "!", "?")) else "."
+    return (f"A session on this reply ended with no ruling. Its last refusal: "
+            f"{note}{stop}")
 
 
 def _resolve_refs(conn: sqlite3.Connection, refs,
@@ -4768,6 +4800,7 @@ def run_session(
             pins=pins.as_dict(),
             backend=getattr(backend, "name", ""),
             refusals=list(getattr(sb.ctx, "refusals", []) or []),
+            errors=list(outcome.errors),
         )
         # Hard guard: a chat reply to the principal is mutually exclusive with
         # asking the principal to ratify statements. If Liaison both chatted and
