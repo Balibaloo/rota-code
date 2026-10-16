@@ -482,7 +482,7 @@ a different question and the night is then opened once.
 - Status 2026-10-16 07:01 (rota-d0): pushed from night 150's read. Cause 1 by `plans/wall-guide.md` section 4 step 3. Meta workflow.
 - Status 2026-10-16 17:36 (rota-e7): **night 151: 0 shift pages, so no count** (observed: `plans/night151-read.md`, section 9, 2026-10-16). Sprint 9, row 16. Meta workflow.
 
-### 266. The call parser's refusal of an unterminated argument blames the words, and the Liaison repeats a dict with a quote missing until the session ends (2026-10-16)
+### 266. The call parser's refusal of an unterminated argument blames the words, and the Liaison repeats a dict with a quote missing until the session ends (2026-10-16) (70d05878)
 
 - **Site: the call parser's "unterminated argument list" refusal, `rota/roles/api.py`; ask the map tool for the function first.** Rota workflow. On night 151 the Liaison s226 sent `5: "approve}` with a quote missing five times for m108, his correction of the walk 2 files page. The refusal said that a quote inside the words ended the string, and the session ended on a verbatim repeat. No ruling landed, bg_3 merged without the correction, and walk 3 opened on the same page m107, which cost 2 asks and about 9 sessions (observed: `plans/night151-read.md`, sections 11 and 12a, N1, 2026-10-16). Cause 9 by the guide, the refusal's text points wrong (reasoned: the read, section 13, W5).
 - Ends when: first, the mechanism: the refusal names the token where the open string starts, with s226's turn 3 as the red test; second, on a night, Liaison sessions that end on a repeated parse refusal, from 1 of 81 toward 0 of the next 3 nights; third, a session that still shows the sign is read, and the frame closes when its cause is not the one this frame names.
@@ -490,8 +490,9 @@ a different question and the night is then opened once.
 - Sprint: sprint 9, row 2, built before frame 267's night (reasoned: the read, section 14.2).
 - Pointer: `plans/night151-read.md`, sections 11, 12a and 13, W5.
 - Status 2026-10-16 17:36 (rota-e7): pushed from night 151's read. Cause 9 by `plans/wall-guide.md` section 4. Meta workflow.
+- Status 2026-10-16 17:41 (rota-e7): **claimed. The site is `rota/llm/toolproto.py` lines 1008 to 1048, the unterminated-argument refusal, and not `rota/roles/api.py` as the Site line says** (observed: `grep -rn unterminated rota/`, 2026-10-16 17:41). Pass 1 runs on Opus from `f266/pass1_brief.md` in this session's scratchpad, cap 80k, to `f266/pass1-report.md`: the refusal names the key, the start of its value and the missing closing quote, with s226's turn 3 as the red test. Meta workflow.
 
-### 267. A converse session that ends with no ruling consumes the reply, and the ask stays open with nothing to wake (2026-10-16)
+### 267. A converse session that ends with no ruling consumes the reply, and the ask stays open with nothing to wake (2026-10-16) (70d05878)
 
 - **Site: the Liaison's reply claim and the ask's status, `rota/core/scheduler.py`; frame 192's site is near.** Rota workflow. On night 151, 2 of 25 replies landed no ruling, m108 and m178. On m178 the Liaison s336 ruled line 11 `ask` three times, "it doesn't belong on this page", and ended on a verbatim repeat. m178 is marked answered and m177 stays open, and the principal driver answers an ask once, so walk 3 went quiet after 108 steps, "open asks already answered: m177", with bg_4 quarantined behind it (observed: `plans/night151-read.md`, section 11, 2026-10-16). Cause 14 by the guide, a session's output is neither committed nor discarded (reasoned: the read, section 13, W6). The composition says nothing stops quietly.
 - Ends when: first, the mechanism: a reply whose session lands no ruling row is not consumed; one more session wakes on it, and after that the ask goes back to the principal with the seat's reason, with s336 as the red test; second, on a night, replies consumed with no ruling, from 2 of 25 toward 0 of the next 3 nights; third, a session that still shows the sign is read, and the frame closes when its cause is not the one this frame names.
@@ -499,6 +500,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 9, row 1, the next night's wall, held with frame 258's pass 2 (reasoned: the read, section 14.3; it ended walk 3 and lost two of his corrections).
 - Pointer: `plans/night151-read.md`, sections 11, 12a and 13, W6.
 - Status 2026-10-16 17:36 (rota-e7): pushed from night 151's read. Cause 14 by `plans/wall-guide.md` section 4. Meta workflow.
+- Status 2026-10-16 17:41 (rota-e7): **claimed. The scope read runs on Opus from `f267/scope_brief.md` in this session's scratchpad, cap 100k, to `plans/frame267-scope.md`: the reply's path from the wake to the consumed mark, the ask's side, m108's path, the prior art of frame 192 and night 139, and the design against the ends-when with its price** (reasoned: the design is judged before any code; the read runs beside frame 266's pass, which edits another file). Meta workflow.
 
 ### 268. The relay's `problem.set_approval` reaches an item the ruling does not name (2026-10-16)
 
