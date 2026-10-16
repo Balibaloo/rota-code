@@ -728,6 +728,15 @@ def _page_under_reply(conn: sqlite3.Connection, trig: sqlite3.Row,
 
 # The repeat door's end line. It says how the session ended, not what failed.
 REPEAT_END = "repeated its previous turn verbatim twice; ended"
+# The refusal door's end line, after its op name: "<op> was refused the same
+# way in four turns; the session ended on it" (runner.py, `stop_reason`). It
+# also says how the session ended, so the refusal before it is the fault
+# (frame 267, review 2, finding 1).
+REFUSED_END = " was refused the same way in four turns; the session ended on it"
+
+
+def _is_end_line(line: str) -> bool:
+    return line == REPEAT_END or line.endswith(REFUSED_END)
 
 
 def _why_no_ruling(result: SessionResult) -> str:
@@ -740,7 +749,7 @@ def _why_no_ruling(result: SessionResult) -> str:
     fault (frame 267, review 1, finding 1).
     """
     for e in reversed(result.errors or []):
-        if e and str(e) != REPEAT_END:
+        if e and not _is_end_line(str(e)):
             return str(e)
     for r in reversed(result.refusals or []):
         if len(r) > 1 and r[1]:

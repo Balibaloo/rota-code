@@ -1838,6 +1838,19 @@ def test_the_note_names_the_newest_fault_not_a_fixed_refusal(db):
     assert _status(db, "m178") == {"status": "open", "unresolved_note": S226_PARSE}
 
 
+def test_the_note_skips_the_refusal_doors_end_line(db):
+    """The refusal door ends a session with its own end line. The line says
+    how the session ended, so the note is the refusal before it (frame 267,
+    review 2, finding 1)."""
+    _page_and_reply(db, attempts=1)
+    _commit_reply_session(
+        db, "s341", errors=["rulings.rule: " + S336_REFUSAL] * 4
+        + ["rulings.rule was refused the same way in four turns; the session "
+           "ended on it"])
+    assert _status(db, "m178") == {"status": "open",
+                                   "unresolved_note": "rulings.rule: " + S336_REFUSAL}
+
+
 def test_a_page_comes_back_once_and_a_later_miss_closes_the_reply(db):
     """A page goes back to the principal once per ask. A miss on a reply to
     a returned page closes the reply and leaves the note as it was, so no
