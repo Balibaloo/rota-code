@@ -20,17 +20,23 @@ runs from frame 266's pass 2 commit, 3c38f2e5, or its pass 2b, after frame
 
 The two frames in motion at the hand-off:
 
-- Frame 266, pass 2 at 3c38f2e5. Review 3 runs or has landed at
-  `plans/frame266-review-3.md`. Read its highs. W7, the Developer s290's
-  write whose value closes and whose list has no `)`, is pass 2b's case:
-  the refusal names the missing bracket. One resumed pass, cap 40k.
-- Frame 274, pass 1 in the checkout from `f274/pass1_brief.md` in this
-  session's scratchpad. Its report lands at `f274/pass1-report.md` there.
-  Then one review on a worktree at its commit, the gate, and the commit.
-  Its design is in `plans/frame274-count.md`: the contest stays on the
-  note's row, the item of another request is not touched.
+- Frame 274, pass 1b at 6553d0f1, review 2 owed. Review 1,
+  `plans/frame274-review-1.md`, found one high, fixed in 1b: a description
+  on a request page keeps its contest. Its low, the `current_request`
+  check, I declined, because nobody has checked that the 6 real cases had
+  a request boundary; it is the night's residue. Review 2 is three points
+  on a worktree at 6553d0f1, cap 30k: the description case, the three
+  right cases of the skip, the hunk alone. The design is in
+  `plans/frame274-count.md`.
+- Frame 266, pass 2 accepted at 3c38f2e5, `plans/frame266-review-3.md`, 0
+  high. W7, the Developer s290's write whose value closes and whose list
+  has no `)`, is pass 2b's case: the refusal names the missing bracket.
+  One resumed pass, cap 40k, or a fresh implementer, before the night if
+  the checkout is free.
 
-Then frame 273, the `or True` door, 2 cycles, and the night.
+Then frame 273, the `or True` door, 2 cycles, and night 153 from its
+commit, held on frame 274's ratio: items of another request set contested
+by a keypress, from 1 toward 0.
 
 ## What I believe
 
@@ -78,10 +84,9 @@ Then frame 273, the `or True` door, 2 cycles, and the night.
 
 ## Live agents at the hand-off
 
-- Frame 266's review 3, read-only, on `C:/Users/roman/rota_r266c` at
-  3c38f2e5, to `plans/frame266-review-3.md`. Remove the worktree after.
-- Frame 274's pass 1 implementer, in the checkout, report to
-  `f274/pass1-report.md` in this session's scratchpad.
+- None. Every implementer and reviewer has reported, and both review
+  worktrees are removed. The checkout is clean at 6553d0f1 but for
+  `rota.code-workspace`, an untracked file nobody owns.
 - Briefs and reports: `n152/`, `f266/` and `f274/` under
   `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/04be1489-62d6-4964-8f68-ab5f38d2d1ea/scratchpad/`.
 - No night runs. The GPU is free.
