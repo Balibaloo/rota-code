@@ -351,6 +351,143 @@ def test_an_answer_wake_names_only_calls_the_mode_offers(db):
     assert not _item_writes(sb)
 
 
+HOW = ("The program is a command-line interface toolkit called Click. Users "
+       "write scripts that define commands and options, and Click parses "
+       "command-line arguments and options, then executes the corresponding "
+       "Python functions with the provided inputs.")
+M25 = ("Ok, this matches what I asked for. Please build it with the standard "
+       "library json module only.")
+JSON_ONLY = ("The program is built using the standard library json module only, "
+             "without the Click toolkit.")
+# r_c38db1262c, his reply to the page m90 (night 150).
+M91 = ("Lines 2 through 7 are about the echo_json helper, which I put aside "
+       "until the confirm change is merged, so please take them off this page. "
+       "The page should cover only the confirm flag. It should also say that "
+       "the flag defaults to False, so nothing changes for people who already "
+       "call confirm().")
+# r_20d87b3d5e, his reply to the page m37 (night 150).
+M38 = ("Line 1 is wrong, because I never asked for anything to be built "
+       "without Click. What I asked for is an echo_json helper inside Click, "
+       "next to echo, that uses the standard library json module to print an "
+       "object as compact JSON on one line, followed by a newline. Lines 2 "
+       "through 5 come from that misreading, so please drop them.")
+
+
+def _night150_item(conn, iid, text):
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version, is_description) VALUES (?, ?, 'in_scope', "
+                 "'contested', 1, 1, 0)", (iid, text))
+    seed_provenance(conn, "items", iid, "decided")
+    conn.commit()
+
+
+def test_s112_a_contested_wake_makes_no_new_item(db):
+    # Frame 129: s112, woken by tick:contested on how_it_works after m25,
+    # asserted the new item json_only in turn 7, and both batches of
+    # night 150 were cancelled on it (plans/night150-read.md, section 7).
+    _night150_item(db, "how_it_works", HOW)
+    _ruling(db, "r_38e7b457e9", {"echo_json": "approve",
+                                 "how_it_works": "contest"}, M25)
+    sb = _contested(db, "how_it_works")
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="json_only", kind="in_scope",
+                text=JSON_ONLY)
+    msg = str(err.value)
+    assert msg.startswith("json_only is not an item")
+    assert "how_it_works" in msg
+    offered = set(_wake_mode_tools(sb.ctx))
+    named = set(re.findall(r"\b[a-z]+\.[a-z_]+\b", msg))
+    assert named and named <= offered, (named, offered)
+    assert {"problem.assert", "decisions.author"} <= named
+    assert not _item_writes(sb)
+    assert db.execute("SELECT 1 FROM items WHERE id = 'json_only'"
+                      ).fetchone() is None
+
+
+def test_s112_turn_6_his_reply_word_for_word_is_refused(db):
+    # Frame 263: s112 turn 6 asserted how_it_works as his m25 reply.
+    _night150_item(db, "how_it_works", HOW)
+    _ruling(db, "r_38e7b457e9", {"echo_json": "approve",
+                                 "how_it_works": "contest"}, M25)
+    sb = _contested(db, "how_it_works")
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="how_it_works", kind="in_scope", text=M25)
+    msg = str(err.value)
+    assert "his reply word for word" in msg
+    assert "Write what the principal said" not in msg
+    assert not _item_writes(sb)
+
+
+def test_s205_his_instruction_about_the_page_is_refused(db):
+    # Frame 263: s205 rewrote json_only with his m91 sentence about the page,
+    # "The page should cover only the confirm flag", the page made the
+    # program (plans/night150-read.md, section 7).
+    _night150_item(db, "json_only", JSON_ONLY)
+    _ruling(db, "r_c38db1262c", {"json_only": "contest",
+                                 "confirm_default_on_eof": "approve"}, M91)
+    sb = _contested(db, "json_only")
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="json_only", kind="in_scope",
+                text="The program should cover only the confirm flag. It "
+                     "should also say that the flag defaults to False, so "
+                     "nothing changes for people who already call confirm().")
+    msg = str(err.value)
+    assert "The page should cover only the confirm flag." in msg
+    assert "about the page" in msg
+    assert "Write what the principal said" not in msg
+    assert not _item_writes(sb)
+
+
+def test_s404_a_text_that_names_lines_of_the_page_is_refused(db):
+    # s404 rewrote json_only with "Lines 4 to 8 describe the JSON echo
+    # helper", his m310 reply.
+    _night150_item(db, "json_only", JSON_ONLY)
+    said = ("Line 3 is wrong because it limits the work to the confirm flag, "
+            "and this change is only the show_python flag for version_option. "
+            "Lines 4 to 8 describe the JSON echo helper instead of this "
+            "change, so please replace them with requirements for the "
+            "version flag.")
+    _ruling(db, "r_071c6da0de", {"json_only": "contest"}, said)
+    sb = _contested(db, "json_only")
+    with pytest.raises(ValueError, match="about the page"):
+        sb.call("problem.assert", id="json_only", kind="in_scope",
+                text="The program should cover only the version flag. Lines 4 "
+                     "to 8 describe the JSON echo helper instead of this "
+                     "change, so please replace them with requirements for "
+                     "the version flag.")
+    assert not _item_writes(sb)
+
+
+def test_an_amend_with_his_ruling_sentence_lands(db):
+    # The contested mode's first case: his sentence about the item, on the
+    # item's own id, lands.
+    _night150_item(db, "json_only", JSON_ONLY)
+    _ruling(db, "r_20d87b3d5e", {"json_only": "contest"}, M38)
+    sb = _contested(db, "json_only")
+    out = sb.call("problem.assert", id="json_only", kind="in_scope",
+                  text="An echo_json helper inside Click, next to echo, uses "
+                       "the standard library json module to print an object "
+                       "as compact JSON on one line, followed by a newline.")
+    assert out == {"id": "json_only"}
+    assert _item_writes(sb)
+
+
+def test_the_words_repair_says_what_an_items_text_is(db):
+    # Frame 263: the old step, "Write what the principal said", sent s205
+    # and s404 to write his reply into the item.
+    _ruling(db, "r_s232", {"confirm_default_on_eof": "contest"},
+            "Let confirm take a default. The flag defaults to False.")
+    sb = _contested(db, "confirm_default_on_eof")
+    with pytest.raises(ValueError, match="The new text says") as err:
+        sb.call("problem.assert", id="confirm_default_on_eof",
+                kind="in_scope", text=S232)
+    msg = str(err.value)
+    assert "Write what the principal said" not in msg
+    assert "never his instruction about the page or the team" in msg
+    assert repr(CONFIRM) in msg
+    assert "'Let confirm take a default.'" in msg
+
+
 def test_an_item_the_wake_did_not_name_is_refused(db):
     _ruling(db, "r_landed", {"version_option_show_python": "contest"},
             VOPT_SAID)

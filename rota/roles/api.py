@@ -1303,6 +1303,78 @@ def _words_remove_a_kind(said: str) -> bool:
     return False
 
 
+# A sentence about the page names the page or a numbered line of it. "On
+# one line" names no line of the page, so a line takes a digit.
+_PAGE_CUE = re.compile(
+    r"\bpage\b|\blines?\s+\d+(?:\s*(?:to|through|and|-)\s*\d+)?", re.I)
+
+
+def _sentences(said: str) -> list[str]:
+    return [s for s in re.split(r"(?<=[.!?])\s+", (said or "").strip()) if s]
+
+
+def _page_reply_fault(text: str, said: str) -> str | None:
+    """
+    Why `text` is the principal's reply about the page and not his words
+    about the item, or None.
+
+    Night 150: s112 asserted his m25 reply word for word, s205 wrote "The
+    program should cover only the confirm flag" from his "The page should
+    cover only the confirm flag", and s404 copied "Lines 4 to 8 describe the
+    JSON echo helper" (frame 263, plans/night150-read.md section 7). His
+    page sentences often quote the item's words after the cue ("Line 1
+    should say: Add an echo_json helper"), so only the words right after
+    the cue count, the page's own verb.
+    """
+    norm = lambda s: re.findall(r"[a-z0-9]+", (s or "").lower())  # noqa: E731
+    new = norm(text)
+    if not new:
+        return None
+    sents = _sentences(said)
+    if len(sents) > 1 and _same_words(text, said):
+        return "the new text is his reply word for word"
+    cue = _PAGE_CUE.search(text or "")
+    if cue:
+        return (f"the new text names {cue.group(0)!r}, a part of the page, "
+                f"so it is about the page")
+    joined = " ".join(new)
+    for sent in sents:
+        for m in _PAGE_CUE.finditer(sent):
+            after = norm(re.split(r"[,:;]", sent[m.end():])[0])
+            if len(after) >= 4 and f" {' '.join(after[:4])} " in f" {joined} ":
+                return (f"the new text copies his sentence {sent!r}, which "
+                        f"is about the page")
+    return None
+
+
+def _item_sentence(said: str) -> str | None:
+    """
+    His longest sentence about the item, or None.
+
+    A sentence about the page is out, and so is the next sentence when its
+    subject is a pronoun: in m91, "It should also say" is the page. A verdict
+    ("Ok") and a request to the team ("Please build it") are out too.
+    """
+    rest, prev_page = [], False
+    for s in _sentences(said):
+        page = bool(_PAGE_CUE.search(s)) or (
+            prev_page and bool(re.match(r"(?i)(?:it|they|that|this)\b", s)))
+        prev_page = page
+        if not page and not re.match(r"(?i)(?:ok|okay|yes|no|please)\b", s):
+            rest.append(s)
+    return max(rest, key=len) if rest else None
+
+
+def _amend_step(id: str, cur_text: str, said: str) -> str:
+    """The words door's step: what an item's text is, and the amend."""
+    sent = _item_sentence(said)
+    his = (f"his sentence {sent!r}" if sent
+           else f"what he said about {id}")
+    return (f"Write his words about {id}, never his instruction about the "
+            f"page or the team: amend {cur_text!r} with {his}, or keep the "
+            f"item and answer with decisions.author")
+
+
 def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     """
     The refusal for an assert that puts the seat's words on the principal's
@@ -1332,6 +1404,14 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     route = ("Answer the challenge with decisions.author under an id of its "
              "own, and say which work the item asks for. A decision has no "
              "supersedes for an item")
+    # A contested wake changes the item it contests and no other. Night
+    # 150's s112, on how_it_works, asserted the new item json_only, and both
+    # batches were cancelled on it (frame 129; the review of frame 258,
+    # finding 2). The contested brief says "One call, on the item's own id".
+    wake_refs = [r for r in (getattr(ctx, "wake_refs", ()) or ())
+                 if isinstance(r, str)]
+    if wake == "tick:contested" and wake_refs and id not in wake_refs:
+        return _contested_elsewhere(ctx, id, cur is not None, wake_refs)
     if cur is None:
         if verb == "challenge":
             try:
@@ -1401,8 +1481,9 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
             f"needs, or answer with decisions.author")
     # The wake names the contested item. An assert on another item reads a
     # contest that an earlier rewrite already applied (the review of
-    # 5e2f0e57, finding 2).
-    if id not in (getattr(ctx, "wake_refs", ()) or ()):
+    # 5e2f0e57, finding 2). `_contested_elsewhere` above refuses it, and a
+    # wake with no refs names no item at all.
+    if id not in wake_refs:
         return (f"{id} is the principal's own words, and this wake names no "
                 f"contest on {id}. {keep}")
     words: list[str] = []
@@ -1448,6 +1529,13 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
         return f"{id} is the principal's own words, and {why}. {keep}"
     if not words:
         return None
+    # An item's text is his words about the item. His reply about the page
+    # is not, and the old step "Write what the principal said" sent s205
+    # and s404 to write it into json_only (frame 263).
+    page = _page_reply_fault(text, " ".join(words))
+    if page:
+        return (f"{id} is the principal's own words, and {page}. "
+                f"{_amend_step(id, cur['text'], ' '.join(words))}")
     # A dropped or negated name is a change too. s399 dropped `show_python`,
     # which the principal kept, and the added-word check let a drop pass
     # (the review of 81f27127, finding 1).
@@ -1490,10 +1578,48 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     new = [w for w in dict.fromkeys(_prose_words(text)) if not _stem_in(w)]
     if not new:
         return None
+    # Frame 263: the step says what an item's text is, and offers the amend
+    # from the item's text and his sentence about it.
     return (f"{id} is the principal's own words. The new text says "
             f"{', '.join(f'`{w}`' for w in new)}, and the principal said "
-            f"{words[0]!r}. Write what the principal said, or keep the item "
-            f"and answer with decisions.author")
+            f"{words[0]!r}. {_amend_step(id, cur['text'], ' '.join(words))}")
+
+
+def _contested_elsewhere(ctx: Ctx, id: str, exists: bool,
+                         wake_refs: list[str]) -> str:
+    """
+    The refusal for an assert on an id that a contested wake does not name.
+
+    The step names only the calls the mode offers (frame 135's law). The map
+    tool knows no mode named by a tick, so the calls come from the mode's
+    `.tools` file through `_wake_mode_tools`.
+    """
+    target = next((r for r in wake_refs if ctx.conn.execute(
+        "SELECT 1 FROM items WHERE id = ?", (r,)).fetchone()), wake_refs[0])
+    decided = exists and ctx.conn.execute(
+        "SELECT 1 FROM item_provenance WHERE id = ? AND provenance = 'decided'",
+        (id,)).fetchone()
+    if not exists:
+        fact = (f"{id} is not an item, and this wake contests {target} and "
+                f"makes no new item")
+    elif decided:
+        fact = (f"{id} is the principal's own words, and this wake names no "
+                f"contest on {id}")
+    else:
+        fact = f"{id} is not the item this wake contests, which is {target}"
+    tools = _wake_mode_tools(ctx)
+    steps = []
+    if "problem.assert" in tools:
+        steps.append(f"Amend {target} with problem.assert on its own id")
+    if "decisions.author" in tools:
+        steps.append("answer with decisions.author" if steps
+                     else "Answer with decisions.author")
+    step = (", or ".join(steps) if steps
+            else f"End the session with no call on {id}")
+    if "problem.assert" in tools:
+        return _offer(ctx, f"{fact}. {step}", "problem.assert",
+                      {"id": target, "text": INVENT, "kind": "in_scope"})
+    return f"{fact}. {step}"
 
 
 @op("problem", "assert")
