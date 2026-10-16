@@ -310,18 +310,6 @@ def test_the_name_error_hint_takes_a_pytest_fixture_as_a_test_argument(db, tmp_p
 
 
 @pytest.mark.parametrize("surface, body, name, line", [
-    # Night 143's s464: the body never calls version_option, and `cli`
-    # stands in for it.
-    ("src/click/decorators.py::version_option",
-     "def test_version_option_show_python():\n"
-     "    # Run command with version option enabled\n"
-     "    result = runner.invoke(cli, [\"--version\", \"--show-python\"])\n"
-     "    assert \"Python\" in result.output\n"
-     "    \n"
-     "    # Run command with version option disabled (default)\n"
-     "    result = runner.invoke(cli, [\"--version\"])\n"
-     "    assert \"Python\" not in result.output", "cli",
-     "add `from src.click.decorators import version_option`"),
     # The register case L1-TS-apply-a-term-and-write-the-test, as the
     # recording holds it: `ledger` stands in for close_account. On pass 1's
     # text the Tester wrote `ledger = []` as a fake, four runs of five.
@@ -329,6 +317,13 @@ def test_the_name_error_hint_takes_a_pytest_fixture_as_a_test_argument(db, tmp_p
      "def test_closing_account_leaves_invoices_in_ledger():\n"
      "    assert 'invoices for closed accounts' in ledger.log", "ledger",
      "add `from src.billing.accounts import close_account`"),
+    # Frame 222's review 1, finding 1: a body that already imports the
+    # surface is not told to add the line again.
+    ("src/billing/accounts.py::close_account",
+     "from src.billing.accounts import close_account\n"
+     "def test_closing_account_leaves_invoices_in_ledger():\n"
+     "    assert 'invoices for closed accounts' in ledger.log", "ledger",
+     "the body already imports close_account"),
 ])
 def test_the_name_error_hint_calls_the_surface_in_place_of_a_stand_in(
         db, tmp_path, surface, body, name, line):
@@ -343,6 +338,56 @@ def test_the_name_error_hint_calls_the_surface_in_place_of_a_stand_in(
     assert f"{name} is not the criterion's surface" in said, said
     assert line in said, said
     assert "owes a definition" not in said, said
+    if "already imports" in line:
+        assert "add `from" not in said, said
+
+
+@pytest.mark.parametrize("body, name, line", [
+    # Night 146's s485: the body imports version_option and passes the
+    # stand-in to the runner. Replaced by the surface, it met the
+    # plain-function door (frame 222's review 1, finding 1).
+    ("from click.decorators import version_option\n"
+     "from click.testing import CliRunner\n\n"
+     "def test_version_option_show_python_enabled():\n"
+     "    # When show_python flag is enabled, output includes Python version\n"
+     "    runner = CliRunner()\n"
+     "    result = runner.invoke(cli_app_with_version_option, [\"--show-python\", \"--version\"])\n"
+     "    assert result.exit_code == 0\n"
+     "    assert \"3.10\" in result.output  # major.minor.micro format",
+     "cli_app_with_version_option", "the body already imports version_option"),
+    # Night 143's s464: no import of the surface.
+    ("def test_version_option_show_python():\n"
+     "    # Run command with version option enabled\n"
+     "    result = runner.invoke(cli, [\"--version\", \"--show-python\"])\n"
+     "    assert \"Python\" in result.output\n"
+     "    \n"
+     "    # Run command with version option disabled (default)\n"
+     "    result = runner.invoke(cli, [\"--version\"])\n"
+     "    assert \"Python\" not in result.output",
+     "cli", "add `from src.click.decorators import version_option`"),
+])
+def test_the_name_error_hint_owes_a_command_that_a_runner_invokes(db, tmp_path, body, name, line):
+    """
+    Frame 222, shape 3a on `.invoke`: the stand-in is a click command the
+    test owes, which the surface decorates or calls, as s549's seq 4 wrote.
+    """
+    sb = _click_tree(db, tmp_path, "src/click/decorators.py::version_option")
+    said = _refused(sb, body)
+    assert f"{name} is a click command the test owes" in said, said
+    assert "`@click.command()`" in said, said
+    assert line in said, said
+    assert f"in place of {name}" not in said, said
+
+
+def test_a_surface_named_like_a_fixture_gets_the_surface_line(db, tmp_path):
+    """
+    Frame 222's review 1, finding 3: the tree's conftest defines `runner`,
+    and the surface is named `runner`. The surface is read first.
+    """
+    sb = _click_tree(db, tmp_path, "src/click/testing.py::runner")
+    said = _refused(sb, "def test_runner():\n    assert runner() is None\n")
+    assert "add `from src.click.testing import runner`" in said, said
+    assert "pytest fixture" not in said, said
 
 
 def test_the_name_error_hint_says_the_test_owes_a_helper_beside_the_surface(db, tmp_path):

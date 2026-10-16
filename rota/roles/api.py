@@ -7339,7 +7339,15 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             _fixtures = _PYTEST_FIXTURES | _conftest_fixtures(_worktree_of(ctx))
         except Exception:  # noqa: BLE001 -- no worktree yet: pytest's own fixtures
             _fixtures = set(_PYTEST_FIXTURES)
-        if unbound[0] in _fixtures:
+        # The surface is read first: a surface whose name is also a fixture
+        # gets the surface's line (frame 222's review 1, finding 3).
+        _srow = ctx.conn.execute(
+            "SELECT surface_refs FROM criteria WHERE id = ?",
+            (criterion_id,)).fetchone()
+        _symbols = {s.split("::", 1)[1].split(".", 1)[0]
+                    for s in (json.loads(_srow["surface_refs"] or "[]") if _srow else [])
+                    if isinstance(s, str) and "::" in s}
+        if unbound[0] in _fixtures and unbound[0] not in _symbols:
             _owners = [f.name for f in _ast.walk(tree)
                        if isinstance(f, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                        and any(isinstance(x, _ast.Name) and x.id == unbound[0]
@@ -7399,15 +7407,24 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             _defined_in = ""
             if unbound[0] not in _fixtures:
                 try:
-                    _found = _package_definer(_worktree_of(ctx), unbound[0],
-                                              keep_root=not _installed)
+                    _found = _project_module_of(_worktree_of(ctx), unbound[0],
+                                                keep_root=not _installed)
                 except Exception:  # noqa: BLE001 -- no worktree yet: no shape 4
                     _found = None
                 if _found and not _module_load_error(ctx, *_found):
                     _defined_in = _found[0]
+            # Frame 222's review 1, finding 1: a stand-in that a runner's
+            # `.invoke` takes is a click command the test owes, and a line
+            # the body already holds is not offered again.
+            _invoked = {c.args[0].id for c in calls
+                        if isinstance(c.func, _ast.Attribute) and c.func.attr == "invoke"
+                        and c.args and isinstance(c.args[0], _ast.Name)}
+            _imported = {(a.asname or a.name) for n in _ast.walk(tree)
+                         if isinstance(n, _ast.ImportFrom) for a in n.names}
             shape, hint = _unbound_name_hint(unbound[0], named[0], module, _fixtures,
-                                             called=_called, defined_in=_defined_in)
-            if shape not in ("1", "3a"):
+                                             called=_called, defined_in=_defined_in,
+                                             invoked=_invoked, imported=_imported)
+            if shape not in ("1", "3a", "3a-invoke"):
                 raise Wall(hint)
             # Night 142 (frame 215): this door added an import line the
             # sandbox cannot load, four times. The line is offered only
@@ -13188,7 +13205,7 @@ def _conftest_fixtures(root) -> set[str]:
     return names
 
 
-def _package_definer(root, name: str, keep_root: bool = False) -> tuple[str, str] | None:
+def _project_module_of(root, name: str, keep_root: bool = False) -> tuple[str, str] | None:
     """
     The module of the project that defines `name` at module level, and its
     path, or None.
@@ -13259,7 +13276,9 @@ def _binds_at_module_level(node, name: str) -> bool:
 def _unbound_name_hint(name: str, surface: str, module: str,
                        fixtures: set[str], owner: str = "test_x",
                        called: frozenset[str] | set[str] = frozenset(),
-                       defined_in: str = "") -> tuple[str, str]:
+                       defined_in: str = "",
+                       invoked: frozenset[str] | set[str] = frozenset(),
+                       imported: frozenset[str] | set[str] = frozenset()) -> tuple[str, str]:
     """
     The NameError door's hint for one unbound name, and its shape.
 
@@ -13272,8 +13291,11 @@ def _unbound_name_hint(name: str, surface: str, module: str,
     nor 3b names a line for the name. The caller checks that the module
     loads before it offers the line of shape 1 or 3a. `called` is the set
     of names the body calls or reads, as the surface door builds it.
+    Shape 3a on `.invoke`: `invoked` holds the names a `.invoke` call takes
+    first, and the stand-in there is a click command the test owes. When
+    `imported` holds the surface's symbol, 3a names no line for it.
     Shape 4, read before shape 3: `defined_in` is the module of the
-    project's package that defines the name, from `_package_definer`, and
+    project's package that defines the name, from `_project_module_of`, and
     the hint names its line. The caller checks that the module loads.
 
     Frame 222 counted the door's refusals on clickI nights 143 to 149, from
@@ -13285,7 +13307,14 @@ def _unbound_name_hint(name: str, surface: str, module: str,
     takes 17, and all three bind the name, 32 of 69. Shape 4 gives
     `CliRunner` `from click.testing import CliRunner` 15 times, and
     `version_option` its own module twice. Shape 3a takes 25 stand-ins
-    that no library defines, such as `cli_app` and `cli`. Shape 3b takes
+    that no library defines, such as `cli_app` and `cli`. Pass 1d: 24 of
+    the 25 pass the stand-in to `.invoke`, and 19 of those 24 already
+    import the surface. They take the `.invoke` text, a click command the
+    test owes that the surface decorates or calls, as s549's seq 4 wrote
+    one. That text names no line for the name, and it counts as right when
+    the owed command is s549's shape, 24 of 24. The right count is then 56
+    of 69, against 32 after pass 1c. One stand-in, `run_command`, keeps
+    the plain 3a text. Shape 3b takes
     12 names that the standard library defines, such as `patch`, `mock`
     and `__builtin__`. Pass 1b bound 15 of 69, and pass 1 counted 40 of 69
     with the 25 stand-ins as definitions owed. On night 143, shape 2 takes
@@ -13317,12 +13346,22 @@ def _unbound_name_hint(name: str, surface: str, module: str,
                      f"{defined_in} of the project: add `from {defined_in} import "
                      f"{name}` and send the encode again.")
     if module and symbol and symbol not in called:
+        line = (f"the body already imports {symbol}" if symbol in imported
+                else f"add `from {module} import {symbol}`")
+        if name in invoked:
+            return "3a-invoke", (
+                f"the test uses {name} and never imports or defines it: a "
+                f"NameError against any code. The test passes {name} to "
+                f".invoke, so {name} is a click command the test owes, and it "
+                f"must use the criterion's surface {surface}. Define it in the "
+                f"test body: a `@click.command()` function named {name} that "
+                f"{symbol} decorates or calls, and pass it to .invoke. For "
+                f"{symbol}, {line}.")
         return "3a", (f"the test uses {name} and never imports or defines it: "
                       f"a NameError against any code. {name} is not the "
                       f"criterion's surface. A test calls the criterion's "
-                      f"surface {surface}: add `from {module} import {symbol}`, "
-                      f"call {symbol} in place of {name}, and assert on what it "
-                      f"returns.")
+                      f"surface {surface}: {line}, call {symbol} in place of "
+                      f"{name}, and assert on what it returns.")
     where = f" The criterion's surface {surface} does not bind {name}." if surface else ""
     return "3b", (f"the test uses {name} and never imports or defines it: a "
                   f"NameError against any code. The test owes a definition of "
