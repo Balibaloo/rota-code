@@ -464,7 +464,8 @@ _NEXT_ARGUMENT = re.compile(r",\s*([A-Za-z_]\w*)\s*=\s*(?:['\"\[{(\d]|$)")
 
 
 def _missing_close(text: str, start: int,
-                   params: set | None) -> tuple[str | None, bool, str, int] | None:
+                   params: set | None
+                   ) -> tuple[str | None, bool, str, int, str] | None:
     """The string whose closing quote is missing, by the first scan's rules.
 
     Night 151, s226 turns 2 to 6 sent `5: "approve}, words='...'`. The
@@ -473,8 +474,9 @@ def _missing_close(text: str, start: int,
     A string that holds `, name=` holds the next argument, so its own
     closing quote is missing. The answer is the argument that holds the
     string, whether the string sits inside a bracket, the string's text
-    from its quote, and the quote's offset after the open bracket.
-    A name the function lacks is code in a value, not an argument.
+    from its quote up to the swallowed name, the quote's offset after the
+    open bracket, and the swallowed `, name=`. A name the function lacks
+    is code in a value, not an argument.
     """
     last_key = None
     after_comma = False
@@ -517,8 +519,11 @@ def _missing_close(text: str, start: int,
                         ast.parse(f"f({text[start:opened]} 0{shut})")
                     except (SyntaxError, ValueError):
                         return None
-                    return (opened_key, inner, text[opened:opened + 20],
-                            opened - start)
+                    # The head stops before the swallowed `, name=`, so the
+                    # seat sees where the quote belongs (review 1, finding 3).
+                    head = text[opened:min(m.start(), opened + 20)].rstrip()
+                    return (opened_key, inner, head, opened - start,
+                            f", {m.group(1)}=")
                 # A string that ends where no value can end, as `'it'x`,
                 # had a quote inside close it early. The strings after it
                 # are its pieces, so no missing quote can be read (frame
@@ -1104,7 +1109,11 @@ def extract(text: str, signatures: dict | None = None, *,
             # the model's own guess was "a multi-line string", and the cause
             # was a quote inside the text closing the string early.
             key = _open_argument(text, args_start)
-            missing = _missing_close(text, args_start, params)
+            # A writer's source holds `print(x, end='')`, and `end` is a
+            # name of code.write. So a writer gets no guess, as in
+            # third_call (frame 266, review 1, finding 1).
+            missing = (None if params and _WRITES & set(params)
+                       else _missing_close(text, args_start, params))
             if joined:
                 # The rescan closed the list, and the guard on joined strings
                 # refused it. The hint below would name a value that is
@@ -1116,15 +1125,15 @@ def extract(text: str, signatures: dict | None = None, *,
                 # early" five times and never found `"approve}`. Show the
                 # seat its own text where the string opens. The texts below
                 # stay byte for byte, because recorded prompts carry them.
-                owner, inner, head, at = missing
+                owner, inner, head, at, swallowed = missing
                 whose = (f"a string in the value of {owner}" if owner and inner
                          else f"the value of {owner}" if owner else "a value")
                 reason = (
                     f"unterminated argument list: {whose} starts at "
-                    f"`{head}`, character {at} after the open bracket, and "
-                    f"no closing quote follows it. The string runs on into "
-                    f"the next argument. Put the closing quote where that "
-                    f"value ends, and change nothing else")
+                    f"character {at} after the open bracket. The string "
+                    f"`{head}` has no closing quote before `{swallowed}`, so "
+                    f"it runs on into the next argument. Put the closing "
+                    f"quote where that value ends, and change nothing else")
             elif key:
                 # Frame 122, night 115: the old hint named `text=`, and the
                 # Critic put triple quotes on `quote`. The apostrophe that

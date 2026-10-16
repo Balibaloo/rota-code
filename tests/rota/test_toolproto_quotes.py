@@ -253,24 +253,23 @@ RULE = {"rulings.rule": ({"rulings"}, {"rulings", "words", "ask"})}
 
 
 @pytest.mark.parametrize("signatures", [None, RULE], ids=["bare", "signed"])
-@pytest.mark.parametrize("raw, head", [
-    (S226_T3, "`\"approve}, words='Li`"),
-    (S226_T4, "`\"approve}, words='''`"),
-], ids=["t3", "t4-triple"])
+@pytest.mark.parametrize("raw", [S226_T3, S226_T4], ids=["t3", "t4-triple"])
 def test_the_refusal_shows_where_the_string_with_no_closing_quote_starts(
-        raw, head, signatures):
+        raw, signatures):
     """
     Frame 266. On night 151 the refusal said a quote inside closed the value
     early. The seat looked for an inner quote five times, and the ruling
     never landed. The quote it left open is at `"approve}`, character 67.
+    The shown text stops before `, words=` (review 1, finding 3).
     """
     got = toolproto.extract(raw, signatures)
     assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
     assert got[0].reason == (
         "unterminated argument list: a string in the value of rulings starts "
-        f"at {head}, character 67 after the open bracket, and no closing "
-        "quote follows it. The string runs on into the next argument. Put "
-        "the closing quote where that value ends, and change nothing else")
+        "at character 67 after the open bracket. The string `\"approve}` has "
+        "no closing quote before `, words=`, so it runs on into the next "
+        "argument. Put the closing quote where that value ends, and change "
+        "nothing else")
     fixed = raw.replace('5: "approve}', '5: "approve"}')
     shown = toolproto.extract(fixed, signatures)
     assert isinstance(shown[0], toolproto.ToolCall), shown
@@ -284,9 +283,9 @@ def test_a_named_value_with_no_closing_quote_is_named():
     got = toolproto.extract("TOOL: a.b(x='one two, y='three')", sig)
     assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
     assert got[0].reason.startswith(
-        "unterminated argument list: the value of x starts at "
-        "`'one two, y='three')`, character 2 after the open bracket, and no "
-        "closing quote follows it.")
+        "unterminated argument list: the value of x starts at character 2 "
+        "after the open bracket. The string `'one two` has no closing quote "
+        "before `, y=`, so it runs on into the next argument.")
 
 
 def test_code_in_a_value_is_not_read_as_a_missing_closing_quote():
@@ -295,9 +294,26 @@ def test_code_in_a_value_is_not_read_as_a_missing_closing_quote():
     sig = {"a.b": ({"x"}, {"x", "y"})}
     got = toolproto.extract("TOOL: a.b(x='call f(a, b='x') here)", sig)
     assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
-    assert "no closing quote follows it" not in got[0].reason
+    assert "has no closing quote before" not in got[0].reason
     bare = toolproto.extract("TOOL: a.b(x='call f(a, b='x') here)")
-    assert "no closing quote follows it" not in bare[0].reason
+    assert "has no closing quote before" not in bare[0].reason
+
+
+def test_a_writer_whose_source_names_a_parameter_keeps_the_key_refusal():
+    """
+    Frame 266, review 1, finding 1: `end` is a name of code.write, so
+    `print(x, end='')` in the source read as a missing closing quote. The
+    value has its closing quote, and an apostrophe after it is the cause.
+    A writer gets no guess, so the refusal names `text` as before.
+    """
+    sig = {"code.write": ({"path", "text"}, {"path", "text", "start", "end"})}
+    raw = ("TOOL: code.write(path='a.py', text='print(x, end='')\n"
+           "# it's done\n')")
+    got = toolproto.extract(raw, sig)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(
+        "unterminated argument list: the value of text never ends. Either a "
+        "quote inside text closed it early")
 
 
 WRITE = {
