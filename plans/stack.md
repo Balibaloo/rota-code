@@ -60,9 +60,10 @@ to refuse. Two of his replies landed nowhere and cost the night: m108, a
 parse refusal the Liaison repeated five times, so bg_3 merged without his
 correction, frame 266; and m178, a note line ruled `ask` three times, so the
 reply was consumed, the ask stayed open and walk 3 went quiet, frame 267.
-No `CYCLE` line, and no seat-made item. The order below is the recommended
-next sprint (reasoned: the read, section 14.2, by the wall that cost the
-most steps or asks on the night, then by price). Rows 1 to 8 are about 17
+No `CYCLE` line, and no seat-made item. The order below is the next sprint (ruled: Roman, 2026-10-16 17:40, "Yes do it", to the
+notification of 17:37 with the order and the next night's wall; reasoned
+first from the read, section 14.2, by the wall that cost the most steps or
+asks on the night, then by price). Rows 1 to 8 are about 17
 cycles, one sprint by the rule of 2026-10-11 05:51. The next night runs
 from row 3's commit, held on frame 258's pass 2, after rows 1 and 2.
 
