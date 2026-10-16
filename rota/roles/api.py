@@ -721,18 +721,28 @@ def refuse_signoff_without_draft(ctx: Ctx, recipient: str, verb: str,
             or getattr(ctx, "wake_kind", "") != "tick:signoff"
             or recipient != "liaison" or verb != "submit"):
         return
+    # The tick drops a parked draft, so the door drops one parked after the
+    # tick (frame 261, review 1, finding 2).
+    from ..core.scheduler import not_parked
     sent = list(refs or [])
     left = [r for r in (getattr(ctx, "wake_refs", ()) or ())
             if isinstance(r, str) and r not in sent and ctx.conn.execute(
-                "SELECT 1 FROM items WHERE id = ? AND approval = 'draft'",
-                (r,)).fetchone()]
+                "SELECT 1 FROM items WHERE id = ? AND approval = 'draft'"
+                + not_parked(ctx.conn, "id"), (r,)).fetchone()]
     if not left:
         return
     full = sent + left
-    what = (f"The draft item {left[0]} woke this signoff, and your refs "
-            f"leave it out." if len(left) == 1 else
-            f"The draft items {', '.join(left)} woke this signoff, and your "
-            f"refs leave them out.")
+    # Above three, the ids appear in the call alone, so no id shows twice
+    # (frame 261, review 1, finding 5).
+    if len(left) == 1:
+        what = (f"The draft item {left[0]} woke this signoff, and your refs "
+                f"leave it out.")
+    elif len(left) <= 3:
+        what = (f"The draft items {', '.join(left)} woke this signoff, and "
+                f"your refs leave them out.")
+    else:
+        what = (f"{len(left)} draft items woke this signoff, and your refs "
+                f"leave them out.")
     raise ValueError(_offer(
         ctx,
         f"{what} Send msg.submit_liaison(refs={full!r}).",

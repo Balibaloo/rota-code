@@ -5968,3 +5968,31 @@ def test_a_signoff_wake_with_no_draft_ref_submits_as_before(db):
     vk = _night150_signoff(db, refs=("echo_json",))
     vk.call("msg.submit_liaison", refs=["echo_json"])
     assert [m["verb"] for m in vk.ctx.outbound] == ["submit"]
+
+
+def test_a_woken_draft_parked_at_the_submit_is_not_refused(db):
+    # Frame 261, review 1, finding 2: the tick skips a parked draft, so the
+    # door skips one parked after the tick.
+    vk = _night150_signoff(db)
+    db.execute("INSERT INTO item_parks (id, item_id, kind, by, cause_id, seq) "
+               "VALUES ('p1', 'json_only', 'park', 'shift', 'm1', 1)")
+    db.commit()
+    vk.call("msg.submit_liaison", refs=list(S251_SUBMIT))
+    assert [m["verb"] for m in vk.ctx.outbound] == ["submit"]
+
+
+def test_four_left_out_drafts_name_the_count_and_the_ids_once(db):
+    # Frame 261, review 1, finding 5: above three, the ids appear in the
+    # call only.
+    drafts = ["d1", "d2", "d3", "d4"]
+    for d in drafts:
+        db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                   "version) VALUES (?, 'A draft', 'in_scope', 'draft', NULL, 1)",
+                   (d,))
+    vk = _night150_signoff(db, refs=tuple(drafts))
+    with pytest.raises(ValueError) as exc:
+        vk.call("msg.submit_liaison", refs=["echo_json"])
+    full = ["echo_json"] + drafts
+    assert str(exc.value) == (
+        f"4 draft items woke this signoff, and your refs leave them out. "
+        f"Send msg.submit_liaison(refs={full!r}).")
