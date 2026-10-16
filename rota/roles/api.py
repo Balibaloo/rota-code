@@ -8946,7 +8946,11 @@ def _agreed_contest(sentences: list[str], contested: set[int], size: int,
         return None
     if _LINE_WORD.search(" ".join(sentences)):
         return None
-    if not any(s.strip() and not _BARE_AGREEMENT.fullmatch(s) for s in sentences):
+    # The instruction is a sentence after the agreement. Night 121's m119,
+    # "yes that all looks right, go ahead", is one sentence that agrees, and
+    # a plain approval lands on every line (frame 258, review 1, finding 1).
+    if not any(s.strip() and not _BARE_AGREEMENT.fullmatch(s)
+               for s in sentences[1:]):
         return None
     unnamed = sorted(n for n in contested
                      if 1 <= n <= size and n not in request_lines)

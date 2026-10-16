@@ -552,6 +552,22 @@ def test_m25s_instruction_lands_on_the_request_line(db, verb):
                                "l_1": "approve"}
 
 
+@pytest.mark.parametrize("words", [
+    # Night 121's m119 and night 139's m132, verbatim from the `rulings`
+    # table of each night's db. One sentence agrees, and none follows it.
+    "yes that all looks right, go ahead",
+    "ok, this matches what I asked for, so go ahead.",
+])
+def test_a_plain_approval_on_a_contested_line_is_admitted(words):
+    assert _refusal(words, {2}, 3, frozenset(), frozenset({1}),
+                    frozenset({1})) is None
+
+
+def test_m25s_words_with_a_batch_line_contested_are_still_refused():
+    out = _refusal(M25, {2}, 3, frozenset(), frozenset({1}), frozenset({1}))
+    assert out is not None and out.startswith("The words name no line")
+
+
 def test_m28s_words_with_the_request_on_line_1_are_refused():
     # Night 147's m29 on m28: the words of night 150's m25, one night before.
     words = ("ok. Please use only the standard library json module for this, "
