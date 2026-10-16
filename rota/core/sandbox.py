@@ -2727,6 +2727,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 f"written this session. Refs are ids from the rows you were "
                 f"given or the tools you called; if you mean a thing with no "
                 f"row, the thing to send is the row that talks about it")
+        # A signoff submit carries every draft its wake named (frame 261).
+        api.refuse_signoff_without_draft(ctx, recipient, verb, refs)
 
         # The principal is the one recipient that does not share the database.
         # They have seen the transcript and whatever came out of it; they have

@@ -5913,3 +5913,58 @@ def test_a_span_rewrite_that_keeps_every_statement_has_no_dropped_note(db, tmp_p
                   text=chr(10).join(text) + chr(10))
     assert "dropped" not in out
     assert "b = 'two'" in (root / "m.py").read_text()
+
+
+# Frame 261, night 150: the draft `json_only` woke the Vision Keeper's
+# signoff 42 times, and 32 submits left it out. s251 is one of them.
+NIGHT150_ITEMS = (
+    ("confirm_default_on_eof", "Let confirm() take a default_on_eof flag"),
+    ("defines_commands_and_options",
+     "Users define commands and options using decorators in Python"),
+    ("echo_json", "Add an echo_json(obj) helper next to echo"),
+    ("how_it_works",
+     "The program is a command-line interface toolkit called Click"),
+    ("parses_and_executes_inputs",
+     "Click parses command-line arguments and options, then executes"),
+    ("provides_command_line_interface",
+     "Click provides a command-line interface that users can interact with"),
+)
+S251_SUBMIT = [i for i, _ in NIGHT150_ITEMS]
+
+
+def _night150_signoff(db, refs=("json_only",)):
+    """s251's state: six items approved, `json_only` draft, and the wake
+    `tick:signoff` with `Refs: json_only`."""
+    for item_id, text in NIGHT150_ITEMS:
+        db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                   "version) VALUES (?, ?, 'in_scope', 'approved', 1, 1)",
+                   (item_id, text))
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('json_only', 'The program should cover only "
+               "the confirm flag', 'in_scope', 'draft', NULL, 2)")
+    db.commit()
+    return build("vision_keeper", db, mode="normal",
+                 wake=Wake("vision_keeper", "tick:signoff", refs=refs))
+
+
+def test_night150_s251_signoff_submit_without_the_woken_draft_is_refused(db):
+    vk = _night150_signoff(db)
+    with pytest.raises(ValueError) as exc:
+        vk.call("msg.submit_liaison", refs=list(S251_SUBMIT))
+    full = S251_SUBMIT + ["json_only"]
+    assert str(exc.value) == (
+        f"The draft item json_only woke this signoff, and your refs leave it "
+        f"out. Send msg.submit_liaison(refs={full!r}).")
+    assert not vk.ctx.outbound
+
+
+def test_night150_signoff_submit_with_the_woken_draft_lands(db):
+    vk = _night150_signoff(db)
+    vk.call("msg.submit_liaison", refs=S251_SUBMIT + ["json_only"])
+    assert [m["verb"] for m in vk.ctx.outbound] == ["submit"]
+
+
+def test_a_signoff_wake_with_no_draft_ref_submits_as_before(db):
+    vk = _night150_signoff(db, refs=("echo_json",))
+    vk.call("msg.submit_liaison", refs=["echo_json"])
+    assert [m["verb"] for m in vk.ctx.outbound] == ["submit"]

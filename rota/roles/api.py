@@ -707,6 +707,38 @@ def refuse_repeated_sentence(ctx: Ctx) -> None:
             f"them again. That answer still stands. Stop")
 
 
+def refuse_signoff_without_draft(ctx: Ctx, recipient: str, verb: str,
+                                 refs: list) -> None:
+    """Raise when a signoff submit leaves out a draft item that woke it."""
+    # The signoff mode says "refs naming every draft item", and no door read
+    # it. Night 150: s207 to s387 left `json_only` out of 32 of 42 signoff
+    # submits, the principal approved a page without it 25 times, and the
+    # draft woke the tick again each time (frame 261, cause 8 of
+    # `plans/wall-guide.md`, wrong not to fire). The count on nights 82 to
+    # 150 found 0 omits outside night 150, so the door refuses 0 of 348
+    # right submits.
+    if (getattr(ctx, "role", None) != "vision_keeper"
+            or getattr(ctx, "wake_kind", "") != "tick:signoff"
+            or recipient != "liaison" or verb != "submit"):
+        return
+    sent = list(refs or [])
+    left = [r for r in (getattr(ctx, "wake_refs", ()) or ())
+            if isinstance(r, str) and r not in sent and ctx.conn.execute(
+                "SELECT 1 FROM items WHERE id = ? AND approval = 'draft'",
+                (r,)).fetchone()]
+    if not left:
+        return
+    full = sent + left
+    what = (f"The draft item {left[0]} woke this signoff, and your refs "
+            f"leave it out." if len(left) == 1 else
+            f"The draft items {', '.join(left)} woke this signoff, and your "
+            f"refs leave them out.")
+    raise ValueError(_offer(
+        ctx,
+        f"{what} Send msg.submit_liaison(refs={full!r}).",
+        "msg.submit_liaison", {"refs": full}))
+
+
 def answered_question(conn: sqlite3.Connection, text: str | None
                       ) -> tuple[str, str] | None:
     """
