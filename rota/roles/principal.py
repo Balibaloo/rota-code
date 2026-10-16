@@ -1930,6 +1930,9 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                 _write_park(conn, item, "resume", "shift", msg_id, seq_now)
             per_item.pop(ref)
     closed_here: list[str] = []
+    # The page's request, read once and only when a note's contest needs it.
+    unread = object()
+    page_req: object = unread
     for ref, ruling in list(per_item.items()):
         if ruling not in ("approve", "contest", "revise"):
             continue
@@ -1968,10 +1971,22 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             # note of every kind. The inferred one lost bg_1 on night 144 and
             # bg_6 on night 146. On an approve, the relay takes the words to
             # the item's owner as `principal_said`, and the decision keeps them.
+            # A note about an item of another request contests the note, not
+            # the item. Night 152's m60 faulted a note about the merged
+            # `echo_json` on the confirm page, and the carrier contested
+            # `echo_json`. Over nights 130 to 152 the skip fires on 6 of 6
+            # such writes and refuses 0 of 36 right calls (frame 274,
+            # `plans/frame274-count.md`). The decision row and the relay
+            # still take his words to the note's owner. A page with no
+            # request, such as the account page, keeps the carrier.
             if row["about_ref"] not in ruled and \
                     not (about and about["provenance"] == "observed") and \
                     row["about_ref"] not in stamped:
-                per_item[row["about_ref"]] = "contest"
+                if page_req is unread:
+                    page_req = page_request(conn, ask.refs)
+                owner = request_of(conn, row["about_ref"])
+                if page_req is None or owner is None or owner == page_req:
+                    per_item[row["about_ref"]] = "contest"
         conn.execute(
             "INSERT INTO decisions (id, author, text, refs, resolves_ledger) "
             "VALUES (?, 'principal', ?, ?, ?)",

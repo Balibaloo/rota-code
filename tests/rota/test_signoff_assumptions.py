@@ -362,6 +362,134 @@ def test_a_conflict_note_s_contest_never_overwrites_the_principal_s_approve_of_i
     assert verdict_for(db, mid).get("echo_json") == "approve"
 
 
+def _two_requests(db):
+    # Night 152's rows at m59: the echo_json request e_p1, merged as bg_1,
+    # and the confirm request e_p2, with the account citing both.
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e_p1','principal',8,'Add an echo_json(obj) helper next to echo')")
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e_p2','principal',16,'Let confirm() take a default_on_eof flag')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, status) "
+               "VALUES ('s1','e_p1',0,41,'Add an echo_json(obj) helper next to echo','ratified')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, status) "
+               "VALUES ('s2','e_p2',0,40,'Let confirm() take a default_on_eof flag','ratified')")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('echo_json','Add an echo_json(obj) helper next to echo',"
+               "'in_scope','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('confirm_default_on_eof','Let confirm() take a new "
+               "default_on_eof flag that is off by default','in_scope','draft',0,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version, "
+               "is_description) VALUES ('how_it_works','The program is a "
+               "command-line interface toolkit called Click','in_scope','draft',0,1,1)")
+    seed_ref(db, "items", "echo_json", "statement", "s1")
+    seed_ref(db, "items", "confirm_default_on_eof", "statement", "s2")
+    seed_ref(db, "items", "how_it_works", "statement", "s1")
+    seed_ref(db, "items", "how_it_works", "statement", "s2")
+    seed_provenance(db, "items", "echo_json", "decided")
+    seed_provenance(db, "items", "confirm_default_on_eof", "decided")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+               "VALUES ('bg_1','echo_json','merged','0d65f7b9')")
+    db.commit()
+
+
+def test_a_note_s_contest_never_reaches_an_item_of_another_request(db):
+    """
+    Night 152, m59 and m60 (2026-10-16): the confirm page carried a
+    Developer note about the merged echo_json, and he faulted it as "my
+    first change, not this one". The carrier contested echo_json, and three
+    asks followed. The contest stays on the note, which relays to the
+    Developer (frame 274, `plans/frame274-count.md`).
+    """
+    _two_requests(db)
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "kind, status, author) VALUES ('l_a5ef6d4cd8','echo_json','items',"
+               "'Placing echo_json immediately after echo keeps it in the same module.',"
+               "'default','open','developer')")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "kind, status, author) VALUES ('l_c4271ef944','confirm_default_on_eof',"
+               "'items','The confirm() function will now take a default_on_eof flag.',"
+               "'default','open','vision_keeper')")
+    db.commit()
+    ask = _a_present_of(db, ["confirm_default_on_eof", "how_it_works",
+                             "l_a5ef6d4cd8", "l_c4271ef944"])
+    said = ("Line 3 is wrong: echo_json is my first change, not this one, and lines "
+            "4, 6 and 8 have the same problem. This page should only cover the "
+            "confirm flag. Line 7 also needs to say the flag is off by default, so "
+            "existing callers see no change.")
+    mid = land(db, ask, Answer(verb="verdict", text=said, per_item={
+        "confirm_default_on_eof": "revise", "how_it_works": "approve",
+        "l_a5ef6d4cd8": "contest", "l_c4271ef944": "contest"}))
+    db.commit()
+    assert db.execute("SELECT approval FROM items WHERE id = 'echo_json'"
+                      ).fetchone()["approval"] == "approved"
+    sent = db.execute("SELECT status, body_refs FROM messages WHERE id = ?",
+                      (mid,)).fetchone()
+    assert "echo_json" not in json.loads(sent["body_refs"]), sent["body_refs"]
+    assert "echo_json" not in verdict_for(db, mid)
+    assert db.execute("SELECT status FROM ledger WHERE id = 'l_a5ef6d4cd8'"
+                      ).fetchone()["status"] == "resolved"
+    dec = db.execute("SELECT text FROM decisions WHERE resolves_ledger = 'l_a5ef6d4cd8'"
+                     ).fetchone()
+    assert dec is not None and dec["text"].startswith("overruled at signoff")
+    # The relay: the verdict stays open and carries the note's contest to
+    # the note's owner.
+    assert sent["status"] == "open"
+    assert verdict_for(db, mid).get("l_a5ef6d4cd8") == "contest"
+    assert _owner_of_ref(db, "l_a5ef6d4cd8") == "developer"
+    assert db.execute("SELECT approval FROM items WHERE id = 'confirm_default_on_eof'"
+                      ).fetchone()["approval"] == "contested"
+
+
+def test_a_note_s_contest_reaches_the_page_s_own_request_item(db):
+    """Night 136, m165 (2026-10-11): a note about the confirm item on the
+    confirm page, and he faulted it. The item goes contested. A challenge
+    of the other request's item names it as `items:echo_json`."""
+    _two_requests(db)
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "kind, status, author) VALUES ('challenge_items_echo_json',"
+               "'items:echo_json','items','echo_json is out of this page',"
+               "'default','open','critic')")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "kind, status, author) VALUES ('l_fbbef84c1e','confirm_default_on_eof',"
+               "'items','confirm() takes a default_on_eof flag','default','open',"
+               "'vision_keeper')")
+    db.commit()
+    ask = _a_present_of(db, ["challenge_items_echo_json", "l_fbbef84c1e"])
+    mid = land(db, ask, Answer(verb="verdict", per_item={
+        "challenge_items_echo_json": "contest", "l_fbbef84c1e": "contest"},
+        text="I also contest line six because it leaves out that the new "
+             "flag is off by default."))
+    db.commit()
+    assert verdict_for(db, mid).get("confirm_default_on_eof") == "contest"
+    assert db.execute("SELECT approval FROM items WHERE id = 'confirm_default_on_eof'"
+                      ).fetchone()["approval"] == "contested"
+    assert db.execute("SELECT approval FROM items WHERE id = 'echo_json'"
+                      ).fetchone()["approval"] == "approved"
+
+
+def test_a_note_s_contest_reaches_a_description_on_a_page_with_no_request(db):
+    """Night 143, m11 (2026-10-13): the account page, with conflict notes
+    about descriptions. The page has no request, so the carrier stays."""
+    for item in ("how_it_works", "defines_commands_and_options"):
+        db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                   "version, is_description) VALUES (?, 'Click is a toolkit',"
+                   "'in_scope','draft',0,1,1)", (item,))
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "kind, status, author) VALUES ('l_21cb695fbf',"
+               "'defines_commands_and_options','items','the README description',"
+               "'conflict','open','vision_keeper')")
+    db.commit()
+    ask = _a_present_of(db, ["l_21cb695fbf", "how_it_works"])
+    mid = land(db, ask, Answer(verb="verdict", per_item={
+        "how_it_works": "approve", "l_21cb695fbf": "contest"},
+        text="Lines 2 to 8 are wrong. Line 1 is fine."))
+    db.commit()
+    assert verdict_for(db, mid).get("defines_commands_and_options") == "contest"
+    assert db.execute("SELECT approval FROM items WHERE id = "
+                      "'defines_commands_and_options'").fetchone()["approval"] == "contested"
+
+
 def test_the_signoff_page_names_the_code_that_carries_each_items_words(db):
     """P4 piece 2 in its mechanical form (2026-09-12): beside each item, the
     files whose symbols carry a word of the item's text, read from the
