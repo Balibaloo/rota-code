@@ -216,11 +216,12 @@ def test_the_refusal_names_the_value_that_never_ends_and_shows_a_form():
     """
     Frame 122: the old refusal named `text=`, and the Critic put triple
     quotes on `quote`. The value that broke was `why`. The refusal now names
-    it, and its example parses.
+    it, and its example parses. The list ends on words, not on `)`, so the
+    short close of frame 266's pass 2 does not apply.
     """
     got = toolproto.extract(
-        "TOOL: challenge.uphold(citation='a.py', quote='x', why='it is done)",
-        UPHOLD)
+        "TOOL: challenge.uphold(citation='a.py', quote='x', why='it is done) "
+        "now", UPHOLD)
     assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
     assert got[0].reason == (
         "unterminated argument list: the value of why never ends. Either a "
@@ -621,3 +622,165 @@ def test_a_swallow_with_no_stray_quote_keeps_the_old_refusal():
     assert got[0].reason.startswith(
         "a quote inside about_ref ended it early and the arguments after "
         "it (assumption=...) were read as part of about_ref.")
+
+
+# Frame 266, pass 2. Night 152: s245 to s247 closed the last argument with a
+# quote run one quote shorter than its open, fourteen times. The old text
+# named a quote inside the value or a backslash, and neither was there.
+BREAK = {"challenge.break": ({"citation", "quote", "why"},
+                             {"citation", "quote", "why"})}
+
+S245_SEQ5 = (
+    'TOOL: challenge.break(citation=\'src/click/__init__.py\', quote="raise A'
+    'ttributeError(name)", why=\'\'\'The code defines __getattr__ to handle sp'
+    'ecific deprecated names, but does not define or import _compat. When a'
+    ' name like _compat is accessed and not found in the module dict or __g'
+    'etattr__, it raises AttributeError. The claim that click._compat exist'
+    's as a usable attribute is falsified by the fact that no such attribut'
+    "e is defined or imported in the package.'')"
+)
+
+S246_SEQ6 = (
+    'TOOL: challenge.break(citation=\'src/click/__init__.py\', quote="raise A'
+    'ttributeError(name)", why=\'\'\'The claim asserts that `click._compat` ex'
+    'ists as a usable module or attribute within the `click` package. Howev'
+    'er, the source code for `src/click/__init__.py` defines a `__getattr__'
+    '` function that explicitly raises an `AttributeError` for any name not'
+    ' listed in its `if` blocks (including `_compat`). Since `_compat` is n'
+    'ot imported at the top level nor handled in `__getattr__`, attempting '
+    'to access `click._compat` will trigger this exception, proving the att'
+    "ribute does not exist as a usable public API.'')"
+)
+
+S247_SEQ5 = (
+    'TOOL: challenge.break(citation=\'src/click/__init__.py\', quote="raise A'
+    'ttributeError(name)", why=\'The claim asserts that `click._compat` is a'
+    ' usable module or attribute within the `click` package. However, the `'
+    '__getattr__` function in `src/click/__init__.py` explicitly raises an '
+    '`AttributeError` for any name not handled by its specific checks (like'
+    ' `BaseCommand`, `MultiCommand`, etc.). Since `_compat` is not one of t'
+    'he handled names, accessing `click._compat` would trigger this `raise '
+    'AttributeError(name)` line. Furthermore, `code.probe` confirmed that `'
+    '_compat` is not imported or defined in `__init__.py`. The existence of'
+    ' `src/click/_compat.py` as a separate file means it is an internal mod'
+    "ule, not exposed as a public attribute via the package's `__getattr__`"
+    ' mechanism for direct access like `click._compat`. Therefore, the clai'
+    'm that `click._compat` exists as a usable attribute in the `click` nam'
+    'espace is false.)'
+)
+
+S247_SEQ10 = (
+    'The claim `click._compat` refers to a module that provides compatibili'
+    "ty utilities for Click's I/O handling (encoding detection, stream wrap"
+    'ping, etc.). The claim cites `src/click/__init__.py`.\n\nIn `src/click/_'
+    '_init__.py`, the name `_compat` is **not** defined as a top-level attr'
+    "ibute. It is also not imported or re-exported in the module's namespac"
+    "e.\n\nHowever, Python's `__getattr__` mechanism (defined at line 75) all"
+    "ows lazy access to attributes that don't exist on the module object. T"
+    'he claim implies that accessing `click._compat` works because of this '
+    "mechanism.\n\nLet's check if `_compat` is actually accessible via `__get"
+    'attr__`.\nThe `__getattr__` function handles specific names: `BaseComma'
+    'nd`, `MultiCommand`, `OptionParser`, `__version__`, `get_binary_stream'
+    '`, `get_text_stream`.\nIt does **not** handle `_compat`.\n\nIf a user tri'
+    "es to access `click._compat`, Python will call `__getattr__('_compat')"
+    '`. Since `_compat` is not in the `if` blocks, it reaches `raise Attrib'
+    'uteError(name)`.\n\nTherefore, `click._compat` raises an `AttributeError'
+    '`. The claim that "code uses `click._compat`" or that it is a valid re'
+    "ference to a module/function in Click's public API (or even internal o"
+    'ne exposed this way) is false. It does not exist as an accessible attr'
+    'ibute.\n\nThe code in `__init__.py` explicitly raises `AttributeError` f'
+    'or anything not listed. `_compat` is not listed. Thus, the claim that '
+    'it works or exists is defeated by the line raising the error.\n\nWait, l'
+    'et me double check if `_compat` is imported somewhere else and exposed'
+    '.\nIn `src/click/__init__.py`, there are no imports of a module named `'
+    '_compat`.\nThere is no assignment `__all__ = ...` that includes `_compa'
+    't`.\nThe only way to get `_compat` is if it was defined at the top leve'
+    "l (it isn't) or handled by `__getattr__` (it isn't).\n\nSo, accessing `c"
+    'lick._compat` results in an `AttributeError`. The claim likely assumes'
+    ' it exists because of a misunderstanding of how Click handles internal'
+    ' modules or perhaps confusing it with `_compat.py` which exists but is'
+    ' not imported into the main namespace.\n\nThe claim says: "click._compat'
+    ' -- code that uses `click._compat`, cited: [\'src/click/__init__.py\']".'
+    '\nThis implies `click._compat` is a valid thing to use. It is not.\n\nI n'
+    'eed to find the line in `__init__.py` that proves `_compat` is not acc'
+    'essible.\nThe relevant code is the end of `__getattr__`:\n```python\n    '
+    'raise AttributeError(name)\n```\nThis line ensures that any name not exp'
+    'licitly handled (like `_compat`) raises an error.\n\nTherefore, the clai'
+    "m is broken.\n\nTOOL: challenge.break(citation='src/click/__init__.py', "
+    'quote="raise AttributeError(name)", why="The __getattr__ function in s'
+    'rc/click/__init__.py only handles specific deprecated names and raises'
+    " AttributeError for any other name, including '_compat'. Therefore, ac"
+    'cessing click._compat raises an AttributeError; it does not exist as a'
+    ' usable attribute.)'
+)
+
+
+_THREE_TWO = (
+    "unterminated argument list: the value of why opens with three quotes, "
+    "`'''`, and ends with two before the closing bracket. Put three quotes "
+    "before `)`, the same number as at the start.")
+
+
+def _one_none(q):
+    return (
+        "unterminated argument list: the value of why opens with one quote, "
+        f"`{q}`, and ends with none before the closing bracket. Put the same "
+        "quote before `)`, or put the whole value between three single "
+        "quotes at each end.")
+
+
+@pytest.mark.parametrize("completion", [S245_SEQ5, S246_SEQ6],
+                         ids=["s245_seq5", "s246_seq6"])
+def test_three_open_two_close_names_the_counts(completion):
+    """s245 seq 5 and s246 seq 6: `why='''...'')`, the last argument."""
+    got = toolproto.extract(completion, BREAK)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _THREE_TWO
+
+
+def test_double_quote_open_none_close_names_the_counts():
+    """s247 seq 10: `why="...attribute.)`, with `'_compat'` inside."""
+    got = toolproto.extract(S247_SEQ10, BREAK)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _one_none('"')
+
+
+def test_single_quote_open_none_close_names_the_counts():
+    """s245 seq 4 and s246 seq 5 had this shape with no quote inside."""
+    got = toolproto.extract(
+        "TOOL: challenge.uphold(citation='a.py', quote='x', why='it is done)",
+        UPHOLD)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _one_none("'")
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "s247 seq 5 holds an escaped apostrophe. The rescan closes the list "
+    "there, and the lenient parse refuses it before the key branch. That "
+    "branch is not pass 2's site."))
+def test_one_open_none_close_with_an_escape_names_the_counts():
+    """s247 seq 5: one quote open, none close, an escaped quote inside."""
+    got = toolproto.extract(S247_SEQ5, BREAK)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _one_none("'")
+
+
+@pytest.mark.parametrize("sigs", [
+    None, {"code.write": ({"path", "text"}, {"path", "text"})}])
+def test_a_write_that_ends_short_keeps_the_old_text(sigs):
+    """A write's source can end on a real `'')`, so a write gets no count."""
+    got = toolproto.extract(
+        "TOOL: code.write(path='a.py', text='''x = 1\nprint(x, end='')",
+        sigs)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(
+        "unterminated argument list: the value of text never ends. Either a "
+        "quote inside text closed it early")
+
+
+def test_a_last_argument_with_its_full_close_parses():
+    got = toolproto.extract(
+        "TOOL: challenge.break(citation='a.py', quote='q', "
+        "why='''The name is not defined.''')", BREAK)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolCall), got
+    assert got[0].args["why"] == "The name is not defined."

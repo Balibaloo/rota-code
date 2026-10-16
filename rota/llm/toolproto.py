@@ -553,6 +553,82 @@ def _missing_close(text: str, start: int,
     return None
 
 
+_COUNT_WORDS = ("none", "one", "two", "three")
+
+
+def _short_close(text: str, start: int,
+                 params: set | None) -> tuple[str, str, int, int] | None:
+    """The last argument whose closing quote run is shorter than its open.
+
+    Night 152, s245 to s247 sent `why='''...'')` fourteen times. The old
+    refusal named a quote inside the value or a backslash, and neither was
+    there. The seat believed it had put three quotes at each end. The
+    answer is the key, the quote, the opening count and the closing count.
+    Any doubt gives None, and the old text stays (frame 266, pass 2).
+    """
+    # The call ends where the next call starts on a new line.
+    nxt = re.search(r"\n[ \t]*" + re.escape(MARKER), text[start:])
+    region = text[start:start + nxt.start() if nxt else len(text)].rstrip()
+    if not region.endswith(")"):
+        return None
+    body = region[:-1]
+    # The first scan's rules, as in _open_argument, with the offset of the
+    # `=` that names the value the last open quote belongs to.
+    last_key = opened_key = None
+    eq_at = opened_eq = None
+    after_comma = False
+    depth = 1
+    in_single = in_double = escaped = False
+    for i, ch in enumerate(body):
+        if escaped:
+            escaped = False
+        elif ch == "\\":
+            escaped = True
+        elif in_single:
+            in_single = ch != "'"
+        elif in_double:
+            in_double = ch != '"'
+        elif ch in "'\"":
+            in_single, in_double = ch == "'", ch == '"'
+            opened_key = None if after_comma or depth != 1 else last_key
+            opened_eq = eq_at
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 1:
+            after_comma = True
+        elif ch == "=" and depth == 1:
+            m = re.search(r"([A-Za-z_]\w*)\s*$", body[:i])
+            if m:
+                last_key, after_comma, eq_at = m.group(1), False, i + 1
+    if not (in_single or in_double) or opened_key is None or opened_eq is None:
+        return None
+    # The value must open with its quote run right after `key=`.
+    s = opened_eq + len(body[opened_eq:]) - len(body[opened_eq:].lstrip())
+    q = body[s:s + 1]
+    if q not in ("'", '"'):
+        return None
+    opening = len(body[s:]) - len(body[s:].lstrip(q))
+    if opening not in (1, 3):
+        return None
+    value = body[s + opening:]
+    closing = len(value) - len(value.rstrip(q))
+    core = value[:len(value) - closing]
+    if closing >= opening or not core.strip():
+        return None
+    # A backslash before the close, or a full run inside the value, is a
+    # fault the old text names. One quote inside a one-quote value is too.
+    if core.endswith("\\") or q * opening in core:
+        return None
+    # A `, name=` inside the value can be the next argument, so the value
+    # may not be the last one. A name the function lacks is code in a
+    # value. Either way the short run is not a sure fault (the fuzz slice).
+    if _NEXT_ARGUMENT.search(core) or (params and opened_key not in params):
+        return None
+    return opened_key, q, opening, closing
+
+
 def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     """
     Parse the argument list. JSON object form, or Python keyword form.
@@ -1114,6 +1190,11 @@ def extract(text: str, signatures: dict | None = None, *,
             # third_call (frame 266, review 1, finding 1).
             missing = (None if params and _WRITES & set(params)
                        else _missing_close(text, args_start, params))
+            # A write's value can end on a real `'')`, so a write keeps the
+            # old text, as above (frame 266, pass 2).
+            short = (None if joined or missing or not key or key in _WRITES
+                     or (params and _WRITES & set(params))
+                     else _short_close(text, args_start, params))
             if joined:
                 # The rescan closed the list, and the guard on joined strings
                 # refused it. The hint below would name a value that is
@@ -1134,6 +1215,25 @@ def extract(text: str, signatures: dict | None = None, *,
                     f"`{head}` has no closing quote before `{swallowed}`, so "
                     f"it runs on into the next argument. Put the closing "
                     f"quote where that value ends, and change nothing else")
+            elif short:
+                # Frame 266, night 152: s245 to s247 closed `'''` with `''`
+                # fourteen times and read a cause that was not there. Name
+                # the two counts and the one step.
+                owner, q, opening, closing = short
+                shut = _COUNT_WORDS[closing]
+                if opening == 3:
+                    reason = (
+                        f"unterminated argument list: the value of {owner} "
+                        f"opens with three quotes, `{q * 3}`, and ends with "
+                        f"{shut} before the closing bracket. Put three "
+                        f"quotes before `)`, the same number as at the start.")
+                else:
+                    reason = (
+                        f"unterminated argument list: the value of {owner} "
+                        f"opens with one quote, `{q}`, and ends with "
+                        f"{shut} before the closing bracket. Put the same "
+                        f"quote before `)`, or put the whole value between "
+                        f"three single quotes at each end.")
             elif key:
                 # Frame 122, night 115: the old hint named `text=`, and the
                 # Critic put triple quotes on `quote`. The apostrophe that
