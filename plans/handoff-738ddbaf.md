@@ -1,89 +1,79 @@
 # Momentum note of session 738ddbaf, peer name rota-05
 
 Message rota-05 for a context question before you ask Roman. Facts are
-in `plans/stack.md`. This session took frame 243 at 02:35 on 2026-10-16
-from 4492a9c1, ran frame 250's review 2, built frame 222 in three passes,
-pushed frame 260, launched night 150 at 04:51 and hands off at the
-night, by the rule of 2026-10-11 05:51. The previous note,
-`plans/handoff-4492a9c1.md`, still holds sprint 7's reading and is worth
-its two minutes. This page holds what moved since.
+in `plans/stack.md`. This session held the stack twice on 2026-10-16:
+02:35 to 06:44, when it ran frame 250's review 2, built frame 222 in four
+passes, pushed frame 260 and launched night 150; and from 13:33, when it
+took the stack back from cc1d654e, built sprint 8's row 3, frame 129's
+pass 2 with frame 263, and launched night 151 at 15:10. It hands off at
+the night, by the rule of 2026-10-11 05:51. The notes
+`plans/handoff-cc1d654e.md` and `plans/handoff-4492a9c1.md` hold sprint
+8's and sprint 7's readings and still stand. This page holds what moved
+since cc1d654e's note.
 
-## Read first: night 150 is done, and its read is your frame
+## Read first: night 151 is the measure, and its read is your frame
 
-Night 150 ran from 531582af in `C:/Users/roman/rota_night150`, cold,
-04:51 to 06:00, and merged 0 of 2 batches, both abandoned: walk 1
-cancelled batch_1 at about step 38 on a line-1 contest, walk 2 ran to
-the step cap with 41 asks, walk 3 went quiet after 160 steps. Night 149
-merged 1 of 2 and night 148 3 of 3. The records are at
-`.rota/clickI_night150.db` and `.rota/clickI_night150.principal.jsonl`,
-the log at `.rota/night150.log`. My first reading, from the log alone
-and unproven: the principal's "put it aside" replies on the second
-item's page, m90 and m106 with "Lines 2 through 7", are frame 256's
-range shape, and whether they landed as contests is the first count to
-make. It is sprint 7's night, so its read ends the sprint: cross off the closed frames, place the pushed ones, and
-bring Roman the next order as one grill question, or none. The read is
-the largest cycle of the sprint, about 300k to 440k on Opus by the
-anchors, and it is the reason the standby's clean context takes it.
+Night 151 runs from bc226206 in `C:/Users/roman/rota_night151`, cold,
+log at `.rota/night151.log`, binary 2.1.301 where night 150 ran 2.1.300.
+It is sprint 8's night, so its read ends the sprint: cross off the
+closed frames, place the pushed ones, and bring Roman the next order as
+one grill question, or none. When the night ends, copy `.rota/clickI.db`,
+its `-wal` and `-shm`, and `clickI.principal.jsonl` to their
+`clickI_night151` names before anything writes; the launcher does not.
 
-What to count, per frame, is in each frame's last "night-150 line".
-Frame 244 first: `"think": true` in each Architect relay session's
-`pins_json`, the re-annotates that keep a declined file toward 0 of 3,
-and the seconds a thinking wake costs. If the wall holds with thinking
-on, the escalation is the 14B for the whole Architect desk. Then the
-counted doors, each with fires on a of n and refusals of right calls:
-frames 255, 256, 250, 254, 222 and 129. Frame 250's three lows from its
-review 2 are shapes no recorded map held, so the night's count of each
-refused seat's next call decides whether they are walls. Label every
-batch-line fire with the batch's status at the ruling, not at the
-night's end.
+The night is the first since 149 that can reach a Tester, if the three
+doors hold: frame 258's agreed contest, frame 261's signoff submit with
+the woken draft, and frame 129's contested-wake door. Count those three
+first, each as fires on a of n and refusals of right calls. Then frames
+243, 244, 254, 222 and 255 on the real build. Frame 222 at c5f67351 gets
+its first count: each NameError refusal's shape and the seat's next
+call, with the four lows of `plans/frame222-review-2.md` beside it,
+first the one that says the hint describes a body real click fails.
 
-## What I believe about frame 222
+## What I believe about frame 129's pass 2
 
-The night ran at 531582af, after passes 1 to 1c, so it measures the
-door with the stand-in hint that review 1 found wrong: "call the
-surface" on bodies that pass the stand-in to a runner's invoke. Pass 1d
-fixed that at c5f67351, after the night. So count night 150's NameError
-refusals by shape, and read the 3a ones as the old text. Frame 222
-validates from night 151. Pass 1's first shape 3 text told the Tester
-to define the name, and it wrote `ledger = []` as a fake at once: that
-is the frame 82 wall, and it is why shape 3 split, then split again on
-the invoke.
-
-Frame 260 is the wall the register case meets now: the surface door at
-about api.py 7822 reads the body's first import as the test's source,
-and a stdlib `import random` above the surface import is refused. Two
-cycles on its own site, placed this sprint after 222 and built after the
-night's read, because the case is red before and after and the night
-measures the hint on live wakes.
+The door is wider than the brief asked: an existing id outside the wake
+refs is refused too, on 0 of 36 right over 72 nights. I accept that on
+the count. Doubt the offered sentence: it is a heuristic, his longest
+sentence with no page cue, and on m25 and m91 it offers none, so the
+refusal says "what he said about X". The night shows whether a seat
+then writes its own words into the item, which is frame 263's wall in
+a new form. Review 2 of bc226206 is the last agent of this session; its
+verdict is in frame 129's last status if it landed before the hand-off,
+or in `plans/frame129-review-2.md`. A high there is a pass 2b in the
+checkout, 1 cycle, from a tree the night does not read.
 
 ## What to doubt first
 
-- Review 2 of c5f67351, `plans/frame222-review-2.md`: its verdict is in
-  the stack's last status of frame 222 if it landed before the
-  hand-off. A high there is a pass 1e in the checkout, 1 cycle.
-- The gate's known set is 8 reds plus two flaky, `scene_challenged_again`
-  and one of `test_map` or `test_release_empties_the_seat`;
-  `scene_two_batches` comes and goes. The baseline is still 2026-10-11.
-  Nobody has pushed its refresh.
-- Agents overran every cold cap, 1.4 to 2 times. The two resumed passes
-  cost 30k and 20k against the cold 137k, two observations for the resume
-  rule, against frame 129's one against it.
-- The night's first line at 04:51 names the binary 2.1.300. The previous
-  night ran on it too. Nothing moved in the harness between.
+- Frame 264 is blocked on Roman, rated medium, since about 10:5x. He
+  asked whether a sub-agent had investigated, cc1d654e summarised the
+  reads in the terminal, and no ruling came. Do not re-ask. The
+  recommended answer stands: the account rows stay on the request page
+  under a heading that says they are the project today.
+- The gate's known set is 8 reds plus one or two flaky; the baseline is
+  still 2026-10-11 and nobody has pushed its refresh. A gate beside a
+  night shows about ten flaky chain reds and runs three times as long;
+  the line is in `plans/operating-facts.md`. Commit from a gate run
+  after the night.
+- Agents overran every cold cap, 1.4 to 2.2 times. Resumed passes cost
+  20k to 33k, three observations for the resume rule.
+- The reserve held no free standby at 15:11, so this hand-off waited on
+  disk. If you read this, you are the window Roman opened.
 
 ## Roman's last words
 
-- None to this session. The last are in the previous note: 2026-10-16
-  about 00:30, "are you stuck?" and "Ok what's the big picture
-  momentum?" No ruling since the sprint 7 order was taken by timeout at
-  2026-10-15 16:46.
+- 2026-10-16, about 10:5x, on frame 264: "I'm confused by this, did you
+  already investigate with a subagent?" No ruling since. Nothing to this
+  session.
 
 ## Live agents at the hand-off
 
-- Frame 222's review 2, a reviewer on Opus in
-  `C:/Users/roman/rota_r222d`, writing to `plans/frame222-review-2.md`,
-  cap 40k. If the stack's last status of frame 222 names its verdict, it
-  returned before the hand-off.
-- Night 150 is done. No night runs.
-- Briefs and reports: `f250/` and `f222/` under
+- Frame 129's review 2, a reviewer on Opus in `C:/Users/roman/rota_r129`,
+  writing to `plans/frame129-review-2.md`, cap 50k, if frame 129's last
+  status does not name its verdict.
+- Night 151, detached, launcher `.rota/launch_night151.sh`, log and err
+  under `.rota/night151.*`. Stop it only by the rule of 2026-10-09 20:19
+  and its extension of 07:23, when its loop is a known frame's wall or
+  no held frame's site and the held frames get no data.
+- Briefs and reports: `f250/`, `f222/` and `f129/` under
   `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/738ddbaf-1cc4-48f9-9414-01f5058ba1fb/scratchpad/`.
