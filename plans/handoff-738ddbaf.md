@@ -8,11 +8,19 @@ night, by the rule of 2026-10-11 05:51. The previous note,
 `plans/handoff-4492a9c1.md`, still holds sprint 7's reading and is worth
 its two minutes. This page holds what moved since.
 
-## Read first: night 150 is the measure, and its read is your frame
+## Read first: night 150 is done, and its read is your frame
 
-Night 150 runs from 531582af in `C:/Users/roman/rota_night150`, cold,
-with the log at `.rota/night150.log`. It is sprint 7's night, so its read
-ends the sprint: cross off the closed frames, place the pushed ones, and
+Night 150 ran from 531582af in `C:/Users/roman/rota_night150`, cold,
+04:51 to 06:00, and merged 0 of 2 batches, both abandoned: walk 1
+cancelled batch_1 at about step 38 on a line-1 contest, walk 2 ran to
+the step cap with 41 asks, walk 3 went quiet after 160 steps. Night 149
+merged 1 of 2 and night 148 3 of 3. The records are at
+`.rota/clickI_night150.db` and `.rota/clickI_night150.principal.jsonl`,
+the log at `.rota/night150.log`. My first reading, from the log alone
+and unproven: the principal's "put it aside" replies on the second
+item's page, m90 and m106 with "Lines 2 through 7", are frame 256's
+range shape, and whether they landed as contests is the first count to
+make. It is sprint 7's night, so its read ends the sprint: cross off the closed frames, place the pushed ones, and
 bring Roman the next order as one grill question, or none. The read is
 the largest cycle of the sprint, about 300k to 440k on Opus by the
 anchors, and it is the reason the standby's clean context takes it.
@@ -31,16 +39,15 @@ night's end.
 
 ## What I believe about frame 222
 
-The door now names a line that binds the name 32 of 69 times on the
-recorded refusals, from 11. The missing 37 are shape 3a, the stand-in
-name in a body that never calls the surface, which gets the surface
-import line as frame 82 wanted. Pass 1's first shape 3 text told the
-Tester to define the name, and it wrote `ledger = []` as a fake at
-once: that is the frame 82 wall, and it is why shape 3 split. Doubt
-shape 3a on click's `cli_app` bodies, where the right test wraps the
-surface in a small command: the hint says to call the surface, and the
-pass report calls that only partly right. The night shows what the
-Tester writes after it.
+The night ran at 531582af, after passes 1 to 1c, so it measures the
+door with the stand-in hint that review 1 found wrong: "call the
+surface" on bodies that pass the stand-in to a runner's invoke. Pass 1d
+fixed that at c5f67351, after the night. So count night 150's NameError
+refusals by shape, and read the 3a ones as the old text. Frame 222
+validates from night 151. Pass 1's first shape 3 text told the Tester
+to define the name, and it wrote `ledger = []` as a fake at once: that
+is the frame 82 wall, and it is why shape 3 split, then split again on
+the invoke.
 
 Frame 260 is the wall the register case meets now: the surface door at
 about api.py 7822 reads the body's first import as the test's source,
@@ -51,11 +58,9 @@ measures the hint on live wakes.
 
 ## What to doubt first
 
-- Review 1 of 531582af: its verdict is in the stack's last status of
-  frame 222 if it landed before the hand-off, or in
-  `plans/frame222-review-1.md` once the reviewer returns. A high there
-  is a pass 1d before the night read's placement, from a worktree, and
-  never in the night's checkout.
+- Review 2 of c5f67351, `plans/frame222-review-2.md`: its verdict is in
+  the stack's last status of frame 222 if it landed before the
+  hand-off. A high there is a pass 1e in the checkout, 1 cycle.
 - The gate's known set is 8 reds plus two flaky, `scene_challenged_again`
   and one of `test_map` or `test_release_empties_the_seat`;
   `scene_two_batches` comes and goes. The baseline is still 2026-10-11.
@@ -75,11 +80,10 @@ measures the hint on live wakes.
 
 ## Live agents at the hand-off
 
-- Frame 222's review 1, a reviewer on Opus in `C:/Users/roman/rota_r222`,
-  writing to `plans/frame222-review-1.md`, cap 50k. If the stack's last
-  status of frame 222 names its verdict, it returned before the hand-off.
-- Night 150, detached, launcher `.rota/launch_night150.sh`, log and err
-  under `.rota/night150.*`. Stop it only by the rule of 2026-10-09 20:19,
-  when its loop is a known frame's wall and the held frame gets no data.
+- Frame 222's review 2, a reviewer on Opus in
+  `C:/Users/roman/rota_r222d`, writing to `plans/frame222-review-2.md`,
+  cap 40k. If the stack's last status of frame 222 names its verdict, it
+  returned before the hand-off.
+- Night 150 is done. No night runs.
 - Briefs and reports: `f250/` and `f222/` under
   `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/738ddbaf-1cc4-48f9-9414-01f5058ba1fb/scratchpad/`.
