@@ -244,6 +244,62 @@ def test_the_refusal_names_no_value_that_opens_inside_a_tuple():
         "unterminated argument list: a quote inside a quoted argument")
 
 
+# Night 151, `.rota/clickI_night151.db`, Liaison s226: the call of turns 2
+# and 3, byte for byte, and the call of turns 4 to 6. The value of line 5
+# is `"approve}` with its closing quote missing.
+S226_T3 = r"""TOOL: rulings.rule(rulings={1: "approve", 2: "revise", 3: "contest", 4: "contest", 5: "approve}, words='Lines 3 and 4 are still wrong: confirm should prompt and read as usual, and return the default only when that read hits end of file. Line 2 should say "instead of aborting" instead of raising a usage error, and it should say the flag defaults to False so nothing changes for people who already call confirm.')"""
+S226_T4 = r"""TOOL: rulings.rule(rulings={1: "approve", 2: "revise", 3: "contest", 4: "contest", 5: "approve}, words='''Lines 3 and 4 are still wrong: confirm should prompt and read as usual, and return the default only when that read hits end of file. Line 2 should say "instead of aborting" instead of raising a usage error, and it should say the flag defaults to False so nothing changes for people who already call confirm.''' )"""
+RULE = {"rulings.rule": ({"rulings"}, {"rulings", "words", "ask"})}
+
+
+@pytest.mark.parametrize("signatures", [None, RULE], ids=["bare", "signed"])
+@pytest.mark.parametrize("raw, head", [
+    (S226_T3, "`\"approve}, words='Li`"),
+    (S226_T4, "`\"approve}, words='''`"),
+], ids=["t3", "t4-triple"])
+def test_the_refusal_shows_where_the_string_with_no_closing_quote_starts(
+        raw, head, signatures):
+    """
+    Frame 266. On night 151 the refusal said a quote inside closed the value
+    early. The seat looked for an inner quote five times, and the ruling
+    never landed. The quote it left open is at `"approve}`, character 67.
+    """
+    got = toolproto.extract(raw, signatures)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == (
+        "unterminated argument list: a string in the value of rulings starts "
+        f"at {head}, character 67 after the open bracket, and no closing "
+        "quote follows it. The string runs on into the next argument. Put "
+        "the closing quote where that value ends, and change nothing else")
+    fixed = raw.replace('5: "approve}', '5: "approve"}')
+    shown = toolproto.extract(fixed, signatures)
+    assert isinstance(shown[0], toolproto.ToolCall), shown
+    assert shown[0].args["rulings"][5] == "approve"
+
+
+def test_a_named_value_with_no_closing_quote_is_named():
+    """A top-level value that swallows the next argument is named as the
+    value itself, with its start."""
+    sig = {"a.b": ({"x"}, {"x", "y"})}
+    got = toolproto.extract("TOOL: a.b(x='one two, y='three')", sig)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(
+        "unterminated argument list: the value of x starts at "
+        "`'one two, y='three')`, character 2 after the open bracket, and no "
+        "closing quote follows it.")
+
+
+def test_code_in_a_value_is_not_read_as_a_missing_closing_quote():
+    """`f(a, b='x')` inside a value closes a string at `b=`. The name `b`
+    is no argument of the function, so the old refusal stays."""
+    sig = {"a.b": ({"x"}, {"x", "y"})}
+    got = toolproto.extract("TOOL: a.b(x='call f(a, b='x') here)", sig)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert "no closing quote follows it" not in got[0].reason
+    bare = toolproto.extract("TOOL: a.b(x='call f(a, b='x') here)")
+    assert "no closing quote follows it" not in bare[0].reason
+
+
 WRITE = {
     "code.write": ({"path", "text"}, {"path", "text", "start", "end"}),
     "tests.encode": ({"id", "criterion_id", "path", "body"},

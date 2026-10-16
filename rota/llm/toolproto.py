@@ -459,6 +459,95 @@ def _open_argument(text: str, start: int) -> str | None:
     return opened_key if in_single or in_double else None
 
 
+# A swallowed argument inside a string: `, words='` or `, words=` at its end.
+_NEXT_ARGUMENT = re.compile(r",\s*([A-Za-z_]\w*)\s*=\s*(?:['\"\[{(\d]|$)")
+
+
+def _missing_close(text: str, start: int,
+                   params: set | None) -> tuple[str | None, bool, str, int] | None:
+    """The string whose closing quote is missing, by the first scan's rules.
+
+    Night 151, s226 turns 2 to 6 sent `5: "approve}, words='...'`. The
+    string ran from `"approve` into `words`, and the refusal said a quote
+    inside closed it early. The seat looked for an inner quote five times.
+    A string that holds `, name=` holds the next argument, so its own
+    closing quote is missing. The answer is the argument that holds the
+    string, whether the string sits inside a bracket, the string's text
+    from its quote, and the quote's offset after the open bracket.
+    A name the function lacks is code in a value, not an argument.
+    """
+    last_key = None
+    after_comma = False
+    brackets: list[str] = []
+    quote = None
+    opened, opened_key, inner = 0, None, False
+    escaped = False
+    i = start
+    while i < len(text):
+        ch = text[i]
+        if escaped:
+            escaped = False
+        elif ch == "\\":
+            escaped = True
+        elif quote is not None:
+            if ch == quote:
+                closer, quote = quote, None
+                follow = text[i + 1:].lstrip()[:1]
+                for m in _NEXT_ARGUMENT.finditer(text, opened + 1, i):
+                    # `f(a, b='x')` in a value ends a string at `b=`. Only
+                    # a name the function takes passes with no value after,
+                    # and only when words, not a comma, follow the quote.
+                    bare = m.end() == i and m.group(0)[-1] not in "'\"[{(0123456789"
+                    if bare and (not params or follow in ",)]}:"):
+                        continue
+                    if params and m.group(1) not in params:
+                        continue
+                    # `donif=` before the string is a piece of a value.
+                    if params and opened_key and opened_key not in params:
+                        return None
+                    # The text before the string must read as the start of
+                    # the call. Else a quote inside an earlier value closed
+                    # it early, as `text='itx', tit:'`, and the string is
+                    # a piece of that value (frame 266, the fuzz slice).
+                    shut = "".join({"(": ")", "[": "]", "{": "}"}[b]
+                                   for b in reversed(opened_brackets))
+                    # A number stands for the string. Two strings side by
+                    # side join, so a string there would hide `'a''`.
+                    try:
+                        ast.parse(f"f({text[start:opened]} 0{shut})")
+                    except (SyntaxError, ValueError):
+                        return None
+                    return (opened_key, inner, text[opened:opened + 20],
+                            opened - start)
+                # A string that ends where no value can end, as `'it'x`,
+                # had a quote inside close it early. The strings after it
+                # are its pieces, so no missing quote can be read (frame
+                # 266: the fuzz slice moved 424 reads before this check).
+                if follow and follow not in ",)]}:" + closer:
+                    return None
+        elif ch in "'\"":
+            quote, opened = ch, i
+            opened_brackets = list(brackets)
+            # A string inside a dict or a list belongs to the argument
+            # that holds the bracket. A bare string after a comma has none.
+            inner = bool(brackets)
+            opened_key = last_key if inner or not after_comma else None
+        elif ch in "([{":
+            brackets.append(ch)
+        elif ch in ")]}":
+            if not brackets:
+                return None
+            brackets.pop()
+        elif ch == "," and not brackets:
+            after_comma = True
+        elif ch == "=" and not brackets:
+            m = re.search(r"([A-Za-z_]\w*)\s*$", text[start:i])
+            if m:
+                last_key, after_comma = m.group(1), False
+        i += 1
+    return None
+
+
 def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     """
     Parse the argument list. JSON object form, or Python keyword form.
@@ -1015,12 +1104,27 @@ def extract(text: str, signatures: dict | None = None, *,
             # the model's own guess was "a multi-line string", and the cause
             # was a quote inside the text closing the string early.
             key = _open_argument(text, args_start)
+            missing = _missing_close(text, args_start, params)
             if joined:
                 # The rescan closed the list, and the guard on joined strings
                 # refused it. The hint below would name a value that is
                 # already between triple quotes (the review of 9cb2bcbc,
                 # finding 3), so send the guard's reason.
                 reason = f"could not parse arguments: {joined[0]}"
+            elif missing:
+                # Frame 266, night 151: s226 read "a quote inside closed it
+                # early" five times and never found `"approve}`. Show the
+                # seat its own text where the string opens. The texts below
+                # stay byte for byte, because recorded prompts carry them.
+                owner, inner, head, at = missing
+                whose = (f"a string in the value of {owner}" if owner and inner
+                         else f"the value of {owner}" if owner else "a value")
+                reason = (
+                    f"unterminated argument list: {whose} starts at "
+                    f"`{head}`, character {at} after the open bracket, and "
+                    f"no closing quote follows it. The string runs on into "
+                    f"the next argument. Put the closing quote where that "
+                    f"value ends, and change nothing else")
             elif key:
                 # Frame 122, night 115: the old hint named `text=`, and the
                 # Critic put triple quotes on `quote`. The apostrophe that
