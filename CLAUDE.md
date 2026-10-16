@@ -422,6 +422,12 @@ one and the walks before gave the held frame's ratios their shape, say the
 three facts to Roman in one line, stop the night, copy the records to
 their night names, and start the read. A night that runs to the step cap
 on another frame's wall spends the card and measures nothing.
+**A loop on no held frame's site stops the night too**, read once at its
+first CYCLE line, and the read starts (taken by timeout: 2026-10-16 07:23,
+rated low, after night 150's walk 2 looped on a wall no frame named and
+spent about 25 asks, 120 steps and 3.9 dollars past its first CYCLE line
+with no page for any held frame; reasoned: `plans/night150-read.md`,
+section 10).
 
 Escalate as a blocked frame: the question and a recommended answer.
 Triggers: a ruling is needed, a wall survives three cycles, a change

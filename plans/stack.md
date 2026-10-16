@@ -66,9 +66,10 @@ eight validating frames read 0 of 0. Thinking on the Architect's relay
 wake, frame 244, reached 7 of 7 and cost about 130 s and no wall. The
 order below is the recommended next sprint (reasoned: the read, section
 13.2, by the wall that cost the most steps or asks on the night, then by
-price; row 6 moved up here because it holds a register red). It waits on
-Roman's ruling, sent by notification at 2026-10-16 07:01, rated low, with a
-20-minute timer by the rule of 2026-10-02. Rows 1 to 7 are about 14 cycles,
+price; row 6 moved up here because it holds a register red). It was sent to Roman
+by notification at 2026-10-16 07:01, rated low, with a 20-minute timer, and
+**taken by timeout at 2026-10-16 07:23** by the rule of 2026-10-02, the rule extension
+with it. Rows 1 to 7 are about 14 cycles,
 one sprint by the rule of 2026-10-11 05:51. Night 151 runs from row 3's
 commit, held on frame 243's ratio, and counts frames 243, 244, 254, 222 and
 255 on a real build, with 245, 246, 230, 204 and 173 again.
@@ -373,6 +374,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 8, row 1, the next night's wall (reasoned: the read, section 13.2; the wall that cost the most asks and steps on the night).
 - Pointer: `plans/night150-read.md`, sections 10, 11a and 12.
 - Status 2026-10-16 07:01 (rota-d0): pushed from night 150's read. Cause 8, wrong not to fire, by `plans/wall-guide.md` section 4 step 4. Meta workflow.
+- Status 2026-10-16 07:23 (rota-d0): **claimed by cc1d654e, peer rota-d0, as sprint 8's row 1, taken by timeout at 2026-10-16 07:23.** Pass 1 runs now on a fresh implementer on Opus, cap 120k, from `f261/pass1_brief.md` in this session's scratchpad, in the checkout at 0e26c0e1: the count over every night's signoff wakes first, a of n submits that omit a woken draft and b of N right calls, then the refusal in the signoff mode's `msg.submit_liaison` with s251's wake as the red test, the band order reported and not changed, the gate once at the end. Cycles: 1 of 2 to 3. Meta workflow.
 
 ### 262. A criterion names a surface the index does not hold, and every commit is refused for it (2026-10-16)
 
@@ -400,6 +402,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 8, row 6 (reasoned: the read, section 13.2).
 - Pointer: `plans/night150-read.md`, sections 10, 11a and 12.
 - Status 2026-10-16 07:01 (rota-d0): pushed from night 150's read. Cause 11 by `plans/wall-guide.md` section 4 step 3, the page itself. Meta workflow.
+- Status 2026-10-16 07:23 (rota-d0): **claimed by cc1d654e, peer rota-d0, as sprint 8's row 7, beside frame 261's pass because a read shares no site.** The two reads run now on Opus, cap 80k, read-only, from `f264/reads_brief.md` in this session's scratchpad, to `plans/frame264-reads.md`: the records for a prior ruling on what a request page shows of the account, and whether the recommended answer, the account rows under a heading that says they are the project as observed or off the request page, holds against the six replies and the nights before. The question goes to Roman only if the reads leave it open. Cycles: 1 of 1. Meta workflow.
 
 ### 265. "Now." on a shift page lands as `later` (2026-10-16)
 
@@ -519,6 +522,7 @@ a different question and the night is then opened once.
 - Status 2026-10-16 06:44 (rota-05): **handed to cc1d654e: `hand` exited 0 at 06:44 with the stack at e523106b, and the take came 7 s after the claim** (observed: `handover.py hand`, 2026-10-16). Session 738ddbaf stops here. Meta workflow.
 - Status 2026-10-16 06:46 (rota-d0): **taken by cc1d654e, peer rota-d0, at the stack's e523106b; the sixteen held frames carry this session's id now, each at the commit the hand-off named: 243 at 966a978f, 222 at c5f67351, 244 at 4e9d53aa, 255 at d3340828, 256 at 15cbf388, 250 at d3154135, 254 at 0865fe13, 129 at 254f04e4, and 245, 246, 230, 239, 204, 173, 206 and 203 as their last lines say** (observed: `handover.py take`, 2026-10-16). Night 150's read runs now on Opus, cap 300k, read-only, from `n150/read150_brief.md` in this session's scratchpad, to `plans/night150-read.md`: frame 244's thinking-on count first, then the counted doors of frames 255, 256, 250, 254, 222 and 129, this frame's record shape, the six other validating frames, the cycles and the step cap, every new wall placed by the guide, and the sprint 7 boundary. No agent edits the checkout. Cycles: 22 of 2. Meta workflow.
 - Status 2026-10-16 07:01 (rota-d0): **night 150: 0 of 0 merges; the block reached 10 of 10 Terminologist contest relays, the longest 9,892 characters, and 0 approve relays; 5 of 5 respecify relays after the `separators=('', '')` contest kept that text, against 3 of 6 on night 149; the show_python request reached seats late and got no ticket** (observed: `plans/night150-read.md`, section 8, 2026-10-16). Validating, the second night toward three at 0 of 0. W11 by the guide: the fact was in the prompt and the seat kept the text, so the interview of s190 against s215, sprint 7's row 7, stays owed. Sprint 8, row 7: 1 cycle. Meta workflow.
+- Status 2026-10-16 07:23 (rota-d0): **correction of the line above: the interview of s190 against s215 ran on 2026-10-15 16:55 as sprint 7's row 7 and led to pass 2; the interview W11 owes is of night 150's respecify relays s146, s155, s168, s179 and s190, which kept `separators=('', '')` with the block in front of them** (observed: `plans/night150-read.md`, section 8, 2026-10-16). Sprint 8, row 8: 1 cycle, after frame 261's pass. Meta workflow.
 
 ### 244. The re-annotate after a files-line contest keeps the files the principal declined (2026-10-15) (cc1d654e)
 
