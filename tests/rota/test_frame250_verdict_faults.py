@@ -13,9 +13,13 @@ so m81's case stays an expected failure.
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from rota.core.db import init_db
+from rota.roles.principal import land, parse_reply, pending_asks, render_page
+from rota.testkit.fixtures import seed_provenance
 
 from .test_frame234_verdict_lines import _rule11, _rule_request
 
@@ -115,7 +119,7 @@ M81 = ("Yes. The test should expect the Python version at the end of the "
        "string so it doesn't need to look up an installed package.")
 
 
-@pytest.mark.xfail(strict=True, reason=(
+@pytest.mark.xfail(strict=True, raises=pytest.fail.Exception, reason=(
     "frame 250: the clarify fault reading refused 40 of 69 right approves "
     "on nights 143 to 149, so the brief stops that route after the count"))
 def test_m81s_clarify_approve_of_a_faulted_row_is_refused(db):
@@ -129,3 +133,131 @@ def test_a_clarify_reply_that_only_agrees_approves(db):
                         {"calculate_tip": "approve",
                          "how_it_works": "approve"}, verb="clarify")
     assert set(out["per_item"].values()) == {"approve"}
+
+
+# Frame 250, review 1, finding 1: the approve door spared every batch line,
+# and an open change's line the words fault landed approved. The scene is
+# night 145's bg_4 page m245, rebuilt from `.rota/clickI_night145.db`, read
+# with `mode=ro` on 2026-10-16. bg_4 runs at head commit 04d4368f.
+B4_ITEM = "cr_3_show_python_append"
+B4_CRITERIA = (
+    ("cr_1_cr_3_show_python_append", "tk_1_cr_3_show_python_append",
+     "When a command with a fixed Python version (e.g., 1.0) is invoked with "
+     "the version option, the printed output must include the running Python "
+     "interpreter's version string written as major.minor.micro."),
+    ("cr_2_cr_3_show_python_append_format", "tk_1_cr_3_show_python_append",
+     "The appended Python version string in the printed output must be "
+     "formatted as major.minor.micro, taken from Python's own version info, "
+     "and must not alter existing formatting or separators."),
+    ("cr_3_cr_3_show_python_append_default", "tk_1_cr_3_show_python_append",
+     "When `show_python` is False (default), the version message must behave "
+     "exactly as it did before this feature was added."),
+    ("cr_4_cr_3_show_python_append", "tk_2",
+     "The `show_python` flag must be accepted by the `version_option` "
+     "decorator without error."),
+)
+B4_TOUCH = (
+    "src/click/decorators.py::custom_version_option",
+    "src/click/decorators.py::version_option",
+    "tests/test_basic.py::test_custom_version_option",
+    "tests/test_basic.py::test_version_option_ambiguous_import_name_errors",
+    "tests/test_basic.py::test_version_option_resolves_import_name_to_distribution",
+    "tests/test_basic.py::test_version_option_unknown_package_errors",
+    "tests/test_defaults.py::test_flag_default_map",
+    "tests/test_defaults.py::test_flag_default_map_with_callable_flag_value",
+    "tests/test_defaults.py::test_multiple_flag_default",
+    "tests/test_options.py::test_flag_value_show_default",
+)
+# The words of ruling r_f38b69e7c3 on m245, reply m246, verbatim.
+M246 = ("Please don't give up on this change. The tests in lines 2 to 4 are "
+        "wrong because the version option never returns a message, so they "
+        "should run a command that has a fixed version like 1.0 and has the "
+        "version option, then check the printed output. Line 6 is also still "
+        "wrong because the work should touch only the version option code and "
+        "its tests in test_basic, not the tests for option flags and default "
+        "maps.")
+# The landed map of r_f38b69e7c3, by line. Line 6 is bg_4.
+M245_MAP = {"1": "approve", "2": "contest", "3": "contest", "4": "approve",
+            "5": "approve", "6": "approve"}
+
+
+@pytest.fixture
+def m245(db):
+    """bg_4 at its head commit, running, and the open page m245."""
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version, priority) VALUES (?, ?, 'in_scope', 'approved', 2, 2, 1)",
+               (B4_ITEM, "The `version_option` decorator must support a "
+                         "`show_python` flag that appends the running Python "
+                         "version to the version message without altering other "
+                         "formatting or separators. This is a required feature "
+                         "and is within scope."))
+    seed_provenance(db, "items", B4_ITEM, "decided")
+    db.execute("INSERT INTO batches (id, item_id, head_commit, status, version) "
+               "VALUES ('bg_4', ?, '04d4368f1e3186bf173fd1a6f18bc0f9c0082e95', "
+               "'running', 1)", (B4_ITEM,))
+    for tid, text in (
+            ("tk_1_cr_3_show_python_append",
+             "the `version_option` decorator must support a `show_python` flag"),
+            ("tk_2", "the `show_python` flag appends the running Python version "
+                     "to the version")):
+        db.execute("INSERT INTO tickets (id, item_id, text, version, item_ver) "
+                   "VALUES (?, ?, ?, 1, 2)", (tid, B4_ITEM, text))
+        db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) "
+                   "VALUES ('bg_4', ?)", (tid,))
+    for cid, tid, text in B4_CRITERIA:
+        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES (?, ?, ?)",
+                   (cid, tid, text))
+    for grain in B4_TOUCH:
+        db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind, "
+                   "confidence) VALUES ('bg_4', ?, 'path', 'expected')", (grain,))
+        db.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'path')",
+                   (grain,))
+    refs = ["bg_4", B4_ITEM] + [c for c, _, _ in B4_CRITERIA]
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, status, seq) VALUES ('m245', 'm245', 'liaison', "
+               "'principal', 'present', ?, 'open', 1)", (json.dumps(refs),))
+    db.commit()
+    return db
+
+
+def _rule_m245(db, rulings):
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    (ask,) = [a for a in pending_asks(db) if a.message_id == "m245"]
+    reply = land(db, ask, parse_reply(ask, M246))
+    db.commit()
+    sb = build("liaison", db, mode="landing",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = reply
+    return sb.call("rulings.rule", rulings=rulings, words=M246)
+
+
+def test_the_m245_page_numbers_bg_4_as_line_6(m245):
+    _, order = render_page(m245, "present", json.loads(m245.execute(
+        "SELECT body_refs FROM messages WHERE id = 'm245'").fetchone()
+        ["body_refs"]), ask_id="m245")
+    assert order == [B4_ITEM] + [c for c, _, _ in B4_CRITERIA] + ["bg_4"]
+
+
+def test_the_night_map_is_refused_for_lines_4_and_6(m245):
+    with pytest.raises(ValueError) as e:
+        _rule_m245(m245, M245_MAP)
+    assert str(e.value).startswith(
+        'The words fault line 4, "wrong", and line 6, "wrong".'), str(e.value)
+
+
+def test_an_approve_of_the_open_change_line_is_refused(m245):
+    """The seat fixes line 4 and keeps the approve of line 6. Before
+    review 1's fix, the ruling landed and the files correction was lost."""
+    with pytest.raises(ValueError) as e:
+        _rule_m245(m245, dict(M245_MAP, **{"4": "contest"}))
+    said = str(e.value)
+    assert said.startswith('The words fault line 6, "wrong".'), said
+    assert "Rule line 6 contest or revise" in said
+
+
+def test_the_map_with_line_6_contested_lands(m245):
+    out = _rule_m245(m245, dict(M245_MAP, **{"4": "contest", "6": "contest"}))
+    assert out["per_item"]["bg_4"] == "contest"
+    assert out["per_item"][B4_ITEM] == "approve"

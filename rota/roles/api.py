@@ -8641,7 +8641,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   quoted: bool, batch_lines: frozenset[int] = frozenset(),
                   item_lines: frozenset[int] = frozenset(),
                   approved: frozenset[int] = frozenset(),
-                  cues: dict[int, tuple[str, str]] | None = None
+                  cues: dict[int, tuple[str, str]] | None = None,
+                  closed_lines: frozenset[int] = frozenset()
                   ) -> str | None:
     """The refusal of a ruling the words do not support, or None.
 
@@ -8652,6 +8653,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     `item_lines` are the lines that show a request item or a criterion.
     `approved` are the lines ruled approve. `cues` maps each line the words
     fault, before the batch lift, to its fault cue and clause (`_line_cues`).
+    `closed_lines` are the batch lines of a merged or abandoned change.
     """
     reversed_ = sorted((matched - faulted) & contested)
     if reversed_:
@@ -8666,24 +8668,26 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     if unnamed:
         return unnamed
     approve = _faulted_approve(approved, cues or {}, size, request_first,
-                               batch_lines)
-    if approve:
-        return approve
+                               batch_lines, closed_lines)
+    # The request refusal below wins over the approve refusal. It names
+    # the line 1 contest and the faulted lines in one message. Night 133's
+    # s313 contested line 1 and approved bg_2's line, which the words
+    # fault (`test_park_page.py`, frame 250, pass 1b).
     if not request_first or 1 not in contested or quoted:
-        return None
+        return approve
     named = sorted(n for n in faulted if n <= size)
     if not named or 1 in faulted:
-        return None
+        return approve
     # Any reference to line 1 can carry a fault the cues miss. Night 144's
     # m193 said "Line 1 isn't a request" (frame 234, review 1, finding 1).
     if any(1 in _ref_lines(r) for s in sentences for r in _LINE_REF.finditer(s)):
-        return None
+        return approve
     # A sentence with no line number can correct the request itself. Night
     # 143's m263: "Also, take the version from the running interpreter's
     # version info" (frame 234, review 1, finding 2).
     if any(s.strip() and not _LINE_REF.search(s)
            and not _BARE_AGREEMENT.fullmatch(s) for s in sentences):
-        return None
+        return approve
     lines = f"line{'' if len(named) == 1 else 's'} {_line_set(named)}"
     return (f"The words fault {lines}. Line 1 is the request, and they do "
             f"not fault it. Rule {lines}, and approve the rest.")
@@ -8696,13 +8700,20 @@ _TOUCH_WORDS = re.compile(r"\b(?:files?|tests?|touch(?:es|ed)?)\b", re.I)
 def _faulted_approve(approved: frozenset[int],
                      cues: dict[int, tuple[str, str]], size: int,
                      request_first: bool,
-                     batch_lines: frozenset[int]) -> str | None:
+                     batch_lines: frozenset[int],
+                     closed_lines: frozenset[int] = frozenset()) -> str | None:
     """The refusal of an approve of a line the words fault, or None.
 
     Night 149's s212 approved lines 6 and 7 against "Lines 2, 3, 5, 6 and 7
     are also wrong", and cr_5 and cr_6 kept the declined words (frame 250).
-    A batch line stays with the batch door, which tells a seat to approve a
-    closed change's line (frame 255). A request on line 1 stays too: a
+    The line of a merged or abandoned change stays with the batch door,
+    which tells a seat to approve it (frame 255). The line of an open
+    change is refused like any other line, because frame 255's door admits
+    its contest. Night 145's m245 approved line 6, bg_4 running, against
+    "Line 6 is also still wrong because the work should touch only the
+    version option code" (frame 250, review 1, finding 1). The guard on
+    files and tests below spares text lines only. On the batch line, those
+    words are the files correction itself. A request on line 1 stays too: a
     contest of it cancels the work, and night 146's m164 faulted only the
     code that line 1 names. On a page with a batch line, a clause that
     names files or tests can number a text line of the prediction. Night
@@ -8710,16 +8721,19 @@ def _faulted_approve(approved: frozenset[int],
     (`test_request_page.py`).
 
     Over the 177 landed present and confirm verdicts of nights 143 to 149
-    with words and an approve, the door fires on 5. Four approved a line
-    the words fault: night 143's m133, 145's m245, 146's m162 and 149's
-    m105. One was right: night 147's m86, where "Line 7 just repeats line
-    2" reads as a fault of line 2. The guard on line 1 spares m164
-    (observed: `f250/count_present.py`, 2026-10-16).
+    with words and an approve, the door fires on 7. Six approved a line
+    the words fault: night 143's m133, 145's m245, m255 and m260, 146's
+    m162 and 149's m105. The three of night 145 approved bg_4's line, a
+    running change. One was right: night 147's m86, where "Line 7 just
+    repeats line 2" reads as a fault of line 2. The guard on line 1 spares
+    m164 (observed: `f250/count_present_1b.py`, 2026-10-16, batch status
+    at the night's end).
     """
     wrong = sorted(
         n for n in approved if n in cues and 1 <= n <= size
-        and n not in batch_lines and not (request_first and n == 1)
-        and not (batch_lines and _TOUCH_WORDS.search(cues[n][1])))
+        and n not in closed_lines and not (request_first and n == 1)
+        and not (n not in batch_lines and batch_lines
+                 and _TOUCH_WORDS.search(cues[n][1])))
     if not wrong:
         return None
     one = len(wrong) == 1
@@ -9101,6 +9115,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         batch_lines = frozenset(
             i + 1 for i, r in enumerate(order) if ctx.conn.execute(
                 "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone())
+        closed_lines = frozenset(
+            i + 1 for i, r in enumerate(order) if ctx.conn.execute(
+                "SELECT 1 FROM batches WHERE id = ? AND status IN "
+                "('merged', 'abandoned')", (r,)).fetchone())
         item_lines = frozenset(
             i + 1 for i, r in enumerate(order) if ctx.conn.execute(
                 "SELECT 1 FROM items WHERE id = ? UNION ALL "
@@ -9109,7 +9127,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             words, contested, faulted, matched, len(order), request_first,
             request_first and _quotes_line(words, page_text, 1), batch_lines,
             item_lines, frozenset(i + 1 for i, r in enumerate(order)
-                                  if per_item.get(r) == "approve"), read_cues)
+                                  if per_item.get(r) == "approve"), read_cues,
+            closed_lines)
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():
