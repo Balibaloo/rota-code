@@ -319,15 +319,17 @@ M65 = ("Line 2's check is wrong because it compares against the default spaced "
 
 
 def _refusal(words, contested, size, batch_lines=frozenset(),
-             item_lines=frozenset({1, 2, 3, 4})):
+             item_lines=frozenset({1, 2, 3, 4}), request_lines=frozenset()):
     """The door's reading of a page of `size` lines that opens with a request
     item, as `rulings_rule` calls it. Lines 1 to 4 are the request and its
     criteria on m131's and m65's pages."""
     from rota.roles.api import _line_reading, _line_refusal
 
     faulted, matched = _line_reading(words)
+    kw = {"request_lines": frozenset(request_lines)} if request_lines else {}
     return _line_refusal(words, set(contested), faulted, matched, size, True,
-                         False, frozenset(batch_lines), frozenset(item_lines))
+                         False, frozenset(batch_lines), frozenset(item_lines),
+                         **kw)
 
 
 def test_s281s_contest_of_lines_the_words_do_not_name_is_refused():
@@ -492,15 +494,18 @@ def test_a_batch_line_the_words_never_name_lands_its_contest(bg2):
     assert ruled.get("bg_2") == "contest", ruled
 
 
-@pytest.mark.parametrize("words, contested, batch", [
-    # m28 s112: no line reference, so the words name nothing.
+@pytest.mark.parametrize("words, contested, batch, asked", [
+    # m28 s112: no line reference, and the page shows no request line, so
+    # the door has no line to send the instruction to. With the request on
+    # line 1 the same words are refused (frame 258, below).
     ("ok. Please use only the standard library json module for this, with no "
-     "new dependency.", {2, 3}, frozenset()),
+     "new dependency.", {2, 3}, frozenset(), frozenset()),
     # m181 s343: a bare agreement and a contest of the batch line.
-    ("Ok, go ahead.", {3}, frozenset({3})),
+    ("Ok, go ahead.", {3}, frozenset({3}), frozenset({1})),
 ])
-def test_words_that_name_no_line_refuse_nothing(words, contested, batch):
-    assert _refusal(words, contested, 3, batch, frozenset({1})) is None
+def test_words_that_name_no_line_refuse_nothing(words, contested, batch,
+                                                asked):
+    assert _refusal(words, contested, 3, batch, frozenset({1}), asked) is None
 
 
 def test_a_range_of_notes_names_each_note():
@@ -508,3 +513,113 @@ def test_a_range_of_notes_names_each_note():
     assert _refusal(words, {3, 8, 9, 10, 11}, 11) is None
     assert _refusal(words, {3, 5, 8}, 11).startswith(
         "The words name lines 3 and 8 to 11 and do not name line 5.")
+
+
+# Frame 258: a contest on a line no sentence names. Verbatim from the
+# `rulings` table of `.rota/clickI_night150.db`.
+M25 = ("Ok, this matches what I asked for. Please build it with the standard "
+       "library json module only.")
+M37 = ("Line 1 is wrong, because I never asked for anything to be built without "
+       "Click. What I asked for is an echo_json helper inside Click, next to "
+       "echo, that uses the standard library json module to print an object as "
+       "compact JSON on one line, followed by a newline. Lines 2 through 5 come "
+       "from that misreading, so please drop them.")
+M316 = ("Lines 4 to 8 are wrong. They repeat the confirm() flag five times, and "
+        "they should state what the version flag must do: the show_python flag "
+        "adds the running Python version to the version message as "
+        "major.minor.micro from sys.version_info. Line 1 also does not belong "
+        "on this page, because I put the confirm() change aside until this "
+        "change is merged.")
+
+
+def test_m25s_contest_of_the_description_row_is_refused(db):
+    """Night 150's m24 page: line 1 the request echo_json, line 2
+    how_it_works, line 3 a note. m25 was ruled a contest of how_it_works,
+    and the contested wake made the item json_only from his words. The
+    `_request_page` fixture has the same three kinds of line."""
+    with pytest.raises(ValueError) as e:
+        _rule_request(db, M25, {"1": "approve", "2": "contest", "3": "approve"})
+    assert str(e.value) == (
+        "The words name no line and agree with the page, so their instruction "
+        "is about the request, line 1. Approve line 2, and rule line 1 as the "
+        "words say.")
+
+
+@pytest.mark.parametrize("verb", ["contest", "revise"])
+def test_m25s_instruction_lands_on_the_request_line(db, verb):
+    out = _rule_request(db, M25, {"1": verb, "2": "approve", "3": "approve"})
+    assert out["per_item"] == {"calculate_tip": verb, "how_it_works": "approve",
+                               "l_1": "approve"}
+
+
+def test_m28s_words_with_the_request_on_line_1_are_refused():
+    # Night 147's m29 on m28: the words of night 150's m25, one night before.
+    words = ("ok. Please use only the standard library json module for this, "
+             "with no new dependency.")
+    out = _refusal(words, {2, 3}, 3, frozenset(), frozenset({1}),
+                   frozenset({1}))
+    assert out is not None and out.startswith("The words name no line")
+    assert "Approve lines 2 and 3, and rule line 1" in out
+
+
+def test_words_that_name_a_line_by_a_word_are_left_alone():
+    # Night 133's m68 named the batch line as "the pager tests" and wrote
+    # "One small note". The door cannot read which line a word names.
+    words = ("ok. One small note: the pager tests should not need any change "
+             "for this helper, so leave them alone unless something there "
+             "really breaks.")
+    assert _refusal(words, {2}, 2, frozenset({2}), frozenset({1}),
+                    frozenset({1})) is None
+
+
+@pytest.mark.parametrize("batch_ruling, refused", [("contest", True),
+                                                   ("approve", False)])
+def test_m37s_contest_of_the_running_batch_line_is_refused(bg2, batch_ruling,
+                                                          refused):
+    """Night 150's m37 page: line 1 the request, lines 2 to 5 its criteria,
+    line 6 batch_1, running with no commit. The words name lines 1 to 5,
+    and the ruling contested batch_1 too, which cost an Architect relay.
+    Night 136's page with a fourth criterion has the same shape."""
+    from .test_request_page import ITEM_136, P, _dispatch, _reply, _verdict
+    from .test_request_page import _landing as _land_session
+
+    bg2.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                "('cr_4_extra', 'tk_1_confirm_with_default_on_eof', "
+                "'A fourth criterion.')")
+    bg2.execute("UPDATE batches SET status = 'running' WHERE id = 'bg_2'")
+    (wake,) = P.REGISTRY["touch_note"].fn(bg2)
+    mid = _dispatch(bg2, wake,
+                    f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
+    reply = _reply(bg2, mid, M37)
+    ruling = {str(n): "contest" for n in range(1, 6)}
+    ruling["6"] = batch_ruling
+    out = _land_session(bg2, reply, ruling, M37)
+    said = " ".join(out.errors)
+    assert ("The words name lines 1 to 5 and do not name line 6." in said) \
+        is refused, out.errors
+    if not refused:
+        _, ruled = _verdict(bg2, mid)
+        assert ruled.get("bg_2") != "contest", ruled
+        assert ruled.get(ITEM_136) == "contest", ruled
+
+
+def test_m37s_words_spare_a_batch_line_only_with_files_or_tests():
+    assert _refusal(M37, {1, 2, 3, 4, 5, 6}, 6, frozenset({6}),
+                    frozenset({1, 2, 3, 4, 5})).startswith(
+        "The words name lines 1 to 5 and do not name line 6.")
+    assert _refusal(M37, {1, 2, 3, 4, 5}, 6, frozenset({6}),
+                    frozenset({1, 2, 3, 4, 5})) is None
+
+
+def test_m316s_contest_of_lines_3_and_9_is_refused():
+    """Night 150's m316 page: lines 1 and 2 statements, line 3 the request
+    json_only, lines 4 to 8 its criteria, line 9 how_it_works, lines 10 to
+    12 the account. "They repeat ..." goes on about lines 4 to 8, so it
+    spares no line. Before frame 258 the caller counted line 9 as an item
+    line, so `item_lines` holds it here."""
+    out = _refusal(M316, {1, 3, 4, 5, 6, 7, 8, 9}, 12, frozenset(),
+                   frozenset(range(3, 10)))
+    assert out is not None and out.startswith(
+        "The words name lines 1 and 4 to 8 and do not name lines 3 and 9.")
+    assert _refusal(M316, {1, 4, 5, 6, 7, 8}, 12, frozenset(),
+                    frozenset(range(3, 10))) is None
