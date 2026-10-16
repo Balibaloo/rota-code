@@ -1984,7 +1984,14 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                     row["about_ref"] not in stamped:
                 if page_req is unread:
                     page_req = page_request(conn, ask.refs)
-                owner = request_of(conn, row["about_ref"])
+                from ..core.runner import _is_description
+
+                # The account belongs to no request, as in `off_page`. A
+                # description cites the earliest request, so the skip lost
+                # the contest of a note about `how_it_works` (frame 274's
+                # review 1, finding 1).
+                owner = (None if _is_description(conn, row["about_ref"])
+                         else request_of(conn, row["about_ref"]))
                 if page_req is None or owner is None or owner == page_req:
                     per_item[row["about_ref"]] = "contest"
         conn.execute(

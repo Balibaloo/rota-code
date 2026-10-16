@@ -490,6 +490,25 @@ def test_a_note_s_contest_reaches_a_description_on_a_page_with_no_request(db):
                       "'defines_commands_and_options'").fetchone()["approval"] == "contested"
 
 
+def test_a_note_s_contest_reaches_a_description_on_a_request_page(db):
+    """Frame 274's review 1, finding 1: night 152's confirm page carried
+    `how_it_works`, which cites the echo_json request. The account belongs
+    to no request, so a contested note about it contests it."""
+    _two_requests(db)
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "kind, status, author) VALUES ('l_5011cd2b09','how_it_works',"
+               "'items','The account describes how Click works.','default','open',"
+               "'vision_keeper')")
+    db.commit()
+    ask = _a_present_of(db, ["confirm_default_on_eof", "how_it_works", "l_5011cd2b09"])
+    mid = land(db, ask, Answer(verb="verdict", text="the account is wrong", per_item={
+        "confirm_default_on_eof": "approve", "l_5011cd2b09": "contest"}))
+    db.commit()
+    assert verdict_for(db, mid).get("how_it_works") == "contest"
+    assert db.execute("SELECT approval FROM items WHERE id = 'how_it_works'"
+                      ).fetchone()["approval"] == "contested"
+
+
 def test_the_signoff_page_names_the_code_that_carries_each_items_words(db):
     """P4 piece 2 in its mechanical form (2026-09-12): beside each item, the
     files whose symbols carry a word of the item's text, read from the
