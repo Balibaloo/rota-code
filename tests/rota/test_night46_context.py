@@ -751,6 +751,82 @@ def test_a_patch_of_builtins_input_does_not_reach_an_alias(db, tmp_path):
     assert _encode(sb2, ok)
 
 
+S197_TURN5 = (
+    'from click.testing import CliRunner\n'
+    'from click.termui import confirm\n'
+    'import click\n'
+    '\n'
+    'def cli_app_with_confirm():\n'
+    '    """A simple CLI app that calls confirm().""" \n'
+    '    @click.command()\n'
+    '    def cmd():\n'
+    '        confirm("Are you sure?", default=False)\n'
+    '    return cmd\n'
+    '\n'
+    'def test_confirm_aborts_when_stdin_closed():\n'
+    '    """Test that confirm() aborts when stdin is closed and default_on_eof is False (default).\n'
+    '    \n'
+    '    This covers cr_2_confirm_default_on_eof and cr_4_confirm_default_on_eof.\n'
+    '    When default_on_eof is not passed (defaults to False) or is explicitly False,\n'
+    '    and stdin is closed, confirm() should abort.\n'
+    '    """\n'
+    '    runner = CliRunner()\n'
+    '    # Simulate closed stdin by providing an empty stream\n'
+    '    result = runner.invoke(cli_app_with_confirm(), input="")\n'
+    '    assert result.exit_code != 0  # Should abort')
+
+
+def _termui_alias_batch(db, tmp_path):
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "termui.py").write_text("visible_prompt_func = input\n\n\ndef confirm(text, default=None):\n    return visible_prompt_func(text) == 'y'\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = ? WHERE id = 'c1'", ('["src/click/termui.py::confirm"]',))
+    db.commit()
+
+
+def test_confirm_inside_a_command_that_cliRunner_invokes_with_input_passes_the_stdin_door(db, tmp_path):
+    """Click night 149 (2026-10-15), frame 254: s197 sent confirm() inside a
+    local @click.command() run by CliRunner().invoke(..., input=""), the
+    principal's recipe. The door refused it four times. It passes on bg_2's
+    head, because CliRunner.isolation gives the command its input stream."""
+    _termui_alias_batch(db, tmp_path)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    assert _encode(sb, S197_TURN5)["id"] == "tst_new"
+    # The command by its own name, a group's subcommand, and input= by name.
+    direct = ("from click.testing import CliRunner\nfrom click.termui import confirm\nimport click\n\n"
+              "@click.group()\ndef cli():\n    pass\n\n@cli.command()\ndef ask():\n    confirm('ok?')\n\n"
+              "def test_x():\n    result = CliRunner().invoke(cli, ['ask'], input='y')\n    assert result.exit_code == 0")
+    sb2 = build("tester", db, batch_id="b1", mode="tests_missing")
+    assert _encode(sb2, direct)["id"] == "tst_new"
+
+
+def test_a_stdin_read_with_no_invoke_with_input_still_refuses_and_names_the_route(db, tmp_path):
+    """Frame 254: the admission covers a command that CliRunner.invoke runs
+    with input= only. A read at module level, in a plain function, in a
+    command run with no input=, or under `@runner.command()` still meets
+    pytest's captured stdin. The refusal names the principal's route."""
+    _termui_alias_batch(db, tmp_path)
+    head = "from click.testing import CliRunner\nfrom click.termui import confirm\nimport click\n\n"
+    bodies = [
+        # module level, inside the test function
+        head + "def test_x():\n    assert confirm('ok?', default=True) is True",
+        # a plain function passed to invoke
+        head + "def ask():\n    confirm('ok?')\n\ndef test_x():\n    assert CliRunner().invoke(ask, input='').exit_code != 0",
+        # a command run with no input=
+        head + "@click.command()\ndef cmd():\n    confirm('ok?')\n\ndef test_x():\n    assert CliRunner().invoke(cmd).exit_code != 0",
+        # CliRunner has no command method
+        head + "def test_x():\n    runner = CliRunner()\n\n    @runner.command()\n    def cmd():\n        confirm('ok?')\n\n"
+               "    assert runner.invoke(cmd, input='').exit_code != 0",
+    ]
+    for body in bodies:
+        sb = build("tester", db, batch_id="b1", mode="tests_missing")
+        with pytest.raises(ValueError) as ex:
+            _encode(sb, body)
+        msg = str(ex.value)
+        assert "where stdin is captured" in msg, (body, msg)
+        assert "CliRunner().invoke(cmd, input='y')" in msg, (body, msg)
+
+
 def test_a_fragment_that_is_the_tail_of_a_try_names_the_whole_statement(tmp_path):
     """Click night 53 (2026-09-14): `except ...:` sent alone, three sessions."""
     wt = tmp_path / "wt"; (wt / "src").mkdir(parents=True)

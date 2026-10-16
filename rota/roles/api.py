@@ -6264,6 +6264,130 @@ def _shields_input(shields: set[str]) -> bool:
     return "sys.stdin" in shields or "builtins.input" in shields
 
 
+# Frame 254: night 149's Tester s197 sent `confirm()` inside a local
+# `@click.command()` that `CliRunner().invoke(..., input="")` ran. That is
+# the principal's own recipe. The stdin door refused it four times, and the
+# body passes on bg_2's head 39f9365.
+def _invoked_command_calls(tree) -> set:
+    """The Call nodes that run inside a click command that the
+    test runs through `CliRunner.invoke` with an `input` keyword.
+
+    `CliRunner.isolation` gives such a command its own input stream and
+    replaces `termui.visible_prompt_func`. So `confirm()`, `prompt()` and
+    `input()` there never read pytest's captured stdin.
+
+    A command is a function decorated by `click.command`, `click.group`, a
+    bare `command` or `group` imported from click, or `<group>.command` of
+    a group in the body. The invoke names the command, a factory call that
+    returns it, or a name bound to either. `@runner.command()` is no
+    command: CliRunner has no such method.
+
+    The count on nights 136 to 149 (frame 254, 2026-10-16): the door
+    refused 113 distinct bodies on this branch in 30 Tester sessions. 4 of
+    them were right, all s197's on night 149, 1 of 30 sessions. With this
+    admission the branch refuses 0 of the 4. It admits 3 more, s250's on
+    night 147: a command run with input='', wrong by click's
+    DeprecationWarning on isolated_filesystem, which no stdin read causes.
+    The surface door of `tests.encode` refuses those 3 still. The branch
+    still refuses the other 106, and each refusal names the invoke route."""
+    import ast as _ast
+
+    if not any((isinstance(n, _ast.Name) and n.id == "CliRunner")
+               or (isinstance(n, _ast.Attribute) and n.attr == "CliRunner")
+               or (isinstance(n, _ast.alias) and n.name == "CliRunner")
+               for n in _ast.walk(tree)):
+        return set()
+    click_mods = {a.asname or a.name for n in _ast.walk(tree)
+                  if isinstance(n, _ast.Import) for a in n.names if a.name == "click"}
+    click_verbs = {a.asname or a.name: a.name for n in _ast.walk(tree)
+                   if isinstance(n, _ast.ImportFrom)
+                   and (n.module or "").split(".")[0] == "click"
+                   for a in n.names if a.name in ("command", "group")}
+    funcs = [n for n in _ast.walk(tree)
+             if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))]
+
+    def verb(dec, groups):
+        head = dec.func if isinstance(dec, _ast.Call) else dec
+        if isinstance(head, _ast.Name):
+            return click_verbs.get(head.id)
+        if (isinstance(head, _ast.Attribute) and head.attr in ("command", "group")
+                and isinstance(head.value, _ast.Name)
+                and (head.value.id in click_mods or head.value.id in groups)):
+            return head.attr
+        return None
+
+    # A group's subcommands are decorated with the group's own name, so the
+    # groups are found first.
+    groups: set[str] = set()
+    for _ in range(3):
+        groups |= {f.name for f in funcs
+                   if any(verb(d, groups) == "group" for d in f.decorator_list)}
+    commands: dict[str, list] = {}
+    subs: dict[str, list] = {}
+    for f in funcs:
+        for d in f.decorator_list:
+            if verb(d, groups):
+                commands.setdefault(f.name, []).append(f)
+                head = d.func if isinstance(d, _ast.Call) else d
+                if isinstance(head, _ast.Attribute) and head.value.id in groups:
+                    subs.setdefault(head.value.id, []).append(f)
+                break
+    factories: dict[str, list] = {}
+    for f in funcs:
+        if f.name in commands:
+            continue
+        inner = {g.name for g in _ast.walk(f) if g is not f
+                 and isinstance(g, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                 and g.name in commands}
+        for r in _ast.walk(f):
+            if (isinstance(r, _ast.Return) and isinstance(r.value, _ast.Name)
+                    and r.value.id in inner):
+                factories.setdefault(f.name, []).extend(commands[r.value.id])
+    bound: dict[str, list] = {}
+    for n in _ast.walk(tree):
+        if (isinstance(n, _ast.Assign) and len(n.targets) == 1
+                and isinstance(n.targets[0], _ast.Name)):
+            bound.setdefault(n.targets[0].id, []).append(n.value)
+
+    def resolve(expr, depth=0) -> list:
+        if depth > 4:
+            return []
+        if isinstance(expr, _ast.Name):
+            out = list(commands.get(expr.id, []))
+            for f in list(out):
+                out += subs.get(f.name, [])
+            if not out:
+                for v in bound.get(expr.id, []):
+                    out += resolve(v, depth + 1)
+            return out
+        if isinstance(expr, _ast.Call) and isinstance(expr.func, _ast.Name):
+            return list(factories.get(expr.func.id, []))
+        return []
+
+    # An AST node hashes by identity, so the set holds the nodes themselves.
+    # `tests_encode` has a parameter named `id`, which hides the builtin.
+    inside: set = set()
+    for n in _ast.walk(tree):
+        if not (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                and n.func.attr == "invoke"
+                and any(k.arg == "input" for k in n.keywords)):
+            continue
+        target = n.args[0] if n.args else next(
+            (k.value for k in n.keywords if k.arg == "cli"), None)
+        for f in resolve(target) if target is not None else []:
+            for stmt in f.body:
+                inside |= {c for c in _ast.walk(stmt) if isinstance(c, _ast.Call)}
+    return inside
+
+
+# The route the principal gave for a prompt under test (frame 254): a
+# command run by CliRunner with its own input stream.
+_INVOKE_ROUTE = (
+    "Or call it inside a @click.command() and run that command with "
+    "CliRunner().invoke(cmd, input='y'): the runner gives the command its "
+    "own input stream")
+
+
 def _imported_names(tree) -> dict[str, tuple[str, int, str]]:
     """Each name that the test binds by `from ... import`, as
     `(module, level, name in the module)`."""
@@ -7015,15 +7139,23 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # code is not a definition of done, and the refusal names the shapes
     # that can.
     calls = [n for n in _ast.walk(tree) if isinstance(n, _ast.Call)]
-    names = {n.func.id for n in calls if isinstance(n.func, _ast.Name)}
+    # A read inside a command that CliRunner.invoke runs with input= reads
+    # the runner's stream, not pytest's (frame 254, night 149's s197).
+    invoked = _invoked_command_calls(tree)
+    free_calls = [n for n in calls if n not in invoked]
+    names = {n.func.id for n in free_calls if isinstance(n.func, _ast.Name)}
     shields = _stdin_shields(tree)
+    uses_click = any(
+        (isinstance(n, _ast.Import) and any(a.name.split(".")[0] == "click" for a in n.names))
+        or (isinstance(n, _ast.ImportFrom) and (n.module or "").split(".")[0] == "click")
+        for n in _ast.walk(tree))
     if "input" in names and not _shields_input(shields):
         raise Wall(
             "this test calls input(), and pytest captures stdin: the call "
             "raises OSError before any assertion runs, against any code. "
             "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
             "lambda _='': 'Alice') -- or test the function that takes the "
-            "name as an argument")
+            "name as an argument" + (". " + _INVOKE_ROUTE if uses_click else ""))
     # Closing the process's stdin is the same trap from the other side.
     # Click night 50, walk 2 (2026-09-14): two EOF tests did
     # `sys.stdin.close()`, the pytest process lost its stdin, both failed
@@ -7072,7 +7204,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         except Exception:                     # noqa: BLE001 -- no worktree yet
             root = None
         if root:
-            called_bare = {n.func.id for n in calls
+            called_bare = {n.func.id for n in free_calls
                            if isinstance(n.func, _ast.Name) and n.func.id != "input"}
             for pyfile in root.rglob("*.py"):
                 rel = pyfile.relative_to(root).as_posix()
@@ -7109,6 +7241,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     module = rel[:-3].replace("/", ".")
                     if module.startswith("src."):
                         module = module[4:]
+                    # The route is click's, so it is named for a click
+                    # project only (frame 254).
+                    route = (". " + _INVOKE_ROUTE
+                             if uses_click or module.split(".")[0] == "click" else "")
                     if aliases:
                         raise Wall(
                             f"{node.name}() reads input() through {aliases[0]}, a name "
@@ -7119,7 +7255,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                             f"name it reads through -- monkeypatch.setattr("
                             f"'{module}.{aliases[0]}', lambda _='': 'y') -- or give it "
                             f"an empty stream: monkeypatch.setattr('sys.stdin', "
-                            f"io.StringIO(''))")
+                            f"io.StringIO(''))" + route)
                     raise Wall(
                         f"{node.name}() reads input() internally "
                         f"({pyfile.name}), and this test calls "
@@ -7129,7 +7265,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                         f"Feed the name in instead -- "
                         f"monkeypatch.setattr('builtins.input', "
                         f"lambda _='': 'Alice') before calling "
-                        f"{node.name}()")
+                        f"{node.name}()" + route)
     # And a third harness fact, from walk nine: `assert test_valid_input()`
     # against a name the test neither imports nor defines is a NameError
     # before any code is consulted. The floor puts the project root on the
