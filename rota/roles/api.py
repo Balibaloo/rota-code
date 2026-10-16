@@ -8862,7 +8862,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   approved: frozenset[int] = frozenset(),
                   cues: dict[int, tuple[str, str]] | None = None,
                   closed_lines: frozenset[int] = frozenset(),
-                  request_lines: frozenset[int] = frozenset()
+                  request_lines: frozenset[int] = frozenset(),
+                  request_texts: tuple[str, ...] = ()
                   ) -> str | None:
     """The refusal of a ruling the words do not support, or None.
 
@@ -8875,6 +8876,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     fault, before the batch lift, to its fault cue and clause (`_line_cues`).
     `closed_lines` are the batch lines of a merged or abandoned change.
     `request_lines` are the lines that show a request item.
+    `request_texts` are the ids and the texts of those items.
     """
     reversed_ = sorted((matched - faulted) & contested)
     if reversed_:
@@ -8912,9 +8914,13 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
         return approve
     # A sentence with no line number can correct the request itself. Night
     # 143's m263: "Also, take the version from the running interpreter's
-    # version info" (frame 234, review 1, finding 2).
+    # version info" (frame 234, review 1, finding 2). It must name the
+    # request or say what to build. Night 151's m46, "Please don't drop this
+    # change.", is about the batch, and its line-1 contest cancelled bg_1
+    # (frame 258, pass 2).
     if any(s.strip() and not _LINE_REF.search(s)
-           and not _BARE_AGREEMENT.fullmatch(s) for s in sentences):
+           and not _BARE_AGREEMENT.fullmatch(s)
+           and _names_request(s, request_texts) for s in sentences):
         return approve
     lines = f"line{'' if len(named) == 1 else 's'} {_line_set(named)}"
     return (f"The words fault {lines}. Line 1 is the request, and they do "
@@ -8923,6 +8929,40 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
 
 # The words of a batch's prediction: what the change touches.
 _TOUCH_WORDS = re.compile(r"\b(?:files?|tests?|touch(?:es|ed)?)\b", re.I)
+
+# A sentence that opens with one of these verbs says what to build. Night
+# 143's m263: "Also, take the version from the running interpreter's
+# version info" (frame 234, review 1, finding 2).
+_BUILD_VERB = re.compile(
+    r"\W*(?:(?:also|please|and|then)\W+)*"
+    r"(?:build|add|make|use|take|print|show|return|write|output)\b", re.I)
+# Words that a sentence about the batch shares with any request: night
+# 151's m46, "I'd rather you try again and fix the failing tests", and
+# night 144's m167 and m219 (frame 258, pass 2).
+_BATCH_TALK = frozenset({
+    "change", "changes", "team", "work", "fix", "failing", "test", "tests",
+    "keep", "going", "drop", "please", "want", "line", "lines", "page",
+    "rather", "again", "give", "review", "one", "like"})
+
+
+def _names_request(sentence: str, request_texts: tuple[str, ...]) -> bool:
+    """Whether a sentence with no line number names the request.
+
+    The sentence says what to build, or it shares a content word with an
+    id or the text of a request item. Over every night's records the m263
+    guard met 4 line-1 contests, and 3 were about the batch (frame 258,
+    pass 2, `f258/count2.py`).
+    """
+    if _BUILD_VERB.match(sentence):
+        return True
+
+    def words(text: str) -> set[str]:
+        return {w.rstrip("s") for w in _prose_words(text)} - _BATCH_TALK
+
+    asked: set[str] = set()
+    for text in request_texts:
+        asked |= words(text)
+    return bool(words(sentence) & asked)
 
 
 def _faulted_approve(approved: frozenset[int],
@@ -8987,6 +9027,15 @@ _AGREES = re.compile(
     r"looks (?:right|good|fine))\b", re.I)
 # A word that names a line with no number: "the line", "both lines".
 _LINE_WORD = re.compile(r"\b(?:lines?|notes?)\b", re.I)
+# A reply that is agreement alone: night 151's m23 "ok", night 147's m182
+# "Ok, go ahead." and night 121's m119 "yes that all looks right, go ahead"
+# (frame 258, pass 2).
+_AGREE_PHRASE = (
+    rf"{_AGREE}|(?:this|that|it|the page|everything)(?: all)? "
+    r"(?:matches(?: what I asked for)?|is right|looks? (?:right|good|fine))"
+    r"|so|and|then|please|I approve(?: the page| it)?")
+_AGREEMENT_ALONE = re.compile(
+    rf"\W*(?:{_AGREE_PHRASE})(?:\W+(?:{_AGREE_PHRASE}))*\W*", re.I)
 
 
 def _unnumbered(sentences: list[str]) -> list[str]:
@@ -9067,14 +9116,25 @@ def _agreed_contest(sentences: list[str], contested: set[int], size: int,
     Vision Keeper's contested mode, which amends the item with his words.
     A reply that names a line by a word, "the line" or "both lines", is
     left alone, because the door cannot read which line it names.
+
+    A reply that is agreement alone admits no contest on any line. Over
+    every night's records, 5 of 1513 such replies drew a contest, and each
+    contest was the seat's error: night 151's m23 "ok" contested lines 2
+    and 3 and cost 2 asks and 11 sessions (frame 258, pass 2).
     """
+    if _AGREEMENT_ALONE.fullmatch(" ".join(sentences)):
+        if not any(1 <= n <= size for n in contested):
+            return None
+        return (f"The words agree with the page and name no line, so every "
+                f"line is approved. Approve "
+                f"{_lines(list(range(1, size + 1)))}.")
     if not request_lines or not sentences or not _AGREES.match(sentences[0]):
         return None
     if _LINE_WORD.search(" ".join(sentences)):
         return None
-    # The instruction is a sentence after the agreement. Night 121's m119,
-    # "yes that all looks right, go ahead", is one sentence that agrees, and
-    # a plain approval lands on every line (frame 258, review 1, finding 1).
+    # The instruction is a sentence after the agreement. A reply of one
+    # sentence that agrees and adds words is left alone, because the door
+    # cannot read where the words go (frame 258, review 1, finding 1).
     if not any(s.strip() and not _BARE_AGREEMENT.fullmatch(s)
                for s in sentences[1:]):
         return None
@@ -9433,7 +9493,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             request_first and _quotes_line(words, page_text, 1), batch_lines,
             item_lines, frozenset(i + 1 for i, r in enumerate(order)
                                   if per_item.get(r) == "approve"), read_cues,
-            closed_lines, request_lines)
+            closed_lines, request_lines, tuple(
+                t for _, r in asked for t in (r, (ctx.conn.execute(
+                    "SELECT text FROM items WHERE id = ?", (r,)).fetchone()
+                    or [""])[0] or "")))
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():

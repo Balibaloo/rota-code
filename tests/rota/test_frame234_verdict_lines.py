@@ -319,7 +319,8 @@ M65 = ("Line 2's check is wrong because it compares against the default spaced "
 
 
 def _refusal(words, contested, size, batch_lines=frozenset(),
-             item_lines=frozenset({1, 2, 3, 4}), request_lines=frozenset()):
+             item_lines=frozenset({1, 2, 3, 4}), request_lines=frozenset(),
+             request_texts=()):
     """The door's reading of a page of `size` lines that opens with a request
     item, as `rulings_rule` calls it. Lines 1 to 4 are the request and its
     criteria on m131's and m65's pages."""
@@ -327,6 +328,8 @@ def _refusal(words, contested, size, batch_lines=frozenset(),
 
     faulted, matched = _line_reading(words)
     kw = {"request_lines": frozenset(request_lines)} if request_lines else {}
+    if request_texts:
+        kw["request_texts"] = tuple(request_texts)
     return _line_refusal(words, set(contested), faulted, matched, size, True,
                          False, frozenset(batch_lines), frozenset(item_lines),
                          **kw)
@@ -500,8 +503,8 @@ def test_a_batch_line_the_words_never_name_lands_its_contest(bg2):
     # line 1 the same words are refused (frame 258, below).
     ("ok. Please use only the standard library json module for this, with no "
      "new dependency.", {2, 3}, frozenset(), frozenset()),
-    # m181 s343: a bare agreement and a contest of the batch line.
-    ("Ok, go ahead.", {3}, frozenset({3}), frozenset({1})),
+    # m181 s343, "Ok, go ahead." on the batch line, is refused since frame
+    # 258's pass 2: agreement alone admits no contest (below).
 ])
 def test_words_that_name_no_line_refuse_nothing(words, contested, batch,
                                                 asked):
@@ -558,9 +561,94 @@ def test_m25s_instruction_lands_on_the_request_line(db, verb):
     "yes that all looks right, go ahead",
     "ok, this matches what I asked for, so go ahead.",
 ])
-def test_a_plain_approval_on_a_contested_line_is_admitted(words):
-    assert _refusal(words, {2}, 3, frozenset(), frozenset({1}),
+def test_a_plain_approval_lands_and_its_contest_is_refused(words):
+    # Frame 258, pass 2: each reply contested a batch line on its night,
+    # and agreement alone admits no contest. The approve call lands.
+    assert _refusal(words, set(), 3, frozenset(), frozenset({1}),
                     frozenset({1})) is None
+    assert _refusal(words, {2}, 3, frozenset(), frozenset({1}),
+                    frozenset({1})) == (
+        "The words agree with the page and name no line, so every line is "
+        "approved. Approve lines 1 to 3.")
+
+
+# Frame 258, pass 2, W1: agreement alone, verbatim from the `rulings` table
+# of each night's db, with the lines the seat contested.
+@pytest.mark.parametrize("words, contested, size, batch", [
+    ("ok", {2, 3}, 3, frozenset()),                # night 151 m23, s106
+    ("Ok, go ahead.", {3}, 3, frozenset({3})),     # night 147 m182, s343
+    ("ok", {1}, 1, frozenset()),                   # night 138 m161, s296
+])
+def test_agreement_alone_admits_no_contest(words, contested, size, batch):
+    out = _refusal(words, contested, size, batch, frozenset({1}),
+                   frozenset({1}))
+    assert out is not None and out.startswith(
+        "The words agree with the page and name no line, so every line is "
+        "approved.")
+
+
+def test_m23s_contest_of_lines_2_and_3_is_refused(db):
+    """Night 151's m22 page: line 1 the request echo_json, line 2
+    how_it_works, line 3 a note. s106 ruled lines 2 and 3 contest on "ok",
+    and the contested wakes cost 2 asks and 11 sessions. The
+    `_request_page` fixture has the same three kinds of line."""
+    with pytest.raises(ValueError) as e:
+        _rule_request(db, "ok", {"1": "approve", "2": "contest",
+                                 "3": "contest"})
+    assert str(e.value) == ("The words agree with the page and name no line, "
+                            "so every line is approved. Approve lines 1 to 3.")
+
+
+def test_m23s_approve_call_lands(db):
+    out = _rule_request(db, "ok", {"1": "approve", "2": "approve",
+                                   "3": "approve"})
+    assert set(out["per_item"].values()) == {"approve"}
+
+
+# Frame 258, pass 2, W2: a line-1 contest under sentences about the batch.
+# Verbatim from the `rulings` table of each night's db. Night 151's m45 page:
+# line 1 the request echo_json, line 2 its criterion, line 3 bg_1.
+M46 = ("Please don't drop this change. I'd rather you try again and fix the "
+       "failing tests. Lines 2 and 3 now say what I want, and the fix should "
+       "still use only the standard json module.")
+ECHO_JSON = ("echo_json", "Add an echo_json(obj) helper next to echo that "
+             "prints an object as compact JSON on one line, followed by a "
+             "newline.")
+M167 = ("Please don't give up on this change. Have the team fix the failing "
+        "tests and keep going. Line 5 still lists the pager test file, and I "
+        "asked to leave that file alone, so the work should touch only utils "
+        "and the echo tests.")
+
+
+@pytest.mark.parametrize("texts", [(), ECHO_JSON])
+def test_m46s_contest_of_the_request_line_is_refused(texts):
+    out = _refusal(M46, {1}, 3, frozenset({3}), frozenset({1, 2}),
+                   frozenset({1}), texts)
+    assert out == ("The words fault lines 2 and 3. Line 1 is the request, and "
+                   "they do not fault it. Rule lines 2 and 3, and approve the "
+                   "rest.")
+
+
+def test_m167s_contest_of_the_request_line_is_refused():
+    # Night 144's m167 on m166: line 1 echo_json, line 5 bg_1's prediction.
+    out = _refusal(M167, {1}, 5, frozenset({5}), frozenset({1, 2, 3, 4}),
+                   frozenset({1}), ECHO_JSON)
+    assert out is not None and "Line 1 is the request" in out
+
+
+def test_a_sentence_that_names_the_request_spares_line_1():
+    # Night 143's m359 on m358: the last sentence names the request's words.
+    words = ("Please keep going with a fix and don't drop this change. Line 5 "
+             "is wrong because it still touches the Command class in core.py, "
+             "and the flag belongs only to the version option in "
+             "decorators.py. Keep the change there and add the Python version "
+             "to the end of the message only when the flag is on.")
+    show_python = ("version_option_show_python", "The `version_option` "
+                   "includes a `show_python` flag that, when set to True, "
+                   "causes the command to display the running Python version "
+                   "in the message.")
+    assert _refusal(words, {1}, 5, frozenset({5}), frozenset({1, 2, 3, 4}),
+                    frozenset({1}), show_python) is None
 
 
 def test_m25s_words_with_a_batch_line_contested_are_still_refused():
