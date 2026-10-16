@@ -726,14 +726,25 @@ def _page_under_reply(conn: sqlite3.Connection, trig: sqlite3.Row,
     return page["id"] if page else None
 
 
+# The repeat door's end line. It says how the session ended, not what failed.
+REPEAT_END = "repeated its previous turn verbatim twice; ended"
+
+
 def _why_no_ruling(result: SessionResult) -> str:
-    """The last refusal the session met, else the runner's last error."""
+    """
+    The newest fault of the session: its last error, else its last refusal.
+
+    The errors come first because they hold every fault in order, parse
+    errors included. Night 151's s226 fixed its first refusal at turn 2 and
+    then failed four turns on a quote. The last refusal named the fixed
+    fault (frame 267, review 1, finding 1).
+    """
+    for e in reversed(result.errors or []):
+        if e and str(e) != REPEAT_END:
+            return str(e)
     for r in reversed(result.refusals or []):
         if len(r) > 1 and r[1]:
             return f"{r[0]}: {r[1]}"
-    for e in reversed(result.errors or []):
-        if e:
-            return str(e)
     return "the session wrote no ruling and sent nothing"
 
 
@@ -969,6 +980,9 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 (result.trigger_msg,)).fetchone()
             was_unresolved = bool(trig and trig["status"] == "unresolved")
             page = _page_under_reply(conn, trig, result)
+            returned = bool(page) and conn.execute(
+                "SELECT unresolved_note FROM messages WHERE id = ?",
+                (page,)).fetchone()["unresolved_note"] is not None
             # A suspended session keeps its claim and can still reply.
             if (trig and trig["status"] == "open"
                     and result.checkpoint is None
@@ -996,6 +1010,14 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     "UPDATE messages SET status = 'unresolved', unresolved_note = "
                     "COALESCE(unresolved_note, 'the session woken by it wrote "
                     "nothing and sent nothing') WHERE id = ?",
+                    (result.trigger_msg,))
+            elif page is not None and returned:
+                # A page goes back to the principal once per ask. A miss on a
+                # reply to a returned page closes the reply, and the page
+                # keeps its note, so no driver answers it again (frame 267,
+                # review 1, finding 6: a page the seat cannot land looped).
+                conn.execute(
+                    "UPDATE messages SET status = 'answered' WHERE id = ?",
                     (result.trigger_msg,))
             elif page is not None and (trig["attempts"] or 0) < REPLY_SESSIONS:
                 # Frame 267, the first miss: the reply stays open, so the

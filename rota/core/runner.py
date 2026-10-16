@@ -31,7 +31,8 @@ from . import sandbox as sandbox_mod
 from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
-from .db import OutboundMessage, SessionResult, Turn, Write, session_commit, session_fail, session_note
+from .db import (OutboundMessage, REPEAT_END, SessionResult, Turn, Write,
+                 session_commit, session_fail, session_note)
 from .scheduler import Wake, claim, release
 
 _log = logging.getLogger(__name__)
@@ -2169,10 +2170,13 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 page_refs = json.loads(clarify["body_refs"] or "[]")
                 # A park page numbers the item and its criteria, so the
                 # ruling lands on its rows as on every present (ruled: Roman,
-                # 2026-10-08, the park ask is a page with rows).
+                # 2026-10-08, the park ask is a page with rows). The returned
+                # line is the principal's, not the seat's (frame 267, ruled
+                # by the holding session at review 1).
                 page, order = render_page(conn, clarify["verb"], page_refs,
                                           clarify["body_text"],
-                                          ask_id=clarify["id"])
+                                          ask_id=clarify["id"],
+                                          returned=False)
                 landing: dict[str, Any] = {
                     "page_kind": clarify["verb"], "page": page,
                     "lines": {str(i + 1): ref for i, ref in enumerate(order)},
@@ -2408,8 +2412,8 @@ def _missed_reply_line(conn: sqlite3.Connection, wake) -> str:
         return ""
     note = row["unresolved_note"].strip()
     stop = "" if note.endswith((".", "!", "?")) else "."
-    return (f"A session on this reply ended with no ruling. Its last refusal: "
-            f"{note}{stop}")
+    return (f"A session on this reply ended with no ruling. Its last refusal "
+            f"or error: {note}{stop}")
 
 
 def _resolve_refs(conn: sqlite3.Connection, refs,
@@ -4039,7 +4043,7 @@ def run_session(
             if (len(turns) >= 3
                     and turns[-1].completion.strip() == turns[-2].completion.strip()
                     == turns[-3].completion.strip()):
-                outcome.errors.append("repeated its previous turn verbatim twice; ended")
+                outcome.errors.append(REPEAT_END)
                 break
 
             # Frame 237: a reply with a list and some real calls reads the

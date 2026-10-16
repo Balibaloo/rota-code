@@ -1337,16 +1337,18 @@ def returned_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
 def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
                 question: str | None = None, *,
                 ask_id: str | None = None,
-                stalled: list[str] | None = None) -> tuple[str, list[str]]:
+                stalled: list[str] | None = None,
+                returned: bool = True) -> tuple[str, list[str]]:
     """
     The page of `_page_body`, with the line of `returned_line` on top.
 
     The line is not numbered, so the order that `parse_reply` reads does not
-    move.
+    move. `returned=False` leaves the line out: the Liaison's landing wake is
+    the seat's view of the page, not the principal's.
     """
     page, order = _page_body(conn, verb, refs, question, ask_id=ask_id,
                              stalled=stalled)
-    back = returned_line(conn, ask_id)
+    back = returned_line(conn, ask_id) if returned else ""
     return (f"{back}\n{page}" if back else page), order
 
 

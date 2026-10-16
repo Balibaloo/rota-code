@@ -1747,6 +1747,19 @@ def test_a_barren_session_on_a_challenge_leaves_it_unresolved(db):
 S336_REFUSAL = ("line 11: 'ask' is a question back, and a question is its own "
                 "call: rulings.rule(ask=\"<one sentence about line 11>\") with "
                 "no rulings.")
+# s336's turn 1 completion on night 151, verbatim. Turns 2 and 3 repeat it.
+S336_TURN_1 = (
+    'TOOL: rulings.rule(rulings={"1": "approve", "2": "contest", "3": "contest", '
+    '"4": "contest", "5": "contest", "6": "approve", "7": "contest", "8": '
+    '"approve", "9": "approve", "10": "approve", "11": "ask", "12": "approve"}, '
+    'words="Lines 4 and 5 are wrong because their checks still pass a plain '
+    'string to the decorator, when they should run a small command with the '
+    'flag on and ask for its version. Lines 2 and 3 never turn the flag on, '
+    'and line 3 also needs to check that the Python version stays hidden when '
+    "the flag is off. Line 7 should say the version comes from the "
+    "interpreter's version info as major, minor and micro and not the full "
+    "version string, and line 11 is about the JSON change, so it doesn't "
+    'belong on this page.")')
 
 
 def _page_and_reply(db, attempts):
@@ -1761,14 +1774,25 @@ def _page_and_reply(db, attempts):
 
 
 def _commit_reply_session(db, sid, **kw):
+    # No `errors=` here: the field is new, and the tests of the unchanged
+    # paths must run at the commit before it (review 1, finding 5).
     from rota.core.db import SessionResult, session_commit
 
+    kw.setdefault("refusals", [("rulings.rule", S336_REFUSAL, "ValueError")])
     session_commit(db, SessionResult(
         session_id=sid, role="liaison", trigger_msg="m178",
-        wake_kind="message", wake_detail="converse",
-        refusals=[("rulings.rule", S336_REFUSAL, "ValueError")],
-        errors=["rulings.rule: " + S336_REFUSAL,
-                "repeated its previous turn verbatim twice; ended"], **kw))
+        wake_kind="message", wake_detail="converse", **kw))
+
+
+# s226's account on night 151, verbatim: one refusal the seat fixed at turn
+# 2, then four parse errors on an unbalanced quote, then the repeat door.
+S226_REFUSAL = ("lines 1, 5 have no ruling. Every line of the page takes one: "
+                "the ask closes when the ruling lands. A line the reply does "
+                "not contest is approve")
+S226_PARSE = ("unterminated argument list: a quote inside a quoted argument "
+              "ended the string early, or a bracket is unbalanced. Source has "
+              "quotes of its own: put it between triple quotes, "
+              "text='''...''', with the lines as they are, no escaping")
 
 
 def _status(db, mid):
@@ -1797,9 +1821,52 @@ def test_the_second_wake_on_a_missed_reply_says_the_last_refusal(db):
     assert _missed_reply_line(db, wake) == ""
     _commit_reply_session(db, "s336")
     assert _missed_reply_line(db, wake) == (
-        "A session on this reply ended with no ruling. Its last refusal: "
-        "rulings.rule: " + S336_REFUSAL)
+        "A session on this reply ended with no ruling. Its last refusal or "
+        "error: rulings.rule: " + S336_REFUSAL)
     assert _missed_reply_line(db, wake_vision_keeper()) == ""
+
+
+def test_the_note_names_the_newest_fault_not_a_fixed_refusal(db):
+    """Night 151's m108: s226 fixed its refusal at turn 2 and failed four
+    turns on a quote. The note names the parse error, and never the repeat
+    door's end line (frame 267, review 1, finding 1)."""
+    _page_and_reply(db, attempts=1)
+    _commit_reply_session(
+        db, "s226", refusals=[("rulings.rule", S226_REFUSAL, "ValueError")],
+        errors=["rulings.rule: " + S226_REFUSAL] + [S226_PARSE] * 4
+        + ["repeated its previous turn verbatim twice; ended"])
+    assert _status(db, "m178") == {"status": "open", "unresolved_note": S226_PARSE}
+
+
+def test_a_page_comes_back_once_and_a_later_miss_closes_the_reply(db):
+    """A page goes back to the principal once per ask. A miss on a reply to
+    a returned page closes the reply and leaves the note as it was, so no
+    driver answers the page again (review 1, finding 6)."""
+    _page_and_reply(db, attempts=1)
+    db.execute("UPDATE messages SET unresolved_note = 'm150: rulings.rule: "
+               "line 3: no' WHERE id = 'm177'")
+    db.commit()
+    _commit_reply_session(db, "s340")
+    assert _status(db, "m178") == {"status": "answered", "unresolved_note": None}
+    assert _status(db, "m177") == {"status": "open",
+                                   "unresolved_note": "m150: rulings.rule: line 3: no"}
+
+
+def test_the_landing_wake_shows_the_page_without_the_returned_line(db):
+    """The returned line is the principal's. The Liaison's landing wake is
+    the seat's view of the page, so the line stays out of it."""
+    from rota.core.runner import resolve_inbound
+    from rota.roles.principal import pending_asks
+
+    _page_and_reply(db, attempts=0)
+    db.execute("UPDATE messages SET unresolved_note = 'm150: rulings.rule: "
+               "line 3: no' WHERE id = 'm177'")
+    db.commit()
+    wake = Wake(role="liaison", kind="message", message_id="m178", detail="converse")
+    page = resolve_inbound(db, wake)["landing"]["page"]
+    assert "did not reach the team" not in page
+    assert pending_asks(db)[0].rendered.startswith(
+        "Your last answer to this page did not reach the team.")
 
 
 def test_a_second_reply_that_lands_no_ruling_returns_the_page(db):
@@ -1826,18 +1893,23 @@ def test_a_second_reply_that_lands_no_ruling_returns_the_page(db):
 def test_s336s_end_through_the_runner_keeps_then_returns_the_page(db):
     """The replay of s336's end: one refused call three times, the repeat
     door, a barren commit. The first run keeps the reply open, and the
-    second run's wake says why and returns the page (frame 267, 5.4)."""
-    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
-               "VALUES ('i1','delete an account','in_scope','pending',0,1)")
+    second run's wake says why and returns the page (frame 267, 5.4). The
+    completion is s336's turn 1 on night 151, verbatim, on a page of twelve
+    lines as m177 had (review 1, finding 4)."""
+    for k in range(1, 13):
+        db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                   "version) VALUES (?,?,'in_scope','pending',0,1)",
+                   (f"i{k}", f"the change does thing {k}"))
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES "
-               "('m177','t9','liaison','principal','present','[\"i1\"]',177,'open')")
+               "('m177','t9','liaison','principal','present',?,177,'open')",
+               (json.dumps([f"i{k}" for k in range(1, 13)]),))
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                "verb, body_text, seq, status) VALUES "
                "('m178','m177','t9','principal','liaison','converse',"
-               "'line 1 is a question',178,'open')")
+               "'line 11 is about the JSON change',178,'open')")
     db.commit()
-    call = 'TOOL: rulings.rule(rulings={"1": "ask"}, words="line 1 is a question")'
+    call = S336_TURN_1
     wake = Wake(role="liaison", kind="message", message_id="m178", detail="converse")
     shown = []
     for _ in range(2):
@@ -1848,13 +1920,13 @@ def test_s336s_end_through_the_runner_keeps_then_returns_the_page(db):
         shown.append(backend.calls[0][1])
         if len(shown) == 1:
             assert _status(db, "m178")["status"] == "open"
-            assert "line 1: 'ask' is a question back" in _status(db, "m178")["unresolved_note"]
+            assert _status(db, "m178")["unresolved_note"] == "rulings.rule: " + S336_REFUSAL
     assert "ended with no ruling" not in shown[0]
-    assert ("A session on this reply ended with no ruling. Its last refusal: "
-            "rulings.rule: line 1: 'ask' is a question back") in shown[1]
+    assert ("A session on this reply ended with no ruling. Its last refusal or "
+            "error: rulings.rule: " + S336_REFUSAL) in shown[1]
     assert _status(db, "m178")["status"] == "answered"
-    assert _status(db, "m177")["status"] == "open"
-    assert _status(db, "m177")["unresolved_note"].startswith("m178: rulings.rule: line 1:")
+    assert _status(db, "m177") == {"status": "open",
+                                   "unresolved_note": "m178: rulings.rule: " + S336_REFUSAL}
 
 
 def test_a_reply_that_stages_a_ruling_is_answered_as_before(db):
