@@ -150,6 +150,43 @@ def test_a_row_of_another_author_is_not_the_answer(db):
     db.commit()
     thread = runner._thread_on_tests(SimpleNamespace(ctx=_ctx(db)), [{"id": TEST}])
     assert thread[0]["answer"] == "answered with no words"
+    # Review 2, low 2: the Architect's own row still shows beside the
+    # dropped Developer row, so the filter does not drop every row.
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm144'",
+               (f'["{CRIT}", "{TEST}", "d_dev", "{DEC}"]',))
+    db.commit()
+    thread = runner._thread_on_tests(SimpleNamespace(ctx=_ctx(db)), [{"id": TEST}])
+    assert thread[0]["answer"] == {"id": DEC, "author": "architect",
+                                   "text": DEC_TEXT, "table": "decisions"}
+
+
+def test_an_open_decision_challenge_gets_no_offer_of_itself(db):
+    # Review 2, high: m150 waits with no answer, so the door refuses the
+    # same call as "it waits".
+    _night153(db)
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m150', 'bg_3', 'developer', "
+               "'tester', 'challenge', ?, 150, 'open')",
+               (f'["{CRIT}", "{TEST}", "{DEC}"]',))
+    db.commit()
+    said = runner._after_these(SimpleNamespace(ctx=_ctx(db)), [{"id": TEST}])
+    assert "Make one real change" in said
+    assert "msg.challenge_tester" not in said
+
+
+def test_the_offer_returns_after_a_test_receipt(db):
+    # Review 2, low 1: a `tests` receipt after m150's wake is a new version,
+    # and the door admits the challenge again.
+    _night153(db)
+    _answered_decision_challenge(db)
+    db.execute("INSERT INTO sessions (id, role, trigger_msg, seq) VALUES "
+               "('s300', 'tester', 'm150', 300)")
+    db.execute("INSERT INTO sessions (id, role, seq) VALUES ('s301', 'tester', 301)")
+    db.execute("INSERT INTO receipts (session_id, table_name, row_id, "
+               "new_version) VALUES ('s301', 'tests', ?, 2)", (TEST,))
+    db.commit()
+    said = runner._after_these(SimpleNamespace(ctx=_ctx(db)), [{"id": TEST}])
+    assert f"Send msg.challenge_tester(refs={[CRIT, TEST, DEC]!r}" in said
 
 
 @pytest.mark.parametrize("refs, op", [([TEST], "msg.challenge_tester"),

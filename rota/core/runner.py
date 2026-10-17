@@ -3050,15 +3050,14 @@ def _after_these(sb: sandbox_mod.Sandbox, own: list[dict]) -> str:
 
     Frame 278, night 153: the step named the code, and the Architect's
     decision said that the test was at fault. The key is the refusal's key:
-    the table, the author and the test ref. An answered decision challenge
-    gets no offer (review 1 of frame 278, finding 1).
+    the table, the author and the test ref. The offer stands only when the
+    same-refs door admits it (reviews 1 and 2 of frame 278).
     """
     head = ("A listed message that is answered or closed is refused if sent "
             "again on these refs.")
     offer = None
     if sb.ctx.role == "developer":
-        offer = sandbox_mod.decision_step(
-            sb.ctx.conn, sb.ctx.role, [t.get("id") for t in own])
+        offer = sandbox_mod.decision_step(sb.ctx, [t.get("id") for t in own])
     if offer:
         return api._offer(sb.ctx, f"{head} {offer[0]}", "msg.challenge_tester",
                           offer[1])

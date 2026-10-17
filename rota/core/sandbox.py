@@ -2154,42 +2154,42 @@ def decision_challenge_call(found: tuple, role: str) -> tuple[str, dict]:
     return f"msg.challenge_tester(refs={refs}{slot})", args
 
 
-def _decision_challenge_answered(conn: sqlite3.Connection, role: str,
-                                 refs: list) -> bool:
-    """True when a challenge of `role` on `refs`, compared as a set without
-    the sender's reason rows, has an answer from the Tester."""
-    want = set(refs)
-    for m in conn.execute("SELECT id, body_refs FROM messages WHERE "
-                          "from_role = ? AND to_role = 'tester' AND verb = "
-                          "'challenge'", (role,)).fetchall():
-        try:
-            have = json.loads(m["body_refs"] or "[]")
-        except (TypeError, ValueError):
-            continue
-        if not isinstance(have, list):
-            continue
-        if set(_without_own_reasons(conn, have, role)) == want and \
-                _judged_by(conn, m["id"], "tester"):
-            return True
-    return False
+#: True while `decision_step` asks the same-refs door. The door's refusal
+#: can call `decision_step` again, and the nested ask must not recurse.
+_ASKING_DOOR = False
 
 
-def decision_step(conn: sqlite3.Connection, role: str,
-                  tests) -> tuple[str, dict] | None:
+def _decision_challenge_admitted(ctx: api.Ctx, refs: list) -> bool:
+    """True when the same-refs door admits the challenge on `refs`. The ask
+    records no offer, because the step decides what it offers."""
+    global _ASKING_DOOR
+    offers = getattr(ctx, "offers", None)
+    kept = len(offers) if offers is not None else 0
+    _ASKING_DOOR = True
+    try:
+        return _same_refs_refusal(ctx, "tester", "challenge", refs) is None
+    finally:
+        _ASKING_DOOR = False
+        if offers is not None:
+            del offers[kept:]
+
+
+def decision_step(ctx: api.Ctx, tests) -> tuple[str, dict] | None:
     """
     The step that offers the challenge with the Architect's decision: the
     sentence and the call's arguments, or None.
 
-    Review 1 of frame 278, finding 1: after the Tester answered that
-    challenge, the door refused it as "they answered", and the step offered
-    the same call again. Frame 135's law: a refusal names only a call that
-    the doors admit. So an answered decision challenge gets no offer.
+    Frame 135's law: a refusal names only a call that the doors admit. Review
+    1 of frame 278 found the answered challenge offered again, and review 2
+    found the open one offered again. So the step asks the door itself.
     """
-    found = architect_decision_on(conn, role, tests)
+    if _ASKING_DOOR:
+        return None
+    found = architect_decision_on(ctx.conn, ctx.role, tests)
     if not found:
         return None
-    call, args = decision_challenge_call(found, role)
-    if _decision_challenge_answered(conn, role, args["refs"]):
+    call, args = decision_challenge_call(found, ctx.role)
+    if not _decision_challenge_admitted(ctx, args["refs"]):
         return None
     return (f"The Architect's decision {found[0]} is about the test "
             f"{found[1]}. Send {call}.", args)
@@ -2339,7 +2339,7 @@ def _escalation_or_step(ctx: api.Ctx, refs, fact: str, step: str) -> str:
     if step == CODE_STEP and ctx.role == "developer":
         tests = [r for r in once if isinstance(r, str) and ctx.conn.execute(
             "SELECT 1 FROM tests WHERE id = ?", (r,)).fetchone()]
-        offer = decision_step(ctx.conn, ctx.role, tests)
+        offer = decision_step(ctx, tests)
         # Review 1 of frame 278, finding 2: a challenge on the test alone
         # met a second escalation offer after the Architect decided.
         mine = _without_own_reasons(ctx.conn, once, ctx.role)
