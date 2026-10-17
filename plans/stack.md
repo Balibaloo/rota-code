@@ -1676,7 +1676,7 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
 - Reasoning: `plans/night121-read.md`, section 6, wall 2.
 - Status 2026-10-05 09:21 (rota-ca): pushed by 5101d8d0. Unclaimed, priced after the read. Rota workflow.
 
-### 143. A Tester's test asserts a default that the function does not have (2026-10-05)
+### 143. A Tester's test asserts a default that the function does not have (2026-10-05) (0e37e9d7)
 
 - **Batch C, the night's stall, found by night 121's read.** Site: the Tester's `tests.encode` and what the wake shows of a parameter's default.
 - Rota workflow. On night 121 the Tester s245 stored `tst_confirm_eof_cr3` to `_cr6` with `result = confirm("Yes or no?", default_on_eof=True)` and `assert result is True`, and each fails with `assert False is True`: 4 of 15 stored tests, 4 of 7 reds at bg_2's head (observed: `plans/night121-read.md`, section 6, wall 4, 2026-10-05).
@@ -1687,6 +1687,7 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
 - Status 2026-10-08 01:53 (rota-a1): night 130: two cases, bg_2's two Tester tests assert `None` and `False` on the same call, and bg_3's last red test passes no version to `version_option`, so click raises `RuntimeError` on the test module (observed: `plans/night130-read.md`, sections 2 and 4, 2026-10-08). Rota workflow.
 - Status 2026-10-08 09:42 (rota-39): night 132: 4 Tester tests on bg_2 assert `True` from `confirm` with no default, where the default is `False`, and bg_2 was parked on them; 2 more on bg_3 assert a version with no value (observed: `plans/night132-read.md`, section 4, 2026-10-08). Rota workflow.
 - Status 2026-10-17 16:40 (rota-7d): **night 154: b2 started from the Tester's `assert result == "y"` on `confirm`, which led to m120's contest and the cancel, 10 asks before the batch was abandoned** (observed: `plans/night154-read.md`, section 9, 2026-10-17). Sprint 12, row 5. Meta workflow.
+- Status 2026-10-17 16:42 (rota-7d): **claimed, sprint 12 row 5, a read beside frame 283's pass. The interview runs on Opus, cap 60k, from `f143/interview_brief.md` in this session's scratchpad, to `plans/frame143-interview.md`**: s203's `"y"` turn replayed in its context, what the seat read of `confirm`'s return, where `"y"` came from, what would have moved it, with s201 as the control and three counterfactual replays, the return lines pushed, one brief sentence, and both. The fix is decided from what the model says. Cycles: 1 of 3. Meta workflow.
 
 ### 137. Three parser refusals still name a wrong thing, and one broken call lands with no refusal (2026-10-05)
 
