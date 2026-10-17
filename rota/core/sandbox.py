@@ -2161,10 +2161,14 @@ _ASKING_DOOR = False
 
 def _decision_challenge_admitted(ctx: api.Ctx, refs: list) -> bool:
     """True when the same-refs door admits the challenge on `refs`. The ask
-    records no offer, because the step decides what it offers."""
+    records no offer and no fact, because the step decides what it offers.
+    Review 3 of frame 278: a `row` fact from `_end_form` stayed behind, and
+    `_ON_REFUSAL` could fire on a refusal that had no facts."""
     global _ASKING_DOOR
     offers = getattr(ctx, "offers", None)
     kept = len(offers) if offers is not None else 0
+    facts = getattr(ctx, "facts", None)
+    kept_facts = len(facts) if facts is not None else 0
     _ASKING_DOOR = True
     try:
         return _same_refs_refusal(ctx, "tester", "challenge", refs) is None
@@ -2172,6 +2176,8 @@ def _decision_challenge_admitted(ctx: api.Ctx, refs: list) -> bool:
         _ASKING_DOOR = False
         if offers is not None:
             del offers[kept:]
+        if facts is not None:
+            del facts[kept_facts:]
 
 
 def decision_step(ctx: api.Ctx, tests) -> tuple[str, dict] | None:

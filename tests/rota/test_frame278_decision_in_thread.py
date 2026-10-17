@@ -189,6 +189,24 @@ def test_the_offer_returns_after_a_test_receipt(db):
     assert f"Send msg.challenge_tester(refs={[CRIT, TEST, DEC]!r}" in said
 
 
+def test_the_ask_leaves_no_fact_and_no_offer(db, monkeypatch):
+    # Review 3 of frame 278: a fact that the door recorded during the ask
+    # stayed in ctx.facts.
+    _night153(db)
+    ctx = _ctx(db)
+    ctx.facts = ["kept"]
+    ctx.offers.append("kept")
+
+    def door(c, recipient, verb, refs):
+        c.facts.append("row fact of the ask")
+        c.offers.append("offer of the ask")
+        return "refused"
+
+    monkeypatch.setattr(sandbox, "_same_refs_refusal", door)
+    assert sandbox._decision_challenge_admitted(ctx, [CRIT, TEST, DEC]) is False
+    assert ctx.facts == ["kept"] and ctx.offers == ["kept"]
+
+
 @pytest.mark.parametrize("refs, op", [([TEST], "msg.challenge_tester"),
                                       ([CRIT, TEST], "msg.escalate_architect")])
 def test_a_challenge_on_the_test_alone_gets_the_decision_first(db, monkeypatch,
