@@ -72,34 +72,28 @@ him as item 3.
 - **Frame 282**, the line reader, row 4. At 42a4449e, review 2 stands.
   Validating on the night.
 - **Frame 143**, the Tester's wrong value, row 5. At 5561fc13, review 1
-  stands. Replay 1 found the block form moves s199 turn 3 on 6 of 6 and
-  s203 turn 1 on 0 of 6, with two candidate causes, the note's words or
-  the shorter source. Replay 2 separates them, three arms at the night's
-  temperature; see the stack's last line for its result. The cheap fix,
-  if the counts name the shorter source: widen `_surface_lines` to carry
-  the branch conditions, one pass on `runner.py`. If they name the note's
-  words: one brief-line pass. If neither: the night gates it. Five Tester
-  cases re-record on the long gate.
+  stands, loop closed. Replay 2 settled it: the block form at HEAD is the
+  best arm on both turns at the night's temperature 0 and when sampled;
+  widening the source breaks s199; s203's `True` is prose it never stores,
+  the no-call shape of frame 113. No fix. The long gate re-records its
+  five Tester cases, then the night counts the ratio.
 - **Frame 286**, the unnamed-definition door, row 3. Unstarted. `api.py`
   is free at d2ffdfe3. Two cycles and a review; carry frame 220's four
   lows in the same pass.
 
 ## Owed, in order
 
-1. Frame 143's replay 2 result, then its fix or none.
-2. Frame 286's pass 1 on `api.py`.
-3. The long gate on the head from a worktree, with the checkout's
+1. Frame 286's pass 1 on `api.py`, with frame 220's four lows.
+2. The long gate on the head from a worktree, with the checkout's
    `.rota-gate.json` and register copied in first and never over a busy
    one; it re-records every Tester case. Judge it against the eight known
    names on frame 283's 17:48 line plus the Tester cases it re-earns.
-4. The night from the head, held on frame 283 with frame 140; sprint 12
+3. The night from the head, held on frame 283 with frame 140; sprint 12
    says rows 1 to 4 before it, and they are at commits.
-5. Frame 287's prototype when Roman rules.
+4. Frame 287's prototype when Roman rules.
 
 Briefs and reports are under this session's scratchpad,
 `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/0162323a-8602-4856-80d2-0fa70223b3b2/scratchpad/`,
 in `f287/`, `f290/`, `f143/`, `f220/`. The review worktree is
 `C:/Users/roman/rota_r283old` at d2ffdfe3; `rota_r283` and `rota_gate_223`
-are removable when frame 283 closes. No implementer is live at the
-hand-off; one read-only replay agent may still run for frame 143, and its
-report lands in `f143/replay2-report.md`.
+are removable when frame 283 closes. No agent is live at the hand-off.
