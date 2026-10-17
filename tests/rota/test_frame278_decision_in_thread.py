@@ -98,6 +98,73 @@ def test_the_code_step_becomes_the_challenge_with_the_decision(db, monkeypatch):
     assert f"Send msg.challenge_tester(refs={[CRIT, TEST, DEC]!r}" in said
 
 
+def _answered_decision_challenge(db):
+    """Review 1 of frame 278, finding 1: the Developer sent the decision
+    challenge (m150), and the Tester answered it (m151)."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m150', 'bg_3', 'developer', "
+               "'tester', 'challenge', ?, 150, 'answered')",
+               (f'["{CRIT}", "{TEST}", "{DEC}"]',))
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, body_text, seq, status) VALUES "
+               "('m151', 'm150', 'bg_3', 'tester', 'developer', 'answer', ?, "
+               "'The test holds.', 151, 'answered')",
+               (f'["{CRIT}", "{TEST}"]',))
+    db.commit()
+
+
+def test_an_answered_decision_challenge_gets_no_offer_of_itself(db, monkeypatch):
+    _night153(db)
+    _answered_decision_challenge(db)
+    ctx = _ctx(db)
+    monkeypatch.setattr(sandbox, "_escalation_admitted", lambda c, r: False)
+    said = sandbox._escalation_or_step(ctx, [CRIT, TEST, DEC], "fact.",
+                                       sandbox._code_step(ctx))
+    assert said == "fact. " + sandbox.CODE_STEP
+
+
+def test_after_these_offers_the_decision_challenge(db):
+    _night153(db)
+    said = runner._after_these(SimpleNamespace(ctx=_ctx(db)), [{"id": TEST}])
+    assert f"Send msg.challenge_tester(refs={[CRIT, TEST, DEC]!r}" in said
+    assert "Make one real change" not in said
+
+
+def test_after_these_keeps_the_code_step_once_the_tester_answered(db):
+    _night153(db)
+    _answered_decision_challenge(db)
+    said = runner._after_these(SimpleNamespace(ctx=_ctx(db)), [{"id": TEST}])
+    assert said == ("A listed message that is answered or closed is refused if "
+                    "sent again on these refs. Make one real change to the "
+                    "code the test calls, or end the session with no call.")
+
+
+def test_a_row_of_another_author_is_not_the_answer(db):
+    # Review 1, finding 3: the answer adds a Developer row from another
+    # message, and the view showed it as the Architect's answer.
+    _night153(db)
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d_dev', 'developer', 'a reason', '[]')")
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm144'",
+               (f'["{CRIT}", "{TEST}", "d_dev"]',))
+    db.commit()
+    thread = runner._thread_on_tests(SimpleNamespace(ctx=_ctx(db)), [{"id": TEST}])
+    assert thread[0]["answer"] == "answered with no words"
+
+
+@pytest.mark.parametrize("refs, op", [([TEST], "msg.challenge_tester"),
+                                      ([CRIT, TEST], "msg.escalate_architect")])
+def test_a_challenge_on_the_test_alone_gets_the_decision_first(db, monkeypatch,
+                                                               refs, op):
+    # Review 1, finding 2: after m143 on [crit, test], a challenge on [test]
+    # met a second escalation offer.
+    _night153(db)
+    ctx = _ctx(db)
+    monkeypatch.setattr(sandbox, "_escalation_admitted", lambda c, r: True)
+    said = sandbox._escalation_or_step(ctx, refs, "fact.", sandbox._code_step(ctx))
+    assert op in said
+
+
 def test_the_code_step_stays_with_no_architect_decision(db, monkeypatch):
     _night153(db, author="developer")
     ctx = _ctx(db)
