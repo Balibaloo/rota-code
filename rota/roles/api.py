@@ -15490,7 +15490,8 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     entry = None
     if tail_note and ctx.batch_id:
         entry = _note_entry(tail_note, before or "", text, drop_lines)
-        if (entry["lines"] or entry["defs"]) and not _base_held(ctx, root, path, entry):
+        if (entry["lines"] or entry["defs"]) and not (
+                _changed_kept(entry, text) and _base_held(ctx, root, path, entry)):
             entry = None
     if tail_note:
         out["dropped"] = tail_note
@@ -15993,7 +15994,13 @@ def _open_notes(ctx: Ctx) -> dict:
 
 
 def _put_note(ctx: Ctx, path: str, entry: dict | None) -> None:
-    """Stage the open note of `path`, or its close when `entry` is None."""
+    """Stage the open note of `path`, or its close when `entry` is None.
+
+    A session that dies lands no staged row: `db.session_fail` writes the
+    session and its turns alone. The loss is accepted, because the retry
+    session's own write re-opens the note (frame 283's review 3, finding 5).
+    A note of a merged batch blocks nothing, because the door reads the
+    notes of the open batch only."""
     import json as _json
     bid = ctx.batch_id
     if entry is None:
@@ -16084,6 +16091,25 @@ def _note_entry(note: str, before: str, noted: str, drop: list[int]) -> dict:
             "noted": noted}
 
 
+def _changed_kept(entry: dict, text: str) -> bool:
+    """Drop from `entry` each line that `text` still holds as a changed line:
+    one new line holds every whole token of it. True when a line or a
+    definition is left. Night 149 s192 added `RuntimeError` to an `except`
+    tuple, and the door read the old line as removed (frame 283's count)."""
+    new = [set(re.findall(r"\w+", ln)) for ln in text.splitlines()]
+
+    def kept(line: str) -> bool:
+        # A line of one or two tokens, such as `return x`, is never kept:
+        # too many other lines hold its tokens (pass 4b, ruled).
+        words = re.findall(r"\w+", line)
+        toks = set(words)
+        return len(words) >= 3 and any(toks <= n for n in new)
+    entry["lines"] = [x for x in entry["lines"] if not kept(x[1])]
+    if not entry["lines"]:
+        entry["whole"] = []
+    return bool(entry["lines"] or entry["defs"])
+
+
 def _base_held(ctx, root, path: str, entry: dict) -> bool:
     """Keep in `entry` only the dropped lines and definitions that the
     batch's base commit holds in `path`. True when one is left. A base that
@@ -16106,11 +16132,14 @@ def _base_held(ctx, root, path: str, entry: dict) -> bool:
     base = (shown.stdout.decode("utf-8", "replace").replace("\r\n", "\n")
             if shown.returncode == 0 else "")
     spans = _def_spans(base)
-    keep = []
-    for owner, line, n in entry["lines"]:
-        here = _def_lines(base, spans, owner) if spans is not None else None
-        if here is not None and line in here:
-            keep.append([owner, line, n])
+    # A base the door cannot parse keeps every line (review 3, finding 3).
+    if spans is None and base.strip():
+        return True
+    # A line counts as the base's under any owner, so a renamed or nested
+    # definition still holds it. The owner stays for the count only
+    # (review 3, finding 1, probes C and F).
+    here = set(_def_lines(base, spans, "") or [])
+    keep = [[owner, line, n] for owner, line, n in entry["lines"] if line in here]
     names = {n for n, _lo, _hi in spans or []}
     entry["lines"] = keep
     entry["defs"] = [d for d in entry["defs"] if d in names]
@@ -16147,21 +16176,31 @@ def _says(text: str, part: str) -> bool:
 
 def _close_logged_notes(ctx: Ctx, assumption: str) -> None:
     """Close each open `dropped` note that a landed ledger note names: its
-    path and every dropped line's text, or the name of each definition the
-    write dropped whole. Frame 283's ends-when: a meant removal is committed
+    path and one dropped line that the note's text shows, or the name of
+    each definition the write dropped whole. Frame 283's ends-when: a meant removal is committed
     after a landed note (frame 204's note route; review 1, finding 4)."""
     if not assumption or not getattr(ctx, "batch_id", None):
         return
     for p, e in _open_notes(ctx).items():
         if p not in assumption and _grain_path(p) not in assumption:
             continue
-        # The note cuts a line at 60 characters, so the seat quotes that much.
-        said = all(_says(assumption, line[:60]) for _o, line, _n in e["lines"])
-        # Lines that are whole definitions are named by the definitions.
-        if e["lines"] and not said and e["whole"]:
-            said = all(_says(assumption, d.rsplit(".", 1)[-1]) for d in e["whole"])
-        named = all(_says(assumption, d) for d in e["defs"])
-        if (e["lines"] or e["defs"]) and said and named:
+        # The seat can quote only the lines the refusal text shows: up to
+        # eight span lines cut at 60 characters, or the whole-file note's
+        # first line in full (review 3, finding 2, probe R3d).
+        shown = [q for _o, line, _n in e["lines"]
+                 for q in [next((x for x in (line, line[:60])
+                                 if f"`{x}`" in e["note"]), None)] if q]
+        if e["lines"]:
+            # One shown line closes the note. A note that shows no line
+            # closes on the path alone, because the seat saw no line to
+            # quote (pass 4b, ruled).
+            said = any(_says(assumption, q) for q in shown) if shown else True
+            # Lines that are whole definitions are named by the definitions.
+            if not said and e["whole"]:
+                said = all(_says(assumption, d.rsplit(".", 1)[-1]) for d in e["whole"])
+        else:
+            said = bool(e["defs"]) and all(_says(assumption, d) for d in e["defs"])
+        if said:
             _put_note(ctx, p, None)
 
 

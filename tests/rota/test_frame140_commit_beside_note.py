@@ -231,14 +231,20 @@ def _git(root: Path, *args: str) -> str:
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
-def _developer(db, tmp_path):
-    """A worktree at the commit s282 wrote on, and the Developer's sandbox."""
+def _developer(db, tmp_path, one_commit=False):
+    """A worktree at the commit s282 wrote on, and the Developer's sandbox.
+    A second, unrelated commit makes HEAD~1 a real base, so the note runs
+    the base-held path (frame 283's review 3, finding 4)."""
     root = tmp_path / "wt"
     (root / PATH).parent.mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     (root / PATH).write_bytes(DECORATORS.encode("utf-8"))
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "c0")
+    if not one_commit:
+        (root / "NOTES.txt").write_bytes(b"unrelated\n")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", "c1")
     db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
     db.commit()
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
@@ -246,11 +252,12 @@ def _developer(db, tmp_path):
     return sb, root
 
 
-def test_s282s_commit_beside_the_noted_write_is_refused(db, tmp_path):
+@pytest.mark.parametrize("one_commit", [False, True])
+def test_s282s_commit_beside_the_noted_write_is_refused(db, tmp_path, one_commit):
     """s282's reply: the write gets the note, and the commit is refused with
     the note quoted. HEAD does not move, and the commit in the next reply
-    lands."""
-    sb, root = _developer(db, tmp_path)
+    lands. The one-commit repository runs the fallback with no base."""
+    sb, root = _developer(db, tmp_path, one_commit)
     head = _git(root, "rev-parse", "HEAD")
     out = sb.call("code.write", path=PATH, start=546, end=556, text=S282_TEXT)
     assert out["dropped"] == S282_NOTE
@@ -402,16 +409,15 @@ def test_a_ledger_note_that_names_every_dropped_statement_closes_the_note(db, tm
     assert sb.call("code.commit", message="the removal")["committed"] is True
 
 
-def test_a_ledger_note_that_names_one_of_three_statements_leaves_it_open(db, tmp_path):
-    """Frame 283's review 1, finding 4: one head as a substring never closes
-    a note of three statements."""
+def test_a_ledger_note_that_names_one_shown_statement_closes_the_note(db, tmp_path):
+    """Frame 283's review 3, finding 2: one line that the note shows closes
+    the note. This replaces review 1's rule of every line, because the seat
+    cannot quote a line the note never showed."""
     sb, root = _developer(db, tmp_path)
     _noted_then_refused(sb, root)
     sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
             assumption=f"{PATH} keeps one `echo(` call for the version.")
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message="the removal")
-    assert str(err.value).startswith(LATER)
+    assert sb.call("code.commit", message="the removal")["committed"] is True
 
 
 def test_a_note_on_one_path_lets_a_commit_of_another_path_land(db, tmp_path):
@@ -515,7 +521,7 @@ def test_a_whole_file_drop_of_module_lines_stores_the_lines():
 def test_a_ledger_word_that_holds_the_line_as_a_substring_closes_nothing(db, tmp_path):
     """Frame 283's review 2, finding 3: "bypass" does not name `pass`."""
     sb, _root = _developer(db, tmp_path)
-    api._put_note(sb.ctx, "src/m.py", {"note": "n", "lines": [["", "pass", 1]],
+    api._put_note(sb.ctx, "src/m.py", {"note": "`pass` at line 1", "lines": [["", "pass", 1]],
                                        "defs": [], "whole": [], "noted": ""})
     api._close_logged_notes(sb.ctx, "src/m.py: the bypass is kept")
     assert "src/m.py" in api._open_notes(sb.ctx)
@@ -538,3 +544,132 @@ def test_a_dropped_definition_the_batch_added_opens_no_note(db, tmp_path):
     assert api._open_notes(sb.ctx) == {}
     sb.begin_reply()
     assert sb.call("code.commit", message="take it out")["committed"] is True
+
+
+# Frame 283's review 3: probes C, E, F and R3d, and the count's s192.
+M = "m.py"
+M_BASE = """def f():
+    x = 1
+    echo(x)
+    return x
+
+
+def keep():
+    return 2
+"""
+
+
+def _module_repo(db, tmp_path, texts):
+    """A worktree with one commit per text of `m.py`, and the sandbox."""
+    root = tmp_path / "wt"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    for i, t in enumerate(texts):
+        (root / M).write_bytes(t.encode("utf-8"))
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", f"c{i}")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    return sb, root
+
+
+def _opens_and_refuses(sb, out):
+    assert out.get("dropped")
+    assert M in api._open_notes(sb.ctx)
+    with pytest.raises(ValueError):
+        sb.call("code.commit", message="the removal")
+
+
+def test_a_base_line_under_a_renamed_owner_opens_a_note(db, tmp_path):
+    """Probe C: the batch renames `f` to `g`, and a write drops `echo(x)`."""
+    sb, _root = _module_repo(db, tmp_path, [M_BASE, M_BASE.replace("def f", "def g")])
+    out = sb.call("code.write", path=M, start=2, end=4, text="    return 1\n")
+    _opens_and_refuses(sb, out)
+
+
+def test_a_base_line_moved_into_a_nested_owner_opens_a_note(db, tmp_path):
+    """Probe F: the batch nests `echo(x)` in `f.inner`, and a write drops it."""
+    new = M_BASE.replace("    echo(x)", "    def inner():\n        echo(x)\n    inner()")
+    sb, _root = _module_repo(db, tmp_path, [M_BASE, new])
+    out = sb.call("code.write", path=M, start=3, end=4, text="        pass\n")
+    _opens_and_refuses(sb, out)
+
+
+def test_a_base_that_does_not_parse_keeps_every_line(db, tmp_path):
+    """Probe E: the door cannot read the base, so the note opens."""
+    sb, _root = _module_repo(db, tmp_path, [M_BASE + "def broken(:\n", M_BASE + "# c1\n"])
+    out = sb.call("code.write", path=M, start=2, end=4, text="    return 1\n")
+    _opens_and_refuses(sb, out)
+
+
+def test_a_ledger_that_names_the_shown_line_of_a_whole_file_note_closes_it(db, tmp_path):
+    """Probe R3d: the whole-file note of three module lines shows `X = 5`
+    alone, and a ledger that names `X = 5` closes the note."""
+    sb, _root = _developer(db, tmp_path)
+    before = ("X = 5\n\n\ndef a():\n    return 1\n\n\n"
+              "if __name__ == '__main__':\n    a()\n")
+    noted = "def a():\n    return 1\n"
+    drop: list = []
+    note = api._whole_drop(before.splitlines(), noted, gone_out=drop)
+    entry = api._note_entry(note, before, noted, drop)
+    assert len(entry["lines"]) == 3 and "`X = 5`" in note
+    api._put_note(sb.ctx, M, entry)
+    api._close_logged_notes(sb.ctx, f"{M}: the removal of `X = 5` and the main block is meant")
+    assert api._open_notes(sb.ctx) == {}
+
+
+def test_a_ledger_closes_a_span_note_only_on_a_line_the_note_shows(db, tmp_path):
+    """A span note of ten lines shows eight. The ninth line closes nothing,
+    because the seat never saw it. The first line closes the note."""
+    sb, _root = _developer(db, tmp_path)
+    lost = [(i, f"value_{i} = compute({i})") for i in range(1, 11)]
+    note = f"This write removes 10 statements: {api._lost_sentence(lost)}."
+    assert "value_9" not in note and "value_8" in note
+    api._put_note(sb.ctx, M, {"note": note, "lines": [["f", h, 1] for _i, h in lost],
+                              "defs": [], "whole": [], "noted": ""})
+    api._close_logged_notes(sb.ctx, f"{M}: the removal of `value_9 = compute(9)` is meant")
+    assert M in api._open_notes(sb.ctx)
+    api._close_logged_notes(sb.ctx, f"{M}: the removal of `value_1 = compute(1)` is meant")
+    assert api._open_notes(sb.ctx) == {}
+
+
+def test_s192s_widened_except_tuple_is_no_dropped_line():
+    """Night 149 s192: the write added `RuntimeError` to an `except` tuple.
+    The new line holds every whole token of the old one, so it is kept."""
+    entry = {"lines": [["run", "except (KeyboardInterrupt, EOFError):", 1]],
+             "defs": [], "whole": []}
+    text = ("def run():\n    try:\n        go()\n"
+            "    except (KeyboardInterrupt, EOFError, RuntimeError):\n        stop()\n")
+    assert api._changed_kept(entry, text) is False
+    assert entry["lines"] == []
+
+
+def test_a_line_whose_tokens_sit_across_two_lines_is_still_dropped():
+    """The tokens of the old line must sit in one new line."""
+    entry = {"lines": [["run", "except (KeyboardInterrupt, EOFError):", 1]],
+             "defs": [], "whole": []}
+    text = ("def run():\n    try:\n        go(KeyboardInterrupt)\n"
+            "    except EOFError:\n        stop()\n")
+    assert api._changed_kept(entry, text) is True
+    assert len(entry["lines"]) == 1
+
+
+def test_a_line_of_two_tokens_is_never_kept_by_the_subset_rule():
+    """Pass 4b: `return x` dropped beside `return x + 1` is still a drop."""
+    entry = {"lines": [["f", "return x", 1]], "defs": [], "whole": []}
+    assert api._changed_kept(entry, "def f(x):\n    return x + 1\n") is True
+    assert entry["lines"] == [["f", "return x", 1]]
+
+
+def test_a_note_that_shows_no_stored_line_closes_on_the_path_alone(db, tmp_path):
+    """Pass 4b: the seat saw no line to quote, so the path is enough."""
+    sb, _root = _developer(db, tmp_path)
+    api._put_note(sb.ctx, M, {"note": "This write drops 4 lines after it.",
+                              "lines": [["f", "value = compute(1)", 1]],
+                              "defs": [], "whole": [], "noted": ""})
+    api._close_logged_notes(sb.ctx, "other.py: nothing is meant")
+    assert M in api._open_notes(sb.ctx)
+    api._close_logged_notes(sb.ctx, f"{M}: the tail removal is meant")
+    assert api._open_notes(sb.ctx) == {}
