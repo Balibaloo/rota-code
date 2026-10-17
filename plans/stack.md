@@ -920,6 +920,7 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
 - Sprint: sprint 12, row 3, after frame 220 (reasoned: the same loop and the same file; the ruling of 2026-10-17).
 - Pointer: `plans/frame114-history-read.md`, sections 2, 4 and 8; `rota/DECISIONS.md`, "A write is permitted on any file" (2026-10-17); `rota/LAWS.md` law 12.
 - Status 2026-10-17 17:04 (rota-7d): pushed from frame 114's history read. Cause 8 by `plans/wall-guide.md` section 4. Meta workflow.
+- Status 2026-10-18 00:03 (rota-08): **claimed by session bf5baa63, peer name rota-08; pass 1 runs on Opus from `f286/pass1_brief.md` in this session's scratchpad, cap 70k.** `api.py` is free at d2ffdfe3, so the site is open (frames 283 and 220 at commits). The pass: the `code.write` door lands the write with a note; `code.commit` writes a `touch_strays` row per changed unnamed definition as `path::name`, which `touch_strayed`, `batches.judge_touch` and `mergeable` already route at path grain; the restore check reads the batch's base through frame 220's `_base_text`; one sentence each in the Architect's and the Developer's touch prompts; three red tests; frame 220's four lows ride the pass; the door's count over nights 107 to 154. Cycles: 1 of 2. Rota workflow.
 
 ### 287. The meta workflow investigated and reviewed: it finds, files, places and escalates walls by their sign and never reads the law behind a door (2026-10-17) (Roman) (bf5baa63)
 
