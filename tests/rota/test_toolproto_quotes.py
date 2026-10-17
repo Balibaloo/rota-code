@@ -836,3 +836,93 @@ def test_a_second_open_quote_or_more_text_keeps_the_generic_text(tail):
         "TOOL: code.write(path='a.py', text='''x = 1\n'''" + tail, WRITE)
     assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
     assert got[0].reason.startswith(_GENERIC)
+
+
+# Frame 266, pass 3, W4 and W5: night 153 (`.rota/clickI_night153.db`).
+# s257 seq 2 sent a dict value whose inner string never closes, and s276
+# seq 4 sent a double-quoted value with `\"` inside and no close. Both read
+# the key text, "the value of ... never ends", and sent the call again.
+EMIT = {"verdicts.emit": ({"batch_id", "result"},
+                          {"batch_id", "result", "reason", "lines"})}
+CHALLENGE = {"msg.challenge_tester": ({"refs", "reason"},
+                                      {"refs", "quotes", "reason"})}
+
+S257_SEQ2 = (
+    "TOOL: verdicts.emit(batch_id='bg_3', result='pass', reason='', "
+    "lines={'ver_opt_show_py': 'base_message += f\", Python "
+    "{sys.version.split()[0]}\"})")
+
+S276_SEQ4 = (
+    'TOOL: msg.challenge_tester(refs=["ver_opt_show_py", '
+    '"tst_ver_opt_show_py"], quotes=[\'The implementation must append the '
+    'Python version string immediately after the standard version message '
+    'without altering the command-line interface structure.\', \'assert '
+    'result.exit_code == 0\'], reason="the line `assert result.exit_code == '
+    '0` of `tst_ver_opt_show_py` fails with RuntimeError \\"\'test_version_'
+    'option\' is not installed. Try passing \'package_name\' instead.\\", '
+    'raised in `version_option(callback)`)')
+
+_INNER_OPEN = (
+    "unterminated argument list: a string inside the value of lines never "
+    "closes. The string `'base_message += f\",` is the value of "
+    "'ver_opt_show_py' inside lines, and it starts at character 69 after "
+    "the open bracket. Put the closing quote `'` where that inner value "
+    "ends, and change nothing else.")
+
+_ESCAPED_OPEN = (
+    "unterminated argument list: the value of reason never closes. It "
+    "starts at character 259 after the open bracket, as `\"the line "
+    "`assert re`. Each `\\\"` inside it is an escaped quote, part of the "
+    "value, and not its close. Put a plain `\"` where the value ends. "
+    "Better, because the value holds quotes: put the whole value between "
+    "three single quotes at each end, with no backslashes.")
+
+
+@pytest.mark.parametrize("sigs", [None, EMIT])
+def test_an_inner_string_that_never_closes_names_the_inner_string(sigs):
+    """s257 seq 2: the old text named lines, and not the string in it."""
+    got = toolproto.extract(S257_SEQ2, sigs)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _INNER_OPEN
+
+
+@pytest.mark.parametrize("sigs", [None, CHALLENGE])
+def test_an_escaped_quote_with_no_close_names_the_escape(sigs):
+    """s276 seq 4: the seat read each `\\"` as the close of reason."""
+    got = toolproto.extract(S276_SEQ4, sigs)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _ESCAPED_OPEN
+
+
+def test_a_right_dict_value_parses():
+    got = toolproto.extract(
+        "TOOL: verdicts.emit(batch_id='bg_3', result='pass', reason='', "
+        "lines={'k': 'base_message += f\", Python\"'})", EMIT)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolCall), got
+    assert got[0].args["lines"] == {"k": 'base_message += f", Python"'}
+
+
+def test_a_right_list_value_parses():
+    got = toolproto.extract(
+        'TOOL: msg.challenge_tester(refs=["a", "b"], reason="it fails")',
+        CHALLENGE)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolCall), got
+    assert got[0].args["refs"] == ["a", "b"]
+
+
+def test_a_right_escaped_quote_value_parses():
+    got = toolproto.extract(
+        'TOOL: msg.challenge_tester(refs=["a"], reason="it says \\"hi\\" '
+        'and fails")', CHALLENGE)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolCall), got
+    assert got[0].args["reason"] == 'it says "hi" and fails'
+
+
+@pytest.mark.parametrize("value", ["{'k': 'x = 1}", '"x = \\"y'])
+def test_a_write_with_the_same_shapes_keeps_the_key_text(value):
+    """A write's value is a file on disk, so a write keeps its old text."""
+    got = toolproto.extract(
+        f"TOOL: code.write(path='a.py', text={value})", WRITE)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(
+        "unterminated argument list: the value of text never ends.")

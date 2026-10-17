@@ -662,6 +662,131 @@ def _no_close_bracket(text: str, start: int) -> str | None:
     return last.arg
 
 
+def _open_inner(text: str, start: int, key: str
+                ) -> tuple[str | None, str, str, int] | None:
+    """The inner string of a dict or list value that never closes.
+
+    Night 153, s257 to s259 sent `lines={'k': 'base_message += f", ...})`
+    four times each. The key text said the value of lines never ends, and
+    the seat looked at lines and not at the string inside it. The answer
+    is the inner key, the quote, the string's head, and its offset after
+    the open bracket. Any doubt gives None, and the old text stays (frame
+    266, pass 3).
+    """
+    # The call ends where the next call starts on a new line.
+    nxt = re.search(r"\n[ \t]*" + re.escape(MARKER), text[start:])
+    end = start + nxt.start() if nxt else len(text)
+    # The seat ended the call with `)`, so the string swallowed the close.
+    # A completion cut short has no `)`, and its fault is the cut.
+    if not text[start:end].rstrip().endswith(")"):
+        return None
+    last_key = None
+    brackets: list[tuple[str, int, str | None]] = []
+    quote = None
+    opened = 0
+    escaped = False
+    for i in range(start, end):
+        ch = text[i]
+        if escaped:
+            escaped = False
+        elif ch == "\\":
+            escaped = True
+        elif quote is not None:
+            if ch == quote:
+                quote = None
+        elif ch in "'\"":
+            quote, opened = ch, i
+        elif ch in "([{":
+            brackets.append((ch, i, last_key))
+        elif ch in ")]}":
+            if not brackets:
+                return None
+            brackets.pop()
+        elif ch == "=" and not brackets:
+            m = re.search(r"([A-Za-z_]\w*)\s*$", text[start:i])
+            if m:
+                last_key = m.group(1)
+    if quote is None or not brackets:
+        return None
+    # The outer bracket must be the value of the key the scan named, and
+    # it must open right after `key=`.
+    outer, at_outer, owner = brackets[0]
+    if outer not in "[{" or owner != key:
+        return None
+    if not re.search(re.escape(key) + r"\s*=\s*$", text[start:at_outer]):
+        return None
+    # The text before the string must read as the start of the call. Else
+    # a quote inside an earlier string closed it early (as _missing_close).
+    shut = "".join({"(": ")", "[": "]", "{": "}"}[b[0]]
+                   for b in reversed(brackets))
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ast.parse(f"f({text[start:opened]} 0{shut})")
+    except (SyntaxError, ValueError):
+        return None
+    # A `, name=` inside the string can be the next argument, so the
+    # string may have swallowed it, and the fault is not sure.
+    if _NEXT_ARGUMENT.search(text, opened + 1, end):
+        return None
+    inner = re.search(r"""(['"])((?:(?!\1).)*)\1\s*:\s*$""",
+                      text[brackets[-1][1] + 1:opened])
+    inner_key = inner.group(0).rstrip()[:-1].rstrip() if (
+        inner and brackets[-1][0] == "{") else None
+    head = text[opened:min(end, opened + 20)].rstrip()
+    return inner_key, quote, head, opened - start
+
+
+def _escaped_open(text: str, start: int, key: str) -> tuple[str, int] | None:
+    """The head of a double-quoted value that holds `\\"` and never closes.
+
+    Night 153, s276 sent `reason="... \\"'name' is not installed\\" ...)`
+    four times. Each `\\"` is a quote inside the value, so the value never
+    closes. The key text said a quote inside closed it early, and the seat
+    read each `\\"` as a close. The answer is the head of the value and
+    its offset after the open bracket. Any doubt gives None (frame 266,
+    pass 3).
+    """
+    nxt = re.search(r"\n[ \t]*" + re.escape(MARKER), text[start:])
+    end = start + nxt.start() if nxt else len(text)
+    # As in _open_inner: a completion cut short has no `)` at its end.
+    if not text[start:end].rstrip().endswith(")"):
+        return None
+    m = None
+    for m in re.finditer(r"(?:^|[,(\s])" + re.escape(key) + r"\s*=\s*",
+                         text[start:end]):
+        pass
+    if m is None:
+        return None
+    s = start + m.end()
+    # One plain quote opens the value. Three open a triple-quoted value.
+    if text[s:s + 1] != '"' or text[s:s + 2] == '""':
+        return None
+    value = text[s + 1:end]
+    if '\\"' not in value:
+        return None
+    # Every quote inside the value has a backslash before it, so none of
+    # them closes it. A plain quote anywhere means the value can close.
+    escaped = False
+    for ch in value:
+        if escaped:
+            escaped = False
+        elif ch == "\\":
+            escaped = True
+        elif ch == '"':
+            return None
+    # The text before the value must read as the start of the call.
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ast.parse(f"f({text[start:s]} 0)")
+    except (SyntaxError, ValueError):
+        return None
+    if _NEXT_ARGUMENT.search(value):
+        return None
+    return text[s:min(end, s + 20)].rstrip(), s - start
+
+
 def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     """
     Parse the argument list. JSON object form, or Python keyword form.
@@ -1231,6 +1356,14 @@ def extract(text: str, signatures: dict | None = None, *,
             # Only the shape that got the generic text asks for the bracket.
             bracket = (None if joined or missing or short or key
                        else _no_close_bracket(text, args_start))
+            # The key branch alone asks for the inner string or the escaped
+            # quote, and a write keeps its old text (frame 266, pass 3).
+            keyed = not (joined or missing or short or not key
+                         or key in _WRITES
+                         or (params and _WRITES & set(params)))
+            inner = _open_inner(text, args_start, key) if keyed else None
+            escaped = (None if not keyed or inner
+                       else _escaped_open(text, args_start, key))
             if joined:
                 # The rescan closed the list, and the guard on joined strings
                 # refused it. The hint below would name a value that is
@@ -1270,6 +1403,31 @@ def extract(text: str, signatures: dict | None = None, *,
                         f"{shut} before the closing bracket. Put the same "
                         f"quote before `)`, or put the whole value between "
                         f"three single quotes at each end.")
+            elif inner:
+                # Frame 266, night 153: s257 to s259 read "the value of
+                # lines never ends" four times each and sent the same dict.
+                # Name the string inside the dict that never closes.
+                inner_key, q, head, at = inner
+                whose = (f"the value of {inner_key} inside {key}" if inner_key
+                         else f"an item of the list in {key}")
+                reason = (
+                    f"unterminated argument list: a string inside the value "
+                    f"of {key} never closes. The string `{head}` is {whose}, "
+                    f"and it starts at character {at} after the open "
+                    f"bracket. Put the closing quote `{q}` where that inner "
+                    f"value ends, and change nothing else.")
+            elif escaped:
+                # Frame 266, night 153: s276 read each `\"` in its value as
+                # the close four times. Say what `\"` is, and the one step.
+                head, at = escaped
+                reason = (
+                    f"unterminated argument list: the value of {key} never "
+                    f"closes. It starts at character {at} after the open "
+                    f"bracket, as `{head}`. Each `\\\"` inside it is an "
+                    f"escaped quote, part of the value, and not its close. "
+                    f"Put a plain `\"` where the value ends. Better, because "
+                    f"the value holds quotes: put the whole value between "
+                    f"three single quotes at each end, with no backslashes.")
             elif key:
                 # Frame 122, night 115: the old hint named `text=`, and the
                 # Critic put triple quotes on `quote`. The apostrophe that
