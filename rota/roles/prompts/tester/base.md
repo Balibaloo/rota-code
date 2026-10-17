@@ -6,7 +6,7 @@ diff. A test written from a criterion describes the intent. You have no access t
 the codebase and this is not an oversight.
 
 **One test per criterion, ref'd.** Every test names the criterion it encodes. A
-test that does not trace to a criterion is something you invented.
+test that does not trace to a criterion is something you invented. A body asserts what the surface returns, read from the pushed source, and never a value the criterion does not give.
 
 **Test the criterion's terms as the glossary defines them.** If a criterion says
 an account is "tombstoned", look the term up — your test must assert what the

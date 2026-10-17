@@ -678,6 +678,16 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         raised = _raised_signature_pushes(sb, inbound)
         if raised:
             pushed = {**pushed, **raised}
+    if role == "tester" and (wake.kind == "tick:tests_missing" or inbound):
+        # Frame 143, night 154: s199 asserted `confirm(...) == "y"` with no
+        # line of `confirm` in its prompt. The interview's replay put the
+        # surface before `[batches.expect]`, and that order gave 3 of 3.
+        surfaces = _criterion_surface_pushes(sb, wake, inbound)
+        if surfaces:
+            keys = list(pushed)
+            at = keys.index("batches.expect") if "batches.expect" in keys else len(keys)
+            pushed = {**{k: pushed[k] for k in keys[:at]}, **surfaces,
+                      **{k: pushed[k] for k in keys[at:]}}
     if inbound:
         body.append("\nThe reports that came back:" if "reports" in inbound
                     else "\nThe message that woke you:")
@@ -2696,6 +2706,128 @@ def _raised_signature_pushes(sb: sandbox_mod.Sandbox,
         shown["the lines that raised"] = "\n".join(rows[lo - 1:hi])
         out[key] = shown
     return out
+
+
+def _wake_criteria(wake: Wake, inbound: dict[str, Any] | None) -> list[str]:
+    """The criterion ids a Tester wake is about, in the order they appear.
+
+    A `tests_missing` wake names them in its detail. A message wake names
+    them as resolved criterion rows, or as the criterion of a resolved test.
+    """
+    ids: list[str] = []
+    if wake.kind == "tick:tests_missing" and wake.detail:
+        ids += [c.strip() for c in wake.detail.split(":", 1)[-1].split(",")]
+    for ref, row in ((inbound or {}).get("resolved_refs") or {}).items():
+        if not isinstance(row, dict):
+            continue
+        if row.get("table") == "criteria":
+            ids.append(row.get("id") or ref)
+        elif row.get("table") == "tests" and row.get("criterion_id"):
+            ids.append(row["criterion_id"])
+    return list(dict.fromkeys(i for i in ids if i))
+
+
+def _criterion_surface_pushes(sb: sandbox_mod.Sandbox, wake: Wake,
+                              inbound: dict[str, Any] | None) -> dict[str, Any]:
+    """The `def` line and the return lines of each surface the criteria name.
+
+    Frame 143, night 154: s199 wrote `assert confirm(...) == "y"`, and
+    `confirm` returns `True` or `False`. The interview found no line of the
+    source in front of 3 of 3 seats. The push with the brief's sentence gave
+    the right value on 3 of 3 replays (`plans/frame143-interview.md`, 3).
+
+    One push per surface, keyed `surface path::name`. The key is not
+    `code.source`, because frame 223's raised-signature push owns that key.
+    The push holds the `def` line through the parameter list, then every
+    `return` line and every assignment to a name a `return` gives. A surface
+    whose file or definition does not resolve pushes nothing, with a log line.
+    """
+    import ast as _ast
+    import textwrap as _textwrap
+
+    if "code.source" not in sb.functions():
+        return {}
+    conn = sb.ctx.conn
+    out: dict[str, Any] = {}
+    for cid in _wake_criteria(wake, inbound):
+        row = conn.execute("SELECT surface_refs FROM criteria WHERE id = ?",
+                           (cid,)).fetchone()
+        try:
+            refs = json.loads(row["surface_refs"]) if row else []
+        except (TypeError, ValueError):
+            refs = []
+        for ref in refs if isinstance(refs, list) else []:
+            if not isinstance(ref, str) or "::" not in ref:
+                continue
+            path, name = ref.replace("\\", "/").split("::", 1)
+            key = f"surface {path}::{name}"
+            if key in out:
+                continue
+            shown = _surface_lines(sb, path, name, _ast, _textwrap)
+            if shown is None:
+                _log.info("surface push: %s does not resolve", ref)
+                continue
+            out[key] = shown
+    return out
+
+
+def _surface_lines(sb: sandbox_mod.Sandbox, path: str, name: str,
+                   _ast: Any, _textwrap: Any) -> dict[str, Any] | None:
+    """The signature and the return lines of `path::name`, or None."""
+    top_name, _, member = name.partition(".")
+    try:
+        # The spans come from the file the batch reads, as frame 223 reads them.
+        head = sb.call("code.source", path=path, start=0, end=1)
+        defs = head.get("defs") or {} if isinstance(head, dict) else {}
+        if top_name not in defs:
+            return None
+        start, end = defs[top_name]
+        got = sb.call("code.source", path=path, start=start, end=end)
+        text = got.get("text") or "" if isinstance(got, dict) else ""
+        top = _ast.parse(_textwrap.dedent(text)).body[0]
+    except Exception as exc:                               # noqa: BLE001
+        _log.warning("surface push: %s::%s: %s: %s",
+                     path, name, type(exc).__name__, exc)
+        return None
+    func = top
+    if member:
+        func = next((n for n in top.body if getattr(n, "name", None) == member),
+                    None) if isinstance(top, _ast.ClassDef) else None
+    if not isinstance(func, (_ast.FunctionDef, _ast.AsyncFunctionDef)) or not func.body:
+        return None
+    rows = text.splitlines()
+    first = func.body[0]
+    # The `def` line through the parameter list and the return annotation.
+    sig = rows[func.lineno - 1:max(first.lineno - 1, func.lineno)]
+    nodes = [n for n in _ast.walk(func) if isinstance(n, _ast.Return)
+             and not _inside_nested(func, n, _ast)]
+    names = {n.value.id for n in nodes if isinstance(n.value, _ast.Name)}
+    for n in _ast.walk(func):
+        if (isinstance(n, (_ast.Assign, _ast.AnnAssign)) and not _inside_nested(func, n, _ast)
+                and any(isinstance(t, _ast.Name) and t.id in names
+                        for t in (n.targets if isinstance(n, _ast.Assign) else [n.target]))):
+            nodes.append(n)
+    picked = sorted({ln for n in nodes
+                     for ln in range(n.lineno, (n.end_lineno or n.lineno) + 1)})
+    body: list[str] = []
+    last = None
+    for ln in picked:
+        if last is None or ln != last + 1:
+            body.append("    ...")
+        body.append(rows[ln - 1])
+        last = ln
+    return {"path": path, "start": start + func.lineno - 1,
+            "text": "\n".join(sig + body)}
+
+
+def _inside_nested(func: Any, node: Any, _ast: Any) -> bool:
+    """True when `node` sits in a `def` or a `lambda` inside `func`."""
+    kinds = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.Lambda, _ast.ClassDef)
+    for inner in _ast.walk(func):
+        if inner is not func and isinstance(inner, kinds):
+            if any(n is node for n in _ast.walk(inner)):
+                return True
+    return False
 
 
 def _raising_span(top: Any, at: int) -> tuple[Any, int, int] | None:

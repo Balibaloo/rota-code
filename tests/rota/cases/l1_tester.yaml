@@ -1491,3 +1491,138 @@
       - {to: developer, verb: answer, count: "0..0"}
   forbidden:
     writes: [criteria, items]
+
+- id: L1-TS-assert-the-value-the-surface-returns
+  # Frame 143, night 154 (2026-10-17), s199 seq 3: the Tester, woken by the
+  # Vision Keeper's answer m88, encoded `assert confirm("y/n",
+  # default_on_eof=True) == "y"`. `confirm` returns `True` or `False`, and
+  # four later sessions copied the body. The interview found no line of
+  # `confirm` in front of 3 of 3 seats (`plans/frame143-interview.md`,
+  # sections 1 and 3). The rows are the night's, from
+  # `.rota/clickI_night154.db`. The repo holds `confirm` from the batch's
+  # base. The night's tests of the three criteria are left out, so the seat
+  # encodes from the criteria alone.
+  model: qwen3.5:9b
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 3
+  inbound:
+    id: m88
+    from: vision_keeper
+    to: tester
+    verb: answer
+    body_refs: [cr_1_confirm_default_on_eof, cr_2_confirm_default_on_eof, cr_3_confirm_default_on_eof]
+  repo:
+    batch: <b1>
+    message: "let confirm take a default_on_eof flag"
+    edit:
+      src/click/termui.py: |
+        from __future__ import annotations
+
+        import sys
+
+        from .exceptions import Abort
+        from .utils import echo
+
+        visible_prompt_func = input
+
+
+        def _build_prompt(text, suffix, show_default=False, default=None, show_choices=True, type=None):
+            return text + suffix
+
+
+        def confirm(
+            text: str,
+            default: bool | None = False,
+            abort: bool = False,
+            prompt_suffix: str = ": ",
+            show_default: bool = True,
+            err: bool = False,
+        ) -> bool:
+            """Prompts for confirmation (yes/no question).
+
+            If the user aborts the input by sending a interrupt signal this
+            function will catch it and raise a :exc:`Abort` exception.
+
+            :param text: the question to ask.
+            :param default: The default value to use when no input is given. If
+                ``None``, repeat until input is given.
+            :param abort: if this is set to `True` a negative answer aborts the
+                          exception by raising :exc:`Abort`.
+            :param prompt_suffix: a suffix that should be added to the prompt.
+            :param show_default: shows or hides the default value in the prompt.
+            :param err: if set to true the file defaults to ``stderr`` instead of
+                        ``stdout``, the same as with echo.
+
+            .. versionchanged:: 8.3.1
+                A space is no longer appended to the prompt.
+
+            .. versionchanged:: 8.0
+                Repeat until input is given if ``default`` is ``None``.
+
+            .. versionadded:: 4.0
+                Added the ``err`` parameter.
+            """
+            prompt = _build_prompt(
+                text,
+                prompt_suffix,
+                show_default,
+                "y/n" if default is None else ("Y/n" if default else "y/N"),
+            )
+
+            while True:
+                try:
+                    value = _readline_prompt(visible_prompt_func, prompt, err).lower().strip()
+                except (KeyboardInterrupt, EOFError):
+                    raise Abort() from None
+                if value in ("y", "yes"):
+                    rv = True
+                elif value in ("n", "no"):
+                    rv = False
+                elif default is not None and value == "":
+                    rv = default
+                else:
+                    echo(_("Error: invalid input"), err=err)
+                    continue
+                break
+            if abort and not rv:
+                raise Abort()
+            return rv
+  fixture:
+    items:
+      - {id: <i1>, text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting.",
+         kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "let confirm() take a default_on_eof flag that returns the default when stdin is closed"}
+    criteria:
+      - id: cr_1_confirm_default_on_eof
+        ticket_id: <tk1>
+        text: "The callable confirm() accepts an optional default_on_eof argument."
+        term_refs: '["default_on_eof"]'
+        surface_refs: "[\"src/click/termui.py::confirm\"]"
+      - id: cr_2_confirm_default_on_eof
+        ticket_id: <tk1>
+        text: "When default_on_eof=True and stdin is closed, confirm() must not attempt to read from stdin or wait for input."
+        term_refs: '["default_on_eof"]'
+        surface_refs: "[\"src/click/termui.py::confirm\"]"
+      - id: cr_3_confirm_default_on_eof
+        ticket_id: <tk1>
+        text: "When default_on_eof=True and stdin is closed, confirm() returns the default value without modifying stdout or stderr streams."
+        term_refs: '["default_on_eof"]'
+        surface_refs: "[\"src/click/termui.py::confirm\"]"
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: HEAD}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    code_index:
+      - {grain: src/click/termui.py, grain_kind: path}
+  expect:
+    writes:
+      # The value wall: a body compares the result with a bool, never "y".
+      tests: {count: "1..3",
+              text_includes_any: ["False", "True", "assert not ", "assert result\n"],
+              text_excludes: ["== \"y\"", "== 'y'", "== \"yes\"", "== 'yes'"]}
+  forbidden:
+    writes: [criteria, items]

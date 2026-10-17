@@ -148,3 +148,23 @@ def test_a_raise_in_a_method_pushes_the_methods_def_line(scene):
 
 
 globals().update(make(NAME, end=["critic|tick:review|b1"], attempts=[], asks=[]))
+
+
+def test_a_tester_wake_pushes_the_source_of_the_criterions_surface(scene):
+    """Frame 143, night 154: s199 asserted `confirm(...) == "y"` with no line
+    of `confirm` in its prompt. The wake of a criterion with a surface pushes
+    that surface's `def` line and its return lines under one key. A surface
+    that does not resolve pushes nothing."""
+    conn = scene.conn
+    key = "[surface src/billing/charges.py::prorate]"
+    conn.execute("UPDATE criteria SET surface_refs = ?",
+                 ('["src/billing/charges.py::prorate"]',))
+    pushed = _challenge_prompt(scene, "E   AssertionError\n")
+    assert key in pushed
+    block = pushed.split(key + "\n", 1)[1]
+    assert "def prorate(amount_cents, days_used, days_in_period):" in block
+    assert "    return " in block
+    assert pushed.count("[surface ") == 1
+    conn.execute("UPDATE criteria SET surface_refs = ?",
+                 ('["src/billing/charges.py::no_such_name"]',))
+    assert "[surface " not in _challenge_prompt(scene, "E   AssertionError\n")
