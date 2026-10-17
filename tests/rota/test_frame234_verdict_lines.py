@@ -727,3 +727,38 @@ def test_m316s_contest_of_lines_3_and_9_is_refused():
         "The words name lines 1 and 4 to 8 and do not name lines 3 and 9.")
     assert _refusal(M316, {1, 4, 5, 6, 7, 8}, 12, frozenset(),
                     frozenset(range(3, 10))) is None
+
+
+def _refs(words: str) -> list[set[int]]:
+    from rota.roles.api import _LINE_REF, _ref_lines
+
+    return [_ref_lines(r) for r in _LINE_REF.finditer(words)]
+
+
+def test_a_range_on_the_last_number_reads_as_a_range():
+    # Night 154, s334's turn 1, the principal's words of m175 and m176. The
+    # reader read lines 6, 7 and 10, so the unnamed-contest door refused
+    # s334's ruling of lines 11 to 14 (frame 282).
+    m175 = ("Notes 6, 7 and 10 to 14 have nothing to do with this change, so "
+            "leave that code alone.")
+    m176 = ("Please remove lines 6, 7 and 10 to 14 from the page, because "
+            "they have nothing to do with this change.")
+    want = {6, 7, 10, 11, 12, 13, 14}
+    assert _refs(m175) == [want]
+    assert _refs(m176) == [want]
+
+
+def test_a_range_after_a_list_reads_as_a_range():
+    # Night 133's m304 and night 142's m291 hold the same shape (frame 282).
+    assert _refs("lines 2, 3 and 5 to 7 are wrong") == [{2, 3, 5, 6, 7}]
+    assert _refs("lines 5, 6 and 8 through 11 are wrong") == [
+        {5, 6, 8, 9, 10, 11}]
+
+
+def test_a_range_in_the_middle_of_a_list_reads_as_a_range():
+    assert _refs("lines 1 to 3, 5 and 8 are fine") == [{1, 2, 3, 5, 8}]
+    assert _refs("lines 1-3, 5 and 8 are fine") == [{1, 2, 3, 5, 8}]
+
+
+def test_an_en_dash_is_a_range_word():
+    assert _refs("lines 2, 4\u20136 are fine") == [{2, 4, 5, 6}]

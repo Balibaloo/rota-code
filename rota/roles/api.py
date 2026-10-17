@@ -8913,8 +8913,12 @@ _RULE_ARGS = ("rulings", "words", "ask")
 # night 147's m131 faulted line 7 as "Note 7" (frame 234, pass 2).
 # "through" is a range word too. Night 149's m96 wrote "Lines 2 through 7",
 # and the reader read line 2 alone (frame 256).
+# Every number of the list may carry a range. Night 154's m175 wrote "Notes
+# 6, 7 and 10 to 14", and the reader read line 10 alone (frame 282).
+_LINE_NUM = r"\d+(?:\s*(?:to|through|-|–)\s*\d+)?"
 _LINE_REF = re.compile(
-    r"\b(?:lines?|notes?)\s+(\d+(?:\s*(?:to|through|-)\s*\d+)?(?:\s*,\s*\d+)*(?:\s*,?\s*and\s+\d+)?)"
+    rf"\b(?:lines?|notes?)\s+({_LINE_NUM}(?:\s*,\s*{_LINE_NUM})*"
+    rf"(?:\s*,?\s*and\s+{_LINE_NUM})?)"
     r"|^\s*(\d+)(?=\s*(?:is\b|are\b|'s\b|:))", re.I | re.M)
 _LINE_FAULT = re.compile(
     r"\b(?:wrong|isn't right|is not right|goes too far|still|drop|remove|"
@@ -8936,7 +8940,8 @@ def _ref_lines(ref: re.Match) -> set[int]:
     """The line numbers of one reference, with "N to M" read as a range."""
     # The reference itself matches in any case, so its range word does too.
     # "lines 2 Through 7" read line 2 and line 7 alone (frame 256, review 1).
-    nums = re.findall(r"\d+|to|through|-", ref.group(1) or ref.group(2), re.I)
+    nums = re.findall(r"\d+|to|through|-|–", ref.group(1) or ref.group(2),
+                      re.I)
     lines: set[int] = set()
     for j, tok in enumerate(nums):
         if tok.isdigit():
