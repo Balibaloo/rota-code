@@ -101,7 +101,9 @@ with frame 140, and counts frames 274 and 273 at their second night.
 16. Frame 173, W8: 1 cycle read of the span offer.
 17. Frames 276 and 253: 1 to 2 cycles each, no cost this night.
 18. Frame 252's review on Fable: 3 cycles. This read places 19 walls.
-19. Frame 264: waits on Roman's ruling.
+19. Frame 264, the account rows under a heading that says they are the
+    project today: 2 cycles, ruled by Roman at 04:33; it runs after row 8,
+    because both edit `principal.py`.
 20. Frames 259, 214, 260, 271, 268, 269, 270, 201, 243's interview, 262,
     265, 249, 247, 171, 212, 223's neighbours 224, 242, 174, 248, 216, 217,
     218, 220, 211 and 116: as sprint 10's rows 10 to 20 had them.
@@ -537,7 +539,7 @@ a different question and the night is then opened once.
 - Status 2026-10-16 22:30 (rota-ea): **night 152: 0 of 0 commits refused for a made-up surface, the second night at 0 of 0** (observed: `plans/night152-read.md`, section 10, 2026-10-16). Sprint 10, row 18. Meta workflow.
 - Status 2026-10-17 04:31 (rota-68): **night 153: 0 commits refused for a surface the index does not hold** (observed: `plans/night153-read.md`, 2026-10-17). Meta workflow.
 
-### 264. The account rows sit on a request page, the principal contests them as the description of the work, and an observed row cannot change (2026-10-16) (1cf2843b)
+### 264. The account rows sit on a request page, the principal contests them as the description of the work, and an observed row cannot change (2026-10-16) (1cf2843b) (b0dce033)
 
 - **Site: the page's sections in `rota/roles/principal.py`; frame 253's helper is near.** Rota workflow. On night 150's walk 3 the principal contested the account rows six times, m354, m376, m393, m398, m408 and m416, "Line 3 describes Click in general and should instead say what we build"; the Vision Keeper cannot rewrite an observed row, "parses_and_executes_inputs is the account's observed row and these are its words" fired in s442, s466, s499, s502 and s505; both contested keys were quarantined at 3 attempts, two `CYCLE` lines (observed: `plans/night150-read.md`, sections 10 and 11a, N4, 2026-10-16). He reads the account rows on a request page as the page's description of the work. Cause 11 by the guide, what reaches him is not his, whose entry says escalate (reasoned: the read, section 12, W7).
 - Ends when: first, two reads before any question: the records, `LAWS.md`, `DECISIONS.md`, `plans/archive/`, `plans/operating-facts.md` and `git log -S` on the page's account section, for a prior ruling on what a request page shows of the account, and the evidence, whether the recommended answer holds against the six replies; second, the question to Roman only if the reads leave it open, rated and in plain words: does a request page show the account at all, and in which words, with a recommended answer from the reads; third, the design and its pass, priced after the ruling, and on a night, account rows contested on a request page, from 6 toward 0 of the next 3.
@@ -551,6 +553,7 @@ a different question and the night is then opened once.
 - Status 2026-10-16 17:36 (rota-e7): **night 151: 0 contests of the account rows on 2 request pages, m83 and m137, against 6 on night 150; at m138 the Liaison contested them and frame 258's door refused it, right** (observed: `plans/night151-read.md`, section 11, 2026-10-16). Still waits on Roman's ruling; the recommended answer stands. Meta workflow.
 - Status 2026-10-16 22:30 (rota-ea): **night 152: 0 contests of the account rows by him on 3 request pages, against 0 on night 151 and 6 on night 150; m86's line 3, "something I asked for, not something you assumed", was his own words shown as an Architect `invented` note** (observed: `plans/night152-read.md`, section 10, 2026-10-16). Still waits on Roman's ruling; the recommended answer stands. Sprint 10, row 19. Meta workflow.
 - Status 2026-10-17 04:31 (rota-68): **night 153: 0 contests of the account rows by him on 3 request pages, against 0 on nights 151 and 152; m6's lines 18 to 28 on the onboarding page were 11 constraint rows, not account rows** (observed: `plans/night153-read.md`, 2026-10-17). Still waits on Roman's ruling; the recommended answer stands. Sprint 11, row 19. Meta workflow.
+- Status 2026-10-17 04:33 (rota-68): **ruled. Roman, 2026-10-17 04:33, in the terminal to the state reply of 02:16 that carried this question: "for the question that youre blocked on, is there not an obvious answer? present the information correctly the the llm when required??"** (ruled: Roman, read as the recommended answer, yes: the project's summary stays on the request page, presented as the project today and not the request, under a heading that says so). Waits on nothing. The design and its pass: the heading and the section order in `rota/roles/principal.py`, 2 cycles, about 60k on Opus, with night 150's m354 as the red case and the 12 misreads of `plans/frame264-reads.md` as the count. Sprint 11, after row 8, frame 274's pass 2, because both edit `principal.py`. Meta workflow.
 
 ### 265. "Now." on a shift page lands as `later` (2026-10-16)
 
