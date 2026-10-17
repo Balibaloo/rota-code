@@ -417,6 +417,33 @@ def test_the_operand_is_quoted_as_the_seat_wrote_it(db):
     assert "`\"a\" in out` and `\"a\" not in out` are opposites" in text, text
 
 
+# Review 2 of frame 277: the door reads the interpreter and does not
+# compute, so an operand with arithmetic or a call it does not know is
+# admitted and never evaluated.
+def test_an_operand_with_arithmetic_is_admitted_at_once(db):
+    import time
+    body = _s256_with("assert sys.hexversion ** sys.hexversion or x")
+    start = time.perf_counter()
+    _not_this_door(db, body)
+    assert time.perf_counter() - start < 5.0
+
+
+@pytest.mark.parametrize("line", [
+    "assert '{0.__globals__[os]}'.format(platform.system) or x",
+    "assert '{0.__globals__[os]}'.format(platform.python_version) or x",
+    "assert platform.release() == \"10\" or x",
+    "assert sys.version.split()[0] or x",
+])
+def test_an_operand_the_door_does_not_read_is_admitted(db, line):
+    _not_this_door(db, _s256_with(line, imports="import sys\nimport platform\n"))
+
+
+def test_a_fixed_platform_call_is_refused(db):
+    line = "assert platform.python_version_tuple()[0] == \"3\" or x"
+    text = _refusal(db, _s256_with(line, imports="import sys\nimport platform\n"))
+    assert "`platform.python_version_tuple()[0] == \"3\"` reads only" in text
+
+
 def test_an_answer_to_a_challenge_quotes_the_criterion_or_is_the_fix(db):
     """
     Night 80 (2026-09-15): the Tester's answer to the Developer's challenge said

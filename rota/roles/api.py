@@ -7740,9 +7740,42 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # `platform.os` would reach the whole `os` module, and `uname()` and
     # `platform()` can start a subprocess on some hosts, so a door never
     # calls them.
-    _interp_platform = {"system", "python_version", "python_version_tuple",
-                        "python_implementation", "machine", "release",
-                        "version", "architecture"}
+    # Review 2 of frame 277, finding 3: `release()` and `system()` call
+    # `uname()`, and `architecture()` runs `file -b` on Linux.
+    _interp_platform = {"python_version", "python_version_tuple",
+                        "python_implementation"}
+    # The door reads the interpreter. It does not compute, so an operand
+    # with arithmetic, a comprehension or a lambda is never evaluated.
+    # Review 2 of frame 277, finding 1: `sys.hexversion ** sys.hexversion`
+    # ran 40 seconds in the door.
+    _interp_nodes = (_ast.Compare, _ast.Attribute, _ast.Name, _ast.Constant,
+                     _ast.Subscript, _ast.Tuple, _ast.UnaryOp, _ast.BoolOp,
+                     _ast.Call, _ast.Load, _ast.Not, _ast.And, _ast.Or,
+                     _ast.Eq, _ast.NotEq, _ast.Lt, _ast.LtE, _ast.Gt,
+                     _ast.GtE, _ast.Is, _ast.IsNot, _ast.In, _ast.NotIn)
+
+    def _only_reads(v) -> bool:
+        for n in _ast.walk(v):
+            if not isinstance(n, _interp_nodes):
+                return False
+            if isinstance(n, _ast.UnaryOp) and not isinstance(n.op, _ast.Not):
+                return False
+            if (isinstance(n, _ast.Subscript)
+                    and not isinstance(n.slice, _ast.Constant)):
+                return False
+            if (isinstance(n, _ast.Tuple)
+                    and not all(isinstance(e, _ast.Constant) for e in n.elts)):
+                return False
+            # Review 2, finding 2: a `str.format` field reaches attributes
+            # as text, so the only call is a fixed `platform` function.
+            if isinstance(n, _ast.Call) and not (
+                    not n.args and not n.keywords
+                    and isinstance(n.func, _ast.Attribute)
+                    and isinstance(n.func.value, _ast.Name)
+                    and n.func.value.id == "platform"
+                    and n.func.attr in _interp_platform):
+                return False
+        return True
     _bound = {n.id for n in _ast.walk(tree)
               if isinstance(n, _ast.Name) and not isinstance(n.ctx, _ast.Load)}
     _bound |= {n.arg for n in _ast.walk(tree) if isinstance(n, _ast.arg)}
@@ -7775,6 +7808,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                  and p.attr in (_interp_sys if p.value.id == "sys"
                                 else _interp_platform)]
         if not all(any(f is n for f in fixed) for n in names):
+            return False
+        if not _only_reads(v):
             return False
         # Review 1 of frame 277, finding 1: a refusal must be certain, so
         # the operand fires only when its value is true. The harness runs
