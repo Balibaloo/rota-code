@@ -116,15 +116,40 @@ design changes how the night's read places walls; I believe it does, and
 I would reason first and launch the night from the head while the design
 review runs.
 
-## Live agents at the hand-off
+## Where things stand at the hand-off, 18:52
 
-- Frame 283's review 7, to `plans/frame283-review-7.md`.
-- Frame 143's pass 1d read, to `plans/frame143-pass1d-read.md`.
-- Frame 282's pass 2 implementer, report under `f282/` in this session's
-  scratchpad,
-  `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/d7c5dc6d-485b-4232-840c-a248ec516e0f/scratchpad/`.
-- The gate on b5b14311 from `C:/Users/roman/rota_gate_223`, its output
-  under this session's tasks directory, the newest `.output` file.
+Every review loop is closed: frame 283 at b5b14311 after review 7, frame
+282 at 42a4449e after review 2, frame 143 at 5561fc13 after review 1.
+The head is 5561fc13 plus the stack commits. No agent is live.
+
+The gate on b5b14311 from `C:/Users/roman/rota_gate_223` finished its
+test run at 18:51, 44 failed and 4210 passed in 615s, and is now
+re-recording its stale set on the card. Its five lines land in
+`C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/d7c5dc6d-485b-4232-840c-a248ec516e0f/tasks/bvwr6eqmv.output`
+when it exits; the worktree's log is `.rota-gate.log` there. Judge it so:
+the known reds are the ten names on frame 283's 17:48 line less the
+revert test, plus frame 143's four Tester cases and its own case; the
+vocabulary red is fixed at b5b14311. Its Tester re-records are made
+against b5b14311, which still holds the old brief sentence, so they go
+stale again at 5561fc13. Do not copy a register over that worktree while
+it runs. The useful gate is one on the final head after frame 143's
+replay, and it is the long one.
+
+Owed, in order:
+1. Frame 287's reasoning over the four pages, the design record, its
+   design review on Opus, then the design to Roman. This is the next
+   thing, and the reason this session hands off at 283k.
+2. Frame 143's replay of s199 turn 3 and s203 turn 1 with the 5561fc13
+   prompt, six runs each at temperature 0, with session 0e37e9d7's
+   `replay.py`, one Opus agent. Then the gate on the head, which
+   re-records every Tester case.
+3. Frame 290, one cycle on `api.py`, and frame 220 and 286 on `api.py`,
+   now free.
+4. The night from the head, held on frame 283 with frame 140.
+
+The briefs and reports are under this session's scratchpad,
+`C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/d7c5dc6d-485b-4232-840c-a248ec516e0f/scratchpad/`,
+in `f283/`, `f143/`, `f282/`, `f287/`.
 - Briefs and reports: `f283/`, `f143/`, `f282/`, `f287/` under the same
   scratchpad. Frame 287's extracted transcript text is in `f287/`:
   `roman_words.txt`, `compact.txt`, `roman_answers.txt`,
