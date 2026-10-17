@@ -97,14 +97,19 @@ aware of all this yourself?" (#622). Five causes.
    rota/LAWS.md` lands in law 12, and `grep -i reasoning` lands on law
    2's title. The records answered the keys. No session ran the grep
    (observed: review 1, finding 4, 2026-10-17). This is the first cause,
-   and the largest.
+   and the largest. It holds for frame 114 alone: frame 115's questions
+   used "answer" and "prose", and neither word reaches law 2 in
+   `LAWS.md` (observed: review 2, finding 2, by grep). Frame 115 is
+   cause 2.
 2. **Some records are filed by principle, not by the thing in hand.** Law
    12's title is "Constraints protect external commitments only"; its
    body holds "permission" and "stray", so a body search finds it and a
    title search does not. The 10-04 read that dissolved frame 114's
    question sits in a frame file no door name points to (observed: C,
    section 3; review 1, finding 4). This cause is second, and it decides
-   only what the index adds after cause 1 is fixed.
+   what the index adds after cause 1 is fixed: a key for each record the
+   prototype misses with the question's own words, law 2 first (observed:
+   review 2, finding 2).
 3. **A conclusion that dissolves a question is filed where nothing keyed
    by the question points, and his answers stay in one transcript.** The
    10-04 read of frame 114 wrote "the fix was always allowed" to a frame
@@ -174,8 +179,11 @@ Rules the table carries (reasoned unless marked):
   frame prints that frame first, which is the case frame 220 held for
   frame 114 five rows down (observed: C, group 1).
 - The ask print feeds the agent read. The two rulings stand as amended:
-  the agent of 2026-10-03 reads the print's hits instead of the whole
-  record set, and the agent of 2026-10-04 14:52 still answers both
+  the agent of 2026-10-03 reads the print's hits first, and reads the
+  whole record set as the ruling says when the print has no hit or
+  reaches its cap, because a question with no hit is the frame 114 path
+  that ruling exists to close (observed: review 2, finding 4); and the
+  agent of 2026-10-04 14:52 still answers both
   things, what the records say and whether the recommended answer holds
   against the frame's evidence. The question carries the "records read"
   line. A question with no hit still goes; 46 of 103 past questions were
@@ -199,13 +207,13 @@ Rules the table carries (reasoned unless marked):
 
 ## 4. The keys and the one derived file
 
-The index is one derived file, `plans/index.tsv`, written by one script
-from the records as they are, and rebuilt on demand by the tool as the
-map tool parses the code on demand with no cache (observed: `map.py`,
-"There is no cache"; review 1, finding 12). No existing record gains a
-field written by an agent. One writer per record stays true, and every
-derived row carries (reasoned: the script, the pattern it matched)
-(ruled: composition, "Every record has one writer"; review 1, finding 2).
+The index is derived on every run. The tool parses the records as they
+are and keeps no file, as the map tool parses the code with no cache
+(observed: `map.py`, "There is no cache"; review 1, finding 12; review 2,
+finding 8). No existing record gains a field written by an agent. One
+writer per record stays true, and every derived row the print shows
+carries (reasoned: the script, the pattern it matched) (ruled:
+composition, "Every record has one writer"; review 1, finding 2).
 
 | Record | Writer today | Key the script derives | From |
 |---|---|---|---|
@@ -246,7 +254,7 @@ Measured today, and the smaller form (observed: D; reasoned: the form).
 |---|---|---|---|
 | The stack at a take | 27k to 38k ctx, 55% status lines | the take print, about 2k to 3k a held frame, parsed from `stack.md` in place | 7k to 14k a hand-off, 20k to 55k a session |
 | Status lines written by hand | a 2k-char script a cycle, 15k tok a session; 15 strikes on the clock | `wake status --frame n --text ...` stamps the clock, keeps the line endings, appends, commits `plans/stack.md` by pathspec | about 10k a session; the clock rule retires |
-| The brief | 8.4k every turn, about half for events under one turn in ten | the rules a moment prints move to `plans/method/<moment>.md`: the take, the standby wake, the hand-off at 300k and 400k, the night stop, the sprint boundary, the escalation route; each stays one line in the brief with its origin behind a pointer; the cycle rules stay | about 3k a turn, several hundred turns a session (reasoned: less than revision 1's 4k, because the cycle rules stay) |
+| The brief | 8.4k every turn, about half for events under one turn in ten | a rule moves to `plans/method/<moment>.md` only when a tool prints it at its moment: the take procedure by `wake take`, the standby wake and the hand-off steps by `handover.py`, which prints its own procedure at `standby`, `take` and `hand` today, the night stop by `wake night`, the escalation route by `wake ask`, the close by `wake close`; each stays one line in the brief with its origin behind a pointer; the 300k and 400k thresholds, the sprint boundary and the cycle rules stay, because no tool prints them (observed: review 2, finding 1) | about 2k to 3k a turn, several hundred turns a session (reasoned) |
 | The memory index | 2.2k every turn | unchanged; `Moment:` lets the take print the files the frame will meet | fewer wrong reads |
 | The composition page | 1.7k a take, cited in no state reply | unchanged; it is the frame of reference every placement is read against (ruled: "the page wins") | none |
 | Momentum notes | 29 in `plans/`, 143k chars | the close deletes the note | less drift on disk |
@@ -319,10 +327,11 @@ finding 7).
    C68 and memory `rota-status-time-from-clock.md`, which retires.
 8. The hand-off: unchanged in its thresholds and in the momentum note
    (ruled: #474 "1 yes"); the taker reads the print and not the stack.
-9. The brief itself: the procedures the moments print move to
-   `plans/method/`, each rule one line with its origin behind a pointer;
-   the cycle rules and the every-turn rules stay (observed: review 1,
-   finding 6).
+9. The brief itself: a procedure moves to `plans/method/` only when a
+   tool prints it at its moment, as section 5 lists; each moved rule is
+   one line with its origin behind a pointer; the thresholds, the sprint
+   boundary, the cycle rules and the every-turn rules stay (observed:
+   review 1, finding 6; review 2, finding 1).
 10. The wall guide: step 0; the guide cites laws by number and decisions
     by title, not by line (observed: B, W2).
 
@@ -353,6 +362,11 @@ Three items, each with a recommended answer (reasoned: review 1, finding
 3. **[med] The brief diff itself**, section 7, when it is written.
    Recommended: he reads the diff of `CLAUDE.md` once, after frame 4
    below, as C73 says, and rules the lines he wants changed (ruled: C73).
+4. **[low] The tool schemas no build session calls**, about 12.5k tokens
+   on every turn for five tools (observed: D, section 1). The setting is
+   the harness's and his. Recommended: leave them out of the build
+   sessions' tool set if the harness allows it per project; otherwise
+   nothing (reasoned).
 
 Everything else sits under lines he has already ruled: the scripted
 approach (#36, #37), subagents for retrieval (A114, A153), the momentum
@@ -369,18 +383,19 @@ what the prototype misses (reasoned: review 1, findings 4 and 5).
 
 | Frame | Site | Ends when | Price |
 |---|---|---|---|
-| 1. The prototype, `wake ask` and `wake push` | `rota/tools/wake.py`, read-only over the records | the print, under its 3k cap, names the record that held the answer for the distinct answers of page C's R rows, about 9 after rows whose answer loads every turn are excluded, with the keys taken verbatim from each question as sent; the misses are named with the key they lacked; one review | 3 cycles |
+| 1. The prototype, `wake ask` and `wake push` | `rota/tools/wake.py`, read-only over the records | the print, under its 3k cap, names the record that held the answer for the seven distinct answers of page C's R rows after rows 12, 62, 87 and 100 are excluded, whose answer loads every turn: law 3 (row 6); law 2 (rows 15, 28, 30); law 12 with the touch route and "A prediction never blocks" (rows 26, 27, 99, 103); his notes answers with `frame204-design.md` (rows 59 to 61); `ROLES.md:150-170` (row 64); `frame244-interview.md` (rows 89, 90); his 10-04 14:34 answer (row 102), with the keys taken verbatim from each question as sent; the misses are named with the key they lacked, law 2 the expected first; one review (observed: review 2, point 3) | 3 cycles |
 | 2. The take print and the status tool | `rota/tools/wake.py`, `plans/stack.md` read in place | `wake take` prints one page per held frame from `stack.md` as it is; `wake status` writes one line with the clock and commits by pathspec; one taker takes a frame with the print and its state reply cites the law line the print gave; one review | 3 cycles |
-| 3. The method files and the brief split | `CLAUDE.md`, `plans/method/`, `plans/wall-guide.md`, the memory files | the brief under 5k tokens by `wc`; each moved rule one line with a pointer; step 0 in the guide; the clock memory marked retired; the diff goes to Roman as item 3 of section 8 | 3 cycles, a sweeper and a review |
-| 4. The night, design and close prints, and `wake next` | `rota/tools/wake.py`, `rota/tools/handover.py` for the `handed` column | `wake night` prints the law behind each wall's door on one night's read; `wake close` deletes the note and corrects the column; `wake next` prints the four things of section 6; the 29 notes are gone | 3 cycles |
-| 5. The frame files and the view | `plans/stack.md`, `plans/frames/`, `plans/archive/` | after frames 1 to 4 have run a sprint: the sweeper splits the stack and the archive; the view regenerates byte-stable twice, refuses on a hash mismatch with a diff, commits by pathspec; stack rule 5 reads "the view" | 4 cycles |
+| 3. The night, design and close prints, and `wake next` | `rota/tools/wake.py`, `rota/tools/handover.py` for the `handed` column | `wake night` prints the law behind each wall's door on one night's read; `wake close` deletes the note and corrects the column; `wake next` prints the four things of section 6; the 29 notes are gone | 3 cycles |
+| 4. The method files and the brief split | `CLAUDE.md`, `plans/method/`, `plans/wall-guide.md`, the memory files | the brief under 5k tokens by `wc`; each moved rule one line with a pointer, and every moved rule has the tool of frames 1 to 3 that prints it; step 0 in the guide; the clock memory marked retired; the diff goes to Roman as item 3 of section 8 | 3 cycles, a sweeper and a review |
+| 5. The frame files and the view | `plans/stack.md`, `plans/frames/`, `plans/archive/` | parked until a sprint under frames 1 to 4 shows the take print or the status tool wanting for the stack's size; then the sweeper splits the stack and the archive, the view regenerates byte-stable twice, refuses on a hash mismatch with a diff, commits by pathspec, and the take parser, the status writer and the close are re-pointed at the frame files | 4 cycles, plus a second edit of `CLAUDE.md` (observed: review 2, point 4) |
 
-Frames 1 and 2 share one file and run in order. Frame 3 waits on 1 and
-2, because the brief points at tools that must exist. Frame 4 follows 3.
-Frame 5 is next sprint. About 16 cycles for frames 1 to 4 against the
-anchors, and the overrun history says closed frames ran a median of 5
-cycles against 2 to 3 priced, so the honest expectation is about 25
-(observed: B, C42; review 1, finding 16).
+Frames 1 and 2 share one file and run in order. Frame 3 follows 2 on
+the same file. Frame 4 waits on 3, because the brief points at tools that
+must exist (observed: review 2, point 4). Frame 5 is parked. About 12
+cycles for frames 1 to 4 against the anchors, and the overrun history
+says closed frames ran a median of 5 cycles against 2 to 3 priced, so
+the honest expectation is about 20 (observed: B, C42; review 1, finding
+16; review 2, finding 8 on the sum).
 
 The check at the end of frame 2 (reasoned: the groups page C found, and
 their nature as door questions is why it is one check among the nine
@@ -408,7 +423,18 @@ law 12 from the print.
   altitude that matters. If he keeps "no wiring", the design loses only
   the sentence (reasoned).
 
-## 11. Review 1's findings and where each is answered
+## 11. The reviews' findings and where each is answered
+
+Review 2, `plans/frame287-design-review-2.md`, three high: 1 only a rule
+a tool prints moves out of the brief, sections 5 and 7; 2 cause 1 holds
+for frame 114 alone and frame 115 is cause 2, section 2; 4 the agent
+reads the whole record set when the print has no hit or reaches its cap,
+section 3. Its lows: the seven answers, section 9; frames 3 and 4
+swapped and frame 5 parked, section 9; the sum 12 and the expectation
+20, section 9; no index file, section 4; the fourth item for Roman,
+section 8.
+
+Review 1's findings:
 
 High: 1 `Means:` dropped, section 6. 2 one derived file, no writes to
 `LAWS.md` or `DECISIONS.md`, section 4. 3 the print never refuses or
