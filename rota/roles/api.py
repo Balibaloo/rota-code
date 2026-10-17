@@ -15467,7 +15467,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             # A write that keeps some definitions counts the lines it drops
             # above and below them (frame 95 pass 5). The tail note covers
             # a write that keeps the whole shape and stops short.
-            tail_note = (_whole_drop(old, text)
+            tail_note = (_whole_drop(old, text, gone_out=drop_lines)
                          or _tail_drop(old, 0, len(old), text, gone_out=drop_lines))
         except Exception:                                  # noqa: BLE001
             tail_note = None
@@ -15484,17 +15484,24 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     out = {"path": path, "bytes": len(text.encode("utf-8")),
            "created": not existed}
     # A fact, not an order: the seat decides whether the tail goes.
+    # A note tracks the project's code only. A line the batch added and then
+    # took out is no loss: the revert door admits that repair (frame 283,
+    # pass 3, `test_the_repair_of_a_head_that_fails_at_import_is_admitted`).
+    entry = None
+    if tail_note and ctx.batch_id:
+        entry = _note_entry(tail_note, before or "", text, drop_lines)
+        if (entry["lines"] or entry["defs"]) and not _base_held(ctx, root, path, entry):
+            entry = None
     if tail_note:
         out["dropped"] = tail_note
         # The seat decides only once it has read the note (frame 140). The
         # dry run returns above, so it records nothing.
         notes = getattr(ctx, "reply_notes", None)
-        if notes is not None:
+        if notes is not None and (entry is not None or not ctx.batch_id):
             notes[path] = tail_note
     # A noted write opens a note for the batch and the path (frame 283). A
     # later note on the path keeps the earlier lines, which are still gone.
-    if tail_note and ctx.batch_id:
-        entry = _note_entry(tail_note, before or "", text, drop_lines)
+    if entry is not None:
         prior = _open_notes(ctx).get(path)
         if prior:
             entry["lines"] = prior["lines"] + [
@@ -16077,6 +16084,40 @@ def _note_entry(note: str, before: str, noted: str, drop: list[int]) -> dict:
             "noted": noted}
 
 
+def _base_held(ctx, root, path: str, entry: dict) -> bool:
+    """Keep in `entry` only the dropped lines and definitions that the
+    batch's base commit holds in `path`. True when one is left. A base that
+    git cannot name keeps every line, because the door cannot tell."""
+    import subprocess as _sp
+    from ..core import worktrees as _wt
+    if root is None:
+        return True
+    fork = _batch_base(ctx, root)
+
+    def git(*args):
+        return _sp.run([*_wt.GIT, "-C", str(root), *args], capture_output=True)
+    try:
+        if git("rev-parse", "--verify", f"{fork}^{{commit}}").returncode != 0:
+            return True
+        shown = git("show", f"{fork}:{path}")
+    except OSError:
+        return True
+    # A path the base lacks is a file the batch created.
+    base = (shown.stdout.decode("utf-8", "replace").replace("\r\n", "\n")
+            if shown.returncode == 0 else "")
+    spans = _def_spans(base)
+    keep = []
+    for owner, line, n in entry["lines"]:
+        here = _def_lines(base, spans, owner) if spans is not None else None
+        if here is not None and line in here:
+            keep.append([owner, line, n])
+    names = {n for n, _lo, _hi in spans or []}
+    entry["lines"] = keep
+    entry["defs"] = [d for d in entry["defs"] if d in names]
+    entry["whole"] = [d for d in entry["whole"] if d in names] if keep else []
+    return bool(entry["lines"] or entry["defs"])
+
+
 def _restored(text: str, entry: dict) -> bool:
     """True when `text` holds each dropped line inside its definition as
     often as before the write, and each dropped definition by name. The
@@ -16097,6 +16138,13 @@ def _restored(text: str, entry: dict) -> bool:
     return True
 
 
+def _says(text: str, part: str) -> bool:
+    """True when `text` holds `part` as a whole token: no word character
+    joins it on either side. Review 2 of frame 283, finding 3: "bypass"
+    named `pass` as a substring."""
+    return re.search(rf"(?<!\w){re.escape(part)}(?!\w)", text) is not None
+
+
 def _close_logged_notes(ctx: Ctx, assumption: str) -> None:
     """Close each open `dropped` note that a landed ledger note names: its
     path and every dropped line's text, or the name of each definition the
@@ -16108,11 +16156,11 @@ def _close_logged_notes(ctx: Ctx, assumption: str) -> None:
         if p not in assumption and _grain_path(p) not in assumption:
             continue
         # The note cuts a line at 60 characters, so the seat quotes that much.
-        said = all(line[:60] in assumption for _o, line, _n in e["lines"])
+        said = all(_says(assumption, line[:60]) for _o, line, _n in e["lines"])
         # Lines that are whole definitions are named by the definitions.
         if e["lines"] and not said and e["whole"]:
-            said = all(d.rsplit(".", 1)[-1] in assumption for d in e["whole"])
-        named = all(d in assumption for d in e["defs"])
+            said = all(_says(assumption, d.rsplit(".", 1)[-1]) for d in e["whole"])
+        named = all(_says(assumption, d) for d in e["defs"])
         if (e["lines"] or e["defs"]) and said and named:
             _put_note(ctx, p, None)
 
@@ -17141,7 +17189,8 @@ def _escape_note(fragment: str, exc: SyntaxError | None) -> str:
     return note
 
 
-def _whole_drop(old_lines: list[str], text: str) -> str | None:
+def _whole_drop(old_lines: list[str], text: str,
+                gone_out: list[int] | None = None) -> str | None:
     """
     One sentence for a whole-file write that keeps some old top-level
     definitions and drops other top-level lines, or None.
@@ -17171,6 +17220,10 @@ def _whole_drop(old_lines: list[str], text: str) -> str | None:
                 gone |= {i for i in range(lo, n.end_lineno) if old_lines[i].strip()}
         if not gone:
             return None
+        # Every dropped line as data, for the note of frame 283 (review 2,
+        # finding 2: a module-level drop stored no line).
+        if gone_out is not None:
+            gone_out.extend(sorted(gone))
         first = old_lines[min(gone)].strip()
         word = "line" if len(gone) == 1 else "lines"
         return (f"This write drops {len(gone)} {word} of the old file, from `{first}`; "

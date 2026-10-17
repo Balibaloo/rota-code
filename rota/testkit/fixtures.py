@@ -371,6 +371,7 @@ _JUNCTION_LABELS: dict[str, tuple[str, ...]] = {
     "survey_citations": ("survey_id", "grain"),
     "batch_touch": ("batch_id", "grain"),
     "touch_strays": ("batch_id", "commit_sha", "path"),
+    "drop_notes": ("batch_id", "path"),
     "batch_dep_facts": ("before_batch", "after_batch"),
     "schedule_deps": ("before_batch", "after_batch"),
     "refs": ("src_table", "src_id", "kind", "target"),

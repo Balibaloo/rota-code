@@ -494,3 +494,47 @@ def test_a_whole_file_note_closes_when_the_definitions_return():
     assert entry["defs"] == ["b"]
     assert not api._restored(noted + "# b\n", entry)
     assert api._restored(before, entry)
+
+
+def test_a_whole_file_drop_of_module_lines_stores_the_lines():
+    """Frame 283's review 2, finding 2: a whole-file write that drops only
+    module-level lines stores them, so a comment does not close the note."""
+    before = ("X = 5\n\n\ndef a():\n    return 1\n\n\n"
+              "if __name__ == '__main__':\n    a()\n")
+    noted = "def a():\n    return 1\n"
+    drop: list = []
+    note = api._whole_drop(before.splitlines(), noted, gone_out=drop)
+    assert note
+    entry = api._note_entry(note, before, noted, drop)
+    assert [x[1] for x in entry["lines"]] == [
+        "X = 5", "if __name__ == '__main__':", "a()"]
+    assert not api._restored(noted + "# kept\n", entry)
+    assert api._restored(before, entry)
+
+
+def test_a_ledger_word_that_holds_the_line_as_a_substring_closes_nothing(db, tmp_path):
+    """Frame 283's review 2, finding 3: "bypass" does not name `pass`."""
+    sb, _root = _developer(db, tmp_path)
+    api._put_note(sb.ctx, "src/m.py", {"note": "n", "lines": [["", "pass", 1]],
+                                       "defs": [], "whole": [], "noted": ""})
+    api._close_logged_notes(sb.ctx, "src/m.py: the bypass is kept")
+    assert "src/m.py" in api._open_notes(sb.ctx)
+    api._close_logged_notes(sb.ctx, "src/m.py: the removal of `pass` is meant")
+    assert api._open_notes(sb.ctx) == {}
+
+
+def test_a_dropped_definition_the_batch_added_opens_no_note(db, tmp_path):
+    """Frame 283, pass 3: a line that the batch's base does not hold is no
+    loss of the project's code. The result still says what the write
+    removed, and the commit in the next reply lands."""
+    sb, root = _developer(db, tmp_path)
+    # A second change, so the write does not put the base back whole.
+    added = "# batch\n" + DECORATORS + "\n\ndef added_here() -> int:\n    return 1\n"
+    (root / PATH).write_bytes(added.encode("utf-8"))
+    _git(root, "commit", "-q", "-am", "the batch adds a definition")
+    n = len(DECORATORS.splitlines()) + 1
+    out = sb.call("code.write", path=PATH, start=n, end=n + 4, text="\n")
+    assert "added_here" in out["dropped"]
+    assert api._open_notes(sb.ctx) == {}
+    sb.begin_reply()
+    assert sb.call("code.commit", message="take it out")["committed"] is True

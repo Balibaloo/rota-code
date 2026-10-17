@@ -75,6 +75,7 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
                                "by onboarding and by every refresh of main"),
     "batch_touch": ("content", "the predicted touch set, derived per batch"),
     "touch_strays": ("content", "paths a commit touched outside the predicted touch set, per commit"),
+    "drop_notes": ("content", "one open note per batch and path, written by code.write"),
 
     # ---- journals: re-saying is two events, on purpose --------------------
     "entries": ("journal", "the principal's words, in order; ts_order is "
