@@ -541,6 +541,8 @@ def test_a_dropped_definition_the_batch_added_opens_no_note(db, tmp_path):
     n = len(DECORATORS.splitlines()) + 1
     out = sb.call("code.write", path=PATH, start=n, end=n + 4, text="\n")
     assert "added_here" in out["dropped"]
+    # Review 6, finding 1: the result says the commit is not held.
+    assert out["dropped"].endswith("No note is open, and the commit is not held.")
     assert api._open_notes(sb.ctx) == {}
     sb.begin_reply()
     assert sb.call("code.commit", message="take it out")["committed"] is True
@@ -727,8 +729,28 @@ def test_a_ledger_that_quotes_the_full_line_closes_a_note_that_shows_its_cut(db,
 def test_a_shown_line_with_a_backtick_gets_a_double_fence():
     """Review 5, finding 3: a backtick in the line cannot end the fence."""
     line = "return f'`{x}` \"q\"'"
-    assert api._quote(line) == f"`` {line} ``"
+    assert api._quote(line) == f"``{line}``"
     assert api._quote("return x") == "`return x`"
+    # Review 6, finding 2: two backticks in a row get a fence of three.
+    assert api._quote("return 'a``b'") == "```return 'a``b'```"
+    assert api._quote("`x` = 1") == "`` `x` = 1 ``"
     entry = {"note": f"This write drops 1 line. It drops {api._quote(line)}.",
              "lines": [["f", line, 1]]}
     assert api._shown_lines(entry) == [line]
+
+
+def test_tick_the_lost_sentence_fences_a_line_with_backticks():
+    """Review 6, finding 3, probe TICK: the span sentence uses `_quote`."""
+    line = 'log("a `b` c", x)'
+    out = api._lost_sentence([(3, line)])
+    assert out == f"``{line}`` at line 3"
+    entry = {"note": out, "lines": [["f", line, 1]]}
+    assert api._shown_lines(entry) == [line]
+
+
+def test_t1_the_whole_file_sentence_fences_a_line_with_backticks():
+    """Review 6, finding 3, probe T1: the whole-file sentence uses `_quote`."""
+    line = 'log("a `b` c", x)'
+    before = f"{line}\n\n\ndef a():\n    return 1\n"
+    note = api._whole_drop(before.splitlines(), "def a():\n    return 1\n")
+    assert f"from ``{line}``;" in note

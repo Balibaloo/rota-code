@@ -15502,7 +15502,10 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             entry, tail_note = None, None
         elif (entry["lines"] or entry["defs"]) and not _base_held(
                 ctx, root, path, entry):
+            # The seat reads from the result whether the next commit lands
+            # (review 6, finding 1).
             entry = None
+            tail_note = f"{tail_note} No note is open, and the commit is not held."
     # The refusal text always shows a stored line, because a ledger closes
     # a note only by a line the seat saw (frame 283's review 4, finding 2).
     if entry is not None and entry["lines"] and not _shown_lines(entry):
@@ -16021,7 +16024,7 @@ def _put_note(ctx: Ctx, path: str, entry: dict | None) -> None:
     if entry is None:
         old = _open_notes(ctx).get(path) or {"note": "", "lines": [], "defs": [],
                                              "whole": [], "noted": ""}
-        entry, status = old, "closed"
+        entry, status = old, "restored"
     else:
         status = "open"
     ctx.writes.append(("drop_notes", f"{bid}:{path}", {
@@ -16200,14 +16203,17 @@ def _shown_lines(e: dict) -> list[str]:
     first line in full (review 3, finding 2, probe R3d)."""
     return [q for _o, line, _n in e["lines"]
             for q in [next((x for x in (line, line[:60])
-                            if f"`{x}`" in e["note"] or f"`` {x} ``" in e["note"]),
+                            if f"`{x}`" in e["note"] or _quote(x) in e["note"]),
                            None)] if q]
 
 
 def _quote(line: str) -> str:
-    """`line` in a code fence that its own backticks do not break: a double
-    fence when the line holds a backtick (review 5, finding 3)."""
-    return f"`` {line} ``" if "`" in line else f"`{line}`"
+    """`line` in a code fence that its own backticks do not break: one
+    backtick more than the longest run in the line, and a space inside when
+    the line starts or ends with a backtick (review 6, finding 2)."""
+    fence = "`" * (max((len(r) for r in re.findall(r"`+", line)), default=0) + 1)
+    pad = " " if line.startswith("`") or line.endswith("`") else ""
+    return f"{fence}{pad}{line}{pad}{fence}"
 
 
 def _close_logged_notes(ctx: Ctx, assumption: str) -> None:
@@ -17300,7 +17306,7 @@ def _whole_drop(old_lines: list[str], text: str,
             gone_out.extend(sorted(gone))
         first = old_lines[min(gone)].strip()
         word = "line" if len(gone) == 1 else "lines"
-        return (f"This write drops {len(gone)} {word} of the old file, from `{first}`; "
+        return (f"This write drops {len(gone)} {word} of the old file, from {_quote(first)}; "
                 f"write the whole file again with those lines kept.")
     except Exception:                                      # noqa: BLE001
         return None
@@ -17617,7 +17623,8 @@ def _lost_named(lost: list[tuple[int, str]]) -> list[tuple[int, str]]:
 def _lost_sentence(lost: list[tuple[int, str]]) -> str:
     # The head is cut at 60 characters, the cut the span door's own
     # `Line N is` sentences use.
-    out = ", ".join(f"`{h[:60]}` at line {i}" for i, h in _lost_named(lost))
+    # A fence the line's own backticks do not break (review 6, finding 3).
+    out = ", ".join(f"{_quote(h[:60])} at line {i}" for i, h in _lost_named(lost))
     if len(lost) > _LOST_NAMED:
         out += f" and {len(lost) - _LOST_NAMED} more"
     return out

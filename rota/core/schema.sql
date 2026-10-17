@@ -355,7 +355,7 @@ CREATE TABLE IF NOT EXISTS drop_notes (
     batch_id    TEXT NOT NULL REFERENCES batches(id),
     path        TEXT NOT NULL,
     status      TEXT NOT NULL DEFAULT 'open'
-                CHECK (status IN ('open','closed')),
+                CHECK (status IN ('open','restored')),
     note        TEXT NOT NULL,
     lines       TEXT NOT NULL DEFAULT '[]',
     defs        TEXT NOT NULL DEFAULT '[]',
