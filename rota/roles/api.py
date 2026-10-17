@@ -15495,14 +15495,18 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     entry = None
     if tail_note and ctx.batch_id:
         entry = _note_entry(tail_note, before or "", text, drop_lines)
-        if (entry["lines"] or entry["defs"]) and not (
-                _changed_kept(entry, text, before or "")
-                and _base_held(ctx, root, path, entry)):
+        if (entry["lines"] or entry["defs"]) and not _changed_kept(
+                entry, text, before or ""):
+            # Every dropped line is a changed line the text keeps, so the
+            # result says nothing removed (review 5, finding 2, s192).
+            entry, tail_note = None, None
+        elif (entry["lines"] or entry["defs"]) and not _base_held(
+                ctx, root, path, entry):
             entry = None
     # The refusal text always shows a stored line, because a ledger closes
     # a note only by a line the seat saw (frame 283's review 4, finding 2).
     if entry is not None and entry["lines"] and not _shown_lines(entry):
-        entry["note"] = f"{entry['note']} It drops `{entry['lines'][0][1][:60]}`."
+        entry["note"] = f"{entry['note']} It drops {_quote(entry['lines'][0][1][:60])}."
         tail_note = entry["note"]
     if tail_note:
         out["dropped"] = tail_note
@@ -16106,7 +16110,9 @@ def _changed_kept(entry: dict, text: str, before: str = "") -> bool:
     """Drop from `entry` each line that `text` still holds as a changed line:
     one new line holds every whole token of it. True when a line or a
     definition is left. Night 149 s192 added `RuntimeError` to an `except`
-    tuple, and the door read the old line as removed (frame 283's count)."""
+    tuple, and the door read the old line as removed (frame 283's count).
+    A dropped copy of a repeated line hides behind an unrelated new line
+    that holds its tokens. The risk is accepted (review 5, finding 1)."""
     # Only a line the old text lacks is a changed line. An unchanged line
     # kept click's `if version is None:` out of the note (review 4, finding 1).
     old = {ln.strip() for ln in before.splitlines()}
@@ -16194,7 +16200,14 @@ def _shown_lines(e: dict) -> list[str]:
     first line in full (review 3, finding 2, probe R3d)."""
     return [q for _o, line, _n in e["lines"]
             for q in [next((x for x in (line, line[:60])
-                            if f"`{x}`" in e["note"]), None)] if q]
+                            if f"`{x}`" in e["note"] or f"`` {x} ``" in e["note"]),
+                           None)] if q]
+
+
+def _quote(line: str) -> str:
+    """`line` in a code fence that its own backticks do not break: a double
+    fence when the line holds a backtick (review 5, finding 3)."""
+    return f"`` {line} ``" if "`" in line else f"`{line}`"
 
 
 def _close_logged_notes(ctx: Ctx, assumption: str) -> None:
@@ -16211,7 +16224,12 @@ def _close_logged_notes(ctx: Ctx, assumption: str) -> None:
             continue
         if e["lines"]:
             # One shown line closes the note (review 3, finding 2).
-            said = any(_says(assumption, q) for q in _shown_lines(e))
+            # The full line counts where the note shows its cut form
+            # (review 5, finding 4).
+            shown = set(_shown_lines(e))
+            said = any(_says(assumption, q) for q in shown) or any(
+                line[:60] in shown and _says(assumption, line)
+                for _o, line, _n in e["lines"])
             # Lines that are whole definitions are named by the definitions.
             if not said and e["whole"]:
                 said = all(_says(assumption, d.rsplit(".", 1)[-1]) for d in e["whole"])

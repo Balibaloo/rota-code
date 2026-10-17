@@ -702,9 +702,33 @@ def test_s192s_widened_tuple_through_code_write_commits_in_the_reply(db, tmp_pat
     base = ("def run():\n    try:\n        go()\n"
             "    except (KeyboardInterrupt, EOFError):\n        stop()\n")
     sb, root = _module_repo(db, tmp_path, [base, base + "# c1\n"])
-    sb.call("code.write", path=M, start=1, end=5, text=(
+    out = sb.call("code.write", path=M, start=1, end=5, text=(
         "    try:\n        go()\n"
         "    except (KeyboardInterrupt, EOFError, RuntimeError):\n        stop()\n"))
     assert "RuntimeError" in (root / M).read_text(encoding="utf-8")
+    # Review 5, finding 2: the seat is not told that it removed the line.
+    assert "dropped" not in out
     assert api._open_notes(sb.ctx) == {}
     assert sb.call("code.commit", message="widen the except")["committed"] is True
+
+
+def test_a_ledger_that_quotes_the_full_line_closes_a_note_that_shows_its_cut(db, tmp_path):
+    """Review 5, finding 4: the note shows a long line cut at 60."""
+    sb, _root = _developer(db, tmp_path)
+    line = "result = compute_the_long_value(alpha_parameter, beta_parameter)"
+    assert len(line) > 60
+    api._put_note(sb.ctx, M, {"note": f"It drops `{line[:60]}` at line 3.",
+                              "lines": [["f", line, 1]], "defs": [], "whole": [],
+                              "noted": ""})
+    api._close_logged_notes(sb.ctx, f"{M}: the removal of `{line}` is meant")
+    assert api._open_notes(sb.ctx) == {}
+
+
+def test_a_shown_line_with_a_backtick_gets_a_double_fence():
+    """Review 5, finding 3: a backtick in the line cannot end the fence."""
+    line = "return f'`{x}` \"q\"'"
+    assert api._quote(line) == f"`` {line} ``"
+    assert api._quote("return x") == "`return x`"
+    entry = {"note": f"This write drops 1 line. It drops {api._quote(line)}.",
+             "lines": [["f", line, 1]]}
+    assert api._shown_lines(entry) == [line]
