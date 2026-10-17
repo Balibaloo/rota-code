@@ -151,6 +151,13 @@ class Ctx:
     # seat reads every result before its next reply. `offers` and `facts`
     # cannot carry it: `Sandbox.call` clears them at every call.
     reply_notes: dict = None
+    # The `dropped` notes that outlive their reply: path -> (note, the
+    # file text the noted write left, {statement head: its count in the
+    # file before that write}). Frame 283. Night 154: s340 committed
+    # 1e9925fc and s388 committed a90c7495 in a later reply, each with the
+    # noted lines still gone. A note stays open until the file holds each
+    # named statement as often as before the write. `begin_reply` keeps it.
+    open_notes: dict = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -181,6 +188,8 @@ class Ctx:
             self.facts = []
         if self.reply_notes is None:
             self.reply_notes = {}
+        if self.open_notes is None:
+            self.open_notes = {}
 
 
 class _Invent:
@@ -10166,8 +10175,11 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 f"it is ledger.log(kind='default'), which holds nothing.",
                 call, {"refs": [about_ref], "question": assumption}))
 
-    return {"id": _stage_ledger(ctx, about_ref, about_table, assumption, word),
-            **extra}
+    row = _stage_ledger(ctx, about_ref, about_table, assumption, word)
+    # Every door has passed, so the note lands, and it can close a dropped
+    # note (frame 283).
+    _close_logged_notes(ctx, assumption)
+    return {"id": row, **extra}
 
 
 # The tables whose row a seat can quote as one side of a note, by the column
@@ -15442,6 +15454,12 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         out = {"path": path, "bytes": len(text.encode("utf-8")), "created": False,
                "unchanged": _unchanged_note(ctx, root, path, dirty),
                "written, not committed": dirty, "lands with": "code.commit"}
+        # The same dropping text again: the note is still a fact about the
+        # tree, so the result says it (frame 283, s340's turn 13).
+        held = (getattr(ctx, "open_notes", None) or {}).get(path)
+        if held and held[1] == text:
+            out["dropped"] = held[0]
+            ctx.reply_notes[path] = held[0]
         if repair_note:
             out["repaired"] = repair_note
         if missing and stem not in missing:
@@ -15462,6 +15480,13 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             tail_note = None
     target.parent.mkdir(parents=True, exist_ok=True)
     existed = target.exists()
+    # The counts the restore check of frame 283 compares against.
+    before = None
+    if tail_note and existed:
+        try:
+            before = target.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            before = None
     target.write_text(text, encoding="utf-8")
     out = {"path": path, "bytes": len(text.encode("utf-8")),
            "created": not existed}
@@ -15473,6 +15498,14 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         notes = getattr(ctx, "reply_notes", None)
         if notes is not None:
             notes[path] = tail_note
+    # A noted write opens a note for the session (frame 283). A later note
+    # on the path keeps the earlier statements, because they are still gone.
+    opened = getattr(ctx, "open_notes", None)
+    if opened is not None and tail_note:
+        counts = dict(opened[path][2]) if path in opened else {}
+        for h in _note_heads(tail_note):
+            counts.setdefault(h, _head_count(before or "", h))
+        opened[path] = (tail_note, text, counts)
     # A fact about the text the seat sent, so the seat can send the escape.
     if repair_note:
         out["repaired"] = repair_note
@@ -15881,19 +15914,79 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
     seat decides after it reads the note (frame 135: one fact, one step).
     """
     notes = getattr(ctx, "reply_notes", None) or {}
-    if not notes:
+    # Frame 283: a note outlives its reply until the lines are back. Night
+    # 154: s388 committed a90c7495 in the reply after the refusal, with no
+    # write between, and `--version` lost `echo(version_msg)`.
+    from pathlib import Path as _Path
+    opened = getattr(ctx, "open_notes", None) or {}
+    if tree is not None:
+        for p in list(opened):
+            try:
+                now = (_Path(tree) / p).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                now = ""
+            if _restored(now, opened[p]):
+                del opened[p]
+    if not notes and not opened:
         return None
     # A path the commit does not take carries no removal into it.
     dirty = {_grain_path(f) for f in _uncommitted(ctx, tree)}
     held = [(p, n) for p, n in notes.items() if _grain_path(p) in dirty]
-    if not held:
+    later = [(p, e[0]) for p, e in opened.items()
+             if p not in notes and _grain_path(p) in dirty]
+    if not held and not later:
         return None
-    said = " ".join(f"{p}: {n}" for p, n in held)
-    return (f"your code.write in this reply returned a note before this "
-            f"commit, and you had not read it. {said} You sent this commit "
-            f"before you read this note. If the tree now holds what the item "
-            f"asks for, commit in your next reply. If it does not, write the "
-            f"lines back, then commit in your next reply.")
+    step = (f"If the tree holds those lines again, commit in your next "
+            f"reply. If it does not, write the lines back, then commit in "
+            f"your next reply.")
+    if held:
+        said = " ".join(f"{p}: {n}" for p, n in held + later)
+        return (f"your code.write in this reply returned a note before this "
+                f"commit, and you had not read it. {said} You sent this "
+                f"commit before you read this note. {step}")
+    said = " ".join(f"{p}: {n}" for p, n in later)
+    return (f"a code.write in an earlier reply returned a note, and the tree "
+            f"still does not hold those lines. {said} Put the lines back with "
+            f"code.write, or log the removal with ledger.log naming the path "
+            f"and the lines, then commit in your next reply.")
+
+
+def _close_logged_notes(ctx: Ctx, assumption: str) -> None:
+    """Close each open `dropped` note that a landed ledger note names: its
+    path and one dropped statement's text. Frame 283's ends-when: a meant
+    removal is committed after a landed note (frame 204's note route)."""
+    opened = getattr(ctx, "open_notes", None)
+    if not opened or not assumption:
+        return
+    for p in list(opened):
+        if p not in assumption and _grain_path(p) not in assumption:
+            continue
+        if any(h in assumption for h in opened[p][2]):
+            del opened[p]
+
+
+def _note_heads(note: str) -> list[str]:
+    """The statement heads a `dropped` note names: "`head` at line N" of
+    `_lost_sentence`, and "from `line`." of `_tail_drop` (frame 283)."""
+    import re as _re
+    heads = _re.findall(r"`([^`]+)` at line \d+", note)
+    heads += _re.findall(r"from `([^`]+)`\.", note)
+    return [h.strip() for h in heads if h.strip()]
+
+
+def _head_count(text: str, head: str) -> int:
+    """How many lines of `text` start with `head`, indentation aside."""
+    return sum(1 for ln in text.splitlines() if ln.strip().startswith(head))
+
+
+def _restored(text: str, entry: tuple) -> bool:
+    """True when `text` holds each noted statement as often as the file did
+    before the noted write. The restore check of frame 283. A note with no
+    head it can read closes when the file no longer holds the noted text."""
+    _note, noted, counts = entry
+    if not counts:
+        return text != noted
+    return all(_head_count(text, h) >= n for h, n in counts.items())
 
 
 def _predicted_touch(ctx: Ctx, batch_id: str) -> list[str]:

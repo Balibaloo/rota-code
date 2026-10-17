@@ -191,9 +191,16 @@ S282_NOTE = ('This write removes 3 statements that your text does not hold: '
              '`base_message = message % {"prog": prog_name, "package": pack` '
              'at line 546, `echo(` at line 551, `ctx.exit()` at line 555.')
 
-STEP = ("You sent this commit before you read this note. If the tree now "
-        "holds what the item asks for, commit in your next reply. If it does "
-        "not, write the lines back, then commit in your next reply.")
+STEP = ("You sent this commit before you read this note. If the tree holds "
+        "those lines again, commit in your next reply. If it does not, write "
+        "the lines back, then commit in your next reply.")
+
+# The refusal of a commit in a reply after the noted one (frame 283).
+LATER = ("a code.write in an earlier reply returned a note, and the tree "
+         "still does not hold those lines.")
+LATER_STEP = ("Put the lines back with code.write, or log the removal with "
+              "ledger.log naming the path and the lines, then commit in your "
+              "next reply.")
 
 # The dropped statements put back around s282's text, as one span.
 RESTORED = ('        base_message = message % {"prog": prog_name, "package": '
@@ -254,8 +261,6 @@ def test_s282s_commit_beside_the_noted_write_is_refused(db, tmp_path):
     assert f"{PATH}: {S282_NOTE}" in msg
     assert msg.endswith(STEP)
     assert _git(root, "rev-parse", "HEAD") == head
-    sb.begin_reply()
-    assert sb.call("code.commit", message="the removal")["committed"] is True
 
 
 def test_a_restoring_write_in_the_same_reply_still_waits_for_the_next(db, tmp_path):
@@ -289,13 +294,25 @@ def test_a_write_with_no_note_commits_in_the_same_reply(db, tmp_path):
     assert sb.call("code.commit", message="micro")["committed"] is True
 
 
-def test_the_commit_in_the_reply_after_the_noted_write_lands(db, tmp_path):
-    """The seat read the note before its next reply, so that commit lands."""
-    sb, _ = _developer(db, tmp_path)
+def test_s388s_commit_in_the_next_reply_with_no_write_is_refused(db, tmp_path):
+    """Frame 283. Night 154, s388: the commit beside the noted write was
+    refused, and the commit in the next reply, with no write between, landed
+    a90c7495 without `echo(version_msg)`. The note stays open until a write
+    puts the lines back, so that commit is refused too."""
+    sb, root = _developer(db, tmp_path)
+    head = _git(root, "rev-parse", "HEAD")
     out = sb.call("code.write", path=PATH, start=546, end=556, text=S282_TEXT)
     assert out["dropped"] == S282_NOTE
+    with pytest.raises(ValueError):
+        sb.call("code.commit", message="micro")
     sb.begin_reply()
-    assert sb.call("code.commit", message="the removal")["committed"] is True
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="Add show_python flag")
+    msg = str(err.value)
+    assert msg.startswith(LATER)
+    assert f"{PATH}: {S282_NOTE}" in msg
+    assert msg.endswith(LATER_STEP)
+    assert _git(root, "rev-parse", "HEAD") == head
 
 
 def test_the_dry_run_of_the_noted_write_records_nothing(db, tmp_path):
@@ -306,3 +323,90 @@ def test_the_dry_run_of_the_noted_write_records_nothing(db, tmp_path):
     assert sb.ctx.reply_notes == {}
     assert (root / PATH).read_bytes() == DECORATORS.encode("utf-8")
     assert sb.call("code.commit", message="nothing")["committed"] is False
+
+
+def _noted_then_refused(sb, root):
+    """s340's turn 7: the noted write lands, and the commit beside it is
+    refused. Returns the file text the noted write left."""
+    out = sb.call("code.write", path=PATH, start=546, end=556, text=S282_TEXT)
+    assert out["dropped"] == S282_NOTE
+    with pytest.raises(ValueError):
+        sb.call("code.commit", message="micro")
+    sb.begin_reply()
+    return (root / PATH).read_text(encoding="utf-8")
+
+
+def test_s340s_unchanged_write_sends_the_note_again_and_holds_the_commit(db, tmp_path):
+    """Frame 283. Night 154, s340: the commit beside the noted write was
+    refused. A later reply sent the same text, read only `unchanged`, and
+    committed 1e9925fc with the tail gone. The `unchanged` result now carries
+    the note, and the commit beside it is refused with the note quoted."""
+    sb, root = _developer(db, tmp_path)
+    head = _git(root, "rev-parse", "HEAD")
+    noted = _noted_then_refused(sb, root)
+    out = sb.call("code.write", path=PATH, text=noted)
+    assert "unchanged" in out
+    assert out["dropped"] == S282_NOTE
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="Add show_python flag to version_option")
+    msg = str(err.value)
+    assert f"{PATH}: {S282_NOTE}" in msg
+    assert msg.endswith(STEP)
+    assert _git(root, "rev-parse", "HEAD") == head
+
+
+def test_s340s_commit_in_the_reply_after_the_unchanged_write_is_refused(db, tmp_path):
+    """Frame 283, s340's own turns: turn 13 sent the same text alone, and
+    turn 14 sent the commit alone. The commit of turn 14 is refused, and so
+    is every commit after it while the lines are gone."""
+    sb, root = _developer(db, tmp_path)
+    head = _git(root, "rev-parse", "HEAD")
+    noted = _noted_then_refused(sb, root)
+    assert sb.call("code.write", path=PATH, text=noted)["dropped"] == S282_NOTE
+    sb.begin_reply()
+    for _ in range(2):
+        with pytest.raises(ValueError) as err:
+            sb.call("code.commit", message="Add show_python flag to version_option")
+        assert str(err.value).startswith(LATER)
+        assert f"{PATH}: {S282_NOTE}" in str(err.value)
+        sb.begin_reply()
+    assert _git(root, "rev-parse", "HEAD") == head
+
+
+def test_a_write_that_puts_the_tail_back_closes_the_note(db, tmp_path):
+    """Frame 283: the next reply writes the tail back, so the note closes,
+    and the commit after it lands."""
+    sb, root = _developer(db, tmp_path)
+    _noted_then_refused(sb, root)
+    out = sb.call("code.write", path=PATH, start=546, end=550, text=RESTORED)
+    assert "dropped" not in out
+    assert "ctx.exit()" in (root / PATH).read_text(encoding="utf-8")
+    assert sb.call("code.commit", message="micro")["committed"] is True
+    assert getattr(sb.ctx, "open_notes", {}) == {}
+
+
+def test_a_ledger_note_that_names_a_dropped_statement_closes_the_note(db, tmp_path):
+    """Frame 283's ends-when: a meant removal is committed after a landed
+    note. The ledger note names the path and `ctx.exit()`, so the commit
+    after it lands."""
+    sb, _ = _developer(db, tmp_path)
+    _noted_then_refused(sb, _)
+    sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
+            assumption=f"The item asks for the removal: {PATH} no longer "
+                       f"holds `ctx.exit()` and the echo call.")
+    assert sb.call("code.commit", message="the removal")["committed"] is True
+
+
+def test_a_ledger_note_that_names_no_dropped_statement_leaves_it_open(db, tmp_path):
+    """Frame 283: a ledger note that names the path and none of the dropped
+    statements does not close the note, so the commit is refused."""
+    sb, root = _developer(db, tmp_path)
+    head = _git(root, "rev-parse", "HEAD")
+    _noted_then_refused(sb, root)
+    sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
+            assumption=f"The version string in {PATH} uses major.minor.micro.")
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="the removal")
+    assert str(err.value).startswith(LATER)
+    assert str(err.value).endswith(LATER_STEP)
+    assert _git(root, "rev-parse", "HEAD") == head
