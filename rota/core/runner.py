@@ -4036,6 +4036,10 @@ def run_session(
                     f"{whole} tokens evaluated against a {pins.num_ctx} "
                     f"window — the server cut the prompt from the front, "
                     f"which is where the brief is")
+            # A new reply: the seat has read the last reply's results, held
+            # calls included, so their `dropped` notes stop no commit (frame
+            # 140).
+            sb.begin_reply()
 
             # `call_at` carries each call's start offset in `scanned`, and
             # `scanned` is the text those offsets index into. Rule 1 below

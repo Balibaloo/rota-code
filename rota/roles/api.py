@@ -144,6 +144,13 @@ class Ctx:
     # `.tools` file. None means every word of the grid, which is the case
     # for a context that no runner built (frame 204, section 8).
     log_kinds: tuple = None
+    # The `dropped` notes that this reply's writes returned: path -> note.
+    # Frame 140: on night 153, s282 wrote and committed in one reply, so the
+    # commit landed before the seat read the note. `code.commit` refuses
+    # while a note is here. `Sandbox.begin_reply` clears it, because the
+    # seat reads every result before its next reply. `offers` and `facts`
+    # cannot carry it: `Sandbox.call` clears them at every call.
+    reply_notes: dict = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -172,6 +179,8 @@ class Ctx:
             self.offers = []
         if self.facts is None:
             self.facts = []
+        if self.reply_notes is None:
+            self.reply_notes = {}
 
 
 class _Invent:
@@ -15311,6 +15320,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     # A fact, not an order: the seat decides whether the tail goes.
     if tail_note:
         out["dropped"] = tail_note
+        # The seat decides only once it has read the note (frame 140). The
+        # dry run returns above, so it records nothing.
+        notes = getattr(ctx, "reply_notes", None)
+        if notes is not None:
+            notes[path] = tail_note
     # A fact about the text the seat sent, so the seat can send the escape.
     if repair_note:
         out["repaired"] = repair_note
@@ -15550,6 +15564,9 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     if not ctx.batch_id:
         raise ValueError("no batch: a commit belongs to one")
     tree = _batch_worktree(ctx)
+    noted = _unread_drop_refusal(ctx, tree)
+    if noted:
+        raise ValueError(noted)
     # A commit that leaves a criterion's surface undefined is a certain
     # ImportError for every test of it. tipsX (2026-09-09): the criterion
     # named `main.py::split_bill`, the Developer repurposed `calculate_tip`
@@ -15702,6 +15719,32 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                        f"was foreseen or a mistake before the batch merges; if "
                        f"you know it was a mistake, take it out and commit")
     return out
+
+
+def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
+    """
+    The refusal of a commit in the reply whose write returned a `dropped`
+    note, or None.
+
+    Frame 140. Night 153: s282 wrote lines 546 to 556 of `decorators.py`, the
+    result said the write removed `echo(` and `ctx.exit()`, and fff8992 in
+    the same reply landed the removal. `--version` then printed nothing.
+    Night 121's s212 and s219 did the same. The note stays a fact, and the
+    seat decides after it reads the note (frame 135: one fact, one step).
+    """
+    notes = getattr(ctx, "reply_notes", None) or {}
+    if not notes:
+        return None
+    # A path the commit does not take carries no removal into it.
+    dirty = {_grain_path(f) for f in _uncommitted(ctx, tree)}
+    held = [(p, n) for p, n in notes.items() if _grain_path(p) in dirty]
+    if not held:
+        return None
+    said = " ".join(f"{p}: {n}" for p, n in held)
+    return (f"your code.write in this reply returned a note before this "
+            f"commit, and you had not read it. {said} Read the lines above. "
+            f"If the removal is what the item asks for, commit in your next "
+            f"reply. If it is not, write those lines back first, then commit.")
 
 
 def _predicted_touch(ctx: Ctx, batch_id: str) -> list[str]:

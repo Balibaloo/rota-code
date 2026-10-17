@@ -506,6 +506,16 @@ class Sandbox:
             out.append(f"{name}({_render_signature(impl)})")
         return out
 
+    def begin_reply(self) -> None:
+        """Start the next reply of the seat.
+
+        The seat has read every result of the reply before, so a `dropped`
+        note of that reply no longer stops a commit (frame 140).
+        """
+        notes = getattr(self.ctx, "reply_notes", None)
+        if notes is not None:
+            notes.clear()
+
     def call(self, dotted: str, *pos, **kwargs) -> Any:
         """
         Dispatch `artefact.verb(*pos, **kwargs)`, validating arguments first.

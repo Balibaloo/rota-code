@@ -155,6 +155,9 @@ def test_the_repair_of_a_head_that_fails_at_import_is_admitted(db, tmp_path):
     # code.write writes the platform's line ends, so the bytes compare as lines.
     written = (root / "src/click/utils.py").read_bytes().replace(b"\r\n", b"\n")
     assert written == FIXTURE.read_bytes()
+    # The write's `dropped` note names the removed def. The commit comes in
+    # the next reply, after the seat reads the note (frame 140).
+    sb.begin_reply()
     out = sb.call("code.commit", message="Remove echo_json_cmd to avoid import cycle")
     assert out.get("committed") is True
 
