@@ -16187,18 +16187,29 @@ def _base_text(ctx, root, path: str) -> str | None:
     """The text of `path` at the batch's base commit. "" when the base
     lacks the path. None when git cannot name the base or show the file."""
     import subprocess as _sp
+    from pathlib import Path as _P
     from ..core import worktrees as _wt
     if root is None:
         return None
-    fork = _batch_base(ctx, root)
+    # git show reads a path relative to the repository. An absolute path
+    # gave "" and refused the restore again (frame 220, review 1, finding 4).
+    rel = str(path).replace("\\", "/")
+    if _P(rel).is_absolute():
+        try:
+            rel = _P(rel).resolve().relative_to(_P(root).resolve()).as_posix()
+        except ValueError:
+            return None
 
     def git(*args):
         return _sp.run([*_wt.GIT, "-C", str(root), *args], capture_output=True)
     try:
+        # Every fence write calls this read. A failure to name the base
+        # leaves the working file as the baseline (review 1, finding 3).
+        fork = _batch_base(ctx, root)
         if git("rev-parse", "--verify", f"{fork}^{{commit}}").returncode != 0:
             return None
-        shown = git("show", f"{fork}:{path}")
-    except OSError:
+        shown = git("show", f"{fork}:{rel}")
+    except Exception:
         return None
     # A path the base lacks is a file the batch created.
     return (shown.stdout.decode("utf-8", "replace").replace("\r\n", "\n")

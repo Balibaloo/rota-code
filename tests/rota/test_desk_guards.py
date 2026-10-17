@@ -4861,6 +4861,76 @@ def test_a_reach_neither_the_file_nor_the_base_made_is_still_fenced(db, tmp_path
                      "    return subprocess.run(['ls'])\n")
 
 
+_RESTORE = ("import importlib.metadata\n\n\ndef version():\n"
+            "    return importlib.metadata.version('click')\n")
+
+
+def test_the_base_of_a_batch_of_two_commits_is_its_fork_not_head_1(db, tmp_path):
+    """Review 1, finding 5: the batch's base is the merge base with the
+    project root. HEAD~1 is the batch's own first commit, which lacks the
+    reach, so only the fork lets the restore land."""
+    import subprocess
+
+    def git(where, *args):
+        subprocess.run(["git", "-C", str(where), "-c", "user.name=t",
+                        "-c", "user.email=t@t", *args], check=True, capture_output=True)
+    proj = tmp_path / "proj"; proj.mkdir()
+    git(proj, "init", "-q")
+    (proj / "decorators.py").write_text(_RESTORE)
+    git(proj, "add", "-A")
+    git(proj, "commit", "-q", "-m", "base")
+    wt = tmp_path / "wt"
+    git(proj, "worktree", "add", "-q", "-b", "batch/b1", str(wt))
+    (wt / "decorators.py").write_text("def version():\n    return '8'\n")
+    git(wt, "commit", "-q", "-am", "batch 1")
+    (wt / "decorators.py").write_text("def version():\n    return '9'\n")
+    git(wt, "commit", "-q", "-am", "batch 2")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(wt),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.write", path="decorators.py", text=_RESTORE)
+    assert out["bytes"], "the fork holds the reach, and HEAD~1 does not"
+
+
+def test_a_base_that_cannot_be_named_leaves_the_working_file_as_baseline(db, tmp_path, monkeypatch):
+    """Review 1, finding 3: a database error while naming the base reached
+    every fence write. The fence then judges against the working file."""
+    import sqlite3
+    from rota.roles import api
+    root = tmp_path / "wt"
+    _fence_repo(root)
+    (root / "decorators.py").write_text(_RESTORE)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+
+    def broken(ctx, tree):
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(api, "_batch_base", broken)
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.write", path="decorators.py", text=_RESTORE + "\n\nX = 1\n")
+    assert out["bytes"], "the working file's own reach is the project's"
+
+
+def test_the_base_text_reads_an_absolute_path_as_the_repository_path(db, tmp_path):
+    """Review 1, finding 4: an absolute path gave "" and the restore was
+    refused again."""
+    from rota.roles import api
+    root = tmp_path / "wt"
+    _fence_repo(root)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    assert api._base_text(sb.ctx, root, str(root / "decorators.py")) == _RESTORE
+    assert api._base_text(sb.ctx, root, "decorators.py") == _RESTORE
+
+
 def test_a_seventh_criterion_on_one_ticket_is_refused(db):
     """clickI night 38 (2026-09-13): twenty-four criteria on one ticket, then
     a signoff page of twenty-five lines. Six is many; the count is a fact."""
