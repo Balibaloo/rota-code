@@ -1501,7 +1501,11 @@
   # sections 1 and 3). The rows are the night's, from
   # `.rota/clickI_night154.db`. The repo holds `confirm` from the batch's
   # base. The night's tests of the three criteria are left out, so the seat
-  # encodes from the criteria alone.
+  # encodes from the criteria alone. The stubs `exceptions.py`, `utils.py`,
+  # `_readline_prompt` and `_` let `src.click.termui` load in the sandbox.
+  # Without them the unloadable-surface door fired on 3 of 5 runs
+  # (`plans/frame143-pass1b-read.md`, section 5). The helpers sit after
+  # `confirm`, so the pushed surface keeps its start line.
   model: qwen3.5:9b
   tier: T1
   role: tester
@@ -1589,6 +1593,21 @@
             if abort and not rv:
                 raise Abort()
             return rv
+
+
+        def _readline_prompt(func, prompt, err):
+            return func(prompt)
+
+
+        def _(message):
+            return message
+      src/click/__init__.py: ""
+      src/click/exceptions.py: |
+        class Abort(Exception):
+            pass
+      src/click/utils.py: |
+        def echo(message=None, err=False):
+            print(message)
   fixture:
     items:
       - {id: <i1>, text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting.",
