@@ -663,7 +663,7 @@ def _no_close_bracket(text: str, start: int) -> str | None:
 
 
 def _open_inner(text: str, start: int, key: str
-                ) -> tuple[str | None, str, str, int] | None:
+                ) -> tuple[str | None, str, str, int, str] | None:
     """The inner string of a dict or list value that never closes.
 
     Night 153, s257 to s259 sent `lines={'k': 'base_message += f", ...})`
@@ -734,7 +734,8 @@ def _open_inner(text: str, start: int, key: str
     inner_key = inner.group(0).rstrip()[:-1].rstrip() if (
         inner and brackets[-1][0] == "{") else None
     head = text[opened:min(end, opened + 20)].rstrip()
-    return inner_key, quote, head, opened - start
+    # The bracket that holds the string tells a dict key from a list item.
+    return inner_key, quote, head, opened - start, brackets[-1][0]
 
 
 def _escaped_open(text: str, start: int, key: str) -> tuple[str, int] | None:
@@ -1407,8 +1408,11 @@ def extract(text: str, signatures: dict | None = None, *,
                 # Frame 266, night 153: s257 to s259 read "the value of
                 # lines never ends" four times each and sent the same dict.
                 # Name the string inside the dict that never closes.
-                inner_key, q, head, at = inner
+                inner_key, q, head, at, holder = inner
+                # A string in a dict with no closed key before it is a key
+                # that never closes (frame 266, review 5, low 1).
                 whose = (f"the value of {inner_key} inside {key}" if inner_key
+                         else f"a key of the dict in {key}" if holder == "{"
                          else f"an item of the list in {key}")
                 reason = (
                     f"unterminated argument list: a string inside the value "

@@ -926,3 +926,42 @@ def test_a_write_with_the_same_shapes_keeps_the_key_text(value):
     assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
     assert got[0].reason.startswith(
         "unterminated argument list: the value of text never ends.")
+
+
+def test_a_dict_key_that_never_closes_names_a_key_of_the_dict():
+    """Review 5, low 1: the old words said a list item for a dict key."""
+    got = toolproto.extract(
+        "TOOL: verdicts.emit(batch_id='bg_3', result='pass', "
+        "lines={'k: 1})", EMIT)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == (
+        "unterminated argument list: a string inside the value of lines "
+        "never closes. The string `'k: 1})` is a key of the dict in lines, "
+        "and it starts at character 39 after the open bracket. Put the "
+        "closing quote `'` where that inner value ends, and change nothing "
+        "else.")
+
+
+@pytest.mark.parametrize("close, inner", [("", False), (")", True)],
+                         ids=["cut", "closed"])
+def test_a_list_item_cut_short_keeps_the_key_text(close, inner):
+    """Review 5, low 2: a completion cut short has no `)`, so the fault
+    is the cut. The same item with `)` gets the inner-string text."""
+    got = toolproto.extract(
+        'TOOL: msg.challenge_tester(reason="it fails", refs=["tst_ver_opt'
+        + close, CHALLENGE)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(
+        "unterminated argument list: a string inside the value of refs "
+        if inner else
+        "unterminated argument list: the value of refs never ends.")
+
+
+def test_an_open_dict_whose_strings_all_close_keeps_its_old_text():
+    """Review 5, low 2: no inner string is open, so no inner text."""
+    got = toolproto.extract(
+        "TOOL: verdicts.emit(batch_id='bg_3', result='pass', "
+        "lines={'k': 'v', 'm': 'w'", EMIT)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(_GENERIC)
+    assert "a string inside" not in got[0].reason
