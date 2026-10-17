@@ -8936,8 +8936,11 @@ _AGREE = (r"(?:ok(?:ay)?|yes|fine|go ahead|approved?|looks? good|sounds good|"
 _BARE_AGREEMENT = re.compile(rf"\W*{_AGREE}(?:\W+{_AGREE})*\W*", re.I)
 
 
-def _ref_lines(ref: re.Match) -> set[int]:
-    """The line numbers of one reference, with "N to M" read as a range."""
+def _ref_lines(ref: re.Match, size: int | None = None) -> set[int]:
+    """The line numbers of one reference, with "N to M" read as a range.
+
+    `size` is the page's line count when the caller knows the page.
+    """
     # The reference itself matches in any case, so its range word does too.
     # "lines 2 Through 7" read line 2 and line 7 alone (frame 256, review 1).
     nums = re.findall(r"\d+|to|through|-|–", ref.group(1) or ref.group(2),
@@ -8945,13 +8948,21 @@ def _ref_lines(ref: re.Match) -> set[int]:
     lines: set[int] = set()
     for j, tok in enumerate(nums):
         if tok.isdigit():
-            lines.add(int(tok))
+            # A range's end comes from the range below, capped at the page.
+            if size is None or j == 0 or nums[j - 1].isdigit():
+                lines.add(int(tok))
         elif 0 < j < len(nums) - 1:
-            lines.update(range(int(nums[j - 1]), int(nums[j + 1]) + 1))
+            # A range ends at the page's last line. "lines 2 and 3 to 2026"
+            # read 2024 lines (frame 282, review 1, finding 2).
+            end = int(nums[j + 1])
+            if size is not None:
+                end = min(end, size)
+            lines.update(range(int(nums[j - 1]), end + 1))
     return lines
 
 
-def _line_reading(words: str) -> tuple[set[int], set[int]]:
+def _line_reading(words: str, size: int | None = None
+                  ) -> tuple[set[int], set[int]]:
     """The lines the principal's words fault, and the lines they say match.
 
     Each line reference reads the clause after it, up to the next reference.
@@ -8961,7 +8972,7 @@ def _line_reading(words: str) -> tuple[set[int], set[int]]:
     faulted, and s427 contested four lines the words said match. Measured on
     the recorded replies of nights 143 to 146, `f234/pass1-report.md`.
     """
-    cues, matched = _line_cues(words)
+    cues, matched = _line_cues(words, size)
     return set(cues), matched
 
 
@@ -8970,7 +8981,8 @@ def _line_reading(words: str) -> tuple[set[int], set[int]]:
 _WEAK_CUES = ("also", "still", "not")
 
 
-def _line_cues(words: str) -> tuple[dict[int, tuple[str, str]], set[int]]:
+def _line_cues(words: str, size: int | None = None
+               ) -> tuple[dict[int, tuple[str, str]], set[int]]:
     """`_line_reading`, with the fault cue and the clause of each faulted line.
 
     The approve door of `_line_refusal` names the cue, so the seat sees
@@ -9005,10 +9017,10 @@ def _line_cues(words: str) -> tuple[dict[int, tuple[str, str]], set[int]]:
                     found = [m.group(0) for m in _LINE_FAULT.finditer(window)]
                     strong = [c for c in found if c.lower() not in _WEAK_CUES]
                     cue = (strong or found)[0]
-                for n in _ref_lines(ref):
+                for n in _ref_lines(ref, size):
                     faulted.setdefault(n, (cue, window))
             elif match is not None:
-                matched |= _ref_lines(ref)
+                matched |= _ref_lines(ref, size)
     return faulted, matched
 
 
@@ -9034,7 +9046,7 @@ def built_line_faulted(words: str, order: list[str] | None, ref: str,
     if not order or ref not in order:
         return False
     if faulted is None:
-        faulted = _line_reading(words)[0]
+        faulted = _line_reading(words, len(order))[0]
     return order.index(ref) + 1 in faulted
 
 
@@ -9262,7 +9274,7 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     named = {n for n in read if 1 <= n <= size}
     for s in sentences:
         for ref in _LINE_REF.finditer(s):
-            named |= {n for n in _ref_lines(ref) if 1 <= n <= size}
+            named |= {n for n in _ref_lines(ref, size) if 1 <= n <= size}
     if not named:
         return _agreed_contest(sentences, contested, size, request_lines)
     unnamed = sorted(n for n in contested - named if n != 1)
@@ -9587,7 +9599,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # the words fault, and `land` keeps it on the same predicate. A line the
     # words do not fault is refused: 9 of 9 such contests on nights 136 to
     # 149 were the seat's error (`built_line_faulted`).
-    read_cues, read_matched = _line_cues(words)
+    read_cues, read_matched = _line_cues(words, len(order) if order else None)
     read_faulted = set(read_cues)
     for ref, ruling in per_item.items():
         if ruling == "approve":

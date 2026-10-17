@@ -181,3 +181,19 @@ def test_m105_does_not_fault_line_8_and_is_still_refused(m91):
         sb.call("rulings.rule", rulings=MAP, words=M105)
     assert str(refused.value) == (
         "line 8: the words do not fault bg_2's files. Approve line 8.")
+
+
+def test_a_contest_at_a_list_item_s_range_passes_the_built_batch_filter():
+    """Frame 282, review 1, finding 1: `land` keeps a contest of a built batch
+    at lines 11 to 14 when the words fault them as a list item's range. The
+    filter read line 10 alone before. Night 154's m175 and m176 hold the
+    range but no fault cue after it, so the filter keeps none of their lines.
+    The words here add the cue "wrong"."""
+    from rota.roles.api import _line_reading, built_line_faulted
+
+    words = "Notes 6, 7 and 10 to 14 are wrong for this change."
+    order = [f"bg_{n}" for n in range(1, 15)]
+    faulted = _line_reading(words)[0]
+    kept = [ref for ref in order
+            if built_line_faulted(words, order, ref, faulted)]
+    assert kept == ["bg_6", "bg_7", "bg_10", "bg_11", "bg_12", "bg_13", "bg_14"]

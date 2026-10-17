@@ -762,3 +762,12 @@ def test_a_range_in_the_middle_of_a_list_reads_as_a_range():
 
 def test_an_en_dash_is_a_range_word():
     assert _refs("lines 2, 4\u20136 are fine") == [{2, 4, 5, 6}]
+
+
+def test_a_range_ends_at_the_page_s_last_line():
+    # A range past the page faulted lines the words never named, and "3 to
+    # 2026" read 2024 lines (frame 282, review 1, finding 2).
+    from rota.roles.api import _line_reading
+
+    assert _line_reading("lines 2 and 3 to 2026 are wrong", 14) == (
+        set(range(2, 15)), set())
