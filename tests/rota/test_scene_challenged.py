@@ -73,6 +73,78 @@ def test_the_challenge_wake_pushes_the_signature_of_the_callable_that_raised(sce
     assert 'raise ValueError("period must be positive")' in raised
     assert f"raised at: lines {at - 1} to {at}" in pushed
     assert key not in prompt("E   ValueError\nValueError: period must be positive\n")
+    # Pass 2: a frame on a line that is no `raise` pushes nothing. Night
+    # 142's `strip_ansi` frame was a `return`.
+    returns = frame.replace(f"line {at},", f"line {at + 1},")
+    assert "[code.source " not in prompt("E   TypeError\n" + returns)
+
+
+def _challenge_prompt(scene, output: str) -> str:
+    """The Tester's challenge wake of the scene, with `output` as the run."""
+    from rota.core import runner
+    from rota.core.sandbox import build
+    from rota.core.scheduler import Wake
+    from rota.roles import prompts
+
+    wake = Wake(role="tester", kind="message", message_id=scene.ids["challenge"],
+                detail="challenge")
+    inbound = runner.resolve_inbound(scene.conn, wake)
+    for row in inbound["resolved_refs"].values():
+        if isinstance(row, dict) and row.get("table") == "tests":
+            row["last_run"] = {"result": "fail", "output_tail": output}
+    sb = build("tester", scene.conn, batch_id="b1", mode="challenge",
+               allow=prompts.mode_tools("tester", "challenge"))
+    return runner.build_prompt("tester", sb, wake, {}, "MODE: challenge",
+                               inbound)[1]
+
+
+def test_a_raise_in_a_method_pushes_the_methods_def_line(scene):
+    """Review 1 of frame 223, medium 2: a raise inside a method shows the
+    method's `def` line, not the class header. A nested closure still shows
+    the outer function, as `version_option` and its `callback` do."""
+    from pathlib import Path
+
+    conn = scene.conn
+    tree = Path(conn.execute(
+        "SELECT worktree FROM batches WHERE id = 'b1'").fetchone()[0])
+    rel = "src/billing/ledger_book.py"
+    source = ('class Book:\n'
+              '    """A ledger."""\n'
+              '\n'
+              '    def post(self, cents, *, currency=None):\n'
+              '        """Post an amount."""\n'
+              '        def check():\n'
+              '            if currency is None:\n'
+              '                raise LookupError("no currency")\n'
+              '        check()\n'
+              '\n'
+              '\n'
+              'def total(book, *, scale=1):\n'
+              '    """Sum the book."""\n'
+              '    def each(x):\n'
+              '        if x < 0:\n'
+              '            raise ValueError("negative")\n'
+              '    return each\n')
+    (tree / rel).write_bytes(source.encode("utf-8"))
+    conn.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'path')", (rel,))
+    try:
+        method = _challenge_prompt(scene, (
+            f'  File "{rel}", line 8, in check\n'
+            '    raise LookupError("no currency")\nLookupError: no currency\n'))
+        assert f"[code.source {rel}::Book.post]" in method
+        assert "    def post(self, cents, *, currency=None):" in method
+        assert "class Book:" not in method
+        raised = method.split("[the lines that raised]\n", 1)[1]
+        assert raised.startswith("            if currency is None:\n")
+
+        closure = _challenge_prompt(scene, (
+            f'  File "{rel}", line 16, in each\n'
+            '    raise ValueError("negative")\nValueError: negative\n'))
+        assert f"[code.source {rel}::total]" in closure
+        assert "def total(book, *, scale=1):" in closure
+    finally:
+        conn.execute("DELETE FROM code_index WHERE grain = ?", (rel,))
+        (tree / rel).unlink()
 
 
 globals().update(make(NAME, end=["critic|tick:review|b1"], attempts=[], asks=[]))

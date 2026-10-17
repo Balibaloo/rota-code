@@ -2609,10 +2609,12 @@ def _raised_signature_pushes(sb: sandbox_mod.Sandbox,
 
     The rule, per failed run: take the last traceback frame whose path is a
     path grain of the code index. `code.source` gives that file's top-level
-    definitions, and the push takes the one whose span holds the line. The
-    push is its `def` line through its parameter list, and the first line of
-    its docstring. One push per test. A frame outside the index, or a line
-    outside every top-level definition, pushes nothing.
+    definitions, and the push reads the one whose span holds the line. The
+    push is the `def` line through the parameter list and the docstring's
+    first line, of the definition `_raising_span` names, and the lines from
+    the guard to the raise. One push per test. A frame outside the index, a
+    line outside every top-level definition, or a line on no `raise`
+    statement pushes nothing.
     """
     import ast as _ast
     import textwrap as _textwrap
@@ -2644,65 +2646,81 @@ def _raised_signature_pushes(sb: sandbox_mod.Sandbox,
             # 145: three frames at `decorators.py:526` sat in no indexed span.
             head = sb.call("code.source", path=path, start=0, end=1)
             defs = head.get("defs") or {} if isinstance(head, dict) else {}
-        except Exception:                                  # noqa: BLE001
+        except Exception as exc:                           # noqa: BLE001
+            # Review 1 of frame 223, point 6: a failed push is never silent.
+            _log.warning("raised-signature push: code.source %s: %s: %s",
+                         path, type(exc).__name__, exc)
             continue
         # A span is 0-based, and its end is one line past the definition.
         held = [(e - s, n, s, e) for n, (s, e) in defs.items() if s < line <= e]
         if not held:
             continue
-        _, name, start, end = min(held)
-        key = f"code.source {path}::{name}"
-        if key in out:
-            continue
+        _, top_name, start, end = min(held)
         try:
             got = sb.call("code.source", path=path, start=start, end=end)
             text = got.get("text") or "" if isinstance(got, dict) else ""
-            node = _ast.parse(_textwrap.dedent(text)).body[0]
-        except Exception:                                  # noqa: BLE001
+            top = _ast.parse(_textwrap.dedent(text)).body[0]
+        except Exception as exc:                           # noqa: BLE001
+            _log.warning("raised-signature push: %s::%s: %s: %s",
+                         path, top_name, type(exc).__name__, exc)
             continue
-        if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
-                                 _ast.ClassDef)) or not node.body:
+        # Review 1 of frame 223, finding 3: push only for a frame on a
+        # `raise`. Night 142's `strip_ansi` frame was a `return`, and the
+        # defect sat in its caller. A test module's frame is no raise either.
+        found = _raising_span(top, line - start)
+        if found is None:
             continue
-        first = node.body[0]
+        func, lo, hi = found
+        first = func.body[0]
         doc = (isinstance(first, _ast.Expr) and isinstance(first.value, _ast.Constant)
                and isinstance(first.value.value, str))
         # ast lines are 1-based within the read text. A docstring keeps its
         # first line, and a body without one stops before its first statement.
         keep = first.lineno if doc else first.lineno - 1
-        lines = text.splitlines()[:max(keep, 1)]
-        shown = {"path": path, "start": start, "end": start + len(lines),
+        name = (top_name if func is top
+                else f"{top_name}.{func.name}")
+        key = f"code.source {path}::{name}"
+        if key in out:
+            continue
+        rows = text.splitlines()
+        lines = rows[func.lineno - 1:max(keep, func.lineno)]
+        shown = {"path": path, "start": start + func.lineno - 1,
+                 "end": start + func.lineno - 1 + len(lines),
                  "text": "\n".join(lines)}
         # Frame 223, interview 2, replay C: the lines from the guard to the
         # raise moved 2 of 4 turns off a made-up name. Three sentences moved
-        # 0 of 12. The signature alone moved 0 of 5 runs.
-        span = _raising_span(node, line - start)
-        if span:
-            lo, hi = span
-            # A flat string, so the render shows it as a block. A nested
-            # dict renders as one escaped line (frame 110's interview).
-            shown["raised at"] = f"lines {start + lo} to {start + hi}"
-            shown["the lines that raised"] = "\n".join(text.splitlines()[lo - 1:hi])
+        # 0 of 12. The signature alone moved 0 of 5 runs. A flat string, so
+        # the render shows it as a block. A nested dict renders as one
+        # escaped line (frame 110's interview).
+        shown["raised at"] = f"lines {start + lo} to {start + hi}"
+        shown["the lines that raised"] = "\n".join(rows[lo - 1:hi])
         out[key] = shown
     return out
 
 
-def _raising_span(top: Any, at: int) -> tuple[int, int] | None:
-    """The 1-based lines of `top` from the guard of the raise to the raise.
+def _raising_span(top: Any, at: int) -> tuple[Any, int, int] | None:
+    """The definition to show, and the lines from the guard to the raise.
 
-    `at` is the raise line, 1-based within the text `top` was parsed from.
-    The guard is the first `if` or `except` on the way down from the
-    innermost function that holds `at`, so a chain of `elif` and nested
-    blocks shows from its first test. The span ends with the statement
-    that holds `at`. None when no such statement holds `at`.
+    `at` is the frame's line, 1-based within the text `top` was parsed from.
+    The definition is the outermost `def` that holds `at`: `top` itself, or
+    a method of `top` when `top` is a class. A nested closure such as
+    `version_option`'s `callback` takes no parameter the test passes, so
+    its `def` is not the one to show. The guard is the first `if` or
+    `except` on the way down from the innermost `def` that holds `at`, so
+    a chain of `elif` shows from its first test. The span ends with the
+    statement that holds `at`. None unless that statement is an `ast.Raise`.
     """
     import ast as _ast
 
     def holds(n: Any) -> bool:
         return n.lineno <= at <= (getattr(n, "end_lineno", None) or n.lineno)
 
-    funcs = [n for n in _ast.walk(top)
-             if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and holds(n)]
+    kinds = (_ast.FunctionDef, _ast.AsyncFunctionDef)
+    funcs = [n for n in _ast.walk(top) if isinstance(n, kinds) and holds(n)]
     if not funcs:
+        return None
+    shown = min(funcs, key=lambda n: n.lineno)
+    if not shown.body:
         return None
     body = max(funcs, key=lambda n: n.lineno).body
     guard = None
@@ -2723,10 +2741,10 @@ def _raising_span(top: Any, at: int) -> tuple[int, int] | None:
                     guard = h.lineno
                 blocks.append(h.body)
         body = next((b for b in blocks if any(holds(s) for s in b)), [])
-    if last is None:
+    if not isinstance(last, _ast.Raise):
         return None
     end = getattr(last, "end_lineno", None) or last.lineno
-    return (guard or last.lineno), end
+    return shown, (guard or last.lineno), end
 
 
 # A fenced block, closed or cut at the end of the reply.
