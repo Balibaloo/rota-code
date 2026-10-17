@@ -345,6 +345,25 @@ CREATE TABLE IF NOT EXISTS touch_strays (
     PRIMARY KEY (batch_id, commit_sha, path)
 );
 
+-- The `dropped` notes of a batch's worktree that no write or ledger note has
+-- closed yet: one row per batch and path, written by `code.write`. Frame 283:
+-- night 154's s340 and s388 committed the dropped lines away in a later
+-- reply. A retry session on the same worktree reads the row, so the note
+-- outlives its session. `lines` is JSON: [definition, line, count before].
+-- `defs` is JSON: the definitions a whole-file write dropped.
+CREATE TABLE IF NOT EXISTS drop_notes (
+    batch_id    TEXT NOT NULL REFERENCES batches(id),
+    path        TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'open'
+                CHECK (status IN ('open','closed')),
+    note        TEXT NOT NULL,
+    lines       TEXT NOT NULL DEFAULT '[]',
+    defs        TEXT NOT NULL DEFAULT '[]',
+    whole       TEXT NOT NULL DEFAULT '[]',
+    noted      TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (batch_id, path)
+);
+
 -- Architect's structural verdict on one batch, one row per constraint checked.
 --
 -- It is a row and not a message. The old design pushed findings to Critic,

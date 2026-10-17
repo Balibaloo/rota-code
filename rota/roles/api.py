@@ -151,13 +151,6 @@ class Ctx:
     # seat reads every result before its next reply. `offers` and `facts`
     # cannot carry it: `Sandbox.call` clears them at every call.
     reply_notes: dict = None
-    # The `dropped` notes that outlive their reply: path -> (note, the
-    # file text the noted write left, {statement head: its count in the
-    # file before that write}). Frame 283. Night 154: s340 committed
-    # 1e9925fc and s388 committed a90c7495 in a later reply, each with the
-    # noted lines still gone. A note stays open until the file holds each
-    # named statement as often as before the write. `begin_reply` keeps it.
-    open_notes: dict = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -188,8 +181,6 @@ class Ctx:
             self.facts = []
         if self.reply_notes is None:
             self.reply_notes = {}
-        if self.open_notes is None:
-            self.open_notes = {}
 
 
 class _Invent:
@@ -14147,6 +14138,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     if not span and not text.strip():
         return _empty_write()
     tail_note = None
+    drop_lines: list[int] = []
     repair_note = None
     future_door = None
     if span:
@@ -14666,7 +14658,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # note also names each statement of the span the text does not hold.
         if path.endswith(".py"):
             try:
-                tail_note = _drop_note(lines, start, stop, fragment)
+                tail_note = _drop_note(lines, start, stop, fragment, lines_out=drop_lines)
             except Exception:
                 tail_note = None    # a note never refuses a write
     from ..core import fence as _fence
@@ -14773,7 +14765,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     repair_note = _repair_sentence(joined, crlf)
                     if span:
                         try:
-                            tail_note = _drop_note(lines, start, stop, fragment)
+                            tail_note = _drop_note(lines, start, stop, fragment, lines_out=drop_lines)
                         except Exception:                  # noqa: BLE001
                             tail_note = None    # a note never refuses a write
         if fail is not None:
@@ -15456,10 +15448,10 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                "written, not committed": dirty, "lands with": "code.commit"}
         # The same dropping text again: the note is still a fact about the
         # tree, so the result says it (frame 283, s340's turn 13).
-        held = (getattr(ctx, "open_notes", None) or {}).get(path)
-        if held and held[1] == text:
-            out["dropped"] = held[0]
-            ctx.reply_notes[path] = held[0]
+        held = _open_notes(ctx).get(path)
+        if held and held["noted"] == text:
+            out["dropped"] = held["note"]
+            ctx.reply_notes[path] = held["note"]
         if repair_note:
             out["repaired"] = repair_note
         if missing and stem not in missing:
@@ -15475,7 +15467,8 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             # A write that keeps some definitions counts the lines it drops
             # above and below them (frame 95 pass 5). The tail note covers
             # a write that keeps the whole shape and stops short.
-            tail_note = _whole_drop(old, text) or _tail_drop(old, 0, len(old), text)
+            tail_note = (_whole_drop(old, text)
+                         or _tail_drop(old, 0, len(old), text, gone_out=drop_lines))
         except Exception:                                  # noqa: BLE001
             tail_note = None
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -15498,14 +15491,19 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         notes = getattr(ctx, "reply_notes", None)
         if notes is not None:
             notes[path] = tail_note
-    # A noted write opens a note for the session (frame 283). A later note
-    # on the path keeps the earlier statements, because they are still gone.
-    opened = getattr(ctx, "open_notes", None)
-    if opened is not None and tail_note:
-        counts = dict(opened[path][2]) if path in opened else {}
-        for h in _note_heads(tail_note):
-            counts.setdefault(h, _head_count(before or "", h))
-        opened[path] = (tail_note, text, counts)
+    # A noted write opens a note for the batch and the path (frame 283). A
+    # later note on the path keeps the earlier lines, which are still gone.
+    if tail_note and ctx.batch_id:
+        entry = _note_entry(tail_note, before or "", text, drop_lines)
+        prior = _open_notes(ctx).get(path)
+        if prior:
+            entry["lines"] = prior["lines"] + [
+                x for x in entry["lines"] if x not in prior["lines"]]
+            entry["defs"] = sorted(set(prior["defs"]) | set(entry["defs"]))
+            # Lines of two writes are named whole only when both were whole.
+            entry["whole"] = (sorted(set(prior["whole"]) | set(entry["whole"]))
+                              if prior["whole"] and entry["whole"] else [])
+        _put_note(ctx, path, entry)
     # A fact about the text the seat sent, so the seat can send the escape.
     if repair_note:
         out["repaired"] = repair_note
@@ -15914,11 +15912,11 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
     seat decides after it reads the note (frame 135: one fact, one step).
     """
     notes = getattr(ctx, "reply_notes", None) or {}
-    # Frame 283: a note outlives its reply until the lines are back. Night
-    # 154: s388 committed a90c7495 in the reply after the refusal, with no
-    # write between, and `--version` lost `echo(version_msg)`.
+    # Frame 283: a note outlives its reply and its session until the lines
+    # are back. Night 154: s388 committed a90c7495 in the reply after the
+    # refusal, with no write between, and `--version` lost `echo(version_msg)`.
     from pathlib import Path as _Path
-    opened = getattr(ctx, "open_notes", None) or {}
+    opened = _open_notes(ctx)
     if tree is not None:
         for p in list(opened):
             try:
@@ -15926,67 +15924,197 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
             except (OSError, UnicodeDecodeError):
                 now = ""
             if _restored(now, opened[p]):
+                _put_note(ctx, p, None)
                 del opened[p]
     if not notes and not opened:
         return None
     # A path the commit does not take carries no removal into it.
     dirty = {_grain_path(f) for f in _uncommitted(ctx, tree)}
     held = [(p, n) for p, n in notes.items() if _grain_path(p) in dirty]
-    later = [(p, e[0]) for p, e in opened.items()
+    later = [(p, e["note"]) for p, e in opened.items()
              if p not in notes and _grain_path(p) in dirty]
     if not held and not later:
         return None
-    step = (f"If the tree holds those lines again, commit in your next "
-            f"reply. If it does not, write the lines back, then commit in "
-            f"your next reply.")
+    routes = (f"Put the lines back with code.write, or log the removal with "
+              f"ledger.log naming the path and the lines, then commit in your "
+              f"next reply.")
     if held:
+        step = (f"If the tree holds those lines again, commit in your next "
+                f"reply. If it does not, write the lines back, then commit in "
+                f"your next reply.")
+        # A note of an earlier reply beside this one has two routes, so the
+        # text names the ledger route too (frame 283's review 1, finding 7).
+        if later:
+            step = (f"If the tree holds those lines again, commit in your "
+                    f"next reply. If it does not, {routes[0].lower()}{routes[1:]}")
         said = " ".join(f"{p}: {n}" for p, n in held + later)
         return (f"your code.write in this reply returned a note before this "
                 f"commit, and you had not read it. {said} You sent this "
                 f"commit before you read this note. {step}")
     said = " ".join(f"{p}: {n}" for p, n in later)
     return (f"a code.write in an earlier reply returned a note, and the tree "
-            f"still does not hold those lines. {said} Put the lines back with "
-            f"code.write, or log the removal with ledger.log naming the path "
-            f"and the lines, then commit in your next reply.")
+            f"still does not hold those lines. {said} {routes}")
+
+
+def _open_notes(ctx: Ctx) -> dict:
+    """The open `dropped` notes of the batch: path -> entry. The rows that
+    earlier sessions landed, then this session's staged writes in order
+    (frame 283's review 1, finding 6: a retry session sees the note)."""
+    import json as _json
+    bid = getattr(ctx, "batch_id", None)
+    if not bid:
+        return {}
+    out: dict = {}
+    for r in ctx.conn.execute(
+            "SELECT path, status, note, lines, defs, whole, noted FROM drop_notes "
+            "WHERE batch_id = ?", (bid,)):
+        if r["status"] == "open":
+            out[r["path"]] = {"note": r["note"], "lines": _json.loads(r["lines"]),
+                              "defs": _json.loads(r["defs"]),
+                              "whole": _json.loads(r["whole"]), "noted": r["noted"]}
+    for w in ctx.writes or []:
+        if w[0] != "drop_notes" or w[2].get("batch_id") != bid:
+            continue
+        v = w[2]
+        if v.get("status") == "open":
+            out[v["path"]] = {"note": v["note"], "lines": _json.loads(v["lines"]),
+                              "defs": _json.loads(v["defs"]),
+                              "whole": _json.loads(v["whole"]), "noted": v["noted"]}
+        else:
+            out.pop(v["path"], None)
+    return out
+
+
+def _put_note(ctx: Ctx, path: str, entry: dict | None) -> None:
+    """Stage the open note of `path`, or its close when `entry` is None."""
+    import json as _json
+    bid = ctx.batch_id
+    if entry is None:
+        old = _open_notes(ctx).get(path) or {"note": "", "lines": [], "defs": [],
+                                             "whole": [], "noted": ""}
+        entry, status = old, "closed"
+    else:
+        status = "open"
+    ctx.writes.append(("drop_notes", f"{bid}:{path}", {
+        "batch_id": bid, "path": path, "status": status, "note": entry["note"],
+        "lines": _json.dumps(entry["lines"]), "defs": _json.dumps(entry["defs"]),
+        "whole": _json.dumps(entry["whole"]), "noted": entry["noted"]}))
+
+
+def _def_spans(text: str) -> list[tuple[str, int, int]] | None:
+    """Each definition of `text` as (qualified name, first line, last line),
+    0-based and inclusive, or None when the text does not parse."""
+    import ast as _ast
+    try:
+        tree = _ast.parse(text)
+    except (SyntaxError, ValueError):
+        return None
+    out: list = []
+
+    def walk(node, prefix):
+        for ch in _ast.iter_child_nodes(node):
+            if isinstance(ch, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+                name = f"{prefix}{ch.name}"
+                first = min([ch.lineno] + [d.lineno for d in ch.decorator_list])
+                out.append((name, first - 1, ch.end_lineno - 1))
+                walk(ch, name + ".")
+            else:
+                walk(ch, prefix)
+    walk(tree, "")
+    return out
+
+
+def _owner(spans, i: int) -> str:
+    """The innermost definition that holds line `i`, or "" for the module."""
+    best = ("", -1, 1 << 30)
+    for name, lo, hi in spans or []:
+        if lo <= i <= hi and hi - lo <= best[2] - best[1]:
+            best = (name, lo, hi)
+    return best[0]
+
+
+def _def_lines(text: str, spans, name: str) -> list[str] | None:
+    """The stripped lines of definition `name` in `text`, the module's lines
+    for "", or None when `text` has no such definition."""
+    lines = text.splitlines()
+    if not name:
+        return [ln.strip() for ln in lines]
+    for n, lo, hi in spans or []:
+        if n == name:
+            return [ln.strip() for ln in lines[lo:hi + 1]]
+    return None
+
+
+def _note_entry(note: str, before: str, noted: str, drop: list[int]) -> dict:
+    """The data of a `dropped` note: each dropped line with its definition
+    and its count there before the write, and the definitions a whole-file
+    write dropped (frame 283's review 1, findings 1 to 3)."""
+    old = before.splitlines()
+    spans = _def_spans(before)
+    lines: list = []
+    for i in sorted(set(drop)):
+        if not (0 <= i < len(old)) or not old[i].strip():
+            continue
+        owner = _owner(spans, i)
+        here = _def_lines(before, spans, owner) or []
+        item = [owner, old[i].strip(), here.count(old[i].strip())]
+        if item not in lines:
+            lines.append(item)
+    defs: list = []
+    new_spans = _def_spans(noted)
+    if spans is not None and new_spans is not None:
+        kept = {n for n, _lo, _hi in new_spans}
+        defs = sorted({n for n, _lo, _hi in spans if "." not in n} - kept)
+    # The definitions the write dropped whole, when they hold every dropped
+    # line: a ledger note may name them instead of each line (finding 4).
+    gone = set(drop)
+    whole = sorted(n for n, lo, hi in spans or []
+                   if all(j in gone or not old[j].strip() for j in range(lo, hi + 1)))
+    held = {j for n, lo, hi in spans or [] if n in whole for j in range(lo, hi + 1)}
+    if not lines or any(i not in held for i in gone if 0 <= i < len(old) and old[i].strip()):
+        whole = []
+    return {"note": note, "lines": lines, "defs": defs, "whole": whole,
+            "noted": noted}
+
+
+def _restored(text: str, entry: dict) -> bool:
+    """True when `text` holds each dropped line inside its definition as
+    often as before the write, and each dropped definition by name. The
+    restore check of frame 283. A note with neither closes when the file
+    no longer holds the noted text."""
+    if not entry["lines"] and not entry["defs"]:
+        return text != entry["noted"]
+    spans = _def_spans(text)
+    if spans is None:
+        return False
+    names = {n for n, _lo, _hi in spans}
+    if any(d not in names for d in entry["defs"]):
+        return False
+    for owner, line, n in entry["lines"]:
+        here = _def_lines(text, spans, owner)
+        if here is None or here.count(line) < n:
+            return False
+    return True
 
 
 def _close_logged_notes(ctx: Ctx, assumption: str) -> None:
     """Close each open `dropped` note that a landed ledger note names: its
-    path and one dropped statement's text. Frame 283's ends-when: a meant
-    removal is committed after a landed note (frame 204's note route)."""
-    opened = getattr(ctx, "open_notes", None)
-    if not opened or not assumption:
+    path and every dropped line's text, or the name of each definition the
+    write dropped whole. Frame 283's ends-when: a meant removal is committed
+    after a landed note (frame 204's note route; review 1, finding 4)."""
+    if not assumption or not getattr(ctx, "batch_id", None):
         return
-    for p in list(opened):
+    for p, e in _open_notes(ctx).items():
         if p not in assumption and _grain_path(p) not in assumption:
             continue
-        if any(h in assumption for h in opened[p][2]):
-            del opened[p]
-
-
-def _note_heads(note: str) -> list[str]:
-    """The statement heads a `dropped` note names: "`head` at line N" of
-    `_lost_sentence`, and "from `line`." of `_tail_drop` (frame 283)."""
-    import re as _re
-    heads = _re.findall(r"`([^`]+)` at line \d+", note)
-    heads += _re.findall(r"from `([^`]+)`\.", note)
-    return [h.strip() for h in heads if h.strip()]
-
-
-def _head_count(text: str, head: str) -> int:
-    """How many lines of `text` start with `head`, indentation aside."""
-    return sum(1 for ln in text.splitlines() if ln.strip().startswith(head))
-
-
-def _restored(text: str, entry: tuple) -> bool:
-    """True when `text` holds each noted statement as often as the file did
-    before the noted write. The restore check of frame 283. A note with no
-    head it can read closes when the file no longer holds the noted text."""
-    _note, noted, counts = entry
-    if not counts:
-        return text != noted
-    return all(_head_count(text, h) >= n for h, n in counts.items())
+        # The note cuts a line at 60 characters, so the seat quotes that much.
+        said = all(line[:60] in assumption for _o, line, _n in e["lines"])
+        # Lines that are whole definitions are named by the definitions.
+        if e["lines"] and not said and e["whole"]:
+            said = all(d.rsplit(".", 1)[-1] in assumption for d in e["whole"])
+        named = all(d in assumption for d in e["defs"])
+        if (e["lines"] or e["defs"]) and said and named:
+            _put_note(ctx, p, None)
 
 
 def _predicted_touch(ctx: Ctx, batch_id: str) -> list[str]:
@@ -17368,7 +17496,8 @@ def _lost_sentence(lost: list[tuple[int, str]]) -> str:
     return out
 
 
-def _drop_note(old_lines: list[str], start: int, stop: int, text: str) -> str | None:
+def _drop_note(old_lines: list[str], start: int, stop: int, text: str,
+               lines_out: list[int] | None = None) -> str | None:
     """
     The `dropped` note of a span write: the tail note of `_tail_drop`, then
     each statement the span removes that the text does not hold (frame 173).
@@ -17378,6 +17507,10 @@ def _drop_note(old_lines: list[str], start: int, stop: int, text: str) -> str | 
     tail = _tail_drop(old_lines, start, stop, text, gone_out=gone)
     lost = [(i, h) for i, h in _lost_statements(old_lines, start, stop, text)
             if i not in gone]
+    # Every dropped line as data, not the eight the sentence names (frame
+    # 283's review 1, finding 1).
+    if lines_out is not None:
+        lines_out.extend(gone + [i for i, _h in lost])
     if not lost:
         return tail
     # A fact and not an order, as the tail note is: the seat decides.

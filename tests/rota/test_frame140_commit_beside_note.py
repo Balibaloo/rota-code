@@ -382,19 +382,81 @@ def test_a_write_that_puts_the_tail_back_closes_the_note(db, tmp_path):
     assert "dropped" not in out
     assert "ctx.exit()" in (root / PATH).read_text(encoding="utf-8")
     assert sb.call("code.commit", message="micro")["committed"] is True
-    assert getattr(sb.ctx, "open_notes", {}) == {}
+    assert api._open_notes(sb.ctx) == {}
 
 
-def test_a_ledger_note_that_names_a_dropped_statement_closes_the_note(db, tmp_path):
+BASE_HEAD = 'base_message = message % {"prog": prog_name, "package": pack'
+
+
+def test_a_ledger_note_that_names_every_dropped_statement_closes_the_note(db, tmp_path):
     """Frame 283's ends-when: a meant removal is committed after a landed
-    note. The ledger note names the path and `ctx.exit()`, so the commit
-    after it lands."""
-    sb, _ = _developer(db, tmp_path)
-    _noted_then_refused(sb, _)
+    note. The ledger note names the path and each of the three dropped
+    statements, so the commit after it lands."""
+    sb, root = _developer(db, tmp_path)
+    _noted_then_refused(sb, root)
+    lines = [x[1] for x in api._open_notes(sb.ctx)[PATH]["lines"]]
+    assert [x[:60] for x in lines] == [BASE_HEAD, "echo(", "ctx.exit()"]
     sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
             assumption=f"The item asks for the removal: {PATH} no longer "
-                       f"holds `ctx.exit()` and the echo call.")
+                       f"holds `{BASE_HEAD}`, `echo(` and `ctx.exit()`.")
     assert sb.call("code.commit", message="the removal")["committed"] is True
+
+
+def test_a_ledger_note_that_names_one_of_three_statements_leaves_it_open(db, tmp_path):
+    """Frame 283's review 1, finding 4: one head as a substring never closes
+    a note of three statements."""
+    sb, root = _developer(db, tmp_path)
+    _noted_then_refused(sb, root)
+    sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
+            assumption=f"{PATH} keeps one `echo(` call for the version.")
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="the removal")
+    assert str(err.value).startswith(LATER)
+
+
+def test_a_note_on_one_path_lets_a_commit_of_another_path_land(db, tmp_path):
+    """Frame 283's review 1, finding 5: a commit that leaves the noted path
+    clean carries no removal of it, so it lands."""
+    sb, root = _developer(db, tmp_path)
+    _noted_then_refused(sb, root)
+    _git(root, "commit", "-q", "-am", "outside the seat")
+    out = sb.call("code.write", path="src/click/extra.py", text="X = 1\n")
+    assert "dropped" not in out
+    assert sb.call("code.commit", message="extra")["committed"] is True
+
+
+def test_a_changing_write_with_the_lines_still_gone_keeps_the_note(db, tmp_path):
+    """Frame 283's review 1, finding 5: a write that changes the file and
+    leaves the dropped lines gone does not close the note."""
+    sb, root = _developer(db, tmp_path)
+    noted = _noted_then_refused(sb, root)
+    out = sb.call("code.write", path=PATH, text=noted + "\n\n# kept\n")
+    assert "dropped" not in out
+    sb.begin_reply()
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="the removal")
+    assert str(err.value).startswith(LATER)
+
+
+def test_a_second_session_on_the_worktree_sees_the_note(db, tmp_path):
+    """Frame 283's review 1, finding 6: the note lives per batch and path in
+    `drop_notes`, so a retry session's commit is refused too."""
+    sb, root = _developer(db, tmp_path)
+    head = _git(root, "rev-parse", "HEAD")
+    _noted_then_refused(sb, root)
+    # The rows the first session's commit lands, as `session_commit` does.
+    for table, _rid, values in [w[:3] for w in sb.ctx.writes]:
+        if table == "drop_notes":
+            cols = ", ".join(values)
+            db.execute(f"INSERT OR REPLACE INTO drop_notes ({cols}) VALUES "
+                       f"({', '.join('?' for _ in values)})", list(values.values()))
+    db.commit()
+    sb2 = build("developer", db, batch_id="b1", mode="tests_failing",
+                allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError) as err:
+        sb2.call("code.commit", message="the removal")
+    assert str(err.value).startswith(LATER)
+    assert _git(root, "rev-parse", "HEAD") == head
 
 
 def test_a_ledger_note_that_names_no_dropped_statement_leaves_it_open(db, tmp_path):
@@ -410,3 +472,25 @@ def test_a_ledger_note_that_names_no_dropped_statement_leaves_it_open(db, tmp_pa
     assert str(err.value).startswith(LATER)
     assert str(err.value).endswith(LATER_STEP)
     assert _git(root, "rev-parse", "HEAD") == head
+
+
+def test_a_dropped_line_counts_only_inside_its_definition():
+    """Frame 283's review 1, finding 2: `return x` dropped from `a` and
+    written into `b` does not put the line back."""
+    before = "def a():\n    x = 1\n    return x\n\n\ndef b():\n    return x\n"
+    noted = "def a():\n    x = 1\n\n\ndef b():\n    return x\n"
+    entry = api._note_entry("note", before, noted, [2])
+    assert entry["lines"] == [["a", "return x", 1]]
+    assert not api._restored(noted.replace("    return x\n", "    return x\n    return x\n"), entry)
+    assert api._restored(before, entry)
+
+
+def test_a_whole_file_note_closes_when_the_definitions_return():
+    """Frame 283's review 1, finding 3: a whole-file note with no line holds
+    the dropped definitions by name, and a comment does not close it."""
+    before = "def a():\n    return 1\n\n\ndef b():\n    return 2\n"
+    noted = "def a():\n    return 1\n"
+    entry = api._note_entry("note", before, noted, [])
+    assert entry["defs"] == ["b"]
+    assert not api._restored(noted + "# b\n", entry)
+    assert api._restored(before, entry)

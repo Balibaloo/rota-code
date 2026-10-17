@@ -61,7 +61,7 @@ TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
     "tickets":    ("tickets",),
     "criteria":   ("criteria",),
     "batches":    ("batches", "batch_tickets", "batch_dep_facts", "batch_touch",
-                   "touch_strays"),
+                   "touch_strays", "drop_notes"),
     "tests":      ("tests",),
     "ledger":     ("ledger",),
     "decisions":  ("decisions",),
@@ -381,6 +381,7 @@ def version_of(conn: sqlite3.Connection, table: str) -> int:
 JUNCTION_TABLES = {
     "batch_tickets", "constraint_bindings", "survey_citations",
     "batch_dep_facts", "schedule_deps", "batch_touch", "touch_strays", "refs",
+    "drop_notes",
 }
 
 
