@@ -29,4 +29,50 @@ def test_t1_is_at_version_2_and_green_on_the_same_commit(scene):
                         (scene.ids["challenge"],)).fetchone()[0] != "open"
 
 
+def test_the_challenge_wake_pushes_the_signature_of_the_callable_that_raised(scene):
+    """Frame 223, night 153: no Tester saw the parameters of the callable
+    that raised. The scene's run failed on an assertion, so its wake holds
+    no traceback frame and no push. The same wake with a frame in the
+    project's source pushes that definition's `def` line under its key."""
+    from rota.core import runner
+    from rota.core.sandbox import build
+    from rota.core.scheduler import Wake
+    from rota.roles import prompts
+
+    conn = scene.conn
+    key = "[code.source src/billing/charges.py::prorate]"
+    recorded = scenes.wake_prompt(scene, "tester", "message")
+    assert "[code.source " not in recorded
+
+    wake = Wake(role="tester", kind="message", message_id=scene.ids["challenge"],
+                detail="challenge")
+    lines = (scene.repo.root / "src/billing/charges.py").read_text(
+        encoding="utf-8").splitlines()
+    at = next(i for i, s in enumerate(lines, 1) if "raise ValueError" in s)
+    frame = (f'  File "src\\billing\\charges.py", line {at}, in prorate\n'
+             f'    raise ValueError("period must be positive")\n'
+             f"ValueError: period must be positive\n")
+
+    def prompt(output: str) -> str:
+        inbound = runner.resolve_inbound(conn, wake)
+        for row in inbound["resolved_refs"].values():
+            if isinstance(row, dict) and row.get("table") == "tests":
+                row["last_run"] = {"result": "fail", "output_tail": output}
+        sb = build("tester", conn, batch_id="b1", mode="challenge",
+                   allow=prompts.mode_tools("tester", "challenge"))
+        return runner.build_prompt("tester", sb, wake, {}, "MODE: challenge",
+                                   inbound)[1]
+
+    pushed = prompt("E   ValueError\n" + frame)
+    assert key in pushed
+    assert "def prorate(amount_cents, days_used, days_in_period):" in pushed
+    assert pushed.count("[code.source ") == 1
+    # Pass 1b: the lines from the guard to the raise, beside the signature.
+    raised = pushed.split("[the lines that raised]\n", 1)[1]
+    assert raised.startswith("    if days_in_period <= 0:\n")
+    assert 'raise ValueError("period must be positive")' in raised
+    assert f"raised at: lines {at - 1} to {at}" in pushed
+    assert key not in prompt("E   ValueError\nValueError: period must be positive\n")
+
+
 globals().update(make(NAME, end=["critic|tick:review|b1"], attempts=[], asks=[]))

@@ -673,6 +673,11 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # the challenge as a criterion question. Asked in plain words, it
         # blamed the test. The JSON below stays as it is for other readers.
         body.extend(_failed_run_blocks(inbound))
+        # Frame 223, night 153: 0 of 3 seats read the callable that raised,
+        # though the brief told them to call `code.source`.
+        raised = _raised_signature_pushes(sb, inbound)
+        if raised:
+            pushed = {**pushed, **raised}
     if inbound:
         body.append("\nThe reports that came back:" if "reports" in inbound
                     else "\nThe message that woke you:")
@@ -2588,6 +2593,140 @@ def _failed_run_blocks(inbound: dict[str, Any]) -> list[str]:
                       f"The test's body:\n{body.rstrip()}\n"
                       f"The failure output:\n{output.rstrip()}")
     return blocks
+
+
+# A Python traceback frame. The path holds no quote mark.
+_TRACE_FRAME = re.compile(r'^\s*File "([^"]+)", line (\d+), in (\S+)', re.M)
+
+
+def _raised_signature_pushes(sb: sandbox_mod.Sandbox,
+                             inbound: dict[str, Any]) -> dict[str, Any]:
+    """The signature of the callable that raised, for each challenged test.
+
+    Frame 223, night 153: every Tester read `'test_version_option' is not
+    installed` and no Tester saw the parameters of the callable that raised.
+    The interview of three seats found the signature in front of 0 of 3.
+
+    The rule, per failed run: take the last traceback frame whose path is a
+    path grain of the code index. `code.source` gives that file's top-level
+    definitions, and the push takes the one whose span holds the line. The
+    push is its `def` line through its parameter list, and the first line of
+    its docstring. One push per test. A frame outside the index, or a line
+    outside every top-level definition, pushes nothing.
+    """
+    import ast as _ast
+    import textwrap as _textwrap
+
+    if "code.source" not in sb.functions():
+        return {}
+    conn = sb.ctx.conn
+    out: dict[str, Any] = {}
+    for _ref, row in (inbound.get("resolved_refs") or {}).items():
+        if not isinstance(row, dict) or row.get("table") != "tests":
+            continue
+        run = row.get("last_run")
+        if not run or run.get("result") == "pass":
+            continue
+        frames = _TRACE_FRAME.findall(run.get("output_tail") or "")
+        hit = None
+        for path, line, _name in reversed(frames):
+            path = path.replace("\\", "/")
+            if conn.execute("SELECT 1 FROM code_index WHERE grain = ? "
+                            "AND grain_kind = 'path'", (path,)).fetchone():
+                hit = (path, int(line))
+                break
+        if hit is None:
+            continue
+        path, line = hit
+        try:
+            # The spans come from the file the run read, not from the index.
+            # A batch moves lines, and the index holds main's lines. Night
+            # 145: three frames at `decorators.py:526` sat in no indexed span.
+            head = sb.call("code.source", path=path, start=0, end=1)
+            defs = head.get("defs") or {} if isinstance(head, dict) else {}
+        except Exception:                                  # noqa: BLE001
+            continue
+        # A span is 0-based, and its end is one line past the definition.
+        held = [(e - s, n, s, e) for n, (s, e) in defs.items() if s < line <= e]
+        if not held:
+            continue
+        _, name, start, end = min(held)
+        key = f"code.source {path}::{name}"
+        if key in out:
+            continue
+        try:
+            got = sb.call("code.source", path=path, start=start, end=end)
+            text = got.get("text") or "" if isinstance(got, dict) else ""
+            node = _ast.parse(_textwrap.dedent(text)).body[0]
+        except Exception:                                  # noqa: BLE001
+            continue
+        if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                 _ast.ClassDef)) or not node.body:
+            continue
+        first = node.body[0]
+        doc = (isinstance(first, _ast.Expr) and isinstance(first.value, _ast.Constant)
+               and isinstance(first.value.value, str))
+        # ast lines are 1-based within the read text. A docstring keeps its
+        # first line, and a body without one stops before its first statement.
+        keep = first.lineno if doc else first.lineno - 1
+        lines = text.splitlines()[:max(keep, 1)]
+        shown = {"path": path, "start": start, "end": start + len(lines),
+                 "text": "\n".join(lines)}
+        # Frame 223, interview 2, replay C: the lines from the guard to the
+        # raise moved 2 of 4 turns off a made-up name. Three sentences moved
+        # 0 of 12. The signature alone moved 0 of 5 runs.
+        span = _raising_span(node, line - start)
+        if span:
+            lo, hi = span
+            # A flat string, so the render shows it as a block. A nested
+            # dict renders as one escaped line (frame 110's interview).
+            shown["raised at"] = f"lines {start + lo} to {start + hi}"
+            shown["the lines that raised"] = "\n".join(text.splitlines()[lo - 1:hi])
+        out[key] = shown
+    return out
+
+
+def _raising_span(top: Any, at: int) -> tuple[int, int] | None:
+    """The 1-based lines of `top` from the guard of the raise to the raise.
+
+    `at` is the raise line, 1-based within the text `top` was parsed from.
+    The guard is the first `if` or `except` on the way down from the
+    innermost function that holds `at`, so a chain of `elif` and nested
+    blocks shows from its first test. The span ends with the statement
+    that holds `at`. None when no such statement holds `at`.
+    """
+    import ast as _ast
+
+    def holds(n: Any) -> bool:
+        return n.lineno <= at <= (getattr(n, "end_lineno", None) or n.lineno)
+
+    funcs = [n for n in _ast.walk(top)
+             if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and holds(n)]
+    if not funcs:
+        return None
+    body = max(funcs, key=lambda n: n.lineno).body
+    guard = None
+    last = None
+    while True:
+        stmt = next((s for s in body if holds(s)), None)
+        if stmt is None:
+            break
+        last = stmt
+        if guard is None and isinstance(stmt, _ast.If):
+            guard = stmt.lineno
+        blocks: list[list[Any]] = []
+        for name in ("body", "orelse", "finalbody"):
+            blocks.append(getattr(stmt, name, None) or [])
+        for h in getattr(stmt, "handlers", None) or []:
+            if holds(h):
+                if guard is None:
+                    guard = h.lineno
+                blocks.append(h.body)
+        body = next((b for b in blocks if any(holds(s) for s in b)), [])
+    if last is None:
+        return None
+    end = getattr(last, "end_lineno", None) or last.lineno
+    return (guard or last.lineno), end
 
 
 # A fenced block, closed or cut at the end of the reply.
