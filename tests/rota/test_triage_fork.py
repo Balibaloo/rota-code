@@ -627,3 +627,47 @@ def test_a_later_question_on_the_routed_criterion_is_refused(night91):
                   question="what does indent mean here")
     assert out["to"] == "terminologist"
     assert len(_tagged(sb)) == 1
+
+
+ECHO_JSON = ("Add an echo_json(obj, indent=2) helper next to echo that prints "
+             "an object as JSON.")
+
+
+def _contradicting(db):
+    """The fixture of L1-TS-a-criterion-that-contradicts-the-request-goes-back:
+    the request says prints and the criterion says returns."""
+    db.execute("UPDATE items SET text = ? WHERE id = 'i1'", (ECHO_JSON,))
+    db.execute("UPDATE tickets SET text = ? WHERE id = 't1'", (ECHO_JSON,))
+    db.execute("UPDATE criteria SET text = ? WHERE id = 'c1'",
+               ("echo_json returns a string containing the JSON "
+                "representation of obj, formatted with indent=2.",))
+    db.commit()
+
+
+def test_an_encode_before_triage_offers_the_verdict_triage_accepts(db):
+    """Frame 290: the encode door offered `encodable`, and the triage door
+    refused it for a criterion that contradicts the request (gate re-record
+    at 7471569c). The offer must name the call that lands."""
+    _contradicting(db)
+    sb = _tester(db)
+    with pytest.raises(ValueError) as err:
+        sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
+                body="def test_x():\n    assert True")
+    text = str(err.value)
+    assert "verdict='contradicts_request'" in text
+    assert "request_span='prints'" in text
+    assert "criterion_span='returns'" in text
+    assert "verdict='encodable'" not in text
+    out = sb.call("tests.triage", criterion_id="c1",
+                  verdict="contradicts_request", request_span="prints",
+                  criterion_span="returns")
+    assert out["verdict"] == "contradicts_request"
+
+
+def test_an_encode_before_triage_offers_encodable_when_nothing_contradicts(db):
+    sb = _tester(db)
+    with pytest.raises(ValueError) as err:
+        sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
+                body="def test_x():\n    assert True")
+    assert "verdict='encodable'" in str(err.value)
+    assert "contradicts_request" not in str(err.value)

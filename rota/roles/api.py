@@ -6027,6 +6027,44 @@ def _request_rows(ctx: Ctx, criterion_id: str) -> list[tuple[str, str]]:
     return rows
 
 
+def _contradiction_offer(ctx: Ctx, criterion_id: str, crit_text: str,
+                         request: list[tuple[str, str]]) -> str | None:
+    """
+    The offer of `contradicts_request` when the criterion and the request
+    name opposite verbs, else None.
+
+    The triage door and the encode door both call it. The encode door
+    offered `encodable` here, and the triage door refused that verdict
+    (frame 290, the gate's re-record at 7471569c).
+    """
+    # The one measured pair, walled: a brief line alone is a prediction
+    # about a 9B model, and s144 never said "prints" (frame 81, finding 6).
+    # On the request side, "echo" names the helper in "next to echo". The
+    # criterion side keeps the full set (frame 81, the diff review).
+    req_prints = PRINTS - {"echo", "echoes"}
+    crit_words = _verb_words(crit_text)
+    req = [(name, _verb_words(text)) for name, text in request]
+    req_words = [w for _, ws in req for w in ws]
+    for c_says, c_other, r_says, r_other in (
+            (RETURNS, PRINTS, req_prints, RETURNS),
+            (PRINTS, RETURNS, RETURNS, req_prints)):
+        cw = _first_verb(crit_words, c_says)
+        rw = _first_verb(req_words, r_says)
+        if (cw and rw and not _first_verb(crit_words, c_other)
+                and not _first_verb(req_words, r_other)):
+            row = next(name for name, ws in req if rw in ws)
+            return _offer(
+                ctx,
+                f"{criterion_id} says '{cw}' and {row} says '{rw}'. Send "
+                f"tests.triage(criterion_id='{criterion_id}', "
+                f"verdict='contradicts_request', request_span='{rw}', "
+                f"criterion_span='{cw}').",
+                "tests.triage", {"criterion_id": criterion_id,
+                                 "verdict": "contradicts_request",
+                                 "request_span": rw, "criterion_span": cw})
+    return None
+
+
 def _flat(text: str) -> str:
     """Lowercase, with each run of whitespace made one space."""
     return " ".join((text or "").split()).lower()
@@ -6134,31 +6172,9 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
                 f"criterion_span is not in the words of {criterion_id}. Copy "
                 f"the span from the criterion, not a paraphrase")
     if verdict == "encodable" and not done and request:
-        # The one measured pair, walled: a brief line alone is a prediction
-        # about a 9B model, and s144 never said "prints" (frame 81, finding 6).
-        # On the request side, "echo" names the helper in "next to echo". The
-        # criterion side keeps the full set (frame 81, the diff review).
-        req_prints = PRINTS - {"echo", "echoes"}
-        crit_words = _verb_words(crit_text)
-        req = [(name, _verb_words(text)) for name, text in request]
-        req_words = [w for _, ws in req for w in ws]
-        for c_says, c_other, r_says, r_other in (
-                (RETURNS, PRINTS, req_prints, RETURNS),
-                (PRINTS, RETURNS, RETURNS, req_prints)):
-            cw = _first_verb(crit_words, c_says)
-            rw = _first_verb(req_words, r_says)
-            if (cw and rw and not _first_verb(crit_words, c_other)
-                    and not _first_verb(req_words, r_other)):
-                row = next(name for name, ws in req if rw in ws)
-                raise ValueError(_offer(
-                    ctx,
-                    f"{criterion_id} says '{cw}' and {row} says '{rw}'. Send "
-                    f"tests.triage(criterion_id='{criterion_id}', "
-                    f"verdict='contradicts_request', request_span='{rw}', "
-                    f"criterion_span='{cw}').",
-                    "tests.triage", {"criterion_id": criterion_id,
-                                     "verdict": "contradicts_request",
-                                     "request_span": rw, "criterion_span": cw}))
+        said = _contradiction_offer(ctx, criterion_id, crit_text, request)
+        if said:
+            raise ValueError(said)
     ctx.triaged[criterion_id] = verdict
     if done:
         return {"criterion": criterion_id, "verdict": verdict,
@@ -7265,6 +7281,20 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # first. A recording of frame 190's pass 2 sent three ids joined by
         # commas, and the offered triage of that id was refused.
         _must_exist(ctx, "criteria", criterion_id)
+        # The offer names the verdict the triage door accepts. The triage
+        # door refused the `encodable` offer for a contradicting criterion
+        # (frame 290, the gate's re-record at 7471569c). The test is the
+        # triage door's own, and so is its gate on an existing test.
+        if not ctx.conn.execute("SELECT 1 FROM tests WHERE criterion_id = ?",
+                                (criterion_id,)).fetchone():
+            crit_text = (ctx.conn.execute(
+                "SELECT text FROM criteria WHERE id = ?",
+                (criterion_id,)).fetchone()["text"] or "")
+            request = _request_rows(ctx, criterion_id)
+            said = request and _contradiction_offer(
+                ctx, criterion_id, crit_text, request)
+            if said:
+                raise ValueError(said)
         # Said as the step, not as a name for it. qwen3.5:9b on the Titan
         # (2026-09-14) read "has no branch claim" as a field the criterion
         # lacked, triaged it `cannot` and asked the Vision Keeper what a
