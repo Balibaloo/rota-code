@@ -15821,9 +15821,10 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
         return None
     said = " ".join(f"{p}: {n}" for p, n in held)
     return (f"your code.write in this reply returned a note before this "
-            f"commit, and you had not read it. {said} Read the lines above. "
-            f"If the removal is what the item asks for, commit in your next "
-            f"reply. If it is not, write those lines back first, then commit.")
+            f"commit, and you had not read it. {said} You sent this commit "
+            f"before you read this note. If the tree now holds what the item "
+            f"asks for, commit in your next reply. If it does not, write the "
+            f"lines back, then commit in your next reply.")
 
 
 def _predicted_touch(ctx: Ctx, batch_id: str) -> list[str]:

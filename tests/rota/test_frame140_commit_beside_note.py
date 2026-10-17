@@ -191,9 +191,15 @@ S282_NOTE = ('This write removes 3 statements that your text does not hold: '
              '`base_message = message % {"prog": prog_name, "package": pack` '
              'at line 546, `echo(` at line 551, `ctx.exit()` at line 555.')
 
-STEP = ("Read the lines above. If the removal is what the item asks for, "
-        "commit in your next reply. If it is not, write those lines back "
-        "first, then commit.")
+STEP = ("You sent this commit before you read this note. If the tree now "
+        "holds what the item asks for, commit in your next reply. If it does "
+        "not, write the lines back, then commit in your next reply.")
+
+# The dropped statements put back around s282's text, as one span.
+RESTORED = ('        base_message = message % {"prog": prog_name, "package": '
+            'package_name, "version": version}\n' + S282_TEXT + '\n\n'
+            '        echo(\n            base_message,\n'
+            '            color=ctx.color,\n        )\n        ctx.exit()\n')
 
 
 @pytest.fixture
@@ -250,6 +256,25 @@ def test_s282s_commit_beside_the_noted_write_is_refused(db, tmp_path):
     assert _git(root, "rev-parse", "HEAD") == head
     sb.begin_reply()
     assert sb.call("code.commit", message="the removal")["committed"] is True
+
+
+def test_a_restoring_write_in_the_same_reply_still_waits_for_the_next(db, tmp_path):
+    """Review 1 of 68e7ba44: a second write in the reply puts the lines back.
+    The seat composed it before it read the note, so the commit is refused,
+    and the step ends in the next reply, not in a second write."""
+    sb, root = _developer(db, tmp_path)
+    out = sb.call("code.write", path=PATH, start=546, end=556, text=S282_TEXT)
+    assert out["dropped"] == S282_NOTE
+    out = sb.call("code.write", path=PATH, start=546, end=550, text=RESTORED)
+    assert "dropped" not in out
+    assert "ctx.exit()" in (root / PATH).read_text(encoding="utf-8")
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="micro")
+    msg = str(err.value)
+    assert f"{PATH}: {S282_NOTE}" in msg
+    assert msg.endswith(STEP)
+    sb.begin_reply()
+    assert sb.call("code.commit", message="micro")["committed"] is True
 
 
 def test_a_write_with_no_note_commits_in_the_same_reply(db, tmp_path):
