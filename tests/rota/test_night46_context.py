@@ -606,6 +606,35 @@ def test_the_commit_records_an_unnamed_definition_as_a_stray_the_architect_judge
     assert [(t["grain"], t["grain_kind"]) for t in touch] == [("src/click/utils.py::echo", "symbol")]
 
 
+def test_a_symbol_grain_with_a_leading_dot_slash_judges_its_definition_row(tmp_path):
+    """Frame 286, review 1, low 1: `./src/click/utils.py::echo` matched no
+    row. Frame 228 saw the `./` shape from the Architect."""
+    _proj, _wt, db, _git = _unnamed_batch(tmp_path)
+    db.execute("UPDATE batches SET head_commit = 'abc' WHERE id = 'b1'")
+    db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status) VALUES "
+               "('b1', 'abc', 'src/click/utils.py::echo', 'open')")
+    db.commit()
+    arch = build("architect", db, mode="touch_strayed",
+                 allow=prompts.mode_tools("architect", "touch_strayed"))
+    judged = arch.call("batches.judge_touch", batch_id="b1",
+                       mistakes=["./src/click/utils.py::echo"], reason="a second copy")
+    assert judged["mistakes"] == ["src/click/utils.py::echo"] and "ignored" not in judged, judged
+
+
+def test_a_batch_with_no_worktree_reads_the_root_file_as_the_base(tmp_path):
+    """Frame 286, review 1, low 3: a merged batch has no worktree, as
+    code_diff reaches it. The root file holds the base, so a restore of the
+    root's source changes no name."""
+    from rota.roles import api
+    proj, _wt, db, _git = _unnamed_batch(tmp_path)
+    db.execute("UPDATE batches SET worktree = NULL WHERE id = 'b1'")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    changed = "import sys\n\n\ndef echo(message):\n    print(message)\n"
+    assert api._changed_unnamed_defs(sb.ctx, "src/click/utils.py", changed, _ECHO + _ECHO_JSON) == []
+
+
 def test_a_write_that_restores_the_base_definition_lands_with_no_note_and_no_stray(tmp_path):
     """Night 154's s130: the door read the project root's working file, not
     the batch's base, so a restore of the base's own definition read as a

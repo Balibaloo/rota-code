@@ -16448,6 +16448,10 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
             return [p]
         g = _grain_path(p)
         if "::" in p:
+            # A `./` or `/` prefix folds on the symbol grain too (review 1, low 1).
+            sym = f"{g}::{p.split('::', 1)[1]}"
+            if sym in open_rows:
+                return [sym]
             return [g] if g in open_rows else []
         return [r for r in open_rows if r == g or r.startswith(g + "::")]
 
@@ -16930,8 +16934,14 @@ def _changed_unnamed_defs(ctx: Ctx, path: str, old_text: str, new_text: str) -> 
         # The batch's base, read as frame 220 reads it. The project root is
         # the working checkout, so a restore read as a change (night 154's
         # s130). The root file stays the fallback when git cannot tell.
-        held = (_base_text(ctx, _batch_worktree(ctx), path)
-                if getattr(ctx, "batch_id", None) else None)
+        # A merged batch has no worktree, and the root read then holds the
+        # base (review 1, low 3).
+        held = None
+        if getattr(ctx, "batch_id", None):
+            try:
+                held = _base_text(ctx, _batch_worktree(ctx), path)
+            except ValueError:
+                held = None
         if held is not None:
             base = _def_sources(held)
         root = None if held is not None else ctx.conn.execute(

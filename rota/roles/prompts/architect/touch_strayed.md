@@ -19,6 +19,7 @@ reason="...")`, every path in one list or the other. The reason is one
 sentence a person can read at review.
 
 A stray can be a definition, written `path::name`, when your prediction named
-the file and no criterion names the definition. Judge it the same way.
+the file and no criterion names the definition. Judge it with
+`batches.judge_touch`, as you judge a path.
 
 The prediction never blocked the commit. Only your silence holds the merge.
