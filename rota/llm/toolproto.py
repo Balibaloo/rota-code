@@ -23,6 +23,7 @@ import io
 import json
 import re
 import tokenize
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -629,6 +630,38 @@ def _short_close(text: str, start: int,
     return opened_key, q, opening, closing
 
 
+def _no_close_bracket(text: str, start: int) -> str | None:
+    """The last key of a call whose values all close and whose `)` is absent.
+
+    Night 152, s290 sent `code.write(path=..., text='''...''')` twice with
+    no `)`. The old refusal told the seat to use triple quotes, and the
+    value had them. The answer is the missing bracket. The arguments must
+    parse as they are, so any other fault gives None (frame 266, pass 2b).
+    """
+    # The call ends where the next call starts on a new line.
+    nxt = re.search(r"\n[ \t]*" + re.escape(MARKER), text[start:])
+    region = text[start:start + nxt.start() if nxt else len(text)].rstrip()
+    # The text says "after the closing quotes", so the call ends on one.
+    if not region.endswith(("'", '"')):
+        return None
+    # parse_args repairs a call, and a repair can read an open list as
+    # the value of a string. Python's own parser repairs nothing.
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            call = ast.parse(f"f({region})", mode="eval").body
+    except (SyntaxError, ValueError):
+        return None
+    if (not isinstance(call, ast.Call) or call.args or not call.keywords
+            or any(k.arg is None for k in call.keywords)):
+        return None
+    last = call.keywords[-1]
+    if not (isinstance(last.value, ast.Constant)
+            and isinstance(last.value.value, str)):
+        return None
+    return last.arg
+
+
 def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     """
     Parse the argument list. JSON object form, or Python keyword form.
@@ -1195,6 +1228,9 @@ def extract(text: str, signatures: dict | None = None, *,
             short = (None if joined or missing or not key or key in _WRITES
                      or (params and _WRITES & set(params))
                      else _short_close(text, args_start, params))
+            # Only the shape that got the generic text asks for the bracket.
+            bracket = (None if joined or missing or short or key
+                       else _no_close_bracket(text, args_start))
             if joined:
                 # The rescan closed the list, and the guard on joined strings
                 # refused it. The hint below would name a value that is
@@ -1249,6 +1285,14 @@ def extract(text: str, signatures: dict | None = None, *,
                     # example's content (frame 122's review).
                     f"{key}='''the text, with its quotes and line breaks "
                     f"as they are'''")
+            elif bracket:
+                # Frame 266, night 152: s290 read the triple quote hint
+                # twice, and its value had triple quotes. Name the bracket.
+                reason = (
+                    f"unterminated argument list: the call to {name} has no "
+                    f"closing bracket. The value of {bracket} closes, and no "
+                    f"`)` follows it. Put `)` after the closing quotes, and "
+                    f"send the call again in full.")
             else:
                 reason = (
                     "unterminated argument list: a quote inside a quoted "

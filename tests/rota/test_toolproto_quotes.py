@@ -784,3 +784,55 @@ def test_a_last_argument_with_its_full_close_parses():
         "why='''The name is not defined.''')", BREAK)
     assert len(got) == 1 and isinstance(got[0], toolproto.ToolCall), got
     assert got[0].args["why"] == "The name is not defined."
+
+
+# Frame 266, pass 2b, W7: night 152, s290 seq 10 and 11 sent a whole
+# file as text='''...''' and stopped after the closing quotes. The old
+# text told the seat to use triple quotes, and the value had them.
+_NO_BRACKET = (
+    "unterminated argument list: the call to code.write has no closing "
+    "bracket. The value of text closes, and no `)` follows it. Put `)` "
+    "after the closing quotes, and send the call again in full.")
+_GENERIC = (
+    "unterminated argument list: a quote inside a quoted argument ended the "
+    "string early, or a bracket is unbalanced.")
+
+
+@pytest.mark.parametrize("sigs", [None, WRITE])
+def test_a_closed_value_with_no_bracket_names_the_bracket(sigs):
+    """s290 seq 10, cut short: the value closes and nothing follows it."""
+    got = toolproto.extract(
+        "TOOL: code.write(path='a.py', text='''x = 1\n'''", sigs)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason == _NO_BRACKET
+
+
+def test_the_same_write_with_its_bracket_parses():
+    got = toolproto.extract(
+        "TOOL: code.write(path='a.py', text='''x = 1\n''')", WRITE)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolCall), got
+    assert got[0].args == {"path": "a.py", "text": "x = 1\n"}
+
+
+def test_a_value_that_never_closes_keeps_the_key_text():
+    got = toolproto.extract(
+        "TOOL: code.write(path='a.py', text='''x = 1\n", WRITE)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(
+        "unterminated argument list: the value of text never ends.")
+
+
+def test_a_short_close_keeps_the_count_text():
+    got = toolproto.extract(
+        "TOOL: challenge.break(citation='a.py', quote='q', "
+        "why='''The name is not defined.'')", BREAK)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert "opens with three quotes" in got[0].reason
+
+
+@pytest.mark.parametrize("tail", [", '", "\nmore words"])
+def test_a_second_open_quote_or_more_text_keeps_the_generic_text(tail):
+    got = toolproto.extract(
+        "TOOL: code.write(path='a.py', text='''x = 1\n'''" + tail, WRITE)
+    assert len(got) == 1 and isinstance(got[0], toolproto.ToolError), got
+    assert got[0].reason.startswith(_GENERIC)

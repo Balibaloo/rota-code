@@ -552,10 +552,9 @@ def test_the_defines_twice_numbers_are_code_source_numbers(tmp_path):
     assert all(f["ok"] for f in facts), facts
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "finding of frame 144 pass 2: toolproto, the unterminated-list refusal "
-    "with no open argument. It names text='''...''' for a call of an op that "
-    "has no text argument (frame 137's sign)"))
+# Frame 144, pass 2 found that the refusal named text='''...''' for an op
+# with no text argument (frame 137's sign). Frame 266, pass 2b names the
+# missing bracket for this shape, so the test is green.
 def test_the_parser_names_only_arguments_of_the_called_op():
     from rota.llm import toolproto
     raw = "TOOL: tests.triage(criterion_id='c1', verdict='encodable'\n"
