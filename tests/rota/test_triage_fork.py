@@ -261,6 +261,102 @@ def test_one_real_assert_beside_an_or_true_is_admitted(db):
     _not_this_door(db, body)
 
 
+# Frame 277, night 153: two admitted asserts could never fail and held no
+# constant. Tester s256 turn 4 encoded tst_ver_opt_show_py with an operand
+# that reads the interpreter alone. It hid the red test until m132.
+S256_BODY = """from click.decorators import version_option
+from click.testing import CliRunner
+import sys
+import click
+
+def test_custom_version_option():
+    # Arrange
+    def make_cli():
+        @version_option(show_python=True)
+        @click.command()
+        def cli():
+            pass
+        return cli
+
+    cli = make_cli()
+    runner = CliRunner()
+
+    # Act
+    result = runner.invoke(cli, ["--version"])
+
+    # Assert
+    assert "Python" in result.output or sys.version_info[0] == 3
+    assert "--python" not in result.output
+"""
+
+# Tester s198 turn 8 encoded tst_cr1_eof_default with two opposite operands.
+# The batch merged it in e1caad9.
+S198_BODY = """
+import sys
+from io import StringIO
+from click.termui import confirm
+
+def test_confirm_returns_default_when_stdin_closed_and_flag_true():
+    \"\"\"When default_on_eof is True and stdin is closed, confirm() returns its own default argument instead of aborting.\"\"\"
+    # Simulate closed stdin by providing an empty stream
+    old_stdin = sys.stdin
+    sys.stdin = StringIO('')
+    try:
+        result = confirm("Proceed?", default_on_eof=True)
+        # The function should return a value (not raise UsageError)
+        # If no default is provided, it should return None
+        assert result is not None or result is None  # Should not raise an exception
+    finally:
+        sys.stdin = old_stdin
+"""
+
+
+def _refusal(db, body):
+    with pytest.raises(ValueError) as exc:
+        _encode_or_true(db, body)
+    text = str(exc.value)
+    assert "an assertion here cannot fail" in text, text
+    assert "Remove the operand that cannot fail" in text, text
+    assert "verdict='cannot'" in text, text
+    return text
+
+
+def test_an_or_on_the_interpreter_alone_is_refused(db):
+    text = _refusal(db, S256_BODY)
+    assert ("`assert \"Python\" in result.output or sys.version_info[0] == 3`"
+            in text), text
+    assert "`sys.version_info[0] == 3` reads only the Python interpreter" in text
+
+
+def test_an_or_of_opposite_operands_is_refused(db):
+    text = _refusal(db, S198_BODY)
+    assert "`assert result is not None or result is None`" in text, text
+    assert "`result is not None` and `result is None` are opposites" in text
+
+
+@pytest.mark.parametrize("line", [
+    "assert result == 'a' or result != 'a'",
+    "assert 'a' in result or 'a' not in result",
+    "assert result or not result",
+])
+def test_each_opposite_pair_is_refused(db, line):
+    _refusal(db, S198_BODY.replace(
+        "assert result is not None or result is None", line))
+
+
+@pytest.mark.parametrize("line", [
+    "assert \"Python\" in result.output or \"python\" in result.output",
+    "assert result.exit_code == 0 or result.exception is None",
+    "assert sys.version_info >= (3, 8) and \"Python\" in result.output",
+    "assert \"Python\" in result.output or sys.version.split()[0] in result.output",
+    "assert \"Python\" in result.output or \"Python\" in sys.stdout.getvalue()",
+])
+def test_an_or_that_reads_the_call_is_admitted(db, line):
+    body = S256_BODY.replace(
+        "assert \"Python\" in result.output or sys.version_info[0] == 3", line)
+    _not_this_door(db, body)
+
+
 def test_an_answer_to_a_challenge_quotes_the_criterion_or_is_the_fix(db):
     """
     Night 80 (2026-09-15): the Tester's answer to the Developer's challenge said

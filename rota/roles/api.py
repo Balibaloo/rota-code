@@ -7726,6 +7726,85 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "nothing and would report as coverage. If the criterion names "
             "no behaviour a call could exercise, that is tests.triage "
             "verdict='cannot' -- say what stops you and route it")
+    # Frame 277, night 153: two admitted asserts could never fail and held
+    # no constant. s256's `... or sys.version_info[0] == 3` hid a red test
+    # through the review. s198's `result is not None or result is None`
+    # merged. One such assert is refused even beside a real one, because
+    # s256 had a second assert. Frame 147 found this door refuses too much,
+    # so each shape stays narrow, and a shape in doubt admits.
+    # The `sys` attributes that the call under test cannot change. A read
+    # of `sys.stdout` or `sys.argv` can carry the call's effect.
+    _interp_sys = {"version_info", "version", "hexversion", "platform",
+                   "implementation", "maxsize", "byteorder", "api_version"}
+    _bound = {n.id for n in _ast.walk(tree)
+              if isinstance(n, _ast.Name) and not isinstance(n.ctx, _ast.Load)}
+    _bound |= {n.arg for n in _ast.walk(tree) if isinstance(n, _ast.arg)}
+    _bound |= {n.name for n in _ast.walk(tree)
+               if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                 _ast.ClassDef))}
+
+    def _reads_interpreter_alone(v) -> bool:
+        names = [n for n in _ast.walk(v) if isinstance(n, _ast.Name)]
+        if not any(n.id in ("sys", "platform") for n in names):
+            return False
+        # `id` is the test id parameter here, so the check uses identity.
+        fixed_sys = [p.value for p in _ast.walk(v)
+                     if isinstance(p, _ast.Attribute) and p.attr in _interp_sys]
+        for n in names:
+            if n.id in _bound or not isinstance(n.ctx, _ast.Load):
+                return False
+            if n.id == "sys":
+                if not any(s is n for s in fixed_sys):
+                    return False
+            elif n.id != "platform" and not hasattr(_builtins, n.id):
+                return False
+        return True
+
+    _opposite = {(_ast.Is, _ast.IsNot), (_ast.IsNot, _ast.Is),
+                 (_ast.Eq, _ast.NotEq), (_ast.NotEq, _ast.Eq),
+                 (_ast.In, _ast.NotIn), (_ast.NotIn, _ast.In)}
+
+    def _complementary(a, b) -> bool:
+        if isinstance(b, _ast.UnaryOp) and isinstance(b.op, _ast.Not):
+            return _ast.dump(b.operand) == _ast.dump(a)
+        if isinstance(a, _ast.UnaryOp) and isinstance(a.op, _ast.Not):
+            return _ast.dump(a.operand) == _ast.dump(b)
+        return (isinstance(a, _ast.Compare) and isinstance(b, _ast.Compare)
+                and len(a.ops) == 1 and len(b.ops) == 1
+                and (type(a.ops[0]), type(b.ops[0])) in _opposite
+                and _ast.dump(a.left) == _ast.dump(b.left)
+                and _ast.dump(a.comparators[0]) == _ast.dump(b.comparators[0]))
+
+    def _cannot_fail_because(test) -> str | None:
+        if not (isinstance(test, _ast.BoolOp) and isinstance(test.op, _ast.Or)):
+            return None
+        for v in test.values:
+            if _reads_interpreter_alone(v):
+                return (f"the operand `{_ast.unparse(v)}` reads only the "
+                        f"Python interpreter, so its value is the same "
+                        f"whatever the call did")
+        vs = test.values
+        for i, a in enumerate(vs):
+            for b in vs[i + 1:]:
+                if _complementary(a, b):
+                    return (f"`{_ast.unparse(a)}` and `{_ast.unparse(b)}` "
+                            f"are opposites, so one of them is true whatever "
+                            f"the call did")
+        return None
+
+    if not checks_by_raise:
+        for a in asserts:
+            why = _cannot_fail_because(a.test)
+            if why is None:
+                continue
+            line = _ast.get_source_segment(body, a) or _ast.unparse(a)
+            raise Wall(
+                f"an assertion here cannot fail. In `{line}`, {why}. So the "
+                f"assertion can pass whatever the call did, and it checks "
+                f"nothing. Remove the operand that cannot fail and "
+                f"assert the behaviour the criterion names. If the criterion "
+                f"names no behaviour a call could exercise, use tests.triage "
+                f"verdict='cannot'")
     # Names bound to a Mock -- `X = mock.Mock(...)`/`MagicMock(...)`, or
     # `with mock.patch(...) as X:` -- both spellings measured in the same
     # walk that found the guard below is needed.
