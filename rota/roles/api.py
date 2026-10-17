@@ -7686,8 +7686,29 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     and getattr(f.value, "id", None) == "pytest")
         return False
     checks_by_raise = any(_raises_a_check(n) for n in _ast.walk(tree))
+    # Frame 273, night 152: `assert hasattr(cmd, 'x') or True` cannot fail.
+    # The batch merged a parameter with none of its behaviour. Only a
+    # truthy constant inside an `or` counts. Frame 147 found this door
+    # refuses too much already, so the shape stays narrow.
+    def _vacuous(test) -> bool:
+        if isinstance(test, _ast.Constant):
+            return True
+        return (isinstance(test, _ast.BoolOp) and isinstance(test.op, _ast.Or)
+                and any(isinstance(v, _ast.Constant) and v.value
+                        for v in test.values))
     if (asserts and not checks_by_raise
-            and all(isinstance(a.test, _ast.Constant) for a in asserts)):
+            and all(_vacuous(a.test) for a in asserts)):
+        or_true = next((a for a in asserts if isinstance(a.test, _ast.BoolOp)),
+                       None)
+        if or_true is not None:
+            line = _ast.get_source_segment(body, or_true) or _ast.unparse(or_true)
+            raise Wall(
+                f"every assertion here is true whatever it checks. In "
+                f"`{line}`, the `or True` makes the assertion true whatever "
+                f"the left side says. So the test cannot fail, and it checks "
+                f"nothing. Remove the `or True` and assert the behaviour the "
+                f"criterion names. If the criterion names no behaviour a call "
+                f"could exercise, use tests.triage verdict='cannot'")
         # Walk ten: `assert True` under "unit tests must validate the
         # script's behaviour" -- a criterion that is not a behaviour, met
         # with a test that is not a check. The honest verdict was `cannot`.

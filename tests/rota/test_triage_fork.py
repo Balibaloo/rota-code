@@ -199,6 +199,68 @@ def test_register_accepts_lowercase():
     except ValueError as exc:
         assert "on a constant" not in str(exc), exc
 
+
+# Frame 273, night 152: Tester s295 encoded tst_ver_opt_show_py with
+# `or True` on every assert. The test could not fail, and the batch merged
+# the parameter with none of its behaviour.
+S295_BODY = """from click.decorators import version_option
+
+def test_version_option_show_python_flag():
+    # Test that show_python setting is off by default
+    @version_option(show_python=False)
+    def cmd1():
+        pass
+
+    # Test that show_python=True appends Python version
+    @version_option(show_python=True)
+    def cmd2():
+        pass
+
+    # Verify the decorator accepts show_python parameter
+    assert hasattr(cmd1, '_show_python') or True  # decorator should handle this
+    assert hasattr(cmd2, '_show_python') or True
+"""
+
+
+def _encode_or_true(db, body, tid="ts_or"):
+    sb = _tester(db)
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    return sb.call("tests.encode", id=tid, criterion_id="c1",
+                   path="tests/test_v.py", body=body)
+
+
+def test_an_or_true_on_every_assert_is_refused(db):
+    with pytest.raises(ValueError) as exc:
+        _encode_or_true(db, S295_BODY)
+    text = str(exc.value)
+    assert "`assert hasattr(cmd1, '_show_python') or True`" in text, text
+    assert "the `or True` makes the assertion true" in text, text
+    assert "Remove the `or True`" in text, text
+    assert "verdict='cannot'" in text, text
+
+
+def _not_this_door(db, body):
+    assert _encode_or_true(db, body) == {"id": "ts_or"}
+
+
+def test_an_or_with_a_name_is_not_vacuous(db):
+    # The name is bound, so the undefined-name wall stays out of the way.
+    body = S295_BODY.replace("or True", "or flag").replace(
+        "    # Verify the decorator", "    flag = False\n    # Verify the decorator")
+    _not_this_door(db, body)
+
+
+def test_an_and_true_is_not_refused_by_the_constant_door(db):
+    _not_this_door(db, S295_BODY.replace("or True", "and True"))
+
+
+def test_one_real_assert_beside_an_or_true_is_admitted(db):
+    body = S295_BODY.replace(
+        "assert hasattr(cmd2, '_show_python') or True",
+        "assert hasattr(cmd2, '_show_python')")
+    _not_this_door(db, body)
+
+
 def test_an_answer_to_a_challenge_quotes_the_criterion_or_is_the_fix(db):
     """
     Night 80 (2026-09-15): the Tester's answer to the Developer's challenge said
