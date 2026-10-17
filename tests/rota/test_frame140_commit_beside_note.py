@@ -663,13 +663,48 @@ def test_a_line_of_two_tokens_is_never_kept_by_the_subset_rule():
     assert entry["lines"] == [["f", "return x", 1]]
 
 
-def test_a_note_that_shows_no_stored_line_closes_on_the_path_alone(db, tmp_path):
-    """Pass 4b: the seat saw no line to quote, so the path is enough."""
-    sb, _root = _developer(db, tmp_path)
-    api._put_note(sb.ctx, M, {"note": "This write drops 4 lines after it.",
-                              "lines": [["f", "value = compute(1)", 1]],
-                              "defs": [], "whole": [], "noted": ""})
-    api._close_logged_notes(sb.ctx, "other.py: nothing is meant")
-    assert M in api._open_notes(sb.ctx)
+def test_a_tail_note_shows_its_first_stored_line_and_closes_on_it(db, tmp_path):
+    """Review 4, finding 2: the refusal text always shows a stored line. The
+    path alone closes nothing, and the shown line closes the note."""
+    sb, _root = _module_repo(db, tmp_path, [M_BASE, M_BASE + "# c1\n"])
+    out = sb.call("code.write", path=M, start=2, end=4, text="    return 1\n")
+    entry = api._open_notes(sb.ctx)[M]
+    shown = api._shown_lines(entry)
+    assert shown and f"`{shown[0]}`" in out["dropped"]
     api._close_logged_notes(sb.ctx, f"{M}: the tail removal is meant")
+    assert M in api._open_notes(sb.ctx)
+    api._close_logged_notes(sb.ctx, f"{M}: the removal of `{shown[0]}` is meant")
     assert api._open_notes(sb.ctx) == {}
+
+
+def test_an_unchanged_line_does_not_hide_a_dropped_line():
+    """Review 4, finding 1: click's lines 506 to 560 without `if version is
+    None:`. The kept line `if version is None and package_name is not
+    None:` is an old line, so it is no changed line, and the note opens."""
+    old = DECORATORS.splitlines()
+    i = old.index("        if version is None:")
+    text = "\n".join(old[505:i] + old[i + 1:560]) + "\n"
+    entry = {"lines": [["version_option.callback", "if version is None:", 1]],
+             "defs": [], "whole": []}
+    assert api._changed_kept(entry, text, DECORATORS) is True
+    assert len(entry["lines"]) == 1
+
+
+def test_a_repeated_word_does_not_meet_the_token_floor():
+    """Review 4, finding 1: `x = int(x)` has two distinct tokens."""
+    entry = {"lines": [["f", "x = int(x)", 1]], "defs": [], "whole": []}
+    assert api._changed_kept(entry, "def f(x):\n    return int(x)\n") is True
+
+
+def test_s192s_widened_tuple_through_code_write_commits_in_the_reply(db, tmp_path):
+    """Review 4, finding 4: s192's shape end to end. The changed line is no
+    dropped line, so no note opens, and the commit in the reply lands."""
+    base = ("def run():\n    try:\n        go()\n"
+            "    except (KeyboardInterrupt, EOFError):\n        stop()\n")
+    sb, root = _module_repo(db, tmp_path, [base, base + "# c1\n"])
+    sb.call("code.write", path=M, start=1, end=5, text=(
+        "    try:\n        go()\n"
+        "    except (KeyboardInterrupt, EOFError, RuntimeError):\n        stop()\n"))
+    assert "RuntimeError" in (root / M).read_text(encoding="utf-8")
+    assert api._open_notes(sb.ctx) == {}
+    assert sb.call("code.commit", message="widen the except")["committed"] is True
