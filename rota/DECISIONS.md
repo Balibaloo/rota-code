@@ -1482,3 +1482,31 @@ the fix?". The reading he took, with two refinements and one step further:
 Frame 142 carries the design. Its first design, three new words with four
 doors, was reviewed and found broken in three places before any code
 (observed: `plans/stack.md`, frame 142, the status lines of 2026-10-08).
+
+### A write is permitted on any file, and an unexpected change goes to the Architect (2026-10-17)
+
+Roman, 2026-10-17 at about 16:50, in the terminal, after the build session
+asked whether a Developer may restore a definition its own batch broke:
+"File writes were always permitted everywhere, just that if there were
+unexpected changes then the architect is required to sign off. I thought we
+already discussed this, did you look into this?" (ruled: Roman, in his
+words; the question was wrong to send, see frame 114 on the stack).
+
+Law 12 already holds the rule: the expected touch set "is a prediction,
+never a permission. Nothing rejects a diff for straying outside it." The
+touch route of cf067ce4 (2026-09-13) lands the commit, records each path
+outside the prediction as a stray, and the Architect judges it foreseen or
+a mistake. Two doors built later contradict it, each a permission check
+that refuses a write because no criterion names it: the unnamed-definition
+door of 04325814 (2026-09-14) and the fence's criteria clause of e8e1a207
+(2026-09-10) (observed: `plans/frame114-history-read.md`, sections 1 to 3,
+2026-10-17). The consequence: a door that refuses a write for the want of a
+criterion is a wall to fix, not a rule. The fence's refusal of a dangerous
+reach the file did not make before, the network, a process, a removal, a
+path outside the project, stays as the trust backstop of `AUDIT.md`
+(reasoned: a fact gates, and the reach is a fact of the text; Roman's words
+rule on the want of a criterion, not on the reach). The fixes are frame
+220, the fence's baseline is the batch's base commit, and frame 286, the
+unnamed-definition door records a definition-level stray for the Architect
+instead of refusing.
+
