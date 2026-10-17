@@ -74,6 +74,9 @@ with frame 140, and counts frames 277 and 278 at their second night and
 274 and 273 at their third. The question sent with this order at 16:41, frame 114's, dissolved at 2026-10-17 16:53
 on this session's read of law 12 and the stray route; no row waits on Roman.
 
+0. Frame 287, the meta workflow investigated and reviewed: about 4
+   cycles, pushed 2026-10-17 17:38 on Roman's words; its grill runs first, and its
+   changes gate how every later frame is placed.
 1. Frame 283 with frame 140, the commit after an `unchanged` rewrite: 2
    cycles. It broke b4 and cost walk 3's 137 steps and 10 asks. The next
    night's wall.
@@ -895,6 +898,15 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
 - Sprint: sprint 12, row 3, after frame 220 (reasoned: the same loop and the same file; the ruling of 2026-10-17).
 - Pointer: `plans/frame114-history-read.md`, sections 2, 4 and 8; `rota/DECISIONS.md`, "A write is permitted on any file" (2026-10-17); `rota/LAWS.md` law 12.
 - Status 2026-10-17 17:04 (rota-7d): pushed from frame 114's history read. Cause 8 by `plans/wall-guide.md` section 4. Meta workflow.
+
+### 287. The meta workflow investigated and reviewed: it finds, files, places and escalates walls by their sign and never reads the law behind a door (2026-10-17) (Roman)
+
+- **Site: the first section of `CLAUDE.md`, `plans/wall-guide.md`, the hand-off procedure, the frame shape of `plans/stack.md`, and the memory directory. Meta workflow.** On 2026-10-17 frame 114's question went to Roman for the fourth time while frame 220 held its cause five rows down the same stack, and law 12 answered it in one sentence; the session that asked had never read `rota/LAWS.md`, because the hand-off read list does not name it; the wall guide places by an open frame's sign before it asks which law decides; the escalation rule reads the stack and the archive and not the law; two doors built from nights contradict law 12 and no review read the law they touch (observed: this session, frames 114, 220 and 286, `plans/frame114-history-read.md`, 2026-10-17). Roman, 2026-10-17 about 17:35: "this is a serious flaw with the meta workflow", then "I think we need an investigation and review pass over the meta workflow" (ruled: Roman, in his words).
+- Ends when: first, the grill quantises the scope, one question at a time with a recommended answer; second, an investigation on Opus, read-only, reads the brief and the guide rule by rule and asks of each what failure it was written from, whether that failure recurred, and what it stopped the session from seeing, with the stack's archive since 2026-10-01, the night reads and every question that went to Roman as the evidence, each question classified answered by the records, dissolved on a read, or open; third, a design review of the brief changes the investigation implies, then Roman's ruling on each, and the session writes the ruled changes into the brief and the guide.
+- Waits on: the grill. The first question, scope, went to Roman in the terminal at 2026-10-17 17:38: the whole method, recommended, or the path a wall travels. Priced about 4 cycles, 200k for the investigation and 100k for the design review (reasoned: a read of about 60 rules and 160 frames, by the anchors of 2026-10-11).
+- Sprint: sprint 12, row 0, before row 1's night, because its changes gate how every later frame is placed (reasoned: the ruling above).
+- Pointer: `plans/frame114-history-read.md`; the status lines of frame 114 and this session's turns of 2026-10-17 16:41 to 17:40.
+- Status 2026-10-17 17:38 (rota-7d): pushed on Roman's words. The first grill question stands in the terminal. The session that holds it next takes it from the hand-off; this session is past 300k and takes no new frame. The recommended first changes, from the session's own read: a `Law:` line on every frame beside `Site:`, the guide's first question "which law or brief decides this?", `rota/LAWS.md` on the hand-off read list, and an escalation that carries its law line or does not go. Meta workflow.
 
 ### 253. A quarantine's tick key reaches the principal by the state page and the quarantined wake (2026-10-15)
 
