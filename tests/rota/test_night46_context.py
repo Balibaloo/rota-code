@@ -507,10 +507,11 @@ def test_a_challenge_hint_never_names_a_test_with_no_criterion(db):
     assert "project's own" in text and "code.diff" in text, text
 
 
-def test_a_write_may_not_change_a_definition_no_criterion_names(tmp_path):
+def test_a_write_that_changes_a_definition_no_criterion_names_lands_with_a_note(tmp_path):
     """Click nights 47 and 48 (2026-09-14): asked for echo_json next to echo,
     the Developer's span write replaced echo with a simplified copy; 19 of
-    click's own tests failed; nine fix rounds called it unrelated."""
+    click's own tests failed; nine fix rounds called it unrelated. Frame 286:
+    law 12 permits the write, and the commit records it for the Architect."""
     proj = tmp_path / "proj"; (proj / "src" / "click").mkdir(parents=True)
     original = "import sys\n\n\ndef echo(message, nl=True):\n    sys.stdout.write(str(message) + (chr(10) if nl else ''))\n    sys.stdout.flush()\n"
     (proj / "src" / "click" / "utils.py").write_text(original)
@@ -529,13 +530,99 @@ def test_a_write_may_not_change_a_definition_no_criterion_names(tmp_path):
     sb = build("developer", db, batch_id="b1", mode="batch_start",
                allow=prompts.mode_tools("developer", "batch_start"))
     simplified = 'import sys\n\n\ndef echo(message):\n    print(message)\n\n\ndef echo_json(obj, indent=2):\n    import json\n    print(json.dumps(obj, indent=indent))\n'
-    with pytest.raises(ValueError, match=r"changes echo, and no criterion of this batch names it") as exc:
-        sb.call("code.write", path="src/click/utils.py", text=simplified)
-    assert "start=6, end=6" in str(exc.value), str(exc.value)
+    out = sb.call("code.write", path="src/click/utils.py", text=simplified)
+    assert out["bytes"], "the write lands"
+    note = out["not named"]
+    assert "changes echo, and no criterion of the batch names it" in note, note
+    assert "Architect's judgement" in note and "start=6, end=6" in note, note
+    assert (wt / "src" / "click" / "utils.py").read_text() == simplified
     added = original + '\n\ndef echo_json(obj, indent=2):\n    import json\n    print(json.dumps(obj, indent=indent))\n'
     assert sb.call("code.write", path="src/click/utils.py", text=added)["bytes"]
     # After a bad write landed elsewhere, the restoring write passes: echo back to the project's own, echo_json kept.
     assert sb.call("code.write", path="src/click/utils.py", text=added)["bytes"], "restoring the project's own echo passes"
+
+
+_ECHO = "import sys\n\n\ndef echo(message, nl=True):\n    sys.stdout.write(str(message))\n"
+_ECHO_JSON = "\n\ndef echo_json(obj):\n    print(obj)\n"
+
+
+def _unnamed_batch(tmp_path):
+    """A project repository, a batch worktree forked from it, a prediction
+    of utils.py and one criterion that names echo_json only."""
+    import subprocess
+
+    def git(where, *args):
+        subprocess.run(["git", "-C", str(where), "-c", "user.name=t",
+                        "-c", "user.email=t@t", *args], check=True, capture_output=True)
+    proj = tmp_path / "proj"; (proj / "src" / "click").mkdir(parents=True)
+    git(proj, "init", "-q")
+    (proj / "src" / "click" / "utils.py").write_text(_ECHO)
+    git(proj, "add", "-A")
+    git(proj, "commit", "-q", "-m", "base")
+    wt = tmp_path / "wt"
+    git(proj, "worktree", "add", "-q", "-b", "batch/b1", str(wt))
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES "
+               "('i1','Add echo_json next to echo','in_scope','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','add echo_json')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES "
+               "('c1','tk1','echo_json prints an object','[\"src/click/utils.py::echo_json\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) VALUES ('b1','src/click/utils.py','path')")
+    db.commit()
+    return proj, wt, db, git
+
+
+def test_the_commit_records_an_unnamed_definition_as_a_stray_the_architect_judges(tmp_path):
+    """Frame 286: utils.py was predicted, so the path-grain detector saw
+    nothing. The changed echo is a stray at definition grain, and the
+    Architect's judgement on that grain closes it."""
+    _proj, _wt, db, _git = _unnamed_batch(tmp_path)
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    changed = "import sys\n\n\ndef echo(message):\n    print(message)\n" + _ECHO_JSON
+    assert "not named" in sb.call("code.write", path="src/click/utils.py", text=changed)
+    out = sb.call("code.commit", message="echo_json beside echo")
+    assert out["committed"], out
+    assert out["definitions outside the criteria"] == ["src/click/utils.py::echo"], out
+    assert "outside_prediction" not in out, "the file itself was predicted"
+    rows = [w[2] for w in sb.ctx.writes if w[0] == "touch_strays"]
+    assert [(r["path"], r["status"]) for r in rows] == [("src/click/utils.py::echo", "open")]
+    sha = out["head_commit"]
+    db.execute("UPDATE batches SET head_commit = ? WHERE id = 'b1'", (sha,))
+    db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status) VALUES "
+               "('b1', ?, 'src/click/utils.py::echo', 'open')", (sha,))
+    db.commit()
+    arch = build("architect", db, mode="touch_strayed",
+                 allow=prompts.mode_tools("architect", "touch_strayed"))
+    judged = arch.call("batches.judge_touch", batch_id="b1",
+                       foreseen=["src/click/utils.py::echo"], reason="echo needed the flag")
+    assert judged["foreseen"] == ["src/click/utils.py::echo"] and "ignored" not in judged
+    status = {w[2]["path"]: w[2]["status"] for w in arch.ctx.writes if w[0] == "touch_strays"}
+    assert status == {"src/click/utils.py::echo": "foreseen"}
+    touch = [w[2] for w in arch.ctx.writes if w[0] == "batch_touch"]
+    assert [(t["grain"], t["grain_kind"]) for t in touch] == [("src/click/utils.py::echo", "symbol")]
+
+
+def test_a_write_that_restores_the_base_definition_lands_with_no_note_and_no_stray(tmp_path):
+    """Night 154's s130: the door read the project root's working file, not
+    the batch's base, so a restore of the base's own definition read as a
+    change. The base is the fork, read as frame 220 reads it."""
+    proj, wt, db, git = _unnamed_batch(tmp_path)
+    # The batch's first commit changed echo. The root's working file moved too.
+    (wt / "src" / "click" / "utils.py").write_text("import sys\n\n\ndef echo(message):\n    print(message)\n")
+    git(wt, "commit", "-q", "-am", "batch 1")
+    (proj / "src" / "click" / "utils.py").write_text("import sys\n\n\ndef echo(m):\n    return m\n")
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.write", path="src/click/utils.py", text=_ECHO + _ECHO_JSON)
+    assert out["bytes"] and "not named" not in out, out
+    committed = sb.call("code.commit", message="echo back, echo_json beside it")
+    assert committed["committed"], committed
+    assert "definitions outside the criteria" not in committed, committed
+    assert [w for w in sb.ctx.writes if w[0] == "touch_strays"] == []
 
 
 def test_the_diff_names_the_definitions_the_batch_changed_unasked(tmp_path):
@@ -858,9 +945,10 @@ def test_the_word_stdin_in_a_comment_does_not_stand_the_input_door_down(db, tmp_
         _encode(sb, "from click.termui import confirm\nfrom unittest.mock import patch\n\ndef test_x():\n    # when stdin is closed, confirm returns the default\n    with patch('builtins.input', side_effect=EOFError()):\n        assert confirm('ok?', default=True) is True")
 
 
-def test_a_private_helper_no_criterion_names_keeps_its_source(tmp_path):
+def test_a_private_helper_no_criterion_names_is_noted(tmp_path):
     """Click night 55 (2026-09-14): `_format_default` rewritten whole while
-    adding a flag to confirm(); three of click's prompt tests broke."""
+    adding a flag to confirm(); three of click's prompt tests broke. Frame
+    286: the write lands, and the note names the private helper too."""
     proj = tmp_path / "proj"; (proj / "src").mkdir(parents=True)
     original = 'def _format_default(d):\n    return d\n\n\ndef confirm(text, default=None):\n    return _format_default(default)\n'
     (proj / "src" / "termui.py").write_text(original)
@@ -877,8 +965,8 @@ def test_a_private_helper_no_criterion_names_keeps_its_source(tmp_path):
     sb = build("developer", db, batch_id="b1", mode="batch_start",
                allow=prompts.mode_tools("developer", "batch_start"))
     rewritten = "def _format_default(d):\n    return 'yes' if d else 'no'\n\n\ndef confirm(text, default=None, default_on_eof=False):\n    return _format_default(default)\n"
-    with pytest.raises(ValueError, match="changes _format_default, and no criterion"):
-        sb.call("code.write", path="src/termui.py", text=rewritten)
+    out = sb.call("code.write", path="src/termui.py", text=rewritten)
+    assert "changes _format_default, and no criterion" in out["not named"], out
 
 
 def test_a_challenge_may_not_name_the_projects_own_test(db):

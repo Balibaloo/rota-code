@@ -7,6 +7,9 @@ added with `code.write(path=<the file>, text='')`, which deletes it; then
 `code.commit`. The next commit is a new head and the judgement stays on the
 old one.
 
+For a mistaken definition, `path::name`, write the base's source of that
+definition back with `code.write`, and keep the rest of the file.
+
 If the criteria need that file, the judgement is wrong, and that is a question
 for the Architect: `msg.escalate_architect` with the batch and the path, and
 say which criterion needs it. Do not both keep the file and stay silent.

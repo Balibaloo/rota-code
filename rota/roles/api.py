@@ -14115,6 +14115,8 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     # The offers below name this write with other numbers. The span doors
     # rebind `path` to a list of nodes, so the file's path is kept here.
     wpath = path
+    # Frame 286: the door below records, and the result carries this note.
+    unnamed_note = None
 
     def _send(said: str, **numbers) -> str:
         return _offer(ctx, said, "code.write",
@@ -15384,10 +15386,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     f"them, keeping the rest. A line for the top of the "
                     f"file, an import, is start=0, end=0: that span inserts "
                     f"before the first line and drops nothing")
-            # A definition the criteria do not name keeps its source. Click
-            # nights 47 and 48 (2026-09-14): `echo` replaced by a simplified
-            # copy while adding `echo_json`; 19 project tests red; nine fix
-            # rounds called it unrelated.
+            # A definition the criteria do not name is a fact for the
+            # Architect, not a refusal. Click nights 47 and 48 (2026-09-14)
+            # changed `echo` while adding `echo_json`. Law 12 and Roman's
+            # ruling of 2026-10-17 permit every write, and the Architect
+            # signs off on an unexpected change (frame 286).
             old_text = target.read_text(encoding="utf-8", errors="replace")
             changed = _changed_unnamed_defs(ctx, path, old_text, text)
             if changed:
@@ -15403,13 +15406,16 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 # the file when f is not a top-level definition.
                 _fact(ctx, "span", (after, after), path=wpath,
                       end_of=changed[0] if changed[0] in spans else None)
-                raise ValueError(
+                one = len(changed) == 1
+                unnamed_note = (
                     f"this write changes {', '.join(changed)}, and no criterion of "
-                    f"this batch names {'it' if len(changed) == 1 else 'them'}: the "
-                    f"criteria name {', '.join(named)}. The project's own tests call "
-                    f"{changed[0]} as it is. Leave it: write only your new definition "
-                    f"with start={after}, end={after}, which inserts after {changed[0]}. "
-                    f"A change to {changed[0]} needs a criterion that names it")
+                    f"the batch names {'it' if one else 'them'}: the criteria name "
+                    f"{', '.join(named)}. The write landed. The commit records "
+                    f"{'it' if one else 'them'} for the Architect's judgement. If "
+                    f"the change is a mistake, take it out now: that costs least. "
+                    f"To add a definition and keep {changed[0]}, write only the new "
+                    f"definition with start={after}, end={after}, which inserts "
+                    f"after {changed[0]}")
     # A module-level import of the file's own package is a cycle when the
     # package imports this file. Click night 51 (2026-09-14): `from click
     # import command` at the top of utils.py, which click/__init__.py
@@ -15587,6 +15593,8 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     # (2026-09-14, finding 68): the Developer implemented confirm() at
     # turn 9, spent fifteen turns on a test file, and the cap ended the
     # session with the edit in the worktree and nothing committed.
+    if unnamed_note:
+        out["not named"] = unnamed_note
     out["written, not committed"] = _uncommitted(ctx, root)
     out["lands with"] = "code.commit"
     if missing and stem not in missing:
@@ -15961,6 +15969,22 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     # same path.
     strays = _outside_prediction(ctx, ctx.batch_id, touched)
     out = {"committed": True, "head_commit": sha, "touched": touched}
+    # The same detector at definition grain: a predicted file whose change
+    # reaches a definition no criterion names (frame 286, law 12).
+    def_strays = _unnamed_def_strays(ctx, tree, touched, strays)
+    for grain in def_strays:
+        ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{grain}", {
+            "batch_id": ctx.batch_id, "commit_sha": sha, "path": grain,
+            "status": "open"}))
+    if def_strays:
+        out["definitions outside the criteria"] = def_strays
+        out["definitions note"] = (
+            f"{', '.join(def_strays[:6])}{' and more' if len(def_strays) > 6 else ''}: "
+            f"no criterion of the batch names "
+            f"{'this definition' if len(def_strays) == 1 else 'these definitions'}. "
+            f"The commit stands. The Architect is asked whether the change was "
+            f"foreseen or a mistake before the batch merges; if you know it was "
+            f"a mistake, put the base's source back and commit")
     if strays:
         for path in strays:
             ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{path}", {
@@ -16193,12 +16217,18 @@ def _base_text(ctx, root, path: str) -> str | None:
         return None
     # git show reads a path relative to the repository. An absolute path
     # gave "" and refused the restore again (frame 220, review 1, finding 4).
+    import os as _os
     rel = str(path).replace("\\", "/")
     if _P(rel).is_absolute():
+        # resolve() can raise OSError, so it sits in the try (frame 220's lows).
         try:
             rel = _P(rel).resolve().relative_to(_P(root).resolve()).as_posix()
-        except ValueError:
+        except (ValueError, OSError):
             return None
+    # A `..` part names another file in git's spec, so the path folds first.
+    rel = _os.path.normpath(rel).replace("\\", "/")
+    if rel.startswith("../") or rel == "..":
+        return None
 
     def git(*args):
         return _sp.run([*_wt.GIT, "-C", str(root), *args], capture_output=True)
@@ -16208,8 +16238,10 @@ def _base_text(ctx, root, path: str) -> str | None:
         fork = _batch_base(ctx, root)
         if git("rev-parse", "--verify", f"{fork}^{{commit}}").returncode != 0:
             return None
-        shown = git("show", f"{fork}:{rel}")
-    except Exception:
+        # `git show` on a bad spec prints a log as the file text. `cat-file
+        # blob` gives the blob or fails (frame 220's lows).
+        shown = git("cat-file", "blob", f"{fork}:{rel}")
+    except (OSError, sqlite3.Error, _wt.WorktreeError):
         return None
     # A path the base lacks is a file the batch created.
     return (shown.stdout.decode("utf-8", "replace").replace("\r\n", "\n")
@@ -16342,6 +16374,43 @@ def _outside_prediction(ctx: Ctx, batch_id: str, touched: list[str]) -> list[str
             if p not in judged and not _is_test_path(p)]
 
 
+def _unnamed_def_strays(ctx: Ctx, tree, touched: list[str],
+                        path_strays: list[str]) -> list[str]:
+    """`path::name` for each definition the batch changed against its base
+    that no criterion names, less the grains already judged. A path that is
+    a stray whole is judged once, so its definitions are not listed."""
+    from pathlib import Path as _P
+    if tree is None or not _predicted_touch(ctx, ctx.batch_id):
+        return []        # detector two's rule: no prediction, no stray
+    judged = {r["path"] for r in ctx.conn.execute(
+        "SELECT path FROM touch_strays WHERE batch_id = ? AND status != 'open'",
+        (ctx.batch_id,))}
+    out: list[str] = []
+    for path in touched:
+        rel = path.replace("\\", "/")
+        if (not rel.endswith(".py") or rel in path_strays or rel in judged
+                or _is_test_path(rel)):
+            continue
+        try:
+            new = (_P(tree) / rel).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue        # a deleted file has no definition to judge
+        old = _base_text(ctx, tree, rel)
+        if old is None:
+            try:
+                root = ctx.conn.execute(
+                    "SELECT value FROM config WHERE key = 'project_root'").fetchone()
+                f = _P(root[0]) / rel if root and root[0] else None
+                old = f.read_text(encoding="utf-8", errors="replace") if f and f.is_file() else ""
+            except (OSError, sqlite3.Error):
+                old = ""
+        for name in _changed_unnamed_defs(ctx, rel, old, new):
+            grain = f"{rel}::{name}"
+            if grain not in judged:
+                out.append(grain)
+    return out
+
+
 @op("batches", "judge_touch")
 def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = None,
                         mistakes: list[str] | None = None, reason: str = "") -> dict:
@@ -16372,12 +16441,19 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
     # exact match dropped it three times, and the batch went to
     # quarantine. A symbol judges the stray path it lives in.
     # `_grain_path` also drops a leading `./` or `/` (frame 228's review).
-    def _grain(p: str) -> str:
-        return p if p in open_rows else _grain_path(p)
+    # Frame 286: a stray can be a definition, `path::name`. A bare path
+    # judges its definition rows too, so the Architect judges a file once.
+    def _covers(p: str) -> list[str]:
+        if p in open_rows:
+            return [p]
+        g = _grain_path(p)
+        if "::" in p:
+            return [g] if g in open_rows else []
+        return [r for r in open_rows if r == g or r.startswith(g + "::")]
 
-    unknown = [p for p in foreseen + mistakes if _grain(p) not in open_rows]
-    foreseen = list(dict.fromkeys(_grain(p) for p in foreseen if _grain(p) in open_rows))
-    mistakes = list(dict.fromkeys(_grain(p) for p in mistakes if _grain(p) in open_rows))
+    unknown = [p for p in foreseen + mistakes if not _covers(p)]
+    foreseen = list(dict.fromkeys(r for p in foreseen for r in _covers(p)))
+    mistakes = list(dict.fromkeys(r for p in mistakes for r in _covers(p)))
     both = sorted(set(foreseen) & set(mistakes))
     if both:
         raise ValueError(f"{', '.join(both)} cannot be both foreseen and a mistake")
@@ -16393,7 +16469,8 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
             f"unjudged. Every open stray is foreseen or a mistake; say which")
     for path in foreseen:
         ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
-            "batch_id": batch_id, "grain": path, "grain_kind": "path",
+            "batch_id": batch_id, "grain": path,
+            "grain_kind": "symbol" if "::" in path else "path",
             "confidence": "expected"}))
         ctx.writes.append(("touch_strays", f"{batch_id}:{head}:{path}", {
             "batch_id": batch_id, "commit_sha": head, "path": path,
@@ -16850,7 +16927,14 @@ def _changed_unnamed_defs(ctx: Ctx, path: str, old_text: str, new_text: str) -> 
     after = _def_sources(new_text)
     base: dict[str, list[str]] = {}
     try:
-        root = ctx.conn.execute(
+        # The batch's base, read as frame 220 reads it. The project root is
+        # the working checkout, so a restore read as a change (night 154's
+        # s130). The root file stays the fallback when git cannot tell.
+        held = (_base_text(ctx, _batch_worktree(ctx), path)
+                if getattr(ctx, "batch_id", None) else None)
+        if held is not None:
+            base = _def_sources(held)
+        root = None if held is not None else ctx.conn.execute(
             "SELECT value FROM config WHERE key = 'project_root'").fetchone()
         if root and root[0]:
             base_file = _Path(root[0]) / path

@@ -4929,6 +4929,28 @@ def test_the_base_text_reads_an_absolute_path_as_the_repository_path(db, tmp_pat
                allow=prompts.mode_tools("developer", "batch_start"))
     assert api._base_text(sb.ctx, root, str(root / "decorators.py")) == _RESTORE
     assert api._base_text(sb.ctx, root, "decorators.py") == _RESTORE
+    # Frame 220's lows: a `..` part folds before git reads the spec.
+    assert api._base_text(sb.ctx, root, "sub/../decorators.py") == _RESTORE
+    assert api._base_text(sb.ctx, root, "../decorators.py") is None
+
+
+def test_the_base_held_reads_an_absolute_path_as_the_repository_path(db, tmp_path):
+    """Frame 220's lows: `_base_held` keeps the base's dropped line when the
+    path comes absolute."""
+    from rota.roles import api
+    root = tmp_path / "wt"
+    _fence_repo(root)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    line = "return importlib.metadata.version('click')"
+    entry = {"lines": [["version", line, 1], ["version", "gone = 1", 1]],
+             "defs": ["version", "nowhere"], "whole": ["version"]}
+    assert api._base_held(sb.ctx, root, str(root / "decorators.py"), entry)
+    assert entry["lines"] == [["version", line, 1]], entry
+    assert entry["defs"] == ["version"], entry
 
 
 def test_a_seventh_criterion_on_one_ticket_is_refused(db):

@@ -18,4 +18,7 @@ One call: `batches.judge_touch(batch_id, foreseen=[...], mistakes=[...],
 reason="...")`, every path in one list or the other. The reason is one
 sentence a person can read at review.
 
+A stray can be a definition, written `path::name`, when your prediction named
+the file and no criterion names the definition. Judge it the same way.
+
 The prediction never blocked the commit. Only your silence holds the merge.
