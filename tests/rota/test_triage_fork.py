@@ -357,6 +357,66 @@ def test_an_or_that_reads_the_call_is_admitted(db, line):
     _not_this_door(db, body)
 
 
+# Review 1 of frame 277: the shapes it probed and found untested. Each name
+# is bound, so the undefined-name wall stays out of the way.
+_S256_LINE = "assert \"Python\" in result.output or sys.version_info[0] == 3"
+_BINDINGS = ("    x = result.exit_code\n    a = result.exception\n"
+             "    b = result.return_value\n    out = result.output\n"
+             "    err = result.stderr_bytes\n    path = result.output\n"
+             "    ok = result.exit_code == 0\n")
+
+
+def _s256_with(line, binds=_BINDINGS, imports=None):
+    body = S256_BODY.replace("    # Assert\n", binds + "    # Assert\n")
+    if imports is not None:
+        body = body.replace("import sys\n", imports)
+    return body.replace(_S256_LINE, line)
+
+
+@pytest.mark.parametrize("line,binds,imports", [
+    ("assert x == 1 or x == 2", _BINDINGS, None),
+    ("assert a is None or b is None", _BINDINGS, None),
+    ("assert out or not err", _BINDINGS, None),
+    (_S256_LINE, _BINDINGS + "    sys = result\n", None),
+    ("assert \"Python\" in result.output or version_info[0] == 3", _BINDINGS,
+     "from sys import version_info\n"),
+    ("assert ok or platform.python_version()", _BINDINGS,
+     "import sys\nfrom click import utils as platform\n"),
+    ("assert len(sys.argv) or ok", _BINDINGS, None),
+    ("assert \"Python\" in result.output or sys.version in open(\"out.log\").read()",
+     _BINDINGS, None),
+])
+def test_an_or_the_review_probed_is_admitted(db, line, binds, imports):
+    _not_this_door(db, _s256_with(line, binds, imports))
+
+
+def test_a_false_interpreter_operand_is_admitted(db):
+    # The operand is false on the host that runs the tests, so the
+    # assertion reads `path` alone and can fail.
+    import sys
+    _not_this_door(db, _s256_with(
+        f"assert sys.platform != {sys.platform!r} or path.endswith(\"/\")"))
+
+
+def test_a_true_interpreter_operand_is_refused(db):
+    import sys
+    line = f"assert sys.platform == {sys.platform!r} or path.endswith(\"/\")"
+    text = _refusal(db, _s256_with(line))
+    assert f"`{line}`" in text, text
+    assert f"`sys.platform == {sys.platform!r}` reads only" in text, text
+
+
+def test_an_interpreter_operand_that_raises_is_admitted(db):
+    _not_this_door(db, _s256_with(
+        "assert sys.version_info[9] == 3 or path.endswith(\"/\")"))
+
+
+def test_the_operand_is_quoted_as_the_seat_wrote_it(db):
+    # `ast.unparse` would turn the double quotes into single quotes.
+    text = _refusal(db, _s256_with("assert \"a\" in out or \"a\" not in out"))
+    assert "`\"a\" in out` and `\"a\" not in out` are opposites" in text, text
+
+
 def test_an_answer_to_a_challenge_quotes_the_criterion_or_is_the_fix(db):
     """
     Night 80 (2026-09-15): the Tester's answer to the Developer's challenge said

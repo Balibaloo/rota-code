@@ -7736,29 +7736,59 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # of `sys.stdout` or `sys.argv` can carry the call's effect.
     _interp_sys = {"version_info", "version", "hexversion", "platform",
                    "implementation", "maxsize", "byteorder", "api_version"}
+    # The `platform` functions that read the host and run no command.
+    # `platform.os` would reach the whole `os` module, and `uname()` and
+    # `platform()` can start a subprocess on some hosts, so a door never
+    # calls them.
+    _interp_platform = {"system", "python_version", "python_version_tuple",
+                        "python_implementation", "machine", "release",
+                        "version", "architecture"}
     _bound = {n.id for n in _ast.walk(tree)
               if isinstance(n, _ast.Name) and not isinstance(n.ctx, _ast.Load)}
     _bound |= {n.arg for n in _ast.walk(tree) if isinstance(n, _ast.arg)}
     _bound |= {n.name for n in _ast.walk(tree)
                if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
                                  _ast.ClassDef))}
+    # Review 1 of frame 277, finding 3: an import can bind `sys` or
+    # `platform` to another module. Only `import sys` and `import
+    # platform` keep the name on the interpreter.
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.Import, _ast.ImportFrom)):
+            for al in n.names:
+                name = al.asname or al.name.split(".")[0]
+                if not (isinstance(n, _ast.Import) and al.asname is None
+                        and al.name in ("sys", "platform")):
+                    _bound.add(name)
 
     def _reads_interpreter_alone(v) -> bool:
         names = [n for n in _ast.walk(v) if isinstance(n, _ast.Name)]
-        if not any(n.id in ("sys", "platform") for n in names):
+        if not names or any(n.id not in ("sys", "platform") or n.id in _bound
+                            or not isinstance(n.ctx, _ast.Load)
+                            for n in names):
+            return False
+        attrs = [p for p in _ast.walk(v) if isinstance(p, _ast.Attribute)]
+        if any(p.attr.startswith("_") for p in attrs):
             return False
         # `id` is the test id parameter here, so the check uses identity.
-        fixed_sys = [p.value for p in _ast.walk(v)
-                     if isinstance(p, _ast.Attribute) and p.attr in _interp_sys]
-        for n in names:
-            if n.id in _bound or not isinstance(n.ctx, _ast.Load):
-                return False
-            if n.id == "sys":
-                if not any(s is n for s in fixed_sys):
-                    return False
-            elif n.id != "platform" and not hasattr(_builtins, n.id):
-                return False
-        return True
+        fixed = [p.value for p in attrs
+                 if isinstance(p.value, _ast.Name)
+                 and p.attr in (_interp_sys if p.value.id == "sys"
+                                else _interp_platform)]
+        if not all(any(f is n for f in fixed) for n in names):
+            return False
+        # Review 1 of frame 277, finding 1: a refusal must be certain, so
+        # the operand fires only when its value is true. The harness runs
+        # the tests in a venv made from this interpreter on this host
+        # (`rota/core/provision.py`), so the value here is the value the
+        # test sees. An operand that raises is admitted.
+        import platform as _platform
+        import sys as _sys
+        try:
+            return bool(eval(compile(_ast.Expression(v), "<operand>", "eval"),
+                             {"__builtins__": {}, "sys": _sys,
+                              "platform": _platform}))
+        except Exception:
+            return False
 
     _opposite = {(_ast.Is, _ast.IsNot), (_ast.IsNot, _ast.Is),
                  (_ast.Eq, _ast.NotEq), (_ast.NotEq, _ast.Eq),
@@ -7778,16 +7808,20 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     def _cannot_fail_because(test) -> str | None:
         if not (isinstance(test, _ast.BoolOp) and isinstance(test.op, _ast.Or)):
             return None
+        # The seat's own text, so it finds the operand in its body.
+        def _src(node) -> str:
+            return _ast.get_source_segment(body, node) or _ast.unparse(node)
+
         for v in test.values:
             if _reads_interpreter_alone(v):
-                return (f"the operand `{_ast.unparse(v)}` reads only the "
+                return (f"the operand `{_src(v)}` reads only the "
                         f"Python interpreter, so its value is the same "
                         f"whatever the call did")
         vs = test.values
         for i, a in enumerate(vs):
             for b in vs[i + 1:]:
                 if _complementary(a, b):
-                    return (f"`{_ast.unparse(a)}` and `{_ast.unparse(b)}` "
+                    return (f"`{_src(a)}` and `{_src(b)}` "
                             f"are opposites, so one of them is true whatever "
                             f"the call did")
         return None
