@@ -730,7 +730,7 @@ a different question and the night is then opened once.
 - Pointer: `plans/night153-read.md`, sections 2, 9a and 10, W3.
 - Status 2026-10-17 04:31 (rota-68): pushed from night 153's read as candidate N2. Cause 8 by `plans/wall-guide.md` section 4. Meta workflow.
 
-### 278. The Architect's finding that a test does not encode its criterion reaches the Developer only, and the same-refs door sends the Developer to the code (2026-10-17)
+### 278. The Architect's finding that a test does not encode its criterion reaches the Developer only, and the same-refs door sends the Developer to the code (2026-10-17) (b0dce033)
 
 - **Site: the answer route of `msg.answer_developer` from the Architect, and the same-refs door's step text in `rota/roles/api.py`; ask the map tool first.** Rota workflow. On night 153 the Architect s277 wrote `dec_1_tst_ver_opt_show_py`, "The test tst_ver_opt_show_py does not encode its criterion", and its answer m144 went to the Developer; no Tester woke on it; the same-refs door then told three Developers, s283, s285 and s286, "Make one real change to the code the test calls", for a fault that sat in the test (observed: `plans/night153-read.md`, sections 8, 9a and 10, W10, 2026-10-17). Cause 10 by the guide, the mode lacks the route the act needs (reasoned: the read, section 10, W10).
 - Ends when: first, a read of the route against the records: which seat the Architect's decision about a test can reach today, and whether a route from the Architect to the Tester is new; second, the escalation to Roman with a recommended answer if the route is new, because who talks to whom is the composition's, or the cheap fix if a route exists; third, on a night, Developer sessions sent to the code after an Architect finding on the test, from 3 toward 0 of the next 3.
@@ -739,7 +739,10 @@ a different question and the night is then opened once.
 - Pointer: `plans/night153-read.md`, sections 8, 9a and 10, W10.
 - Status 2026-10-17 04:31 (rota-68): pushed from night 153's read as candidate N3. Cause 10 by `plans/wall-guide.md` section 4, after the read. Meta workflow.
 
-### 279. The criteria drop "compact" from the item, and the Developer removes the compact separators to fit the test (2026-10-17)
+### 279. Th
+- Status 2026-10-17 04:39 (rota-68): **claimed, beside frame 223's pass 1, because a read shares no site. The read runs on Opus, cap 60k, from `f278/read_brief.md` in this session's scratchpad, to `plans/frame278-route-read.md`**: the route an Architect's finding about a test can take today, the records for a prior ruling on the Architect talking to the Tester, the count over nights 140 to 153, and the recommended answer or the design question in plain words. Cycles: 1 of 1 priced for the read. Meta workflow.
+
+e criteria drop "compact" from the item, and the Developer removes the compact separators to fit the test (2026-10-17)
 
 - **Site: the Terminologist's `criteria.specify` and the Tester's body; the first hop that differs from his words is the criteria.** Rota workflow. On night 153 the item `echo_json` says "compact JSON", he said at m39 "Make sure it prints only the compact JSON and one newline", no criterion says compact, the Tester's test expected spaced output, and e510a1d removed `separators=(",", ":")` "to match test expectation of spaced JSON output"; bg_1 merged so, 1 of 3 merges (observed: `plans/night153-read.md`, sections 2, 9a and 10, W11, 2026-10-17). Cause 1 by the guide, his words change on a hop, and frame 257's lost texts do not hold "compact" either (reasoned: the read, section 10, W11).
 - Ends when: first, an interview of the Terminologist in its context, `probes/frame37/interview_turn.py --seq`, on the specify turn that dropped "compact", before any brief shape; second, the fix the interview names, with the specify turn as the red test; third, on a night, merges that leave out a thing his words asked for, from 1 of 2 toward 0 of the next 3, beside frame 243's ratio.
