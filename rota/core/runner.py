@@ -3017,6 +3017,34 @@ def _call_tag(call: Any, n_calls: int) -> str:
 _THREAD_ANSWER_CHARS = 600
 
 
+def _decisions_in(conn: sqlite3.Connection, raw_refs, raw_asked) -> list[dict]:
+    """The `decisions` rows that an answer's refs add to the question's refs,
+    each rendered as `_resolve_refs` renders a decision. The text is cut at
+    the answer's cap."""
+    def _strs(raw) -> list:
+        try:
+            got = json.loads(raw or "[]")
+        except (TypeError, ValueError):
+            return []
+        return [r for r in got if isinstance(r, str)] if isinstance(got, list) else []
+
+    asked = set(_strs(raw_asked))
+    out = []
+    for ref in dict.fromkeys(r for r in _strs(raw_refs) if r not in asked):
+        hit = conn.execute("SELECT id, author, text FROM decisions WHERE id = ?",
+                           (ref,)).fetchone()
+        if not hit:
+            continue
+        row = {**dict(hit), "table": "decisions"}
+        text = row["text"] or ""
+        if len(text) > _THREAD_ANSWER_CHARS:
+            row["text"] = text[:_THREAD_ANSWER_CHARS] + chr(10) + cut_note(
+                f"the decision {ref}", len(text) - _THREAD_ANSWER_CHARS,
+                len(text), "characters", "Act on what is shown.")
+        out.append(row)
+    return out
+
+
 def _thread_on_tests(sb: sandbox_mod.Sandbox, tests: list[dict]) -> list[dict]:
     """The challenges and escalations whose refs hold a red test, each with
     its latest answer: the words, "answered with no words", "closed
@@ -3028,7 +3056,9 @@ def _thread_on_tests(sb: sandbox_mod.Sandbox, tests: list[dict]) -> list[dict]:
         # json_each raise for every test, and the key never appeared.
         found = sb.ctx.conn.execute(
             "SELECT m.id, m.verb, m.to_role, m.status, a.id AS answer_id, "
-            "a.body_text AS answer_text FROM messages m "
+            "a.body_text AS answer_text, a.body_refs AS answer_refs, "
+            "m.body_refs AS asked_refs "
+            "FROM messages m "
             "JOIN json_each(CASE WHEN json_valid(m.body_refs) "
             "  THEN m.body_refs ELSE '[]' END) j ON j.value = ? "
             "LEFT JOIN messages a ON a.id = ("
@@ -3053,7 +3083,15 @@ def _thread_on_tests(sb: sandbox_mod.Sandbox, tests: list[dict]) -> list[dict]:
             elif m["answer_id"] is None:
                 answer = "not answered yet"
             elif not text:
-                answer = "answered with no words"
+                # Frame 278, night 153: m144 answered m143 with the decision
+                # dec_1_tst_ver_opt_show_py and no words. Three later wakes
+                # read "answered with no words" and never saw the decision.
+                # Only a row that the answer adds counts. An answer echoes
+                # the asker's refs, and those hold the asker's own reason row.
+                rows = _decisions_in(sb.ctx.conn, m["answer_refs"],
+                                     m["asked_refs"])
+                answer = (rows[0] if len(rows) == 1 else rows) if rows \
+                    else "answered with no words"
             elif len(text) > _THREAD_ANSWER_CHARS:
                 answer = text[:_THREAD_ANSWER_CHARS] + chr(10) + cut_note(
                     f"the answer {m['answer_id']}", len(text) - _THREAD_ANSWER_CHARS,
@@ -3372,10 +3410,27 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 # A thread where every entry waits adds no key, so the
                 # recorded prompts keep their bytes.
                 if any(t["answer"] != "not answered yet" for t in thread):
-                    shown["after these"] = (
-                        "A listed message that is answered or closed is refused "
-                        "if sent again on these refs. Make one real change to "
-                        "the code the test calls, or end the session with no call.")
+                    # Frame 278, night 153: the step named the code, and the
+                    # Architect's decision said that the test was at fault.
+                    # The same key as the refusal: the table, the author and
+                    # the test ref.
+                    found = sandbox_mod.architect_decision_on(
+                        sb.ctx.conn, sb.ctx.role, [t.get("id") for t in own])
+                    if found:
+                        call, args = sandbox_mod.decision_challenge_call(
+                            found, sb.ctx.role)
+                        shown["after these"] = api._offer(
+                            sb.ctx,
+                            "A listed message that is answered or closed is "
+                            "refused if sent again on these refs. The "
+                            f"Architect's decision {found[0]} is about the "
+                            f"test {found[1]}. Send {call}.",
+                            "msg.challenge_tester", args)
+                    else:
+                        shown["after these"] = (
+                            "A listed message that is answered or closed is refused "
+                            "if sent again on these refs. Make one real change to "
+                            "the code the test calls, or end the session with no call.")
             if own:
                 shown["the batch's tests, not passing"] = own
             if project:

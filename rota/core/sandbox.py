@@ -1649,7 +1649,12 @@ def _code_step(ctx: api.Ctx) -> str:
     # `code.commit` refuse, so a step toward the code contradicts them.
     if _sent_this_session(ctx, "tester", "challenge"):
         return END_STEP
-    return "Make one real change to the code the test calls."
+    return CODE_STEP
+
+
+#: The step toward the code. Frame 278: `_escalation_or_step` reads it by
+#: value, to offer the Architect's decision in its place.
+CODE_STEP = "Make one real change to the code the test calls."
 
 
 #: How many challenges of the Developer may land on one body of a criterion's
@@ -2093,6 +2098,62 @@ def _carries_decision(conn: sqlite3.Connection, refs, cause: str | None,
     return False
 
 
+def architect_decision_on(conn: sqlite3.Connection, role: str,
+                          tests) -> tuple | None:
+    """
+    The Architect's decision row on a red test, as the thread of `role`
+    holds it: `(decision id, test id, criterion id)`, or None.
+
+    The thread is the challenges and escalations of `role` that name the test,
+    and the answers to them. A decision counts when an answer names it, its
+    author is the Architect, and its refs name the test. Frame 278, night 153:
+    m144 named `dec_1_tst_ver_opt_show_py`, and the later wakes never saw it.
+    The key is the table, the author and the test ref, never the words.
+    """
+    import json as _json
+
+    def _ids(raw) -> list:
+        try:
+            got = _json.loads(raw or "[]")
+        except (TypeError, ValueError):
+            return []
+        return [r for r in got if isinstance(r, str)] if isinstance(got, list) else []
+
+    for test in [t for t in tests or [] if isinstance(t, str)]:
+        found = conn.execute(
+            "SELECT m.body_refs AS asked, a.body_refs AS answered FROM messages m "
+            "JOIN messages a ON a.cause_id = m.id AND a.verb = 'answer' "
+            "WHERE m.from_role = ? AND m.verb IN ('challenge', 'escalate') "
+            "ORDER BY a.seq DESC", (role,)).fetchall()
+        for row in found:
+            if test not in _ids(row["asked"]):
+                continue
+            for ref in _ids(row["answered"]):
+                hit = conn.execute(
+                    "SELECT refs FROM decisions WHERE id = ? AND author = "
+                    "'architect'", (ref,)).fetchone()
+                if hit and test in _ids(hit["refs"]):
+                    crit = conn.execute(
+                        "SELECT criterion_id FROM tests WHERE id = ?",
+                        (test,)).fetchone()
+                    return ref, test, crit["criterion_id"] if crit else None
+    return None
+
+
+def decision_challenge_call(found: tuple, role: str) -> tuple[str, dict]:
+    """The challenge that carries the Architect's decision to the Tester: the
+    call as a hint writes it, and its arguments. Roman ruled the route on
+    2026-10-11 06:30, so the cap does not count a decision ref."""
+    dec, test, crit = found
+    refs = [r for r in (crit, test, dec) if r]
+    args: dict = {"refs": refs}
+    slot = ""
+    if _takes_reason(role, "tester", "challenge"):
+        args["reason"] = api.INVENT
+        slot = ", " + REASON_SLOT
+    return f"msg.challenge_tester(refs={refs}{slot})", args
+
+
 def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     """
     The cap on the Developer's landed challenges on one criterion. Return the
@@ -2236,6 +2297,20 @@ def _escalation_or_step(ctx: api.Ctx, refs, fact: str, step: str) -> str:
             "msg.escalate_architect", {"refs": once})
     if step == END_STEP:
         return _Ending(fact + " " + step + " " + _end_form(ctx, once))
+    # Frame 278, night 153: s283 met the step toward the code, and the
+    # Architect had found the fault in the test. The decision's route is
+    # the challenge that carries it, so the step offers that challenge.
+    if step == CODE_STEP and ctx.role == "developer":
+        found = architect_decision_on(
+            ctx.conn, ctx.role,
+            [r for r in once if isinstance(r, str) and ctx.conn.execute(
+                "SELECT 1 FROM tests WHERE id = ?", (r,)).fetchone()])
+        if found:
+            call, args = decision_challenge_call(found, ctx.role)
+            return api._offer(
+                ctx, f"{fact} The Architect's decision {found[0]} is about "
+                f"the test {found[1]}. Send {call}.",
+                "msg.challenge_tester", args)
     return fact + " " + step
 
 
