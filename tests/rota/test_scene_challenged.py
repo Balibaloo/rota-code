@@ -79,8 +79,9 @@ def test_the_challenge_wake_pushes_the_signature_of_the_callable_that_raised(sce
     assert "[code.source " not in prompt("E   TypeError\n" + returns)
 
 
-def _challenge_prompt(scene, output: str) -> str:
-    """The Tester's challenge wake of the scene, with `output` as the run."""
+def _challenge_prompt(scene, output: str, whole: bool = False) -> str:
+    """The Tester's challenge wake of the scene, with `output` as the run.
+    With `whole`, the system text comes before the body."""
     from rota.core import runner
     from rota.core.sandbox import build
     from rota.core.scheduler import Wake
@@ -94,8 +95,9 @@ def _challenge_prompt(scene, output: str) -> str:
             row["last_run"] = {"result": "fail", "output_tail": output}
     sb = build("tester", scene.conn, batch_id="b1", mode="challenge",
                allow=prompts.mode_tools("tester", "challenge"))
-    return runner.build_prompt("tester", sb, wake, {}, "MODE: challenge",
-                               inbound)[1]
+    system, body = runner.build_prompt("tester", sb, wake, {}, "MODE: challenge",
+                                       inbound)
+    return f"{system}\n{body}" if whole else body
 
 
 def test_a_raise_in_a_method_pushes_the_methods_def_line(scene):
@@ -164,7 +166,12 @@ def test_a_tester_wake_pushes_the_source_of_the_criterions_surface(scene):
     block = pushed.split(key + "\n", 1)[1]
     assert "def prorate(amount_cents, days_used, days_in_period):" in block
     assert "    return " in block
+    assert "asserts what this surface returns" in block
     assert pushed.count("[surface ") == 1
     conn.execute("UPDATE criteria SET surface_refs = ?",
                  ('["src/billing/charges.py::no_such_name"]',))
-    assert "[surface " not in _challenge_prompt(scene, "E   AssertionError\n")
+    bare = _challenge_prompt(scene, "E   AssertionError\n", whole=True)
+    assert "[surface " not in bare
+    # Frame 143, read 1d: a wake with no surface carries no sentence about one.
+    assert "pushed source" not in bare
+    assert "this surface returns" not in bare

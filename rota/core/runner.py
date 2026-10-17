@@ -2816,8 +2816,13 @@ def _surface_lines(sb: sandbox_mod.Sandbox, path: str, name: str,
             body.append("    ...")
         body.append(rows[ln - 1])
         last = ln
+    # Pass 1e, frame 143 read 1d: the sentence sat in the Tester's base brief.
+    # It reached wakes with no surface and pulled them toward a test. So the
+    # sentence rides only on the block it names.
     return {"path": path, "start": start + func.lineno - 1,
-            "text": "\n".join(sig + body)}
+            "text": "\n".join(sig + body),
+            "note": ("A test that asserts a return value asserts what "
+                     "this surface returns.")}
 
 
 def _inside_nested(func: Any, node: Any, _ast: Any) -> bool:
