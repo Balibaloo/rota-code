@@ -142,15 +142,19 @@ def check_manifest(path: str, criteria: list[str]) -> None:
 
 
 def check(path: str, tree: ast.AST, criteria: list[str],
-          baseline: ast.AST | None = None) -> None:
+          baseline: ast.AST | list[ast.AST] | None = None) -> None:
     """Raise ValueError for the first reach no criterion names.
 
-    `baseline` is the file as it stood before the write. A reach the file
-    already made is the project's, not this change's: clickI night 38
-    (2026-09-13) refused every write to `utils.py` because click's own
-    line 547 calls `os.path.expanduser`, and the batch could never commit.
+    `baseline` holds the file as it stood before the write, and the file at
+    the batch's base commit. A reach that either one made is the project's,
+    not this change's. clickI night 38 (2026-09-13) refused every write to
+    `utils.py` because click's own line 547 calls `os.path.expanduser`.
+    Night 143 (frame 220) refused s524's restore of the base commit's
+    `import importlib.metadata`, because the working file had lost it.
+    Law 12: the touch set is a prediction, never a permission.
     """
-    had = {(k, w) for k, w, _ in reaches(baseline)} if baseline is not None else set()
+    trees = baseline if isinstance(baseline, list) else [baseline]
+    had = {(k, w) for t in trees if t is not None for k, w, _ in reaches(t)}
     for kind, what, line in reaches(tree):
         if (kind, what) in had:
             continue

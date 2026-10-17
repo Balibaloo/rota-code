@@ -4812,6 +4812,55 @@ def test_the_fence_judges_the_change_not_the_file_it_was_made_in(db, tmp_path):
                 text="\n\ndef run():\n    import subprocess\n    subprocess.run(['ls'])\n")
 
 
+def _fence_repo(root):
+    import subprocess
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(root), "-c", "user.name=t",
+                        "-c", "user.email=t@t", *args], check=True, capture_output=True)
+    root.mkdir()
+    git("init", "-q")
+    (root / "decorators.py").write_text(
+        "import importlib.metadata\n\n\ndef version():\n"
+        "    return importlib.metadata.version('click')\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "base")
+    # The batch's head lost the base's line, as s524's head had.
+    (root / "decorators.py").write_text("def version():\n    return '8'\n")
+    git("commit", "-q", "-am", "head")
+
+
+def test_s524s_restore_of_the_base_commits_reach_is_not_fenced(db, tmp_path):
+    """Night 143 (frame 220): s524 put back the base commit's line 513,
+    `import importlib.metadata`, and the fence refused it. The working file
+    had lost the line, so the baseline lacked the reach (law 12)."""
+    root = tmp_path / "wt"
+    _fence_repo(root)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.write", path="decorators.py",
+                  text="import importlib.metadata\n\n\ndef version():\n"
+                       "    return importlib.metadata.version('click')\n")
+    assert out["bytes"], "a reach the base commit made is the project's"
+
+
+def test_a_reach_neither_the_file_nor_the_base_made_is_still_fenced(db, tmp_path):
+    root = tmp_path / "wt"
+    _fence_repo(root)
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="reaches the process"):
+        sb.call("code.write", path="decorators.py",
+                text="import subprocess\n\n\ndef version():\n"
+                     "    return subprocess.run(['ls'])\n")
+
+
 def test_a_seventh_criterion_on_one_ticket_is_refused(db):
     """clickI night 38 (2026-09-13): twenty-four criteria on one ticket, then
     a signoff page of twenty-five lines. Six is many; the count is a fact."""

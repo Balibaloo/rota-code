@@ -14996,14 +14996,22 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # The fence: a reach outside the project is a fact about the file,
         # and the criteria are the only thing that can ask for one.
         from ..core import fence as _fence
-        # The file as it stood is the baseline: a reach it already made is
-        # the project's, not this change's (night 38, utils.py line 547).
-        _baseline = None
+        # The baseline is the file as it stood and the file at the batch's
+        # base commit. A reach either one made is the project's, not this
+        # change's (night 38, utils.py line 547). Night 143's s524 restored
+        # the base's line 513 and the fence refused it (frame 220, law 12).
+        _baseline = []
         if target.exists():
             try:
-                _baseline = _ast.parse(target.read_text(encoding="utf-8"))
+                _baseline.append(_ast.parse(target.read_text(encoding="utf-8")))
             except (SyntaxError, UnicodeDecodeError):
-                _baseline = None
+                pass
+        _base_src = _base_text(ctx, _root, wpath.replace("\\", "/"))
+        if _base_src:
+            try:
+                _baseline.append(_ast.parse(_base_src))
+            except SyntaxError:
+                pass
         _fence.check(path, tree, _criteria_texts(ctx), baseline=_baseline)
         # The tests are the Tester's. tipsR (2026-09-09): the Developer
         # rewrote tests/test_split_bill.py to import a module that does not
@@ -16175,27 +16183,35 @@ def _changed_kept(entry: dict, text: str, before: str = "") -> bool:
     return bool(entry["lines"] or entry["defs"])
 
 
-def _base_held(ctx, root, path: str, entry: dict) -> bool:
-    """Keep in `entry` only the dropped lines and definitions that the
-    batch's base commit holds in `path`. True when one is left. A base that
-    git cannot name keeps every line, because the door cannot tell."""
+def _base_text(ctx, root, path: str) -> str | None:
+    """The text of `path` at the batch's base commit. "" when the base
+    lacks the path. None when git cannot name the base or show the file."""
     import subprocess as _sp
     from ..core import worktrees as _wt
     if root is None:
-        return True
+        return None
     fork = _batch_base(ctx, root)
 
     def git(*args):
         return _sp.run([*_wt.GIT, "-C", str(root), *args], capture_output=True)
     try:
         if git("rev-parse", "--verify", f"{fork}^{{commit}}").returncode != 0:
-            return True
+            return None
         shown = git("show", f"{fork}:{path}")
     except OSError:
-        return True
+        return None
     # A path the base lacks is a file the batch created.
-    base = (shown.stdout.decode("utf-8", "replace").replace("\r\n", "\n")
+    return (shown.stdout.decode("utf-8", "replace").replace("\r\n", "\n")
             if shown.returncode == 0 else "")
+
+
+def _base_held(ctx, root, path: str, entry: dict) -> bool:
+    """Keep in `entry` only the dropped lines and definitions that the
+    batch's base commit holds in `path`. True when one is left. A base that
+    git cannot name keeps every line, because the door cannot tell."""
+    base = _base_text(ctx, root, path)
+    if base is None:
+        return True
     spans = _def_spans(base)
     # A base the door cannot parse keeps every line (review 3, finding 3).
     if spans is None and base.strip():
