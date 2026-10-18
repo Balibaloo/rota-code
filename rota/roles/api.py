@@ -9142,9 +9142,15 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     # version info" (frame 234, review 1, finding 2). It must name the
     # request or say what to build. Night 151's m46, "Please don't drop this
     # change.", is about the batch, and its line-1 contest cancelled bg_1
-    # (frame 258, pass 2).
+    # (frame 258, pass 2). On a page with a batch line, a sentence that names
+    # files or tests corrects the prediction, as the Liaison's brief says.
+    # Night 155's m62, m93 and m179 faulted the batch line and named the
+    # request's subject in such a sentence. Each line-1 contest cancelled a
+    # live batch (frame 258, pass 3).
     if any(s.strip() and not _LINE_REF.search(s)
            and not _BARE_AGREEMENT.fullmatch(s)
+           and not (batch_lines and _FILES_TALK.search(s))
+           and not _KEEP_CHANGE.search(s)
            and _names_request(s, request_texts) for s in sentences):
         return approve
     lines = f"line{'' if len(named) == 1 else 's'} {_line_set(named)}"
@@ -9154,6 +9160,12 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
 
 # The words of a batch's prediction: what the change touches.
 _TOUCH_WORDS = re.compile(r"\b(?:files?|tests?|touch(?:es|ed)?)\b", re.I)
+# The same words, or a file path: m179's "name src/click/utils.py".
+_FILES_TALK = re.compile(_TOUCH_WORDS.pattern + r"|\w\.py\b", re.I)
+# A sentence that asks to keep the change is about the batch: "Please don't
+# drop the JSON change." (frame 258, review 2, finding 2).
+_KEEP_CHANGE = re.compile(r"\b(?:don'?t|do not) (?:drop|give up)\b|"
+                          r"\bkeep going\b", re.I)
 
 # A sentence that opens with one of these verbs says what to build. Night
 # 143's m263: "Also, take the version from the running interpreter's
@@ -9167,7 +9179,11 @@ _BUILD_VERB = re.compile(
 _BATCH_TALK = frozenset({
     "change", "changes", "team", "work", "fix", "failing", "test", "tests",
     "keep", "going", "drop", "please", "want", "line", "lines", "page",
-    "rather", "again", "give", "review", "one", "like"})
+    "rather", "again", "give", "review", "one", "like",
+    # The stems that `_prose_words` keeps from "don't" and its kin. "don"
+    # matched a request text that says "don't" (frame 258, review 2,
+    # finding 3).
+    "don", "doesn", "isn", "won", "didn"})
 
 
 def _names_request(sentence: str, request_texts: tuple[str, ...]) -> bool:

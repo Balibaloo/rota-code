@@ -771,3 +771,72 @@ def test_a_range_ends_at_the_page_s_last_line():
 
     assert _line_reading("lines 2 and 3 to 2026 are wrong", 14) == (
         set(range(2, 15)), set())
+
+
+# Frame 258, pass 3: night 155's line-1 contests under a reply whose first
+# sentence names the batch line. Verbatim from `rulings` r_ecf6706174,
+# r_c797b602d8 and r_6c141a0f5c of `.rota/clickI_night155.db`. Each contest
+# cancelled a live batch (`plans/night155-read.md`, section 3).
+M62 = ("Line 3 is still wrong. echo_json is a new function next to echo, so "
+       "the work should only add it to utils.py and add new tests in the echo "
+       "test file. It shouldn't change echo itself, the pager, the testing "
+       "pause code or the pager tests. Line 2 is fine.")
+M93 = ("Line 5 is still wrong. It should only add echo_json next to echo in "
+       "utils.py and add new tests in the echo test file, and it should not "
+       "touch echo itself, the pager, the testing pause code or the pager "
+       "tests. Lines 2, 3 and 4 are fine.")
+M179 = ("On line 5, tests/test_utils.py is not a new file, because it already "
+        "exists and already holds the echo tests. The new tests go into that "
+        "existing file. The list should also name src/click/utils.py, because "
+        "the new function goes there next to echo.")
+ECHO_JSON_TESTS = ("echo_json_tests", "Put the new tests in the utils test "
+                   "file, where the existing echo tests already live, and "
+                   "leave every other test file alone.")
+
+
+@pytest.mark.parametrize("words, contested, size, batch, items, texts, line", [
+    # s158 on m61: line 1 echo_json, line 2 its criterion, line 3 bg_2.
+    (M62, {1, 3}, 3, {3}, {1, 2}, ECHO_JSON, 3),
+    # s193 on m92: line 1 echo_json, lines 2 to 4 criteria, line 5 bg_3.
+    (M93, {1, 5}, 5, {5}, {1, 2, 3, 4}, ECHO_JSON, 5),
+    # s283 on m178: line 1 echo_json_tests, lines 2 to 4 criteria, line 5
+    # bg_4, ruled revise by s283.
+    (M179, {1, 5}, 5, {5}, {1, 2, 3, 4}, ECHO_JSON_TESTS, 5),
+], ids=["m62", "m93", "m179"])
+def test_night155s_contest_of_the_request_line_is_refused(
+        words, contested, size, batch, items, texts, line):
+    out = _refusal(words, contested, size, frozenset(batch), frozenset(items),
+                   frozenset({1}), texts)
+    assert out == (f"The words fault line {line}. Line 1 is the request, and "
+                   f"they do not fault it. Rule line {line}, and approve the "
+                   f"rest.")
+
+
+QUIET = ("quiet_flag", "Add a quiet flag so the command doesn't print "
+         "anything, and don't write the log.")
+
+
+@pytest.mark.parametrize("sentence, texts", [
+    # A build verb opens a sentence about the batch (review 2, finding 1).
+    ("Please make sure the tests pass.", ECHO_JSON),
+    # The sentence names the request's subject and asks to keep the change
+    # (review 2, finding 2).
+    ("Please don't drop the JSON change.", ECHO_JSON),
+    # The token "don" from "don't" in the reply and the request text
+    # (review 2, finding 3).
+    ("Please don't stop now.", QUIET),
+], ids=["build_verb", "subject", "don"])
+def test_a_sentence_about_the_batch_does_not_let_line_1_be_contested(
+        sentence, texts):
+    # The m46 page: line 1 the request, line 2 its criterion, line 3 bg_1.
+    out = _refusal(f"{sentence} Line 2 is wrong.", {1, 2}, 3, frozenset({3}),
+                   frozenset({1, 2}), frozenset({1}), texts)
+    assert out == ("The words fault line 2. Line 1 is the request, and they "
+                   "do not fault it. Rule line 2, and approve the rest.")
+
+
+def test_a_correction_of_the_request_beside_a_batch_fault_lets_line_1_be_contested():
+    # The m263 shape on a page with a batch line: the sentence names no file.
+    words = ("Line 3 is wrong. Also, print the JSON with sorted keys.")
+    assert _refusal(words, {1, 3}, 3, frozenset({3}), frozenset({1, 2}),
+                    frozenset({1}), ECHO_JSON) is None
