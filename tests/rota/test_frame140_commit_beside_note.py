@@ -465,6 +465,24 @@ def test_a_second_session_on_the_worktree_sees_the_note(db, tmp_path):
     assert _git(root, "rev-parse", "HEAD") == head
 
 
+def test_s215s_ledger_that_names_the_path_in_about_ref_closes_the_note(db, tmp_path):
+    """Frame 283's residue, night 156's s215: the seat named the path in
+    `about_ref`, where the ledger's schema puts it, and a dropped line in
+    the sentence. The close read the sentence only, so five landed notes
+    closed nothing and the commit was refused to the session's end."""
+    sb, root = _developer(db, tmp_path)
+    # The night's index held the path, so `about_ref` resolved to it.
+    db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES "
+               "(?, 'path', 'file')", (PATH,))
+    db.commit()
+    _noted_then_refused(sb, root)
+    sb.call("ledger.log", about_ref=PATH, about_table="version_option callback",
+            kind="default",
+            assumption="removed echo(msg, color=ctx.color) and ctx.exit() from "
+                       "callback to avoid duplication since main handles exit")
+    assert sb.call("code.commit", message="the removal")["committed"] is True
+
+
 def test_a_ledger_note_that_names_no_dropped_statement_leaves_it_open(db, tmp_path):
     """Frame 283: a ledger note that names the path and none of the dropped
     statements does not close the note, so the commit is refused."""

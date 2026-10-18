@@ -10745,7 +10745,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     row = _stage_ledger(ctx, about_ref, about_table, assumption, word)
     # Every door has passed, so the note lands, and it can close a dropped
     # note (frame 283).
-    _close_logged_notes(ctx, assumption)
+    _close_logged_notes(ctx, assumption, about_ref)
     return {"id": row, **extra}
 
 
@@ -16872,17 +16872,22 @@ def _quote(line: str) -> str:
     return f"{fence}{pad}{line}{pad}{fence}"
 
 
-def _close_logged_notes(ctx: Ctx, assumption: str) -> None:
+def _close_logged_notes(ctx: Ctx, assumption: str, about_ref: str = "") -> None:
     """Close each open `dropped` note that a landed ledger note names: its
     path and one dropped line that the note's text shows, or the name of
     each definition the write dropped whole. Frame 283's ends-when: a meant removal is committed
     after a landed note (frame 204's note route; review 1, finding 4).
     One shown line is the seat's word for the whole removal, and the
-    Architect's judgement reads the landed note (review 4, finding 3, ruled)."""
+    Architect's judgement reads the landed note (review 4, finding 3, ruled).
+    The path counts where the sentence or `about_ref` names it. Night
+    156's s215 put the path in `about_ref`, where the ledger's schema puts
+    it, and five landed notes closed nothing (frame 283's residue)."""
     if not assumption or not getattr(ctx, "batch_id", None):
         return
     for p, e in _open_notes(ctx).items():
-        if p not in assumption and _grain_path(p) not in assumption:
+        named = (p == about_ref or _grain_path(p) == _grain_path(about_ref)
+                 or p in assumption or _grain_path(p) in assumption)
+        if not named:
             continue
         if e["lines"]:
             # One shown line closes the note (review 3, finding 2).
