@@ -1706,12 +1706,18 @@ _COVERS = re.compile(r"\b(?:covers?|checks?|(?:is|are|was|were)\s+about)\b")
 # do with this change" and no "no" word (review 4 of frame 298, finding 3).
 _NOTHING_TO_DO = re.compile(r"\bnothing\s+to\s+do\s+with\b")
 
+# A comma part that keeps what it names. m147's "Apart from version option
+# and the version tests in the basic tests file" keeps the basic tests
+# beside its "nothing to do with" (review 5 of frame 298, finding 1).
+_KEEP_LED = re.compile(
+    r"\s*(?:(?:and|so)\s+)?(?:please\s+)?(?:apart\s+from|except|keep|still\s+want)\b")
+
 # "the options and shell completion test files" names one test file per
 # list member. The window of three words misses a first member that stands
 # far from "test" (review 4 of frame 298, finding 3, m201 of night 156).
 _LIST_MEMBER = r"[a-z0-9_]+(?:\s+[a-z0-9_]+)?"
 _TEST_FILE_LIST = re.compile(
-    r"(" + _LIST_MEMBER + r"(?:\s*,\s*" + _LIST_MEMBER + r")*,?\s+and\s+"
+    r"(" + _LIST_MEMBER + r"(?:\s*,\s*" + _LIST_MEMBER + r")*,?\s+(?:and|or)\s+"
     + _LIST_MEMBER + r")\s+tests?\s+files\b")
 
 
@@ -1723,7 +1729,7 @@ def _listed(text: str) -> list[set[str]]:
     """
     out: list[set[str]] = []
     for match in _TEST_FILE_LIST.finditer(text):
-        for member in re.split(r",|\band\b", match.group(1)):
+        for member in re.split(r",|\b(?:and|or)\b", match.group(1)):
             words = [_word(w) for w in re.findall(r"[a-z0-9_]+", member)]
             if words:
                 out += [set(words[-2:]), {words[-1]}]
@@ -1752,7 +1758,9 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
     follows, so a file name keeps its dot, and at "but". A sentence names a
     path by the whole path, by its file name, or by every word of the file
     name less "test", with a trailing "s" removed. "Nothing to do with"
-    counts as a "no" word. A list "the A, B and C test files" names each
+    disputes the paths of its own clause: the comma parts before it, less
+    a part led by "apart from", "except", "keep" or "still want", and its
+    part up to the phrase. A list "the A, B and C test files" names each
     test file whose word parts are a member's last word or last two words,
     so "the options and shell completion test files" names
     `test_options.py` and `test_shell_completion.py`. A test file name of one
@@ -1811,8 +1819,26 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
         return bool(parts and parts <= set(tokens))
 
     def says_no(text: str) -> bool:
-        return bool(set(re.findall(r"[a-z']+", text)) & _DISPUTE_WORDS
-                    or _NOTHING_TO_DO.search(text))
+        return bool(set(re.findall(r"[a-z']+", text)) & _DISPUTE_WORDS)
+
+    def nothing_to_do(sentence: str) -> list[str]:
+        # The phrase disputes its own clause alone: the comma parts before
+        # it and its part up to the phrase. The words after it name what
+        # the item is about, and a part led by "keep" or "apart from" keeps
+        # its paths (review 5 of frame 298, finding 1, m147 and m193).
+        clause: list[str] = []
+        found: list[str] = []
+        for part in sentence.split(","):
+            if _KEEP_LED.match(part):
+                continue
+            m = _NOTHING_TO_DO.search(part)
+            if m is None:
+                clause.append(part)
+                continue
+            text = ",".join(clause + [part[:m.start()]])
+            found += [p for p in paths if named(text, p) and p not in found]
+            clause = []
+        return found
 
     no_led = re.compile(
         r"\s*(" + "|".join(map(re.escape, sorted(_DISPUTE_WORDS))) + r")\b")
@@ -1821,6 +1847,10 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
     for sentence in re.split(r"[.;:!?]+(?=\s|$)|\n+|\bbut\b", text):
         if _BEYOND.search(sentence):
             sentence = _NO_BEYOND.sub("", sentence)
+        for path in (nothing_to_do(sentence) if _NOTHING_TO_DO.search(sentence)
+                     else []):
+            if path not in out:
+                out.append(path)
         if not says_no(sentence):
             continue
         hits = [p for p in paths if named(sentence, p)]
