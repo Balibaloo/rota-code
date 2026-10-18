@@ -5248,7 +5248,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                     f"({other_text[:80]!r}). One criterion per thing that must "
                     f"be true; a second sentence for the same thing is a second "
                     f"test of one fact")
-    # law 7: every cap is a ruling, declared in config
+    # law 7: every cap is a ruling, declared in config; the door breaks this law, see frame287-door-laws.md, Contradicts
     # Three is usual and six is many (the criteria brief, ruled 2026-09-12).
     # clickI night 38 (2026-09-13): twenty-four criteria on one ticket
     # (datetime, unicode, a docstring, test coverage, "no upper limit on

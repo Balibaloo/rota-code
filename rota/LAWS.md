@@ -106,7 +106,7 @@ Per-table ownership is the strict form. The backlog is three tables:
 > whole" for free: there is no per-batch number for a recomposition to preserve.
 
 A batch's *runtime state* — running, deferred, merged — is not artefact content
-and has one writer that is not a role: `rota/lifecycle.py`. Nothing about it is
+and has one writer that is not a role: `rota/core/lifecycle.py`. Nothing about it is
 decided.
 
 ### 2. Conclusions travel; reasoning stays home

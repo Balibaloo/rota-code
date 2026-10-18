@@ -1654,7 +1654,7 @@ def _code_step(ctx: api.Ctx) -> str:
     `NotInWorkingSet`. A context that `build` did not make holds no working
     set, and it keeps the step toward the code.
 
-    law 7: every cap is a ruling, declared in config
+    law 7: every cap is a ruling, declared in config; the door breaks this law, see frame287-door-laws.md, Contradicts
     """
     working = getattr(ctx, "working_set", None)
     if working is not None and "code.write" not in working:
@@ -1671,7 +1671,7 @@ def _code_step(ctx: api.Ctx) -> str:
 CODE_STEP = "Make one real change to the code the test calls."
 
 
-# law 7: every cap is a ruling, declared in config
+# law 7: every cap is a ruling, declared in config; the door breaks this law, see frame287-door-laws.md, Contradicts
 #: How many challenges of the Developer may land on one body of a criterion's
 #: tests, counted across its tests' ids and across the other refs.
 #: A moved test deletes its own runs and lifts the batch's tick quarantine
@@ -2245,7 +2245,7 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     landed challenges on a criterion end the count, and the step is the
     escalation.
 
-    law 7: every cap is a ruling, declared in config
+    law 7: every cap is a ruling, declared in config; the door breaks this law, see frame287-door-laws.md, Contradicts
     """
     # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): the Architect's
     # decision row reaches the Tester through this challenge. The cap does
