@@ -9142,16 +9142,19 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     # version info" (frame 234, review 1, finding 2). It must name the
     # request or say what to build. Night 151's m46, "Please don't drop this
     # change.", is about the batch, and its line-1 contest cancelled bg_1
-    # (frame 258, pass 2). On a page with a batch line, a sentence that names
-    # files or tests corrects the prediction, as the Liaison's brief says.
-    # Night 155's m62, m93 and m179 faulted the batch line and named the
-    # request's subject in such a sentence. Each line-1 contest cancelled a
-    # live batch (frame 258, pass 3).
-    if any(s.strip() and not _LINE_REF.search(s)
-           and not _BARE_AGREEMENT.fullmatch(s)
-           and not (batch_lines and _FILES_TALK.search(s))
-           and not _KEEP_CHANGE.search(s)
-           and _names_request(s, request_texts) for s in sentences):
+    # (frame 258, pass 2). When the words fault a batch line, a sentence that
+    # names tests or a file path corrects the prediction, as the Liaison's
+    # brief says. Night 155's m62, m93 and m179 did so and named the
+    # request's subject. Each line-1 contest cancelled a live batch (frame
+    # 258, pass 3). A reply that asks to keep the change corrects no request
+    # in any sentence. Night 143's m359 said "don't drop this change", and
+    # its line-1 contest abandoned bg_6 (`plans/frame258-review-2.md`).
+    batch_faulted = bool(batch_lines & faulted)
+    if not _KEEP_CHANGE.search(words or "") and any(
+            s.strip() and not _LINE_REF.search(s)
+            and not _BARE_AGREEMENT.fullmatch(s)
+            and not (batch_faulted and _FILES_TALK.search(s))
+            and _names_request(s, request_texts) for s in sentences):
         return approve
     lines = f"line{'' if len(named) == 1 else 's'} {_line_set(named)}"
     return (f"The words fault {lines}. Line 1 is the request, and they do "
@@ -9160,12 +9163,16 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
 
 # The words of a batch's prediction: what the change touches.
 _TOUCH_WORDS = re.compile(r"\b(?:files?|tests?|touch(?:es|ed)?)\b", re.I)
-# The same words, or a file path: m179's "name src/click/utils.py".
-_FILES_TALK = re.compile(_TOUCH_WORDS.pattern + r"|\w\.py\b", re.I)
-# A sentence that asks to keep the change is about the batch: "Please don't
-# drop the JSON change." (frame 258, review 2, finding 2).
-_KEEP_CHANGE = re.compile(r"\b(?:don'?t|do not) (?:drop|give up)\b|"
-                          r"\bkeep going\b", re.I)
+# Tests or a file path: m179's "name src/click/utils.py". "file" and
+# "touch" stay out, because "write to a file" corrects the request (frame
+# 258, pass 3 review, finding 1).
+_FILES_TALK = re.compile(r"\btests?\b|\w\.py\b", re.I)
+# A reply that asks to keep the change: "Please don't drop the JSON change."
+# (frame 258, review 2, finding 2) and "Don't change the helper." (pass 3
+# review, finding 4). The apostrophe can be straight or curly.
+_KEEP_CHANGE = re.compile(
+    r"\b(?:don['’]?t|do not) (?:drop|give up|change)\b|\bkeep going\b",
+    re.I)
 
 # A sentence that opens with one of these verbs says what to build. Night
 # 143's m263: "Also, take the version from the running interpreter's
@@ -9190,9 +9197,10 @@ def _names_request(sentence: str, request_texts: tuple[str, ...]) -> bool:
     """Whether a sentence with no line number names the request.
 
     The sentence says what to build, or it shares a content word with an
-    id or the text of a request item. Over every night's records the m263
-    guard met 4 line-1 contests, and 3 were about the batch (frame 258,
-    pass 2, `f258/count2.py`).
+    id or the text of a request item. Over every night's records to night
+    155, 58 line-1 contests reached the line-1 refusal on a request page.
+    At frame 258's pass 3b the refusal fires on 10, and night 143's m263
+    still lands (`f258/count3.py`).
     """
     if _BUILD_VERB.match(sentence):
         return True

@@ -636,8 +636,12 @@ def test_m167s_contest_of_the_request_line_is_refused():
     assert out is not None and "Line 1 is the request" in out
 
 
-def test_a_sentence_that_names_the_request_spares_line_1():
-    # Night 143's m359 on m358: the last sentence names the request's words.
+def test_m359s_contest_of_the_request_line_is_refused():
+    """Night 143's m359 on m358 asks to keep the change, and line 5 takes
+    the fault. The line-1 contest abandoned bg_6, the change that he asked
+    to keep. Pass 2 asserted that the contest lands. Review 2 found that
+    wrong, and frame 258's pass 3 review agreed
+    (`plans/frame258-review-2.md`, point 6 and finding 2)."""
     words = ("Please keep going with a fix and don't drop this change. Line 5 "
              "is wrong because it still touches the Command class in core.py, "
              "and the flag belongs only to the version option in "
@@ -647,8 +651,10 @@ def test_a_sentence_that_names_the_request_spares_line_1():
                    "includes a `show_python` flag that, when set to True, "
                    "causes the command to display the running Python version "
                    "in the message.")
-    assert _refusal(words, {1}, 5, frozenset({5}), frozenset({1, 2, 3, 4}),
-                    frozenset({1}), show_python) is None
+    out = _refusal(words, {1}, 5, frozenset({5}), frozenset({1, 2, 3, 4}),
+                   frozenset({1}), show_python)
+    assert out == ("The words fault line 5. Line 1 is the request, and they "
+                   "do not fault it. Rule line 5, and approve the rest.")
 
 
 def test_m25s_words_with_a_batch_line_contested_are_still_refused():
@@ -816,27 +822,64 @@ QUIET = ("quiet_flag", "Add a quiet flag so the command doesn't print "
          "anything, and don't write the log.")
 
 
-@pytest.mark.parametrize("sentence, texts", [
+@pytest.mark.parametrize("sentence, texts, line", [
     # A build verb opens a sentence about the batch (review 2, finding 1).
-    ("Please make sure the tests pass.", ECHO_JSON),
+    # The files rule refuses it only when the words fault the batch line.
+    ("Please make sure the tests pass.", ECHO_JSON, 3),
     # The sentence names the request's subject and asks to keep the change
     # (review 2, finding 2).
-    ("Please don't drop the JSON change.", ECHO_JSON),
+    ("Please don't drop the JSON change.", ECHO_JSON, 2),
+    # The same with a curly apostrophe (pass 3 review, finding 3).
+    ("Please don’t drop the JSON change.", ECHO_JSON, 2),
+    # A reply that asks to keep the request (pass 3 review, finding 4).
+    ("Don't change the echo_json helper.", ECHO_JSON, 2),
     # The token "don" from "don't" in the reply and the request text
     # (review 2, finding 3).
-    ("Please don't stop now.", QUIET),
-], ids=["build_verb", "subject", "don"])
+    ("Please don't stop now.", QUIET, 2),
+], ids=["build_verb", "subject", "curly", "dont_change", "don"])
 def test_a_sentence_about_the_batch_does_not_let_line_1_be_contested(
-        sentence, texts):
+        sentence, texts, line):
     # The m46 page: line 1 the request, line 2 its criterion, line 3 bg_1.
-    out = _refusal(f"{sentence} Line 2 is wrong.", {1, 2}, 3, frozenset({3}),
-                   frozenset({1, 2}), frozenset({1}), texts)
-    assert out == ("The words fault line 2. Line 1 is the request, and they "
-                   "do not fault it. Rule line 2, and approve the rest.")
+    out = _refusal(f"{sentence} Line {line} is wrong.", {1, line}, 3,
+                   frozenset({3}), frozenset({1, 2}), frozenset({1}), texts)
+    assert out == (f"The words fault line {line}. Line 1 is the request, and "
+                   f"they do not fault it. Rule line {line}, and approve the "
+                   f"rest.")
 
 
-def test_a_correction_of_the_request_beside_a_batch_fault_lets_line_1_be_contested():
+def test_a_keep_sentence_anywhere_in_the_reply_refuses_line_1():
+    # The keep sentence comes first, and a later sentence names the request
+    # (pass 3 review, finding 2).
+    words = ("Please keep going. Line 2 is wrong. The echo_json helper "
+             "should print compact JSON.")
+    out = _refusal(words, {1, 2}, 3, frozenset({3}), frozenset({1, 2}),
+                   frozenset({1}), ECHO_JSON)
+    assert out is not None and "Line 1 is the request" in out
+
+
+@pytest.mark.parametrize("words", [
     # The m263 shape on a page with a batch line: the sentence names no file.
-    words = ("Line 3 is wrong. Also, print the JSON with sorted keys.")
-    assert _refusal(words, {1, 3}, 3, frozenset({3}), frozenset({1, 2}),
-                    frozenset({1}), ECHO_JSON) is None
+    "Line 3 is wrong. Also, print the JSON with sorted keys.",
+    # The four corrections of the pass 3 review, finding 1.
+    "Line 3 is wrong. Also, the echo_json helper must write to a file, not "
+    "stdout.",
+    "Line 2 is wrong. Also, the helper should take a file argument.",
+    pytest.param(
+        "Line 3 is wrong. Also, add tests for echo_json with sorted keys.",
+        marks=pytest.mark.xfail(strict=True, reason=(
+            "residue: the files rule swallows a sentence that names tests "
+            "when the batch line is faulted (pass 3 review, finding 1)"))),
+    pytest.param(
+        "Line 3 is wrong. The helper should go in utils.py and print JSON "
+        "with sorted keys.",
+        marks=pytest.mark.xfail(strict=True, reason=(
+            "residue: the files rule swallows a sentence that names a .py "
+            "path when the batch line is faulted (pass 3 review, finding "
+            "1)"))),
+], ids=["sorted_keys", "write_to_a_file", "file_argument", "add_tests",
+        "utils_py"])
+def test_a_correction_of_the_request_beside_a_fault_lets_line_1_be_contested(
+        words):
+    faulted = 2 if words.startswith("Line 2") else 3
+    assert _refusal(words, {1, faulted}, 3, frozenset({3}),
+                    frozenset({1, 2}), frozenset({1}), ECHO_JSON) is None
