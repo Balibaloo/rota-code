@@ -5,7 +5,7 @@ last of my context to answer, and I stop when you message the word
 released. Read `CLAUDE.md` first, then
 `python -m rota.tools.state --sid <your sid>`, then this, then the pointers
 the frames name. Written on 2026-10-18 from about 12:40, updated at the
-hand-off. Meta workflow.
+hand-off, 13:35. Meta workflow.
 
 ## What happened in this session, in rota's terms
 
@@ -60,19 +60,29 @@ ten commits; a fresh baseline at the next clean point.
 
 ## The held frames and what is live
 
-- Frame 298: the design review on Opus was live, then pass 1 from the
-  design's pass list. The night after pass 4 is the hand-off boundary.
-- Frame 143: review 2 at 89bcef6b and the gate at 89bcef6b were live.
-  Accept on their lines, then validating on the next night.
-- Frame 296: validating from the next night at 1dc02594.
+- Frame 298: passes 1 and 3 are committed, pass 1 at 7ec9b940 and pass 3
+  with pass 1's scene fix at 30c4a121. No agent is live. Your first cycle:
+  review 2 of 30c4a121 from a worktree, with the pass 3 report's four
+  deviations as points, and the gate from a second worktree with the
+  checkout's `.rota-gate.json` and `tests/rota/cassettes.db` copied in; the
+  gate at 7ec9b940 failed on the scenes alone, 184 reds, so read its
+  five lines against that. Then pass 2, the page, on a fresh implementer
+  from the design's section 2 as amended, because the pass 1 and 3
+  implementer stands at 280k. Then pass 4, then the full night from a
+  worktree, which is the next hand-off boundary. The implementer once ran
+  `git stash` in the shared checkout; write "no stash, a worktree for any
+  check against the parent" in every brief.
+- Frame 143: accepted, validating on the next night at 89bcef6b plus the
+  comma fix. Frame 296: validating at 1dc02594.
 - Frames 258, 283 with 140, 220, 286, 282, 290: validating, their counts
   from night 156 on their last status lines.
-- Frame 297: pushed, not started.
-- Worktrees `rota_r143` and `rota_g143` are mine; remove them when their
-  review and gate have reported.
-- Briefs and reports are under
+- Frames 297, 299, 300: pushed, not started. 297 is this sprint's row 3 and
+  shares `api.py` with 298; 299 and 300 are next sprint.
+- No worktree of mine remains. Briefs and reports are under
   `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/6977407c-6cda-4904-bd57-2ba520a13d06/scratchpad/`,
-  `f296_*`, `f143_*`, `f298_*` and `night156_read_brief.md`.
+  `f296_*`, `f143_*`, `f298_*`, `night156_read_brief.md`.
+- The gate's baseline is db0c781d of 05:29 and the tree has moved by about
+  twenty commits; store a fresh one at the next clean point.
 
 ## Roman's last words, with time
 
@@ -88,3 +98,8 @@ ten commits; a fresh baseline at the next clean point.
   investigating it yourself may make the answer obvious. Do you
   understand? Grill me."
 - About 12:28: "is the cockpit up?" It was not; nothing on port 8899.
+- About 12:50 to 13:10: the rulings table has no foreign keys to the rows
+  it rules on, the JSON columns, the benefits and the odds of normalising;
+  "ok", on which frame 300 was pushed.
+- 13:24: "you already have standbys, check before asking", after this
+  session asked for a window on a 50-minute-old count.
