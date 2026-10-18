@@ -1551,6 +1551,15 @@
       "s": "architect",
       "t": "batches",
       "type": "writes",
+      "v": "guess",
+      "n": "guessed touch set of one request item",
+      "rows": "single",
+      "label": "a guess before any batch, not a permission"
+    },
+    {
+      "s": "architect",
+      "t": "batches",
+      "type": "writes",
       "v": "judge_touch",
       "n": "foreseen or a mistake, per stray path",
       "rows": "batch",

@@ -898,8 +898,10 @@ def test_the_register_set_is_the_one_the_document_names():
     # the principal until presented), plus `park_ask` 2026-09-30 (frame 87: a
     # parked batch is owed one ask to the principal until it is written),
     # plus `request_shift` 2026-10-10 (frame 193: a new request is owed one
-    # shift question while an earlier request is open).
-    assert len(P.REGISTER_ENTRIES) == 29
+    # shift question while an earlier request is open), plus `guess`
+    # 2026-10-18 (frame 298's design, 4.1: a request item is owed the
+    # Architect's guess of its code at each item version).
+    assert len(P.REGISTER_ENTRIES) == 30
 
 
 def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):

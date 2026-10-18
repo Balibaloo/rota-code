@@ -162,8 +162,8 @@ passing it to Liaison spends a rung of the ladder and answers nobody.
 **Reaches** developer (answer), vision_keeper (challenge, propose), liaison
 (answer, report), researcher (question), terminologist (question).
 
-**Woken by** annotate, boundary, frame, grouping, structural_review,
-touch_strayed.
+**Woken by** annotate, boundary, frame, grouping, guess,
+structural_review, touch_strayed.
 
 ## developer
 

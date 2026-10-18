@@ -74,6 +74,9 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "area_hashes": ("content", "one aggregate of the index per area; stamped "
                                "by onboarding and by every refresh of main"),
     "batch_touch": ("content", "the predicted touch set, derived per batch"),
+    "touch_guesses": ("relation", "the (item, item version, ruling, grain) "
+                                  "tuple; a guess set is the rows of one "
+                                  "(item, item version, ruling)"),
     "touch_strays": ("content", "paths a commit touched outside the predicted touch set, per commit"),
     "drop_notes": ("content", "one open note per batch and path, written by code.write"),
 

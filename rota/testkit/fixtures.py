@@ -363,13 +363,14 @@ class Delta:
 
 # The key columns a junction table's writer joins with ":" into the receipt
 # label. Each entry copies the writer's f-string: `batches_group`,
-# `model_amend`, `surveys_attest`, `batches_annotate`, `code_commit`,
-# `batches_judge_touch` and `api.stage_ref`.
+# `model_amend`, `surveys_attest`, `batches_annotate`, `batches_guess`,
+# `code_commit`, `batches_judge_touch` and `api.stage_ref`.
 _JUNCTION_LABELS: dict[str, tuple[str, ...]] = {
     "batch_tickets": ("batch_id", "ticket_id"),
     "constraint_bindings": ("constraint_id", "grain"),
     "survey_citations": ("survey_id", "grain"),
     "batch_touch": ("batch_id", "grain"),
+    "touch_guesses": ("item_id", "item_ver", "ruling_id", "grain"),
     "touch_strays": ("batch_id", "commit_sha", "path"),
     "drop_notes": ("batch_id", "path"),
     "batch_dep_facts": ("before_batch", "after_batch"),

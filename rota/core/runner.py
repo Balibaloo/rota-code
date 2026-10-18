@@ -3488,6 +3488,13 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 "JOIN tickets t ON t.id = bt.ticket_id WHERE bt.batch_id = ?",
                 (wake.refs[0],)).fetchall()
             hint += " " + " ".join(r["text"] or "" for r in rows)
+        # The guess reads by the same lens, from the item's own words
+        # (frame 298's design, 3.4, point 6).
+        if wake is not None and wake.kind == "tick:guess" and wake.refs:
+            row = sb.ctx.conn.execute("SELECT text FROM items WHERE id = ?",
+                                      (wake.refs[0],)).fetchone()
+            if row:
+                hint += " " + (row["text"] or "")
         try:
             pushed["code.callables"] = sb.call("code.callables", hint=hint)
         except Exception:                                  # noqa: BLE001
@@ -3660,6 +3667,19 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 "AND REPLACE(grain, '\\', '/') LIKE 'tests/%' ORDER BY grain LIMIT 80")]
             if tests:
                 pushed["the index's test files"] = tests
+    # The guess names one request item, and its brief says a test path is one
+    # of the test files that exist (frame 298's design, 3.4, point 6).
+    if role == "architect" and wake is not None and wake.kind == "tick:guess" \
+            and wake.refs:
+        row = sb.ctx.conn.execute("SELECT id, text FROM items WHERE id = ?",
+                                  (wake.refs[0],)).fetchone()
+        if row:
+            pushed["item"] = {"id": row["id"], "text": row["text"]}
+        tests = [r["grain"] for r in sb.ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+            "AND REPLACE(grain, '\\', '/') LIKE 'tests/%' ORDER BY grain LIMIT 80")]
+        if tests:
+            pushed["the index's test files"] = tests
     probe = pushed.get("code.probe")
     if isinstance(probe, list) and probe and isinstance(probe[0], dict) and "note" in probe[0]:
         pushed.pop("code.probe")

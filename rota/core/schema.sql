@@ -328,6 +328,22 @@ CREATE TABLE IF NOT EXISTS batch_touch (
     PRIMARY KEY (batch_id, grain)
 );
 
+-- The Architect's guess of the code one request item touches, before any
+-- batch exists. P4 piece 2 in its judged form (ruled: Roman, 2026-10-18,
+-- "the architect owns the guess"). A prediction, never a permission (law 12).
+-- A correction writes a new set beside the old one, so the Architect's own
+-- guess stays countable.
+CREATE TABLE IF NOT EXISTS touch_guesses (
+    item_id     TEXT NOT NULL REFERENCES items(id),
+    item_ver    INTEGER NOT NULL,           -- the item's version at the write
+    ruling_id   TEXT NOT NULL DEFAULT '',   -- the ruling a rewrite rests on; '' for the Architect's own
+    grain       TEXT NOT NULL,
+    grain_kind  TEXT NOT NULL CHECK (grain_kind IN ('path','symbol')),
+    confidence  TEXT NOT NULL DEFAULT 'expected'
+                CHECK (confidence IN ('expected','possible')),
+    PRIMARY KEY (item_id, item_ver, ruling_id, grain)
+);
+
 -- The paths a commit touched that the batch's predicted touch set never
 -- named: detected divergence, one row per path per commit, written by
 -- `code.commit` in the committing session's own transaction. The Architect

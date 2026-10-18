@@ -61,7 +61,7 @@ TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
     "tickets":    ("tickets",),
     "criteria":   ("criteria",),
     "batches":    ("batches", "batch_tickets", "batch_dep_facts", "batch_touch",
-                   "touch_strays", "drop_notes"),
+                   "touch_guesses", "touch_strays", "drop_notes"),
     "tests":      ("tests",),
     "ledger":     ("ledger",),
     "decisions":  ("decisions",),
@@ -380,8 +380,8 @@ def version_of(conn: sqlite3.Connection, table: str) -> int:
 # row_id is a synthetic label used only to key the receipt.
 JUNCTION_TABLES = {
     "batch_tickets", "constraint_bindings", "survey_citations",
-    "batch_dep_facts", "schedule_deps", "batch_touch", "touch_strays", "refs",
-    "drop_notes",
+    "batch_dep_facts", "schedule_deps", "batch_touch", "touch_guesses",
+    "touch_strays", "refs", "drop_notes",
 }
 
 

@@ -306,6 +306,33 @@ def contested(conn) -> list[Wake]:
     return [Wake("vision_keeper", "tick:contested", refs=(r["id"],)) for r in rows]
 
 
+@predicate("guess", wakes="architect", band="gate")
+def guess(conn) -> list[Wake]:
+    """A request item with no guess of its code at its current version."""
+    # Frame 298's design, 4.1 (ruled: Roman, 2026-10-18, "the architect owns
+    # the guess"). Declared before `signoff`, so the gate band offers the
+    # guess first. A live batch with a prediction already shows the plan, and
+    # no index means no code yet (the `deliver` brief).
+    from ..roles.principal import _is_request_item
+    from .scheduler import not_parked
+
+    if not conn.execute("SELECT 1 FROM code_index WHERE grain_kind = 'path' "
+                        "LIMIT 1").fetchone():
+        return []
+    rows = conn.execute(
+        "SELECT i.id AS id FROM items i "
+        "WHERE i.approval IN ('draft', 'approved')"
+        + not_parked(conn, "i.id") +
+        "  AND NOT EXISTS (SELECT 1 FROM touch_guesses g "
+        "                  WHERE g.item_id = i.id AND g.item_ver = i.version)"
+        "  AND NOT EXISTS (SELECT 1 FROM batches b JOIN batch_touch t "
+        "                  ON t.batch_id = b.id WHERE b.item_id = i.id "
+        "                  AND b.status IN ('pending', 'deferred', 'running'))"
+        " ORDER BY i.id").fetchall()
+    item = next((r["id"] for r in rows if _is_request_item(conn, r["id"])), None)
+    return [Wake("architect", "tick:guess", refs=(item,))] if item else []
+
+
 @predicate("signoff", wakes="vision_keeper", band="gate",
            drains=[("items", "approval", "draft")])
 def signoff(conn) -> list[Wake]:
@@ -1961,6 +1988,9 @@ REGISTER_ENTRIES = frozenset({
     # earlier request is open, until it is written (frame 193's design,
     # 2.F.1, ruled 2026-10-10).
     "request_shift",
+    # A request item is owed the Architect's guess of its code at each item
+    # version, until it is written (frame 298's design, 4.1, ruled 2026-10-18).
+    "guess",
 })
 
 

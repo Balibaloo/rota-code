@@ -5956,28 +5956,18 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
     return {"id": id, "tickets": ticket_ids}
 
 
-@op("batches", "annotate")
-def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
-                     symbols: list[str] | None = None) -> dict:
-    """
-    What this batch is expected to touch.
+def _refuse_stray_dirs(conn: sqlite3.Connection, paths: list[str]) -> None:
+    """Refuse a predicted path under a directory the code index lacks.
 
-    Paths always; symbols only where you are confident, which is why they are a
-    separate argument rather than a flag on each grain — being asked to rate
-    your own confidence per item invites rating everything "high".
-
-    Nothing rejects a diff for straying outside this. It exists so that "was
-    this change incidental?" has an answer at review time rather than an
-    argument, and a prediction that could block work would quietly become a
-    permission system nobody designed.
-    """
+    `batches.annotate` and `batches.guess` share the check, so the two
+    predictions meet one rule (frame 298's design, 3.4, point 7)."""
     # A predicted path lives where the tree has paths. seat1 (2026-09-12):
     # the touch note put "src/split_bill.py" to the person at the seat on a
     # repository with no src/, and they had to say so. A new file beside
     # existing ones is a prediction; a directory the index has never seen
     # is a guess about the tree, and the index is the fact.
     known_dirs = {""}
-    for row in ctx.conn.execute(
+    for row in conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'path'"):
         parts = row["grain"].replace("\\", "/").split("/")
         for i in range(1, len(parts)):
@@ -5996,6 +5986,78 @@ def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
             f"directories here are {', '.join(top) or 'none: the modules sit at the root'}; "
             f"a new file goes beside the ones that exist, and the index says "
             f"where they are")
+
+
+@op("batches", "guess")
+def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
+                  symbols: list[str] | None = None) -> dict:
+    """
+    What one request item is expected to touch, before any batch exists.
+
+    Paths always; symbols only where you are confident. A guess, never a
+    permission: nothing rejects a diff for straying outside it (law 12).
+    """
+    # Frame 298's design, 1.2 and 3.4 point 7 (ruled: Roman, 2026-10-18,
+    # "the architect owns the guess"). Pass 3 adds the ruling branch, so
+    # `ruling_id` is the Architect's own '' here.
+    from .principal import _is_request_item
+
+    if not _is_request_item(ctx.conn, item_id):
+        raise ValueError(
+            f"{item_id} is not a request item. A guess is for an item the "
+            f"principal asked for, and not for the account or what the code "
+            f"does today")
+    if not paths:
+        raise ValueError("a guess names at least one path. A new file goes "
+                         "beside the files that exist")
+    _refuse_stray_dirs(ctx.conn, paths)
+    bare = [s for s in symbols or [] if "::" not in s]
+    if bare:
+        # The refusal names the index's own grain, because the L1 case's
+        # qwen3.5:9b seat repeated a bare `line_total` four times against a
+        # text that named no grain of its tree (frame 298, pass 1).
+        found = [r["grain"] for r in ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
+            "AND grain LIKE ? ORDER BY grain LIMIT 3", (f"%::{bare[0]}",))]
+        where = (f"The index holds {', '.join(found)}. " if found
+                 else "The index holds no symbol of that name. ")
+        raise ValueError(
+            f"{bare[0]} names no path. A symbol is written path::name. "
+            f"{where}Write the symbol that way, or leave symbols out")
+    # One guess per item per session: a re-issued call would write a second
+    # set at one version (frame 298's design review, finding 10).
+    if any(w[0] == "touch_guesses" and isinstance(w[2], dict)
+           and w[2].get("item_id") == item_id for w in ctx.writes):
+        raise ValueError(
+            f"{item_id} is already guessed in this session. One call per item")
+    ver = ctx.conn.execute("SELECT version FROM items WHERE id = ?",
+                           (item_id,)).fetchone()["version"]
+    ruling = ""
+    for grain, kind, confidence in (
+            [(p, "path", "expected") for p in paths]
+            + [(s, "symbol", "possible") for s in symbols or []]):
+        ctx.writes.append(("touch_guesses", f"{item_id}:{ver}:{ruling}:{grain}", {
+            "item_id": item_id, "item_ver": ver, "ruling_id": ruling,
+            "grain": grain, "grain_kind": kind, "confidence": confidence}))
+    return {"item_id": item_id, "grains": len(paths) + len(symbols or [])}
+
+
+@op("batches", "annotate")
+def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
+                     symbols: list[str] | None = None) -> dict:
+    """
+    What this batch is expected to touch.
+
+    Paths always; symbols only where you are confident, which is why they are a
+    separate argument rather than a flag on each grain — being asked to rate
+    your own confidence per item invites rating everything "high".
+
+    Nothing rejects a diff for straying outside this. It exists so that "was
+    this change incidental?" has an answer at review time rather than an
+    argument, and a prediction that could block work would quietly become a
+    permission system nobody designed.
+    """
+    _refuse_stray_dirs(ctx.conn, paths)
     # law 12: the touch set is a prediction, never a permission
     # The principal's correction replaces the prediction. Night 136's m85
     # said "Line 2 names the wrong tests", and an upsert would keep the

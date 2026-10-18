@@ -88,3 +88,25 @@ def test_a_frontier_of_three_orders_purely(db):
     again = [str(w) for w in frontier_readonly(db)]
     assert first == again
     assert len([w for w in frontier_readonly(db) if w.kind == "message"]) == 3
+
+
+def test_the_guess_is_offered_before_the_signoff(db):
+    """Frame 298's design, 4.1: the Architect guesses the code of a request
+    before the Vision Keeper submits it. The design review's probe saw a
+    predicate of this shape fire 0 times in 347 tests, so this test is the
+    one proof of the order."""
+    db.execute("INSERT INTO items (id, text, kind, approval) VALUES "
+               "('echo_json', 'Add an echo_json helper.', 'in_scope', 'draft')")
+    db.execute("INSERT INTO code_index (grain, grain_kind) "
+               "VALUES ('src/click/utils.py', 'path')")
+    db.commit()
+
+    kinds = [w.kind for w in frontier_readonly(db)]
+    assert "tick:guess" in kinds and "tick:signoff" in kinds, kinds
+    assert kinds.index("tick:guess") < kinds.index("tick:signoff"), kinds
+
+    db.execute("INSERT INTO touch_guesses (item_id, item_ver, grain, grain_kind) "
+               "VALUES ('echo_json', 1, 'src/click/utils.py', 'path')")
+    db.commit()
+    kinds = [w.kind for w in frontier_readonly(db)]
+    assert "tick:signoff" in kinds and "tick:guess" not in kinds, kinds

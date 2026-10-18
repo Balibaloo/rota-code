@@ -43,6 +43,31 @@
     # ticket text — which is why probing the codebase is part of the assertion.
     writes: [criteria, tickets, items, constraints]
 
+- id: L1-AR-guess-the-code-of-a-request
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 4
+  # Frame 298's design, 3.4 and 4.1: the Architect guesses the code one
+  # request item touches before the sign-off present. The sample repository
+  # holds no src/click/utils.py, so the case uses the annotate case's item
+  # and repository in place of night 156's echo_json (the pass 1 brief).
+  tick: guess
+  refs: [<i1>]
+  repo:
+    onboard: true
+  fixture:
+    items:
+      - {id: <i1>, text: "volume discounts on the line total", kind: in_scope,
+         provenance: decided, approval: draft, version: 1}
+  expect:
+    calls: [batches.guess]
+    writes:
+      touch_guesses: {count: "1..6"}
+  forbidden:
+    # A guess, never a permission (law 12), and no batch exists yet.
+    writes: [items, tickets, criteria, batch_touch, constraints]
+
 - id: L1-AR-find-against-a-constraint
   tier: T1
   role: architect
