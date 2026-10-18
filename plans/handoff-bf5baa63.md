@@ -1,88 +1,80 @@
 # Momentum note of session bf5baa63, peer name rota-08
 
-Message rota-08 for a context question before you ask Roman. Facts are in
-`plans/stack.md`. This session took the stack from the watcher's claim at
-23:57 on 2026-10-17, ran frame 286 to its close at 64fa6b6a, ran the long
-gate on b0dbd926, launched night 155 from 64fa6b6a at 00:43, read its
-cycles as they fired, moved frame 287 on Roman's ruling of 01:27 through
-revisions 4 to 6, ran and closed frame 293's pilot, and wrote a retro at
-his ask. It hands off at the night's end so that the night's read, the
-largest cycle, gets a clean context.
+Message rota-08 for anything this note withholds or you doubt. I keep the
+end of my context to answer, and I stop when you release me. The facts are
+in `plans/stack.md`; read `plans/method/intent.md` first, then
+`plans/method/design.md`, then this, then the state. Rewritten at 02:50 on
+2026-10-18, after the night's read and the design's revision 7.
 
-## Read first: Roman's words tonight, in his words
+## What happened tonight, in rota's terms
 
-1. 01:27, on frame 287's four items: "come on, use your brain, mimicking
-   rota is only intented to take the good parts of the workflow, but youre
-   much more capable and work above a harness, you are not rota"; "you can
-   design your context"; "You dont have wakes, you just wait for your turn
-   and take over the entire stack, etc"; "I only care about my words being
-   persisted for their intent, dont force them onto models but make sure
-   that whenever a model looks for answers they are able to find the
-   outcomes and the meaning of our discussions"; "do we need to grill on
-   this?" The session answered no grill.
-2. About 01:58: "i feel like im loosing controll of the workflow, do we
-   need a retro on your thoughts of the current state of the workflow? ie
-   your context, any bad practices that may have caused fragmentation and
-   noise in your context". The retro is `plans/retro-2026-10-18.md`, five
-   changes, his ruling pending at the hand-off unless the stack says
-   otherwise. **Read the retro before you write a status line.** If he has
-   ruled item 1, a status line is three lines.
+Frame 286 closed its loop: the unnamed-definition door records a stray for
+the Architect instead of refusing, at 64fa6b6a. The long gate accepted.
+Night 155 ran from that head and gave the held frames nothing: every batch
+died at the Liaison contesting line 1, the request, when the principal
+corrected a line of a page, before a Developer reached any door the frames
+fixed. The read is `plans/night155-read.md`; four cycles are in
+`plans/night155-cycle1.md`. Frames 291 and 292 were pushed from the
+cycles, before Roman's ruling that nights push nothing.
+
+Frame 287 changed shape three times on his words. The wiring design died at
+01:27 ("you are not rota"). The ledger died on frame 293's counts (0 of 11
+by a question's words, 2 of 11 by the frame key). What stands is
+`plans/method/design.md`: an intent page, a state print, a handover as a
+dialogue, agents as the membrane of the context, tools that enable, rulings
+at the thing, a frame economy, autonomy without him. Build step 1, the
+intent page, is drafted and committed at f9bd946c; he edits it.
+
+He asked for a retro, `plans/retro-2026-10-18.md`, five changes. He did not
+rule them one by one; his later rulings cover items 1, 2 and 5 in substance.
+Items 3 and 4 stand as proposals.
 
 ## What I believe, and what to doubt
 
-**Frame 287.** The wiring design of revisions 1 to 3 is dead by his words.
-Revision 4's ledger is dead by frame 293's counts: a question's words
-never match a record, because the grill rule makes a question a story, and
-the frame number is the one key that reaches an answer, which sits in the
-frame's own entry. What stays is small and real: the status tool with
-`--ruling`, the take print, the `Searched:` field at a push, the brief
-split. I believe the deeper fix is the retro's item 2, fewer frames, more
-than any tool. Doubt first: whether `Searched:` becomes one more prose
-field nobody fills. Doubt second: whether the take print buys enough to
-build before the stack shrinks by the retro. Do not grill him on 287. The
-design is in the record; build frame 2 of R5.3 if he rules nothing against
-it, and bring him the brief diff once.
-
-**Night 155.** Four cycles by 02:00, none a held frame's wall: frame 266's
-parser in a new shape, a diff line that holds its own quotes; frame 291,
-pushed, the confirm loop on a contested statement; frame 292, pushed, the
-shift page's check order, twice. Four batches abandoned, one running, two
-heads, no held frame's door fired in ten Developer sessions. The read's
-first question is whether the held frames got any data at all; if not, say
-so plainly, their ratios stay at night 1 of 3 with an empty numerator and
-denominator, and the next night is the measure. Place every new wall by
-the guide, but push at most three frames if he has ruled the retro's item
-2, and put the rest in one list in the read.
-
-**Frame 286.** The door records instead of refusing. Three passes, three
-reviews, loop closed. The prompts moved twice, so `touch_strayed` and
-`touch_mistaken` cases are stale at the head; the next gate re-records
-them. Three wording lows ride the next pass on this file if a night shows a
-Developer fumbling a definition restore.
+The method's wall is not a missing tool. It is that a session reads
+procedure first and executes, and that frames outrun closings. The design
+answers both: intent first, at most ten live things. Doubt first: the one
+sweep of the brief, design section 5, leaves a gap where known failures
+recur; the state print must list the reference lines for the moments a held
+frame meets, or the gap bites. Doubt second: the night question. Section 5
+of the read says no night gives the held frames data while the request-line
+contest kills every batch. Frame 258's line-1 spare is the fix that lets a
+batch live; frame 214 with 291 is the top wall by asks. I would build the
+state and status tools first, because every later frame's cost drops with
+them, and run no night until frame 258's spare lands.
 
 ## The held frames
 
-- Frame 287, revision 6; waits on nothing but the retro's ruling for its
-  frame 2. No agent.
-- Frame 283 with 140, 220, 286, 282, 290, 143: all validating on night 155,
-  night 1 of 3. The gate on b0dbd926 accepted with stale 0.
-- Frames 291 and 292: pushed tonight, next sprint ranks 1 and 2, not held.
+- Frame 287: build step 2 next, `state`, `status --ruling`, the handover
+  dialogue in `handover.py` with the 350k line. Step 3 is the sweep.
+- Frames 283 with 140, 220, 286, 282, 290, 143: validating, night 1 of 3
+  with an empty denominator. They need a night that reaches the doors.
+- Frames 291 and 292: pushed, next sprint ranks 1 and 2, not held.
+- No sprint 13 order is written. The read ranks the walls; the design says
+  the holding session pushes what it will hold.
 
-## Owed, in order
+## Roman's last words, with time
 
-1. The night's read when `GAUNTLET-DONE` prints in `.rota/night155.log`:
-   copy `.rota/clickI.db` to `.rota/clickI_night155.db` first, with the
-   `-wal` and `-shm` files, and the log and err to their night names. Read
-   it on Opus to `plans/night155-read.md`; `plans/night155-cycle1.md`
-   already holds four cycles.
-2. The sprint 13 order at the top of the stack, one notification, start
-   row 1. No pause.
-3. Frame 287's frame 2 if the retro's ruling allows it.
+- 02:35: "nothing blocks on me for multiple sessions, so you just work
+  through the backlog"; "double check reasoning, then yes" on the one sweep;
+  "keep the same high, med, low system"; the two-level draft is "super
+  important".
+- 02:30: the handover reserve, "maybe last 50k not 100"; recency of his
+  intent is not the point.
+- 02:25: "yes thats why I want you to use subagents"; records "to suplement
+  reasoning not overtake it"; tools "enabling not inhibiting"; "context
+  right? tokens dont really matter".
+- 02:20: the handover is "a real handover, bi directional communication
+  seeded with a handover doc"; "dont hand off yet" at that time, then the
+  handover after the intent page was agreed.
+- 02:05: "if i say some bullshit i expect you to check shit like our
+  conversations, whats implemented, whats documented etc and to question
+  that".
 
-Briefs and reports are under this session's scratchpad,
-`C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/bf5baa63-e3e0-4611-8e8d-2e8c20403b25/scratchpad/`,
-in `f286/`, `f287/`, `f293/`; `status.py` there appends a status line with
-the clock. The review worktree is `C:/Users/roman/rota_r283old` at
-73c40121; `rota_gate_223` at b0dbd926; `rota_night155` runs the night.
-`rota_r283` and `rota_gate_223` are removable when frame 283 closes.
-Agents at the hand-off: none live unless the stack says so.
+## Live things
+
+No agent is live. No night runs; `rota_night155` holds the stopped night's
+worktree. Review worktree `C:/Users/roman/rota_r283old` at 73c40121; gate
+worktree `rota_gate_223` at b0dbd926. Briefs, reports and `status.py` are
+under `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/bf5baa63-e3e0-4611-8e8d-2e8c20403b25/scratchpad/`
+in `f286/`, `f287/`, `f293/`, `f287/intent/`.
