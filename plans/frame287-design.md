@@ -8,6 +8,204 @@ high findings against revision 1; each is answered where it applies and
 listed in section 11. Every line carries a mark. `#n` and `An` are quote
 tags in page A. Nothing here is built yet.
 
+# Revision 4, 2026-10-18, on Roman's ruling of 01:27
+
+Written by session bf5baa63 on Fable. This revision replaces sections 0,
+3 and 9 below, and amends sections 4, 5 and 7. Sections 1, 2, 6, 8, 10
+and 11 stand as the history of the design. Where this revision and a
+section below disagree, this revision wins.
+
+## R4.0 The ruling
+
+Roman, 2026-10-18 01:27, on the four items of revision 3 (ruled: in his
+words): "mimicking rota is only intented to take the good parts of the
+workflow, but youre much more capable and work above a harness, you are
+not rota"; "you can design your context"; "You dont have wakes, you just
+wait for your turn and take over the entire stack, etc"; "I only care
+about my words being persisted for their intent, dont force them onto
+models but make sure that whenever a model looks for answers they are
+able to find the outcomes and the meaning of our discussions".
+
+Four consequences (reasoned: the words, read against revision 3):
+
+1. Item 1 is withdrawn. The build session is not a seat. It has no wake
+   to build, so the `wake` tool at six moments leaves the design, and
+   the composition's "no wiring" sentence stands. Section 3 is void.
+2. Item 2 flips to yes. His words are persisted in the repository, as
+   the outcome and the meaning of each discussion, not as a page of
+   quotes. This is the centre of the design now.
+3. Nothing is forced onto a model each turn. The record is searched when
+   a question forms. It is never loaded.
+4. The context cost of section 5 stays as context design, which is the
+   session's own to do: the status tool, a take print, the brief split,
+   the tool schemas. None of it is wiring, and none of it needs a ruling
+   except the brief diff, item 3, and the schemas, item 4.
+
+## R4.1 The design in five sentences
+
+The session that builds rota is one strong model that takes the whole
+stack on its turn and designs its own context. Its wall was never wiring:
+the outcomes of its discussions with Roman are scattered over status
+lines, the archive, memory files, `CLAUDE.md`, `DECISIONS.md` and 105
+transcripts, filed by principle or by frame number, so a session that
+looks for an answer does not find the one that exists (observed: page C,
+19 of 103 questions answered by a record nobody opened; page B, the take's
+read list names state only). The fix is one record, the rulings ledger,
+`plans/rulings.md`: one entry per discussion outcome, written when the
+outcome forms, carrying his words verbatim, the reading he confirmed, and
+the keys a later question would search by, the file, the door, the law,
+the frame and the words. A tool, `python -m rota.tools.rulings <key>`,
+searches the ledger and the records around it the way the map tool
+searches the code, and the history-before-escalation rule names that
+search as its first step. The brief, the guide and the memory files keep
+their rule lines and point at the entry that holds each rule's reason, so
+the reason leaves the every-turn context and stays findable.
+
+## R4.2 What the ledger is, and what it is not
+
+The ledger holds the meaning of a discussion: what was asked, in which
+concrete situation, what he said, what the session read it to mean and he
+confirmed, and what it applies to. It is a record of the meta workflow,
+written by the holding session, one writer (ruled: composition, "Every
+record has one writer"). It is not a law. `rota/LAWS.md` and
+`rota/DECISIONS.md` stay the rota workflow's derived rules for the seats,
+and `CLAUDE.md` stays the build session's brief. A rule in any of those
+may point at the entry it derives from. An entry never changes a rule by
+itself; the session writes the rule where the rule lives, as today.
+
+The entry form, one per outcome:
+
+```
+### R<n>. <the outcome in one sentence> (<date>, <meta|rota> workflow)
+- Keys: <files, doors, laws, frames, and the words a question would use>
+- Situation: <the concrete case that raised it, two sentences>
+- Said: "<his words verbatim>" (<time>, session <sid>)
+- Means: <the reading he confirmed, and what it rules out>
+- Rule: <where the derived rule lives, or "none">
+- Supersedes: <R<m>, or none>
+```
+
+The `Keys:` line is the whole findability design. Section 2's cause 2 is
+that law 12 is titled by its principle and a session searched for
+"permission" and "stray"; the entry for law 12's ruling of 2026-10-17
+carries those words, the door's name, `api.py` and frame 114 on its
+`Keys:` line, so each of the five sessions that asked would have found it
+on the first search. A `Means:` line is his reading, not a frame's
+meaning, so it does not collide with #369, which ruled against a
+persisted `Means:` field on frames (observed: review 1, finding 1).
+
+The ledger is never read whole and never loaded at a take. It is searched,
+by an agent, when a question forms, when a frame is pushed, when a door is
+designed and when a night read places a wall (ruled: 2026-10-03 and
+2026-10-04, the history and the two-answers rules; the ledger makes those
+rules work, it does not replace them). The take reads what it reads today.
+
+## R4.3 The search
+
+`python -m rota.tools.rulings <words> | file <path> | door <name> | law <n>
+| frame <n>` prints the entries whose `Keys:` or body match, each as its
+heading and `Means:` line, then the law, the decision, the archive frame
+and the night read that match the same key, each as one line with its
+path. It parses on every run and keeps no file (observed: `map.py`,
+"There is no cache"). It never refuses and never decides what reaches
+Roman. Its cap is about 3k tokens of print; past the cap it prints the
+count and the first hits, and the agent reads the files. The map tool is
+the model: a session asks it before it greps.
+
+The history rule in `CLAUDE.md` gains its first step: "run the rulings
+search on the question's words and the frame's site, and cite what it
+prints or that it printed nothing". The wall guide's section 4 gains a
+step 0: "which law or ruling decides this? run the search on the door".
+Both are one line each.
+
+## R4.4 The back-fill
+
+The ledger starts from what exists. Two Opus agents write it, read-only
+over the sources, each entry marked (observed: the source) and never
+(ruled) by the agent, because an agent's reading of his words is a copy
+until a session confirms it:
+
+- From page A, `plans/frame287-roman-words.md`, and the extraction behind
+  it: every message of his that ruled something, 2026-09-16 to today, one
+  entry each where the outcome is clear, and a `Means:` line marked
+  (reasoned: the agent's reading) where the session that heard it wrote no
+  confirmed reading. About 140 quoted messages; the agent reads the
+  extraction for the rest.
+- From page C, `plans/frame287-questions.md`: the 25 questions the records
+  answered or a read dissolved, each with the record that held the answer
+  on its `Rule:` line, so the next session that asks finds the answer and
+  the record in one hit.
+- From `CLAUDE.md`, the wall guide and the memory files: each rule that
+  carries "(ruled: Roman, <date>, ...)" becomes an entry with the rule
+  line as its `Rule:`, so the stories can leave the brief in frame 3.
+
+The back-fill is one pass. After it, the habit maintains the ledger: a
+conclusion goes to a record when it forms, and a ruling's record is the
+ledger entry plus the rule line. The status line that quotes him today
+keeps quoting him; the entry is where the quote is found later.
+
+## R4.5 Context design, kept from section 5
+
+These stay, as the session's own context design, without the `wake`
+tool:
+
+- A status tool, `python -m rota.tools.status --frame n --text-file f`,
+  stamps the clock, appends, keeps the line endings and commits
+  `plans/stack.md` by pathspec. The clock memory, 15 strikes, retires
+  when it lands. This session wrote that tool as a script in its
+  scratchpad today and used it fourteen times.
+- A take print, `python -m rota.tools.stack held <sid>`, prints each held
+  frame's five fields and its last three status lines from `stack.md` in
+  place, so a take reads 2k to 3k a frame instead of the stack. The stack
+  stays the record; the print is a view.
+- The brief split, frame 3: a rule whose reason is in the ledger keeps
+  its line and gains an `R<n>` pointer; the story leaves. The thresholds,
+  the cycle rules and the sprint rules stay whole. The brief under 5k
+  tokens is the target. The diff goes to Roman once, item 3.
+- The tool schemas, item 4, his.
+- Momentum notes: the close deletes the note, by hand until frame 2's
+  tool does it.
+
+## R4.6 The frames to build
+
+| Frame | Site | Ends when | Price |
+|---|---|---|---|
+| 1. The ledger and its search | `plans/rulings.md` new, `rota/tools/rulings.py` new | the ledger holds the back-fill of R4.4; for each of the seven distinct answers of page C's R rows (law 3; law 2; law 12 with the touch route; his notes answers; `ROLES.md:150-170`; `frame244-interview.md`; his 10-04 14:34 answer), the search on the question's own words as sent prints the entry on the first screen; the search on `law 12`, `04325814`, `api.py` and `frame 114` each reach the same entry; one review | 4 cycles, two back-fill agents and a review |
+| 2. The status tool and the take print | `rota/tools/status.py` new, `rota/tools/stack.py` new, `rota/tools/handover.py` for the note's deletion at close | one session writes every status line of a day with the tool and the clock memory is marked retired; a taker reads the held frames from the print and its state reply cites no line the print did not give; one review | 3 cycles |
+| 3. The brief split and the two one-line steps | `CLAUDE.md`, `plans/wall-guide.md`, the memory files, `plans/composition.md` one sentence | the brief under 5k tokens by `wc`; every moved story has an `R<n>` in the ledger; the history rule's first step and the guide's step 0 name the search; the diff goes to Roman as item 3 and he rules the lines he wants changed | 3 cycles, a sweeper and a review |
+| 4. The frame files and the view | parked, as revision 3's frame 5 | unchanged | 4 cycles |
+
+Frame 1 first, because frames 2 and 3 point at it. Frame 2 shares no file
+with frame 1 and can run beside it. Frame 3 waits on both. About 10
+cycles for frames 1 to 3 against the anchors; the overrun history says
+about 16 (observed: B, C42).
+
+## R4.7 What Roman sees
+
+One sentence of the composition page, the build session paragraph, gains
+the ledger: "Its records are this page, the stack, the rulings ledger and
+the memory directory." It is a notice with the design, not a question:
+the ledger is a record of the build session and the page lists those.
+He rules it when he reads the brief diff, item 3, or earlier if he
+objects. Item 4, the schemas, stands as recommended. No other question
+goes to him on this frame.
+
+## R4.8 What to doubt
+
+First, that the ledger becomes a second brief: an agent that pastes
+entries into a status line forces them onto the next reader. The guard is
+the rule that a search's hits go to the agent's report file and ten lines
+come back, and that the ledger is never on a read list. Second, that the
+`Keys:` line is written for the writer's words and not the asker's: the
+check in frame 1 uses the questions as sent, and frame 1's review reads
+twenty entries' keys against the question each would have to answer.
+Third, that the back-fill's `Means:` lines are the agent's readings
+wearing his words: every one is marked (reasoned) until a session that
+holds the frame confirms it with him or from a transcript turn, and the
+search prints the mark.
+
+---
+
 ## 0. The design in six sentences
 
 1. The build session is the one seat in the composition that has no

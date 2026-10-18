@@ -325,3 +325,131 @@ touch and not the item (observed: m93).
 
 **Held frames.** None of these walls is a held frame's wall. The held frames
 are 283, 220, 286, 282, 290, 143 and 140 (observed: the brief's list).
+
+## 6. CYCLE 3: "Later" on the second shift page does not land
+
+Read 2026-10-18 01:26, read-only, from `.rota/clickI.db`, log line 127, in
+walk 2: `CYCLE: period 1, rounds 3, wakes: liaison|message|converse|[]`.
+
+Result first: his first "Later" landed. His second and third did not. The
+shift page `m_shift_echo_json_tests_m_p2` has one line. The Liaison put a
+line 2, and on s313's first call `words`, into every ruling map. The shift
+door checks the word of each key before it checks that the line exists. So
+it refused line 2 with "line 2 takes later, now or drop", and it never said
+that the page has no line 2. The seats kept `1: "later"` right and kept
+changing line 2. Three sessions ended with no ruling, and bg_5 of the item
+he asked to put aside is `running` (observed: `batches`, 2026-10-18 01:26).
+
+### 6.1 The sessions, their calls and what landed
+
+The shift pages are present messages. `m_shift_echo_json_m_p2` has `refs`
+`["echo_json", "s4"]`, and `m_shift_echo_json_tests_m_p2` has
+`["echo_json_tests", "s4"]`. s4 is the new request, "Let confirm() take a
+default_on_eof flag..." (observed: `messages`, s313 turn 1).
+
+- **s311**, converse on m203, the reply to the first page. It called
+  `rulings.rule(rulings={1: "later"}, words="Later. Put the first change
+  aside...")`. Landed: `rulings` `r_b8bce63f1b`, and `item_parks`
+  `ip_aeec38c0fe` holds `echo_json`, `park`, `shift`, from `m204`
+  (observed).
+- **s313**, converse on m205, the reply to the second page. It made five
+  calls. The first was `{1: "contest", "words": "..."}`. The next were `{1:
+  "later", 2: "approve", ... 8: "approve"}` and then `{1: "later", 2:
+  "contest", 3 to 8: "approve"}`, three times. The refusals were (observed:
+  turns 2 to 6):
+
+  ```
+  ERROR rulings.rule: line 1 takes later, now or drop: the question is which request goes first, and nothing about the request itself changes here.
+  ERROR rulings.rule: line 2 takes later, now or drop: the question is which request goes first, and nothing about the request itself changes here.
+  ERROR TOOL: rulings.rule(...: unterminated argument list: a string in the value of rulings starts at character 108 after the open bracket. The string `"approve}` has no closing quote before `, words=`, so it runs on into the next argument. Put the closing quote where that value ends, and change nothing else
+  NOTE rulings.rule has been refused the same way in three turns and will not be accepted again. Finish what remains (attest, answer, end) without it
+  ```
+
+  No receipt.
+- **s314**, converse on m205 again. It sent `{1: "contest", 2: "contest"}`,
+  then `{1: "later", 2: "contest"}` three times. It got the same line 1 and
+  line 2 refusals and ended on the verbatim repeat. No receipt (observed).
+- **s315**, converse on m206, the reply to the page sent again, "Later for
+  line 1 ... I don't see a line 2 on this page". It sent `{1: "contest", 2:
+  "approve"}`, then `{1: "later", 2: "approve"}` two times, `{1: "contest",
+  2: "approve"}`, and `{1: "later", 2: "approve"}`. Every call got a line 1
+  or a line 2 refusal of the same text, and the session ended on the NOTE.
+  No receipt (observed).
+
+### 6.2 Why "Later" did not land on the second page
+
+The page offered one line and three words (observed: s313 turn 1,
+`landing.page` and `landing.lines`, which is `{"1": "echo_json_tests"}`):
+
+```
+Choose one for line 1:
+  - later: put it aside until the new request is merged. Nothing more about it reaches you until then.
+  - now: answer its open page first, then the new request.
+  - drop: stop it. Its change is abandoned.
+```
+
+The page expected `rulings.rule(rulings={1: "later"}, words=...)` and
+nothing else (reasoned: `SHIFT_WORDS`, `rota/roles/api.py` line 8891). That
+is the call s311 made. The seats sent `1: "later"` with a line 2 beside it.
+`_ruling_word`, `api.py` lines 8900 to 8931, checks each key's word against
+`SHIFT_WORDS` and raises "line {key} takes later, now or drop" for
+`approve`, `contest` or `revise`. That text names line 2 as if the page had
+it (observed: the code). The plain page's check, "'2' is not a line of the
+page. The page numbers its rows 1 to 1", came first in cycle 2 (section 5.1).
+On the shift page the word check fired first (observed: the refusals; the
+call order inside `rulings_rule` is reasoned and was not read).
+
+Line 2 came from two places (reasoned):
+
+- his second clause, "Line 1 also doesn't describe my request". A shift page
+  has no word that corrects a description, so the seat looked for a second
+  line to carry `contest`.
+- `recent_chat`, which carries his reply to an earlier page, "On line 2, the
+  files to touch should be only..." (observed: s313 turn 1), and the
+  eight-line touch page at the end of walk 1 (observed: the log).
+
+### 6.3 Quarantine and what the walk did next
+
+No quarantine. `tick_attempts` holds no Liaison converse key, and the three
+messages m205, m206 and m205 again count as three rounds of `converse`
+(observed: `tick_attempts`, 2026-10-18 01:26). The page
+`m_shift_echo_json_tests_m_p2` is still `open` (observed: `messages`). No
+`item_parks` row holds `echo_json_tests`. bg_4 of that item is `abandoned`
+and bg_5 is `running`. `tick_attempts` shows `architect|tick:annotate|bg_5`,
+`liaison|tick:touch_note|bg_5,echo_json_tests` and
+`developer|tick:batch_start|bg_5` at 1 attempt each (observed). So the walk
+builds the request he asked to put aside. The log holds no line after line
+127 at 01:26 (observed).
+
+### 6.4 Placement by `plans/wall-guide.md` section 4
+
+- **No open frame names this cause. It is a new frame candidate, cause 9,
+  the refusal's text points the seat wrong.** Step 4: the door was right to
+  refuse a line 2, and its text named the wrong fault, the word and not the
+  missing line (reasoned: 6.2). A fix gives the line-number check first
+  place on a shift page, with the plain page's text "The page numbers its
+  rows 1 to 1" (reasoned, not built).
+- **Frame 272 is the closest sign.** `recent_chat` carries his line numbers
+  from an earlier page, and the Liaison rules them on the current page
+  (observed: frame 272's first paragraph). Frame 272 says the door refused
+  right. Here the door's text is wrong, so the cause differs, and the case
+  is a new frame by the residue rule (reasoned).
+- **Frame 265, "Now." on a shift page lands as `later`.** Same page and same
+  refusal text, but its cause is cause 1, his word changed at the Liaison's
+  second call. Here `later` stayed right on line 1 (observed: 6.1). It does
+  not take the case.
+- **Frame 185 and frame 192** are about a word with no ruling on a plain
+  page. Here the word `later` exists and was sent (observed: their first
+  paragraphs). They do not take the case.
+- **Frame 266** is the parser's refusal, and its key-branch text fired once
+  in s313 and was right: "The string `"approve}` has no closing quote before
+  `, words=`" (observed). That is frame 266's validating count, not this
+  wall.
+- **The lost description correction** is cause 10, because a shift page
+  has no route for "Line 1 also doesn't describe my request" (reasoned).
+  The candidate frame carries it as a second case.
+
+**Held frames.** This is not a held frame's wall. The held frames are 283,
+220, 286, 282, 290, 143 and 140 (observed: the brief's list). The night is
+on another wall with no page for the held frames, if the loop goes on
+(reasoned: the stop rule of 2026-10-09).
