@@ -644,7 +644,7 @@ def test_a_revise_of_the_item_line_lands_with_the_words_on_the_item(m399):
     assert str(refused.value) == (
         "line 9 is the team's note, not your request. To drop the note, contest "
         "it. revise rewrites a line of what the principal asked for. The words "
-        "name no line of the request, and a revise of the request needs his words "
+        "name no line of the request, and a revise of the request needs the principal's words "
         "on the request.")
 
     ruling = {str(n): "approve" for n in range(1, 10)}

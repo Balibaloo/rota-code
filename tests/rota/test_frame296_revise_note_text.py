@@ -38,7 +38,7 @@ def test_s239s_revise_of_a_note_is_not_steered_to_line_1(db):
     assert text.startswith("line 3 is the team's note, not your request. "
                            "To drop the note, contest it.")
     assert "line 1" not in text and "calculate_tip" not in text
-    assert "needs his words on the request" in text
+    assert "needs the principal's words on the request" in text
 
 
 def test_words_that_name_line_1_keep_it_as_the_revise_target(db):
