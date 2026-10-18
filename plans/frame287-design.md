@@ -8,6 +8,89 @@ high findings against revision 1; each is answered where it applies and
 listed in section 11. Every line carries a mark. `#n` and `An` are quote
 tags in page A. Nothing here is built yet.
 
+# Revision 5, 2026-10-18, on design review 3
+
+Written by session bf5baa63 on Fable. Review 3,
+`plans/frame287-design-review-3.md`, found four highs in revision 4 and
+nine lows. All four highs hold (judged here). This revision amends R4.3,
+R4.4, R4.6 and R4.7. The rest of revision 4 stands.
+
+## R5.1 The four highs and the amendment for each
+
+1. **The check was circular** (review 3, finding 1): the back-fill wrote
+   entries from page C's questions and the check searched with those
+   questions. Amendment: frame 1 becomes a pilot. First, the search runs
+   with no ledger on the seven questions as sent, over `LAWS.md`,
+   `ROLES.md`, `DECISIONS.md`, the archive and the night reads, and the
+   count of answers it finds is the baseline. Then one agent that never
+   sees page C writes about twenty entries from sources dated before
+   2026-10-01: the transcripts' extraction, `CLAUDE.md`'s ruled lines and
+   `DECISIONS.md`. Then the search runs again on the seven questions. The
+   pilot's number is how many of the seven the ledger finds that the
+   baseline did not, and which. The full back-fill is a frame only if the
+   pilot finds more than the baseline (observed: review 3, point 5, the
+   cheaper first step; reasoned: a check on questions the writer saw
+   measures the writer's memory).
+2. **"Findability and not will" overstated the diagnosis** (finding 2):
+   review 1 showed that nobody searched. The ledger answers causes 2 and
+   3. Cause 1, the unsearched law file, and cause 5, a rule held by prose
+   at a moment, need the search to leave prose. Amendment: every frame
+   gains a `Searched:` field after `Site:`, written at the push: the key
+   the search ran on and its first hit, or "nothing". A blocked frame's
+   question gains the same line. A frame without the line is a defect the
+   diff review names, and the take print of frame 2 lists held frames that
+   lack it. This is a record field, as `Site:` is, not a tool that refuses
+   (ruled: the composition, "A prediction never blocks"; his words of
+   01:27, "dont force them onto models"). Cause 4, a session that held the
+   fact and did not connect it, stays with the agent read of 2026-10-04,
+   and R4 now says so.
+3. **A new ruling stayed in a transcript** (finding 3): the habit alone
+   grew the ledger. Amendment: the status tool of frame 2 gains
+   `--ruling`: one call writes the status line that quotes him, as today,
+   and the ledger entry with the same quote, the frame's `Site:` as the
+   first keys, and the words the session adds. The transcript extraction
+   script of page A stays in the search's scope as the fallback for a
+   ruling the tool never wrote; the tool reruns the extraction when the
+   transcript directory is newer than its output.
+4. **The search had no match rule** (finding 4): a line grep missed law
+   2's "decision record" across a line break and "answer" hit 1,059
+   archive lines. Amendment: the search joins whitespace and folds case
+   before it matches; it matches the `Keys:` lines first and prints those
+   hits before body hits; a body hit prints as the record's heading and
+   path, one line, with a count when more than ten match; `ROLES.md` and
+   the briefs are in scope; and a zero-hit print is followed by the agent
+   reading `LAWS.md` and the composition whole, which is what revision 3
+   already said for a print with no hit.
+
+## R5.2 The lows, taken
+
+One agent writes the ledger; a second agent may extract to a scratch file
+the first reads (finding 5, "one writer"). Page A holds 219 quote blocks,
+not 140 (finding 6). `ROLES.md` is in scope (finding 7). The zero-hit step
+is in R5.1.4 (finding 8). R4.7's composition sentence is a `[low]`
+question to Roman and does not gate frame 1 (finding 9); it goes to him
+in the terminal with its recommended answer, and the pilot runs
+meanwhile. Frame 115's entry takes a `Said:` form for a ruling older than
+the transcripts: `Said: law 2 as written, <date of the commit>`, and its
+`Keys:` line carries the asker's words, "answer" and "prose", written by
+the holding session when he says a thing was already discussed (review
+3, point 4).
+
+## R5.3 The frames, revised
+
+| Frame | Site | Ends when | Price |
+|---|---|---|---|
+| 1. The pilot | `plans/rulings.md` new, about twenty entries; `rota/tools/rulings.py` new, the search with R5.1.4's match rule | the baseline count on the seven questions as sent, with no ledger; the pilot ledger from sources before 2026-10-01 by an agent blind to page C; the count after, and which questions moved; one review that reads the twenty `Keys:` lines against the question each would answer; the frame closes on the two counts, whatever they are, and the next frame is the full back-fill only if the second count is higher | 1 cycle for the baseline and the pilot agent, 1 for the review; about 80k on Opus |
+| 2. The status tool with `--ruling`, and the take print | `rota/tools/status.py` new, `rota/tools/stack.py` new, `rota/tools/handover.py` for the note's deletion at close | one session writes every status line of a day with the tool; a ruling written with `--ruling` has its entry in the ledger with the quote and the `Site:` keys; the take print lists held frames and the ones without a `Searched:` line; one review | 3 cycles |
+| 3. The full back-fill | `plans/rulings.md` | only if frame 1's second count is higher; about 150 to 200 entries from the 219 quote blocks, the 25 answered questions and the ruled lines of the brief, the guide and the memory files; one writer; every `Means:` marked (reasoned) until confirmed; one review that samples twenty entries' keys | 4 cycles, about 450k to 650k on the agents (observed: review 3, point 5) |
+| 4. The brief split, `Searched:` in the frame shape, the two one-line steps | `CLAUDE.md`, `plans/wall-guide.md`, the memory files, the stack's rule 9, `plans/composition.md` one sentence if he rules it | as R4.6's frame 3, plus rule 9 names `Searched:`; the diff goes to him once | 3 cycles |
+| 5. The frame files and the view | parked | unchanged | 4 cycles |
+
+Frame 1 first. Frame 2 shares no file with frame 1 and runs beside it.
+Frame 3 waits on frame 1's count. Frame 4 waits on frames 1 and 2.
+
+---
+
 # Revision 4, 2026-10-18, on Roman's ruling of 01:27
 
 Written by session bf5baa63 on Fable. This revision replaces sections 0,
