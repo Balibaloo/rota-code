@@ -3385,6 +3385,34 @@ def _red_rows_by_output(rows: list[dict]) -> list[dict]:
     return out
 
 
+def _guess_seed(conn, batch_id: str) -> dict | None:
+    """The current guess set of a batch's item: its paths and symbols, and
+    the principal's words when the set rests on a ruling."""
+    row = conn.execute("SELECT item_id FROM batches WHERE id = ?", (batch_id,)).fetchone()
+    last = conn.execute(
+        "SELECT item_ver, ruling_id FROM touch_guesses WHERE item_id = ? "
+        "ORDER BY rowid DESC LIMIT 1", (row["item_id"],)).fetchone() if row else None
+    if last is None:
+        return None
+    rows = conn.execute(
+        "SELECT grain, grain_kind FROM touch_guesses WHERE item_id = ? AND item_ver = ? "
+        "AND ruling_id = ? ORDER BY rowid",
+        (row["item_id"], last["item_ver"], last["ruling_id"])).fetchall()
+    seed: dict[str, Any] = {
+        "paths": [r["grain"] for r in rows if r["grain_kind"] == "path"],
+        "symbols": [r["grain"] for r in rows if r["grain_kind"] == "symbol"]}
+    if last["ruling_id"]:
+        said = conn.execute("SELECT value FROM config WHERE key = ?",
+                            (f"entry:{last['ruling_id']}",)).fetchone()
+        try:
+            words = json.loads(said["value"]) if said else None
+        except (TypeError, ValueError):
+            words = said["value"] if said else None
+        if isinstance(words, str) and words:
+            seed["the principal said"] = words
+    return seed
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -3527,6 +3555,13 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 "JOIN tickets t ON t.id = bt.ticket_id WHERE bt.batch_id = ?",
                 (wake.refs[0],)).fetchall()
             hint += " " + " ".join(r["text"] or "" for r in rows)
+            # The batch's prediction starts from the item's guess, and from
+            # the principal's correction of it. Without the push, a right
+            # correction reached no plan (frame 298's design, 1.3; review 2,
+            # finding 3).
+            seed = _guess_seed(sb.ctx.conn, wake.refs[0])
+            if seed:
+                pushed["the item's guess"] = seed
         # The guess reads by the same lens, from the item's own words
         # (frame 298's design, 3.4, point 6).
         if wake is not None and wake.kind == "tick:guess" and wake.refs:

@@ -102,10 +102,10 @@ def test_the_batch_sees_the_symbol_it_committed(world):
     assert row["sym_kind"] == "function"
     assert row["area"], "a new grain carries an area, or no area-scoped read sees it"
 
-    from rota.roles.principal import near_code
-
-    assert NEW_FILE in near_code(db, "echo the json of an object"), \
-        "the signoff page's prediction reads the same index"
+    # The index line left the sign-off page (frame 298's design, 2.2), so
+    # the pin reads the index straight.
+    assert db.execute("SELECT 1 FROM code_index WHERE grain = ? AND grain_kind = 'path'",
+                      (NEW_FILE,)).fetchone(), "the index holds the file the batch made"
 
     # The directory the batch made is now a directory the tree has, so the
     # Architect can predict a second file beside the first.

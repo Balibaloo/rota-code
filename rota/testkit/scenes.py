@@ -230,7 +230,10 @@ class _Principal:
             # The door appends the request's rows to the refs the Liaison
             # sent (frame 190's design, 2.1). A script names the refs the
             # seat sent, so the stamped tail is read off before the lookup.
-            stamped = set(principal.request_rows(self.sc.conn, ask.refs))
+            # The door records the rows it added, the code line's key
+            # `guess:<item>` among them (frame 298, pass 2).
+            stamped = set(principal.request_rows(self.sc.conn, ask.refs)) | set(
+                principal.door_rows(self.sc.conn, ask.message_id, "stamped"))
             for n in range(len(ask.refs) - 1, 0, -1):
                 if not set(ask.refs[n:]) <= stamped:
                     break

@@ -182,11 +182,6 @@ RIGHT_143_144 = {
                  "but I said the team may make the smallest fix there if the new "
                  "helper is what broke those tests, and should leave the file "
                  "alone otherwise.", {"1": "contest", "2": "contest", "3": "approve"}),
-    "144 m236": ("Line 12 is wrong: I never overruled the helper. I still want it "
-                 "added next to echo, and my note about line 1 was only about which "
-                 "test files it points at. On line 1, the echo tests are right, but "
-                 "the termui and context test files don't belong there.",
-                 {"1": "contest", "2": "approve", "3": "approve"}),
     "143 m263": ("Line 3 is wrong because the flag should be off by default, so the "
                  "Python version shows only when someone turns it on. Also, take the "
                  "version from the running interpreter's version info, written as "
@@ -207,6 +202,29 @@ def test_a_right_verdict_of_nights_143_and_144_lands(db, night_ask):
     assert sorted(k for k, v in rulings.items() if v == "contest") == sorted(
         str(["calculate_tip", "how_it_works", "l_1"].index(r) + 1)
         for r, v in out["per_item"].items() if v == "contest")
+
+
+# Night 144, m236. The words fault only the test files under line 1, so the
+# files cue of frame 298, design 3.3, refuses a contest of line 1.
+M236 = ("Line 12 is wrong: I never overruled the helper. I still want it "
+        "added next to echo, and my note about line 1 was only about which "
+        "test files it points at. On line 1, the echo tests are right, but "
+        "the termui and context test files don't belong there.")
+
+
+def test_m236_a_contest_of_the_request_is_refused_with_the_key_named(db):
+    with pytest.raises(ValueError, match=(
+            r"line 1 is the request, and the words fault only the code it "
+            r"touches\. The team has not guessed that code yet\. Rule the key "
+            r"guess:calculate_tip contest with the words, and approve line 1\.")):
+        _rule_request(db, M236, {"1": "contest", "2": "approve", "3": "approve"})
+
+
+def test_m236_the_moved_reading_lands_with_the_item_approved(db):
+    out = _rule_request(db, M236, {"guess:calculate_tip": "contest", "1": "approve",
+                                   "2": "approve", "3": "approve"})
+    assert out["per_item"]["calculate_tip"] == "approve"
+    assert out["per_item"]["guess:calculate_tip"] == "contest"
 
 
 def test_words_that_fault_line_1_land_a_contest_on_it(db):

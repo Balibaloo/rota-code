@@ -3481,7 +3481,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         notes: dict[str, str] = {}
         if verb == "present" and recipient == "principal" and not park and not shift:
             import json as _json
-            from ..roles.principal import _stalled_keys, request_rows
+            from ..roles.principal import _stalled_keys, code_targets, request_rows
 
             # A row the model named is not the wake's row. A Liaison that named
             # a contested item on an agenda page let "ok" approve it, so the
@@ -3491,6 +3491,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             woke = set(getattr(ctx, "wake_refs", None) or ()) | api._wake_refs(ctx)
             refs += [r for r in rows if r not in refs]
             stamped = [r for r in rows if r not in woke]
+            # The door decides once what each code line shows, and every
+            # later read uses the record. A live lookup at the read sent a
+            # live batch's correction to the guess (frame 298's design, 2.1;
+            # review 2, finding 1).
+            code = code_targets(ctx.conn, refs)
+            refs += [k for k in code if k not in refs]
+            stamped += [k for k in code if k not in stamped]
+            if code:
+                notes["code"] = _json.dumps(code)
             if stamped:
                 notes["stamped"] = _json.dumps(stamped)
             # The quarantined keys of the page's batches as they stand at the
@@ -3517,6 +3526,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                         notes["stamped"] = _json.dumps(kept)
                     else:
                         notes.pop("stamped", None)
+                if code:
+                    code = {k: v for k, v in code.items() if k not in off}
+                    if code:
+                        notes["code"] = _json.dumps(code)
+                    else:
+                        notes.pop("code", None)
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,

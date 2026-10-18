@@ -14,7 +14,8 @@ that mentions its words.
 **A ruling of the principal.** When the message is a relay with
 `principal_verdict` on the guess, the principal read `guess` and
 corrected it. The words are `principal_said`. The paths under `disputed`
-are the ones the words call wrong. Call `batches.guess` once with the
-paths the words name and the paths of `guess`. Then stop.
+are the ones the words call wrong. Keep a path of `guess` only when the
+words do not call it wrong. Add the paths the words name, and call
+`batches.guess` once. Then stop.
 
 After the call, end the session with one line: "guessed <item>."

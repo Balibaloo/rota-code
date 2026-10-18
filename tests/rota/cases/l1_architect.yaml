@@ -72,6 +72,56 @@
     # A guess, never a permission (law 12), and no batch exists yet.
     writes: [items, tickets, criteria, batch_touch, constraints]
 
+- id: L1-AR-rewrite-the-guess-from-the-ruling
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 4
+  # Night 156's m192 on m191 (frame 298's design, 3.4 and 6; review 2,
+  # finding 2). The principal read the guess under line 1 and said the
+  # options and defaults test files have nothing to do with the change.
+  # `disputed_paths` reads no "no" word there, so `disputed` is empty and
+  # `guess` keeps both paths. The Architect drops the paths the words call
+  # wrong and writes the basic tests file the words name.
+  prompt: guess
+  inbound: {id: <m_relay>, from: liaison, to: architect, verb: relay,
+            body_refs: ["guess:<i1>"], cause: <m_rule>}
+  fixture:
+    config:
+      - {key: "verdict:<m_rule>", value: '{"guess:<i1>": "contest"}'}
+      - {key: "guess_target:<m_rule>", value: '{"guess:<i1>": [1, ""]}'}
+      - {key: "entry:<m_rule>", value: '"Lines 2 to 4 are still wrong: each check runs with the flag off and looks for a hard-coded 3.10.0, but each one should turn the flag on and check that the message ends with \"Python\" and major.minor.micro taken from the running interpreter''s version info. Lines 9 and 11 are wrong too, because version option already builds its own callback, so show_python only needs to be a normal keyword argument with no callback from the caller. Line 1 also names the options and defaults test files, which have nothing to do with this change, so keep the work to version option and its tests in the basic tests file."'}
+    items:
+      - {id: <i1>, text: "Give version_option a show_python flag that appends the running Python version to the message.",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    # Night 156's index, the rows the guess and the words name.
+    code_index:
+      - {grain: src/click/decorators.py, grain_kind: path}
+      - {grain: tests/test_basic.py, grain_kind: path}
+      - {grain: tests/test_options.py, grain_kind: path}
+      - {grain: tests/test_defaults.py, grain_kind: path}
+      - {grain: "src/click/decorators.py::version_option", grain_kind: symbol, sym_kind: function}
+    touch_guesses:
+      - {item_id: <i1>, item_ver: 1, ruling_id: "", grain: src/click/decorators.py, grain_kind: path}
+      - {item_id: <i1>, item_ver: 1, ruling_id: "", grain: tests/test_options.py, grain_kind: path}
+      - {item_id: <i1>, item_ver: 1, ruling_id: "", grain: tests/test_defaults.py, grain_kind: path}
+    messages:
+      - {id: <m_present>, thread_id: <t1>, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<i1>","guess:<i1>"]', seq: 1, status: answered}
+      - {id: <m_rule>, cause_id: <m_present>, thread_id: <t1>,
+         from_role: principal, to_role: liaison, verb: verdict,
+         body_refs: '["<i1>","guess:<i1>"]', seq: 2, status: answered}
+  expect:
+    calls: [batches.guess]
+    writes:
+      # The paths the words call wrong stay out, and the file the words
+      # name goes in.
+      touch_guesses: {ids_include: ["<i1>:1:<m_rule>:tests/test_basic.py"],
+                      text_excludes: ["tests/test_options.py", "tests/test_defaults.py"]}
+  forbidden:
+    writes: [ledger, criteria, tickets, items, constraints, batch_touch]
+    recipients: [principal, vision_keeper, developer, tester]
+
 - id: L1-AR-find-against-a-constraint
   tier: T1
   role: architect

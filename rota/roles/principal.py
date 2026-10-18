@@ -560,8 +560,11 @@ def _items_reached(conn: sqlite3.Connection, ref: str | None, hop: bool = True) 
     # A challenge row names its item as `items:<id>`. Night 137's
     # `challenge_items_confirm_with_default_on_eof` reached nothing (frame
     # 193's design, 2.F.9, finding 7).
+    # A code line's key `guess:<item>` is a page alias of its item, so
+    # `off_page` keeps it on its own request's page (frame 298's design,
+    # 2.1, point 4).
     head, sep, rest = ref.partition(":")
-    if sep and rest and head in ("items", "criteria", "tickets", "batches"):
+    if sep and rest and head in ("items", "criteria", "tickets", "batches", "guess"):
         ref = rest
     if conn.execute("SELECT 1 FROM items WHERE id = ?", (ref,)).fetchone():
         return [ref]
@@ -1065,14 +1068,93 @@ def _gave_up_tries(conn: sqlite3.Connection, criterion: str,
     return None
 
 
+LIVE_BATCH = ("pending", "deferred", "running")
+
+
+def code_target(conn: sqlite3.Connection, item: str) -> dict | None:
+    """What a request's code line shows at a send: the live batch with a
+    plan, else the current guess set, else None (frame 298's design, 2.1)."""
+    # A live batch's plan replaces the guess, so the principal sees one list
+    # per item (frame 298's design, 2.1, point 6).
+    row = conn.execute(
+        "SELECT b.id FROM batches b WHERE b.item_id = ? AND b.status IN "
+        f"({','.join('?' * len(LIVE_BATCH))}) AND EXISTS (SELECT 1 FROM batch_touch t "
+        "WHERE t.batch_id = b.id) ORDER BY b.rowid DESC LIMIT 1",
+        (item, *LIVE_BATCH)).fetchone()
+    if row is not None:
+        return {"batch": row["id"]}
+    last = conn.execute("SELECT item_ver, ruling_id FROM touch_guesses WHERE item_id = ? "
+                        "ORDER BY rowid DESC LIMIT 1", (item,)).fetchone()
+    return {"guess": [last["item_ver"], last["ruling_id"]]} if last else None
+
+
+def code_targets(conn: sqlite3.Connection, refs: list[str]) -> dict[str, dict]:
+    """The send door's stamp: `guess:<item>` to its target, for each request
+    item of the refs. A page that holds a batch of the item is a touch or a
+    stopped page, and its batch line already shows the plan."""
+    out: dict[str, dict] = {}
+    for ref in refs or []:
+        if not isinstance(ref, str) or not _is_request_item(conn, ref):
+            continue
+        if any(conn.execute("SELECT 1 FROM batches WHERE id = ? AND item_id = ?",
+                            (r, ref)).fetchone() for r in refs if isinstance(r, str)):
+            continue
+        target = code_target(conn, ref)
+        if target:
+            out[f"guess:{ref}"] = target
+    return out
+
+
+def code_line(conn: sqlite3.Connection, item: str, target: dict | None) -> str:
+    """The words of a code line, or '' when the target names nothing."""
+    if not isinstance(target, dict):
+        return ""
+    batch = target.get("batch")
+    if batch:
+        # A batch target renders live, as a batch line does. The line keeps
+        # its number when the change closes (frame 298's design, 2.1, point 2).
+        row = conn.execute("SELECT status FROM batches WHERE id = ?", (batch,)).fetchone()
+        if row is None or row["status"] in ("merged", "abandoned"):
+            return "The team's plan for this change is closed."
+        from ..core.lifecycle import touch_set
+
+        t = touch_set(conn, batch) or {}
+        parts = ["expected to touch " + (", ".join(t.get("expected") or [])
+                                         or "nothing named")]
+        if t.get("possible"):
+            parts.append("might touch " + ", ".join(t["possible"]))
+        return "The team's plan of the code this touches: " + "; ".join(parts)
+    shown = target.get("guess")
+    if not (isinstance(shown, list) and len(shown) == 2):
+        return ""
+    # A guess target renders the set the send stamped, frozen. A later set
+    # is the next page's.
+    rows = conn.execute(
+        "SELECT grain, grain_kind FROM touch_guesses WHERE item_id = ? AND item_ver = ? "
+        "AND ruling_id = ? ORDER BY rowid", (item, shown[0], shown[1])).fetchall()
+    paths = [r["grain"] for r in rows if r["grain_kind"] == "path"]
+    symbols = [r["grain"] for r in rows if r["grain_kind"] == "symbol"]
+    if not paths:
+        return ""
+    words = "The team's guess at the code this touches: " + ", ".join(paths) + "."
+    if symbols:
+        words += " It might touch " + ", ".join(symbols) + "."
+    return words
+
+
 def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                   out: list[str], *, said: list[tuple[str, str]] | None = None,
-                  near: bool = False, batch: str | None = None,
+                  batch: str | None = None, code: dict | None = None,
                   park: bool = False, stalled: list[str] | None = None) -> list[int]:
     """
     Render the request's rows of a page first: the principal's words, each
-    item, and each item's criteria with their `check:` lines. Append to
-    `out` and `order`, and return the line numbers of the items.
+    item, its code line, and its criteria with their `check:` lines. Append
+    to `out` and `order`, and return the line numbers of the items.
+
+    `code` is the send door's stamp `code:<message id>`. A code line renders
+    from it only, numbered under the item. An item with no stamp gets one
+    unnumbered line that says the team has not guessed yet. A touch, stopped
+    or park page has a batch line, and no code line.
 
     The park page renders through this block too, so its words stay as
     frame 142 landed them. `park` keeps its one difference: every item
@@ -1114,10 +1196,18 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                 order.append(r)
                 lines.append(len(order))
                 out.append(f"  {len(order)}. {items[r]}")
-                if near:
-                    found = near_code(conn, items[r])
-                    if found:
-                        out.append("     code that names these words: " + ", ".join(found))
+                if park or batch:
+                    continue
+                key = f"guess:{r}"
+                target = (code or {}).get(key)
+                words = code_line(conn, r, target) if key in refs else ""
+                if words:
+                    order.append(key)
+                    out.append(f"  {len(order)}. {words}")
+                elif not target:
+                    # The present can go out before the guess exists. No
+                    # ruling is owed on this line (frame 298's design, 2.3).
+                    out.append("     The team has not guessed the code this touches yet.")
         if group_must:
             out.append("It must:")
         for r in group_must:
@@ -1158,6 +1248,17 @@ def _name_request(lines: list[int]) -> str:
     if len(lines) == 1:
         return f" To change what you asked for, name line {lines[0]}."
     return (" To change what you asked for, name its line, "
+            + ", ".join(str(n) for n in lines[:-1]) + f" or {lines[-1]}.")
+
+
+def _name_guess(lines: list[int]) -> str:
+    """The closing sentence that names the code lines, or ''."""
+    # The numbers come from the order (frame 298's design, 2.4).
+    if not lines:
+        return ""
+    if len(lines) == 1:
+        return f" To correct the code it touches, name line {lines[0]}."
+    return (" To correct the code they touch, name line "
             + ", ".join(str(n) for n in lines[:-1]) + f" or {lines[-1]}.")
 
 
@@ -1408,6 +1509,10 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             tuple(refs))} if refs else set()
         in_block = {r for r in refs if isinstance(r, str)
                     and (r in crits or _is_request_item(conn, r))}
+        # A code line renders under its item, in the block (frame 298's
+        # design, 2.1, point 4).
+        in_block |= {r for r in refs if isinstance(r, str) and r.startswith("guess:")
+                     and r[len("guess:"):] in in_block}
     said: list[tuple[str, str]] = []
     account: list[tuple[str, str]] = []
     does: list[tuple[str, str]] = []
@@ -1528,8 +1633,11 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         # The request first, the principal's words with it. The seats'
         # rows follow under the team's notes. Night 133's m122 put seven
         # seat rows to the principal and no line of the request.
-        asked = request_block(conn, refs, order, out, said=said, near=True,
-                              stalled=keys)
+        from .api import code_stamp
+
+        asked = request_block(conn, refs, order, out, said=said,
+                              code=code_stamp(conn, ask_id), stalled=keys)
+        guessed = [n for n, r in enumerate(order, 1) if r.startswith("guess:")]
         if account:
             out.append("What we are building:")
             numbered(account)
@@ -1541,11 +1649,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             numbered(does_today)
         if does:
             out.append("It would:")
-            for ref, text in does:
-                numbered([(ref, text)])
-                near = near_code(conn, text)
-                if near:
-                    out.append("     code that names these words: " + ", ".join(near))
+            numbered(does)
         if does_not:
             out.append("It would not:")
             numbered(does_not)
@@ -1563,7 +1667,8 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                        "anything I touch there.")
         out.append("Reply in your own words. 'ok' approves all of this and "
                    "starts building. Name a line to correct only that line. "
-                   "Ask, if something here is unclear." + _name_request(asked))
+                   "Ask, if something here is unclear." + _name_request(asked)
+                   + _name_guess(guessed))
     elif verb == "clarify":
         out.append("I need one thing from you before I can continue.")
         if question:
@@ -1580,45 +1685,6 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                 + does + does_not + assumed
                 + terms + touches + other]
     return chr(10).join(out), order
-
-
-STOP_WORDS = frozenset("""
-the a an and or of to in on for with from by at as is are be can could
-should will would that this these those it its their there user users
-program system when where what which who how not no into over under
-""".split())
-
-
-def near_code(conn, text: str, cap: int = 3) -> list[str]:
-    """
-    The files whose symbols carry a word of this item's text.
-
-    P4 piece 2 (plans/p4-scope-disclosure.md), in its mechanical form: at
-    signoff nothing is sliced, so the Architect's guess is judgement the 8B
-    tier has not earned. This is not a guess. It is the index, read for the
-    item's own words, and the page labels it as that. A symbol `Invoice`
-    names the word "invoices", and the file that defines it is where a
-    change about invoices is likely to look.
-    """
-    words = set()
-    for raw in text.lower().split():
-        w = "".join(ch for ch in raw if ch.isalnum() or ch == "_")
-        if len(w) >= 4 and w not in STOP_WORDS:
-            words.add(w)
-            if w.endswith("s"):
-                words.add(w[:-1])
-    if not words:
-        return []
-    hits: dict[str, int] = {}
-    for row in conn.execute(
-            "SELECT grain FROM code_index WHERE grain_kind = 'symbol'"):
-        grain = row["grain"]
-        path, _, name = grain.partition("::")
-        lname = name.lower()
-        if any(w in lname for w in words):
-            hits[path] = hits.get(path, 0) + 1
-    ranked = sorted(hits.items(), key=lambda kv: (-kv[1], kv[0]))
-    return [path for path, _ in ranked[:cap]]
 
 
 def render_refs(conn: sqlite3.Connection, refs: list[str]) -> str:

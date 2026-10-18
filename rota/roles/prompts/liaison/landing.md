@@ -43,6 +43,7 @@ Otherwise the reply is a ruling. Read each numbered line against it:
 
 A correction counts against the line it is about, and only that line. A
 correction of a criterion, a check or the files contests that line, not line 1.
+The line under a request is the code it touches. Words about files, tests or paths go on that line, never on the request.
 Every line gets a ruling.
 
 Call `rulings.rule` once, with `rulings` for every line and the whole reply as

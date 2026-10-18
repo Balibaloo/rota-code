@@ -509,21 +509,34 @@ def test_a_note_s_contest_reaches_a_description_on_a_request_page(db):
                       ).fetchone()["approval"] == "contested"
 
 
-def test_the_signoff_page_names_the_code_that_carries_each_items_words(db):
-    """P4 piece 2 in its mechanical form (2026-09-12): beside each item, the
-    files whose symbols carry a word of the item's text, read from the
-    index and labelled as that. Not a prediction; the touch note is."""
+def test_the_signoff_page_names_the_teams_guess_at_each_items_code(db):
+    """P4 piece 2 in its judged form (frame 298's design, 2.1 and 2.2): under
+    each request item, the Architect's guess of the code it touches, as the
+    send door stamped it. The index line "code that names these words"
+    left the page."""
     db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1',"
                "'users can export their invoices as CSV','in_scope','draft',0,1)")
+    seed_provenance(db, "items", "i1", "decided")
     for grain in ("src/billing/invoice.py::Invoice", "src/billing/export.py::export_csv",
                   "src/billing/export.py::ExportError", "src/auth/login.py::login"):
         db.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'symbol')", (grain,))
+    for grain in ("src/billing/export.py", "tests/test_export.py"):
+        db.execute("INSERT INTO touch_guesses (item_id, item_ver, grain, grain_kind) "
+                   "VALUES ('i1', 1, ?, 'path')", (grain,))
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+               "status, seq) VALUES ('m1', 'm1', 'liaison', 'principal', 'present', ?, "
+               "'open', 1)", (json.dumps(["i1", "guess:i1"]),))
+    db.execute("INSERT INTO config (key, value) VALUES ('code:m1', ?)",
+               (json.dumps({"guess:i1": {"guess": [1, ""]}}),))
     db.commit()
-    from rota.roles.principal import render_ask
-    page = render_ask(db, "present", ["i1"])
+    from rota.roles.principal import render_page
+    page, order = render_page(db, "present", ["i1", "guess:i1"], ask_id="m1")
     assert "1. users can export their invoices as CSV" in page
-    assert "code that names these words: src/billing/export.py, src/billing/invoice.py" in page
+    assert ("  2. The team's guess at the code this touches: src/billing/export.py, "
+            "tests/test_export.py.") in page.split("\n")
+    assert order == ["i1", "guess:i1"]
+    assert "code that names these words" not in page
     assert "login" not in page
 
 

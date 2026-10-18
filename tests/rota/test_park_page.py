@@ -649,7 +649,8 @@ def test_a_files_correction_of_a_built_batch_line_is_admitted(n133):
     `test_frame255_files_correction.py::
     test_land_keeps_bg_2_and_the_relay_reaches_the_architect`. M198 does not
     fault line 1, so a contest of the item is refused (frame 255, review 1,
-    finding 1)."""
+    finding 1). The files cue of frame 298, design 3.3, fires before the
+    frame 255 door on this page, so the refusal is the cue's text 2."""
     from rota.core.sandbox import build
     from rota.roles import prompts
 
@@ -661,8 +662,9 @@ def test_a_files_correction_of_a_built_batch_line_is_admitted(n133):
                allow=prompts.mode_tools("liaison", "landing"))
     sb.ctx.trigger = "m198"
     with pytest.raises(ValueError, match=(
-            r"The words fault line 2\. Line 1 is the request, and they do not "
-            r"fault it\. Rule line 2, and approve the rest\.")):
+            r"line 1 is the request, and the words fault only the code it "
+            r"touches\. That code is line 2, the change's plan\. Rule line 2 "
+            r"contest with the words, and approve line 1\.")):
         sb.call("rulings.rule", rulings={ITEM_133: "contest", "bg_2": "approve"},
                 words=M198)
 

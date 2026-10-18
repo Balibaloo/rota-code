@@ -186,7 +186,10 @@ def test_the_agenda_page_numbers_the_open_request_first_and_the_seat_rows_after(
     lines = page.splitlines()
     assert lines[:3] == ["Here is what I understand you want, on one page.",
                          "You asked:", f"  1. {TEXT_133}"]
-    assert lines[3] == "It must:" and page.count("check: none yet.") == 3
+    # No guess exists, so the item's code line is the unnumbered "not
+    # guessed" line (frame 298's design, 2.3).
+    assert lines[3] == "     The team has not guessed the code this touches yet."
+    assert lines[4] == "It must:" and page.count("check: none yet.") == 3
     assert page.index("  4. When stdin is closed") < page.index(TEAM_NOTES) \
         < page.index("  5. term")
     assert "Users define commands" not in page, "a description is no request line"
@@ -1968,13 +1971,17 @@ def test_the_agenda_wakes_for_a_seat_row_and_carries_the_reply_row(bg4):
     (wake,) = tick_agenda(bg4, principal_present=True)
     mid = _dispatch(bg4, wake, 'TOOL: msg.present_principal(refs=["l_a9c0ca7d82"])')
     (ask,) = [a for a in pending_asks(bg4) if a.message_id == mid]
-    assert ask.order == ([ITEM_VO] + [c for c, _ in CRIT_VO]
+    # bg_4 is live and holds a plan, so the send stamps it as the item's
+    # code line, line 2 (frame 298's design, 2.1).
+    assert ask.order == ([ITEM_VO, f"guess:{ITEM_VO}"] + [c for c, _ in CRIT_VO]
                          + ["l_a9c0ca7d82", "l_62ca6652d9"])
     page = ask.rendered
-    assert page.index(TEAM_NOTES) < page.index("  6. The principal's contest"), page
+    assert "  2. The team's plan of the code this touches: expected to touch " \
+           "src/click/decorators.py" in page, page
+    assert page.index(TEAM_NOTES) < page.index("  7. The principal's contest"), page
 
     reply = _reply(bg4, mid, "ok")
-    _landing(bg4, reply, {str(n): "approve" for n in range(1, 7)}, "ok")
+    _landing(bg4, reply, {str(n): "approve" for n in range(1, 8)}, "ok")
     assert bg4.execute("SELECT COUNT(*) n FROM ledger WHERE status = 'open'"
                        ).fetchone()["n"] == 0
 
