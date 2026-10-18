@@ -1011,6 +1011,7 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
 - Sprint: next sprint, rank 2 among the parked, after frame 291, by the cost on night 155: three sessions, a page left open, and the change he asked to park running (reasoned: the read).
 - Pointer: `plans/night155-cycle1.md`, section 6.
 - Status 2026-10-18 01:29 (rota-08): pushed from night 155's third `CYCLE` line, read at 01:24 while the night ran. Not a held frame's wall, no quarantine, and the walk runs bg_5, so the night runs. The lost "Line 1 also doesn't describe my request", a description correction with no route on a shift page, is a second case under cause 10 for the night read. Rota workflow.
+- Status 2026-10-18 02:00 (rota-08): **night 155, walk 3, `CYCLE` 4 at 01:58, period 1 rounds 2, the same shift page `m_shift_echo_json_tests_m_p2` with "Your last answer to this page did not reach the team"; the principal chose "now" this time and the walk moved on to m224 to m234** (observed: `.rota/night155.log` lines 168 to 177, 2026-10-18 01:59). Second case of this wall on one night. The night runs: walk 3 holds one running batch and two heads, and no held frame's door has fired yet, 0 of each sign over 10 Developer sessions, so the walk's commits are the held frames' only data. Rota workflow.
 
 ### 253. A quarantine's tick key reaches the principal by the state page and the quarantined wake (2026-10-15)
 
