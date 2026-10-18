@@ -4,6 +4,7 @@ The state page: what a session needs from the stack, and nothing else.
     python -m rota.tools.state                    # every held frame
     python -m rota.tools.state --sid 21800a2b     # one session's frames
     python -m rota.tools.state --from bf5baa63    # with a sender's doubts
+    python -m rota.tools.state --since 2026-10-17 # for Roman's return
 
 The stack is the history, and nobody reads it whole. A take that read the
 stack cost 35k of context (observed: the count hook, 2026-10-18). This
@@ -11,8 +12,10 @@ tool prints the held frames, the count of live things, the open decisions
 and the leaving session's doubts, about 3k tokens in all. It reads
 `plans/stack.md` in place and never edits it.
 
-No ruling prints here. A ruling lives at the thing it rules (reasoned:
-`plans/method/design.md`, section 2, rulings at the thing).
+No ruling prints on the normal page. A ruling lives at the thing it rules
+(reasoned: `plans/method/design.md`, section 2, rulings at the thing).
+`--since` is the exception. It prints his rulings back to him on his
+return, beside what closed, what was assumed and what waits on him.
 """
 from __future__ import annotations
 
@@ -344,6 +347,110 @@ def render(stack: Path, sid: str = "", sender: str = "",
     return "\n".join(out) + "\n"
 
 
+ARCHIVE = re.compile(r"^stack-(\d{4}-\d\d-\d\d)\.md$")
+ASSUMED = ("taken by timeout", "under the assumption", "(reasoned:")
+RULED_ON = re.compile(r"\(ruled: Roman, (\d{4}-\d\d-\d\d)")
+RANK = {"high": 0, "med": 1, "low": 2, "": 3}
+NAME_LIMIT = 100
+ROW_LIMIT = 300
+SINCE_LIMIT = 12000
+
+
+def closed_since(stack: Path, since: str) -> list[str]:
+    """The headings of the archive files dated at or after `since`, newest file first."""
+    archive = stack.resolve().parent / "archive"
+    dated = []
+    if archive.is_dir():
+        for path in archive.iterdir():
+            m = ARCHIVE.match(path.name)
+            if m and m.group(1) >= since:
+                dated.append((m.group(1), path))
+    rows: list[str] = []
+    for day, path in sorted(dated, reverse=True):
+        for line in read_lines(path):
+            m = HEAD.match(line)
+            if m:
+                name = HOLDERS.sub("", m.group(2)).strip()
+                rows.append(cut("%s. %s" % (m.group(1), name), NAME_LIMIT)
+                            + " (archived %s)" % day)
+    return rows
+
+
+def dated_statuses(frames: list[Frame], since: str) -> list[tuple[str, Frame, str]]:
+    """Every status line dated at or after `since`, newest first."""
+    rows = []
+    for f in frames:
+        for i in f.statuses:
+            line = f.lines[i]
+            when = STATUS.match(line).group(1)
+            if when[:10] >= since:
+                rows.append((when, f, line))
+    rows.sort(key=lambda r: r[0], reverse=True)
+    return rows
+
+
+def is_assumed(line: str) -> bool:
+    return "Roman" in line and any(word in line for word in ASSUMED)
+
+
+def is_ruling(line: str, since: str) -> bool:
+    body = STATUS.match(line).group(3)
+    if body.startswith("**ruled"):
+        return True
+    return any(day >= since for day in RULED_ON.findall(line))
+
+
+def since_row(frame: Frame, line: str) -> str:
+    name = cut(HOLDERS.sub("", frame.heading).strip(), 80)
+    return cut("%s. %s :: %s" % (frame.number, name, line), ROW_LIMIT)
+
+
+def render_since(stack: Path, since: str, cap: int = SINCE_LIMIT) -> str:
+    """The page for Roman's return: four sections and nothing else.
+
+    His attention is the scarcest budget, and a return should cost one
+    screen (reasoned: `plans/method/design.md`, section 2, autonomy). So
+    the page holds at `cap` characters. The oldest rows of the assumed
+    and the ruled sections go first, and the page says how many went.
+    """
+    frames = parse(read_lines(stack))
+    head = ["State since %s of %s, printed %s." % (
+        since, stack.as_posix(), time.strftime("%Y-%m-%d %H:%M"))]
+    closed = closed_since(stack, since)
+    statuses = dated_statuses(frames, since)
+    assumed = [since_row(f, line) for _, f, line in statuses if is_assumed(line)]
+    ruled = [since_row(f, line) for _, f, line in statuses if is_ruling(line, since)]
+    asks = sorted([f for f in frames if f.waits_on_roman],
+                  key=lambda f: RANK.get(f.rating, 3))
+    waits = ["[%s] %s: %s" % (f.rating or "unrated", f.title,
+                              cut(f.waits, FIELD_LIMIT)) for f in asks]
+
+    def page(n_assumed: int, n_ruled: int) -> str:
+        out = list(head)
+        for title, rows, shown in (
+                ("Closed since %s" % since, closed, len(closed)),
+                ("Decided under assumption since %s" % since, assumed, n_assumed),
+                ("Waits on Roman", waits, len(waits)),
+                ("Rulings since %s" % since, ruled, n_ruled)):
+            out += ["", "## " + title]
+            out += rows[:shown] or ["None."]
+            if shown < len(rows):
+                out.append("%d older rows cut to keep the page under %d characters."
+                           % (len(rows) - shown, cap))
+        return "\n".join(out) + "\n"
+
+    n_a, n_r = len(assumed), len(ruled)
+    text = page(n_a, n_r)
+    while len(text) > cap and (n_a or n_r):
+        # Cut from the longer of the two sections, so neither empties first.
+        if n_a >= n_r:
+            n_a -= 1
+        else:
+            n_r -= 1
+        text = page(n_a, n_r)
+    return text
+
+
 def default_stack() -> Path:
     top = handover._git(Path.cwd(), "rev-parse", "--show-toplevel")
     return (Path(top) if top else Path.cwd()) / "plans" / "stack.md"
@@ -357,6 +464,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--stack", default=None, help="the stack, plans/stack.md by default")
     p.add_argument("--limit", type=int, default=STATUS_LIMIT,
                    help="characters of the last status line")
+    p.add_argument("--since", default="",
+                   help="YYYY-MM-DD: print what closed, what was assumed, what "
+                        "waits on Roman and his rulings since that date, and "
+                        "nothing else")
     args = p.parse_args(argv)
     for value in (args.sid, args.sender):
         bad = handover._check_sid(value) if value else ""
@@ -367,7 +478,13 @@ def main(argv: list[str] | None = None) -> int:
     if not stack.is_file():
         print("no stack at %s" % stack, file=sys.stderr)
         return 2
-    text = render(stack, args.sid, args.sender, args.limit)
+    if args.since:
+        if not re.fullmatch(r"\d{4}-\d\d-\d\d", args.since):
+            print("--since takes a date, YYYY-MM-DD", file=sys.stderr)
+            return 2
+        text = render_since(stack, args.since)
+    else:
+        text = render(stack, args.sid, args.sender, args.limit)
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except (AttributeError, ValueError):

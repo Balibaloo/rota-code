@@ -324,3 +324,97 @@ def test_an_unknown_frame_writes_nothing(repo, clock):
     before = (repo / "plans" / "stack.md").read_bytes()
     assert append(repo, "99", "--sid", "aaaa1111", "--text", "x") == 2
     assert (repo / "plans" / "stack.md").read_bytes() == before
+
+
+# The print for Roman's return, `--since`.
+
+SINCE_STACK = STACK.replace(
+    "- Status 2026-10-17 11:00 (rota-01): the second line.\n",
+    "- Status 2026-10-17 11:00 (rota-01): the second line.\n"
+    "- Status 2026-10-18 01:00 (rota-01): taken by timeout at 01:00, "
+    "Roman's low question on the door.\n"
+    "- Status 2026-10-18 02:00 (rota-01): **ruled. Roman, 2026-10-18 01:58, "
+    "in the terminal: \"yes\"** (ruled: Roman, in his words).\n"
+    "- Status 2026-10-15 09:00 (rota-01): old (reasoned: Roman would agree) "
+    "and (ruled: Roman, 2026-10-14 10:00).\n").replace(
+    "- Pointer: `plans/y.md`.\n",
+    "- Pointer: `plans/y.md`.\n"
+    "- Status 2026-10-18 03:00 (rota-02): the ask stands (ruled: Roman, "
+    "2026-10-17 22:00, on the scope).\n").replace(
+    "### 11. The open ask",
+    "### 13. A high ask (2026-10-17)\n\n- **Site: y.** Meta workflow.\n"
+    "- Waits on: Roman's ruling [high].\n\n### 14. An order (2026-10-17)\n\n"
+    "- **Site: y.** Meta workflow.\n- Waits on: Roman's order.\n\n"
+    "### 11. The open ask")
+
+
+def archive(repo: Path, day: str, text: str) -> None:
+    path = repo / "plans" / "archive" / ("stack-%s.md" % day)
+    path.parent.mkdir(exist_ok=True)
+    path.write_bytes(text.encode("utf-8"))
+
+
+@pytest.fixture
+def since_repo(repo):
+    write(repo, SINCE_STACK)
+    archive(repo, "2026-10-18", "# Archive\n\n### 7. A closed door frame "
+            "(2026-10-10) (aaaa1111)\n\n- Status 2026-10-18 00:00 (x): closed.\n")
+    archive(repo, "2026-10-16", "### 6. Closed too early (2026-10-01)\n")
+    archive(repo, "head-rules-2026-10-18", "### 5. Not a stack archive\n")
+    return repo
+
+
+def test_since_prints_four_sections_and_nothing_else(since_repo, capsys):
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    heads = [x for x in out.splitlines() if x.startswith("## ")]
+    assert heads == ["## Closed since 2026-10-17",
+                     "## Decided under assumption since 2026-10-17",
+                     "## Waits on Roman", "## Rulings since 2026-10-17"]
+    assert "Held by" not in out and "Live things" not in out
+
+
+def test_since_lists_the_archived_frames_from_the_date(since_repo, capsys):
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    assert "7. A closed door frame (2026-10-10) (archived 2026-10-18)" in out
+    assert "6. Closed too early" not in out
+    assert "5. Not a stack archive" not in out
+
+
+def test_since_lists_assumptions_and_rulings_newest_first(since_repo, capsys):
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    section = out.split("## Decided under assumption")[1].split("## Waits")[0]
+    assert "taken by timeout at 01:00" in section
+    assert "old (reasoned" not in out, "a line before the date stays out"
+    rulings = out.split("## Rulings since 2026-10-17")[1]
+    rows = [x for x in rulings.splitlines() if x.strip() and "::" in x]
+    assert rows[0].startswith("11. The open ask waits on him (2026-10-17) :: "
+                              "- Status 2026-10-18 03:00")
+    assert rows[1].startswith("10. The held frame") and '"yes"' in rows[1]
+    assert len(rows) == 2
+
+
+def test_since_ranks_the_waits_and_drops_the_order_waits(since_repo, capsys):
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    section = out.split("## Waits on Roman")[1].split("## Rulings")[0]
+    rows = [x for x in section.splitlines() if x.startswith("[")]
+    assert rows[0].startswith("[high] 13. A high ask")
+    assert rows[1].startswith("[med] 11. The open ask")
+    assert "14. An order" not in out
+
+
+def test_since_cuts_the_oldest_rows_to_the_cap(since_repo, capsys):
+    many = "".join("- Status 2026-10-18 %02d:%02d (rota-01): taken by timeout, "
+                   "Roman's question %d %s.\n" % (h, m, h * 60 + m, "x" * 200)
+                   for h in range(4, 10) for m in range(0, 60, 2))
+    write(since_repo, SINCE_STACK.replace(
+        "- Pointer: `plans/x.md`.\n", "- Pointer: `plans/x.md`.\n" + many))
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    assert len(out) <= 12000
+    assert "older rows cut to keep the page under 12000 characters." in out
+    assert "Roman's question 598" in out, "the newest row stays"
+    assert "Roman's question 240 " not in out, "the oldest row goes"
+
+
+def test_since_refuses_a_value_that_is_not_a_date(since_repo):
+    assert state.main(["--stack", str(since_repo / "plans" / "stack.md"),
+                       "--since", "yesterday"]) == 2
