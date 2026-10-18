@@ -128,7 +128,7 @@ def test_the_open_decision_carries_its_rating(repo, capsys):
 def test_over_ten_live_things_prints_and_never_refuses(repo, capsys):
     extra = "".join(
         "### %d. Ask %d (2026-10-17)\n\n- **Site: x.** Meta workflow.\n"
-        "- Waits on: Roman's order [low].\n\n" % (n, n) for n in range(20, 30))
+        "- Waits on: Roman's ruling [low].\n\n" % (n, n) for n in range(20, 30))
     write(repo, STACK.replace("## Parked", extra + "## Parked"))
     out = page(repo, capsys=capsys)
     assert "Live things: 12 of 10" in out
@@ -269,6 +269,55 @@ def test_the_commit_holds_the_stack_alone(repo, clock, capsys):
         "docs(plans): frame 10, one two three four five six seven eight"
     assert git(repo, "diff", "--cached", "--name-only") == "other.txt", \
         "the other staged file stays staged and out of the commit"
+
+
+def test_the_line_goes_after_a_wrapped_last_status(repo, clock):
+    """A wrapped status keeps its continuation lines above the new line."""
+    wrapped = STACK.replace(
+        "- Status 2026-10-17 11:00 (rota-01): the second line.\n",
+        "- Status 2026-10-17 11:00 (rota-01): the second line\n"
+        "  continues here\n  and here.\n")
+    write(repo, wrapped)
+    append(repo, "10", "--sid", "aaaa1111", "--text", "x", "--no-commit")
+    lines = (repo / "plans" / "stack.md").read_bytes().decode().split("\n")
+    at = lines.index("  and here.")
+    assert lines[at - 1] == "  continues here"
+    assert lines[at + 1] == "- Status 2031-01-02 03:04 (aaaa1111): x"
+    assert lines[at + 2] == ""
+
+
+def test_order_waits_are_not_open_decisions(repo, capsys):
+    """A frame carries no wait on his order (ruled: Roman, 2026-10-12 23:40)."""
+    extra = "".join(
+        "### %d. Order %d (2026-10-17)\n\n- **Site: x.** Meta workflow.\n"
+        "- Waits on: %s\n\n" % (n, n, wait) for n, wait in (
+            (20, "Roman's order. Recommended after frame 9."),
+            (21, "frame 9's close, then the sprint order."),
+            (22, "nothing. Roman orders it."),
+            (23, "Roman's order, and Roman's ruling on the door.")))
+    write(repo, STACK.replace("## Parked", extra + "## Parked"))
+    out = page(repo, capsys=capsys)
+    assert "20. Order" not in out and "21. Order" not in out
+    assert "22. Order" not in out
+    assert "23. Order 23" in out, "a decision beside an order still counts"
+    assert "Live things: 3 of 10" in out
+
+
+def test_a_ruling_finds_the_workflow_on_another_bullet(repo, clock):
+    old = STACK.replace("- **Site: the brief.** Meta workflow. A story.",
+                        "- **Site: the brief.** A story.\n- Rota workflow.")
+    write(repo, old)
+    append(repo, "11", "--sid", "aaaa1111", "--ruling", "yes", "--at", "23:50",
+           "--date", "2031-01-01", "--no-commit")
+    text = (repo / "plans" / "stack.md").read_bytes().decode()
+    assert ('**ruled. Roman, 2031-01-01 23:50, in the terminal: "yes"** '
+            '(ruled: Roman, in his words). Rota workflow.') in text
+
+
+def test_a_tag_after_the_sid_does_not_unhold_a_frame(repo, capsys):
+    write(repo, STACK.replace("(Roman) (aaaa1111)", "(Roman) (aaaa1111) (parked)"))
+    out = page(repo, "--sid", "aaaa1111", capsys=capsys)
+    assert "10. The held frame changes a door (2026-10-17) (Roman) (parked)" in out
 
 
 def test_an_unknown_frame_writes_nothing(repo, clock):

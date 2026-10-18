@@ -26,14 +26,14 @@ from pathlib import Path
 from rota.tools import handover
 
 HEAD = re.compile(r"^### (\d+)\.\s+(.*)$")
-TAGS = re.compile(r"((?:\s*\((?:[0-9a-f]{8}|Roman)\))+)\s*$")
-HOLDERS = re.compile(r"(?:\s*\([0-9a-f]{8}\))+\s*$")
+HOLDERS = re.compile(r"\s*\([0-9a-f]{8}\)")
 SID = re.compile(r"\(([0-9a-f]{8})\)")
 STATUS = re.compile(r"^- Status (\d{4}-\d\d-\d\d \d\d:\d\d) \(([^)]*)\):\s?(.*)$")
 RATING = re.compile(r"\[(high|med|low)\]")
 WORKFLOW = re.compile(r"\b(Meta|Rota) workflow\b")
 BOLD_SITE = re.compile(r"\*\*Site:\s*(.*?)\*\*")
 PLAIN_SITE = re.compile(r"Site:\s*(.*?\.)(?:\s|$)")
+ORDER_WAIT = re.compile(r"Roman's order|the sprint order|Roman orders it")
 DOUBTS = "## What I believe, and what to doubt"
 
 FIELD_LIMIT = 200
@@ -71,7 +71,7 @@ class Frame:
 
         `(Roman)` stays, because it says the frame is his ask.
         """
-        return "%s. %s" % (self.number, HOLDERS.sub("", self.heading).rstrip())
+        return "%s. %s" % (self.number, HOLDERS.sub("", self.heading).strip())
 
     def first(self, prefix: str) -> tuple[int, str] | None:
         for i, line in enumerate(self.lines):
@@ -98,11 +98,23 @@ class Frame:
 
     @property
     def workflow(self) -> str:
-        """The workflow word after the Site field: Meta, Rota, or empty."""
+        """The workflow word after the Site field, else the first in the frame.
+
+        Older frames carry the word on a bullet of its own. A status line
+        names the workflow of its own statement, so it is read last.
+        """
         line = self.what
         at = line.find("Site:")
         m = WORKFLOW.search(line, at if at >= 0 else 0)
-        return m.group(1) if m else ""
+        if m:
+            return m.group(1)
+        rest = self.lines[1:]
+        for other in ([x for x in rest if not STATUS.match(x)]
+                      + [x for x in rest if STATUS.match(x)]):
+            m = WORKFLOW.search(other)
+            if m:
+                return m.group(1)
+        return ""
 
     def field_text(self, prefix: str) -> str:
         hit = self.first(prefix)
@@ -135,7 +147,12 @@ class Frame:
 
     @property
     def waits_on_roman(self) -> bool:
-        return "Roman" in self.waits
+        """The Waits on line names Roman for a decision, not for an order.
+
+        A frame carries no wait on his order (ruled: Roman, 2026-10-12
+        23:40). So a mention that is only an order does not count.
+        """
+        return "Roman" in ORDER_WAIT.sub("", self.waits)
 
 
 def parse(lines: list[str], bounded: bool = True) -> list[Frame]:
@@ -164,10 +181,11 @@ def parse(lines: list[str], bounded: bool = True) -> list[Frame]:
                 current = None
         if m:
             heading = m.group(2).rstrip()
-            tags = TAGS.search(heading)
-            group = tags.group(1) if tags else ""
+            # Every sid group in the heading counts, wherever it stands, so a
+            # trailing tag such as "(parked)" does not unhold a frame.
             current = Frame(number=m.group(1), heading=heading, start=i, end=i + 1,
-                            holders=SID.findall(group), roman="(Roman)" in group)
+                            holders=SID.findall(heading),
+                            roman="(Roman)" in heading)
         if current is not None:
             current.lines.append(line)
     if current is not None:

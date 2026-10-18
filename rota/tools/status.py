@@ -82,6 +82,15 @@ def insert(text: str, frame: str, line: str) -> tuple[str, int]:
         else:
             bullets = [i for i, b in enumerate(f.lines) if b.startswith("- ")]
             at = bullets[-1] if bullets else 0
+    # A bullet can wrap. Its continuation runs to the next line that is
+    # blank or starts a bullet or a heading, and the new line goes after it.
+    # 10 of 125 live frames end on a wrapped status (observed: the review of
+    # f934ec21, 2026-10-18).
+    while at + 1 < len(f.lines):
+        nxt = f.lines[at + 1]
+        if not nxt.strip() or nxt.startswith("- ") or nxt.startswith("#"):
+            break
+        at += 1
     index = f.start + at + 1
     raw.insert(index, line + ("\r" if eol == "\r\n" else ""))
     return "\n".join(raw), index
@@ -134,6 +143,9 @@ def build_parser() -> argparse.ArgumentParser:
     src.add_argument("--ruling", help="Roman's words, written as a ruling")
     p.add_argument("--at", default=None,
                    help="HH:MM of his words, for --ruling. It goes in the body")
+    p.add_argument("--date", default=None,
+                   help="YYYY-MM-DD of his words, for --ruling, when he said them "
+                        "before midnight. Today by default")
     p.add_argument("--workflow", default=None,
                    help="Meta or Rota, when the frame's Site line names neither")
     p.add_argument("--stack", default=None, help="the stack, plans/stack.md by default")
@@ -169,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
         if not workflow and args.workflow:
             workflow = args.workflow.strip().capitalize()
         if not workflow:
-            print("WARNING: the Site line names no workflow and --workflow is not "
+            print("WARNING: the frame names no workflow and --workflow is not "
                   "given, so the ruling carries no workflow word.")
         at = args.at
         if not at:
@@ -177,7 +189,11 @@ def main(argv: list[str] | None = None) -> int:
             print("WARNING: no --at, so the ruling carries the clock's time %s." % at)
         elif not re.fullmatch(r"\d\d:\d\d", at):
             print("WARNING: --at %r is not HH:MM. It is written as given." % at)
-        body = ruling_body(args.ruling, at, now.strftime("%Y-%m-%d"), workflow)
+        day = args.date or now.strftime("%Y-%m-%d")
+        if args.date and not re.fullmatch(r"\d{4}-\d\d-\d\d", args.date):
+            print("WARNING: --date %r is not YYYY-MM-DD. It is written as given."
+                  % args.date)
+        body = ruling_body(args.ruling, at, day, workflow)
     if not body:
         print("the body is empty, so no line was written.", file=sys.stderr)
         return 2
