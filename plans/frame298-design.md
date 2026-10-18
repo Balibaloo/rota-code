@@ -599,3 +599,9 @@ Each change answers one finding of `plans/frame298-design-review.md`.
     gains one line. The sign-off names nothing. The op's signature, the
     register count and the lint are named (3.4, 4.1, 4.3). The cases run on
     `qwen3.5:9b` and `qwen3:8b` (5.3).
+13. **Review 4, finding 6, 2026-10-18 (session 050a41e6).** The five
+    merged items of 5.3 are five merged items with a git truth. The sample
+    repository keeps one night's merge only, so the night read takes the
+    truth, `git diff --name-only <merge>^1 <merge>` for each "rota: deliver"
+    commit, before the next night launches. An item read after that launch
+    has no truth and leaves the count.
