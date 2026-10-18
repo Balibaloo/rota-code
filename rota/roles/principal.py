@@ -1894,6 +1894,49 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # still approves it, because the item is the wake's row. A contest or a
     # revise lands on every row. The park page writes its rows itself, and
     # the door records no stamp there.
+    # law 3: a message routes to the writer of the artefact holding the answer
+    # A ruling on a code line goes to the row the principal read, as the send
+    # door stamped it, and never to a live lookup. An approve leaves. A batch
+    # target becomes the batch's key, so frame 190's route takes it to
+    # `annotate`, and a built batch keeps it only when the words fault the
+    # code (frame 255). No `items` state is written for a code line, so the
+    # item keeps its approval and `cancel` cannot fire (frame 298's design,
+    # 3.2).
+    from .api import code_stamp, guess_item
+
+    guess_targets: dict[str, list] = {}
+    if answer.verb == "verdict" and any(guess_item(k) for k in per_item):
+        stamp = code_stamp(conn, ask.message_id)
+        for key in [k for k in per_item if guess_item(k)]:
+            ruling = per_item.pop(key)
+            if ruling not in ("contest", "revise"):
+                continue
+            target = stamp.get(key) if isinstance(stamp.get(key), dict) else {}
+            batch_id = target.get("batch")
+            if batch_id:
+                batch = conn.execute("SELECT head_commit, status FROM batches "
+                                     "WHERE id = ?", (batch_id,)).fetchone()
+                if batch is None or batch["status"] in ("merged", "abandoned"):
+                    continue
+                if batch["head_commit"]:
+                    from .api import code_line_faulted
+
+                    order = ask.order or _page_order(conn, ask)
+                    if not code_line_faulted(answer.text or "", order, key):
+                        continue
+                per_item[batch_id] = ruling
+                continue
+            per_item[key] = ruling
+            shown = target.get("guess")
+            if not shown:
+                last = conn.execute(
+                    "SELECT item_ver, ruling_id FROM touch_guesses WHERE item_id = ? "
+                    "ORDER BY rowid DESC LIMIT 1", (guess_item(key),)).fetchone()
+                shown = [last["item_ver"], last["ruling_id"]] if last else None
+            guess_targets[key] = shown
+        if not per_item:
+            return None
+
     stamped = set(door_rows(conn, ask.message_id, "stamped"))
     if ask.verb == "present" and answer.verb == "verdict" and per_item and stamped:
         per_item = {k: v for k, v in per_item.items()
@@ -2081,6 +2124,12 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
             (f"verdict:{msg_id}", json.dumps(remaining)),
         )
+    # The set the principal read, for the Architect who rewrites it (frame
+    # 298's design, 3.2, point 3).
+    if guess_targets:
+        conn.execute(
+            "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+            (f"guess_target:{msg_id}", json.dumps(guess_targets)))
     if answer.text:
         conn.execute(
             "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",

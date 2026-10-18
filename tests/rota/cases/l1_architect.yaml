@@ -60,6 +60,10 @@
     items:
       - {id: <i1>, text: "volume discounts on the line total", kind: in_scope,
          provenance: decided, approval: draft, version: 1}
+    # The predicate fires only while the index holds a path. Onboarding
+    # indexes the same file, so the seat's prompt does not move.
+    code_index:
+      - {grain: src/catalog/pricing.py, grain_kind: path}
   expect:
     calls: [batches.guess]
     writes:

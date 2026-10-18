@@ -477,6 +477,10 @@ def item(sc: Scene, n: int, priority: int, words: tuple | None = None) -> None:
     # The Architect reads its model against the sentence and finds nothing
     # to propose, as most of a night's Architect delivers do.
     seat(sc, f"architect|deliver|{s}", ["TOOL: model.consult()"])
+    # The Architect guesses the code of each request before the sign-off
+    # (frame 298's design, 4.1). It writes the files the scene annotates
+    # later, or the first source file of the index.
+    every(sc, "architect|tick:guess", _guess)
     seat(sc, f"vision_keeper|tick:signoff|{i}", [f"TOOL: msg.submit_liaison(refs=['{i}'])"])
     seat(sc, f"liaison|submit|{i}", [f"TOOL: msg.present_principal(refs=['{i}'])"])
     rule(sc, "present", [i], {i: "approve"})
@@ -496,10 +500,24 @@ def item(sc: Scene, n: int, priority: int, words: tuple | None = None) -> None:
         f"TOOL: batches.group(id='b{n}', item_id='{i}', ticket_ids=['{tk}'])"])
 
 
+def _guess(sc: Scene, wake: Wake) -> list[str]:
+    """The Architect's guess for the item the wake names: the paths the scene
+    annotates for it, or the first source file the index holds."""
+    item_id = wake.refs[0]
+    paths = sc.ids.get(f"guess_paths:{item_id}")
+    if not paths:
+        row = sc.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+            "AND grain NOT LIKE 'tests/%' ORDER BY grain LIMIT 1").fetchone()
+        paths = [row["grain"]] if row else ["README.md"]
+    return [f"TOOL: batches.guess(item_id={item_id!r}, paths={list(paths)!r})"]
+
+
 def annotate(sc: Scene, n: int, paths: list[str], read: bool = True) -> None:
     """The Architect's touch set for batch `b<n>`, and the Liaison's touch
     note, which the principal reads and acknowledges when `read`."""
     b, i = f"b{n}", f"i{n}"
+    sc.ids[f"guess_paths:{i}"] = list(paths)
     seat(sc, f"architect|tick:annotate|{b}", [
         f"TOOL: batches.annotate(batch_id={b!r}, paths={paths!r})"])
     seat(sc, f"liaison|tick:touch_note|{b},{i}", [

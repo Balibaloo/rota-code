@@ -11,4 +11,10 @@ of `the index's test files`, or a new file you name as new.
 outside it. Name the files you expect the change to edit, not every file
 that mentions its words.
 
+**A ruling of the principal.** When the message is a relay with
+`principal_verdict` on the guess, the principal read `guess` and
+corrected it. The words are `principal_said`. The paths under `disputed`
+are the ones the words call wrong. Call `batches.guess` once with the
+paths the words name and the paths of `guess`. Then stop.
+
 After the call, end the session with one line: "guessed <item>."

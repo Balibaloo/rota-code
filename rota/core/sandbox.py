@@ -863,6 +863,9 @@ CRITERIA_RELAY = ":criteria"
 # keys `annotate`, and a constraint beside it keeps `relay`, because
 # `annotate` holds no `model.adopt` (frame 190's design, 2.2).
 BATCH_RELAY = ":batches"
+# A code line of a request goes to the Architect's `guess` mode, apart from
+# a batch, because the guess is a set of its own (frame 298's design, 3.4).
+GUESS_RELAY = ":guesses"
 
 
 # The tables a principal's ruling can name, each with its one writer. The
@@ -885,6 +888,9 @@ RULED_TABLES = {
 
 def _owner_of_ref(conn, ref: str) -> str | None:
     """The role that writes the table holding `ref`, or None if no table does."""
+    # A code line's key names the Architect's guess (frame 298's design, 3.4).
+    if isinstance(ref, str) and ref.startswith("guess:"):
+        return "architect"
     for table, owner in RULED_TABLES.items():
         if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
             return owner
@@ -3867,6 +3873,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 elif ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
                                       (ref,)).fetchone():
                     owner = "terminologist"
+                elif ref.startswith("guess:"):
+                    owner = "architect" + GUESS_RELAY
                 elif ctx.conn.execute("SELECT 1 FROM batches WHERE id = ?",
                                       (ref,)).fetchone():
                     owner = _owner_of_ref(ctx.conn, ref) + BATCH_RELAY

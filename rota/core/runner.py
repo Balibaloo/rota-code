@@ -300,8 +300,12 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
         # the batch line, point 4).
         if (verb == "relay" and wake.role == "architect" and conn is not None
                 and wake.message_id):
-            from .scheduler import batch_relay
+            from .scheduler import batch_relay, guess_relay
 
+            # A ruling on a code line goes to the mode that writes the guess
+            # (frame 298's design, 3.4, point 5).
+            if guess_relay(conn, wake.message_id):
+                return "guess"
             if batch_relay(conn, wake.message_id):
                 return "annotate"
         return verb
@@ -2018,6 +2022,41 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             touch["disputed"] = disputed
             for key in ("expected", "possible"):
                 touch[key] = [p for p in touch.get(key, []) if p not in disputed]
+    # A ruling on a code line corrects the guess the principal read, as the
+    # send door stamped it. The Architect sees the item, that set, and the
+    # paths the words call wrong, the shape of the batch relay above (frame
+    # 298's design, 3.4, point 6). A relay holds one item's key in practice,
+    # so the first key's set is the one shown.
+    from .scheduler import guess_relay
+
+    if row["verb"] == "relay" and guess_relay(conn, trigger) and out["refs"]:
+        key = out["refs"][0]
+        item_id = key.split(":", 1)[1]
+        item = conn.execute("SELECT id, text FROM items WHERE id = ?",
+                            (item_id,)).fetchone()
+        if item:
+            out["item"] = {"id": item["id"], "text": item["text"]}
+        shown_row = conn.execute("SELECT value FROM config WHERE key = ?",
+                                 (f"guess_target:{row['cause_id']}",)).fetchone()
+        try:
+            shown = json.loads(shown_row["value"]) if shown_row else {}
+        except (TypeError, ValueError):
+            shown = {}
+        target = shown.get(key) if isinstance(shown, dict) else None
+        rows = conn.execute(
+            "SELECT grain, grain_kind FROM touch_guesses WHERE item_id = ? "
+            "AND item_ver = ? AND ruling_id = ? ORDER BY rowid",
+            (item_id, target[0], target[1])).fetchall() if (
+                isinstance(target, list) and len(target) == 2) else []
+        paths = [r["grain"] for r in rows if r["grain_kind"] == "path"]
+        symbols = [r["grain"] for r in rows if r["grain_kind"] == "symbol"]
+        disputed: list[str] = []
+        if out.get("principal_verdict", {}).get(key) in ("contest", "revise"):
+            disputed = disputed_paths(
+                out.get("principal_said") or "", paths + symbols, possible=symbols,
+                item=" ".join(filter(None, (item_id, item["text"] if item else None))))
+        out["guess"] = [p for p in paths + symbols if p not in disputed]
+        out["disputed"] = disputed
     # One name for one thing. Intake already calls the principal's words
     # `principal_said`, and an owner reached through the inquiry route is
     # holding the same words for the same reason -- so it is not a differently
@@ -3669,10 +3708,13 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 pushed["the index's test files"] = tests
     # The guess names one request item, and its brief says a test path is one
     # of the test files that exist (frame 298's design, 3.4, point 6).
-    if role == "architect" and wake is not None and wake.kind == "tick:guess" \
-            and wake.refs:
+    from .scheduler import guess_relay
+
+    guess_tick = (wake is not None and wake.kind == "tick:guess" and bool(wake.refs))
+    if role == "architect" and wake is not None and (guess_tick or (
+            wake.message_id and guess_relay(sb.ctx.conn, wake.message_id))):
         row = sb.ctx.conn.execute("SELECT id, text FROM items WHERE id = ?",
-                                  (wake.refs[0],)).fetchone()
+                                  (wake.refs[0],)).fetchone() if guess_tick else None
         if row:
             pushed["item"] = {"id": row["id"], "text": row["text"]}
         tests = [r["grain"] for r in sb.ctx.conn.execute(

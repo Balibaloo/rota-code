@@ -1789,6 +1789,26 @@ def verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[str] 
             and per_item.get(r) in ("contest", "revise")]
 
 
+def guess_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
+    """A relay whose every ref is a code line's key and whose cause is a
+    verdict: the principal's correction of the Architect's guess (frame
+    298's design, 3.4, point 5)."""
+    import json
+
+    row = conn.execute(
+        "SELECT m.verb AS verb, m.body_refs AS refs, c.verb AS cause_verb "
+        "FROM messages m LEFT JOIN messages c ON c.id = m.cause_id WHERE m.id = ?",
+        (message_id,)).fetchone() if message_id else None
+    if row is None or row["verb"] != "relay" or row["cause_verb"] != "verdict":
+        return False
+    try:
+        refs = json.loads(row["refs"] or "[]")
+    except (TypeError, ValueError):
+        return False
+    return bool(refs) and all(isinstance(r, str) and r.startswith("guess:")
+                              for r in refs)
+
+
 def batch_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
     """A relay whose every ref is a batch and whose cause is a verdict: the
     principal's correction of a touch note's prediction."""

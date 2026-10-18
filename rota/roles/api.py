@@ -4796,6 +4796,13 @@ def ref_resolves(ctx: Ctx, ref: str) -> bool:
         return _area_resolves(ctx, ref)
     if ref.startswith("e_"):
         return True
+    # A code line's key resolves when it names a request item. The relay of
+    # a guess correction carries it (frame 298's design, 3.4, point 1).
+    if ref.startswith(GUESS_REF):
+        from .principal import _is_request_item
+
+        item = guess_item(ref)
+        return bool(item) and _is_request_item(ctx.conn, item)
     if any(w[1] == ref for w in ctx.writes):
         return True
     for m in getattr(ctx, "outbound", None) or []:
@@ -5998,19 +6005,30 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
     permission: nothing rejects a diff for straying outside it (law 12).
     """
     # Frame 298's design, 1.2 and 3.4 point 7 (ruled: Roman, 2026-10-18,
-    # "the architect owns the guess"). Pass 3 adds the ruling branch, so
-    # `ruling_id` is the Architect's own '' here.
+    # "the architect owns the guess").
     from .principal import _is_request_item
 
+    # A relay names the item by its code line's key, and the seat can copy it.
+    item_id = guess_item(item_id) or item_id
     if not _is_request_item(ctx.conn, item_id):
+        # The refusal names the item the wake is about, because an unknown id
+        # taught the seat nothing (frame 298, review 1, finding 4).
+        woken = next((guess_item(r) or r for r in ctx.wake_refs or ()), None)
+        known = ctx.conn.execute("SELECT 1 FROM items WHERE id = ?",
+                                 (item_id,)).fetchone()
+        head = (f"{item_id} is not a request item. A guess is for an item the "
+                f"principal asked for, and not for the account or what the code "
+                f"does today" if known else f"no item {item_id}")
         raise ValueError(
-            f"{item_id} is not a request item. A guess is for an item the "
-            f"principal asked for, and not for the account or what the code "
-            f"does today")
+            head + (f". The request is `item` in your working set, {woken}"
+                    if woken and woken != item_id else ""))
     if not paths:
         raise ValueError("a guess names at least one path. A new file goes "
                          "beside the files that exist")
-    _refuse_stray_dirs(ctx.conn, paths)
+    # A symbol's path meets the same check as a path (frame 298, review 1,
+    # finding 5).
+    _refuse_stray_dirs(ctx.conn, list(paths) + [
+        s.split("::", 1)[0] for s in symbols or [] if "::" in s])
     bare = [s for s in symbols or [] if "::" not in s]
     if bare:
         # The refusal names the index's own grain, because the L1 case's
@@ -6032,7 +6050,22 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
             f"{item_id} is already guessed in this session. One call per item")
     ver = ctx.conn.execute("SELECT version FROM items WHERE id = ?",
                            (item_id,)).fetchone()["version"]
+    # A session woken by the principal's ruling on the code line writes the
+    # set under that ruling, so the Architect's own guess stays countable
+    # (frame 298's design, 1.2 and 3.4, point 7).
     ruling = ""
+    relay = _principal_relay(ctx)
+    key = f"{GUESS_REF}{item_id}"
+    if relay is not None and key in relay[0] and relay[1].get(key) in (
+            "contest", "revise"):
+        cause = ctx.conn.execute("SELECT cause_id FROM messages WHERE id = ?",
+                                 (ctx.trigger,)).fetchone()
+        ruling = (cause["cause_id"] if cause else "") or ""
+    # INSERT OR REPLACE would merge a second write of one set with the
+    # first, so the set is cleared before its rows (frame 298, review 1,
+    # finding 1).
+    ctx.writes.append(("touch_guesses", f"{item_id}:{ver}:{ruling}:*", {
+        "item_id": item_id, "item_ver": ver, "ruling_id": ruling}, "clear"))
     for grain, kind, confidence in (
             [(p, "path", "expected") for p in paths]
             + [(s, "symbol", "possible") for s in symbols or []]):
@@ -9424,6 +9457,120 @@ _FILES_TALK = re.compile(r"\btests?\b|\w\.py\b", re.I)
 _KEEP_CHANGE = re.compile(
     r"\b(?:don['’]?t|do not) (?:drop|give up)\b|\bkeep going\b", re.I)
 
+# --- the files cue: words that fault only the code a request touches --------
+# Ported with its patterns unchanged from `plans/frame298-count.md`, section
+# 3 (frame 298's design, 3.3). In-sample it fires on 19 of 19 pointer faults
+# and 8 of 8 batch-line faults, and refuses 43 of 43 right request contests,
+# 18 of 18 (c) rows and 13 of 13 (d) rows over nights 136 to 156.
+# Files talk: tests, a path, a file, a non-json module, where the line points.
+_CUE_FILES = re.compile(r"\btests?\b|\w\.py\b|\bfiles?\b|(?<!json )\bmodule\b|"
+                        r"\bpoints?\b|\bpointer\b|\bfile list\b|\btouch(?:es)?\b", re.I)
+# Words that correct the request's own text, even beside files talk.
+_CUE_REQUEST_TEXT = re.compile(
+    r"\bsays\b|\bshould (?:only |also )?say\b|\bmy words\b|"
+    r"\bmy (?:own )?(?:first|original|earlier)\b|\bsentences?\b|\bpasted\b|"
+    r"\brequest text\b|\bout of my request\b|\bcorrection notes?\b|"
+    r"\bmix(?:es)? in\b|\bnot a request\b|\bisn't a request\b|\bwrong change\b|"
+    r"\bdrops what\b|\bput (?:both|them|it) back\b|\badd(?:ed)? back\b", re.I)
+_CUE_AGREE = re.compile(r"\b(?:right|fine|reasonable|good|correct|match(?:es)?|"
+                        r"as written)\b", re.I)
+_CUE_FAULT = re.compile(r"\b(?:wrong|not|never|only|drop|instead|should|remove|"
+                        r"take|but)\b|n't\b", re.I)
+_CUE_BARE_FAULT = re.compile(r"^\W*(?:on\s+)?(?:lines?|notes?)\s+[\d ,toand-]+\W*"
+                             r"(?:is|are)\s+(?:still\s+|also\s+)?wrong(?:\s+again)?\W*$",
+                             re.I)
+_CUE_KEEP = re.compile(_KEEP_CHANGE.pattern + r"|\btry again\b|\bfix (?:the )?failing\b"
+                       r"|\brather than drop\b", re.I)
+_CUE_CLAUSE = re.compile(r",\s+(?:and|but)\s+|\s+but\s+|:\s+|;\s+|,\s+so\s+")
+
+
+def _cue_clauses(words: str) -> list[tuple[str, set[int] | None, bool]]:
+    """Each clause with the lines it is about. A clause with no line
+    reference is about the lines of the clause before it."""
+    out, last = [], None
+    for sent in re.split(r"(?<=[.!?])\s+", (words or "").strip()):
+        for cl in _CUE_CLAUSE.split(sent):
+            refs: set[int] = set()
+            for r in _LINE_REF.finditer(cl):
+                refs |= _ref_lines(r, 60)
+            if refs:
+                last = refs
+            out.append((cl, set(last) if last else None, sent.rstrip().endswith("?")))
+    return out
+
+
+def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
+    """The words fault only the files under request line `line` (its pointer)
+    or under the item's code line or batch line, and correct none of the
+    request's text."""
+    files = content = False
+    for cl, refs, question in _cue_clauses(words):
+        if refs is not None and not (refs & ({line} | set(batch_lines))):
+            continue            # about another line
+        if question or _CUE_KEEP.search(cl) or _BARE_AGREEMENT.fullmatch(cl):
+            continue
+        if _CUE_BARE_FAULT.match(cl):
+            continue
+        has_files = bool(_CUE_FILES.search(cl))
+        if _CUE_AGREE.search(cl) and not _CUE_FAULT.search(cl):
+            continue            # "the echo tests are right", "line 2 is fine"
+        if _CUE_REQUEST_TEXT.search(cl):
+            content = True
+        elif has_files:
+            files = True
+        elif refs and refs <= set(batch_lines):
+            continue            # a batch line holds only files
+        else:
+            content = True
+    return files and not content
+
+
+# The key of a request item's code line (frame 298's design, 2.1). It
+# derives from the item id, so law 14 holds.
+GUESS_REF = "guess:"
+
+
+def guess_item(ref) -> str | None:
+    """The item id a `guess:<item>` key names, or None."""
+    if isinstance(ref, str) and ref.startswith(GUESS_REF) and len(ref) > len(GUESS_REF):
+        return ref[len(GUESS_REF):]
+    return None
+
+
+def _request_item(conn: sqlite3.Connection, item_id: str) -> bool:
+    from .principal import _is_request_item
+
+    return _is_request_item(conn, item_id)
+
+
+def code_stamp(conn: sqlite3.Connection, message_id: str | None) -> dict:
+    """The send door's record of what each code line of a page showed: a
+    map of `guess:<item>` to `{"batch": <id>}` or `{"guess": [ver, ruling]}`.
+    The door and `land` read it and never decide again (design 2.1)."""
+    row = conn.execute("SELECT value FROM config WHERE key = ?",
+                       (f"code:{message_id}",)).fetchone() if message_id else None
+    try:
+        value = json.loads(row["value"]) if row else {}
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def code_line_faulted(words: str, order: list[str] | None, key: str,
+                      read_faulted: set[int] | None = None) -> bool:
+    """The words fault a code line whose target is a built batch: its own
+    line, or the files under its request line. One predicate for
+    `rulings_rule` and `principal.land`, so the two doors cannot drift
+    (frame 298's design, 3.1, point 3; frame 255's check)."""
+    if built_line_faulted(words, order, key, read_faulted):
+        return True
+    item = guess_item(key)
+    if not order or item not in order:
+        return False
+    code_lines = frozenset(i + 1 for i, r in enumerate(order)
+                           if r == key or guess_item(r) == item)
+    return pointer_fault(words, order.index(item) + 1, code_lines)
+
 # A sentence that opens with one of these verbs says what to build. Night
 # 143's m263: "Also, take the version from the running interpreter's
 # version info" (frame 234, review 1, finding 2).
@@ -9852,6 +9999,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             ref = order[int(key) - 1]
         elif key in refs and not shift:
             ref = key
+        # The code line of a request item on this page is admitted by its key
+        # with no line, because a page can go out before the guess exists
+        # (frame 298's design, 3.1, point 5).
+        elif (not shift and not is_clarify and guess_item(key) in (order or [])
+              and _request_item(ctx.conn, guess_item(key))):
+            ref = key
         else:
             ref = None
         # resume takes up an item set aside, and only that (frame 193's
@@ -9917,6 +10070,74 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             f"contest it. revise rewrites a line of what the principal asked "
             f"for. {offer}")
     # law 3: a message routes to the writer of the artefact holding the answer
+    # A files correction of a request belongs on the code it touches, and
+    # never on the request. Over nights 136 to 156 it landed on line 1 19 of
+    # 19 times, wrote `contested`, and killed 5 live batches (frame 298's
+    # design, 3.3; `plans/frame298-count.md`).
+    stamp = {} if is_clarify else code_stamp(ctx.conn, ask["id"])
+    cue_lines: set[int] = set()
+    for n, item in asked:
+        guess_key = f"{GUESS_REF}{item}"
+        code_lines = frozenset(
+            i + 1 for i, r in enumerate(order) if r == guess_key or ctx.conn.execute(
+                "SELECT 1 FROM batches WHERE id = ? AND item_id = ?",
+                (r, item)).fetchone())
+        if not pointer_fault(words, n, code_lines):
+            continue
+        cue_lines.add(n)
+        if per_item.get(item) not in ("contest", "revise"):
+            continue
+        said = f"line {n} is the request, and the words fault only the code it touches."
+        if guess_key in order:
+            m = order.index(guess_key) + 1
+            raise ValueError(
+                f"{said} That code is line {m}, and the team rewrites it from "
+                f"the principal's words. Rule line {m} contest with the words, "
+                f"and approve line {n}.")
+        if code_lines:
+            m = min(code_lines)
+            raise ValueError(
+                f"{said} That code is line {m}, the change's plan. Rule line {m} "
+                f"contest with the words, and approve line {n}.")
+        # Until the page numbers the code line (frame 298, pass 2), the key
+        # names it. The guess exists when a set or a stamp says so.
+        guessed = guess_key in stamp or ctx.conn.execute(
+            "SELECT 1 FROM touch_guesses WHERE item_id = ?", (item,)).fetchone()
+        if guessed:
+            raise ValueError(
+                f"{said} That code is the key {guess_key}, and the team rewrites "
+                f"it from the principal's words. Rule the key {guess_key} contest "
+                f"with the words, and approve line {n}.")
+        raise ValueError(
+            f"{said} The team has not guessed that code yet. Rule the key "
+            f"{guess_key} contest with the words, and approve line {n}.")
+    # The code line itself. A guess takes any contest or revise with words.
+    # A batch target keeps the batch line's rules and frame 255's check
+    # (frame 298's design, 3.1, points 2 and 3).
+    guess_ruled: set[int] = set()
+    for ref, ruling in per_item.items():
+        item = guess_item(ref)
+        if item is None or ruling == "approve":
+            continue
+        if item in order and order.index(item) + 1 in cue_lines:
+            guess_ruled.add(order.index(item) + 1)
+        target = stamp.get(ref) or {}
+        batch_id = target.get("batch") if isinstance(target, dict) else None
+        if not batch_id:
+            continue
+        batch = ctx.conn.execute("SELECT head_commit, status FROM batches "
+                                 "WHERE id = ?", (batch_id,)).fetchone()
+        key = key_of.get(ref, ref)
+        if batch is None or batch["status"] in ("merged", "abandoned"):
+            raise ValueError(
+                f"{key} is the change's plan, and the change is "
+                f"{batch['status'] if batch else 'gone'}. A ruling on it moves "
+                f"nothing. Approve {key}.")
+        if batch["head_commit"] and not code_line_faulted(
+                words, order, ref,
+                set(_line_cues(words, len(order) if order else None)[0])):
+            raise ValueError(
+                f"the words do not fault the code of {item}. Approve {key}.")
     # A batch line is a prediction of what the change touches. Before the
     # build, a correction of it goes to the Architect, who wrote it: night
     # 136's five corrections of a predicted file were refused here, and bg_2
@@ -9999,8 +10220,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # line 1 is the request only when it is a request item (frame 234,
         # review 1, finding 1).
         request_first = not shift and _is_request_item(ctx.conn, order[0])
+        # A code line holds only files, as a batch line does (frame 298's
+        # design, 3.1, point 4).
         batch_lines = frozenset(
-            i + 1 for i, r in enumerate(order) if ctx.conn.execute(
+            i + 1 for i, r in enumerate(order) if guess_item(r) or ctx.conn.execute(
                 "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone())
         closed_lines = frozenset(
             i + 1 for i, r in enumerate(order) if ctx.conn.execute(
@@ -10017,8 +10240,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         refusal = _line_refusal(
             words, contested, faulted, matched, len(order), request_first,
             request_first and _quotes_line(words, page_text, 1), batch_lines,
+            # A request line whose files fault the code line carries is no
+            # faulted approve (frame 298's design, 3.3).
             item_lines, frozenset(i + 1 for i, r in enumerate(order)
-                                  if per_item.get(r) == "approve"), read_cues,
+                                  if per_item.get(r) == "approve"
+                                  and i + 1 not in guess_ruled), read_cues,
             closed_lines, request_lines, tuple(
                 t for _, r in asked for t in (r, (ctx.conn.execute(
                     "SELECT text FROM items WHERE id = ?", (r,)).fetchone()
