@@ -144,6 +144,19 @@ def test_the_file_and_door_forms(tree, capsys):
     assert out[0].startswith("41.")
 
 
+def test_wide_adds_the_plans_files_claude_md_and_composition(tree, capsys):
+    (tree / "plans" / "frame9-design.md").write_bytes(b"# Design\n\nquokka\n")
+    (tree / "plans" / "night9-read.md").write_bytes(b"# Read\n\nquokka\n")
+    (tree / "plans" / "composition.md").write_bytes(b"# Composition\n\nquokka\n")
+    (tree / "CLAUDE.md").write_bytes(b"# The assistant\n\nquokka\n")
+    assert run(tree, capsys, "quokka") == ["Read plans/night9-read.md:1"]
+    out = run(tree, capsys, "--wide", "quokka")
+    assert out == ["Read plans/night9-read.md:1",
+                   "Composition plans/composition.md:1",
+                   "The assistant CLAUDE.md:1",
+                   "Design plans/frame9-design.md:1"]
+
+
 def test_no_query_prints_the_usage(tree, capsys):
     assert rulings.main([], root=tree) == 2
     assert capsys.readouterr().out.startswith("usage:")
