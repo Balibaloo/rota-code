@@ -418,3 +418,98 @@ def test_since_cuts_the_oldest_rows_to_the_cap(since_repo, capsys):
 def test_since_refuses_a_value_that_is_not_a_date(since_repo):
     assert state.main(["--stack", str(since_repo / "plans" / "stack.md"),
                        "--since", "yesterday"]) == 2
+
+
+def with_statuses(repo: Path, *lines: str) -> None:
+    """Add status lines to frame 10 of the --since fixture."""
+    write(repo, SINCE_STACK.replace(
+        "- Pointer: `plans/x.md`.\n",
+        "- Pointer: `plans/x.md`.\n" + "".join(x + "\n" for x in lines)))
+
+
+def rulings_of(out: str) -> list[str]:
+    return [x for x in out.split("## Rulings since")[1].splitlines() if "::" in x]
+
+
+def test_an_undated_ruling_mark_counts_by_the_status_date(since_repo, capsys):
+    """Frame 114's status of 2026-10-17 16:51 carries his words and no mark date."""
+    with_statuses(since_repo,
+                  '- Status 2026-10-17 16:51 (rota-7d): **Roman, 2026-10-17 about '
+                  '16:50, in the terminal: "File writes were always permitted"** '
+                  '(ruled: Roman, in his words).',
+                  "- Status 2026-10-16 09:00 (rota-7d): (ruled: Roman, in his words) "
+                  "before the date.")
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    assert any("File writes were always permitted" in r for r in rulings_of(out))
+    assert "before the date" not in out
+
+
+def test_a_ruling_cited_again_is_folded_into_the_first(since_repo, capsys):
+    with_statuses(since_repo,
+                  "- Status 2026-10-18 05:00 (rota-01): as ruled (ruled: Roman, "
+                  "2026-10-18 01:58, the same).",
+                  "- Status 2026-10-18 06:00 (rota-01): again (ruled: Roman, "
+                  "2026-10-18 01:58).")
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    rows = rulings_of(out)
+    assert len(rows) == 2
+    assert rows[1].startswith("10. The held frame") and '"yes"' in rows[1]
+    assert rows[1].endswith("(cited again 2 times)")
+
+
+def test_only_the_assumed_marks_count_as_assumptions(since_repo, capsys):
+    with_statuses(since_repo,
+                  "- Status 2026-10-18 05:00 (rota-01): pass 2 runs (assumed: he "
+                  "would take the cheap fix).",
+                  "- Status 2026-10-18 06:00 (rota-01): a plan step (reasoned: "
+                  "Roman's design).")
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    section = out.split("## Decided under assumption")[1].split("## Waits")[0]
+    assert "(assumed: he would take the cheap fix)" in section
+    assert "taken by timeout at 01:00" in section
+    assert "a plan step" not in section
+
+
+def test_a_wait_of_nothing_is_no_decision_and_impact_words_rate(since_repo, capsys):
+    text = SINCE_STACK.replace(
+        "- Waits on: Roman's ruling [high].",
+        "- Waits on: nothing. Roman ruled the shape [high].").replace(
+        "- Waits on: Roman's ruling on the door [med].",
+        "- Waits on: Roman's ruling, medium impact.")
+    write(since_repo, text)
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    section = out.split("## Waits on Roman")[1].split("## Rulings")[0]
+    rows = [x for x in section.splitlines() if x.startswith("[")]
+    assert rows == ["[med] 11. The open ask waits on him (2026-10-17): "
+                    "Roman's ruling, medium impact."]
+
+
+def test_a_ruling_on_a_closed_frame_shows_from_the_archive(since_repo, capsys):
+    archive(since_repo, "2026-10-18",
+            "### 7. A closed door frame (2026-10-10) (aaaa1111)\n\n"
+            "- Status 2026-10-18 00:30 (x): **ruled. Roman, 2026-10-18 00:29, in "
+            'the terminal: "close it"** (ruled: Roman, in his words).\n'
+            "- Status 2026-10-18 00:40 (x): closed (assumed: he wanted it closed).\n")
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    assert any(r.startswith("7. A closed door frame (2026-10-10) (closed) :: ")
+               and "close it" in r for r in rulings_of(out))
+    assert "(closed) :: - Status 2026-10-18 00:40" in out
+
+
+def test_the_cap_cuts_closed_rows_and_never_the_waits(since_repo, capsys):
+    many = "".join("### %d. A closed frame with a long name number %d %s (2026-10-10)\n"
+                   % (n, n, "y" * 60) for n in range(300, 420))
+    archive(since_repo, "2026-10-18", many)
+    with_statuses(since_repo, *[
+        "- Status 2026-10-18 %02d:%02d (rota-01): (ruled: Roman, 2026-10-18 "
+        "%02d:%02d) words %s." % (h, m, h, m, "z" * 150)
+        for h in range(4, 8) for m in range(0, 60, 6)])
+    out = page(since_repo, "--since", "2026-10-17", capsys=capsys)
+    assert len(out) <= 12000
+    closed = out.split("## Closed since")[1].split("## Decided")[0]
+    assert "older rows cut to keep the page under 12000 characters." in closed
+    assert "300. A closed frame" in closed, "the first row of the newest file stays"
+    assert "419. A closed frame" not in closed
+    rulings = out.split("## Rulings since")[1]
+    assert "older rows cut" in rulings
+    assert "[high] 13. A high ask" in out and "[med] 11. The open ask" in out

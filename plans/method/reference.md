@@ -351,6 +351,10 @@ comes first, then the state print, then the sender's note.
   the cross-project ones (reasoned: `plans/method/design.md`, section 3).
 - [C42, the close] The closing status writes the actual cycles and tokens
   beside the estimate (ruled: Roman, 2026-10-11 05:51).
+- [Assumed] A decision taken for Roman while he is away carries
+  (assumed: why) in its status line, so `state --since` finds it
+  (reasoned: the session, 2026-10-18, step 5's review found no findable
+  assumption in 229 status lines). Tool: `state --since`.
 - [C71, S6, merged] Closed frames leave the file. A popped frame moves
   verbatim to `plans/archive/stack-<date>.md` (no origin named). S6 and
   C71 are the same rule twice.

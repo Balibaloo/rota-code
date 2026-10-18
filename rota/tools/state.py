@@ -32,7 +32,7 @@ HEAD = re.compile(r"^### (\d+)\.\s+(.*)$")
 HOLDERS = re.compile(r"\s*\([0-9a-f]{8}\)")
 SID = re.compile(r"\(([0-9a-f]{8})\)")
 STATUS = re.compile(r"^- Status (\d{4}-\d\d-\d\d \d\d:\d\d) \(([^)]*)\):\s?(.*)$")
-RATING = re.compile(r"\[(high|med|low)\]")
+RATING = re.compile(r"\[(high|med|low)\]|\b(high|medium|low) impact\b")
 WORKFLOW = re.compile(r"\b(Meta|Rota) workflow\b")
 BOLD_SITE = re.compile(r"\*\*Site:\s*(.*?)\*\*")
 PLAIN_SITE = re.compile(r"Site:\s*(.*?\.)(?:\s|$)")
@@ -138,14 +138,16 @@ class Frame:
 
     @property
     def rating(self) -> str:
-        """The rating of the Waits on line first, then of any line."""
-        m = RATING.search(self.waits)
-        if m:
-            return m.group(1)
-        for line in self.lines:
+        """The rating of the Waits on line first, then of any line.
+
+        A rating is `[high]`, `[med]` or `[low]`, or the words "high
+        impact", "medium impact" or "low impact".
+        """
+        for line in [self.waits] + self.lines:
             m = RATING.search(line)
             if m:
-                return m.group(1)
+                word = m.group(1) or m.group(2)
+                return "med" if word == "medium" else word
         return ""
 
     @property
@@ -153,8 +155,11 @@ class Frame:
         """The Waits on line names Roman for a decision, not for an order.
 
         A frame carries no wait on his order (ruled: Roman, 2026-10-12
-        23:40). So a mention that is only an order does not count.
+        23:40). So a mention that is only an order does not count. A wait
+        that starts with "nothing" waits on nobody, whatever follows.
         """
+        if self.waits.lower().startswith("nothing"):
+            return False
         return "Roman" in ORDER_WAIT.sub("", self.waits)
 
 
@@ -348,16 +353,21 @@ def render(stack: Path, sid: str = "", sender: str = "",
 
 
 ARCHIVE = re.compile(r"^stack-(\d{4}-\d\d-\d\d)\.md$")
-ASSUMED = ("taken by timeout", "under the assumption", "(reasoned:")
-RULED_ON = re.compile(r"\(ruled: Roman, (\d{4}-\d\d-\d\d)")
+# A decision taken for Roman while he is away carries one of these marks
+# (reasoned: the session, 2026-10-18, step 5's review found no findable
+# assumption in 229 status lines; `plans/method/reference.md`, section 8).
+ASSUMED = ("taken by timeout", "(assumed:")
+RULED_MARK = re.compile(r"\(ruled: Roman(?:, (\d{4}-\d\d-\d\d))?")
+RULING_KEY = re.compile(r"Roman, (\d{4}-\d\d-\d\d)(?: about)? (\d\d:\d\d)")
+QUOTE = re.compile(r'"([^"]{4,})"')
 RANK = {"high": 0, "med": 1, "low": 2, "": 3}
 NAME_LIMIT = 100
 ROW_LIMIT = 300
 SINCE_LIMIT = 12000
 
 
-def closed_since(stack: Path, since: str) -> list[str]:
-    """The headings of the archive files dated at or after `since`, newest file first."""
+def archives_since(stack: Path, since: str) -> list[tuple[str, Path]]:
+    """The archive files dated at or after `since`, newest first."""
     archive = stack.resolve().parent / "archive"
     dated = []
     if archive.is_dir():
@@ -365,8 +375,13 @@ def closed_since(stack: Path, since: str) -> list[str]:
             m = ARCHIVE.match(path.name)
             if m and m.group(1) >= since:
                 dated.append((m.group(1), path))
+    return sorted(dated, reverse=True)
+
+
+def closed_since(archives: list[tuple[str, Path]]) -> list[str]:
+    """The frame headings of the archive files, newest file first."""
     rows: list[str] = []
-    for day, path in sorted(dated, reverse=True):
+    for day, path in archives:
         for line in read_lines(path):
             m = HEAD.match(line)
             if m:
@@ -376,33 +391,74 @@ def closed_since(stack: Path, since: str) -> list[str]:
     return rows
 
 
-def dated_statuses(frames: list[Frame], since: str) -> list[tuple[str, Frame, str]]:
-    """Every status line dated at or after `since`, newest first."""
+def dated_statuses(frames: list[tuple[Frame, bool]],
+                   since: str) -> list[tuple[str, Frame, bool, str]]:
+    """Every status line dated at or after `since`, newest first.
+
+    Each frame comes with a flag that says it closed into the archive.
+    """
     rows = []
-    for f in frames:
+    for f, closed in frames:
         for i in f.statuses:
             line = f.lines[i]
             when = STATUS.match(line).group(1)
             if when[:10] >= since:
-                rows.append((when, f, line))
+                rows.append((when, f, closed, line))
     rows.sort(key=lambda r: r[0], reverse=True)
     return rows
 
 
 def is_assumed(line: str) -> bool:
-    return "Roman" in line and any(word in line for word in ASSUMED)
+    return any(mark in line for mark in ASSUMED)
 
 
 def is_ruling(line: str, since: str) -> bool:
+    """A status in his words, by its start or by a ruling mark.
+
+    A mark with a date counts when the date is at or after `since`. A
+    mark with no date, such as "(ruled: Roman, in his words)", counts by
+    the status line's own date, which the caller already filtered.
+    """
     body = STATUS.match(line).group(3)
     if body.startswith("**ruled"):
         return True
-    return any(day >= since for day in RULED_ON.findall(line))
+    return any(not day or day >= since for day in RULED_MARK.findall(line))
 
 
-def since_row(frame: Frame, line: str) -> str:
+def ruling_key(line: str) -> str:
+    """What makes two ruling rows the same ruling: its time, else its words."""
+    m = RULING_KEY.search(line)
+    if m:
+        return "at %s %s" % m.groups()
+    m = QUOTE.search(line)
+    if m:
+        return "words " + m.group(1)
+    return "line " + line
+
+
+def since_row(frame: Frame, closed: bool, line: str, again: int = 0) -> str:
     name = cut(HOLDERS.sub("", frame.heading).strip(), 80)
-    return cut("%s. %s :: %s" % (frame.number, name, line), ROW_LIMIT)
+    tail = " (cited again %d times)" % again if again else ""
+    mark = " (closed)" if closed else ""
+    return cut("%s. %s%s :: %s" % (frame.number, name, mark, line),
+               ROW_LIMIT - len(tail)) + tail
+
+
+def fold_rulings(rows: list[tuple[str, Frame, bool, str]]) -> list[str]:
+    """One row per ruling, newest first, with the count of later citations.
+
+    The first status that carries a ruling keeps the row. A later status
+    with the same key only repeats or cites it, so it adds to the count.
+    """
+    first: dict[str, list] = {}
+    for when, f, closed, line in sorted(rows, key=lambda r: r[0]):
+        key = ruling_key(line)
+        if key in first:
+            first[key][4] += 1
+        else:
+            first[key] = [when, f, closed, line, 0]
+    kept = sorted(first.values(), key=lambda r: r[0], reverse=True)
+    return [since_row(f, closed, line, again) for _, f, closed, line, again in kept]
 
 
 def render_since(stack: Path, since: str, cap: int = SINCE_LIMIT) -> str:
@@ -410,44 +466,56 @@ def render_since(stack: Path, since: str, cap: int = SINCE_LIMIT) -> str:
 
     His attention is the scarcest budget, and a return should cost one
     screen (reasoned: `plans/method/design.md`, section 2, autonomy). So
-    the page holds at `cap` characters. The oldest rows of the assumed
-    and the ruled sections go first, and the page says how many went.
+    the page holds at `cap` characters. The oldest rows of the closed, the
+    assumed and the ruled sections go, the longest section first, and the
+    page says how many went. The waits are never cut, because they are
+    what he must answer.
     """
     frames = parse(read_lines(stack))
     head = ["State since %s of %s, printed %s." % (
         since, stack.as_posix(), time.strftime("%Y-%m-%d %H:%M"))]
-    closed = closed_since(stack, since)
-    statuses = dated_statuses(frames, since)
-    assumed = [since_row(f, line) for _, f, line in statuses if is_assumed(line)]
-    ruled = [since_row(f, line) for _, f, line in statuses if is_ruling(line, since)]
+    archives = archives_since(stack, since)
+    closed = closed_since(archives)
+    # A frame that closed while he was away took its status lines to the
+    # archive, so the archive is read too.
+    every = [(f, False) for f in frames] + [
+        (f, True) for _, path in archives
+        for f in parse(read_lines(path), bounded=False)]
+    statuses = dated_statuses(every, since)
+    assumed = [since_row(f, shut, line) for _, f, shut, line in statuses
+               if is_assumed(line)]
+    ruled = fold_rulings([r for r in statuses if is_ruling(r[3], since)])
     asks = sorted([f for f in frames if f.waits_on_roman],
                   key=lambda f: RANK.get(f.rating, 3))
     waits = ["[%s] %s: %s" % (f.rating or "unrated", f.title,
                               cut(f.waits, FIELD_LIMIT)) for f in asks]
 
-    def page(n_assumed: int, n_ruled: int) -> str:
+    sections = [("Closed since %s" % since, closed),
+                ("Decided under assumption since %s" % since, assumed),
+                ("Waits on Roman", waits),
+                ("Rulings since %s" % since, ruled)]
+    shown = [len(rows) for _, rows in sections]
+    cuttable = (0, 1, 3)
+
+    def page() -> str:
         out = list(head)
-        for title, rows, shown in (
-                ("Closed since %s" % since, closed, len(closed)),
-                ("Decided under assumption since %s" % since, assumed, n_assumed),
-                ("Waits on Roman", waits, len(waits)),
-                ("Rulings since %s" % since, ruled, n_ruled)):
+        for (title, rows), n in zip(sections, shown):
             out += ["", "## " + title]
-            out += rows[:shown] or ["None."]
-            if shown < len(rows):
+            out += rows[:n] or ["None."]
+            if n < len(rows):
                 out.append("%d older rows cut to keep the page under %d characters."
-                           % (len(rows) - shown, cap))
+                           % (len(rows) - n, cap))
         return "\n".join(out) + "\n"
 
-    n_a, n_r = len(assumed), len(ruled)
-    text = page(n_a, n_r)
-    while len(text) > cap and (n_a or n_r):
-        # Cut from the longer of the two sections, so neither empties first.
-        if n_a >= n_r:
-            n_a -= 1
-        else:
-            n_r -= 1
-        text = page(n_a, n_r)
+    text = page()
+    while len(text) > cap:
+        sizes = {i: sum(len(r) + 1 for r in sections[i][1][:shown[i]])
+                 for i in cuttable if shown[i]}
+        if not sizes:
+            break
+        longest = max(sizes, key=lambda i: sizes[i])
+        shown[longest] -= 1
+        text = page()
     return text
 
 
