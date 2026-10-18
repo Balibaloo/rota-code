@@ -354,14 +354,45 @@ def test_the_guess_relay_carries_the_item_the_set_and_the_disputed_paths(db):
     assert inbound["item"]["id"] == ITEM
     shown = ["src/click/decorators.py", "tests/test_options.py",
              "tests/test_defaults.py"]
-    # `disputed_paths` reads no "no" word in m192's "have nothing to do with
-    # this change", so it disputes nothing there. The wiring is the point.
+    # The wiring is the point. The paths are pinned in the tests below.
     disputed = disputed_paths(M192, shown, possible=[],
                               item=f"{ITEM} " + inbound["item"]["text"])
     assert inbound["disputed"] == disputed
     assert inbound["guess"] == [p for p in shown if p not in disputed]
     words = "Line 1 is wrong: the options test file is not part of this change."
     assert disputed_paths(words, shown) == ["tests/test_options.py"]
+
+
+# The paths of night 156's bg_3 guess (review 4 of frame 298, finding 3).
+BG3_GUESS = ["tests/test_options.py", "tests/test_defaults.py",
+             "tests/test_termui.py", "tests/test_shell_completion.py",
+             "src/click/decorators.py"]
+
+M201 = ("Line 1 still names the options and shell completion test files, which "
+        "have nothing to do with this change, and it mixes in my notes about "
+        "the tests. Line 1 should only say to add the show_python flag.")
+
+
+def test_m192_calls_the_options_and_defaults_test_files_wrong():
+    assert disputed_paths(M192, BG3_GUESS) == [
+        "tests/test_options.py", "tests/test_defaults.py"]
+
+
+def test_m201_calls_the_options_and_shell_completion_test_files_wrong():
+    assert disputed_paths(M201, BG3_GUESS) == [
+        "tests/test_options.py", "tests/test_shell_completion.py"]
+
+
+def test_a_list_of_three_names_one_test_file_per_member():
+    words = "The options, defaults and termui test files are not part of this."
+    assert disputed_paths(words, BG3_GUESS) == [
+        "tests/test_options.py", "tests/test_defaults.py",
+        "tests/test_termui.py"]
+
+
+def test_a_list_names_no_file_the_paths_lack():
+    words = "The basic and core test files are wrong."
+    assert disputed_paths(words, BG3_GUESS) == []
 
 
 def test_the_rewrite_rests_on_the_ruling_and_clears_its_set_first(db):

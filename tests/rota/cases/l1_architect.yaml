@@ -124,7 +124,9 @@
   # options and defaults test files have nothing to do with the change.
   # `disputed_paths` reads no "no" word there, so `disputed` is empty and
   # `guess` keeps both paths. The Architect drops the paths the words call
-  # wrong and writes the basic tests file the words name.
+  # wrong and writes the basic tests file the words name. From review 4,
+  # finding 3, "nothing to do with" counts as a "no" word, so `disputed`
+  # holds both test files.
   prompt: guess
   inbound: {id: <m_relay>, from: liaison, to: architect, verb: relay,
             body_refs: ["guess:<i1>"], cause: <m_rule>}

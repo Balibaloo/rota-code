@@ -1702,6 +1702,33 @@ _FILE_WORDS = {"test", "file"}
 # confirm", which disputes nothing (the delta review of 5ffa1244, finding 1).
 _COVERS = re.compile(r"\b(?:covers?|checks?|(?:is|are|was|were)\s+about)\b")
 
+# Night 156's m192 and m201 call two test files wrong with "have nothing to
+# do with this change" and no "no" word (review 4 of frame 298, finding 3).
+_NOTHING_TO_DO = re.compile(r"\bnothing\s+to\s+do\s+with\b")
+
+# "the options and shell completion test files" names one test file per
+# list member. The window of three words misses a first member that stands
+# far from "test" (review 4 of frame 298, finding 3, m201 of night 156).
+_LIST_MEMBER = r"[a-z0-9_]+(?:\s+[a-z0-9_]+)?"
+_TEST_FILE_LIST = re.compile(
+    r"(" + _LIST_MEMBER + r"(?:\s*,\s*" + _LIST_MEMBER + r")*,?\s+and\s+"
+    + _LIST_MEMBER + r")\s+tests?\s+files\b")
+
+
+def _listed(text: str) -> list[set[str]]:
+    """The word sets that a list before "test files" can name a file by.
+
+    Each member gives its last two words and its last word, so "the
+    options" gives {"the", "option"} and {"option"}.
+    """
+    out: list[set[str]] = []
+    for match in _TEST_FILE_LIST.finditer(text):
+        for member in re.split(r",|\band\b", match.group(1)):
+            words = [_word(w) for w in re.findall(r"[a-z0-9_]+", member)]
+            if words:
+                out += [set(words[-2:]), {words[-1]}]
+    return out
+
 
 def _word(w: str) -> str:
     """A word with one trailing "s" removed, so "defaults" names `default`."""
@@ -1724,7 +1751,11 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
     a "no" word. A sentence ends at punctuation that a space or the end
     follows, so a file name keeps its dot, and at "but". A sentence names a
     path by the whole path, by its file name, or by every word of the file
-    name less "test", with a trailing "s" removed. A test file name of one
+    name less "test", with a trailing "s" removed. "Nothing to do with"
+    counts as a "no" word. A list "the A, B and C test files" names each
+    test file whose word parts are a member's last word or last two words,
+    so "the options and shell completion test files" names
+    `test_options.py` and `test_shell_completion.py`. A test file name of one
     word part names a path by that word only when "test" or "file" stands
     within three words of it. When a part of the sentence after a comma
     starts with a "no" word and names a path, those paths are disputed, and
@@ -1771,6 +1802,8 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
         # finding 2).
         under_tests = path.replace("\\", "/").lower().startswith("tests/") or (
             "/tests/" in path.replace("\\", "/").lower())
+        if under_tests and parts and any(parts == s for s in _listed(text)):
+            return True
         if len(parts) == 1 and under_tests:
             (part,) = parts
             return any(t == part and _FILE_WORDS & set(tokens[max(0, i - 3):i + 4])
@@ -1778,7 +1811,8 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
         return bool(parts and parts <= set(tokens))
 
     def says_no(text: str) -> bool:
-        return bool(set(re.findall(r"[a-z']+", text)) & _DISPUTE_WORDS)
+        return bool(set(re.findall(r"[a-z']+", text)) & _DISPUTE_WORDS
+                    or _NOTHING_TO_DO.search(text))
 
     no_led = re.compile(
         r"\s*(" + "|".join(map(re.escape, sorted(_DISPUTE_WORDS))) + r")\b")

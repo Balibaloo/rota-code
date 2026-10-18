@@ -275,9 +275,10 @@ def _cancel_after(log_lines: list[str] | None, ask_id: str, words: str,
               hits[0] if hits else None)
     if at is None:
         return ABSENT
-    page = log_lines[at].split("]", 1)[0] + "]"
+    # The next reply of any page ends the scan. A later cancel belongs to a
+    # later ruling (review 4 of frame 298, finding 1).
     for line in log_lines[at + 1:]:
-        if line.startswith(page):
+        if line.startswith("["):
             break
         m = re.match(r"\s*do:cancel: abandoned (\S+?):", line)
         if m and m.group(1) in batches_of_item:
@@ -326,40 +327,57 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
             with_line += 1
     w(f"M0: {with_line} of {len(signoff)} sign-off pages carry a code line")
 
-    # M1 and M2: the item's own guess, its first version with no ruling.
-    if not n.has("touch_guesses"):
+    # M1 and M2: the item's own guess, its first version with no ruling. The
+    # truth needs no guess table, so old nights print it (design 5.1 and
+    # 5.2, review 4 of frame 298, finding 4).
+    has_guesses = n.has("touch_guesses")
+    merged = [b for b in batches if b["status"] == "merged"]
+    lines: list[str] = []
+    m1 = m2 = withtruth = absent = no_own = 0
+    for b in merged:
+        truth = _git_truth(repo, b["id"], b["head_commit"])
+        shown_truth = ",".join(truth) if truth is not None else "absent"
+        if not has_guesses:
+            lines.append(f"  {b['item_id']} guess=absent truth={shown_truth}")
+            continue
+        rows = n.conn.execute(
+            "SELECT grain FROM touch_guesses WHERE item_id = ? AND ruling_id = '' "
+            "AND item_ver = (SELECT MIN(item_ver) FROM touch_guesses WHERE item_id = ? "
+            "AND ruling_id = '') ORDER BY rowid", (b["item_id"], b["item_id"])).fetchall()
+        # A set under a ruling and no own set: the Architect never guessed, so
+        # the item is no miss (review 4 of frame 298, finding 2).
+        if not rows and n.conn.execute(
+                "SELECT 1 FROM touch_guesses WHERE item_id = ? AND ruling_id != ''",
+                (b["item_id"],)).fetchone():
+            no_own += 1
+            lines.append(f"  {b['item_id']} no own guess truth={shown_truth}")
+            continue
+        guess: list[str] = []
+        for r in rows:
+            p = _grain_path(r["grain"])
+            if p not in guess:
+                guess.append(p)
+        shown = ",".join(guess) or "-"
+        if truth is None:
+            absent += 1
+            lines.append(f"  {b['item_id']} guess={shown} truth absent")
+            continue
+        withtruth += 1
+        hit = set(guess) & set(truth)
+        src = {p for p in hit if not p.replace("\\", "/").startswith("tests/")}
+        m1 += bool(hit)
+        m2 += bool(src)
+        lines.append(f"  {b['item_id']} guess={shown} truth={','.join(truth)} "
+                     f"M1={'hit' if hit else 'miss'} M2={'hit' if src else 'miss'}")
+    if not has_guesses:
         w("M1: absent")
         w("M2: absent")
     else:
-        merged = [b for b in batches if b["status"] == "merged"]
-        lines: list[str] = []
-        m1 = m2 = withtruth = absent = 0
-        for b in merged:
-            rows = n.conn.execute(
-                "SELECT grain FROM touch_guesses WHERE item_id = ? AND ruling_id = '' "
-                "AND item_ver = (SELECT MIN(item_ver) FROM touch_guesses WHERE item_id = ? "
-                "AND ruling_id = '') ORDER BY rowid", (b["item_id"], b["item_id"])).fetchall()
-            guess: list[str] = []
-            for r in rows:
-                p = _grain_path(r["grain"])
-                if p not in guess:
-                    guess.append(p)
-            truth = _git_truth(repo, b["id"], b["head_commit"])
-            shown = ",".join(guess) or "-"
-            if truth is None:
-                absent += 1
-                lines.append(f"  {b['item_id']} guess={shown} truth absent")
-                continue
-            withtruth += 1
-            hit = set(guess) & set(truth)
-            src = {p for p in hit if not p.replace("\\", "/").startswith("tests/")}
-            m1 += bool(hit)
-            m2 += bool(src)
-            lines.append(f"  {b['item_id']} guess={shown} truth={','.join(truth)} "
-                         f"M1={'hit' if hit else 'miss'} M2={'hit' if src else 'miss'}")
-        w(f"M1: {m1} of {withtruth} merged items, {absent} with no truth")
-        w(f"M2: {m2} of {withtruth} merged items, {absent} with no truth")
-        out.extend(lines)
+        w(f"M1: {m1} of {withtruth} merged items, {absent} with no truth, "
+          f"{no_own} with no own guess")
+        w(f"M2: {m2} of {withtruth} merged items, {absent} with no truth, "
+          f"{no_own} with no own guess")
+    out.extend(lines)
 
     # The hand list for M3 and M4: contest or revise on a request line or a
     # code line, oldest first. The landed verdict map is what `land` wrote.

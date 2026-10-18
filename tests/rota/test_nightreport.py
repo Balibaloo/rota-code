@@ -372,8 +372,8 @@ def test_the_guess_section_counts_m0_m1_and_m2_from_rows_and_git(tmp_path):
     path, _ = _guess_night(tmp_path)
     lines = _section(_report(path, log=tmp_path / "night200.log"), GUESS)
     assert "M0: 1 of 2 sign-off pages carry a code line" in lines
-    assert "M1: 2 of 2 merged items, 0 with no truth" in lines
-    assert "M2: 1 of 2 merged items, 0 with no truth" in lines
+    assert "M1: 2 of 2 merged items, 0 with no truth, 0 with no own guess" in lines
+    assert "M2: 1 of 2 merged items, 0 with no truth, 0 with no own guess" in lines
     assert ("  it_1 guess=src/a.py,src/x.py truth=src/a.py,tests/test_a.py "
             "M1=hit M2=hit") in lines
     assert ("  it_2 guess=tests/test_b.py truth=src/b.py,tests/test_b.py "
@@ -407,7 +407,7 @@ def test_a_repository_without_the_merge_prints_truth_absent(tmp_path):
     _git(repo, "branch", "-q", "-D", "batch/bg_2")
     _git(repo, "gc", "-q", "--prune=now")
     lines = _section(_report(path, log=tmp_path / "night200.log"), GUESS)
-    assert "M1: 1 of 1 merged items, 1 with no truth" in lines
+    assert "M1: 1 of 1 merged items, 1 with no truth, 0 with no own guess" in lines
     assert "  it_2 guess=tests/test_b.py truth absent" in lines
 
 
@@ -422,7 +422,7 @@ def test_a_merge_of_another_nights_batch_is_no_truth(tmp_path):
     conn.commit()
     conn.close()
     lines = _section(_report(path), GUESS)
-    assert "M1: 1 of 1 merged items, 1 with no truth" in lines
+    assert "M1: 1 of 1 merged items, 1 with no truth, 0 with no own guess" in lines
     assert "  it_2 guess=tests/test_b.py truth absent" in lines
 
 
@@ -431,11 +431,11 @@ def test_the_repo_flag_names_the_repository(tmp_path):
     moved = tmp_path / "moved"
     repo.rename(moved)
     lines = _section(_report(path), GUESS)
-    assert "M1: 0 of 0 merged items, 2 with no truth" in lines
+    assert "M1: 0 of 0 merged items, 2 with no truth, 0 with no own guess" in lines
     # No log beside the database names the night, so the cancel is unknown.
     assert any(l.startswith("  r_1 ") and " cancel=?: " in l for l in lines)
     lines = _section(_report(path, repo=moved), GUESS)
-    assert "M1: 2 of 2 merged items, 0 with no truth" in lines
+    assert "M1: 2 of 2 merged items, 0 with no truth, 0 with no own guess" in lines
 
 
 def test_an_old_night_prints_the_guess_section_as_absent(tmp_path):
@@ -447,6 +447,58 @@ def test_an_old_night_prints_the_guess_section_as_absent(tmp_path):
     lines = _section(_report(path), GUESS)
     assert "absent: touch_guesses" in lines
     assert "M1: absent" in lines and "M2: absent" in lines
+
+
+def test_the_cancel_scan_ends_at_the_next_reply_of_any_page(tmp_path):
+    """Two rulings on it_1 and one late cancel: the cancel follows the second
+    ruling alone (review 4 of frame 298, finding 1)."""
+    import json
+
+    path, _ = _guess_night(tmp_path)
+    conn = sqlite3.connect(path)
+    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status, "
+                 "verdict_id) VALUES ('r_4', 'm20', 'm23', ?, 'Still wrong.', 'landed', "
+                 "'m24')", (json.dumps({"it_1": "revise"}),))
+    conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m24', ?)",
+                 (json.dumps({"it_1": "revise"}),))
+    conn.commit()
+    conn.close()
+    log = tmp_path / "late.log"
+    log.write_text(
+        f"[m10] present: Here is what I understand you want, on one page.  -> '{W1[:80]}\n"
+        "[m20] present: Here is what I understand you want, on one page.  -> 'Still wrong.'\n"
+        "  do:cancel: abandoned bg_0: its item is no longer schedulable\n")
+    lines = _section(_report(path, log=log), GUESS)
+    assert any(l.startswith("  r_1 ") and " cancel=no: " in l for l in lines)
+    assert any(l.startswith("  r_4 ") and " cancel=yes: " in l for l in lines)
+
+
+def test_an_item_with_a_ruling_set_alone_has_no_own_guess(tmp_path):
+    """it_2 keeps the set under ruling m12 and loses its own set (review 4 of
+    frame 298, finding 2)."""
+    path, _ = _guess_night(tmp_path)
+    conn = sqlite3.connect(path)
+    conn.execute("DELETE FROM touch_guesses WHERE item_id = 'it_2' AND ruling_id = ''")
+    conn.commit()
+    conn.close()
+    lines = _section(_report(path), GUESS)
+    assert "M1: 1 of 1 merged items, 0 with no truth, 1 with no own guess" in lines
+    assert "M2: 1 of 1 merged items, 0 with no truth, 1 with no own guess" in lines
+    assert "  it_2 no own guess truth=src/b.py,tests/test_b.py" in lines
+
+
+def test_the_truth_prints_without_the_guess_table(tmp_path):
+    """Night 156 has no `touch_guesses`, and its truth is in the repository
+    (review 4 of frame 298, finding 4)."""
+    path, _ = _guess_night(tmp_path)
+    conn = sqlite3.connect(path)
+    conn.execute("DROP TABLE touch_guesses")
+    conn.commit()
+    conn.close()
+    lines = _section(_report(path), GUESS)
+    assert "M1: absent" in lines and "M2: absent" in lines
+    assert "  it_1 guess=absent truth=src/a.py,tests/test_a.py" in lines
+    assert "  it_2 guess=absent truth=src/b.py,tests/test_b.py" in lines
 
 
 def test_main_reads_the_log_beside_the_database(tmp_path, capsys):
