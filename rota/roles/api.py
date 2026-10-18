@@ -7298,7 +7298,7 @@ _PY_VERSION_LITERAL = re.compile(r"(?<![\w.])3\.\d{1,2}(?:\.\d+)?(?![\w.])")
 # An example shows the format, so it is not the criterion's own value.
 _EXAMPLE_SPAN = re.compile(
     r"\(\s*(?:e\.g\.|eg\.|for example|for instance|such as)[^)]*\)"
-    r"|(?:e\.g\.|for example|for instance|such as)\s.*?(?=[.;](?:\s|$)|$)",
+    r"|(?:e\.g\.|for example|for instance|such as),?\s.*?(?=[.;](?:\s|$)|$)",
     re.I)
 
 
