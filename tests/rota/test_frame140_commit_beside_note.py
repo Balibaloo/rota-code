@@ -483,14 +483,86 @@ def test_s215s_ledger_that_names_the_path_in_about_ref_closes_the_note(db, tmp_p
     assert sb.call("code.commit", message="the removal")["committed"] is True
 
 
-def test_a_ledger_note_that_names_no_dropped_statement_leaves_it_open(db, tmp_path):
-    """Frame 283: a ledger note that names the path and none of the dropped
-    statements does not close the note, so the commit is refused."""
+def _index_path(db):
+    """The night's index held the path, so `about_ref` resolves to it."""
+    db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES "
+               "(?, 'path', 'file')", (PATH,))
+    db.commit()
+
+
+# The clause the ledger door adds before the commit door's routes (frame 297).
+SILENT = "This note names none of them, so it closes nothing. "
+
+
+def _silent_refusal(sb, **call):
+    """Send the ledger note, and return the refusal. The note stays open,
+    and no ledger row is staged."""
+    with pytest.raises(ValueError) as err:
+        sb.call("ledger.log", **call)
+    assert PATH in api._open_notes(sb.ctx)
+    assert not [w for w in sb.ctx.writes if w[0] == "ledger"]
+    return str(err.value)
+
+
+def test_a_ledger_note_about_the_path_that_names_no_dropped_statement_is_refused(db, tmp_path):
+    """Frame 297, rewritten from frame 283's
+    `test_a_ledger_note_that_names_no_dropped_statement_leaves_it_open`. A
+    note about the path that names none of the dropped statements closed
+    nothing and landed. The ledger door now refuses it with the note."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    head = _git(root, "rev-parse", "HEAD")
+    _noted_then_refused(sb, root)
+    msg = _silent_refusal(
+        sb, about_ref=PATH, about_table="code.source", kind="default",
+        assumption=f"The version string in {PATH} uses major.minor.micro.")
+    assert msg == (f"{PATH} holds a write that no commit holds. {PATH}: "
+                   f"{S282_NOTE} {SILENT}{LATER_STEP}")
+    assert _git(root, "rev-parse", "HEAD") == head
+
+
+def test_s214s_note_that_reads_its_own_write_as_the_file_is_refused(db, tmp_path):
+    """Frame 297, night 156's s214: after the commit door refused the
+    removal, the seat logged its own uncommitted lines as the file's code.
+    `l_cab4458639` landed, closed nothing, and reached the principal's page.
+    The door now refuses it and names `echo(` at its line."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    _noted_then_refused(sb, root)
+    msg = _silent_refusal(
+        sb, about_ref=PATH, about_table="code.source", kind="default",
+        assumption="The file already contains the show_python logic at lines "
+                   "543-546; no write is needed. The criteria are satisfied.")
+    assert "`echo(` at line 551" in msg
+    assert SILENT in msg
+    assert msg.endswith(LATER_STEP)
+
+
+def test_s274s_note_that_counts_the_removed_statements_is_refused(db, tmp_path):
+    """Frame 297, night 156's s274: "removed 7 statements" names no shown
+    line, so it closed nothing. The door refuses it and names the lines."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    _noted_then_refused(sb, root)
+    msg = _silent_refusal(
+        sb, about_ref=PATH, about_table="code.source", kind="default",
+        assumption="The write removed 7 statements from version_option on purpose.")
+    for shown in (f"`{BASE_HEAD}` at line 546", "`echo(` at line 551",
+                  "`ctx.exit()` at line 555"):
+        assert shown in msg
+
+
+def test_a_note_about_a_criterion_that_mentions_the_path_lands(db, tmp_path):
+    """Frame 297: the door reads `about_ref` only. A note about a criterion
+    whose text mentions the noted path lands, and the note stays open, so
+    the commit is still refused (frame 283)."""
     sb, root = _developer(db, tmp_path)
     head = _git(root, "rev-parse", "HEAD")
     _noted_then_refused(sb, root)
-    sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
-            assumption=f"The version string in {PATH} uses major.minor.micro.")
+    out = sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
+                  assumption=f"The version string in {PATH} uses major.minor.micro.")
+    assert "id" in out
+    assert PATH in api._open_notes(sb.ctx)
     with pytest.raises(ValueError) as err:
         sb.call("code.commit", message="the removal")
     assert str(err.value).startswith(LATER)

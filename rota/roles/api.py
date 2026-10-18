@@ -10737,6 +10737,13 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 f"it is ledger.log(kind='default'), which holds nothing.",
                 call, {"refs": [about_ref], "question": assumption}))
 
+    # Law 4: an uncommitted change never existed. A note about a path with
+    # an open dropped note must name the removal, or it closes nothing
+    # (frame 297, night 156's s214).
+    silent = _silent_note_refusal(ctx, about_ref, assumption)
+    if silent:
+        raise ValueError(silent)
+
     row = _stage_ledger(ctx, about_ref, about_table, assumption, word)
     # Every door has passed, so the note lands, and it can close a dropped
     # note (frame 283).
@@ -16585,9 +16592,7 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
              if p not in notes and _grain_path(p) in dirty]
     if not held and not later:
         return None
-    routes = (f"Put the lines back with code.write, or log the removal with "
-              f"ledger.log naming the path and the lines, then commit in your "
-              f"next reply.")
+    routes = _note_routes()
     if held:
         step = (f"If the tree holds those lines again, commit in your next "
                 f"reply. If it does not, write the lines back, then commit in "
@@ -16880,25 +16885,63 @@ def _close_logged_notes(ctx: Ctx, assumption: str, about_ref: str = "") -> None:
     if not assumption or not getattr(ctx, "batch_id", None):
         return
     for p, e in _open_notes(ctx).items():
-        named = (p == about_ref or _grain_path(p) == _grain_path(about_ref)
+        named = (_ref_names(p, about_ref)
                  or p in assumption or _grain_path(p) in assumption)
-        if not named:
-            continue
-        if e["lines"]:
-            # One shown line closes the note (review 3, finding 2).
-            # The full line counts where the note shows its cut form
-            # (review 5, finding 4).
-            shown = set(_shown_lines(e))
-            said = any(_says(assumption, q) for q in shown) or any(
-                line[:60] in shown and _says(assumption, line)
-                for _o, line, _n in e["lines"])
-            # Lines that are whole definitions are named by the definitions.
-            if not said and e["whole"]:
-                said = all(_says(assumption, d.rsplit(".", 1)[-1]) for d in e["whole"])
-        else:
-            said = bool(e["defs"]) and all(_says(assumption, d) for d in e["defs"])
-        if said:
+        if named and _note_says(e, assumption):
             _put_note(ctx, p, None)
+
+
+def _ref_names(path: str, about_ref: str) -> bool:
+    """True when `about_ref` names `path`, as itself or by its grain."""
+    return bool(about_ref) and (path == about_ref
+                                or _grain_path(path) == _grain_path(about_ref))
+
+
+def _note_says(e: dict, assumption: str) -> bool:
+    """True when the text `assumption` closes the open note `e`. The close
+    and the ledger door call this one rule (frame 297)."""
+    if e["lines"]:
+        # One shown line closes the note (review 3, finding 2).
+        # The full line counts where the note shows its cut form
+        # (review 5, finding 4).
+        shown = set(_shown_lines(e))
+        said = any(_says(assumption, q) for q in shown) or any(
+            line[:60] in shown and _says(assumption, line)
+            for _o, line, _n in e["lines"])
+        # Lines that are whole definitions are named by the definitions.
+        if not said and e["whole"]:
+            said = all(_says(assumption, d.rsplit(".", 1)[-1]) for d in e["whole"])
+        return said
+    return bool(e["defs"]) and all(_says(assumption, d) for d in e["defs"])
+
+
+def _note_routes() -> str:
+    """The two routes out of an open `dropped` note. The commit door and the
+    ledger door say this one sentence (frame 297)."""
+    return ("Put the lines back with code.write, or log the removal with "
+            "ledger.log naming the path and the lines, then commit in your "
+            "next reply.")
+
+
+def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | None:
+    """The refusal of a ledger note about a path with an open `dropped`
+    note that the text does not close, or None.
+
+    Law 4: an uncommitted change never existed. Night 156's s214 logged its
+    own uncommitted write as the file's code, and the note closed nothing
+    (frame 297). The door reads `about_ref` only."""
+    if not getattr(ctx, "batch_id", None):
+        return None
+    for p, e in _open_notes(ctx).items():
+        # A note with no line and no definition closes on a changed file,
+        # never on a ledger note, so no text can satisfy this door.
+        if not (e["lines"] or e["defs"]):
+            continue
+        if _ref_names(p, about_ref) and not _note_says(e, assumption or ""):
+            return (f"{p} holds a write that no commit holds. {p}: {e['note']} "
+                    f"This note names none of them, so it closes nothing. "
+                    f"{_note_routes()}")
+    return None
 
 
 def _predicted_touch(ctx: Ctx, batch_id: str) -> list[str]:
