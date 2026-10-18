@@ -429,6 +429,18 @@ comes first, then the state print, then the sender's note.
   by escalation, and a wall not fixed now stays an open frame with its
   reason written (ruled: Roman, 2026-10-15, "try to fix everything", then
   "Reasonably"). The guide's own rules stay in the guide.
+- [C64] **Every new wall gets a provenance read before its first fix**
+  (ruled: Roman, 2026-10-18 about 12:00, frame 298, "Spend the time to
+  understand it before making fixes", then "Every new wall, before its
+  first fix"). An agent reads which ruling made the mechanism, which build
+  decision shaped it, on what date, by which workflow, and whether the
+  build met the design's own condition, about one cycle, and writes it at
+  the frame. The rule covers any inconsistency or issue with rota, not only
+  a departure from a design. A wall that recurs under an open frame whose
+  provenance is already written keeps the guide's cheap path. Frame 298's
+  pointer line was a fallback of the 2026-09-03 design shipped on
+  2026-09-12 before its condition was tested, and three questions reached
+  Roman before anyone read that. Memory `rota-provenance-before-a-fix.md`.
 - [C33, the interview] **When a seat has a fact in front of it and does not
   act on it, interview the model in its context before a second brief
   shape** (ruled: Roman, 2026-10-02 15:02, frame 110, after two brief
@@ -465,6 +477,15 @@ comes first, then the state print, then the sender's note.
   tests it. A grill on a goal he has discussed is an escalation too
   (observed: 5 strikes by 2026-10-17, memory
   `rota-history-before-escalation.md`). Tool: `rulings.py`.
+- [C65] **A question to Roman opens with the provenance of the issue**
+  (ruled: Roman, 2026-10-18 about 12:00, frame 298, "if there are any
+  problems or questions to me, I need to know the provenance of the issue.
+  And investigating it yourself may make the answer obvious"). The first
+  lines say which ruling made the thing, which build decision shaped it,
+  when, by which workflow, and what the records say about its condition.
+  A provenance that shows a departure from the design is still asked, with
+  the repair named, never repaired in silence (ruled: Roman, the same
+  minute, "Ask me still"). Memory `rota-provenance-before-a-fix.md`.
 - [M-claims] When Roman's words assert a state of the world, check the
   conversations, the code and the records before you act, and question him
   when they disagree (ruled: Roman, 2026-10-18 about 02:05, "if i say some
