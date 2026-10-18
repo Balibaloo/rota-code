@@ -143,3 +143,46 @@ files are under the scratchpad directory
 Estimated from the turn sizes. Input about 270k tokens over 15 tool turns,
 with the context near 75k at the end. Output about 15k tokens. Total about
 285k.
+
+## At d2e85f79
+
+Pass 5b, worktree `C:/Users/roman/rota_r298` at d2e85f79. The probe
+`r298_5b_probe_pages.py` in the scratchpad directory ran three versions of
+`disputed_paths` over the same replies: f9f5cd19, 85928daa and d2e85f79.
+The paths are every path the sim's page turn holds, or the recorded relay
+set of s159 and s262. The runner of 85928daa~1 equals f9f5cd19's.
+
+Verdict: pass 5b closes finding 1 and finding 2. No kept path lands in
+`disputed` on any recorded reply. Every new difference is right.
+
+The replies that differ at d2e85f79 from 85928daa:
+
+- Night 155 m160, m172, m188, "not the options, termui or basic test
+  files": `tests/test_options.py` joins the list. Right. The "or" list
+  now names its first member (finding 2).
+- Night 156 m147, the 40-grain set of relay s262 and the page's set:
+  `[]`, the same as f9f5cd19. `tests/test_basic.py` stays out, and the
+  options, defaults and commands grains stay undisputed. Right by the
+  rule that a kept path never lands in `disputed`. The grains the words
+  call wrong are not found either, so the ruling disputes nothing.
+- Night 156 m193, page m191: `['tests/test_options.py', 'tests/test_defaults.py']`.
+  `tests/test_basic.py` stays out. Right.
+- Night 156 m217, "not the options or shell completion test files":
+  `tests/test_options.py` joins `tests/test_shell_completion.py`. Right.
+
+The replies that differ at d2e85f79 from f9f5cd19 and not from 85928daa:
+night 155 m110, night 156 m68 on the s159 set and on the page, and night
+156 m202. All three are unchanged from 85928daa and right, as (b) says.
+
+Every other paired reply gives the same result on all three versions.
+
+Outside, pre-existing on all three versions: night 155 m160, m172 and
+m188 also dispute `src/click/utils.py` and `tests/test_utils.py`, the two
+paths the words keep with "should be only src/click/utils.py and
+tests/test_utils.py". The page's code line did not hold them, so the
+night's guess relay would not pass them. Not a pass 5b regression.
+
+Tests at d2e85f79: `tests/rota/test_guess_route.py`,
+`tests/rota/test_request_page.py` and `tests/rota/test_files_contest_block.py`
+with `ROTA_MODEL=qwen3:8b`, result in the final message of this review.
+The three files give 142 passed, 4 xfailed in 26 s.
