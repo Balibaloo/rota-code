@@ -1,3 +1,5 @@
+> Superseded on 2026-10-18 by `plans/method/design.md`, revision 7, one page. This file is the history of revisions 1 to 6.
+
 # Frame 287, the design: the build session gets wiring
 
 Meta workflow. Reasoned on Fable by session 0162323a on 2026-10-17 from
