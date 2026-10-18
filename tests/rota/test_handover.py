@@ -906,3 +906,82 @@ def test_the_sid_decides_the_address_and_not_the_name(box):
     assert run(box, "hand", "--frame", "7", "--commit", "abc1234",
                "--to", "aaaa1111", "--confirm", "0.1") == 4
     assert claim(box, "aaaa1111").exists()
+
+
+# The handover dialogue of the method design, section 2 (frame 287).
+
+def momentum(box_path, where, sender):
+    path = box_path / where / ("handoff-%s.md" % sender)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"rota-77\n")
+
+
+def hand_and_take(box_path, sender="bbbb2222"):
+    arm(box_path, "aaaa1111")
+    run(box_path, "hand", "--frame", "7", "--commit", "abc1234",
+        "--sender", sender, "--confirm", "0.1")
+    return run(box_path, "take", "--sid", "aaaa1111")
+
+
+def test_take_names_the_note_in_plans_method_first(box, capsys):
+    momentum(box, "plans", "bbbb2222")
+    momentum(box, "plans/method", "bbbb2222")
+    assert hand_and_take(box) == 0
+    out = capsys.readouterr().out
+    assert "plans/method/handoff-bbbb2222.md" in out
+
+
+def test_take_falls_back_to_the_old_note_place(box, capsys):
+    momentum(box, "plans", "bbbb2222")
+    assert hand_and_take(box) == 0
+    out = capsys.readouterr().out
+    assert "plans/handoff-bbbb2222.md" in out
+    assert "plans/method/handoff" not in out
+
+
+def test_hand_warns_on_a_missing_note_and_still_posts(box, capsys):
+    arm(box, "aaaa1111")
+    assert run(box, "hand", "--frame", "7", "--commit", "abc1234",
+               "--sender", "bbbb2222", "--confirm", "0.1") == 4
+    assert "WARNING: no momentum note for bbbb2222" in capsys.readouterr().out
+    assert claim(box, "aaaa1111").exists(), "a tool enables and never gates"
+    assert run(box, "take", "--sid", "aaaa1111") == 0
+    assert "no momentum note found for bbbb2222." in capsys.readouterr().out
+
+
+def test_take_gives_the_sender_address_and_the_release_word(box, capsys):
+    enrol(box, "bbbb2222", "rota-77")
+    momentum(box, "plans/method", "bbbb2222")
+    assert hand_and_take(box) == 0
+    out = capsys.readouterr().out
+    assert "from bbbb2222 (rota-77)" in out
+    assert ("Message rota-77 for a context question before you ask Roman. When "
+            "you need nothing more, message it the word released.") in out
+
+
+def test_take_gives_the_sid_alone_when_no_name_is_known(box, capsys):
+    assert hand_and_take(box) == 0
+    out = capsys.readouterr().out
+    assert "Message bbbb2222 for a context question" in out
+
+
+def test_the_claim_carries_the_sender_name_and_take_reads_it_first(box, capsys):
+    enrol(box, "bbbb2222", "rota-77")
+    arm(box, "aaaa1111")
+    run(box, "hand", "--frame", "7", "--commit", "abc1234",
+        "--sender", "bbbb2222", "--confirm", "0.1")
+    posted = json.loads(claim(box, "aaaa1111").read_text(encoding="utf-8"))
+    assert posted["sender_name"] == "rota-77"
+    enrol(box, "bbbb2222", "rota-renamed")
+    capsys.readouterr()
+    assert run(box, "take", "--sid", "aaaa1111") == 0
+    assert "Message rota-77 for" in capsys.readouterr().out
+
+
+def test_the_text_names_the_350k_hand_and_keeps_the_300k_ceiling():
+    """The leaving session keeps its last 50k for the taker (ruled: 2026-10-18 02:30)."""
+    assert "400k" not in handover.__doc__
+    assert "about 350k" in handover.__doc__ and "last 50k" in handover.__doc__
+    top_help = " ".join(handover.build_parser().format_help().split())
+    assert "at about 350k, keep the last 50k" in top_help
+    assert handover.CEILING == 300

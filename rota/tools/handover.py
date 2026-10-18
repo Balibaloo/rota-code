@@ -6,7 +6,9 @@ A hand-off that lands in a session that sits idle.
     python rota/tools/handover.py hand --frame 7 --commit 82f4e9e
     python rota/tools/handover.py take --sid 2555d93f        # the woken standby
 
-A session at 400k gives its whole stack to a fresh peer and stops. That
+A session at about 350k gives its whole stack to a fresh peer. It keeps
+the last 50k of its context to answer the taker's questions, and it stops
+when the taker messages it the word released. That
 is what a hand-off is, and it is the only thing it is. It is never a way
 to give a task to another session while the sender keeps working: two
 sessions on one stack write over each other's records, and the stack
@@ -94,8 +96,8 @@ one was measured, and six of them can lose a frame:
 * A send is not a delivery, and a wake is not an answer. So a sender here
   never reads its own write as proof, and never judges silence on a clock
   of its own. The proof is a receipt that only the receiver can create.
-* Two senders can reach 400k together. A claim is created with
-  `O_CREAT | O_EXCL`, which gave exactly one winner out of twelve racing
+* Two senders can reach the hand-off line, about 350k, together. A claim
+  is created with `O_CREAT | O_EXCL`, which gave exactly one winner out of twelve racing
   writers here. One standby can never be handed two frames.
 * `os.rename` onto an existing file raises on Windows and replaces in
   silence on POSIX. A standby that took a vacancy straight into its own
@@ -209,6 +211,37 @@ def _root(start: Path) -> Path:
             return path.parent
     top = _git(start, "rev-parse", "--show-toplevel")
     return Path(top) if top else start
+
+
+NOTE_PATHS = ("plans/method/handoff-%s.md", "plans/handoff-%s.md")
+
+
+def momentum_note(root: Path, sender: str) -> Path | None:
+    """The sender's momentum note, or None when the sender wrote none.
+
+    The method design moves the note to `plans/method/`. Older notes stay
+    in `plans/`, so the new place wins and the old place still answers.
+    """
+    if not sender:
+        return None
+    for rel in NOTE_PATHS:
+        path = root / (rel % sender[:8])
+        if path.is_file():
+            return path
+    return None
+
+
+def sender_name(box: "Box", claim: dict) -> str:
+    """The peer name a taker messages, from the claim first and the hook second.
+
+    The claim carries the name from 2026-10-18. An older claim does not,
+    so the hook's enrolment of the sender answers in its place.
+    """
+    name = str(claim.get("sender_name") or "")
+    sender = str(claim.get("from_sid") or "")[:8]
+    if not name and sender:
+        name = str((box.enrolled(sender) or {}).get("name") or "")
+    return name
 
 
 class Unreadable(OSError):
@@ -482,11 +515,14 @@ def _post_vacancy(box: Box, args: argparse.Namespace) -> int:
     the status line still carries the fact for a person to read.
     """
     t, iso = _now()
-    target = box._post({
+    payload = {
         "frame": args.frame, "commit": args.commit,
         "from_sid": args.sender or "", "note": args.note or "",
         "t": t, "iso": iso, "host": socket.gethostname(), "tool": VERSION,
-    })
+    }
+    if getattr(args, "sender_name", ""):
+        payload["sender_name"] = args.sender_name
+    target = box._post(payload)
     box.note("vacancy_posted", frame=args.frame, commit=args.commit,
              file=target.name)
     print("NO FREE STANDBY. The hand-off waits in %s as a vacancy." % target)
@@ -799,6 +835,17 @@ def cmd_peers(args: argparse.Namespace, box: Box) -> int:
 def cmd_hand(args: argparse.Namespace, box: Box) -> int:
     """Give the frame to one standby, then wait for the fact that proves it landed."""
     box.reclaim(args.reclaim)
+    # The claim carries the sender's address, so the taker can open the
+    # dialogue that the method design makes part of a hand-off.
+    sender = (args.sender or "")[:8]
+    args.sender_name = str((box.enrolled(sender) or {}).get("name") or "") \
+        if sender else ""
+    # A missing note is a warning and never a refusal. A tool enables and
+    # never gates (ruled: Roman, 2026-10-18 02:25).
+    if sender and momentum_note(box.root, sender) is None:
+        print("WARNING: no momentum note for %s at %s or %s. The claim still"
+              % (sender, NOTE_PATHS[0] % sender, NOTE_PATHS[1] % sender))
+        print("posts. Write the note before the taker reads it.")
     rows = _wake_from_sleep(box, args.stale, args.grace, args.ceiling)
     if args.to:
         wanted = [r for r in rows if str(r.get("sid", "")).startswith(args.to)]
@@ -867,6 +914,8 @@ def cmd_hand(args: argparse.Namespace, box: Box) -> int:
             "from_sid": args.sender or "", "note": args.note or "",
             "t": t, "iso": iso, "host": socket.gethostname(), "tool": VERSION,
         }
+        if args.sender_name:
+            claim["sender_name"] = args.sender_name
         try:
             fd = os.open(str(box.claim_file(sid)),
                          os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -962,17 +1011,30 @@ def cmd_take(args: argparse.Namespace, box: Box) -> int:
     })
     box.write_state(args.sid, state)
     box.note("taken", sid=args.sid, frame=claim.get("frame"), receipt=receipt.name)
+    sender = (claim.get("from_sid") or "")[:8]
+    name = sender_name(box, claim) if sender else ""
+    origin = claim.get("from_sid") or "unknown"
+    if name:
+        origin = "%s (%s)" % (origin, name)
     print("frame %s, stack commit %s, from %s, posted %s" % (
-        claim.get("frame"), claim.get("commit"),
-        claim.get("from_sid") or "unknown", claim.get("iso")))
+        claim.get("frame"), claim.get("commit"), origin, claim.get("iso")))
     if claim.get("note"):
         print("note: %s" % claim["note"])
     print("Claim the frame in the stack with your session id, then read the commit.")
-    sender = (claim.get("from_sid") or "")[:8]
     if sender:
-        print("Read the sender's momentum note, plans/handoff-%s.md, after the "
-              "composition page. Message the sender for a context question "
-              "before you ask Roman." % sender)
+        found = momentum_note(box.root, sender)
+        if found is None:
+            print("no momentum note found for %s." % sender)
+        else:
+            rel = found.relative_to(box.root).as_posix()
+            print("Read the sender's momentum note, %s, after the composition "
+                  "page." % rel)
+        # The handover is a dialogue that the taker opens when it needs to
+        # (ruled: Roman, 2026-10-18 02:25). The sender keeps its last 50k
+        # for it and stops on the word released.
+        print("Message %s for a context question before you ask Roman. When "
+              "you need nothing more, message it the word released."
+              % (name or sender))
     return 0
 
 
@@ -1130,14 +1192,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     h = sub.add_parser(
         "hand",
-        help="give the stack to one live standby and stop working. Not a way "
-             "to hand a task to a peer while you keep the seat.")
+        help="give the stack to one live standby at about 350k, keep the last "
+             "50k to answer the taker's questions, and stop when it messages "
+             "released. Not a way to hand a task to a peer while you keep the "
+             "seat.")
     h.add_argument("--frame", required=True, help="the frame number")
     h.add_argument("--commit", required=True, help="the stack's commit")
     h.add_argument("--to", default=None,
                    help="a session id prefix, when the Principal names the peer")
     h.add_argument("--sender", default=None,
-                   help="the handing session's id, for the record")
+                   help="the handing session's id, for the record, the note "
+                        "check and the taker's address")
     h.add_argument("--note", default=None, help="one line the receiver must read")
     h.add_argument("--stale", type=float, default=STALE)
     h.add_argument("--reclaim", type=float, default=RECLAIM)
