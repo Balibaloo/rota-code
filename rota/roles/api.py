@@ -9708,11 +9708,26 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if ruling != "revise" or not asked or not _is_team_note(ctx.conn, ref):
             continue
         line = (f"line {order.index(ref) + 1}" if order and ref in order else ref)
-        named = ", or ".join(f"line {n}, {r}" for n, r in asked)
+        # law 6: nothing is ruled on the principal's behalf
+        # The refusal offers a request line only when the words name it by
+        # number or quote it. Night 156's s239 moved its revise to the one
+        # line the text named, and bg_2 died. Over nights 139 to 156 the
+        # text fired 19 times, and 7 next calls moved the revise to line 1
+        # on words that never named line 1 (frame 296). `_names_request`
+        # stays out: it reads 5 of those 7 replies as naming the request.
+        refs_named = {n for m in _LINE_REF.finditer(words or "")
+                      for n in _ref_lines(m, len(order))}
+        named = ", or ".join(
+            f"line {n}, {r}" for n, r in asked
+            if n in refs_named or _quotes_line(words, page_text, n))
+        offer = (f"The words name {named}. Revise the line the words are about."
+                 if named else
+                 "The words name no line of the request, and a revise of the "
+                 "request needs his words on the request.")
         raise ValueError(
-            f"{line} is the team's note, not your request. revise rewrites a line "
-            f"of what the principal asked for: {named}. Revise the line the words "
-            f"are about. To drop the note, contest it.")
+            f"{line} is the team's note, not your request. To drop the note, "
+            f"contest it. revise rewrites a line of what the principal asked "
+            f"for. {offer}")
     # law 3: a message routes to the writer of the artefact holding the answer
     # A batch line is a prediction of what the change touches. Before the
     # build, a correction of it goes to the Architect, who wrote it: night

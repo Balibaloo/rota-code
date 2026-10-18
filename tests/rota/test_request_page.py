@@ -633,17 +633,19 @@ def test_a_revise_of_the_item_line_lands_with_the_words_on_the_item(m399):
     mid = _dispatch(m399, wake, 'TOOL: msg.present_principal(refs=["l_d24f6997d1"])')
     reply = _reply(m399, mid, M400)
 
-    # A revise of the team's note is refused, and the refusal names every
-    # request line (frame 190's design, 2.F, amendment 2).
+    # A revise of the team's note is refused. The refusal names the drop
+    # first, and names a request line only when the words name it by number
+    # or quote it (frame 190's design, 2.F, amendment 2, and frame 296).
     sb = _sandbox(m399, "liaison", "landing", reply)
     ruling = {str(n): "approve" for n in range(1, 10)}
     ruling["9"] = "revise"
     with pytest.raises(ValueError) as refused:
         sb.call("rulings.rule", rulings=ruling, words=M400)
     assert str(refused.value) == (
-        "line 9 is the team's note, not your request. revise rewrites a line of what "
-        f"the principal asked for: line 1, {ITEM_136}, or line 5, {ITEM_VO}. Revise "
-        "the line the words are about. To drop the note, contest it.")
+        "line 9 is the team's note, not your request. To drop the note, contest "
+        "it. revise rewrites a line of what the principal asked for. The words "
+        "name no line of the request, and a revise of the request needs his words "
+        "on the request.")
 
     ruling = {str(n): "approve" for n in range(1, 10)}
     ruling["5"], ruling["9"] = "revise", "contest"
