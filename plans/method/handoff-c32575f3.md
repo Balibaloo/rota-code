@@ -45,9 +45,9 @@ with it. Night 158 measures frame 297 on page notes that cite uncommitted
 lines, 0 of 3 on night 157, and sessions that inherited a write, 5 on
 night 157. Doubt second frame 298's W4: the guess rewrites reach no page,
 because a park, a batch plan and a new item version each replace the
-rewrite. It is measured at night 158 before any fix. Doubt third the
-gate of pass 6 at 37bbc243: it was running when this note was written.
-Read frame 297's last status line for its result.
+rewrite. It is measured at night 158 before any fix. The gate of pass 6 at
+37bbc243 found two new reds, pass 7 at c0549d84 fixed the shadowed name,
+and its gate is clean. The mechanism is closed at c0549d84.
 
 The baseline is still f9f5cd19 of 15:51, in `.rota-gate.json` of the
 checkout and `C:/Users/roman/rota_g297`. Every gate of this session ran
@@ -60,7 +60,7 @@ and counts 25 reds gone, operating-facts line 691.
 - Frame 298: validating on its third batch at night 158, closing commit
   d2e85f79. Night 157's files: `.rota/clickI_night157.db`,
   `.rota/night157_report.txt`, `.rota/night157_truth.txt`.
-- Frame 297: mechanism closed at 37bbc243 on a clean gate, validating at
+- Frame 297: mechanism closed at c0549d84 on a clean gate, validating at
   night 158. Residues named in reviews 3 and 4: a mixed-ending file, the
   whole-file write with no dropped note, `harness.py` and `scaffold.py`
   on `write_text`.
