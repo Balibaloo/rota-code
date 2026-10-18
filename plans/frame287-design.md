@@ -8,6 +8,37 @@ high findings against revision 1; each is answered where it applies and
 listed in section 11. Every line carries a mark. `#n` and `An` are quote
 tags in page A. Nothing here is built yet.
 
+# Revision 6, 2026-10-18, on frame 293's counts
+
+Written by session bf5baa63 on Fable. Frame 293 ran the pilot of R5.3:
+the search over the records with no ledger answered 1 of 7 past questions
+on the first screen; a 44-entry ledger written blind from the transcripts
+answered 0 of 11 later questions by the question's words and 2 of 11 in
+part by the frame number; the frame's own stack entry held the answer in
+every case the search reached (observed: `f293/pass1-report.md` to
+`pass4-report.md`, 2026-10-18). The grill rule of 2026-09-24 makes a
+question a story in everyday words, so a question's words never match a
+record's terms, by design. The one key that reaches an answer is the frame
+number, and the record it reaches is the frame.
+
+So the ledger file and its back-fill leave the design (R4.2, R4.4, R5.3
+frames 1 and 3). His words are persisted where the habit already puts
+them, the frame's status line in his words with the time, and
+`rota/DECISIONS.md` for the rota workflow; the archive keeps a closed
+frame whole, so the frame number finds the words later. `plans/rulings.md`
+stays as it is, 44 entries, a record of the pilot, and is not grown.
+
+What stays to build, in order: frame 2 of R5.3, the status tool with
+`--ruling` and the take print, which also lists held frames without a
+`Searched:` line; the `Searched:` field at every push, which makes the
+search of 2026-10-03 visible, with `rota/tools/rulings.py` as the search
+by frame, file, door and law and `grep` for words; and frame 4, the brief
+split with the two one-line steps. The retro of 2026-10-18,
+`plans/retro-2026-10-18.md`, carries five changes to the method that sit
+above this design and are his to rule.
+
+---
+
 # Revision 5, 2026-10-18, on design review 3
 
 Written by session bf5baa63 on Fable. Review 3,
