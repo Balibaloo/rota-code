@@ -16095,11 +16095,14 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             before = target.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             before = None
-    # `newline=""` keeps each LF. A probe on Windows found CRLF on disk, so
-    # git saw a change in a write of the committed text (frame 297's
-    # review 1, finding 9).
+    # A write keeps the file's own line ending, and a new file gets the one
+    # git checks out. A CRLF write into an LF checkout listed a file equal
+    # to HEAD. An LF write into a CRLF checkout did the same, and a CRLF
+    # blob became a whole-file diff (frame 297's reviews 1 and 2).
+    # `newline=""` lets Python add nothing.
+    eol = _line_ending(target, root)
     with open(target, "w", encoding="utf-8", newline="") as fh:
-        fh.write(text)
+        fh.write(text.replace("\r\n", "\n").replace("\n", eol))
     out = {"path": path, "bytes": len(text.encode("utf-8")),
            "created": not existed}
     # A fact, not an order: the seat decides whether the tail goes.
@@ -16739,6 +16742,29 @@ def _note_entry(note: str, before: str, noted: str, drop: list[int]) -> dict:
             "noted": noted}
 
 
+def _line_ending(target, root) -> str:
+    """The line ending a write into `target` keeps: CRLF when the file's
+    bytes hold CRLF, LF when they hold none. A new file gets CRLF when
+    `core.autocrlf` is true for the tree, as a checkout would write it
+    (frame 297's review 2, findings 1 and 2)."""
+    import subprocess as _sp
+    from ..core import worktrees as _wt
+    try:
+        raw = target.read_bytes() if target.is_file() else None
+    except OSError:
+        raw = None
+    if raw is not None and b"\n" in raw:
+        return "\r\n" if b"\r\n" in raw else "\n"
+    if root is None:
+        return "\n"
+    try:
+        got = _sp.run([*_wt.GIT, "-C", str(root), "config", "--get", "core.autocrlf"],
+                      capture_output=True, text=True)
+    except OSError:
+        return "\n"
+    return "\r\n" if got.stdout.strip().lower() == "true" else "\n"
+
+
 def _stored_note(entry: dict, before: str, drop: list[int]) -> str:
     """The `dropped` sentence for the stored lines of `entry` alone, each at
     its first dropped line of `before` (frame 297's review 1, finding 4)."""
@@ -16927,9 +16953,10 @@ def _note_says(e: dict, assumption: str) -> bool:
         # One shown line closes the note (review 3, finding 2).
         # The full line counts where the note shows its cut form
         # (review 5, finding 4).
-        # The ledger door lists every stored line, so each listed form
-        # counts (frame 297's review 1, finding 5).
-        shown = set(_shown_lines(e)) | set(_listed_lines(e))
+        # The ledger door lists exactly these lines, so the listed lines
+        # and the lines that close are one set (frame 297's review 2,
+        # finding 4).
+        shown = set(_shown_lines(e))
         said = any(_says(assumption, q) for q in shown) or any(
             line[:60] in shown and _says(assumption, line)
             for _o, line, _n in e["lines"])
@@ -16952,34 +16979,26 @@ def _note_routes(write_only: bool = False) -> str:
             "next reply.")
 
 
-def _listed_lines(e: dict) -> list[str]:
-    """Each stored line of `e` as the seat can quote it: the form the note
-    text shows, or the line cut at 60 characters. The newest text of a note
-    can omit an earlier write's lines (frame 297's review 1, finding 5).
-    The first eight only, the cap of the note text: a line the seat never
-    saw closes nothing (frame 283's review 3, finding 2)."""
-    shown = set(_shown_lines(e))
-    return [next((q for q in (line, line[:60]) if q in shown), line[:60])
-            for _o, line, _n in e["lines"][:_LOST_NAMED]]
-
-
 def _removal_list(e: dict) -> str:
-    """The stored lines of `e` for a refusal, each with its line where the
-    note text gives one, or the dropped definitions."""
+    """The lines of `e` for a refusal: exactly the lines `_shown_lines`
+    gives, in its order, each with its line where the note text gives one.
+    A line the seat never saw closes nothing, so the refusal never lists
+    one (frame 297's review 2, finding 4). With no line, the dropped
+    definitions."""
     if not e["lines"]:
         return ", ".join(_quote(d) for d in e["defs"])
     out = []
-    for q in _listed_lines(e):
+    for q in _shown_lines(e):
         m = re.search(re.escape(_quote(q)) + r" at line (\d+)", e["note"])
         out.append(f"{_quote(q)} at line {m.group(1)}" if m else _quote(q))
-    more = len(e["lines"]) - len(out)
-    return ", ".join(out) + (f" and {more} more" if more > 0 else "")
+    return ", ".join(out)
 
 
-def _close_restored(ctx: Ctx, tree) -> dict:
-    """Close each open `dropped` note whose lines the tree holds again, and
-    return the notes still open. The commit door and the ledger door read
-    the tree with this one check (frame 297's review 1, finding 3)."""
+def _close_restored(ctx: Ctx, tree, stage: bool = True) -> dict:
+    """Return the open `dropped` notes whose lines the tree does not hold
+    again. With `stage`, close each other note. The commit door alone
+    stages the close: a close from the ledger door let a later silent
+    write commit a loss (frame 297's review 2, finding 3)."""
     from pathlib import Path as _Path
     opened = _open_notes(ctx)
     if tree is None:
@@ -16990,7 +17009,8 @@ def _close_restored(ctx: Ctx, tree) -> dict:
         except (OSError, UnicodeDecodeError):
             now = ""
         if _restored(now, opened[p]):
-            _put_note(ctx, p, None)
+            if stage:
+                _put_note(ctx, p, None)
             del opened[p]
     return opened
 
@@ -17002,7 +17022,9 @@ def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | Non
     Law 4: an uncommitted change never existed. Night 156's s214 logged its
     own uncommitted write as the file's code, and the note closed nothing
     (frame 297). The door reads `about_ref` only. It reads the tree as the
-    commit door does, so the two doors give one answer (review 1, finding 3)."""
+    commit door does, so the two doors give one answer (review 1, finding 3).
+    It only reads: a restored note stays open for the commit door's close
+    (review 2, finding 3)."""
     if not getattr(ctx, "batch_id", None):
         return None
     # Only the Developer holds code.write. A message wake gives every role
@@ -17016,7 +17038,7 @@ def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | Non
     except ValueError:
         # A batch with no worktree has no tree to read, so the door is silent.
         return None
-    opened = _close_restored(ctx, tree)
+    opened = _close_restored(ctx, tree, stage=False)
     dirty = None
     for p, e in opened.items():
         # A note with no line and no definition closes on a changed file,

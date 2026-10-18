@@ -11,6 +11,8 @@ uncommitted change never existed."
 """
 from __future__ import annotations
 
+import pytest
+
 from rota.core import boot as boot_mod
 from rota.core.runner import run_session
 from rota.core.scheduler import Wake, tick_batch_start
@@ -51,6 +53,8 @@ def test_s214s_end_discards_the_write_and_closes_the_note(db, tmp_path):
     and the session ends. The tree is back at HEAD, the account names the
     path, the note is closed, and the next start says the write went."""
     _sb, root = _developer(db, tmp_path)
+    # An LF tree, so the bytes below do not depend on the system config.
+    _git(root, "config", "core.autocrlf", "false")
     head = _git(root, "rev-parse", "HEAD")
     _run(db, [_write(PATH, S282_TEXT, 546, 556) + "\n" + COMMIT, "", "", ""])
     assert _git(root, "status", "--porcelain") == ""
@@ -70,6 +74,7 @@ def test_a_commit_stays_and_the_later_write_is_discarded(db, tmp_path):
     """Law 4 names the tree at the end, not the count of commits. The commit
     holds the first write, and the write after it is discarded."""
     _sb, root = _developer(db, tmp_path)
+    _git(root, "config", "core.autocrlf", "false")
     extra = "src/click/extra.py"
     _run(db, [_write(extra, "X = 1\n"), COMMIT, _write(extra, "X = 2\n"), "", "", ""])
     assert _git(root, "show", f"HEAD:{extra}") == "X = 1"
@@ -128,3 +133,27 @@ def test_the_boot_discards_the_tree_of_a_running_batch(db, tmp_path):
     assert _git(root, "status", "--porcelain") == ""
     assert [r[0] for r in db.execute(
         "SELECT status FROM drop_notes WHERE batch_id = 'b1'")] == ["restored"]
+
+
+def test_the_boot_discards_the_tree_of_a_deferred_batch(db, tmp_path):
+    """A deferred batch's last session ended too, so the boot discards its
+    uncommitted writes by the same rule (ruled: the coordinator, pass 4)."""
+    _sb, root = _developer(db, tmp_path)
+    db.execute("UPDATE batches SET status = 'deferred' WHERE id = 'b1'")
+    db.commit()
+    (root / PATH).write_bytes((DECORATORS + "# left\n").encode("utf-8"))
+    assert boot_mod.discard_running(db) == [("b1", [PATH])]
+    assert _git(root, "status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize("autocrlf, eol", [("true", b"\r\n"), ("false", b"\n")])
+def test_the_discard_gives_the_file_back_as_the_tree_checks_it_out(
+        db, tmp_path, autocrlf, eol):
+    """The discard uses the tree's own `core.autocrlf`, so a CRLF tree gets
+    CRLF back and an LF tree gets LF (ruled: the coordinator, pass 4b)."""
+    _sb, root = _developer(db, tmp_path)
+    _git(root, "config", "core.autocrlf", autocrlf)
+    (root / PATH).write_bytes((DECORATORS + "# left\n").encode("utf-8"))
+    assert boot_mod.discard_running(db) == [("b1", [PATH])]
+    assert (root / PATH).read_bytes() == DECORATORS.replace("\n", "\r\n" if eol == b"\r\n" else "\n").encode("utf-8")
+    assert _git(root, "status", "--porcelain") == ""

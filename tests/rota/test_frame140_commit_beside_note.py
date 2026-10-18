@@ -631,23 +631,98 @@ def test_s300s_note_is_refused_with_the_stored_lines(db, tmp_path):
     assert "output = message" not in msg
 
 
-def test_the_refusal_lists_a_stored_line_the_newest_text_omits(db, tmp_path):
-    """Frame 297's review 1, finding 5: bg_2's row stores `echo(`, and its
-    newest text shows six `kwargs` lines only. The refusal lists `echo(`,
-    and a note that names it closes the note."""
+# bg_2's row on night 156: eight stored lines, and a text that shows six.
+BG2_KWARGS = ['kwargs.setdefault("is_flag", True)',
+              'kwargs.setdefault("expose_value", False)',
+              'kwargs.setdefault("is_eager", True)',
+              'kwargs.setdefault("help", _("Show the version and exit."))',
+              'kwargs["callback"] = callback',
+              'return option(*param_decls, **kwargs)']
+BG2_NOTE = ("This write removes 6 statements that your text does not hold: "
+            + ", ".join(f"`{x}` at line {n}" for x, n in zip(BG2_KWARGS, range(559, 565)))
+            + ".")
+BG2_LINES = ([["version_option.callback", "echo(", 1],
+              ["version_option.callback", "ctx.exit()", 1]]
+             + [["version_option", x, 1] for x in BG2_KWARGS])
+
+
+def test_bg2s_eight_line_row_lists_the_six_shown_lines(db, tmp_path):
+    """Frame 297's review 2, finding 6: the replay of bg_2's row with s214's
+    text. The refusal lists the six lines the text shows, and only a listed
+    line closes the note (review 2, finding 4)."""
     sb, root = _developer(db, tmp_path)
     _index_path(db)
     _noted_then_refused(sb, root)
-    _night_note(sb, "This write removes 1 statement that your text does not "
-                    "hold: `ctx.exit()` at line 555.",
-                [["version_option.callback", "echo(", 1],
-                 ["version_option.callback", "ctx.exit()", 1]])
+    _night_note(sb, BG2_NOTE, BG2_LINES)
     msg = _silent_refusal(sb, about_ref=PATH, about_table="code.source",
                           kind="default", assumption=S214_TEXT)
-    assert "The write removes `echo(`, `ctx.exit()` at line 555." in msg
-    sb.call("ledger.log", about_ref=PATH, about_table="code.source",
-            kind="default", assumption="The write removes `echo(` on purpose.")
+    listed = ", ".join(f"`{x}` at line {n}" for x, n in zip(BG2_KWARGS, range(559, 565)))
+    assert f"The write removes {listed}. {SILENT}" in msg
+    assert "`echo(`" not in msg
+    # `echo(` is stored and never shown, so it closes nothing.
+    _silent_refusal(sb, about_ref=PATH, about_table="code.source", kind="default",
+                    assumption="The write removes `echo(` on purpose.")
+    sb.call("ledger.log", about_ref=PATH, about_table="code.source", kind="default",
+            assumption='The write removes `kwargs["callback"] = callback` on purpose.')
     assert PATH not in api._open_notes(sb.ctx)
+
+
+def test_a_nine_line_refusal_names_each_line_that_closes_it(db, tmp_path):
+    """Frame 297's review 2, finding 4: the note shows `return` first and
+    hides `value_8`. The refusal lists the shown lines, so `value_8` is
+    neither listed nor a line that closes."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    _noted_then_refused(sb, root)
+    lost = [(i, f"value_{i} = compute({i})") for i in range(1, 9)] + [
+        (9, "return value_9")]
+    note = f"This write removes 9 statements: {api._lost_sentence(lost)}."
+    _night_note(sb, note, [["f", h, 1] for _i, h in lost])
+    shown = api._shown_lines(api._open_notes(sb.ctx)[PATH])
+    assert "value_8 = compute(8)" not in shown and len(shown) == 8
+    msg = _silent_refusal(sb, about_ref=PATH, about_table="code.source",
+                          kind="default", assumption=S214_TEXT)
+    listed = ", ".join(f"`{h}` at line {i}" for i, h in lost if h in shown)
+    assert f"The write removes {listed}. {SILENT}" in msg
+    assert "more" not in msg
+    _silent_refusal(sb, about_ref=PATH, about_table="code.source", kind="default",
+                    assumption="The write removes `value_8 = compute(8)` on purpose.")
+    sb.call("ledger.log", about_ref=PATH, about_table="code.source", kind="default",
+            assumption="The write removes `return value_9` on purpose.")
+    assert PATH not in api._open_notes(sb.ctx)
+
+
+def test_a_ledger_note_closes_no_restored_note_early(db, tmp_path):
+    """Frame 297's review 2, finding 3, probe Q2b. A write puts the lines
+    back, and a ledger note on another path lands. A silent whole-file write
+    then takes `ctx.exit()` out. The note stays open, so the commit is
+    refused."""
+    other = "src/click/other.py"
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES "
+               "(?, 'path', 'file')", (other,))
+    db.commit()
+    head = _git(root, "rev-parse", "HEAD")
+    _noted_then_refused(sb, root)
+    sb.call("code.write", path=PATH, start=546, end=550, text=RESTORED)
+    sb.begin_reply()
+    api._put_note(sb.ctx, other, {"note": "This write removes 1 statement that "
+                                  "your text does not hold: `x = 1` at line 1.",
+                                  "lines": [["", "x = 1", 1]], "defs": [],
+                                  "whole": [], "noted": "y"})
+    (root / other).write_bytes(b"y = 2\n")
+    sb.call("ledger.log", about_ref=other, about_table="code.source",
+            kind="default", assumption="other.py drops `x = 1` on purpose.")
+    assert PATH in api._open_notes(sb.ctx)
+    now = (root / PATH).read_text(encoding="utf-8")
+    gone = "\n".join(ln for ln in now.split("\n") if ln.strip() != "ctx.exit()")
+    sb.call("code.write", path=PATH, text=gone)
+    sb.begin_reply()
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="drop again")
+    assert str(err.value).startswith(LATER)
+    assert _git(root, "rev-parse", "HEAD") == head
 
 
 def test_an_architects_note_on_the_noted_path_lands_and_closes_nothing(db, tmp_path):
@@ -673,8 +748,9 @@ def test_an_architects_note_on_the_noted_path_lands_and_closes_nothing(db, tmp_p
 
 def test_a_note_after_a_restoring_write_lands(db, tmp_path):
     """Frame 297's review 1, finding 3, probe P3b: the write puts the lines
-    back, so the door closes the note as the commit door does, and the
-    honest note lands."""
+    back, so the door does not fire, and the honest note lands. The door
+    only reads, so the commit door alone closes the note (review 2,
+    finding 3)."""
     sb, root = _developer(db, tmp_path)
     _index_path(db)
     _noted_then_refused(sb, root)
@@ -684,8 +760,9 @@ def test_a_note_after_a_restoring_write_lands(db, tmp_path):
                   kind="default", assumption="The callback appends the Python "
                   "version only when show_python is set.")
     assert "id" in out
-    assert PATH not in api._open_notes(sb.ctx)
+    assert PATH in api._open_notes(sb.ctx)
     assert sb.call("code.commit", message="micro")["committed"] is True
+    assert PATH not in api._open_notes(sb.ctx)
 
 
 def test_a_note_after_the_committed_text_is_sent_again_lands(db, tmp_path):
@@ -701,8 +778,8 @@ def test_a_note_after_the_committed_text_is_sent_again_lands(db, tmp_path):
                   kind="default", assumption="The callback in version_option "
                   "prints the message and exits.")
     assert "id" in out
-    assert PATH not in api._open_notes(sb.ctx)
     assert sb.call("code.commit", message="none")["committed"] is False
+    assert PATH not in api._open_notes(sb.ctx)
 
 
 def test_an_entry_with_no_stored_line_names_the_write_route_only(db, tmp_path):
@@ -738,12 +815,58 @@ def test_a_write_note_shows_only_the_lines_its_entry_stores(db, tmp_path):
     assert "`ctx.exit()`" in out["dropped"]
 
 
-def test_a_write_puts_lf_bytes_on_disk(db, tmp_path):
-    """Frame 297's review 1, finding 9: `Path.write_text` wrote CRLF on
-    Windows, so git saw a change in a write of the committed text."""
+@pytest.mark.parametrize("autocrlf, eol", [("false", b"\n"), ("true", b"\r\n")])
+def test_a_new_file_gets_the_line_ending_git_checks_out(db, tmp_path, autocrlf, eol):
+    """Frame 297's review 2, finding 1: a new file gets the line ending a
+    checkout of that tree gives, CRLF under `core.autocrlf=true`."""
     sb, root = _developer(db, tmp_path)
+    _git(root, "config", "core.autocrlf", autocrlf)
     sb.call("code.write", path="src/click/extra.py", text="X = 1\nY = 2\n")
-    assert (root / "src/click/extra.py").read_bytes() == b"X = 1\nY = 2\n"
+    assert (root / "src/click/extra.py").read_bytes() == b"X = 1" + eol + b"Y = 2" + eol
+
+
+def _crlf_checkout(root):
+    """The worktree as a night holds it: `core.autocrlf=true` and a CRLF
+    checkout of an LF commit (review 2, probe Q1d)."""
+    _git(root, "config", "core.autocrlf", "true")
+    (root / PATH).unlink()
+    _git(root, "checkout", "--", PATH)
+    assert b"\r\n" in (root / PATH).read_bytes()
+
+
+def test_a_write_into_a_crlf_file_keeps_crlf(db, tmp_path):
+    """Frame 297's review 2, finding 1: the LF write made `_uncommitted` list
+    a file that equals HEAD. The write keeps the file's own line ending."""
+    sb, root = _developer(db, tmp_path)
+    _crlf_checkout(root)
+    changed = DECORATORS.replace("ctx.exit()", "ctx.exit()  # x", 1)
+    sb.call("code.write", path=PATH, text=changed)
+    raw = (root / PATH).read_bytes()
+    assert raw.count(b"\r\n") == raw.count(b"\n")
+    sb.call("code.write", path=PATH, text=DECORATORS)
+    assert api._uncommitted(sb.ctx, root) == []
+
+
+def test_a_one_line_change_in_a_crlf_file_is_a_one_line_diff(db, tmp_path):
+    """Frame 297's review 2, finding 2, probe Q1b: a file committed with CRLF
+    blobs. The LF write changed every line, and the diff is one line now."""
+    sb, root = _developer(db, tmp_path)
+    _git(root, "config", "core.autocrlf", "false")
+    (root / PATH).write_bytes(DECORATORS.replace("\n", "\r\n").encode("utf-8"))
+    _git(root, "commit", "-q", "-am", "crlf blobs")
+    sb.call("code.write", path=PATH,
+            text=DECORATORS.replace("ctx.exit()", "ctx.exit()  # x", 1))
+    assert _git(root, "diff", "--numstat", "HEAD").split()[:2] == ["1", "1"]
+
+
+def test_a_write_into_an_lf_file_keeps_lf(db, tmp_path):
+    """Frame 297's review 2, finding 1: an LF file stays LF, whatever the
+    tree's `core.autocrlf` says."""
+    sb, root = _developer(db, tmp_path)
+    _git(root, "config", "core.autocrlf", "true")
+    sb.call("code.write", path=PATH,
+            text=DECORATORS.replace("ctx.exit()", "ctx.exit()  # x", 1))
+    assert b"\r" not in (root / PATH).read_bytes()
 
 
 def test_a_note_about_a_criterion_that_mentions_the_path_lands(db, tmp_path):

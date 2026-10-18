@@ -263,11 +263,10 @@ def discard(path: str | Path, keep: set[str] = frozenset()) -> list[str]:
     if tracked or staged:
         _git(root, "reset", "-q", "HEAD", "--", *tracked, *staged, check=False)
     if tracked:
-        # The HEAD bytes exactly. Git for Windows sets `core.autocrlf` in its
-        # system config, and a checkout under it wrote CRLF where
-        # `code.write` writes LF (frame 297's probe).
-        _git(root, "-c", "core.autocrlf=false", "checkout", "-q", "HEAD", "--",
-             *tracked, check=False)
+        # The tree's own `core.autocrlf` applies, so a file comes back as a
+        # checkout of this tree gives it. `code.write` then keeps that line
+        # ending (ruled: the coordinator, frame 297, pass 4b).
+        _git(root, "checkout", "-q", "HEAD", "--", *tracked, check=False)
     for s in staged + new:
         try:
             (root / s).unlink()

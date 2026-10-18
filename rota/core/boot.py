@@ -173,18 +173,21 @@ def reconcile_worktrees(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
 
 def discard_running(conn: sqlite3.Connection) -> list[tuple[str, list[str]]]:
     """
-    Put the worktree of each running batch back to its HEAD, and close the
-    open notes of the paths discarded.
+    Put the worktree of each running or deferred batch back to its HEAD,
+    and close the open notes of the paths discarded.
 
     law 4: an uncommitted change never existed. A runner that dies ends no
     session in code, so its last session's write stays in the tree. Boot
     runs after the reap, so no live session holds the tree (frame 297).
+    A deferred batch's last session ended too, so the same rule holds
+    (ruled: the coordinator, frame 297, pass 4).
     """
     from .lifecycle import discard_uncommitted
 
     out = []
     for r in conn.execute("SELECT id FROM batches WHERE worktree IS NOT NULL "
-                          "AND status = 'running' ORDER BY id").fetchall():
+                          "AND status IN ('running', 'deferred') "
+                          "ORDER BY id").fetchall():
         gone = discard_uncommitted(conn, r["id"])
         if gone:
             out.append((r["id"], gone))
