@@ -5355,8 +5355,8 @@ def run_session(
         # colon as a call name whenever it holds a dot. Never head a line here
         # with a dotted op name.
         outcome.errors.extend(getattr(sb.ctx, "cuts", None) or ())
-        # A note of a landed row whose lines HEAD holds is moot after the
-        # discard, so it closes in the database (frame 297's review 3,
+        # After the discard, a landed note whose lines HEAD holds guards
+        # nothing, so it closes in the database (frame 297's review 3,
         # finding 3).
         if wake.role == "developer" and sb.ctx.batch_id:
             lifecycle_mod.close_restored_notes(conn, sb.ctx.batch_id)
@@ -5395,6 +5395,13 @@ def run_session(
         # so the landed notes close in the database.
         try:
             lines = _discard_at_end(conn, wake, sb.ctx, stage=False)
+            # The normal end discarded first, and then the landing failed.
+            # The tree is clean now, so its lines are the record (review 4,
+            # finding 1).
+            held = [e for e in outcome.errors if e.startswith(
+                (lifecycle_mod.DISCARDED, lifecycle_mod.NOT_PUT_BACK))]
+            if not lines and held:
+                session_note(conn, session_id, held)
             if lines:
                 # The loop prints the last error, so the failure stays last
                 # (frame 297's review 3, finding 2). The account turn comes
@@ -5427,10 +5434,7 @@ def _discard_at_end(conn: sqlite3.Connection, wake: Wake, ctx, *,
         for p in list(api._open_notes(ctx)):
             if os.path.normpath(p).replace(chr(92), "/") in norm:
                 api._put_note(ctx, p, None)
-    lines = [lifecycle_mod.DISCARDED + ", ".join(gone)] if gone else []
-    if failed:
-        lines.append(lifecycle_mod.NOT_PUT_BACK + ", ".join(failed))
-    return lines
+    return lifecycle_mod.discard_lines(gone, failed)
 
 
 def _recipient_of(fn: str, g) -> str:

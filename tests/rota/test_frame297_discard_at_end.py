@@ -11,6 +11,8 @@ uncommitted change never existed."
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from rota.core import boot as boot_mod
@@ -22,6 +24,11 @@ from tests.rota.test_frame140_commit_beside_note import (  # noqa: F401
 
 # The account's line (frame 297's review 3, finding 7).
 GONE = "The runner discarded the writes that no commit held: "
+
+
+def _j(*paths: str) -> str:
+    """The paths as the account stores them, a JSON list (review 4)."""
+    return json.dumps(list(paths), ensure_ascii=False)
 
 
 def _write(path: str, text: str, start: int | None = None,
@@ -60,7 +67,7 @@ def test_s214s_end_discards_the_write_and_closes_the_note(db, tmp_path):
     assert _git(root, "status", "--porcelain") == ""
     assert _git(root, "rev-parse", "HEAD") == head
     assert (root / PATH).read_bytes() == DECORATORS.encode("utf-8")
-    assert GONE + PATH in _account(db)
+    assert GONE + _j(PATH) in _account(db)
     assert [r[0] for r in db.execute(
         "SELECT status FROM drop_notes WHERE batch_id = 'b1'")] == ["restored"]
     db.execute("UPDATE batches SET head_commit = NULL WHERE id = 'b1'")
@@ -88,7 +95,7 @@ def test_a_commit_stays_and_the_later_write_is_discarded(db, tmp_path):
     assert _git(root, "show", f"HEAD:{extra}") == "X = 1"
     assert (root / extra).read_bytes() == b"X = 1\n"
     assert _git(root, "status", "--porcelain") == ""
-    assert GONE + extra in _account(db)
+    assert GONE + _j(extra) in _account(db)
 
 
 def test_the_batch_test_files_survive_the_discard(db, tmp_path):
@@ -105,7 +112,7 @@ def test_the_batch_test_files_survive_the_discard(db, tmp_path):
     _run(db, [_write(new, "X = 1\n"), "", "", ""])
     assert (root / test).read_bytes() == b"def test_v():\n    pass\n"
     assert not (root / new).exists()
-    assert GONE + new in _account(db)
+    assert GONE + _j(new) in _account(db)
     assert test not in _account(db)
 
 
@@ -125,11 +132,11 @@ def test_a_failed_session_discards_its_write(db, tmp_path):
                       backend=_Dies([_write(PATH, S282_TEXT, 546, 556)]),
                       pins=Pins(model="scripted"), batch_id="b1")
     assert _git(root, "status", "--porcelain") == ""
-    assert GONE + PATH in _account(db)
+    assert GONE + _j(PATH) in _account(db)
     # Review 3, finding 2: the loop prints the last error, so the failure
     # stays last, and the discard line comes before it.
     assert out.errors[-1].startswith("session failed:")
-    assert GONE + PATH in out.errors
+    assert GONE + _j(PATH) in out.errors
 
 
 def test_a_note_whose_lines_head_holds_closes_at_the_end(db, tmp_path):
@@ -181,8 +188,8 @@ def test_the_account_names_a_path_git_could_not_put_back(db, tmp_path, monkeypat
     (root / "NOTES.txt").write_bytes(b"changed\n")
     _run(db, [_write(PATH, S282_TEXT, 546, 556), "", "", ""])
     account = _account(db)
-    assert GONE + "NOTES.txt" in account
-    assert "The runner could not put back these paths: " + PATH in account
+    assert GONE + _j("NOTES.txt") in account
+    assert "The runner could not put back these paths: " + _j(PATH) in account
 
 
 def test_the_boot_discards_the_tree_of_a_running_batch(db, tmp_path):
@@ -222,3 +229,72 @@ def test_the_discard_gives_the_file_back_as_the_tree_checks_it_out(
     assert boot_mod.discard_running(db) == [("b1", [PATH])]
     assert (root / PATH).read_bytes() == DECORATORS.replace("\n", "\r\n" if eol == b"\r\n" else "\n").encode("utf-8")
     assert _git(root, "status", "--porcelain") == ""
+
+
+def _expect(db) -> str:
+    """The next Developer's `batches.expect` key, or "" when it is absent."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    return sb.call("batches.expect").get("discarded before you", "")
+
+
+def test_the_key_survives_a_landing_that_fails(db, tmp_path, monkeypatch):
+    """Frame 297's review 4, finding 1, probe B3: the landing raised after
+    the normal end's discard. The second discard found a clean tree, so the
+    account held no line. The failed path now writes the line it holds."""
+    from rota.core import runner
+
+    _sb, root = _developer(db, tmp_path)
+
+    def dies(conn, result):
+        raise RuntimeError("landing died")
+    monkeypatch.setattr(runner, "after_landing", dies)
+    out = _run(db, [_write(PATH, S282_TEXT, 546, 556), "", "", ""])
+    assert out.errors[-1].startswith("session failed:")
+    assert _git(root, "status", "--porcelain") == ""
+    assert _expect(db) == f"{PATH}. No commit held them, so the tree is at HEAD."
+
+
+def test_the_key_names_a_path_that_stays(db, tmp_path, monkeypatch):
+    """Frame 297's review 4, finding 2, probe B5: a refused checkout left the
+    write in the tree. The key names that path, and never says the whole
+    tree is at HEAD."""
+    from rota.core import worktrees
+
+    _sb, root = _developer(db, tmp_path)
+    real = worktrees._git_paths
+
+    def refuse(root_, args, paths):
+        if args[0] == "checkout" and PATH in paths:
+            return False
+        return real(root_, args, paths)
+    monkeypatch.setattr(worktrees, "_git_paths", refuse)
+    (root / "NOTES.txt").write_bytes(b"changed\n")
+    _run(db, [_write(PATH, S282_TEXT, 546, 556), "", "", ""])
+    assert _expect(db) == (f"NOTES.txt. No commit held them. The runner could not "
+                           f"put back: {PATH}. The tree is at HEAD for the others.")
+
+
+def test_the_boot_discard_reaches_the_next_seat(db, tmp_path):
+    """Frame 297's review 4, finding 3: a runner that died left the write.
+    The boot's discard writes the account line to the batch's last
+    Developer session, so the next seat's key names the path."""
+    _sb, root = _developer(db, tmp_path)
+    _run(db, ["", "", ""])
+    (root / PATH).write_bytes((DECORATORS + "# left\n").encode("utf-8"))
+    assert boot_mod.discard_running(db) == [("b1", [PATH])]
+    assert _expect(db) == f"{PATH}. No commit held them, so the tree is at HEAD."
+
+
+def test_a_path_with_a_comma_stays_one_path(db, tmp_path):
+    """Frame 297's review 4, finding 4: the account joined the paths with
+    ", ", and the reader split on it. The account stores a JSON list."""
+    from rota.core import lifecycle
+
+    _developer(db, tmp_path)
+    odd = "src/click/a, b.py"
+    _run(db, [_write(odd, "X = 1\n"), "", "", ""])
+    assert lifecycle.last_discard(db, "b1") == ([odd], [])

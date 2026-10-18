@@ -182,13 +182,17 @@ def discard_running(conn: sqlite3.Connection) -> list[tuple[str, list[str]]]:
     A deferred batch's last session ended too, so the same rule holds
     (ruled: the coordinator, frame 297, pass 4).
     """
-    from .lifecycle import discard_uncommitted
+    from .lifecycle import discard_lines, discard_uncommitted, note_discard
 
     out = []
     for r in conn.execute("SELECT id FROM batches WHERE worktree IS NOT NULL "
                           "AND status IN ('running', 'deferred') "
                           "ORDER BY id").fetchall():
-        gone = discard_uncommitted(conn, r["id"])
+        failed: list[str] = []
+        gone = discard_uncommitted(conn, r["id"], failed_out=failed)
+        # The account line goes to the batch's last Developer session, so the
+        # next seat reads it after a crash (review 4, finding 3).
+        note_discard(conn, r["id"], discard_lines(gone, failed))
         if gone:
             out.append((r["id"], gone))
     return out

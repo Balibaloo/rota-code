@@ -457,10 +457,13 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
         # (frame 297).
         from .lifecycle import last_discard
 
-        gone = last_discard(conn, stalled[0])
+        gone, stayed = last_discard(conn, stalled[0])
         last = (f"the last session committed nothing. The runner discarded its "
                 f"writes to {', '.join(gone)}." if gone else
                 "the last session ended with nothing written and nothing committed")
+        if stayed:
+            last = (f"{last if gone else 'the last session committed nothing.'} "
+                    f"The runner could not put back {', '.join(stayed)}.")
         return [Wake("developer", "tick:batch_start", refs=(stalled[0],),
                      detail=f"attempt {n} of {cap}: {last}")]
 

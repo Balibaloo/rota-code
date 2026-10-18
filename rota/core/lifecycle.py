@@ -333,23 +333,63 @@ def close_restored_notes(conn: sqlite3.Connection, batch_id: str) -> list[str]:
     return closed
 
 
-def last_discard(conn: sqlite3.Connection, batch_id: str) -> list[str]:
-    """The paths that the end of the batch's last Developer session
-    discarded, read from that session's account. [] when it discarded
-    nothing (frame 297)."""
+def discard_lines(gone: list[str], failed: list[str]) -> list[str]:
+    """The account's lines for a discard. The paths are a JSON list, so a
+    name that holds ", " stays one path (frame 297's review 4, finding 4)."""
+    import json
+
+    lines = [DISCARDED + json.dumps(gone, ensure_ascii=False)] if gone else []
+    if failed:
+        lines.append(NOT_PUT_BACK + json.dumps(failed, ensure_ascii=False))
+    return lines
+
+
+def _last_developer(conn: sqlite3.Connection, batch_id: str) -> str | None:
     last = conn.execute(
         "SELECT id FROM sessions WHERE role = 'developer' AND wake_refs LIKE ? "
         "ORDER BY seq DESC LIMIT 1", (f'%"{batch_id}"%',)).fetchone()
-    if not last:
-        return []
+    return last["id"] if last else None
+
+
+def last_discard(conn: sqlite3.Connection,
+                 batch_id: str) -> tuple[list[str], list[str]]:
+    """The paths that the last discard of the batch put back, and the paths
+    it could not put back. The newest turn of the batch's last Developer
+    session that holds a discard line is the record. ([], []) when there
+    is none (frame 297)."""
+    import json
+
+    sid = _last_developer(conn, batch_id)
+    if not sid:
+        return [], []
     for (text,) in conn.execute(
             "SELECT completion FROM turns WHERE session_id = ? ORDER BY seq DESC",
-            (last["id"],)):
+            (sid,)):
+        found: dict = {}
         for line in (text or "").splitlines():
             line = line.removeprefix("- ")
-            if line.startswith(DISCARDED):
-                return [p for p in line[len(DISCARDED):].split(", ") if p]
-    return []
+            for head in (DISCARDED, NOT_PUT_BACK):
+                if line.startswith(head):
+                    try:
+                        paths = json.loads(line[len(head):])
+                    except ValueError:
+                        paths = []
+                    found[head] = [p for p in paths if isinstance(p, str)]
+        if found:
+            return found.get(DISCARDED, []), found.get(NOT_PUT_BACK, [])
+    return [], []
+
+
+def note_discard(conn: sqlite3.Connection, batch_id: str,
+                 lines: list[str]) -> None:
+    """Write the discard lines as one more turn of the batch's last Developer
+    session. The boot's discard has no session of its own, so the next seat
+    reads the record there (frame 297's review 4, finding 3)."""
+    from .db import session_note
+
+    sid = _last_developer(conn, batch_id)
+    if sid and lines:
+        session_note(conn, sid, lines)
 
 
 def head_of(conn: sqlite3.Connection, batch_id: str) -> str | None:

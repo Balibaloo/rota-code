@@ -17501,9 +17501,16 @@ def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
     # The wake's detail is not in the prompt (frame 297's review 3,
     # finding 1). The fact comes from the account the discard wrote.
     from ..core.lifecycle import last_discard
-    gone = last_discard(ctx.conn, bid)
-    before = ({"discarded before you": f"{', '.join(gone)}. No commit held them, "
-                                       f"so the tree is at HEAD."} if gone else {})
+    gone, stayed = last_discard(ctx.conn, bid)
+    said = f"{', '.join(gone)}. No commit held them" if gone else ""
+    if stayed:
+        # A path git could not put back still holds the write, so the key
+        # never says that the whole tree is at HEAD (review 4, finding 2).
+        said = (f"{said + '. ' if said else ''}The runner could not put back: "
+                f"{', '.join(stayed)}. The tree is at HEAD for the others.")
+    elif said:
+        said += ", so the tree is at HEAD."
+    before = {"discarded before you": said} if said else {}
     return {
         **before,
         "batch": bid,
