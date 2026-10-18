@@ -9230,11 +9230,11 @@ _TOUCH_WORDS = re.compile(r"\b(?:files?|tests?|touch(?:es|ed)?)\b", re.I)
 # 258, pass 3 review, finding 1).
 _FILES_TALK = re.compile(r"\btests?\b|\w\.py\b", re.I)
 # A reply that asks to keep the change: "Please don't drop the JSON change."
-# (frame 258, review 2, finding 2) and "Don't change the helper." (pass 3
-# review, finding 4). The apostrophe can be straight or curly.
+# (frame 258, review 2, finding 2). The apostrophe can be straight or curly.
+# "change" stays out: "Do not change echo itself" is a files correction, and
+# the rule reads the whole reply (frame 258, pass 3b review, finding 1).
 _KEEP_CHANGE = re.compile(
-    r"\b(?:don['’]?t|do not) (?:drop|give up|change)\b|\bkeep going\b",
-    re.I)
+    r"\b(?:don['’]?t|do not) (?:drop|give up)\b|\bkeep going\b", re.I)
 
 # A sentence that opens with one of these verbs says what to build. Night
 # 143's m263: "Also, take the version from the running interpreter's
