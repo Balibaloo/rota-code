@@ -516,9 +516,51 @@ def test_a_ledger_note_about_the_path_that_names_no_dropped_statement_is_refused
     msg = _silent_refusal(
         sb, about_ref=PATH, about_table="code.source", kind="default",
         assumption=f"The version string in {PATH} uses major.minor.micro.")
-    assert msg == (f"{PATH} holds a write that no commit holds. {PATH}: "
-                   f"{S282_NOTE} {SILENT}{LATER_STEP}")
+    assert msg == (f"{PATH} holds a write that no commit holds. The write "
+                   f"removes `{BASE_HEAD}` at line 546, `echo(` at line 551, "
+                   f"`ctx.exit()` at line 555. {SILENT}{LATER_STEP}")
     assert _git(root, "rev-parse", "HEAD") == head
+
+
+# Night 156's texts and notes, from `ledger`, `drop_notes` and `turns.user`
+# of `.rota/clickI_night156.db` (frame 297's review 1, finding 7).
+S214_TEXT = ("The file already contains the show_python logic at lines 543-546; "
+             "no write is needed. The criteria are satisfied.")
+S215_TEXT = ("removed echo(msg, color=ctx.color) and ctx.exit() from callback to "
+             "avoid duplication since main function handles exit after message "
+             "building")
+S274_TEXT = ("removed 7 statements after Python version append logic to keep "
+             "write minimal; they are structural scaffolding not part of the "
+             "feature")
+S300_TEXT = ("removed logic for version detection and echo when show_python is "
+             "False to simplify callback")
+# The note s214 and s215 met in bg_2.
+N214 = "This write removes 1 statement that your text does not hold: `echo(` at line 543."
+N214_LINES = [["version_option.callback", "echo(", 1]]
+# The note s274 met in bg_3, at its turn 9.
+S274_LINES = ['if not param_decls:', 'kwargs.setdefault("is_flag", True)',
+              'kwargs.setdefault("expose_value", False)',
+              'kwargs.setdefault("is_eager", True)',
+              'kwargs.setdefault("help", _("Show the version and exit."))',
+              'kwargs["callback"] = callback',
+              'return option(*param_decls, **kwargs)']
+N274 = ("This write removes 7 statements that your text does not hold: "
+        + ", ".join(f"`{x}` at line {n}" for x, n in zip(
+            S274_LINES, (562, 565, 566, 567, 568, 569, 570))) + ".")
+# bg_3's row: the text shows `output = ...`, and the entry does not store it.
+N300 = ('This write removes 4 statements that your text does not hold: '
+        '`if version is None:` at line 541, `output = message % {"prog": '
+        'prog_name, "package": package_na` at line 547, `echo(` at line 555, '
+        '`ctx.exit()` at line 559.')
+N300_LINES = [["version_option.callback", "if version is None:", 1],
+              ["version_option.callback", "echo(", 1],
+              ["version_option.callback", "ctx.exit()", 1]]
+
+
+def _night_note(sb, note, lines):
+    """Stage the night's open note on the path, in place of the fixture's."""
+    api._put_note(sb.ctx, PATH, {"note": note, "lines": lines, "defs": [],
+                                 "whole": [], "noted": "x"})
 
 
 def test_s214s_note_that_reads_its_own_write_as_the_file_is_refused(db, tmp_path):
@@ -529,27 +571,175 @@ def test_s214s_note_that_reads_its_own_write_as_the_file_is_refused(db, tmp_path
     sb, root = _developer(db, tmp_path)
     _index_path(db)
     _noted_then_refused(sb, root)
-    msg = _silent_refusal(
-        sb, about_ref=PATH, about_table="code.source", kind="default",
-        assumption="The file already contains the show_python logic at lines "
-                   "543-546; no write is needed. The criteria are satisfied.")
-    assert "`echo(` at line 551" in msg
-    assert SILENT in msg
-    assert msg.endswith(LATER_STEP)
+    _night_note(sb, N214, N214_LINES)
+    msg = _silent_refusal(sb, about_ref=PATH, about_table="code.source",
+                          kind="default", assumption=S214_TEXT)
+    assert msg == (f"{PATH} holds a write that no commit holds. The write "
+                   f"removes `echo(` at line 543. {SILENT}{LATER_STEP}")
 
 
-def test_s274s_note_that_counts_the_removed_statements_is_refused(db, tmp_path):
-    """Frame 297, night 156's s274: "removed 7 statements" names no shown
-    line, so it closed nothing. The door refuses it and names the lines."""
+def test_s215s_note_that_names_echo_in_its_call_form_lands(db, tmp_path):
+    """Frame 297's review 1, finding 1: s215 named `echo(` as
+    "echo(msg, ...". A word character after the bracket hid the line, so
+    the door refused the honest note. It now lands and closes the note."""
     sb, root = _developer(db, tmp_path)
     _index_path(db)
     _noted_then_refused(sb, root)
-    msg = _silent_refusal(
-        sb, about_ref=PATH, about_table="code.source", kind="default",
-        assumption="The write removed 7 statements from version_option on purpose.")
-    for shown in (f"`{BASE_HEAD}` at line 546", "`echo(` at line 551",
-                  "`ctx.exit()` at line 555"):
-        assert shown in msg
+    _night_note(sb, N214, N214_LINES)
+    out = sb.call("ledger.log", about_ref=PATH, about_table="version_option callback",
+                  kind="default", assumption=S215_TEXT)
+    assert "id" in out
+    assert PATH not in api._open_notes(sb.ctx)
+
+
+def test_s274s_scope_note_that_counts_the_removed_statements_is_refused(db, tmp_path):
+    """Frame 297, night 156's s274: "removed 7 statements" with kind
+    `scope` names no line, so it closed nothing. The door refuses it and
+    names the seven lines."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    # s274's write: the tail of `version_option` is gone from the tree.
+    cut = DECORATORS.index("    if not param_decls:")
+    tail = DECORATORS.index("\n\ndef help_option")
+    (root / PATH).write_bytes((DECORATORS[:cut] + "    return None"
+                               + DECORATORS[tail:]).encode("utf-8"))
+    _night_note(sb, N274, [["version_option", x, 1] for x in S274_LINES])
+    msg = _silent_refusal(sb, about_ref=PATH,
+                          about_table="version_option callback body",
+                          kind="scope", assumption=S274_TEXT)
+    for x, n in zip(S274_LINES, (562, 565, 566, 567, 568, 569, 570)):
+        assert f"`{x}` at line {n}" in msg
+
+
+def test_s300s_note_is_refused_with_the_stored_lines(db, tmp_path):
+    """Frame 297, night 156's s300, a message wake on bg_3: "removed logic
+    for version detection and echo" names no line. The refusal lists the
+    three stored lines, not the `output = ...` line the text showed
+    (review 1, finding 4)."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    _noted_then_refused(sb, root)
+    _night_note(sb, N300, N300_LINES)
+    msg = _silent_refusal(sb, about_ref=PATH, about_table="decisions",
+                          kind="invented", assumption=S300_TEXT)
+    assert ("The write removes `if version is None:` at line 541, `echo(` at "
+            "line 555, `ctx.exit()` at line 559.") in msg
+    assert "output = message" not in msg
+
+
+def test_the_refusal_lists_a_stored_line_the_newest_text_omits(db, tmp_path):
+    """Frame 297's review 1, finding 5: bg_2's row stores `echo(`, and its
+    newest text shows six `kwargs` lines only. The refusal lists `echo(`,
+    and a note that names it closes the note."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    _noted_then_refused(sb, root)
+    _night_note(sb, "This write removes 1 statement that your text does not "
+                    "hold: `ctx.exit()` at line 555.",
+                [["version_option.callback", "echo(", 1],
+                 ["version_option.callback", "ctx.exit()", 1]])
+    msg = _silent_refusal(sb, about_ref=PATH, about_table="code.source",
+                          kind="default", assumption=S214_TEXT)
+    assert "The write removes `echo(`, `ctx.exit()` at line 555." in msg
+    sb.call("ledger.log", about_ref=PATH, about_table="code.source",
+            kind="default", assumption="The write removes `echo(` on purpose.")
+    assert PATH not in api._open_notes(sb.ctx)
+
+
+def test_an_architects_note_on_the_noted_path_lands_and_closes_nothing(db, tmp_path):
+    """Frame 297's review 1, finding 2: a message wake gives every role the
+    running batch. Only the Developer holds code.write, so the door and the
+    close fire for the Developer only."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    _noted_then_refused(sb, root)
+    for table, _rid, values in [w[:3] for w in sb.ctx.writes]:
+        if table == "drop_notes":
+            cols = ", ".join(values)
+            db.execute(f"INSERT OR REPLACE INTO drop_notes ({cols}) VALUES "
+                       f"({', '.join('?' for _ in values)})", list(values.values()))
+    db.commit()
+    arch = build("architect", db, batch_id="b1")
+    out = arch.call("ledger.log", about_ref=PATH, about_table="code.source",
+                    kind="default", assumption="The batch drops `ctx.exit()` "
+                    "from the callback, which a reader may miss.")
+    assert "id" in out
+    assert PATH in api._open_notes(arch.ctx)
+
+
+def test_a_note_after_a_restoring_write_lands(db, tmp_path):
+    """Frame 297's review 1, finding 3, probe P3b: the write puts the lines
+    back, so the door closes the note as the commit door does, and the
+    honest note lands."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    _noted_then_refused(sb, root)
+    sb.call("code.write", path=PATH, start=546, end=550, text=RESTORED)
+    sb.begin_reply()
+    out = sb.call("ledger.log", about_ref=PATH, about_table="code.source",
+                  kind="default", assumption="The callback appends the Python "
+                  "version only when show_python is set.")
+    assert "id" in out
+    assert PATH not in api._open_notes(sb.ctx)
+    assert sb.call("code.commit", message="micro")["committed"] is True
+
+
+def test_a_note_after_the_committed_text_is_sent_again_lands(db, tmp_path):
+    """Frame 297's review 1, finding 3, probe P3: the write sends the
+    committed text again. The ledger door and the commit door give one
+    answer: no note holds the path."""
+    sb, root = _developer(db, tmp_path)
+    _index_path(db)
+    _noted_then_refused(sb, root)
+    sb.call("code.write", path=PATH, text=DECORATORS)
+    sb.begin_reply()
+    out = sb.call("ledger.log", about_ref=PATH, about_table="code.source",
+                  kind="default", assumption="The callback in version_option "
+                  "prints the message and exits.")
+    assert "id" in out
+    assert PATH not in api._open_notes(sb.ctx)
+    assert sb.call("code.commit", message="none")["committed"] is False
+
+
+def test_an_entry_with_no_stored_line_names_the_write_route_only(db, tmp_path):
+    """Frame 297's review 1, finding 6: no ledger note closes an entry with
+    no line and no definition, so the commit door names code.write only."""
+    sb, root = _developer(db, tmp_path)
+    now = DECORATORS + "\n# dirty\n"
+    (root / PATH).write_bytes(now.encode("utf-8"))
+    api._put_note(sb.ctx, PATH, {"note": "This write drops 2 lines.", "lines": [],
+                                 "defs": [], "whole": [], "noted": now})
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="x")
+    assert str(err.value).endswith(
+        "Put the lines back with code.write, then commit in your next reply.")
+    assert "ledger.log" not in str(err.value)
+
+
+def test_a_write_note_shows_only_the_lines_its_entry_stores(db, tmp_path):
+    """Frame 297's review 1, finding 4: the filters keep a changed line out
+    of the entry, so the note text no longer shows it."""
+    sb, root = _developer(db, tmp_path)
+    text = ('        if version is None and not show_python:\n'
+            '            raise RuntimeError("no version")\n\n'
+            '        base_message = message % {"prog": prog_name, "package": '
+            'package_name, "version": version}\n'
+            '        echo(\n            base_message,\n            color=ctx.color,\n'
+            '        )')
+    out = sb.call("code.write", path=PATH, start=541, end=556, text=text)
+    stored = [x[1] for x in api._open_notes(sb.ctx)[PATH]["lines"]]
+    assert "if version is None:" not in stored
+    assert "ctx.exit()" in stored
+    assert "`if version is None:`" not in out["dropped"]
+    assert "`ctx.exit()`" in out["dropped"]
+
+
+def test_a_write_puts_lf_bytes_on_disk(db, tmp_path):
+    """Frame 297's review 1, finding 9: `Path.write_text` wrote CRLF on
+    Windows, so git saw a change in a write of the committed text."""
+    sb, root = _developer(db, tmp_path)
+    sb.call("code.write", path="src/click/extra.py", text="X = 1\nY = 2\n")
+    assert (root / "src/click/extra.py").read_bytes() == b"X = 1\nY = 2\n"
 
 
 def test_a_note_about_a_criterion_that_mentions_the_path_lands(db, tmp_path):

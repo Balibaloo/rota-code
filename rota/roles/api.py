@@ -16095,7 +16095,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             before = target.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             before = None
-    target.write_text(text, encoding="utf-8")
+    # `newline=""` keeps each LF. A probe on Windows found CRLF on disk, so
+    # git saw a change in a write of the committed text (frame 297's
+    # review 1, finding 9).
+    with open(target, "w", encoding="utf-8", newline="") as fh:
+        fh.write(text)
     out = {"path": path, "bytes": len(text.encode("utf-8")),
            "created": not existed}
     # A fact, not an order: the seat decides whether the tail goes.
@@ -16105,6 +16109,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     entry = None
     if tail_note and ctx.batch_id:
         entry = _note_entry(tail_note, before or "", text, drop_lines)
+        found = [x[1] for x in entry["lines"]]
         if (entry["lines"] or entry["defs"]) and not _changed_kept(
                 entry, text, before or ""):
             # Every dropped line is a changed line the text keeps, so the
@@ -16116,6 +16121,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             # (review 6, finding 1).
             entry = None
             tail_note = f"{tail_note} No note is open, and the commit is not held."
+        elif entry["lines"] and [x[1] for x in entry["lines"]] != found:
+            # The filters took a line out of the entry, so the text shows
+            # only the stored lines (frame 297's review 1, finding 4).
+            entry["note"] = tail_note = _stored_note(
+                entry, before or "", drop_lines)
     # The refusal text always shows a stored line, because a ledger closes
     # a note only by a line the seat saw (frame 283's review 4, finding 2).
     if entry is not None and entry["lines"] and not _shown_lines(entry):
@@ -16572,17 +16582,7 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
     # Frame 283: a note outlives its reply and its session until the lines
     # are back. Night 154: s388 committed a90c7495 in the reply after the
     # refusal, with no write between, and `--version` lost `echo(version_msg)`.
-    from pathlib import Path as _Path
-    opened = _open_notes(ctx)
-    if tree is not None:
-        for p in list(opened):
-            try:
-                now = (_Path(tree) / p).read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                now = ""
-            if _restored(now, opened[p]):
-                _put_note(ctx, p, None)
-                del opened[p]
+    opened = _close_restored(ctx, tree)
     if not notes and not opened:
         return None
     # A path the commit does not take carries no removal into it.
@@ -16592,7 +16592,8 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
              if p not in notes and _grain_path(p) in dirty]
     if not held and not later:
         return None
-    routes = _note_routes()
+    routes = _note_routes(write_only=bool(later) and all(
+        not (opened[p]["lines"] or opened[p]["defs"]) for p, _n in later))
     if held:
         step = (f"If the tree holds those lines again, commit in your next "
                 f"reply. If it does not, write the lines back, then commit in "
@@ -16738,6 +16739,20 @@ def _note_entry(note: str, before: str, noted: str, drop: list[int]) -> dict:
             "noted": noted}
 
 
+def _stored_note(entry: dict, before: str, drop: list[int]) -> str:
+    """The `dropped` sentence for the stored lines of `entry` alone, each at
+    its first dropped line of `before` (frame 297's review 1, finding 4)."""
+    old = before.splitlines()
+    at: dict = {}
+    for i in sorted(set(drop)):
+        if 0 <= i < len(old) and old[i].strip():
+            at.setdefault(old[i].strip(), i)
+    lost = [(at[line], line) for _o, line, _n in entry["lines"] if line in at]
+    word = "statement" if len(lost) == 1 else "statements"
+    return (f"This write removes {len(lost)} {word} that your text does not "
+            f"hold: {_lost_sentence(lost)}.")
+
+
 def _changed_kept(entry: dict, text: str, before: str = "") -> bool:
     """Drop from `entry` each line that `text` still holds as a changed line:
     one new line holds every whole token of it. True when a line or a
@@ -16850,7 +16865,11 @@ def _says(text: str, part: str) -> bool:
     """True when `text` holds `part` as a whole token: no word character
     joins it on either side. Review 2 of frame 283, finding 3: "bypass"
     named `pass` as a substring."""
-    return re.search(rf"(?<!\w){re.escape(part)}(?!\w)", text) is not None
+    # A line that ends in an open bracket is a call head. Night 156's s215
+    # wrote `echo(msg, ...)`, and the lookahead hid `echo(` (frame 297's
+    # review 1, finding 1).
+    after = "" if part.endswith(("(", "[", "{")) else r"(?!\w)"
+    return re.search(rf"(?<!\w){re.escape(part)}{after}", text) is not None
 
 
 def _shown_lines(e: dict) -> list[str]:
@@ -16881,8 +16900,12 @@ def _close_logged_notes(ctx: Ctx, assumption: str, about_ref: str = "") -> None:
     Architect's judgement reads the landed note (review 4, finding 3, ruled).
     The path counts where the sentence or `about_ref` names it. Night
     156's s215 put the path in `about_ref`, where the ledger's schema puts
-    it, and five landed notes closed nothing (frame 283's residue)."""
+    it, and five landed notes closed nothing (frame 283's residue).
+    Only the Developer's note closes a note, because only the Developer
+    holds code.write (frame 297's review 1, finding 2)."""
     if not assumption or not getattr(ctx, "batch_id", None):
+        return
+    if getattr(ctx, "role", None) != "developer":
         return
     for p, e in _open_notes(ctx).items():
         named = (_ref_names(p, about_ref)
@@ -16904,7 +16927,9 @@ def _note_says(e: dict, assumption: str) -> bool:
         # One shown line closes the note (review 3, finding 2).
         # The full line counts where the note shows its cut form
         # (review 5, finding 4).
-        shown = set(_shown_lines(e))
+        # The ledger door lists every stored line, so each listed form
+        # counts (frame 297's review 1, finding 5).
+        shown = set(_shown_lines(e)) | set(_listed_lines(e))
         said = any(_says(assumption, q) for q in shown) or any(
             line[:60] in shown and _says(assumption, line)
             for _o, line, _n in e["lines"])
@@ -16915,12 +16940,59 @@ def _note_says(e: dict, assumption: str) -> bool:
     return bool(e["defs"]) and all(_says(assumption, d) for d in e["defs"])
 
 
-def _note_routes() -> str:
-    """The two routes out of an open `dropped` note. The commit door and the
-    ledger door say this one sentence (frame 297)."""
+def _note_routes(write_only: bool = False) -> str:
+    """The routes out of an open `dropped` note. The commit door and the
+    ledger door say this one sentence (frame 297). No ledger note closes
+    an entry with no line and no definition, so such an entry gets the
+    write route only (review 1, finding 6)."""
+    if write_only:
+        return "Put the lines back with code.write, then commit in your next reply."
     return ("Put the lines back with code.write, or log the removal with "
             "ledger.log naming the path and the lines, then commit in your "
             "next reply.")
+
+
+def _listed_lines(e: dict) -> list[str]:
+    """Each stored line of `e` as the seat can quote it: the form the note
+    text shows, or the line cut at 60 characters. The newest text of a note
+    can omit an earlier write's lines (frame 297's review 1, finding 5).
+    The first eight only, the cap of the note text: a line the seat never
+    saw closes nothing (frame 283's review 3, finding 2)."""
+    shown = set(_shown_lines(e))
+    return [next((q for q in (line, line[:60]) if q in shown), line[:60])
+            for _o, line, _n in e["lines"][:_LOST_NAMED]]
+
+
+def _removal_list(e: dict) -> str:
+    """The stored lines of `e` for a refusal, each with its line where the
+    note text gives one, or the dropped definitions."""
+    if not e["lines"]:
+        return ", ".join(_quote(d) for d in e["defs"])
+    out = []
+    for q in _listed_lines(e):
+        m = re.search(re.escape(_quote(q)) + r" at line (\d+)", e["note"])
+        out.append(f"{_quote(q)} at line {m.group(1)}" if m else _quote(q))
+    more = len(e["lines"]) - len(out)
+    return ", ".join(out) + (f" and {more} more" if more > 0 else "")
+
+
+def _close_restored(ctx: Ctx, tree) -> dict:
+    """Close each open `dropped` note whose lines the tree holds again, and
+    return the notes still open. The commit door and the ledger door read
+    the tree with this one check (frame 297's review 1, finding 3)."""
+    from pathlib import Path as _Path
+    opened = _open_notes(ctx)
+    if tree is None:
+        return opened
+    for p in list(opened):
+        try:
+            now = (_Path(tree) / p).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            now = ""
+        if _restored(now, opened[p]):
+            _put_note(ctx, p, None)
+            del opened[p]
+    return opened
 
 
 def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | None:
@@ -16929,18 +17001,36 @@ def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | Non
 
     Law 4: an uncommitted change never existed. Night 156's s214 logged its
     own uncommitted write as the file's code, and the note closed nothing
-    (frame 297). The door reads `about_ref` only."""
+    (frame 297). The door reads `about_ref` only. It reads the tree as the
+    commit door does, so the two doors give one answer (review 1, finding 3)."""
     if not getattr(ctx, "batch_id", None):
         return None
-    for p, e in _open_notes(ctx).items():
+    # Only the Developer holds code.write. A message wake gives every role
+    # the running batch (frame 297's review 1, finding 2).
+    if getattr(ctx, "role", None) != "developer":
+        return None
+    if not any(_ref_names(p, about_ref) for p in _open_notes(ctx)):
+        return None
+    try:
+        tree = _batch_worktree(ctx)
+    except ValueError:
+        # A batch with no worktree has no tree to read, so the door is silent.
+        return None
+    opened = _close_restored(ctx, tree)
+    dirty = None
+    for p, e in opened.items():
         # A note with no line and no definition closes on a changed file,
         # never on a ledger note, so no text can satisfy this door.
-        if not (e["lines"] or e["defs"]):
+        if not (e["lines"] or e["defs"]) or not _ref_names(p, about_ref):
             continue
-        if _ref_names(p, about_ref) and not _note_says(e, assumption or ""):
-            return (f"{p} holds a write that no commit holds. {p}: {e['note']} "
-                    f"This note names none of them, so it closes nothing. "
-                    f"{_note_routes()}")
+        if _note_says(e, assumption or ""):
+            continue
+        if dirty is None:
+            dirty = {_grain_path(f) for f in _uncommitted(ctx, tree)}
+        if _grain_path(p) in dirty:
+            return (f"{p} holds a write that no commit holds. The write removes "
+                    f"{_removal_list(e)}. This note names none of them, so it "
+                    f"closes nothing. {_note_routes()}")
     return None
 
 
