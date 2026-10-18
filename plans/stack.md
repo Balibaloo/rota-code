@@ -14,6 +14,53 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 14, recommended on night 157's read, 2026-10-18 19:30
+
+Night 157 ended sprint 13 of 2026-10-18 07:22, because it was that
+sprint's night. The night ran cold from d2e85f79, 16:40 to 18:55: 363
+sessions, 429 steps, 36 asks, 2 batches, 0 merged, worse than night 156's
+one merge in 352 (observed: `plans/night157-read.md`, section 0). Frame 298
+moved the deaths off the request line: 0 of 2 batches died on a line-1
+ruling, against 2 of 3 on night 156; M0 7 of 8 sign-off pages carry a code
+line; M3 0 of 5 files corrections landed on the request line; M4 0
+cancels; the Architect rewrote the guess 4 times and no page showed a
+rewrite to him, W4 (observed: the read, sections 1 and 2). Both batches
+then died where the tests and the review decide: bg_1's test loop, 54
+sessions and about 11 asks, W1; a request row from a textless propose, 37
+sessions and 5 asks, W2; bg_2's review, three Critics citing a docstring
+for a correct change, 17 sessions and 5 asks, W3, the third night of frame
+201's sign (observed: the read, section 2). Frame 297 was built in this
+session, 095db1c4 to 37bbc243, and its baseline on this night is 0 of 3 page
+notes citing uncommitted lines and 5 sessions that inherited an uncommitted
+write. The order below is the next sprint (reasoned: the read, section 5,
+by the cost on the night, then by price; ruled: Roman, 2026-10-16 22:33, so
+the taker starts row 1 at once). The frame economy stands at 28 live of
+10, so rows 2 to 4 are pushed only after a park or a close (ruled: the
+economy line of the state print).
+
+0. Frame 297, built at 37bbc243 with its gate clean, validating at night
+   158 on the page notes and the inherited writes. Frame 298 validating on
+   its third batch, with W4 as its residue: a park, a batch plan and a new
+   item version each replace the guess rewrite, cause 12, measured at
+   night 158 before any fix.
+1. Frame 201, 1 cycle: the lines refusal names the `+` lines of the diff
+   that can meet each criterion. The sign stopped the only correct code of
+   the night, three nights running.
+2. W1's encode door, 2 cycles, a frame to push: the `visible_prompt_func`
+   predicate reads a `confirm()` call inside a helper the command calls,
+   with s258 turn 3 as the red test. Beside it, the interview of s175, 1
+   cycle, on the `or show_default` regression.
+3. W5, 1 cycle, a frame to push: `batches.guess` and `batches.annotate`
+   refuse a path the code index does not hold. M1 and M2 are worth little
+   while the guess names files that do not exist.
+4. W2, 2 cycles, a frame to push: a textless propose writes no request
+   item, cause 15.
+5. Frame 143's interview of s311, 1 cycle, and frame 299, 3 cycles, free
+   now that frame 298's night ran. Frame 300 after it.
+6. Not read this night: W7 the replies that did not reach the team, W8
+   the agent principal's "second one" at m22, W9 to W12. A read of s107
+   turn 2, 1 cycle, before any of them gets a frame.
+
 ## Sprint 13, recommended on night 156's read, 2026-10-18 07:22
 
 Night 156 ended sprint 12 of 2026-10-17 16:40, because it was that sprint's
