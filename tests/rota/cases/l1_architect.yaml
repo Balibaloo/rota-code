@@ -43,6 +43,48 @@
     # ticket text — which is why probing the codebase is part of the assertion.
     writes: [criteria, tickets, items, constraints]
 
+- id: L1-AR-annotate-from-the-guess
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 4
+  # Frame 298's design, 1.3 (review 3, finding 4). The batch's prediction
+  # starts from the item's guess, as the principal corrected it. The item has
+  # the Architect's own set and a set rewritten from a ruling, so `the item's
+  # guess` carries the corrected paths and the principal's words.
+  tick: annotate
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    onboard: true
+  fixture:
+    config:
+      - {key: "entry:<m_rule>", value: '"Line 2 names the charges file, which has nothing to do with this. The bands live in the pricing module, and the test goes in the pricing tests file."'}
+    items:
+      - {id: <i1>, text: "volume discounts on the line total", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "apply the volume band to the line total"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "line_total applies the highest band the quantity qualifies for",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: pending}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    touch_guesses:
+      - {item_id: <i1>, item_ver: 1, ruling_id: "", grain: src/billing/charges.py, grain_kind: path}
+      - {item_id: <i1>, item_ver: 1, ruling_id: <m_rule>, grain: src/catalog/pricing.py, grain_kind: path}
+      - {item_id: <i1>, item_ver: 1, ruling_id: <m_rule>, grain: tests/test_pricing.py, grain_kind: path}
+  expect:
+    calls: [batches.annotate]
+    writes:
+      batch_touch: {count: "1..7",
+                    text_includes_any: ["src/catalog/pricing.py", "tests/test_pricing.py"]}
+  forbidden:
+    writes: [criteria, tickets, items, constraints, touch_guesses]
+
 - id: L1-AR-guess-the-code-of-a-request
   tier: T1
   role: architect

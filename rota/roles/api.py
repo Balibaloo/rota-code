@@ -10099,15 +10099,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             raise ValueError(
                 f"{said} That code is line {m}, the change's plan. Rule line {m} "
                 f"contest with the words, and approve line {n}.")
-        # Until the page numbers the code line (frame 298, pass 2), the key
-        # names it. The guess exists when a set or a stamp says so.
-        guessed = guess_key in stamp or ctx.conn.execute(
-            "SELECT 1 FROM touch_guesses WHERE item_id = ?", (item,)).fetchone()
-        if guessed:
-            raise ValueError(
-                f"{said} That code is the key {guess_key}, and the team rewrites "
-                f"it from the principal's words. Rule the key {guess_key} contest "
-                f"with the words, and approve line {n}.")
+        # A page with no code line said the team has not guessed, whatever
+        # set came later, so the refusal says the same and names the key.
+        # A live read of `touch_guesses` contradicted the page (frame 298,
+        # review 3, finding 1).
         raise ValueError(
             f"{said} The team has not guessed that code yet. Rule the key "
             f"{guess_key} contest with the words, and approve line {n}.")

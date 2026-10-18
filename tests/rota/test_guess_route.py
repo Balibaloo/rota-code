@@ -225,9 +225,8 @@ def test_s322s_line_1_contest_is_refused_and_the_refusal_names_the_key(db):
         sb.call("rulings.rule", rulings=S322, words=M192)
     assert str(refused.value) == (
         f"line 1 is the request, and the words fault only the code it touches. "
-        f"That code is the key {KEY}, and the team rewrites it from the "
-        f"principal's words. Rule the key {KEY} contest with the words, and "
-        f"approve line 1.")
+        f"The team has not guessed that code yet. Rule the key {KEY} contest "
+        f"with the words, and approve line 1.")
 
 
 def test_the_moved_reading_lands_on_bg_3_and_the_item_stays_approved(db):
