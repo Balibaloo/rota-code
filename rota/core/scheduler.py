@@ -437,6 +437,7 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
                        (f'%"{r["id"]}"%',)).fetchone()]
         if not stalled:
             return []
+        # law 4: failure is bounded
         # A re-fire at temperature zero with the same wake is the same
         # session again. Night 73 (2026-09-15): three identical 22-turn
         # sessions at batch_start, no write, quarantined. The attempt count
@@ -1057,6 +1058,7 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     ).fetchall()
     if not rows:
         return []
+    # law 6: at the Liaison it is a page, a hold or a note
     # A seat's reply row wakes no page. On night 136 each relay of a ruling
     # left one such row, the agenda fired 13 times after s514, and
     # `annotate` for bg_4 never ran (frame 190's design, 2.4).
@@ -1086,6 +1088,7 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
         ref = row["about_ref"]
         test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
                             (ref,)).fetchone()
+        # law 6: at the Liaison it is a page, a hold or a note
         # An inherited test has no criterion, so its ref stays the test's
         # own and reaches no request. Night 141's s198 notes on two `inh_*`
         # tests made the ref None, and every `frontier` call raised (frame 209).
@@ -1095,6 +1098,7 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
 
     if requests:
         chosen.sort(key=lambda r: not reaches_request(r))
+    # law 14: identity stamps from birth content, never a model's id
     # The wake carries the rows a page may hold, so the Liaison has real ids
     # to copy. clickI night 20 (2026-09-12): 66 open rows, and the Liaison
     # counted its own ids up, l_ab.., l_ac.., l_ad.., none of them rows, five
@@ -1538,6 +1542,8 @@ def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ranked by priority and deferred `b_2` for `b_3`. The two alternated
     nineteen times (observed: night 92, 2026-09-24). Priority chooses, and
     the schedule constrains (ruled: Roman, 2026-09-24).
+
+    law 9: a reorder ahead of the running batch preempts it
     """
     rows = conn.execute(
         "SELECT b.id AS id, b.status AS status, b.head_commit AS head_commit, "
@@ -1553,6 +1559,7 @@ def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         "                  WHERE d.after_batch = b.id "
         "                    AND p.status NOT IN ('merged','abandoned'))"
     ).fetchall()
+    # law 6: exhaustion escalates one rung at a time
     # A batch at or past `loop_cap` is on the exhausted path, and a resume
     # cannot end it. Night 93 resumed `b_1` at attempt 11 of 10, nothing woke
     # on it, and three ready batches waited all night (observed: night 93,
@@ -1991,6 +1998,7 @@ def resume_behind(conn: sqlite3.Connection) -> int:
                 entries.add(row["span_entry"])
         if not entries:
             continue
+        # ruling: frame 193, Roman 2026-10-10; only the request's work items end the park
         # Only work the request asked for decides it. Night 133's account
         # item cites s1, is never delivered, and held every resume at 0 (the
         # review of 61a0f41d, finding 1).
@@ -2053,6 +2061,7 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     """
     from . import config
 
+    # law 6: at the Liaison it is a page, a hold or a note
     # A given-up batch put back in the chair waits for the principal (ruled:
     # Roman, 2026-09-27). Night 94 resumed `bg_1` with its `tests_failing` key
     # quarantined, nothing woke on it, and `bg_2` never started (observed:
@@ -2135,6 +2144,7 @@ def tick_key(wake: "Wake") -> str:
 
 def note_dispatch(conn: sqlite3.Connection, wake: Wake) -> int:
     """Count one dispatch of this exact wake. Returns the new count."""
+    # law 4: failure is bounded; past its cap a wake is quarantined
     # Scheduler actions count too, keyed by their refs, so a start and a
     # preempt that alternate reach the cap (observed: night 92, 2026-09-24).
     if not wake.kind.startswith(("tick:", "do:")):
@@ -2300,6 +2310,7 @@ def quarantine_stalled(conn: sqlite3.Connection, ready: list[Wake]) -> list[Wake
     status = {r["id"]: r["status"] for r in conn.execute("SELECT id, status FROM batches")}
     for row in conn.execute("SELECT tick_key FROM tick_attempts").fetchall():
         if row["tick_key"] not in live:
+            # law 4: failure is bounded; past its cap a wake is quarantined
             # A key that names a batch keeps its count while the batch lives.
             # `running` hid the start's key during its own session, and the
             # preempt's step deleted it, nineteen times on night 92 (observed:

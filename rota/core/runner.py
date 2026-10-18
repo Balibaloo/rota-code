@@ -2314,6 +2314,7 @@ def _resolve_contest(conn: sqlite3.Connection, item: str) -> dict[str, Any]:
         "ORDER BY m.seq DESC").fetchall()
     for r in rows:
         ruling = json.loads(r["value"] or "{}")
+        # law 9: a revise is an amendment, so it wakes the owner with the words
         # A revise carries the principal's replacement words, so it wakes the
         # owner as a contest does. Read for `contest` only, night 136's revise
         # of the confirm item reached the Vision Keeper with the item alone

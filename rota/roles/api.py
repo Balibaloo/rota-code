@@ -702,6 +702,7 @@ def repeated_sentence(conn: sqlite3.Connection, trigger: str | None) -> str | No
 def refuse_repeated_sentence(ctx: Ctx) -> None:
     """Raise when the principal said the trigger's words before and a
     Liaison message already answered them."""
+    # law 7: any touch after the first must reframe, never repeat the question
     # Nothing is asked twice (ruled: Roman, 2026-09-12, "The seat's four
     # pages are one surface", point 1). The door keys on the entry's text,
     # so it holds in every mode that writes to the principal. Night 132's
@@ -719,6 +720,7 @@ def refuse_repeated_sentence(ctx: Ctx) -> None:
 def refuse_signoff_without_draft(ctx: Ctx, recipient: str, verb: str,
                                  refs: list) -> None:
     """Raise when a signoff submit leaves out a draft item that woke it."""
+    # law 8: signoff is per-item approval, presented as one document
     # The signoff mode says "refs naming every draft item", and no door read
     # it. Night 150: s207 to s387 left `json_only` out of 32 of 42 signoff
     # submits, the principal approved a page without it 25 times, and the
@@ -774,6 +776,7 @@ def answered_question(conn: sqlite3.Connection, text: str | None
     for q in asked:
         if _said(q["body_text"] or "") != said:
             continue
+        # law 7: any touch after the first must reframe, never repeat the question
         # A reply follows the question: its cause is the question, or it is
         # the next principal message in the question's thread. A reply to a
         # page names the page as its cause, so a cause key alone missed
@@ -790,6 +793,7 @@ def answered_question(conn: sqlite3.Connection, text: str | None
 def refuse_answered_question(ctx: Ctx, text: str | None) -> None:
     """Raise when a Liaison question to the principal repeats one that the
     principal already answered."""
+    # law 7: any touch after the first must reframe, never repeat the question
     # Nothing is asked twice (ruled: Roman, 2026-09-12, "The seat's four
     # pages are one surface", point 1). Night 135's s220, s221, s222 and
     # s224 each asked "What is the content of the row with id 's1'?" again
@@ -822,6 +826,8 @@ def brief_intake(ctx: Ctx, verdict: str) -> dict:
     row was the leak behind night 132's loop (ruled: Roman, 2026-10-08, the
     park ask is a page with rows, point 4). The enum refuses `chat` and says
     where the words go.
+
+    law 2: judgement crosses a role boundary only as ids and states
     """
     if not hasattr(ctx, "intake"):
         ctx.intake = None
@@ -969,6 +975,7 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                 "statement to ratify. Ask the owner whose artefact holds the "
                 "answer, or ask about the row with msg.clarify_principal")
 
+    # law 8: L1 fidelity: the principal ratifies the segmented statements
     # The span is the way back to the words, so it must hold them. Night
     # 135's s209 sent span 0 to 6 with 254 characters of text, seven times
     # (frame 142, night 135's read, fix 2). Where the words are in the entry
@@ -991,6 +998,7 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                 span_end = span_start + len(words)
                 moved = True
 
+    # law 14: a re-emitted act is the same row, never a new one
     # Words on file are a row already. Night 121's s284 segmented the walk's
     # sentence as s5 a third time, and each copy went to the principal to
     # ratify again (frame 142's design, 2.C, point 5). The step depends on
@@ -1046,6 +1054,7 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                 f"these words are {s['id']}, on file as {s['status']}. Cite "
                 f"{s['id']}. There is nothing to segment")
 
+    # law 14: identity stamps from birth content, never a model's id
     # A statement keeps its id. Night 135's s223 called brief.segment(id='s1')
     # on another entry, and the write became an UPDATE that overwrote the
     # ratified s1 with other words (frame 142, night 135's read, fix 3). The
@@ -1104,6 +1113,7 @@ def contested_refusal(sid: str, ruling: str) -> str:
 @op("brief", "ratify")
 def brief_ratify(ctx: Ctx, id: str) -> dict:
     _must_exist(ctx, "statements", id)
+    # law 8: L1 fidelity: the principal ratifies the segmented statements
     # A statement the principal contested is not ratified. Night 138's s273
     # ratified the contested s1 and delivered it (frame 193's design, 2.G.3).
     from .principal import contested_statement
@@ -1334,6 +1344,8 @@ def _page_reply_fault(text: str, said: str) -> str | None:
     page sentences often quote the item's words after the cue ("Line 1
     should say: Add an echo_json helper"), so only the words right after
     the cue count, the page's own verb.
+
+    law 8: downstream roles re-decompose into their own artefacts
     """
     norm = lambda s: re.findall(r"[a-z0-9]+", (s or "").lower())  # noqa: E731
     new = norm(text)
@@ -1395,6 +1407,8 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     Night 145's s328 answered a challenge with a new id, and the page showed
     it as the principal's ask (frame 221, candidate G). The wake is the
     signal: the trigger message's verb, or the tick kind.
+
+    law 11: decided rows rest on a ratified statement or landed ruling
     """
     if getattr(ctx, "onboarding", False):
         return None
@@ -1657,6 +1671,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             f"this says {kind}. Those are the two answers this call chooses "
             f"between, so both is not an answer; decide, and send the one")
 
+    # law 11: decided rows rest on a ratified statement or landed ruling
     # The principal's words stay the principal's. The describe door already
     # refuses a decided item. This door refused nothing, and night 146 lost
     # two batches to a seat's rewrite (frame 221).
@@ -1678,6 +1693,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
                                        f"stays as it is; an observation does "
                                        f"not amend it")}
     else:
+        # law 14: a re-emitted act is the same row, never a new one
         # The other direction. clickI night 18 (2026-09-12): delivering
         # the principal's one sentence, the Vision Keeper asserted its item
         # and then the three account items from onboarding again, word for
@@ -1700,6 +1716,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
                     f"already does a thing to build. Assert only what the "
                     f"principal asked for; an observed item stays observed "
                     f"until their words change it")
+            # law 11: decided rows rest on a ratified statement or landed ruling
             # Night 19: the same three items again, paraphrased past the
             # door above. What changes an observed item is the principal's
             # words, and this session was woken with them: the statements
@@ -1842,6 +1859,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
         return {"id": id, "unchanged": True,
                 "note": "those are the item's own words and its own kind; "
                         "nothing was written and no version moved"}
+    # law 11: a row rests on what it cites
     # The intent thread's first link. An item is a reading of something the
     # principal said; the pair table that records *which* statement had a
     # reader (`problem.consult` returns `from_statements`), a docstring
@@ -1877,6 +1895,7 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
     """Approval must postdate the item's last amendment, so it is stamped with
     the item's current version at the moment it is granted."""
     _must_exist(ctx, "items", id)
+    # law 1: one writing role per row; a journal entry has one author
     # The relay of a ruling cannot undo it. `principal.land` wrote the state
     # at the keypress. On night 136 the relay session s172 set a revised item
     # `approved` twice, and the revised words drew no amendment (frame 190's
@@ -1891,6 +1910,7 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
         raise ValueError(
             f"the principal ruled {id} {ruling}. land wrote `{landed}`{words}. "
             f"Leave it")
+    # law 1: one writing role per row; a journal entry has one author
     # A relay cannot contest what the landed ruling approved and the relay
     # holds no ruling on. Night 147's relay m136 named two constraints, and
     # s285 contested the approved confirm item off a refusal's id list (frame
@@ -1974,6 +1994,8 @@ def problem_describe(ctx: Ctx, id: str) -> dict:
     the item back to the owner's page, where the owner approves or contests
     the word. The door keeps the principal's own words and live work on the
     path: night 91's challenges named the one real request.
+
+    law 11: decided rows rest on a ratified statement or landed ruling
     """
     _must_exist(ctx, "items", id)
     prov = ctx.conn.execute(
@@ -3850,6 +3872,7 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
             f"you have already filed {constraint_id} "
             f"{same[0][2].get('status')} on {grain} in this session; decide, "
             f"and send the one")
+    # law 14: identity stamps from birth content, never a model's id
     # Frame 178: a finding id names one row across every batch, and the
     # pipeline writes a new version of the row with that id. Nights 120 and
     # 128: the second merge's Architect wrote `f1` again, and the first
@@ -3864,6 +3887,7 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
             f"would replace that batch's finding. A finding id names one row "
             f"across every batch. Send the finding again with "
             f"id={_free_finding_id(ctx, id)!r}, which no batch holds")
+    # law 12: review triggers on diff-touched grains intersecting bindings
     # The check sits here and not in `_must_exist`, because only this door
     # knows the batch. Night 95 (2026-09-28): the Architect sent a criterion
     # id as the constraint, and the refusal named 6 of 12 rows and no exit.
@@ -3880,6 +3904,7 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
         raise ValueError(
             f"{what}. A finding names a constraint from model.consult. "
             f"{_bound_exit(ctx, _diff_files(ctx, batch_id), grain_file if path_shaped else None)}")
+    # law 12: review triggers on diff-touched grains intersecting bindings
     # A finding says what the batch's diff broke, so its grain is a file
     # the diff changed. Night 65 (2026-09-14): three findings against one
     # constraint, two on test files the diff never touched; the Developer
@@ -3910,6 +3935,7 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
             f"a fact about the register, not a rule the code can break, and "
             f"a file this batch wrote is read by this review. Record it "
             f"satisfied, or check the constraints that bind {grain!r}")
+    # law 12: review triggers on diff-touched grains intersecting bindings
     # Frame 178: a satisfied row also names a file the diff changed. Of 18
     # rows on nights 114 to 128, 7 named a file from `expected to touch`
     # that the diff never changed. A directory grain counts when it holds
@@ -3925,6 +3951,7 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
             f"{shown}. A finding names a file the diff changed, and a "
             f"file the batch was expected to touch is not one. Send the "
             f"finding again with one of {shown} as the grain")
+    # law 12: constraint zero is starved by survey, never by judgement
     # Frame 178: night 118's s145 filed k0 on `src/click/__init__.py` while
     # 11 bound constraints reached that file. The brief allows k0 only when
     # no other constraint is in range. A directory grain stands for the
@@ -4530,6 +4557,7 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
     # the transaction and takes the session with it -- recoverable one level
     # up, so it is refused here, like `batches.group` already does.
     _must_exist(ctx, "items", item_id)
+    # law 11: an observed row was found, not chosen; nobody asked for it
     # Observed items are what the repository already does, and the account
     # is the whole program: neither is work. clickI night 9 (2026-09-11):
     # the Vision Keeper sliced tickets for three observed items and for
@@ -4847,6 +4875,7 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
             raise ValueError(
                 f"{ref!r} is not a symbol the index knows. A surface is a "
                 f"callable a test would exercise; near matches: {near}")
+        # ruling: DECISIONS 1056, a repair needs a surface; e417a94c: one the program has
         # No neighbour anywhere in the index: this reads as a callable that
         # does not exist *yet*, and naming the intended entry point is exactly
         # the design decision a criterion is for. Kept as written -- when the
@@ -4891,6 +4920,8 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     The words come from the item, its statements and the ticket only. The
     criterion's text is the seat's own, old or new, so a name the seat
     writes into it proves nothing (frame 215's review 1, finding 1).
+
+    brief: criterion_repair.md, a surface sits in an expected file or the request
     """
     if not ticket_id or not surface:
         return
@@ -4973,6 +5004,7 @@ def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
     if not row:
         return []
     text = f"{row['item'] or ''} {row['ticket'] or ''}"
+    # law 11: a row rests on what it cites
     # Only names the words call a callable: "a function named X", "X()".
     # A bare snake_case word is not enough. clickI night 8 (2026-09-11):
     # "give version_option a show_python flag" made `show_python`, a flag,
@@ -5016,7 +5048,10 @@ def _named_existing_callables(ctx: Ctx, ticket_id: str) -> list[str]:
     """Callable names the item or its ticket give in words that the index
     holds: a snake_case word that is a definition. Night 70 (2026-09-15),
     click sentence three: "give version_option a show_python flag" names
-    version_option, a definition; show_python is not one and drops out."""
+    version_option, a definition; show_python is not one and drops out.
+
+    law 11: a row rests on what it cites
+    """
     import re as _re
 
     row = ctx.conn.execute(
@@ -5037,6 +5072,7 @@ def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -
     callable the index holds, and the surface names another one."""
     new = _named_new_callables(ctx, ticket_id)
     if not new:
+        # law 11: a row rests on what it cites
         # Night 70 (2026-09-15), click sentence three: the item said "give
         # version_option a show_python flag", the criteria carried
         # custom_version_option as their surface, a real companion whose
@@ -5186,6 +5222,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             f"those are {twin}'s words already, on the same ticket. The same "
             f"words are the same criterion; if the ticket needs a second "
             f"criterion, it needs a second sentence")
+    # law 14: exact match at the door; fuzzy behind named guards
     # Nearly the same words are the same criterion too. clickI night 18
     # (2026-09-12): 63 criteria for one flag, "the usage string must
     # include --show-python" beside "the usage string must explicitly list
@@ -5211,6 +5248,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                     f"({other_text[:80]!r}). One criterion per thing that must "
                     f"be true; a second sentence for the same thing is a second "
                     f"test of one fact")
+    # law 7: every cap is a ruling, declared in config
     # Three is usual and six is many (the criteria brief, ruled 2026-09-12).
     # clickI night 38 (2026-09-13): twenty-four criteria on one ticket
     # (datetime, unicode, a docstring, test coverage, "no upper limit on
@@ -5431,6 +5469,8 @@ def _surface_move_fault(text: str, was: list, surface: list,
     Each relay named `echo` as a comparison, and the Testers then called
     `echo` (frame 202, candidate B of the night's read). `ask` is the
     sentence that names the question route, when the mode offers one.
+
+    law 11: a row rests on what it cites
     """
     old = {_surface_symbol(r) for r in was if r}
     new = {_surface_symbol(r) for r in surface if r}
@@ -5484,6 +5524,7 @@ def _surface_move_fault(text: str, was: list, surface: list,
             return (f"The principal names `{name}` as a comparison: "
                     f"{hit.group(0)!r}. The callable the principal asks for "
                     f"is `{keep}`.{both} {route(keep)}")
+    # law 11: a row rests on what it cites
     # The request rule. Frame 202, night 147: s130 moved `cj_serializable`
     # from `echo_json` to `echo`. The text named no callable and the words
     # held no cue, so both rules above let the move pass. The item named
@@ -5574,6 +5615,7 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # `_vet_surface` returns [] (the review of 84a06216, finding 3).
         surface_changed = bool(was) and bool(surface) and set(surface) != set(was)
     if surface_changed:
+        # law 11: a row rests on what it cites
         # The surface is what the test calls. Night 146 moved `echo_json`
         # criteria to `echo` 6 times, and the Testers then rewrote `echo`
         # (frame 202).
@@ -5600,6 +5642,7 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     ruled = last_ruling_on(ctx.conn, id)
     contested = (ruled if ruled and ruled["verdict"] in ("contest", "revise")
                  and ruled["text"] is not None else None)
+    # law 9: a ratified amendment drops the item to pending, stops batches
     # The principal's contested words never come back. Night 144's s546 woke
     # on the Tester's question with no word of his ruling. It put back
     # `--show-python`, which he had contested, and the batch never merged
@@ -5621,6 +5664,7 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                 f"the principal contested {', '.join(back)} in this criterion. "
                 f"His words: {contested['words']!r}. Write what he asked for, "
                 f"without {', '.join(back)}")
+    # law 9: a ratified amendment drops the item to pending, stops batches
     # A contested sentence sent back is not a repair. Night 144's s583 and
     # s591 sent it back, and the note below did not say that the principal
     # contested it (frame 227).
@@ -5952,6 +5996,7 @@ def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
             f"directories here are {', '.join(top) or 'none: the modules sit at the root'}; "
             f"a new file goes beside the ones that exist, and the index says "
             f"where they are")
+    # law 12: the touch set is a prediction, never a permission
     # The principal's correction replaces the prediction. Night 136's m85
     # said "Line 2 names the wrong tests", and an upsert would keep the
     # disputed path beside the new one (frame 190's design, 2.2,
@@ -6087,6 +6132,8 @@ def _verb_words(text: str) -> list[str]:
 
     An identifier is a name and not a claim. Night 91's criterion says
     "echo_json returns a string", and "echo" there names the helper.
+
+    brief: tests_missing.md, a criterion that says what the request does not
     """
     import re as _re
     out: list[str] = []
@@ -6138,6 +6185,8 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
     op checks each against its source, as the parroting guard does. A
     verdict that passes stages the question to the Terminologist itself,
     born unresolved, so `criterion_repair` wakes the criterion's writer.
+
+    brief: tests_missing.md, a criterion that says what the request does not
     """
     _must_exist(ctx, "criteria", criterion_id)
     if not hasattr(ctx, "triaged"):
@@ -6181,6 +6230,7 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
                 "next": f"nothing -- {done['id']} already encodes it; the "
                         f"criteria you were woken for are the ones without "
                         f"a tested_by"}
+    # law 6: exhaustion escalates one rung at a time
     # The ladder's rung is a fact of the message log: once the Terminologist
     # has answered two questions on this criterion, the message door refuses
     # a third, so the exit for `cannot` climbs. Night 63 (2026-09-14): the
@@ -7710,6 +7760,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"lambda _='': 'Alice')), capsys for printed output, or "
                 f"define the fixture in the file")
     asserts = [n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)]
+    # law 8: gates are predicates; a test that cannot fail is no gate
     # A check can be a raise as well as an assert: `raise AssertionError`
     # in an except branch, `pytest.raises`, `pytest.fail`. Night 63
     # (2026-09-14): a signature test called confirm() with the new argument,
@@ -7725,6 +7776,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     and getattr(f.value, "id", None) == "pytest")
         return False
     checks_by_raise = any(_raises_a_check(n) for n in _ast.walk(tree))
+    # law 8: gates are predicates; a test that cannot fail is no gate
     # Frame 273, night 152: `assert hasattr(cmd, 'x') or True` cannot fail.
     # The batch merged a parameter with none of its behaviour. Only a
     # truthy constant inside an `or` counts. Frame 147 found this door
@@ -7756,6 +7808,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "nothing and would report as coverage. If the criterion names "
             "no behaviour a call could exercise, that is tests.triage "
             "verdict='cannot' -- say what stops you and route it")
+    # law 8: gates are predicates; a test that cannot fail is no gate
     # Frame 277, night 153: two admitted asserts could never fail and held
     # no constant. s256's `... or sys.version_info[0] == 3` hid a red test
     # through the review. s198's `result is not None or result is None`
@@ -8328,6 +8381,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"to its writer for repair. Retrying the same sentence is the one "
             f"move that cannot land")
 
+    # law 8: a lineage's open assumptions are presented at its gates
     # The first assumptions detector (ruled 2026-08-30: introspection is
     # abandoned, divergence is detected). A string literal in the test whose
     # words the material never said -- not the criterion, its ticket and
@@ -8446,6 +8500,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         logged |= {w for t, i, *rest in ctx.writes if t == "ledger"
                    for w in _words(rest[0].get("default_taken", ""))}
         material |= logged
+        # no law, no ruling: a test asserts on what the criterion says it prints
         # Only when the material's own words say the surface prints, writes
         # or shows: a pure function is tested on its return value, and that
         # is the normal shape of a test. The word sets are PRINTS and
@@ -8460,6 +8515,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         own = _words(own_row["text"] or "") if own_row else set()
         own_prints = bool(PRINTS & own and not RETURNS & own)
         if own_prints:
+            # law 11: a ledger entry is resolved only by a decision naming it
             # No lift by a ledger row: clickI night 45 (2026-09-14) logged
             # "assumes echo_json prints rather than returning a value", whose
             # words lifted the door, and the test asserted on the return
@@ -8503,6 +8559,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         owed = [lit for lit in invented
                 if _words(lit) - covered - _STOP - _material_words(ctx, criterion_id)]
         if owed:
+            # law 8: a lineage's open assumptions are presented at its gates
             # The door stages the row itself, kind `invented`, and admits the
             # encode. The seat spent a turn on a dictated `ledger.log` for
             # each of 103 notes over nights 120 to 139 (frame 204's design,
@@ -8521,6 +8578,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"was not woken for one, so there is nothing to attach the test to")
     _must_exist(ctx, "batches", batch_id)
 
+    # law 14: a re-emitted act is the same row, never a new one
     # Re-encoding a test byte for byte is not a write, and staging it as one
     # bumps a version to record that nothing happened. A Tester defending a
     # test it had decided was correct did exactly this: answered the challenge
@@ -8593,6 +8651,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                            "tests.encode", {**again, "id": INVENT})
         raise ValueError(said)
 
+    # law 14: some keys are cardinality, not content
     # One test per criterion, which is the brief's first line and was held by
     # nothing. A session that could not encode a criterion honestly wrote a
     # paraphrase, then wrote the same paraphrase again under a new id, then
@@ -8676,6 +8735,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"{clash['id']}'s file; two tests in one file "
             f"overwrite each other on disk. Name this one for its own "
             f"criterion -- tests/test_<what it checks>.py")
+    # law 14: some keys are cardinality, not content
     # A replace supersedes every test this session staged on the criterion.
     # The same id twice would move the version twice. Another id is the
     # left-over test frame 123 exists to stop (night 117 s213). A staged
@@ -8873,6 +8933,7 @@ def _is_team_note(conn, ref: str) -> bool:
                for t in ("ledger", "constraints", "glossary_terms", "model_areas"))
 
 
+# law 6: nothing is ruled on the principal's behalf
 # The words door: a principal's word that the three ruling words do not hold
 # lands by one named mapping. Night 137's s159 wrote `drop` on seven lines and
 # s291 wrote `ask` on one, and the bare refusal moved neither (frame 193's
@@ -9111,6 +9172,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                 f"contest reverses the principal. Approve line{'' if one else 's'} "
                 f"{_line_set(reversed_)}.")
     sentences = re.split(r"(?<=[.!?])\s+", (words or "").strip())
+    # law 6: nothing is ruled on the principal's behalf
     # A batch line is left to the batch door only when the words name files
     # or tests, the words of its prediction. Night 150's m37 faulted lines 1
     # to 5, and the contest of batch_1 on line 6, which no sentence names,
@@ -9245,6 +9307,8 @@ def _faulted_approve(approved: frozenset[int],
     repeats line 2" reads as a fault of line 2. The guard on line 1 spares
     m164 (observed: `f250/count_present_1b.py`, 2026-10-16, batch status
     at the night's end).
+
+    law 6: nothing is ruled on the principal's behalf
     """
     wrong = sorted(
         n for n in approved if n in cues and 1 <= n <= size
@@ -9324,6 +9388,8 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     several lines of text, and night 136's m85 said "Line 2" for one of them
     (`test_request_page.py`). `item_lines` are the lines of the request
     items and the criteria. `request_lines` are the request items alone.
+
+    law 6: nothing is ruled on the principal's behalf
     """
     named = {n for n in read if 1 <= n <= size}
     for s in sentences:
@@ -9370,6 +9436,8 @@ def _agreed_contest(sentences: list[str], contested: set[int], size: int,
     every night's records, 5 of 1513 such replies drew a contest, and each
     contest was the seat's error: night 151's m23 "ok" contested lines 2
     and 3 and cost 2 asks and 11 sessions (frame 258, pass 2).
+
+    law 6: nothing is ruled on the principal's behalf
     """
     if _AGREEMENT_ALONE.fullmatch(" ".join(sentences)):
         if not any(1 <= n <= size for n in contested):
@@ -9626,6 +9694,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             raise ValueError(
                 f"{key!r} is not a line of the page. The page numbers its "
                 f"rows 1 to {len(order)}; use those numbers")
+    # ruling: DECISIONS 1445, the principal's words land on the row they name
     # A team's note takes no revise. Revise rewrites a line of the request,
     # and the request has its own lines on the page. Night 136's s557 revised
     # a constraint row with the words for the version option item, and the
@@ -9644,6 +9713,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             f"{line} is the team's note, not your request. revise rewrites a line "
             f"of what the principal asked for: {named}. Revise the line the words "
             f"are about. To drop the note, contest it.")
+    # law 3: a message routes to the writer of the artefact holding the answer
     # A batch line is a prediction of what the change touches. Before the
     # build, a correction of it goes to the Architect, who wrote it: night
     # 136's five corrections of a predicted file were refused here, and bg_2
@@ -9684,6 +9754,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if ruling in ("contest", "revise") and built_line_faulted(
                 words, order, ref, read_faulted):
             continue
+        # ruling: DECISIONS 1445, a ruling lands on a row the words fault
         # No reply of nights 136 to 149 asked to stop the change, so the
         # refusal no longer offers the item contest (frame 255's scope, 5).
         raise ValueError(
@@ -9696,11 +9767,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"lines {', '.join(unnamed)} have no ruling. Every line of the "
                 f"page takes one: the ask closes when the ruling lands. A line "
                 f"the reply does not contest is approve")
+    # law 6: nothing is ruled on the principal's behalf
     # A contest must rest on the words. Night 146 (frame 234): s427 contested
     # four lines the words said match, and s122 contested line 1, the
     # request, when the words faulted lines 3 and 5. Each cancelled a batch.
     if (words or "").strip() and not is_clarify and order:
         faulted, matched = set(read_faulted), set(read_matched)
+        # law 9: batches are immutable once formed; only scope recomposes one
         # A fault of a merged or abandoned change's line is a fault of its
         # item, because the batch door above sends that contest to the item.
         # A built change that is open keeps the fault on its own line: frame
@@ -9730,6 +9803,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             i + 1 for i, r in enumerate(order) if ctx.conn.execute(
                 "SELECT 1 FROM batches WHERE id = ? AND status IN "
                 "('merged', 'abandoned')", (r,)).fetchone())
+        # ruling: DECISIONS 1445, a contest lands only on a request line it names
         # The description row and the account rows are items too, but they
         # are no part of the request. Night 150's m140 and m316 contested
         # `how_it_works` on a sentence with no line number (frame 258).
@@ -10090,6 +10164,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
             f"door dropped {'them' if many else 'it'} and kept {word!r}. This mode "
             f"offers: {', '.join(offered)}.")
 
+    # law 11: a row rests on what it cites
     # The world-audit found ledger rows about 'glossary' and 'problem.assert'
     # -- table names and tool names where a row id belongs, unresolvable at
     # read time. An assumption is about a row; the table half already has its
@@ -10169,6 +10244,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
             "ledger.log", {"about_ref": about_ref, "about_table": home,
                            "assumption": assumption, "kind": word}))
     _refuse_an_echo(ctx, about_ref)
+    # brief: blindspot.md, say the actual thing: what went unread, and why
     # The blindspot brief's own rule, "Say the actual thing", held at the
     # door. Night 136's s87 made 53 calls whose words were one label, and
     # the 16 rows they left reached the pages (frame 190's design, 2.3.2).
@@ -10259,7 +10335,10 @@ _SIDE_FRAME = {"the", "readme", "says", "code", "shows", "that",
 def _restates(side: str, rows: list[set[str]]) -> bool:
     """Whether a side of a note quotes a row: four words or more, and eight
     in ten of them are the row's. Night 143's sides quote an item of the
-    account, at times the item beside the one the note names."""
+    account, at times the item beside the one the note names.
+
+    brief: reconcile.md, a conflict names two rows that disagree, not one restated
+    """
     words = set(_prose_words(side)) - _SIDE_FRAME
     return len(words) >= 4 and any(len(words & r) >= 0.8 * len(words)
                                    for r in rows)
@@ -10276,6 +10355,8 @@ def _misplaced_conflict(ctx, about_ref: str, assumption: str) -> str | None:
     decision alone is a ruling, and a note about it is the echo that
     `_refuse_an_echo` refuses. A README claim that differs from the row stays
     a conflict: conflicting sources always ask (DECISIONS of 2026-09-12).
+
+    brief: reconcile.md, a conflict names two rows that disagree, not one restated
     """
     echo = ("goes back on the principal's page as your reading of their "
             "words")
@@ -10331,7 +10412,10 @@ def _refuse_an_echo(ctx, about_ref: str) -> None:
     A seat that a ruling reaches does not answer it with a row about the
     ruled row. On night 136, 117 of 213 lines on the agenda pages were such
     rows, and 31 pages held nothing else. Each one went back to the
-    principal as the next page (frame 190's design, 2.3.1)."""
+    principal as the next page (frame 190's design, 2.3.1).
+
+    law 7: any touch after the first must reframe, never repeat the question
+    """
     relay = _principal_relay(ctx)
     if relay is not None and about_ref in relay[0]:
         raise ValueError(
@@ -10530,6 +10614,7 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
             "decisions.author", args))
     if supersedes and supersedes not in staged:
         _must_exist(ctx, "decisions", supersedes)
+    # law 6: nothing is ruled on the principal's behalf
     # Frame 243, the composition: "The tool never rules for the Principal".
     # Night 148's s189 superseded his signoff decision d_565d2845d4.
     if (supersedes and isinstance(supersedes, str) and ctx.role != "principal"
@@ -10546,6 +10631,7 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
                 f"decision does not replace his. Send the same call again "
                 f"without supersedes.",
                 "decisions.author", args))
+    # law 1: one writing role per row; a journal entry has one author
     # Frame 200, pass 5, fix 7, which frame 219 inherits: a write under an
     # existing id overwrites the row and its author. Night 143's s443 wrote
     # over the principal's own decision that way.
@@ -11077,6 +11163,8 @@ def verdicts_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     was current. A mode woken with nothing at the head, such as an exhausted
     mode, still reads the history. The history comes newest first: each
     commit's verdict is its own row, so the rowid orders the commits.
+
+    law 8: the merge gate runs harness, then Critic, then Architect
     """
     bid = batch_id or ctx.batch_id
     cols = ("SELECT v.id, v.batch_id, v.commit_sha, v.result, "
@@ -11101,6 +11189,8 @@ def verdicts_rule(ctx: Ctx, finding_id: str, ruling: str, reason: str) -> dict:
     signed-off batch. Night 94: the Architect filed `fnd_1` against `echo`,
     a constraint the Critic had falsified, and the Developer woke twice and
     broke the imports. One row per finding and commit, and nothing else.
+
+    law 8: the merge gate runs harness, then Critic, then Architect
     """
     # The wake names the finding. The same door as `glossary.synthesise`:
     # name the set, do not merely reject the guess.
@@ -12557,6 +12647,7 @@ def challenge_load(ctx: Ctx) -> dict:
     """
     import json as _json
 
+    # law 2: judgement crosses a role boundary only as ids and states
     # A finding review names a batch and a finding, and no claim. The claim is
     # the finding's constraint, and the Critic's own verdict on it travels
     # beside it. Night 94: `fnd_1` stood on `echo`, which the Critic had
@@ -12751,6 +12842,7 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
         "author": "critic"}))
     out = {"id": f"{table}:{row}", "verdict": "falsified",
            "note": "recorded, and on the principal's ledger"}
+    # law 11: a reasoned row carries its reason on file
     # The seat's notice covers the seat's own row. The ledger row keeps the
     # quote at 160 characters and the why whole, as the challenge row keeps it.
     # The principal rules from the why. The Critic writes the claim first and
@@ -12791,6 +12883,7 @@ def challenge_vacuous(ctx: Ctx, why: str) -> dict:
     kept_why = why.strip()[:300]
     ctx.writes.append(("challenges", f"{table}:{row}", {
         "verdict": "unfounded", "why": kept_why}))
+    # law 11: a reasoned row carries its reason on file
     # The ledger row keeps the whole why, and the challenge row keeps 300.
     # The principal rules from the why. The Critic writes the claim first and
     # the finding second, so any cap drops the finding. Night 94, s77: the
@@ -13373,6 +13466,7 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
                    "part above.", stored=False)
         if cut:
             result["not_shown"] = cut
+        # law 4: an uncommitted change never existed
         # The diff above is the fork against the working tree, so it shows an
         # edit that no commit holds as if it were committed. Night 62
         # (2026-09-14, finding 68): a Developer session ended at the cap
@@ -13389,6 +13483,7 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
         elif not out.stdout and out.returncode == 0:
             result["note"] = ("this batch has no change since its fork: "
                               "no commit and no uncommitted edit")
+        # law 12: the touch set is a prediction, never a permission
         # The definitions the batch changed that no criterion names, read
         # from the worktree against the project's own file. Click night 48
         # (2026-09-14): the diff was in front of the Developer and it
@@ -13501,6 +13596,8 @@ def _unchanged_note(ctx, root, path, dirty) -> str:
     `confirm` again, and each read only `"written, not committed": []`.
     The harness output of the red run is in `test_runs`, so the sentence
     quotes the failing line and the error pytest printed for it.
+
+    law 4: an uncommitted change never existed
     """
     from ..core import worktrees as _wt
     said = f"{path} already holds this text, so this write changed nothing."
@@ -14073,6 +14170,8 @@ def _refuse_after_challenge(ctx: Ctx) -> None:
     fit it. The challenge says the test is wrong, so a change in the same
     session builds on the disputed test. `developer/tests_failing.md` already
     says that a challenge ends the session. The step is `END_STEP`.
+
+    brief: tests_failing.md, a challenge ends the session, so change nothing after it
     """
     from ..core import sandbox as _sandbox
 
@@ -15613,6 +15712,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     # A fact about the text the seat sent, so the seat can send the escape.
     if repair_note:
         out["repaired"] = repair_note
+    # law 4: an uncommitted change never existed
     # A landed write is not a commit, and the result says so. Night 62
     # (2026-09-14, finding 68): the Developer implemented confirm() at
     # turn 9, spent fifteen turns on a test file, and the cap ended the
@@ -15916,6 +16016,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             f"named, then commit. A commit without it fails every test of "
             f"it at import")
     drift = _signature_drift(ctx, tree)
+    # law 4: failure is bounded
     # A commit that puts the tree back where it stood before the last one
     # is churn. clickI night 30 (2026-09-13): twelve commits flipping a
     # trailing newline between a test that passed either way and a Critic
@@ -15936,6 +16037,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             refusal = _revert_refusal(ctx, tree)
             if refusal:
                 raise ValueError(refusal)
+    # law 1: one writing role per row; a journal entry has one author
     # The Tester's test files are not the Developer's diff. The harness
     # writes the bodies at run time (harness.materialise) and `add -A`
     # was staging whatever version lay there. Click night 50 (2026-09-14):
@@ -16391,6 +16493,7 @@ def _outside_prediction(ctx: Ctx, batch_id: str, touched: list[str]) -> list[str
     judged = {r["path"] for r in ctx.conn.execute(
         "SELECT path FROM touch_strays WHERE batch_id = ? AND status != 'open'",
         (batch_id,))}
+    # law 1: one writing role per row; a journal entry has one author
     # The tests are the Tester's, and the harness commits them into the
     # batch: clickI night 41 (2026-09-13) raised six test files as the
     # Developer's strays. A test path is never a stray.
@@ -16946,6 +17049,8 @@ def _changed_unnamed_defs(ctx: Ctx, path: str, old_text: str, new_text: str) -> 
     as it is. A definition the file had, whose source the write changes
     or duplicates, is refused unless a criterion names it or the new
     source is the project's own (a restoration).
+
+    law 12: the touch set is a prediction, never a permission
     """
     from pathlib import Path as _Path
     named = _criteria_surface_names(ctx)
@@ -16955,6 +17060,7 @@ def _changed_unnamed_defs(ctx: Ctx, path: str, old_text: str, new_text: str) -> 
     after = _def_sources(new_text)
     base: dict[str, list[str]] = {}
     try:
+        # law 12: the touch set is a prediction, never a permission
         # The batch's base, read as frame 220 reads it. The project root is
         # the working checkout, so a restore read as a change (night 154's
         # s130). The root file stays the fallback when git cannot tell.
@@ -16978,6 +17084,7 @@ def _changed_unnamed_defs(ctx: Ctx, path: str, old_text: str, new_text: str) -> 
         base = {}
     changed = []
     for name, segs in after.items():
+        # law 12: the touch set is a prediction, never a permission
         # Private helpers included: click night 55 (2026-09-14) rewrote
         # `_format_default` whole while adding a flag to confirm(), and
         # three of click's own prompt tests broke on the new wording.

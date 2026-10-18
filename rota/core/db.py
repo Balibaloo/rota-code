@@ -711,6 +711,8 @@ def _page_under_reply(conn: sqlite3.Connection, trig: sqlite3.Row,
     and the commit marked m178 answered, so m177 waited on nobody (frame 267's
     scope read, sections 1 to 3). A `rulings` row or a message to the
     principal is an answer, as before.
+
+    law 6: a question nobody answers climbs, so a barren session leaves it unresolved
     """
     if not (trig and trig["status"] == "open" and trig["verb"] == "converse"
             and trig["from_role"] == "principal" and trig["cause_id"]
@@ -788,6 +790,8 @@ def _answers_by_message(trig: sqlite3.Row) -> bool:
     receipt. Night 127's m72 shape: the Architect authors a decision, its
     answer never lands, and the escalation must stay owed (review of 8d090e2e,
     finding 2).
+
+    law 6: a question nobody answers climbs, so a barren session leaves it unresolved
     """
     from ..design import graph as graph_mod
     return any(e.s == trig["to_role"] and e.t == trig["from_role"]
@@ -815,6 +819,8 @@ def _received(conn: sqlite3.Connection, result: SessionResult,
     An edge in `RECEIPT_RULES` with "message" counts the reply alone. An edge
     with a table name adds a write on that table to the rules above. The
     propose brief also names a refusing decision as an answer.
+
+    law 6: a question nobody answers climbs, so a barren session leaves it unresolved
     """
     if any(m.cause_id == result.trigger_msg for m in result.messages):
         return True
@@ -999,6 +1005,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     and _owes_a_reply(trig)
                     and not (barren and trig["verb"] == "challenge")
                     and not _received(conn, result, trig)):
+                # law 6: a question nobody answers climbs, so a barren session leaves it unresolved
                 # Frame 174: a session that sent nothing caused by its trigger
                 # and wrote no receipt for it did not answer it. Night 127's
                 # m72 and m112 were escalations, and the Architect wrote

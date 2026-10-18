@@ -190,6 +190,7 @@ def _run_one(root: Path, path: str, timeout: int,
         from .provision import python_for
         out = execute.run(
             root, [python_for(root), "-m", "pytest", shlex.quote(path), "-q", "--no-header",
+                   # ruling: DECISIONS 943, a harness fact is the door's, not a desk's
                    # The batch's own tests test criteria, not the project's
                    # warning hygiene. Click night 55 (2026-09-14): the
                    # project's `filterwarnings = error` turned a

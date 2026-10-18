@@ -1063,6 +1063,7 @@ def _answer_mode_challenge_refusal(ctx: api.Ctx, refs, text: str = "",
             f"criterion {sides[0]}, the test {sides[1]} and the decision "
             f"{', '.join(held)}, with the same quotes.",
             "msg.challenge_tester", args)
+    # law 2: judgement crosses a role boundary only as ids and states
     # The review of 8d090e2e, finding 9: both Tester answers to a Developer
     # challenge on nights 138 and 139 carried text. "No words" is a fact
     # only of an answer whose text is empty.
@@ -1299,6 +1300,7 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
                     f"{crit[0]!r} is not a criterion of this batch. The "
                     f"conflict you may challenge is between this batch's "
                     f"test and this batch's criterion")
+        # law 3: fact artefacts generate no contact; nobody to ask
         # The project's own test has no criterion and no side to challenge.
         # Click night 55 (2026-09-14): a challenge paired ce_2 with
         # test_termui's prompt test, which the Developer's own rewrite had
@@ -1651,6 +1653,8 @@ def _code_step(ctx: api.Ctx) -> str:
     nights 113 to 123 came from mode `exhausted`, where `code.write` answers
     `NotInWorkingSet`. A context that `build` did not make holds no working
     set, and it keeps the step toward the code.
+
+    law 7: every cap is a ruling, declared in config
     """
     working = getattr(ctx, "working_set", None)
     if working is not None and "code.write" not in working:
@@ -1667,6 +1671,7 @@ def _code_step(ctx: api.Ctx) -> str:
 CODE_STEP = "Make one real change to the code the test calls."
 
 
+# law 7: every cap is a ruling, declared in config
 #: How many challenges of the Developer may land on one body of a criterion's
 #: tests, counted across its tests' ids and across the other refs.
 #: A moved test deletes its own runs and lifts the batch's tick quarantine
@@ -1902,6 +1907,7 @@ def _without_own_reasons(conn: sqlite3.Connection, refs, role: str) -> list:
         (r, role)).fetchone())]
 
 
+# law 2: the reasoning is reached by following a ref
 #: The reason slot that every hint writes for `msg.challenge_tester`. The
 #: seat fills it, because mechanics cannot write the seat's judgement (frame
 #: 200, pass 5, fix 2). Pass 5g adds the test, because night 144's reasons
@@ -2119,6 +2125,8 @@ def architect_decision_on(conn: sqlite3.Connection, role: str,
     author is the Architect, and its refs name the test. Frame 278, night 153:
     m144 named `dec_1_tst_ver_opt_show_py`, and the later wakes never saw it.
     The key is the table, the author and the test ref, never the words.
+
+    law 3: a message routes to the writer of the artefact holding the answer
     """
     import json as _json
 
@@ -2236,6 +2244,8 @@ def _challenge_cap_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     they stay at the cap. Across all bodies, LANDED_CHALLENGES_CEILING
     landed challenges on a criterion end the count, and the step is the
     escalation.
+
+    law 7: every cap is a ruling, declared in config
     """
     # Design 200 change 4 (ruled: Roman, 2026-10-11 06:30): the Architect's
     # decision row reaches the Tester through this challenge. The cap does
@@ -2348,6 +2358,7 @@ def _escalation_or_step(ctx: api.Ctx, refs, fact: str, step: str) -> str:
     escalations with a repeated ref landed past a closed escalation).
     """
     once = _unique_refs(refs)
+    # law 3: a message routes to the writer of the artefact holding the answer
     # Frame 278, night 153: s283 met the step toward the code, and the
     # Architect had found the fault in the test. The decision's route is
     # the challenge that carries it, so the step offers that challenge.
@@ -2487,6 +2498,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
     prior = rows[0]
     if prior["status"] == "open":
         return _waits_refusal("challenge", "tester", prior["id"], ctx, refs)
+    # law 7: any touch after the first must reframe, never repeat the question
     # Frame 145, night 122 (2026-10-05): the Tester stored version 2 of the
     # test, and the challenge of version 2 met "they answered". A receipt
     # since the prior's first wake makes this a challenge of a new version.
@@ -2521,6 +2533,7 @@ def _challenge_repeat_refusal(ctx: api.Ctx, rows: list, refs) -> str | None:
         return _challenge_cap_refusal(ctx, rows, refs)
     fact = (f"you sent challenge to tester on exactly these refs already "
             f"({unanswered[1]['id']}, then {unanswered[0]['id']}), and the ")
+    # law 7: any touch after the first must reframe, never repeat the question
     # Night 124 (2026-10-05): a prior can count as unanswered beside the
     # Tester's answer row, when every encode of its session was refused.
     # "Answered neither" is then false, so the sentence states the encodes.
@@ -2549,6 +2562,8 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
     answered escalation blocks a new one only while no `tests` receipt on a
     test of the refs landed after the prior's wake. The prior's answer is
     about the body that the prior quoted.
+
+    law 7: any touch after the first must reframe, never repeat the question
     """
     # Only the Developer's challenge to the Tester reads who answered and
     # whether the test moved, and only it compares the refs as a set. Every
@@ -2640,6 +2655,7 @@ def _same_refs_refusal(ctx: api.Ctx, recipient: str, verb: str,
                 f"The attempt cap carries this batch to the ladder: "
                 f"make one real change to the code the test calls, or "
                 f"end the session with no call")
+        # law 6: exhaustion escalates one rung at a time
         # The rung is an instruction, not a bare name after a dash.
         # Night 111 (2026-10-03): s252 read "-- msg.escalate_architect"
         # at turn 6 and sent the same challenge again. The Developer's
@@ -2677,6 +2693,8 @@ def _refuse_confirm_off_entry(ctx: api.Ctx, refs: list, staged: set) -> None:
     for the new words, so the shift question never fired (frame 193's
     design, 2.G.2). The check holds only on a converse wake, where the
     intake claim is armed, and only when the trigger is a principal message.
+
+    law 8: L1 fidelity: the principal ratifies the segmented statements
     """
     entry = getattr(ctx, "entry_id", None)
     if (not refs or not entry or not ctx.trigger
@@ -2892,6 +2910,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "SELECT approval, approval_ver, version FROM items WHERE id = ?",
                     (r,)).fetchone()
                 if row is None:
+                    # law 9: a ratified amendment drops the item to pending, stops batches
                     # clickI night 22: reopen sent for a statement id. A
                     # reopen names the amended item; nothing else can be
                     # amended under a batch. The item after a revocation is a
@@ -2909,6 +2928,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"{unchanged[0]} is approved at its current version; nothing "
                     f"changed under the batch, so there is nothing to reopen. A "
                     f"reopen follows an amendment, never a decision")
+        # law 8: a lineage's open assumptions are presented at its gates
         # A page carries at most seven open assumptions. clickI night 17
         # (2026-09-12): reconcile read 37 prose files and the first page
         # put 27 assumptions to the principal in one go. Roman ruled the
@@ -2989,6 +3009,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             for token in re.findall(r"['\"`]([a-z][a-z0-9_]{1,30})['\"`]", text):
                 if token in (refs or []) or api.ref_resolves(ctx, token):
                     continue
+                # ruling: DECISIONS 1445, a principal's word earns a Liaison question
                 # A word the principal wrote is theirs to be asked about.
                 # clickI night 29 (2026-09-13): "default_on_eof" is the flag
                 # in the principal's own sentence, and the clarify about it
@@ -3068,6 +3089,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                         f"'Alice')) or asserting on the function that takes "
                         f"the name as an argument")
 
+        # law 7: any touch after the first must reframe, never repeat the question
         # One open question per criterion. `tests_missing` fires per batch
         # while any criterion lacks a test, so the mode meets its own routed
         # criteria again on the next wake -- and a re-asked question forks
@@ -3124,6 +3146,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                        else ValueError)(said)
         if verb == "challenge":
             _challenge_evidence(ctx, recipient, refs, text or "", reason)
+        # ruling: DECISIONS 1248, an answer that keeps the test quotes the criterion
         # The Tester's answer to a challenge pays the same reading. Night 80
         # (2026-09-15): the answer said "the developer is right, the test
         # asserts more than the criterion asks" and the test stood; the
@@ -3191,6 +3214,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"on these rows and they did not settle it. A third "
                     f"question is the same question. The exit is {door}")
 
+        # law 7: any touch after the first must reframe, never repeat the question
         # The principal said these words before, and a Liaison message
         # answered them. A second answer is the loop of night 132 (frame
         # 142's design, 2.C, point 6). `rulings.rule(ask=...)` asks the same
@@ -3436,6 +3460,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "WHERE l.status = 'open' AND s.status = 'ratified' ORDER BY l.rowid")]
                 if room > 0:
                     refs += [r for r in lineage if r not in refs][:room]
+        # law 8: signoff is per-item approval, presented as one document
         # And the request's own rows, by the same rule: added, never
         # substituted. Night 136's 49 agenda pages carried no line of the
         # request, so the principal's words landed on a seat's row and never
@@ -3671,6 +3696,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"in it")
             _refuse_confirm_off_entry(ctx, refs or [], staged)
 
+        # law 8: L1 fidelity: the principal ratifies the segmented statements
         # A contested statement is not delivered. Night 138's s273 and the
         # pass 3 recordings delivered it after the ratify door refused it
         # (frame 193's design, 2.G.6). Only verdict mode offers a deliver.
@@ -3786,6 +3812,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             from .scheduler import park_verdict_page, park_verdict_rows, verdict_rows
 
             on_park = park_verdict_page(ctx.conn, ctx.trigger) is not None
+            # law 2: judgement crosses a role boundary only as ids and states
             # Only the contested and revised lines of a park page travel. An
             # approved criterion in the relay reached `criterion_repair`,
             # where only the brief kept it unchanged (the diff review of
@@ -3821,6 +3848,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
 
             lines = set(park_verdict_criteria(ctx.conn, ctx.trigger))
             for ref in refs:
+                # law 3: contacts derive from read and write edges; no second list
                 # A test row of a ruling travels as its criterion, to the
                 # criterion's writer. The principal never rules on a test
                 # (ruled: Roman, 2026-10-08, the park ask is a page with
@@ -3990,7 +4018,10 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             f"    if isinstance({arg}, dict):\n"
             f"        {arg} = ' ... '.join(str(v) for v in {arg}.values())\n"
             f"    if isinstance({arg}, list) and any(not str(x).strip() for x in {arg}):\n"
-            "        raise ValueError('quotes= has an empty entry: each side of a challenge is a span copied from its row, and an empty string quotes nothing (click night 58, 2026-09-14)')\n"
+            # law 13: no date appears in a prompt
+            # Click night 58 found the empty entry. The seat reads the
+            # refusal, so the refusal names no night and no date.
+            "        raise ValueError('quotes= has an empty entry: each side of a challenge is a span copied from its row, and an empty string quotes nothing')\n"
             f"    if isinstance({arg}, list):\n"
             f"        {arg} = ' ... '.join(str(x) for x in {arg})\n"
             f"    if not {arg}:\n"

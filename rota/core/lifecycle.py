@@ -200,6 +200,7 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
     """
     from . import environments, harness, worktrees
 
+    # law 1: one writing role per row; a journal entry has one author
     # The Tester's bodies as they stand, delivered in a commit of their
     # own. The Developer's commits exclude the test paths, so the diff
     # under review is the code; the merge carries the tests the harness
@@ -574,6 +575,7 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     head = head_of(conn, batch_id)
     if head is None:
         return "nothing committed"
+    # law 8: the merge gate runs harness, then Critic, then Architect
     # Every criterion has its test. The repository's own tests join the
     # batch, so a green harness alone no longer says the Tester has been
     # here: tipsZ (2026-09-09) merged on the inherited test with no test of
@@ -605,6 +607,7 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     if verdict["result"] != "pass":
         return f"verdict {verdict['result']}"
 
+    # law 12: the touch set is a prediction, never a permission
     # The head commit touched ground the prediction never named, and the
     # Architect has not said foreseen or mistake, or said mistake and the
     # Developer has not taken it out. clickI night 32 (2026-09-13):

@@ -201,7 +201,7 @@ single-instance. The next rung is a fresh session.
 ### 7. Budgets are structural
 
 Every cap is a ruling of the principal. The ruling is a record with a
-writer and a version. `rota/config.py` declares every cap and points to
+writer and a version. `rota/core/config.py` declares every cap and points to
 its ruling. A number written into a predicate is a decision made by
 whoever typed it. Nobody remembers the moment. Nobody can change the
 number without reading code.

@@ -177,6 +177,8 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
     set aside is held until the item resumes. Night 137's principal answered
     walk 2's page m161 after walk 3's request (frame 193's design, 2.F.1
     and 2.F.4).
+
+    ruling: frame 193, Roman 2026-10-10, the shift question blocks the asks behind it
     """
     rows = conn.execute(
         "SELECT id, verb, body_refs, body_text FROM messages "
@@ -768,6 +770,7 @@ def ratified_request(conn: sqlite3.Connection, *,
     done = {r["id"] for r in conn.execute(
         f"SELECT id FROM statements WHERE id IN ({marks}) AND status = 'ratified'",
         tuple(cur["statements"]))}
+    # law 9: a contested statement is revoked until its owner amends it
     # A statement the principal contested on its confirm page is not the
     # request before the new words. Night 138's wake offered s1 after m138's
     # contest, and s353 copied it into `supersedes` (frame 193's design,
@@ -1854,6 +1857,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         batches = {r["id"]: (not r["head_commit"]
                              and r["status"] not in ("merged", "abandoned"))
                    for r in rows}
+        # law 9: a contest reaches the row's owner, who amends; an approve never skips it
         # After the head commit, a contest or a revise of the batch line stays
         # when the words fault that line. `rulings_rule` admits the row on the
         # same predicate, so the row it admits relays to the Architect as
@@ -1880,6 +1884,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             if all(v == "approve" for v in per_item.values()):
                 return None
 
+    # law 9: a contest reaches the row's owner, who amends; an approve never skips it
     # An approve lands on a row the wake put on the page, and never on a
     # request row the door stamped. An "ok" on an agenda page would have
     # approved a contested item before its owner amended it, night 133's
@@ -1955,6 +1960,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             about = conn.execute(
                 "SELECT provenance FROM item_provenance WHERE id = ?",
                 (row["about_ref"],)).fetchone()
+            # law 9: a contest reaches the row's owner, who amends; an approve never skips it
             # A request row that the door stamped has the principal's own
             # ruling, and a note's contest never overwrites it. The door
             # stamps every request criterion as a line, so a note about c1

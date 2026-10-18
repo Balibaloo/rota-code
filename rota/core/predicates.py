@@ -295,6 +295,7 @@ def contested(conn) -> list[Wake]:
 
     This was a dead end: the highest-value signal in the system landed nowhere.
     It wakes the item's owner to amend it or author a decision defending it."""
+    # law 9: a ratified amendment drops the item to pending, stops batches
     # An item set aside wakes no owner until it resumes (frame 193's design,
     # 2.F.4). Night 137's s304, s307 and s310 amended the confirm item after
     # the principal had moved to the version option.
@@ -510,6 +511,7 @@ def term_collision(conn) -> list[Wake]:
         except (ValueError, TypeError):
             continue
 
+    # brief: answering.md, an answer about something else parks the row unaddressed
     # An answer that missed the question parks the word too. The Liaison reads
     # the principal's words against the rows and finds they name none of them.
     # Nothing is ruled, so it logs one row per row and relays nothing
@@ -581,6 +583,7 @@ def grouping(conn) -> list[Wake]:
     was unreachable and no state was undrained. A missing step between two
     reachable states is invisible to both.
     """
+    # law 9: a ratified amendment drops the item to pending, stops batches
     # An abandoned batch is not a batch the ticket belongs to. S0 walk
     # thirty-one: the ladder's last rung amended the item, the revocation
     # cancelled the batch with three green tests, the item was re-approved
@@ -769,6 +772,7 @@ def tests_missing(conn) -> list[Wake]:
     another role before this. The order of these two roles does not change
     them. `batch_start` needs no tests, so nothing deadlocks.
     """
+    # law 8: gates are predicates, not judgement
     # Per criterion, not per batch. Walk nine: four criteria, three encodes
     # refused at the harness-fact bar, one landed -- and the batch never
     # woke the Tester again, because "a batch with no tests" had one. The
@@ -1325,6 +1329,7 @@ def review(conn) -> list[Wake]:
         "                    AND r.result != 'pass') "
         "  AND EXISTS (SELECT 1 FROM test_runs r "
         "              WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit) "
+        # law 8: the merge gate runs harness, then Critic, then Architect
         # And every criterion has its test. Since the repository's own tests
         # join the batch, a green harness no longer means the Tester has been
         # here: tipsZ (2026-09-09) merged on the inherited test alone, with
@@ -1362,7 +1367,10 @@ def finding_review(conn) -> list[Wake]:
     after the Critic's pass, on a constraint the Critic had falsified. The
     Developer woke twice, broke the imports, and the batch never merged.
     Every finding comes after a pass, so every finding reaches the Critic
-    first. One wake per finding: the ruling is per finding and commit."""
+    first. One wake per finding: the ruling is per finding and commit.
+
+    law 8: the merge gate runs harness, then Critic, then Architect
+    """
     from ..onboarding.boot import ZERO
 
     rows = conn.execute(
@@ -1413,7 +1421,10 @@ def verdict_failed(conn) -> list[Wake]:
     At the head commit only, as the first line always said. Night 101
     (2026-09-30): the Critic failed bg_1, the Developer committed five fixes,
     and this band sorted before `review` each time. Five Developer wakes, and
-    the Critic never judged the new head."""
+    the Critic never judged the new head.
+
+    law 8: the merge gate runs harness, then Critic, then Architect
+    """
     rows = conn.execute(
         "SELECT v.batch_id AS bid FROM verdicts v JOIN batches b ON b.id = v.batch_id "
         "WHERE v.result = 'fail' AND b.status = 'running' "
@@ -1549,6 +1560,7 @@ def preempt(conn) -> list[Wake]:
                else f"{running['item']} is set aside")
         return [Wake(SCHEDULER, "do:preempt", refs=(running["bid"], running["item"]),
                      detail=why)]
+    # law 9: a reorder ahead of the running batch preempts it
     # The start's order, so the two never disagree. Night 92 started `b_2`
     # and preempted it for `b_3` nineteen times (observed: night 92, 2026-09-24).
     from .scheduler import next_batch
@@ -1557,6 +1569,7 @@ def preempt(conn) -> list[Wake]:
     if not ranked:
         return []
     challenger = ranked[0]["id"]
+    # law 6: exhaustion escalates one rung at a time
     # A running batch past its cap with every rung asked wakes nobody again.
     # Night 93 held `b_1` so, and three ready batches waited to the end
     # (observed: night 93, 2026-09-25). The deferral frees the seat, and
@@ -1664,6 +1677,7 @@ def quarantined(conn) -> list[Wake]:
                 refs.append(ref)
 
     n = len(dead)
+    # law 6: a wake past its cap is quarantined and said out loud
     # A stalled tick's key carries its refs (`role|tick:name|ref,ref`), and
     # those are the batch or the item the work was about: the payload the
     # brief asks the Liaison to name. clickI night 37 (2026-09-13): the wake
@@ -1679,6 +1693,7 @@ def quarantined(conn) -> list[Wake]:
         for row in conn.execute(
                 "SELECT tick_key, attempts FROM tick_attempts "
                 "WHERE quarantined = 1 AND reported = 0 ORDER BY tick_key"):
+            # law 6: a wake past its cap is quarantined and said out loud
             # A key that a park owns is said by the park page or the note.
             # Night 133's s319 and s325 presented the batch alone, and the
             # rulings on it moved nothing (frame 142's design, 2.D). A key
@@ -1776,6 +1791,8 @@ def agenda(conn) -> list[Wake]:
     file. On night 136 the agenda fired 13 times after s514 and bg_4 was
     never annotated. The ruling of 2026-09-13, point 2: "After that, nothing
     waits on a page" (frame 190's design, 2.4).
+
+    law 6: at the Liaison it is a page, a hold or a note
     """
     from .scheduler import onboarding_phase, tick_agenda
 
@@ -2297,6 +2314,8 @@ def touch_strayed(conn) -> list[Wake]:
     Architect's touch set never named, and nothing asked. The stray rows
     are written by `code.commit`; this wakes the Architect once per batch
     with the paths, and the merge gate waits for the judgement.
+
+    law 12: the touch set is a prediction, never a permission
     """
     rows = conn.execute(
         "SELECT b.id AS bid, GROUP_CONCAT(s.path, ', ') AS paths "
