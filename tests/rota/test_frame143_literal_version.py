@@ -98,9 +98,69 @@ def test_s292_literal_version_is_refused(tmp_path):
         _encode(conn, S292_BODY)
     text = str(exc.value)
     assert "the literal '3.10.0'" in text, text
-    assert ENV_TEXT in text, text
+    assert "inspecting sys.version_info at runtime" in text, text
+    assert "the literal '3.10.0'. " in text, text
     assert "Build the expected string from sys.version_info" in text, text
     assert "{sys.version_info.major}" in text, text
+    # Review 1, finding 3: one refusal names both pinned asserts, and the
+    # text stays in the siblings' range.
+    assert '`assert result.output.endswith("Python 3.10.0")`' in text, text
+    assert "`assert \"Python 3.10.0\" not in result.output or" in text, text
+    assert len(text) <= 460, len(text)
+
+
+# Review 1 of frame 143, finding 1: night 139's criterion gives the version
+# as an example beside its source (`.rota/clickI_night139.db`, criteria).
+S250_CRITERION = (
+    "When `version_option` is invoked with `show_python=True`, the output "
+    "message must append the running Python version formatted exactly as "
+    "`{major}.{minor}.{micro}` (e.g., '3.10.4'), derived from "
+    "`sys.version_info`.")
+
+# s250's turn 2 body for that criterion, as the night recorded it.
+S250_BODY = '''from click.decorators import custom_version_option
+
+def test_custom_version_option_shows_python():
+    # When show_python=True, the output must append the running Python version formatted as {major}.{minor}.{micro}
+    result = custom_version_option(show_python=True)
+    assert "3.10.4" in result  # Example format; actual version will vary
+'''
+
+
+def test_s250_literal_from_an_example_is_refused(tmp_path):
+    conn = _db(tmp_path, S250_CRITERION)
+    with pytest.raises(ValueError) as exc:
+        _encode(conn, S250_BODY)
+    text = str(exc.value)
+    assert '`assert "3.10.4" in result`' in text, text
+    assert "the literal '3.10.4'" in text, text
+
+
+def test_a_body_that_builds_and_pins_is_told_to_remove_the_literal(tmp_path):
+    # Night 156's s320 built `expected_suffix` and still pinned "3.10.0".
+    conn = _db(tmp_path, ENV_TEXT)
+    body = RIGHT_BODY.replace(
+        "    assert result.output.endswith(expected)",
+        "    assert result.output.endswith(expected) or "
+        "result.output.strip() == \"3.10.0\"")
+    with pytest.raises(ValueError) as exc:
+        _encode(conn, body)
+    text = str(exc.value)
+    assert "Remove the literal" in text, text
+    assert "Build the expected string" not in text, text
+
+
+def test_the_tests_own_program_version_is_admitted(tmp_path):
+    # Review 1, finding 4: the test passes "3.2.1" to the decorator itself,
+    # so the literal is the test's own value, not the interpreter's.
+    conn = _db(tmp_path, ENV_TEXT)
+    body = RIGHT_BODY.replace(
+        "@version_option(show_python=True)",
+        "@version_option(\"3.2.1\", show_python=True)").replace(
+        "    assert result.output.endswith(expected)",
+        "    assert \"3.2.1\" in result.output\n"
+        "    assert result.output.endswith(expected)")
+    assert _encode(conn, body) == {"id": "ver_opt_show_py_env_test_fixed"}
 
 
 def test_a_literal_through_a_name_is_refused(tmp_path):

@@ -7293,18 +7293,36 @@ _PY_VERSION_SOURCE = re.compile(
     r"sys\.version_info|sys\.version\b|platform\.python_version"
     r"|(?:the\s+)?running\s+interpreter", re.I)
 _PY_VERSION_LITERAL = re.compile(r"(?<![\w.])3\.\d{1,2}(?:\.\d+)?(?![\w.])")
+# Review 1 of frame 143, finding 1: night 139's criterion gave "(e.g.,
+# '3.10.4')" beside `sys.version_info`, and s250 pinned 3.10.4 four times.
+# An example shows the format, so it is not the criterion's own value.
+_EXAMPLE_SPAN = re.compile(
+    r"\(\s*(?:e\.g\.|eg\.|for example|for instance|such as)[^)]*\)"
+    r"|(?:e\.g\.|for example|for instance|such as)\s.*?(?=[.;](?:\s|$)|$)",
+    re.I)
 
 
-def _literal_python_version(tree, body: str,
-                            criterion_text: str) -> tuple[str, str, str] | None:
-    """The first assertion that compares against a literal Python version,
-    when the criterion names the running interpreter as the version's
-    source. Returns the assertion's text, the literal and the criterion's
-    words, or None. A literal that the criterion text holds itself is the
-    criterion's own value and is admitted."""
+def _literal_python_version(tree, body: str, criterion_text: str
+                            ) -> tuple[list[str], list[str], str, bool] | None:
+    """The assertions that compare against a literal Python version, when
+    the criterion names the running interpreter as the version's source.
+    Returns the assertions' text, their literals, the criterion's words and
+    whether the body reads the interpreter's version already, or None. A
+    literal that the criterion gives outside an example is the criterion's
+    own value and is admitted. A literal that the test passes to a call
+    outside its asserts is the test's own value, for example the program
+    version it gives `version_option`, and is admitted."""
     source = _PY_VERSION_SOURCE.search(criterion_text or "")
     if source is None:
         return None
+    own_text = _EXAMPLE_SPAN.sub(" ", criterion_text)
+    inside = {id(x) for a in _ast.walk(tree) if isinstance(a, _ast.Assert)
+              for x in _ast.walk(a)}
+    given = {m.group(0) for n in _ast.walk(tree)
+             if isinstance(n, _ast.Call) and id(n) not in inside
+             for v in [*n.args, *(k.value for k in n.keywords)]
+             if isinstance(v, _ast.Constant) and isinstance(v.value, str)
+             for m in _PY_VERSION_LITERAL.finditer(v.value)}
     # A literal can reach the assertion through a name: `expected = "..."`.
     bound: dict[str, list] = {}
     for n in _ast.walk(tree):
@@ -7325,14 +7343,35 @@ def _literal_python_version(tree, body: str,
                             if isinstance(x, _ast.Constant)
                             and isinstance(x.value, str)
                             for m in _PY_VERSION_LITERAL.finditer(x.value)]
-        return [x for x in out if x not in criterion_text]
+        return [x for x in out if x not in own_text and x not in given]
 
+    # Review 1, finding 3: one refusal names every pinned assert, so the
+    # seat does not meet the door again for the second one.
+    lines: list[str] = []
+    literals: list[str] = []
     for a in (n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)):
         found = _literals(a.test)
         if found:
-            line = _ast.get_source_segment(body, a) or _ast.unparse(a)
-            return line, found[0], _sentence_around(criterion_text, source)
-    return None
+            lines.append(_ast.get_source_segment(body, a) or _ast.unparse(a))
+            literals += [x for x in dict.fromkeys(found) if x not in literals]
+    if not lines:
+        return None
+    words = _sentence_around(criterion_text, source)
+    if len(words) > 100:
+        # The quote keeps the source words, which are the fact the seat
+        # did not act on.
+        at = words.find(source.group(0))
+        lo, hi = max(at - 60, 0), at + len(source.group(0)) + 30
+        lo = words.find(" ", lo) + 1 if lo else 0
+        words = (("..." if lo else "") + words[lo:hi]
+                 + ("..." if hi < len(words) else ""))
+    builds = any(isinstance(n, _ast.Attribute)
+                 and isinstance(n.value, _ast.Name)
+                 and (n.value.id, n.attr) in {("sys", "version_info"),
+                                              ("sys", "version"),
+                                              ("platform", "python_version")}
+                 for n in _ast.walk(tree))
+    return lines, literals, words, builds
 
 
 def _sentence_around(text: str, match) -> str:
@@ -8024,16 +8063,26 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     _pinned = _literal_python_version(tree, body,
                                       (_crow["text"] or "") if _crow else "")
     if _pinned is not None:
-        line, literal, words = _pinned
+        lines, literals, words, builds = _pinned
+
+        def _cut(s: str, n: int) -> str:
+            return s if len(s) <= n else s[:n - 3] + "..."
+        # Review 1, finding 3: the siblings' texts run to about 450
+        # characters, so each quote is cut.
+        quoted = " and ".join(f"`{_cut(x, 64)}`" for x in lines[:2])
+        if len(lines) > 2:
+            quoted += f" and {len(lines) - 2} more"
+        step = ("The body reads the interpreter already. Remove the literal "
+                "and assert against the value you build" if builds else
+                "Build the expected string from sys.version_info, as "
+                "f\"{sys.version_info.major}.{sys.version_info.minor}"
+                ".{sys.version_info.micro}\"")
         raise Wall(
-            f"`{line}` compares against the literal {literal!r}. The "
-            f"criterion says: \"{words}\" So the expected version is the "
-            f"version of the interpreter that runs the test, and {literal!r} "
-            f"is one version that the harness may not run. Build the "
-            f"expected string from sys.version_info in the test, for example "
-            f"f\"Python {{sys.version_info.major}}.{{sys.version_info.minor}}."
-            f"{{sys.version_info.micro}}\" after `import sys`, and assert "
-            f"against that")
+            f"{quoted} {'compares' if len(lines) == 1 else 'compare'} "
+            f"against the literal "
+            f"{', '.join(repr(x) for x in literals[:3])}. The criterion says: "
+            f"\"{words}\" The harness may run another version. "
+            f"{step}")
     # Names bound to a Mock -- `X = mock.Mock(...)`/`MagicMock(...)`, or
     # `with mock.patch(...) as X:` -- both spellings measured in the same
     # walk that found the guard below is needed.
