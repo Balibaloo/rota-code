@@ -607,7 +607,7 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     if verdict["result"] != "pass":
         return f"verdict {verdict['result']}"
 
-    # law 12: the touch set is a prediction, never a permission; the door breaks this law, see frame287-door-laws.md, Contradicts
+    # law 12: the touch set is a prediction, never a permission; this hold is the stray route, an unexpected change goes to the Architect (ruled: Roman, 2026-10-17, DECISIONS "A write is permitted on any file")
     # The head commit touched ground the prediction never named, and the
     # Architect has not said foreseen or mistake, or said mistake and the
     # Developer has not taken it out. clickI night 32 (2026-09-13):
