@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import config as config_mod
+from . import lifecycle as lifecycle_mod
 from . import sandbox as sandbox_mod
 from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
@@ -5299,6 +5300,11 @@ def run_session(
         # door, whatever the session sent (the delta review of 172b373b,
         # finding 1).
         sandbox_mod.stage_park_relay(sb.ctx)
+        # law 4: an uncommitted change never existed. The tree goes back to
+        # HEAD before the rows land, so the closed notes land with them.
+        gone = _discard_at_end(conn, wake, sb.ctx, stage=True)
+        if gone:
+            outcome.errors.append(lifecycle_mod.DISCARDED + ", ".join(gone))
         result = SessionResult(
             session_id=session_id,
             role=wake.role,
@@ -5381,7 +5387,37 @@ def run_session(
                 turns=turns, error=f"{exc!r}")
         except Exception as row_exc:  # noqa: BLE001 -- the record must not hide the failure
             outcome.errors.append(f"and the failure row was not written: {row_exc!r}")
+        # A failed session ends as surely as a normal one, so law 4's
+        # discard runs here too (frame 297). The staged rows never land,
+        # so the landed notes close in the database.
+        try:
+            gone = _discard_at_end(conn, wake, sb.ctx, stage=False)
+            if gone:
+                line = lifecycle_mod.DISCARDED + ", ".join(gone)
+                outcome.errors.append(line)
+                session_note(conn, session_id, [line])
+            conn.commit()
+        except Exception as gone_exc:  # noqa: BLE001 -- the record must not hide the failure
+            outcome.errors.append(f"and the discard at the end failed: {gone_exc!r}")
         return outcome
+
+
+def _discard_at_end(conn: sqlite3.Connection, wake: Wake, ctx, *,
+                    stage: bool) -> list[str]:
+    """Put a Developer session's batch worktree back to HEAD at the end, and
+    return the paths discarded. Only the Developer writes the tree, and a
+    message wake gives other roles the running batch (frame 297). With
+    `stage`, the closes of the open notes go to the session's own writes."""
+    bid = getattr(ctx, "batch_id", None)
+    if wake.role != "developer" or not bid:
+        return []
+    gone = lifecycle_mod.discard_uncommitted(conn, bid, close_notes=not stage)
+    if stage and gone:
+        norm = {p.replace(chr(92), "/") for p in gone}
+        for p in list(api._open_notes(ctx)):
+            if os.path.normpath(p).replace(chr(92), "/") in norm:
+                api._put_note(ctx, p, None)
+    return gone
 
 
 def _recipient_of(fn: str, g) -> str:

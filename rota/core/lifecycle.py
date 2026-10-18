@@ -251,6 +251,46 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
     _reindex_main(conn, batch_id)
 
 
+# The account's words for a discard. The next batch-start wake says the
+# same words (frame 297).
+DISCARDED = "discarded at the session's end, no commit held them: "
+
+
+def discard_uncommitted(conn: sqlite3.Connection, batch_id: str,
+                        close_notes: bool = True) -> list[str]:
+    """
+    Put the batch's worktree back to its HEAD, and return the paths that
+    no commit held. The batch's test files stay, as `_uncommitted` counts
+    them. With `close_notes`, the open `drop_notes` rows of those paths
+    close, because their lines are back.
+
+    law 4: an uncommitted change never existed. Ratified 2026-09-16: "A
+    session commits or discards before it ends." Night 156's s214 ended
+    with its write in bg_2's tree, and s215 inherited the write and its
+    note (frame 297).
+    """
+    import os
+    from pathlib import Path
+
+    from . import worktrees
+
+    row = conn.execute("SELECT worktree FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    if not (row and row["worktree"]) or not Path(row["worktree"]).is_dir():
+        return []
+    keep = {r[0].replace(chr(92), "/") for r in conn.execute(
+        "SELECT path FROM tests WHERE batch_id = ?", (batch_id,))}
+    gone = worktrees.discard(row["worktree"], keep)
+    if close_notes and gone:
+        norm = {p.replace(chr(92), "/") for p in gone}
+        for r in conn.execute("SELECT path FROM drop_notes WHERE batch_id = ? "
+                              "AND status = 'open'", (batch_id,)).fetchall():
+            if os.path.normpath(r["path"]).replace(chr(92), "/") in norm:
+                conn.execute("UPDATE drop_notes SET status = 'restored' "
+                             "WHERE batch_id = ? AND path = ?", (batch_id, r["path"]))
+    return gone
+
+
 def head_of(conn: sqlite3.Connection, batch_id: str) -> str | None:
     row = conn.execute(
         "SELECT head_commit FROM batches WHERE id = ?", (batch_id,)).fetchone()

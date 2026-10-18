@@ -452,9 +452,15 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
         # The cap comes from the configuration, so this sentence and the
         # dispatcher's retry sentence read one cap.
         cap = config.get(conn, "tick_attempt_cap")
+        # Night 156's s215 read "nothing written" after s214 left a write in
+        # the tree. The account's own words say what the end discarded
+        # (frame 297).
+        gone = _discarded_line(conn, stalled[0])
+        last = (f"the last session ended with no commit. Its writes were {gone}"
+                if gone else "the last session ended with nothing written and "
+                "nothing committed")
         return [Wake("developer", "tick:batch_start", refs=(stalled[0],),
-                     detail=f"attempt {n} of {cap}: the last session ended with "
-                            f"nothing written and nothing committed")]
+                     detail=f"attempt {n} of {cap}: {last}")]
 
     candidates = next_batch(conn)
     if not candidates:
@@ -468,6 +474,26 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
         return [Wake("developer", "tick:batch_start", refs=(first["id"],),
                      detail=_resume_detail(conn, first["id"]))]
     return [Wake("developer", "tick:batch_start", refs=(first["id"],))]
+
+
+def _discarded_line(conn: sqlite3.Connection, batch_id: str) -> str | None:
+    """The discard line of the account of the batch's last Developer session,
+    or None when that session discarded nothing (frame 297)."""
+    from .lifecycle import DISCARDED
+
+    last = conn.execute(
+        "SELECT id FROM sessions WHERE role = 'developer' AND wake_refs LIKE ? "
+        "ORDER BY seq DESC LIMIT 1", (f'%"{batch_id}"%',)).fetchone()
+    if not last:
+        return None
+    for (text,) in conn.execute(
+            "SELECT completion FROM turns WHERE session_id = ? ORDER BY seq DESC",
+            (last["id"],)):
+        for line in (text or "").splitlines():
+            line = line.removeprefix("- ")
+            if line.startswith(DISCARDED):
+                return line
+    return None
 
 
 def _resume_detail(conn: sqlite3.Connection, batch_id: str) -> str:

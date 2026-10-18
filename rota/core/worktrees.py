@@ -223,6 +223,59 @@ def changed_since(path: str | Path, sha: str | None) -> list[str]:
                   if not p.startswith((".venv/", ".rota/")) and p not in (".venv", ".rota"))
 
 
+def discard(path: str | Path, keep: set[str] = frozenset()) -> list[str]:
+    """
+    Put every file that differs from HEAD back to HEAD, and remove each new
+    file. Return the paths discarded. `keep` names paths the caller does not
+    own, and they stay.
+
+    law 4: an uncommitted change never existed. Frame 297: night 156's s214
+    ended with its write in bg_2's tree, and s215 inherited it.
+    """
+    root = Path(path)
+    if not head(root):
+        return []
+    run = subprocess.run([*GIT, "-C", str(root), "status", "--porcelain",
+                          "--untracked-files=all"], capture_output=True, text=True)
+    if run.returncode != 0:
+        return []
+    tracked: list[str] = []
+    staged: list[str] = []
+    new: list[str] = []
+    for line in run.stdout.splitlines():
+        if len(line) <= 3:
+            continue
+        code = line[:2]
+        # A rename names the old side, which HEAD holds, and the new side.
+        sides = [s.strip().strip('"') for s in line[3:].split(" -> ")]
+        for k, s in enumerate(sides):
+            if s.startswith((".venv/", ".rota/")) or s in (".venv", ".rota"):
+                continue
+            if s.replace(chr(92), "/") in keep:
+                continue
+            if code == "??":
+                new.append(s)
+            elif code[0] == "A" or (len(sides) == 2 and k == 1):
+                # Staged and absent from HEAD: unstage it, then remove it.
+                staged.append(s)
+            else:
+                tracked.append(s)
+    if tracked or staged:
+        _git(root, "reset", "-q", "HEAD", "--", *tracked, *staged, check=False)
+    if tracked:
+        # The HEAD bytes exactly. Git for Windows sets `core.autocrlf` in its
+        # system config, and a checkout under it wrote CRLF where
+        # `code.write` writes LF (frame 297's probe).
+        _git(root, "-c", "core.autocrlf=false", "checkout", "-q", "HEAD", "--",
+             *tracked, check=False)
+    for s in staged + new:
+        try:
+            (root / s).unlink()
+        except OSError:
+            pass
+    return sorted(set(tracked) | set(staged) | set(new))
+
+
 def batch_files(conn: sqlite3.Connection, batch_id: str) -> list[str] | None:
     """The files the batch's diff changed: the worktree, committed and not,
     against its merge base with the project's HEAD. None when the batch has

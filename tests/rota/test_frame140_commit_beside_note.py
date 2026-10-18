@@ -444,24 +444,28 @@ def test_a_changing_write_with_the_lines_still_gone_keeps_the_note(db, tmp_path)
     assert str(err.value).startswith(LATER)
 
 
-def test_a_second_session_on_the_worktree_sees_the_note(db, tmp_path):
-    """Frame 283's review 1, finding 6: the note lives per batch and path in
-    `drop_notes`, so a retry session's commit is refused too."""
-    sb, root = _developer(db, tmp_path)
+def test_a_second_session_on_the_worktree_finds_a_clean_tree(db, tmp_path):
+    """Frame 297, rewritten from frame 283's
+    `test_a_second_session_on_the_worktree_sees_the_note`. Law 4: the first
+    session's end discards its write and closes its note. So the retry
+    session finds the tree at HEAD and no open note, and its commit with
+    nothing written commits nothing."""
+    from rota.core.runner import run_session
+    from rota.core.scheduler import Wake
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    _sb, root = _developer(db, tmp_path)
     head = _git(root, "rev-parse", "HEAD")
-    _noted_then_refused(sb, root)
-    # The rows the first session's commit lands, as `session_commit` does.
-    for table, _rid, values in [w[:3] for w in sb.ctx.writes]:
-        if table == "drop_notes":
-            cols = ", ".join(values)
-            db.execute(f"INSERT OR REPLACE INTO drop_notes ({cols}) VALUES "
-                       f"({', '.join('?' for _ in values)})", list(values.values()))
-    db.commit()
+    write = (f"TOOL: code.write(path={PATH!r}, start=546, end=556, "
+             f"text={S282_TEXT!r})\nTOOL: code.commit(message='micro')")
+    run_session(db, Wake("developer", "tick:batch_start", refs=("b1",)),
+                backend=ScriptedBackend([write, "", "", ""]),
+                pins=Pins(model="scripted"), batch_id="b1")
+    assert _git(root, "status", "--porcelain") == ""
     sb2 = build("developer", db, batch_id="b1", mode="tests_failing",
                 allow=prompts.mode_tools("developer", "tests_failing"))
-    with pytest.raises(ValueError) as err:
-        sb2.call("code.commit", message="the removal")
-    assert str(err.value).startswith(LATER)
+    assert api._open_notes(sb2.ctx) == {}
+    assert sb2.call("code.commit", message="the removal")["committed"] is False
     assert _git(root, "rev-parse", "HEAD") == head
 
 

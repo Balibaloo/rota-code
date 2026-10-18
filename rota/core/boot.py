@@ -37,6 +37,7 @@ class BootReport:
     claims_reaped: list[str] = field(default_factory=list)
     processes_reaped: list[int] = field(default_factory=list)
     worktrees_reconciled: list[tuple[str, str, str]] = field(default_factory=list)
+    worktrees_discarded: list[tuple[str, list[str]]] = field(default_factory=list)
     checkpoints_invalidated: list[str] = field(default_factory=list)
     quarantined: list[str] = field(default_factory=list)
 
@@ -170,6 +171,26 @@ def reconcile_worktrees(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
     return diverged
 
 
+def discard_running(conn: sqlite3.Connection) -> list[tuple[str, list[str]]]:
+    """
+    Put the worktree of each running batch back to its HEAD, and close the
+    open notes of the paths discarded.
+
+    law 4: an uncommitted change never existed. A runner that dies ends no
+    session in code, so its last session's write stays in the tree. Boot
+    runs after the reap, so no live session holds the tree (frame 297).
+    """
+    from .lifecycle import discard_uncommitted
+
+    out = []
+    for r in conn.execute("SELECT id FROM batches WHERE worktree IS NOT NULL "
+                          "AND status = 'running' ORDER BY id").fetchall():
+        gone = discard_uncommitted(conn, r["id"])
+        if gone:
+            out.append((r["id"], gone))
+    return out
+
+
 def quarantine_exhausted(conn: sqlite3.Connection,
                          cap: int | None = None) -> list[str]:
     """
@@ -235,6 +256,7 @@ def boot(project_root: str | Path, *, kill_processes: bool = True,
     report.claims_reaped = reap_claims(conn)
     report.processes_reaped = reap_processes(conn, kill=kill_processes)
     report.worktrees_reconciled = reconcile_worktrees(conn)
+    report.worktrees_discarded = discard_running(conn)
     report.checkpoints_invalidated = sweep_checkpoints(conn)
     report.quarantined = quarantine_exhausted(conn, attempt_cap)
 
