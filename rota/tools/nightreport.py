@@ -189,7 +189,228 @@ def _is_runner(turn: dict) -> bool:
     return str(turn["completion"] or "").startswith(RUNNER_PREFIXES)
 
 
-def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False) -> list[str]:
+def _config(n: Night, key: str):
+    """A `config` value, JSON-decoded when it can be, or None."""
+    if not n.has("config", "value"):
+        return None
+    row = n.conn.execute("SELECT value FROM config WHERE key = ?", (key,)).fetchone()
+    if row is None:
+        return None
+    try:
+        return json.loads(row["value"])
+    except (TypeError, ValueError):
+        return row["value"]
+
+
+def _git_truth(repo: Path | None, batch_id: str, head: str | None = None) -> list[str] | None:
+    """The paths of the merge commit "rota: deliver <batch id>", or None.
+
+    `worktrees.integrate` writes that message, and neither the guess nor
+    `annotate` writes git, so the diff is a truth independent of both
+    (frame 298's design, 5.1). One sample repository serves many nights, and
+    batch ids repeat across nights. So a known head commit must be an
+    ancestor of the merge's second parent, and two candidates name no single
+    truth. The head is the Developer's last commit, and the Tester's commit
+    "rota: tests of <batch id>" can follow it (observed: night 156's bg_1)."""
+    import subprocess
+
+    if repo is None or not (Path(repo) / ".git").exists():
+        return None
+    log = subprocess.run(["git", "-C", str(repo), "log", "--all", "--merges",
+                          "--format=%H%x00%P%x00%s"], capture_output=True, text=True)
+    if log.returncode != 0:
+        return None
+    shas = []
+    for line in log.stdout.splitlines():
+        sha, parents, subject = (line.split("\x00") + ["", ""])[:3]
+        if subject != f"rota: deliver {batch_id}":
+            continue
+        second = (parents.split()[1:2] or [""])[0]
+        if head and head != ABSENT and not (second and subprocess.run(
+                ["git", "-C", str(repo), "merge-base", "--is-ancestor", head, second],
+                capture_output=True).returncode == 0):
+            continue
+        shas.append(sha)
+    if len(shas) != 1:
+        return None
+    diff = subprocess.run(["git", "-C", str(repo), "diff", "--name-only",
+                           f"{shas[0]}^1", shas[0]], capture_output=True, text=True)
+    if diff.returncode != 0:
+        return None
+    return sorted(p for p in diff.stdout.splitlines() if p.strip())
+
+
+def _request_items(n: Night) -> set[str]:
+    """The request items by the count's rule: `_is_request_item` without the
+    `delivered:` check (`plans/frame298-count.md`, section 1)."""
+    if not n.has("items", "kind"):
+        return set()
+    cols = n.columns["items"]
+    sql = "SELECT id FROM items WHERE kind = 'in_scope' AND id != 'how_it_works'"
+    if "is_description" in cols:
+        sql += " AND COALESCE(is_description, 0) = 0"
+    ids = {r["id"] for r in n.conn.execute(sql)}
+    views = {r[0] for r in n.conn.execute("SELECT name FROM sqlite_master WHERE type = 'view'")}
+    if "item_provenance" in views:
+        ids -= {r[0] for r in n.conn.execute(
+            "SELECT id FROM item_provenance WHERE provenance = 'observed'")}
+    return ids
+
+
+def _cancel_after(log_lines: list[str] | None, ask_id: str, words: str,
+                  batches_of_item: set[str]) -> str:
+    """"yes" when the night log holds a `do:cancel` of the item's batch after
+    the ruling's reply line, "no" when it does not, and "?" with no log.
+
+    A cancel writes only `batches.status`, so the log is its one record of
+    order. The reply line is `[<page>] <verb>: <page text>  -> '<words>`."""
+    if log_lines is None:
+        return ABSENT
+    head = " ".join(str(words or "").split())[:40]
+    # A reply to the Liaison's question about a page logs under the
+    # question's id, so the words alone find it when the page's id does not.
+    hits = [i for i, line in enumerate(log_lines)
+            if line.startswith("[") and f"-> '{head}" in line]
+    at = next((i for i in hits if log_lines[i].startswith(f"[{ask_id}]")),
+              hits[0] if hits else None)
+    if at is None:
+        return ABSENT
+    page = log_lines[at].split("]", 1)[0] + "]"
+    for line in log_lines[at + 1:]:
+        if line.startswith(page):
+            break
+        m = re.match(r"\s*do:cancel: abandoned (\S+?):", line)
+        if m and m.group(1) in batches_of_item:
+            return "yes"
+    return "no"
+
+
+HAND_CAP = 30
+WORDS_CUT = 120
+
+
+def _guess_section(n: Night, messages: list[dict], batches: list[dict],
+                   repo: Path | None, log: Path | None) -> list[str]:
+    """
+    Frame 298's measures, from rows and the git truth (its design, 5.3).
+
+    M0 counts the sign-off pages that carry a code line. M1 and M2 count
+    the merged items whose own guess names a path of the merge commit's
+    diff, and M2 counts only paths outside `tests/`. The hand list serves
+    M3 and M4, which a reader classes into the count's (a) to (d).
+    """
+    from ..roles.api import _grain_path
+
+    out = ["== frame 298: the guess"]
+    w = out.append
+    for line in (n.absent("touch_guesses", ("item_id", "item_ver", "ruling_id", "grain"))
+                 + n.absent("rulings", ("id", "ask_id", "per_item", "words", "status",
+                                        "verdict_id"))
+                 + n.absent("messages", ("cause_id",))):
+        w(line)
+    if repo is None:
+        root = _config(n, "project_root")
+        repo = Path(str(root).strip('"')) if root else None
+    w(f"repository: {repo if repo else '-'}; log: {log if log else '-'}")
+
+    # M0: a present whose cause is a submit, and whose door row maps a code key.
+    verb_of = {m["id"]: m["verb"] for m in messages}
+    cause_of = ({r["id"]: r["cause_id"] for r in n.conn.execute(
+        "SELECT id, cause_id FROM messages")} if n.has("messages", "cause_id") else {})
+    signoff = [m for m in messages if m["verb"] == "present"
+               and verb_of.get(cause_of.get(m["id"])) == "submit"]
+    with_line = 0
+    for m in signoff:
+        stamp = _config(n, f"code:{m['id']}")
+        if isinstance(stamp, dict) and any(str(k).startswith("guess:") for k in stamp):
+            with_line += 1
+    w(f"M0: {with_line} of {len(signoff)} sign-off pages carry a code line")
+
+    # M1 and M2: the item's own guess, its first version with no ruling.
+    if not n.has("touch_guesses"):
+        w("M1: absent")
+        w("M2: absent")
+    else:
+        merged = [b for b in batches if b["status"] == "merged"]
+        lines: list[str] = []
+        m1 = m2 = withtruth = absent = 0
+        for b in merged:
+            rows = n.conn.execute(
+                "SELECT grain FROM touch_guesses WHERE item_id = ? AND ruling_id = '' "
+                "AND item_ver = (SELECT MIN(item_ver) FROM touch_guesses WHERE item_id = ? "
+                "AND ruling_id = '') ORDER BY rowid", (b["item_id"], b["item_id"])).fetchall()
+            guess: list[str] = []
+            for r in rows:
+                p = _grain_path(r["grain"])
+                if p not in guess:
+                    guess.append(p)
+            truth = _git_truth(repo, b["id"], b["head_commit"])
+            shown = ",".join(guess) or "-"
+            if truth is None:
+                absent += 1
+                lines.append(f"  {b['item_id']} guess={shown} truth absent")
+                continue
+            withtruth += 1
+            hit = set(guess) & set(truth)
+            src = {p for p in hit if not p.replace("\\", "/").startswith("tests/")}
+            m1 += bool(hit)
+            m2 += bool(src)
+            lines.append(f"  {b['item_id']} guess={shown} truth={','.join(truth)} "
+                         f"M1={'hit' if hit else 'miss'} M2={'hit' if src else 'miss'}")
+        w(f"M1: {m1} of {withtruth} merged items, {absent} with no truth")
+        w(f"M2: {m2} of {withtruth} merged items, {absent} with no truth")
+        out.extend(lines)
+
+    # The hand list for M3 and M4: contest or revise on a request line or a
+    # code line, oldest first. The landed verdict map is what `land` wrote.
+    if n.has("rulings"):
+        requests = _request_items(n)
+        log_lines = (Path(log).read_text("utf-8", errors="replace").splitlines()
+                     if log and Path(log).exists() else None)
+        by_item: dict[str, set[str]] = {}
+        for b in batches:
+            by_item.setdefault(b["item_id"], set()).add(b["id"])
+        listed: list[str] = []
+        for r in n.rows("rulings", ("id", "ask_id", "per_item", "words", "status",
+                                    "verdict_id")):
+            if r["status"] != "landed":
+                continue
+            landed = _config(n, f"verdict:{r['verdict_id']}")
+            if not isinstance(landed, dict):
+                try:
+                    landed = json.loads(r["per_item"] or "{}")
+                except (TypeError, ValueError):
+                    landed = {}
+            stamp = _config(n, f"code:{r['ask_id']}")
+            planned = ({v.get("batch") for v in stamp.values() if isinstance(v, dict)}
+                       if isinstance(stamp, dict) else set())
+            for key, ruling in landed.items():
+                if ruling not in ("contest", "revise"):
+                    continue
+                if key in requests:
+                    kind, item = "request line", key
+                elif str(key).startswith("guess:"):
+                    kind, item = "code line", str(key)[len("guess:"):]
+                elif key in planned:
+                    kind = "code line"
+                    item = next((b["item_id"] for b in batches if b["id"] == key), "")
+                else:
+                    continue
+                contested = "yes" if landed.get(item) in ("contest", "revise") else "no"
+                cancel = _cancel_after(log_lines, r["ask_id"], r["words"],
+                                       by_item.get(item, set()))
+                listed.append(f"  {r['id']} page={r['ask_id']} verdict={r['verdict_id']} "
+                              f"{key} {ruling} ({kind}) contested={contested} "
+                              f"cancel={cancel}: {cut(r['words'], WORDS_CUT)}")
+        w(f"hand list: {len(listed)} rulings, the first {HAND_CAP} shown")
+        out.extend(listed[:HAND_CAP])
+        if len(listed) > HAND_CAP:
+            w(f"{len(listed) - HAND_CAP} more unread")
+    return out
+
+
+def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False,
+          repo: str | Path | None = None, log: str | Path | None = None) -> list[str]:
     n = Night(conn)
     out: list[str] = []
     w = out.append
@@ -559,6 +780,9 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
                        if f["status"] == "open")
     for (call, kind), k in sorted(per_call.items(), key=lambda x: (-x[1], str(x[0]))):
         w(f"{call} {kind} {k}")
+
+    # 12. Frame 298's measures (its design, section 5).
+    out.extend(_guess_section(n, messages, batches, repo, log))
     # A section with no rows says so, so an empty section and a cut report differ.
     filled: list[str] = []
     for i, line in enumerate(out):
@@ -575,14 +799,24 @@ def main(argv: list[str] | None = None) -> int:
                                     "as a space; filters finding_rulings.at only")
     ap.add_argument("--full", action="store_true",
                     help="one line per session, and the whole completion-line list")
+    ap.add_argument("--repo", help="the night's project repository; the default is "
+                                   "config.project_root")
+    ap.add_argument("--log", help="the night's log, for the cancel order; the default is "
+                                  "night<N>.log beside a database named ..._night<N>.db")
     args = ap.parse_args(argv)
+    log = args.log
+    if log is None:
+        m = re.search(r"night(\d+)\.db$", Path(args.db).name)
+        beside = Path(args.db).with_name(f"night{m.group(1)}.log") if m else None
+        log = beside if beside is not None and beside.exists() else None
     try:
         conn = open_ro(args.db)
     except FileNotFoundError as e:
         print(e, file=sys.stderr)
         return 2
     try:
-        lines = build(conn, args.since, args.full)
+        lines = build(conn, args.since, args.full,
+                      repo=Path(args.repo) if args.repo else None, log=log)
     finally:
         conn.close()
     if hasattr(sys.stdout, "reconfigure"):

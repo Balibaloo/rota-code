@@ -269,3 +269,189 @@ def test_since_reads_a_t_as_the_stored_space(tmp_path):
 def test_main_prints_the_report(tmp_path, capsys):
     assert nightreport.main([str(_night(tmp_path))]) == 0
     assert "== failures" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Section 12, frame 298: the guess (the design's section 5)
+# ---------------------------------------------------------------------------
+
+GUESS = "frame 298: the guess"
+# The words of the request-line ruling. They are 130 characters long, so the
+# list cuts them at 120.
+W1 = ("Line 1 names the options test file, which has nothing to do with this "
+      "change, so keep the work to the helper and its own tests file.")
+
+
+def _git(repo: Path, *args: str) -> str:
+    import subprocess
+
+    out = subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t",
+                          *args], capture_output=True, text=True, check=True)
+    return out.stdout.strip()
+
+
+def _repo(tmp_path) -> Path:
+    """A project with one merge commit per batch, as `worktrees.integrate` writes."""
+    repo = tmp_path / "project"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    (repo / "README").write_text("x\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    for bid, files in (("bg_1", ("src/a.py", "tests/test_a.py")),
+                       ("bg_2", ("src/b.py", "tests/test_b.py"))):
+        _git(repo, "checkout", "-q", "-b", f"batch/{bid}", "main")
+        for f in files:
+            (repo / f).parent.mkdir(parents=True, exist_ok=True)
+            (repo / f).write_text(f"{bid}\n")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "-m", f"work of {bid}")
+        _git(repo, "checkout", "-q", "main")
+        _git(repo, "merge", "-q", "--no-ff", "-m", f"rota: deliver {bid}", f"batch/{bid}")
+    return repo
+
+
+def _guess_night(tmp_path, rulings: int = 0) -> tuple[Path, Path]:
+    """Two merged items. it_1's own guess hits a source path, and it_2's guess
+    names a test path only. Three rulings: a request-line contest that wrote
+    `contested`, a code-line contest, and an approve the list leaves out."""
+    import json
+
+    repo = _repo(tmp_path)
+    conn = init_db(tmp_path / "clickI_night200.db")
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
+                 (json.dumps(str(repo)),))
+    for iid in ("it_1", "it_2"):
+        conn.execute("INSERT INTO items (id, text, kind, approval, version) "
+                     "VALUES (?, ?, 'in_scope', 'approved', 1)", (iid, f"request {iid}"))
+    for bid, iid, status in (("bg_0", "it_1", "abandoned"), ("bg_1", "it_1", "merged"),
+                             ("bg_2", "it_2", "merged")):
+        conn.execute("INSERT INTO batches (id, item_id, status) VALUES (?, ?, ?)",
+                     (bid, iid, status))
+    # The Architect's own guesses at version 1, and a later rewrite of it_1's
+    # guess from a ruling, which is no subject of M1.
+    for iid, ruling, grain, kind in (("it_1", "", "src/a.py", "path"),
+                                     ("it_1", "", "src/x.py::f", "symbol"),
+                                     ("it_2", "", "tests/test_b.py", "path"),
+                                     ("it_2", "m12", "src/b.py", "path")):
+        conn.execute("INSERT INTO touch_guesses (item_id, item_ver, ruling_id, grain, "
+                     "grain_kind) VALUES (?, 1, ?, ?, ?)", (iid, ruling, grain, kind))
+    # Two sign-off pages: m10 carries a code line, and m20 does not.
+    msgs = [("m9", None, "vision_keeper", "liaison", "submit"),
+            ("m10", "m9", "liaison", "principal", "present"),
+            ("m19", None, "vision_keeper", "liaison", "submit"),
+            ("m20", "m19", "liaison", "principal", "present")]
+    for seq, (mid, cause, fr, to, verb) in enumerate(msgs, 1):
+        conn.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, verb, "
+                     "body_refs, seq) VALUES (?, ?, 't', ?, ?, ?, '[\"it_1\"]', ?)",
+                     (mid, cause, fr, to, verb, seq))
+    conn.execute("INSERT INTO config (key, value) VALUES ('code:m10', ?)",
+                 (json.dumps({"guess:it_1": {"guess": [1, ""]}}),))
+    ruled = [("r_1", "m10", "m11", "m12", {"it_1": "contest"}, W1),
+             ("r_2", "m10", "m13", "m14", {"guess:it_2": "contest"}, "Line 2 is wrong."),
+             ("r_3", "m20", "m21", "m22", {"it_1": "approve"}, "ok")]
+    ruled += [(f"r_x{n:02d}", "m20", f"mx{n}", f"mv{n}", {"it_2": "revise"}, f"words {n}")
+              for n in range(rulings)]
+    for rid, ask, reply, verdict, per_item, words in ruled:
+        conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status, "
+                     "verdict_id) VALUES (?, ?, ?, ?, ?, 'landed', ?)",
+                     (rid, ask, reply, json.dumps(per_item), words, verdict))
+        conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
+                     (f"verdict:{verdict}", json.dumps(per_item)))
+    conn.commit()
+    conn.close()
+    (tmp_path / "night200.log").write_text(
+        f"[m10] present: Here is what I understand you want, on one page.  -> '{W1[:80]}\n"
+        "  do:cancel: abandoned bg_0: its item is no longer schedulable\n"
+        "[m10] present: Here is what I understand you want, on one page.  -> 'Line 2 is wrong.'\n")
+    return tmp_path / "clickI_night200.db", repo
+
+
+def test_the_guess_section_counts_m0_m1_and_m2_from_rows_and_git(tmp_path):
+    path, _ = _guess_night(tmp_path)
+    lines = _section(_report(path, log=tmp_path / "night200.log"), GUESS)
+    assert "M0: 1 of 2 sign-off pages carry a code line" in lines
+    assert "M1: 2 of 2 merged items, 0 with no truth" in lines
+    assert "M2: 1 of 2 merged items, 0 with no truth" in lines
+    assert ("  it_1 guess=src/a.py,src/x.py truth=src/a.py,tests/test_a.py "
+            "M1=hit M2=hit") in lines
+    assert ("  it_2 guess=tests/test_b.py truth=src/b.py,tests/test_b.py "
+            "M1=hit M2=miss") in lines
+
+
+def test_the_hand_list_holds_the_request_and_code_line_rulings(tmp_path):
+    path, _ = _guess_night(tmp_path)
+    lines = _section(_report(path, log=tmp_path / "night200.log"), GUESS)
+    rows = [l for l in lines if l.startswith("  r_")]
+    assert rows == [
+        f"  r_1 page=m10 verdict=m12 it_1 contest (request line) contested=yes cancel=yes: "
+        f"{W1[:117]}...",
+        "  r_2 page=m10 verdict=m14 guess:it_2 contest (code line) contested=no cancel=no: "
+        "Line 2 is wrong.",
+    ]
+    assert "hand list: 2 rulings, the first 30 shown" in lines
+
+
+def test_the_hand_list_stops_at_30(tmp_path):
+    path, _ = _guess_night(tmp_path, rulings=29)
+    lines = _section(_report(path, log=tmp_path / "night200.log"), GUESS)
+    assert len([l for l in lines if l.startswith("  r_")]) == 30
+    assert "1 more unread" in lines
+
+
+def test_a_repository_without_the_merge_prints_truth_absent(tmp_path):
+    path, repo = _guess_night(tmp_path)
+    _git(repo, "reset", "-q", "--hard", "HEAD~1")
+    _git(repo, "reflog", "expire", "--expire=now", "--all")
+    _git(repo, "branch", "-q", "-D", "batch/bg_2")
+    _git(repo, "gc", "-q", "--prune=now")
+    lines = _section(_report(path, log=tmp_path / "night200.log"), GUESS)
+    assert "M1: 1 of 1 merged items, 1 with no truth" in lines
+    assert "  it_2 guess=tests/test_b.py truth absent" in lines
+
+
+def test_a_merge_of_another_nights_batch_is_no_truth(tmp_path):
+    """One sample repository serves many nights, and bg_1 is a batch of
+    each. The merge counts only when its second parent is the night's head."""
+    path, repo = _guess_night(tmp_path)
+    tip = _git(repo, "rev-parse", "batch/bg_1")
+    conn = sqlite3.connect(path)
+    conn.execute("UPDATE batches SET head_commit = ? WHERE id = 'bg_1'", (tip,))
+    conn.execute("UPDATE batches SET head_commit = ? WHERE id = 'bg_2'", ("c" * 40,))
+    conn.commit()
+    conn.close()
+    lines = _section(_report(path), GUESS)
+    assert "M1: 1 of 1 merged items, 1 with no truth" in lines
+    assert "  it_2 guess=tests/test_b.py truth absent" in lines
+
+
+def test_the_repo_flag_names_the_repository(tmp_path):
+    path, repo = _guess_night(tmp_path)
+    moved = tmp_path / "moved"
+    repo.rename(moved)
+    lines = _section(_report(path), GUESS)
+    assert "M1: 0 of 0 merged items, 2 with no truth" in lines
+    # No log beside the database names the night, so the cancel is unknown.
+    assert any(l.startswith("  r_1 ") and " cancel=?: " in l for l in lines)
+    lines = _section(_report(path, repo=moved), GUESS)
+    assert "M1: 2 of 2 merged items, 0 with no truth" in lines
+
+
+def test_an_old_night_prints_the_guess_section_as_absent(tmp_path):
+    path = _night(tmp_path)
+    conn = sqlite3.connect(path)
+    conn.execute("DROP TABLE touch_guesses")
+    conn.commit()
+    conn.close()
+    lines = _section(_report(path), GUESS)
+    assert "absent: touch_guesses" in lines
+    assert "M1: absent" in lines and "M2: absent" in lines
+
+
+def test_main_reads_the_log_beside_the_database(tmp_path, capsys):
+    path, _ = _guess_night(tmp_path)
+    assert nightreport.main([str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "== frame 298: the guess" in out
+    assert " contested=yes cancel=yes: " in out
