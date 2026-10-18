@@ -223,11 +223,24 @@ def changed_since(path: str | Path, sha: str | None) -> list[str]:
                   if not p.startswith((".venv/", ".rota/")) and p not in (".venv", ".rota"))
 
 
-def discard(path: str | Path, keep: set[str] = frozenset()) -> list[str]:
+def _git_paths(root: Path, args: list[str], paths: list[str]) -> bool:
+    """Run a git command on `paths` through a NUL-separated pathspec file
+    on stdin, each path literal. True when git succeeds. A quoted or
+    non-ASCII name holds, and a glob character is no pattern (frame 297's
+    review 3, finding 5)."""
+    run = subprocess.run(
+        [*GIT, "--literal-pathspecs", "-C", str(root), *args,
+         "--pathspec-from-file=-", "--pathspec-file-nul"],
+        input=b"\0".join(p.encode("utf-8") for p in paths), capture_output=True)
+    return run.returncode == 0
+
+
+def discard(path: str | Path, keep: set[str] = frozenset(),
+            failed_out: list[str] | None = None) -> list[str]:
     """
     Put every file that differs from HEAD back to HEAD, and remove each new
-    file. Return the paths discarded. `keep` names paths the caller does not
-    own, and they stay.
+    file. Return the paths put back. `keep` names paths the caller does not
+    own, and they stay. `failed_out` gets each path git could not put back.
 
     law 4: an uncommitted change never existed. Frame 297: night 156's s214
     ended with its write in bg_2's tree, and s215 inherited it.
@@ -235,44 +248,58 @@ def discard(path: str | Path, keep: set[str] = frozenset()) -> list[str]:
     root = Path(path)
     if not head(root):
         return []
-    run = subprocess.run([*GIT, "-C", str(root), "status", "--porcelain",
-                          "--untracked-files=all"], capture_output=True, text=True)
+    # `-z` gives each name raw, with no quotes and no octal escapes.
+    run = subprocess.run([*GIT, "-C", str(root), "status", "--porcelain", "-z",
+                          "--untracked-files=all"], capture_output=True)
     if run.returncode != 0:
         return []
+    tokens = run.stdout.decode("utf-8", "surrogateescape").split("\0")
     tracked: list[str] = []
     staged: list[str] = []
     new: list[str] = []
-    for line in run.stdout.splitlines():
-        if len(line) <= 3:
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        i += 1
+        if len(tok) <= 3:
             continue
-        code = line[:2]
-        # A rename names the old side, which HEAD holds, and the new side.
-        sides = [s.strip().strip('"') for s in line[3:].split(" -> ")]
-        for k, s in enumerate(sides):
+        code = tok[:2]
+        # A rename or a copy gives the new side, then the old side, which
+        # HEAD holds.
+        sides = [(tok[3:], "new" if code[0] in "RC" else None)]
+        if code[0] in "RC" and i < len(tokens):
+            sides.append((tokens[i], "old"))
+            i += 1
+        for s, side in sides:
             if s.startswith((".venv/", ".rota/")) or s in (".venv", ".rota"):
                 continue
             if s.replace(chr(92), "/") in keep:
                 continue
             if code == "??":
                 new.append(s)
-            elif code[0] == "A" or (len(sides) == 2 and k == 1):
+            elif code[0] == "A" or side == "new":
                 # Staged and absent from HEAD: unstage it, then remove it.
                 staged.append(s)
             else:
                 tracked.append(s)
+    failed: list[str] = []
     if tracked or staged:
-        _git(root, "reset", "-q", "HEAD", "--", *tracked, *staged, check=False)
-    if tracked:
+        _git_paths(root, ["reset", "-q", "HEAD"], tracked + staged)
+    if tracked and not _git_paths(root, ["checkout", "-q", "HEAD"], tracked):
         # The tree's own `core.autocrlf` applies, so a file comes back as a
-        # checkout of this tree gives it. `code.write` then keeps that line
-        # ending (ruled: the coordinator, frame 297, pass 4b).
-        _git(root, "checkout", "-q", "HEAD", "--", *tracked, check=False)
+        # checkout of this tree gives it (ruled: the coordinator, frame 297,
+        # pass 4b). One bad path refuses the whole list, so each path goes
+        # on its own.
+        failed = [s for s in tracked
+                  if not _git_paths(root, ["checkout", "-q", "HEAD"], [s])]
     for s in staged + new:
         try:
-            (root / s).unlink()
+            (root / s).unlink(missing_ok=True)
         except OSError:
-            pass
-    return sorted(set(tracked) | set(staged) | set(new))
+            failed.append(s)
+    if failed_out is not None:
+        failed_out.extend(sorted(set(failed)))
+    return sorted((set(tracked) | set(staged) | set(new)) - set(failed))
 
 
 def batch_files(conn: sqlite3.Connection, batch_id: str) -> list[str] | None:

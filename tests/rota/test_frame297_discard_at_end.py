@@ -20,8 +20,8 @@ from rota.llm.llm import Pins, ScriptedBackend
 from tests.rota.test_frame140_commit_beside_note import (  # noqa: F401
     DECORATORS, PATH, S282_NOTE, S282_TEXT, _developer, _git, db)
 
-# The account's line and the wake's words share one sentence (frame 297).
-GONE = "discarded at the session's end, no commit held them: "
+# The account's line (frame 297's review 3, finding 7).
+GONE = "The runner discarded the writes that no commit held: "
 
 
 def _write(path: str, text: str, start: int | None = None,
@@ -65,9 +65,17 @@ def test_s214s_end_discards_the_write_and_closes_the_note(db, tmp_path):
         "SELECT status FROM drop_notes WHERE batch_id = 'b1'")] == ["restored"]
     db.execute("UPDATE batches SET head_commit = NULL WHERE id = 'b1'")
     wake = tick_batch_start(db)[0]
-    assert wake.detail.endswith(f"the last session ended with no commit. Its "
-                                f"writes were {GONE}{PATH}")
+    # Review 3, finding 7: the sentence in Simplified Technical English.
+    assert wake.detail.endswith(f"the last session committed nothing. The "
+                                f"runner discarded its writes to {PATH}.")
     assert "nothing written" not in wake.detail
+    # Review 3, finding 1: attempt 2's seat reads the discard in the result
+    # of `batches.expect`, the read the runner pushes first.
+    backend = ScriptedBackend(["", "", ""])
+    run_session(db, wake, backend=backend, pins=Pins(model="scripted"), batch_id="b1")
+    first = backend.calls[0][1]
+    assert '"discarded before you"' in first
+    assert (f"{PATH}. No commit held them, so the tree is at HEAD.") in first
 
 
 def test_a_commit_stays_and_the_later_write_is_discarded(db, tmp_path):
@@ -113,11 +121,68 @@ class _Dies(ScriptedBackend):
 def test_a_failed_session_discards_its_write(db, tmp_path):
     """The failed session's handler ends a session too, so it discards."""
     _sb, root = _developer(db, tmp_path)
-    run_session(db, Wake("developer", "tick:batch_start", refs=("b1",)),
-                backend=_Dies([_write(PATH, S282_TEXT, 546, 556)]),
-                pins=Pins(model="scripted"), batch_id="b1")
+    out = run_session(db, Wake("developer", "tick:batch_start", refs=("b1",)),
+                      backend=_Dies([_write(PATH, S282_TEXT, 546, 556)]),
+                      pins=Pins(model="scripted"), batch_id="b1")
     assert _git(root, "status", "--porcelain") == ""
     assert GONE + PATH in _account(db)
+    # Review 3, finding 2: the loop prints the last error, so the failure
+    # stays last, and the discard line comes before it.
+    assert out.errors[-1].startswith("session failed:")
+    assert GONE + PATH in out.errors
+
+
+def test_a_note_whose_lines_head_holds_closes_at_the_end(db, tmp_path):
+    """Frame 297's review 3, finding 3: the session wrote the HEAD text back
+    and ended. The path is clean, so the discard does not name it. The note
+    still closes, because the tree holds its lines."""
+    _sb, root = _developer(db, tmp_path)
+    _run(db, [_write(PATH, S282_TEXT, 546, 556), _write(PATH, DECORATORS), "", "", ""])
+    assert _git(root, "status", "--porcelain") == ""
+    assert [r[0] for r in db.execute(
+        "SELECT status FROM drop_notes WHERE batch_id = 'b1'")] == ["restored"]
+
+
+def test_a_non_ascii_path_is_put_back_beside_the_others(tmp_path):
+    """Frame 297's review 3, finding 5, probe A: git quoted the non-ASCII
+    name, and the checkout refused the whole list. Each path comes back."""
+    from rota.core import worktrees
+
+    root = tmp_path / "wt"
+    root.mkdir()
+    name = "src/café.py"
+    (root / "src").mkdir()
+    for p in ("a.py", name):
+        (root / p).write_bytes(b"x = 1\n")
+    _git(root, "init", "-q")
+    _git(root, "config", "core.autocrlf", "false")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "c0")
+    for p in ("a.py", name):
+        (root / p).write_bytes(b"x = 2\n")
+    assert worktrees.discard(root) == sorted(["a.py", name])
+    assert (root / "a.py").read_bytes() == b"x = 1\n"
+    assert (root / name).read_bytes() == b"x = 1\n"
+
+
+def test_the_account_names_a_path_git_could_not_put_back(db, tmp_path, monkeypatch):
+    """Frame 297's review 3, finding 5: the account names only the paths the
+    checkout put back, and says which paths it could not put back."""
+    from rota.core import worktrees
+
+    _sb, root = _developer(db, tmp_path)
+    real = worktrees._git_paths
+
+    def refuse(root_, args, paths):
+        if args[0] == "checkout" and PATH in paths:
+            return False
+        return real(root_, args, paths)
+    monkeypatch.setattr(worktrees, "_git_paths", refuse)
+    (root / "NOTES.txt").write_bytes(b"changed\n")
+    _run(db, [_write(PATH, S282_TEXT, 546, 556), "", "", ""])
+    account = _account(db)
+    assert GONE + "NOTES.txt" in account
+    assert "The runner could not put back these paths: " + PATH in account
 
 
 def test_the_boot_discards_the_tree_of_a_running_batch(db, tmp_path):

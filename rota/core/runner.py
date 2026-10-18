@@ -5302,9 +5302,7 @@ def run_session(
         sandbox_mod.stage_park_relay(sb.ctx)
         # law 4: an uncommitted change never existed. The tree goes back to
         # HEAD before the rows land, so the closed notes land with them.
-        gone = _discard_at_end(conn, wake, sb.ctx, stage=True)
-        if gone:
-            outcome.errors.append(lifecycle_mod.DISCARDED + ", ".join(gone))
+        outcome.errors.extend(_discard_at_end(conn, wake, sb.ctx, stage=True))
         result = SessionResult(
             session_id=session_id,
             role=wake.role,
@@ -5357,6 +5355,11 @@ def run_session(
         # colon as a call name whenever it holds a dot. Never head a line here
         # with a dotted op name.
         outcome.errors.extend(getattr(sb.ctx, "cuts", None) or ())
+        # A note of a landed row whose lines HEAD holds is moot after the
+        # discard, so it closes in the database (frame 297's review 3,
+        # finding 3).
+        if wake.role == "developer" and sb.ctx.batch_id:
+            lifecycle_mod.close_restored_notes(conn, sb.ctx.batch_id)
         session_note(conn, session_id, outcome.errors)
         outcome.committed = True
         outcome.result = result
@@ -5391,11 +5394,15 @@ def run_session(
         # discard runs here too (frame 297). The staged rows never land,
         # so the landed notes close in the database.
         try:
-            gone = _discard_at_end(conn, wake, sb.ctx, stage=False)
-            if gone:
-                line = lifecycle_mod.DISCARDED + ", ".join(gone)
-                outcome.errors.append(line)
-                session_note(conn, session_id, [line])
+            lines = _discard_at_end(conn, wake, sb.ctx, stage=False)
+            if lines:
+                # The loop prints the last error, so the failure stays last
+                # (frame 297's review 3, finding 2). The account turn comes
+                # after the failure turn.
+                at = next((k for k, e in enumerate(outcome.errors)
+                           if e.startswith("session failed:")), len(outcome.errors))
+                outcome.errors[at:at] = lines
+                session_note(conn, session_id, lines)
             conn.commit()
         except Exception as gone_exc:  # noqa: BLE001 -- the record must not hide the failure
             outcome.errors.append(f"and the discard at the end failed: {gone_exc!r}")
@@ -5405,19 +5412,25 @@ def run_session(
 def _discard_at_end(conn: sqlite3.Connection, wake: Wake, ctx, *,
                     stage: bool) -> list[str]:
     """Put a Developer session's batch worktree back to HEAD at the end, and
-    return the paths discarded. Only the Developer writes the tree, and a
-    message wake gives other roles the running batch (frame 297). With
-    `stage`, the closes of the open notes go to the session's own writes."""
+    return the account's lines: the paths put back, and the paths git could
+    not put back. Only the Developer writes the tree, and a message wake
+    gives other roles the running batch (frame 297). With `stage`, the
+    closes of the open notes go to the session's own writes."""
     bid = getattr(ctx, "batch_id", None)
     if wake.role != "developer" or not bid:
         return []
-    gone = lifecycle_mod.discard_uncommitted(conn, bid, close_notes=not stage)
+    failed: list[str] = []
+    gone = lifecycle_mod.discard_uncommitted(conn, bid, close_notes=not stage,
+                                             failed_out=failed)
     if stage and gone:
         norm = {p.replace(chr(92), "/") for p in gone}
         for p in list(api._open_notes(ctx)):
             if os.path.normpath(p).replace(chr(92), "/") in norm:
                 api._put_note(ctx, p, None)
-    return gone
+    lines = [lifecycle_mod.DISCARDED + ", ".join(gone)] if gone else []
+    if failed:
+        lines.append(lifecycle_mod.NOT_PUT_BACK + ", ".join(failed))
+    return lines
 
 
 def _recipient_of(fn: str, g) -> str:

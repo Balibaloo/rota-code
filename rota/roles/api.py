@@ -17497,7 +17497,15 @@ def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
         "ORDER BY confidence, grain_kind, grain", (bid,))]
     tests = [dict(r) for r in ctx.conn.execute(
         "SELECT id, criterion_id, path FROM tests WHERE batch_id = ? ORDER BY id", (bid,))]
+    # The runner pushes this read first, so the seat reads the discard here.
+    # The wake's detail is not in the prompt (frame 297's review 3,
+    # finding 1). The fact comes from the account the discard wrote.
+    from ..core.lifecycle import last_discard
+    gone = last_discard(ctx.conn, bid)
+    before = ({"discarded before you": f"{', '.join(gone)}. No commit held them, "
+                                       f"so the tree is at HEAD."} if gone else {})
     return {
+        **before,
         "batch": bid,
         "item": row["item_text"] or "",
         "the principal said": said,

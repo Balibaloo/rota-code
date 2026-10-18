@@ -253,16 +253,21 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
 
 # The account's words for a discard. The next batch-start wake says the
 # same words (frame 297).
-DISCARDED = "discarded at the session's end, no commit held them: "
+DISCARDED = "The runner discarded the writes that no commit held: "
+# The account's words for a path the discard could not put back.
+NOT_PUT_BACK = "The runner could not put back these paths: "
 
 
 def discard_uncommitted(conn: sqlite3.Connection, batch_id: str,
-                        close_notes: bool = True) -> list[str]:
+                        close_notes: bool = True,
+                        failed_out: list[str] | None = None) -> list[str]:
     """
     Put the batch's worktree back to its HEAD, and return the paths that
     no commit held. The batch's test files stay, as `_uncommitted` counts
     them. With `close_notes`, the open `drop_notes` rows of those paths
-    close, because their lines are back.
+    close, because their lines are back. So does each open note whose
+    lines the tree holds (frame 297's review 3, finding 3). `failed_out`
+    gets each path git could not put back.
 
     law 4: an uncommitted change never existed. Ratified 2026-09-16: "A
     session commits or discards before it ends." Night 156's s214 ended
@@ -280,7 +285,7 @@ def discard_uncommitted(conn: sqlite3.Connection, batch_id: str,
         return []
     keep = {r[0].replace(chr(92), "/") for r in conn.execute(
         "SELECT path FROM tests WHERE batch_id = ?", (batch_id,))}
-    gone = worktrees.discard(row["worktree"], keep)
+    gone = worktrees.discard(row["worktree"], keep, failed_out)
     if close_notes and gone:
         norm = {p.replace(chr(92), "/") for p in gone}
         for r in conn.execute("SELECT path FROM drop_notes WHERE batch_id = ? "
@@ -288,7 +293,63 @@ def discard_uncommitted(conn: sqlite3.Connection, batch_id: str,
             if os.path.normpath(r["path"]).replace(chr(92), "/") in norm:
                 conn.execute("UPDATE drop_notes SET status = 'restored' "
                              "WHERE batch_id = ? AND path = ?", (batch_id, r["path"]))
+    if close_notes:
+        close_restored_notes(conn, batch_id)
     return gone
+
+
+def close_restored_notes(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """
+    Close each open `drop_notes` row of the batch whose lines the worktree
+    holds, and return its path. The check is the commit door's `_restored`.
+
+    Frame 297's review 3, finding 3: a session wrote the HEAD text back and
+    ended. The path was clean, so the discard did not close its note. A
+    stale note then refuses the next seat's first note.
+    """
+    import json
+    from pathlib import Path
+
+    from ..roles.api import _restored
+
+    row = conn.execute("SELECT worktree FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    if not (row and row["worktree"]) or not Path(row["worktree"]).is_dir():
+        return []
+    closed = []
+    for r in conn.execute("SELECT path, lines, defs, whole, noted FROM drop_notes "
+                          "WHERE batch_id = ? AND status = 'open'",
+                          (batch_id,)).fetchall():
+        try:
+            now = (Path(row["worktree"]) / r["path"]).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            now = ""
+        entry = {"lines": json.loads(r["lines"]), "defs": json.loads(r["defs"]),
+                 "whole": json.loads(r["whole"]), "noted": r["noted"]}
+        if _restored(now, entry):
+            conn.execute("UPDATE drop_notes SET status = 'restored' "
+                         "WHERE batch_id = ? AND path = ?", (batch_id, r["path"]))
+            closed.append(r["path"])
+    return closed
+
+
+def last_discard(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """The paths that the end of the batch's last Developer session
+    discarded, read from that session's account. [] when it discarded
+    nothing (frame 297)."""
+    last = conn.execute(
+        "SELECT id FROM sessions WHERE role = 'developer' AND wake_refs LIKE ? "
+        "ORDER BY seq DESC LIMIT 1", (f'%"{batch_id}"%',)).fetchone()
+    if not last:
+        return []
+    for (text,) in conn.execute(
+            "SELECT completion FROM turns WHERE session_id = ? ORDER BY seq DESC",
+            (last["id"],)):
+        for line in (text or "").splitlines():
+            line = line.removeprefix("- ")
+            if line.startswith(DISCARDED):
+                return [p for p in line[len(DISCARDED):].split(", ") if p]
+    return []
 
 
 def head_of(conn: sqlite3.Connection, batch_id: str) -> str | None:
