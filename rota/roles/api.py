@@ -9723,7 +9723,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         offer = (f"The words name {named}. Revise the line the words are about."
                  if named else
                  "The words name no line of the request, and a revise of the "
-                 "request needs his words on the request.")
+                 "request needs the principal's words on the request.")
         raise ValueError(
             f"{line} is the team's note, not your request. To drop the note, "
             f"contest it. revise rewrites a line of what the principal asked "
