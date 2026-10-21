@@ -394,11 +394,29 @@ def test_a_write_that_puts_the_tail_back_closes_the_note(db, tmp_path):
 
 BASE_HEAD = 'base_message = message % {"prog": prog_name, "package": pack'
 
+# Frame 283's W1 a: a ledger note closes the note, and the commit door
+# still refuses the removal, because no criterion names the lines.
+UNRULED = f"{PATH}: this commit removes "
+UNRULED_STEP = ("The team's note does not discharge a removal. Put the lines "
+                "back with code.write and commit, or send msg.escalate_architect "
+                "and name the removal.")
+
+
+def _unruled(sb, root):
+    """The commit after the closing note is refused, and HEAD stays."""
+    head = _git(root, "rev-parse", "HEAD")
+    assert PATH not in api._open_notes(sb.ctx)
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="the removal")
+    assert str(err.value).startswith(UNRULED)
+    assert str(err.value).endswith(UNRULED_STEP)
+    assert _git(root, "rev-parse", "HEAD") == head
+
 
 def test_a_ledger_note_that_names_every_dropped_statement_closes_the_note(db, tmp_path):
-    """Frame 283's ends-when: a meant removal is committed after a landed
-    note. The ledger note names the path and each of the three dropped
-    statements, so the commit after it lands."""
+    """Frame 283's ends-when, revised by its W1 a: the ledger note names the
+    path and each of the three dropped statements, so it closes the note.
+    A note is the seat's own claim, so the commit after it is refused."""
     sb, root = _developer(db, tmp_path)
     _noted_then_refused(sb, root)
     lines = [x[1] for x in api._open_notes(sb.ctx)[PATH]["lines"]]
@@ -406,18 +424,19 @@ def test_a_ledger_note_that_names_every_dropped_statement_closes_the_note(db, tm
     sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
             assumption=f"The item asks for the removal: {PATH} no longer "
                        f"holds `{BASE_HEAD}`, `echo(` and `ctx.exit()`.")
-    assert sb.call("code.commit", message="the removal")["committed"] is True
+    _unruled(sb, root)
 
 
 def test_a_ledger_note_that_names_one_shown_statement_closes_the_note(db, tmp_path):
     """Frame 283's review 3, finding 2: one line that the note shows closes
     the note. This replaces review 1's rule of every line, because the seat
-    cannot quote a line the note never showed."""
+    cannot quote a line the note never showed. W1 a: the commit after it is
+    refused all the same."""
     sb, root = _developer(db, tmp_path)
     _noted_then_refused(sb, root)
     sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
             assumption=f"{PATH} keeps one `echo(` call for the version.")
-    assert sb.call("code.commit", message="the removal")["committed"] is True
+    _unruled(sb, root)
 
 
 def test_a_note_on_one_path_lets_a_commit_of_another_path_land(db, tmp_path):
@@ -473,7 +492,8 @@ def test_s215s_ledger_that_names_the_path_in_about_ref_closes_the_note(db, tmp_p
     """Frame 283's residue, night 156's s215: the seat named the path in
     `about_ref`, where the ledger's schema puts it, and a dropped line in
     the sentence. The close read the sentence only, so five landed notes
-    closed nothing and the commit was refused to the session's end."""
+    closed nothing and the commit was refused to the session's end. W1 a:
+    the note closes, and the commit is refused for the unruled removal."""
     sb, root = _developer(db, tmp_path)
     # The night's index held the path, so `about_ref` resolved to it.
     db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES "
@@ -484,7 +504,7 @@ def test_s215s_ledger_that_names_the_path_in_about_ref_closes_the_note(db, tmp_p
             kind="default",
             assumption="removed echo(msg, color=ctx.color) and ctx.exit() from "
                        "callback to avoid duplication since main handles exit")
-    assert sb.call("code.commit", message="the removal")["committed"] is True
+    _unruled(sb, root)
 
 
 def _index_path(db):

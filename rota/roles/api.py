@@ -16558,6 +16558,9 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     noted = _unread_drop_refusal(ctx, tree)
     if noted:
         raise ValueError(noted)
+    unruled = _unruled_removal(ctx, tree)
+    if unruled:
+        raise ValueError(unruled)
     # A commit that leaves a criterion's surface undefined is a certain
     # ImportError for every test of it. tipsX (2026-09-09): the criterion
     # named `main.py::split_bill`, the Developer repurposed `calculate_tip`
@@ -16773,6 +16776,106 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
     said = " ".join(f"{p}: {n}" for p, n in later)
     return (f"a code.write in an earlier reply returned a note, and the tree "
             f"still does not hold those lines. {said} {routes}")
+
+
+def _unruled_removal(ctx: Ctx, tree) -> str | None:
+    """The refusal of a commit that removes a base statement that no ruling
+    names, or None. The door reads the tree at the commit, not the status
+    of the `drop_notes` row."""
+    # Frame 283's W1 a. Night 158's s279 logged a false note that named
+    # `ctx.exit()`, and bb7c4492 landed the removal. A note is the seat's
+    # own claim, so only a ruling admits a removal (composition: only a
+    # fact or a ruling gates). The ledger close set the row to `restored`.
+    closed = _closed_notes(ctx)
+    if not closed or tree is None:
+        return None
+    from pathlib import Path as _Path
+    dirty = None
+    texts = None
+    for p, e in closed.items():
+        try:
+            now = (_Path(tree) / p).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            now = ""
+        if _restored(now, e):
+            continue
+        if dirty is None:
+            dirty = {_grain_path(f) for f in _uncommitted(ctx, tree)}
+        # A path the commit does not take carries no removal into it.
+        if _grain_path(p) not in dirty:
+            continue
+        if texts is None:
+            texts = _ruling_texts(ctx)
+        gone = [(shown, keys) for shown, keys in _gone_statements(now, e)
+                if not any(_says(t, k) for t in texts for k in keys)]
+        if not gone:
+            continue
+        one = len(gone) == 1
+        return (f"{p}: this commit removes {', '.join(s for s, _k in gone)}, and "
+                f"no criterion, request or ruling of the principal names "
+                f"{'it' if one else 'them'}. The team's note does not discharge "
+                f"a removal. Put the {'line' if one else 'lines'} back with "
+                f"code.write and commit, or send msg.escalate_architect and "
+                f"name the removal.")
+    return None
+
+
+def _closed_notes(ctx: Ctx) -> dict:
+    """The closed `dropped` notes of the batch: path -> entry. The landed
+    rows first, then this session's staged writes in order, as
+    `_open_notes` reads them."""
+    import json as _json
+    bid = getattr(ctx, "batch_id", None)
+    if not bid:
+        return {}
+    rows: dict = {}
+    for r in ctx.conn.execute(
+            "SELECT path, status, note, lines, defs, whole, noted FROM drop_notes "
+            "WHERE batch_id = ?", (bid,)):
+        rows[r["path"]] = dict(r)
+    for w in ctx.writes or []:
+        if w[0] == "drop_notes" and w[2].get("batch_id") == bid:
+            rows[w[2]["path"]] = w[2]
+    return {p: {"note": v["note"], "lines": _json.loads(v["lines"]),
+                "defs": _json.loads(v["defs"]), "whole": _json.loads(v["whole"]),
+                "noted": v["noted"]}
+            for p, v in rows.items() if v["status"] != "open"}
+
+
+def _gone_statements(text: str, e: dict) -> list[tuple[str, list[str]]]:
+    """Each stored line or definition of `e` that `text` does not hold, as
+    (the line as a refusal shows it, the words that name it). A line's call
+    name names it too, as `ctx.exit` names `ctx.exit()`."""
+    spans = _def_spans(text)
+    names = {n for n, _lo, _hi in spans or []}
+    out: list = []
+    for owner, line, n in e["lines"]:
+        here = _def_lines(text, spans, owner) if spans is not None else None
+        if here is not None and here.count(line) >= n:
+            continue
+        m = re.search(re.escape(_quote(line[:60])) + r" at line (\d+)", e["note"])
+        shown = f"{_quote(line)} at line {m.group(1)}" if m else _quote(line)
+        call = re.match(r"(?:(?:return|await|yield)\s+)?([A-Za-z_][\w.]*)\s*\(", line)
+        out.append((shown, [line] + ([call.group(1)] if call else [])))
+    for d in e["defs"]:
+        if d not in names:
+            out.append((_quote(d), [d, d.rsplit(".", 1)[-1]]))
+    return out
+
+
+def _ruling_texts(ctx: Ctx) -> list[str]:
+    """The words that can rule a removal: the criteria of the batch, the
+    request's text and the landed rulings of the principal."""
+    bid = ctx.batch_id
+    out = [r["text"] or "" for r in ctx.conn.execute(
+        "SELECT c.text FROM criteria c JOIN batch_tickets bt "
+        "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (bid,))]
+    out += [r["text"] or "" for r in ctx.conn.execute(
+        "SELECT i.text FROM items i JOIN batches b ON b.item_id = i.id "
+        "WHERE b.id = ?", (bid,))]
+    out += [r["words"] or "" for r in ctx.conn.execute(
+        "SELECT words FROM rulings WHERE status = 'landed'")]
+    return out
 
 
 def _open_notes(ctx: Ctx) -> dict:
