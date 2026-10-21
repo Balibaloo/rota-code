@@ -84,6 +84,25 @@ gate waits for the night's end.
   `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/5389be74-1e5e-433d-aa86-c4a8d594cb8e/scratchpad/`,
   `f201_*`, `f301_*`.
 
+## At the hand-off, about 16:30
+
+Night 158 is still running from b650633c, walk 3, with four CYCLE lines
+read and recorded: cycles 1 and 4 are frame 266's parser on a Critic's
+quoted diff line, two shapes, the night's biggest wall and free; cycles 2
+and 3 are the Liaison contesting line 2, the code line, whatever he says,
+with frame 298's door right both times and the seat repeating the
+identical call, lines of 15:3x and 15:5x on frame 298 with the repair
+shape. Frame 201's door never fired on this night. The Critic's bg_1 and
+bg_3 both died at the parser, so the night's read counts frame 201 at 0
+of 0 unless a later batch reaches it.
+
+Pass 1b of frame 301 is committed with its touched tests green and its
+gate owed: run the gate from a worktree at that commit after the night
+ends, with the register and the baseline copied in, before anything else
+lands on `api.py`. Your first cycles: the watch on `.rota/night158.log`
+for `launcher done`, then the night's read and sprint 15's order, then
+that gate, then frame 266, then frame 201's pass 2 and frames 302 and 303.
+
 ## Roman's last words, with time
 
 - About 12:55: "pause all work please". The implementer of frame 301 was
