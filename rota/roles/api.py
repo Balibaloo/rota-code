@@ -11285,6 +11285,12 @@ def _line_held(line: str, added: list[str]) -> bool:
 # criterion that asks for a TypeError, and the door admitted it.
 _NO_BEHAVIOUR = ("a blank line, `pass`, `...`, a comment, a plain import or a "
                  "docstring line")
+# Each kind for a value of several lines of that kind (frame 201).
+_NO_BEHAVIOUR_PLURAL = {
+    "a blank line": "blank lines", "`pass`": "`pass` lines",
+    "`...`": "`...` lines", "a comment": "comments",
+    "a plain import": "plain imports", "a docstring line": "docstring lines",
+}
 _HEADER_STARTS = ("def ", "async def ", "class ")
 _FENCES = ('"""', "'''")
 # A header line that ends in one of these continues on the next line.
@@ -11490,18 +11496,61 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             f"line>'}} for each of {named}, each line copied from a line of "
             f"the [diff] block that starts with +. If no added line meets "
             f"{missing[0]}, that is a fail on it: {claim}")
+    kinds = _added_kinds(_batch_diff(ctx, batch_id))
+    # With no near line, name the lines the seat can name, so a correct
+    # batch does not go to the fail route (frame 180's review: s134's next
+    # value, `raise TypeError`, is not in the diff). Three refusals read
+    # this one list.
+    code = list(dict.fromkeys(a for a, k in kinds if k is None))
+    listed = ""
+    if code:
+        shown = ", ".join(repr(a) for a in code[:_CODE_LINES_MAX])
+        more = (f", and {len(code) - _CODE_LINES_MAX} more"
+                if len(code) > _CODE_LINES_MAX else "")
+        listed = f"The added lines of code are {shown}{more}. "
+
+    def claim_for(cid: str) -> str:
+        return _offer(
+            ctx, f"`verdicts.claim_encodes({cid!r}, encodes=...)` "
+                 f"first, as for any fail",
+            "verdicts.claim_encodes",
+            {"criterion_id": cid, "encodes": True},
+            then=(_fail_on(batch_id, cid),))
+
     # A block is not a line. A whole added function given for every
     # criterion lands on any batch, so the line names nothing (frame 170's
     # review of 845e0b80: the answer case's runs 4 and 5 sent six lines).
     # Two parts stay admitted, for a statement that wraps.
+    # The refusal names the added code lines and the fail route (frame 201,
+    # night 157's W3, cause 9 of `plans/wall-guide.md`). Three Critics sent
+    # bg_2's three docstring lines again and again, because the refusal
+    # named no line of code and did not say that a docstring meets nothing.
     for cid in ids:
-        if len(parts[cid]) > _LINE_PARTS_MAX:
+        if len(parts[cid]) <= _LINE_PARTS_MAX:
+            continue
+        n = len(parts[cid])
+        # A part that the diff does not hold is a re-wrapped line, so only
+        # the held parts give the kind (s324 cut "to the message." apart).
+        held = [f for f in (_held_kinds(q, kinds) for q in parts[cid]) if f]
+        if held and all(all(f) for f in held):
+            found = {k for f in held for k in f}
+            kind = found.pop() if len(found) == 1 else None
+            plural = _NO_BEHAVIOUR_PLURAL.get(kind, "lines with no behaviour")
+            does = kind or _NO_BEHAVIOUR
             raise LinesRefusal(
-                f"the value for {cid} holds {len(parts[cid])} lines, and a "
-                f"pass names one added line per criterion. Copy the one line "
-                f"of the [diff] block that meets {cid}, without the +, and "
-                f"send the pass again")
-    kinds = _added_kinds(_batch_diff(ctx, batch_id))
+                f"the value for {cid} holds {n} lines, and they are {plural}. "
+                f"{does[0].upper()}{does[1:]} does nothing that a criterion "
+                f"asks for. A pass names one added line per criterion. Copy "
+                f"the one added line of code that does what {cid} says, "
+                f"without the +, and send the pass again. {listed}If no "
+                f"added line meets {cid}, that is a fail on it: "
+                f"{claim_for(cid)}")
+        raise LinesRefusal(
+            f"the value for {cid} holds {n} lines, and a pass names one added "
+            f"line per criterion. Copy the one line of the [diff] block that "
+            f"meets {cid}, without the +, and send the pass again. {listed}If "
+            f"no added line meets {cid}, that is a fail on it: "
+            f"{claim_for(cid)}")
     texts = [r["text"] or "" for r in ctx.conn.execute(
         "SELECT c.text FROM criteria c "
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
@@ -11519,23 +11568,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                     best, ratio = a, r
             nearest = (f"The added line nearest to it: {best!r}. "
                        if ratio >= 0.6 else "")
-            # With no near line, name the lines the seat can name, so a
-            # correct batch does not go to the fail route (frame 180's
-            # review: s134's next value, `raise TypeError`, is not in the
-            # diff).
-            code = list(dict.fromkeys(a for a, k in kinds if k is None))
-            listed = ""
-            if code:
-                shown = ", ".join(repr(a) for a in code[:_CODE_LINES_MAX])
-                more = (f", and {len(code) - _CODE_LINES_MAX} more"
-                        if len(code) > _CODE_LINES_MAX else "")
-                listed = f"The added lines of code are {shown}{more}. "
-            claim = _offer(
-                ctx, f"`verdicts.claim_encodes({cid!r}, encodes=...)` "
-                     f"first, as for any fail",
-                "verdicts.claim_encodes",
-                {"criterion_id": cid, "encodes": True},
-                then=(_fail_on(batch_id, cid),))
+            claim = claim_for(cid)
             # A quote of a criterion is not a line of the change. The words
             # say so first, so a correct batch is not sent to a fail (frame
             # 180's delta review: the answer case's run 1 quoted `prorate(999,
@@ -11561,18 +11594,15 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         found = [_held_kinds(q, kinds) for q in parts[cid]]
         if all(f and all(f) for f in found):
             quote, kind = parts[cid][0], found[0][0]
-            claim = _offer(
-                ctx, f"`verdicts.claim_encodes({cid!r}, encodes=...)` "
-                     f"first, as for any fail",
-                "verdicts.claim_encodes",
-                {"criterion_id": cid, "encodes": True},
-                then=(_fail_on(batch_id, cid),))
+            # The code lines come before the fail route, as in the block
+            # refusal, so a two-line docstring gets the same candidates
+            # (frame 201).
             raise LinesRefusal(
                 f"the line for {cid}, {quote!r}, is {kind}, and "
                 f"{_NO_BEHAVIOUR} does nothing that a criterion asks for. "
                 f"Copy the added line that does what {cid} says, without the "
-                f"+, and send the pass again. If no added line meets {cid}, "
-                f"that is a fail on it: {claim}")
+                f"+, and send the pass again. {listed}If no added line meets "
+                f"{cid}, that is a fail on it: {claim_for(cid)}")
 
 
 def _fail_on(batch_id: str, cid: str) -> tuple:

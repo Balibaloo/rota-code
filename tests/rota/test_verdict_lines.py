@@ -268,17 +268,28 @@ def test_a_context_line_is_not_an_added_line(s279):
     assert said.startswith("the line for cr_1_version_option_show_python_flag")
 
 
+# The code lines of s279's diff, as a refusal lists them. The comment line
+# does nothing, so the list leaves it out.
+_S279_CODE = ("The added lines of code are "
+              + ", ".join(repr(ln.strip()) for ln in (L_FLAG, L_VERSION, L_MESSAGE))
+              + ". ")
+
+
 def test_a_block_for_every_criterion_is_refused(s279):
     """Frame 170's review of 845e0b80: a 4-line dump given for all three
     criteria landed, so the lines named nothing."""
     block = "\n".join(ln.strip() for ln in (L_FLAG, L_NOTE, L_VERSION, L_MESSAGE))
     said = _refused(_critic(s279), batch_id="bg_3", result="pass",
                     lines={cid: block for cid in S279_IDS})
+    # Frame 201: the refusal names the added code lines, then the fail route.
     assert said == (
         "the value for cr_1_version_option_show_python_flag holds 4 lines, and "
         "a pass names one added line per criterion. Copy the one line of the "
         "[diff] block that meets cr_1_version_option_show_python_flag, without "
-        "the +, and send the pass again")
+        "the +, and send the pass again. " + _S279_CODE + "If no added line "
+        "meets cr_1_version_option_show_python_flag, that is a fail on it: "
+        "`verdicts.claim_encodes('cr_1_version_option_show_python_flag', "
+        "encodes=...)` first, as for any fail")
 
 
 def test_a_value_of_two_lines_lands(s279):
@@ -294,7 +305,14 @@ def test_a_value_of_three_lines_is_refused(s279):
     three = "\n".join(ln.strip() for ln in (L_NOTE, L_VERSION, L_FLAG))
     said = _refused(_critic(s279), batch_id="bg_3", result="pass",
                     lines={**S279_LINES, CR3: three})
-    assert said.startswith(f"the value for {CR3} holds 3 lines")
+    # Frame 201: a comment among code lines keeps the block sentence.
+    assert said == (
+        f"the value for {CR3} holds 3 lines, and a pass names one added line "
+        f"per criterion. Copy the one line of the [diff] block that meets "
+        f"{CR3}, without the +, and send the pass again. {_S279_CODE}If no "
+        f"added line meets {CR3}, that is a fail on it: "
+        f"`verdicts.claim_encodes({CR3!r}, encodes=...)` first, as for any "
+        f"fail")
 
 
 def test_an_empty_line_is_no_line(s279):
@@ -522,14 +540,19 @@ def test_ten_recorded_passes_are_refused(tmp_path, name, mode, batch_id, ids, te
 # Frame 180: a line with no behaviour meets no criterion. Night 130's s134
 # named `import json` for the criterion that asks for a TypeError.
 
-def _no_behaviour(cid, quote, kind) -> str:
+def _no_behaviour(cid, quote, kind, code=()) -> str:
+    """The refusal of a line with no behaviour. `code` holds the diff's
+    code lines, which the refusal lists before the fail route (frame 201)."""
+    listed = ("The added lines of code are "
+              + ", ".join(repr(c) for c in code) + ". ") if code else ""
     return (
         f"the line for {cid}, {quote!r}, is {kind}, and a blank line, `pass`, "
         f"`...`, a comment, a plain import or a docstring line does nothing "
         f"that a criterion asks for. Copy the added line that does what "
-        f"{cid} says, without the +, and send the pass again. If no added line meets "
-        f"{cid}, that is a fail on it: `verdicts.claim_encodes({cid!r}, "
-        f"encodes=...)` first, as for any fail")
+        f"{cid} says, without the +, and send the pass again. {listed}If no "
+        f"added line meets {cid}, that is a fail on it: "
+        f"`verdicts.claim_encodes({cid!r}, encodes=...)` first, as for any "
+        f"fail")
 
 
 def _repo_of(tmp_path, rel, before: str, after: str) -> tuple[str, str]:
@@ -599,11 +622,19 @@ def s134(tmp_path):
     return conn
 
 
+# The code lines of S134_ADDED, as a refusal lists them.
+S134_CODE = ["def echo_json(obj: object) -> None:",
+             'out = json.dumps(obj, separators=(",", ":"))',
+             "file = _default_text_stdout()",
+             r'file.write(out + "\n")',
+             "file.flush()"]
+
+
 def test_s134_pass_naming_import_json_is_refused(s134):
     (call,) = toolproto.extract(S134_CALL)
     said = _refused(_critic(s134, "bg_1"), **call.args)
     assert said == _no_behaviour("echo_json_compact_3", "import json",
-                                 "a plain import")
+                                 "a plain import", S134_CODE)
 
 
 def test_s134_pass_naming_the_dumps_line_lands(s134):
@@ -631,6 +662,9 @@ KIND_ADDED = (
     "    ...\n"
     "    return total  # the sum of a and one\n"
 )
+# The code lines of KIND_ADDED, as a refusal lists them.
+KIND_CODE = ["def work(a):", "total = a + 1", "if a:",
+             "return total  # the sum of a and one"]
 
 
 @pytest.fixture
@@ -657,7 +691,7 @@ def kinds(tmp_path):
 def test_a_line_with_no_behaviour_is_refused(kinds, value, quote, kind):
     said = _refused(_critic(kinds, "bg_1"), batch_id="bg_1", result="pass",
                     lines={"cr_1": value})
-    assert said == _no_behaviour("cr_1", quote, kind)
+    assert said == _no_behaviour("cr_1", quote, kind, KIND_CODE)
 
 
 @pytest.mark.parametrize("value", [
@@ -675,7 +709,9 @@ def test_the_s279_comment_alone_is_refused(s279):
     """s279's diff adds a comment line. Named alone, it is refused."""
     said = _refused(_critic(s279), batch_id="bg_3", result="pass",
                     lines={**S279_LINES, CR3: L_NOTE.strip()})
-    assert said == _no_behaviour(CR3, L_NOTE.strip(), "a comment")
+    assert said == _no_behaviour(
+        CR3, L_NOTE.strip(), "a comment",
+        [ln.strip() for ln in (L_FLAG, L_VERSION, L_MESSAGE)])
 
 
 # Frame 180, pass 2: the findings of the diff review of 7b25da26.
@@ -774,7 +810,8 @@ def test_a_header_over_two_lines_opens_a_docstring(tmp_path):
     said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
                     lines={"cr_1": "the prose of the doc."})
     assert said == _no_behaviour("cr_1", "the prose of the doc.",
-                                 "a docstring line")
+                                 "a docstring line",
+                                 ["def work(", "a,", "):", "return a"])
 
 
 # Frame 180, pass 3: the findings of the delta review of 6a2381f6.
@@ -850,3 +887,123 @@ def test_the_code_list_stops_at_eight(tmp_path):
                     lines={"cr_1": "zz"})
     assert "'value_7 = compute(7)', and 1 more. If no added line" in said
     assert "value_8" not in said
+
+
+def test_the_block_refusal_lists_eight_code_lines(tmp_path):
+    """The block refusal reads the same list, so it stops at the same eight."""
+    body = "".join(f"value_{i} = compute({i})\n" for i in range(9))
+    conn = _one_criterion(tmp_path, "work.py", "", body)
+    block = "\n".join(f"value_{i} = compute({i})" for i in range(3))
+    said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": block})
+    assert said.startswith("the value for cr_1 holds 3 lines")
+    assert "'value_7 = compute(7)', and 1 more. If no added line" in said
+    assert "value_8" not in said
+
+
+# Frame 201: night 157's W3. Three Critics named the docstring of bg_2 for
+# crit_show_python_version, and the block refusal named no line of code.
+
+BG2_IDS = ("crit_show_python_help", "crit_show_python_version",
+           "crit_show_python_default")
+BG2_HELP = ('    kwargs.setdefault("help", _("Show the version and exit." if not '
+            'show_python else _("Show the version and exit. (appends the '
+            'running Python version)")))\n')
+BG2_DOC = (
+    "    :param show_python: If True, append the running Python interpreter\n"
+    "        version string (major.minor.micro from sys.version_info) to the\n"
+    "        message. Defaults to False.\n")
+BG2_CODE = (
+    "    if show_python:\n"
+    "        import sys\n"
+    '        python_version = f"{sys.version_info.major}.'
+    '{sys.version_info.minor}.{sys.version_info.micro}"\n'
+    '        message = message + f" (Python {python_version})"\n')
+# A short `version_option`. The nine added lines of bg_2 fall in one hunk
+# with the docstring's opening fence, so the walk marks the docstring.
+BG2_BEFORE = (
+    "def version_option(\n"
+    "    message: str | None = None,\n"
+    "{flag}"
+    "    **kwargs: t.Any,\n"
+    ") -> t.Callable[[FC], FC]:\n"
+    '    """Add a ``--version`` option.\n'
+    "\n"
+    "    :param message: The message to show.\n"
+    "{doc}"
+    '    """\n'
+    "    if message is None:\n"
+    '        message = _("%(prog)s, version %(version)s")\n'
+    "{code}"
+    "{help}"
+    "    return option(**kwargs)\n"
+)
+BG2_OLD_HELP = '    kwargs.setdefault("help", _("Show the version and exit."))\n'
+# s324's call on night 157, verbatim from the `turns` table of
+# `.rota/clickI_night157.db`.
+S324_CALL = r"""verdicts.emit(batch_id='bg_2', result='pass', reason='', lines={'crit_show_python_help': 'Show the version and exit. (appends the running Python version)', 'crit_show_python_version': 'If True, append the running Python interpreter\n    version string (major.minor.micro from sys.version_info) to\n    the message.', 'crit_show_python_default': 'Defaults to False.'})"""
+# The code lines of bg_2's diff. `import sys` is a plain import, so the
+# list leaves it out.
+BG2_LISTED = ("The added lines of code are "
+              + ", ".join(repr(ln.strip()) for ln in (
+                  "    show_python: bool = False,",
+                  *BG2_CODE.splitlines()[0:1], *BG2_CODE.splitlines()[2:],
+                  BG2_HELP.rstrip("\n")))
+              + ". ")
+
+
+@pytest.fixture
+def bg2(tmp_path):
+    """Night 157's bg_2: the batch adds `show_python` to `version_option`."""
+    before = BG2_BEFORE.format(flag="", doc="", code="", help=BG2_OLD_HELP)
+    after = BG2_BEFORE.format(flag="    show_python: bool = False,\n",
+                              doc=BG2_DOC, code=BG2_CODE, help=BG2_HELP)
+    repo, head = _repo_of(tmp_path, "src/click/decorators.py", before, after)
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "bg_2", BG2_IDS, worktree=repo, head=head)
+    return conn
+
+
+def _bg2_fail_route(cid) -> str:
+    return (f"If no added line meets {cid}, that is a fail on it: "
+            f"`verdicts.claim_encodes({cid!r}, encodes=...)` first, as for "
+            f"any fail")
+
+
+def test_s324_docstring_block_names_the_code_lines(bg2):
+    """s324 sent three docstring lines, and the old refusal named no code
+    line. The refusal says that the lines are docstring lines, then lists
+    the code lines, then the fail route."""
+    (call,) = toolproto.extract("TOOL: " + S324_CALL)
+    said = _refused(_critic(bg2, "bg_2"), **call.args)
+    cid = "crit_show_python_version"
+    assert said == (
+        f"the value for {cid} holds 3 lines, and they are docstring lines. "
+        f"A docstring line does nothing that a criterion asks for. A pass "
+        f"names one added line per criterion. Copy the one added line of "
+        f"code that does what {cid} says, without the +, and send the pass "
+        f"again. " + BG2_LISTED + _bg2_fail_route(cid))
+    assert "'show_python: bool = False,'" in said
+    assert repr('message = message + f" (Python {python_version})"') in said
+    assert said.endswith("first, as for any fail")
+
+
+def test_s326_two_docstring_lines_name_the_code_lines(bg2):
+    """The first two lines of s326's value are two docstring lines. The
+    no-behaviour refusal lists the same code lines before the fail route."""
+    cid = "crit_show_python_version"
+    two = ("    :param show_python: If True, append the running Python "
+           "interpreter\n        version string (major.minor.micro from "
+           "sys.version_info) to the")
+    said = _refused(_critic(bg2, "bg_2"), batch_id="bg_2", result="pass",
+                    lines={"crit_show_python_help": BG2_HELP.strip(),
+                           cid: two,
+                           "crit_show_python_default":
+                               "show_python: bool = False,"})
+    quote = ":param show_python: If True, append the running Python interpreter"
+    assert said == (
+        f"the line for {cid}, {quote!r}, is a docstring line, and a blank "
+        f"line, `pass`, `...`, a comment, a plain import or a docstring line "
+        f"does nothing that a criterion asks for. Copy the added line that "
+        f"does what {cid} says, without the +, and send the pass again. "
+        + BG2_LISTED + _bg2_fail_route(cid))
