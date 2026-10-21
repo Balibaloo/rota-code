@@ -11533,6 +11533,20 @@ def _held_kinds(line: str, added: list[tuple[str, str | None]]) -> list:
     return [k for a, k in added if text in a]
 
 
+def _held_code(line: str, added: list[tuple[str, str | None]]) -> str:
+    """The added line of code that holds one named line, as `_line_held`
+    matches it, or "" when no code line holds it."""
+    text = line.strip()
+    if text.startswith("+"):
+        text = text[1:].strip()
+    code = [a for a, k in added if k is None]
+    if text in code:
+        return text
+    if len(text) < _LINE_PART_MIN:
+        return ""
+    return next((a for a in code if text in a), "")
+
+
 def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     """Refuse a pass that does not name an added line for each criterion.
 
@@ -11579,7 +11593,11 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             f"line>'}} for each of {named}, each line copied from a line of "
             f"the [diff] block that starts with +. If no added line meets "
             f"{missing[0]}, that is a fail on it: {claim}")
-    kinds = _added_kinds(_batch_diff(ctx, batch_id))
+    # The walk reads a diff with function context, never the seat's [diff]
+    # block. A plain hunk can start inside a docstring and show no opening
+    # fence. Then the walk reads docstring prose as code (frame 201's review
+    # 1, finding 1: night 157's bg_2, hunk `@@ -461,6 +462,9 @@`).
+    kinds = _added_kinds(_batch_diff(ctx, batch_id, function_context=True))
     # With no near line, name the lines the seat can name, so a correct
     # batch does not go to the fail route (frame 180's review: s134's next
     # value, `raise TypeError`, is not in the diff). Three refusals read
@@ -11628,12 +11646,20 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                 f"without the +, and send the pass again. {listed}If no "
                 f"added line meets {cid}, that is a fail on it: "
                 f"{claim_for(cid)}")
+        # The seat's own code lines come first, because the right line is
+        # among them, and the capped list of the diff can omit all of them
+        # (frame 201's review 1, finding 2, probe e1).
+        own = list(dict.fromkeys(_held_code(q, kinds) for q in parts[cid]))
+        own = [a for a in own if a]
+        sent = (f"One of the lines you sent is the line: "
+                f"{', '.join(repr(a) for a in own)}. Copy that one. "
+                if own else "")
         raise LinesRefusal(
             f"the value for {cid} holds {n} lines, and a pass names one added "
             f"line per criterion. Copy the one line of the [diff] block that "
-            f"meets {cid}, without the +, and send the pass again. {listed}If "
-            f"no added line meets {cid}, that is a fail on it: "
-            f"{claim_for(cid)}")
+            f"meets {cid}, without the +, and send the pass again. "
+            f"{sent}{listed}If no added line meets {cid}, that is a fail on "
+            f"it: {claim_for(cid)}")
     texts = [r["text"] or "" for r in ctx.conn.execute(
         "SELECT c.text FROM criteria c "
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
@@ -13865,12 +13891,13 @@ def _batch_base(ctx, tree) -> str:
     return _wt.base(tree, root)
 
 
-def _batch_diff(ctx, batch_id: str) -> str:
+def _batch_diff(ctx, batch_id: str, *, function_context: bool = False) -> str:
     """The batch's diff since its fork, or "" with no batch or no worktree.
 
     `code.read` gives this text to the Critic, and `verdicts.emit` checks a
     pass's lines against it. One computation keeps the two the same (frame
-    170)."""
+    170). `function_context` adds the whole function around each hunk. It
+    adds context lines only, so the added lines stay the same."""
     from ..core import worktrees as _wt
     row = ctx.conn.execute(
         "SELECT worktree FROM batches WHERE id = ?", (batch_id,)).fetchone()
@@ -13878,7 +13905,8 @@ def _batch_diff(ctx, batch_id: str) -> str:
         return ""
     # The whole batch since its fork. Frame 97: HEAD~1 hid every commit
     # but the last, and night 98's s183 lost 13 lines that way.
-    return _wt.diff(row["worktree"], _batch_base(ctx, row["worktree"]))
+    return _wt.diff(row["worktree"], _batch_base(ctx, row["worktree"]),
+                    function_context=function_context)
 
 
 def _added_lines(diff_text: str) -> list[str]:

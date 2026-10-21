@@ -350,8 +350,38 @@ def base(path: str | Path, root: str | Path | None) -> str:
     return fork or "HEAD~1"
 
 
-def diff(path: str | Path, against: str = "HEAD~1") -> str:
-    out = subprocess.run([*GIT, "-C", str(path), "diff", against, "HEAD"],
+def _python_attributes() -> str:
+    """A git attributes file that gives `*.py` git's own Python driver.
+
+    The file lives outside every repository, so no file of a batch changes.
+    """
+    import tempfile
+    path = Path(tempfile.gettempdir()) / "rota-diff-python.gitattributes"
+    want = b"*.py diff=python\n"
+    try:
+        if path.read_bytes() == want:
+            return path.as_posix()
+    except OSError:
+        pass
+    path.write_bytes(want)
+    return path.as_posix()
+
+
+def diff(path: str | Path, against: str = "HEAD~1", *,
+         function_context: bool = False) -> str:
+    """The diff of `path` from `against` to HEAD.
+
+    `function_context` gives each hunk its whole function, `git diff -W`.
+    A sample repository often has no `.gitattributes`, and then git finds
+    no indented `def`. So the Python driver comes from a file rota writes.
+    """
+    extra: list[str] = []
+    if function_context:
+        extra = ["-c", f"core.attributesFile={_python_attributes()}"]
+    cmd = [*GIT, *extra, "-C", str(path), "diff"]
+    if function_context:
+        cmd.append("-W")
+    out = subprocess.run([*cmd, against, "HEAD"],
                          capture_output=True, text=True)
     return out.stdout
 

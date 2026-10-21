@@ -275,6 +275,13 @@ _S279_CODE = ("The added lines of code are "
               + ". ")
 
 
+def _s279_sent(*held) -> str:
+    """The block refusal names the seat's own code lines first (frame 201's
+    review 1, finding 2)."""
+    return ("One of the lines you sent is the line: "
+            + ", ".join(repr(ln.strip()) for ln in held) + ". Copy that one. ")
+
+
 def test_a_block_for_every_criterion_is_refused(s279):
     """Frame 170's review of 845e0b80: a 4-line dump given for all three
     criteria landed, so the lines named nothing."""
@@ -286,7 +293,9 @@ def test_a_block_for_every_criterion_is_refused(s279):
         "the value for cr_1_version_option_show_python_flag holds 4 lines, and "
         "a pass names one added line per criterion. Copy the one line of the "
         "[diff] block that meets cr_1_version_option_show_python_flag, without "
-        "the +, and send the pass again. " + _S279_CODE + "If no added line "
+        "the +, and send the pass again. " + _s279_sent(L_FLAG, L_VERSION,
+                                                        L_MESSAGE)
+        + _S279_CODE + "If no added line "
         "meets cr_1_version_option_show_python_flag, that is a fail on it: "
         "`verdicts.claim_encodes('cr_1_version_option_show_python_flag', "
         "encodes=...)` first, as for any fail")
@@ -309,7 +318,8 @@ def test_a_value_of_three_lines_is_refused(s279):
     assert said == (
         f"the value for {CR3} holds 3 lines, and a pass names one added line "
         f"per criterion. Copy the one line of the [diff] block that meets "
-        f"{CR3}, without the +, and send the pass again. {_S279_CODE}If no "
+        f"{CR3}, without the +, and send the pass again. "
+        f"{_s279_sent(L_VERSION, L_FLAG)}{_S279_CODE}If no "
         f"added line meets {CR3}, that is a fail on it: "
         f"`verdicts.claim_encodes({CR3!r}, encodes=...)` first, as for any "
         f"fail")
@@ -1007,3 +1017,145 @@ def test_s326_two_docstring_lines_name_the_code_lines(bg2):
         f"does nothing that a criterion asks for. Copy the added line that "
         f"does what {cid} says, without the +, and send the pass again. "
         + BG2_LISTED + _bg2_fail_route(cid))
+
+
+# Frame 201, pass 2: review 1's finding 1. The real hunk of night 157's bg_2
+# starts inside the docstring of `version_option`, so the plain diff shows
+# no opening fence. The fixture is the real file, so the shape is the
+# night's shape.
+
+CLICKI = "D:/repos/_AI/sample_repos/clickI"
+# Night 157's fork of bg_2. Its `decorators.py` is the file at clickI's
+# head on 2026-10-21. A pinned commit keeps the fixture still when a later
+# night moves the head.
+CLICKI_FORK = "2c8cd3ac958a7eb316d67f2d316c27086c4c0369"
+
+
+def _clicki_decorators() -> str | None:
+    out = subprocess.run([*GIT, "-C", CLICKI, "show",
+                          f"{CLICKI_FORK}:src/click/decorators.py"],
+                         capture_output=True)
+    return out.stdout.decode() if out.returncode == 0 else None
+
+
+REAL_BEFORE = _clicki_decorators()
+
+
+def _once(text: str, old: str, new: str) -> str:
+    assert text.count(old) == 1, old
+    return text.replace(old, new)
+
+
+def _real_bg2_after(before: str) -> str:
+    """The nine added lines of bg_2, in the places night 157's diff put
+    them, and the old help line removed. Each edit stays inside the
+    function, because the file repeats some of its lines."""
+    start = before.index("\ndef version_option(")
+    end = before.index("\ndef ", start + 1)
+    return before[:start] + _bg2_body(before[start:end]) + before[end:]
+
+
+def _bg2_body(before: str) -> str:
+    after = _once(before,"    message: str | None = None,\n"
+                  "    **kwargs: t.Any,\n) -> t.Callable[[FC], FC]:\n"
+                  '    """Add a ``--version`` option',
+                  "    message: str | None = None,\n"
+                  "    show_python: bool = False,\n"
+                  "    **kwargs: t.Any,\n) -> t.Callable[[FC], FC]:\n"
+                  '    """Add a ``--version`` option')
+    after = _once(after, '        ``"%(prog)s, version %(version)s"``.\n',
+                  '        ``"%(prog)s, version %(version)s"``.\n' + BG2_DOC)
+    after = _once(after, '        message = _("%(prog)s, version %(version)s")\n'
+                  "\n",
+                  '        message = _("%(prog)s, version %(version)s")\n'
+                  "\n" + BG2_CODE)
+    tail = '\n    if not param_decls:\n        param_decls = ("--version",)\n'
+    after = _once(after, "        ctx.exit()\n" + tail,
+                  "        ctx.exit()\n" + BG2_HELP + tail)
+    return _once(after, BG2_OLD_HELP, "")
+
+
+needs_clicki = pytest.mark.skipif(
+    REAL_BEFORE is None, reason=f"no {CLICKI} at {CLICKI_FORK[:8]}")
+
+
+@pytest.fixture
+def real_bg2(tmp_path):
+    """Night 157's bg_2 on the real `decorators.py` of clickI."""
+    repo, head = _repo_of(tmp_path, "src/click/decorators.py", REAL_BEFORE,
+                          _real_bg2_after(REAL_BEFORE))
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "bg_2", BG2_IDS, worktree=repo, head=head)
+    return conn
+
+
+@needs_clicki
+def test_the_real_hunk_starts_inside_the_docstring(real_bg2, tmp_path):
+    """The plain diff has the night's shape: the hunk of the three
+    `:param show_python:` lines shows no docstring fence."""
+    from rota.core import worktrees as _wt
+    plain = _wt.diff(tmp_path / "repo", "HEAD~1")
+    hunks = plain.split("\n@@ ")
+    (hunk,) = [h for h in hunks if "+    :param show_python:" in h]
+    assert hunk.startswith("-461,6 +462,9 @@")
+    assert '"""' not in hunk
+    # The walk's diff opens the function, and the seat's diff is plain.
+    whole = _wt.diff(tmp_path / "repo", "HEAD~1", function_context=True)
+    assert "\n def version_option(\n" in whole
+    from rota.roles.api import _added_kinds
+    assert [a for a, _ in _added_kinds(whole)] == \
+        [a for a, _ in _added_kinds(plain)]
+
+
+@needs_clicki
+def test_s324_on_the_real_diff_gets_the_docstring_text(real_bg2):
+    """s324's exact call on the real diff: the three lines are docstring
+    lines, the list holds no docstring line, then the fail route."""
+    (call,) = toolproto.extract("TOOL: " + S324_CALL)
+    said = _refused(_critic(real_bg2, "bg_2"), **call.args)
+    cid = "crit_show_python_version"
+    assert said == (
+        f"the value for {cid} holds 3 lines, and they are docstring lines. "
+        f"A docstring line does nothing that a criterion asks for. A pass "
+        f"names one added line per criterion. Copy the one added line of "
+        f"code that does what {cid} says, without the +, and send the pass "
+        f"again. " + BG2_LISTED + _bg2_fail_route(cid))
+    assert ":param show_python" not in said
+
+
+@needs_clicki
+def test_one_real_docstring_line_is_refused(real_bg2):
+    """One docstring line alone lands no pass on the real diff."""
+    cid = "crit_show_python_version"
+    quote = ":param show_python: If True, append the running Python interpreter"
+    said = _refused(_critic(real_bg2, "bg_2"), batch_id="bg_2", result="pass",
+                    lines={"crit_show_python_help": BG2_HELP.strip(),
+                           cid: quote,
+                           "crit_show_python_default":
+                               "show_python: bool = False,"})
+    assert said == (
+        f"the line for {cid}, {quote!r}, is a docstring line, and a blank "
+        f"line, `pass`, `...`, a comment, a plain import or a docstring line "
+        f"does nothing that a criterion asks for. Copy the added line that "
+        f"does what {cid} says, without the +, and send the pass again. "
+        + BG2_LISTED + _bg2_fail_route(cid))
+
+
+def test_the_block_text_names_the_held_code_lines_first(tmp_path):
+    """Review 1's probe e1: forty code lines and a block of three. The
+    capped list omits all three, so the text names them first."""
+    body = "".join(f"value_{i} = compute({i})\n" for i in range(40))
+    conn = _one_criterion(tmp_path, "work.py", "", body)
+    block = "\n".join(f"value_{i} = compute({i})" for i in (10, 20, 30))
+    said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": block})
+    shown = ", ".join(repr(f"value_{i} = compute({i})") for i in range(8))
+    assert said == (
+        "the value for cr_1 holds 3 lines, and a pass names one added line "
+        "per criterion. Copy the one line of the [diff] block that meets "
+        "cr_1, without the +, and send the pass again. One of the lines you "
+        "sent is the line: 'value_10 = compute(10)', 'value_20 = "
+        "compute(20)', 'value_30 = compute(30)'. Copy that one. The added "
+        f"lines of code are {shown}, and 32 more. If no added line meets "
+        "cr_1, that is a fail on it: `verdicts.claim_encodes('cr_1', "
+        "encodes=...)` first, as for any fail")
