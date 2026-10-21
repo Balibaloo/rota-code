@@ -277,9 +277,13 @@ _S279_CODE = ("The added lines of code are "
 
 def _s279_sent(*held) -> str:
     """The block refusal names the seat's own code lines first (frame 201's
-    review 1, finding 2)."""
-    return ("One of the lines you sent is the line: "
-            + ", ".join(repr(ln.strip()) for ln in held) + ". Copy that one. ")
+    review 1, finding 2). Two or more lines get their own sentence (review
+    2, finding 5)."""
+    shown = ", ".join(repr(ln.strip()) for ln in held)
+    if len(held) == 1:
+        return f"One of the lines you sent is the line: {shown}. Copy that one. "
+    return (f"The lines you sent hold these added lines: {shown}. Copy the "
+            f"one that does what the criterion says. ")
 
 
 def test_a_block_for_every_criterion_is_refused(s279):
@@ -1153,9 +1157,102 @@ def test_the_block_text_names_the_held_code_lines_first(tmp_path):
     assert said == (
         "the value for cr_1 holds 3 lines, and a pass names one added line "
         "per criterion. Copy the one line of the [diff] block that meets "
-        "cr_1, without the +, and send the pass again. One of the lines you "
-        "sent is the line: 'value_10 = compute(10)', 'value_20 = "
-        "compute(20)', 'value_30 = compute(30)'. Copy that one. The added "
+        "cr_1, without the +, and send the pass again. The lines you sent "
+        "hold these added lines: 'value_10 = compute(10)', 'value_20 = "
+        "compute(20)', 'value_30 = compute(30)'. Copy the one that does what "
+        "the criterion says. The added "
         f"lines of code are {shown}, and 32 more. If no added line meets "
         "cr_1, that is a fail on it: `verdicts.claim_encodes('cr_1', "
         "encodes=...)` first, as for any fail")
+
+
+# Frame 201, pass 2b: review 2. The walk's diff opens each hunk at a `def`
+# or a `class` in column 0, and the header goes on while its brackets are
+# open.
+
+def _clicki_file(rel: str) -> str | None:
+    out = subprocess.run([*GIT, "-C", CLICKI, "show", f"{CLICKI_FORK}:{rel}"],
+                         capture_output=True)
+    return out.stdout.decode() if out.returncode == 0 else None
+
+
+REAL_CORE = _clicki_file("src/click/core.py")
+STRICT_DOC = ("    :param strict: if set to `True`, a missing object raises\n"
+              "                   an error.\n")
+
+
+def _walk_of(tmp_path, rel, before, after):
+    """The plain diff and the walk's diff of one batch commit."""
+    from rota.core import worktrees as _wt
+    repo, _ = _repo_of(tmp_path, rel, before, after)
+    return (_wt.diff(repo, "HEAD~1"),
+            _wt.diff(repo, "HEAD~1", function_context=True))
+
+
+def _hunk_of(diff_text: str, added: str) -> list[str]:
+    """The lines of the hunk that adds `added`, from its `@@` line."""
+    hunk: list[str] = []
+    for ln in diff_text.splitlines():
+        if ln.startswith("@@"):
+            hunk = []
+        hunk.append(ln)
+        if ln == "+" + added:
+            return hunk
+    raise AssertionError(f"no hunk adds {added!r}")
+
+
+@needs_clicki
+def test_an_example_def_in_a_docstring_opens_no_hunk(tmp_path):
+    """Review 2, finding 1, probe p4: the docstring of `make_pass_decorator`
+    holds an example `def decorator(f):`. The walk's hunk must not open
+    there."""
+    old = ("    :param ensure: if set to `True`, a new object will be created and\n"
+           "                   remembered on the context if it's not there yet.\n")
+    after = _once(REAL_BEFORE, old, old + STRICT_DOC)
+    plain, whole = _walk_of(tmp_path, "src/click/decorators.py",
+                            REAL_BEFORE, after)
+    hunk = _hunk_of(whole, STRICT_DOC.splitlines()[0])
+    assert hunk[1] == " def make_pass_decorator("
+    from rota.roles.api import _added_kinds
+    assert _added_kinds(whole) == [
+        (ln.strip(), "a docstring line") for ln in STRICT_DOC.splitlines()]
+
+
+def test_a_header_with_open_brackets_goes_on():
+    """Review 2, finding 2: a signature that wraps with no trailing comma
+    still opens a docstring."""
+    from rota.roles.api import _added_kinds
+    diff = "\n".join(["@@ -1,6 +1,7 @@", " def f(", "     a, b", " ) -> int:",
+                      '     """Add two numbers.', "+    :param a: the first",
+                      '     """', "     return a + b"])
+    assert _added_kinds(diff) == [(":param a: the first", "a docstring line")]
+
+
+@pytest.mark.skipif(REAL_CORE is None, reason=f"no {CLICKI} at {CLICKI_FORK[:8]}")
+def test_a_method_docstring_hunk_opens_at_its_class(tmp_path):
+    """Review 2, finding 3: the change is in a method's docstring. The plain
+    hunk starts inside it, and the walk's hunk opens at the class line."""
+    old = ("                        temporarily pushed in which case this can "
+           "be disabled.\n")
+    new = "        :param strict: raise when no context is pushed.\n"
+    after = _once(REAL_CORE, old, old + new)
+    plain, whole = _walk_of(tmp_path, "src/click/core.py", REAL_CORE, after)
+    hunk = _hunk_of(plain, new.rstrip("\n"))
+    assert '"""' not in "\n".join(hunk)
+    assert not any(ln[1:].lstrip().startswith(("def ", "class "))
+                   for ln in hunk[1:])
+    assert _hunk_of(whole, new.rstrip("\n"))[1].startswith(" class Context")
+    from rota.roles.api import _added_kinds
+    assert _added_kinds(whole) == [(new.strip(), "a docstring line")]
+
+
+def test_a_missing_temp_directory_still_gives_kinds(s279, tmp_path,
+                                                     monkeypatch):
+    """Review 2, finding 4: rota cannot write the attributes file. The walk
+    runs `-W` without it, and the pass still lands."""
+    import tempfile
+    monkeypatch.setattr(tempfile, "gettempdir",
+                        lambda: str(tmp_path / "no such directory"))
+    out = _critic(s279).call("verdicts.emit", batch_id="bg_3", result="pass",
+                             lines=S279_LINES)
+    assert out["result"] == "pass"

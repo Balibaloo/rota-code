@@ -11389,6 +11389,13 @@ def _after_fence(tail: str) -> bool:
     return bool(tail) and tail not in (",", ")") and not tail.startswith("#")
 
 
+def _open_brackets(header: str) -> bool:
+    """True when the header opens more brackets than it closes. A bracket
+    in a string counts too, so the count is rough."""
+    return (sum(header.count(c) for c in "([{")
+            > sum(header.count(c) for c in ")]}"))
+
+
 def _parses(header: str) -> bool:
     """True when a `def` or `class` header, its lines joined, parses as
     Python with a body under it."""
@@ -11491,10 +11498,15 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
             # A header must parse as Python, so prose such as `class Foo
             # is the base, see:` in a docstring opens no body (frame 180's
             # delta review, N1b).
+            # A header also goes on while its brackets are open, so `def f(`,
+            # `a, b`, `) -> int:` opens a body (frame 201's review 2,
+            # finding 2). A header that parses ends, so a bracket in a
+            # string cannot hold it open.
             if text.startswith(_HEADER_STARTS) or in_header:
                 header = header + "\n" + code if in_header else code
-                in_header = code.endswith(_HEADER_GOES_ON)
                 expect_doc = code.endswith(":") and _parses(header)
+                in_header = not expect_doc and (
+                    code.endswith(_HEADER_GOES_ON) or _open_brackets(header))
             for fence in _FENCES:
                 if text.count(fence) % 2:
                     in_str = (fence, False)
@@ -11651,9 +11663,16 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         # (frame 201's review 1, finding 2, probe e1).
         own = list(dict.fromkeys(_held_code(q, kinds) for q in parts[cid]))
         own = [a for a in own if a]
-        sent = (f"One of the lines you sent is the line: "
-                f"{', '.join(repr(a) for a in own)}. Copy that one. "
-                if own else "")
+        # Two lines or more get their own words, because "that one" names
+        # one line (frame 201's review 2, finding 5).
+        shown = ", ".join(repr(a) for a in own)
+        sent = ""
+        if len(own) == 1:
+            sent = (f"One of the lines you sent is the line: {shown}. "
+                    f"Copy that one. ")
+        elif own:
+            sent = (f"The lines you sent hold these added lines: {shown}. "
+                    f"Copy the one that does what the criterion says. ")
         raise LinesRefusal(
             f"the value for {cid} holds {n} lines, and a pass names one added "
             f"line per criterion. Copy the one line of the [diff] block that "

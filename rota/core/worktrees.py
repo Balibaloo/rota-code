@@ -350,21 +350,40 @@ def base(path: str | Path, root: str | Path | None) -> str:
     return fork or "HEAD~1"
 
 
-def _python_attributes() -> str:
-    """A git attributes file that gives `*.py` git's own Python driver.
+# The funcname of rota's diff driver: a `def`, an `async def` or a `class`
+# in column 0. Git's own Python driver also matches an indented `def`, and
+# an example `def` in a docstring then opens a hunk inside the docstring
+# (frame 201's review 2, finding 1, probe p4). A method's hunk opens at its
+# class line instead, and the kinds walk reads the class from there.
+_ROTA_FUNCNAME = r"^((class|(async[ \t]+)?def)[ \t].*)$"
+
+
+def _python_attributes() -> str | None:
+    """A git attributes file that gives `*.py` rota's diff driver, or None
+    when rota cannot write the file.
 
     The file lives outside every repository, so no file of a batch changes.
+    A unique name and `os.replace` keep a concurrent git from reading a
+    half-written file (frame 201's review 2, finding 4).
     """
+    import os
     import tempfile
-    path = Path(tempfile.gettempdir()) / "rota-diff-python.gitattributes"
-    want = b"*.py diff=python\n"
+    want = b"*.py diff=rota\n"
     try:
-        if path.read_bytes() == want:
+        path = Path(tempfile.gettempdir()) / "rota-diff-python.gitattributes"
+        if path.exists() and path.read_bytes() == want:
             return path.as_posix()
+        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name)
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(want)
+            os.replace(tmp, path)
+        except OSError:
+            Path(tmp).unlink(missing_ok=True)
+            raise
+        return path.as_posix()
     except OSError:
-        pass
-    path.write_bytes(want)
-    return path.as_posix()
+        return None
 
 
 def diff(path: str | Path, against: str = "HEAD~1", *,
@@ -372,12 +391,15 @@ def diff(path: str | Path, against: str = "HEAD~1", *,
     """The diff of `path` from `against` to HEAD.
 
     `function_context` gives each hunk its whole function, `git diff -W`.
-    A sample repository often has no `.gitattributes`, and then git finds
-    no indented `def`. So the Python driver comes from a file rota writes.
+    A sample repository often has no `.gitattributes`, so rota's driver
+    comes from a file rota writes. With no file, `-W` runs with git's
+    default funcname, which finds each `def` in column 0 too.
     """
     extra: list[str] = []
-    if function_context:
-        extra = ["-c", f"core.attributesFile={_python_attributes()}"]
+    attributes = _python_attributes() if function_context else None
+    if attributes:
+        extra = ["-c", f"core.attributesFile={attributes}",
+                 "-c", f"diff.rota.xfuncname={_ROTA_FUNCNAME}"]
     cmd = [*GIT, *extra, "-C", str(path), "diff"]
     if function_context:
         cmd.append("-W")
