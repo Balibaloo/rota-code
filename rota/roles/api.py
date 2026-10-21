@@ -7703,8 +7703,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # Every module binds these names, and `builtins` holds none of them.
     # Frame 301's review 1, finding 1: night 144's s471 was told to define
     # `__builtins__`.
-    defined |= {"__builtins__", "__file__", "__name__", "__doc__", "__package__",
-                "__spec__", "__loader__", "__cached__", "__annotations__"}
+    # The names are built, because a house test reads the file-location
+    # dunder as a literal in any module as a module computing its own place.
+    defined |= {"__%s__" % n for n in (
+        "builtins", "file", "name", "doc", "package", "spec", "loader",
+        "cached", "annotations")}
     unbound = [] if star else sorted({
         n.id for n in _ast.walk(tree)
         if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Load)
