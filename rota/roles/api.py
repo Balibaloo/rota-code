@@ -6614,6 +6614,35 @@ def _invoked_command_calls(tree) -> set:
     replaces `termui.visible_prompt_func`. So `confirm()`, `prompt()` and
     `input()` there never read pytest's captured stdin.
 
+    The calls of a function that the command calls by its bare name, and
+    that the body defines, run there too. Frame 301: night 157's s258 put
+    confirm() in such a helper and was refused. The reach is one hop. A
+    helper's own calls are not followed, and no other module is read.
+
+    The calls are the calls of `_invoked_commands(tree)`."""
+    import ast as _ast
+
+    commands = _invoked_commands(tree)
+    defs: dict[str, list] = {}
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            defs.setdefault(n.name, []).append(n)
+    inside: set = set()
+    for f in commands:
+        for stmt in f.body:
+            inside |= {c for c in _ast.walk(stmt) if isinstance(c, _ast.Call)}
+    hop = {c.func.id for c in inside if isinstance(c.func, _ast.Name)}
+    for name in hop:
+        for g in defs.get(name, []):
+            for stmt in g.body:
+                inside |= {c for c in _ast.walk(stmt) if isinstance(c, _ast.Call)}
+    return inside
+
+
+def _invoked_commands(tree) -> list:
+    """The click command functions that the test runs through
+    `CliRunner.invoke` with an `input` keyword, in the order of the body.
+
     A command is a function decorated by `click.command`, `click.group`, a
     bare `command` or `group` imported from click, or `<group>.command` of
     a group in the body. The invoke names the command, a factory call that
@@ -6634,7 +6663,7 @@ def _invoked_command_calls(tree) -> set:
                or (isinstance(n, _ast.Attribute) and n.attr == "CliRunner")
                or (isinstance(n, _ast.alias) and n.name == "CliRunner")
                for n in _ast.walk(tree)):
-        return set()
+        return []
     click_mods = {a.asname or a.name for n in _ast.walk(tree)
                   if isinstance(n, _ast.Import) for a in n.names if a.name == "click"}
     click_verbs = {a.asname or a.name: a.name for n in _ast.walk(tree)
@@ -6702,9 +6731,9 @@ def _invoked_command_calls(tree) -> set:
             return list(factories.get(expr.func.id, []))
         return []
 
-    # An AST node hashes by identity, so the set holds the nodes themselves.
+    # An AST node hashes by identity, so the list is checked by `is`.
     # `tests_encode` has a parameter named `id`, which hides the builtin.
-    inside: set = set()
+    run: list = []
     for n in _ast.walk(tree):
         if not (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
                 and n.func.attr == "invoke"
@@ -6713,9 +6742,9 @@ def _invoked_command_calls(tree) -> set:
         target = n.args[0] if n.args else next(
             (k.value for k in n.keywords if k.arg == "cli"), None)
         for f in resolve(target) if target is not None else []:
-            for stmt in f.body:
-                inside |= {c for c in _ast.walk(stmt) if isinstance(c, _ast.Call)}
-    return inside
+            if not any(f is g for g in run):
+                run.append(f)
+    return sorted(run, key=lambda f: (f.lineno, f.col_offset))
 
 
 # The route the principal gave for a prompt under test (frame 254): a
@@ -6724,6 +6753,40 @@ _INVOKE_ROUTE = (
     "Or call it inside a @click.command() and run that command with "
     "CliRunner().invoke(cmd, input='y'): the runner gives the command its "
     "own input stream")
+
+
+def _outside_commands_step(tree, free_calls, called: str, run_cmds) -> str:
+    """The place of the refused `called()` call, and the one step that moves
+    it inside a command that the test runs with input=.
+
+    Frame 301: night 157's s258 ran a command with input= and called
+    confirm() in a helper. The refusal offered the invoke shape the body
+    had already. The place is the innermost function that holds the first
+    free call of the name, or the module level."""
+    import ast as _ast
+
+    cmd = run_cmds[0].name
+    hits = sorted((c for c in free_calls
+                   if isinstance(c.func, _ast.Name) and c.func.id == called),
+                  key=lambda c: (c.lineno, c.col_offset))
+    holder = None
+    if hits:
+        holders = [f for f in _ast.walk(tree)
+                   if isinstance(f, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                   and any(c is hits[0] for c in _ast.walk(f))]
+        if holders:
+            holder = max(holders, key=lambda f: (f.lineno, f.col_offset)).name
+    if holder is None:
+        return (f"The {called}() call is at module level, outside every command "
+                f"that CliRunner().invoke runs. Move the {called}() call into "
+                f"the command {cmd}()")
+    if holder.startswith("test"):
+        return (f"The {called}() call is in {holder}(), outside every command "
+                f"that CliRunner().invoke runs. Move the {called}() call into "
+                f"the command {cmd}()")
+    return (f"The {called}() call is in {holder}(), and no command that "
+            f"CliRunner().invoke runs calls {holder}(). Call {holder}() inside "
+            f"the command {cmd}()")
 
 
 def _imported_names(tree) -> dict[str, tuple[str, int, str]]:
@@ -7582,142 +7645,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "def test_...() containing at least one assert. A sentence about "
             "the criterion is the criterion again, not a test of it")
 
-    # Two facts about the harness, not judgements about the test. S0 walk
-    # eight: four tests, each calling `input()` and asserting on `print()`,
-    # failed nine rounds while the Developer challenged and the Tester held
-    # -- "the test checks the greeting is displayed" -- because neither of
-    # those can ever pass under pytest: stdin is captured and reading it
-    # raises, and print returns None. A test that cannot pass against any
-    # code is not a definition of done, and the refusal names the shapes
-    # that can.
     calls = [n for n in _ast.walk(tree) if isinstance(n, _ast.Call)]
-    # A read inside a command that CliRunner.invoke runs with input= reads
-    # the runner's stream, not pytest's (frame 254, night 149's s197).
-    invoked = _invoked_command_calls(tree)
-    free_calls = [n for n in calls if n not in invoked]
-    names = {n.func.id for n in free_calls if isinstance(n.func, _ast.Name)}
-    shields = _stdin_shields(tree)
-    uses_click = any(
-        (isinstance(n, _ast.Import) and any(a.name.split(".")[0] == "click" for a in n.names))
-        or (isinstance(n, _ast.ImportFrom) and (n.module or "").split(".")[0] == "click")
-        for n in _ast.walk(tree))
-    if "input" in names and not _shields_input(shields):
-        raise Wall(
-            "this test calls input(), and pytest captures stdin: the call "
-            "raises OSError before any assertion runs, against any code. "
-            "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
-            "lambda _='': 'Alice') -- or test the function that takes the "
-            "name as an argument" + (". " + _INVOKE_ROUTE if uses_click else ""))
-    # Closing the process's stdin is the same trap from the other side.
-    # Click night 50, walk 2 (2026-09-14): two EOF tests did
-    # `sys.stdin.close()`, the pytest process lost its stdin, both failed
-    # against a correct confirm(), the Developer challenged, the Tester
-    # held, ten rounds to the cap.
-    closes_stdin = any(
-        isinstance(n.func, _ast.Attribute) and n.func.attr == "close"
-        and isinstance(n.func.value, _ast.Attribute) and n.func.value.attr == "stdin"
-        for n in calls)
-    if closes_stdin:
-        raise Wall(
-            "this test closes sys.stdin, and pytest's own stdin goes with it: "
-            "the test fails against any code and can break the tests after "
-            "it. An EOF is an empty stream: monkeypatch.setattr('sys.stdin', "
-            "io.StringIO('')) -- then the call under test reads EOF and the "
-            "assertion runs")
-    # Same trap, one hop indirect: the test does not call input() itself, it
-    # calls a function that does. `get_user_name()` reading input()
-    # internally and a test asserting `get_user_name() == "User"` hits the
-    # identical OSError -- stdin captured, no assertion ever runs -- and the
-    # check above cannot see it, because the literal word "input" never
-    # appears in this file's own text. Only checked against files already in
-    # the worktree: a function the Developer has not written yet cannot be
-    # inspected, and the ordinary NameError guard covers that case anyway.
-    # A patch of builtins.input does not reach a module that bound `input`
-    # to its own name at import. Click night 53 (2026-09-14): the test
-    # patched builtins.input, confirm() read through visible_prompt_func,
-    # and pytest raised OSError for the whole loop. The scan runs when the
-    # body patches nothing, or patches builtins.input only.
-    # `sys.stdin` as code, not the word in a comment: night 54 (2026-09-14)
-    # wrote "when stdin is closed" in a comment and the scan stood down.
-    patches_builtin_only = ("builtins.input" in shields
-                            and "sys.stdin" not in shields)
-    # A body that replaces sys.stdin, by monkeypatch or by assignment, has
-    # given the reader a stream: night 57 (2026-09-14) assigned
-    # `sys.stdin = io.StringIO('')` with a restore and was refused three
-    # times as if it had patched nothing.
-    unpatched = not _shields_input(shields)
-    # A patch of the name the function reads through reaches it, as
-    # `monkeypatch.setattr('click.termui.visible_prompt_func', ...)` does.
-    reached = {t.rsplit(".", 1)[-1] for t in shields
-               if t not in ("sys.stdin", "builtins.input")}
-    if (unpatched or patches_builtin_only) and ctx.batch_id:
-        try:
-            root = _worktree_of(ctx)
-        except Exception:                     # noqa: BLE001 -- no worktree yet
-            root = None
-        if root:
-            called_bare = {n.func.id for n in free_calls
-                           if isinstance(n.func, _ast.Name) and n.func.id != "input"}
-            for pyfile in root.rglob("*.py"):
-                rel = pyfile.relative_to(root).as_posix()
-                if rel.startswith("tests/") or pyfile.stem.startswith("test_"):
-                    continue
-                try:
-                    fn_tree = _ast.parse(pyfile.read_text(encoding="utf-8"))
-                except (OSError, SyntaxError, UnicodeDecodeError):
-                    continue
-                # A module-level name bound to input() is input() by another
-                # name: click's `visible_prompt_func = input`, passed down
-                # into `_readline_prompt`. Click night 52 (2026-09-14): a
-                # test called confirm() directly, the door saw no `input`,
-                # pytest raised OSError, and the loop ran to the cap.
-                readers = {"input"} | {
-                    t.id for n in fn_tree.body
-                    if isinstance(n, (_ast.Assign, _ast.AnnAssign))
-                    and isinstance(getattr(n, "value", None), _ast.Name)
-                    and n.value.id == "input"
-                    for t in (n.targets if isinstance(n, _ast.Assign) else [n.target])
-                    if isinstance(t, _ast.Name)}
-                for node in _ast.walk(fn_tree):
-                    if not (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
-                            and node.name in called_bare):
-                        continue
-                    via = {c.id for c in _ast.walk(node)
-                           if isinstance(c, _ast.Name) and isinstance(c.ctx, _ast.Load)
-                           and c.id in readers}
-                    if not via or via & reached:
-                        continue
-                    aliases = sorted(via - {"input"})
-                    if patches_builtin_only and not aliases:
-                        continue                 # the patch reaches input() itself
-                    module = rel[:-3].replace("/", ".")
-                    if module.startswith("src."):
-                        module = module[4:]
-                    # The route is click's, so it is named for a click
-                    # project only (frame 254).
-                    route = (". " + _INVOKE_ROUTE
-                             if uses_click or module.split(".")[0] == "click" else "")
-                    if aliases:
-                        raise Wall(
-                            f"{node.name}() reads input() through {aliases[0]}, a name "
-                            f"{pyfile.name} bound to input at import, and this test "
-                            f"calls {node.name}() under pytest, where stdin is captured: "
-                            f"the call raises OSError before any assertion runs. A patch "
-                            f"of builtins.input does not reach {aliases[0]}. Patch the "
-                            f"name it reads through -- monkeypatch.setattr("
-                            f"'{module}.{aliases[0]}', lambda _='': 'y') -- or give it "
-                            f"an empty stream: monkeypatch.setattr('sys.stdin', "
-                            f"io.StringIO(''))" + route)
-                    raise Wall(
-                        f"{node.name}() reads input() internally "
-                        f"({pyfile.name}), and this test calls "
-                        f"{node.name}() directly under pytest, where "
-                        f"stdin is captured: the call raises OSError "
-                        f"before any assertion runs, against any code. "
-                        f"Feed the name in instead -- "
-                        f"monkeypatch.setattr('builtins.input', "
-                        f"lambda _='': 'Alice') before calling "
-                        f"{node.name}()" + route)
     # And a third harness fact, from walk nine: `assert test_valid_input()`
     # against a name the test neither imports nor defines is a NameError
     # before any code is consulted. The floor puts the project root on the
@@ -7891,6 +7819,153 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"NameError against any code. A test calls the program -- import "
             f"the function the criterion's surface names and assert on what "
             f"it returns")
+    # The stdin family runs after the NameError guard. Frame 301: night
+    # 157's s266 used `click.command` with no `import click`. The stdin text
+    # fired first and named a fault the body did not have, six times.
+    # Two facts about the harness, not judgements about the test. S0 walk
+    # eight: four tests, each calling `input()` and asserting on `print()`,
+    # failed nine rounds while the Developer challenged and the Tester held
+    # -- "the test checks the greeting is displayed" -- because neither of
+    # those can ever pass under pytest: stdin is captured and reading it
+    # raises, and print returns None. A test that cannot pass against any
+    # code is not a definition of done, and the refusal names the shapes
+    # that can.
+    # A read inside a command that CliRunner.invoke runs with input= reads
+    # the runner's stream, not pytest's (frame 254, night 149's s197).
+    invoked = _invoked_command_calls(tree)
+    free_calls = [n for n in calls if n not in invoked]
+    names = {n.func.id for n in free_calls if isinstance(n.func, _ast.Name)}
+    shields = _stdin_shields(tree)
+    uses_click = any(
+        (isinstance(n, _ast.Import) and any(a.name.split(".")[0] == "click" for a in n.names))
+        or (isinstance(n, _ast.ImportFrom) and (n.module or "").split(".")[0] == "click")
+        for n in _ast.walk(tree))
+    # Frame 301: a body that runs a command with input= has the route. Night
+    # 157's s258 had it and was offered it again, so it gets the call's place.
+    run_cmds = _invoked_commands(tree)
+
+    def _stdin_step(called: str, click_route: bool) -> str:
+        if run_cmds:
+            return ". " + _outside_commands_step(tree, free_calls, called, run_cmds)
+        return ". " + _INVOKE_ROUTE if click_route else ""
+
+    if "input" in names and not _shields_input(shields):
+        raise Wall(
+            "this test calls input(), and pytest captures stdin: the call "
+            "raises OSError before any assertion runs, against any code. "
+            "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
+            "lambda _='': 'Alice') -- or test the function that takes the "
+            "name as an argument" + _stdin_step("input", uses_click))
+    # Closing the process's stdin is the same trap from the other side.
+    # Click night 50, walk 2 (2026-09-14): two EOF tests did
+    # `sys.stdin.close()`, the pytest process lost its stdin, both failed
+    # against a correct confirm(), the Developer challenged, the Tester
+    # held, ten rounds to the cap.
+    closes_stdin = any(
+        isinstance(n.func, _ast.Attribute) and n.func.attr == "close"
+        and isinstance(n.func.value, _ast.Attribute) and n.func.value.attr == "stdin"
+        for n in calls)
+    if closes_stdin:
+        raise Wall(
+            "this test closes sys.stdin, and pytest's own stdin goes with it: "
+            "the test fails against any code and can break the tests after "
+            "it. An EOF is an empty stream: monkeypatch.setattr('sys.stdin', "
+            "io.StringIO('')) -- then the call under test reads EOF and the "
+            "assertion runs")
+    # Same trap, one hop indirect: the test does not call input() itself, it
+    # calls a function that does. `get_user_name()` reading input()
+    # internally and a test asserting `get_user_name() == "User"` hits the
+    # identical OSError -- stdin captured, no assertion ever runs -- and the
+    # check above cannot see it, because the literal word "input" never
+    # appears in this file's own text. Only checked against files already in
+    # the worktree: a function the Developer has not written yet cannot be
+    # inspected, and the ordinary NameError guard covers that case anyway.
+    # A patch of builtins.input does not reach a module that bound `input`
+    # to its own name at import. Click night 53 (2026-09-14): the test
+    # patched builtins.input, confirm() read through visible_prompt_func,
+    # and pytest raised OSError for the whole loop. The scan runs when the
+    # body patches nothing, or patches builtins.input only.
+    # `sys.stdin` as code, not the word in a comment: night 54 (2026-09-14)
+    # wrote "when stdin is closed" in a comment and the scan stood down.
+    patches_builtin_only = ("builtins.input" in shields
+                            and "sys.stdin" not in shields)
+    # A body that replaces sys.stdin, by monkeypatch or by assignment, has
+    # given the reader a stream: night 57 (2026-09-14) assigned
+    # `sys.stdin = io.StringIO('')` with a restore and was refused three
+    # times as if it had patched nothing.
+    unpatched = not _shields_input(shields)
+    # A patch of the name the function reads through reaches it, as
+    # `monkeypatch.setattr('click.termui.visible_prompt_func', ...)` does.
+    reached = {t.rsplit(".", 1)[-1] for t in shields
+               if t not in ("sys.stdin", "builtins.input")}
+    if (unpatched or patches_builtin_only) and ctx.batch_id:
+        try:
+            root = _worktree_of(ctx)
+        except Exception:                     # noqa: BLE001 -- no worktree yet
+            root = None
+        if root:
+            called_bare = {n.func.id for n in free_calls
+                           if isinstance(n.func, _ast.Name) and n.func.id != "input"}
+            for pyfile in root.rglob("*.py"):
+                rel = pyfile.relative_to(root).as_posix()
+                if rel.startswith("tests/") or pyfile.stem.startswith("test_"):
+                    continue
+                try:
+                    fn_tree = _ast.parse(pyfile.read_text(encoding="utf-8"))
+                except (OSError, SyntaxError, UnicodeDecodeError):
+                    continue
+                # A module-level name bound to input() is input() by another
+                # name: click's `visible_prompt_func = input`, passed down
+                # into `_readline_prompt`. Click night 52 (2026-09-14): a
+                # test called confirm() directly, the door saw no `input`,
+                # pytest raised OSError, and the loop ran to the cap.
+                readers = {"input"} | {
+                    t.id for n in fn_tree.body
+                    if isinstance(n, (_ast.Assign, _ast.AnnAssign))
+                    and isinstance(getattr(n, "value", None), _ast.Name)
+                    and n.value.id == "input"
+                    for t in (n.targets if isinstance(n, _ast.Assign) else [n.target])
+                    if isinstance(t, _ast.Name)}
+                for node in _ast.walk(fn_tree):
+                    if not (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                            and node.name in called_bare):
+                        continue
+                    via = {c.id for c in _ast.walk(node)
+                           if isinstance(c, _ast.Name) and isinstance(c.ctx, _ast.Load)
+                           and c.id in readers}
+                    if not via or via & reached:
+                        continue
+                    aliases = sorted(via - {"input"})
+                    if patches_builtin_only and not aliases:
+                        continue                 # the patch reaches input() itself
+                    module = rel[:-3].replace("/", ".")
+                    if module.startswith("src."):
+                        module = module[4:]
+                    # The route is click's, so it is named for a click
+                    # project only (frame 254).
+                    route = _stdin_step(
+                        node.name, uses_click or module.split(".")[0] == "click")
+                    if aliases:
+                        raise Wall(
+                            f"{node.name}() reads input() through {aliases[0]}, a name "
+                            f"{pyfile.name} bound to input at import, and this test "
+                            f"calls {node.name}() under pytest, where stdin is captured: "
+                            f"the call raises OSError before any assertion runs. A patch "
+                            f"of builtins.input does not reach {aliases[0]}. Patch the "
+                            f"name it reads through -- monkeypatch.setattr("
+                            f"'{module}.{aliases[0]}', lambda _='': 'y') -- or give it "
+                            f"an empty stream: monkeypatch.setattr('sys.stdin', "
+                            f"io.StringIO(''))" + route)
+                    raise Wall(
+                        f"{node.name}() reads input() internally "
+                        f"({pyfile.name}), and this test calls "
+                        f"{node.name}() directly under pytest, where "
+                        f"stdin is captured: the call raises OSError "
+                        f"before any assertion runs, against any code. "
+                        f"Feed the name in instead -- "
+                        f"monkeypatch.setattr('builtins.input', "
+                        f"lambda _='': 'Alice') before calling "
+                        f"{node.name}()" + route)
     # One program, one name. Walk thirty-two: three tests imported `script`,
     # one imported `main`, script.py was written and main.py never was, and
     # the odd test failed at import for the rest of the batch. While the
