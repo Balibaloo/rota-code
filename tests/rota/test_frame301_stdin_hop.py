@@ -125,3 +125,17 @@ def test_a_bare_prompt_with_no_cliRunner_keeps_the_route(db, tmp_path):
                        "def test_x():\n    assert confirm('ok?', default=True) is True")
     assert STDIN in msg, msg
     assert _INVOKE_ROUTE in msg, msg
+
+
+def test_a_body_that_reads_module_dunders_is_not_refused_by_the_name_guard(db, tmp_path):
+    """Frame 301's review 1, finding 1: every module binds `__file__` and
+    `__builtins__`. Night 144's s471 was told to define `__builtins__`."""
+    _termui_alias_batch(db, tmp_path)
+    body = ("from click.termui import confirm\n\n"
+            "def test_x(monkeypatch):\n"
+            "    assert __file__.endswith('.py')\n"
+            "    assert __builtins__ is not None\n"
+            "    monkeypatch.setattr('click.termui.visible_prompt_func', lambda _='': 'y')\n"
+            "    assert confirm('ok?') is True")
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    assert _encode(sb, body)["id"] == "tst_new"

@@ -7700,6 +7700,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # with neither name defined anywhere -- not a call, so the call-only
     # check missed it, and the Developer eventually defined the names in
     # script.py and deleted the three working functions to make it pass.
+    # Every module binds these names, and `builtins` holds none of them.
+    # Frame 301's review 1, finding 1: night 144's s471 was told to define
+    # `__builtins__`.
+    defined |= {"__builtins__", "__file__", "__name__", "__doc__", "__package__",
+                "__spec__", "__loader__", "__cached__", "__annotations__"}
     unbound = [] if star else sorted({
         n.id for n in _ast.walk(tree)
         if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Load)
