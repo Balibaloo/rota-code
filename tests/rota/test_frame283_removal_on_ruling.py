@@ -412,6 +412,45 @@ def test_the_name_sits_in_the_request_clause(words, asks):
     assert api._asks_removal(words, GONE, True) is asks
 
 
+@pytest.mark.parametrize("words", [
+    # Review 5's finding 1: a verb after "and" or a comma starts a new clause.
+    "Remove the echo and make sure ctx.exit() runs.",
+    "Remove the echo and then call ctx.exit().",
+    "Drop echo(message), call ctx.exit() last.",
+    # Review 5's finding 2: a name after a position or an exception word is
+    # not the target.
+    "Remove the line above ctx.exit().",
+    "Remove echo(message) before ctx.exit().",
+    "Remove the echo next to ctx.exit().",
+    "Remove echo(message) instead of ctx.exit().",
+    "Remove echo(message) rather than ctx.exit().",
+    "Remove echo(message) except ctx.exit().",
+    "Remove echo(message), not ctx.exit().",
+])
+def test_a_name_past_the_request_is_not_its_target(words):
+    """Review 5's findings 1 and 2: `ctx.exit()` sits after the request
+    clause ends, so the sentence asks for no removal of `ctx.exit()`."""
+    assert api._asks_removal(words, GONE, True) is False
+
+
+def test_remove_two_names_admits_both():
+    """Review 5: "Remove X and Y" still asks for both removals."""
+    echo = {"line": "echo(message)", "owner": "version_option.callback",
+            "no": None, "def": False}
+    words = "Remove echo(message) and ctx.exit()."
+    assert api._asks_removal(words, GONE, True) is True
+    assert api._asks_removal(words, echo, True) is True
+
+
+def test_a_later_line_after_a_comma_and_a_verb_is_not_asked():
+    """Review 5's finding 1, probe M: the line of the second clause stays."""
+    third = {"line": "x = 3", "owner": "f", "no": "3", "def": False}
+    first = {"line": "x = 1", "owner": "f", "no": "1", "def": False}
+    words = "Please drop line 1, rewrite line 3 in plain words."
+    assert api._asks_removal(words, first, True) is True
+    assert api._asks_removal(words, third, True) is False
+
+
 def test_drop_one_and_keep_the_other_admits_the_dropped_one_only():
     """Review 4's finding 2: "Drop X, and keep Y" admits X only."""
     words = "Drop ctx.exit(), and keep echo(message)."

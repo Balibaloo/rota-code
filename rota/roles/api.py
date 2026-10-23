@@ -17753,12 +17753,24 @@ _REQUEST_LEADS = re.compile(
 
 # The break that ends a request clause. A bare "and" ends it only before a
 # word that keeps a line, so "Remove X and Y" asks for both, and "Drop X,
-# and keep Y" asks for X only (frame 283, review 4, finding 2).
+# and keep Y" asks for X only (frame 283, review 4, finding 2). A verb of
+# `_NEXT_VERBS` after "and", "and then" or a comma starts a new clause:
+# "Remove the echo and make sure X runs" asks for no removal of X (review
+# 5, finding 1).
+_NEXT_VERBS = (r"(?:make|call|add|put|say|keep\w*|leave\w*|retain\w*|check|run|"
+               r"use|write|rewrite|return|raise)")
 _CLAUSE_END = re.compile(
-    r"[;:]|,(?=\s*(?:and|but|so|which|because|since|then|or|while|keep\w*|leave\w*)\b)"
+    r"[;:]|,(?=\s*(?:and|but|so|which|because|since|then|or|while)\b)"
+    rf"|,(?=\s*{_NEXT_VERBS}\b)"
     r"|\b(?:so|but|which|because|since|while)\b"
-    r"|\b(?:and|or)\b(?=\s+(?:keep\w*|leave\w*|retain\w*|do\s+not|don't|never|not|still)\b)",
+    r"|\b(?:and|or)\b(?=\s+(?:do\s+not|don't|never|not|still)\b)"
+    rf"|\b(?:and|or)\b(?:\s+then)?(?=\s+{_NEXT_VERBS}\b)",
     re.I)
+# A name after a position word or an exception word is not the target:
+# "Remove the line above X" keeps X (frame 283, review 5, finding 2).
+_NOT_TARGET = re.compile(
+    r"\b(?:above|below|before|after|next\s+to|beside|instead\s+of|"
+    r"rather\s+than|except|not)\b", re.I)
 
 
 def _outside_code(s: str, i: int) -> bool:
@@ -17799,8 +17811,9 @@ def _removal_spans(s: str) -> list[str]:
                 _NEGATION_WORDS.search(got.group("who"))
                 or not re.match(r"no\s|stop", verb, re.I)):
             continue
-        ends = _breaks(_CLAUSE_END, s[m.end():])
-        end = m.end() + ends[0].start() if ends else len(s)
+        ends = (_breaks(_CLAUSE_END, s[m.end():])
+                + _breaks(_NOT_TARGET, s[m.end():]))
+        end = m.end() + min(e.start() for e in ends) if ends else len(s)
         # Review 4's finding 1: the name must sit in the request clause.
         # Only a pronoun object or "which" reaches the clause before.
         back = (bool(breaks) and breaks[-1].group(0).lower() == "which") or bool(
@@ -17816,12 +17829,6 @@ def _removal_spans(s: str) -> list[str]:
                     break
         out.append(s[start:end])
     return out
-
-
-def _removal_asked(s: str, g: dict) -> bool:
-    """True when the sentence `s` holds a request clause. `g` is the gone
-    statement. The rule does not read it."""
-    return bool(_removal_spans(s))
 
 
 def _asks_removal(text: str, g: dict, principal: bool) -> bool:
