@@ -103,8 +103,6 @@
   role: vision_keeper
   runs: 5
   pass: 4
-  # Attributed 2026-09-13 on qwen3:8b, 0/5: reported to the Liaison instead
-  # of answering the proposal. 8B routing.
   inbound: {from: architect, to: vision_keeper, verb: propose, body_refs: [<i1>]}
   fixture:
     items:
@@ -116,9 +114,11 @@
          text: "the store layer stays synchronous: the export path is the only
                 caller that would benefit and it is not hot"}
   expect:
-    # Assert it as an item or refuse it with a reason. Both are answers.
+    # Report it to the Liaison with the refs, or refuse it with a reason.
+    # Both are answers. Only the principal asks for work, so an item is not
+    # one (frame 303, review 1, finding M2).
     any_of:
-      - writes: {items: {count: ">=1"}}
+      - messages: [{to: liaison, verb: report, count: ">=1"}]
       - writes: {decisions: {count: ">=1"}}
   forbidden:
     # Architect is blocked on this and will not ask twice. Silence is the one

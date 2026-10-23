@@ -21,6 +21,25 @@ def db(tmp_path):
     return init_db(tmp_path / "rota.db")
 
 
+def _delivered(db, sb):
+    """Wake `sb` on a Liaison deliver that the principal's message caused.
+
+    Frame 303: a new request item needs the principal's words as its cause,
+    and a sandbox with no trigger has none.
+    """
+    if not db.execute("SELECT 1 FROM messages WHERE id = 'm_deliver'").fetchone():
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, seq) VALUES ('m_said', 't_d', 'principal', "
+                   "'liaison', 'converse', 900)")
+        db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                   "to_role, verb, seq) VALUES ('m_deliver', 'm_said', 't_d', "
+                   "'liaison', 'vision_keeper', 'deliver', 901)")
+        db.commit()
+    sb.ctx.trigger = "m_deliver"
+    sb.ctx.wake_kind = "message"
+    return sb
+
+
 # --- seeds ------------------------------------------------------------------
 
 def _item(db, iid):
@@ -281,6 +300,7 @@ def test_problem_assert_writes_a_statement_ref_after_the_item(db):
     _statement(db, "s1", "ratified")
     sb = build("vision_keeper", db, mode="deliver",
                wake=Wake(role="vision_keeper", kind="message", refs=("s1",)))
+    _delivered(db, sb)
     sb.call("problem.assert", id="i1", text="users can export invoices",
             kind="in_scope")
     staged = [(t, i) for t, i, *_ in sb.ctx.writes]
@@ -301,7 +321,7 @@ def test_an_onboarding_wake_records_the_grains_it_opened(db):
               if w[0] == "refs" and w[2]["kind"] == "grain"]
     assert grains == ["src/a.py", "src/b.py"]
 
-    plain = build("vision_keeper", db, mode="deliver")
+    plain = _delivered(db, build("vision_keeper", db, mode="deliver"))
     plain.ctx.opened.add("src/a.py")
     plain.call("problem.assert", id="i2", text="users can export invoices",
                kind="in_scope")

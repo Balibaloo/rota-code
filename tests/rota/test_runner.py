@@ -21,8 +21,13 @@ def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
     conn.execute("INSERT INTO entries (id, author, text, ts_order) "
                  "VALUES ('u1','principal','let users delete their account',1)")
+    # Frame 303: a deliver has the principal's message as its cause, as on
+    # a night. A statement ref would join the refs of every report.
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-                 "VALUES ('m1','t1','liaison','vision_keeper','deliver',1)")
+                 "VALUES ('m0','t1','principal','liaison','converse',0)")
+    conn.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+                 "verb, seq) VALUES ('m1','m0','t1','liaison','vision_keeper',"
+                 "'deliver',1)")
     return conn
 
 

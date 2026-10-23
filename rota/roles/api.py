@@ -1415,20 +1415,21 @@ def _amend_step(id: str, cur_text: str, said: str) -> str:
 def _principal_cause(ctx: Ctx, row) -> bool:
     """
     Whether the wake rests on the principal's words: a statement it names,
-    an entry of his that the trigger refs, or a principal message on the
+    an entry of his that a Liaison relay refs, or a principal message on the
     trigger's cause chain. A Liaison relay refs his entry, as `e_m63` on
     night 155's m67.
 
+    Each cause counts only when the trigger comes from the Liaison or the
+    principal. Night 151's Architect propose m80 refs the statement s2, and
+    s194 asserted a new item from it (frame 303, review 1, finding H1).
+
     law 6: never a ledger row written on the principal's behalf
     """
+    if row is None or row["from_role"] not in ("liaison", "principal"):
+        return False
     if named_statements(ctx):
         return True
-    # The deliver edge carries the principal's ratified words by its
-    # design. Night 155 holds one deliver with no statement ref.
-    if row is not None and (row["from_role"], row["verb"]) == (
-            "liaison", "deliver"):
-        return True
-    if row is not None:
+    if (row["from_role"], row["verb"]) == ("liaison", "relay"):
         from ..core.db import refs_of
         for ref in refs_of(row["body_refs"]):
             if ctx.conn.execute(
@@ -1527,11 +1528,7 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
         # Frame 303: night 157's s205, on a textless propose, asserted
         # bg_1_item, and the page showed the team's row under "You asked".
         # Law 6: never a ledger row written on the principal's behalf.
-        # A wake with no cause on record keeps today's behaviour: a sandbox
-        # built with no wake, or a message wake whose row is not on file.
-        on_record = row is not None or (wake and wake != "message")
-        if on_record and kind == "in_scope" \
-                and id != "how_it_works" \
+        if kind == "in_scope" and id != "how_it_works" \
                 and not _principal_cause(ctx, row):
             return _request_cause_fault(ctx, id, row, wake, wake_refs)
         return None

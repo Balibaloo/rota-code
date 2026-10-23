@@ -2834,6 +2834,26 @@ def _keeper(db, mode, onboarding=False):
                  allow=prompts.mode_tools("vision_keeper", mode))
 
 
+def _delivered(db, sb, refs=()):
+    """Wake `sb` on a Liaison deliver that the principal's message caused.
+
+    Frame 303: a new request item needs the principal's words as its cause,
+    and a sandbox with no trigger has none.
+    """
+    if not db.execute("SELECT 1 FROM messages WHERE id = 'm_deliver'").fetchone():
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, seq) VALUES ('m_said', 't_d', 'principal', "
+                   "'liaison', 'converse', 900)")
+        db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                   "to_role, verb, body_refs, seq) VALUES ('m_deliver', "
+                   "'m_said', 't_d', 'liaison', 'vision_keeper', 'deliver', ?, "
+                   "901)", (json.dumps(list(refs)),))
+        db.commit()
+    sb.ctx.trigger = "m_deliver"
+    sb.ctx.wake_kind = "message"
+    return sb
+
+
 def _land(db, sb, session_id):
     """Land a sandbox's staged writes the way the runner does."""
     from rota.core.db import SessionResult, session_commit
@@ -2898,7 +2918,7 @@ def test_an_item_read_from_the_code_is_a_description_by_construction(db):
             text="the program reads flags from the command line")
     assert staged(sb, "parses_options")["is_description"] == 1
 
-    sb = _keeper(db, "deliver")
+    sb = _delivered(db, _keeper(db, "deliver"))
     sb.call("problem.assert", id="export_csv",
             text="the program exports the recipes as a csv file")
     assert "is_description" not in staged(sb, "export_csv")
@@ -3215,6 +3235,7 @@ def test_an_item_records_which_statement_it_reads(db):
     sb = build("vision_keeper", db, mode="message",
                allow=prompts.mode_tools("vision_keeper", "message"),
                wake=Wake("vision_keeper", "message", refs=("s1",)))
+    _delivered(db, sb, ("s1",))
     sb.call("problem.assert", id="i9", text="closing an account keeps its "
             "invoices for seven years", kind="in_scope")
     pairs = [w for w in sb.ctx.writes if w[0] == "refs"]
@@ -3305,8 +3326,8 @@ def test_a_delivered_statement_is_an_item_of_its_own(db):
                ("The program is a tip calculator: it takes a total and a percentage "
                 "and prints the tip and the total with tip.",))
     db.commit()
-    sb = build("vision_keeper", db, mode="normal",
-               allow=prompts.mode_tools("vision_keeper", "deliver"))
+    sb = _delivered(db, build("vision_keeper", db, mode="normal",
+                              allow=prompts.mode_tools("vision_keeper", "deliver")))
     with pytest.raises(ValueError, match="already a row of statements"):
         sb.call("problem.assert", id="s1", text="Split the bill between the people paying")
     with pytest.raises(ValueError, match="account of the whole program"):
@@ -3739,6 +3760,7 @@ def test_the_account_s_observed_items_are_not_re_asserted_into_a_build(db):
     sb = build("vision_keeper", db, mode="normal",
                allow=prompts.mode_tools("vision_keeper", "deliver"),
                wake=SimpleNamespace(refs=("s1",), kind="message", message_id=None))
+    _delivered(db, sb, ("s1",))
     with pytest.raises(ValueError, match="observed row"):
         sb.call("problem.assert", id="parses_commands",
                 text="When a user types a command, the toolkit parses it into arguments "
@@ -3818,8 +3840,8 @@ def test_a_criterions_words_are_not_an_item(db):
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c_9', 'tk9', "
                "'The function divides the sum of the bill and the tip by the number of payers.')")
     db.commit()
-    sb = build("vision_keeper", db, mode="normal",
-               allow=prompts.mode_tools("vision_keeper", "challenge"))
+    sb = _delivered(db, build("vision_keeper", db, mode="normal",
+                              allow=prompts.mode_tools("vision_keeper", "challenge")))
     with pytest.raises(ValueError, match="a criterion of an item that exists"):
         sb.call("problem.assert", id="c_9_item",
                 text="The function divides the sum of the bill and the tip by the number of payers.")

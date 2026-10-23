@@ -83,6 +83,51 @@ def test_s205_a_propose_wake_asserts_no_request_item(db):
     sb.call("msg.report_liaison", refs=["bg_1"])
 
 
+S2 = ("Let confirm() take a default_on_eof flag: when stdin is closed it "
+      "returns the default instead of aborting.")
+
+
+def test_s194_a_propose_that_refs_a_statement_asserts_no_request_item(db):
+    # Night 151's rows: the principal's verdict m73 on s2, the Liaison's
+    # deliver m76 to the Architect, and the Architect's propose m80 with
+    # refs ["s2"]. s194 asserted confirm_default_on_eof_flag from m80
+    # (frame 303, review 1, finding H1).
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_p2', 'principal', ?, 2)", (S2,))
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s2', 'e_p2', 0, 104, ?, 'ratified')",
+               (S2,))
+    for mid, cause, frm, to, verb in (
+            ("m73", None, "principal", "liaison", "verdict"),
+            ("m76", "m73", "liaison", "architect", "deliver"),
+            ("m80", "m76", "architect", "vision_keeper", "propose")):
+        db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                   "to_role, verb, body_refs, seq) VALUES (?, ?, 't_p1', ?, ?, "
+                   "?, ?, ?)", (mid, cause, frm, to, verb,
+                                json.dumps(["s2"]), int(mid[1:])))
+    db.commit()
+    sb = _woken(db, "m80", "propose")
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="confirm_default_on_eof_flag",
+                kind="in_scope", text=S2)
+    msg = str(err.value)
+    assert "The cause of this call is m80, a propose from the architect" in msg
+    assert 'Send msg.report_liaison with the refs ["s2"]' in msg
+    assert not _item_writes(sb)
+
+
+def test_a_propose_that_refs_a_principal_entry_asserts_no_request_item(db):
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m155', 'principal', 'add echo_json', 1)")
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm94'",
+               (json.dumps(["bg_1", "e_m155"]),))
+    db.commit()
+    sb = _woken(db, "m94", "propose")
+    with pytest.raises(ValueError, match="only the principal asks for work"):
+        sb.call("problem.assert", id="bg_1_item", kind="in_scope",
+                text=BG_1_ITEM)
+
+
 def test_the_same_item_with_a_principal_message_as_its_cause_lands(db):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
                "verb, body_refs, body_text, seq) VALUES ('m90', 'm90', "

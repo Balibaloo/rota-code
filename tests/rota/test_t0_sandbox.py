@@ -23,6 +23,24 @@ def db(tmp_path):
     return init_db(tmp_path / "rota.db")
 
 
+def _delivered(db, sb):
+    """Wake `sb` on a Liaison deliver that the principal's message caused.
+
+    Frame 303: a new request item needs the principal's words as its cause,
+    and a sandbox with no trigger has none.
+    """
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+               "verb, seq) VALUES ('m_said', 't_d', 'principal', 'liaison', "
+               "'converse', 900)")
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, seq) VALUES ('m_deliver', 'm_said', 't_d', "
+               "'liaison', 'vision_keeper', 'deliver', 901)")
+    db.commit()
+    sb.ctx.trigger = "m_deliver"
+    sb.ctx.wake_kind = "message"
+    return sb
+
+
 def test_s9_every_edge_has_an_implementation():
     """Boot assertion: the graph cannot declare what the code cannot do."""
     assert check_implementations() == []
@@ -167,7 +185,7 @@ def test_s9_writes_are_staged_not_applied(db):
     A sandbox write goes into the session's pending set, never straight to the
     table — atomicity is not optional and cannot be bypassed by a tool.
     """
-    sb = build("vision_keeper", db)
+    sb = _delivered(db, build("vision_keeper", db))
     sb.call("problem.assert", id="i1", text="delete account", kind="in_scope")
 
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
@@ -183,7 +201,7 @@ def test_s9_positional_arguments_are_bound_by_signature(db):
     rule it had no standing to enforce — whether the call is well formed depends
     on the signature, and only this layer knows the signature.
     """
-    sb = build("vision_keeper", db)
+    sb = _delivered(db, build("vision_keeper", db))
     sb.call("problem.assert", "i1", "delete account")
 
     assert sb.ctx.writes == [("items", "i1", {
@@ -1149,7 +1167,7 @@ def test_a_session_cannot_scope_one_item_both_ways(db):
     Re-asserting the *same* scope is a different thing and stays allowed: it is
     a role restating itself, costs nothing, and there is nothing to correct.
     """
-    sb = build("vision_keeper", db)
+    sb = _delivered(db, build("vision_keeper", db))
 
     sb.call("problem.assert", id="i_ret", text="invoices are retained",
             kind="in_scope")
@@ -1169,7 +1187,7 @@ def test_a_session_cannot_scope_one_item_both_ways(db):
 
 def test_two_different_items_are_not_a_contradiction(db):
     """The bound: one statement can yield several items, and routinely does."""
-    sb = build("vision_keeper", db)
+    sb = _delivered(db, build("vision_keeper", db))
     sb.call("problem.assert", id="i_close", text="users can close accounts",
             kind="in_scope")
     sb.call("problem.assert", id="i_ret", text="invoices are retained",
