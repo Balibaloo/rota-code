@@ -225,3 +225,23 @@ def test_the_brief_names_the_new_files_argument(mode):
     brief = (Path(prompts.__file__).parent / "prompts" / "architect" / f"{mode}.md"
              ).read_text(encoding="utf-8")
     assert "new_files=[...]" in brief
+
+
+# s169, turn 14 (night 154, `turns`): one entry holds a single colon.
+S169 = ["src/click/termui.py::confirm", "src/click/termui.py::_format_default",
+        "src/click/termui.py::_readline_prompt", "src/click/termui.py::_build_prompt",
+        "src/click/termui.py::_mask_hidden_input",
+        "src/click/termui.py:hidden_prompt_func"]
+
+
+def test_a_single_colon_path_symbol_is_read_by_its_path_half(db):
+    """Frame 302, pass 1c: night 154's s169 typed path:symbol with one
+    colon, and the call landed on its night."""
+    sb = _annotate(db)
+    out = sb.call("batches.annotate", batch_id="bg_2", paths=S169)
+    assert out["grains"] == 6
+    sb = _annotate(db)
+    with pytest.raises(ValueError, match="src/click/options.py is not a file "
+                                         "the index holds"):
+        sb.call("batches.annotate", batch_id="bg_2",
+                paths=["src/click/options.py:show_python"])
