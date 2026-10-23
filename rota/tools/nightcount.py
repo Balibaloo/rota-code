@@ -15,8 +15,9 @@ means and names the three sessions with the most turns, because the night
   for itself, the distinct sessions of those turns, and the split by role.
 - ran anyway: made-up turns whose write call sits after the invention and
   whose next prompt carries a real write result, the same count by turn
-  alone, made-up turns whose next prompt carries a landed commit, and the
-  commits, first eight characters, in the order they appear.
+  alone, made-up turns whose next prompt carries a landed commit after the
+  turn's own echo, and the commits, first eight characters, in the order
+  they appear.
 - dangling pointers: prompts that evict an earlier result and then refuse
   to run the call again. The session is told to re-read what it cannot
   see.
@@ -156,9 +157,16 @@ def count(conn: sqlite3.Connection) -> dict:
             writes += 1
             if _write_after(r["completion"] or ""):
                 after_invention += 1
-        if LANDED.search(after):
+        # The prompt carries the session's earlier results, so a commit before
+        # the turn's own echo landed before the invention. Night 158 counted
+        # 7 such turns, and s170 sent one completion twice, so the scan starts
+        # after the last echo (frame 307, from night 158's read, W7).
+        comp = r["completion"] or ""
+        at = after.rfind(comp) if comp else -1
+        tail = after[at + len(comp):] if at >= 0 else after
+        if LANDED.search(tail):
             commits += 1
-            for sha in HEAD_COMMIT.findall(after):
+            for sha in HEAD_COMMIT.findall(tail):
                 if sha[:8] not in shas:
                     shas.append(sha[:8])
 

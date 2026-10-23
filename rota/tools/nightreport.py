@@ -295,9 +295,10 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
     """
     Frame 298's measures, from rows and the git truth (its design, 5.3).
 
-    M0 counts the sign-off pages that carry a code line. M1 and M2 count
-    the merged items whose own guess names a path of the merge commit's
-    diff, and M2 counts only paths outside `tests/`. The hand list serves
+    M0 counts the sign-off pages that carry a code line, a page shown again
+    included. M1 and M2 count the merged items whose last shown guess names
+    a path of the merge commit's diff, and M2 counts only paths outside
+    `tests/`. The hand list serves
     M3 and M4, which a reader classes into the count's (a) to (d).
     """
     from ..roles.api import _grain_path
@@ -318,8 +319,30 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
     verb_of = {m["id"]: m["verb"] for m in messages}
     cause_of = ({r["id"]: r["cause_id"] for r in n.conn.execute(
         "SELECT id, cause_id FROM messages")} if n.has("messages", "cause_id") else {})
-    signoff = [m for m in messages if m["verb"] == "present"
-               and verb_of.get(cause_of.get(m["id"])) == "submit"]
+    # A page shown again has no submit cause, and it is a sign-off page too.
+    # Night 158's m89 and m122 showed a request again and carried a code line
+    # (frame 307, from night 158's read, W7). A batch page, a shift page and a
+    # park page are other pages. A description item alone is onboarding.
+    from ..core.scheduler import PARK_ASK
+    from ..roles.principal import SHIFT_ASK
+
+    requests = ({r["id"] for r in n.conn.execute(
+        "SELECT id FROM items WHERE is_description = 0")}
+        if n.has("items", "is_description") else
+        {r["id"] for r in n.conn.execute("SELECT id FROM items")} if n.has("items") else set())
+    batch_ids = {b["id"] for b in batches}
+    signoff: list[dict] = []
+    shown: set[str] = set()
+    for m in messages:
+        if m["verb"] != "present":
+            continue
+        refs = set(_refs(m["body_refs"]))
+        if verb_of.get(cause_of.get(m["id"])) == "submit":
+            signoff.append(m)
+            shown |= refs & requests
+        elif (m["to_role"] == "principal" and refs & shown and not refs & batch_ids
+              and not str(m["id"]).startswith((SHIFT_ASK, PARK_ASK))):
+            signoff.append(m)
     with_line = 0
     for m in signoff:
         stamp = _config(n, f"code:{m['id']}")
@@ -327,10 +350,37 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
             with_line += 1
     w(f"M0: {with_line} of {len(signoff)} sign-off pages carry a code line")
 
-    # M1 and M2: the item's own guess, its first version with no ruling. The
-    # truth needs no guess table, so old nights print it (design 5.1 and
-    # 5.2, review 4 of frame 298, finding 4).
+    # M1 and M2: the last guess a page showed the principal, else the item's
+    # own guess, its first version with no ruling. The Architect rewrote a
+    # guess up to four times on night 157, so the first one is a guess he
+    # never saw last (frame 307, from night 158's read, W7). The truth needs
+    # no guess table, so old nights print it (design 5.1 and 5.2, review 4 of
+    # frame 298, finding 4).
     has_guesses = n.has("touch_guesses")
+    seq_of = {m["id"]: i for i, m in enumerate(messages)}
+    stamps = [(m["id"], _config(n, f"code:{m['id']}")) for m in messages
+              if m["verb"] == "present"] if has_guesses else []
+
+    def _seen(item: str) -> tuple | None:
+        """The guess set `(item_ver, ruling_id)` the last page showed, or None."""
+        page = None
+        for mid, stamp in reversed(stamps):
+            line = stamp.get(f"guess:{item}") if isinstance(stamp, dict) else None
+            if line is None:
+                continue
+            ref = line.get("guess") if isinstance(line, dict) else None
+            if isinstance(ref, list) and len(ref) == 2:
+                return ref[0], ref[1]
+            page = page or mid
+        if page is None:
+            return None
+        # A code line with no guess reference: the latest set before the page.
+        for r in n.conn.execute("SELECT item_ver, ruling_id FROM touch_guesses "
+                                "WHERE item_id = ? ORDER BY rowid DESC", (item,)):
+            if not r["ruling_id"] or seq_of.get(r["ruling_id"], len(seq_of)) < seq_of[page]:
+                return r["item_ver"], r["ruling_id"]
+        return None
+
     merged = [b for b in batches if b["status"] == "merged"]
     lines: list[str] = []
     m1 = m2 = withtruth = absent = no_own = 0
@@ -340,7 +390,11 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
         if not has_guesses:
             lines.append(f"  {b['item_id']} guess=absent truth={shown_truth}")
             continue
+        seen = _seen(b["item_id"])
         rows = n.conn.execute(
+            "SELECT grain FROM touch_guesses WHERE item_id = ? AND item_ver = ? "
+            "AND ruling_id = ? ORDER BY rowid", (b["item_id"], *seen)).fetchall() if seen else []
+        rows = rows or n.conn.execute(
             "SELECT grain FROM touch_guesses WHERE item_id = ? AND ruling_id = '' "
             "AND item_ver = (SELECT MIN(item_ver) FROM touch_guesses WHERE item_id = ? "
             "AND ruling_id = '') ORDER BY rowid", (b["item_id"], b["item_id"])).fetchall()
