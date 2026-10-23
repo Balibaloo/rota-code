@@ -3981,6 +3981,16 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 split.setdefault(owner, []).append(ref)
             # A criterion and its ruled test name one row twice.
             split = {o: list(dict.fromkeys(r)) for o, r in split.items()}
+            # A criterion goes to the Terminologist in one relay. The relay
+            # takes the reply's refs too, so on night 158 cr_2 came through
+            # tst_02 under the criteria key and again on its own. Each relay
+            # woke `criterion_repair` (frame 306, pass 1b).
+            keyed = set(split.get("terminologist" + CRITERIA_RELAY, []))
+            if keyed and "terminologist" in split:
+                split["terminologist"] = [r for r in split["terminologist"]
+                                          if r not in keyed]
+                if not split["terminologist"]:
+                    del split["terminologist"]
             already = {m["to_role"] for m in ctx.outbound if m["verb"] == "relay"}
             split = {o: r for o, r in split.items()
                      if o.split(":", 1)[0] not in already}

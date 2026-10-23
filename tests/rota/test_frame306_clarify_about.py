@@ -181,6 +181,24 @@ def test_a_revise_of_the_criterion_lands_and_wakes_the_repair_mode(n158):
         assert "criteria.respecify" in set(prompts.mode_tools("terminologist", mode))
 
 
+def test_a_revised_criterion_beside_an_approved_test_wakes_the_terminologist_once(n158):
+    """Pass 1b. The relay takes m146's `[tst_02]` as well, and the split sent
+    cr_2 under both Terminologist keys. Two relays meant two repair wakes."""
+    (wake,) = [w for w in open_tips(n158) if w.message_id == "m146"]
+    calls = [f"TOOL: rulings.rule(rulings="
+             f"{json.dumps({CR_2: 'revise', TST_02: 'approve'})}, "
+             f"words={M146_WORDS!r})",
+             f'TOOL: msg.relay_terminologist(refs=["{CR_2}"])', "done"]
+    out = run_session(n158, wake, backend=ScriptedBackend(calls), pins=PINS,
+                      instructions="answering")
+    assert out.committed, out.errors
+    (relay,) = n158.execute("SELECT id, to_role, body_refs FROM messages WHERE "
+                            "cause_id = 'm146' AND verb = 'relay'").fetchall()
+    assert (relay["to_role"], json.loads(relay["body_refs"])) == ("terminologist", [CR_2])
+    assert _mode_key(Wake("terminologist", "message", refs=(), detail="relay",
+                          message_id=relay["id"]), n158) == "criterion_repair"
+
+
 def test_an_approved_criterion_on_a_clarify_keeps_relay_mode(n158):
     """A clarify ruling that approves the criterion is no ruling on its words,
     so a relay of it keeps `relay`."""
