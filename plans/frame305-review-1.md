@@ -194,3 +194,75 @@ adds `_RELATING` and its comment above `_line_cues`. The other two are
 inside `_line_cues`, lines 9387 to 9449 by the map tool. No line outside
 `_line_cues` and its constant changed. The `test_runner.py` change is the
 expected text and a two-line comment of one test.
+
+## Pass 1b at 8ed8fddb
+
+The worktree `C:/Users/roman/rota_r305` moved to 8ed8fddb, parent
+666b92dc, by `git checkout --detach` and nothing else. The diff touches
+`rota/roles/api.py`, `rota/roles/principal.py` and
+`tests/rota/test_frame305_line_reader.py`. The pass adds `_SENTENCE`,
+`_NEGATED` and `_live_cues`, binds "both" to a relating pair, and makes
+`returned_line` read by sentence. The old reader is 0dc04800, from `git
+archive`. The probe scripts are `r305/p5.py` to `r305/p8.py`.
+
+### Verdict
+
+Accept 8ed8fddb for the night. Findings 1, 2 and 3 of review 1 are fixed
+(probe). The m105 right map passes, and an approve of line 7 is refused. On
+the recorded words, pass 1b reads every one of 560 principal messages of
+nights 140 to 158 as pass 1 does. One new finding is medium, and it comes
+from pass 1, not from pass 1b. It removes a guard on one recorded message.
+It forces no ruling against his words.
+
+### Finding 8
+
+**Medium, CONFIRMED. A relating verb anywhere between two references makes
+a pair.** Night 142's m102 says "Lines 8 to 14 repeat what I asked for, so
+they are not assumptions, and line 1 should point only at the echo tests".
+"repeat" sits between the two references, but its object is "what I asked
+for" and not line 1. The reader gives the "should" of line 1 to lines 8 to
+14, and line 1 has no fault. At 0dc04800, a map that approves line 1 is
+refused with 'The words fault line 1, "should"'. At 8ed8fddb the same map
+passes, so a seat can approve line 1 against his words. The right map passes
+at both commits. This is the only right reading lost over 560 messages.
+Fix: make a pair only when the relating verb directly precedes the second
+reference, with at most "just", "the" or "word for word" between them.
+
+### Width probes at 8ed8fddb
+
+| Words | Reader | His meaning |
+|---|---|---|
+| Line 7 repeats line 3, but do not drop it | none | keep both, right |
+| Line 7 repeats line 3, so drop both | 3, 7 drop | right |
+| Line 2 is fine. 3 is wrong. (`returned_line`) | 2 and 3, no number | right |
+| Line 4 should not drop the file | 4 "should" | right |
+| Line 3 is not wrong | none | right |
+| Line 5 is fine, don't remove it | 5 matched | right |
+| Line 6 does not fail, do not remove it, but line 7 is wrong | 6 "not", 7 "wrong" | 7 only. "not fail" is outside `_NEGATED`, because the cue is "fails". The weak "not" was there before the pass |
+
+### The 12 sentences and the 14 re-presents, 0dc04800 against 8ed8fddb
+
+The results at 8ed8fddb are the same as at 666b92dc, row for row. See the
+point 4 tables above.
+
+| Count | Old | 8ed8fddb | His meaning |
+|---|---|---|---|
+| 12 two-line sentences | 4 wrong of the relating shape, 3 wrong of night 150 | 4 moved, all to his meaning. Night 150's 3 stay wrong | 9 right, 3 wrong |
+| 14 re-presents | 5 name a line his words did not | 0. 5 name his one line, 9 name none | 14 right |
+
+### Negation sentences
+
+There are 40 principal sentences of nights 140 to 158 that hold "not", "do
+not" or "don't" before a fault cue. The reader gave a different set of
+faulted lines on 2 of the 40. Neither change comes from the negation rule.
+Both come from the relating rule of pass 1. The negation rule changes no
+recorded sentence.
+
+| Night, message | Sentence, shortened | Old | 8ed8fddb | His meaning |
+|---|---|---|---|---|
+| 142 m102 | Lines 8 to 14 repeat what I asked for, so they are not assumptions, and line 1 should point only at the echo tests | 1, 8 to 14 | 8 to 14 | 1, 8 to 14. Line 1 lost (finding 8) |
+| 154 m120 | Line 1 should point only to the terminal UI test file ... lines 8, 9 and 11 just repeat lines 5 and 6, so please remove them | 1, 5, 6 | 1, 8, 9, 11 | 1, 8, 9, 11. Right |
+
+Changes over the whole messages, old against 8ed8fddb: 8 of 560. Seven move
+to his meaning: night 140 m56, 141 m49, 142 m7, 142 m110 (line 8 gained),
+147 m87, 154 m120 and 158 m105. One loses a right reading: 142 m102.
