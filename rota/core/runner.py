@@ -198,8 +198,15 @@ def answer_about(conn: sqlite3.Connection, clarify_id: str) -> list[str] | None:
         (clarify["cause_id"],)).fetchone() if clarify["cause_id"] else None
     if asker is None:
         return None
+    from ..roles.api import _table_of_ref
+
     own = json.loads(clarify["body_refs"] or "[]")
-    about = json.loads(asker["body_refs"] or "[]")
+    # An asker's ref joins only when it names a row a ruling can carry. On
+    # night 144 the door admitted m385, a message id, and landed it in
+    # `per_item` (frame 306, review 1, finding 2).
+    about = [r for r in json.loads(asker["body_refs"] or "[]")
+             if isinstance(r, str) and (_table_of_ref(conn, r) or conn.execute(
+                 "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone())]
     return about + [r for r in own if r not in about]
 
 
@@ -2220,7 +2227,11 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         for c in conn.execute(
                 "SELECT id, body_text, body_refs FROM messages "
                 "WHERE verb = 'clarify' AND to_role = 'principal' ORDER BY seq"):
-            if not refs_here & set(json.loads(c["body_refs"] or "[]")):
+            # The answer is about the rows the door keyed on, the asker's
+            # with the clarify's (frame 306, review 1, finding 3).
+            about = (answer_about(conn, c["id"])
+                     or json.loads(c["body_refs"] or "[]"))
+            if not refs_here & set(about):
                 continue
             reply = conn.execute(
                 "SELECT id FROM messages WHERE from_role = 'principal' "
@@ -2230,7 +2241,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             said = entry_for(conn, reply["id"])
             if said:
                 prior.append({"question": c["body_text"], "principal_said": said,
-                              "about": json.loads(c["body_refs"] or "[]")})
+                              "about": about})
         if prior:
             out["prior_answers"] = prior
 

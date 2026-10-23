@@ -3632,6 +3632,23 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     given = []
                 refs += [r for r in given
                          if isinstance(r, str) and r and r not in refs]
+            # A clarify ruling can rule a row the reply does not carry, one
+            # the asker named. Its contest or revise travels too (frame 306,
+            # review 1, finding 4).
+            for w in ctx.writes or []:
+                if w[0] != "rulings":
+                    continue
+                ask = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
+                                       (w[2].get("ask_id"),)).fetchone()
+                if ask is None or ask["verb"] != "clarify":
+                    continue
+                import json as _json
+                try:
+                    ruled = _json.loads(w[2].get("per_item") or "{}")
+                except (TypeError, ValueError):
+                    ruled = {}
+                refs += [r for r, v in ruled.items()
+                         if v in ("contest", "revise") and r not in refs]
         # The reading comes before the relay. The answering mode asks for two
         # calls in one turn, the relay second, and the runner ends the session
         # on the first outbound message. A session that relayed first ended

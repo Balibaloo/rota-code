@@ -275,3 +275,54 @@ def test_a_clarify_with_no_asker_keys_on_its_own_refs(db):
         sb.call("rulings.rule", rulings={CR_2: "revise"}, words="Fix it.")
     out = sb.call("rulings.rule", rulings={TST_02: "approve"}, words="That is fine.")
     assert out["per_item"] == {TST_02: "approve"}
+
+
+# Pass 1c, review 1 findings 2 to 4.
+def test_a_message_id_in_the_askers_refs_is_not_a_key(n158):
+    """Finding 2: night 144's m399 door admitted `m385`, a message id, from the
+    asker's refs, and landed it in `per_item`."""
+    _message(n158, "m20", "critic", "tester", "challenge", [CR_2, "m144"])
+    _message(n158, "m21", "liaison", "principal", "clarify", [TST_02], cause="m20")
+    _message(n158, "m22", "principal", "liaison", "converse", [TST_02], cause="m21",
+             status="open")
+    n158.commit()
+    assert answer_about(n158, "m21") == [CR_2, TST_02]
+    sb = _sandbox(n158, "m22")
+    with pytest.raises(ValueError, match="is not a row of this question"):
+        sb.call("rulings.rule", rulings={"m144": "revise"}, words="Fix it.")
+
+
+def test_a_prior_answer_is_found_on_the_askers_criterion(n158):
+    """Finding 3: a later report that names only cr_2 did not see m146,
+    because the match read m145's own `[tst_02]`."""
+    _message(n158, "m150", "terminologist", "liaison", "report", [CR_2],
+             status="open")
+    n158.commit()
+    inbound = resolve_inbound(n158, Wake("liaison", "message", refs=(), detail="report",
+                                         message_id="m150"))
+    (prior,) = inbound["prior_answers"]
+    assert prior["principal_said"] == M146_WORDS
+    assert CR_2 in prior["about"]
+
+
+def test_a_relay_after_a_ruling_on_the_askers_criterion_carries_it(n158):
+    """Finding 4: the relay added the reply's refs and not a criterion ruled
+    from the asker's refs. Here no test row of the reply covers cr_2."""
+    _message(n158, "m20", "critic", "tester", "challenge", [CR_2, ITEM])
+    _message(n158, "m21", "liaison", "principal", "clarify", [ITEM], cause="m20")
+    _message(n158, "m22", "principal", "liaison", "converse", [ITEM], cause="m21",
+             status="open")
+    _entry(n158, "m22", M146_WORDS)
+    n158.commit()
+    (wake,) = [w for w in open_tips(n158) if w.message_id == "m22"]
+    calls = [f"TOOL: rulings.rule(rulings="
+             f"{json.dumps({CR_2: 'revise', ITEM: 'approve'})}, "
+             f"words={M146_WORDS!r})",
+             f'TOOL: msg.relay_vision_keeper(refs=["{ITEM}"])', "done"]
+    out = run_session(n158, wake, backend=ScriptedBackend(calls), pins=PINS,
+                      instructions="answering")
+    assert out.committed, out.errors
+    relays = {r["to_role"]: json.loads(r["body_refs"]) for r in n158.execute(
+        "SELECT to_role, body_refs FROM messages WHERE cause_id = 'm22' "
+        "AND verb = 'relay'")}
+    assert relays.get("terminologist") == [CR_2]
