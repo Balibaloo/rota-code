@@ -721,7 +721,7 @@ a different question and the night is then opened once.
 - Waits on: frame 308's commit on `api.py`. Priced 2 cycles, about 60k on Opus and a review, plus 1 cycle for the provenance (reasoned: a door predicate, by the rule of 2026-10-11 05:51; the provenance by the rule of 2026-10-18, memory `rota-provenance-before-a-fix`).
 - Sprint: this sprint, after frame 308, as the wall of night 160's first cycle (reasoned: a loop on no held frame's site, C56; the batch quarantined itself at attempt 3, so the night runs on for the held frames' counts). Pushed with the economy at 20 of 10.
 - Pointer: `plans/night160-cycle1.md`, sections The criterion, The frame and After the cycle.
-- Status 2026-10-23 20:49 (rota-19): pushed from night 160's first CYCLE line, read on Opus, 114.2k on the harness line against 60k. The provenance read runs on Opus, cap 40k, from `f310_provenance_brief.md` in this session's scratchpad, to `plans/frame310-provenance.md`. Meta workflow.
+- Status 2026-10-23 20:35 (rota-19): pushed from night 160's first CYCLE line, read on Opus, 114.2k on the harness line against 60k. The provenance read runs on Opus, cap 40k, from `f310_provenance_brief.md` in this session's scratchpad, to `plans/frame310-provenance.md`. Meta workflow.
 
 ### 309. `test_runs` keeps one live run per test, and two deletes remove the rest before the night's read (2026-10-23) (b85289fd) (8e879083)
 
