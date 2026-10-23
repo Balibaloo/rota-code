@@ -331,6 +331,14 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
         if n.has("items", "is_description") else
         {r["id"] for r in n.conn.execute("SELECT id FROM items")} if n.has("items") else set())
     batch_ids = {b["id"] for b in batches}
+
+    # A page shown again counts only when a code line showed a guess. Night
+    # 157's m134, m139, m205 and m210 showed a batch plan, which M0 does not
+    # measure (frame 307, pass 1b).
+    def _showed_guess(stamp) -> bool:
+        return isinstance(stamp, dict) and any(
+            isinstance(v, dict) and "guess" in v for v in stamp.values())
+
     signoff: list[dict] = []
     shown: set[str] = set()
     for m in messages:
@@ -341,7 +349,8 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
             signoff.append(m)
             shown |= refs & requests
         elif (m["to_role"] == "principal" and refs & shown and not refs & batch_ids
-              and not str(m["id"]).startswith((SHIFT_ASK, PARK_ASK))):
+              and not str(m["id"]).startswith((SHIFT_ASK, PARK_ASK))
+              and _showed_guess(_config(n, f"code:{m['id']}"))):
             signoff.append(m)
     with_line = 0
     for m in signoff:

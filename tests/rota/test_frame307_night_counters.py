@@ -135,7 +135,44 @@ def test_m0_counts_a_page_shown_again_as_a_sign_off_page(tmp_path, monkeypatch):
     """m89 and m122 show a request item again with no submit cause. The
     batch pages, the shift page and the onboarding pages stay out."""
     lines = _guess_lines(tmp_path, monkeypatch)
-    assert "M0: 5 of 6 sign-off pages carry a code line" in lines
+    # m89 showed bg_2's batch plan on its code line, so pass 1b leaves it out.
+    assert "M0: 4 of 5 sign-off pages carry a code line" in lines
+
+
+def test_m0_leaves_out_a_page_shown_again_with_a_batch_plan(tmp_path):
+    """Night 157's m134 showed default_on_eof again, and its code line showed
+    bg_1's batch plan and not a guess (frame 307, pass 1b)."""
+    conn = init_db(tmp_path / "clickI_night157.db")
+    conn.execute("PRAGMA foreign_keys = OFF")
+    for iid, desc in (("default_on_eof", 0), ("how_it_works", 1)):
+        conn.execute("INSERT INTO items (id, text, kind, approval, version, is_description) "
+                     "VALUES (?, ?, 'in_scope', 'approved', 1, ?)", (iid, iid, desc))
+    conn.execute("INSERT INTO batches (id, item_id, head_commit, status) VALUES "
+                 "('bg_1', 'default_on_eof', '0779d02e9e077a8ab02625b51143097f9f36bd89', "
+                 "'deferred')")
+    rows = (("m35", None, "vision_keeper", "liaison", "submit",
+             ["default_on_eof", "how_it_works"]),
+            ("m36", "m35", "liaison", "principal", "present",
+             ["default_on_eof", "how_it_works", "l_58b125450d", "guess:default_on_eof"]),
+            ("m134", None, "liaison", "principal", "present",
+             ["l_064e08dfd0", "l_1c206f49e0", "default_on_eof", "cr_1", "cr_2", "cr_3",
+              "guess:default_on_eof"]))
+    for seq, (mid, cause, fr, to, verb, refs) in enumerate(rows, 1):
+        conn.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, verb, "
+                     "body_refs, seq) VALUES (?, ?, 't', ?, ?, ?, ?, ?)",
+                     (mid, cause, fr, to, verb, json.dumps(refs), seq))
+    for mid, stamp in (("m36", {"guess:default_on_eof": {"guess": [1, ""]}}),
+                       ("m134", {"guess:default_on_eof": {"batch": "bg_1"}})):
+        conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
+                     (f"code:{mid}", json.dumps(stamp)))
+    conn.commit()
+    conn.close()
+    ro = nightreport.open_ro(tmp_path / "clickI_night157.db")
+    try:
+        lines = _section(nightreport.build(ro, repo=tmp_path), GUESS)
+    finally:
+        ro.close()
+    assert "M0: 1 of 1 sign-off pages carry a code line" in lines
 
 
 def test_m1_and_m2_read_the_last_guess_the_principal_saw(tmp_path, monkeypatch):
