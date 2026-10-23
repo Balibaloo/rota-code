@@ -2537,7 +2537,6 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
     from ..roles.api import message_entry
     from .db import PAGE_VERBS
 
-    orders: dict[str, list[str]] = {}
     out: list[dict[str, Any]] = []
     for r in conn.execute(
             "SELECT id, from_role, verb, body_text, body_refs, cause_id FROM messages "
@@ -2560,23 +2559,20 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
         if answered:
             turn["page"] = answered["id"]
             if answered["id"] != page:
-                # The order he saw, as `principal.land` recorded it. A render
-                # reads today's rows, and 73 of 693 rows named on nights 158
-                # and 159 were not the row he saw (frame 272, review 1,
-                # finding 1). A page with no record keeps his numbers.
-                if answered["id"] not in orders:
-                    rec = conn.execute(
-                        "SELECT value FROM config WHERE key = ?",
-                        (f"order:{answered['id']}",)).fetchone()
-                    try:
-                        orders[answered["id"]] = [
-                            x for x in json.loads(rec["value"]) if isinstance(x, str)
-                        ] if rec else []
-                    except (TypeError, ValueError):
-                        orders[answered["id"]] = []
-                if orders[answered["id"]]:
-                    text = _page_named_lines(text, answered["id"],
-                                             orders[answered["id"]])
+                # The order he saw at this reply, as `principal.land`
+                # recorded it. A render reads today's rows, and 73 of 693 rows
+                # named on nights 158 and 159 were not the row he saw (frame
+                # 272, review 1, finding 1). A reply with no record keeps his
+                # numbers.
+                rec = conn.execute("SELECT value FROM config WHERE key = ?",
+                                   (f"order:{r['id']}",)).fetchone()
+                try:
+                    order = [x for x in json.loads(rec["value"])
+                             if isinstance(x, str)] if rec else []
+                except (TypeError, ValueError):
+                    order = []
+                if order:
+                    text = _page_named_lines(text, answered["id"], order)
         turn["text"] = text
         out.append(turn | ({"asked": True} if r["verb"] == "clarify" else {}))
         if len(out) >= limit:

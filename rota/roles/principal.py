@@ -1894,11 +1894,12 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         record_entry(conn, msg_id, answer.text.strip())
         # His line numbers belong to the page as he saw it. A later render
         # reads today's rows, and night 159's m105 had lost its line 1 by
-        # s239's wake (frame 272, review 1, finding 1). The first reply's
-        # order stays.
+        # s239's wake (frame 272, review 1, finding 1). The record is the
+        # reply's, because a second reply to the open page can see another
+        # order (frame 272, review 2, finding 1).
         if ask.order:
-            conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
-                         (f"order:{ask.message_id}", json.dumps(ask.order)))
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                         (f"order:{msg_id}", json.dumps(ask.order)))
         return msg_id
 
     # No words and no ruling is no answer. The ask stays open, as an

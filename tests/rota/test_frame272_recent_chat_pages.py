@@ -44,11 +44,11 @@ def _notes(conn, *ids):
                      "'open', 'developer')", (lid, f"the team assumed {lid}"))
 
 
-def _shown(conn, page, order):
-    """The order of `page` as the principal saw it, as `principal.land`
-    records it."""
+def _shown(conn, reply, order):
+    """The order of the page as the principal saw it at `reply`, as
+    `principal.land` records it."""
     conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
-                 (f"order:{page}", json.dumps(order)))
+                 (f"order:{reply}", json.dumps(order)))
 
 
 @pytest.fixture
@@ -66,7 +66,6 @@ def s239(tmp_path):
     (ask,) = principal.pending_asks(conn)
     assert ask.order == old
     reply = principal.land(conn, ask, principal.Answer(verb="reply", text=M106))
-    conn.execute("UPDATE messages SET id = 'm106' WHERE id = ?", (reply,))
     conn.execute("DELETE FROM ledger WHERE id = 'l_bg2'")
     _msg(conn, "m115", None, "liaison", "principal", "converse", [], 3, SAID)
     _msg(conn, "m116", "m115", "liaison", "principal", "present", new, 4)
@@ -90,6 +89,24 @@ def test_a_reply_to_an_earlier_page_names_the_rows_he_saw(s239):
     assert not re.search(r"\bline\s+[12]\b", m106["text"], re.I)
 
 
+def test_two_replies_to_one_page_each_read_the_list_he_saw(s239):
+    """A second reply to the open page m105, after its line 1 left the page.
+    Each reply names the rows of its own list (frame 272, review 2,
+    finding 1)."""
+    (ask,) = [a for a in principal.pending_asks(s239) if a.message_id == "m105"]
+    assert ask.order == ["l_echo", "l_bg3"]
+    principal.land(s239, ask, principal.Answer(verb="reply", text="Line 1 is wrong."))
+    s239.execute("UPDATE messages SET seq = 9 WHERE id = 'm117'")
+    s239.commit()
+    replies = [t["text"] for t in _recent_chat(s239, "m117", page="m116")
+               if t["from"] == "principal"]
+    assert replies == [
+        "Row l_bg2 of page m105 is wrong because this page should cover only the "
+        "confirm flag. Row l_echo of page m105 should say that the flag defaults "
+        "to False.",
+        "Row l_echo of page m105 is wrong."]
+
+
 def test_the_landing_names_the_present_page(s239):
     """The seat sees the id of the page it answers, so "of page m105" names
     another page (frame 272, review 1, finding 2)."""
@@ -99,7 +116,7 @@ def test_the_landing_names_the_present_page(s239):
 
 def test_a_page_with_no_recorded_order_keeps_his_numbers(s239):
     """An earlier page is never rendered from today's rows."""
-    s239.execute("DELETE FROM config WHERE key = 'order:m105'")
+    s239.execute("DELETE FROM config WHERE key LIKE 'order:%'")
     (m106,) = [t for t in _recent_chat(s239, "m117", page="m116")
                if t["from"] == "principal"]
     assert m106 == {"from": "principal", "page": "m105", "text": M106}
@@ -114,7 +131,7 @@ def test_a_line_the_present_page_shows_too_names_the_old_page(tmp_path):
     _msg(conn, "m50", None, "liaison", "principal", "present", ["l_cdoe", "l_guess"], 1)
     _msg(conn, "m51", "m50", "principal", "liaison", "converse",
          ["l_cdoe", "l_guess"], 2, M51)
-    _shown(conn, "m50", ["l_cdoe", "l_guess"])
+    _shown(conn, "m51", ["l_cdoe", "l_guess"])
     _msg(conn, "m89", None, "liaison", "principal", "present", ["l_cmd", "l_guess"], 3)
     _msg(conn, "m90", "m89", "principal", "liaison", "converse",
          ["l_cmd", "l_guess"], 4, "Line 1 is wrong.")
