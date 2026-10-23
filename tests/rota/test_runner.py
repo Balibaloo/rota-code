@@ -1895,9 +1895,11 @@ def test_a_second_reply_that_lands_no_ruling_returns_the_page(db):
     assert page["unresolved_note"] == "m178: rulings.rule: " + S336_REFUSAL
     rendered = {a.message_id: a.rendered for a in pending_asks(db)}["m177"]
     first = rendered.splitlines()[0]
+    # The number comes from his reply, not the refusal. The reply names no
+    # "line N", so the line names none (frame 305).
     assert first == (
         "Your last answer to this page did not reach the team. The team could "
-        "not turn your words about line 11 into a ruling. Answer the page "
+        "not turn your words into a ruling. Answer the page "
         "again, and say for each line you want changed what to do with it.")
     for word in ("m178", "rulings", "refus", "lead"):
         assert word not in first

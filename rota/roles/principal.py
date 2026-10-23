@@ -1421,8 +1421,12 @@ def returned_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
     Frame 267: two sessions on a reply landed no ruling, so `session_commit`
     put the reason on the open page. The person has no name for the
     mechanism, so the line holds no id, no tool name and no refusal text.
-    It keeps the line number that the refusal named.
+    The line number comes from his own reply, and only when the reply names
+    exactly one line. The refusal speaks to the seat, so its line is not his.
+    Night 158's m122 named line 1, and his words named no line (frame 305).
     """
+    from .api import _LINE_REF, _ref_lines
+
     if not ask_id:
         return ""
     row = conn.execute(
@@ -1431,8 +1435,16 @@ def returned_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
         (ask_id,)).fetchone()
     if row is None:
         return ""
-    line = re.search(r"\bline (\d+)\b", row["unresolved_note"])
-    about = f" about line {line.group(1)}" if line else ""
+    # `session_commit` writes the note as "<reply id>: <refusal>".
+    reply_id = re.match(r"(\w+): ", row["unresolved_note"])
+    reply = conn.execute(
+        "SELECT body_text FROM messages WHERE id = ? AND cause_id = ? "
+        "AND from_role = 'principal'",
+        (reply_id.group(1) if reply_id else None, ask_id)).fetchone()
+    lines: set[int] = set()
+    for ref in _LINE_REF.finditer((reply and reply["body_text"]) or ""):
+        lines |= _ref_lines(ref)
+    about = f" about line {min(lines)}" if len(lines) == 1 else ""
     return ("Your last answer to this page did not reach the team. The team "
             f"could not turn your words{about} into a ruling. Answer the page "
             "again, and say for each line you want changed what to do with it.")

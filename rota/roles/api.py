@@ -9375,6 +9375,14 @@ def _line_reading(words: str, size: int | None = None
 # the same clause when it has one: "are also wrong" names "wrong".
 _WEAK_CUES = ("also", "still", "not")
 
+# Verbs that relate two line references, as in "Line 7 repeats line 3". A
+# fault cue after the pair binds to the subject, the first reference, and
+# never to the object. Night 158's m104 page got "Line 7 just repeats line 3
+# ... so drop it", and the reader put the drop on line 3 (frame 305).
+_RELATING = re.compile(
+    r"\b(?:repeat(?:s|ed)?|duplicat(?:es?|ed)|cop(?:y|ies|ied)|"
+    r"(?:is|are|says?) the same(?: thing)? as)\b", re.I)
+
 
 def _line_cues(words: str, size: int | None = None
                ) -> tuple[dict[int, tuple[str, str]], set[int]]:
@@ -9388,8 +9396,24 @@ def _line_cues(words: str, size: int | None = None
     matched: set[int] = set()
     for sentence in re.split(r"(?<=[.!?])\s+|[:;]", words or ""):
         refs = list(_LINE_REF.finditer(sentence))
+        # The cue binds to the reference it governs. In "Line 7 repeats line
+        # 3, so drop it", "it" is line 7, the subject (frame 305).
+        subject: dict[int, int] = {}
+        for i in range(len(refs) - 1):
+            if _RELATING.search(sentence[refs[i].end():refs[i + 1].start()]):
+                subject[i + 1] = subject.get(i, i)
         for i, ref in enumerate(refs):
             end = refs[i + 1].start() if i + 1 < len(refs) else len(sentence)
+            if i in subject.values() and i not in subject:
+                # "Drop line 3, because it repeats line 7": a cue directly
+                # before the subject governs it (frame 305).
+                head = sentence[refs[i - 1].end() if i else 0:ref.start()]
+                head = head.rstrip()
+                pre = [m.group(0) for m in _LINE_FAULT.finditer(head)
+                       if m.end() == len(head)
+                       and m.group(0).lower() not in _WEAK_CUES]
+                for n in _ref_lines(ref, size) if pre else ():
+                    faulted.setdefault(n, (pre[0], sentence[ref.end():end]))
             window = sentence[ref.end():end]
             fault, match = _LINE_FAULT.search(window), _LINE_MATCH.search(window)
             # "match" is also a request: s159's "please match each one to
@@ -9412,8 +9436,14 @@ def _line_cues(words: str, size: int | None = None
                     found = [m.group(0) for m in _LINE_FAULT.finditer(window)]
                     strong = [c for c in found if c.lower() not in _WEAK_CUES]
                     cue = (strong or found)[0]
-                for n in _ref_lines(ref, size):
-                    faulted.setdefault(n, (cue, window))
+                target, clause = ref, window
+                if i in subject:
+                    # The object of a relating verb takes no fault. Night
+                    # 158's m105: the drop belongs to line 7, not line 3.
+                    target = refs[subject[i]]
+                    clause = sentence[target.end():end]
+                for n in _ref_lines(target, size):
+                    faulted.setdefault(n, (cue, clause))
             elif match is not None:
                 matched |= _ref_lines(ref, size)
     return faulted, matched
