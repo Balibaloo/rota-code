@@ -6048,9 +6048,45 @@ def _refuse_stray_dirs(conn: sqlite3.Connection, paths: list[str]) -> None:
             f"where they are")
 
 
+def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
+                            new_files: list[str] | None) -> None:
+    """Refuse a predicted file the code index lacks, unless the call names
+    it in `new_files`.
+
+    Call this after `_refuse_stray_dirs`, so a file named as new still meets
+    the directory door."""
+    # Frame 302: night 157's s274 guessed src/click/options.py. The directory
+    # door passed it, and the seat had read src/click/decorators.py in the
+    # index. This narrows the 2026-09-12 rule and keeps "a new file you name
+    # as new" (frame 298's design, point 8).
+    indexed = {r["grain"].replace("\\", "/") for r in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
+    # No index, no fact, as in the directory door.
+    if not indexed:
+        return
+    named = {p.replace("\\", "/") for p in new_files or []}
+    unknown = [p for p in paths
+               if p.replace("\\", "/") not in indexed | named]
+    if not unknown:
+        return
+    path = unknown[0].replace("\\", "/")
+    folder = "/".join(path.split("/")[:-1])
+    beside = sorted(g for g in indexed
+                    if "/".join(g.split("/")[:-1]) == folder)
+    if not beside:
+        beside = sorted(g for g in indexed if g.startswith(f"{folder}/"))
+    where = folder or "the root"
+    raise ValueError(
+        f"{unknown[0]} is not a file the index holds. The index holds these "
+        f"files in {where}: {', '.join(beside[:8])}. Write the file you mean "
+        f"from that list. To create a new file, also name it in "
+        f"`new_files=[...]`")
+
+
 @op("batches", "guess")
 def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
-                  symbols: list[str] | None = None) -> dict:
+                  symbols: list[str] | None = None,
+                  new_files: list[str] | None = None) -> dict:
     """
     What one request item is expected to touch, before any batch exists.
 
@@ -6082,6 +6118,7 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
     # finding 5).
     _refuse_stray_dirs(ctx.conn, list(paths) + [
         s.split("::", 1)[0] for s in symbols or [] if "::" in s])
+    _refuse_unindexed_files(ctx.conn, paths, new_files)
     bare = [s for s in symbols or [] if "::" not in s]
     if bare:
         # The refusal names the index's own grain, because the L1 case's
@@ -6130,7 +6167,8 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
 
 @op("batches", "annotate")
 def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
-                     symbols: list[str] | None = None) -> dict:
+                     symbols: list[str] | None = None,
+                     new_files: list[str] | None = None) -> dict:
     """
     What this batch is expected to touch.
 
@@ -6144,6 +6182,7 @@ def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
     permission system nobody designed.
     """
     _refuse_stray_dirs(ctx.conn, paths)
+    _refuse_unindexed_files(ctx.conn, paths, new_files)
     # law 12: the touch set is a prediction, never a permission
     # The principal's correction replaces the prediction. Night 136's m85
     # said "Line 2 names the wrong tests", and an upsert would keep the
