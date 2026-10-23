@@ -108,8 +108,8 @@ def _asked(cid: str, text: str, line: str) -> str:
     return (f"before the pass lands, answer for {cid}. The criterion says: "
             f"\"{text}\". Your line holds '{line}'. Does that line do what "
             f"the criterion says, or the opposite? Say which in one sentence. "
-            f"If it does the opposite, claim and fail on {cid}. If it does "
-            f"what the criterion says, send the pass again.")
+            f"If it does what the criterion says, send the same pass again. "
+            f"If it does the opposite, claim and fail on {cid}.")
 
 
 def test_the_recorded_turn_gets_the_hold(case):
@@ -191,9 +191,9 @@ def test_two_criteria_are_quoted_by_id_in_order(case):
         "the opposite? Say which in one sentence. "
         f"Criterion c2 says: \"{C2_TEXT}\". Your line holds '{L_NONE}'. Does "
         "that line do what the criterion says, or the opposite? Say which in "
-        "one sentence. If a line does the opposite, claim and fail on its "
-        "criterion, c1 or c2. If each line does what its criterion says, send "
-        "the pass again.")
+        "one sentence. If each line does what its criterion says, send the "
+        "same pass again. If a line does the opposite, claim and fail on its "
+        "criterion, c1 or c2.")
 
 
 def test_a_second_hold_quotes_only_the_moved_criterion(case):

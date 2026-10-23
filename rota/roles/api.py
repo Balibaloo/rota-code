@@ -12016,15 +12016,16 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
         it = "it does" if len(ask[cid]) == 1 else "they do"
         body = f"The criterion says: \"{texts[cid]}\". {holds(ask[cid])}"
         fail = f"If {it} the opposite, claim and fail on {cid}"
-        again = f"If {it} what the criterion says, send the pass again"
+        again = f"If {it} what the criterion says, send the same pass again"
     else:
         body = " ".join(f"Criterion {cid} says: \"{texts[cid]}\". "
                         f"{holds(ask[cid])}" for cid in ids)
         fail = (f"If a line does the opposite, claim and fail on its "
                 f"criterion, {_or_list(ids, 'or')}")
-        again = "If each line does what its criterion says, send the pass again"
-    # The fail route comes first, so the last words do not invite the same
-    # call again (review 4, finding 3, difference 6).
+        again = ("If each line does what its criterion says, send the same "
+                 "pass again")
+    # The pass route comes first, as in probe (c), the measured text (frame
+    # 201, pass 3c, after the register run at 794339cd).
     for cid in ids:
         _offer(ctx, fail, "verdicts.claim_encodes",
                {"criterion_id": cid, "encodes": True},
@@ -12032,7 +12033,7 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
     _offer(ctx, again, "verdicts.emit",
            {"batch_id": batch_id, "result": "pass", "lines": dict(lines)})
     raise PassHeld(f"before the pass lands, answer for {_or_list(ids, 'and')}. "
-                   f"{body} {fail}. {again}.")
+                   f"{body} {again}. {fail}.")
 
 
 def _fail_on(batch_id: str, cid: str) -> tuple:
