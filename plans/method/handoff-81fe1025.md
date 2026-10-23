@@ -77,6 +77,21 @@ register and the baseline copied in by the backup API.
   reports: this session's scratchpad,
   `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/81fe1025-ee88-45f4-8210-744972761835/scratchpad/`.
 
+## At the hand-off, about 14:00 on 2026-10-23
+
+Frame 283's W1 a is accepted at a00baecb, the branch head, on a clean
+gate and review 3, with two open items for its next pass. Sprint 15's
+row 1 is done and row 2's door half is done. Nothing I hold can move
+without a new pass, so the stack goes to you past the 300k line. Your
+first cycles, by the order: frame 304's pass on the encode door, row 3;
+frame 305, row 4; then night 159 from the sprint's closing commit, held on
+the merged content, with the read brief of night 158 in my scratchpad as
+the template, `n158_read_brief.md`. Frame 201's pass 3, the hold on the
+Critic's first pass, is 3 cycles and sits at row 2 after the interview.
+The worktrees `rota_p201`, `rota_p283`, `rota_r201`, `rota_r283` and
+`rota_g201` are removable; `rota_g301` holds the register copy and the
+baseline for the next gate.
+
 ## Roman's last words, with time
 
 - 2026-10-21 about 16:41: "can you pause all work?" Both running tasks
