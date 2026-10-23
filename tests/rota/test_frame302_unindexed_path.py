@@ -245,3 +245,128 @@ def test_a_single_colon_path_symbol_is_read_by_its_path_half(db):
                                          "the index holds"):
         sb.call("batches.annotate", batch_id="bg_2",
                 paths=["src/click/options.py:show_python"])
+
+
+# ---------------------------------------------------------------------------
+# Pass 2: a new test file lands without `new_files`
+# ---------------------------------------------------------------------------
+
+def test_a_new_test_file_under_the_indexed_tests_lands_unnamed(db):
+    """Night 153's s121 annotated a new test_echo_json.py beside the indexed
+    echo tests, with no `new_files`. The brief puts it under tests/."""
+    sb = _annotate(db)
+    out = sb.call("batches.annotate", batch_id="bg_2",
+                  paths=["src/click/utils.py::echo", "tests/test_options.py",
+                         "tests/test_echo_json.py"])
+    assert out["grains"] == 3
+    sb = _guess(db)
+    out = sb.call("batches.guess", item_id=ITEM,
+                  paths=["src/click/decorators.py", "tests/test_echo_json.py"])
+    assert out["grains"] == 2
+
+
+def test_s121s_call_lands_in_its_night_shape(db):
+    """Night 153's s121, turn 1, verbatim: the new file sits in the indexed
+    tests/test_utils/ directory."""
+    for grain in ("tests/test_utils/test_echo.py",
+                  "tests/test_utils/test_echo_via_pager.py"):
+        db.execute("INSERT INTO code_index (grain, grain_kind) "
+                   "VALUES (?, 'path')", (grain,))
+    sb = _annotate(db)
+    out = sb.call("batches.annotate", batch_id="bg_2",
+                  paths=["src/click/utils.py::echo",
+                         "tests/test_utils/test_echo.py",
+                         "tests/test_utils/test_echo_via_pager.py",
+                         "tests/test_utils/test_echo_json.py"])
+    assert out["grains"] == 4
+
+
+def test_s274s_call_stays_refused_and_states_the_test_file_rule(db):
+    sb = _guess(db)
+    with pytest.raises(ValueError) as err:
+        sb.call("batches.guess", item_id=ITEM, paths=S274)
+    words = str(err.value)
+    assert words.startswith("src/click/options.py is not a file the index holds")
+    assert "new_files=[...]" in words
+    assert words.endswith("A new test file beside the indexed tests needs "
+                          "no `new_files`")
+
+
+def test_a_file_without_the_test_shape_under_tests_is_refused(db):
+    sb = _guess(db)
+    with pytest.raises(ValueError) as err:
+        sb.call("batches.guess", item_id=ITEM, paths=["tests/options.py"])
+    words = str(err.value)
+    assert words.startswith("tests/options.py is not a file the index holds")
+    # The path is under a test directory, so the test file rule is not news.
+    assert "needs no" not in words
+
+
+def test_a_test_basename_the_index_holds_elsewhere_is_refused(db):
+    """A test_utils.py the index holds in src/click/ is that file, and a
+    copy under tests/ is a wrong path."""
+    db.execute("INSERT INTO code_index (grain, grain_kind) "
+               "VALUES ('src/click/test_utils.py', 'path')")
+    sb = _annotate(db)
+    with pytest.raises(ValueError, match="tests/test_utils.py is not a file "
+                                         "the index holds"):
+        sb.call("batches.annotate", batch_id="bg_2",
+                paths=["tests/test_utils.py"])
+
+
+def _register_case(case_id: str) -> dict:
+    from pathlib import Path
+
+    import yaml
+
+    cases = yaml.safe_load((Path(__file__).parent / "cases" / "l1_architect.yaml"
+                            ).read_text(encoding="utf-8"))
+    return next(c for c in cases if c["id"] == case_id)
+
+
+@pytest.mark.parametrize("case_id, mode, source, test_file", [
+    ("L1-AR-re-annotate-from-the-principals-correction", "annotate",
+     "src/click/termui.py", "tests/test_termui.py"),
+    ("L1-AR-rewrite-the-guess-from-the-ruling", "guess",
+     "src/click/decorators.py", "tests/test_basic.py"),
+])
+def test_the_register_fixture_red_is_no_refusal(tmp_path, case_id, mode,
+                                                source, test_file):
+    """The red re-record of 8b1566c8 in C:/Users/roman/rota_g301: the seat
+    wrote the indexed test file in `new_files` and left it out of `paths`.
+    The door admitted the call, and the test file got no row."""
+    rows = _register_case(case_id)["fixture"]["code_index"]
+    assert {"grain": test_file, "grain_kind": "path"} in rows
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version, priority) VALUES ('i1', 'x', 'in_scope', "
+                 "'approved', 1, 1, 1)")
+    seed_provenance(conn, "items", "i1", "decided")
+    conn.execute("INSERT INTO batches (id, item_id, status) "
+                 "VALUES ('b1', 'i1', 'pending')")
+    for r in rows:
+        conn.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, ?)",
+                     (r["grain"], r["grain_kind"]))
+    conn.commit()
+    if mode == "guess":
+        sb = build("architect", conn, mode="guess",
+                   allow=prompts.mode_tools("architect", "guess"))
+        sb.call("batches.guess", item_id="i1", paths=[source],
+                new_files=[test_file])
+        assert _grains(sb, "touch_guesses") == [source]
+    else:
+        sb = build("architect", conn, mode="annotate", batch_id="b1",
+                   allow=prompts.mode_tools("architect", "annotate"))
+        sb.call("batches.annotate", batch_id="b1", paths=[source],
+                new_files=[test_file])
+        assert _grains(sb, "batch_touch") == [source]
+
+
+@pytest.mark.parametrize("mode", ["guess", "annotate"])
+def test_the_brief_says_a_new_test_file_needs_no_new_files(mode):
+    from pathlib import Path
+
+    brief = (Path(prompts.__file__).parent / "prompts" / "architect" / f"{mode}.md"
+             ).read_text(encoding="utf-8")
+    assert "A new test file is new by nature and needs no `new_files`." in brief
+    assert "source file in `paths` and also in `new_files=[...]`." in brief

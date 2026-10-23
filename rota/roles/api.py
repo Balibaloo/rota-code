@@ -6053,7 +6053,7 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
                             symbols: list[str] | None = None,
                             text: str = "") -> None:
     """Refuse a predicted file the code index lacks, unless the call names
-    it in `new_files`.
+    it in `new_files` or it is a new test file beside the indexed tests.
 
     A `path::symbol` entry is checked by its file half. `symbols` and the
     item's `text` rank the files the refusal lists. Call this after
@@ -6083,8 +6083,22 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
             return left
         return p
 
+    def test_shaped(f: str) -> bool:
+        return bool(re.fullmatch(r"test_\w+\.py|\w+_test\.py",
+                                 f.rpartition("/")[2]))
+
+    test_dirs = {g.rpartition("/")[0] for g in indexed if test_shaped(g)}
+
+    def new_test_file(f: str) -> bool:
+        # Frame 302, pass 2: 7 of 15 refusals on nights 150 to 158 were right
+        # new test files. A test file is new by nature, and no plan names it
+        # in advance. A basename the index holds elsewhere is a wrong path.
+        base = f.rpartition("/")[2]
+        return (test_shaped(f) and f.rpartition("/")[0] in test_dirs
+                and not any(g.rpartition("/")[2] == base for g in indexed))
+
     unknown = [f for f in (file_half(p) for p in paths)
-               if f not in indexed | named]
+               if f not in indexed | named and not new_test_file(f)]
     if not unknown:
         return
     path = unknown[0]
@@ -6110,11 +6124,15 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
             holds.add(file)
     beside = sorted(holds) + [g for g in beside if g not in holds]
     where = folder or "the root"
+    # The seat named no new test file unprompted on nights 150 to 158, so a
+    # refused source path also states the test file rule (frame 302, pass 2).
+    tests = (". A new test file beside the indexed tests needs no `new_files`"
+             if path.endswith(".py") and folder not in test_dirs else "")
     raise ValueError(
         f"{path} is not a file the index holds. The index holds these "
         f"files in {where}: {', '.join(beside[:8])}. Write the file you mean "
         f"from that list. To create a new file, also name it in "
-        f"`new_files=[...]`")
+        f"`new_files=[...]`{tests}")
 
 
 @op("batches", "guess")
