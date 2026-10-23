@@ -1608,11 +1608,24 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
                  and not api.ruling_asks_no_new_words(ctx, r)
                  and not any(w[0] == "criteria" and w[1] == r
                              for w in ctx.writes)]
+    # A ruling that drops a criterion's line asks for no rewrite. No op of
+    # this mode retires a criterion, and frame 192 owns the drop route. So
+    # the refusal names the drop and names no call (frame 308, review 4,
+    # point 2, and frame 135).
+    dropped = {r: n for r in unwritten
+               if (n := api.ruling_drops_line(ctx, r)) is not None}
+    drop_said = " ".join(
+        f"The principal's ruling drops line {n}, which is {cid}. Your answer "
+        f"carries {cid} as it stands now. Do not rewrite {cid}. No call in "
+        f"this mode drops a criterion." for cid, n in dropped.items())
+    unwritten = [r for r in unwritten if r not in dropped]
     if not missing:
         # The missing-refs door speaks first, so s220's text stays as night
         # 158 showed it.
-        if not unwritten or _parked(ruled):
+        if (not unwritten and not dropped) or _parked(ruled):
             return None
+        if not unwritten:
+            return drop_said
         ids = ", ".join(unwritten)
         said = (getattr(ctx, "respecify_refused", None) or {})
         quoted = " ".join(f"Your last respecify of {cid} was refused with: "
@@ -1623,6 +1636,8 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
             f"Your answer carries {ids} as it stands now.",
             quoted,
             f"Respecify {ids} first with a corrected criteria.respecify call.",
+            drop_said,
+            "" if dropped else
             "Then answer once with msg.answer_tester, with these refs: "
             f"{[r for r in given if api.ref_resolves(ctx, r)]!r}") if s)
     # A dangling ref in the route meets the dangling guard of `_bind_send`
@@ -1635,6 +1650,13 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
              f"{full!r}")
     said = (f"Your answer leaves out {ids}. The principal's ruling in the "
             f"relay names {ids} too.")
+    if dropped:
+        # The full answer still carries the dropped line, so the text offers
+        # no call (frame 135).
+        rewrite = (f" No respecify of {', '.join(unwritten)} has landed in "
+                   f"this session. Respecify {', '.join(unwritten)} first with "
+                   f"a corrected criteria.respecify call." if unwritten else "")
+        return f"{said}{rewrite} {drop_said}"
     if unwritten:
         # The full answer still meets the landed-respecify check, so the
         # text offers no call (frame 135). The seat respecifies first.

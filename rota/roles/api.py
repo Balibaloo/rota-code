@@ -5411,6 +5411,43 @@ _WORDS_FAULT = re.compile(
     r"(?:go|change|be (?:dropped|removed|deleted|rewritten|replaced|changed))\b"
     r"|\b(?:change|rewrite) (?:it|this|that|the line) to say\b"
     r"|\bsay something else\b", re.IGNORECASE)
+# The words that drop a line. A drop is not a rewrite: frame 192 owns the
+# drop route, and no op of the Terminologist retires a criterion.
+_DROP_LINE = re.compile(
+    rf"\b(?:drop|remove|delete)\s+(?:the\s+)?{_LINES}\b"
+    rf"|\b{_LINES} (?:should|must|can|has to|have to|needs? to) (?:also )?"
+    r"(?:go|be (?:dropped|removed|deleted))\b", re.IGNORECASE)
+# The verbs of a request. Only a request can be negated in its own clause.
+_FAULT_VERB = re.compile(r"(?:drop|remove|delete|rewrite|replace|change)\b",
+                         re.IGNORECASE)
+# The words of one ruling split at sentence ends only. A colon keeps a line's
+# body with its line: night 157's r_4a62d8a771 wrote "Line 3: ... Line 5: ..."
+# (frame 308, review 4, finding 1).
+_RULING_SENTENCE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _faults_on(rx: re.Pattern, text: str, line: int | None) -> list[re.Match]:
+    """The matches of `rx` in `text` that bear on page line `line`.
+
+    A request with a negation in its own clause asks for nothing. Night
+    142's r_m144 said "Don't remove lines 8 to 14 as a block" (frame 308,
+    review 4, finding 3). The clause cut is frame 283's, as in
+    `_removal_spans`. A match that names lines bears on those lines only.
+    """
+    out = []
+    for s in _RULING_SENTENCE.split(text or ""):
+        for m in rx.finditer(s):
+            if _FAULT_VERB.match(m.group(0)):
+                breaks = _breaks(_CLAUSE_BREAK, s[:m.start()])
+                lead = s[breaks[-1].end() if breaks else 0:m.start()]
+                if _NEGATION_WORDS.search(lead):
+                    continue
+            refs = list(_LINE_REF.finditer(m.group(0)))
+            if line is not None and refs and not any(
+                    line in _ref_lines(r) for r in refs):
+                continue
+            out.append(m)
+    return out
 
 
 def _named_tokens(text: str) -> set[str]:
@@ -5699,26 +5736,32 @@ def ruling_asks_no_new_words(ctx: Ctx, id: str) -> bool:
     mine = _ruling_words_on(ctx.conn, ruled, id)
     return bool(cur and _same_words(ruled["text"], cur["text"])
                 and _CHECK_FAULT.search(mine)
-                and not _WORDS_FAULT.search(mine))
+                and not _words_fault_on(ctx.conn, ruled, id))
 
 
-def _ruling_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> str:
-    """The sentences of a ruling's words that bear on criterion `cid`: each
-    sentence that names its page line, and each sentence that names no line.
-    The whole words when the line of `cid` is not known.
+def ruling_drops_line(ctx: Ctx, id: str) -> int | None:
+    """The page line of criterion `id` when the last ruling on it drops that
+    line, or None. The answer door names the drop and asks no rewrite
+    (frame 308, review 4, point 2)."""
+    from .principal import last_ruling_on
 
-    One ruling can rule several lines. Night 158's m98 said "Keep line 4, but
-    fix its check" for cr_2 and "Drop line 5" for cr_3 (frame 308, pass 3).
-    """
+    ruled = last_ruling_on(ctx.conn, id)
+    if not ruled or ruled["verdict"] not in ("contest", "revise"):
+        return None
+    return _line_dropped_on(ctx.conn, ruled, id)
+
+
+def _ruling_line(conn: sqlite3.Connection, ruled: dict, cid: str) -> int | None:
+    """The line of criterion `cid` on the page the ruling `ruled` is on, or
+    None when the page or the row on it is not known."""
     from .principal import Ask, _page_order, door_rows
 
-    words = ruled.get("words") or ""
     row = conn.execute(
         "SELECT r.reply_id, m.id, m.verb, m.body_refs FROM rulings r "
         "JOIN messages m ON m.id = r.ask_id WHERE r.id = ?",
         (ruled.get("id"),)).fetchone()
     if row is None:
-        return words
+        return None
     # His line numbers belong to the page as he saw it, and `principal.land`
     # records that order at his reply (frame 272). A render reads today's
     # rows: night 158's render put cr_2 on line 3, and m98 named it line 4.
@@ -5730,13 +5773,41 @@ def _ruling_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> str:
             order = _page_order(conn, Ask(
                 message_id=row["id"], verb=row["verb"],
                 refs=json.loads(row["body_refs"] or "[]")))
-        except Exception:  # noqa: BLE001 - an unreadable page keeps the whole words
-            return words
-    if cid not in order:
+        except Exception:  # noqa: BLE001 - an unreadable page gives no line
+            return None
+    return order.index(cid) + 1 if cid in order else None
+
+
+def _words_fault_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> bool:
+    """True when the ruling's words ask new words of criterion `cid`."""
+    return bool(_faults_on(_WORDS_FAULT, _ruling_words_on(conn, ruled, cid),
+                           _ruling_line(conn, ruled, cid)))
+
+
+def _line_dropped_on(conn: sqlite3.Connection, ruled: dict,
+                     cid: str) -> int | None:
+    """The line of `cid` when the ruling's words drop it, or None."""
+    line = _ruling_line(conn, ruled, cid)
+    if line is None:
+        return None
+    hits = _faults_on(_DROP_LINE, _ruling_words_on(conn, ruled, cid), line)
+    return line if any(_LINE_REF.search(m.group(0)) for m in hits) else None
+
+
+def _ruling_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> str:
+    """The sentences of a ruling's words that bear on criterion `cid`: each
+    sentence that names its page line, and each sentence that names no line.
+    The whole words when the line of `cid` is not known.
+
+    One ruling can rule several lines. Night 158's m98 said "Keep line 4, but
+    fix its check" for cr_2 and "Drop line 5" for cr_3 (frame 308, pass 3).
+    """
+    words = ruled.get("words") or ""
+    line = _ruling_line(conn, ruled, cid)
+    if line is None:
         return words
-    line = order.index(cid) + 1
     keep = []
-    for sentence in _SENTENCE.split(words):
+    for sentence in _RULING_SENTENCE.split(words):
         refs = list(_LINE_REF.finditer(sentence))
         if not refs or any(line in _ref_lines(r) for r in refs):
             keep.append(sentence)
@@ -5889,7 +5960,8 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # The sentences on this criterion's line decide, as in
         # `ruling_asks_no_new_words` (frame 308, pass 3).
         mine = _ruling_words_on(ctx.conn, contested, id)
-        if _CHECK_FAULT.search(mine) and not _WORDS_FAULT.search(mine):
+        if (_CHECK_FAULT.search(mine)
+                and not _words_fault_on(ctx.conn, contested, id)):
             if closed:
                 raise _stands(
                     f"the principal faulted the check and not these words: "

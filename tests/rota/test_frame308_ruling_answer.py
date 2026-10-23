@@ -128,18 +128,20 @@ def _answers(sb):
             if m["to_role"] == "tester" and m["verb"] == "answer"]
 
 
-# m98's "Drop line 5" asks new words on cr_3 (pass 3). A test of the other
-# doors lands this rewrite first, so the answer door admits cr_3.
-CR3_NEW = ("When confirm() returns the default value due to closed stdin "
-           "(after attempting to read), it shows its prompt as usual and "
-           "emits no error message.")
+# m98's "Drop line 5" drops cr_3. No op of the Terminologist retires a
+# criterion, and frame 192 owns the drop route, so cr_3's answer has no
+# route here (frame 308, review 4, point 2).
+DROPPED = f"The principal's ruling drops line 5, which is {CR3}"
 
 
-def _land_cr3(sb):
-    out = sb.call("criteria.respecify", id=CR3, text=CR3_NEW,
-                  term_refs=["default_on_eof"], surface_refs=[CONFIRM])
-    assert not out.get("unchanged"), out
-    return out
+def _cr3_out_of_the_relay(conn) -> None:
+    """The relay rules cr_2 alone. A test of another door then gets an answer
+    that lands, while frame 192 has no route for cr_3."""
+    conn.execute("UPDATE messages SET body_refs = ? WHERE id = 'm101'",
+                 (json.dumps([CR2]),))
+    conn.execute("UPDATE config SET value = ? WHERE key = 'verdict:m99'",
+                 (json.dumps({CR2: "revise"}),))
+    conn.commit()
 
 
 def test_s220_turn_1_answer_with_cr_3_alone_is_refused(db):
@@ -147,28 +149,34 @@ def test_s220_turn_1_answer_with_cr_3_alone_is_refused(db):
     cr_2 `revise` too."""
     _night158_relay(db)
     sb = _s220(db)
-    _land_cr3(sb)
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR3], round_no=0)
     said = str(refused.value)
     assert CR2 in said, said
     assert "ruling" in said, said
-    assert ROUTE in said, said
+    # m98 drops cr_3's line, so the refusal names the drop and no call.
+    assert DROPPED in said, said
+    assert f"Do not rewrite {CR3}" in said, said
+    assert "Respecify" not in said, said
+    assert ROUTE not in said, said
     assert not _answers(sb)
-    [offer] = [o for o in sb.ctx.offers if o.op == "msg.answer_tester"]
-    assert sorted(offer.args["refs"]) == sorted([CR2, CR3])
+    assert not [o for o in sb.ctx.offers if o.op == "msg.answer_tester"]
     for sentence in said.split(". "):
         assert len(sentence.split()) <= 20, sentence
 
 
-def test_the_same_answer_with_cr_2_and_cr_3_lands(db):
+def test_the_same_answer_with_cr_2_and_cr_3_names_the_drop_of_line_5(db):
+    """The answer carries cr_3 as it stands, and m98 dropped its line. The
+    refusal asks for no rewrite of cr_3 (review 4, point 2)."""
     _night158_relay(db)
     sb = _s220(db)
-    _land_cr3(sb)
-    out = sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
-    assert out["to"] == "tester" and out["verb"] == "answer", out
-    [sent] = _answers(sb)
-    assert sorted(sent["body_refs"]) == sorted([CR2, CR3])
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
+    said = str(refused.value)
+    assert DROPPED in said, said
+    assert f"Do not rewrite {CR3}" in said, said
+    assert "respecify" not in said.lower(), said
+    assert not _answers(sb)
 
 
 def test_a_session_with_no_ruling_relay_answers_one_criterion_as_today(db):
@@ -183,8 +191,8 @@ def test_a_session_with_no_ruling_relay_answers_one_criterion_as_today(db):
 
 def test_a_second_answer_after_the_first_lands_meets_the_one_answer_door(db):
     _night158_relay(db)
+    _cr3_out_of_the_relay(db)
     sb = _s220(db)
-    _land_cr3(sb)
     sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR3], round_no=0)
@@ -211,8 +219,8 @@ def test_the_cr_2_refusal_before_the_answer_names_the_answer_route(db):
 
 def test_the_cr_2_refusal_after_the_answer_landed_names_no_refused_call(db):
     _night158_relay(db)
+    _cr3_out_of_the_relay(db)
     sb = _s220(db)
-    _land_cr3(sb)
     sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
     said = _respecify_cr2(sb)
     assert "faulted the check" in said, said
@@ -237,8 +245,8 @@ def test_the_cr_2_refusal_after_an_answer_without_it_says_the_answer_is_closed(d
 def test_s220_turn_1_with_its_refused_cr_3_respecify_asks_the_respecify_first(db):
     """Pass 2: s220's real turn 1 sent a cr_3 respecify with `prompt` as the
     surface before the answer. The surface door refused it, so the answer
-    would carry the contested cr_3 text. The refusal names both ruled
-    criteria for the answer after the respecify lands."""
+    would carry the contested cr_3 text. Since pass 3b the refusal names
+    the drop of cr_3's line and asks no rewrite (review 4, point 2)."""
     _night158_relay(db)
     sb = _s220(db)
     with pytest.raises(ValueError) as surface:
@@ -252,14 +260,14 @@ def test_s220_turn_1_with_its_refused_cr_3_respecify_asks_the_respecify_first(db
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR3], round_no=0)
     said = str(refused.value)
-    # Pass 3: m98 faults line 4's check, so cr_2 stands. "Drop line 5" asks
-    # new words on cr_3, so the refusal asks the cr_3 respecify first. The
-    # full answer would still meet that check, so the refusal offers no call
-    # (frame 135).
+    # Pass 3b: m98 faults line 4's check, so cr_2 stands. "Drop line 5"
+    # drops cr_3, and frame 192 owns that route. The refusal names the drop
+    # and asks no rewrite. The full answer would still carry cr_3, so the
+    # refusal offers no call (frame 135).
     assert str(surface.value)
     assert f"Your answer leaves out {CR2}" in said, said
-    assert f"No respecify of {CR3} has landed" in said, said
-    assert f"No respecify of {CR2}" not in said, said
+    assert DROPPED in said, said
+    assert "No respecify of" not in said, said
     assert not [o for o in sb.ctx.offers if o.op == "msg.answer_tester"]
     assert not _answers(sb)
 
@@ -286,8 +294,8 @@ def test_the_route_offers_no_dangling_ref(db):
     """Review 1, F1: refs with `cr_9_nothing` drew a route that the dangling
     guard of `_bind_send` then refused."""
     _night158_relay(db)
+    _cr3_out_of_the_relay(db)
     sb = _s220(db)
-    _land_cr3(sb)
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR3, "cr_9_nothing"], round_no=0)
     said = str(refused.value)
@@ -302,8 +310,8 @@ def test_the_closed_text_names_the_criterion_whose_work_is_done(db):
     """Review 1, F3: another ruled criterion can still wait for its rewrite,
     so the closed text ends the work on this criterion only."""
     _night158_relay(db)
+    _cr3_out_of_the_relay(db)
     sb = _s220(db)
-    _land_cr3(sb)
     sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
     said = _respecify_cr2(sb)
     assert f"your work on {CR2} is done" in said, said
@@ -312,19 +320,19 @@ def test_the_closed_text_names_the_criterion_whose_work_is_done(db):
 
 def test_an_approved_criterion_with_a_ruled_test_counts_among_the_ruled(db):
     """Review 1, F4: the verdict approves cr_1 and contests its test. The
-    first answer carries cr_1 beside cr_2 and cr_3."""
+    first answer carries cr_1 beside cr_2. The relay leaves cr_3 out,
+    because frame 192 owns the route of its dropped line."""
     _night158_relay(db)
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
                "VALUES ('tst_confirm_eof_01', 'bg_2', ?, 'tests/t.py', 'x')",
                (CR1,))
     db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm101'",
-               (json.dumps([CR1, CR2, CR3, "tst_confirm_eof_01"]),))
+               (json.dumps([CR1, CR2, "tst_confirm_eof_01"]),))
     db.execute("UPDATE config SET value = ? WHERE key = 'verdict:m99'",
-               (json.dumps({**VERDICT, CR1: "approve",
+               (json.dumps({CR1: "approve", CR2: "revise",
                             "tst_confirm_eof_01": "contest"}),))
     db.commit()
     sb = _s220(db)
-    _land_cr3(sb)
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
     assert CR1 in str(refused.value), str(refused.value)
@@ -367,3 +375,67 @@ def test_a_reply_with_no_order_record_reads_todays_render(db):
     db.execute("DELETE FROM config WHERE key = 'order:m98'")
     sb = _s220(db)
     assert not api.ruling_asks_no_new_words(sb.ctx, CR2)
+
+
+# --- pass 3b, review 4: a colon keeps a line's body with its line -----------
+
+# r_4a62d8a771 of night 157, at the reply m212 to the page m210.
+N157_WORDS = ("Line 3: keep the requirement, but change its check so it asks "
+              "for the version with the setting left off and confirms the "
+              "Python version is not in that message, rather than looking at "
+              "the help output. Line 5: keep it as written, but fix the code so "
+              "that asking for the version with the setting on prints the exact "
+              "major.minor.micro from sys.version_info, because the output is "
+              "empty right now. Lines 1, 2, 4 and 6 to 8 are fine as they are.")
+N157_PAGE = ["show_python", "guess:show_python", "crit_show_python_default",
+             "crit_show_python_help", "crit_show_python_version",
+             "l_a479b2bd45", "l_25d965403f", "l_b86fa66c6d"]
+# r_m144 of night 142, at the reply m144: a negated removal of a range.
+N142_WORDS = ("Yes, put the echo_json tests next to the existing echo tests in "
+              "the utils tests. Fix line 7 so it compares the whole output with "
+              "the compact JSON plus one newline, and strip nothing first. Don't "
+              "remove lines 8 to 14 as a block: remove only line 8, which "
+              "repeats line 1, cut lines 10 and 11 back to their first sentence, "
+              "and drop line 13.")
+
+
+def _ruled_page(conn, rid, ask, reply, words, page) -> dict:
+    """A ruling on the page `ask`, with his reply `reply` and its record."""
+    _message(conn, ask, None, "liaison", "principal", "present", page, 1)
+    _message(conn, reply, ask, "principal", "liaison", "converse", page, 2,
+             words)
+    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+                 "status) VALUES (?, ?, ?, '{}', ?, 'landed')",
+                 (rid, ask, reply, words))
+    conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
+                 (f"order:{reply}", json.dumps(page)))
+    conn.commit()
+    return {"id": rid, "words": words}
+
+
+def test_a_line_label_before_a_colon_keeps_its_body_on_its_line(db):
+    """Review 4, finding 1: the split on ":" sent line 3's "change its check"
+    to crit_show_python_version on line 5."""
+    from rota.roles import api
+
+    ruled = _ruled_page(db, "r_4a62d8a771", "m210", "m212", N157_WORDS,
+                        N157_PAGE)
+    five = api._ruling_words_on(db, ruled, "crit_show_python_version")
+    assert "change its check" not in five, five
+    assert "fix the code" in five, five
+    three = api._ruling_words_on(db, ruled, "crit_show_python_default")
+    assert "change its check" in three, three
+    assert "fix the code" not in three, three
+
+
+def test_a_negated_removal_asks_no_new_words_of_its_lines(db):
+    """Review 4, finding 3: "Don't remove lines 8 to 14 as a block" asks
+    nothing of line 9. "drop line 13" asks new words of line 13 alone."""
+    from rota.roles import api
+
+    page = [f"row_{n}" for n in range(1, 15)]
+    ruled = _ruled_page(db, "r_m144", "m142", "m144", N142_WORDS, page)
+    assert not api._words_fault_on(db, ruled, "row_9")
+    assert api._words_fault_on(db, ruled, "row_13")
+    assert api._line_dropped_on(db, ruled, "row_13") == 13
+    assert api._line_dropped_on(db, ruled, "row_9") is None
