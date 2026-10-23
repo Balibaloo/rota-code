@@ -2332,8 +2332,12 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                                           clarify["body_text"],
                                           ask_id=clarify["id"],
                                           returned=False)
+                # The page's id, so a reply in `recent_chat` that names
+                # another page differs from this one (frame 272, review 1,
+                # finding 2).
                 landing: dict[str, Any] = {
-                    "page_kind": clarify["verb"], "page": page,
+                    "page_kind": clarify["verb"], "page_id": clarify["id"],
+                    "page": page,
                     "lines": {str(i + 1): ref for i, ref in enumerate(order)},
                     "reply": row["body_text"] or "",
                 }
@@ -2531,7 +2535,6 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
     # guess line of m50, and m89 shows that guess as line 2 too (frame 272;
     # `plans/frame305-interview.md`, section 6).
     from ..roles.api import message_entry
-    from ..roles.principal import render_page
     from .db import PAGE_VERBS
 
     orders: dict[str, list[str]] = {}
@@ -2557,12 +2560,20 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
         if answered:
             turn["page"] = answered["id"]
             if answered["id"] != page:
+                # The order he saw, as `principal.land` recorded it. A render
+                # reads today's rows, and 73 of 693 rows named on nights 158
+                # and 159 were not the row he saw (frame 272, review 1,
+                # finding 1). A page with no record keeps his numbers.
                 if answered["id"] not in orders:
-                    orders[answered["id"]] = render_page(
-                        conn, answered["verb"],
-                        json.loads(answered["body_refs"] or "[]"),
-                        answered["body_text"], ask_id=answered["id"],
-                        returned=False)[1]
+                    rec = conn.execute(
+                        "SELECT value FROM config WHERE key = ?",
+                        (f"order:{answered['id']}",)).fetchone()
+                    try:
+                        orders[answered["id"]] = [
+                            x for x in json.loads(rec["value"]) if isinstance(x, str)
+                        ] if rec else []
+                    except (TypeError, ValueError):
+                        orders[answered["id"]] = []
                 if orders[answered["id"]]:
                     text = _page_named_lines(text, answered["id"],
                                              orders[answered["id"]])
