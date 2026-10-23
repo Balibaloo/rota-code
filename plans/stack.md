@@ -689,6 +689,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 15, row 4.
 - Pointer: `plans/night158-read.md`, sections 2 and 3, W4, and the status lines of 2026-10-21 15:24 and 15:28 on frame 298 in `plans/archive/stack-2026-10-21.md`.
 - Status 2026-10-21 16:23 (rota-f9): pushed from night 158's read. Meta workflow.
+- Status 2026-10-23 13:29 (rota-45): the provenance read runs on Opus from f305_provenance_brief.md in this session's scratchpad, to plans/frame305-provenance.md, by the ruling of 2026-10-18 that every new wall gets a provenance read before its first fix. It reads the branch at HEAD and changes no code. Cycles: 1 of 3.
 
 ### 304. The encode door admits a test whose arrange step raises before the call under test, so no code can pass it (2026-10-21) (81fe1025) (2214bec6)
 
@@ -698,6 +699,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 15, row 3.
 - Pointer: `plans/night158-read.md`, section 2, W2.
 - Status 2026-10-21 16:23 (rota-f9): pushed from night 158's read. Meta workflow.
+- Status 2026-10-23 13:29 (rota-45): the provenance read runs on Opus from f304_provenance_brief.md in this session's scratchpad, to plans/frame304-provenance.md, by the ruling of 2026-10-18 that every new wall gets a provenance read before its first fix. Beside it the read of s220's one-answer refusal, from f304_s220_read_brief.md, to plans/frame304-s220-read.md. Both read the branch at HEAD and change no code. Cycles: 1 of 3.
 
 ### 303. A textless `propose` from the Architect becomes a request row the team wrote, shown to the principal under "You asked" (2026-10-21) (5389be74) (81fe1025) (2214bec6)
 
