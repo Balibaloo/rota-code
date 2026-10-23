@@ -2250,7 +2250,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # where a role is deliberately given history; the no-memory rule still
     # holds for every other mode.
     if row["to_role"] == "liaison" and row["verb"] == "converse":
-        out["recent_chat"] = _recent_chat(conn, trigger)
+        out["recent_chat"] = _recent_chat(conn, trigger, page=row["cause_id"])
         # A request with no cause may follow up the current one. The seat
         # needs that request's statement id to copy into `supersedes` (frame
         # 193's design, 2.F.6). The door admits a ratified statement only, so
@@ -2478,9 +2478,42 @@ def _resolve_contest(conn: sqlite3.Connection, item: str) -> dict[str, Any]:
     return {}
 
 
+def _page_named_lines(text: str, page_id: str, order: list[str]) -> str:
+    """`text` with each line reference of page `page_id` named by its row.
+
+    "Line 2" becomes "row <ref> of page <page_id>". A number past the page
+    stays a line, as "line 9 of page <page_id>".
+    """
+    from ..roles.api import _LINE_REF, _SENTENCE, _ref_lines
+
+    def named(ref: re.Match) -> str:
+        parts = [f"row {order[n - 1]}" if 1 <= n <= len(order) else f"line {n}"
+                 for n in sorted(_ref_lines(ref, len(order)))]
+        said = (", ".join(parts[:-1]) + " and " + parts[-1]
+                if len(parts) > 1 else parts[0])
+        said += f" of page {page_id}"
+        return said[0].upper() + said[1:] if ref.group(0)[0].isupper() else said
+
+    # By sentence, as the line reader reads: a bare "3 is wrong" counts at a
+    # sentence start only (frame 305, review 1, finding 1).
+    out, start = [], 0
+    for cut in [*_SENTENCE.finditer(text), None]:
+        end = cut.start() if cut else len(text)
+        out.append(_LINE_REF.sub(named, text[start:end]))
+        if cut:
+            out.append(cut.group(0))
+            start = cut.end()
+    return "".join(out)
+
+
 def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
-                 limit: int = 8) -> list[dict[str, str]]:
-    """Recent principal/liaison converse turns, newest last, excluding the wake."""
+                 limit: int = 8, page: str | None = None) -> list[dict[str, Any]]:
+    """Recent principal/liaison converse turns, newest last, excluding the wake.
+
+    `page` is the page the wake answers. A principal reply names the page it
+    answered. Its line numbers name rows of that page when the page is not
+    `page`.
+    """
     # Questions count as turns. This selected `converse` alone, so Liaison
     # could not see what it had already asked. A role with no memory, shown
     # the answer but not the question, cannot tell the ground has moved.
@@ -2491,11 +2524,20 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
     # and the agent principal write the words as an entry alone, so night
     # 132's s220 never saw e_p4, the same sentence one turn before (frame
     # 142's design, 2.C, point 7).
+    #
+    # A reply's line numbers belong to the page it answered. Night 159's s239
+    # read m106's "Line 1", which answered page m105, as a fault of page
+    # m116. The row id alone is not enough: m51 of night 158 faulted the
+    # guess line of m50, and m89 shows that guess as line 2 too (frame 272;
+    # `plans/frame305-interview.md`, section 6).
     from ..roles.api import message_entry
+    from ..roles.principal import render_page
+    from .db import PAGE_VERBS
 
-    out: list[dict[str, str]] = []
+    orders: dict[str, list[str]] = {}
+    out: list[dict[str, Any]] = []
     for r in conn.execute(
-            "SELECT id, from_role, verb, body_text, body_refs FROM messages "
+            "SELECT id, from_role, verb, body_text, body_refs, cause_id FROM messages "
             "WHERE verb IN ('converse', 'clarify') "
             "  AND from_role IN ('principal', 'liaison') "
             "  AND to_role IN ('principal', 'liaison') "
@@ -2506,8 +2548,26 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
             text = message_entry(conn, r)[1]
         if not text:
             continue
-        out.append({"from": r["from_role"], "text": text}
-                   | ({"asked": True} if r["verb"] == "clarify" else {}))
+        turn: dict[str, Any] = {"from": r["from_role"]}
+        answered = conn.execute(
+            "SELECT id, verb, body_text, body_refs FROM messages WHERE id = ? "
+            f"AND to_role = 'principal' AND verb IN ({','.join('?' * len(PAGE_VERBS))})",
+            (r["cause_id"], *PAGE_VERBS)).fetchone() if (
+                r["from_role"] == "principal" and r["cause_id"]) else None
+        if answered:
+            turn["page"] = answered["id"]
+            if answered["id"] != page:
+                if answered["id"] not in orders:
+                    orders[answered["id"]] = render_page(
+                        conn, answered["verb"],
+                        json.loads(answered["body_refs"] or "[]"),
+                        answered["body_text"], ask_id=answered["id"],
+                        returned=False)[1]
+                if orders[answered["id"]]:
+                    text = _page_named_lines(text, answered["id"],
+                                             orders[answered["id"]])
+        turn["text"] = text
+        out.append(turn | ({"asked": True} if r["verb"] == "clarify" else {}))
         if len(out) >= limit:
             break
     return list(reversed(out))
