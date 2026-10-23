@@ -2332,11 +2332,18 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                                           clarify["body_text"],
                                           ask_id=clarify["id"],
                                           returned=False)
-                # The page's id, so a reply in `recent_chat` that names
-                # another page differs from this one (frame 272, review 1,
-                # finding 2).
+                # No page id here. `_recent_chat` already names another
+                # page in words, "row <ref> of page <id>", and a reply to
+                # this page keeps its line numbers, so the seat tells the two
+                # apart without an id (frame 272, review 1, finding 2, read
+                # again at the gate of d6a36081). A `page_id` key in this
+                # block, the one change against the last green recording,
+                # took L1-LI-a-correction-in-a-sentence-contests-the-line-
+                # it-is-about from 3 of 5 to 1 of 5 on qwen3:8b, twice, with
+                # the same brief and the same load (measured 2026-10-23
+                # 19:40 and 19:43, register `case_runs`).
                 landing: dict[str, Any] = {
-                    "page_kind": clarify["verb"], "page_id": clarify["id"],
+                    "page_kind": clarify["verb"],
                     "page": page,
                     "lines": {str(i + 1): ref for i, ref in enumerate(order)},
                     "reply": row["body_text"] or "",

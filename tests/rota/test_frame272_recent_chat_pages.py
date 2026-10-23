@@ -107,11 +107,19 @@ def test_two_replies_to_one_page_each_read_the_list_he_saw(s239):
         "Row l_echo of page m105 is wrong."]
 
 
-def test_the_landing_names_the_present_page(s239):
-    """The seat sees the id of the page it answers, so "of page m105" names
-    another page (frame 272, review 1, finding 2)."""
+def test_the_landing_carries_no_page_id(s239):
+    """"Of page m105" in `recent_chat` names another page by itself, and a
+    reply to this page keeps its numbers, so the landing block carries no
+    page id. The key alone took one L1 Liaison case from 3 of 5 to 1 of 5
+    on qwen3:8b (frame 272, review 1, finding 2, read again at the gate of
+    d6a36081, 2026-10-23)."""
     wake = Wake(role="liaison", kind="message", message_id="m117", detail="converse")
-    assert resolve_inbound(s239, wake)["landing"]["page_id"] == "m116"
+    out = resolve_inbound(s239, wake)
+    assert "page_id" not in out["landing"]
+    assert out["landing"]["page_kind"] == "present"
+    (m106,) = [t for t in out["recent_chat"] if t["from"] == "principal"
+               and t.get("page") == "m105"]
+    assert "of page m105" in m106["text"]
 
 
 def test_a_page_with_no_recorded_order_keeps_his_numbers(s239):
