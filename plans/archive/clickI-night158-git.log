@@ -1,0 +1,74 @@
+clickI git truth after night 158, taken 2026-10-23 14:43 before night 159's launch
+commit 6b1b42b05c764d6d198947724aa6fce3db751387
+Merge: 75cf8ed 679999a
+Author: rota <rota@local>
+Date:   Wed Oct 21 16:01:55 2026 +0100
+
+    rota: deliver bg_3
+
+commit 679999ae398f3c99a83a22a6d9e56deecc139599
+Author: Roman Kubiv <romankubiv101@gmail.com>
+Date:   Wed Oct 21 16:01:55 2026 +0100
+
+    rota: tests of bg_3
+
+ tests/test_version_option.py         | 13 +++++++++++++
+ tests/test_version_option_default.py | 13 +++++++++++++
+ tests/test_version_option_format.py  | 14 ++++++++++++++
+ 3 files changed, 40 insertions(+)
+
+commit ea03bf63563d28860fbf4d0e1ac3ab3b84784b98
+Author: Roman Kubiv <romankubiv101@gmail.com>
+Date:   Wed Oct 21 15:56:03 2026 +0100
+
+    Fix show_python format to prepend "Python " before version string
+
+ src/click/decorators.py | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+commit bb7c449216e9292d5a63585a42713a142e4f5032
+Author: Roman Kubiv <romankubiv101@gmail.com>
+Date:   Wed Oct 21 15:55:00 2026 +0100
+
+    Fix show_python output format to include 'Python' prefix and restore ctx.exit()
+
+ src/click/decorators.py | 13 +------------
+ 1 file changed, 1 insertion(+), 12 deletions(-)
+
+commit 7856ed8c545e58944411e960da5993d51173bc0c
+Author: Roman Kubiv <romankubiv101@gmail.com>
+Date:   Wed Oct 21 15:53:14 2026 +0100
+
+    restore ctx.exit() to terminate command after showing version
+
+ src/click/decorators.py | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+commit 2a0db1beab55925a76812b726768619bdac52a55
+Author: Roman Kubiv <romankubiv101@gmail.com>
+Date:   Wed Oct 21 15:30:56 2026 +0100
+
+    Add show_python flag to version_option
+
+ src/click/decorators.py | 26 ++++++++++++--------------
+ 1 file changed, 12 insertions(+), 14 deletions(-)
+
+commit 75cf8ed0196476dd02585ff1bfa3df41839721ae
+Merge: 2c8cd3a 9eb4cad
+Author: rota <rota@local>
+Date:   Wed Oct 21 14:37:37 2026 +0100
+
+    rota: deliver bg_1
+
+commit 9eb4cadb0bb276f545f5c58e3ff7b9731c511a35
+Author: Roman Kubiv <romankubiv101@gmail.com>
+Date:   Wed Oct 21 14:37:37 2026 +0100
+
+    rota: tests of bg_1
+
+ tests/test_utils/test_echo_via_json.py | 53 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 53 insertions(+)
+=== diff of the last 8 commits ===
+fatal: ambiguous argument 'HEAD~8..HEAD': unknown revision or path not in the working tree.
+Use '--' to separate paths from revisions, like this:
+'git <command> [<revision>...] -- [<file>...]'
