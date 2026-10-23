@@ -10373,8 +10373,18 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # is the meeting" through that door. A clarify takes a partial map, and
     # each row the map leaves out is parked, not approved.
     is_clarify = ask["verb"] == "clarify"
+    keys = refs
     if is_clarify:
         batches_only = False
+        # The keys are the rows the prompt showed as `about`, the asker's
+        # refs with the clarify's. Parking still reads the clarify's own
+        # refs, because a row the asker named is a key, not an obligation
+        # (frame 306, section 1, step 5). A park ask keeps its page.
+        from ..core.runner import answer_about
+        from ..core.scheduler import park_ask_batch
+
+        if not park_ask_batch(ask["id"]):
+            keys = answer_about(ctx.conn, ask["id"]) or refs
     if (isinstance(rulings, dict) and not rulings and not is_clarify
             and (not order or batches_only)):
         rid = new_id("r", ctx.conn)
@@ -10406,7 +10416,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         ruling = _ruling_word(key, ruling, shift=shift)
         if order and key.isdigit() and 1 <= int(key) <= len(order):
             ref = order[int(key) - 1]
-        elif key in refs and not shift:
+        elif key in keys and not shift:
             ref = key
         # The code line of a request item on this page is admitted by its key
         # with no line, because a page can go out before the guess exists
@@ -10439,7 +10449,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             raise ValueError(
                 f"{key!r} is not a row of this question. A clarify numbers no "
                 f"line, so each key is a row id from `about`: "
-                f"{', '.join(refs)}")
+                f"{', '.join(keys)}")
         else:
             raise ValueError(
                 f"{key!r} is not a line of the page. The page numbers its "

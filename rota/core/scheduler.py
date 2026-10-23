@@ -1866,7 +1866,34 @@ def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bo
             "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone() for r in refs
     ) and (park_verdict_page(conn, row["cause_id"]) is not None
            or set(refs) <= set(park_verdict_criteria(conn, row["cause_id"]))
-           | set(ruled_test_criteria(conn, row["cause_id"])))
+           | set(ruled_test_criteria(conn, row["cause_id"]))
+           | set(ruled_clarify_criteria(conn, row["cause_id"])))
+
+
+def ruled_clarify_criteria(conn: sqlite3.Connection, message_id: str | None) -> list[str]:
+    """The criteria that the landed ruling of the clarify reply `message_id`
+    contests or revises as rows of their own.
+
+    A criterion the asker named is a key of the clarify door (frame 306).
+    A contest or a revise of it is a ruling on its words, as a ruled test
+    row is (frame 213, route B). Night 158's m146 reached `relay` mode,
+    which cannot respecify. A clarify that only names a criterion, or a
+    ruling that approves it, keeps `relay`.
+    """
+    import json
+
+    if not message_id:
+        return []
+    found = conn.execute(
+        "SELECT r.per_item FROM rulings r JOIN messages a ON a.id = r.ask_id "
+        "WHERE r.status = 'landed' AND r.reply_id = ? AND a.verb = 'clarify' "
+        "ORDER BY r.rowid DESC LIMIT 1", (message_id,)).fetchone()
+    try:
+        per_item = json.loads(found["per_item"] or "{}") if found else {}
+    except (TypeError, ValueError):
+        return []
+    return [r for r, v in per_item.items() if v in ("contest", "revise")
+            and conn.execute("SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]
 
 
 def ruled_test_criteria(conn: sqlite3.Connection, message_id: str | None) -> list[str]:

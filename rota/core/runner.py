@@ -180,6 +180,29 @@ def _asks_about_entries(conn: sqlite3.Connection, body_refs: str | None) -> bool
         for r in refs)
 
 
+def answer_about(conn: sqlite3.Connection, clarify_id: str) -> list[str] | None:
+    """The rows a reply to the clarify `clarify_id` is about, or None.
+
+    The asker's refs come first, then the clarify's refs that the asker did
+    not name. None means the clarify has no asker. The answering prompt and
+    the clarify door of `rulings.rule` read this one set. On night 158 the
+    prompt showed m144's `[cr_2, tst_02]`, the door keyed on m145's
+    `[tst_02]`, and the door refused the revise of cr_2 (frame 306).
+    """
+    clarify = conn.execute("SELECT body_refs, cause_id FROM messages WHERE id = ?",
+                           (clarify_id,)).fetchone()
+    if clarify is None:
+        return None
+    asker = conn.execute(
+        "SELECT body_refs FROM messages WHERE id = ?",
+        (clarify["cause_id"],)).fetchone() if clarify["cause_id"] else None
+    if asker is None:
+        return None
+    own = json.loads(clarify["body_refs"] or "[]")
+    about = json.loads(asker["body_refs"] or "[]")
+    return about + [r for r in own if r not in about]
+
+
 # The converse wake's `current_request` carries this sentence as `relation`
 # (frame 193's design, 2.G.1).
 CURRENT_REQUEST_RELATION = (
@@ -2259,7 +2282,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     (clarify["cause_id"],)).fetchone() if clarify["cause_id"] else None
                 if asker:
                     answering["asked_by"] = asker["from_role"]
-                    answering["about"] = json.loads(asker["body_refs"] or "[]")
+                    answering["about"] = answer_about(conn, clarify["id"]) or []
                 else:
                     # Liaison's own question, with no desk behind it. The rows
                     # the clarify named are what the reply is about, and their
