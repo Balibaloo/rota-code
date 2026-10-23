@@ -203,9 +203,11 @@ def test_s279s_seq_17_note_from_the_night_database_is_refused(db, tmp_path):
 
 def test_the_removal_lands_when_a_criterion_asks_for_it(db, tmp_path):
     """A criterion of the batch names `ctx.exit()` and asks for its removal.
-    The criterion is a ruling, so the commit of seq 16 lands, and the notes land."""
+    The criterion is a ruling, so the commit of seq 16 lands, and the notes land.
+    Pass 4: the criterion asks in the request form. "the callback no longer
+    calls ctx.exit()" states a fact, as the bug shape of review 3 does."""
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',"
-               "'After --version, the callback no longer calls ctx.exit(), so "
+               "'After --version, the callback must no longer call ctx.exit(), so "
                "the command body runs.')")
     db.commit()
     sb, _root = _developer(db, tmp_path)
@@ -363,5 +365,48 @@ def test_a_restored_row_with_the_line_in_the_tree_lets_the_commit_land(db, tmp_p
     sb = _restored_row(db, root, "ctx.exit()", "version_option.callback",
                        BASE.decode("utf-8") + "\n# kept\n")
     assert sb.call("code.commit", message="micro")["committed"] is True
+
+
+GONE = {"line": "ctx.exit()", "owner": "version_option.callback", "no": "550",
+        "def": False}
+
+
+@pytest.mark.parametrize("words,asks", [
+    # Review 3's finding 1: a negation before the clause break does not count.
+    ("The ctx.exit() call is not reached after echo, so please remove ctx.exit().", True),
+    ("Keep the echo, and take ctx.exit() out of the callback.", True),
+    ("The callback still calls ctx.exit(), which I asked you to drop.", True),
+    ("It isn't needed after echo, so you can drop ctx.exit().", True),
+    ("Please remove ctx.exit() and keep the echo.", True),
+    ("The callback must no longer call ctx.exit().", True),
+    # Review 3's finding 2: a removal named as a fault or a consequence.
+    ("Removing ctx.exit() is a bug.", False),
+    ("Fix the callback rather than drop ctx.exit().", False),
+    ("You were wrong to drop ctx.exit().", False),
+    ("Without ctx.exit(), the program runs the command after it prints the version.", False),
+    ("The callback no longer calls ctx.exit() after echo, and that is the bug.", False),
+])
+def test_a_removal_is_read_in_its_own_clause_and_in_the_request_form(words, asks):
+    """Review 3's probe Q2: the principal's shapes from nights 140 to 158,
+    rewritten to name `ctx.exit()`. Only a request in the removal word's
+    own clause asks for the removal."""
+    assert api._asks_removal(words, GONE, True) is asks
+
+
+def test_the_same_reply_refusal_says_its_fact_once_and_gives_the_route(db, tmp_path):
+    """Review 3's finding 3: the same-reply refusal says once that the seat
+    did not read the note, and its step ends on the escalate route."""
+    sb, _root = _developer(db, tmp_path)
+    assert "dropped" in sb.call("code.write", path=PATH, start=540, end=555, text=ECHO)
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message=MESSAGE)
+    msg = str(err.value)
+    assert "You sent this commit" not in msg
+    assert msg.count("you had not read it") == 1
+    assert msg.endswith("If the tree holds those lines again, commit in your "
+                        "next reply. A note does not allow a removal. Put the "
+                        "lines back with code.write, then commit in your next "
+                        "reply. Or send msg.escalate_architect and name the "
+                        "removal.")
 
 

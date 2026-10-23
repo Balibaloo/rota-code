@@ -191,9 +191,12 @@ S282_NOTE = ('This write removes 3 statements that your text does not hold: '
              '`base_message = message % {"prog": prog_name, "package": pack` '
              'at line 546, `echo(` at line 551, `ctx.exit()` at line 555.')
 
-STEP = ("You sent this commit before you read this note. If the tree holds "
-        "those lines again, commit in your next reply. If it does not, write "
-        "the lines back, then commit in your next reply.")
+# Frame 283's review 3, finding 3: the step says its fact once and ends on
+# the shared route.
+STEP = ("If the tree holds those lines again, commit in your next reply. A "
+        "note does not allow a removal. Put the lines back with code.write, "
+        "then commit in your next reply. Or send msg.escalate_architect and "
+        "name the removal.")
 
 # The refusal of a commit in a reply after the noted one (frame 283).
 LATER = ("a code.write in an earlier reply returned a note, and the tree "

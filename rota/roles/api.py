@@ -17579,18 +17579,14 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
         not (opened[p]["lines"] or opened[p]["defs"]) for p, _n in later),
         one=len(gone) == 1)
     if held:
-        step = (f"If the tree holds those lines again, commit in your next "
-                f"reply. If it does not, write the lines back, then commit in "
-                f"your next reply.")
-        # A note of an earlier reply beside this one has two routes (frame
-        # 283's review 1, finding 7). The second is the escalation now.
-        if later:
-            step = (f"If the tree holds those lines again, commit in your "
-                    f"next reply. {routes}")
+        # One fact, one step, the route (frame 135). Frame 283's review 3,
+        # finding 3: the step ends on the route that the later-reply text
+        # and the ledger text give, so the seat hears one route first.
+        step = (f"If the tree holds those lines again, commit in your "
+                f"next reply. {routes}")
         said = " ".join(f"{p}: {n}" for p, n in held + later)
         return (f"your code.write in this reply returned a note before this "
-                f"commit, and you had not read it. {said} You sent this "
-                f"commit before you read this note. {step}")
+                f"commit, and you had not read it. {said} {step}")
     said = " ".join(f"{p}: {n}" for p, n in later)
     return (f"a code.write in an earlier reply returned a note, and the tree "
             f"still does not hold those lines. {said} {routes}")
@@ -17732,22 +17728,48 @@ _REMOVAL_WORDS = re.compile(
 # line. "Do not remove ctx.exit()." admitted the removal (review 2, finding 2).
 _NEGATION_WORDS = re.compile(r"\b(?:not|never|keep\w*|still|must|always)\b|n't", re.I)
 _BARE_LINES = frozenset({"continue", "return", "pass", "break"})
+# The break that starts a clause. A negation before the break belongs to a
+# reason, as in "it is not reached, so please remove it" (frame 283, review
+# 3, finding 1).
+_CLAUSE_BREAK = re.compile(r"[,:;]|\b(?:so|and|which|but)\b", re.I)
+# The request forms that ask for a removal (frame 283, review 3, finding 2).
+# A request is a removal verb at the start of its clause, after an empty
+# lead or one lead of this list: "remove", "please drop", "you can take
+# out", "which I asked you to drop", "the callback must no longer call".
+# One adverb can follow the lead: "please also drop" (night 155).
+# "go ahead and remove" reaches the verb with an empty lead, because "and"
+# breaks the clause. Any other form names the removal as a fault or a
+# consequence: "Removing X is a bug", "rather than drop X", "wrong to drop
+# X", "without X".
+_REQUEST_VERBS = re.compile(
+    r"remove|drop|delete|take\s+(?:\S+\s+){0,4}?out|stop|no\s+longer", re.I)
+_REQUEST_LEADS = re.compile(
+    r"(?:please"
+    r"|(?:you|we)\s+(?:can|could|may|should|must)"
+    r"|(?:i|we)\s+(?:asked|want|need|would\s+like|'d\s+like)\s+you\s+to"
+    r"|(?P<who>(?:the\s+)?[\w.()`]+(?:\s+[\w.()`]+)?)\s+(?:must|should)"
+    r")?(?:\s*\b(?:also|just|now|then|simply|only)\b)?", re.I)
 
 
 def _removal_asked(s: str, g: dict) -> bool:
-    """True when the sentence `s` holds a removal word that no word before
-    it negates. "without" counts only when the name of `g` follows it."""
-    names = [g["line"]]
-    call = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", g["line"])
-    if call and not g["def"]:
-        names.append(call.group(1) + "(")
+    """True when the sentence `s` asks for a removal in the request form:
+    a removal verb at the start of its own clause, after a lead of
+    `_REQUEST_LEADS`. A named subject leads "no longer" or "stop" only.
+    `g` is the gone statement. The rule does not read it."""
     for m in _REMOVAL_WORDS.finditer(s):
-        if _NEGATION_WORDS.search(s[:m.start()]):
+        verb = m.group(0)
+        if not _REQUEST_VERBS.fullmatch(verb):
             continue
-        if m.group(0).lower() == "without":
-            after = s[m.end():].lstrip().lstrip("`")
-            if not any(after.startswith(n) for n in names):
-                continue
+        head = s[:m.start()]
+        breaks = list(_CLAUSE_BREAK.finditer(head))
+        lead = (head[breaks[-1].end():] if breaks else head).strip(" \t\"'`*-")
+        got = _REQUEST_LEADS.fullmatch(lead)
+        if got is None:
+            continue
+        if got.group("who") is not None and (
+                _NEGATION_WORDS.search(got.group("who"))
+                or not re.match(r"no\s|stop", verb, re.I)):
+            continue
         return True
     return False
 
