@@ -1,0 +1,4 @@
+ed8b021 rota: deliver bg_1
+13ace86 rota: tests of bg_1
+d58b48d Add echo_json helper
+2c8cd3a Add FAQ entry about `UnicodeEncodeError` on Windows (#3778)
