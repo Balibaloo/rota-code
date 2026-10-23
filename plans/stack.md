@@ -722,6 +722,7 @@ a different question and the night is then opened once.
 - Sprint: next sprint, rank 1 among the parked, because it stops a batch whose code is right (reasoned: the cycle 3 read). Pushed with the economy at 20 of 10.
 - Pointer: `plans/night160-cycle3.md`.
 - Status 2026-10-23 21:10 (rota-19): pushed from night 160's third CYCLE line, read on Opus, 54.6k on the harness line against 30k. Not the same loop as cycle 2: every `lines=` parsed, and the night runs on because frame 283's door fired 11 times and frame 308's 4 before the tick. Meta workflow.
+- Status 2026-10-23 21:28 (rota-19): **night 160's fourth CYCLE line at 21:20 is this frame's too: the Critic s248 got the docstring refusal 6 times on cr_3, then failed the verdict with the door's own rule as the reason, 'no such line exists in the diff for cr_3'; the Developers s249 to s251 had no correct move at 905345ed, 53 calls and 0 commits, and his answers reset the tick at s208, s216, s224 and s252** (observed: plans/night160-cycle4.md, a read on Opus, 65.7k on the harness line against 30k). The night runs on: after the cycle s255 rewrote cr_2 and cr_3 and s256 re-encoded, so bg_2 moves on frame 306's wall and that frame gets its night 1 data. Rota workflow.
 
 ### 309. `test_runs` keeps one live run per test, and two deletes remove the rest before the night's read (2026-10-23) (b85289fd) (8e879083)
 
