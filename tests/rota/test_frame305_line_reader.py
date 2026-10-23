@@ -117,3 +117,24 @@ def test_a_reply_that_names_two_lines_gets_no_number(db):
         db, "m123: rulings.rule: The words do not name line 5.",
         "Lines 2 and 4 are wrong.")
     assert line == NO_LINE
+
+
+def test_the_re_present_reads_a_bare_number_after_a_full_stop(db):
+    # Review 1, finding 1: the reader of `rulings.rule` names lines 2 and 3.
+    line = _returned_page(
+        db, "m123: rulings.rule: The words do not name line 5.",
+        "Line 2 is fine. 3 is wrong.")
+    assert line == NO_LINE
+
+
+def test_a_negated_cue_faults_no_line():
+    # Review 1, finding 2: his words keep both lines.
+    faulted, _ = _line_cues("Line 7 repeats line 3, but do not drop it.")
+    assert faulted == {}
+
+
+def test_both_binds_the_cue_to_the_relating_pair():
+    # Review 1, finding 3: his words fault lines 3 and 7.
+    faulted, _ = _line_cues("Line 7 repeats line 3, so drop both.")
+    assert set(faulted) == {3, 7}
+    assert faulted[3][0] == faulted[7][0] == "drop"

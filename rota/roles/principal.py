@@ -1425,7 +1425,7 @@ def returned_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
     exactly one line. The refusal speaks to the seat, so its line is not his.
     Night 158's m122 named line 1, and his words named no line (frame 305).
     """
-    from .api import _LINE_REF, _ref_lines
+    from .api import _LINE_REF, _SENTENCE, _ref_lines
 
     if not ask_id:
         return ""
@@ -1442,8 +1442,11 @@ def returned_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
         "AND from_role = 'principal'",
         (reply_id.group(1) if reply_id else None, ask_id)).fetchone()
     lines: set[int] = set()
-    for ref in _LINE_REF.finditer((reply and reply["body_text"]) or ""):
-        lines |= _ref_lines(ref)
+    # By sentence, as the line reader reads: a bare "3 is wrong" counts at
+    # a sentence start (frame 305, review 1, finding 1).
+    for sentence in _SENTENCE.split((reply and reply["body_text"]) or ""):
+        for ref in _LINE_REF.finditer(sentence):
+            lines |= _ref_lines(ref)
     about = f" about line {min(lines)}" if len(lines) == 1 else ""
     return ("Your last answer to this page did not reach the team. The team "
             f"could not turn your words{about} into a ruling. Answer the page "

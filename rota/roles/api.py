@@ -9382,6 +9382,27 @@ _WEAK_CUES = ("also", "still", "not")
 _RELATING = re.compile(
     r"\b(?:repeat(?:s|ed)?|duplicat(?:es?|ed)|cop(?:y|ies|ied)|"
     r"(?:is|are|says?) the same(?: thing)? as)\b", re.I)
+# The sentence split of the line reader. `returned_line` reads by it too, so
+# a bare "3 is wrong" after a full stop is a reference in both (frame 305,
+# review 1, finding 1).
+_SENTENCE = re.compile(r"(?<=[.!?])\s+|[:;]")
+# A negation directly before a strong cue. "but do not drop it" keeps the
+# line, so the cue and its negation fault nothing (frame 305, review 1,
+# finding 2).
+_NEGATED = re.compile(r"\b(?:do\s+not|don['’]t|not)\s+$", re.I)
+
+
+def _live_cues(text: str) -> list[re.Match]:
+    """The fault cues of `text`, less each negated strong cue and its "not"."""
+    found = list(_LINE_FAULT.finditer(text))
+    dead: set[int] = set()
+    for m in found:
+        neg = (m.group(0).lower() not in _WEAK_CUES
+               and _NEGATED.search(text[:m.start()]))
+        if neg:
+            dead |= {k for k, o in enumerate(found)
+                     if o.start() >= neg.start() and o.end() <= m.end()}
+    return [m for k, m in enumerate(found) if k not in dead]
 
 
 def _line_cues(words: str, size: int | None = None
@@ -9394,7 +9415,7 @@ def _line_cues(words: str, size: int | None = None
     """
     faulted: dict[int, tuple[str, str]] = {}
     matched: set[int] = set()
-    for sentence in re.split(r"(?<=[.!?])\s+|[:;]", words or ""):
+    for sentence in _SENTENCE.split(words or ""):
         refs = list(_LINE_REF.finditer(sentence))
         # The cue binds to the reference it governs. In "Line 7 repeats line
         # 3, so drop it", "it" is line 7, the subject (frame 305).
@@ -9409,7 +9430,7 @@ def _line_cues(words: str, size: int | None = None
                 # before the subject governs it (frame 305).
                 head = sentence[refs[i - 1].end() if i else 0:ref.start()]
                 head = head.rstrip()
-                pre = [m.group(0) for m in _LINE_FAULT.finditer(head)
+                pre = [m.group(0) for m in _live_cues(head)
                        if m.end() == len(head)
                        and m.group(0).lower() not in _WEAK_CUES]
                 for n in _ref_lines(ref, size) if pre else ():
@@ -9428,21 +9449,28 @@ def _line_cues(words: str, size: int | None = None
                     for w in window[:match.start()].split()[-2:]):
                 fault, match = match, None
                 cue = " ".join(window[:fault.end()].split()[-2:])
+            found = []
+            if cue is None and fault is not None:
+                found = [m.group(0) for m in _live_cues(window)]
+                fault = fault if found else None
             if fault is not None:
                 # A fault anywhere in the clause wins. Night 143's m339:
                 # "Line 2's text is right now, but its check still passes"
                 # (frame 234, review 1, finding 3).
                 if cue is None:
-                    found = [m.group(0) for m in _LINE_FAULT.finditer(window)]
                     strong = [c for c in found if c.lower() not in _WEAK_CUES]
                     cue = (strong or found)[0]
-                target, clause = ref, window
+                targets, clause = [ref], window
                 if i in subject:
                     # The object of a relating verb takes no fault. Night
                     # 158's m105: the drop belongs to line 7, not line 3.
-                    target = refs[subject[i]]
-                    clause = sentence[target.end():end]
-                for n in _ref_lines(target, size):
+                    # "so drop both" faults the pair (frame 305, review 1,
+                    # finding 3).
+                    targets = [refs[subject[i]]]
+                    if re.search(r"\bboth\b", window, re.I):
+                        targets.append(ref)
+                    clause = sentence[targets[0].end():end]
+                for n in {n for t in targets for n in _ref_lines(t, size)}:
                     faulted.setdefault(n, (cue, clause))
             elif match is not None:
                 matched |= _ref_lines(ref, size)
