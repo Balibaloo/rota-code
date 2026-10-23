@@ -59,11 +59,20 @@ SCOPE = "ctx.exit() at line 550 was unreachable after echo() call, removed in wr
 MESSAGE = ("Fix show_python output format to include 'Python' prefix and "
            "restore ctx.exit()")
 
+ROUTE = ("A note does not allow a removal. Put the line back with code.write, "
+         "then commit in your next reply. Or send msg.escalate_architect and "
+         "name the removal.")
 REFUSAL = ("src/click/decorators.py: this commit removes `ctx.exit()` at line "
-           "550, and no criterion, request or ruling of the principal names it. "
-           "The team's note does not discharge a removal. Put the line back "
-           "with code.write and commit, or send msg.escalate_architect and name "
-           "the removal.")
+           "550. No criterion, request or ruling of the principal names it. "
+           + ROUTE)
+# Pass 2, review 1's finding 2: the first refusal and the ledger door give
+# the same route, and neither offers the ledger.
+FIRST = ("a code.write in an earlier reply returned a note, and the tree still "
+         "does not hold those lines. src/click/decorators.py: This write removes "
+         "1 statement that your text does not hold: `ctx.exit()` at line 550. "
+         + ROUTE)
+LEDGER = ("src/click/decorators.py holds an uncommitted write that removes "
+          "`ctx.exit()` at line 550, so this note closes nothing. " + ROUTE)
 
 
 @pytest.fixture
@@ -124,88 +133,142 @@ def _call(sb, fn, **args):
 
 def _replay(sb):
     """s279's tool calls, seq 15 to 26, one reply per turn of the record.
-    Returns the result of the last commit, seq 26.
+    Returns the results by seq.
 
     The record's three writes back, seq 18, 24 and 25, were refused at the
     span and changed nothing. The replay leaves them out: their "To add
     after it" offer fails the follow check of frame 144, the cut door's
     finding 2, which is not this frame's door."""
-    out = _call(sb, "code.write", path=PATH, start=540, end=555, text=ECHO)
-    assert out["dropped"] == ("This write removes 1 statement that your text "
-                              "does not hold: `ctx.exit()` at line 550.")
+    out = {}
+    out[15] = _call(sb, "code.write", path=PATH, start=540, end=555, text=ECHO)
+    assert out[15]["dropped"] == ("This write removes 1 statement that your text "
+                                  "does not hold: `ctx.exit()` at line 550.")
     sb.begin_reply()
-    assert "refused" in _call(sb, "code.commit", message=MESSAGE)
+    out[16] = _call(sb, "code.commit", message=MESSAGE)
     sb.begin_reply()
     log = {"about_ref": PATH, "about_table": "version_option callback"}
-    _call(sb, "ledger.log", kind="assumption", assumption=NOTE, **log)
-    assert "refused" in _call(sb, "code.commit", message=MESSAGE)
+    out[17] = _call(sb, "ledger.log", kind="assumption", assumption=NOTE, **log)
+    out[19] = _call(sb, "code.commit", message=MESSAGE)
     sb.begin_reply()
-    _call(sb, "ledger.log", kind="fault", assumption=NOTE, **log)
+    out[20] = _call(sb, "ledger.log", kind="fault", assumption=NOTE, **log)
     sb.begin_reply()
-    _call(sb, "ledger.log", kind="scope", assumption=SCOPE, **log)
+    out[23] = _call(sb, "ledger.log", kind="scope", assumption=SCOPE, **log)
     sb.begin_reply()
-    return _call(sb, "code.commit", message=MESSAGE)
+    out[26] = _call(sb, "code.commit", message=MESSAGE)
+    return out
 
 
-def _row(sb) -> dict:
-    """The last staged `drop_notes` value of the path."""
+def _staged(sb) -> list[dict]:
+    """The staged `drop_notes` values of the path."""
     return [w[2] for w in sb.ctx.writes
-            if w[0] == "drop_notes" and w[2]["path"] == PATH][-1]
+            if w[0] == "drop_notes" and w[2]["path"] == PATH]
 
 
-def test_s279s_commit_after_its_false_note_is_refused(db, tmp_path):
-    """s279's sequence: the scope note closes the row as `restored`, and the
-    tree still lacks `ctx.exit()`. bb7c4492's commit is refused."""
+def test_s279s_commits_and_notes_get_the_route_and_bb7c4492_is_refused(db, tmp_path):
+    """s279's sequence. Each commit gets the first refusal with no ledger
+    route. Each ledger note gets the ledger door's text, so the note stays
+    open and no row reads `restored` (review 1, findings 2 and 4)."""
     sb, root = _developer(db, tmp_path)
     head = _git(root, "rev-parse", "HEAD")
     out = _replay(sb)
-    assert _row(sb)["status"] == "restored"
-    assert "ctx.exit()" not in (root / PATH).read_text(encoding="utf-8").split(
-        "def custom_version_option")[0].split("color=ctx.color,")[-1]
-    assert out == {"refused": REFUSAL}
+    for seq in (16, 19, 26):
+        assert out[seq] == {"refused": FIRST}
+    for seq in (17, 20, 23):
+        assert out[seq] == {"refused": LEDGER}
+    assert PATH in api._open_notes(sb.ctx)
+    assert [v["status"] for v in _staged(sb)] == ["open"]
     assert _git(root, "rev-parse", "HEAD") == head
 
 
-def test_the_removal_lands_when_a_criterion_names_it(db, tmp_path):
-    """The same removal, where a criterion of the batch names `ctx.exit()`:
-    the criterion is a ruling, so the commit lands."""
+def test_s279s_seq_17_note_from_the_night_database_is_refused(db, tmp_path):
+    """The note of seq 17 as `tool_calls` and `turns` of
+    `.rota/clickI_night158.db` hold it. The kind door answered it on the
+    night. The drop note's door now answers first, and the note stays open."""
+    sb, _root = _developer(db, tmp_path)
+    _call(sb, "code.write", path=PATH, start=540, end=555, text=ECHO)
+    sb.begin_reply()
+    with pytest.raises(ValueError) as err:
+        sb.call("ledger.log", about_ref="src/click/decorators.py",
+                about_table="version_option callback",
+                assumption="removed ctx.exit() at line 550 which was "
+                           "unreachable after echo()", kind="assumption")
+    assert str(err.value) == LEDGER
+    assert PATH in api._open_notes(sb.ctx)
+    assert not [w for w in sb.ctx.writes if w[0] == "ledger"]
+
+
+def test_the_removal_lands_when_a_criterion_asks_for_it(db, tmp_path):
+    """A criterion of the batch names `ctx.exit()` and asks for its removal.
+    The criterion is a ruling, so the commit of seq 16 lands, and the notes land."""
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',"
                "'After --version, the callback no longer calls ctx.exit(), so "
                "the command body runs.')")
     db.commit()
     sb, _root = _developer(db, tmp_path)
-    assert _replay(sb)["committed"] is True
+    out = _replay(sb)
+    assert out[16]["committed"] is True
+    assert "refused" not in out[23]
 
 
-def test_the_removal_lands_when_the_principal_names_the_line(db, tmp_path):
-    """The same removal, where a landed ruling of the principal names the
-    line: his words are a ruling, so the commit lands."""
+def _ruling(db, per_item: dict, words: str) -> None:
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_text, seq) VALUES ('m1','t1','principal','liaison','answer',"
                "'x',1)")
-    db.execute("INSERT INTO rulings (id, ask_id, words, status) VALUES "
-               "('r1','m1','Take ctx.exit() out of the version callback.','landed')")
+    db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
+               "('r1','m1',?,?,'landed')", (json.dumps(per_item), words))
+    db.commit()
+
+
+def test_the_removal_lands_when_the_principal_asks_for_it_on_the_items_page(db, tmp_path):
+    """A landed ruling on the item's page names the line and asks for its
+    removal: his words are a ruling, so the commit lands."""
+    _ruling(db, {"version_option_show_python": "approve"},
+            "Take ctx.exit() out of the version callback.")
+    sb, _root = _developer(db, tmp_path)
+    assert _replay(sb)[16]["committed"] is True
+
+
+@pytest.mark.parametrize("words", [
+    "The callback must still call ctx.exit() after the echo.",
+    "The callback calls ctx.exit() after the echo.",
+])
+def test_a_criterion_that_demands_or_mentions_the_line_admits_nothing(db, tmp_path, words):
+    """Review 1's probe P2c: a criterion that demands the line, or only
+    mentions it, asks for no removal."""
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',?)",
+               (words,))
     db.commit()
     sb, _root = _developer(db, tmp_path)
-    assert _replay(sb)["committed"] is True
+    assert _replay(sb)[26] == {"refused": FIRST}
+
+
+def test_a_ruling_of_another_item_admits_nothing(db, tmp_path):
+    """Review 1's probe P2b: only the rulings of the batch's own item count."""
+    _ruling(db, {"echo_json": "approve"}, "Take ctx.exit() out of the version callback.")
+    sb, _root = _developer(db, tmp_path)
+    assert _replay(sb)[26] == {"refused": FIRST}
+
+
+def _restored_row(db, root, line, owner, gone_text, note=""):
+    (root / PATH).write_bytes(gone_text.encode("utf-8"))
+    db.execute("INSERT INTO drop_notes (batch_id, path, status, note, lines, defs, "
+               "whole, noted) VALUES ('bg_3', ?, 'restored', ?, ?, '[]', '[]', '')",
+               (PATH, note, json.dumps([[owner, line, 1]])))
+    db.commit()
+    return build("developer", db, batch_id="bg_3", mode="tests_failing",
+                 allow=prompts.mode_tools("developer", "tests_failing"))
 
 
 def test_a_restored_row_with_the_line_gone_from_the_tree_is_refused(db, tmp_path):
     """The door reads the tree, not the row. A landed row at `restored`
     with `ctx.exit()` absent from the uncommitted tree refuses the commit."""
-    sb, root = _developer(db, tmp_path)
+    _sb, root = _developer(db, tmp_path)
     text = BASE.decode("utf-8")
     gone = text.replace("        )\n        ctx.exit()\n", "        )\n", 1)
     assert gone != text
-    (root / PATH).write_bytes(gone.encode("utf-8"))
-    db.execute("INSERT INTO drop_notes (batch_id, path, status, note, lines, defs, "
-               "whole, noted) VALUES ('bg_3', ?, 'restored', ?, ?, '[]', '[]', ?)",
-               (PATH, "This write removes 1 statement that your text does not "
-                "hold: `ctx.exit()` at line 550.",
-                json.dumps([["version_option.callback", "ctx.exit()", 1]]), gone))
-    db.commit()
-    sb = build("developer", db, batch_id="bg_3", mode="tests_failing",
-               allow=prompts.mode_tools("developer", "tests_failing"))
+    sb = _restored_row(db, root, "ctx.exit()", "version_option.callback", gone,
+                       "This write removes 1 statement that your text does not "
+                       "hold: `ctx.exit()` at line 550.")
     head = _git(root, "rev-parse", "HEAD")
     with pytest.raises(ValueError) as err:
         sb.call("code.commit", message="micro")
@@ -213,14 +276,56 @@ def test_a_restored_row_with_the_line_gone_from_the_tree_is_refused(db, tmp_path
     assert _git(root, "rev-parse", "HEAD") == head
 
 
+def test_an_edit_after_an_earlier_commit_removed_the_line_names_that_commit(db, tmp_path):
+    """Review 1's finding 3, probe P5b: HEAD already lacks the line. An
+    unrelated edit of the path is refused, and the text names the commit
+    that removed the line, not this commit."""
+    _sb, root = _developer(db, tmp_path)
+    text = BASE.decode("utf-8")
+    gone = text.replace("        )\n        ctx.exit()\n", "        )\n", 1)
+    (root / PATH).write_bytes(gone.encode("utf-8"))
+    _git(root, "commit", "-q", "-am", "the removal")
+    sha = _git(root, "rev-parse", "HEAD")[:8]
+    sb = _restored_row(db, root, "ctx.exit()", "version_option.callback",
+                       gone + "\n# kept\n",
+                       "This write removes 1 statement that your text does not "
+                       "hold: `ctx.exit()` at line 550.")
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message="micro")
+    assert str(err.value) == (
+        f"src/click/decorators.py: commit {sha}, an earlier commit of this "
+        f"batch, removes `ctx.exit()` at line 550. No criterion, request or "
+        f"ruling of the principal names it. " + ROUTE)
+
+
+@pytest.mark.parametrize("words,lands", [
+    ("Drop the return.", False),
+    ("In callback, drop the early return.", True),
+])
+def test_a_bare_return_needs_its_function_named(db, tmp_path, words, lands):
+    """Review 1's probe P2d: a bare `return` is admitted only on a sentence
+    that names its function and asks for the removal."""
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',?)",
+               (words,))
+    db.commit()
+    _sb, root = _developer(db, tmp_path)
+    text = BASE.decode("utf-8")
+    gone = text.replace("ctx.resilient_parsing:\n            return\n",
+                        "ctx.resilient_parsing:\n            pass\n", 1)
+    assert gone != text
+    sb = _restored_row(db, root, "return", "version_option.callback", gone)
+    if lands:
+        assert sb.call("code.commit", message="micro")["committed"] is True
+    else:
+        with pytest.raises(ValueError):
+            sb.call("code.commit", message="micro")
+
+
 def test_a_restored_row_with_the_line_in_the_tree_lets_the_commit_land(db, tmp_path):
     """A row at `restored` whose line the tree holds blocks nothing."""
-    sb, root = _developer(db, tmp_path)
-    (root / PATH).write_bytes(BASE + b"\n# kept\n")
-    db.execute("INSERT INTO drop_notes (batch_id, path, status, note, lines, defs, "
-               "whole, noted) VALUES ('bg_3', ?, 'restored', '', ?, '[]', '[]', '')",
-               (PATH, json.dumps([["version_option.callback", "ctx.exit()", 1]])))
-    db.commit()
-    sb = build("developer", db, batch_id="bg_3", mode="tests_failing",
-               allow=prompts.mode_tools("developer", "tests_failing"))
+    _sb, root = _developer(db, tmp_path)
+    sb = _restored_row(db, root, "ctx.exit()", "version_option.callback",
+                       BASE.decode("utf-8") + "\n# kept\n")
     assert sb.call("code.commit", message="micro")["committed"] is True
+
+

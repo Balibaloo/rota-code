@@ -198,9 +198,11 @@ STEP = ("You sent this commit before you read this note. If the tree holds "
 # The refusal of a commit in a reply after the noted one (frame 283).
 LATER = ("a code.write in an earlier reply returned a note, and the tree "
          "still does not hold those lines.")
-LATER_STEP = ("Put the lines back with code.write, or log the removal with "
-              "ledger.log naming the path and the lines, then commit in your "
-              "next reply.")
+# Frame 283's W1 a, pass 2: a note never allows a removal of a base
+# statement, so the route names no ledger note.
+LATER_STEP = ("A note does not allow a removal. Put the lines back with "
+              "code.write, then commit in your next reply. Or send "
+              "msg.escalate_architect and name the removal.")
 
 # The dropped statements put back around s282's text, as one span.
 RESTORED = ('        base_message = message % {"prog": prog_name, "package": '
@@ -394,29 +396,23 @@ def test_a_write_that_puts_the_tail_back_closes_the_note(db, tmp_path):
 
 BASE_HEAD = 'base_message = message % {"prog": prog_name, "package": pack'
 
-# Frame 283's W1 a: a ledger note closes the note, and the commit door
-# still refuses the removal, because no criterion names the lines.
-UNRULED = f"{PATH}: this commit removes "
-UNRULED_STEP = ("The team's note does not discharge a removal. Put the lines "
-                "back with code.write and commit, or send msg.escalate_architect "
-                "and name the removal.")
-
-
 def _unruled(sb, root):
-    """The commit after the closing note is refused, and HEAD stays."""
+    """Frame 283's W1 a, pass 2: no ledger note closes a removal of a base
+    statement. The note stays open, the commit after it is refused with
+    the first refusal, and HEAD stays."""
     head = _git(root, "rev-parse", "HEAD")
-    assert PATH not in api._open_notes(sb.ctx)
+    assert PATH in api._open_notes(sb.ctx)
     with pytest.raises(ValueError) as err:
         sb.call("code.commit", message="the removal")
-    assert str(err.value).startswith(UNRULED)
-    assert str(err.value).endswith(UNRULED_STEP)
+    assert str(err.value).startswith(LATER)
+    assert str(err.value).endswith(LATER_STEP)
     assert _git(root, "rev-parse", "HEAD") == head
 
 
-def test_a_ledger_note_that_names_every_dropped_statement_closes_the_note(db, tmp_path):
+def test_a_ledger_note_that_names_every_dropped_statement_closes_nothing(db, tmp_path):
     """Frame 283's ends-when, revised by its W1 a: the ledger note names the
-    path and each of the three dropped statements, so it closes the note.
-    A note is the seat's own claim, so the commit after it is refused."""
+    path and each of the three dropped statements. A note is the seat's
+    own claim, so it closes nothing, and the commit after it is refused."""
     sb, root = _developer(db, tmp_path)
     _noted_then_refused(sb, root)
     lines = [x[1] for x in api._open_notes(sb.ctx)[PATH]["lines"]]
@@ -427,11 +423,9 @@ def test_a_ledger_note_that_names_every_dropped_statement_closes_the_note(db, tm
     _unruled(sb, root)
 
 
-def test_a_ledger_note_that_names_one_shown_statement_closes_the_note(db, tmp_path):
-    """Frame 283's review 3, finding 2: one line that the note shows closes
-    the note. This replaces review 1's rule of every line, because the seat
-    cannot quote a line the note never showed. W1 a: the commit after it is
-    refused all the same."""
+def test_a_ledger_note_that_names_one_shown_statement_closes_nothing(db, tmp_path):
+    """Frame 283's review 3, finding 2 let one shown line close the note.
+    W1 a, pass 2: the note closes nothing, and the commit is refused."""
     sb, root = _developer(db, tmp_path)
     _noted_then_refused(sb, root)
     sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
@@ -488,22 +482,24 @@ def test_a_second_session_on_the_worktree_finds_a_clean_tree(db, tmp_path):
     assert _git(root, "rev-parse", "HEAD") == head
 
 
-def test_s215s_ledger_that_names_the_path_in_about_ref_closes_the_note(db, tmp_path):
+def test_s215s_ledger_that_names_the_path_in_about_ref_is_refused(db, tmp_path):
     """Frame 283's residue, night 156's s215: the seat named the path in
     `about_ref`, where the ledger's schema puts it, and a dropped line in
-    the sentence. The close read the sentence only, so five landed notes
-    closed nothing and the commit was refused to the session's end. W1 a:
-    the note closes, and the commit is refused for the unruled removal."""
+    the sentence. W1 a, pass 2: the ledger door refuses the note, and the
+    commit is refused."""
     sb, root = _developer(db, tmp_path)
     # The night's index held the path, so `about_ref` resolved to it.
     db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES "
                "(?, 'path', 'file')", (PATH,))
     db.commit()
     _noted_then_refused(sb, root)
-    sb.call("ledger.log", about_ref=PATH, about_table="version_option callback",
-            kind="default",
-            assumption="removed echo(msg, color=ctx.color) and ctx.exit() from "
-                       "callback to avoid duplication since main handles exit")
+    with pytest.raises(ValueError) as err:
+        sb.call("ledger.log", about_ref=PATH, about_table="version_option callback",
+                kind="default",
+                assumption="removed echo(msg, color=ctx.color) and ctx.exit() "
+                           "from callback to avoid duplication since main "
+                           "handles exit")
+    assert str(err.value).endswith(f"so this note closes nothing. {LATER_STEP}")
     _unruled(sb, root)
 
 
@@ -514,8 +510,16 @@ def _index_path(db):
     db.commit()
 
 
-# The clause the ledger door adds before the commit door's routes (frame 297).
-SILENT = "This note names none of them, so it closes nothing. "
+# The clause the ledger door adds before the commit door's routes (frame
+# 297). Frame 283's W1 a, pass 2: the door refuses whatever the note names.
+SILENT = ", so this note closes nothing. "
+FULL_HEAD = ('base_message = message % {"prog": prog_name, "package": '
+             'package_name, "version": version}')
+
+
+def _ledger_text(listed: str, one: bool = False) -> str:
+    step = LATER_STEP.replace("the lines", "the line") if one else LATER_STEP
+    return f"{PATH} holds an uncommitted write that removes {listed}{SILENT}{step}"
 
 
 def _silent_refusal(sb, **call):
@@ -540,9 +544,8 @@ def test_a_ledger_note_about_the_path_that_names_no_dropped_statement_is_refused
     msg = _silent_refusal(
         sb, about_ref=PATH, about_table="code.source", kind="default",
         assumption=f"The version string in {PATH} uses major.minor.micro.")
-    assert msg == (f"{PATH} holds a write that no commit holds. The write "
-                   f"removes `{BASE_HEAD}` at line 546, `echo(` at line 551, "
-                   f"`ctx.exit()` at line 555. {SILENT}{LATER_STEP}")
+    assert msg == _ledger_text(f"`{FULL_HEAD}` at line 546, `echo(` at line "
+                               f"551, `ctx.exit()` at line 555")
     assert _git(root, "rev-parse", "HEAD") == head
 
 
@@ -598,22 +601,20 @@ def test_s214s_note_that_reads_its_own_write_as_the_file_is_refused(db, tmp_path
     _night_note(sb, N214, N214_LINES)
     msg = _silent_refusal(sb, about_ref=PATH, about_table="code.source",
                           kind="default", assumption=S214_TEXT)
-    assert msg == (f"{PATH} holds a write that no commit holds. The write "
-                   f"removes `echo(` at line 543. {SILENT}{LATER_STEP}")
+    assert msg == _ledger_text("`echo(` at line 543", one=True)
 
 
-def test_s215s_note_that_names_echo_in_its_call_form_lands(db, tmp_path):
-    """Frame 297's review 1, finding 1: s215 named `echo(` as
-    "echo(msg, ...". A word character after the bracket hid the line, so
-    the door refused the honest note. It now lands and closes the note."""
+def test_s215s_note_that_names_echo_in_its_call_form_is_refused(db, tmp_path):
+    """Frame 297's review 1, finding 1 let s215's "echo(msg, ..." close the
+    note. Frame 283's W1 a, pass 2: a note closes no removal of a base
+    statement, so the door refuses it, and the note stays open."""
     sb, root = _developer(db, tmp_path)
     _index_path(db)
     _noted_then_refused(sb, root)
     _night_note(sb, N214, N214_LINES)
-    out = sb.call("ledger.log", about_ref=PATH, about_table="version_option callback",
-                  kind="default", assumption=S215_TEXT)
-    assert "id" in out
-    assert PATH not in api._open_notes(sb.ctx)
+    msg = _silent_refusal(sb, about_ref=PATH, about_table="version_option callback",
+                          kind="default", assumption=S215_TEXT)
+    assert msg == _ledger_text("`echo(` at line 543", one=True)
 
 
 def test_s274s_scope_note_that_counts_the_removed_statements_is_refused(db, tmp_path):
@@ -646,8 +647,9 @@ def test_s300s_note_is_refused_with_the_stored_lines(db, tmp_path):
     _night_note(sb, N300, N300_LINES)
     msg = _silent_refusal(sb, about_ref=PATH, about_table="decisions",
                           kind="invented", assumption=S300_TEXT)
-    assert ("The write removes `if version is None:` at line 541, `echo(` at "
-            "line 555, `ctx.exit()` at line 559.") in msg
+    # Pass 2 of frame 283's W1 a: the tree holds `if version is None:`, so
+    # the refusal lists only the stored lines the tree lacks.
+    assert msg == _ledger_text("`echo(` at line 555, `ctx.exit()` at line 559")
     assert "output = message" not in msg
 
 
@@ -666,31 +668,25 @@ BG2_LINES = ([["version_option.callback", "echo(", 1],
              + [["version_option", x, 1] for x in BG2_KWARGS])
 
 
-def test_bg2s_eight_line_row_lists_the_six_shown_lines(db, tmp_path):
+def test_bg2s_eight_line_row_lists_the_stored_lines_the_tree_lacks(db, tmp_path):
     """Frame 297's review 2, finding 6: the replay of bg_2's row with s214's
-    text. The refusal lists the six lines the text shows, and only a listed
-    line closes the note (review 2, finding 4)."""
+    text. Frame 283's W1 a, pass 2: the refusal lists the stored lines the
+    tree lacks, and no note closes the row, whatever line it names."""
     sb, root = _developer(db, tmp_path)
     _index_path(db)
     _noted_then_refused(sb, root)
     _night_note(sb, BG2_NOTE, BG2_LINES)
-    msg = _silent_refusal(sb, about_ref=PATH, about_table="code.source",
-                          kind="default", assumption=S214_TEXT)
-    listed = ", ".join(f"`{x}` at line {n}" for x, n in zip(BG2_KWARGS, range(559, 565)))
-    assert f"The write removes {listed}. {SILENT}" in msg
-    assert "`echo(`" not in msg
-    # `echo(` is stored and never shown, so it closes nothing.
-    _silent_refusal(sb, about_ref=PATH, about_table="code.source", kind="default",
-                    assumption="The write removes `echo(` on purpose.")
-    sb.call("ledger.log", about_ref=PATH, about_table="code.source", kind="default",
-            assumption='The write removes `kwargs["callback"] = callback` on purpose.')
-    assert PATH not in api._open_notes(sb.ctx)
+    for text in (S214_TEXT, "The write removes `echo(` on purpose.",
+                 'The write removes `kwargs["callback"] = callback` on purpose.'):
+        msg = _silent_refusal(sb, about_ref=PATH, about_table="code.source",
+                              kind="default", assumption=text)
+        assert msg == _ledger_text("`echo(`, `ctx.exit()`")
 
 
-def test_a_nine_line_refusal_names_each_line_that_closes_it(db, tmp_path):
-    """Frame 297's review 2, finding 4: the note shows `return` first and
-    hides `value_8`. The refusal lists the shown lines, so `value_8` is
-    neither listed nor a line that closes."""
+def test_a_nine_line_refusal_lists_the_lines_the_tree_lacks(db, tmp_path):
+    """Frame 297's review 2, finding 4 listed the shown lines only. Pass 2
+    of frame 283's W1 a: no line closes the note, so the refusal lists each
+    stored line the tree lacks, `value_8` too."""
     sb, root = _developer(db, tmp_path)
     _index_path(db)
     _noted_then_refused(sb, root)
@@ -700,16 +696,11 @@ def test_a_nine_line_refusal_names_each_line_that_closes_it(db, tmp_path):
     _night_note(sb, note, [["f", h, 1] for _i, h in lost])
     shown = api._shown_lines(api._open_notes(sb.ctx)[PATH])
     assert "value_8 = compute(8)" not in shown and len(shown) == 8
-    msg = _silent_refusal(sb, about_ref=PATH, about_table="code.source",
-                          kind="default", assumption=S214_TEXT)
-    listed = ", ".join(f"`{h}` at line {i}" for i, h in lost if h in shown)
-    assert f"The write removes {listed}. {SILENT}" in msg
-    assert "more" not in msg
-    _silent_refusal(sb, about_ref=PATH, about_table="code.source", kind="default",
-                    assumption="The write removes `value_8 = compute(8)` on purpose.")
-    sb.call("ledger.log", about_ref=PATH, about_table="code.source", kind="default",
-            assumption="The write removes `return value_9` on purpose.")
-    assert PATH not in api._open_notes(sb.ctx)
+    for text in (S214_TEXT, "The write removes `return value_9` on purpose."):
+        msg = _silent_refusal(sb, about_ref=PATH, about_table="code.source",
+                              kind="default", assumption=text)
+        assert "`value_8 = compute(8)`" in msg and "`return value_9` at line 9" in msg
+        assert msg.endswith(f"{SILENT}{LATER_STEP}")
 
 
 def test_a_ledger_note_closes_no_restored_note_early(db, tmp_path):
@@ -732,8 +723,11 @@ def test_a_ledger_note_closes_no_restored_note_early(db, tmp_path):
                                   "lines": [["", "x = 1", 1]], "defs": [],
                                   "whole": [], "noted": "y"})
     (root / other).write_bytes(b"y = 2\n")
-    sb.call("ledger.log", about_ref=other, about_table="code.source",
-            kind="default", assumption="other.py drops `x = 1` on purpose.")
+    # Frame 283's W1 a, pass 2: the note on the other path is refused too,
+    # because it closes no removal of a base statement.
+    with pytest.raises(ValueError):
+        sb.call("ledger.log", about_ref=other, about_table="code.source",
+                kind="default", assumption="other.py drops `x = 1` on purpose.")
     assert PATH in api._open_notes(sb.ctx)
     now = (root / PATH).read_text(encoding="utf-8")
     gone = "\n".join(ln for ln in now.split("\n") if ln.strip() != "ctx.exit()")
@@ -950,10 +944,12 @@ def test_a_ledger_word_that_holds_the_line_as_a_substring_closes_nothing(db, tmp
     sb, _root = _developer(db, tmp_path)
     api._put_note(sb.ctx, "src/m.py", {"note": "`pass` at line 1", "lines": [["", "pass", 1]],
                                        "defs": [], "whole": [], "noted": ""})
-    api._close_logged_notes(sb.ctx, "src/m.py: the bypass is kept")
-    assert "src/m.py" in api._open_notes(sb.ctx)
+    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
+    # base statement. The rule of `_note_says` stays tested here.
+    assert not api._note_says(api._open_notes(sb.ctx)["src/m.py"], "src/m.py: the bypass is kept")
+    assert api._note_says(api._open_notes(sb.ctx)["src/m.py"], "src/m.py: the removal of `pass` is meant")
     api._close_logged_notes(sb.ctx, "src/m.py: the removal of `pass` is meant")
-    assert api._open_notes(sb.ctx) == {}
+    assert "src/m.py" in api._open_notes(sb.ctx)
 
 
 def test_a_dropped_definition_the_batch_added_opens_no_note(db, tmp_path):
@@ -1045,8 +1041,11 @@ def test_a_ledger_that_names_the_shown_line_of_a_whole_file_note_closes_it(db, t
     entry = api._note_entry(note, before, noted, drop)
     assert len(entry["lines"]) == 3 and "`X = 5`" in note
     api._put_note(sb.ctx, M, entry)
+    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
+    # base statement. The rule of `_note_says` stays tested here.
+    assert api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `X = 5` and the main block is meant")
     api._close_logged_notes(sb.ctx, f"{M}: the removal of `X = 5` and the main block is meant")
-    assert api._open_notes(sb.ctx) == {}
+    assert M in api._open_notes(sb.ctx)
 
 
 def test_a_ledger_closes_a_span_note_only_on_a_line_the_note_shows(db, tmp_path):
@@ -1058,10 +1057,12 @@ def test_a_ledger_closes_a_span_note_only_on_a_line_the_note_shows(db, tmp_path)
     assert "value_9" not in note and "value_8" in note
     api._put_note(sb.ctx, M, {"note": note, "lines": [["f", h, 1] for _i, h in lost],
                               "defs": [], "whole": [], "noted": ""})
-    api._close_logged_notes(sb.ctx, f"{M}: the removal of `value_9 = compute(9)` is meant")
-    assert M in api._open_notes(sb.ctx)
+    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
+    # base statement. The rule of `_note_says` stays tested here.
+    assert not api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `value_9 = compute(9)` is meant")
+    assert api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `value_1 = compute(1)` is meant")
     api._close_logged_notes(sb.ctx, f"{M}: the removal of `value_1 = compute(1)` is meant")
-    assert api._open_notes(sb.ctx) == {}
+    assert M in api._open_notes(sb.ctx)
 
 
 def test_s192s_widened_except_tuple_is_no_dropped_line():
@@ -1100,10 +1101,12 @@ def test_a_tail_note_shows_its_first_stored_line_and_closes_on_it(db, tmp_path):
     entry = api._open_notes(sb.ctx)[M]
     shown = api._shown_lines(entry)
     assert shown and f"`{shown[0]}`" in out["dropped"]
-    api._close_logged_notes(sb.ctx, f"{M}: the tail removal is meant")
-    assert M in api._open_notes(sb.ctx)
+    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
+    # base statement. The rule of `_note_says` stays tested here.
+    assert not api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the tail removal is meant")
+    assert api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `{shown[0]}` is meant")
     api._close_logged_notes(sb.ctx, f"{M}: the removal of `{shown[0]}` is meant")
-    assert api._open_notes(sb.ctx) == {}
+    assert M in api._open_notes(sb.ctx)
 
 
 def test_an_unchanged_line_does_not_hide_a_dropped_line():
@@ -1149,8 +1152,11 @@ def test_a_ledger_that_quotes_the_full_line_closes_a_note_that_shows_its_cut(db,
     api._put_note(sb.ctx, M, {"note": f"It drops `{line[:60]}` at line 3.",
                               "lines": [["f", line, 1]], "defs": [], "whole": [],
                               "noted": ""})
+    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
+    # base statement. The rule of `_note_says` stays tested here.
+    assert api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `{line}` is meant")
     api._close_logged_notes(sb.ctx, f"{M}: the removal of `{line}` is meant")
-    assert api._open_notes(sb.ctx) == {}
+    assert M in api._open_notes(sb.ctx)
 
 
 def test_a_shown_line_with_a_backtick_gets_a_double_fence():

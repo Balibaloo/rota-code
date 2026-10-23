@@ -10647,6 +10647,13 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     Deriving the id makes a repeat an upsert instead. It also means the same
     assumption reached by two roles is one entry, which is the truth.
     """
+    # Law 4: an uncommitted change never existed. A note about a path with
+    # an open dropped note closes nothing (frame 297, night 156's s214).
+    # The fact comes before the kind door: night 158's s279 got the kind's
+    # three questions at seq 17 and logged twice more (frame 283's W1 a).
+    silent = _silent_note_refusal(ctx, about_ref, assumption)
+    if silent:
+        raise ValueError(silent)
     # Frame 204: the seat names the note's word, and the door reads the
     # column, never the prose. Two words keep the first by section 8's
     # tie-break. A word outside the mode's set gets the three questions.
@@ -10819,13 +10826,6 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 f"note>), and if a criterion is silent and you chose a reading, "
                 f"it is ledger.log(kind='default'), which holds nothing.",
                 call, {"refs": [about_ref], "question": assumption}))
-
-    # Law 4: an uncommitted change never existed. A note about a path with
-    # an open dropped note must name the removal, or it closes nothing
-    # (frame 297, night 156's s214).
-    silent = _silent_note_refusal(ctx, about_ref, assumption)
-    if silent:
-        raise ValueError(silent)
 
     row = _stage_ledger(ctx, about_ref, about_table, assumption, word)
     # Every door has passed, so the note lands, and it can close a dropped
@@ -16756,19 +16756,36 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
     held = [(p, n) for p, n in notes.items() if _grain_path(p) in dirty]
     later = [(p, e["note"]) for p, e in opened.items()
              if p not in notes and _grain_path(p) in dirty]
+    # Frame 283's W1 a, pass 2: a removal that a ruling asks for passes the
+    # note of an earlier reply. The ledger route is gone, so nothing else
+    # would let a ruled removal land.
+    gone: list = []
+    texts = None
+    for p, _n in list(later):
+        e = opened[p]
+        if not (e["lines"] or e["defs"]):
+            continue
+        if texts is None:
+            texts = _ruling_texts(ctx)
+        left = _unruled_gone(_tree_text(tree, p), e, texts)
+        if left:
+            gone += left
+        else:
+            later.remove((p, _n))
     if not held and not later:
         return None
     routes = _note_routes(write_only=bool(later) and all(
-        not (opened[p]["lines"] or opened[p]["defs"]) for p, _n in later))
+        not (opened[p]["lines"] or opened[p]["defs"]) for p, _n in later),
+        one=len(gone) == 1)
     if held:
         step = (f"If the tree holds those lines again, commit in your next "
                 f"reply. If it does not, write the lines back, then commit in "
                 f"your next reply.")
-        # A note of an earlier reply beside this one has two routes, so the
-        # text names the ledger route too (frame 283's review 1, finding 7).
+        # A note of an earlier reply beside this one has two routes (frame
+        # 283's review 1, finding 7). The second is the escalation now.
         if later:
             step = (f"If the tree holds those lines again, commit in your "
-                    f"next reply. If it does not, {routes[0].lower()}{routes[1:]}")
+                    f"next reply. {routes}")
         said = " ".join(f"{p}: {n}" for p, n in held + later)
         return (f"your code.write in this reply returned a note before this "
                 f"commit, and you had not read it. {said} You sent this "
@@ -16780,8 +16797,8 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
 
 def _unruled_removal(ctx: Ctx, tree) -> str | None:
     """The refusal of a commit that removes a base statement that no ruling
-    names, or None. The door reads the tree at the commit, not the status
-    of the `drop_notes` row."""
+    asks to remove, or None. The door reads the tree at the commit, not the
+    status of the `drop_notes` row."""
     # Frame 283's W1 a. Night 158's s279 logged a false note that named
     # `ctx.exit()`, and bb7c4492 landed the removal. A note is the seat's
     # own claim, so only a ruling admits a removal (composition: only a
@@ -16789,14 +16806,10 @@ def _unruled_removal(ctx: Ctx, tree) -> str | None:
     closed = _closed_notes(ctx)
     if not closed or tree is None:
         return None
-    from pathlib import Path as _Path
     dirty = None
     texts = None
     for p, e in closed.items():
-        try:
-            now = (_Path(tree) / p).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            now = ""
+        now = _tree_text(tree, p)
         if _restored(now, e):
             continue
         if dirty is None:
@@ -16806,18 +16819,63 @@ def _unruled_removal(ctx: Ctx, tree) -> str | None:
             continue
         if texts is None:
             texts = _ruling_texts(ctx)
-        gone = [(shown, keys) for shown, keys in _gone_statements(now, e)
-                if not any(_says(t, k) for t in texts for k in keys)]
+        gone = _unruled_gone(now, e, texts)
         if not gone:
             continue
         one = len(gone) == 1
-        return (f"{p}: this commit removes {', '.join(s for s, _k in gone)}, and "
-                f"no criterion, request or ruling of the principal names "
-                f"{'it' if one else 'them'}. The team's note does not discharge "
-                f"a removal. Put the {'line' if one else 'lines'} back with "
-                f"code.write and commit, or send msg.escalate_architect and "
-                f"name the removal.")
+        # Review 1's finding 3: HEAD can lack the lines already. Then an
+        # earlier commit of the batch made the removal, and the text names it.
+        who = "this commit"
+        head = _head_text(tree, p)
+        if head is not None:
+            shown = {g["shown"] for g in _gone_statements(head, e)}
+            if all(g["shown"] in shown for g in gone):
+                sha = _removing_commit(tree, p, gone[0]["line"])
+                who = (f"commit {sha}, an earlier commit of this batch," if sha
+                       else "an earlier commit of this batch")
+        return (f"{p}: {who} removes {', '.join(g['shown'] for g in gone)}. "
+                f"No criterion, request or ruling of the principal names "
+                f"{'it' if one else 'them'}. {_note_routes(one=one)}")
     return None
+
+
+def _tree_text(tree, path: str) -> str:
+    """The text of `path` in the worktree, or "" when it cannot be read."""
+    from pathlib import Path as _Path
+    try:
+        return (_Path(tree) / path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
+def _head_text(tree, path: str) -> str | None:
+    """The text of `path` at the worktree's HEAD, or None."""
+    import subprocess as _sp
+    from ..core import worktrees as _wt
+    rel = str(path).replace("\\", "/")
+    try:
+        got = _sp.run([*_wt.GIT, "-C", str(tree), "cat-file", "blob", f"HEAD:{rel}"],
+                      capture_output=True)
+    except OSError:
+        return None
+    if got.returncode != 0:
+        return None
+    return got.stdout.decode("utf-8", "replace").replace("\r\n", "\n")
+
+
+def _removing_commit(tree, path: str, line: str) -> str | None:
+    """The first 8 characters of the newest commit that changed the count of
+    `line` in `path`, or None."""
+    import subprocess as _sp
+    from ..core import worktrees as _wt
+    try:
+        got = _sp.run([*_wt.GIT, "-C", str(tree), "log", "-S", line, "--format=%H",
+                       "--", str(path).replace("\\", "/")],
+                      capture_output=True, text=True)
+    except OSError:
+        return None
+    first = got.stdout.split()
+    return first[0][:8] if got.returncode == 0 and first else None
 
 
 def _closed_notes(ctx: Ctx) -> dict:
@@ -16842,10 +16900,10 @@ def _closed_notes(ctx: Ctx) -> dict:
             for p, v in rows.items() if v["status"] != "open"}
 
 
-def _gone_statements(text: str, e: dict) -> list[tuple[str, list[str]]]:
-    """Each stored line or definition of `e` that `text` does not hold, as
-    (the line as a refusal shows it, the words that name it). A line's call
-    name names it too, as `ctx.exit` names `ctx.exit()`."""
+def _gone_statements(text: str, e: dict) -> list[dict]:
+    """Each stored line or definition of `e` that `text` does not hold: the
+    line as a refusal shows it, the line, its definition, its line number
+    in the note, and whether it is a definition."""
     spans = _def_spans(text)
     names = {n for n, _lo, _hi in spans or []}
     out: list = []
@@ -16854,27 +16912,82 @@ def _gone_statements(text: str, e: dict) -> list[tuple[str, list[str]]]:
         if here is not None and here.count(line) >= n:
             continue
         m = re.search(re.escape(_quote(line[:60])) + r" at line (\d+)", e["note"])
-        shown = f"{_quote(line)} at line {m.group(1)}" if m else _quote(line)
-        call = re.match(r"(?:(?:return|await|yield)\s+)?([A-Za-z_][\w.]*)\s*\(", line)
-        out.append((shown, [line] + ([call.group(1)] if call else [])))
+        out.append({"shown": f"{_quote(line)} at line {m.group(1)}" if m else _quote(line),
+                    "line": line, "owner": owner, "no": m.group(1) if m else None,
+                    "def": False})
     for d in e["defs"]:
         if d not in names:
-            out.append((_quote(d), [d, d.rsplit(".", 1)[-1]]))
+            out.append({"shown": _quote(d), "line": d, "owner": "", "no": None,
+                        "def": True})
     return out
 
 
-def _ruling_texts(ctx: Ctx) -> list[str]:
-    """The words that can rule a removal: the criteria of the batch, the
-    request's text and the landed rulings of the principal."""
+# The words that ask for a removal (frame 283's W1 a, pass 2). A sentence
+# with a word that demands the line asks for no removal.
+_REMOVAL_WORDS = re.compile(
+    r"\b(?:remov\w*|drop\w*|delet\w*|(?:take|takes|taking|took|taken)\s+"
+    r"(?:\S+\s+){0,4}?out|no\s+longer|stop\w*|without)\b", re.I)
+_DEMAND_WORDS = re.compile(r"\b(?:still|keep\w*)\b", re.I)
+_BARE_LINES = frozenset({"continue", "return", "pass", "break"})
+
+
+def _asks_removal(text: str, g: dict, principal: bool) -> bool:
+    """True when a sentence of `text` names the gone statement `g` and asks
+    for its removal. A bare keyword needs its function named too. The
+    principal's words can name the line by its number."""
+    for s in re.split(r"(?<=[.!?])\s+|\n+", text or ""):
+        if not _REMOVAL_WORDS.search(s) or _DEMAND_WORDS.search(s):
+            continue
+        line = g["line"]
+        if g["def"] or line not in _BARE_LINES:
+            if _says(s, line):
+                return True
+        else:
+            owner = g["owner"].rsplit(".", 1)[-1]
+            if owner and _says(s, owner) and _says(s, line):
+                return True
+            continue
+        call = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", line)
+        if not g["def"] and call and _says(s, call.group(1) + "("):
+            return True
+        if principal and g["no"] and re.search(rf"\bline {g['no']}\b", s, re.I):
+            return True
+    return False
+
+
+def _unruled_gone(text: str, e: dict, texts: list) -> list[dict]:
+    """The statements of `e` that `text` lacks and that no ruling text
+    asks to remove."""
+    return [g for g in _gone_statements(text, e)
+            if not any(_asks_removal(t, g, principal) for t, principal in texts)]
+
+
+def _ruling_texts(ctx: Ctx) -> list[tuple[str, bool]]:
+    """The batch's own words that can rule a removal, each with True for
+    the principal's: the criteria of the batch, the request item's text,
+    and the landed rulings on the item's pages (review 1, finding 1)."""
+    import json as _json
     bid = ctx.batch_id
-    out = [r["text"] or "" for r in ctx.conn.execute(
-        "SELECT c.text FROM criteria c JOIN batch_tickets bt "
-        "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (bid,))]
-    out += [r["text"] or "" for r in ctx.conn.execute(
-        "SELECT i.text FROM items i JOIN batches b ON b.item_id = i.id "
-        "WHERE b.id = ?", (bid,))]
-    out += [r["words"] or "" for r in ctx.conn.execute(
-        "SELECT words FROM rulings WHERE status = 'landed'")]
+    crit = list(ctx.conn.execute(
+        "SELECT c.id, c.ticket_id, c.text FROM criteria c JOIN batch_tickets bt "
+        "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (bid,)))
+    item = ctx.conn.execute("SELECT i.id, i.text FROM items i JOIN batches b "
+                            "ON b.item_id = i.id WHERE b.id = ?", (bid,)).fetchone()
+    out = [(r["text"] or "", False) for r in crit]
+    refs = {bid} | {r["id"] for r in crit} | {r["ticket_id"] for r in crit}
+    if item is not None:
+        out.append((item["text"] or "", False))
+        refs.add(item["id"])
+    for r in ctx.conn.execute(
+            "SELECT per_item, words FROM rulings WHERE status = 'landed'"):
+        try:
+            keys = set(_json.loads(r["per_item"] or "{}"))
+        except (TypeError, ValueError):
+            continue
+        # A page key names the item after a colon, as `guess:<item>`.
+        if keys & refs or (item is not None and any(
+                k.endswith(f":{item['id']}") for k in keys)):
+            out.append((r["words"] or "", True))
     return out
 
 
@@ -17197,6 +17310,11 @@ def _close_logged_notes(ctx: Ctx, assumption: str, about_ref: str = "") -> None:
     if getattr(ctx, "role", None) != "developer":
         return
     for p, e in _open_notes(ctx).items():
+        # Frame 283's W1 a, pass 2: a note never closes a removal of a base
+        # statement. The close wrote `restored` with the line gone (review
+        # 1, finding 4), so such an entry stays open for the commit door.
+        if e["lines"] or e["defs"]:
+            continue
         named = (_ref_names(p, about_ref)
                  or p in assumption or _grain_path(p) in assumption)
         if named and _note_says(e, assumption):
@@ -17230,16 +17348,19 @@ def _note_says(e: dict, assumption: str) -> bool:
     return bool(e["defs"]) and all(_says(assumption, d) for d in e["defs"])
 
 
-def _note_routes(write_only: bool = False) -> str:
+def _note_routes(write_only: bool = False, one: bool = False) -> str:
     """The routes out of an open `dropped` note. The commit door and the
     ledger door say this one sentence (frame 297). No ledger note closes
     an entry with no line and no definition, so such an entry gets the
     write route only (review 1, finding 6)."""
     if write_only:
         return "Put the lines back with code.write, then commit in your next reply."
-    return ("Put the lines back with code.write, or log the removal with "
-            "ledger.log naming the path and the lines, then commit in your "
-            "next reply.")
+    # Frame 283's W1 a, pass 2: a note never admits a removal of a base
+    # statement, so the ledger route is gone (review 1, finding 2).
+    return (f"A note does not allow a removal. Put the "
+            f"{'line' if one else 'lines'} back with code.write, then commit "
+            f"in your next reply. Or send msg.escalate_architect and name the "
+            f"removal.")
 
 
 def _removal_list(e: dict) -> str:
@@ -17303,19 +17424,26 @@ def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | Non
         return None
     opened = _close_restored(ctx, tree, stage=False)
     dirty = None
+    texts = None
     for p, e in opened.items():
         # A note with no line and no definition closes on a changed file,
         # never on a ledger note, so no text can satisfy this door.
         if not (e["lines"] or e["defs"]) or not _ref_names(p, about_ref):
             continue
-        if _note_says(e, assumption or ""):
-            continue
         if dirty is None:
             dirty = {_grain_path(f) for f in _uncommitted(ctx, tree)}
-        if _grain_path(p) in dirty:
-            return (f"{p} holds a write that no commit holds. The write removes "
-                    f"{_removal_list(e)}. This note names none of them, so it "
-                    f"closes nothing. {_note_routes()}")
+        if _grain_path(p) not in dirty:
+            continue
+        # Frame 283's W1 a, pass 2: no note closes a removal of a base
+        # statement, whatever it names. Night 158's s279 named the line in a
+        # false note. A removal a ruling asks for needs no note.
+        if texts is None:
+            texts = _ruling_texts(ctx)
+        gone = _unruled_gone(_tree_text(tree, p), e, texts)
+        if gone:
+            return (f"{p} holds an uncommitted write that removes "
+                    f"{', '.join(g['shown'] for g in gone)}, so this note "
+                    f"closes nothing. {_note_routes(one=len(gone) == 1)}")
     return None
 
 
