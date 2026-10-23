@@ -16,6 +16,7 @@ iteration cap trips. Then commit everything at once, or nothing.
 """
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import os
@@ -2639,6 +2640,13 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                         resolved[ref]["last_run"] = {
                             "result": run["result"],
                             "output_tail": keep}
+                        arranged = (None if whole or run["result"] == "pass"
+                                    else _arrange_raise_tail(conn, hit, out))
+                        if arranged is not None:
+                            resolved[ref]["last_run"] = {
+                                "result": run["result"],
+                                "output_tail": arranged,
+                                "label": FAILED_BEFORE_ASSERTION}
                 break
         else:
             # Frame 115, design 200 change 4: law 2 keeps words off an
@@ -2653,6 +2661,78 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                 if hit:
                     resolved[ref] = {**dict(hit), "table": "decisions"}
     return resolved
+
+
+# Frame 110's label, given to every reader of a red row whose test raised in
+# its arrange step (frame 304).
+FAILED_BEFORE_ASSERTION = "the test failed before any assertion"
+
+# A pytest location line: `path.py:6: ` or `path.py:696: AttributeError`.
+_LOCATION = re.compile(r"^(\S.*?\.py):(\d+):(?: .*)?$")
+
+
+def _arrange_raise_tail(conn: sqlite3.Connection, test: Any,
+                        output: str) -> str | None:
+    """The tail from the test-body line that raised, or None.
+
+    Frame 304, night 158: s187's tst_02 raised on its arrange line inside
+    `mock.py`. The 700 tail started inside `mock.py` and held no test line,
+    and dec_123 and dec_124 blamed the code. The rule: the test file's frame
+    names a line before the first surface call and before the first
+    `assert`, and the last frame lies outside the worktree's source. Then
+    the tail starts at the `>` line of the test's frame. A raise inside the
+    project's own code keeps today's tail.
+    """
+    for marker in ("During handling of the above exception, another "
+                   "exception occurred:",
+                   "The above exception was the direct cause of the "
+                   "following exception:"):
+        if marker in output:
+            return None
+    lines = output.splitlines()
+    path = (test["path"] or "").replace("\\", "/")
+    found = [(i, m.group(1).replace("\\", "/"), int(m.group(2)))
+             for i, ln in enumerate(lines) if (m := _LOCATION.match(ln))]
+    own = [f for f in found if path and (f[1] == path
+                                         or f[1].endswith("/" + path))]
+    if not own or found[-1] is own[0]:
+        return None
+    at, _, lineno = own[0]
+    last = found[-1][1]
+    row = conn.execute(
+        "SELECT b.worktree FROM batches b JOIN tests t ON t.batch_id = b.id "
+        "WHERE t.id = ?", (test["id"],)).fetchone()
+    root = ((row["worktree"] if row else None) or "").replace("\\", "/")
+    absolute = bool(re.match(r"^([A-Za-z]:/|/)", last))
+    inside = (not absolute or (root and last.lower().startswith(
+        root.rstrip("/").lower() + "/")))
+    if inside and not any(part in ("site-packages", ".venv", "venv")
+                          for part in last.split("/")):
+        return None
+    try:
+        tree = ast.parse(test["body"] or "")
+    except SyntaxError:
+        return None
+    crit = conn.execute("SELECT surface_refs FROM criteria WHERE id = ?",
+                        (test["criterion_id"],)).fetchone()
+    try:
+        refs = json.loads((crit["surface_refs"] if crit else None) or "[]")
+    except ValueError:
+        refs = []
+    surface = {str(s).rsplit("::", 1)[-1] for s in refs}
+    marks = [n.lineno for n in ast.walk(tree) if isinstance(n, ast.Assert)]
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call):
+            fn = n.func
+            name = (fn.attr if isinstance(fn, ast.Attribute) else
+                    fn.id if isinstance(fn, ast.Name) else "")
+            if name in surface:
+                marks.append(n.lineno)
+    if marks and lineno >= min(marks):
+        return None
+    start = next((i for i in range(at - 1, -1, -1)
+                  if lines[i].startswith(">")), at)
+    return "\n".join(lines[start:])
 
 
 def _failed_before_assertion(body: str, output: str) -> bool:

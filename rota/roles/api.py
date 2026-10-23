@@ -8334,6 +8334,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     f"check is {n.func.value.id}.assert_called_with(...) (or "
                     f"assert_any_call, assert_called_once_with)")
 
+    # Frame 304, night 158's s187: a `mock_open` stub read `.read`, which its
+    # spec lacks, and the test raised before `confirm()` ran. The helper
+    # holds the rule and the ruling.
+    _spec_row = ctx.conn.execute(
+        "SELECT surface_refs FROM criteria WHERE id = ?", (criterion_id,)
+    ).fetchone()
+    _spec_surface = {s.rsplit("::", 1)[-1] for s in json.loads(
+        (_spec_row["surface_refs"] if _spec_row else None) or "[]")}
+    _past_spec = _spec_mock_raise(ctx, batch_id, tree, body, _spec_surface)
+    if _past_spec:
+        raise Wall(_past_spec)
+
     # The criterion is checked *first*, because the batch is derived from it and
     # a derivation from a bad input fails in terms of the derived thing. An
     # invented `criterion_id` used to come back as "no batch in this session and
@@ -14558,6 +14570,294 @@ def _module_load_error(ctx, dotted: str, rel_path: str) -> str | None:
         return None
     _LOAD_CACHE[key] = first or kind
     return first or kind
+
+
+# The probe prints the names of one object, or nothing. Stdin is the null
+# device for the reason `_LOAD_PROBE` gives.
+_DIR_PROBE = (
+    "import importlib, json, os, sys\n"
+    "os.dup2(os.open(os.devnull, os.O_RDONLY), 0)\n"
+    "sys.stdin = open(os.devnull)\n"
+    "try:\n"
+    "    o = importlib.import_module(sys.argv[1])\n"
+    "    for a in sys.argv[2:]:\n"
+    "        try:\n"
+    "            o = getattr(o, a)\n"
+    "        except AttributeError:\n"
+    "            o = importlib.import_module(o.__name__ + '.' + a)\n"
+    "    print('ROTA-DIR', json.dumps(sorted(dir(o))))\n"
+    "except BaseException:\n"
+    "    sys.exit(1)\n")
+
+_MOCK_CTORS = {"Mock", "MagicMock", "AsyncMock", "NonCallableMock",
+               "NonCallableMagicMock"}
+# A block that expects a raise, so a read inside it may be the test's point.
+_RAISE_BLOCKS = {"raises", "assertRaises", "assertRaisesRegex", "suppress"}
+
+
+def _spec_names(ctx, batch_id, tree, expr) -> list[str] | None:
+    """
+    The `dir()` of a spec expression, read in the sandbox, or None.
+
+    The expression is a name or a dotted chain of names. Its head must come
+    from an import of the test file, or be a builtin. Any other origin, and
+    any probe that fails, gives None.
+    """
+    chain: list[str] = []
+    node = expr
+    while isinstance(node, _ast.Attribute):
+        chain.insert(0, node.attr)
+        node = node.value
+    if not isinstance(node, _ast.Name):
+        return None
+    head = node.id
+    origin: list[str] | None = None
+    bound_here = False
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Import):
+            for a in n.names:
+                if a.asname == head:
+                    origin = [a.name]
+                elif a.asname is None and a.name.split(".")[0] == head:
+                    origin = [head]
+        elif isinstance(n, _ast.ImportFrom) and n.module and not n.level:
+            for a in n.names:
+                if (a.asname or a.name) == head:
+                    origin = [n.module, a.name]
+        elif isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                            _ast.ClassDef)) and n.name == head:
+            bound_here = True
+        elif (isinstance(n, _ast.Name) and n.id == head
+              and isinstance(n.ctx, _ast.Store)):
+            bound_here = True
+    if bound_here:
+        return None
+    if origin is None:
+        import builtins
+        if not hasattr(builtins, head):
+            return None
+        origin = ["builtins", head]
+    try:
+        root = _worktree_of(ctx, batch_id)
+    except Exception:  # noqa: BLE001 -- no worktree: nothing to read from
+        return None
+    if not root.is_dir():
+        return None
+    from ..core import execute
+    from ..core.provision import python_for
+    try:
+        out = execute.run(root, [python_for(root), "-c", _DIR_PROBE,
+                                 *origin, *chain], timeout=60)
+    except Exception:  # noqa: BLE001 -- a probe that cannot run proves nothing
+        return None
+    if out.error or out.returncode != 0:
+        return None
+    marked = [ln for ln in (out.stdout or "").splitlines()
+              if ln.startswith("ROTA-DIR ")]
+    if not marked:
+        return None
+    try:
+        names = json.loads(marked[-1][len("ROTA-DIR "):])
+    except ValueError:
+        return None
+    return [x for x in names if isinstance(x, str)]
+
+
+def _spec_source(call: "_ast.Call", in_patch: bool):
+    """
+    How a mock call gives its mock a spec: ("open",), ("names", [...]),
+    ("expr", node), or None. The second field of the pair says spec_set.
+    """
+    fn = call.func
+    name = (fn.attr if isinstance(fn, _ast.Attribute) else
+            fn.id if isinstance(fn, _ast.Name) else "")
+    if name == "mock_open" and not in_patch:
+        return ("open",), False
+    kw = {k.arg: k.value for k in call.keywords if k.arg}
+    if in_patch:
+        made = kw.get("new_callable")
+        made_name = (made.attr if isinstance(made, _ast.Attribute) else
+                     made.id if isinstance(made, _ast.Name) else "")
+        if made_name == "mock_open":
+            return ("open",), False
+        if "new" in kw or len(call.args) > (2 if name == "object" else 1):
+            return None
+    elif name not in _MOCK_CTORS:
+        return None
+    spec_set = "spec_set" in kw
+    spec = kw.get("spec_set", kw.get("spec"))
+    if spec is None and not in_patch and call.args:
+        spec = call.args[0]
+    if spec is None or isinstance(spec, _ast.Constant):
+        return None
+    if isinstance(spec, (_ast.List, _ast.Tuple)):
+        if all(isinstance(e, _ast.Constant) and isinstance(e.value, str)
+               for e in spec.elts):
+            return ("names", [e.value for e in spec.elts]), spec_set
+        return None
+    return ("expr", spec), spec_set
+
+
+def _spec_mock_raise(ctx, batch_id, tree, body: str,
+                     surface_names: set[str]) -> str | None:
+    """
+    The refusal for a read past a mock's spec, or None.
+
+    Frame 304, night 158: s187's `mock_open` stub read `.read`, and `open`
+    holds no `read`. The line raised before `confirm()` ran, so no code could
+    pass the test. A mock with a spec raises on any name the spec lacks, under
+    every model and every criterion, so the class of DECISIONS 943 admits the
+    door. It needs no list of runner callees, the ground frame 110 declined.
+
+    The walk reads only statements that run whenever the test runs. It stops
+    at the first branch, loop or `try`, and it skips a block that expects a
+    raise. A spec that does not resolve in the sandbox leaves the door silent.
+    """
+    from unittest import mock as _mock
+
+    def _ran(node):
+        # The nodes that run each time the statement runs.
+        yield node
+        if isinstance(node, (_ast.Lambda, _ast.FunctionDef,
+                             _ast.AsyncFunctionDef, _ast.ClassDef,
+                             _ast.ListComp, _ast.SetComp, _ast.DictComp,
+                             _ast.GeneratorExp)):
+            return
+        if isinstance(node, _ast.BoolOp):
+            kids = [node.values[0]]
+        elif isinstance(node, _ast.IfExp):
+            kids = [node.test]
+        else:
+            kids = list(_ast.iter_child_nodes(node))
+        for k in kids:
+            yield from _ran(k)
+
+    def _callee(call):
+        fn = call.func
+        return (fn.attr if isinstance(fn, _ast.Attribute) else
+                fn.id if isinstance(fn, _ast.Name) else "")
+
+    calls_at = [n.lineno for n in _ast.walk(tree)
+                if isinstance(n, _ast.Call) and _callee(n) in surface_names]
+    first_call = min(calls_at) if calls_at else None
+
+    def _allowed(source, ctor):
+        # The mock module answers, so the rule is the module's own.
+        kind = source[0]
+        if kind == "open":
+            return _mock.mock_open()
+        names = source[1] if kind == "names" else _spec_names(
+            ctx, batch_id, tree, source[1])
+        if names is None:
+            return None
+        make = getattr(_mock, ctor, _mock.MagicMock)
+        try:
+            return make(spec=names)
+        except Exception:  # noqa: BLE001 -- a mock that will not build proves nothing
+            return None
+
+    def _refusal(stmt, var, attr, verb, source):
+        line = (_ast.get_source_segment(body, stmt) or "").splitlines()
+        line = line[0].strip() if line else ""
+        if len(line) > 64:
+            line = line[:61] + "..."
+        spec = ("`open`, from mock_open" if source[0] == "open" else
+                "a list of names" if source[0] == "names" else
+                f"`{_ast.unparse(source[1])}`")
+        when = ("before the call under test"
+                if first_call is None or stmt.lineno < first_call
+                else "and the test cannot pass")
+        return (f"Line {stmt.lineno}, `{line}`, {verb} `{var}.{attr}`. "
+                f"The spec of `{var}` is {spec}, and that spec holds no "
+                f"`{attr}`. So the line raises AttributeError {when}. Build "
+                f"the stub so that `{attr}` exists, or drop the spec")
+
+    def _walk(stmts, mocks):
+        # mocks: name -> [mock or None, source, spec_set, names set later].
+        for stmt in stmts:
+            if isinstance(stmt, (_ast.With, _ast.AsyncWith)):
+                expects = any(
+                    isinstance(i.context_expr, _ast.Call)
+                    and _callee(i.context_expr) in _RAISE_BLOCKS
+                    for i in stmt.items)
+                for item in stmt.items:
+                    hit = _check(stmt, _ran(item.context_expr), mocks)
+                    if hit:
+                        return hit
+                    if isinstance(item.optional_vars, _ast.Name):
+                        var = item.optional_vars.id
+                        mocks.pop(var, None)
+                        ce = item.context_expr
+                        if (isinstance(ce, _ast.Call)
+                                and _callee(ce) in ("patch", "object")):
+                            got = _spec_source(ce, in_patch=True)
+                            if got:
+                                mocks[var] = [None, got[0], got[1], set(),
+                                              "MagicMock"]
+                if not expects:
+                    hit = _walk(stmt.body, mocks)
+                    if hit:
+                        return hit
+                    if hit is False:
+                        return False
+                continue
+            if isinstance(stmt, (_ast.If, _ast.For, _ast.AsyncFor,
+                                 _ast.While, _ast.Try, _ast.Match)) or (
+                    type(stmt).__name__ == "TryStar"):
+                return False
+            hit = _check(stmt, _ran(stmt), mocks)
+            if hit:
+                return hit
+            if isinstance(stmt, _ast.Assign) and isinstance(stmt.value, _ast.Call):
+                got = _spec_source(stmt.value, in_patch=False)
+                if got:
+                    ctor = _callee(stmt.value)
+                    for t in stmt.targets:
+                        if isinstance(t, _ast.Name):
+                            mocks[t.id] = [None, got[0], got[1], set(),
+                                           ctor if ctor in _MOCK_CTORS
+                                           else "MagicMock"]
+            if isinstance(stmt, (_ast.Return, _ast.Raise)):
+                return False
+        return None
+
+    def _check(stmt, nodes, mocks):
+        nodes = list(nodes)
+        # A name bound again no longer holds the mock.
+        for n in nodes:
+            if (isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store)
+                    and n.id in mocks):
+                mocks.pop(n.id)
+        stores = []
+        for n in nodes:
+            if not (isinstance(n, _ast.Attribute)
+                    and isinstance(n.value, _ast.Name)
+                    and n.value.id in mocks):
+                continue
+            entry = mocks[n.value.id]
+            if isinstance(n.ctx, _ast.Store) and not entry[2]:
+                # A plain spec lets a test set any name, and then read it.
+                stores.append((entry, n.attr))
+                continue
+            if n.attr in entry[3]:
+                continue
+            if entry[0] is None:
+                entry[0] = _allowed(entry[1], entry[4]) or False
+            if entry[0] is False:
+                continue
+            if not hasattr(entry[0], n.attr):
+                verb = "sets" if isinstance(n.ctx, _ast.Store) else "reads"
+                return _refusal(stmt, n.value.id, n.attr, verb, entry[1])
+        for entry, attr in stores:
+            entry[3].add(attr)
+        return None
+
+    for fn in _ast.walk(tree):
+        if isinstance(fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            hit = _walk(fn.body, {})
+            if hit:
+                return hit
+    return None
 
 
 def _unloadable_surface(ctx, criterion_id: str, surface: str, module: str,
