@@ -14,6 +14,52 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 16, recommended on night 159's read, 2026-10-23 17:51
+
+Night 159 ended sprint 15 of 2026-10-21 16:23, because it was that
+sprint's night. The night ran cold from 73a4801f, 15:29 to 17:36: 413
+sessions, 492 steps, 40 asks, 4 batches, 1 merged, against 2 of 3 on
+night 158 (observed: `plans/night159-read.md`, section 0). The merge holds
+only his change. No held frame closes: frame 283's door never fired, so
+the night did not test it; frame 304's door fired 0 times because the
+test's stub was a plain class and the door reads a mock's spec, cause 8
+on its own door; frame 305 is not met on either count, 2 wrong reader
+refusals and 4 line-2 losses, all four frame 272's cause; frame 308 is
+met on night 1 of 3 and frame 201 on night 2 of 3 on one verdict
+(observed: the read, section 1). The three walls: bg_4 died on a
+criterion that took his description "prints nothing" as a rule and five
+"line 3 is wrong" rulings that never changed it, cause 1, 56 sessions and
+16 asks, W1; bg_2 died again on tests no code can pass, cause 8 on frame
+304 and on the challenge door, 44 sessions, W2; a team row became a
+request on page m105 and his refusal of it fed cycle 1 through
+`recent_chat`, frame 303's sign then frame 272's, W3 (observed: the read,
+section 2). Night 160 is held on the test loop: a batch must not die on
+a test no code can pass, and a criterion holds his ruled words and not a
+sentence that describes a test (reasoned: the read, section 5). The order
+below is the next sprint (reasoned: the read, section 5; ruled: Roman,
+2026-10-16 22:33, so the session starts row 1 at once). The branch head
+holds the fifteen commits of frames 302, 303, 306 and 283's passes 4 to
+4d, and the gate at 94675c8f is the launch's condition.
+
+1. Frame 304, the case written as the rule, 2 cycles: a red test whose
+   run never reaches an assertion of the surface's result is refused at
+   encode with the raising line, and the challenge door admits a quote
+   of that line; s189's tst_cr1, s185's refused challenge and night 158's
+   tst_02 v3 as the red tests.
+2. Frame 306, W1's hop read against repair 1, 1 cycle: did s382's
+   respecify take his "line 3" words; if not, a case on frame 308 for an
+   answer after a failed respecify, 1 cycle.
+3. Frame 305, the line reader's cue set inverted, 2 cycles: a numbered
+   line his words name with any instruction is faulted, and only a line
+   the words call right is approve; m118, m185 and m104 as the red
+   tests.
+4. Frame 272, 2 cycles, unheld: each `recent_chat` reply carries its page
+   id or no line numbers; it caused the four line-2 losses and cycle 1.
+5. Frame 307's residue, the `test_runs` count, 1 cycle, beside the fixes.
+6. Night 160 from the gated head, cold, held on the test loop: frames
+   302, 303 and 306 on their night 1, frame 283's door, frames 201, 301
+   and 297 on their night 3 of 3, frame 308 on its night 2.
+
 ## Sprint 15, recommended on night 158's read, 2026-10-21 16:23
 
 Night 158 ended sprint 14 of 2026-10-18 19:30, because it was that
