@@ -43,9 +43,11 @@ Night 159's git truth is `plans/archive/clickI-night159-git.log`.
 
 ## The held frames and what is live
 
-- Frame 304: pass 2 on a fresh implementer in `rota_p304` at 2d4fb5bb,
-  cap 80k, brief `f304_pass2_brief.md` in my scratchpad. Its review and
-  gate are owed. Sprint 16, row 1.
+- Frame 304: passes 2 and 2b in `rota_p304` at 426a2b70 on 2d4fb5bb, not
+  on the branch. Review 2 rejected pass 2 on the stub and arrange forms,
+  and pass 2b answered it; review 3 from a worktree, the cherry-pick and
+  the gate are owed, and night 160 launches from that head. The
+  implementer is at 165k. Sprint 16, row 1.
 - Frame 306: validating at night 160; row 2 is W1's hop read, 1 cycle.
 - Frame 305: row 3, the reader's cue set inverted, 2 cycles.
 - Frame 272: row 4, 2 cycles, unheld.
@@ -61,4 +63,4 @@ Night 159's git truth is `plans/archive/clickI-night159-git.log`.
 ## Roman's last words, with time
 
 - No word of his reached this session. The sprint 16 notification went to
-  him at about 18:05.
+  him at about 18:05, and the hand-off line at 18:19.
