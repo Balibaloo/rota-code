@@ -5424,6 +5424,13 @@ _FAULT_VERB = re.compile(r"(?:drop|remove|delete|rewrite|replace|change)\b",
 # body with its line: night 157's r_4a62d8a771 wrote "Line 3: ... Line 5: ..."
 # (frame 308, review 4, finding 1).
 _RULING_SENTENCE = re.compile(r"(?<=[.!?])\s+")
+# The words that approve a line's words as they stand. Night 157's
+# r_4a62d8a771 said of line 5 "keep it as written, but fix the code"
+# (frame 308, pass 3c, point 2). A bare "keep line 4" does not approve.
+_KEEP_WORDS = re.compile(
+    rf"\bkeep (?:it|this|that|the (?:line|requirement|words|criterion|text)|"
+    rf"{_LINES}) (?:as (?:written|it is|it stands|they are)|unchanged)\b"
+    r"|\bkeep the requirement\b", re.IGNORECASE)
 
 
 def _faults_on(rx: re.Pattern, text: str, line: int | None) -> list[re.Match]:
@@ -5735,7 +5742,8 @@ def ruling_asks_no_new_words(ctx: Ctx, id: str) -> bool:
                            (id,)).fetchone()
     mine = _ruling_words_on(ctx.conn, ruled, id)
     return bool(cur and _same_words(ruled["text"], cur["text"])
-                and _CHECK_FAULT.search(mine)
+                and (_CHECK_FAULT.search(mine)
+                     or _keeps_words_on(ctx.conn, ruled, id))
                 and not _words_fault_on(ctx.conn, ruled, id))
 
 
@@ -5778,8 +5786,19 @@ def _ruling_line(conn: sqlite3.Connection, ruled: dict, cid: str) -> int | None:
     return order.index(cid) + 1 if cid in order else None
 
 
+def _keeps_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> bool:
+    """True when the ruling's words keep the words of criterion `cid` as
+    they stand. A keep that names lines bears on those lines only."""
+    return bool(_faults_on(_KEEP_WORDS, _ruling_words_on(conn, ruled, cid),
+                           _ruling_line(conn, ruled, cid)))
+
+
 def _words_fault_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> bool:
-    """True when the ruling's words ask new words of criterion `cid`."""
+    """True when the ruling's words ask new words of criterion `cid`. The
+    fault yields to a keep of the same line, as the faulted-check branch
+    does (frame 308, pass 3c, point 2)."""
+    if _keeps_words_on(conn, ruled, cid):
+        return False
     return bool(_faults_on(_WORDS_FAULT, _ruling_words_on(conn, ruled, cid),
                            _ruling_line(conn, ruled, cid)))
 
@@ -5960,7 +5979,9 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # The sentences on this criterion's line decide, as in
         # `ruling_asks_no_new_words` (frame 308, pass 3).
         mine = _ruling_words_on(ctx.conn, contested, id)
-        if (_CHECK_FAULT.search(mine)
+        # A kept line stands too, as in `ruling_asks_no_new_words` (pass 3c).
+        if ((_CHECK_FAULT.search(mine)
+             or _keeps_words_on(ctx.conn, contested, id))
                 and not _words_fault_on(ctx.conn, contested, id)):
             if closed:
                 raise _stands(

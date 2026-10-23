@@ -439,3 +439,27 @@ def test_a_negated_removal_asks_no_new_words_of_its_lines(db):
     assert api._words_fault_on(db, ruled, "row_13")
     assert api._line_dropped_on(db, ruled, "row_13") == 13
     assert api._line_dropped_on(db, ruled, "row_9") is None
+
+
+# --- pass 3c: a dropped line needs no answer, and a kept line stands ---------
+
+def test_an_answer_with_cr_2_and_no_cr_3_is_admitted(db):
+    """m98 drops line 5, so cr_3 needs no answer. The answer with cr_2 alone
+    is the session's one answer (frame 308, pass 3c, point 1)."""
+    _night158_relay(db)
+    sb = _s220(db)
+    out = sb.call("msg.answer_tester", refs=[CR2], round_no=0)
+    assert out["to"] == "tester" and out["verb"] == "answer", out
+    [sent] = _answers(sb)
+    assert sent["body_refs"] == [CR2]
+
+
+def test_a_kept_line_with_a_code_fault_asks_no_new_words(db):
+    """r_4a62d8a771, line 5: "keep it as written, but fix the code". The
+    words are approved, so the criterion stands (pass 3c, point 2)."""
+    from rota.roles import api
+
+    ruled = _ruled_page(db, "r_4a62d8a771", "m210", "m212", N157_WORDS,
+                        N157_PAGE)
+    assert api._keeps_words_on(db, ruled, "crit_show_python_version")
+    assert not api._words_fault_on(db, ruled, "crit_show_python_version")

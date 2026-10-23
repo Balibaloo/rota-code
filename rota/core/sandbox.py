@@ -1614,6 +1614,12 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     # point 2, and frame 135).
     dropped = {r: n for r in unwritten
                if (n := api.ruling_drops_line(ctx, r)) is not None}
+    # A dropped line needs no answer. The door does not demand it, and it
+    # refuses only an answer that carries its old text (frame 308, pass 3c,
+    # point 1). The ledger of what was dropped is frame 192's.
+    missing = [r for r in missing if r not in dropped]
+    unwritten = [r for r in unwritten if r not in dropped]
+    dropped = {r: n for r, n in dropped.items() if r in given}
     drop_said = " ".join(
         f"The principal's ruling drops line {n}, which is {cid}. Your answer "
         f"carries {cid} as it stands now. Do not rewrite {cid}. No call in "
