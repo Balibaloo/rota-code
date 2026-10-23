@@ -5628,7 +5628,7 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
             raise ValueError(
                 f"the principal approved {id} and ruled its test "
                 f"{', '.join(tests)}. Keep the words. "
-                f"{_closed_answer_note(ctx, id)} Your work here is done")
+                f"{_closed_answer_note(ctx, id)} Your work on {id} is done")
         if tests:
             raise ValueError(_offer(
                 ctx, f"the principal approved {id} and ruled its test "
@@ -5740,7 +5740,7 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                     f"the principal faulted the check and not these words: "
                     f"{contested['words']!r}. The criterion stands. {route}. "
                     f"If his words also contradict this criterion's text, "
-                    f"rewrite the text. If not, your work here is done")
+                    f"rewrite the text. If not, your work on {id} is done")
             raise ValueError(
                 f"the principal faulted the check and not these words: "
                 f"{contested['words']!r}. The criterion stands. {route}. "

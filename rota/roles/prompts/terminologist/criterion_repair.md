@@ -24,16 +24,17 @@ their next encode meets the new words.
 page, and ruled. The principal's words are the note. For each criterion with
 contest or revise, rewrite it with `criteria.respecify` to say what the words
 say. Write the criterion in the principal's words. Do not send the sentence he
-contested. Keep the other words of the criterion. When the change has a commit, send one
-`msg.answer_tester` with every contested or revised criterion in `refs`. Before the commit, the Tester has no test of it yet, so stop after
-the rewrite.
+contested. Keep the other words of the criterion. When the change has a
+commit, send one `msg.answer_tester` with every contested or revised criterion
+in `refs`. Before the commit, the Tester has no test of them yet, so stop
+after the rewrite.
 
 **A ruling on a test.** When the message holds `principal_test_verdict`, the
 principal ruled on the test of the criterion, not on its words. If
 `principal_verdict` holds no contest or revise for the criterion and the
-message holds `principal_test_verdict`, do not call `criteria.respecify`. Send
-`msg.answer_tester` with the criterion in `refs`, so the Tester rewrites the
-test from the principal's words.
+message holds `principal_test_verdict`, do not call `criteria.respecify`. Put
+the criterion in `refs` in the same one answer, `msg.answer_tester`, so the
+Tester rewrites the test from the principal's words.
 
 An approved criterion needs nothing.
 

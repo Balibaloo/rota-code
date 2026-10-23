@@ -206,3 +206,65 @@ def test_the_cr_2_refusal_after_an_answer_without_it_says_the_answer_is_closed(d
     said = _respecify_cr2(sb)
     assert "msg.answer_tester" not in said, said
     assert "closed" in said, said
+
+
+# --- pass 1b, review 1 --------------------------------------------------------
+
+def test_the_route_offers_no_dangling_ref(db):
+    """Review 1, F1: refs with `cr_9_nothing` drew a route that the dangling
+    guard of `_bind_send` then refused."""
+    _night158_relay(db)
+    sb = _s220(db)
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.answer_tester", refs=[CR3, "cr_9_nothing"], round_no=0)
+    said = str(refused.value)
+    assert "cr_9_nothing" not in said.split("refs:", 1)[1], said
+    [offer] = [o for o in sb.ctx.offers if o.op == "msg.answer_tester"]
+    assert sorted(offer.args["refs"]) == sorted([CR2, CR3])
+    out = sb.call("msg.answer_tester", **offer.args, round_no=0)
+    assert out["to"] == "tester", out
+
+
+def test_the_closed_text_names_the_criterion_whose_work_is_done(db):
+    """Review 1, F3: another ruled criterion can still wait for its rewrite,
+    so the closed text ends the work on this criterion only."""
+    _night158_relay(db)
+    sb = _s220(db)
+    sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
+    said = _respecify_cr2(sb)
+    assert f"your work on {CR2} is done" in said, said
+    assert "your work here is done" not in said.lower(), said
+
+
+def test_an_approved_criterion_with_a_ruled_test_counts_among_the_ruled(db):
+    """Review 1, F4: the verdict approves cr_1 and contests its test. The
+    first answer carries cr_1 beside cr_2 and cr_3."""
+    _night158_relay(db)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst_confirm_eof_01', 'bg_2', ?, 'tests/t.py', 'x')",
+               (CR1,))
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm101'",
+               (json.dumps([CR1, CR2, CR3, "tst_confirm_eof_01"]),))
+    db.execute("UPDATE config SET value = ? WHERE key = 'verdict:m99'",
+               (json.dumps({**VERDICT, CR1: "approve",
+                            "tst_confirm_eof_01": "contest"}),))
+    db.commit()
+    sb = _s220(db)
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
+    assert CR1 in str(refused.value), str(refused.value)
+    out = sb.call("msg.answer_tester", refs=[CR1, CR2, CR3], round_no=0)
+    assert out["to"] == "tester", out
+
+
+def test_the_brief_asks_one_answer_for_a_ruled_test(db):
+    """Review 1, F4 and F6: the test paragraph names the same one answer,
+    and the plural referent reads `them`."""
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[2] / "rota" / "roles" / "prompts"
+            / "terminologist" / "criterion_repair.md").read_text(encoding="utf-8")
+    flat = " ".join(text.split())
+    assert "in the same one answer" in flat, flat
+    assert "has no test of them yet" in flat, flat
+    assert "has no test of it yet" not in flat, flat

@@ -1522,14 +1522,28 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     if relay is None:
         return None
     relay_refs, verdict = relay
-    ruled = [r for r in relay_refs if verdict.get(r) in ("contest", "revise")
-             and ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
-                                  (r,)).fetchone()]
+    ruled: list[str] = []
+    for r in relay_refs:
+        if verdict.get(r) not in ("contest", "revise"):
+            continue
+        if ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
+                            (r,)).fetchone():
+            ruled.append(r)
+            continue
+        # A ruled test asks its criterion in the same one answer, so the
+        # Tester rewrites the test (frame 308, review 1, F4).
+        test = ctx.conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
+                                (r,)).fetchone()
+        if test and test["criterion_id"]:
+            ruled.append(test["criterion_id"])
+    ruled = list(dict.fromkeys(ruled))
     given = [r for r in refs if isinstance(r, str)]
     missing = [r for r in ruled if r not in given]
     if not missing:
         return None
-    full = given + missing
+    # A dangling ref in the route meets the dangling guard of `_bind_send`
+    # (frame 308, review 1, F1).
+    full = [r for r in given if api.ref_resolves(ctx, r)] + missing
     # A refusal names a call only where the doors admit that call (frame 135).
     # The park door of `_bind_send` refuses an answer on criteria that no
     # change with a commit is built from, so this door then stays silent.
