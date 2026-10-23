@@ -4825,6 +4825,10 @@ def tickets_consult(ctx: Ctx) -> list[dict]:
 
 
 _REFFABLE_CACHE: dict[int, list] = {}
+# The journal keeps the id of a run that `test_runs` deleted. A ref to that
+# id names no live row, and no gate or guard reads the journal (frame 309,
+# review 1, finding 2).
+_NOT_REFFABLE = frozenset({"test_run_journal"})
 
 
 def _id_tables(conn) -> list[str]:
@@ -4833,6 +4837,8 @@ def _id_tables(conn) -> list[str]:
     if key not in _REFFABLE_CACHE:
         out = []
         for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'"):
+            if r["name"] in _NOT_REFFABLE:
+                continue
             cols = {c["name"] for c in conn.execute(f"PRAGMA table_info({r['name']})")}
             if "id" in cols:
                 out.append(r["name"])

@@ -510,7 +510,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     # become an argument the system takes seriously.
     if getattr(args, "until", None):
         os.environ["ROTA_SURVEY_UNTIL"] = args.until
-    from .core.db import connect as _connect, schema_stale
+    from .core.db import connect as _connect, init_db, schema_stale
     from .llm import profile as profile_mod
 
     conn = _connect(path)
@@ -518,6 +518,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     if stale:
         conn.close()
         raise SystemExit(f"{args.name}: {stale}")
+    conn.close()
+    # `drive` opens the run with `connect`, which adds no table. A table that
+    # a run writes and the database lacks raises on its first write (frame
+    # 309, review 1, finding 1), so the schema runs once here.
+    init_db(path).close()
+    conn = _connect(path)
     prof = profile_mod.of_run(conn) or profile_mod.find(profile_mod.default_name())
     roles = {}
     for item in getattr(args, "role", []) or []:

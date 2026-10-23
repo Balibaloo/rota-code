@@ -167,6 +167,9 @@ SCHEMA_KEY = "schema"
 # database opened and then failed part way through the night on its first
 # ledger write. The warm snapshot is such a database.
 # Frame 204 widened both CHECKs of `ledger` and added `faults`.
+# A new table needs no move: `init_db` adds it, and `cmd_run` calls
+# `init_db` before `drive` (frame 309, review 1, finding 1). A new door that
+# opens a run with `connect` alone must call `init_db` first.
 SCHEMA_MARK = "ledger-grid-faults"
 SCHEMA_STALE = ("the run database is behind the current schema, so it needs "
                 "a fresh onboarding: wipe it, or onboard under a new name")

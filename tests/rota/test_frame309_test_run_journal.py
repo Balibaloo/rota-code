@@ -98,3 +98,45 @@ def test_the_night_report_prints_journal_absent_on_an_old_database(tmp_path):
     assert "absent: test_run_journal" in section
     assert (f"b1 {HEAD[:10]} head runs=1 journal=absent not_pass=1 "
             f"journal_not_pass=absent") in section
+
+
+def test_rota_run_adds_the_journal_to_a_database_from_before_it(tmp_path, monkeypatch):
+    """Review 1, finding 1: `cmd_run` opened an old run database with
+    `connect`, and the first harness run raised on the missing table."""
+    import argparse
+
+    from rota import cli
+    from rota.tools import onboard_run
+
+    conn = _db(tmp_path)
+    conn.execute("DROP TABLE test_run_journal")
+    conn.commit()
+    conn.close()
+    path = tmp_path / "rota.db"
+    driven = []
+    monkeypatch.setattr(cli, "require", lambda name: path)
+    monkeypatch.setattr(onboard_run, "drive", lambda *a, **kw: driven.append(a))
+    args = argparse.Namespace(name="old", until=None, role=[], model=None,
+                              limit=1, all=False)
+    assert cli.cmd_run(args) == 0
+    assert driven
+    raw = sqlite3.connect(path)
+    try:
+        assert raw.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                           "AND name = 'test_run_journal'").fetchone()
+    finally:
+        raw.close()
+
+
+def test_a_ref_to_a_deleted_run_does_not_resolve(tmp_path):
+    """Review 1, finding 2: the ref door read the journal, so the id of a
+    run that `test_runs` deleted still resolved."""
+    from rota.roles.api import Ctx, ref_resolves
+
+    conn = _db(tmp_path)
+    lifecycle.record_test_run(conn, "tr_9", "b1", "tst1", "pass", 1, commit_sha=HEAD)
+    ctx = Ctx(conn=conn, role="developer")
+    assert ref_resolves(ctx, "tr_9")
+    conn.execute("DELETE FROM test_runs WHERE id = 'tr_9'")
+    ctx = Ctx(conn=conn, role="developer")
+    assert not ref_resolves(ctx, "tr_9")
