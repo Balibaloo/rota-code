@@ -56,7 +56,7 @@ holds the fifteen commits of frames 302, 303, 306 and 283's passes 4 to
 4. Frame 272, 2 cycles, unheld: each `recent_chat` reply carries its page
    id or no line numbers; it caused the four line-2 losses and cycle 1.
 5. Frame 307's residue, the `test_runs` count, 1 cycle, beside the fixes.
-   Status 2026-10-23 18:29 (rota-7e): the read runs on Opus, cap 60k, from
+   Status 2026-10-23 18:28 (rota-7e): the read runs on Opus, cap 60k, from
    f307_test_runs_brief.md in this session's scratchpad, to
    plans/frame307-test-runs.md: the writers of `test_runs`, the 35
    against 39 of walk 2, where bg_2's three reds live, the section 1
