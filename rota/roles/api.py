@@ -9713,11 +9713,30 @@ _AGREEMENT = re.compile(
     # Night 143's m76: "Line 8 asks something line 1 already answers". The
     # verb agrees only with no object of its own: "Line 7 already has the
     # broken check" and "Line 2 now has a typo" fault (frame 305, review 2).
-    r"|(?:already|now)\s+\w+s(?=\s*(?:[,.;:!?)]|$|what\s+I\b|that\b|it\b"
+    r"|already\s+\w+s(?=\s*(?:[,.;:!?)]|$|what\s+I\b|that\b|it\b"
     r"|this\b|everything\b))"
     # Night 143's m88: "Line 1 describes Click correctly now".
     r"|correctly\b"
     r"|(?:is|are)\s+not\s+wrong\b|(?:isn['’]t|aren['’]t)\s+wrong\b)", re.I)
+# The fault of the line is gone: the negated fault of the brief's rule 1
+# (frame 305, review 3). The line had a fault, and his words say that it is
+# repaired, that it stops, or that it is not a fault. Night 158's m148:
+# "line 3 is fixed". Night 150's m66: "line 7 is not a real problem". Night
+# 153's m60: "Line 1 now says the flag defaults to False". A "now" clause
+# with a fault word in it still faults: "Line 2 now has a typo".
+_FAULT_WORDS = re.compile(
+    r"\b(?:problem|issue|mistake|bug|error|typo|broken|missing|garbled|"
+    r"wrong|fails?|failing)\b", re.I)
+_GONE = re.compile(
+    r"\b(?:(?:is|are)\s+(?:now\s+)?(?:fixed|resolved|solved|corrected)\b"
+    r"|no\s+longer\b"
+    r"|(?:(?:is|are)\s+not|isn['’]t|aren['’]t)\s+(?:an?\s+)?(?:real\s+)?"
+    r"(?:problem|issue|mistake|bug|error)\b"
+    r"|(?P<now>now\s+\w+s)\b)", re.I)
+# A modal or an auxiliary before the gone fault makes it an instruction:
+# "Line 3 should no longer call echo."
+_GONE_ASKED = frozenset({"should", "must", "need", "needs", "has", "have",
+                         "can", "could", "will", "would", "to", "please"})
 # A contrast after an agreement starts a correction of the same line. Night
 # 143's m339: "Line 2's text is right now, but its check still passes"
 # (frame 234, review 1, finding 3).
@@ -9795,11 +9814,6 @@ _BACK = frozenset({"it", "them", "its", "their", "this", "that", "both"})
 _OWN_AGREE = re.compile(
     r"\b(?:is|are|looks?|reads?)\s+(?:\w+\s+)?(?:right|correct|fine|good)\b",
     re.I)
-
-
-def _strong_word(tok: str) -> bool:
-    """True when `tok` is a strong fault word of the old reader."""
-    return bool(_LINE_FAULT.fullmatch(tok)) and tok.lower() not in _WEAK_CUES
 
 
 def _content(tok: str) -> bool:
@@ -9967,6 +9981,17 @@ def _agreement(window: str, before_ref: bool = False
     agreement as it is (night 159's m185, frame 305, pass 2).
     """
     m = _AGREEMENT.search(window)
+    gone = _GONE.search(window)
+    if gone is not None:
+        lead = window[:gone.start()].split()
+        clause = re.split(r"[,;]|\b(?:so|and|but|because|since)\b",
+                          window[gone.end():], maxsplit=1)[0]
+        if (len(lead) > 2 or any(w.lower() in _GONE_ASKED for w in lead)
+                or (gone.group("now") and (_FAULT_WORDS.search(clause)
+                                           or _live_cues(clause)))):
+            gone = None
+    if gone is not None and (m is None or gone.start() < m.start()):
+        m = gone
     if m is None:
         return False, None
     before = window[:m.start()].split()
@@ -10006,6 +10031,8 @@ def _instruction_cue(rest: str, before_ref: bool) -> str | None:
     should stay as it is" (night 159's m185). A new subject starts a new
     clause: "and the fix should still use" (night 151's m46).
     """
+    # "so please go ahead and build it" approves the build (night 153's m60).
+    rest = re.sub(r"\bgo\s+ahead(?:\s+and\s+[\w'’]+)?", " ", rest, flags=re.I)
     text = _KEEP_ORDER.sub(lambda m: (m.group(1) or m.group(2) or "") + " ",
                            _AGREEMENT.sub(" ", rest))
     toks = _trim_head([t.group(0) for t in _TOKEN.finditer(text)], text,
@@ -10077,8 +10104,11 @@ def _line_cues(words: str, size: int | None = None
     """
     faulted: dict[int, tuple[str, str]] = {}
     matched: set[int] = set()
-    approves = bool(_APPROVES.search(words or ""))
+    # The approval frames its own sentence and the sentences after it only
+    # (frame 305, review 3, finding 6).
+    approves = False
     for sentence in _SENTENCE.split(words or ""):
+        approves = approves or bool(_APPROVES.search(sentence))
         refs = list(_LINE_REF.finditer(sentence))
         # The cue binds to the reference it governs. In "Line 7 repeats line
         # 3, so drop it", "it" is line 7, the subject (frame 305).
@@ -10127,13 +10157,20 @@ def _line_cues(words: str, size: int | None = None
                 found = [m.group(0) for m in _live_cues(window)]
                 strong = [c for c in found if c.lower() not in _WEAK_CUES]
                 if approves:
-                    # In a reply that approves the page, a verb describes
-                    # the line, and only a fault word faults it. Night 150's
-                    # m123: "Ok, I approve. Line 1 is the detail for line 2
-                    # and not a separate change." (frame 305, review 2).
-                    if head_verb and not _strong_word(head_verb):
+                    # In a reply that approves the page, a verb after the
+                    # reference describes the line, and only a fault word
+                    # faults it. Night 150's m123: "Ok, I approve. Line 1 is
+                    # the detail for line 2 and not a separate change."
+                    # (frame 305, review 2). An instruction still faults:
+                    # "Ok, I approve the page. Please fix line 3." (review
+                    # 3, finding 5). "read line 1 as the details of line 2"
+                    # tells how to read the line and asks no change (night
+                    # 150's m114).
+                    if head_verb and re.match(r"\s*as\b", window, re.I):
                         head_verb = None
-                    verb, lead, found = None, False, strong
+                    if not (lead and window.lstrip()[:1] in (",", ";")):
+                        verb, lead = None, False
+                    found = strong
                 # The cue names the verb that governs the line, so the
                 # refusal of frame 250's door shows the seat its words.
                 for c in (head_verb, verb if lead else None,

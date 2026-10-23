@@ -218,9 +218,10 @@ def test_each_fault_names_the_verb_that_governs_it():
     # night 142, m290: the possessive is no verb.
     ("Line 2's check crashes before it tests anything.", {2}, set()),
     # night 140, m142: a line in a reason clause takes no direction. Pass
-    # 2b: "now says" with an object of its own is no agreement (review 2).
+    # 2c: "now says" with no fault word reports that the line is right
+    # (review 3, finding 2).
     ("Please remove it, since line 1 now says the flag is off by default.",
-     set(), set()),
+     set(), {1}),
     # night 145, m11: a line in an object phrase takes no direction.
     ("Line 4 is wrong because it just repeats the summary from line 1 and "
      "calls it a quote from the README and the code.", {4}, set()),
@@ -288,5 +289,34 @@ def test_the_inverted_reader_on_recorded_replies(words, faulted, matched):
      "about sys.version_info.", {3}, set()),
 ])
 def test_pass_2b_readings(words, faulted, matched):
+    cues, got = _line_cues(words)
+    assert (set(cues), got) == (faulted, matched)
+
+
+# Pass 2c: a clause that says the fault is gone matches its line, as the
+# negated fault of the brief's rule 1 (frame 305, review 3, findings 1 to
+# 3). An approving sentence approves its own lines and the describing verbs
+# after it, and never an instruction (review 3, findings 5 and 6).
+@pytest.mark.parametrize("words, faulted, matched", [
+    # night 150, m66, its third sentence
+    ("Lines 10 and 12 are wrong too, because I don't want placeholder "
+     "comments that pretend to import Click, and line 7 is not a real "
+     "problem, since the helper is missing only because it has not been "
+     "built yet.", {10, 12}, {7}),
+    # night 153, m60
+    ("ok, that looks right. Line 1 now says the flag defaults to False, so "
+     "please go ahead and build it.", set(), {1}),
+    # night 158, m148
+    ("Ok, every line now says what I asked for, and line 3 is fixed. Please "
+     "keep going and finish the change, and don't drop it.", set(), {3}),
+    ("Line 3 no longer repeats line 1.", set(), {3}),
+    ("Line 2 now has a typo.", {2}, set()),
+    ("Line 4 now says the wrong thing.", {4}, set()),
+    ("Line 7 already has the broken check, so fix it.", {7}, set()),
+    ("Line 3 should no longer call echo.", {3}, set()),
+    ("Ok, I approve the page. Please fix line 3.", {3}, set()),
+    ("Line 3 lists the pager tests. Trim it, and then go ahead.", {3}, set()),
+])
+def test_pass_2c_readings(words, faulted, matched):
     cues, got = _line_cues(words)
     assert (set(cues), got) == (faulted, matched)
