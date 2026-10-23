@@ -573,7 +573,7 @@ UPGRADE_LINE = "return prorate(amount_cents, days_used, days_in_period)"
 
 
 # The start of the reply that holds a session's first pass (frame 201, pass 3).
-PASS_HELD = "verdicts.emit: your first pass of this session is held"
+PASS_HELD = "verdicts.emit: before the pass lands, answer for"
 
 
 def judge(batch: str, result: str = "pass",

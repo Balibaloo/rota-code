@@ -5036,7 +5036,10 @@ def run_session(
                     # clickI night 46 (2026-09-14): the Tester re-sent all
                     # six for four turns. On a multi-call turn the refusal
                     # names the call by its identifying argument.
-                    feedback.append(f"ERROR {_call_tag(call, len(calls))}: {exc}")
+                    # A held pass is a question, not a refusal. Probe (c)
+                    # measured the `HELD` word (frame 201, review 4, finding 2).
+                    word = "HELD" if isinstance(exc, api.PassHeld) else "ERROR"
+                    feedback.append(f"{word} {_call_tag(call, len(calls))}: {exc}")
                     turn_refusals.add((call.name, str(exc)[:160]))
                     if isinstance(exc, api.LinesRefusal):
                         refused_pass.add((call.name, str(exc)[:160]))

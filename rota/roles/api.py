@@ -154,6 +154,11 @@ class Ctx:
     # True once `verdicts.emit` has held this session's first pass. The hold
     # fires once a session (frame 201, pass 3).
     pass_held: bool = False
+    # The parts of each criterion's line that the last hold quoted. A pass
+    # that moves a line is held once more (frame 201, pass 3b).
+    held_lines: dict = None
+    # True once the second hold fired. A third pass lands.
+    pass_held_again: bool = False
 
     def __post_init__(self):
         if self.writes is None:
@@ -184,6 +189,8 @@ class Ctx:
             self.facts = []
         if self.reply_notes is None:
             self.reply_notes = {}
+        if self.held_lines is None:
+            self.held_lines = {}
 
 
 class _Invent:
@@ -465,6 +472,12 @@ class LinesRefusal(ValueError):
     note on this class: the note names the routes that land a pass, and
     those routes are false for any other refusal of `verdicts.emit`, such
     as a verdict that already landed."""
+
+
+class PassHeld(ValueError):
+    """The hold of a Critic's pass (frame 201, pass 3b). The runner prints
+    it as `HELD`, not `ERROR`, because the hold asks a question and does
+    not refuse the call (review 4, finding 2)."""
 
 
 def _same_words(a: str, b: str) -> bool:
@@ -11806,6 +11819,12 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
 _HOLD_QUESTION = "Does that line do what the criterion says, or the opposite?"
 _HOLD_QUESTION_MANY = ("Do those lines do what the criterion says, or the "
                        "opposite?")
+_HOLD_SAY = "Say which in one sentence."
+
+
+def _or_list(ids: list[str], last: str) -> str:
+    """`a`, `a and b`, `a, b and c`: the ids as one list in prose."""
+    return ids[0] if len(ids) == 1 else f"{', '.join(ids[:-1])} {last} {ids[-1]}"
 
 
 def _first_pass_hold(ctx, batch_id: str, lines) -> None:
@@ -11818,46 +11837,65 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
     `plans/wall-guide.md` names this move: a challenge that quotes both rows.
     The reply quotes the seat's own `lines=` value, never a line the runner
     chose. A pass with no line gets no hold.
+
+    Pass 3b, after review 4. The words are probe (c)'s, and the runner prints
+    them under `HELD` (finding 3, finding 2). A pass that moves a line after
+    the hold is held once more, for the moved lines only. A third pass lands
+    (finding 4). The hold fires once a session, not once a batch. So a new
+    session on the same batch holds again (finding 7).
     """
-    if ctx.pass_held or not isinstance(lines, dict):
+    if not isinstance(lines, dict) or ctx.pass_held_again:
         return
-    rows = ctx.conn.execute(
+    texts = {r["id"]: r["text"] or "" for r in ctx.conn.execute(
         "SELECT c.id, c.text FROM criteria c "
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE bt.batch_id = ?", (batch_id,)).fetchall()
-    asked = []
-    for r in rows:
-        parts = _line_parts(lines.get(r["id"]))
-        if not parts:
-            continue
-        if len(parts) == 1:
-            said, question = f"Your line for {r['id']}: `{parts[0]}`.", \
-                _HOLD_QUESTION
-        else:
-            shown = ", then ".join(f"`{p}`" for p in parts)
-            said, question = f"Your lines for {r['id']}: {shown}.", \
-                _HOLD_QUESTION_MANY
-        asked.append(f"Criterion {r['id']}: \"{r['text'] or ''}\". {said} "
-                     f"{question}")
-    if not asked:
+        "WHERE bt.batch_id = ?", (batch_id,))}
+    sent = {cid: parts for cid in texts
+            if (parts := _line_parts(lines.get(cid)))}
+    if not sent:
         return
-    ctx.pass_held = True
-    again = _offer(
-        ctx, "If each line does what its criterion says, send the same pass "
-             "again", "verdicts.emit",
-        {"batch_id": batch_id, "result": "pass", "lines": dict(lines)})
-    fail = "If a line does the opposite, send a fail on its criterion"
-    for r in rows:
-        if _line_parts(lines.get(r["id"])):
-            _offer(ctx, fail, "verdicts.claim_encodes",
-                   {"criterion_id": r["id"], "encodes": True},
-                   then=(_fail_on(batch_id, r["id"]),))
-    raise ValueError(
-        "your first pass of this session is held, and it has not landed. "
-        + " ".join(asked)
-        + " Then send verdicts.emit again with the verdict you now hold. "
-        f"{again}. {fail}. Call `verdicts.claim_encodes('<criterion id>', "
-        f"encodes=...)` first, as for any fail.")
+    if ctx.pass_held:
+        # A test or a caller that spent the hold leaves no lines on record.
+        moved = {cid: p for cid, p in sent.items()
+                 if ctx.held_lines and ctx.held_lines.get(cid) != p}
+        if not moved:
+            return
+        ctx.pass_held_again = True
+        ask = moved
+    else:
+        ctx.pass_held = True
+        ask = sent
+    ctx.held_lines = {cid: list(p) for cid, p in sent.items()}
+
+    def holds(parts: list[str]) -> str:
+        if len(parts) == 1:
+            return f"Your line holds '{parts[0]}'. {_HOLD_QUESTION} {_HOLD_SAY}"
+        shown = ", then ".join(f"'{p}'" for p in parts)
+        return f"Your lines hold {shown}. {_HOLD_QUESTION_MANY} {_HOLD_SAY}"
+
+    ids = list(ask)
+    if len(ids) == 1:
+        cid = ids[0]
+        it = "it does" if len(ask[cid]) == 1 else "they do"
+        body = f"The criterion says: \"{texts[cid]}\". {holds(ask[cid])}"
+        fail = f"If {it} the opposite, claim and fail on {cid}"
+        again = f"If {it} what the criterion says, send the pass again"
+    else:
+        body = " ".join(f"Criterion {cid} says: \"{texts[cid]}\". "
+                        f"{holds(ask[cid])}" for cid in ids)
+        fail = (f"If a line does the opposite, claim and fail on its "
+                f"criterion, {_or_list(ids, 'or')}")
+        again = "If each line does what its criterion says, send the pass again"
+    # The fail route comes first, so the last words do not invite the same
+    # call again (review 4, finding 3, difference 6).
+    for cid in ids:
+        _offer(ctx, fail, "verdicts.claim_encodes",
+               {"criterion_id": cid, "encodes": True},
+               then=(_fail_on(batch_id, cid),))
+    _offer(ctx, again, "verdicts.emit",
+           {"batch_id": batch_id, "result": "pass", "lines": dict(lines)})
+    raise PassHeld(f"before the pass lands, answer for {_or_list(ids, 'and')}. "
+                   f"{body} {fail}. {again}.")
 
 
 def _fail_on(batch_id: str, cid: str) -> tuple:

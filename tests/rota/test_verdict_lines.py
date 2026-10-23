@@ -151,7 +151,7 @@ def _critic(conn, batch_id="bg_3", mode="review"):
 def _land(sb, name: str = "verdicts.emit", **kwargs):
     """Send a pass twice, as a seat does on a night. Frame 201, pass 3: the
     first pass of a session is held, and the same pass sent again lands."""
-    with pytest.raises(ValueError, match="first pass of this session is held"):
+    with pytest.raises(ValueError, match="before the pass lands, answer for"):
         sb.call(name, **kwargs)
     assert not [w for w in sb.ctx.writes if w[0] == "verdicts"]
     return sb.call(name, **kwargs)

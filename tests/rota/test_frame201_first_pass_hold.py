@@ -97,25 +97,45 @@ def _verdicts(sb) -> list:
 
 
 def _held(sb, **kwargs) -> str:
-    with pytest.raises(ValueError) as exc:
+    from rota.roles import api
+    with pytest.raises(api.PassHeld) as exc:
         sb.call("verdicts.emit", batch_id="b1", result="pass", **kwargs)
     assert not _verdicts(sb), "a held pass stages no verdict"
     return str(exc.value)
 
 
+def _asked(cid: str, text: str, line: str) -> str:
+    return (f"before the pass lands, answer for {cid}. The criterion says: "
+            f"\"{text}\". Your line holds '{line}'. Does that line do what "
+            f"the criterion says, or the opposite? Say which in one sentence. "
+            f"If it does the opposite, claim and fail on {cid}. If it does "
+            f"what the criterion says, send the pass again.")
+
+
 def test_the_recorded_turn_gets_the_hold(case):
     """The case's turn: the seat passes with the line that deletes the
-    invoices. The reply quotes the criterion, the line and the question."""
+    invoices. The reply has probe (c)'s words, with the seat's own line
+    (review 4, finding 3)."""
     said = _held(_critic(case), lines={C1: L_INVOICES})
-    assert said == (
-        "your first pass of this session is held, and it has not landed. "
-        f"Criterion c1: \"{C1_TEXT}\". Your line for c1: `{L_INVOICES}`. "
-        "Does that line do what the criterion says, or the opposite? Then "
-        "send verdicts.emit again with the verdict you now hold. If each "
-        "line does what its criterion says, send the same pass again. If a "
-        "line does the opposite, send a fail on its criterion. Call "
-        "`verdicts.claim_encodes('<criterion id>', encodes=...)` first, as "
-        "for any fail.")
+    assert said == _asked(C1, C1_TEXT, L_INVOICES)
+
+
+def test_the_runner_prints_the_hold_as_held(case):
+    """Review 4, finding 2: the seat reads the hold under `HELD`, as probe
+    (c) sent it, and not under `ERROR`."""
+    from rota.core.predicates import Wake
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    call = f"TOOL: verdicts.emit(batch_id='b1', result='pass', lines={{'c1': {L_INVOICES!r}}})"
+    backend = ScriptedBackend([call, call, "Done."])
+    run_session(case, Wake("critic", "tick:review", refs=("b1",)),
+                backend=backend, pins=Pins(model="scripted"), batch_id="b1")
+    prompt = backend.calls[1][1]
+    assert f"HELD verdicts.emit: {_asked(C1, C1_TEXT, L_INVOICES)}" in prompt
+    assert "ERROR verdicts.emit" not in prompt
+    (row,) = case.execute("SELECT result FROM verdicts").fetchall()
+    assert row["result"] == "pass"
 
 
 def test_a_second_pass_lands(case):
@@ -124,6 +144,19 @@ def test_a_second_pass_lands(case):
     out = sb.call("verdicts.emit", batch_id="b1", result="pass",
                   lines={C1: L_INVOICES})
     assert out == {"id": "critic:b1:abc123", "result": "pass"}
+    assert len(_verdicts(sb)) == 1
+
+
+def test_a_moved_line_is_held_once_more(case):
+    """Review 4, finding 4: after the hold, a pass that names another line
+    is asked about that line. A third pass lands, whatever its line."""
+    sb = _critic(case)
+    _held(sb, lines={C1: L_INVOICES})
+    said = _held(sb, lines={C1: L_ACCOUNT})
+    assert said == _asked(C1, C1_TEXT, L_ACCOUNT)
+    out = sb.call("verdicts.emit", batch_id="b1", result="pass",
+                  lines={C1: L_LOAD})
+    assert out["result"] == "pass"
     assert len(_verdicts(sb)) == 1
 
 
@@ -151,13 +184,24 @@ def test_a_first_fail_lands_at_once(case):
 def test_two_criteria_are_quoted_by_id_in_order(case):
     _two_criteria(case)
     said = _held(_critic(case), lines={C2: L_NONE, C1: [L_INVOICES, L_ACCOUNT]})
-    first = (f"Criterion c1: \"{C1_TEXT}\". Your lines for c1: "
-             f"`{L_INVOICES}`, then `{L_ACCOUNT}`. Do those lines do what the "
-             f"criterion says, or the opposite?")
-    second = (f"Criterion c2: \"{C2_TEXT}\". Your line for c2: `{L_NONE}`. "
-              f"Does that line do what the criterion says, or the opposite?")
-    assert first in said and second in said
-    assert said.index(first) < said.index(second)
+    assert said == (
+        "before the pass lands, answer for c1 and c2. "
+        f"Criterion c1 says: \"{C1_TEXT}\". Your lines hold '{L_INVOICES}', "
+        f"then '{L_ACCOUNT}'. Do those lines do what the criterion says, or "
+        "the opposite? Say which in one sentence. "
+        f"Criterion c2 says: \"{C2_TEXT}\". Your line holds '{L_NONE}'. Does "
+        "that line do what the criterion says, or the opposite? Say which in "
+        "one sentence. If a line does the opposite, claim and fail on its "
+        "criterion, c1 or c2. If each line does what its criterion says, send "
+        "the pass again.")
+
+
+def test_a_second_hold_quotes_only_the_moved_criterion(case):
+    _two_criteria(case)
+    sb = _critic(case)
+    _held(sb, lines={C1: L_INVOICES, C2: L_NONE})
+    said = _held(sb, lines={C1: L_ACCOUNT, C2: L_NONE})
+    assert said == _asked(C1, C1_TEXT, L_ACCOUNT)
 
 
 def test_a_refused_pass_is_refused_before_the_hold(case):
