@@ -166,15 +166,19 @@ def _staged(sb) -> list[dict]:
 
 def test_s279s_commits_and_notes_get_the_route_and_bb7c4492_is_refused(db, tmp_path):
     """s279's sequence. Each commit gets the first refusal with no ledger
-    route. Each ledger note gets the ledger door's text, so the note stays
-    open and no row reads `restored` (review 1, findings 2 and 4)."""
+    route. The notes of seq 17 and 23 get the ledger door's text. The fault
+    note of seq 20 lands in `faults`, as on the night, because a report of
+    rota closes no drop note (review 2, finding 1). The note stays open and
+    no row reads `restored` (review 1, findings 2 and 4)."""
     sb, root = _developer(db, tmp_path)
     head = _git(root, "rev-parse", "HEAD")
     out = _replay(sb)
     for seq in (16, 19, 26):
         assert out[seq] == {"refused": FIRST}
-    for seq in (17, 20, 23):
+    for seq in (17, 23):
         assert out[seq] == {"refused": LEDGER}
+    assert "fault" in out[20]
+    assert [w for w in sb.ctx.writes if w[0] == "faults"]
     assert PATH in api._open_notes(sb.ctx)
     assert [v["status"] for v in _staged(sb)] == ["open"]
     assert _git(root, "rev-parse", "HEAD") == head
@@ -240,6 +244,38 @@ def test_a_criterion_that_demands_or_mentions_the_line_admits_nothing(db, tmp_pa
     db.commit()
     sb, _root = _developer(db, tmp_path)
     assert _replay(sb)[26] == {"refused": FIRST}
+
+
+@pytest.mark.parametrize("words,lands", [
+    ("Do not remove ctx.exit().", False),
+    ("Never drop ctx.exit() from the callback.", False),
+    ("Without show_python, the option must call ctx.exit().", False),
+    ("Remove the ctx.exit() call.", True),
+])
+def test_a_sentence_that_forbids_the_removal_admits_nothing(db, tmp_path, words, lands):
+    """Review 2's finding 2: a negated removal word, or "without" that a
+    name does not follow, admits nothing. A plain ask admits the removal."""
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',?)",
+               (words,))
+    db.commit()
+    sb, _root = _developer(db, tmp_path)
+    out = _replay(sb)
+    if lands:
+        assert out[16]["committed"] is True
+    else:
+        assert out[16] == {"refused": FIRST}
+
+
+def test_a_ruled_removal_commits_in_the_same_reply(db, tmp_path):
+    """Review 2's finding 4: a removal that a criterion asks for passes the
+    first door in the write's own reply, so the two doors agree."""
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',"
+               "'Remove the ctx.exit() call from the version callback.')")
+    db.commit()
+    sb, _root = _developer(db, tmp_path)
+    out = sb.call("code.write", path=PATH, start=540, end=555, text=ECHO)
+    assert "dropped" in out
+    assert sb.call("code.commit", message=MESSAGE)["committed"] is True
 
 
 def test_a_ruling_of_another_item_admits_nothing(db, tmp_path):

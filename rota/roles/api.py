@@ -10651,15 +10651,19 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # an open dropped note closes nothing (frame 297, night 156's s214).
     # The fact comes before the kind door: night 158's s279 got the kind's
     # three questions at seq 17 and logged twice more (frame 283's W1 a).
-    silent = _silent_note_refusal(ctx, about_ref, assumption)
-    if silent:
-        raise ValueError(silent)
-    # Frame 204: the seat names the note's word, and the door reads the
-    # column, never the prose. Two words keep the first by section 8's
-    # tie-break. A word outside the mode's set gets the three questions.
+    # A `fault` or `blocked` note is a report of rota and closes no drop
+    # note, so it lands as on the night (review 2, finding 1). The word is
+    # the one the tie-break below keeps.
     sent = _read_kinds(kind)
     offered = _offered_kinds(ctx)
     known = [k for k in LOG_KINDS if k in sent and k in offered]
+    if not (known and known[0] in FAULT_KINDS):
+        silent = _silent_note_refusal(ctx, about_ref, assumption)
+        if silent:
+            raise ValueError(silent)
+    # Frame 204: the seat names the note's word, and the door reads the
+    # column, never the prose. Two words keep the first by section 8's
+    # tie-break. A word outside the mode's set gets the three questions.
     dropped = [w for w in sent if w not in offered]
     if not known:
         raise ValueError(ledger_kind_door(ctx, dropped[0] if dropped else kind))
@@ -10828,9 +10832,6 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 call, {"refs": [about_ref], "question": assumption}))
 
     row = _stage_ledger(ctx, about_ref, about_table, assumption, word)
-    # Every door has passed, so the note lands, and it can close a dropped
-    # note (frame 283).
-    _close_logged_notes(ctx, assumption, about_ref)
     return {"id": row, **extra}
 
 
@@ -16289,8 +16290,8 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             # only the stored lines (frame 297's review 1, finding 4).
             entry["note"] = tail_note = _stored_note(
                 entry, before or "", drop_lines)
-    # The refusal text always shows a stored line, because a ledger closes
-    # a note only by a line the seat saw (frame 283's review 4, finding 2).
+    # The refusal text always shows a stored line, so the seat sees what
+    # the write removes (frame 283's review 4, finding 2).
     if entry is not None and entry["lines"] and not _shown_lines(entry):
         entry["note"] = f"{entry['note']} It drops {_quote(entry['lines'][0][1][:60])}."
         tail_note = entry["note"]
@@ -16758,20 +16759,22 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
              if p not in notes and _grain_path(p) in dirty]
     # Frame 283's W1 a, pass 2: a removal that a ruling asks for passes the
     # note of an earlier reply. The ledger route is gone, so nothing else
-    # would let a ruled removal land.
+    # would let a ruled removal land. Pass 3: the note of this reply too, so
+    # the commit beside a ruled removal lands (review 2, finding 4).
     gone: list = []
     texts = None
-    for p, _n in list(later):
-        e = opened[p]
-        if not (e["lines"] or e["defs"]):
-            continue
-        if texts is None:
-            texts = _ruling_texts(ctx)
-        left = _unruled_gone(_tree_text(tree, p), e, texts)
-        if left:
-            gone += left
-        else:
-            later.remove((p, _n))
+    for group in (held, later):
+        for p, _n in list(group):
+            e = opened.get(p)
+            if e is None or not (e["lines"] or e["defs"]):
+                continue
+            if texts is None:
+                texts = _ruling_texts(ctx)
+            left = _unruled_gone(_tree_text(tree, p), e, texts)
+            if left:
+                gone += left if group is later else []
+            else:
+                group.remove((p, _n))
     if not held and not later:
         return None
     routes = _note_routes(write_only=bool(later) and all(
@@ -16927,8 +16930,28 @@ def _gone_statements(text: str, e: dict) -> list[dict]:
 _REMOVAL_WORDS = re.compile(
     r"\b(?:remov\w*|drop\w*|delet\w*|(?:take|takes|taking|took|taken)\s+"
     r"(?:\S+\s+){0,4}?out|no\s+longer|stop\w*|without)\b", re.I)
-_DEMAND_WORDS = re.compile(r"\b(?:still|keep\w*)\b", re.I)
+# A word before the removal word that forbids the removal or demands the
+# line. "Do not remove ctx.exit()." admitted the removal (review 2, finding 2).
+_NEGATION_WORDS = re.compile(r"\b(?:not|never|keep\w*|still|must|always)\b|n't", re.I)
 _BARE_LINES = frozenset({"continue", "return", "pass", "break"})
+
+
+def _removal_asked(s: str, g: dict) -> bool:
+    """True when the sentence `s` holds a removal word that no word before
+    it negates. "without" counts only when the name of `g` follows it."""
+    names = [g["line"]]
+    call = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", g["line"])
+    if call and not g["def"]:
+        names.append(call.group(1) + "(")
+    for m in _REMOVAL_WORDS.finditer(s):
+        if _NEGATION_WORDS.search(s[:m.start()]):
+            continue
+        if m.group(0).lower() == "without":
+            after = s[m.end():].lstrip().lstrip("`")
+            if not any(after.startswith(n) for n in names):
+                continue
+        return True
+    return False
 
 
 def _asks_removal(text: str, g: dict, principal: bool) -> bool:
@@ -16936,7 +16959,7 @@ def _asks_removal(text: str, g: dict, principal: bool) -> bool:
     for its removal. A bare keyword needs its function named too. The
     principal's words can name the line by its number."""
     for s in re.split(r"(?<=[.!?])\s+|\n+", text or ""):
-        if not _REMOVAL_WORDS.search(s) or _DEMAND_WORDS.search(s):
+        if not _removal_asked(s, g):
             continue
         line = g["line"]
         if g["def"] or line not in _BARE_LINES:
@@ -17293,59 +17316,10 @@ def _quote(line: str) -> str:
     return f"{fence}{pad}{line}{pad}{fence}"
 
 
-def _close_logged_notes(ctx: Ctx, assumption: str, about_ref: str = "") -> None:
-    """Close each open `dropped` note that a landed ledger note names: its
-    path and one dropped line that the note's text shows, or the name of
-    each definition the write dropped whole. Frame 283's ends-when: a meant removal is committed
-    after a landed note (frame 204's note route; review 1, finding 4).
-    One shown line is the seat's word for the whole removal, and the
-    Architect's judgement reads the landed note (review 4, finding 3, ruled).
-    The path counts where the sentence or `about_ref` names it. Night
-    156's s215 put the path in `about_ref`, where the ledger's schema puts
-    it, and five landed notes closed nothing (frame 283's residue).
-    Only the Developer's note closes a note, because only the Developer
-    holds code.write (frame 297's review 1, finding 2)."""
-    if not assumption or not getattr(ctx, "batch_id", None):
-        return
-    if getattr(ctx, "role", None) != "developer":
-        return
-    for p, e in _open_notes(ctx).items():
-        # Frame 283's W1 a, pass 2: a note never closes a removal of a base
-        # statement. The close wrote `restored` with the line gone (review
-        # 1, finding 4), so such an entry stays open for the commit door.
-        if e["lines"] or e["defs"]:
-            continue
-        named = (_ref_names(p, about_ref)
-                 or p in assumption or _grain_path(p) in assumption)
-        if named and _note_says(e, assumption):
-            _put_note(ctx, p, None)
-
-
 def _ref_names(path: str, about_ref: str) -> bool:
     """True when `about_ref` names `path`, as itself or by its grain."""
     return bool(about_ref) and (path == about_ref
                                 or _grain_path(path) == _grain_path(about_ref))
-
-
-def _note_says(e: dict, assumption: str) -> bool:
-    """True when the text `assumption` closes the open note `e`. The close
-    and the ledger door call this one rule (frame 297)."""
-    if e["lines"]:
-        # One shown line closes the note (review 3, finding 2).
-        # The full line counts where the note shows its cut form
-        # (review 5, finding 4).
-        # The ledger door lists exactly these lines, so the listed lines
-        # and the lines that close are one set (frame 297's review 2,
-        # finding 4).
-        shown = set(_shown_lines(e))
-        said = any(_says(assumption, q) for q in shown) or any(
-            line[:60] in shown and _says(assumption, line)
-            for _o, line, _n in e["lines"])
-        # Lines that are whole definitions are named by the definitions.
-        if not said and e["whole"]:
-            said = all(_says(assumption, d.rsplit(".", 1)[-1]) for d in e["whole"])
-        return said
-    return bool(e["defs"]) and all(_says(assumption, d) for d in e["defs"])
 
 
 def _note_routes(write_only: bool = False, one: bool = False) -> str:
@@ -17361,21 +17335,6 @@ def _note_routes(write_only: bool = False, one: bool = False) -> str:
             f"{'line' if one else 'lines'} back with code.write, then commit "
             f"in your next reply. Or send msg.escalate_architect and name the "
             f"removal.")
-
-
-def _removal_list(e: dict) -> str:
-    """The lines of `e` for a refusal: exactly the lines `_shown_lines`
-    gives, in its order, each with its line where the note text gives one.
-    A line the seat never saw closes nothing, so the refusal never lists
-    one (frame 297's review 2, finding 4). With no line, the dropped
-    definitions."""
-    if not e["lines"]:
-        return ", ".join(_quote(d) for d in e["defs"])
-    out = []
-    for q in _shown_lines(e):
-        m = re.search(re.escape(_quote(q)) + r" at line (\d+)", e["note"])
-        out.append(f"{_quote(q)} at line {m.group(1)}" if m else _quote(q))
-    return ", ".join(out)
 
 
 def _close_restored(ctx: Ctx, tree, stage: bool = True) -> dict:

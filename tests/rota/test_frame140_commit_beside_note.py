@@ -939,19 +939,6 @@ def test_a_whole_file_drop_of_module_lines_stores_the_lines():
     assert api._restored(before, entry)
 
 
-def test_a_ledger_word_that_holds_the_line_as_a_substring_closes_nothing(db, tmp_path):
-    """Frame 283's review 2, finding 3: "bypass" does not name `pass`."""
-    sb, _root = _developer(db, tmp_path)
-    api._put_note(sb.ctx, "src/m.py", {"note": "`pass` at line 1", "lines": [["", "pass", 1]],
-                                       "defs": [], "whole": [], "noted": ""})
-    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
-    # base statement. The rule of `_note_says` stays tested here.
-    assert not api._note_says(api._open_notes(sb.ctx)["src/m.py"], "src/m.py: the bypass is kept")
-    assert api._note_says(api._open_notes(sb.ctx)["src/m.py"], "src/m.py: the removal of `pass` is meant")
-    api._close_logged_notes(sb.ctx, "src/m.py: the removal of `pass` is meant")
-    assert "src/m.py" in api._open_notes(sb.ctx)
-
-
 def test_a_dropped_definition_the_batch_added_opens_no_note(db, tmp_path):
     """Frame 283, pass 3: a line that the batch's base does not hold is no
     loss of the project's code. The result still says what the write
@@ -1029,42 +1016,6 @@ def test_a_base_that_does_not_parse_keeps_every_line(db, tmp_path):
     _opens_and_refuses(sb, out)
 
 
-def test_a_ledger_that_names_the_shown_line_of_a_whole_file_note_closes_it(db, tmp_path):
-    """Probe R3d: the whole-file note of three module lines shows `X = 5`
-    alone, and a ledger that names `X = 5` closes the note."""
-    sb, _root = _developer(db, tmp_path)
-    before = ("X = 5\n\n\ndef a():\n    return 1\n\n\n"
-              "if __name__ == '__main__':\n    a()\n")
-    noted = "def a():\n    return 1\n"
-    drop: list = []
-    note = api._whole_drop(before.splitlines(), noted, gone_out=drop)
-    entry = api._note_entry(note, before, noted, drop)
-    assert len(entry["lines"]) == 3 and "`X = 5`" in note
-    api._put_note(sb.ctx, M, entry)
-    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
-    # base statement. The rule of `_note_says` stays tested here.
-    assert api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `X = 5` and the main block is meant")
-    api._close_logged_notes(sb.ctx, f"{M}: the removal of `X = 5` and the main block is meant")
-    assert M in api._open_notes(sb.ctx)
-
-
-def test_a_ledger_closes_a_span_note_only_on_a_line_the_note_shows(db, tmp_path):
-    """A span note of ten lines shows eight. The ninth line closes nothing,
-    because the seat never saw it. The first line closes the note."""
-    sb, _root = _developer(db, tmp_path)
-    lost = [(i, f"value_{i} = compute({i})") for i in range(1, 11)]
-    note = f"This write removes 10 statements: {api._lost_sentence(lost)}."
-    assert "value_9" not in note and "value_8" in note
-    api._put_note(sb.ctx, M, {"note": note, "lines": [["f", h, 1] for _i, h in lost],
-                              "defs": [], "whole": [], "noted": ""})
-    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
-    # base statement. The rule of `_note_says` stays tested here.
-    assert not api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `value_9 = compute(9)` is meant")
-    assert api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `value_1 = compute(1)` is meant")
-    api._close_logged_notes(sb.ctx, f"{M}: the removal of `value_1 = compute(1)` is meant")
-    assert M in api._open_notes(sb.ctx)
-
-
 def test_s192s_widened_except_tuple_is_no_dropped_line():
     """Night 149 s192: the write added `RuntimeError` to an `except` tuple.
     The new line holds every whole token of the old one, so it is kept."""
@@ -1093,20 +1044,14 @@ def test_a_line_of_two_tokens_is_never_kept_by_the_subset_rule():
     assert entry["lines"] == [["f", "return x", 1]]
 
 
-def test_a_tail_note_shows_its_first_stored_line_and_closes_on_it(db, tmp_path):
-    """Review 4, finding 2: the refusal text always shows a stored line. The
-    path alone closes nothing, and the shown line closes the note."""
+def test_a_tail_note_shows_its_first_stored_line(db, tmp_path):
+    """Review 4, finding 2: the refusal text always shows a stored line.
+    Pass 3 of frame 283's W1 a deleted the close rule this test also held."""
     sb, _root = _module_repo(db, tmp_path, [M_BASE, M_BASE + "# c1\n"])
     out = sb.call("code.write", path=M, start=2, end=4, text="    return 1\n")
     entry = api._open_notes(sb.ctx)[M]
     shown = api._shown_lines(entry)
     assert shown and f"`{shown[0]}`" in out["dropped"]
-    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
-    # base statement. The rule of `_note_says` stays tested here.
-    assert not api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the tail removal is meant")
-    assert api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `{shown[0]}` is meant")
-    api._close_logged_notes(sb.ctx, f"{M}: the removal of `{shown[0]}` is meant")
-    assert M in api._open_notes(sb.ctx)
 
 
 def test_an_unchanged_line_does_not_hide_a_dropped_line():
@@ -1142,21 +1087,6 @@ def test_s192s_widened_tuple_through_code_write_commits_in_the_reply(db, tmp_pat
     assert "dropped" not in out
     assert api._open_notes(sb.ctx) == {}
     assert sb.call("code.commit", message="widen the except")["committed"] is True
-
-
-def test_a_ledger_that_quotes_the_full_line_closes_a_note_that_shows_its_cut(db, tmp_path):
-    """Review 5, finding 4: the note shows a long line cut at 60."""
-    sb, _root = _developer(db, tmp_path)
-    line = "result = compute_the_long_value(alpha_parameter, beta_parameter)"
-    assert len(line) > 60
-    api._put_note(sb.ctx, M, {"note": f"It drops `{line[:60]}` at line 3.",
-                              "lines": [["f", line, 1]], "defs": [], "whole": [],
-                              "noted": ""})
-    # Frame 283's W1 a, pass 2: no ledger note closes a removal of a
-    # base statement. The rule of `_note_says` stays tested here.
-    assert api._note_says(api._open_notes(sb.ctx)[M], f"{M}: the removal of `{line}` is meant")
-    api._close_logged_notes(sb.ctx, f"{M}: the removal of `{line}` is meant")
-    assert M in api._open_notes(sb.ctx)
 
 
 def test_a_shown_line_with_a_backtick_gets_a_double_fence():
