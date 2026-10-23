@@ -1673,6 +1673,17 @@ def test_the_testers_wake_on_a_repaired_criterion_carries_the_principals_words(m
     _vo_test(m399, "bg_3", "deferred", "aa28d1d")
     _criterion_relay(m399, M142_WORDS)
     sb = _sandbox(m399, "terminologist", "criterion_repair", "m144")
+    # s272 respecified c1 before its answer. Frame 308's door refuses an
+    # answer under a contest of the words while no respecify has landed.
+    m399.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind, sym_kind) "
+                 "VALUES ('src/click/decorators.py::version_option', 'symbol', "
+                 "'function')")
+    assert sb.call("criteria.respecify", id=C1_VO,
+                   text="With show_python on, version_option prints a message "
+                        "that ends with the Python version written as "
+                        "major.minor.micro.",
+                   surface_refs=["src/click/decorators.py::version_option"]
+                   ).get("respecified")
     assert sb.call("msg.answer_tester", refs=[C1_VO])["to"] == "tester"
     _message(m399, "m145", "terminologist", "tester", "answer", [C1_VO], cause="m144",
              status="open")

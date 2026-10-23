@@ -5665,6 +5665,33 @@ def _closed_answer_note(ctx: Ctx, id: str) -> str:
             "in this session.")
 
 
+def _stands(said: str) -> ValueError:
+    """A respecify refusal that says the ruling asked for no new words. The
+    answer door counts it as landed for the criterion (frame 308, review 2).
+    A flag on the exception keeps the door off the refusal's wording."""
+    exc = ValueError(said)
+    exc.criterion_stands = True
+    return exc
+
+
+def ruling_asks_no_new_words(ctx: Ctx, id: str) -> bool:
+    """True when the last ruling on criterion `id` faulted its check and not
+    its words, on the row's own text. `criteria_respecify` refuses a rewrite
+    there with "The criterion stands", so the answer door needs no call to
+    know it (frame 308, review 2's fix)."""
+    from .principal import last_ruling_on
+
+    ruled = last_ruling_on(ctx.conn, id)
+    if not ruled or ruled["verdict"] not in ("contest", "revise") \
+            or ruled["text"] is None:
+        return False
+    cur = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
+                           (id,)).fetchone()
+    return bool(cur and _same_words(ruled["text"], cur["text"])
+                and _CHECK_FAULT.search(ruled["words"])
+                and not _WORDS_FAULT.search(ruled["words"]))
+
+
 @op("criteria", "respecify")
 def criteria_respecify(ctx: Ctx, id: str, text: str,
                        term_refs: list[str] | None = None,
@@ -5700,12 +5727,12 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                  and ctx.conn.execute("SELECT 1 FROM tests WHERE id = ? AND "
                                       "criterion_id = ?", (r, id)).fetchone()]
         if tests and not _tester_answer_open(ctx):
-            raise ValueError(
+            raise _stands(
                 f"the principal approved {id} and ruled its test "
                 f"{', '.join(tests)}. Keep the words. "
                 f"{_closed_answer_note(ctx, id)} Your work on {id} is done")
         if tests:
-            raise ValueError(_offer(
+            raise _stands(_offer(
                 ctx, f"the principal approved {id} and ruled its test "
                 f"{', '.join(tests)}. Keep the words. Send "
                 f"msg.answer_tester(refs=['{id}']), so the Tester rewrites "
@@ -5811,12 +5838,12 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         if (_CHECK_FAULT.search(contested["words"])
                 and not _WORDS_FAULT.search(contested["words"])):
             if closed:
-                raise ValueError(
+                raise _stands(
                     f"the principal faulted the check and not these words: "
                     f"{contested['words']!r}. The criterion stands. {route}. "
                     f"If his words also contradict this criterion's text, "
                     f"rewrite the text. If not, your work on {id} is done")
-            raise ValueError(
+            raise _stands(
                 f"the principal faulted the check and not these words: "
                 f"{contested['words']!r}. The criterion stands. {route}. "
                 f"If his words also contradict this criterion's text, "

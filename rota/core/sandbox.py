@@ -553,6 +553,11 @@ class Sandbox:
             try:
                 raise ArgumentError(f"{dotted}: {problem}")
             except ArgumentError as exc:
+                # The argument check runs before the respecify wrapper, so
+                # the answer door quotes this refusal too (frame 308,
+                # review 2, F2).
+                if dotted == "criteria.respecify":
+                    _note_respecify_refusal(self.ctx, kwargs.get("id"), str(exc))
                 # The scalar door offers a call, so the follow check of
                 # frame 144 reads this refusal too. Raised first, so the
                 # exception carries the binder's line as its door.
@@ -1548,9 +1553,10 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     rule of 2026-08-14 stays: a role says two things to one role in one
     message's refs. So the door speaks at the first answer.
 
-    The door also refuses that first answer while a respecify of a ruled
-    criterion was refused and has not landed (frame 308, pass 2, night 159's
-    s382 and s398). The refusal quotes the respecify's own refusal.
+    When the refs carry every ruled criterion, the door refuses that first
+    answer while a criterion the relay contests or revises has no landed
+    respecify in the session (frame 308, pass 2b, night 159's s382 and
+    s398). The refusal quotes the last respecify refusal of the criterion.
     """
     if ctx.role != "terminologist" or not isinstance(refs, list):
         return None
@@ -1589,58 +1595,65 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
                 "WHERE c.id = ? AND b.status NOT IN ('merged', 'abandoned') "
                 "AND b.head_commit IS NOT NULL AND b.head_commit != ''",
                 (r,)).fetchone() for r in ids)
-    # The answer carries a criterion by its ref, so the Tester reads the row
-    # as it stands. Night 159's s382 and s398 answered after a refused
-    # respecify, and the Tester read the text he had ruled on (frame 308,
-    # pass 2). The door speaks before the missing-refs door, so the route
-    # below never offers an answer that this check then refuses.
     missing = [r for r in ruled if r not in given]
-    failed = _failed_respecify(ctx, ruled)
-    if failed and not _parked(ruled):
-        ids = ", ".join(cid for cid, _ in failed)
-        quoted = " ".join(f"The respecify of {cid} was refused with: {why!r}."
-                          for cid, why in failed)
-        answer = [r for r in given if api.ref_resolves(ctx, r)] + missing
-        return (f"Your criteria.respecify of {ids} did not land. The "
-                f"principal's ruling in the relay is on {ids}. Your answer "
-                f"carries {ids} as it stands now. {quoted} Respecify {ids} "
-                f"first with a corrected call. Then answer once with "
-                f"msg.answer_tester, with these refs: {answer!r}")
+    # The answer carries a criterion by its ref, so the Tester reads the row
+    # as it stands. Night 159's s382 and s398 answered while no respecify had
+    # landed, and the Tester read the text he had ruled on. The key is the
+    # landed write, not the refusal before it (frame 308, review 2, F1 to F3).
+    # A "The criterion stands" refusal counts as landed (review 2's fix).
+    stands = getattr(ctx, "respecify_stands", None) or set()
+    unwritten = [r for r in relay_refs
+                 if verdict.get(r) in ("contest", "revise") and r in ruled
+                 and r not in stands
+                 and not api.ruling_asks_no_new_words(ctx, r)
+                 and not any(w[0] == "criteria" and w[1] == r
+                             for w in ctx.writes)]
     if not missing:
-        return None
+        # The missing-refs door speaks first, so s220's text stays as night
+        # 158 showed it.
+        if not unwritten or _parked(ruled):
+            return None
+        ids = ", ".join(unwritten)
+        said = (getattr(ctx, "respecify_refused", None) or {})
+        quoted = " ".join(f"Your last respecify of {cid} was refused with: "
+                          f"{said[cid]!r}." for cid in unwritten if cid in said)
+        return " ".join(s for s in (
+            f"No respecify of {ids} has landed in this session.",
+            f"The principal's ruling in the relay is on {ids}.",
+            f"Your answer carries {ids} as it stands now.",
+            quoted,
+            f"Respecify {ids} first with a corrected criteria.respecify call.",
+            "Then answer once with msg.answer_tester, with these refs: "
+            f"{[r for r in given if api.ref_resolves(ctx, r)]!r}") if s)
     # A dangling ref in the route meets the dangling guard of `_bind_send`
     # (frame 308, review 1, F1).
     full = [r for r in given if api.ref_resolves(ctx, r)] + missing
     if _parked(full):
         return None
     ids = ", ".join(missing)
-    return api._offer(
-        ctx, f"Your answer leaves out {ids}. The principal's ruling in the "
-        f"relay names {ids} too. Send one msg.answer_tester with every ruled "
-        f"criterion in refs: {full!r}",
-        "msg.answer_tester", {"refs": full})
+    route = (f"Send one msg.answer_tester with every ruled criterion in refs: "
+             f"{full!r}")
+    said = (f"Your answer leaves out {ids}. The principal's ruling in the "
+            f"relay names {ids} too.")
+    if unwritten:
+        # The full answer still meets the landed-respecify check, so the
+        # text offers no call (frame 135). The seat respecifies first.
+        return (f"{said} No respecify of {', '.join(unwritten)} has landed "
+                f"in this session. Respecify {', '.join(unwritten)} first "
+                f"with a corrected criteria.respecify call. Then {route[0].lower()}"
+                f"{route[1:]}")
+    return api._offer(ctx, f"{said} {route}", "msg.answer_tester",
+                      {"refs": full})
 
 
-def _failed_respecify(ctx: api.Ctx, ruled: list[str]) -> list[tuple[str, str]]:
-    """
-    The ruled criteria whose respecify this session was refused and then
-    never landed, each with its last refusal's text. Empty when every ruled
-    criterion has a landed respecify or no refused one.
-
-    A landed respecify is a staged `criteria` write of the id, the record the
-    pipeline commits. A refusal that names `msg.answer_tester` routes the
-    seat to the answer, so it is no failed repair (frame 135).
-    """
-    refused = getattr(ctx, "respecify_refused", None) or {}
-    failed = []
-    for cid in ruled:
-        why = refused.get(cid)
-        if not why or "msg.answer_tester" in why:
-            continue
-        if any(w[0] == "criteria" and w[1] == cid for w in ctx.writes):
-            continue
-        failed.append((cid, why))
-    return failed
+def _note_respecify_refusal(ctx: api.Ctx, cid, why: str) -> None:
+    """Keep `why` as the last refusal of the respecify of `cid`, so the
+    answer door can quote it (frame 308, pass 2)."""
+    if not isinstance(cid, str):
+        return
+    if getattr(ctx, "respecify_refused", None) is None:
+        ctx.respecify_refused = {}
+    ctx.respecify_refused[cid] = why
 
 
 def _respecify_record(ctx: api.Ctx, respecify: Callable) -> Callable:
@@ -1655,10 +1668,13 @@ def _respecify_record(ctx: api.Ctx, respecify: Callable) -> Callable:
             return respecify(*args, **kwargs)
         except Exception as exc:
             cid = kwargs.get("id", args[0] if args else None)
-            if isinstance(cid, str):
-                if getattr(ctx, "respecify_refused", None) is None:
-                    ctx.respecify_refused = {}
-                ctx.respecify_refused[cid] = str(exc)
+            _note_respecify_refusal(ctx, cid, str(exc))
+            # "The criterion stands": the ruling asked for no new words, so
+            # the criterion counts as landed (frame 308, review 2).
+            if getattr(exc, "criterion_stands", False) and isinstance(cid, str):
+                if getattr(ctx, "respecify_stands", None) is None:
+                    ctx.respecify_stands = set()
+                ctx.respecify_stands.add(cid)
             raise
 
     return record

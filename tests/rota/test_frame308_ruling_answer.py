@@ -226,10 +226,30 @@ def test_s220_turn_1_with_its_refused_cr_3_respecify_asks_the_respecify_first(db
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR3], round_no=0)
     said = str(refused.value)
-    assert f"respecify of {CR3} did not land" in said, said
-    assert str(surface.value) in said, said
-    assert repr([CR3, CR2]) in said, said
+    # Review 2's fix: m98 faults the check and not the words, so cr_2 and
+    # cr_3 stand. The missing-refs refusal keeps its offer.
+    assert str(surface.value)
+    assert f"Your answer leaves out {CR2}" in said, said
+    assert "has landed" not in said, said
+    [offer] = [o for o in sb.ctx.offers if o.op == "msg.answer_tester"]
+    assert sorted(offer.args["refs"]) == sorted([CR2, CR3])
     assert not _answers(sb)
+
+
+def test_a_faulted_check_refusal_then_the_answer_is_admitted(db):
+    """Pass 2b, review 2's fix: "The criterion stands" says that the ruling
+    asked for no new words, so it counts as landed for cr_2."""
+    _night158_relay(db)
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm101'",
+               (json.dumps([CR2]),))
+    db.execute("UPDATE config SET value = ? WHERE key = 'verdict:m99'",
+               (json.dumps({CR2: "revise"}),))
+    db.commit()
+    sb = _s220(db)
+    said = _respecify_cr2(sb)
+    assert "The criterion stands" in said, said
+    out = sb.call("msg.answer_tester", refs=[CR2], round_no=0)
+    assert out["to"] == "tester", out
 
 
 # --- pass 1b, review 1 --------------------------------------------------------

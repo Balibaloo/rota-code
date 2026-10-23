@@ -133,8 +133,9 @@ def _assert_refused_after(sb, surface_said):
         sb.call("msg.answer_tester", refs=[CR], round_no=0)
     said = str(refused.value)
     assert CR in said, said
-    assert "did not land" in said, said
-    assert surface_said in said, said
+    assert f"No respecify of {CR} has landed" in said, said
+    if surface_said is not None:
+        assert surface_said in said, said
     assert "respecify" in said and "answer once" in said, said
     assert not _answers(sb)
     return said
@@ -172,13 +173,52 @@ def test_the_respecify_lands_then_the_answer_is_admitted(db):
     assert len(_answers(sb)) == 1
 
 
-def test_an_answer_with_no_respecify_tried_is_admitted_as_today(db):
-    """The ruling can fault the check alone. Then the answer is the repair,
-    and no respecify is owed (night 158's s220)."""
+def test_an_answer_with_no_respecify_tried_is_refused(db):
+    """Pass 2b: the key is the landed write, so an answer with no respecify
+    at all is refused, and the text has no quote."""
     _night159_relay(db)
     sb = _seat(db)
-    out = sb.call("msg.answer_tester", refs=[CR], round_no=0)
-    assert out["to"] == "tester", out
+    said = _assert_refused_after(sb, None)
+    assert "was refused with" not in said, said
+
+
+def test_s382_turn_2_same_words_after_the_surface_refusal_is_refused(db):
+    """Review 2, F1: the seat corrects the surface and sends the v6 text. The
+    same-words branch refuses it and names msg.answer_tester. The answer
+    still carries the old text, so the door refuses it."""
+    _night159_relay(db)
+    sb = _seat(db)
+    _turn_1(sb, V6)
+    with pytest.raises(ValueError) as words:
+        sb.call("criteria.respecify", id=CR, text=V6,
+                term_refs=["command", "option"], surface_refs=[SURFACE])
+    assert "msg.answer_tester" in str(words.value), str(words.value)
+    _assert_refused_after(sb, str(words.value))
+
+
+def test_an_argument_refusal_then_the_answer_is_refused(db):
+    """Review 2, F2: a respecify with no `text` meets the argument check in
+    `Sandbox.call`, before the respecify wrapper."""
+    _night159_relay(db)
+    sb = _seat(db)
+    with pytest.raises(Exception) as args:
+        sb.call("criteria.respecify", id=CR, surface_refs=[SURFACE])
+    assert "missing required argument" in str(args.value), str(args.value)
+    _assert_refused_after(sb, str(args.value))
+
+
+def test_an_unchanged_return_then_the_answer_is_refused(db):
+    """Review 2, F3: the ruling's contested text differs from the row, so the
+    row's own words return `unchanged` and write nothing."""
+    _night159_relay(db)
+    db.execute("UPDATE rulings SET texts = ? WHERE id = 'r_03b3346468'",
+               (json.dumps({CR: "An older text of line 3."}),))
+    db.commit()
+    sb = _seat(db)
+    out = sb.call("criteria.respecify", id=CR, text=V6,
+                  term_refs=["command", "option"], surface_refs=[SURFACE])
+    assert out.get("unchanged"), out
+    _assert_refused_after(sb, None)
 
 
 def test_a_relay_with_no_ruled_criterion_admits_the_answer(db):
