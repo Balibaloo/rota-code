@@ -6072,7 +6072,18 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
     # and each landed. A symbol is never a new file (frame 302, review 1,
     # finding 1).
     named = {p.replace("\\", "/") for p in new_files or [] if "::" not in p}
-    unknown = [f for f in (p.replace("\\", "/").split("::", 1)[0] for p in paths)
+
+    def file_half(p: str) -> str:
+        p = p.replace("\\", "/").split("::", 1)[0]
+        # Night 154's s169 typed path:symbol with one colon. The call landed,
+        # and the shape is path::symbol mistyped (frame 302, pass 1c).
+        left, colon, right = p.partition(":")
+        if (colon and left.endswith(".py")
+                and re.fullmatch(r"[A-Za-z_]\w*(\.[A-Za-z_]\w*)*", right)):
+            return left
+        return p
+
+    unknown = [f for f in (file_half(p) for p in paths)
                if f not in indexed | named]
     if not unknown:
         return
