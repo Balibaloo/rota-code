@@ -20,7 +20,7 @@ touch note and corrected it. The words are `principal_said`. Call
 `batches.annotate` once with the paths the words name.
 A path he says has nothing to do with the item is disputed. Drop it. Keep the others. Then stop. The paths under `the index's test files` are
 the test files that exist. A test path you write is one of them, or a new file
-you name as new.
+you name as new. Write a new file in `paths` and also in `new_files=[...]`.
 
 One batch. You are annotating from source, which is what makes the annotation
 worth having and also what makes doing every batch in one session useless.
