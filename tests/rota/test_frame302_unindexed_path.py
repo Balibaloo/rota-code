@@ -213,7 +213,8 @@ def test_a_guess_symbol_on_an_unindexed_file_meets_the_door(db):
     out = sb.call("batches.guess", item_id=ITEM, paths=["src/click/decorators.py"],
                   symbols=["src/click/options.py::show_python"],
                   new_files=["src/click/options.py"])
-    assert out["grains"] == 2
+    # Pass 2b: the file named in `new_files` is also a touched path.
+    assert out["grains"] == 3
 
 
 @pytest.mark.parametrize("mode", ["guess", "annotate"])
@@ -324,19 +325,31 @@ def _register_case(case_id: str) -> dict:
     return next(c for c in cases if c["id"] == case_id)
 
 
-@pytest.mark.parametrize("case_id, mode, source, test_file", [
-    ("L1-AR-re-annotate-from-the-principals-correction", "annotate",
-     "src/click/termui.py", "tests/test_termui.py"),
-    ("L1-AR-rewrite-the-guess-from-the-ruling", "guess",
-     "src/click/decorators.py", "tests/test_basic.py"),
-])
-def test_the_register_fixture_red_is_no_refusal(tmp_path, case_id, mode,
-                                                source, test_file):
-    """The red re-record of 8b1566c8 in C:/Users/roman/rota_g301: the seat
-    wrote the indexed test file in `new_files` and left it out of `paths`.
-    The door admitted the call, and the test file got no row."""
+# ---------------------------------------------------------------------------
+# Pass 2b: a file named in `new_files` is a touched path
+# ---------------------------------------------------------------------------
+
+ANNOTATE_CASE = "L1-AR-re-annotate-from-the-principals-correction"
+GUESS_CASE = "L1-AR-rewrite-the-guess-from-the-ruling"
+
+# The six red calls of the re-record at 8b1566c8, read from
+# C:/Users/roman/rota_g301/tests/rota/cassettes.db, `case_runs`, 2026-10-23
+# 15:01 to 15:16. Each named the indexed test file only in `new_files`.
+RED_CALLS = [
+    (ANNOTATE_CASE, 2, "annotate", {"paths": ["src/click/termui.py"],
+                                    "new_files": ["tests/test_termui.py"]}),
+    (ANNOTATE_CASE, 5, "annotate", {"paths": ["src/click/termui.py"],
+                                    "symbols": ["confirm"],
+                                    "new_files": ["tests/test_termui.py"]}),
+] + [
+    (GUESS_CASE, run, "guess", {"paths": ["src/click/decorators.py"],
+                                "new_files": ["tests/test_basic.py"]})
+    for run in (1, 3, 4, 5)
+]
+
+
+def _register_db(tmp_path, case_id: str):
     rows = _register_case(case_id)["fixture"]["code_index"]
-    assert {"grain": test_file, "grain_kind": "path"} in rows
     conn = init_db(tmp_path / "rota.db")
     conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                  "version, priority) VALUES ('i1', 'x', 'in_scope', "
@@ -348,18 +361,48 @@ def test_the_register_fixture_red_is_no_refusal(tmp_path, case_id, mode,
         conn.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, ?)",
                      (r["grain"], r["grain_kind"]))
     conn.commit()
+    return conn
+
+
+@pytest.mark.parametrize("case_id, run, mode, args", RED_CALLS,
+                         ids=[f"{m}-run{r}" for _, r, m, _ in RED_CALLS])
+def test_a_red_register_call_writes_the_test_files_row(tmp_path, case_id,
+                                                        run, mode, args):
+    conn = _register_db(tmp_path, case_id)
+    test_file = args["new_files"][0]
+    # The fixture indexes the file, so the door never refused the call.
+    assert conn.execute("SELECT 1 FROM code_index WHERE grain = ?",
+                        (test_file,)).fetchone()
     if mode == "guess":
         sb = build("architect", conn, mode="guess",
                    allow=prompts.mode_tools("architect", "guess"))
-        sb.call("batches.guess", item_id="i1", paths=[source],
-                new_files=[test_file])
-        assert _grains(sb, "touch_guesses") == [source]
+        sb.call("batches.guess", item_id="i1", **args)
+        assert _grains(sb, "touch_guesses") == args["paths"] + [test_file]
     else:
         sb = build("architect", conn, mode="annotate", batch_id="b1",
                    allow=prompts.mode_tools("architect", "annotate"))
-        sb.call("batches.annotate", batch_id="b1", paths=[source],
-                new_files=[test_file])
-        assert _grains(sb, "batch_touch") == [source]
+        sb.call("batches.annotate", batch_id="b1", **args)
+        assert _grains(sb, "batch_touch")[:2] == args["paths"] + [test_file]
+
+
+@pytest.mark.parametrize("mode", ["guess", "annotate"])
+def test_a_source_file_named_only_as_new_lands_and_writes_its_row(db, mode):
+    """src/click/ is indexed and src/click/options.py is not."""
+    if mode == "guess":
+        sb = _guess(db)
+        out = sb.call("batches.guess", item_id=ITEM,
+                      paths=["src/click/decorators.py"],
+                      new_files=["src/click/options.py"])
+        table = "touch_guesses"
+    else:
+        sb = _annotate(db)
+        out = sb.call("batches.annotate", batch_id="bg_2",
+                      paths=["src/click/decorators.py"],
+                      new_files=["src/click/options.py"])
+        table = "batch_touch"
+    assert out["grains"] == 2
+    assert _grains(sb, table) == ["src/click/decorators.py",
+                                  "src/click/options.py"]
 
 
 @pytest.mark.parametrize("mode", ["guess", "annotate"])
@@ -368,5 +411,7 @@ def test_the_brief_says_a_new_test_file_needs_no_new_files(mode):
 
     brief = (Path(prompts.__file__).parent / "prompts" / "architect" / f"{mode}.md"
              ).read_text(encoding="utf-8")
-    assert "A new test file is new by nature and needs no `new_files`." in brief
-    assert "source file in `paths` and also in `new_files=[...]`." in brief
+    assert "List every file the change touches in `paths`." in brief
+    assert "Name in `new_files=[...]` the files that do not exist yet." in brief
+    assert "A new test file needs no `new_files`." in brief
+    assert "name as new" not in brief

@@ -6048,6 +6048,15 @@ def _refuse_stray_dirs(conn: sqlite3.Connection, paths: list[str]) -> None:
             f"where they are")
 
 
+def _with_new_files(paths: list[str] | None,
+                    new_files: list[str] | None) -> list[str]:
+    """`paths` with each `new_files` entry it lacks, in the order written."""
+    # Frame 302, pass 2b (ruled: the assistant, rule 3): six red register
+    # calls of 8b1566c8 named an indexed test file only in `new_files`, and
+    # the file got no row. A file the seat names as new is a touched file.
+    return list(dict.fromkeys(list(paths or []) + list(new_files or [])))
+
+
 def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
                             new_files: list[str] | None,
                             symbols: list[str] | None = None,
@@ -6163,6 +6172,7 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
         raise ValueError(
             head + (f". The request is `item` in your working set, {woken}"
                     if woken and woken != item_id else ""))
+    paths = _with_new_files(paths, new_files)
     if not paths:
         raise ValueError("a guess names at least one path. A new file goes "
                          "beside the files that exist")
@@ -6239,6 +6249,7 @@ def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
     argument, and a prediction that could block work would quietly become a
     permission system nobody designed.
     """
+    paths = _with_new_files(paths, new_files)
     _refuse_stray_dirs(ctx.conn, paths)
     item = ctx.conn.execute(
         "SELECT i.text FROM batches b JOIN items i ON i.id = b.item_id "

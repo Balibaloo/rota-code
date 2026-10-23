@@ -5,9 +5,10 @@ The request is `item` in your working set. `code.probe` and
 once for the item.
 
 Paths always. Symbols only where you are confident. A test path is one
-of `the index's test files`, or a new file you name as new.
-A new test file is new by nature and needs no `new_files`. Write a new
-source file in `paths` and also in `new_files=[...]`.
+of `the index's test files`, or a new test file.
+List every file the change touches in `paths`.
+Name in `new_files=[...]` the files that do not exist yet.
+A new test file needs no `new_files`.
 
 **This is a guess, not a permission.** Nothing rejects a diff for straying
 outside it. Name the files you expect the change to edit, not every file
