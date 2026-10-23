@@ -577,7 +577,8 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
 -- (frame 307). No code deletes from this table, and no gate or guard reads
 -- it. `seq` is the key, because `new_id` counts from `test_runs` and can
 -- give a deleted run's id again. The table has no foreign keys, so a
--- journal row never blocks a delete elsewhere.
+-- journal row never blocks a delete elsewhere. `seq` also orders the runs.
+-- The table has no clock column, by `test_schema_has_no_clock.py`.
 CREATE TABLE IF NOT EXISTS test_run_journal (
     seq         INTEGER PRIMARY KEY AUTOINCREMENT,
     id          TEXT NOT NULL,               -- the id of the live row
@@ -586,8 +587,7 @@ CREATE TABLE IF NOT EXISTS test_run_journal (
     commit_sha  TEXT,
     result      TEXT NOT NULL CHECK (result IN ('pass','fail','error')),
     output      TEXT NOT NULL DEFAULT '',
-    attempt     INTEGER NOT NULL DEFAULT 1,
-    recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+    attempt     INTEGER NOT NULL DEFAULT 1
 );
 
 -- ---------------------------------------------------------------------------

@@ -56,11 +56,11 @@ def test_a_re_encode_removes_the_live_run_and_keeps_the_journal_row(tmp_path):
     _lift_quarantines(conn, Write(table="tests", row_id="tst1",
                                   values={"body": BODY + "# new\n"}), moved=True)
     assert _count(conn, "test_runs") == 0
-    row = conn.execute("SELECT id, result, commit_sha, output, recorded_at "
+    row = conn.execute("SELECT id, result, commit_sha, output "
                        "FROM test_run_journal WHERE test_id = 'tst1'").fetchall()
     assert len(row) == 1
     assert (row[0]["id"], row[0]["result"], row[0]["commit_sha"]) == ("tr_1", "fail", HEAD)
-    assert row[0]["output"] == "E  assert 0" and row[0]["recorded_at"]
+    assert row[0]["output"] == "E  assert 0"
 
 
 def _report(path) -> list[str]:
