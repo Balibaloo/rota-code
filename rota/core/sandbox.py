@@ -742,6 +742,10 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
         grouped.setdefault(edge.t, {})[attr] = _bind(impl, ctx, f"{edge.t}.{attr}")
         available.setdefault(edge.t, []).append(attr)
 
+    if role == "terminologist" and "respecify" in grouped.get("criteria", {}):
+        grouped["criteria"]["respecify"] = _respecify_record(
+            ctx, grouped["criteria"]["respecify"])
+
     # The bus. One `send` per declared (recipient, verb) pair — a role literally
     # cannot address anyone the graph does not connect it to, so T0-S12's
     # rejection happens by absence rather than by a check at the wire.
@@ -1543,6 +1547,10 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     closed every later answer, so cr_2's fix reached no seat. The one-answer
     rule of 2026-08-14 stays: a role says two things to one role in one
     message's refs. So the door speaks at the first answer.
+
+    The door also refuses that first answer while a respecify of a ruled
+    criterion was refused and has not landed (frame 308, pass 2, night 159's
+    s382 and s398). The refusal quotes the respecify's own refusal.
     """
     if ctx.role != "terminologist" or not isinstance(refs, list):
         return None
@@ -1568,24 +1576,42 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
             ruled.append(test["criterion_id"])
     ruled = list(dict.fromkeys(ruled))
     given = [r for r in refs if isinstance(r, str)]
-    missing = [r for r in ruled if r not in given]
-    if not missing:
-        return None
-    # A dangling ref in the route meets the dangling guard of `_bind_send`
-    # (frame 308, review 1, F1).
-    full = [r for r in given if api.ref_resolves(ctx, r)] + missing
     # A refusal names a call only where the doors admit that call (frame 135).
     # The park door of `_bind_send` refuses an answer on criteria that no
     # change with a commit is built from, so this door then stays silent.
     from .scheduler import park_criterion_relay
 
-    if park_criterion_relay(ctx.conn, getattr(ctx, "trigger", None)) and not any(
+    def _parked(ids) -> bool:
+        return park_criterion_relay(ctx.conn, getattr(ctx, "trigger", None)) and not any(
             ctx.conn.execute(
                 "SELECT 1 FROM criteria c JOIN batch_tickets bt "
                 "ON bt.ticket_id = c.ticket_id JOIN batches b ON b.id = bt.batch_id "
                 "WHERE c.id = ? AND b.status NOT IN ('merged', 'abandoned') "
                 "AND b.head_commit IS NOT NULL AND b.head_commit != ''",
-                (r,)).fetchone() for r in full):
+                (r,)).fetchone() for r in ids)
+    # The answer carries a criterion by its ref, so the Tester reads the row
+    # as it stands. Night 159's s382 and s398 answered after a refused
+    # respecify, and the Tester read the text he had ruled on (frame 308,
+    # pass 2). The door speaks before the missing-refs door, so the route
+    # below never offers an answer that this check then refuses.
+    missing = [r for r in ruled if r not in given]
+    failed = _failed_respecify(ctx, ruled)
+    if failed and not _parked(ruled):
+        ids = ", ".join(cid for cid, _ in failed)
+        quoted = " ".join(f"The respecify of {cid} was refused with: {why!r}."
+                          for cid, why in failed)
+        answer = [r for r in given if api.ref_resolves(ctx, r)] + missing
+        return (f"Your criteria.respecify of {ids} did not land. The "
+                f"principal's ruling in the relay is on {ids}. Your answer "
+                f"carries {ids} as it stands now. {quoted} Respecify {ids} "
+                f"first with a corrected call. Then answer once with "
+                f"msg.answer_tester, with these refs: {answer!r}")
+    if not missing:
+        return None
+    # A dangling ref in the route meets the dangling guard of `_bind_send`
+    # (frame 308, review 1, F1).
+    full = [r for r in given if api.ref_resolves(ctx, r)] + missing
+    if _parked(full):
         return None
     ids = ", ".join(missing)
     return api._offer(
@@ -1593,6 +1619,49 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
         f"relay names {ids} too. Send one msg.answer_tester with every ruled "
         f"criterion in refs: {full!r}",
         "msg.answer_tester", {"refs": full})
+
+
+def _failed_respecify(ctx: api.Ctx, ruled: list[str]) -> list[tuple[str, str]]:
+    """
+    The ruled criteria whose respecify this session was refused and then
+    never landed, each with its last refusal's text. Empty when every ruled
+    criterion has a landed respecify or no refused one.
+
+    A landed respecify is a staged `criteria` write of the id, the record the
+    pipeline commits. A refusal that names `msg.answer_tester` routes the
+    seat to the answer, so it is no failed repair (frame 135).
+    """
+    refused = getattr(ctx, "respecify_refused", None) or {}
+    failed = []
+    for cid in ruled:
+        why = refused.get(cid)
+        if not why or "msg.answer_tester" in why:
+            continue
+        if any(w[0] == "criteria" and w[1] == cid for w in ctx.writes):
+            continue
+        failed.append((cid, why))
+    return failed
+
+
+def _respecify_record(ctx: api.Ctx, respecify: Callable) -> Callable:
+    """Keep the last refusal of each criterion's respecify on `ctx`, so the
+    answer door can quote it (frame 308, pass 2). `ctx.refusals` keeps no
+    arguments, so it cannot name the criterion."""
+    import functools
+
+    @functools.wraps(respecify)
+    def record(*args, **kwargs):
+        try:
+            return respecify(*args, **kwargs)
+        except Exception as exc:
+            cid = kwargs.get("id", args[0] if args else None)
+            if isinstance(cid, str):
+                if getattr(ctx, "respecify_refused", None) is None:
+                    ctx.respecify_refused = {}
+                ctx.respecify_refused[cid] = str(exc)
+            raise
+
+    return record
 
 
 def _ruling_answer_door(ctx: api.Ctx, label: str, send: Callable) -> Callable:

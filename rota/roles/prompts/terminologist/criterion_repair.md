@@ -26,7 +26,7 @@ contest or revise, rewrite it with `criteria.respecify` to say what the words
 say. Write the criterion in the principal's words. Do not send the sentence he
 contested. Keep the other words of the criterion. When the change has a
 commit, send one `msg.answer_tester` with every contested or revised criterion
-in `refs`. Before the commit, the Tester has no test of them yet, so stop
+in `refs`. Send that answer only after each respecify lands. Before the commit, the Tester has no test of them yet, so stop
 after the rewrite.
 
 **A ruling on a test.** When the message holds `principal_test_verdict`, the

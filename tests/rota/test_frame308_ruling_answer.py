@@ -208,6 +208,30 @@ def test_the_cr_2_refusal_after_an_answer_without_it_says_the_answer_is_closed(d
     assert "closed" in said, said
 
 
+def test_s220_turn_1_with_its_refused_cr_3_respecify_asks_the_respecify_first(db):
+    """Pass 2: s220's real turn 1 sent a cr_3 respecify with `prompt` as the
+    surface before the answer. The surface door refused it, so the answer
+    would carry the contested cr_3 text. The refusal names both ruled
+    criteria for the answer after the respecify lands."""
+    _night158_relay(db)
+    sb = _s220(db)
+    with pytest.raises(ValueError) as surface:
+        sb.call("criteria.respecify", id=CR3,
+                text="When confirm() shows its prompt and attempts to read "
+                     "from stdin, if that read hits end of file, it must "
+                     "return the provided default value without emitting "
+                     "any error message.",
+                term_refs=["default_on_eof"],
+                surface_refs=["src/click/termui.py::prompt"])
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.answer_tester", refs=[CR3], round_no=0)
+    said = str(refused.value)
+    assert f"respecify of {CR3} did not land" in said, said
+    assert str(surface.value) in said, said
+    assert repr([CR3, CR2]) in said, said
+    assert not _answers(sb)
+
+
 # --- pass 1b, review 1 --------------------------------------------------------
 
 def test_the_route_offers_no_dangling_ref(db):
