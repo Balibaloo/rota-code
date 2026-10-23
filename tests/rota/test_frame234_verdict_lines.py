@@ -648,17 +648,29 @@ def test_m46s_lines_2_and_3_match():
     assert _line_reading(M46) == (set(), {2, 3})
 
 
-# The refusal below named the leaked fault of lines 2 and 3. With the leak
-# gone, the door has no faulted line to name, and the line-1 contest lands.
-@pytest.mark.xfail(strict=True, reason="frame 305, pass 2: the request door "
-                   "names faulted lines only, and M46 faults none")
 @pytest.mark.parametrize("texts", [(), ECHO_JSON])
 def test_m46s_contest_of_the_request_line_is_refused(texts):
     out = _refusal(M46, {1}, 3, frozenset({3}), frozenset({1, 2}),
                    frozenset({1}), texts)
-    assert out == ("The words fault lines 2 and 3. Line 1 is the request, and "
-                   "they do not fault it. Rule lines 2 and 3, and approve the "
-                   "rest.")
+    # Frame 305, review 2: the words fault no line and ask to keep the
+    # change, so a line-1 contest would cancel what he asked to keep.
+    assert out == ("The words do not fault line 1, and they ask to keep the "
+                   "change. Approve line 1.")
+
+
+# Night 151's m64, verbatim from `.rota/clickI.principal.jsonl`.
+M64 = ("Please don't drop this change. Write the missing test for line 2 "
+       "again: print a small dict and check that the output is exactly the "
+       "compact JSON followed by one newline. Lines 2 and 3 say what I want, "
+       "and the code should still use only the standard json module.")
+
+
+@pytest.mark.parametrize("texts", [(), ECHO_JSON])
+def test_m64s_contest_of_the_request_line_is_refused(texts):
+    out = _refusal(M64, {1}, 3, frozenset({3}), frozenset({1, 2}),
+                   frozenset({1}), texts)
+    assert out == ("The words do not fault line 1, and they ask to keep the "
+                   "change. Approve line 1.")
 
 
 def test_m167s_contest_of_the_request_line_is_refused():

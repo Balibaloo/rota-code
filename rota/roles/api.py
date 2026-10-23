@@ -9702,23 +9702,21 @@ _AGREEMENT = re.compile(
     # "Lines 10 and 11 should keep only their first sentence" asks for a cut.
     r"|keep\b(?!\s+(?:only|just)\b)"
     r"|as\s+(?:it\s+is|they\s+are)(?=\s*(?:[,.;:!?)]|$|and\b|but\b))"
-    # Night 150's m66: "line 7 is not a real problem".
-    r"|(?:is|are)\s+not\s+an?\s+(?:real\s+)?(?:problem|issue)\b"
     # Night 147's m19: "the summary in line 1 is the version I approved".
+    # Night 145's m16 and night 146's m233 have the same shape.
     r"|(?:is|are)\s+the\s+\w+\s+I\s+(?:approved|asked\s+for|want(?:ed)?)\b"
     r"|match(?:es)?\b"
     # Night 142's m86: "Line 1 says what I asked for." Night 140's m147:
     # "and line 1 already says that".
     r"|(?:says?|does|do|shows?|is|are)\s+(?:exactly\s+)?what\s+I\s+"
     r"(?:asked|wanted|want|said)\b"
-    r"|now\s+(?:says?|has|have|covers?|shows?|names?|does)\b"
-    # Night 143's m76: "Line 8 asks something line 1 already answers".
-    r"|already\s+\w+s\b"
+    # Night 143's m76: "Line 8 asks something line 1 already answers". The
+    # verb agrees only with no object of its own: "Line 7 already has the
+    # broken check" and "Line 2 now has a typo" fault (frame 305, review 2).
+    r"|(?:already|now)\s+\w+s(?=\s*(?:[,.;:!?)]|$|what\s+I\b|that\b|it\b"
+    r"|this\b|everything\b))"
     # Night 143's m88: "Line 1 describes Click correctly now".
     r"|correctly\b"
-    # Night 157's m22: "line 1 needs no change". Night 158's m148: "line 3
-    # is fixed".
-    r"|needs?\s+no\s+(?:change|changes|edit)\b|(?:is|are)\s+(?:now\s+)?fixed\b"
     r"|(?:is|are)\s+not\s+wrong\b|(?:isn['’]t|aren['’]t)\s+wrong\b)", re.I)
 # A contrast after an agreement starts a correction of the same line. Night
 # 143's m339: "Line 2's text is right now, but its check still passes"
@@ -9780,6 +9778,28 @@ _KEEP_ORDER = re.compile(
     r"(?:do\s+not|don['’]t)\s+[\w'’]+"
     r"|([,;]|\b(?:and|but|so|or|then|please)\b)\s*(?:please\s+)?never\s+[\w'’]+",
     re.I)
+
+
+# A reply that approves the page: "Ok, I approve the page." or "..., so go
+# ahead." (night 140's m6). "Go ahead and build echo_json" approves the
+# build and not the page (night 155's m58), so the sentence must end there.
+# "Before I approve the page, please make line 1 ..." approves nothing yet
+# (night 155's m84), so "I approve" must open its sentence.
+_APPROVES = re.compile(
+    r"(?:^|[.!?]\s+)(?:(?:ok(?:ay)?|yes|so)\W+)?I\s+approve\b"
+    r"|\bgo\s+ahead\s*[.!]", re.I)
+# The words that point back to the line as an object: "so fix it".
+_BACK = frozenset({"it", "them", "its", "their", "this", "that", "both"})
+# An agreement anywhere in a clause whose subject is the principal's own
+# note on the line (`_head_verb`, "own").
+_OWN_AGREE = re.compile(
+    r"\b(?:is|are|looks?|reads?)\s+(?:\w+\s+)?(?:right|correct|fine|good)\b",
+    re.I)
+
+
+def _strong_word(tok: str) -> bool:
+    """True when `tok` is a strong fault word of the old reader."""
+    return bool(_LINE_FAULT.fullmatch(tok)) and tok.lower() not in _WEAK_CUES
 
 
 def _content(tok: str) -> bool:
@@ -9880,7 +9900,7 @@ def _clause_verb(text: str, noun_phrase: bool = False
 def _head_verb(head: str) -> tuple[str | None, str]:
     """The word directly before a reference, and what it does to the line.
 
-    The second item is "fault", "keep", "none", "reason" or "". "Drop line
+    The second item is "fault", "keep", "none", "reason", "own" or "". "Drop line
     3" faults line 3, "keep line 3" keeps it, and "do not change line 3" and
     "see line 3" take no direction. "since line 1 now says" is a reason.
     """
@@ -9889,6 +9909,12 @@ def _head_verb(head: str) -> tuple[str | None, str]:
     clause = toks[breaks[-1] + 1 if breaks else 0:]
     if clause and clause[0].lower() in _SUBORDINATE:
         return None, "reason"
+    # The principal's own words about the line are the subject: night 144's
+    # m112, "My note on line 1 only asked you to drop the part ..., so the
+    # line as it reads now is right". The verb is his, not the line's.
+    if (clause and clause[-1].lower() in _PREPOSITIONS
+            and any(t.lower() in ("my", "our") for t in clause[:-1])):
+        return None, "own"
     # The object of a relating verb with no line as its subject. Night
     # 144's m19: "Each of them either repeats line 1 or pastes a README
     # sentence". The fault belongs to "them", not to line 1.
@@ -9949,22 +9975,18 @@ def _agreement(window: str, before_ref: bool = False
     if any(w.lower() in ("not", "never") or w.lower().endswith(("n't", "n’t"))
            for w in before[-2:]):
         return True, " ".join(window[:m.end()].split()[-2:])
-    return True, _contrast_cue(window, m.end(), before_ref)
+    return True, (_contrast_cue(window, m.end(), before_ref)
+                  or _instruction_cue(window[m.end():], before_ref))
 
 
-def _contrast_cue(window: str, start: int, before_ref: bool) -> str | None:
-    """The cue of a correction after a contrast in `window`, or None.
+def _trim_head(toks: list[str], text: str, before_ref: bool) -> list[str]:
+    """`toks` less the words that govern the next reference.
 
-    `before_ref` says that a reference follows `window`. The words directly
+    `before_ref` says that a reference follows `text`. The words directly
     before that reference govern it and not this line. Night 159's m212:
     "Lines 1, 2 and 4 are fine as they are, but please rewrite line 3".
     """
-    turn = _CONTRAST.search(window, start)
-    if turn is None:
-        return None
-    tail = window[turn.end():]
-    toks = [t.group(0) for t in _TOKEN.finditer(tail)]
-    if before_ref and tail.rstrip()[-1:].isalpha():
+    if before_ref and text.rstrip()[-1:].isalpha():
         while toks and toks[-1].lower() in _ADVERBS | {
                 "the", "this", "that", "these", "those"}:
             toks.pop()
@@ -9972,6 +9994,69 @@ def _contrast_cue(window: str, start: int, before_ref: bool) -> str | None:
             toks.pop()
         while toks and (toks[-1].lower() in _ADVERBS | _BREAKS):
             toks.pop()
+    return toks
+
+
+def _instruction_cue(rest: str, before_ref: bool) -> str | None:
+    """The instruction after an agreement in the same clause, or None.
+
+    An agreement matches its line only when no instruction follows it:
+    "Line 7 already has the broken check, so fix it." faults line 7 (frame
+    305, review 2). A later agreement is no instruction: "is right and
+    should stay as it is" (night 159's m185). A new subject starts a new
+    clause: "and the fix should still use" (night 151's m46).
+    """
+    text = _KEEP_ORDER.sub(lambda m: (m.group(1) or m.group(2) or "") + " ",
+                           _AGREEMENT.sub(" ", rest))
+    toks = _trim_head([t.group(0) for t in _TOKEN.finditer(text)], text,
+                      before_ref)
+    first = next((k for k, t in enumerate(toks) if t.lower() in _BREAKS),
+                 len(toks))
+    strong = [c.group(0) for c in _live_cues(" ".join(toks[:first]))
+              if c.group(0).lower() not in _WEAK_CUES]
+    if strong:
+        return strong[0]
+    for k in range(first, len(toks)):
+        # A condition or a reason describes: night 141's m59, "Line 2 looks
+        # right, as long as it uses only Python's built-in json module and
+        # adds no new dependency".
+        if toks[k].lower() in _SUBORDINATE:
+            break
+        if toks[k].lower() not in _BREAKS:
+            continue
+        j = k + 1
+        while j < len(toks) and toks[j].lower() in _ADVERBS:
+            j += 1
+        nxt = j + 1
+        while nxt < len(toks) and toks[nxt].lower() in _ADVERBS:
+            nxt += 1
+        obj = toks[nxt] if nxt < len(toks) else None
+        # The instruction is about the line when its object points back to
+        # the line: "so fix it", "so fix its check". Night 151's m34, "Line
+        # 2 is fine, and please use only the standard json module", asks
+        # nothing of line 2.
+        if (j < len(toks) and _content(toks[j]) and obj is not None
+                and obj.lower() in _BACK):
+            # "so leave it" and "so keep it" keep the line. "leave out"
+            # removes.
+            if (toks[j].lower() in _KEEPING | {"leave"}
+                    and (obj or "").lower() != "out"):
+                continue
+            return toks[j]
+    return None
+
+
+def _contrast_cue(window: str, start: int, before_ref: bool) -> str | None:
+    """The cue of a correction after a contrast in `window`, or None.
+
+    The words that govern the next reference stay out (`_trim_head`).
+    """
+    turn = _CONTRAST.search(window, start)
+    if turn is None:
+        return None
+    tail = window[turn.end():]
+    toks = _trim_head([t.group(0) for t in _TOKEN.finditer(tail)], tail,
+                      before_ref)
     if not any(_content(t) for t in toks):
         return None
     tail = " ".join(toks)
@@ -9992,6 +10077,7 @@ def _line_cues(words: str, size: int | None = None
     """
     faulted: dict[int, tuple[str, str]] = {}
     matched: set[int] = set()
+    approves = bool(_APPROVES.search(words or ""))
     for sentence in _SENTENCE.split(words or ""):
         refs = list(_LINE_REF.finditer(sentence))
         # The cue binds to the reference it governs. In "Line 7 repeats line
@@ -10015,6 +10101,11 @@ def _line_cues(words: str, size: int | None = None
                 sentence[refs[i - 1].end() if i else 0:ref.start()])
             if head == "none":
                 continue
+            if head == "own":
+                if _OWN_AGREE.search(window):
+                    matched |= _ref_lines(ref, size)
+                    continue
+                head = ""
             if sentence.rstrip().endswith("?"):
                 # A question asks and does not instruct: night 149's m57,
                 # "And what does line 3 mean by "assumes name"?". It keeps
@@ -10035,6 +10126,14 @@ def _line_cues(words: str, size: int | None = None
                                   before, re.I))))
                 found = [m.group(0) for m in _live_cues(window)]
                 strong = [c for c in found if c.lower() not in _WEAK_CUES]
+                if approves:
+                    # In a reply that approves the page, a verb describes
+                    # the line, and only a fault word faults it. Night 150's
+                    # m123: "Ok, I approve. Line 1 is the detail for line 2
+                    # and not a separate change." (frame 305, review 2).
+                    if head_verb and not _strong_word(head_verb):
+                        head_verb = None
+                    verb, lead, found = None, False, strong
                 # The cue names the verb that governs the line, so the
                 # refusal of frame 250's door shows the seat its words.
                 for c in (head_verb, verb if lead else None,
@@ -10056,7 +10155,10 @@ def _line_cues(words: str, size: int | None = None
                     clause = sentence[targets[0].end():end]
                 for n in {n for t in targets for n in _ref_lines(t, size)}:
                     faulted.setdefault(n, (cue, clause))
-    return faulted, matched
+    # A line is in one set only, and the fault wins. A fault anywhere in the
+    # words corrects the line (frame 234, review 1, finding 3), and night
+    # 154's m22 faults line 3 and calls it "otherwise fine".
+    return faulted, matched - set(faulted)
 
 
 def built_line_faulted(words: str, order: list[str] | None, ref: str,
@@ -10137,6 +10239,12 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     if not request_first or 1 not in contested or quoted:
         return approve
     named = sorted(n for n in faulted if n <= size)
+    # A reply that asks to keep the change and faults no line asks for no
+    # line-1 contest. Night 151's m46 and m64: "Please don't drop this
+    # change." and "Lines 2 and 3 say what I want" (frame 305, review 2).
+    if not named and 1 not in faulted and _KEEP_CHANGE.search(words or ""):
+        return ("The words do not fault line 1, and they ask to keep the "
+                "change. Approve line 1.")
     if not named or 1 in faulted:
         return approve
     # Any reference to line 1 can carry a fault the cues miss. Night 144's

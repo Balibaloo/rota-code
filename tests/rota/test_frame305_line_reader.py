@@ -217,9 +217,10 @@ def test_each_fault_names_the_verb_that_governs_it():
      {4}, set()),
     # night 142, m290: the possessive is no verb.
     ("Line 2's check crashes before it tests anything.", {2}, set()),
-    # night 140, m142: a line in a reason clause takes no direction.
+    # night 140, m142: a line in a reason clause takes no direction. Pass
+    # 2b: "now says" with an object of its own is no agreement (review 2).
     ("Please remove it, since line 1 now says the flag is off by default.",
-     set(), {1}),
+     set(), set()),
     # night 145, m11: a line in an object phrase takes no direction.
     ("Line 4 is wrong because it just repeats the summary from line 1 and "
      "calls it a quote from the README and the code.", {4}, set()),
@@ -238,5 +239,54 @@ def test_each_fault_names_the_verb_that_governs_it():
      "including line 1.", set(), set()),
 ])
 def test_the_inverted_reader_on_recorded_replies(words, faulted, matched):
+    cues, got = _line_cues(words)
+    assert (set(cues), got) == (faulted, matched)
+
+
+# Pass 2b: review 2's wrong readings, verbatim from
+# `.rota/clickI.principal.jsonl`, with the review's right sets.
+@pytest.mark.parametrize("words, faulted, matched", [
+    # night 140, m6: a reply that approves the page.
+    ("Ok, the glossary matches how Click uses those words, so go ahead. Lines "
+     "13 to 23 list kinds of users rather than words with more than one "
+     "meaning, but they don't conflict with anything I asked for.",
+     set(), set()),
+    # night 144, m112: his own note on the line is the subject.
+    ("I still want the helper added, and I never overruled it. My note on "
+     "line 1 only asked you to drop the part about converting objects into a "
+     "form JSON accepts, so the line as it reads now is right: the standard "
+     "json module raises its own error for an object it can't serialize. My "
+     "note on line 10 only meant the \"does today\" part shouldn't say the "
+     "helper already exists, because adding it is the whole request.",
+     {10}, {1}),
+    # night 150, m114, m123 and m139.
+    ("Ok, I approve the page. Please read line 1 as the details of line 2 and "
+     "not as a separate change: the flag is off by default, and confirm() "
+     "works the same as today for anyone who doesn't turn it on.",
+     set(), set()),
+    ("Ok, I approve. Line 1 is the detail for line 2 and not a separate "
+     "change. The flag is off by default, so confirm() works the same as "
+     "today for anyone who doesn't turn it on.", set(), set()),
+    ("Ok, I approve the page. Line 1 gives the details for line 2 and is not "
+     "a separate change. The flag is off by default, so confirm() works the "
+     "same as it does today for anyone who doesn't turn it on.",
+     set(), set()),
+    # Review 2, outside finding 1: an instruction after an agreement.
+    ("Line 7 already has the broken check, so fix it.", {7}, set()),
+    ("Line 7 is right, so leave it.", set(), {7}),
+    ("Line 7 is right, so fix its check.", {7}, set()),
+    # Review 2, outside finding 2: a line is in one set only, and the fault
+    # wins. Night 154's m22 and night 157's m162.
+    ("On line 1, please take the context tests file off the list of related "
+     "code and keep the two echo test files, because my change only touches "
+     "echo. On line 3, please add that the helper uses only the standard "
+     "library json module and adds no new dependency. Lines 2 and 3 are "
+     "otherwise fine as written.", {1, 3}, {2}),
+    ("Line 3 still says the confirm default_on_eof flag is done, but that "
+     "change is set aside with four tests failing, so please take those two "
+     "sentences out. The rest of line 3 is right, and so is the new sentence "
+     "about sys.version_info.", {3}, set()),
+])
+def test_pass_2b_readings(words, faulted, matched):
     cues, got = _line_cues(words)
     assert (set(cues), got) == (faulted, matched)
