@@ -82,8 +82,11 @@ def test_the_cue_names_the_strong_word_of_the_clause():
     from rota.roles.api import _line_cues
 
     cues, matched = _line_cues(M105)
+    # "Lines 3 and 5 can be checked simply" is an instruction, and the
+    # inverted reader faults lines 3 and 5 there first (frame 305, pass 2).
     assert {n: c for n, (c, _) in cues.items()} == {
-        n: "wrong" for n in (2, 3, 5, 6, 7)} and matched == set()
+        2: "wrong", 3: "can be checked", 5: "can be checked", 6: "wrong",
+        7: "wrong"} and matched == set()
     assert _line_cues("Line 4 doesn't match what I asked for.")[0][4][0] == (
         "doesn't match")
 

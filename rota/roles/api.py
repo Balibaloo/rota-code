@@ -9591,12 +9591,12 @@ _LINE_REF = re.compile(
     rf"\b(?:lines?|notes?)\s+({_LINE_NUM}(?:\s*,\s*{_LINE_NUM})*"
     rf"(?:\s*,?\s*and\s+{_LINE_NUM})?)"
     r"|^\s*(\d+)(?=\s*(?:is\b|are\b|'s\b|:))", re.I | re.M)
+# The fault words of the old reader. Since frame 305's pass 2 they decide a
+# fault only with no verb in the clause, in a reason clause and in a
+# question. Elsewhere they name the cue of a refusal.
 _LINE_FAULT = re.compile(
     r"\b(?:wrong|isn't right|is not right|goes too far|still|drop|remove|"
     r"strike|fails|should|instead|not|also)\b", re.I)
-_LINE_MATCH = re.compile(
-    r"\b(?:match(?:es)?|are right|is right|(?:are|is|looks?) fine|"
-    r"looks? reasonable|is correct|are correct|ok|good)\b", re.I)
 # A sentence that only agrees, such as s427's "Ok, go ahead." or night 144's
 # "The rest of the page looks fine to me." (frame 234, review 2, findings 1
 # and 2). Such a sentence corrects nothing, so it opens no door.
@@ -9637,8 +9637,10 @@ def _line_reading(words: str, size: int | None = None
     """The lines the principal's words fault, and the lines they say match.
 
     Each line reference reads the clause after it, up to the next reference.
-    A fault cue there faults the lines. Otherwise a match cue within two
-    words matches them. A reference with no cue takes no direction. Night
+    An agreement first in the clause, within two words, matches the lines.
+    Any other clause with a verb faults them, and so does a verb directly
+    before the reference. A reference with neither takes no direction, as
+    in "see line 3" (frame 305, pass 2). Night
     146 (frame 234): nine of 22 verdicts contested lines the words never
     faulted, and s427 contested four lines the words said match. Measured on
     the recorded replies of nights 143 to 146, `f234/pass1-report.md`.
@@ -9687,6 +9689,299 @@ def _live_cues(text: str) -> list[re.Match]:
     return [m for k, m in enumerate(found) if k not in dead]
 
 
+# The inverted line reader (frame 305, pass 2). A closed list of fault words
+# leaked a verb each night. Night 159's m118 said "delete line 7" and "In
+# lines 3 and 4, replace", and the reader faulted neither line. So the reader
+# lists the agreements and the words that are no verb. Any other clause with
+# a verb faults its line, as frame 283's pass 4d inverted the request reader.
+_AGREEMENT = re.compile(
+    r"\b(?:"
+    r"(?:(?:is|are|looks?|seems?|reads?)\s+(?:(?:all|still|also|just)\s+)?)?"
+    r"(?:right|correct|fine|good|ok(?:ay)?|reasonable)\b"
+    r"|(?:should|can|may|must|will)\s+stay\b|stays?\b"
+    # "Lines 10 and 11 should keep only their first sentence" asks for a cut.
+    r"|keep\b(?!\s+(?:only|just)\b)"
+    r"|as\s+(?:it\s+is|they\s+are)(?=\s*(?:[,.;:!?)]|$|and\b|but\b))"
+    # Night 150's m66: "line 7 is not a real problem".
+    r"|(?:is|are)\s+not\s+an?\s+(?:real\s+)?(?:problem|issue)\b"
+    # Night 147's m19: "the summary in line 1 is the version I approved".
+    r"|(?:is|are)\s+the\s+\w+\s+I\s+(?:approved|asked\s+for|want(?:ed)?)\b"
+    r"|match(?:es)?\b"
+    # Night 142's m86: "Line 1 says what I asked for." Night 140's m147:
+    # "and line 1 already says that".
+    r"|(?:says?|does|do|shows?|is|are)\s+(?:exactly\s+)?what\s+I\s+"
+    r"(?:asked|wanted|want|said)\b"
+    r"|now\s+(?:says?|has|have|covers?|shows?|names?|does)\b"
+    # Night 143's m76: "Line 8 asks something line 1 already answers".
+    r"|already\s+\w+s\b"
+    # Night 143's m88: "Line 1 describes Click correctly now".
+    r"|correctly\b"
+    # Night 157's m22: "line 1 needs no change". Night 158's m148: "line 3
+    # is fixed".
+    r"|needs?\s+no\s+(?:change|changes|edit)\b|(?:is|are)\s+(?:now\s+)?fixed\b"
+    r"|(?:is|are)\s+not\s+wrong\b|(?:isn['’]t|aren['’]t)\s+wrong\b)", re.I)
+# A contrast after an agreement starts a correction of the same line. Night
+# 143's m339: "Line 2's text is right now, but its check still passes"
+# (frame 234, review 1, finding 3).
+_CONTRAST = re.compile(r"\b(?:but|though|although|however|yet|except)\b", re.I)
+# The closed word classes that are no verb: articles, determiners,
+# prepositions, conjunctions, pronouns and adverbs. A closed verb list missed
+# a new verb at each night, so the reader lists these classes instead.
+_NO_VERB = frozenset("""
+    a an the this that these those its their his her my our your one
+    of in on at to for from with by as about like into onto over under
+    between than through after before above below near beside per via
+    within without against among across around up down out off
+    and or but nor so yet because since while if when where whereas which
+    who whom whose what how why whether
+    also just still really only too now then even already both each every
+    all any some no not none more most less much many same other another
+    there here please line lines note notes i we you he she it they me us
+    him them neither either nothing something anything everything never
+    today earlier again itself later including included excluding except
+    """.split())
+# The pronouns that start a clause as its subject: "I already answered".
+_SUBJECTS = frozenset({"i", "we", "you", "he", "she", "it", "they"})
+# The adverbs that can stand between a subject or a break and its verb.
+_ADVERBS = frozenset({"just", "also", "still", "really", "only", "now", "then",
+                      "even", "already", "too", "simply", "please", "never",
+                      "today", "earlier", "again", "later"})
+# The words that start a new clause, so the next word can be an imperative:
+# "In lines 3 and 4, replace", "so drop it".
+_BREAKS = frozenset({",", ";", "and", "or", "so", "then", "but", "please"})
+# The auxiliaries, the copulas and the modals. These are a closed class of
+# the grammar, not a list of fault verbs.
+_AUX = re.compile(
+    r"(?:is|are|was|were|be|been|am|has|have|had|does|do|did|should|must|"
+    r"needs?|can|could|would|will|may|might|shall|cannot|"
+    r"(?:is|are|was|were|has|have|does|do|did|should|must|need|ca|could|"
+    r"would|wo)n['’]t)", re.I)
+# A verb before the reference that points at it and asks nothing: "see
+# line 3". "keep line 3" agrees with the line.
+_POINTING = frozenset({"see", "cf", "compare"})
+_KEEPING = frozenset({"keep", "approve", "accept"})
+# A reference in a reason clause describes the line and asks nothing of it.
+# Night 140's m142: "so please remove it, since line 1 now says the flag is
+# off by default". Such a clause keeps the fault words of the old reader.
+_SUBORDINATE = frozenset({"since", "because", "as", "while", "whereas", "if",
+                          "when", "although", "though", "unless"})
+_PREPOSITIONS = frozenset("""
+    of in on at for from with by about into onto over under between than
+    after before above below near beside per via within against among
+    across around
+    """.split())
+_TOKEN = re.compile(r"[A-Za-z][\w'’-]*|\d+|[,;()\"“”`]")
+# An instruction that opens with "do not" asks for no change: "but do not
+# drop it" keeps the line (frame 305, review 1, finding 2).
+# At the start of the clause after a reference, "never" describes the line:
+# night 151's m177, "Lines 2 and 3 never turn the flag on".
+_KEEP_ORDER = re.compile(
+    r"(^|[,;]|\b(?:and|but|so|or|then|please)\b)\s*(?:please\s+)?"
+    r"(?:do\s+not|don['’]t)\s+[\w'’]+"
+    r"|([,;]|\b(?:and|but|so|or|then|please)\b)\s*(?:please\s+)?never\s+[\w'’]+",
+    re.I)
+
+
+def _content(tok: str) -> bool:
+    """True when `tok` is a word outside the closed classes of `_NO_VERB`."""
+    low = tok.lower()
+    return (tok[0].isalpha() and low not in _NO_VERB and not _AUX.fullmatch(tok)
+            and not low.endswith("ly"))
+
+
+# The words that start the object of a verb: determiners, prepositions and
+# object pronouns. A conjunction or an adverb starts no object, so in "Fix
+# the line 7 check so it compares" the noun "check" is no verb.
+_OBJECT_WORDS = frozenset("""
+    a an the this that these those its their his her my our your one
+    of in on at to for from with by as about like into onto over under
+    between than through after before above below near beside per via
+    within without against among across around up down out off back
+    all any some no each every both what how me us him them it
+    line lines note notes
+    """.split())
+
+
+def _object_start(tok: str | None) -> bool:
+    """True when `tok` can start the object of a verb before it."""
+    return tok is not None and (tok[0] in "\"“`(" or tok.isdigit()
+                                or tok.lower() in _OBJECT_WORDS)
+
+
+def _clause_verb(text: str, noun_phrase: bool = False
+                 ) -> tuple[str | None, bool]:
+    """The first verb-like token of the clause `text`, and whether it leads.
+
+    The shape decides, not a verb list. A verb-like token is an auxiliary,
+    a word after the reference or a subject pronoun that ends in "s" or "ed"
+    or takes an object, or a word after a clause break that takes an object.
+    A leading verb governs the reference: "Line 7 repeats", ", replace".
+    `noun_phrase` says that a determiner stands before the reference, as in
+    "the line 8 check needs", so the first word can be a noun.
+    """
+    # "Line 2's check crashes": the possessive is no verb.
+    noun_phrase = noun_phrase or bool(re.match(r"\s*['’]s\b", text))
+    text = _KEEP_ORDER.sub(lambda m: (m.group(1) or m.group(2) or "") + " ", text)
+    text = re.sub(r"^\s*['’]s\b", " ", text)
+    toks = [t.group(0) for t in _TOKEN.finditer(text)]
+
+    def skip(k: int) -> int:
+        while k < len(toks) and toks[k].lower() in _ADVERBS:
+            k += 1
+        return k
+
+    def verb_at(k: int, need_object: bool) -> str | None:
+        k = skip(k)
+        if k >= len(toks) or not _content(toks[k]):
+            return None
+        # "delete only the last sentence": an adverb can stand before the
+        # object.
+        after = skip(k + 1)
+        nxt = toks[after] if after < len(toks) else None
+        low = toks[k].lower()
+        if _object_start(nxt) or (not need_object and low.endswith(("s", "ed"))):
+            return toks[k]
+        return None
+
+    if toks and toks[0] not in (",", ";"):
+        # The reference can sit in a noun phrase, as in "Line 2's check
+        # crashes" or "the line 8 check needs", so the verb can come second.
+        lead = verb_at(0, False)
+        first = skip(0)
+        if not lead and first < len(toks) and _content(toks[first]):
+            # With no determiner before it, the reference is the subject,
+            # so its first word is the verb: "Lines 2 through 7 still say".
+            lead = (verb_at(first + 1, False) if noun_phrase
+                    else toks[first])
+        if lead:
+            return lead, True
+    elif toks:
+        lead = verb_at(1, True)
+        if lead:
+            return lead, True
+    for k, tok in enumerate(toks):
+        if _AUX.fullmatch(tok):
+            # The cue is the verb phrase, so a refusal reads "are off" or
+            # "can be checked" and not a bare auxiliary.
+            phrase = [tok]
+            for nxt in toks[k + 1:k + 3]:
+                if not nxt[0].isalpha() or nxt.lower() in _NO_VERB:
+                    break
+                phrase.append(nxt)
+            return " ".join(phrase), False
+        low = tok.lower()
+        if low in _BREAKS or low in _SUBJECTS:
+            found = verb_at(k + 1, low not in _SUBJECTS)
+            if found:
+                return found, False
+    return None, False
+
+
+def _head_verb(head: str) -> tuple[str | None, str]:
+    """The word directly before a reference, and what it does to the line.
+
+    The second item is "fault", "keep", "none", "reason" or "". "Drop line
+    3" faults line 3, "keep line 3" keeps it, and "do not change line 3" and
+    "see line 3" take no direction. "since line 1 now says" is a reason.
+    """
+    toks = [t.group(0) for t in _TOKEN.finditer(head)]
+    breaks = [k for k, t in enumerate(toks) if t in (",", ";", "(")]
+    clause = toks[breaks[-1] + 1 if breaks else 0:]
+    if clause and clause[0].lower() in _SUBORDINATE:
+        return None, "reason"
+    # The object of a relating verb with no line as its subject. Night
+    # 144's m19: "Each of them either repeats line 1 or pastes a README
+    # sentence". The fault belongs to "them", not to line 1.
+    if _RELATES_NEXT.search(head):
+        return None, "none"
+    # A line in an object phrase is a modifier, as in night 145's m11, "it
+    # just repeats the summary from line 1 and calls it a quote". The verb
+    # after it belongs to the subject before it.
+    if (clause and clause[-1].lower() in _PREPOSITIONS
+            and _clause_verb(" ".join(clause[:-1]))[0] is not None):
+        return None, "reason"
+    if not toks or not head.rstrip() or not head.rstrip()[-1].isalpha():
+        return None, ""
+    # "remove only line 8", "Fix the line 7 check": the verb governs over an
+    # adverb and one determiner.
+    k = len(toks) - 1
+    if k > 0 and toks[k].lower() in ("the", "this", "that", "these", "those"):
+        k -= 1
+    while k > 0 and toks[k].lower() in _ADVERBS:
+        k -= 1
+    tok, toks = toks[k], toks[:k + 1]
+    low = tok.lower()
+    # A verb stands at the start of its clause, after "please", a subject
+    # or an auxiliary. In night 143's m76, "Line 8 asks something line 1
+    # already answers", the noun "something" governs nothing.
+    prev = toks[-2] if len(toks) > 1 else None
+    if prev is not None and not (
+            prev.lower() in _BREAKS or prev.lower() in _SUBJECTS
+            or prev.lower() in _ADVERBS or _AUX.fullmatch(prev) or prev == "("
+            or prev.lower() in ("not", "never", "to")):
+        return None, ""
+    if low in _POINTING:
+        return None, "none"
+    if not _content(tok) and low not in _KEEPING:
+        return None, ""
+    if any(w.lower() in ("not", "never") or w.lower().endswith(("n't", "n’t"))
+           for w in toks[-3:-1]):
+        return None, "none"
+    return tok, "keep" if low in _KEEPING else "fault"
+
+
+def _agreement(window: str, before_ref: bool = False
+               ) -> tuple[bool, str | None]:
+    """Whether `window` opens with an agreement, and the cue that faults it.
+
+    The agreement must stand within two words of the reference, after no
+    "please". A negation before it faults the line: "doesn't match" (frame
+    234, review 1, finding 4). A contrast after it with words faults the
+    line. Otherwise a later word of the clause, such as "should", leaves the
+    agreement as it is (night 159's m185, frame 305, pass 2).
+    """
+    m = _AGREEMENT.search(window)
+    if m is None:
+        return False, None
+    before = window[:m.start()].split()
+    if len(before) > 2 or any(w.lower() == "please" for w in before):
+        return False, None
+    if any(w.lower() in ("not", "never") or w.lower().endswith(("n't", "n’t"))
+           for w in before[-2:]):
+        return True, " ".join(window[:m.end()].split()[-2:])
+    return True, _contrast_cue(window, m.end(), before_ref)
+
+
+def _contrast_cue(window: str, start: int, before_ref: bool) -> str | None:
+    """The cue of a correction after a contrast in `window`, or None.
+
+    `before_ref` says that a reference follows `window`. The words directly
+    before that reference govern it and not this line. Night 159's m212:
+    "Lines 1, 2 and 4 are fine as they are, but please rewrite line 3".
+    """
+    turn = _CONTRAST.search(window, start)
+    if turn is None:
+        return None
+    tail = window[turn.end():]
+    toks = [t.group(0) for t in _TOKEN.finditer(tail)]
+    if before_ref and tail.rstrip()[-1:].isalpha():
+        while toks and toks[-1].lower() in _ADVERBS | {
+                "the", "this", "that", "these", "those"}:
+            toks.pop()
+        if toks and _content(toks[-1]):
+            toks.pop()
+        while toks and (toks[-1].lower() in _ADVERBS | _BREAKS):
+            toks.pop()
+    if not any(_content(t) for t in toks):
+        return None
+    tail = " ".join(toks)
+    found = [c.group(0) for c in _live_cues(tail)]
+    strong = [c for c in found if c.lower() not in _WEAK_CUES]
+    verb, _lead = _clause_verb(tail)
+    cues = strong + ([verb] if verb else []) + found + [turn.group(0)]
+    return cues[0]
+
+
 def _line_cues(words: str, size: int | None = None
                ) -> tuple[dict[int, tuple[str, str]], set[int]]:
     """`_line_reading`, with the fault cue and the clause of each faulted line.
@@ -9708,41 +10003,47 @@ def _line_cues(words: str, size: int | None = None
                 subject[i + 1] = subject.get(i, i)
         for i, ref in enumerate(refs):
             end = refs[i + 1].start() if i + 1 < len(refs) else len(sentence)
-            if i in subject.values() and i not in subject:
-                # "Drop line 3, because it repeats line 7": a cue directly
-                # before the subject governs it (frame 305).
-                head = sentence[refs[i - 1].end() if i else 0:ref.start()]
-                head = head.rstrip()
-                pre = [m.group(0) for m in _live_cues(head)
-                       if m.end() == len(head)
-                       and m.group(0).lower() not in _WEAK_CUES]
-                for n in _ref_lines(ref, size) if pre else ():
-                    faulted.setdefault(n, (pre[0], sentence[ref.end():end]))
             window = sentence[ref.end():end]
-            fault, match = _LINE_FAULT.search(window), _LINE_MATCH.search(window)
-            # "match" is also a request: s159's "please match each one to
-            # code" faulted lines 2 to 5 (frame 193's M63). A matched cue
-            # counts only when it follows the reference within two words.
-            if match is not None and len(window[:match.start()].split()) > 2:
-                match = None
-            # "doesn't match" is a fault (frame 234, review 1, finding 4).
-            cue = None
-            if match is not None and any(
-                    w.lower() in ("not", "never") or w.lower().endswith("n't")
-                    for w in window[:match.start()].split()[-2:]):
-                fault, match = match, None
-                cue = " ".join(window[:fault.end()].split()[-2:])
-            found = []
-            if cue is None and fault is not None:
+            if i + 1 in subject:
+                # The relating verb asks nothing of either line. "Line 7
+                # repeats line 3, but do not drop it" faults nothing.
+                window = window[:_RELATES_NEXT.search(window).start()]
+            # A verb directly before the reference governs it: "delete line
+            # 7", "Drop line 3, because it repeats line 7" (frame 305). The
+            # object of a relating verb has the relating verb there.
+            head_verb, head = (None, "") if i in subject else _head_verb(
+                sentence[refs[i - 1].end() if i else 0:ref.start()])
+            if head == "none":
+                continue
+            if sentence.rstrip().endswith("?"):
+                # A question asks and does not instruct: night 149's m57,
+                # "And what does line 3 mean by "assumes name"?". It keeps
+                # the fault words of the old reader.
+                head_verb, head = None, "reason"
+            agrees, cue = _agreement(window, i + 1 < len(refs))
+            if head == "keep" and not agrees:
+                # Night 158's m89: "Keep line 4, but fix its check".
+                cue = _contrast_cue(window, 0, i + 1 < len(refs))
+            if (agrees or head == "keep") and cue is None:
+                matched |= _ref_lines(ref, size)
+                continue
+            if cue is None:
+                before = sentence[refs[i - 1].end() if i else 0:ref.start()]
+                verb, lead = ((None, False) if head == "reason"
+                              else _clause_verb(window, bool(re.search(
+                                  r"\b(?:the|a|an|its|this|that)\s*$",
+                                  before, re.I))))
                 found = [m.group(0) for m in _live_cues(window)]
-                fault = fault if found else None
-            if fault is not None:
-                # A fault anywhere in the clause wins. Night 143's m339:
-                # "Line 2's text is right now, but its check still passes"
-                # (frame 234, review 1, finding 3).
-                if cue is None:
-                    strong = [c for c in found if c.lower() not in _WEAK_CUES]
-                    cue = (strong or found)[0]
+                strong = [c for c in found if c.lower() not in _WEAK_CUES]
+                # The cue names the verb that governs the line, so the
+                # refusal of frame 250's door shows the seat its words.
+                for c in (head_verb, verb if lead else None,
+                          strong[0] if strong else None, verb,
+                          found[0] if found else None):
+                    if c:
+                        cue = c
+                        break
+            if cue is not None:
                 targets, clause = [ref], window
                 if i in subject:
                     # The object of a relating verb takes no fault. Night
@@ -9755,8 +10056,6 @@ def _line_cues(words: str, size: int | None = None
                     clause = sentence[targets[0].end():end]
                 for n in {n for t in targets for n in _ref_lines(t, size)}:
                     faulted.setdefault(n, (cue, clause))
-            elif match is not None:
-                matched |= _ref_lines(ref, size)
     return faulted, matched
 
 

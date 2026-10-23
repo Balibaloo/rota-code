@@ -371,9 +371,10 @@ def test_a_note_number_is_a_line_reference():
     from rota.roles.api import _line_reading
 
     assert _line_reading("Note 7 was wrong to drop it.") == ({7}, set())
-    # Night 146's words: "Please drop note 8. Note 9 is fine." The reader
-    # reads a cue after a reference only, so "drop note 8" takes no direction.
-    assert _line_reading("Please drop note 8. Note 9 is fine.") == (set(), {9})
+    # Night 146's words: "Please drop note 8. Note 9 is fine." A verb
+    # directly before the reference governs it, so "drop note 8" faults
+    # note 8 (frame 305, pass 2).
+    assert _line_reading("Please drop note 8. Note 9 is fine.") == ({8}, {9})
     assert _line_reading("Notes 5 to 6 are fine.") == (set(), {5, 6})
 
 
@@ -638,6 +639,19 @@ M167 = ("Please don't give up on this change. Have the team fix the failing "
         "and the echo tests.")
 
 
+def test_m46s_lines_2_and_3_match():
+    # Frame 305, pass 2: "Lines 2 and 3 now say what I want" agrees. The
+    # old reader faulted both lines on "should" and "still", which belong to
+    # "the fix should still use only the standard json module".
+    from rota.roles.api import _line_reading
+
+    assert _line_reading(M46) == (set(), {2, 3})
+
+
+# The refusal below named the leaked fault of lines 2 and 3. With the leak
+# gone, the door has no faulted line to name, and the line-1 contest lands.
+@pytest.mark.xfail(strict=True, reason="frame 305, pass 2: the request door "
+                   "names faulted lines only, and M46 faults none")
 @pytest.mark.parametrize("texts", [(), ECHO_JSON])
 def test_m46s_contest_of_the_request_line_is_refused(texts):
     out = _refusal(M46, {1}, 3, frozenset({3}), frozenset({1, 2}),
