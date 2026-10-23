@@ -1412,6 +1412,68 @@ def _amend_step(id: str, cur_text: str, said: str) -> str:
             f"item and answer with decisions.author")
 
 
+def _principal_cause(ctx: Ctx, row) -> bool:
+    """
+    Whether the wake rests on the principal's words: a statement it names,
+    an entry of his that the trigger refs, or a principal message on the
+    trigger's cause chain. A Liaison relay refs his entry, as `e_m63` on
+    night 155's m67.
+
+    law 6: never a ledger row written on the principal's behalf
+    """
+    if named_statements(ctx):
+        return True
+    # The deliver edge carries the principal's ratified words by its
+    # design. Night 155 holds one deliver with no statement ref.
+    if row is not None and (row["from_role"], row["verb"]) == (
+            "liaison", "deliver"):
+        return True
+    if row is not None:
+        from ..core.db import refs_of
+        for ref in refs_of(row["body_refs"]):
+            if ctx.conn.execute(
+                    "SELECT 1 FROM entries WHERE id = ? AND author = "
+                    "'principal'", (ref,)).fetchone():
+                return True
+    seen: set[str] = set()
+    while row is not None and row["id"] not in seen:
+        if row["from_role"] == "principal":
+            return True
+        seen.add(row["id"])
+        if not row["cause_id"]:
+            break
+        row = ctx.conn.execute(
+            "SELECT id, from_role, cause_id FROM messages WHERE id = ?",
+            (row["cause_id"],)).fetchone()
+    return False
+
+
+def _request_cause_fault(ctx: Ctx, id: str, row, wake: str,
+                         wake_refs: list[str]) -> str:
+    """The refusal of a request item that no principal words caused."""
+    if row is not None:
+        try:
+            refs = [r for r in json.loads(row["body_refs"] or "[]")
+                    if isinstance(r, str)]
+        except (TypeError, ValueError):
+            refs = []
+        cause = f"{row['id']}, a {row['verb']} from the {row['from_role']}"
+    else:
+        refs = list(wake_refs)
+        cause = f"the {wake or 'session'} wake"
+    said = (f"{id} needs the principal's words as its cause, because only the "
+            f"principal asks for work. The cause of this call is {cause}.")
+    # A refusal names only a call the mode offers (frame 135's law).
+    tools = _wake_mode_tools(ctx)
+    ask = next((t for t in ("msg.report_liaison", "msg.submit_liaison")
+                if t in tools), None)
+    if ask is None:
+        return f"{said} End the session with no call on this item"
+    return _offer(
+        ctx, f"{said} Send {ask} with the refs {json.dumps(refs)}, so the "
+        f"Liaison brings it to the principal.", ask, {"refs": refs})
+
+
 def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     """
     The refusal for an assert that puts the seat's words on the principal's
@@ -1431,8 +1493,8 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     wake = getattr(ctx, "wake_kind", "") or ""
     trigger = getattr(ctx, "trigger", None)
     row = ctx.conn.execute(
-        "SELECT verb, cause_id, body_refs FROM messages WHERE id = ?",
-        (trigger,)).fetchone() if trigger else None
+        "SELECT id, from_role, verb, cause_id, body_refs FROM messages "
+        "WHERE id = ?", (trigger,)).fetchone() if trigger else None
     verb = row["verb"] if row else None
     cur = ctx.conn.execute("SELECT text, kind FROM items WHERE id = ?",
                            (id,)).fetchone()
@@ -1462,6 +1524,16 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
                 ctx, f"{id} is not an item. A challenge creates no request, "
                 f"because only the principal asks for work. {route}",
                 "decisions.author", {"id": INVENT, "text": INVENT, "refs": refs})
+        # Frame 303: night 157's s205, on a textless propose, asserted
+        # bg_1_item, and the page showed the team's row under "You asked".
+        # Law 6: never a ledger row written on the principal's behalf.
+        # A wake with no cause on record keeps today's behaviour: a sandbox
+        # built with no wake, or a message wake whose row is not on file.
+        on_record = row is not None or (wake and wake != "message")
+        if on_record and kind == "in_scope" \
+                and id != "how_it_works" \
+                and not _principal_cause(ctx, row):
+            return _request_cause_fault(ctx, id, row, wake, wake_refs)
         return None
     decided = ctx.conn.execute(
         "SELECT 1 FROM item_provenance WHERE id = ? AND provenance = 'decided'",

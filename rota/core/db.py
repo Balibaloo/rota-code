@@ -680,12 +680,11 @@ RECEIPT_RULES = {
     # `developer/challenge.md`: "You have no message back to Critic" (review
     # of 8d090e2e, finding 1).
     ("critic", "developer", "challenge"): "none",
-    # `vision_keeper/propose.md`: assert the proposal as an item, and both
-    # are answers (review of pass 2c, finding 1).
-    # Any `items` write in the session counts, also one unrelated to the
-    # proposal, because the brief's item cites no proposal row (second look
-    # of pass 2d, 2026-10-11; 0 proposals on nights 138 and 139).
-    ("architect", "vision_keeper", "propose"): "items",
+    # The proposal has no entry. `vision_keeper/propose.md` answers it with
+    # msg.report_liaison with the refs, a message caused by the proposal, or
+    # with a refusing decision on its refs. The default rules count both. An
+    # `items` write is no answer, because only the principal asks for work
+    # (frame 303, night 157's s205).
     # The escalate brief: "model.amend, and say so with msg.answer_developer".
     # An amend with no answer is night 127's m72 shape (review of pass 2c,
     # finding 2).

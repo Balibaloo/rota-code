@@ -2435,19 +2435,17 @@ def test_a_decision_that_cites_another_message_answers_that_one_only(db):
 
 # The review of pass 2c, findings 1 and 2 (2026-10-11), probes `r1b.py`, `r2.py`.
 
-def test_an_item_the_vision_keeper_asserts_answers_the_proposal(db):
-    """Finding 1: `vision_keeper/propose.md` says to assert the proposal as an
-    item, and both are answers. The new item cites no row of the proposal,
-    so the stamp counts an `items` write as the receipt on this edge."""
+def test_an_item_the_vision_keeper_asserts_does_not_answer_the_proposal(db):
+    """Frame 303 reverses finding 1: `vision_keeper/propose.md` now answers
+    the proposal with msg.report_liaison, because only the principal asks
+    for work. A new item that cites no row of the proposal is no receipt."""
     from rota.core.db import Write
-    from rota.core.predicates import unresolved
 
     _owed(db, "m9", "propose", "architect", "vision_keeper", ["k_1", "f_1"])
     _commit(db, "s9", "vision_keeper", "m9", writes=[Write(
         "items", "i_new", {"text": "split the seam", "kind": "in_scope",
                            "approval": "draft"})])
-    assert _status(db, "m9") == ("answered", None)
-    assert not [w for w in unresolved(db) if "m9" in (w.refs or ())]
+    assert _status(db, "m9") == ("unresolved", UNRECEIVED)
 
 
 def test_an_amend_with_no_answer_leaves_the_escalation_owed(db):
