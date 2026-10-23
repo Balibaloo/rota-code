@@ -5570,6 +5570,26 @@ def _surface_move_fault(text: str, was: list, surface: list,
     return f"{out} {ask}" if ask else out
 
 
+def _tester_answer_open(ctx: Ctx) -> bool:
+    """True while the one-answer door of `_bind_send` admits an answer to
+    the Tester in this session. The door and this test read one predicate."""
+    from ..core.sandbox import _sent_this_session
+
+    return not _sent_this_session(ctx, "tester", "answer")
+
+
+def _closed_answer_note(ctx: Ctx, id: str) -> str:
+    """What a refusal says in place of the answer route, once the session
+    has sent its one answer to the Tester (frame 308)."""
+    carried = any(id in (m.get("body_refs") or ())
+                  for m in ctx.outbound or ()
+                  if m["to_role"] == "tester" and m["verb"] == "answer")
+    if carried:
+        return "Your answer to the Tester carries this criterion."
+    return ("Your one answer to the Tester is sent, and the answer is closed "
+            "in this session.")
+
+
 @op("criteria", "respecify")
 def criteria_respecify(ctx: Ctx, id: str, text: str,
                        term_refs: list[str] | None = None,
@@ -5604,6 +5624,11 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         tests = [r for r, v in verdict.items() if v in ("contest", "revise")
                  and ctx.conn.execute("SELECT 1 FROM tests WHERE id = ? AND "
                                       "criterion_id = ?", (r, id)).fetchone()]
+        if tests and not _tester_answer_open(ctx):
+            raise ValueError(
+                f"the principal approved {id} and ruled its test "
+                f"{', '.join(tests)}. Keep the words. "
+                f"{_closed_answer_note(ctx, id)} Your work here is done")
         if tests:
             raise ValueError(_offer(
                 ctx, f"the principal approved {id} and ruled its test "
@@ -5702,8 +5727,20 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # said "Line 2 should say" and was told that the criterion stands.
         route = ("Send his words about the check to the Tester with "
                  "msg.answer_tester, with this criterion in refs")
+        # The one-answer door of `_bind_send` refuses a second answer. So
+        # the route names the call only while that door admits it (frame
+        # 308, night 158's s220, turn 5).
+        closed = not _tester_answer_open(ctx)
+        if closed:
+            route = _closed_answer_note(ctx, id).rstrip(".")
         if (_CHECK_FAULT.search(contested["words"])
                 and not _WORDS_FAULT.search(contested["words"])):
+            if closed:
+                raise ValueError(
+                    f"the principal faulted the check and not these words: "
+                    f"{contested['words']!r}. The criterion stands. {route}. "
+                    f"If his words also contradict this criterion's text, "
+                    f"rewrite the text. If not, your work here is done")
             raise ValueError(
                 f"the principal faulted the check and not these words: "
                 f"{contested['words']!r}. The criterion stands. {route}. "

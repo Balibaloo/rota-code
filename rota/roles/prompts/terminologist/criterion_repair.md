@@ -24,9 +24,8 @@ their next encode meets the new words.
 page, and ruled. The principal's words are the note. For each criterion with
 contest or revise, rewrite it with `criteria.respecify` to say what the words
 say. Write the criterion in the principal's words. Do not send the sentence he
-contested. Keep the other words of the criterion. When the change has a commit, send
-`msg.answer_tester` with the criterion in `refs`, so the Tester encodes the
-new words. Before the commit, the Tester has no test of it yet, so stop after
+contested. Keep the other words of the criterion. When the change has a commit, send one
+`msg.answer_tester` with every contested or revised criterion in `refs`. Before the commit, the Tester has no test of it yet, so stop after
 the rewrite.
 
 **A ruling on a test.** When the message holds `principal_test_verdict`, the

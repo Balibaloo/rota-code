@@ -754,6 +754,8 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
             attr = f"{_verb_to_attr(verb)}_{recipient}"
             fns[attr] = _bind_send(ctx, recipient, verb, f"msg.{attr}", prose,
                                    reason_row)
+            if role == "terminologist" and recipient == "tester" and verb == "answer":
+                fns[attr] = _ruling_answer_door(ctx, f"msg.{attr}", fns[attr])
             names.append(attr)
         grouped["msg"] = fns
         available["msg"] = names
@@ -1498,6 +1500,73 @@ def _sent_this_session(ctx: api.Ctx, recipient: str, verb: str) -> bool:
     return any(m["to_role"] == recipient and m["verb"] == verb
                and m.get("route") != "triage"
                for m in ctx.outbound)
+
+
+def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
+    """
+    The refusal of the Terminologist's first answer to the Tester under a
+    ruling relay, when the answer's refs omit a criterion that the ruling
+    marks `contest` or `revise`. None when the door has nothing to say.
+
+    Frame 308, night 158's s220: the ruling marked cr_2 `revise` and cr_3
+    `contest`. s220 answered with cr_3 alone, and the one-answer door then
+    closed every later answer, so cr_2's fix reached no seat. The one-answer
+    rule of 2026-08-14 stays: a role says two things to one role in one
+    message's refs. So the door speaks at the first answer.
+    """
+    if ctx.role != "terminologist" or not isinstance(refs, list):
+        return None
+    if _sent_this_session(ctx, "tester", "answer"):
+        return None
+    relay = api._principal_relay(ctx)
+    if relay is None:
+        return None
+    relay_refs, verdict = relay
+    ruled = [r for r in relay_refs if verdict.get(r) in ("contest", "revise")
+             and ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
+                                  (r,)).fetchone()]
+    given = [r for r in refs if isinstance(r, str)]
+    missing = [r for r in ruled if r not in given]
+    if not missing:
+        return None
+    full = given + missing
+    # A refusal names a call only where the doors admit that call (frame 135).
+    # The park door of `_bind_send` refuses an answer on criteria that no
+    # change with a commit is built from, so this door then stays silent.
+    from .scheduler import park_criterion_relay
+
+    if park_criterion_relay(ctx.conn, getattr(ctx, "trigger", None)) and not any(
+            ctx.conn.execute(
+                "SELECT 1 FROM criteria c JOIN batch_tickets bt "
+                "ON bt.ticket_id = c.ticket_id JOIN batches b ON b.id = bt.batch_id "
+                "WHERE c.id = ? AND b.status NOT IN ('merged', 'abandoned') "
+                "AND b.head_commit IS NOT NULL AND b.head_commit != ''",
+                (r,)).fetchone() for r in full):
+        return None
+    ids = ", ".join(missing)
+    return api._offer(
+        ctx, f"Your answer leaves out {ids}. The principal's ruling in the "
+        f"relay names {ids} too. Send one msg.answer_tester with every ruled "
+        f"criterion in refs: {full!r}",
+        "msg.answer_tester", {"refs": full})
+
+
+def _ruling_answer_door(ctx: api.Ctx, label: str, send: Callable) -> Callable:
+    """Put `_ruling_answer_refusal` in front of the Terminologist's answer to
+    the Tester. `_bind_send` stays as it is (frame 308, point 4)."""
+    import functools
+
+    @functools.wraps(send)
+    def door(refs, *args, **kwargs):
+        said = _ruling_answer_refusal(ctx, refs)
+        if said:
+            # Logged as `stage` logs a send before its guards: the register
+            # subtracts the refused count from the log.
+            _CALL_LOG.setdefault(id(ctx), []).append((label, f"refs={refs or []}"))
+            raise ValueError(said)
+        return send(refs, *args, **kwargs)
+
+    return door
 
 
 def _escalation_admitted(ctx: api.Ctx, refs) -> bool:

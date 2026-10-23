@@ -1,0 +1,208 @@
+"""Frame 308: the Terminologist's answer to a ruling relay carries every
+ruled criterion.
+
+Night 158 (`plans/frame304-s220-read.md`, sections 1 to 3). The principal's
+ruling r_ce163d8060 marked cr_2 `revise` and cr_3 `contest`. The relay m101
+woke s220 in mode `criterion_repair` with both. s220 answered with cr_3 alone
+in turn 1, and the one-answer door of 2026-08-14 then refused every later
+answer. cr_2's fix reached no seat. The rows below are the night's, copied
+from `.rota/clickI_night158.db` on 2026-10-23, so the tests run in a checkout
+without the run's database.
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from rota.core.db import init_db
+from rota.core.sandbox import build
+from rota.roles import prompts
+
+ITEM = "confirm_default_on_eof"
+TICKET = "tk_1_confirm_default_on_eof"
+CR1 = "cr_1_confirm_default_on_eof"
+CR2 = "cr_2_confirm_default_on_eof"
+CR3 = "cr_3_confirm_default_on_eof"
+CONFIRM = "src/click/termui.py::confirm"
+
+CR1_TEXT = ("confirm() has an optional default_on_eof argument that defaults to "
+            "False. When True and stdin is closed, confirm() returns the "
+            "provided default value instead of raising Abort.")
+CR2_TEXT = ("When confirm() is called with default_on_eof=True and stdin is "
+            "closed, it must attempt to read from stdin; if that read hits end "
+            "of file, it returns the provided default value instead of raising "
+            "an exception.")
+CR3_TEXT = ("When confirm() returns the default value due to closed stdin "
+            "(after attempting to read), it must not emit any prompt or error "
+            "message to stdout.")
+# m98, the principal's words of r_ce163d8060.
+WORDS = ("Lines 1, 2, 3 and 6 to 8 are fine as written. Keep line 4, but fix "
+         "its check so it fakes a closed input properly, because the failure "
+         "comes from a broken test stub and not from the behaviour. Drop line "
+         "5, because I never asked for the prompt to be hidden, so the prompt "
+         "can show as usual before it falls back to the default.")
+# `config` key `verdict:m99`.
+VERDICT = {CR2: "revise", CR3: "contest", "command#root": "approve",
+           "option#root": "approve", "parameter#root": "approve"}
+PER_ITEM = {ITEM: "approve", f"guess:{ITEM}": "approve", CR1: "approve",
+            CR2: "revise", CR3: "contest", "command#root": "approve",
+            "option#root": "approve", "parameter#root": "approve"}
+
+ROUTE = "Send one msg.answer_tester with every ruled criterion in refs"
+ONE_ANSWER = "you have already sent answer to tester"
+
+
+@pytest.fixture
+def db(tmp_path):
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES (?, 'let confirm() take a default_on_eof "
+                 "flag', 'in_scope', 'approved', 1, 1)", (ITEM,))
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES (?, ?, "
+                 "'let confirm() take a default_on_eof flag: when stdin is "
+                 "closed it returns the default instead of aborting')",
+                 (TICKET, ITEM))
+    for cid, text, ver in ((CR1, CR1_TEXT, 3), (CR2, CR2_TEXT, 2),
+                           (CR3, CR3_TEXT, 4)):
+        conn.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs, "
+                     "version) VALUES (?, ?, ?, ?, ?)",
+                     (cid, TICKET, text, json.dumps([CONFIRM]), ver))
+    conn.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES "
+                 "(?, 'symbol', 'function')", (CONFIRM,))
+    # bg_2 had its code at f791bcbf when s220 woke.
+    conn.execute("INSERT INTO batches (id, item_id, head_commit, status) "
+                 "VALUES ('bg_2', ?, 'f791bcbf', 'running')", (ITEM,))
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+                 "('bg_2', ?)", (TICKET,))
+    conn.commit()
+    return conn
+
+
+def _message(conn, mid, cause, sender, to, verb, refs, seq, text=None):
+    conn.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                 "to_role, verb, body_refs, body_text, seq) VALUES "
+                 "(?, ?, 'm89', ?, ?, ?, ?, ?, ?)",
+                 (mid, cause, sender, to, verb, json.dumps(refs), text, seq))
+
+
+def _night158_relay(conn) -> None:
+    """The page m89, the reply m98, the verdict m99, the ruling, the relay m101."""
+    _message(conn, "m89", None, "liaison", "principal", "present",
+             [ITEM, CR1, CR2, CR3], 90)
+    _message(conn, "m98", "m89", "principal", "liaison", "converse",
+             [ITEM, CR1, CR2, CR3], 102, WORDS)
+    _message(conn, "m99", "m89", "principal", "liaison", "verdict",
+             [CR2, CR3, "command#root", "option#root", "parameter#root"], 103)
+    _message(conn, "m101", "m99", "liaison", "terminologist", "relay",
+             [CR2, CR3], 105)
+    conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m99', ?)",
+                 (json.dumps(VERDICT),))
+    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+                 "status, verdict_id, texts) VALUES ('r_ce163d8060', 'm89', "
+                 "'m98', ?, ?, 'landed', 'm99', ?)",
+                 (json.dumps(PER_ITEM), WORDS,
+                  json.dumps({CR2: CR2_TEXT, CR3: CR3_TEXT})))
+    conn.commit()
+
+
+def _s220(conn, trigger="m101"):
+    sb = build("terminologist", conn, mode="criterion_repair",
+               session_id="s220",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    sb.ctx.trigger = trigger
+    sb.ctx.wake_kind = "message"
+    return sb
+
+
+def _answers(sb):
+    return [m for m in sb.ctx.outbound
+            if m["to_role"] == "tester" and m["verb"] == "answer"]
+
+
+def test_s220_turn_1_answer_with_cr_3_alone_is_refused(db):
+    """s220's turn 1, tool call seq 11: refs cr_3 alone. The ruling marks
+    cr_2 `revise` too."""
+    _night158_relay(db)
+    sb = _s220(db)
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.answer_tester", refs=[CR3], round_no=0)
+    said = str(refused.value)
+    assert CR2 in said, said
+    assert "ruling" in said, said
+    assert ROUTE in said, said
+    assert not _answers(sb)
+    [offer] = [o for o in sb.ctx.offers if o.op == "msg.answer_tester"]
+    assert sorted(offer.args["refs"]) == sorted([CR2, CR3])
+    for sentence in said.split(". "):
+        assert len(sentence.split()) <= 20, sentence
+
+
+def test_the_same_answer_with_cr_2_and_cr_3_lands(db):
+    _night158_relay(db)
+    sb = _s220(db)
+    out = sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
+    assert out["to"] == "tester" and out["verb"] == "answer", out
+    [sent] = _answers(sb)
+    assert sorted(sent["body_refs"]) == sorted([CR2, CR3])
+
+
+def test_a_session_with_no_ruling_relay_answers_one_criterion_as_today(db):
+    """A Tester's question woke the session, and no ruling is on its chain."""
+    _message(db, "m50", None, "tester", "terminologist", "question", [CR2], 50)
+    db.commit()
+    sb = _s220(db, trigger="m50")
+    out = sb.call("msg.answer_tester", refs=[CR3], round_no=0)
+    assert out["to"] == "tester", out
+    assert len(_answers(sb)) == 1
+
+
+def test_a_second_answer_after_the_first_lands_meets_the_one_answer_door(db):
+    _night158_relay(db)
+    sb = _s220(db)
+    sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.answer_tester", refs=[CR3], round_no=0)
+    assert ONE_ANSWER in str(refused.value)
+    assert len(_answers(sb)) == 1
+
+
+def _respecify_cr2(sb):
+    """s220's turn 4 call, tool call seq 16: cr_2 with its own words."""
+    with pytest.raises(ValueError) as refused:
+        sb.call("criteria.respecify", id=CR2, text=CR2_TEXT,
+                term_refs=["default_on_eof"], surface_refs=[CONFIRM])
+    return str(refused.value)
+
+
+def test_the_cr_2_refusal_before_the_answer_names_the_answer_route(db):
+    """The door is open, so the text stays as night 158 showed it."""
+    _night158_relay(db)
+    said = _respecify_cr2(_s220(db))
+    assert "faulted the check" in said, said
+    assert ("Send his words about the check to the Tester with "
+            "msg.answer_tester, with this criterion in refs") in said, said
+
+
+def test_the_cr_2_refusal_after_the_answer_landed_names_no_refused_call(db):
+    _night158_relay(db)
+    sb = _s220(db)
+    sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
+    said = _respecify_cr2(sb)
+    assert "faulted the check" in said, said
+    assert "msg.answer_tester" not in said, said
+    assert "carries this criterion" in said, said
+
+
+def test_the_cr_2_refusal_after_an_answer_without_it_says_the_answer_is_closed(db):
+    """A wake whose chain holds the ruling, with no relay: the first-answer
+    door does not apply, so an answer can leave cr_2 out."""
+    _night158_relay(db)
+    _message(db, "m120", "m99", "tester", "terminologist", "question", [CR3],
+             120)
+    db.commit()
+    sb = _s220(db, trigger="m120")
+    sb.call("msg.answer_tester", refs=[CR3], round_no=0)
+    said = _respecify_cr2(sb)
+    assert "msg.answer_tester" not in said, said
+    assert "closed" in said, said
