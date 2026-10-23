@@ -1132,6 +1132,27 @@ def _rowless_answer_refusal(ctx: api.Ctx, refs) -> str | None:
             "msg.answer_developer with the decision's id in refs.")
 
 
+def _arrange_fault_of(ctx: api.Ctx, ref: str, output: str) -> dict | None:
+    """`runner.arrange_fault` on a stored test's red run, or None."""
+    import json as _json
+
+    from .runner import arrange_fault
+    row = ctx.conn.execute(
+        "SELECT t.body, t.path, c.text, c.surface_refs, b.worktree "
+        "FROM tests t LEFT JOIN criteria c ON c.id = t.criterion_id "
+        "LEFT JOIN batches b ON b.id = t.batch_id WHERE t.id = ?",
+        (ref,)).fetchone()
+    if row is None:
+        return None
+    try:
+        refs = _json.loads(row["surface_refs"] or "[]")
+    except ValueError:
+        refs = []
+    surface = {str(s).rsplit("::", 1)[-1] for s in refs}
+    return arrange_fault(row["body"] or "", row["path"] or "", output,
+                         surface, row["text"] or "", row["worktree"] or "")
+
+
 def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
     """The refusal of a challenge whose quote misses the line a red test
     fails at, or None when the quote holds that line or no run names one.
@@ -1140,7 +1161,9 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
     body, else the test's first `assert` line. The run's first `E` line counts as the same line.
     Night 142's m83 quoted the `expected` line of inh_echo_04 and left out
     the `.strip()` that made it red. The Vision Keeper s185 then wrote a
-    false decision from the quote (frame 213).
+    false decision from the quote (frame 213). A run that fails in the
+    test's own arrange step also admits a quote of the raising line, the
+    stub's line or its error, whatever the refs count (frame 304).
     """
     for ref in refs or []:
         if not isinstance(ref, str):
@@ -1169,6 +1192,13 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
         if not line and not said:
             continue
         if any(_quotes_span(s, text) for s in (line, said) if s):
+            continue
+        # Frame 304, night 159: s185 quoted the `FakeStdin` stub and the
+        # call that read it, and this door wanted the assert line. A run
+        # that fails in the test's own arrange step fails at that line.
+        fault = _arrange_fault_of(ctx, ref, run["output"] or "")
+        if fault and any(_quotes_span(s, text) for s in
+                         (fault["quote"], fault["error"]) if s):
             continue
         named = " or ".join(f"`{s}`" for s in (line, said) if s)
         return (f"{ref} is red, and its run names the line it fails at: {named}. "

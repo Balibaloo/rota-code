@@ -2736,34 +2736,12 @@ def _arrange_raise_tail(conn: sqlite3.Connection, test: Any,
     row = conn.execute(
         "SELECT b.worktree FROM batches b JOIN tests t ON t.batch_id = b.id "
         "WHERE t.id = ?", (test["id"],)).fetchone()
-    root = ((row["worktree"] if row else None) or "").replace("\\", "/")
-    root = posixpath.normpath(root).lower() if root else ""
-
-    def _source(where: str) -> bool:
-        # Review 1, F1: with the worktree and Python on one drive, pytest
-        # prints a library frame as `..\..\Python\...`. The path resolves
-        # against the worktree, and a path that leaves it is outside.
-        if re.match(r"^([A-Za-z]:/|/)", where):
-            full = posixpath.normpath(where).lower()
-        elif root:
-            full = posixpath.normpath(root + "/" + where).lower()
-        else:
-            full = posixpath.normpath(where).lower()
-            if full == ".." or full.startswith("../"):
-                return False
-            return not any(p in ("site-packages", ".venv", "venv")
-                           for p in full.split("/"))
-        if root and not full.startswith(root + "/"):
-            return False
-        rel = full[len(root) + 1:] if root else full
-        return not any(p in ("site-packages", ".venv", "venv")
-                       for p in rel.split("/"))
-
+    root = (row["worktree"] if row else None) or ""
     later = [f for f in found if f[0] > at and f not in own]
     # Review 1, F2: a frame in the project's own code after the test's frame
     # means the code ran and raised, so the code can be at fault.
     if (not later or found[-1] in own
-            or any(_source(f[1]) for f in later)):
+            or any(_in_source(f[1], root) for f in later)):
         return None
     try:
         tree = ast.parse(test["body"] or "")
@@ -2789,6 +2767,185 @@ def _arrange_raise_tail(conn: sqlite3.Connection, test: Any,
     start = next((i for i in range(at - 1, -1, -1)
                   if lines[i].startswith(">")), at)
     return "\n".join(lines[start:])
+
+
+def _in_source(where: str, root: str) -> bool:
+    """Whether a pytest location path lies in the worktree's own source.
+
+    Review 1 of frame 304, F1: with the worktree and Python on one drive,
+    pytest prints a library frame as `..\\..\\Python\\...`. The path resolves
+    against the worktree, and a path that leaves the worktree is outside.
+    """
+    root = (root or "").replace("\\", "/")
+    root = posixpath.normpath(root).lower() if root else ""
+    where = where.replace("\\", "/")
+    if re.match(r"^([A-Za-z]:/|/)", where):
+        full = posixpath.normpath(where).lower()
+    elif root:
+        full = posixpath.normpath(root + "/" + where).lower()
+    else:
+        full = posixpath.normpath(where).lower()
+        if full == ".." or full.startswith("../"):
+            return False
+        return not any(p in ("site-packages", ".venv", "venv")
+                       for p in full.split("/"))
+    if root and not full.startswith(root + "/"):
+        return False
+    rel = full[len(root) + 1:] if root else full
+    return not any(p in ("site-packages", ".venv", "venv")
+                   for p in rel.split("/"))
+
+
+_CHAINED = ("During handling of the above exception, another exception "
+            "occurred:",
+            "The above exception was the direct cause of the following "
+            "exception:")
+
+# The modules a test imports that are not the project's code.
+_TEST_LIBS = frozenset({"pytest", "_pytest", "unittest", "mock"})
+
+# An error on an object of a class: `'FakeStdin' object has no attribute
+# 'readline'`, or `'FakeStdin' object is not iterable`.
+_STUB_ERROR = re.compile(
+    r"^E\s+(\w+Error): '(\w+)' object (?:has no attribute '(\w+)'|is not \w+)")
+
+# A call that leaves out a required argument of the callee.
+_MISSING_ARGS = re.compile(
+    r"^E\s+TypeError: (\w+)\(\) missing \d+ required "
+    r"(?:positional|keyword-only) arguments?: (.+)$")
+
+
+def arrange_fault(body: str, path: str, output: str, surface: set[str],
+                  criterion: str = "", root: str = "") -> dict | None:
+    """The line where a red test fails in its own arrange step, or None.
+
+    Frame 304, night 159: bg_2's tests failed on a plain `FakeStdin` class
+    and on `confirm()` with no `text`, and pass 1's door read a mock's spec
+    only. The rule: a red test whose run never reaches an assertion of the
+    surface's result cannot be passed by any code. The run shows that rule
+    in three forms.
+
+    1. `stub`: an `E` line names an object of a class that the test body
+       defines, and the class lacks the attribute. The run fails on the
+       test's own stub, wherever the stub is read.
+    2. `arrange`: the test's frame raises on a line before the first
+       `assert` and the first surface call. Every later frame lies outside
+       the worktree's source, and the line names no project import.
+    3. `signature`: the run raises a TypeError at a surface call in the
+       test's frame, for a required argument that the criterion does not
+       name.
+
+    A raise inside the project's code, or an assertion, gives None. The
+    caller reads only a run whose word is `fail`.
+    """
+    import sys as _sys
+    try:
+        tree = ast.parse(body or "")
+    except SyntaxError:
+        return None
+    src = (body or "").splitlines()
+    lines = (output or "").splitlines()
+
+    def _text(n: int) -> str:
+        return src[n - 1].strip() if 0 < n <= len(src) else ""
+
+    # 1. The stub. A chained run still counts: night 159's tst_cr1 caught
+    # the stub's AttributeError and failed on its own assertion after it.
+    classes = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)}
+    for ln in lines:
+        m = _STUB_ERROR.match(ln)
+        if not m or m.group(2) not in classes:
+            continue
+        cls, attr = classes[m.group(2)], m.group(3)
+        held = set()
+        for t in cls.body:
+            if isinstance(t, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                held.add(t.name)
+            elif isinstance(t, (ast.Assign, ast.AnnAssign)):
+                for tg in (t.targets if isinstance(t, ast.Assign) else [t.target]):
+                    if isinstance(tg, ast.Name):
+                        held.add(tg.id)
+        if attr and attr in held:
+            continue
+        return {"rule": "stub", "line": cls.lineno, "quote": _text(cls.lineno),
+                "error": ln[1:].strip(), "name": cls.name, "attr": attr}
+
+    if any(marker in output for marker in _CHAINED):
+        return None
+    path = (path or "").replace("\\", "/")
+    found = [(i, m.group(1).replace("\\", "/"), int(m.group(2)))
+             for i, ln in enumerate(lines) if (m := _LOCATION.match(ln))]
+    own = [f for f in found if path and (f[1] == path
+                                         or f[1].endswith("/" + path))]
+    if not own:
+        return None
+    kind = re.search(r":\d+: ([\w.]+)$", lines[found[-1][0]])
+    kind = kind.group(1) if kind else ""
+    if not kind or kind.endswith("AssertionError"):
+        return None
+    shown = next((ln[1:].strip() for ln in lines if ln.startswith("E ")), kind)
+    at, _, lineno = own[0]
+
+    def _callee(n: ast.Call) -> str:
+        fn = n.func
+        return (fn.attr if isinstance(fn, ast.Attribute) else
+                fn.id if isinstance(fn, ast.Name) else "")
+
+    asserts = [n.lineno for n in ast.walk(tree) if isinstance(n, ast.Assert)]
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and _callee(n) in surface]
+
+    # 3. The signature. The call raises before the callee's frame opens, so
+    # the test's frame is the last frame of the run.
+    if len(own) == 1 and found[-1] == own[0]:
+        for ln in lines:
+            m = _MISSING_ARGS.match(ln)
+            if not m or m.group(1) not in surface:
+                continue
+            if not any(_callee(c) == m.group(1)
+                       and c.lineno <= lineno <= (c.end_lineno or c.lineno)
+                       for c in calls):
+                continue
+            missing = re.findall(r"'(\w+)'", m.group(2))
+            # A criterion that names the argument may change it, so a
+            # right change can make the call pass.
+            if not missing or any(re.search(rf"\b{re.escape(a)}\b", criterion or "")
+                                  for a in missing):
+                return None
+            return {"rule": "signature", "line": lineno, "quote": _text(lineno),
+                    "error": ln[1:].strip(), "name": m.group(1),
+                    "attr": missing}
+
+    # 2. The arrange step.
+    later = [f for f in found if f[0] > at]
+    if any(f in own or _in_source(f[1], root) for f in later):
+        return None
+    marks = asserts + [c.lineno for c in calls]
+    if marks and lineno >= min(marks):
+        return None
+    std = set(getattr(_sys, "stdlib_module_names", ())) | _TEST_LIBS
+    project = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name.split(".")[0] not in std:
+                    project.add((a.asname or a.name).split(".")[0])
+        elif isinstance(n, ast.ImportFrom):
+            if n.level or (n.module or "").split(".")[0] not in std:
+                project.update(a.asname or a.name for a in n.names)
+    for n in ast.walk(tree):
+        if getattr(n, "lineno", None) != lineno:
+            continue
+        if isinstance(n, ast.Name) and n.id in project:
+            return None
+        # A patch target such as "click.termui.x" names project code that
+        # a change can add.
+        if (isinstance(n, ast.Constant) and isinstance(n.value, str)
+                and "." in n.value
+                and n.value.split(".")[0] not in std):
+            return None
+    return {"rule": "arrange", "line": lineno, "quote": _text(lineno),
+            "error": shown, "name": None, "attr": None}
 
 
 def _failed_before_assertion(body: str, output: str) -> bool:

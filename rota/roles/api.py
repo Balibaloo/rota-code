@@ -9309,6 +9309,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                                  and w[2].get("batch_id") == batch_id and (
                                      w[1] == id
                                      or w[2].get("criterion_id") == criterion_id))]
+    # Frame 304, night 159: the door reads the body's run, not one stub
+    # shape. Last, because a run costs a pytest start.
+    _past_run = _arrange_run_refusal(ctx, batch_id, criterion_id, path, body)
+    if _past_run:
+        raise Wall(_past_run)
     if invented_note:
         _stage_ledger(ctx, criterion_id, "criteria", invented_note, "invented")
     ctx.writes.append(("tests", id, {
@@ -14977,6 +14982,125 @@ _MOCK_OWN_KEYWORDS = {"spec", "spec_set", "side_effect", "return_value",
                       "new_callable", "create", "autospec", "_new_name",
                       "_new_parent", "_spec_state", "_spec_class",
                       "_spec_as_instance", "_eat_self"}
+
+
+def _encode_run(ctx, root, path: str, body: str) -> tuple[str, str]:
+    """One run of the body at its path in the batch's worktree.
+
+    The harness writes each stored test to its path before a run, so the
+    file at the path is the harness's. The run puts the old bytes back, so
+    a refused body leaves nothing on disk.
+    """
+    from ..core import config as _config
+    from ..core import harness as _harness
+
+    target = root / path
+    prior = target.read_bytes() if target.is_file() else None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        target.write_bytes(body.encode("utf-8"))
+        return _harness._run_one(root, path, 120,
+                                 runner=_config.get(ctx.conn, "runner"),
+                                 own=True)
+    finally:
+        if prior is None:
+            target.unlink(missing_ok=True)
+        else:
+            target.write_bytes(prior)
+
+
+def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
+                         body: str) -> str | None:
+    """
+    The refusal for a body whose run fails in its own arrange step, or None.
+
+    Frame 304, night 159: bg_2's tests failed on a plain `FakeStdin` class
+    with no `readline`, and on `confirm()` with no `text`. Pass 1's door
+    read a mock's spec only, so it fired 0 times. A door that reads one stub
+    shape per night is a fit. The rule: a red test whose run never reaches
+    an assertion of the surface's result cannot be passed by any code. So
+    the door runs the body on the batch's head and reads the traceback with
+    `runner.arrange_fault`. A raise inside the project's code, or an
+    assertion, is admitted.
+
+    A worktree with no git checkout or a batch with no head commit has no
+    head to run on, and the door stays silent.
+    """
+    import ast as _ast
+
+    from ..core.runner import arrange_fault
+
+    try:
+        root = _worktree_of(ctx, batch_id)
+    except Exception:  # noqa: BLE001 -- no worktree: nothing to run on
+        return None
+    head = ctx.conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                            (batch_id,)).fetchone()
+    if (not root or not root.is_dir() or not (root / ".git").exists()
+            or not head or not head["head_commit"]):
+        return None
+    try:
+        verdict, said = _encode_run(ctx, root, path, body)
+    except Exception:  # noqa: BLE001 -- a run that cannot start proves nothing
+        return None
+    if verdict != "fail":
+        return None
+    crit = ctx.conn.execute(
+        "SELECT text, surface_refs FROM criteria WHERE id = ?",
+        (criterion_id,)).fetchone()
+    try:
+        refs = json.loads((crit["surface_refs"] if crit else None) or "[]")
+    except ValueError:
+        refs = []
+    surface = {str(s).rsplit("::", 1)[-1] for s in refs}
+    fault = arrange_fault(body, path, said, surface,
+                          (crit["text"] if crit else "") or "", str(root))
+    if fault is None:
+        return None
+
+    def _short(s: str) -> str:
+        return s if len(s) <= 64 else s[:61] + "..."
+
+    quote, error = _short(fault["quote"]), _short(fault["error"])
+    if fault["rule"] == "stub":
+        said = (f"The run of this body on the batch's head raises `{error}`. "
+                f"Line {fault['line']}, `{quote}`, defines that stub in the "
+                f"test. The test fails in its own arrange step, on its own "
+                f"stub.")
+        step = (f"Build the stub so that `{fault['attr']}` exists."
+                if fault["attr"] else f"Build the stub `{fault['name']}` "
+                f"so that the code can use it.")
+    else:
+        said = (f"The run of this body on the batch's head raises at line "
+                f"{fault['line']}, `{quote}`: `{error}`. The test fails in its "
+                f"own arrange step, and no code can pass it.")
+        if fault["rule"] == "signature":
+            step = (f"Call `{fault['name']}` with "
+                    f"{', '.join(f'`{a}`' for a in fault['attr'])}, because "
+                    f"its signature requires it.")
+        else:
+            step = f"Fix line {fault['line']} so that it runs."
+    # The stdin route of frame 254 fits a click body that stubs stdin, as in
+    # pass 1b's texts.
+    try:
+        tree = _ast.parse(body)
+    except SyntaxError:
+        tree = _ast.Module(body=[], type_ignores=[])
+    stubs_stdin = "sys.stdin" in body
+    uses_click = any(
+        (isinstance(n, _ast.Import)
+         and any(a.name.split(".")[0] == "click" for a in n.names))
+        or (isinstance(n, _ast.ImportFrom)
+            and (n.module or "").split(".")[0] == "click")
+        for n in _ast.walk(tree))
+    if stubs_stdin and uses_click:
+        route = ("For an empty stdin, call the surface inside a "
+                 "@click.command() and run CliRunner().invoke(cmd, "
+                 "input='').")
+    else:
+        route = ("If the criterion needs a name that no stub can hold, "
+                 "send msg.question_terminologist with the criterion.")
+    return f"{said} {step} {route}"
 
 
 def _spec_mock_raise(ctx, batch_id, tree, body: str,
