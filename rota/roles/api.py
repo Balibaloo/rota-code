@@ -9311,7 +9311,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                                      or w[2].get("criterion_id") == criterion_id))]
     # Frame 304, night 159: the door reads the body's run, not one stub
     # shape. Last, because a run costs a pytest start.
-    _past_run = _arrange_run_refusal(ctx, batch_id, criterion_id, path, body)
+    _run_notes: list[str] = []
+    _past_run = _arrange_run_refusal(ctx, batch_id, criterion_id, path, body,
+                                     notes=_run_notes)
     if _past_run:
         raise Wall(_past_run)
     if invented_note:
@@ -9339,7 +9341,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"test of {criterion_id}, and one criterion takes one.")
         for mid in renamed:
             note += f" Your message {mid} now names {id}."
-        return {"id": id, "note": note}
+        return {"id": id, "note": " ".join([note] + _run_notes)}
+    if _run_notes:
+        return {"id": id, "note": " ".join(_run_notes)}
     return {"id": id}
 
 
@@ -15010,7 +15014,7 @@ def _encode_run(ctx, root, path: str, body: str) -> tuple[str, str]:
 
 
 def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
-                         body: str) -> str | None:
+                         body: str, notes: list | None = None) -> str | None:
     """
     The refusal for a body whose run fails in its own arrange step, or None.
 
@@ -15025,6 +15029,10 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
 
     A worktree with no git checkout or a batch with no head commit has no
     head to run on, and the door stays silent.
+
+    Review 2, finding 2: a minimal stub can be right, because the right
+    code may never read what the stub lacks. So the `stub` form adds one
+    note to `notes` and the body lands.
     """
     import ast as _ast
 
@@ -15053,8 +15061,17 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
     except ValueError:
         refs = []
     surface = {str(s).rsplit("::", 1)[-1] for s in refs}
+    # Review 2, finding 1: the names the batch adds are in its item, its
+    # criteria and its touch rows.
+    adds = [r[0] or "" for r in ctx.conn.execute(
+        "SELECT i.text FROM batches b JOIN items i ON i.id = b.item_id "
+        "WHERE b.id = ? UNION ALL SELECT c.text FROM criteria c "
+        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "WHERE bt.batch_id = ? UNION ALL SELECT grain FROM batch_touch "
+        "WHERE batch_id = ?", (batch_id, batch_id, batch_id))]
     fault = arrange_fault(body, path, said, surface,
-                          (crit["text"] if crit else "") or "", str(root))
+                          (crit["text"] if crit else "") or "", str(root),
+                          "\n".join(adds))
     if fault is None:
         return None
 
@@ -15063,13 +15080,15 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
 
     quote, error = _short(fault["quote"]), _short(fault["error"])
     if fault["rule"] == "stub":
-        said = (f"The run of this body on the batch's head raises `{error}`. "
-                f"Line {fault['line']}, `{quote}`, defines that stub in the "
-                f"test. The test fails in its own arrange step, on its own "
-                f"stub.")
-        step = (f"Build the stub so that `{fault['attr']}` exists."
-                if fault["attr"] else f"Build the stub `{fault['name']}` "
-                f"so that the code can use it.")
+        if notes is not None:
+            lacks = (f"`{fault['attr']}`" if fault["attr"]
+                     else "what the run used")
+            notes.append(
+                f"Line {fault['line']}, `{quote}`, defines a stub, and the run "
+                f"on the batch's head raises `{error}`. The stub lacks "
+                f"{lacks}, and the code may need to read it. Give the stub "
+                f"{lacks} if the right code reads it.")
+        return None
     else:
         said = (f"The run of this body on the batch's head raises at line "
                 f"{fault['line']}, `{quote}`: `{error}`. The test fails in its "

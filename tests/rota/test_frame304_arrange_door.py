@@ -50,20 +50,41 @@ def _encode_at(sb, path, body):
                    path=path, body=body)
 
 
-def test_s189_tst_cr1_is_refused_by_its_run_with_the_stub_line_quoted(
+def test_s189_tst_cr1_lands_with_a_note_on_its_minimal_stub(
         db, tmp_path, monkeypatch):
+    """Review 2, finding 2: a right test can hold a minimal stub on purpose,
+    so the stub is a note and the body lands."""
     _git_batch(db, tmp_path)
     seen = _ran(monkeypatch, S189_CR1_RUN)
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
-    with pytest.raises(Exception) as e:
-        _encode_at(sb, "tests/test_utils/test_confirm_default_off.py", S189_CR1)
-    said = str(e.value)
-    assert seen, said
-    assert "Line 8, `class FakeStdin:`" in said
-    assert "'FakeStdin' object has no attribute 'readline'" in said
-    assert "fails in its own arrange step" in said
-    assert "Build the stub so that `readline` exists." in said
-    assert "CliRunner().invoke(cmd, input='')" in said
+    out = _encode_at(sb, "tests/test_utils/test_confirm_default_off.py", S189_CR1)
+    assert seen and out["id"] == "tst_new"
+    note = out["note"]
+    assert "Line 8, `class FakeStdin:`" in note
+    assert "`readline`" in note
+    assert "the code may need to read" in note
+
+
+def test_a_body_local_import_of_a_name_the_item_names_lands(
+        db, tmp_path, monkeypatch):
+    """Review 2, finding 1: the batch adds `echo_pretty`, so a test that
+    imports it inside its body is right before the Developer writes it."""
+    _git_batch(db, tmp_path)
+    path = "tests/test_pretty.py"
+    body = ("def test_x():\n    from click.utils import echo_pretty\n"
+            "    assert echo_pretty('a') == 'a'\n")
+    run = ("    def test_x():\n>       from click.utils import echo_pretty\n"
+           "E       ImportError: cannot import name 'echo_pretty' from "
+           "'click.utils'\n\ntests\\test_pretty.py:2: ImportError\n"
+           "1 failed in 0.1s")
+    _ran(monkeypatch, run)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    # No row of the batch names the name: the door refuses.
+    assert api._arrange_run_refusal(sb.ctx, "b1", "c1", path, body)
+    db.execute("UPDATE items SET text = 'add echo_pretty to click.utils' "
+               "WHERE id = 'i1'")
+    db.commit()
+    assert api._arrange_run_refusal(sb.ctx, "b1", "c1", path, body) is None
 
 
 def test_s185_challenge_that_quotes_the_stub_is_admitted(db, tmp_path):

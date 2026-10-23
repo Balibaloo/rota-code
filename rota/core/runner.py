@@ -2814,9 +2814,16 @@ _MISSING_ARGS = re.compile(
     r"^E\s+TypeError: (\w+)\(\) missing \d+ required "
     r"(?:positional|keyword-only) arguments?: (.+)$")
 
+# A project name that the head lacks: an import, a module attribute or a
+# name. A mock's attribute is no project name, so it is not read here.
+_MISSING_NAME = re.compile(
+    r"cannot import name '(\w+)'|No module named '([\w.]+)'"
+    r"|module '[\w.]+' has no attribute '(\w+)'|name '(\w+)' is not defined")
+
 
 def arrange_fault(body: str, path: str, output: str, surface: set[str],
-                  criterion: str = "", root: str = "") -> dict | None:
+                  criterion: str = "", root: str = "",
+                  adds: str = "") -> dict | None:
     """The line where a red test fails in its own arrange step, or None.
 
     Frame 304, night 159: bg_2's tests failed on a plain `FakeStdin` class
@@ -2827,10 +2834,14 @@ def arrange_fault(body: str, path: str, output: str, surface: set[str],
 
     1. `stub`: an `E` line names an object of a class that the test body
        defines, and the class lacks the attribute. The run fails on the
-       test's own stub, wherever the stub is read.
+       test's own stub, wherever the stub is read. The caller makes this
+       form a note, not a refusal (review 2, finding 2): the right code
+       may never read what the stub lacks.
     2. `arrange`: the test's frame raises on a line before the first
        `assert` and the first surface call. Every later frame lies outside
-       the worktree's source, and the line names no project import.
+       the worktree's source, and the line names no project import. A
+       missing name that `adds` names gives None, because the batch adds
+       it. `adds` holds the item text, the criteria and the touch rows.
     3. `signature`: the run raises a TypeError at a surface call in the
        test's frame, for a required argument that the criterion does not
        name.
@@ -2943,6 +2954,15 @@ def arrange_fault(body: str, path: str, output: str, surface: set[str],
         if (isinstance(n, ast.Constant) and isinstance(n.value, str)
                 and "." in n.value
                 and n.value.split(".")[0] not in std):
+            return None
+    # Review 2, finding 1: a name the batch's rows name is a name the batch
+    # adds, so its absence at the head is no fault of the test. A mock's
+    # missing attribute is not a project name, so night 158's tst_02 stays.
+    missing = _MISSING_NAME.search(shown)
+    if missing and adds:
+        name = next(g for g in missing.groups() if g)
+        if any(re.search(rf"\b{re.escape(p)}\b", adds)
+               for p in name.split(".") if p):
             return None
     return {"rule": "arrange", "line": lineno, "quote": _text(lineno),
             "error": shown, "name": None, "attr": None}
