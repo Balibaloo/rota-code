@@ -11956,7 +11956,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
 _HOLD_QUESTION = "Does that line do what the criterion says, or the opposite?"
 _HOLD_QUESTION_MANY = ("Do those lines do what the criterion says, or the "
                        "opposite?")
-_HOLD_SAY = "Say which in one sentence."
+_HOLD_SAY = "Say which in one sentence, and send the call in the same reply."
 
 
 def _or_list(ids: list[str], last: str) -> str:

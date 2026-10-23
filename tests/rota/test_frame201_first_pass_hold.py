@@ -107,8 +107,8 @@ def _held(sb, **kwargs) -> str:
 def _asked(cid: str, text: str, line: str) -> str:
     return (f"before the pass lands, answer for {cid}. The criterion says: "
             f"\"{text}\". Your line holds '{line}'. Does that line do what "
-            f"the criterion says, or the opposite? Say which in one sentence. "
-            f"If it does what the criterion says, send the same pass again. "
+            f"the criterion says, or the opposite? Say which in one sentence, "
+            f"and send the call in the same reply. If it does what the criterion says, send the same pass again. "
             f"If it does the opposite, claim and fail on {cid}.")
 
 
@@ -188,10 +188,11 @@ def test_two_criteria_are_quoted_by_id_in_order(case):
         "before the pass lands, answer for c1 and c2. "
         f"Criterion c1 says: \"{C1_TEXT}\". Your lines hold '{L_INVOICES}', "
         f"then '{L_ACCOUNT}'. Do those lines do what the criterion says, or "
-        "the opposite? Say which in one sentence. "
+        "the opposite? Say which in one sentence, and send the call in the "
+        "same reply. "
         f"Criterion c2 says: \"{C2_TEXT}\". Your line holds '{L_NONE}'. Does "
         "that line do what the criterion says, or the opposite? Say which in "
-        "one sentence. If each line does what its criterion says, send the "
+        "one sentence, and send the call in the same reply. If each line does what its criterion says, send the "
         "same pass again. If a line does the opposite, claim and fail on its "
         "criterion, c1 or c2.")
 
