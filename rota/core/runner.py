@@ -2842,6 +2842,7 @@ def arrange_fault(body: str, path: str, output: str, surface: set[str],
        the worktree's source, and the line names no project import. A
        missing name that `adds` names gives None, because the batch adds
        it. `adds` holds the item text, the criteria and the touch rows.
+       An ImportError on an import line gives None for every name.
     3. `signature`: the run raises a TypeError at a surface call in the
        test's frame, for a required argument that the criterion does not
        name.
@@ -2933,6 +2934,14 @@ def arrange_fault(body: str, path: str, output: str, surface: set[str],
         return None
     marks = asserts + [c.lineno for c in calls]
     if marks and lineno >= min(marks):
+        return None
+    # Frame 304, pass 2c: the head lacks a module that the Developer or an
+    # install adds. The same import at module level is a collection error,
+    # where the door is silent. So a failed import line is no test fault.
+    if kind.rsplit(".", 1)[-1] in ("ImportError", "ModuleNotFoundError") and any(
+            isinstance(n, (ast.Import, ast.ImportFrom))
+            and n.lineno <= lineno <= (n.end_lineno or n.lineno)
+            for n in ast.walk(tree)):
         return None
     std = set(getattr(_sys, "stdlib_module_names", ())) | _TEST_LIBS
     project = set()

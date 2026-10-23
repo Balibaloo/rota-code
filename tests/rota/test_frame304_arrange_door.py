@@ -79,12 +79,46 @@ def test_a_body_local_import_of_a_name_the_item_names_lands(
            "1 failed in 0.1s")
     _ran(monkeypatch, run)
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
-    # No row of the batch names the name: the door refuses.
-    assert api._arrange_run_refusal(sb.ctx, "b1", "c1", path, body)
+    # Pass 2c: a failed import line is no fault of the test, so the body
+    # lands although no row of the batch names the name.
+    assert api._arrange_run_refusal(sb.ctx, "b1", "c1", path, body) is None
     db.execute("UPDATE items SET text = 'add echo_pretty to click.utils' "
                "WHERE id = 'i1'")
     db.commit()
     assert api._arrange_run_refusal(sb.ctx, "b1", "c1", path, body) is None
+
+
+def _import_run(path, line):
+    return (f"    def test_close():\n>       {line}\n"
+            "E       ModuleNotFoundError: No module named 'billing'\n\n"
+            f"{path.replace('/', chr(92))}:2: ModuleNotFoundError\n"
+            "1 failed in 0.1s")
+
+
+@pytest.mark.parametrize("line", [
+    "from billing.accounts import close_account",
+    "import billing_compat",
+])
+def test_a_failed_import_line_lands_whatever_the_name(
+        db, tmp_path, monkeypatch, line):
+    """Pass 2c, the L1 case encode-a-criterion-the-principal-corrected: the
+    seat imports a module that the head lacks. The Developer or an install
+    adds the module, and the same import at module level is a collection
+    error where the door is silent. So the import line lands, with no
+    note, whether or not a row names the module."""
+    _git_batch(db, tmp_path)
+    path = "tests/test_close.py"
+    body = (f"def test_close():\n    {line}\n"
+            "    assert close_account(1) is None\n")
+    run = _import_run(path, line)
+    assert arrange_fault(body, path, run, {"close_account"}, "",
+                         str(tmp_path / "wt")) is None
+    _ran(monkeypatch, run)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    notes = []
+    assert api._arrange_run_refusal(sb.ctx, "b1", "c1", path, body,
+                                    notes) is None
+    assert notes == []
 
 
 def test_s185_challenge_that_quotes_the_stub_is_admitted(db, tmp_path):
