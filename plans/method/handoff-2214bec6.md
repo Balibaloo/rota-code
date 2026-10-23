@@ -77,6 +77,24 @@ Night 158's merges in `D:/repos/_AI/sample_repos/clickI` are recorded in
   scratchpad,
   `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2214bec6-a6fe-4d67-816b-461298d9db78/scratchpad/`.
 
+## At the hand-off, 15:30 on 2026-10-23
+
+The head gate at 8b1566c8 re-recorded 20 cases. Frame 201's two right-pass
+cases went back to 5 of 5 and the target case sits at 3 of 5, so the hold
+stays for the night. Frame 302's door turned two Architect cases red, the
+seat re-annotates from his correction and names no new file, so its three
+commits are reverted on the branch and the frame is back at a pass with the
+finding written; `rota_p302` keeps the commits. The gate at 73a4801f, the
+reverted head, is clean: new reds 0, stale 0. Night 159 launched at 15:29
+from that head, cold, and its log holds the three lines. Your first cycles:
+read each CYCLE line of `.rota/night159.log` as it fires, and name the
+frame it belongs to; at the end, copy the database to
+`.rota/clickI_night159.db` and run the read from the night 158 brief with
+frame 307's counters; then frame 303's cherry-pick and gate, frame 302's
+next pass on the shape the seat meets, frame 306's repair 1, and frame 283's
+negation pass. The reserve had no free standby at the hand-off, so the
+claim may wait on disk.
+
 ## Roman's last words, with time
 
 - 2026-10-23 about 12:12, to session 81fe1025: "resume". No word of his
