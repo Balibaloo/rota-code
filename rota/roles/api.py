@@ -5398,10 +5398,19 @@ _CHECK_FAULT = re.compile(
 # says", "Line 2 should say", "Line 2 also needs to say" (night 145).
 # "through" and "-" are range words as "to" is, as in `_LINE_REF` (frame
 # 256, review 1).
+# A line the words tell to go, or to say something else, asks for new words
+# too: "Drop line 5", "line 7 should go", "please rewrite line 3", "change it
+# to say" (frame 308, review 3, point 2: nights 158 and 159). Night 159's
+# m224 said "Line 3 has to change" (frame 308, pass 3).
+_LINES = r"lines? \d+(?:(?:(?:,| and| to| through) |\s*-\s*)\d+)*"
 _WORDS_FAULT = re.compile(
-    r"\blines? \d+(?:(?:(?:,| and| to| through) |\s*-\s*)\d+)* (?:is|are) "
-    r"(?:also |still )*wrong\b"
-    r"|\bshould (?:also )?say\b|\bneeds? to say\b", re.IGNORECASE)
+    rf"\b{_LINES} (?:is|are) (?:also |still )*wrong\b"
+    r"|\bshould (?:also )?say\b|\bneeds? to say\b"
+    rf"|\b(?:drop|remove|delete|rewrite|replace|change)\s+(?:the\s+)?{_LINES}\b"
+    rf"|\b{_LINES} (?:should|must|can|has to|have to|needs? to) (?:also )?"
+    r"(?:go|change|be (?:dropped|removed|deleted|rewritten|replaced|changed))\b"
+    r"|\b(?:change|rewrite) (?:it|this|that|the line) to say\b"
+    r"|\bsay something else\b", re.IGNORECASE)
 
 
 def _named_tokens(text: str) -> set[str]:
@@ -5687,9 +5696,51 @@ def ruling_asks_no_new_words(ctx: Ctx, id: str) -> bool:
         return False
     cur = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
                            (id,)).fetchone()
+    mine = _ruling_words_on(ctx.conn, ruled, id)
     return bool(cur and _same_words(ruled["text"], cur["text"])
-                and _CHECK_FAULT.search(ruled["words"])
-                and not _WORDS_FAULT.search(ruled["words"]))
+                and _CHECK_FAULT.search(mine)
+                and not _WORDS_FAULT.search(mine))
+
+
+def _ruling_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> str:
+    """The sentences of a ruling's words that bear on criterion `cid`: each
+    sentence that names its page line, and each sentence that names no line.
+    The whole words when the line of `cid` is not known.
+
+    One ruling can rule several lines. Night 158's m98 said "Keep line 4, but
+    fix its check" for cr_2 and "Drop line 5" for cr_3 (frame 308, pass 3).
+    """
+    from .principal import Ask, _page_order, door_rows
+
+    words = ruled.get("words") or ""
+    row = conn.execute(
+        "SELECT r.reply_id, m.id, m.verb, m.body_refs FROM rulings r "
+        "JOIN messages m ON m.id = r.ask_id WHERE r.id = ?",
+        (ruled.get("id"),)).fetchone()
+    if row is None:
+        return words
+    # His line numbers belong to the page as he saw it, and `principal.land`
+    # records that order at his reply (frame 272). A render reads today's
+    # rows: night 158's render put cr_2 on line 3, and m98 named it line 4.
+    order = door_rows(conn, row["reply_id"], "order")
+    if not order:
+        # A database from before frame 272 holds no record. Today's render
+        # is the only order there is, so the reader takes it.
+        try:
+            order = _page_order(conn, Ask(
+                message_id=row["id"], verb=row["verb"],
+                refs=json.loads(row["body_refs"] or "[]")))
+        except Exception:  # noqa: BLE001 - an unreadable page keeps the whole words
+            return words
+    if cid not in order:
+        return words
+    line = order.index(cid) + 1
+    keep = []
+    for sentence in _SENTENCE.split(words):
+        refs = list(_LINE_REF.finditer(sentence))
+        if not refs or any(line in _ref_lines(r) for r in refs):
+            keep.append(sentence)
+    return " ".join(keep)
 
 
 @op("criteria", "respecify")
@@ -5835,8 +5886,10 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         closed = not _tester_answer_open(ctx)
         if closed:
             route = _closed_answer_note(ctx, id).rstrip(".")
-        if (_CHECK_FAULT.search(contested["words"])
-                and not _WORDS_FAULT.search(contested["words"])):
+        # The sentences on this criterion's line decide, as in
+        # `ruling_asks_no_new_words` (frame 308, pass 3).
+        mine = _ruling_words_on(ctx.conn, contested, id)
+        if _CHECK_FAULT.search(mine) and not _WORDS_FAULT.search(mine):
             if closed:
                 raise _stands(
                     f"the principal faulted the check and not these words: "

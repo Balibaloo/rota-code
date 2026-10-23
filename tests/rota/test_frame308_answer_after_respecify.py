@@ -51,6 +51,8 @@ WORDS = ("Line 3 has to change: when the new flag is off, the command should "
 VERDICT = {CR: "contest", "l_e49bfc5b82": "contest"}
 PER_ITEM = {CR: "contest", "l_e49bfc5b82": "contest", ITEM: "approve",
             f"guess:{ITEM}": "approve"}
+# The lines of the page m223 in the order m224 names them.
+PAGE = [ITEM, f"guess:{ITEM}", CR, "l_e49bfc5b82"]
 
 SURFACE_REFUSAL = "a test is not a surface"
 ONE_ANSWER = "you have already sent answer to tester"
@@ -100,6 +102,10 @@ def _night159_relay(conn, verdict=VERDICT) -> None:
              230)
     conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m225', ?)",
                  (json.dumps(verdict),))
+    # The page m223 as he saw it at m224, as `principal.land` records it
+    # since frame 272. His "Line 3 has to change" names ver_opt_show_py.
+    conn.execute("INSERT INTO config (key, value) VALUES ('order:m224', ?)",
+                 (json.dumps(PAGE),))
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
                  "status, verdict_id, texts) VALUES ('r_03b3346468', 'm223', "
                  "'m224', ?, ?, 'landed', 'm225', ?)",
@@ -247,3 +253,56 @@ def test_the_refusal_sentences_keep_to_twenty_words_outside_the_quote(db):
     own = said.replace(surface_said, "")
     for sentence in own.split(". "):
         assert len(sentence.split()) <= 20, sentence
+
+
+# --- pass 3, the words that drop, rewrite or change a line --------------------
+
+# The ruling words of each wake, from `rulings` of nights 158 and 159.
+S370_WORDS = ("Lines 1, 2 and 4 are fine as they are, but please rewrite line 3. "
+              "Where it says the command prints nothing when the new flag is off, "
+              "change it to say the command prints the same version message as "
+              "today. Also change the check so it runs the real command that has "
+              "the version option on it, not the empty helper function, and "
+              "expects a clean exit and that exact message.")
+S250_WORDS = ("Line 3's check should expect closed stdin to abort with Abort as it "
+              "does today when the flag is off, not to raise a UsageError. Lines 6 "
+              "and 8 should pass a boolean default such as True and expect True "
+              "back, and line 8 also needs a prompt text, while line 7 should go "
+              "because confirm has no option or sentinel, and the simple choice is "
+              "to return False when there is no default. Drop line 14, because any "
+              "short prompt text works and confirm only needs to return its own "
+              "boolean default when the flag is on and stdin is closed.")
+S220_WORDS = ("Lines 1, 2, 3 and 6 to 8 are fine as written. Keep line 4, but fix "
+              "its check so it fakes a closed input properly, because the failure "
+              "comes from a broken test stub and not from the behaviour. Drop line "
+              "5, because I never asked for the prompt to be hidden, so the prompt "
+              "can show as usual before it falls back to the default.")
+S274_WORDS = ("Line 3's check is wrong. It looks for the version inside "
+              "parentheses, but I asked for the word \"Python\", a space, and then "
+              "the version as major.minor.micro. Please fix that check and keep "
+              "working on the change rather than dropping it.")
+
+
+@pytest.mark.parametrize("words", [S370_WORDS, S250_WORDS, S220_WORDS, WORDS],
+                         ids=["s370", "s250", "s220", "s382"])
+def test_a_ruling_that_drops_or_rewrites_a_line_asks_new_words(words):
+    from rota.roles import api
+
+    assert api._WORDS_FAULT.search(words), words
+
+
+@pytest.mark.parametrize("words", [S274_WORDS], ids=["s274"])
+def test_a_ruling_that_faults_only_the_check_asks_no_new_words(words):
+    from rota.roles import api
+
+    assert api._CHECK_FAULT.search(words), words
+    assert not api._WORDS_FAULT.search(words), words
+
+
+def test_line_3_has_to_change_asks_new_words_on_its_own_line(db):
+    """m224's "Line 3 has to change" names ver_opt_show_py on the page he
+    saw. The check words that follow it do not make the criterion stand."""
+    from rota.roles import api
+
+    _night159_relay(db)
+    assert not api.ruling_asks_no_new_words(_seat(db).ctx, CR)

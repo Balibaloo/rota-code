@@ -48,6 +48,10 @@ VERDICT = {CR2: "revise", CR3: "contest", "command#root": "approve",
 PER_ITEM = {ITEM: "approve", f"guess:{ITEM}": "approve", CR1: "approve",
             CR2: "revise", CR3: "contest", "command#root": "approve",
             "option#root": "approve", "parameter#root": "approve"}
+# The lines of the page m89 in the order m98 names them: 1 to 3 and 6 to 8
+# are fine, line 4 is cr_2 and line 5 is cr_3.
+PAGE = [ITEM, f"guess:{ITEM}", CR1, CR2, CR3, "command#root", "option#root",
+        "parameter#root"]
 
 ROUTE = "Send one msg.answer_tester with every ruled criterion in refs"
 ONE_ANSWER = "you have already sent answer to tester"
@@ -98,6 +102,10 @@ def _night158_relay(conn) -> None:
              [CR2, CR3], 105)
     conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m99', ?)",
                  (json.dumps(VERDICT),))
+    # The page m89 as he saw it at m98, as `principal.land` records it since
+    # frame 272. His words put cr_2 on line 4 and cr_3 on line 5.
+    conn.execute("INSERT INTO config (key, value) VALUES ('order:m98', ?)",
+                 (json.dumps(PAGE),))
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
                  "status, verdict_id, texts) VALUES ('r_ce163d8060', 'm89', "
                  "'m98', ?, ?, 'landed', 'm99', ?)",
@@ -120,11 +128,26 @@ def _answers(sb):
             if m["to_role"] == "tester" and m["verb"] == "answer"]
 
 
+# m98's "Drop line 5" asks new words on cr_3 (pass 3). A test of the other
+# doors lands this rewrite first, so the answer door admits cr_3.
+CR3_NEW = ("When confirm() returns the default value due to closed stdin "
+           "(after attempting to read), it shows its prompt as usual and "
+           "emits no error message.")
+
+
+def _land_cr3(sb):
+    out = sb.call("criteria.respecify", id=CR3, text=CR3_NEW,
+                  term_refs=["default_on_eof"], surface_refs=[CONFIRM])
+    assert not out.get("unchanged"), out
+    return out
+
+
 def test_s220_turn_1_answer_with_cr_3_alone_is_refused(db):
     """s220's turn 1, tool call seq 11: refs cr_3 alone. The ruling marks
     cr_2 `revise` too."""
     _night158_relay(db)
     sb = _s220(db)
+    _land_cr3(sb)
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR3], round_no=0)
     said = str(refused.value)
@@ -141,6 +164,7 @@ def test_s220_turn_1_answer_with_cr_3_alone_is_refused(db):
 def test_the_same_answer_with_cr_2_and_cr_3_lands(db):
     _night158_relay(db)
     sb = _s220(db)
+    _land_cr3(sb)
     out = sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
     assert out["to"] == "tester" and out["verb"] == "answer", out
     [sent] = _answers(sb)
@@ -160,6 +184,7 @@ def test_a_session_with_no_ruling_relay_answers_one_criterion_as_today(db):
 def test_a_second_answer_after_the_first_lands_meets_the_one_answer_door(db):
     _night158_relay(db)
     sb = _s220(db)
+    _land_cr3(sb)
     sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR3], round_no=0)
@@ -187,6 +212,7 @@ def test_the_cr_2_refusal_before_the_answer_names_the_answer_route(db):
 def test_the_cr_2_refusal_after_the_answer_landed_names_no_refused_call(db):
     _night158_relay(db)
     sb = _s220(db)
+    _land_cr3(sb)
     sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
     said = _respecify_cr2(sb)
     assert "faulted the check" in said, said
@@ -226,13 +252,15 @@ def test_s220_turn_1_with_its_refused_cr_3_respecify_asks_the_respecify_first(db
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR3], round_no=0)
     said = str(refused.value)
-    # Review 2's fix: m98 faults the check and not the words, so cr_2 and
-    # cr_3 stand. The missing-refs refusal keeps its offer.
+    # Pass 3: m98 faults line 4's check, so cr_2 stands. "Drop line 5" asks
+    # new words on cr_3, so the refusal asks the cr_3 respecify first. The
+    # full answer would still meet that check, so the refusal offers no call
+    # (frame 135).
     assert str(surface.value)
     assert f"Your answer leaves out {CR2}" in said, said
-    assert "has landed" not in said, said
-    [offer] = [o for o in sb.ctx.offers if o.op == "msg.answer_tester"]
-    assert sorted(offer.args["refs"]) == sorted([CR2, CR3])
+    assert f"No respecify of {CR3} has landed" in said, said
+    assert f"No respecify of {CR2}" not in said, said
+    assert not [o for o in sb.ctx.offers if o.op == "msg.answer_tester"]
     assert not _answers(sb)
 
 
@@ -259,6 +287,7 @@ def test_the_route_offers_no_dangling_ref(db):
     guard of `_bind_send` then refused."""
     _night158_relay(db)
     sb = _s220(db)
+    _land_cr3(sb)
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR3, "cr_9_nothing"], round_no=0)
     said = str(refused.value)
@@ -274,6 +303,7 @@ def test_the_closed_text_names_the_criterion_whose_work_is_done(db):
     so the closed text ends the work on this criterion only."""
     _night158_relay(db)
     sb = _s220(db)
+    _land_cr3(sb)
     sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
     said = _respecify_cr2(sb)
     assert f"your work on {CR2} is done" in said, said
@@ -294,6 +324,7 @@ def test_an_approved_criterion_with_a_ruled_test_counts_among_the_ruled(db):
                             "tst_confirm_eof_01": "contest"}),))
     db.commit()
     sb = _s220(db)
+    _land_cr3(sb)
     with pytest.raises(ValueError) as refused:
         sb.call("msg.answer_tester", refs=[CR2, CR3], round_no=0)
     assert CR1 in str(refused.value), str(refused.value)
@@ -312,3 +343,27 @@ def test_the_brief_asks_one_answer_for_a_ruled_test(db):
     assert "in the same one answer" in flat, flat
     assert "has no test of them yet" in flat, flat
     assert "has no test of it yet" not in flat, flat
+
+
+# --- pass 3, the ruling read per criterion on the page he saw ----------------
+
+def test_m98_reads_cr_2_as_standing_and_cr_3_as_asking_new_words(db):
+    """m98: "Keep line 4, but fix its check" is cr_2's line, and "Drop line
+    5" is cr_3's line. One ruling, two readings, on the `order:m98` record."""
+    from rota.roles import api
+
+    _night158_relay(db)
+    sb = _s220(db)
+    assert api.ruling_asks_no_new_words(sb.ctx, CR2)
+    assert not api.ruling_asks_no_new_words(sb.ctx, CR3)
+
+
+def test_a_reply_with_no_order_record_reads_todays_render(db):
+    """A database from before frame 272 holds no `order:` record. Today's
+    render of m89 puts cr_2 on line 3, so line 4's check is not cr_2's."""
+    from rota.roles import api
+
+    _night158_relay(db)
+    db.execute("DELETE FROM config WHERE key = 'order:m98'")
+    sb = _s220(db)
+    assert not api.ruling_asks_no_new_words(sb.ctx, CR2)

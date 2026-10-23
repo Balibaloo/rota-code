@@ -234,6 +234,16 @@ def test_a_contest_of_the_check_names_the_answer_route(db):
     line 3's check and not the criterion's words."""
     _criterion(db, CR1)
     _ruling(db, "r_b33e2979e0", "m170", "contest", WORDS_170, CR1)
+    # The door reads his words per line of the page he saw (frame 308, pass
+    # 3). His "Line 3" is this criterion, so the record puts it on line 3.
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, body_text, seq) VALUES ('m171', "
+               "'m170', 'm170', 'principal', 'liaison', 'converse', ?, ?, 2)",
+               (json.dumps([CID]), WORDS_170))
+    db.execute("UPDATE rulings SET reply_id = 'm171' WHERE id = 'r_b33e2979e0'")
+    db.execute("INSERT INTO config (key, value) VALUES ('order:m171', ?)",
+               (json.dumps(["line_1", "line_2", CID]),))
+    db.commit()
     with pytest.raises(ValueError) as refused:
         _respecify(db, CR1)
     said = str(refused.value)
