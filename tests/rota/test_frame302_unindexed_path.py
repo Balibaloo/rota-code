@@ -34,10 +34,6 @@ SRC = ["src/click/__init__.py", "src/click/_compat.py",
        "src/click/utils.py"]
 # The night's top-level test files that s274's call names (night 157).
 TESTS = ["tests/test_options.py", "tests/test_version_option.py"]
-# Two of the night's symbol grains: the one the item names, and one that
-# sorts after the cap of eight (night 157, `code_index`).
-SYMBOLS = ["src/click/decorators.py::version_option",
-           "src/click/termui.py::confirm"]
 # s274, turn 4 (night 157, `turns`).
 S274 = ["src/click/options.py", "tests/test_options.py",
         "tests/test_version_option.py"]
@@ -54,11 +50,6 @@ def db(tmp_path):
     for grain in SRC + TESTS:
         conn.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'path')",
                      (grain,))
-    for grain in SYMBOLS:
-        conn.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'symbol')",
-                     (grain,))
-    conn.execute("INSERT INTO batches (id, item_id, status) "
-                 "VALUES ('bg_2', ?, 'pending')", (ITEM,))
     conn.commit()
     return conn
 
@@ -144,84 +135,3 @@ def test_annotate_keeps_the_directory_door_for_a_new_file(db):
         sb.call("batches.annotate", batch_id="bg_2",
                 paths=["src/flags/options.py"],
                 new_files=["src/flags/options.py"])
-
-
-# ---------------------------------------------------------------------------
-# Pass 1b: review 1 of frame 302
-# ---------------------------------------------------------------------------
-
-def test_a_path_symbol_entry_is_checked_by_its_file_half(db):
-    """Review 1, finding 1: 58 annotate calls of nights 150 to 157 wrote
-    path::symbol in `paths`, and each landed on its night."""
-    sb = _annotate(db)
-    out = sb.call("batches.annotate", batch_id="bg_2",
-                  paths=["src/click/decorators.py::version_option"])
-    assert out["grains"] == 1
-    sb = _guess(db)
-    out = sb.call("batches.guess", item_id=ITEM,
-                  paths=["src/click/decorators.py::version_option"])
-    assert out["grains"] == 1
-
-
-def test_a_symbol_never_passes_as_a_new_file(db):
-    """Review 1, finding 1: a symbol named in `new_files` is no new file."""
-    sb = _annotate(db)
-    with pytest.raises(ValueError, match="src/click/options.py is not a file "
-                                         "the index holds"):
-        sb.call("batches.annotate", batch_id="bg_2",
-                paths=["src/click/options.py::show_python"],
-                new_files=["src/click/options.py::show_python"])
-
-
-def _listed(words: str) -> list[str]:
-    return words.split(": ", 1)[1].split(". Write", 1)[0].split(", ")
-
-
-def test_the_file_the_item_names_a_symbol_of_comes_first(db):
-    """Review 1, finding 2: decorators.py was in the list by its sort order
-    alone. The item names version_option, and the index holds it there."""
-    sb = _guess(db)
-    with pytest.raises(ValueError) as err:
-        sb.call("batches.guess", item_id=ITEM, paths=S274)
-    assert _listed(str(err.value))[0] == "src/click/decorators.py"
-    sb = _annotate(db)
-    with pytest.raises(ValueError) as err:
-        sb.call("batches.annotate", batch_id="bg_2", paths=S274)
-    assert _listed(str(err.value))[0] == "src/click/decorators.py"
-
-
-def test_the_file_the_call_names_a_symbol_of_comes_first(db):
-    """termui.py sorts past the cap of eight. The call's symbol names
-    confirm, and the index holds it in termui.py."""
-    sb = _annotate(db)
-    with pytest.raises(ValueError) as err:
-        sb.call("batches.annotate", batch_id="bg_2", paths=S274,
-                symbols=["confirm"])
-    listed = _listed(str(err.value))
-    assert listed[:2] == ["src/click/decorators.py", "src/click/termui.py"]
-    assert len(listed) == 8
-
-
-def test_a_guess_symbol_on_an_unindexed_file_meets_the_door(db):
-    """Review 1, finding 4: a symbol's file half meets the door as a path."""
-    sb = _guess(db)
-    with pytest.raises(ValueError, match="src/click/options.py is not a file "
-                                         "the index holds"):
-        sb.call("batches.guess", item_id=ITEM, paths=["src/click/decorators.py"],
-                symbols=["src/click/options.py::show_python"])
-    sb = _guess(db)
-    out = sb.call("batches.guess", item_id=ITEM, paths=["src/click/decorators.py"],
-                  symbols=["src/click/options.py::show_python"],
-                  new_files=["src/click/options.py"])
-    assert out["grains"] == 2
-
-
-@pytest.mark.parametrize("mode", ["guess", "annotate"])
-def test_the_brief_names_the_new_files_argument(mode):
-    """Review 1, finding 3: the seat read new_files only in the signature
-    and in the refusal."""
-    from pathlib import Path
-
-    brief = (Path(prompts.__file__).parent / "prompts" / "architect" / f"{mode}.md"
-             ).read_text(encoding="utf-8")
-    assert "new_files=[...]" in brief

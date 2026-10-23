@@ -6049,16 +6049,12 @@ def _refuse_stray_dirs(conn: sqlite3.Connection, paths: list[str]) -> None:
 
 
 def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
-                            new_files: list[str] | None,
-                            symbols: list[str] | None = None,
-                            text: str = "") -> None:
+                            new_files: list[str] | None) -> None:
     """Refuse a predicted file the code index lacks, unless the call names
     it in `new_files`.
 
-    A `path::symbol` entry is checked by its file half. `symbols` and the
-    item's `text` rank the files the refusal lists. Call this after
-    `_refuse_stray_dirs`, so a file named as new still meets the directory
-    door."""
+    Call this after `_refuse_stray_dirs`, so a file named as new still meets
+    the directory door."""
     # Frame 302: night 157's s274 guessed src/click/options.py. The directory
     # door passed it, and the seat had read src/click/decorators.py in the
     # index. This narrows the 2026-09-12 rule and keeps "a new file you name
@@ -6068,39 +6064,20 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
     # No index, no fact, as in the directory door.
     if not indexed:
         return
-    # 58 annotate calls of nights 150 to 157 wrote path::symbol in `paths`,
-    # and each landed. A symbol is never a new file (frame 302, review 1,
-    # finding 1).
-    named = {p.replace("\\", "/") for p in new_files or [] if "::" not in p}
-    unknown = [f for f in (p.replace("\\", "/").split("::", 1)[0] for p in paths)
-               if f not in indexed | named]
+    named = {p.replace("\\", "/") for p in new_files or []}
+    unknown = [p for p in paths
+               if p.replace("\\", "/") not in indexed | named]
     if not unknown:
         return
-    path = unknown[0]
+    path = unknown[0].replace("\\", "/")
     folder = "/".join(path.split("/")[:-1])
     beside = sorted(g for g in indexed
                     if "/".join(g.split("/")[:-1]) == folder)
     if not beside:
         beside = sorted(g for g in indexed if g.startswith(f"{folder}/"))
-    # The files that hold a symbol the call or the item names come first.
-    # decorators.py was in s274's list by its sort order alone (frame 302,
-    # review 1, finding 2).
-    wanted = set(re.findall(r"[A-Za-z_]\w*", text))
-    for s in list(symbols or []) + [p for p in paths if "::" in p]:
-        name = s.split("::", 1)[-1]
-        wanted |= {name, name.split(".")[-1]}
-    holds = set()
-    for r in conn.execute(
-            "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
-            "AND grain LIKE ?", (f"{folder}/%" if folder else "%",)):
-        grain = r["grain"].replace("\\", "/")
-        file, _, name = grain.partition("::")
-        if file in beside and (name in wanted or name.split(".")[-1] in wanted):
-            holds.add(file)
-    beside = sorted(holds) + [g for g in beside if g not in holds]
     where = folder or "the root"
     raise ValueError(
-        f"{path} is not a file the index holds. The index holds these "
+        f"{unknown[0]} is not a file the index holds. The index holds these "
         f"files in {where}: {', '.join(beside[:8])}. Write the file you mean "
         f"from that list. To create a new file, also name it in "
         f"`new_files=[...]`")
@@ -6141,13 +6118,7 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
     # finding 5).
     _refuse_stray_dirs(ctx.conn, list(paths) + [
         s.split("::", 1)[0] for s in symbols or [] if "::" in s])
-    # A symbol's file half meets the file door as a path (frame 302,
-    # review 1, finding 4).
-    item = ctx.conn.execute("SELECT text FROM items WHERE id = ?",
-                            (item_id,)).fetchone()
-    _refuse_unindexed_files(
-        ctx.conn, list(paths) + [s for s in symbols or [] if "::" in s],
-        new_files, symbols, (item["text"] or "") if item else "")
+    _refuse_unindexed_files(ctx.conn, paths, new_files)
     bare = [s for s in symbols or [] if "::" not in s]
     if bare:
         # The refusal names the index's own grain, because the L1 case's
@@ -6211,11 +6182,7 @@ def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
     permission system nobody designed.
     """
     _refuse_stray_dirs(ctx.conn, paths)
-    item = ctx.conn.execute(
-        "SELECT i.text FROM batches b JOIN items i ON i.id = b.item_id "
-        "WHERE b.id = ?", (batch_id,)).fetchone()
-    _refuse_unindexed_files(ctx.conn, paths, new_files, symbols,
-                            (item["text"] or "") if item else "")
+    _refuse_unindexed_files(ctx.conn, paths, new_files)
     # law 12: the touch set is a prediction, never a permission
     # The principal's correction replaces the prediction. Night 136's m85
     # said "Line 2 names the wrong tests", and an upsert would keep the
