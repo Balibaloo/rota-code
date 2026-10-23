@@ -619,6 +619,9 @@ def test_a_second_verdict_on_one_commit_is_refused(db, tmp_path):
                (a_batch_repo(tmp_path, line),))
     db.commit()
     sb = build("critic", db, batch_id="b1", mode="review")
+    # The test is about a second verdict, not the first-pass hold of frame
+    # 201, pass 3. So the hold counts as spent.
+    sb.ctx.pass_held = True
     sb.call("verdicts.emit", batch_id="b1", result="pass", lines={"c1": line})
     with pytest.raises(ValueError, match="already landed"):
         sb.call("verdicts.emit", batch_id="b1", result="pass")
@@ -627,6 +630,7 @@ def test_a_second_verdict_on_one_commit_is_refused(db, tmp_path):
                "VALUES ('critic:b1:abc123','b1','abc123','pass')")
     db.commit()
     sb = build("critic", db, batch_id="b1", mode="answer")
+    sb.ctx.pass_held = True
     with pytest.raises(ValueError, match="already landed"):
         sb.call("verdicts.emit", batch_id="b1", result="pass")
     # A new commit is a new diff, and it gets its own verdict.

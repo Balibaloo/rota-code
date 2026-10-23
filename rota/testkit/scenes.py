@@ -572,16 +572,27 @@ def encode(body: str = None) -> list[str]:
 UPGRADE_LINE = "return prorate(amount_cents, days_used, days_in_period)"
 
 
+# The start of the reply that holds a session's first pass (frame 201, pass 3).
+PASS_HELD = "verdicts.emit: your first pass of this session is held"
+
+
 def judge(batch: str, result: str = "pass",
-          lines: dict | None = None) -> list[str]:
+          lines: dict | None = None) -> list[str] | Session:
     """The Critic's review. A pass names, by default, c1's line of `UPGRADE`,
-    the module that both scenes that judge commit."""
+    the module that both scenes that judge commit.
+
+    The runner holds the first pass of a session and asks the seat its own
+    question (frame 201, pass 3). The scripted seat then takes the route
+    that the hold's reply names: it sends the same pass again."""
     if result == "pass" and lines is None:
         lines = {"c1": UPGRADE_LINE}
     named = f", lines={lines!r}" if result == "pass" else ""
-    return [f"TOOL: criteria.load(batch_id={batch!r})",
-            f"TOOL: tests.load(batch_id={batch!r})",
-            f"TOOL: verdicts.emit(batch_id={batch!r}, result={result!r}{named})"]
+    emit = f"TOOL: verdicts.emit(batch_id={batch!r}, result={result!r}{named})"
+    head = [f"TOOL: criteria.load(batch_id={batch!r})",
+            f"TOOL: tests.load(batch_id={batch!r})", emit]
+    if result != "pass":
+        return head
+    return Session(head + [emit], allow=(PASS_HELD,))
 
 
 # An empty session on a fix wake: the seat's note is the state, a dispatch

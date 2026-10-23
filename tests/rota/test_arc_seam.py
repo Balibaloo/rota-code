@@ -191,6 +191,9 @@ def test_one_sentence_becomes_a_merged_batch(db, repo):
         "TOOL: criteria.load(batch_id='b1')",
         "TOOL: tests.load(batch_id='b1')",
         PASS,
+        # The runner holds the first pass (frame 201, pass 3). The seat takes
+        # the route the hold's reply names: the same pass again.
+        PASS,
     ], batch_id="b1")
 
     verdict = db.execute(
@@ -405,6 +408,9 @@ def test_a_failing_test_comes_back_and_the_second_commit_is_what_merges(db, repo
     drive(db, tick(db, "tick:review"), [
         "TOOL: criteria.load(batch_id='b1')",
         "TOOL: tests.load(batch_id='b1')",
+        PASS,
+        # The runner holds the first pass (frame 201, pass 3). The seat takes
+        # the route the hold's reply names: the same pass again.
         PASS,
     ], batch_id="b1")
 

@@ -148,6 +148,15 @@ def _critic(conn, batch_id="bg_3", mode="review"):
     return build("critic", conn, batch_id=batch_id, mode=mode)
 
 
+def _land(sb, name: str = "verdicts.emit", **kwargs):
+    """Send a pass twice, as a seat does on a night. Frame 201, pass 3: the
+    first pass of a session is held, and the same pass sent again lands."""
+    with pytest.raises(ValueError, match="first pass of this session is held"):
+        sb.call(name, **kwargs)
+    assert not [w for w in sb.ctx.writes if w[0] == "verdicts"]
+    return sb.call(name, **kwargs)
+
+
 def _refused(sb, **kwargs) -> str:
     with pytest.raises(ValueError) as exc:
         sb.call("verdicts.emit", **kwargs)
@@ -171,8 +180,7 @@ def _unnamed(missing, ids) -> str:
 def test_s279_pass_with_a_line_per_criterion_lands(s279):
     sb = _critic(s279)
     head = s279.execute("SELECT head_commit FROM batches").fetchone()[0]
-    out = sb.call("verdicts.emit", batch_id="bg_3", result="pass",
-                  lines=dict(S279_LINES))
+    out = _land(sb, batch_id="bg_3", result="pass", lines=dict(S279_LINES))
     assert out == {"id": f"critic:bg_3:{head}", "result": "pass"}
     (_, _, row), = [w for w in sb.ctx.writes if w[0] == "verdicts"]
     assert json.loads(row["lines"]) == S279_LINES
@@ -249,8 +257,8 @@ def test_lines_as_text_is_refused_with_the_shape(s279):
 def test_the_tolerated_shapes_land(s279, value):
     """A leading +, a part of 12 characters or more, a list of lines and
     lines split by breaks each have one reading."""
-    out = _critic(s279).call("verdicts.emit", batch_id="bg_3", result="pass",
-                             lines={**S279_LINES, CR1: value})
+    out = _land(_critic(s279), batch_id="bg_3", result="pass",
+                lines={**S279_LINES, CR1: value})
     assert out["result"] == "pass"
 
 
@@ -308,8 +316,8 @@ def test_a_block_for_every_criterion_is_refused(s279):
 def test_a_value_of_two_lines_lands(s279):
     """A statement that wraps is two lines, and the door admits two."""
     two = L_NOTE.strip() + "\n" + L_VERSION.strip()
-    out = _critic(s279).call("verdicts.emit", batch_id="bg_3", result="pass",
-                             lines={**S279_LINES, CR3: two})
+    out = _land(_critic(s279), batch_id="bg_3", result="pass",
+                lines={**S279_LINES, CR3: two})
     assert out["result"] == "pass"
 
 
@@ -359,8 +367,8 @@ def test_the_door_reads_the_diff_from_the_fork(tmp_path):
     conn.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
                  (str(root),))
     _seed(conn, "bg_3", S279_IDS, worktree=str(tree))
-    out = _critic(conn).call("verdicts.emit", batch_id="bg_3", result="pass",
-                             lines={CR1: first, CR2: second, CR3: second})
+    out = _land(_critic(conn), batch_id="bg_3", result="pass",
+                lines={CR1: first, CR2: second, CR3: second})
     assert out["result"] == "pass"
 
 
@@ -489,7 +497,7 @@ def test_the_parser_reads_lines_back():
 
 def test_the_parsed_call_lands(s279):
     (call,) = toolproto.extract(S279_CALL)
-    out = _critic(s279).call(call.name, **call.args)
+    out = _land(_critic(s279), call.name, **call.args)
     assert out["result"] == "pass"
 
 
@@ -656,7 +664,8 @@ def test_s134_pass_naming_the_dumps_line_lands(s134):
     (call,) = toolproto.extract(S134_CALL)
     lines = {**call.args["lines"],
              "echo_json_compact_3": call.args["lines"]["echo_json_compact"]}
-    out = _critic(s134, "bg_1").call(call.name, **{**call.args, "lines": lines})
+    out = _land(_critic(s134, "bg_1"), call.name,
+                **{**call.args, "lines": lines})
     assert out["result"] == "pass"
 
 
@@ -714,8 +723,8 @@ def test_a_line_with_no_behaviour_is_refused(kinds, value, quote, kind):
     "if a:",
 ])
 def test_a_line_that_does_something_lands(kinds, value):
-    out = _critic(kinds, "bg_1").call("verdicts.emit", batch_id="bg_1",
-                                      result="pass", lines={"cr_1": value})
+    out = _land(_critic(kinds, "bg_1"), batch_id="bg_1", result="pass",
+                lines={"cr_1": value})
     assert out["result"] == "pass"
 
 
@@ -738,8 +747,8 @@ def _one_criterion(tmp_path, rel, before, after):
 
 
 def _pass(conn, value):
-    return _critic(conn, "bg_1").call("verdicts.emit", batch_id="bg_1",
-                                      result="pass", lines={"cr_1": value})
+    return _land(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
+                 lines={"cr_1": value})
 
 
 @pytest.mark.parametrize("rel,line", [
@@ -1253,6 +1262,6 @@ def test_a_missing_temp_directory_still_gives_kinds(s279, tmp_path,
     import tempfile
     monkeypatch.setattr(tempfile, "gettempdir",
                         lambda: str(tmp_path / "no such directory"))
-    out = _critic(s279).call("verdicts.emit", batch_id="bg_3", result="pass",
-                             lines=S279_LINES)
+    out = _land(_critic(s279), batch_id="bg_3", result="pass",
+                lines=S279_LINES)
     assert out["result"] == "pass"

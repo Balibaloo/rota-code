@@ -151,6 +151,9 @@ class Ctx:
     # seat reads every result before its next reply. `offers` and `facts`
     # cannot carry it: `Sandbox.call` clears them at every call.
     reply_notes: dict = None
+    # True once `verdicts.emit` has held this session's first pass. The hold
+    # fires once a session (frame 201, pass 3).
+    pass_held: bool = False
 
     def __post_init__(self):
         if self.writes is None:
@@ -11388,6 +11391,7 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     # branch needs is ignored on the others, never refused (frame 81).
     if result == "pass":
         _pass_lines_check(ctx, batch_id, lines)
+        _first_pass_hold(ctx, batch_id, lines)
         if lines:
             # The write pipeline stores no dict, so the lines go as JSON text.
             row["lines"] = _json.dumps(lines)
@@ -11797,6 +11801,63 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                 f"Copy the added line that does what {cid} says, without the "
                 f"+, and send the pass again. {listed}If no added line meets "
                 f"{cid}, that is a fail on it: {claim_for(cid)}")
+
+
+_HOLD_QUESTION = "Does that line do what the criterion says, or the opposite?"
+_HOLD_QUESTION_MANY = ("Do those lines do what the criterion says, or the "
+                       "opposite?")
+
+
+def _first_pass_hold(ctx, batch_id: str, lines) -> None:
+    """Hold the first pass of a session, and ask the seat its own question.
+
+    Frame 201, pass 3, after probe (c) of `plans/frame201-interview.md`
+    section 3. The seat read the criterion and the line that does the
+    opposite, and passed. A reply that quoted both and asked the question
+    turned the recorded case to a fail in 3 of 3 runs. Cause 5 of
+    `plans/wall-guide.md` names this move: a challenge that quotes both rows.
+    The reply quotes the seat's own `lines=` value, never a line the runner
+    chose. A pass with no line gets no hold.
+    """
+    if ctx.pass_held or not isinstance(lines, dict):
+        return
+    rows = ctx.conn.execute(
+        "SELECT c.id, c.text FROM criteria c "
+        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "WHERE bt.batch_id = ?", (batch_id,)).fetchall()
+    asked = []
+    for r in rows:
+        parts = _line_parts(lines.get(r["id"]))
+        if not parts:
+            continue
+        if len(parts) == 1:
+            said, question = f"Your line for {r['id']}: `{parts[0]}`.", \
+                _HOLD_QUESTION
+        else:
+            shown = ", then ".join(f"`{p}`" for p in parts)
+            said, question = f"Your lines for {r['id']}: {shown}.", \
+                _HOLD_QUESTION_MANY
+        asked.append(f"Criterion {r['id']}: \"{r['text'] or ''}\". {said} "
+                     f"{question}")
+    if not asked:
+        return
+    ctx.pass_held = True
+    again = _offer(
+        ctx, "If each line does what its criterion says, send the same pass "
+             "again", "verdicts.emit",
+        {"batch_id": batch_id, "result": "pass", "lines": dict(lines)})
+    fail = "If a line does the opposite, send a fail on its criterion"
+    for r in rows:
+        if _line_parts(lines.get(r["id"])):
+            _offer(ctx, fail, "verdicts.claim_encodes",
+                   {"criterion_id": r["id"], "encodes": True},
+                   then=(_fail_on(batch_id, r["id"]),))
+    raise ValueError(
+        "your first pass of this session is held, and it has not landed. "
+        + " ".join(asked)
+        + " Then send verdicts.emit again with the verdict you now hold. "
+        f"{again}. {fail}. Call `verdicts.claim_encodes('<criterion id>', "
+        f"encodes=...)` first, as for any fail.")
 
 
 def _fail_on(batch_id: str, cid: str) -> tuple:

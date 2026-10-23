@@ -589,6 +589,9 @@ def test_the_judgement_records_what_it_judged(db, tmp_path):
     line = "def do_the_thing(): return 'done'"
     committed(db, a_batch_repo(tmp_path, line))
     sb = build("critic", db)
+    # The test is about the recorded commit, not the first-pass hold of
+    # frame 201, pass 3. So the hold counts as spent.
+    sb.ctx.pass_held = True
     sb.call("verdicts.emit", batch_id="b1", result="pass", lines={"c1": line})
 
     values = sb.ctx.writes[-1][2]
