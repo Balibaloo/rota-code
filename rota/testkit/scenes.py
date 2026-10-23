@@ -1639,7 +1639,13 @@ def rows(sc: Scene, free: tuple[str, ...] = ()) -> dict[str, list]:
 # The columns that hold a clock's reading inside their text. pytest's summary
 # line ends with its run time, and the fix wake pushes the red run's output,
 # so the run time reaches the prompt too. The run time is the one free part.
-TIMED = {"test_runs.output", "turns.user", "turns.system"}
+# `test_run_journal.output` keeps every run's text, run time and all (frame
+# 309), so a second build differs there by a hundredth of a second, and the
+# gate's retry, which runs a scene file without its first build, hid that as
+# flaky at three gates (observed: plans/flaky-scene-again-probe.md,
+# 2026-10-23).
+TIMED = {"test_runs.output", "test_run_journal.output", "turns.user",
+         "turns.system"}
 # A prompt that holds a run time has its own hash. The hash is the free part:
 # `sessions.prompt_hash` becomes a token, and so does the `prompt_hash` key
 # inside `sessions.pins_json`, whose other pins must repeat.
