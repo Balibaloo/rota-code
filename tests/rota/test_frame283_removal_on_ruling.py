@@ -433,11 +433,46 @@ def test_a_name_past_the_request_is_not_its_target(words):
     assert api._asks_removal(words, GONE, True) is False
 
 
-def test_remove_two_names_admits_both():
-    """Review 5: "Remove X and Y" still asks for both removals."""
+@pytest.mark.parametrize("words", [
+    # Review 6's finding 1: any word that is not a noun ends the clause.
+    "Remove the echo and ensure ctx.exit() runs.",
+    "Remove the echo and move ctx.exit() to the end.",
+    "Remove the echo and test that ctx.exit() still runs.",
+    "Remove the echo, move ctx.exit() to the end.",
+    "Remove the echo and just call ctx.exit() last.",
+    # Review 6's finding 2.
+    "Remove the echo that ctx.exit() follows.",
+    "Remove the echo near ctx.exit().",
+])
+def test_a_clause_continues_past_and_only_onto_a_noun(words):
+    """Review 6: after "and", "and then" or a comma, only a noun-like word
+    keeps the request clause open."""
+    assert api._asks_removal(words, GONE, True) is False
+
+
+def test_that_as_a_determiner_keeps_the_target():
+    """"that" ends the target only after a noun. Nights 143, 144 and 154
+    say "please drop that line"."""
+    assert api._asks_removal("Please remove that ctx.exit() call.", GONE, True) is True
+
+
+def test_night_152_and_just_say_ends_the_request():
+    """Review 6's probe N, night 152: "and just say" starts a new clause."""
+    s = ('Line 4 contradicts itself: if stdin is still open there is no end of '
+         'input, so drop "regardless of EOF state" and just say confirm '
+         'prompts as usual.')
+    assert [c.strip() for c in api._removal_spans(s)] == [
+        'drop "regardless of EOF state"']
+
+
+@pytest.mark.parametrize("words", [
+    "Remove echo(message) and ctx.exit().",
+    "Remove the echo(message) line and the ctx.exit() call.",
+])
+def test_remove_two_names_admits_both(words):
+    """Review 5 and 6: "Remove X and Y" still asks for both removals."""
     echo = {"line": "echo(message)", "owner": "version_option.callback",
             "no": None, "def": False}
-    words = "Remove echo(message) and ctx.exit()."
     assert api._asks_removal(words, GONE, True) is True
     assert api._asks_removal(words, echo, True) is True
 

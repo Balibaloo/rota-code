@@ -17751,26 +17751,43 @@ _REQUEST_LEADS = re.compile(
     r")?(?:\s*\b(?:also|just|now|then|simply|only)\b)?", re.I)
 
 
-# The break that ends a request clause. A bare "and" ends it only before a
-# word that keeps a line, so "Remove X and Y" asks for both, and "Drop X,
-# and keep Y" asks for X only (frame 283, review 4, finding 2). A verb of
-# `_NEXT_VERBS` after "and", "and then" or a comma starts a new clause:
-# "Remove the echo and make sure X runs" asks for no removal of X (review
-# 5, finding 1).
-_NEXT_VERBS = (r"(?:make|call|add|put|say|keep\w*|leave\w*|retain\w*|check|run|"
-               r"use|write|rewrite|return|raise)")
-_CLAUSE_END = re.compile(
-    r"[;:]|,(?=\s*(?:and|but|so|which|because|since|then|or|while)\b)"
-    rf"|,(?=\s*{_NEXT_VERBS}\b)"
-    r"|\b(?:so|but|which|because|since|while)\b"
-    r"|\b(?:and|or)\b(?=\s+(?:do\s+not|don't|never|not|still)\b)"
-    rf"|\b(?:and|or)\b(?:\s+then)?(?=\s+{_NEXT_VERBS}\b)",
-    re.I)
+# The break that ends a request clause outright.
+_CLAUSE_END = re.compile(r"[;:]|\b(?:so|but|which|because|since|while)\b", re.I)
+# A join after the removal verb. The clause goes on past the join only onto
+# a noun: "Remove X and Y" asks for both, and "Remove the echo and ensure X
+# runs" asks for no removal of X (frame 283, review 6, finding 1). A closed
+# verb list missed a new verb at each review, so the rule lists the nouns.
+_JOIN = re.compile(r",?\s*\b(?:and|or)\b(?:\s+then)?|,", re.I)
+_NOUN_START = re.compile(
+    r"(?:the|a|an|its|any|all|both|every|also|lines?)\b|\d", re.I)
 # A name after a position word or an exception word is not the target:
-# "Remove the line above X" keeps X (frame 283, review 5, finding 2).
+# "Remove the line above X" keeps X (frame 283, review 5, finding 2, and
+# review 6, finding 2).
 _NOT_TARGET = re.compile(
-    r"\b(?:above|below|before|after|next\s+to|beside|instead\s+of|"
-    r"rather\s+than|except|not)\b", re.I)
+    r"\b(?:above|below|before|after|next\s+to|near|beside|instead\s+of|"
+    r"rather\s+than|except|not|that)\b", re.I)
+
+
+def _determiner_that(rest: str, t) -> bool:
+    """True when the `_NOT_TARGET` match `t` in `rest` is "that" as a
+    determiner, as in "drop that line". A relative "that" follows a noun:
+    "Remove the echo that X follows"."""
+    if t.group(0).lower() != "that":
+        return False
+    before = rest[:t.start()].split()
+    return not before or before[-1].lower() in {
+        "only", "all", "of", "from", "in", "on", "to", "with", "at", "for",
+        "just", "also", "and", "or"}
+
+
+def _goes_on(rest: str, names: tuple) -> bool:
+    """True when the words `rest` after a join start a noun: a word of
+    `_NOUN_START`, a code token, or a name in `names`."""
+    rest = rest.lstrip()
+    if _NOUN_START.match(rest) or any(n and rest.startswith(n) for n in names):
+        return True
+    tok = rest.split(maxsplit=1)[0].rstrip(".,;:!?") if rest else ""
+    return any(ch in tok for ch in "._(`")
 
 
 def _outside_code(s: str, i: int) -> bool:
@@ -17786,12 +17803,13 @@ def _breaks(rx, s: str) -> list:
     return [b for b in rx.finditer(s) if _outside_code(s, b.start())]
 
 
-def _removal_spans(s: str) -> list[str]:
+def _removal_spans(s: str, names: tuple = ()) -> list[str]:
     """The request clauses of the sentence `s`: each clause where a removal
     verb starts the clause, after a lead of `_REQUEST_LEADS`. A named
     subject leads "no longer" or "stop" only. A clause whose object is
     "it" or "them", or that starts with "which", takes the clause before
-    it too, because that clause holds the name."""
+    it too, because that clause holds the name. After a join, the clause
+    goes on onto a noun or onto one of `names`, the gone statement's names."""
     out: list = []
     for m in _REMOVAL_WORDS.finditer(s):
         verb = m.group(0)
@@ -17812,7 +17830,10 @@ def _removal_spans(s: str) -> list[str]:
                 or not re.match(r"no\s|stop", verb, re.I)):
             continue
         ends = (_breaks(_CLAUSE_END, s[m.end():])
-                + _breaks(_NOT_TARGET, s[m.end():]))
+                + [t for t in _breaks(_NOT_TARGET, s[m.end():])
+                   if not _determiner_that(s[m.end():], t)]
+                + [j for j in _breaks(_JOIN, s[m.end():])
+                   if not _goes_on(s[m.end() + j.end():], names)])
         end = m.end() + min(e.start() for e in ends) if ends else len(s)
         # Review 4's finding 1: the name must sit in the request clause.
         # Only a pronoun object or "which" reaches the clause before.
@@ -17837,8 +17858,10 @@ def _asks_removal(text: str, g: dict, principal: bool) -> bool:
     principal's words can name the line by its number. The name sits in the
     request clause (frame 283, review 4, finding 1). The function of a bare
     keyword can sit anywhere in the sentence."""
+    head = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", g["line"])
+    names = (g["line"], head.group(1) + "(" if head and not g["def"] else "")
     for s in re.split(r"(?<=[.!?])\s+|\n+", text or ""):
-        for c in _removal_spans(s):
+        for c in _removal_spans(s, names):
             line = g["line"]
             if g["def"] or line not in _BARE_LINES:
                 if _says(c, line):
