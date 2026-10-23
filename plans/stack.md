@@ -684,6 +684,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 15, row 6.
 - Pointer: `plans/night158-read.md`, section 2, W7, and section 1, frame 298.
 - Status 2026-10-21 16:23 (rota-f9): pushed from night 158's read. Meta workflow.
+- Status 2026-10-23 14:37 (rota-45): pass 1 runs on a fresh implementer on Opus, cap 60k, from f307_pass1_brief.md in this session's scratchpad, in the worktree C:/Users/roman/rota_p307 at 02371cff: section 12's M0 counts a re-presented page, M1 and M2 read the last guess, and the nightcount's landed-commit counter reads the batch's own commit; night 158's database as the red test for each. Cycles: 1 of 1.
 
 ### 306. The principal's words on a page do not reach the criterion, and a change outside the criteria merges with no page that shows it (2026-10-21) (81fe1025) (2214bec6)
 
@@ -693,6 +694,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 15, row 6.
 - Pointer: `plans/night158-read.md`, section 2, W1 b and d.
 - Status 2026-10-21 16:23 (rota-f9): pushed from night 158's read. Meta workflow.
+- Status 2026-10-23 14:37 (rota-45): the provenance read runs on Opus, cap 80k, from f306_provenance_brief.md in this session's scratchpad, to plans/frame306-provenance.md, by the ruling of 2026-10-18: the hop from a page reply to the criterion, and the evidence page before a merge, W1 b and d of night 158. Cycles: 1 of 3.
 
 ### 305. The line reader places 'drop' on the line a sentence repeats, and the re-present after a refused ruling names line 1 (2026-10-21) (81fe1025) (2214bec6)
 
@@ -739,6 +741,7 @@ a different question and the night is then opened once.
 - Status 2026-10-21 12:40 (rota-00): pushed by 5389be74 from night 157's read as sprint 14's row 4. The provenance read runs now on one agent, cap 80k, to `plans/frame303-provenance.md`. Meta workflow.
 - Status 2026-10-21 12:36 (rota-00): **the provenance on Opus, 116.8k against 80k, `plans/frame303-provenance.md`: the `propose` edge was born with no prose slot in the first graph, 33474a00 of 2026-08-09, and Roman ruled refs only at 43f7ae96 on 2026-08-15 after words on three edges lost three L1 cases, `SYSTEM.md` line 64; so no door can refuse a body the edge does not carry; s205 read `{"from": "architect", "verb": "propose", "refs": ["bg_1"]}` and `propose.md` lines 9 to 12 offer 'assert it as an item' as one of two answers; the frame 221 door `_assert_words_fault`, 'only the principal asks for work', `api.py` 1438 to 1449 of 2026-10-14, fires on a challenge wake only and admits a propose wake; the id refusal re-offered the call with `id: INVENT`; precedents on nights 91, 148 and 149, 24 propose-wake asserts with 7 landed** (observed: the record, 2026-10-21). Judged here: the fix is the second shape, the item assert needs a principal cause on a propose wake too, one verb wider at the frame 221 door, with `propose.md` line 9 and `RECEIPT_RULES` at `db.py` 688 amended to match; the first shape would reverse his ruling of 2026-08-15. Waits on frame 302's commit. Cycles: 1.
 - Status 2026-10-23 14:20 (rota-45): pass 1 runs on a fresh implementer on Opus, cap 60k, from f303_pass1_brief.md in this session's scratchpad, in the worktree C:/Users/roman/rota_p303 at e041c662, frame 302's pass 1: a request item whose cause is no principal message or statement is refused and routed to msg.report_liaison, the propose brief and RECEIPT_RULES name the same act, the propose edge stays mute; s205's assert as the red test, by the provenance's section 6. Cycles: 2 of 3.
+- Status 2026-10-23 14:37 (rota-45): **pass 1 built on Opus, about 103k on the harness line against 60k, committed in the worktree at 2d1dc9e9 on e041c662, not yet on the branch: a request item whose cause is no principal message or statement is refused and routed to msg.report_liaison; the brief is vision_keeper/propose.md, because s205 was the Vision Keeper; the RECEIPT_RULES propose entry is gone and the default rules count the report; 2 red then 8 passed, 1093 passed over the related files** (observed: f303_pass1_report.md in this session's scratchpad). Deviation: the door also admits a Liaison deliver on its verb alone, a ref to a principal entries row, and a wake with no cause on record, because 14 tests went red without them. Review 1 runs on Opus in C:/Users/roman/rota_r303, the three admitted causes first. Cycles: 3 of 3.
 
 ### 302. `batches.guess` and `batches.annotate` admit a path the code index does not hold (2026-10-21) (5389be74) (81fe1025) (2214bec6)
 
