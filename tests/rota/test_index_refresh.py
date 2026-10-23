@@ -108,11 +108,13 @@ def test_the_batch_sees_the_symbol_it_committed(world):
                       (NEW_FILE,)).fetchone(), "the index holds the file the batch made"
 
     # The directory the batch made is now a directory the tree has, so the
-    # Architect can predict a second file beside the first.
+    # Architect can predict a second file beside the first. Frame 302: the
+    # call names the second file as new.
     sb = build_sandbox("architect", db, mode="annotate", batch_id="b1",
                        allow=prompts.mode_tools("architect", "annotate"))
     out = sb.call("batches.annotate", batch_id="b1",
-                  paths=["src/echo/json_echo.py", "src/echo/second.py"])
+                  paths=["src/echo/json_echo.py", "src/echo/second.py"],
+                  new_files=["src/echo/second.py"])
     assert out["grains"] == 2
 
 

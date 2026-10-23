@@ -513,7 +513,18 @@ def _guess(sc: Scene, wake: Wake) -> list[str]:
             "SELECT grain FROM code_index WHERE grain_kind = 'path' "
             "AND grain NOT LIKE 'tests/%' ORDER BY grain LIMIT 1").fetchone()
         paths = [row["grain"]] if row else ["README.md"]
-    return [f"TOOL: batches.guess(item_id={item_id!r}, paths={list(paths)!r})"]
+    return [f"TOOL: batches.guess(item_id={item_id!r}, paths={list(paths)!r}"
+            f"{_new_files(sc, paths)})"]
+
+
+def _new_files(sc: Scene, paths: list[str]) -> str:
+    """The `new_files` argument for the paths the index does not hold, or
+    nothing. The ops refuse an unindexed file the call does not name as new
+    (frame 302)."""
+    indexed = {r["grain"] for r in sc.conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
+    new = [p for p in paths if p not in indexed]
+    return f", new_files={new!r}" if new else ""
 
 
 def annotate(sc: Scene, n: int, paths: list[str], read: bool = True) -> None:
@@ -521,8 +532,10 @@ def annotate(sc: Scene, n: int, paths: list[str], read: bool = True) -> None:
     note, which the principal reads and acknowledges when `read`."""
     b, i = f"b{n}", f"i{n}"
     sc.ids[f"guess_paths:{i}"] = list(paths)
-    seat(sc, f"architect|tick:annotate|{b}", [
-        f"TOOL: batches.annotate(batch_id={b!r}, paths={paths!r})"])
+    # The index is read at the wake, because a batch can index a file first.
+    seat(sc, f"architect|tick:annotate|{b}", Session(lambda sc, wake: [
+        f"TOOL: batches.annotate(batch_id={b!r}, paths={paths!r}"
+        f"{_new_files(sc, paths)})"]))
     seat(sc, f"liaison|tick:touch_note|{b},{i}", [
         f"TOOL: msg.present_principal(refs=[{b!r}, {i!r}])"])
     if read:

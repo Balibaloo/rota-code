@@ -234,5 +234,8 @@ def test_a_predicted_path_lives_where_the_tree_has_paths(db):
                allow=prompts.mode_tools("architect", "annotate"))
     with pytest.raises(ValueError, match="src/split_bill.py is under a directory the tree does not have"):
         sb.call("batches.annotate", batch_id="b1", paths=["src/split_bill.py"])
-    out = sb.call("batches.annotate", batch_id="b1", paths=["split_bill.py", "main.py", "tests/test_split.py"])
+    # Frame 302: a new file beside existing ones lands when the call names
+    # it as new.
+    out = sb.call("batches.annotate", batch_id="b1", paths=["split_bill.py", "main.py", "tests/test_split.py"],
+                  new_files=["split_bill.py", "tests/test_split.py"])
     assert out["grains"] == 3
