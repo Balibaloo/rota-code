@@ -6104,14 +6104,24 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
         # in advance. A basename the index holds elsewhere is a wrong path.
         base = f.rpartition("/")[2]
         return (test_shaped(f) and f.rpartition("/")[0] in test_dirs
-                and not any(g.rpartition("/")[2] == base for g in indexed))
+                and not any(g.rpartition("/")[2] == base for g in indexed)
+                and not stem_folder(f))
+
+    def stem_folder(f: str) -> str:
+        # Night 155's s281 and s285 wrote tests/test_utils.py, and the echo
+        # tests live in the indexed tests/test_utils/ (frame 302, review 2,
+        # finding 1). A stem that names an indexed folder means that folder.
+        stem = f[:-3] if f.endswith(".py") else ""
+        return stem if stem and any(g.startswith(f"{stem}/")
+                                    for g in indexed) else ""
 
     unknown = [f for f in (file_half(p) for p in paths)
                if f not in indexed | named and not new_test_file(f)]
     if not unknown:
         return
     path = unknown[0]
-    folder = "/".join(path.split("/")[:-1])
+    folder = (stem_folder(path) if test_shaped(path) else "") or "/".join(
+        path.split("/")[:-1])
     beside = sorted(g for g in indexed
                     if "/".join(g.split("/")[:-1]) == folder)
     if not beside:

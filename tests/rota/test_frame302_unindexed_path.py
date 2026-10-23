@@ -415,3 +415,33 @@ def test_the_brief_says_a_new_test_file_needs_no_new_files(mode):
     assert "Name in `new_files=[...]` the files that do not exist yet." in brief
     assert "A new test file needs no `new_files`." in brief
     assert "name as new" not in brief
+
+
+# ---------------------------------------------------------------------------
+# Pass 2c: review 2, finding 1
+# ---------------------------------------------------------------------------
+
+# Night 155's index under tests/test_utils/, the files s281's item names.
+TEST_UTILS = ["tests/test_utils/__init__.py", "tests/test_utils/test_echo.py",
+              "tests/test_utils/test_echo_via_pager.py"]
+
+
+def test_s281s_test_file_named_like_an_indexed_folder_is_refused(db):
+    """Night 155's s281, turn 1: the echo tests live in tests/test_utils/."""
+    for grain in TEST_UTILS:
+        db.execute("INSERT INTO code_index (grain, grain_kind) "
+                   "VALUES (?, 'path')", (grain,))
+    sb = _annotate(db)
+    with pytest.raises(ValueError) as err:
+        sb.call("batches.annotate", batch_id="bg_2",
+                paths=["tests/test_utils.py"])
+    words = str(err.value)
+    assert words.startswith("tests/test_utils.py is not a file the index holds")
+    assert "files in tests/test_utils:" in words
+    assert "tests/test_utils/test_echo.py" in _listed(words)
+    assert "new_files=[...]" in words
+    assert not _grains(sb, "batch_touch")
+    sb = _annotate(db)
+    out = sb.call("batches.annotate", batch_id="bg_2",
+                  paths=["tests/test_echo_json.py"])
+    assert out["grains"] == 1
