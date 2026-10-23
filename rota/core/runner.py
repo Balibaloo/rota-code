@@ -20,6 +20,7 @@ import ast
 import json
 import logging
 import os
+import posixpath
 import re
 import sqlite3
 import time
@@ -2679,8 +2680,8 @@ def _arrange_raise_tail(conn: sqlite3.Connection, test: Any,
     `mock.py`. The 700 tail started inside `mock.py` and held no test line,
     and dec_123 and dec_124 blamed the code. The rule: the test file's frame
     names a line before the first surface call and before the first
-    `assert`, and the last frame lies outside the worktree's source. Then
-    the tail starts at the `>` line of the test's frame. A raise inside the
+    `assert`, and every later frame lies outside the worktree's source. Then
+    the tail starts at the `>` line of the test's frame. A frame in the
     project's own code keeps today's tail.
     """
     for marker in ("During handling of the above exception, another "
@@ -2698,16 +2699,37 @@ def _arrange_raise_tail(conn: sqlite3.Connection, test: Any,
     if not own or found[-1] is own[0]:
         return None
     at, _, lineno = own[0]
-    last = found[-1][1]
     row = conn.execute(
         "SELECT b.worktree FROM batches b JOIN tests t ON t.batch_id = b.id "
         "WHERE t.id = ?", (test["id"],)).fetchone()
     root = ((row["worktree"] if row else None) or "").replace("\\", "/")
-    absolute = bool(re.match(r"^([A-Za-z]:/|/)", last))
-    inside = (not absolute or (root and last.lower().startswith(
-        root.rstrip("/").lower() + "/")))
-    if inside and not any(part in ("site-packages", ".venv", "venv")
-                          for part in last.split("/")):
+    root = posixpath.normpath(root).lower() if root else ""
+
+    def _source(where: str) -> bool:
+        # Review 1, F1: with the worktree and Python on one drive, pytest
+        # prints a library frame as `..\..\Python\...`. The path resolves
+        # against the worktree, and a path that leaves it is outside.
+        if re.match(r"^([A-Za-z]:/|/)", where):
+            full = posixpath.normpath(where).lower()
+        elif root:
+            full = posixpath.normpath(root + "/" + where).lower()
+        else:
+            full = posixpath.normpath(where).lower()
+            if full == ".." or full.startswith("../"):
+                return False
+            return not any(p in ("site-packages", ".venv", "venv")
+                           for p in full.split("/"))
+        if root and not full.startswith(root + "/"):
+            return False
+        rel = full[len(root) + 1:] if root else full
+        return not any(p in ("site-packages", ".venv", "venv")
+                       for p in rel.split("/"))
+
+    later = [f for f in found if f[0] > at and f not in own]
+    # Review 1, F2: a frame in the project's own code after the test's frame
+    # means the code ran and raised, so the code can be at fault.
+    if (not later or found[-1] in own
+            or any(_source(f[1]) for f in later)):
         return None
     try:
         tree = ast.parse(test["body"] or "")

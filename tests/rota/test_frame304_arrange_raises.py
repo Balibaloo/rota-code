@@ -75,7 +75,10 @@ def test_s187_tst02_is_refused_with_its_raising_line_named(db, tmp_path):
     msg = _refusal(db, S187_TST02)
     assert "Line 6" in msg and "mock_stdin.read" in msg, msg
     assert "before the call under test" in msg, msg
-    assert "drop the spec" in msg, msg
+    # Review 1, F5: one step and the route. `mock_open` has no spec to drop.
+    assert "drop the spec" not in msg, msg
+    assert "read_data" in msg and "plain MagicMock" in msg, msg
+    assert "CliRunner().invoke" in msg, msg
 
 
 def test_the_same_body_with_a_stub_that_holds_read_is_admitted(db, tmp_path):
@@ -95,7 +98,20 @@ def test_a_spec_resolved_in_the_sandbox_is_read_by_dir(db, tmp_path):
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     assert _encode(sb, body)["id"] == "tst_new"
     msg = _refusal(db, body.replace("mock_stdin.read.", "mock_stdin.fetch."))
-    assert "mock_stdin.fetch" in msg and "drop the spec" in msg, msg
+    assert "mock_stdin.fetch" in msg, msg
+    assert "Build the stub so that `fetch` exists" in msg, msg
+    assert "CliRunner().invoke" in msg and "drop the spec" not in msg, msg
+    # Off stdin, the route is the one the other encode refusals name.
+    import ast
+
+    from rota.roles.api import _spec_mock_raise
+    off = ('from unittest.mock import MagicMock\n\n\n'
+           'def test_x():\n'
+           '    m = MagicMock(spec=["get"])\n'
+           '    m.fetch.return_value = 1\n'
+           '    assert m.get() == 1\n')
+    said = _spec_mock_raise(None, None, ast.parse(off), off, set())
+    assert "msg.question_terminologist" in said, said
 
 
 def test_a_spec_the_sandbox_cannot_import_leaves_the_door_silent(db, tmp_path):
@@ -142,3 +158,111 @@ def test_a_raise_inside_the_project_source_keeps_todays_tail(db, tmp_path):
     run = _red_row(db, tmp_path, output)
     assert run["output_tail"] == output[-700:]
     assert "label" not in run
+
+
+MOCK_PY = r"C:\Users\roman\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:696"
+
+
+def test_a_relative_library_path_that_leaves_the_worktree_is_outside(db, tmp_path):
+    """Review 1, F1: with the worktree and Python on one drive, pytest prints
+    the library frame as a relative path that climbs out of the worktree."""
+    output = S187_RUN.replace(
+        MOCK_PY, r"..\..\..\..\Python\pythoncore-3.14-64\Lib\unittest\mock.py:696")
+    run = _red_row(db, tmp_path, output)
+    assert run["output_tail"].startswith('>           mock_stdin.read'), run
+    assert run["label"] == LABEL
+
+
+def test_project_code_that_raises_inside_the_library_keeps_todays_tail(db, tmp_path):
+    """Review 1, F2: the arrange step calls project code, and the project
+    code raises inside `json`. The code can be at fault, so no label."""
+    output = S187_RUN.replace(
+        "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n",
+        "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n"
+        "\n    def load(text):\n>       return json.loads(text)\n\n"
+        "src\\click\\termui.py:5: \n"
+        "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n",
+        1).replace(MOCK_PY, r"C:\Python\Lib\json\decoder.py:355")
+    run = _red_row(db, tmp_path, output)
+    assert run["output_tail"] == output[-700:]
+    assert "label" not in run
+
+
+_SHAPE = (
+    'def test_confirm_handles_eof_gracefully():\n'
+    '    from click.termui import confirm\n'
+    '    from unittest.mock import patch, MagicMock, mock_open\n'
+    '{arrange}'
+    '    with patch("sys.stdin", mock_stdin):\n'
+    '        mock_stdin.read.return_value = ""\n'
+    '        result = confirm(text="Proceed?", default_on_eof=True)\n'
+    '        assert result is False')
+
+
+@pytest.mark.parametrize("arrange", [
+    '    mock_stdin = MagicMock(spec=["readline"])\n'
+    '    mock_stdin.configure_mock(read=MagicMock())\n',
+    '    mock_stdin = MagicMock(spec=["readline"])\n'
+    '    setattr(mock_stdin, "read", MagicMock())\n',
+    '    mock_stdin = MagicMock(spec=["readline"], read=MagicMock())\n',
+    '    mock_stdin = mock_open(mock=MagicMock())\n',
+], ids=["configure_mock", "setattr", "constructor", "mock_open_mock"])
+def test_a_stub_that_runs_is_admitted(db, tmp_path, arrange):
+    """Review 1, F3: each of these bodies runs under Python."""
+    _termui_alias_batch(db, tmp_path)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    assert _encode(sb, _SHAPE.format(arrange=arrange))["id"] == "tst_new"
+
+
+def test_a_helper_no_test_calls_is_not_read(db, tmp_path):
+    """Review 1, F3: the helper never runs, so its read never raises."""
+    _termui_alias_batch(db, tmp_path)
+    body = ('from unittest.mock import MagicMock\n\n\n'
+            'def _unused():\n'
+            '    stub = MagicMock(spec=["readline"])\n'
+            '    return stub.read\n\n\n' + HOLDS_READ)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    assert _encode(sb, body)["id"] == "tst_new"
+
+
+def test_the_label_reaches_the_seats_in_words(db, tmp_path):
+    """Review 1, F4: frame 110 found that a seat reads plain words, and not
+    a JSON key. The Developer reads red runs through `tests.load`."""
+    from pathlib import Path
+
+    from rota.roles import api
+
+    prompts = Path(api.__file__).parent / "prompts"
+    for page in ("architect/escalate.md", "developer/tests_failing.md"):
+        text = " ".join((prompts / page).read_text(encoding="utf-8").split())
+        assert LABEL in text, page
+    _red_row(db, tmp_path, S187_RUN)
+    rows = api.tests_load(api.Ctx(conn=db, role="developer", batch_id="b1"))
+    row = next(r for r in rows if r["id"] == "tst1")
+    assert row["label"] == LABEL
+
+
+def test_the_probe_runs_once_per_spec_for_the_session_under_five_seconds(
+        db, tmp_path, monkeypatch):
+    """Review 1, F6: an import that hangs stalled the door 60 seconds for
+    each spec'd mock, on each encode."""
+    from rota.core import execute
+
+    _termui_alias_batch(db, tmp_path)
+    seen = []
+    real = execute.run
+
+    def counted(root, argv, **kw):
+        if "ROTA-DIR" in " ".join(argv):
+            seen.append(kw.get("timeout"))
+        return real(root, argv, **kw)
+
+    monkeypatch.setattr(execute, "run", counted)
+    body = HOLDS_READ.replace(
+        '    from unittest.mock import patch, MagicMock\n',
+        '    import io\n    from unittest.mock import patch, MagicMock\n').replace(
+        'MagicMock(spec=["read", "readline"])', 'MagicMock(spec=io.StringIO)')
+    for _ in range(2):
+        sb = build("tester", db, batch_id="b1", mode="tests_missing")
+        assert _encode(sb, body)["id"] == "tst_new"
+    assert seen == [5], seen

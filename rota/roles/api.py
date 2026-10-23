@@ -9222,6 +9222,11 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
                 reach = "a file your diff touched" if path in touched else "a file your diff did not touch"
                 row["raised at"] = (f"{path}:{line} ({err}) before any assertion ran, "
                                     f"in {reach}")
+        # Frame 304, review 1, F4: the Developer reads red runs here and not
+        # through `_resolve_refs`, so the row carries frame 110's label too.
+        from ..core.runner import FAILED_BEFORE_ASSERTION, _arrange_raise_tail
+        if _arrange_raise_tail(ctx.conn, row, said) is not None:
+            row["label"] = FAILED_BEFORE_ASSERTION
     return rows
 
 
@@ -14643,11 +14648,25 @@ def _spec_names(ctx, batch_id, tree, expr) -> list[str] | None:
         return None
     if not root.is_dir():
         return None
+    # Review 1, F6: an import that hung stalled the door 60 seconds for each
+    # mock, on each encode. A failure is cached too, so it costs once.
+    key = (getattr(ctx, "session_id", ""), str(root), tuple(origin + chain))
+    if key not in _DIR_CACHE:
+        _DIR_CACHE[key] = _dir_probe(root, origin + chain)
+    return _DIR_CACHE[key]
+
+
+# One `dir()` per session, worktree and spec name.
+_DIR_CACHE: dict = {}
+
+
+def _dir_probe(root, names: list[str]) -> list[str] | None:
+    """The `dir()` that `_DIR_PROBE` prints in the sandbox, or None."""
     from ..core import execute
     from ..core.provision import python_for
     try:
-        out = execute.run(root, [python_for(root), "-c", _DIR_PROBE,
-                                 *origin, *chain], timeout=60)
+        out = execute.run(root, [python_for(root), "-c", _DIR_PROBE, *names],
+                          timeout=5)
     except Exception:  # noqa: BLE001 -- a probe that cannot run proves nothing
         return None
     if out.error or out.returncode != 0:
@@ -14657,29 +14676,42 @@ def _spec_names(ctx, batch_id, tree, expr) -> list[str] | None:
     if not marked:
         return None
     try:
-        names = json.loads(marked[-1][len("ROTA-DIR "):])
+        got = json.loads(marked[-1][len("ROTA-DIR "):])
     except ValueError:
         return None
-    return [x for x in names if isinstance(x, str)]
+    return [x for x in got if isinstance(x, str)]
 
 
 def _spec_source(call: "_ast.Call", in_patch: bool):
     """
-    How a mock call gives its mock a spec: ("open",), ("names", [...]),
-    ("expr", node), or None. The second field of the pair says spec_set.
+    How a mock call gives its mock a spec, or None.
+
+    The triple is the source, whether the spec is a `spec_set`, and the names
+    the call sets. The source is ("open",), ("names", [...]) or ("expr",
+    node). A keyword the mock does not take itself sets that name on the mock
+    (review 1, F3).
     """
     fn = call.func
     name = (fn.attr if isinstance(fn, _ast.Attribute) else
             fn.id if isinstance(fn, _ast.Name) else "")
-    if name == "mock_open" and not in_patch:
-        return ("open",), False
     kw = {k.arg: k.value for k in call.keywords if k.arg}
+    # `**kwargs` can set any name, so the call gives no certain spec.
+    if any(k.arg is None for k in call.keywords):
+        return None
+    if name == "mock_open" and not in_patch:
+        # `mock_open(mock=...)` configures the mock it is given, and that
+        # mock has no spec of `open` (review 1, F3).
+        if "mock" in kw or call.args:
+            return None
+        return ("open",), False, set()
     if in_patch:
         made = kw.get("new_callable")
         made_name = (made.attr if isinstance(made, _ast.Attribute) else
                      made.id if isinstance(made, _ast.Name) else "")
         if made_name == "mock_open":
-            return ("open",), False
+            if "mock" in kw:
+                return None
+            return ("open",), False, set()
         if "new" in kw or len(call.args) > (2 if name == "object" else 1):
             return None
     elif name not in _MOCK_CTORS:
@@ -14690,12 +14722,22 @@ def _spec_source(call: "_ast.Call", in_patch: bool):
         spec = call.args[0]
     if spec is None or isinstance(spec, _ast.Constant):
         return None
+    preset = {k.split(".")[0] for k in kw if k not in _MOCK_OWN_KEYWORDS}
     if isinstance(spec, (_ast.List, _ast.Tuple)):
         if all(isinstance(e, _ast.Constant) and isinstance(e.value, str)
                for e in spec.elts):
-            return ("names", [e.value for e in spec.elts]), spec_set
+            return ("names", [e.value for e in spec.elts]), spec_set, preset
         return None
-    return ("expr", spec), spec_set
+    return ("expr", spec), spec_set, preset
+
+
+# The keywords that a mock or `patch` takes itself. Any other keyword sets a
+# name on the mock.
+_MOCK_OWN_KEYWORDS = {"spec", "spec_set", "side_effect", "return_value",
+                      "wraps", "name", "unsafe", "parent", "new",
+                      "new_callable", "create", "autospec", "_new_name",
+                      "_new_parent", "_spec_state", "_spec_class",
+                      "_spec_as_instance", "_eat_self"}
 
 
 def _spec_mock_raise(ctx, batch_id, tree, body: str,
@@ -14740,6 +14782,16 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
     calls_at = [n.lineno for n in _ast.walk(tree)
                 if isinstance(n, _ast.Call) and _callee(n) in surface_names]
     first_call = min(calls_at) if calls_at else None
+    # The stdin route of frame 254 fits a click body that stubs stdin.
+    stdin_route = any(
+        isinstance(n, _ast.Call) and _callee(n) == "patch" and n.args
+        and isinstance(n.args[0], _ast.Constant) and n.args[0].value == "sys.stdin"
+        for n in _ast.walk(tree)) and any(
+        (isinstance(n, _ast.Import)
+         and any(a.name.split(".")[0] == "click" for a in n.names))
+        or (isinstance(n, _ast.ImportFrom)
+            and (n.module or "").split(".")[0] == "click")
+        for n in _ast.walk(tree))
 
     def _allowed(source, ctor):
         # The mock module answers, so the rule is the module's own.
@@ -14767,10 +14819,23 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
         when = ("before the call under test"
                 if first_call is None or stmt.lineno < first_call
                 else "and the test cannot pass")
+        # Review 1, F5: one step and the route. `mock_open` makes the spec
+        # itself, so a Tester cannot drop it.
+        step = f"Build the stub so that `{attr}` exists."
+        if source[0] == "open":
+            step += (f" Use mock_open(read_data=...) and read through "
+                     f"`{var}.return_value`, or patch with a plain MagicMock.")
+        if stdin_route:
+            route = ("For an empty stdin, call the surface inside a "
+                     "@click.command() and run CliRunner().invoke(cmd, "
+                     "input='').")
+        else:
+            route = ("If the criterion needs a name that no stub can hold, "
+                     "send msg.question_terminologist with the criterion.")
         return (f"Line {stmt.lineno}, `{line}`, {verb} `{var}.{attr}`. "
                 f"The spec of `{var}` is {spec}, and that spec holds no "
-                f"`{attr}`. So the line raises AttributeError {when}. Build "
-                f"the stub so that `{attr}` exists, or drop the spec")
+                f"`{attr}`. So the line raises AttributeError {when}. "
+                f"{step} {route}")
 
     def _walk(stmts, mocks):
         # mocks: name -> [mock or None, source, spec_set, names set later].
@@ -14792,8 +14857,8 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
                                 and _callee(ce) in ("patch", "object")):
                             got = _spec_source(ce, in_patch=True)
                             if got:
-                                mocks[var] = [None, got[0], got[1], set(),
-                                              "MagicMock"]
+                                mocks[var] = [None, got[0], got[1],
+                                              set(got[2]), "MagicMock"]
                 if not expects:
                     hit = _walk(stmt.body, mocks)
                     if hit:
@@ -14814,7 +14879,7 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
                     ctor = _callee(stmt.value)
                     for t in stmt.targets:
                         if isinstance(t, _ast.Name):
-                            mocks[t.id] = [None, got[0], got[1], set(),
+                            mocks[t.id] = [None, got[0], got[1], set(got[2]),
                                            ctor if ctor in _MOCK_CTORS
                                            else "MagicMock"]
             if isinstance(stmt, (_ast.Return, _ast.Raise)):
@@ -14829,6 +14894,23 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
                     and n.id in mocks):
                 mocks.pop(n.id)
         stores = []
+        for n in nodes:
+            # Review 1, F3: `configure_mock` and `setattr` set names, and a
+            # later read of those names runs.
+            if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                    and n.func.attr == "configure_mock"
+                    and isinstance(n.func.value, _ast.Name)
+                    and n.func.value.id in mocks):
+                entry = mocks[n.func.value.id]
+                stores += [(entry, k.arg.split(".")[0])
+                           for k in n.keywords if k.arg]
+            if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+                    and n.func.id == "setattr" and len(n.args) >= 2
+                    and isinstance(n.args[0], _ast.Name)
+                    and n.args[0].id in mocks
+                    and isinstance(n.args[1], _ast.Constant)
+                    and isinstance(n.args[1].value, str)):
+                stores.append((mocks[n.args[0].id], n.args[1].value))
         for n in nodes:
             if not (isinstance(n, _ast.Attribute)
                     and isinstance(n.value, _ast.Name)
@@ -14852,8 +14934,21 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
             entry[3].add(attr)
         return None
 
+    def _runs(fn):
+        # pytest runs a test function and a fixture. A helper that no test
+        # calls never runs, so its reads raise nothing (review 1, F3).
+        if fn.name.startswith("test"):
+            return True
+        for d in fn.decorator_list:
+            d = d.func if isinstance(d, _ast.Call) else d
+            if (d.attr if isinstance(d, _ast.Attribute) else
+                    d.id if isinstance(d, _ast.Name) else "") == "fixture":
+                return True
+        return False
+
     for fn in _ast.walk(tree):
-        if isinstance(fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+        if (isinstance(fn, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                and _runs(fn)):
             hit = _walk(fn.body, {})
             if hit:
                 return hit

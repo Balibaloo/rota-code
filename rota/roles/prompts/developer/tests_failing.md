@@ -2,7 +2,9 @@ MODE: tests_failing — the harness is red.
 
 **Read both before you touch anything.** `tests.load` gives you the failing
 tests *and what the harness said about each* — the assertion that fired and the
-value it got, not just the word "fail". `criteria.load` gives you what those
+value it got, not just the word "fail". A test whose `label` is "the test
+failed before any assertion" raised before it called your code, so challenge
+the test and do not change the code. `criteria.load` gives you what those
 tests are supposed to encode. A test is not the specification; it is somebody's
 attempt at writing one down, and the two-line check that follows is the only
 place a wrong attempt gets caught:

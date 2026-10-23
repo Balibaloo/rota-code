@@ -28,7 +28,9 @@ Then find which of these it is:
   so, then `msg.answer_developer` with the decision's id in refs. When the
   escalation is about a test, the row names the test line that does not encode
   the criterion. An answer that sends back only the escalation's own rows tells
-  the Developer nothing
+  the Developer nothing. When a test's last run carries the label "the test
+  failed before any assertion", the test raised before it called the code, so
+  the test is at fault and not the code
 
 If it is genuinely none of those, `msg.report_liaison` climbs the ladder one
 more rung, because the usual reason a loop exhausts itself is not knowing who
