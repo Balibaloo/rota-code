@@ -463,3 +463,73 @@ def test_a_kept_line_with_a_code_fault_asks_no_new_words(db):
                         N157_PAGE)
     assert api._keeps_words_on(db, ruled, "crit_show_python_version")
     assert not api._words_fault_on(db, ruled, "crit_show_python_version")
+
+
+# --- pass 3d: a drop is the whole line, and a keep yields to new words -------
+
+PAGE5 = [f"row_{n}" for n in range(1, 6)]
+
+
+@pytest.mark.parametrize("line, words", [
+    (3, "Line 3 should go back to how you had it."),
+    (5, "Remove line 5's last clause about the prompt."),
+    (5, "Line 5 should go further and name the default."),
+])
+def test_a_revert_or_a_partial_edit_is_no_drop(db, line, words):
+    """Review 5, finding 2: night 140's r_4dfcbd586b said "Line 3 should go
+    back to how you had it". A drop removes the whole line, so these words
+    ask new words of the line and drop nothing."""
+    from rota.roles import api
+
+    ruled = _ruled_page(db, "r_p3d", "m300", "m301", words, PAGE5)
+    assert api._line_dropped_on(db, ruled, f"row_{line}") is None
+    assert api._words_fault_on(db, ruled, f"row_{line}")
+
+
+@pytest.mark.parametrize("words", [
+    "Drop line 5.",
+    "Please delete line 5 because it repeats line 4.",
+    "Line 5 should go, and line 4 should say that confirm returns the default.",
+    # Nights 143 and 144: words after the line that keep the whole line.
+    "Line 8 asks again, so please remove lines 2 to 5 as I asked before.",
+    "Please drop lines 2 to 5 again.",
+])
+def test_a_removal_of_the_whole_line_is_a_drop(db, words):
+    """The removal verb's object is the line itself, and nothing after it
+    narrows the removal (frame 283's clause reading)."""
+    from rota.roles import api
+
+    ruled = _ruled_page(db, "r_p3d", "m300", "m301", words, PAGE5)
+    assert api._line_dropped_on(db, ruled, "row_5") == 5
+
+
+@pytest.mark.parametrize("words", [
+    "Line 4: keep the requirement, but it should say that confirm returns "
+    "the default.",
+    "Keep line 4 as it is, but change it to say that confirm returns the "
+    "default.",
+    "Line 4 should say that confirm returns the default, and keep it as "
+    "written otherwise.",
+    "Line 4 should say that confirm returns the default. Keep it as it is "
+    "for the rest.",
+])
+def test_a_keep_yields_to_a_request_for_new_words(db, words):
+    """Review 5, finding 1: a keep in the same sentence as a request for new
+    words, or a keep that names no line, cancels no request."""
+    from rota.roles import api
+
+    ruled = _ruled_page(db, "r_p3d", "m300", "m301", words, PAGE5)
+    assert api._words_fault_on(db, ruled, "row_4")
+
+
+def test_a_keep_of_one_line_stands_beside_new_words_on_another(db):
+    """A keep that names line 3 still keeps line 3, and the words request on
+    line 4 bears on line 4 only."""
+    from rota.roles import api
+
+    words = ("Keep line 3 as it is. Line 4 should say that confirm returns "
+             "the default.")
+    ruled = _ruled_page(db, "r_p3d", "m300", "m301", words, PAGE5)
+    assert not api._words_fault_on(db, ruled, "row_3")
+    assert api._keeps_words_on(db, ruled, "row_3")
+    assert api._words_fault_on(db, ruled, "row_4")

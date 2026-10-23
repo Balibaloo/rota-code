@@ -5441,6 +5441,44 @@ def _faults_on(rx: re.Pattern, text: str, line: int | None) -> list[re.Match]:
     review 4, finding 3). The clause cut is frame 283's, as in
     `_removal_spans`. A match that names lines bears on those lines only.
     """
+    return [m for _, m in _sentence_hits(rx, text, line)]
+
+
+# The words after a removed line that narrow the removal to a part: "Remove
+# line 5's last clause" (frame 308, review 5, finding 2). Other words keep
+# the whole line: night 144's "Please drop lines 2 to 5 again".
+_NARROW_TAIL = re.compile(
+    r"\s*(?:['’]s\b|(?:except|but|other than|apart from|save)\b)",
+    re.IGNORECASE)
+# The words after "should go" that make it a move, not a removal: "Line 3
+# should go back to how you had it" (night 140, r_4dfcbd586b).
+_GO_ON = re.compile(
+    r"\s+(?:back|further|on|beyond|to|into|up|down|with|deeper|past)\b",
+    re.IGNORECASE)
+# The break between a keep and a request for new words in one sentence:
+# "Keep line 4 as it is, but change it to say X" (review 5, finding 1).
+_KEEP_BREAK = re.compile(r",|\b(?:but|and)\b", re.IGNORECASE)
+
+
+def _drops_whole_line(s: str, m: re.Match) -> bool:
+    """True when the `_DROP_LINE` match `m` in sentence `s` removes the
+    whole line. A verb form must be a request clause of frame 283's
+    `_removal_spans`. The words right after the match must not narrow the
+    removal to a part of the line. "Line 3 should go back to how you had
+    it" asks the old words back (night 140, r_4dfcbd586b)."""
+    if _FAULT_VERB.match(m.group(0)):
+        spans = [(s.find(c), c) for c in _removal_spans(s)]
+        if not any(0 <= st <= m.start() < st + len(c) for st, c in spans):
+            return False
+    rest = s[m.end():]
+    if _NARROW_TAIL.match(rest):
+        return False
+    return not (m.group(0).lower().endswith("go") and _GO_ON.match(rest))
+
+
+def _sentence_hits(rx: re.Pattern, text: str,
+                   line: int | None) -> list[tuple[str, re.Match]]:
+    """The matches of `_faults_on`, each with its sentence."""
     out = []
     for s in _RULING_SENTENCE.split(text or ""):
         for m in rx.finditer(s):
@@ -5453,7 +5491,7 @@ def _faults_on(rx: re.Pattern, text: str, line: int | None) -> list[re.Match]:
             if line is not None and refs and not any(
                     line in _ref_lines(r) for r in refs):
                 continue
-            out.append(m)
+            out.append((s, m))
     return out
 
 
@@ -5796,11 +5834,29 @@ def _keeps_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> bool:
 def _words_fault_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> bool:
     """True when the ruling's words ask new words of criterion `cid`. The
     fault yields to a keep of the same line, as the faulted-check branch
-    does (frame 308, pass 3c, point 2)."""
-    if _keeps_words_on(conn, ruled, cid):
-        return False
-    return bool(_faults_on(_WORDS_FAULT, _ruling_words_on(conn, ruled, cid),
-                           _ruling_line(conn, ruled, cid)))
+    does (frame 308, pass 3c, point 2).
+
+    A keep yields to a request for new words in its own sentence after a
+    comma, "but" or "and". A keep in a sentence that names no line yields
+    to every fault of another sentence (frame 308, review 5, finding 1)."""
+    words = _ruling_words_on(conn, ruled, cid)
+    line = _ruling_line(conn, ruled, cid)
+    keeps = _sentence_hits(_KEEP_WORDS, words, line)
+    for s, f in _sentence_hits(_WORDS_FAULT, words, line):
+        if not any(_keep_cancels(sk, k, s, f) for sk, k in keeps):
+            return True
+    return False
+
+
+def _keep_cancels(sk: str, k: re.Match, sf: str, f: re.Match) -> bool:
+    """True when the keep `k` in sentence `sk` cancels the words fault `f`
+    in sentence `sf`. Only a keep that names its line cancels a fault of
+    another sentence. In one sentence a break between the two lets the
+    request win."""
+    if sk != sf:
+        return bool(_LINE_REF.search(sk))
+    lo, hi = sorted((k, f), key=lambda m: m.start())
+    return not _KEEP_BREAK.search(sk[lo.end():hi.start()])
 
 
 def _line_dropped_on(conn: sqlite3.Connection, ruled: dict,
@@ -5809,8 +5865,9 @@ def _line_dropped_on(conn: sqlite3.Connection, ruled: dict,
     line = _ruling_line(conn, ruled, cid)
     if line is None:
         return None
-    hits = _faults_on(_DROP_LINE, _ruling_words_on(conn, ruled, cid), line)
-    return line if any(_LINE_REF.search(m.group(0)) for m in hits) else None
+    hits = _sentence_hits(_DROP_LINE, _ruling_words_on(conn, ruled, cid), line)
+    return line if any(_LINE_REF.search(m.group(0)) and _drops_whole_line(s, m)
+                       for s, m in hits) else None
 
 
 def _ruling_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> str:
