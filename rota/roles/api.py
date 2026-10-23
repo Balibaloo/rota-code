@@ -9382,6 +9382,12 @@ _WEAK_CUES = ("also", "still", "not")
 _RELATING = re.compile(
     r"\b(?:repeat(?:s|ed)?|duplicat(?:es?|ed)|cop(?:y|ies|ied)|"
     r"(?:is|are|says?) the same(?: thing)? as)\b", re.I)
+# The relating verb must stand directly before the second reference. Night
+# 142's m102, "Lines 8 to 14 repeat what I asked for, ... and line 1
+# should", gave line 1's fault to lines 8 to 14 (frame 305, review 1,
+# finding 8).
+_RELATES_NEXT = re.compile(
+    rf"(?:{_RELATING.pattern})(?:\s+(?:the|an?))?\s*$", re.I)
 # The sentence split of the line reader. `returned_line` reads by it too, so
 # a bare "3 is wrong" after a full stop is a reference in both (frame 305,
 # review 1, finding 1).
@@ -9421,7 +9427,8 @@ def _line_cues(words: str, size: int | None = None
         # 3, so drop it", "it" is line 7, the subject (frame 305).
         subject: dict[int, int] = {}
         for i in range(len(refs) - 1):
-            if _RELATING.search(sentence[refs[i].end():refs[i + 1].start()]):
+            if _RELATES_NEXT.search(
+                    sentence[refs[i].end():refs[i + 1].start()]):
                 subject[i + 1] = subject.get(i, i)
         for i, ref in enumerate(refs):
             end = refs[i + 1].start() if i + 1 < len(refs) else len(sentence)

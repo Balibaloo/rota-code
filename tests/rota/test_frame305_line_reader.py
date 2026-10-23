@@ -133,6 +133,16 @@ def test_a_negated_cue_faults_no_line():
     assert faulted == {}
 
 
+def test_a_verb_with_its_own_object_makes_no_pair():
+    # Review 1, finding 8: night 142's m102, verbatim from `messages` of
+    # `.rota/clickI_night142.db`. "repeat" takes "what I asked for".
+    faulted, _ = _line_cues(
+        "Lines 8 to 14 repeat what I asked for, so they are not assumptions, "
+        "and line 1 should point only at the echo tests, not the termui or "
+        "context tests.")
+    assert faulted[1][0] == "should"
+
+
 def test_both_binds_the_cue_to_the_relating_pair():
     # Review 1, finding 3: his words fault lines 3 and 7.
     faulted, _ = _line_cues("Line 7 repeats line 3, so drop both.")
