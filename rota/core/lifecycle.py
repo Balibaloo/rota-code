@@ -407,14 +407,21 @@ def record_test_run(conn: sqlite3.Connection, run_id: str, batch_id: str,
     Mechanical, like recording an entry: the harness ran the test and the test
     said what it said. Routing that through a model would introduce a paraphrase
     risk over a boolean.
+
+    The run also goes to `test_run_journal`. The deletes that keep
+    `test_runs` live never touch the journal (frame 309).
     """
+    row = (run_id, batch_id, test_id,
+           commit_sha if commit_sha is not None else head_of(conn, batch_id),
+           result, attempt, output)
     conn.execute(
         "INSERT OR REPLACE INTO test_runs "
         "(id, batch_id, test_id, commit_sha, result, attempt, output) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (run_id, batch_id, test_id,
-         commit_sha if commit_sha is not None else head_of(conn, batch_id),
-         result, attempt, output))
+        "VALUES (?, ?, ?, ?, ?, ?, ?)", row)
+    conn.execute(
+        "INSERT INTO test_run_journal "
+        "(id, batch_id, test_id, commit_sha, result, attempt, output) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)", row)
 
 
 def next_attempt(conn: sqlite3.Connection, batch_id: str) -> int:

@@ -105,6 +105,9 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "finding_rulings": ("journal", "one ruling on one finding at one commit; "
                                    "verdicts.rule derives the id from both"),
     "test_runs": ("journal", "one execution, one row"),
+    "test_run_journal": ("journal", "one execution, one row; append-only, "
+                                    "and the two test_runs deletes leave "
+                                    "it whole (frame 309)"),
     "survey_records": ("journal", "attestations; the latest whose hash still "
                                   "matches is the live one"),
     "survey_citations": ("journal", "what a survey opened"),

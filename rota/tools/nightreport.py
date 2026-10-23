@@ -700,21 +700,35 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
     # 4. Test runs.
     w("== test runs")
     TR_COLS = ("batch_id", "commit_sha", "result")
-    for line in n.absent("test_runs", TR_COLS):
+    for line in n.absent("test_runs", TR_COLS) + n.absent("test_run_journal", TR_COLS):
         w(line)
+    # `test_runs` holds the live run per test, and the journal holds every
+    # run (frame 309). The brief names the word `absent` for a database from
+    # before the journal, so a zero never stands for a missing table.
+    journal = n.has("test_run_journal")
+    # A key holds four counts: the live rows and their not-pass rows, then
+    # the same two for the journal.
     tally: "OrderedDict[tuple, list]" = OrderedDict()
-    for r in n.rows("test_runs", TR_COLS):
-        k = (r["batch_id"], r["commit_sha"])
-        tally.setdefault(k, [0, 0])
-        tally[k][0] += 1
-        if r["result"] == ABSENT:
-            tally[k][1] = ABSENT
-        elif tally[k][1] != ABSENT:
-            tally[k][1] += r["result"] != "pass"
-    for (bid, sha), (runs, bad) in tally.items():
+
+    def count(table: str, at: int) -> None:
+        for r in n.rows(table, TR_COLS):
+            k = (r["batch_id"], r["commit_sha"])
+            pair = tally.setdefault(k, [0, 0, 0, 0])
+            pair[at] += 1
+            if r["result"] == ABSENT:
+                pair[at + 1] = ABSENT
+            elif pair[at + 1] != ABSENT:
+                pair[at + 1] += r["result"] != "pass"
+
+    count("test_runs", 0)
+    count("test_run_journal", 2)
+    for (bid, sha), (runs, bad, jruns, jbad) in tally.items():
         mark = at_head(bid, sha)
         at = " head" if mark == "head" else (f" {ABSENT}" if mark == ABSENT else "")
-        w(f"{bid} {short(sha)}{at} runs={runs} not_pass={bad}")
+        if not journal:
+            jruns = jbad = "absent"
+        w(f"{bid} {short(sha)}{at} runs={runs} journal={jruns} not_pass={bad} "
+          f"journal_not_pass={jbad}")
 
     # 5. Findings and rulings.
     w("== findings and rulings")

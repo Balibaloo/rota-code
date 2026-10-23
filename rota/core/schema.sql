@@ -571,6 +571,25 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
     attempt     INTEGER NOT NULL DEFAULT 1
 );
 
+-- Every run that `record_test_run` records, kept. `test_runs` holds the live
+-- run per test, because the review gate and the hold guard read it so. Two
+-- deletes keep it live, and night 159's table lost 663 results to them
+-- (frame 307). No code deletes from this table, and no gate or guard reads
+-- it. `seq` is the key, because `new_id` counts from `test_runs` and can
+-- give a deleted run's id again. The table has no foreign keys, so a
+-- journal row never blocks a delete elsewhere.
+CREATE TABLE IF NOT EXISTS test_run_journal (
+    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          TEXT NOT NULL,               -- the id of the live row
+    batch_id    TEXT NOT NULL,
+    test_id     TEXT NOT NULL,
+    commit_sha  TEXT,
+    result      TEXT NOT NULL CHECK (result IN ('pass','fail','error')),
+    output      TEXT NOT NULL DEFAULT '',
+    attempt     INTEGER NOT NULL DEFAULT 1,
+    recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ---------------------------------------------------------------------------
 -- Journals: multi-writer, one author per entry, append-only.
 -- ---------------------------------------------------------------------------
