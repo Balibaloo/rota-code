@@ -110,9 +110,9 @@ def test_two_replies_to_one_page_each_read_the_list_he_saw(s239):
 def test_the_landing_carries_no_page_id(s239):
     """"Of page m105" in `recent_chat` names another page by itself, and a
     reply to this page keeps its numbers, so the landing block carries no
-    page id. The key alone took one L1 Liaison case from 3 of 5 to 1 of 5
-    on qwen3:8b (frame 272, review 1, finding 2, read again at the gate of
-    d6a36081, 2026-10-23)."""
+    page id. The key alone costs one run of five on one L1 Liaison case on
+    qwen3:8b, 1 of 5 with it and 2 of 5 without on one load (frame 272,
+    review 1, finding 2, read again at the gate of d6a36081, 2026-10-23)."""
     wake = Wake(role="liaison", kind="message", message_id="m117", detail="converse")
     out = resolve_inbound(s239, wake)
     assert "page_id" not in out["landing"]

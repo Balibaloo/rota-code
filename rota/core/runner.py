@@ -2337,11 +2337,12 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # this page keeps its line numbers, so the seat tells the two
                 # apart without an id (frame 272, review 1, finding 2, read
                 # again at the gate of d6a36081). A `page_id` key in this
-                # block, the one change against the last green recording,
-                # took L1-LI-a-correction-in-a-sentence-contests-the-line-
-                # it-is-about from 3 of 5 to 1 of 5 on qwen3:8b, twice, with
-                # the same brief and the same load (measured 2026-10-23
-                # 19:40 and 19:43, register `case_runs`).
+                # block costs one run of five on L1-LI-a-correction-in-a-
+                # sentence-contests-the-line-it-is-about on qwen3:8b: 1 of 5
+                # with the key and 2 of 5 without, on the same brief and the
+                # same load, each twice; the same text read 3 of 5 on the
+                # loads before (measured 2026-10-23 19:40 to 19:55, register
+                # `case_runs`). The case sits at the model's floor.
                 landing: dict[str, Any] = {
                     "page_kind": clarify["verb"],
                     "page": page,
