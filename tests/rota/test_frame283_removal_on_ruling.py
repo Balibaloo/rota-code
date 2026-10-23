@@ -393,6 +393,34 @@ def test_a_removal_is_read_in_its_own_clause_and_in_the_request_form(words, asks
     assert api._asks_removal(words, GONE, True) is asks
 
 
+@pytest.mark.parametrize("words,asks", [
+    # Review 4's finding 1: the name of the kept line sits outside the
+    # request clause.
+    ("Keep ctx.exit(), and remove the extra echo.", False),
+    ("Do not remove ctx.exit(), but drop the blank line.", False),
+    ("Do not touch ctx.exit(); remove the comment above it.", False),
+    ("ctx.exit() must stay, so please delete the debug print.", False),
+    # Review 4's finding 3: "stop" asks for a removal only before a gerund.
+    ("Stop the command after ctx.exit() runs.", False),
+    ("Please stop calling ctx.exit() after the echo.", True),
+    # A pronoun takes its name from the clause before the request.
+    ("ctx.exit() is dead, so drop it.", True),
+])
+def test_the_name_sits_in_the_request_clause(words, asks):
+    """Review 4's findings 1 and 3: the request clause names the statement,
+    or its pronoun refers to the clause before it."""
+    assert api._asks_removal(words, GONE, True) is asks
+
+
+def test_drop_one_and_keep_the_other_admits_the_dropped_one_only():
+    """Review 4's finding 2: "Drop X, and keep Y" admits X only."""
+    words = "Drop ctx.exit(), and keep echo(message)."
+    echo = {"line": "echo(message)", "owner": "version_option.callback",
+            "no": None, "def": False}
+    assert api._asks_removal(words, GONE, True) is True
+    assert api._asks_removal(words, echo, True) is False
+
+
 def test_the_same_reply_refusal_says_its_fact_once_and_gives_the_route(db, tmp_path):
     """Review 3's finding 3: the same-reply refusal says once that the seat
     did not read the note, and its step ends on the escalate route."""

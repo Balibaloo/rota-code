@@ -17751,18 +17751,47 @@ _REQUEST_LEADS = re.compile(
     r")?(?:\s*\b(?:also|just|now|then|simply|only)\b)?", re.I)
 
 
-def _removal_asked(s: str, g: dict) -> bool:
-    """True when the sentence `s` asks for a removal in the request form:
-    a removal verb at the start of its own clause, after a lead of
-    `_REQUEST_LEADS`. A named subject leads "no longer" or "stop" only.
-    `g` is the gone statement. The rule does not read it."""
+# The break that ends a request clause. A bare "and" ends it only before a
+# word that keeps a line, so "Remove X and Y" asks for both, and "Drop X,
+# and keep Y" asks for X only (frame 283, review 4, finding 2).
+_CLAUSE_END = re.compile(
+    r"[;:]|,(?=\s*(?:and|but|so|which|because|since|then|or|while|keep\w*|leave\w*)\b)"
+    r"|\b(?:so|but|which|because|since|while)\b"
+    r"|\b(?:and|or)\b(?=\s+(?:keep\w*|leave\w*|retain\w*|do\s+not|don't|never|not|still)\b)",
+    re.I)
+
+
+def _outside_code(s: str, i: int) -> bool:
+    """True when position `i` of `s` is outside a code span and a bracket,
+    so a comma inside `echo(a, b)` breaks no clause."""
+    head = s[:i]
+    depth = sum(head.count(o) - head.count(c) for o, c in ("()", "[]", "{}"))
+    return head.count("`") % 2 == 0 and depth <= 0
+
+
+def _breaks(rx, s: str) -> list:
+    """The matches of `rx` in `s` outside a code span and a bracket."""
+    return [b for b in rx.finditer(s) if _outside_code(s, b.start())]
+
+
+def _removal_spans(s: str) -> list[str]:
+    """The request clauses of the sentence `s`: each clause where a removal
+    verb starts the clause, after a lead of `_REQUEST_LEADS`. A named
+    subject leads "no longer" or "stop" only. A clause whose object is
+    "it" or "them", or that starts with "which", takes the clause before
+    it too, because that clause holds the name."""
+    out: list = []
     for m in _REMOVAL_WORDS.finditer(s):
         verb = m.group(0)
         if not _REQUEST_VERBS.fullmatch(verb):
             continue
-        head = s[:m.start()]
-        breaks = list(_CLAUSE_BREAK.finditer(head))
-        lead = (head[breaks[-1].end():] if breaks else head).strip(" \t\"'`*-")
+        # Review 4's finding 3: "Stop the command after X runs" asks for no
+        # removal. Only "stop calling X" does.
+        if verb.lower() == "stop" and not re.match(r"\s+\w+ing\b", s[m.end():]):
+            continue
+        breaks = _breaks(_CLAUSE_BREAK, s[:m.start()])
+        start = breaks[-1].end() if breaks else 0
+        lead = s[start:m.start()].strip(" \t\"'`*-")
         got = _REQUEST_LEADS.fullmatch(lead)
         if got is None:
             continue
@@ -17770,31 +17799,53 @@ def _removal_asked(s: str, g: dict) -> bool:
                 _NEGATION_WORDS.search(got.group("who"))
                 or not re.match(r"no\s|stop", verb, re.I)):
             continue
-        return True
-    return False
+        ends = _breaks(_CLAUSE_END, s[m.end():])
+        end = m.end() + ends[0].start() if ends else len(s)
+        # Review 4's finding 1: the name must sit in the request clause.
+        # Only a pronoun object or "which" reaches the clause before.
+        back = (bool(breaks) and breaks[-1].group(0).lower() == "which") or bool(
+            re.match(r"\s*(?:it|them)\b", s[m.end():], re.I)
+            or re.fullmatch(r"take\s+(?:it|them)\s+out", verb, re.I))
+        if back:
+            # The nearest clause before the request that holds words.
+            # "X, which" leaves an empty clause between the comma and "which".
+            opens = [0] + [b.end() for b in breaks]
+            for k in range(len(breaks) - 1, -1, -1):
+                if s[opens[k]:breaks[k].start()].strip(" ,;:"):
+                    start = opens[k]
+                    break
+        out.append(s[start:end])
+    return out
+
+
+def _removal_asked(s: str, g: dict) -> bool:
+    """True when the sentence `s` holds a request clause. `g` is the gone
+    statement. The rule does not read it."""
+    return bool(_removal_spans(s))
 
 
 def _asks_removal(text: str, g: dict, principal: bool) -> bool:
     """True when a sentence of `text` names the gone statement `g` and asks
     for its removal. A bare keyword needs its function named too. The
-    principal's words can name the line by its number."""
+    principal's words can name the line by its number. The name sits in the
+    request clause (frame 283, review 4, finding 1). The function of a bare
+    keyword can sit anywhere in the sentence."""
     for s in re.split(r"(?<=[.!?])\s+|\n+", text or ""):
-        if not _removal_asked(s, g):
-            continue
-        line = g["line"]
-        if g["def"] or line not in _BARE_LINES:
-            if _says(s, line):
+        for c in _removal_spans(s):
+            line = g["line"]
+            if g["def"] or line not in _BARE_LINES:
+                if _says(c, line):
+                    return True
+            else:
+                owner = g["owner"].rsplit(".", 1)[-1]
+                if owner and _says(s, owner) and _says(c, line):
+                    return True
+                continue
+            call = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", line)
+            if not g["def"] and call and _says(c, call.group(1) + "("):
                 return True
-        else:
-            owner = g["owner"].rsplit(".", 1)[-1]
-            if owner and _says(s, owner) and _says(s, line):
+            if principal and g["no"] and re.search(rf"\bline {g['no']}\b", c, re.I):
                 return True
-            continue
-        call = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", line)
-        if not g["def"] and call and _says(s, call.group(1) + "("):
-            return True
-        if principal and g["no"] and re.search(rf"\bline {g['no']}\b", s, re.I):
-            return True
     return False
 
 
