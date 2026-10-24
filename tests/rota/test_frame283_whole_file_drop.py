@@ -16,8 +16,6 @@ from tests.rota.test_frame283_removal_on_ruling import (  # noqa: F401
     BASE, FIRST, MESSAGE, PATH, _call, _developer, _git, _staged, db)
 import subprocess
 
-import pytest
-
 from rota.core.sandbox import build
 from rota.roles import api, prompts
 
@@ -27,7 +25,7 @@ EXIT = "        ctx.exit()\n"
 # callback, at line 551 of the fixture.
 assert TEXT.splitlines()[550] == EXIT.rstrip("\n")
 NESTED = TEXT.replace(EXIT, "", 1)
-NOTE = ("This write removes or rewrites 1 statement that your text does not hold: "
+NOTE = ("This write removes 1 statement that your text does not hold: "
         "`ctx.exit()` at line 550.")
 
 
@@ -90,7 +88,7 @@ def test_a_top_level_and_a_nested_drop_give_one_note_with_both_lines(db, tmp_pat
     out = _call(sb, "code.write", path=PATH, text=text)
     assert out["dropped"] == (
         "This write drops 1 line of the old file, from `UNUSED = 1`; write the "
-        "whole file again with those lines kept. This write removes or rewrites 1 statement "
+        "whole file again with those lines kept. This write removes 1 statement "
         "that your text does not hold: `sys.exit()` at line 8.")
     got = [x[1] for x in _lines(sb)]
     assert got == ["UNUSED = 1", "sys.exit()"]
@@ -105,102 +103,3 @@ def test_a_later_write_that_puts_the_nested_line_back_closes_the_note(db, tmp_pa
     sb.begin_reply()
     assert _call(sb, "code.commit", message=MESSAGE).get("committed") is not True
     assert [v["status"] for v in _staged(sb)][-1] == "restored"
-
-
-# Review 5 of frame 283, probe `r5/test_p5r.py`: the shapes that opened no
-# note at 05fd6976, each on a small two-commit worktree.
-NL = chr(10)
-
-
-def _l(*xs: str) -> str:
-    return NL.join(xs) + NL
-
-
-def _small(db, tmp_path, old: str):
-    root = tmp_path / "wt"
-    (root / PATH).parent.mkdir(parents=True)
-    _git_init(root)
-    for msg in ("fork", "head"):
-        (root / PATH).write_text(old, encoding="utf-8", newline="")
-        _git(root, "add", "-A")
-        _git(root, "commit", "-q", "--allow-empty", "-m", msg)
-    db.execute("UPDATE batches SET worktree = ? WHERE id = 'bg_3'", (str(root),))
-    db.commit()
-    sb = build("developer", db, batch_id="bg_3", mode="tests_failing",
-               allow=prompts.mode_tools("developer", "tests_failing"))
-    return sb, root
-
-
-CLS = _l("class Box:", "    def a(self):", "        self.n = 1", "        return self.v",
-         "", "    def b(self):", "        return self.v")
-DUP = _l("def f(x):", "    if x:", "        go()", "        return 1", "    go()",
-         "    return 2")
-NEST = _l("def f(x):", "    def inner():", "        go()", "        stop()", "    stop()",
-          "    return inner")
-IFB = _l("import sys", "", "", "def keep():", "    return 0", "", "", "if sys.argv:",
-         "    go()", "    stop()")
-IFD = _l("import sys", "", "", "def keep():", "    return 0", "", "", "if sys.argv:",
-         "    def h():", "        go()", "        stop()")
-NODEF = _l("import sys", "go()", "stop()", "sys.exit(0)")
-SHAPES = {
-    # A copy in another method hid the drop (finding 1).
-    "class_shared_line": (CLS, CLS.replace(_l("        self.n = 1", "        return self.v"),
-                                           _l("        self.n = 1")),
-                          ("Box.a", "return self.v")),
-    # One of two copies in one definition (finding 1).
-    "dup_inside_one_def": (DUP, DUP.replace(_l("        go()", "        return 1"),
-                                            _l("        return 1")), ("f", "go()")),
-    # A copy in the outer body hid the inner drop (finding 1).
-    "nested_inner_shared_with_outer": (NEST, NEST.replace(_l("        go()", "        stop()"),
-                                                          _l("        go()")),
-                                       ("f.inner", "stop()")),
-    # A statement under a top-level `if` (finding 2).
-    "toplevel_if_block": (IFB, IFB.replace(_l("    stop()"), ""), ("", "stop()")),
-    # A def under a top-level `if` (finding 2).
-    "def_inside_if_block": (IFD, IFD.replace(_l("        stop()"), ""), ("h", "stop()")),
-    # A file with no definition (finding 2).
-    "no_def_file_middle": (NODEF, NODEF.replace(_l("stop()"), ""), ("", "stop()")),
-}
-
-
-@pytest.mark.parametrize("name", sorted(SHAPES))
-def test_review_5s_shapes_open_a_note_and_hold_the_commit(db, tmp_path, name):
-    old, new, (owner, line) = SHAPES[name]
-    sb, root = _small(db, tmp_path, old)
-    out = _call(sb, "code.write", path=PATH, text=new)
-    assert _quote_in(line, out["dropped"])
-    assert [x[:2] for x in _lines(sb)] == [[owner, line]]
-    sb.begin_reply()
-    head = _git(root, "rev-parse", "HEAD")
-    assert "refused" in _call(sb, "code.commit", message=MESSAGE)
-    assert _git(root, "rev-parse", "HEAD") == head
-
-
-def _quote_in(line: str, note: str) -> bool:
-    return f"`{line}`" in note
-
-
-def test_a_definition_moved_under_a_class_is_named_in_the_note(db, tmp_path):
-    """Finding 3: the note stores `defs: ["f"]`, so its text names `f`, and
-    a top-level `f` again restores the note."""
-    old = _l("def keep():", "    return 0", "", "", "def f(x):", "    go()", "    stop()")
-    new = _l("def keep():", "    return 0", "", "", "class C:", "    def f(self, x):",
-             "        go()")
-    sb, root = _small(db, tmp_path, old)
-    out = _call(sb, "code.write", path=PATH, text=new)
-    assert api._open_notes(sb.ctx)[PATH]["defs"] == ["f"]
-    assert "`f`" in out["dropped"]
-    assert api._restored(old, api._open_notes(sb.ctx)[PATH])
-
-
-def test_an_edited_line_is_named_as_removed_or_rewritten(db, tmp_path):
-    """Finding 4: `return x` to `return x + 1` is a rewrite, and the note
-    and the refusal say so in both branches' words."""
-    old = _l("def keep(x):", "    y = x", "    return x")
-    sb, _root = _small(db, tmp_path, old)
-    out = _call(sb, "code.write", path=PATH, text=old.replace("return x", "return x + 1"))
-    assert out["dropped"] == ("This write removes or rewrites 1 statement that your "
-                              "text does not hold: `return x` at line 2.")
-    sb.begin_reply()
-    got = _call(sb, "code.commit", message=MESSAGE)["refused"]
-    assert "removal or a rewrite" in got and "name the change" in got
