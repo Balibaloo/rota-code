@@ -14,6 +14,51 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 21, recommended on night 164's read, 2026-10-24 23:05
+
+Night 164 ended sprint 20 of 2026-10-24 18:20, because it was that
+sprint's night. The night ran cold from 5592de6f, rows 1 and 2 in it,
+21:02 to 22:42, item 2 first, and the session stopped it in walk 2 by the
+rule of 2026-10-09 20:19: 261 sessions, 1114 turns, 24 live principal
+calls, 2 batches, 0 merged (observed: `plans/night164-read.md`, section
+0). A first launch at 20:53 was a launcher defect, 18 confirm rounds, and
+is not rota's. Item 3, frame 283's sample, never ran. bg_1, `get_app_dir`,
+was green at 37 of 37 from 21:41 and never merged: W-C, the `review`
+predicate at `predicates.py` 1353 counts retired criteria as criteria
+that still need a test, so the Critic never woke. W-A: his "remove the
+second check" landed on a criterion with its text unchanged, because a
+check line on the page carries no ref and no act takes a test row off, 6
+asks. W-A1: the encode door read "shows" as "prints" and refused 5 tests
+on the return value, so the Tester wrote the test that reads printed
+output. W-B: three lifts of `tests_failing` came from test moves on a
+passing test. W-D: commit 63c65435 dropped the `shorten` parameter and
+the note door let it through. W-E: three first answers came back on the
+Liaison's ruling call, 3 asks. Met: frames 258, 305 and 317 on their
+night 3, frame 113's share from 45% to 15%, frame 320 at 0 of 2.
+
+The order, each row a frame on the stack (reasoned: the read, section 5):
+
+1. Frame 306, W-C: `review` skips retired criteria, with every other
+   predicate that counts them. 1 cycle. Night 165 waits on it.
+2. Frame 306, W-A: a check line on a page carries a ref, and his drop on
+   it retires the test row as it retires a criterion. 2 cycles.
+3. A new frame, W-A1: the encode door's word check reads "shows" as
+   "prints"; a test on the return value is not a test of output. 2 cycles.
+4. Frame 318, W-B: a test move on a passing test does not lift
+   `tests_failing`; only the failing test's move does. 1 cycle.
+5. W-D, read first: how 63c65435's dropped parameter passed the note
+   door, frame 283's sample in another form. 1 cycle.
+6. W-E, read first: the Liaison's ruling call that returns his first
+   answer. 1 cycle.
+7. The W7 frame of `plans/night163-w7w8-read.md`, section 3: the criteria
+   wake names the empty ticket. 2 cycles. Push with a park.
+
+Night 165 runs from the branch head after row 1 lands, cold, the same
+three items in the order `get_app_dir`, `clear()`, `format_filename`, so
+that the merge samples and frame 283's sample come before the loop item.
+It measures frames 283, 306, 312, 318 and 320 on the branch with sprint
+20's six rows, frame 316 at a merge, and frame 281 on its night 3.
+
 ## Sprint 20, recommended on night 163's read, 2026-10-24 18:20
 
 Night 163 ended sprint 19 of 2026-10-24 10:32, because it was that
@@ -954,6 +999,7 @@ a different question and the night is then opened once.
 - Status 2026-10-24 22:20 (rota-4e): **The re-check of 07b3bf0c stands, `plans/frame320-review-1.md` last section: findings 7 and 8 closed, one line for a request that never lands, his resend's second miss closes with its note and nothing stays open, no false alarm on a chat reply, 151 passed; one low, the closed resend and its note show nowhere he looks, the only note reader at `principal.py` 1534 reads open pages** (observed: the review). Judged here: a note he cannot see is a quiet stop, so pass 1d on the same implementer, cap 6k, lists the closed request with its note in `rota agenda`. Then the cherry-pick of the four commits and the gate. Cycles: 7 of 2. Rota workflow.
 - Status 2026-10-24 22:22 (rota-4e): **Pass 1d built on the same implementer, about 141k cumulative on the harness line, about 11k for the pass against 6k, at 4b03074c in `rota_p320`: `closed_requests` in `db.py` 850 to 868 lists each request that closed with nothing landed until a later request lands, a request that lands after a first miss drops its note, and `rota agenda` prints each with its note on one line; 172 passed over the frame's, frame 267's and the agenda files** (observed: the report, section Pass 1d). Accepted here on its one test. **Row 4 is on the branch: 41bde21f, db4d2da2, 07b3bf0c and 4b03074c cherry-picked from `rota_p320` as 7f695611, 9263dde3, 7e890997 and 3df18241, no conflict.** The gate without re-records runs on 3df18241 from `rota_g301`. The first ends-when part is built; night 165 counts the second. Cycles: 7 of 2. Rota workflow.
 - Status 2026-10-24 22:39 (rota-4e): **The gate on 3df18241 from `rota_g301` without re-records, 22:21 to 22:35, 797.8s: 3 new reds, the known Tester cases of frame 281, 0 flaky, stale 0, reds gone 4** (observed: the task output's five lines). So row 4 stands on the gate, and sprint 20's rows 1 to 6 are all on the branch at 3df18241 for night 165. Cycles: 7 of 2. Rota workflow.
+- Status 2026-10-24 22:55 (rota-4e): Night 164: 0 of 2 requests landed nothing (observed: `plans/night164-read.md`, section 1). Night 1 of 3 at 5592de6f, without this frame's pass. Rota workflow.
 
 ### 319. A criterion names an exception that neither his words, the item nor the surface's source holds, and the tests and two Developers follow it (2026-10-24) (f3a8d4c2) (f1f0bcfa) (e7141541) (a0790d20)
 
@@ -991,6 +1037,7 @@ a different question and the night is then opened once.
 - Status 2026-10-24 21:26 (rota-4e): **The re-check of 6f3181bd stands, `plans/frame318-review-2.md` last section: findings 1 and 2 closed, a respecify lifts a held `verdict_failed` key and a live `batch_start` count of 2 stays 2, the Critic and `tests_failing` counts still reset, 14 passed in the frame's two files; one new low, `keep` uses exact keys as LIKE patterns, no effect today** (observed: the review). **Passes 2 and 2b are on the branch as 6e65dc73 and 5a90e029, cherry-picked from `rota_p318w6`, no conflict.** The gate without re-records runs on 5a90e029 from `rota_g301`. Night 164 counts the frame on its night 2 at 5592de6f, without this pass; night 165 carries it. Cycles: 4 of 3. Rota workflow.
 - Status 2026-10-24 21:43 (rota-4e): **The gate on 5a90e029 from `rota_g301` without re-records, 21:27 to 21:42, 857.6s: 3 new reds, the known Tester cases of frame 281, 0 flaky, stale 0, reds gone 4** (observed: the task output's five lines). So passes 2 and 2b stand on the gate and ride night 165. Cycles: 4 of 3. Rota workflow.
 - Status 2026-10-24 22:36 (rota-4e): **Night 164, the first CYCLE line at 22:34, walk 2: `developer|tick:tests_failing|attempt 7|bg_2`, period 1, rounds 3, on item 2, format_filename; the Tester's second check under criterion 2 reads printed output and format_filename prints nothing, the stop pages m114 and m121 reached him with that cause, his answers landed and moved the batch each round, 35 tests and 1 red, then 36 and 2, 5, 1; attempt 7 on a cap of 3 means the key lifted at least twice on his page corrections, criteria moves that changed no test, the lift pass 2 keeps for `tests_failing`** (observed: `.rota/night164.log` lines 96 to 109; reasoned: the attempt count against the cap). The night runs on, because each round moves the batch and item 3 has not run. The frame's third clause gains the shape: a criteria move that does not change the failing test lifts `tests_failing`; the fix after the read. Night 2 of 2 at 5592de6f, without passes 2 and 2b. Rota workflow.
+- Status 2026-10-24 22:55 (rota-4e): **Night 164, W-B: the three lifts that restarted the quarantined round each came from a test move on a passing test, and the failing test never changed; two head commits also reset the count, one a broken commit that grew the red from 1 to 5; passes 2 and 2b would not have held this loop** (observed: `plans/night164-read.md`, section 2). Sprint 21 row 4: a test move lifts `tests_failing` only when the failing test moves. Night 2 of 2 at 5592de6f. Rota workflow.
 
 ### 315. A re-slice after a line-1 contest writes new criteria from the item text, and his landed corrections stay on the dead ticket (2026-10-24) (51917779) (f33f3f44) (f3a8d4c2) (f1f0bcfa) (e7141541) (a0790d20)
 
@@ -1090,6 +1137,7 @@ a different question and the night is then opened once.
 - Status 2026-10-24 21:47 (rota-4e): **The re-check of a3f2d8e8 stands, `plans/frame312-review-w5.md` last section: the next start window after his answer holds 'the principal's words on this change, newest last', 49 passed in `test_prompts.py` and the frame's file; the medium on the offered 'remove' sentence stays with frame 283** (observed: the review). **Row 5 is on the branch: 16c36c2f, 26186652 and a3f2d8e8 cherry-picked from `rota_p312w5` as 172c86ff, e1cfcdd2 and 6785f35b, no conflict.** The gate without re-records runs on 6785f35b from `rota_g301`. The second ends-when half is built for the Developer key: a landed answer on the stopped page lifts `batch_start` once and the next Developer reads his words; night 165 counts it. Cycles: 10 of 3. Rota workflow.
 - Status 2026-10-24 22:04 (rota-4e): **The gate on 6785f35b from `rota_g301` without re-records, 21:50 to 22:04, 886.8s: 3 new reds, the known Tester cases of frame 281, 0 flaky, stale 0, reds gone 4** (observed: the task output's five lines). So row 5 stands on the gate and rides night 165. Cycles: 10 of 3. Rota workflow.
 - Status 2026-10-24 22:36 (rota-4e): Night 164, walk 2: the stop pages m95, m114 and m121 after `tests_failing` quarantines on bg_2 reached him and named the checks, and his answers landed each time, 'remove the second check under line 2, the one that reads printed output'; whether that sentence drops the test is the read's question (observed: `.rota/night164.log` lines 88 to 109). Night 2 of 3 at 5592de6f, without row 5. Rota workflow.
+- Status 2026-10-24 22:55 (rota-4e): **Night 164: all 5 stop pages on bg_2 named the cause and 4 of 5 named the failing check with its assertion; all 5 rulings landed and 0 of 5 moved the row he named, W-A** (observed: `plans/night164-read.md`, section 1). Night 2 of 3 at 5592de6f, without row 5. Rota workflow.
 
 ### 311. The Critic's `verdicts.emit` refuses a docstring line as meeting no criterion, while the criterion asks for the docstring (2026-10-23) (8e879083) (0cdcac52) (b00cc646) (51917779) (f33f3f44) (f3a8d4c2) (f1f0bcfa) (e7141541) (a0790d20)
 
@@ -1172,6 +1220,7 @@ a different question and the night is then opened once.
 - Status 2026-10-24 20:37 (rota-e9): **the gate on ddf39dcf from `rota_g301` with re-records, 20:09 to 20:36: 4 re-recorded, stale 0, 4 new reds and 0 flaky, three the known Tester cases of frame 281 and one this row's, `test_map.py::test_every_op_of_the_graph_joins_a_function`, from the `criteria.retire` op and its graph edge; reds gone 4** (observed: the task output). Pass 2c on the same implementer, cap 8k, joins the op to its function; then the cherry-pick, the gate without re-records, and night 164 from that head. Cycles: 25 of 4. Rota workflow.
 - Status 2026-10-24 20:38 (rota-e9): **pass 2c at 9ad70b17: the op joined its function all along, the map test pins the op count and the retire op made it 93, the pin moved; 45 passed over the two files; on the branch as 5592de6f** (observed: the report, section Pass 2c). The gate runs on 5592de6f from `rota_g301` without re-records, no brief changed since the gate on ddf39dcf, and night 164 launches from 5592de6f on its five lines. Cycles: 25 of 4. Rota workflow.
 - Status 2026-10-24 20:54 (rota-e9): **the gate on 5592de6f from `rota_g301` without re-records, 20:38 to 20:52: 3 new reds, all the known Tester cases of frame 281, 0 flaky, stale 0, reds gone 4** (observed: the task output). Row 2 stands on the gate. Night 164 runs from 5592de6f since 20:53, cold, with item 2 first, and measures this frame's page corrections on items 1 and 3. Rota workflow.
+- Status 2026-10-24 22:55 (rota-4e): **Night 164: the retire works on a numbered line, m37's and m101's second answers retired 8 criteria; all 6 corrections of a check line were lost or became added tests, because a check line carries no ref and no act takes a test row off, W-A; and the retire broke the review gate, W-C: `review` at `predicates.py` 1353 counts retired criteria as still needing a test, so bg_1, green at 37 of 37 from 21:41, never woke the Critic and never merged** (observed: `plans/night164-read.md`, sections 1 and 2). The sender's doubt 2 of 20:53 named this. Sprint 21 rows 1 and 2: W-C runs now on a fresh implementer on Opus, cap 20k, in `rota_p306c` at 3df18241; W-A after. Rota workflow.
 
 ### 305. The line reader places 'drop' on the line a sentence repeats, and the re-present after a refused ruling names line 1 (2026-10-21) (81fe1025) (2214bec6) (1b2c3f89) (b85289fd) (8e879083) (0cdcac52) (b00cc646) (51917779) (f33f3f44) (f3a8d4c2) (f1f0bcfa) (e7141541) (a0790d20)
 
@@ -1208,6 +1257,7 @@ a different question and the night is then opened once.
 - Status 2026-10-24 06:40 (rota-af): **pass 2 built on the same implementer, about 19k on the harness line against 25k, at d8abe2b6: a revise of a team's note meets the keep door, the change test needs a change verb about the line, the drop patterns lose "not needed" and "don't need", the own-text test compares whole words, the refusal names the line-by-number rule; 326 passed and 9 xfailed over the door and line-reader files, 137 in test_runner, 8 new tests red with the old code** (observed: the report's Pass 2 section). Deviation: a check skips "Line N is about ..." sentences, where change is a noun. Review 2 runs on Opus, cap 25k, to `plans/frame305-review-teamnote-2.md`, on findings 1 to 5. Rota workflow.
 - Status 2026-10-24 06:43 (rota-af): **review 2 of d8abe2b6 on Opus, about 50k on the harness line against 25k, `plans/frame305-review-teamnote-2.md`: stands, findings 1 to 5 repaired, four new lows and none lands a ruling against his words; the keep door refuses a revise of a kept line as a contest; m11 and m45 read as no change and s357's sentence lands as revise; the door still refuses some real change sentences, "Line 11 is wrong, use click directly", "fix the failing test", because the "Line N is ..." skip now needs a modal, a refused call and not a wrong landing; 129 passed and 4 xfailed** (observed: the report). The team-note case cherry-picked onto the branch, head 86d39d77, no conflict; the sprint 18 row 5 case is on the branch for about 100k in two passes and two reviews against 1 cycle. Residue for night 162's count: a change sentence of the shape "Line N is wrong, <verb> ..." is refused and the seat must re-send. Rota workflow.
 - Status 2026-10-24 18:19 (rota-e9): Night 2. 0 wrong placements on the clear pages, 1 wrong approve (observed: `plans/night163-read.md`, section 1). Rota workflow.
+- Status 2026-10-24 22:55 (rota-4e): **closed: met on its night 3** (observed: `plans/night164-read.md`, section 1; nights 162, 163 and 164). It leaves the live count. Rota workflow.
 
 ### 304. The encode door admits a test whose arrange step raises before the call under test, so no code can pass it (2026-10-21) (81fe1025) (2214bec6) (1b2c3f89) (b85289fd) (8e879083) (0cdcac52) (b00cc646) (51917779) (f33f3f44) (f3a8d4c2) (f1f0bcfa) (e7141541) (a0790d20)
 
@@ -1360,6 +1410,7 @@ a different question and the night is then opened once.
 - Status 2026-10-24 05:47 (rota-af): **the gate on fe4b3c78, this frame's head with passes 1 and 1b, from rota_g301, ended at 05:46 on 2026-10-24, 754.5s: 31 failed against the baseline's 32, 4805 passed; new reds 1, the floor case L1-LI-a-correction-in-a-sentence-contests-the-line-it-is-about at 2 of 5; reds gone 2, L1-AR-route-an-escalation and L1-CR-fail-names-its-criterion; stale 0; no re-record ran** (observed: gfe4b_gate.txt in session b00cc646's scratchpad). Clean but for the floor case, so fe4b3c78 is the next night's head. Night 162 counts this frame on its night 1. Rota workflow.
 - Status 2026-10-24 05:58 (rota-af): **Night 161, before its build: 2 contests on a line no sentence names, s181 and s272, both on line 1, both cancels, from 1 on night 160; the rule at fe4b3c78 refuses both, and both refusals are right by his words** (observed: `plans/night161-read.md`, section 1). Doubt 2 does not hold: 6 page replies corrected the request, the seat approved line 1 on 4 and the criteria writer was the right destination each time, 0 false refusals (observed: the read, section 3). Sprint 18, row 1. Night 162 is night 1 of 3. Rota workflow.
 - Status 2026-10-24 18:19 (rota-e9): Night 2. 0 wrong contests of line 1 (observed: `plans/night163-read.md`, section 1). Rota workflow.
+- Status 2026-10-24 22:55 (rota-4e): **closed: met on its night 3** (observed: `plans/night164-read.md`, section 1; nights 162, 163 and 164). It leaves the live count. Rota workflow.
 
 ### 259. A Developer writes work notes as fault rows (2026-10-15)
 
@@ -1729,6 +1780,7 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
 - Status 2026-10-24 21:40 (rota-4e): Residue from frame 312's review of 26186652: the commit door admits removal words only, so his sentence that allows a rewrite to `return False` is refused as 'change', 'replace' or 'rewrite', and `_asks_removal` reads a rewrite the criteria ask for as an unallowed removal (observed: `plans/frame312-review-w5.md`, the re-check). This is the first ends-when's second sentence, a rewrite that a criterion names is not an unruled removal, not yet met for his words. Night 164 measures the span pairing; the words route is the next pass after its read. Rota workflow.
 - Status 2026-10-24 22:39 (rota-4e): **Night 164, the second CYCLE line at 22:38, walk 2: `developer|tick:tests_failing|attempt 8|bg_2`, rounds 3, the fourth stop page m129; the shape is one loop: his words 'remove the second check under line 2, the one that reads printed output' land as a criteria correction, the Tester then adds a repeated copy of the docstring check and keeps the wrong one, 36 then 37 tests and 1 red each round** (observed: `.rota/night164.log` lines 109 to 117). No route takes a test row off on his words: frame 306's retire covers criteria lines, frame 114 waits on his order for inherited tests, and this is a Tester's own test. A new wall for the read, cause 6 by the guide, with the site in the reader that places 'drop' on a page line. The night runs on, because the gauntlet runs item 3, frame 283's W1 sample, after item 2 sticks, and the loop is bounded by the attempt cap. Meta workflow.
 - Status 2026-10-24 22:43 (rota-4e): **Night 164 stopped at 22:42 in walk 2, by the rule of 2026-10-09 20:19: five rounds of one cycle on bg_2, the stop pages m95, m114, m121, m129 and m134 with the same answer, `developer|tick:tests_failing` at attempt 9, the Tester adding a copy of the docstring check each round and keeping the check that reads printed output; item 3, this frame's W1 sample, never ran; 261 sessions, 1114 turns, 143 messages, 28 principal calls on Opus** (observed: `.rota/night164.log`, the sessions table). The records are `.rota/clickI_night164.db` and `.rota/clickI_night164.principal.jsonl`; the first launch's are `clickI_night164a.db` and `night164a.log`. The read runs on one Opus agent, cap 120k, with night 163's read as the form, to `plans/night164-read.md`; sprint 21 comes from its section 5, and night 165 runs from 3df18241 with rows 1 to 6 in it. Meta workflow.
+- Status 2026-10-24 22:55 (rota-4e): **Night 164's read on Opus, about 216k on the harness line against 120k, `plans/night164-read.md`: 0 merged of 2, item 3 never ran so this frame has no sample; the note door refused 4 commits on bg_2, all right, and 1 `drop_notes` row; one removal passed, 63c65435 dropped the `shorten` parameter, W-D, this frame's sample in another form, read first in sprint 21** (observed: the read, sections 0 to 2). Sprint 21 is at the top of the stack; night 165 runs from the head after W-C lands, items get_app_dir, clear, format_filename. Meta workflow.
 ### 284. The raised-signature push reads only native traceback frames, so a raise that pytest reports is never pushed (2026-10-17)
 
 - **Site: `_TRACE_FRAME` and `_raised_signature_pushes` in `rota/core/runner.py`, frame 223's site, which closed on this read.** Rota workflow. On night 154 the push of frame 223 fired on 0 of 19 Tester challenge wakes: no failed run's output holds a `File "..."` frame, because pytest prints its frames in its own form, and s293's real `raise` in project source, `src/click/termui.py:340: Abort`, got no push (observed: `plans/night154-read.md`, section 1, 2026-10-17). Cause 8 by the guide, a door wrong not to fire (reasoned: the read, section 11).
