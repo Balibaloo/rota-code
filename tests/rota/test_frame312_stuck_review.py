@@ -140,3 +140,55 @@ def test_the_park_scenes_shift_row_shows_no_tick_name(tmp_path):
         assert name not in row, row
     assert "the tests still fail" in row, row
     assert "the change was set aside" in row, row
+
+
+START ="developer|tick:batch_start|bg_1"
+NOTE = ("This write removes or rewrites 1 statement that your text does not "
+        "hold: `return` at line 609.")
+
+
+def _refused_start(db) -> None:
+    """Night 163's m115 shape: three Developer attempts on the start tick
+    wrote `termui.py`, the note door refused each commit at line 609, and
+    nothing was committed. The `drop_notes` row is the door's own record."""
+    db.execute("UPDATE batches SET head_commit = NULL WHERE id = 'bg_1'")
+    for k, sid in enumerate(("s221", "s229", "s238")):
+        db.execute("INSERT INTO sessions (id, role, seq, wake_kind, wake_refs) "
+                   "VALUES (?, 'developer', ?, 'tick:batch_start', '[\"bg_1\"]')",
+                   (sid, k + 1))
+        db.execute("INSERT INTO tool_calls (session_id, fn, args_summary, seq) "
+                   "VALUES (?, 'code.write', ?, 13)",
+                   (sid, "end=613, path='src/click/termui.py', start=601, "
+                         "text='def clear() -> bool:"))
+        db.execute("INSERT INTO tool_calls (session_id, fn, args_summary, seq) "
+                   "VALUES (?, 'code.commit', 'message=''Implement clear()''', 14)",
+                   (sid,))
+    db.execute("INSERT INTO drop_notes (batch_id, path, status, note, lines) "
+               "VALUES ('bg_1', 'src/click/termui.py', 'open', ?, "
+               "'[[\"clear\", \"return\", 1]]')", (NOTE,))
+    _quarantine(db, START)
+
+
+def test_m115_names_the_refused_line_the_ask_and_the_written_file(bg1):
+    _refused_start(bg1)
+    page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
+    assert "The team gave up: the change could not start after 3 attempts." in page
+    assert ("A check refused each commit, because the change removes `return` "
+            "at line 609 of src/click/termui.py, in clear(), and no words of "
+            "yours ask for that.") in page, page
+    assert ("The check lets the commit through when the code keeps that line, "
+            "or when your words ask to remove it.") in page, page
+    assert ("The team wrote src/click/termui.py and did not commit it."
+            in page), page
+    assert "remove the `return` at line 609 in clear()" in page, page
+    assert "check: none yet." not in page, page
+    for name in ("drop_notes", "code.write", "tick", "note door"):
+        assert name not in page, page
+
+
+def test_a_start_with_no_refused_write_keeps_the_stopped_work_page(bg1):
+    """A start tick whose attempts wrote nothing shows no refusal lines."""
+    _quarantine(bg1, START)
+    page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
+    assert page.startswith("The team stopped work on this change."), page
+    assert "A check refused" not in page, page

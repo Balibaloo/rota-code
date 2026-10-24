@@ -1180,7 +1180,8 @@ def code_line(conn: sqlite3.Connection, item: str, target: dict | None) -> str:
 def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                   out: list[str], *, said: list[tuple[str, str]] | None = None,
                   batch: str | None = None, code: dict | None = None,
-                  park: bool = False, stalled: list[str] | None = None) -> list[int]:
+                  park: bool = False, stalled: list[str] | None = None,
+                  bare_checks: bool = True) -> list[int]:
     """
     Render the request's rows of a page first: the principal's words, each
     item, its code line, and its criteria with their `check:` lines. Append
@@ -1267,8 +1268,11 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
             # the team stopped trying. Night 136's m96 said nothing of cr_3
             # (frame 190's design, 2.5).
             tries = None if park else _gave_up_tries(conn, r, batch, stalled or [])
+            # A commit the note door refused leaves no test to name. Night
+            # 163's m115 put eight such lines over the cause (frame 312, W5).
             if tries is None:
-                out.append("     check: none yet.")
+                if bare_checks:
+                    out.append("     check: none yet.")
             else:
                 out.append("     check: none. The team gave up writing it after "
                            f"{tries} tries.")
@@ -1366,6 +1370,71 @@ def _review_only(ticks: list[tuple[str, int]]) -> bool:
     """True when every stuck tick is a review. The review fires only on a
     green harness at the head, so its tests passed at its last attempt."""
     return bool(ticks) and all(kind == "review" for kind, _ in ticks)
+
+
+def _refused_commit(conn: sqlite3.Connection, batch: str,
+                    keys: list[str]) -> list[str]:
+    """
+    The page lines for a stop whose attempts wrote code that the note door
+    refused to commit, or [] when no attempt of `keys` wrote a noted file.
+
+    The record is the batch's `drop_notes` row. The door reads that row at
+    each commit, so the row is the refusal itself. A `faults` row is the
+    Developer's own guess, and night 163's said "phantom" and "stale".
+    Night 163's m115 to m139 hid the refusal at `termui.py` line 609
+    (frame 312, W5).
+    """
+    written: list[str] = []
+    for key in keys:
+        role, kind = (key.split("|", 2) + ["", ""])[:2]
+        if kind in ("tick:review", "tick:tests_failing", "tick:tests_missing"):
+            continue
+        for s in conn.execute(
+                "SELECT id, wake_refs FROM sessions WHERE role = ? AND wake_kind = ?",
+                (role, kind)):
+            try:
+                if batch not in json.loads(s["wake_refs"] or "[]"):
+                    continue
+            except (TypeError, ValueError):
+                continue
+            for c in conn.execute(
+                    "SELECT args_summary FROM tool_calls WHERE session_id = ? "
+                    "AND fn = 'code.write' ORDER BY seq", (s["id"],)):
+                m = re.search(r"path='([^']+)'", c["args_summary"] or "")
+                if m and m.group(1) not in written:
+                    written.append(m.group(1))
+    notes = [r for r in conn.execute(
+        "SELECT path, note, lines FROM drop_notes WHERE batch_id = ? ORDER BY path",
+        (batch,)) if r["path"] in written]
+    if not notes:
+        return []
+    out: list[str] = []
+    asks: list[str] = []
+    for r in notes:
+        try:
+            owners = [o for o, _l, _n in json.loads(r["lines"] or "[]") if o]
+        except (TypeError, ValueError):
+            owners = []
+        where = f", in {owners[0]}()" if owners else ""
+        gone = re.findall(r"(`[^`]+`) at line (\d+)", r["note"] or "")
+        if not gone:
+            out.append(f"A check refused each commit of {r['path']}.")
+            continue
+        said = " and ".join(f"{g} at line {n}" for g, n in gone)
+        out.append(f"A check refused each commit, because the change removes "
+                   f"{said} of {r['path']}{where}, and no words of yours ask "
+                   "for that.")
+        asks += [f"remove the {g} at line {n}{where.replace(', ', ' ')}"
+                 for g, n in gone]
+    out.append("The check lets the commit through when the code keeps that "
+               "line, or when your words ask to remove it.")
+    out.append(f"The team wrote {', '.join(written)} and did not commit it.")
+    # The routes of today: `_ruling_texts` in api.py reads his landed words
+    # on the item's pages, and only a moved row lifts the quarantine (db.py).
+    if asks:
+        out.append(f"If the change must remove it, say so, as '{asks[0]}'. "
+                   "The team starts again only when you correct a line here.")
+    return out
 
 
 TEAM_NOTES =("The team's notes. A seat wrote each of these where your words "
@@ -1723,10 +1792,12 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                        "Its tests passed at the review's last attempt.")
         else:
             out.append("The team stopped work on this change.")
+        refused = _refused_commit(conn, batches[0], keys)
         asked = request_block(conn, refs, order, out, batch=batches[0],
-                              stalled=keys)
+                              stalled=keys, bare_checks=not refused)
         numbered(does + account)
         out.append(f"The team gave up: {_stalled_words(conn, keys)}.")
+        out.extend(refused)
         out.append("The team expects to touch:")
         numbered(touches)
         out.append("Reply 'ok' if every line says what you want. Name a line "
