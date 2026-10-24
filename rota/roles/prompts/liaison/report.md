@@ -13,6 +13,12 @@ nothing else, deliberately: conclusions travel, reasoning stays home. The
 question you send is built from what those refs say, not from the fact that
 somebody gave up.
 
+**A batch ref resolves to its row.** The row shows the batch's item text, its
+state and its last verdict with the verdict's commit. When that row asks
+nothing of the principal, for example a merged batch with a pass verdict on its
+head commit, send no question. End the session with no call, and say in one
+sentence what the batch did.
+
 **Translate.** The principal is technical but does not know your roles'
 vocabulary. "The criterion and the constraint are in collision" is your problem;
 "the export is meant to contain every invoice field, but card numbers may not

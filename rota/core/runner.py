@@ -2852,7 +2852,9 @@ def _batch_row(conn: sqlite3.Connection, ref: str) -> dict[str, Any] | None:
         return None
     row = {**dict(hit), "table": "batches"}
     verdict = conn.execute(
-        "SELECT result, failed_criterion, reason FROM verdicts "
+        # The commit travels beside the word. A pass on an older commit is
+        # no pass on the head (frame 303, review 1, finding 2).
+        "SELECT result, commit_sha, failed_criterion, reason FROM verdicts "
         "WHERE batch_id = ? ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone()
     if verdict:
         # Empty fields say nothing, so they stay out of the prompt.

@@ -53,8 +53,8 @@ def _user(db, role, message_id, verb):
 def test_s232_s_wake_carries_b_2_s_item_text(night):
     # s228's shape: a textless report that names the batch only.
     user = _user(night, "liaison", "m108", "report")
-    assert "Let confirm() take a default_on_eof flag" in user
-    assert "invoice" not in user
+    assert ITEM in user
+    assert '"status": "merged"' in user
 
 
 def test_the_batch_row_holds_its_state_and_last_verdict(night):
@@ -66,7 +66,17 @@ def test_the_batch_row_holds_its_state_and_last_verdict(night):
     assert row["item_text"] == ITEM
     assert row["status"] == "merged"
     assert row["head_commit"] == HEAD
-    assert row["last_verdict"] == {"result": "pass"}
+    assert row["last_verdict"] == {"result": "pass", "commit_sha": HEAD}
+
+
+def test_a_pass_on_an_older_commit_names_that_commit(night):
+    # Review 1, finding 2: a pass on an older commit is no pass on the head.
+    night.execute("UPDATE batches SET head_commit = 'f00d' WHERE id = 'b_2'")
+    wake = Wake(role="liaison", kind="message", message_id="m108",
+                detail="report")
+    row = resolve_inbound(night, wake)["resolved_refs"]["b_2"]
+    assert row["head_commit"] == "f00d"
+    assert row["last_verdict"]["commit_sha"] == HEAD
 
 
 def test_a_later_verdict_is_the_last_verdict(night):
@@ -76,7 +86,7 @@ def test_a_later_verdict_is_the_last_verdict(night):
     wake = Wake(role="liaison", kind="message", message_id="m108",
                 detail="report")
     row = resolve_inbound(night, wake)["resolved_refs"]["b_2"]
-    assert row["last_verdict"] == {"result": "fail",
+    assert row["last_verdict"] == {"result": "fail", "commit_sha": "abc",
                                    "reason": "the default is lost"}
 
 
