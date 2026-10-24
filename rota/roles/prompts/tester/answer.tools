@@ -6,6 +6,8 @@ glossary.lookup
 code.source
 tests.consult
 tests.encode
+# His drop of a check line retires that test (frame 306, W-A).
+tests.retire
 ledger.log
 schedule.reask
 msg.question_terminologist
