@@ -1184,6 +1184,14 @@
     },
     {
       "s": "tester",
+      "t": "tests",
+      "type": "writes",
+      "v": "retire",
+      "n": "a test whose check line he dropped",
+      "rows": "delta"
+    },
+    {
+      "s": "tester",
       "t": "criteria",
       "type": "reads",
       "v": "load",

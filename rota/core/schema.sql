@@ -550,7 +550,11 @@ CREATE TABLE IF NOT EXISTS tests (
     criterion_id  TEXT REFERENCES criteria(id),
     path          TEXT NOT NULL,
     body          TEXT NOT NULL,
-    version       INTEGER NOT NULL DEFAULT 1
+    version       INTEGER NOT NULL DEFAULT 1,
+    -- The ruling that dropped the test's check line. A retired test is read
+    -- by no tick and shows on no page. It stays with its ruling, so the
+    -- record keeps it (frame 306, W-A).
+    retired_by    TEXT
 );
 
 -- Every judgement records the commit it judged.

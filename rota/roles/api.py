@@ -6331,6 +6331,55 @@ def criteria_retire(ctx: Ctx, id: str) -> dict:
     return {"id": id, "retired_by": ruled["id"]}
 
 
+@op("tests", "retire")
+def tests_retire(ctx: Ctx, id: str) -> dict:
+    """
+    Retire a test whose check line the principal's ruling drops.
+
+    The row and its runs stay with the ruling's id in `retired_by`. No tick
+    reads the test, and no page shows its check line. Night 164's m121 said
+    "remove the second check under line 2", and the test stayed at v2 for
+    six asks, because no act retired a test (frame 306, W-A).
+    """
+    from ..core.db import _has_column
+    from .principal import chain_verdict, last_ruling_on
+
+    cur = ctx.conn.execute("SELECT id FROM tests WHERE id = ?",
+                           (id,)).fetchone()
+    if cur is None:
+        raise ValueError(f"{id} is not a test. Retire a test by its id")
+    # The Tester is the only writer of a test (frame 306, W-A, step 3).
+    if ctx.role != "tester":
+        raise ValueError("only the Tester retires a test. Answer the Tester "
+                         "with the test id in refs instead")
+    if not _has_column(ctx.conn, "tests", "retired_by") or ctx.conn.execute(
+            "SELECT 1 FROM tests WHERE id = ? AND retired_by IS NOT NULL",
+            (id,)).fetchone():
+        return {"id": id, "unchanged": True, "note": f"{id} is retired already"}
+    ruled = last_ruling_on(ctx.conn, id)
+    # law 6: nothing is ruled on the principal's behalf
+    if ruling_drops_line(ctx, id) is None:
+        said = (f"his last ruling on {id}, {ruled['id']}, does not drop its "
+                f"line" if ruled else f"no ruling of the principal names {id}")
+        raise ValueError(
+            f"{said}. Only his ruling that drops the check line retires a "
+            f"test. Encode the test again with tests.encode instead")
+    # A mode with no tools file offers every op, so the door reads the wake
+    # too. Only a wake whose chain carries this ruling retires the test, as
+    # `criteria.retire` admits only the relay of its ruling.
+    trigger = getattr(ctx, "trigger", None)
+    found = chain_verdict(ctx.conn, trigger) if trigger else None
+    if not found or id not in found[1]:
+        raise ValueError(
+            f"this wake does not carry his ruling {ruled['id']} on {id}. Only "
+            f"the wake that carries the ruling that drops its line retires a "
+            f"test")
+    # No version move: the test's words did not change, and a version move
+    # would read as a new encode.
+    ctx.writes.append(("tests", id, {"retired_by": ruled["id"]}, False))
+    return {"id": id, "retired_by": ruled["id"]}
+
+
 def _ruling_line(conn: sqlite3.Connection, ruled: dict, cid: str) -> int | None:
     """The line of criterion `cid` on the page the ruling `ruled` is on, or
     None when the page or the row on it is not known."""

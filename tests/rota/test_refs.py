@@ -740,7 +740,7 @@ def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
     # Frame 316, pass 2, moved the mark: the status CHECK of `ledger`
     # gained `parked`. Frame 306, pass 1b, moved it for `criteria.retired_by`.
     assert conn.execute("SELECT value FROM config WHERE key = 'schema'"
-                        ).fetchone()["value"] == "criteria-retired"
+                        ).fetchone()["value"] == "tests-retired"
     conn.close()
     init_db(fresh).close()          # the same run, opened again
 

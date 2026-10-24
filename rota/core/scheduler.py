@@ -292,8 +292,11 @@ def live_tests(conn: sqlite3.Connection, col: str) -> str:
 
     if not _has_column(conn, "criteria", "retired_by"):
         return ""
+    # A test he retired by its own line drops out too (frame 306, W-A).
+    own = (" UNION SELECT id FROM tests WHERE retired_by IS NOT NULL"
+           if _has_column(conn, "tests", "retired_by") else "")
     return (f" AND {col} NOT IN (SELECT t.id FROM tests t JOIN criteria c "
-            f"ON c.id = t.criterion_id WHERE c.retired_by IS NOT NULL)")
+            f"ON c.id = t.criterion_id WHERE c.retired_by IS NOT NULL{own})")
 
 
 # The items whose newest `item_parks` row puts them aside: the principal said

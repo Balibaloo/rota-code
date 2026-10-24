@@ -173,7 +173,8 @@ SCHEMA_KEY = "schema"
 # opens a run with `connect` alone must call `init_db` first.
 # Frame 316, pass 2, widened the status CHECK of `ledger` with `parked`.
 # Frame 306, pass 1b, added `criteria.retired_by`.
-SCHEMA_MARK = "criteria-retired"
+# Frame 306, W-A, added `tests.retired_by`.
+SCHEMA_MARK = "tests-retired"
 SCHEMA_STALE = ("the run database is behind the current schema, so it needs "
                 "a fresh onboarding: wipe it, or onboard under a new name")
 
@@ -255,6 +256,10 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         if not _has_column(conn, "rulings", "texts"):
             conn.execute("ALTER TABLE rulings ADD COLUMN texts TEXT "
                          "NOT NULL DEFAULT '{}'")
+        # The same for a retired test (frame 306, W-A): NULL is every older
+        # test's truth, since no ruling retired a test before the column.
+        if not _has_column(conn, "tests", "retired_by"):
+            conn.execute("ALTER TABLE tests ADD COLUMN retired_by TEXT")
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))
     except BaseException:

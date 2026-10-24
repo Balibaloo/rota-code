@@ -1177,6 +1177,15 @@ def code_line(conn: sqlite3.Connection, item: str, target: dict | None) -> str:
     return words
 
 
+def _test_retired(conn: sqlite3.Connection, test_id: str) -> bool:
+    """True when his ruling retired the test `test_id` (frame 306, W-A)."""
+    from ..core.db import _has_column
+
+    return _has_column(conn, "tests", "retired_by") and conn.execute(
+        "SELECT 1 FROM tests WHERE id = ? AND retired_by IS NOT NULL",
+        (test_id,)).fetchone() is not None
+
+
 def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                   out: list[str], *, said: list[tuple[str, str]] | None = None,
                   batch: str | None = None, code: dict | None = None,
@@ -1259,6 +1268,9 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                 + ("AND t.batch_id = ? " if batch else
                    "AND COALESCE(b.status, '') != 'abandoned' ") + "ORDER BY t.id",
                 (r, batch) if batch else (r,))]
+            # A test he retired is no check line. Night 164's m121 dropped a
+            # check, and the check stayed on six pages (frame 306, W-A).
+            mine = [t for t in mine if not _test_retired(conn, t)]
             for t in mine:
                 out.append(f"     check: {check_line(conn, t)}")
             if mine:
