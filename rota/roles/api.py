@@ -17109,11 +17109,14 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 # whole callback, and no span that held the seat's lines.
                 # This gives the smallest span of whole statements of one
                 # list that holds a..b, the list's parent and its field.
-                n, level = None, tops
+                n, up, level = None, (None, "body"), tops
                 while True:
                     hit = [s for s in level if _lo(s) <= a and b <= _end(s)]
                     if not hit:
                         break
+                    if n is not None:
+                        up = (n, next(f for f in _fields
+                                      if hit[0] in _stmts(getattr(n, f, None))))
                     n, level = hit[0], _children(hit[0])
                 fields = _fields if n is not None else ("body",)
                 for f in fields:
@@ -17122,23 +17125,73 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                         continue
                     lo = min([a] + [_lo(s) for s in ns if _lo(s) < a < _end(s)])
                     hi = max([b] + [_end(s) for s in ns if _lo(s) < b < _end(s)])
-                    return n, f, lo, hi
+                    return n, f, lo, hi, [s for s in ns if lo <= _lo(s) and _end(s) <= hi]
+                # The review of 50412ca8, finding 2: no block of n holds a..b,
+                # as in the last `return h(` of a def. n's own span holds it.
+                if n is not None:
+                    return up[0], up[1], _lo(n), _end(n), [n]
                 return None
 
+            def _stmt_fact(s):
+                # The review of 50412ca8, finding 3: the check reads the
+                # statement's type and name, not only the bounds.
+                return _fact(ctx, "span", (_lo(s), _end(s)), path=wpath,
+                             node=type(s).__name__, name=getattr(s, "name", None),
+                             head=_head_of(lines, s))
+
             def _holding_offer(a, b, skip):
-                # The offer names the span and its block. The seat's text
-                # covers a..b only, so the seat writes the text again.
+                # The offer names the span and its block. The review of
+                # 50412ca8, finding 1: an offer of the span with no text sent
+                # s317's own text there, and the parse door refused it. So
+                # the offer's text is the span's own lines with the seat's
+                # lines in place of a..b, when the merged file parses.
                 h = _holding(a, b)
                 if h is None or (h[2], h[3]) in skip:
                     return []
-                n, f, lo, hi = h
+                n, f, lo, hi, held = h
                 where = ("the top level of the file" if n is None
                          else f"the {_block[f]} of {_what(n)}")
                 _fact(ctx, "span", (lo, hi), path=wpath)
+                for s in {id(x): x for x in (held[:1] + held[-1:])}.values():
+                    _stmt_fact(s)
+                own = text.splitlines() if text.strip() else []
+
+                def _edge(want, at, ok):
+                    # The file's own line that the seat's text repeats, near
+                    # the boundary. s317's text for 537 started with the
+                    # `else:` of line 536 (night 161, turn 4).
+                    if not want.strip():
+                        return None
+                    for k in sorted(range(at - 3, at + 4), key=lambda k: (abs(k - at), k)):
+                        if ok(k) and lines[k].rstrip() == want.rstrip():
+                            return k
+                    return None
+
+                if own and not (a < len(lines) and lines[a].rstrip() == own[0].rstrip()):
+                    k = _edge(own[0], a, lambda k: lo <= k < a)
+                    a = a if k is None else k
+                if own and not (0 < b <= len(lines) and lines[b - 1].rstrip() == own[-1].rstrip()):
+                    k = _edge(own[-1], b - 1, lambda k: b <= k < hi)
+                    b = b if k is None else k + 1
+                splice = lines[lo:a] + own + lines[b:hi]
+                try:
+                    _ast.parse(chr(10).join(lines[:lo] + splice + lines[hi:]))
+                    body = chr(10).join(splice) + chr(10) if splice else ""
+                except Exception:
+                    body = INVENT
+                # The seat sees only the words, so they say how to build the
+                # text: the file's own lines around the seat's text.
+                keep = [(f"lines {x} to {y - 1}" if y - x > 1 else f"line {x}") + " of the file"
+                        for x, y in ((lo, a), (b, hi)) if x < y]
+                how = ("your text" if not keep else
+                       f"{keep[0]}, then your text" + (f", then {keep[1]}" if len(keep) > 1 else "")
+                       if lo < a else f"your text, then {keep[0]}")
                 return [f"Lines {lo} to {hi} hold start={start} and end={end} "
                         f"in whole statements of {where}.",
-                        _send(f"To replace lines {lo} to {hi} send start={lo}, end={hi}.",
-                              start=lo, end=hi, text=INVENT)]
+                        f"A write to start={lo}, end={hi} replaces every line from "
+                        f"{lo} to {hi - 1}.",
+                        _send(f"To make your change there send start={lo}, end={hi} "
+                              f"with {how}.", start=lo, end=hi, text=body)]
 
             tops = original.body if original else []
             cuts = {b: _cut(tops, b) for b in (start, stop)}
@@ -17259,8 +17312,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     # s237's docstring held both boundaries, so its span is
                     # the named one, and the refusal keeps its words.
                     parts.extend(_holding_offer(start, stop, {(lo, hi)}))
-                    parts.append(_send(f"To replace {name} whole send start={lo}, end={hi}.",
-                                       start=lo, end=hi, text=_whole(named[0])))
+                    # The review of 50412ca8, finding 2: `_whole_parent` can
+                    # name the same whole span, and the sentence came twice.
+                    said = f"To replace {name} whole send start={lo}, end={hi}."
+                    if said not in parts:
+                        parts.append(_send(said, start=lo, end=hi, text=_whole(named[0])))
                     parts.append(_send(f"To add after it send start={hi}, end={hi}.",
                                        start=hi, end=hi))
                 raise ValueError(" ".join(parts))
@@ -17349,6 +17405,8 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     # Frame 313: the block's own lines, so the seat can see
                     # where each block starts and ends.
                     blo, bhi = _fact(ctx, "span", (_lo(ns[0]), _end(ns[-1])), path=wpath)
+                    for s in {id(y): y for y in (ns[0], ns[-1])}.values():
+                        _stmt_fact(s)
                     return f"the {_block[f]} of {_what(p)} (lines {blo} to {bhi})"
 
                 parts = [f"start={start}, end={end} crosses from one block to another.",

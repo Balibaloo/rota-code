@@ -169,7 +169,9 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
     (_OF + "test_a_cut_refusal_quotes_lines_that_are_true", _INVALID),
     # Finding 2 on s317's own text, which starts with `) from None` (frame 313).
     ("tests/rota/test_span_holding.py::"
-     "test_a_span_of_s317_is_offered_the_span_that_holds_its_lines[540]", _INVALID),
+     "test_s317_takes_the_offered_span_and_its_text_lands[540]", _INVALID),
+    ("tests/rota/test_span_holding.py::"
+     "test_a_cut_at_the_end_of_a_def_is_offered_the_statement_once", _INVALID),
 }
 
 # The facts that a refusal quotes and the state contradicts today: the test,
