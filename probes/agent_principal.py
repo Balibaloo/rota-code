@@ -21,7 +21,11 @@ from rota.roles.principal import Answer, Ask, land, parse_reply
 from rota.roles.principal import pump as principal_pump
 from rota.core.scheduler import park_ask_batch
 
-BRIEF = Path(__file__).resolve().parent / "principal_brief.md"
+# A night with another item set names its brief in ROTA_PRINCIPAL_BRIEF.
+# Night 163 runs `principal_brief_163.md`, so that the doors are not fitted
+# to version_option (ruled: Roman, 2026-10-15 01:54).
+BRIEF = Path(os.environ.get("ROTA_PRINCIPAL_BRIEF")
+             or Path(__file__).resolve().parent / "principal_brief.md")
 NOTHING = "(nothing)"
 AGAIN = ("You said nothing to this page last time. This page is a question to "
          "you, and it needs an answer in words. Silence is not an answer here.")

@@ -28,6 +28,29 @@ export WALK_AGENT="${GAUNTLET_AGENT:-}"
 # the merge go; the base is the commit the snapshot was onboarded at.
 CLICK_ROOT="${CLICK_ROOT:-D:/repos/_AI/sample_repos/clickI}"
 CLICK_BASE="${CLICK_BASE:-2c8cd3a}"
+# The item set. The three items of nights 49 to 162 ran for three nights
+# on the same doors, and version_option risked a door fitted to one
+# decorator (ruled: Roman, 2026-10-15 01:54, "I want to prevent over
+# fitting"). GAUNTLET_ITEMS=163 runs three other items on click: one with
+# a docstring criterion, one that replaces a base statement, and one that
+# the Tester can test only through a fixture the criterion names. The
+# agent principal reads the matching brief through ROTA_PRINCIPAL_BRIEF.
+if [ "${GAUNTLET_ITEMS:-}" = "163" ]; then
+  export ROTA_PRINCIPAL_BRIEF="$REPO/probes/principal_brief_163.md"
+  S1="Give format_filename one example in its docstring: with shorten set to True, the path a/b/c.txt shows as c.txt."
+  F1="the docstring changes and the code does not"
+  S2="In get_app_dir on Windows, when APPDATA or LOCALAPPDATA is not set, use the AppData Roaming or AppData Local folder under the home folder instead of the bare home folder."
+  F2="Roaming when the roaming flag is True, Local otherwise"
+  S3="Make clear() return True when it cleared the screen and False when stdout is not a terminal."
+  F3="the output does not change, only the return value"
+else
+  S1="Add an echo_json(obj) helper next to echo that prints an object as compact JSON on one line, followed by a newline."
+  F1="keep it to the standard library json module, no new dependency"
+  S2="Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting."
+  F2="the flag defaults to False so nothing changes for existing callers"
+  S3="Give version_option a show_python flag that appends the running Python version to the message."
+  F3="the Python version comes from sys.version_info as major.minor.micro"
+fi
 restore_click() {
   local r="$CLICK_ROOT"
   for w in $(git -C "$r" worktree list --porcelain | grep "^worktree " | grep "/.rota/" | cut -d" " -f2); do
@@ -103,17 +126,17 @@ PRINCIPAL_REPLAY="${GAUNTLET_PRINCIPAL_REPLAY:-$STATE/clickI.principal.jsonl}"
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 1 ]; then
 echo "== walk 1 $(date +%H:%M)"
-WALK_PHASE="sentence 1" python "$W" clickI "Add an echo_json(obj) helper next to echo that prints an object as compact JSON on one line, followed by a newline." "keep it to the standard library json module, no new dependency" 250
+WALK_PHASE="sentence 1" python "$W" clickI "$S1" "$F1" 250
 fi
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 2 ]; then
 echo "== walk 2 $(date +%H:%M)"
-WALK_PHASE="sentence 2" python "$W" clickI "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting." "the flag defaults to False so nothing changes for existing callers" 250
+WALK_PHASE="sentence 2" python "$W" clickI "$S2" "$F2" 250
 fi
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 3 ]; then
 echo "== walk 3 $(date +%H:%M)"
-WALK_PHASE="sentence 3" python "$W" clickI "Give version_option a show_python flag that appends the running Python version to the message." "the Python version comes from sys.version_info as major.minor.micro" 250
+WALK_PHASE="sentence 3" python "$W" clickI "$S3" "$F3" 250
 fi
 python -m rota.tools.nightcount clickI
 echo "GAUNTLET-DONE $(date +%H:%M)"
