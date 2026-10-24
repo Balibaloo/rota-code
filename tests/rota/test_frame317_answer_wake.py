@@ -274,6 +274,9 @@ def test_s364_sees_each_criterion_test_and_its_failed_run(night):
     # The body s364 removed the fix from, with the fix in it.
     v6 = user[user.index("[last run of tst_v6_help"):]
     assert '@version_option(show_python=True, package_name="click")' in v6
+    # Pass 1b: a test with a block shows once, not again in the JSON.
+    assert user.count("def test_version_option_show_python_format():") == 1
+    assert '"tst_v2_format": {' not in user
 
 
 def test_s410_sees_the_keyerror_of_tst_v6(night):
@@ -286,9 +289,14 @@ def test_s410_sees_the_keyerror_of_tst_v6(night):
     head = user.index("[last run of tst_v6_help: failed")
     block = user[head:user.index("The message that woke you:")]
     assert "KeyError: 'prog_name'" in block, block
-    # A test that passed prints no block, and a criterion of no wake ref
-    # brings no test.
-    assert "[last run of tst_4_confirm_default_on_eof" not in user
+    # Pass 1b: the tail stays 700 characters, and the raising line with its
+    # two neighbours comes once before it.
+    head_lines = ("                            ^^^^^^^^^^^^^^^^^^^^^^\n"
+                  "E               KeyError: 'prog_name'\n...\n")
+    assert head_lines + RUN_V6_S410[-700:] in block, block
+    assert block.count("KeyError: 'prog_name'") == 1
+    # Pass 1b: cr_1's test sits in b_3, not in the wake's batch b_5.
+    assert "tst_4_confirm_default_on_eof" not in user
     assert "tst_v2_format" not in user
 
 

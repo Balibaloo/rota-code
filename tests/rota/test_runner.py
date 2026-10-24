@@ -3340,8 +3340,9 @@ def test_a_runner_note_buys_no_cut_of_the_tail_reply(db):
 
 def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
     """Frame 110, night 106: the 700 tail of `_03`'s run held parser frames
-    and not the test's own call line. A Tester challenge or answer gets the
-    whole stored output. Every other wake keeps the tail (frame 317)."""
+    and not the test's own call line. A Tester challenge gets the whole stored
+    output. Every other wake keeps the tail, so its prompt does not move. A
+    Tester answer puts the raising line before the tail (frame 317)."""
     from rota.core.runner import resolve_inbound
 
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
@@ -3378,12 +3379,26 @@ def test_a_tester_reads_the_whole_failure_and_a_developer_reads_the_tail(db):
     tail = developer["resolved_refs"]["tst1"]["last_run"]["output_tail"]
     assert tail == output[-700:] and call not in tail
 
-    # Frame 317: a Tester woken by an answer reads the whole output too.
-    # s410's `KeyError` sat 1929 characters from the end of its run.
+    # Challenge mode only: a Tester woken by an answer keeps the tail.
     answer = resolve_inbound(db, Wake(role="tester", kind="message",
                                       message_id="m4", detail="answer"))
     assert answer["resolved_refs"]["tst1"]["last_run"]["output_tail"] \
-        == output
+        == output[-700:]
+
+    # Frame 317, pass 1b: a raising line outside the tail comes first, with
+    # its two neighbours, once.
+    raised = "before\nE   KeyError: 'prog_name'\nafter\n" + output
+    db.execute("UPDATE test_runs SET output = ? WHERE id = 'r1'", (raised,))
+    db.commit()
+    answer = resolve_inbound(db, Wake(role="tester", kind="message",
+                                      message_id="m4", detail="answer"))
+    run = answer["resolved_refs"]["tst1"]["last_run"]
+    assert run["output_tail"] == raised[-700:]
+    assert run["raising_line"] == "before\nE   KeyError: 'prog_name'\nafter\n...\n"
+    developer = resolve_inbound(db, Wake(role="developer", kind="message",
+                                         message_id="m3", detail="challenge"))
+    assert developer["resolved_refs"]["tst1"]["last_run"]["output_tail"] \
+        == raised[-700:]
 
 
 def test_a_tester_challenge_shows_the_failed_run_as_text_above_the_json(db):

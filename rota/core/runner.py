@@ -731,6 +731,14 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         body.append("\nThe reports that came back:" if "reports" in inbound
                     else "\nThe message that woke you:")
         shown, block = _files_contest_block(inbound)
+        if role == "tester" and wake.detail == "answer":
+            # Frame 317, pass 1b: a test with a block above shows once. The
+            # second copy cost about 4,700 characters on s364's wake.
+            rows = shown.get("resolved_refs") or {}
+            kept = {k: v for k, v in rows.items()
+                    if not _has_failed_run_block(v)}
+            if len(kept) != len(rows):
+                shown = {**shown, "resolved_refs": kept}
         body.append(json.dumps(shown, indent=2, default=str))
         if block:
             body.append("\n" + block)
@@ -2087,8 +2095,15 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             if reason:
                 out.setdefault("principal_said", reason)
 
+    # Frame 317, pass 1b: a Tester answer resolves the tests of its own
+    # batch only, the batch the session works in.
+    wake_batch = None
+    if wake.role == "tester" and wake.detail == "answer":
+        from .loop import _batch_of
+
+        wake_batch = _batch_of(conn, wake)
     resolved = _resolve_refs(conn, out["refs"], role=wake.role,
-                             detail=wake.detail)
+                             detail=wake.detail, batch_id=wake_batch)
     if resolved:
         out["resolved_refs"] = resolved
     # A ruling on a batch line corrects the prediction, so the Architect sees
@@ -2196,7 +2211,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     extra += refs_of(sib["body_refs"])
             more = _resolve_refs(conn, [r for r in extra
                                         if r not in out.get("resolved_refs", {})],
-                                 role=wake.role, detail=wake.detail)
+                                 role=wake.role, detail=wake.detail,
+                                 batch_id=wake_batch)
             if more:
                 out.setdefault("resolved_refs", {}).update(more)
                 if "principal_said" not in out:
@@ -2651,7 +2667,8 @@ def _missed_reply_line(conn: sqlite3.Connection, wake) -> str:
 
 def _resolve_refs(conn: sqlite3.Connection, refs,
                   role: str | None = None,
-                  detail: str | None = None) -> dict[str, Any]:
+                  detail: str | None = None,
+                  batch_id: str | None = None) -> dict[str, Any]:
     """Refs to rows, one hop deep. Nothing those rows point at in turn.
     `role` and `detail` are the woken role and the wake's detail, the verb
     on a message wake. Only a Tester challenge reads a test's whole output."""
@@ -2746,15 +2763,26 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                         # The 700 tail of night 106's `_03` held parser
                         # frames and not the test's own call line (frame
                         # 110, revision 2). Every other wake keeps the tail,
-                        # so its prompt does not move. A Tester answer gets
-                        # the whole output too: s410's `KeyError` sat 1929
-                        # characters from the end (frame 317).
-                        whole = (role == "tester"
-                                 and detail in ("challenge", "answer"))
+                        # so its prompt does not move.
+                        whole = role == "tester" and detail == "challenge"
                         keep = out if whole else out[-700:]
+                        # Frame 317, pass 1b: a Tester answer keeps the tail,
+                        # because a 9b seat's window is 16k tokens. s410's
+                        # `KeyError` sat 1929 characters from the end, so
+                        # the raising line comes first.
                         resolved[ref]["last_run"] = {
                             "result": run["result"],
                             "output_tail": keep}
+                        if (role == "tester" and detail == "answer"
+                                and run["result"] != "pass"):
+                            # The state reads the whole output. The tail of
+                            # s364's tst_v2 run holds no assert line.
+                            resolved[ref]["last_run"].update(
+                                raising_line=_raising_line_head(out),
+                                state=("failed before any assertion"
+                                       if _failed_before_assertion(
+                                           hit["body"] or "", out)
+                                       else "failed"))
                         arranged = (None if whole or run["result"] == "pass"
                                     else _arrange_raise_tail(conn, hit, out))
                         if arranged is not None:
@@ -2780,19 +2808,44 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
         # s410 saw no test and no run, and s364 removed the fix that
         # s315 made after it read "is not installed". Each criterion's
         # test now travels, and the blocks for a test ref fire for it.
+        # Only a test of the wake's batch travels (pass 1b): night 161's
+        # m237 named cr_1, whose test tst_4 sat in b_3.
         named = []
         for row in list(resolved.values()):
-            if row.get("table") != "criteria":
+            if batch_id is None or row.get("table") != "criteria":
                 continue
             test = conn.execute(
-                "SELECT id FROM tests WHERE criterion_id = ? "
-                "ORDER BY rowid DESC LIMIT 1", (row["id"],)).fetchone()
+                "SELECT t.id FROM tests t JOIN criteria c ON c.id = t.criterion_id "
+                "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+                " AND bt.batch_id = t.batch_id "
+                "WHERE t.criterion_id = ? AND t.batch_id = ? "
+                "ORDER BY t.rowid DESC LIMIT 1",
+                (row["id"], batch_id)).fetchone()
             if test and test["id"] not in resolved and test["id"] not in named:
                 named.append(test["id"])
         if named:
             resolved.update(_resolve_refs(conn, named, role=role,
                                           detail=detail))
     return resolved
+
+
+def _raising_line_head(output: str) -> str:
+    """The raising line and its two neighbours, when the 700 tail lacks it.
+
+    Frame 317, pass 1b: the raising line is the first line that holds
+    "Error", "Traceback" or "Try passing". A line inside the tail gives "".
+    """
+    tail_from = len(output) - 700
+    at = 0
+    lines = output.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        if any(w in line for w in ("Error", "Traceback", "Try passing")):
+            if at < tail_from:
+                lo, hi = max(i - 1, 0), min(i + 2, len(lines))
+                return "".join(lines[lo:hi]).rstrip("\n") + "\n...\n"
+            return ""
+        at += len(line)
+    return ""
 
 
 # Frame 110's label, given to every reader of a red row whose test raised in
@@ -3106,6 +3159,14 @@ def _failed_before_assertion(body: str, output: str) -> bool:
     return first_error is not None and first_error < named
 
 
+def _has_failed_run_block(row: Any) -> bool:
+    """Whether `_failed_run_blocks` prints a block for this resolved row."""
+    if not isinstance(row, dict) or row.get("table") != "tests":
+        return False
+    run = row.get("last_run")
+    return bool(run) and run.get("result") != "pass"
+
+
 def _failed_run_blocks(inbound: dict[str, Any]) -> list[str]:
     """Plain text for each challenged test whose last run failed.
 
@@ -3114,15 +3175,17 @@ def _failed_run_blocks(inbound: dict[str, Any]) -> list[str]:
     """
     blocks: list[str] = []
     for ref, row in (inbound.get("resolved_refs") or {}).items():
-        if not isinstance(row, dict) or row.get("table") != "tests":
+        if not _has_failed_run_block(row):
             continue
-        run = row.get("last_run")
-        if not run or run.get("result") == "pass":
-            continue
+        run = row["last_run"]
         body = row.get("body") or ""
         output = run.get("output_tail") or ""
-        state = ("failed before any assertion"
-                 if _failed_before_assertion(body, output) else "failed")
+        state = run.get("state") or (
+            "failed before any assertion"
+            if _failed_before_assertion(body, output) else "failed")
+        # Frame 317, pass 1b: a Tester answer's raising line, when the tail
+        # lacks it. Every other wake has no such key.
+        output = (run.get("raising_line") or "") + output
         blocks.append(f"\n[last run of {ref}: {state}]\n"
                       f"The test's body:\n{body.rstrip()}\n"
                       f"The failure output:\n{output.rstrip()}")
