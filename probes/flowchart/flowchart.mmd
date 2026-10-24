@@ -82,177 +82,244 @@ flowchart LR
   end
   subgraph records["records"]
     subgraph tbl_area_provenance["area_provenance"]
-      s_area_provenance_basis_code["basis = code"]
+      subgraph c_area_provenance_basis["basis"]
+        s_area_provenance_basis_code["basis = code"]
+      end
     end
     subgraph tbl_batch_touch["batch_touch"]
-      s_batch_touch_confidence_expected["confidence = expected"]
-      s_batch_touch_confidence_possible["confidence = possible (final)"]
-      s_batch_touch_grain_kind_path["grain_kind = path (final)"]
-      s_batch_touch_grain_kind_route["grain_kind = route (final)"]
-      s_batch_touch_grain_kind_symbol["grain_kind = symbol (final)"]
-      s_batch_touch_grain_kind_table["grain_kind = table (final)"]
+      subgraph c_batch_touch_confidence["confidence"]
+        s_batch_touch_confidence_expected["confidence = expected"]
+        s_batch_touch_confidence_possible["confidence = possible (final)"]
+      end
+      subgraph c_batch_touch_grain_kind["grain_kind"]
+        s_batch_touch_grain_kind_path["grain_kind = path (final)"]
+        s_batch_touch_grain_kind_route["grain_kind = route (final)"]
+        s_batch_touch_grain_kind_symbol["grain_kind = symbol (final)"]
+        s_batch_touch_grain_kind_table["grain_kind = table (final)"]
+      end
     end
     subgraph tbl_batches["batches"]
-      s_batches_status_abandoned["status = abandoned (final)"]
-      s_batches_status_deferred["status = deferred"]
-      s_batches_status_merged["status = merged (final)"]
-      s_batches_status_pending["status = pending"]
-      s_batches_status_running["status = running (held)"]
+      subgraph c_batches_status["status"]
+        s_batches_status_abandoned["status = abandoned (final)"]
+        s_batches_status_deferred["status = deferred"]
+        s_batches_status_merged["status = merged (final)"]
+        s_batches_status_pending["status = pending"]
+        s_batches_status_running["status = running (held)"]
+      end
     end
     subgraph tbl_challenges["challenges"]
-      s_challenges____["challenges (any row)"]
-      s_challenges_verdict_falsified["verdict = falsified (final)"]
-      s_challenges_verdict_stands["verdict = stands (final)"]
-      s_challenges_verdict_unfounded["verdict = unfounded (final)"]
+      s_challenges____["challenges (new row)"]
+      subgraph c_challenges_verdict["verdict"]
+        s_challenges_verdict_falsified["verdict = falsified (final)"]
+        s_challenges_verdict_stands["verdict = stands (final)"]
+        s_challenges_verdict_unfounded["verdict = unfounded (final)"]
+      end
     end
     subgraph tbl_checkpoints["checkpoints"]
-      s_checkpoints____["checkpoints (any row)"]
+      s_checkpoints____["checkpoints (new row)"]
     end
     subgraph tbl_code_index["code_index"]
-      s_code_index____["code_index (any row)"]
+      s_code_index____["code_index (new row)"]
     end
     subgraph tbl_code_lexicon["code_lexicon"]
-      s_code_lexicon____["code_lexicon (any row)"]
+      s_code_lexicon____["code_lexicon (new row)"]
     end
     subgraph tbl_config["config"]
-      s_config____["config (any row)"]
+      s_config____["config (new row)"]
     end
     subgraph tbl_constraint_bindings["constraint_bindings"]
-      s_constraint_bindings_grain_kind_path["grain_kind = path (final)"]
-      s_constraint_bindings_grain_kind_route["grain_kind = route (final)"]
-      s_constraint_bindings_grain_kind_symbol["grain_kind = symbol (final)"]
-      s_constraint_bindings_grain_kind_table["grain_kind = table (final)"]
+      subgraph c_constraint_bindings_grain_kind["grain_kind"]
+        s_constraint_bindings_grain_kind_path["grain_kind = path (final)"]
+        s_constraint_bindings_grain_kind_route["grain_kind = route (final)"]
+        s_constraint_bindings_grain_kind_symbol["grain_kind = symbol (final)"]
+        s_constraint_bindings_grain_kind_table["grain_kind = table (final)"]
+      end
     end
     subgraph tbl_constraint_provenance["constraint_provenance"]
-      s_constraint_provenance_basis_code["basis = code"]
+      subgraph c_constraint_provenance_basis["basis"]
+        s_constraint_provenance_basis_code["basis = code"]
+      end
     end
     subgraph tbl_constraints["constraints"]
-      s_constraints____["constraints (any row)"]
+      s_constraints____["constraints (new row)"]
     end
     subgraph tbl_decisions["decisions"]
-      s_decisions____["decisions (any row)"]
+      s_decisions____["decisions (new row)"]
     end
     subgraph tbl_drop_notes["drop_notes"]
-      s_drop_notes_status_open["status = open (final)"]
-      s_drop_notes_status_restored["status = restored (final)"]
+      subgraph c_drop_notes_status["status"]
+        s_drop_notes_status_open["status = open (final)"]
+        s_drop_notes_status_restored["status = restored (final)"]
+      end
     end
     subgraph tbl_faults["faults"]
-      s_faults_kind_blocked["kind = blocked (final)"]
-      s_faults_kind_fault["kind = fault (final)"]
-      s_faults_status_open["status = open (final)"]
+      subgraph c_faults_kind["kind"]
+        s_faults_kind_blocked["kind = blocked (final)"]
+        s_faults_kind_fault["kind = fault (final)"]
+      end
+      subgraph c_faults_status["status"]
+        s_faults_status_open["status = open (final)"]
+      end
     end
     subgraph tbl_finding_rulings["finding_rulings"]
-      s_finding_rulings_ruling_dismissed["ruling = dismissed (final)"]
-      s_finding_rulings_ruling_upheld["ruling = upheld"]
+      subgraph c_finding_rulings_ruling["ruling"]
+        s_finding_rulings_ruling_dismissed["ruling = dismissed (final)"]
+        s_finding_rulings_ruling_upheld["ruling = upheld"]
+      end
     end
     subgraph tbl_findings["findings"]
-      s_findings_status_satisfied["status = satisfied (final)"]
-      s_findings_status_violated["status = violated"]
+      subgraph c_findings_status["status"]
+        s_findings_status_satisfied["status = satisfied (final)"]
+        s_findings_status_violated["status = violated"]
+      end
     end
     subgraph tbl_frame_rulings["frame_rulings"]
-      s_frame_rulings_kind_attached["kind = attached (final)"]
-      s_frame_rulings_kind_ignore["kind = ignore (final)"]
-      s_frame_rulings_kind_program["kind = program (final)"]
-      s_frame_rulings_kind_surface["kind = surface (final)"]
+      subgraph c_frame_rulings_kind["kind"]
+        s_frame_rulings_kind_attached["kind = attached (final)"]
+        s_frame_rulings_kind_ignore["kind = ignore (final)"]
+        s_frame_rulings_kind_program["kind = program (final)"]
+        s_frame_rulings_kind_surface["kind = surface (final)"]
+      end
     end
     subgraph tbl_glossary_terms["glossary_terms"]
-      s_glossary_terms____["glossary_terms (any row)"]
+      s_glossary_terms____["glossary_terms (new row)"]
     end
     subgraph tbl_item_provenance["item_provenance"]
-      s_item_provenance____["item_provenance (any row)"]
-      s_item_provenance_basis_code["basis = code"]
+      s_item_provenance____["item_provenance (new row)"]
+      subgraph c_item_provenance_basis["basis"]
+        s_item_provenance_basis_code["basis = code"]
+      end
     end
     subgraph tbl_items["items"]
-      s_items____["items (any row)"]
-      s_items_approval_approved["approval = approved (held)"]
-      s_items_approval_contested["approval = contested"]
-      s_items_approval_draft["approval = draft"]
-      s_items_approval_pending["approval = pending (final)"]
-      s_items_kind_in_scope["kind = in_scope"]
-      s_items_kind_out_of_scope["kind = out_of_scope (final)"]
+      s_items____["items (new row)"]
+      subgraph c_items_approval["approval"]
+        s_items_approval_approved["approval = approved (held)"]
+        s_items_approval_contested["approval = contested"]
+        s_items_approval_draft["approval = draft"]
+        s_items_approval_pending["approval = pending (final)"]
+      end
+      subgraph c_items_kind["kind"]
+        s_items_kind_in_scope["kind = in_scope"]
+        s_items_kind_out_of_scope["kind = out_of_scope (final)"]
+      end
     end
     subgraph tbl_ledger["ledger"]
-      s_ledger____["ledger (any row)"]
-      s_ledger_kind_conflict["kind = conflict (final)"]
-      s_ledger_kind_default["kind = default (final)"]
-      s_ledger_kind_finding["kind = finding (final)"]
-      s_ledger_kind_gap["kind = gap (final)"]
-      s_ledger_kind_invented["kind = invented (final)"]
-      s_ledger_kind_other["kind = other (final)"]
-      s_ledger_kind_scope["kind = scope (final)"]
-      s_ledger_kind_unaddressed_answer["kind = unaddressed_answer (final)"]
-      s_ledger_status_open["status = open"]
-      s_ledger_status_resolved["status = resolved (final)"]
+      s_ledger____["ledger (new row)"]
+      subgraph c_ledger_kind["kind"]
+        s_ledger_kind_conflict["kind = conflict (final)"]
+        s_ledger_kind_default["kind = default (final)"]
+        s_ledger_kind_finding["kind = finding (final)"]
+        s_ledger_kind_gap["kind = gap (final)"]
+        s_ledger_kind_invented["kind = invented (final)"]
+        s_ledger_kind_other["kind = other (final)"]
+        s_ledger_kind_scope["kind = scope (final)"]
+        s_ledger_kind_unaddressed_answer["kind = unaddressed_answer (final)"]
+      end
+      subgraph c_ledger_status["status"]
+        s_ledger_status_open["status = open"]
+        s_ledger_status_resolved["status = resolved (final)"]
+      end
     end
     subgraph tbl_messages["messages"]
-      s_messages____["messages (any row)"]
-      s_messages_status_answered["status = answered (final)"]
-      s_messages_status_open["status = open"]
-      s_messages_status_quarantined["status = quarantined"]
-      s_messages_status_unresolved["status = unresolved"]
+      s_messages____["messages (new row)"]
+      subgraph c_messages_status["status"]
+        s_messages_status_answered["status = answered (final)"]
+        s_messages_status_open["status = open"]
+        s_messages_status_quarantined["status = quarantined"]
+        s_messages_status_unresolved["status = unresolved"]
+      end
     end
     subgraph tbl_model_areas["model_areas"]
-      s_model_areas____["model_areas (any row)"]
+      s_model_areas____["model_areas (new row)"]
     end
     subgraph tbl_refs["refs"]
-      s_refs_kind_grain["kind = grain (final)"]
-      s_refs_kind_reference["kind = reference (final)"]
-      s_refs_kind_ruling["kind = ruling (final)"]
-      s_refs_kind_statement["kind = statement (final)"]
-      s_refs_kind_term["kind = term (final)"]
-      s_refs_src_table_business_rules["src_table = business_rules (final)"]
-      s_refs_src_table_constraints["src_table = constraints (final)"]
-      s_refs_src_table_criteria["src_table = criteria (final)"]
-      s_refs_src_table_frame_rulings["src_table = frame_rulings (final)"]
-      s_refs_src_table_glossary_terms["src_table = glossary_terms (final)"]
-      s_refs_src_table_items["src_table = items (final)"]
-      s_refs_src_table_model_areas["src_table = model_areas (final)"]
+      subgraph c_refs_kind["kind"]
+        s_refs_kind_grain["kind = grain (final)"]
+        s_refs_kind_reference["kind = reference (final)"]
+        s_refs_kind_ruling["kind = ruling (final)"]
+        s_refs_kind_statement["kind = statement (final)"]
+        s_refs_kind_term["kind = term (final)"]
+      end
+      subgraph c_refs_src_table["src_table"]
+        s_refs_src_table_business_rules["src_table = business_rules (final)"]
+        s_refs_src_table_constraints["src_table = constraints (final)"]
+        s_refs_src_table_criteria["src_table = criteria (final)"]
+        s_refs_src_table_frame_rulings["src_table = frame_rulings (final)"]
+        s_refs_src_table_glossary_terms["src_table = glossary_terms (final)"]
+        s_refs_src_table_items["src_table = items (final)"]
+        s_refs_src_table_model_areas["src_table = model_areas (final)"]
+      end
     end
     subgraph tbl_rulings["rulings"]
-      s_rulings____["rulings (any row)"]
-      s_rulings_status_open["status = open (final)"]
+      s_rulings____["rulings (new row)"]
+      subgraph c_rulings_status["status"]
+        s_rulings_status_open["status = open (final)"]
+      end
     end
     subgraph tbl_statements["statements"]
-      s_statements____["statements (any row)"]
-      s_statements_status_clarified["status = clarified (final)"]
-      s_statements_status_contradicted["status = contradicted"]
-      s_statements_status_proposed["status = proposed"]
-      s_statements_status_ratified["status = ratified (final)"]
-      s_statements_status_superseded["status = superseded (final)"]
+      s_statements____["statements (new row)"]
+      subgraph c_statements_status["status"]
+        s_statements_status_clarified["status = clarified (final)"]
+        s_statements_status_contradicted["status = contradicted"]
+        s_statements_status_proposed["status = proposed"]
+        s_statements_status_ratified["status = ratified (final)"]
+        s_statements_status_superseded["status = superseded (final)"]
+      end
     end
     subgraph tbl_survey_records["survey_records"]
-      s_survey_records____["survey_records (any row)"]
-      s_survey_records_outcome_found["outcome = found (held)"]
-      s_survey_records_outcome_none_found["outcome = none_found (held)"]
+      s_survey_records____["survey_records (new row)"]
+      subgraph c_survey_records_outcome["outcome"]
+        s_survey_records_outcome_found["outcome = found (held)"]
+        s_survey_records_outcome_none_found["outcome = none_found (held)"]
+      end
     end
     subgraph tbl_term_provenance["term_provenance"]
-      s_term_provenance_basis_code["basis = code"]
+      subgraph c_term_provenance_basis["basis"]
+        s_term_provenance_basis_code["basis = code"]
+      end
+    end
+    subgraph tbl_test_run_journal["test_run_journal"]
+      subgraph c_test_run_journal_result["result"]
+        s_test_run_journal_result_error["result = error (final)"]
+        s_test_run_journal_result_fail["result = fail (final)"]
+        s_test_run_journal_result_pass["result = pass (final)"]
+      end
     end
     subgraph tbl_test_runs["test_runs"]
-      s_test_runs_result_error["result = error"]
-      s_test_runs_result_fail["result = fail"]
-      s_test_runs_result_pass["result = pass (final)"]
+      subgraph c_test_runs_result["result"]
+        s_test_runs_result_error["result = error"]
+        s_test_runs_result_fail["result = fail"]
+        s_test_runs_result_pass["result = pass (final)"]
+      end
     end
     subgraph tbl_tick_attempts["tick_attempts"]
-      s_tick_attempts____["tick_attempts (any row)"]
+      s_tick_attempts____["tick_attempts (new row)"]
     end
     subgraph tbl_tickets["tickets"]
-      s_tickets____["tickets (any row)"]
+      s_tickets____["tickets (new row)"]
     end
     subgraph tbl_touch_guesses["touch_guesses"]
-      s_touch_guesses_confidence_expected["confidence = expected (final)"]
-      s_touch_guesses_confidence_possible["confidence = possible (final)"]
-      s_touch_guesses_grain_kind_path["grain_kind = path (final)"]
-      s_touch_guesses_grain_kind_symbol["grain_kind = symbol (final)"]
+      subgraph c_touch_guesses_confidence["confidence"]
+        s_touch_guesses_confidence_expected["confidence = expected (final)"]
+        s_touch_guesses_confidence_possible["confidence = possible (final)"]
+      end
+      subgraph c_touch_guesses_grain_kind["grain_kind"]
+        s_touch_guesses_grain_kind_path["grain_kind = path (final)"]
+        s_touch_guesses_grain_kind_symbol["grain_kind = symbol (final)"]
+      end
     end
     subgraph tbl_touch_strays["touch_strays"]
-      s_touch_strays_status_foreseen["status = foreseen (final)"]
-      s_touch_strays_status_mistake["status = mistake"]
-      s_touch_strays_status_open["status = open"]
+      subgraph c_touch_strays_status["status"]
+        s_touch_strays_status_foreseen["status = foreseen (final)"]
+        s_touch_strays_status_mistake["status = mistake"]
+        s_touch_strays_status_open["status = open"]
+      end
     end
     subgraph tbl_verdicts["verdicts"]
-      s_verdicts_result_fail["result = fail"]
-      s_verdicts_result_pass["result = pass (held)"]
+      subgraph c_verdicts_result["result"]
+        s_verdicts_result_fail["result = fail"]
+        s_verdicts_result_pass["result = pass (held)"]
+      end
     end
   end
   not_derived["not derived"]
@@ -273,6 +340,7 @@ flowchart LR
   s_batches_status_running -->|sql| t_findings_exhausted_architect
   s_batches_status_running -->|sql| t_findings_exhausted_developer
   s_batches_status_running -->|sql| t_findings_exhausted_vision_keeper
+  s_batches_status_running -->|sql| t_harness_scheduler
   s_batches_status_running -->|drains| t_preempt_scheduler
   s_batches_status_running -->|drains| t_reopen_developer
   s_batches_status_running -->|sql| t_review_critic
@@ -340,7 +408,6 @@ flowchart LR
   s_survey_records_outcome_found -->|drains| t_constraint_zero_scheduler
   s_survey_records_outcome_none_found -->|drains| t_constraint_zero_scheduler
   s_term_provenance_basis_code -->|drains| t_observed_entries_liaison
-  s_test_runs_result_error -->|drains| t_harness_scheduler
   s_test_runs_result_error -->|drains| t_tests_failing_developer
   s_test_runs_result_fail -->|drains| t_exhausted_architect
   s_test_runs_result_fail -->|drains| t_exhausted_developer
@@ -362,213 +429,110 @@ flowchart LR
   s_verdicts_result_fail -->|drains| t_verdict_failed_developer
   s_verdicts_result_pass -->|drains| t_merge_scheduler
   s_verdicts_result_pass -->|sql| t_structural_review_architect
-  lane_architect ==>|literal| s_batch_touch_confidence_expected
-  lane_architect ==>|literal| s_batch_touch_confidence_possible
-  lane_architect ==>|bound| s_batch_touch_grain_kind_path
-  lane_architect ==>|literal| s_batch_touch_grain_kind_path
-  lane_architect ==>|bound| s_batch_touch_grain_kind_route
-  lane_architect ==>|bound| s_batch_touch_grain_kind_symbol
-  lane_architect ==>|literal| s_batch_touch_grain_kind_symbol
-  lane_architect ==>|bound| s_batch_touch_grain_kind_table
-  lane_architect ==>|literal| s_batches_status_pending
-  lane_architect ==>|bound| s_constraint_bindings_grain_kind_path
-  lane_architect ==>|bound| s_constraint_bindings_grain_kind_route
-  lane_architect ==>|bound| s_constraint_bindings_grain_kind_symbol
-  lane_architect ==>|bound| s_constraint_bindings_grain_kind_table
-  lane_architect ==>|new row| s_constraints____
-  lane_architect ==>|new row| s_decisions____
-  lane_architect ==>|bound| s_drop_notes_status_open
-  lane_architect ==>|bound| s_drop_notes_status_restored
-  lane_architect ==>|bound| s_faults_kind_blocked
-  lane_architect ==>|bound| s_faults_kind_fault
-  lane_architect ==>|literal| s_faults_status_open
-  lane_architect ==>|bound| s_findings_status_satisfied
-  lane_architect ==>|bound| s_findings_status_violated
-  lane_architect ==>|bound| s_frame_rulings_kind_attached
-  lane_architect ==>|bound| s_frame_rulings_kind_ignore
-  lane_architect ==>|bound| s_frame_rulings_kind_program
-  lane_architect ==>|bound| s_frame_rulings_kind_surface
-  lane_architect ==>|bound| s_ledger_kind_conflict
-  lane_architect ==>|bound| s_ledger_kind_default
-  lane_architect ==>|bound| s_ledger_kind_finding
-  lane_architect ==>|bound| s_ledger_kind_gap
-  lane_architect ==>|bound| s_ledger_kind_invented
-  lane_architect ==>|bound| s_ledger_kind_other
-  lane_architect ==>|bound| s_ledger_kind_scope
-  lane_architect ==>|bound| s_ledger_kind_unaddressed_answer
-  lane_architect ==>|literal| s_ledger_status_open
-  lane_architect ==>|literal| s_ledger_status_resolved
-  lane_architect ==>|default| s_messages_status_open
-  lane_architect ==>|literal| s_messages_status_unresolved
-  lane_architect ==>|new row| s_model_areas____
-  lane_architect ==>|bound| s_refs_kind_grain
-  lane_architect ==>|bound| s_refs_kind_reference
-  lane_architect ==>|bound| s_refs_kind_ruling
-  lane_architect ==>|bound| s_refs_kind_statement
-  lane_architect ==>|bound| s_refs_kind_term
-  lane_architect ==>|bound| s_refs_src_table_business_rules
-  lane_architect ==>|bound| s_refs_src_table_constraints
-  lane_architect ==>|bound| s_refs_src_table_criteria
-  lane_architect ==>|bound| s_refs_src_table_frame_rulings
-  lane_architect ==>|bound| s_refs_src_table_glossary_terms
-  lane_architect ==>|bound| s_refs_src_table_items
-  lane_architect ==>|bound| s_refs_src_table_model_areas
-  lane_architect ==>|bound| s_survey_records_outcome_found
-  lane_architect ==>|bound| s_survey_records_outcome_none_found
-  lane_architect ==>|bound| s_touch_guesses_confidence_expected
-  lane_architect ==>|bound| s_touch_guesses_confidence_possible
-  lane_architect ==>|bound| s_touch_guesses_grain_kind_path
-  lane_architect ==>|bound| s_touch_guesses_grain_kind_symbol
-  lane_architect ==>|literal| s_touch_strays_status_foreseen
-  lane_architect ==>|literal| s_touch_strays_status_mistake
-  lane_critic ==>|literal| s_challenges_verdict_falsified
-  lane_critic ==>|literal| s_challenges_verdict_stands
-  lane_critic ==>|literal| s_challenges_verdict_unfounded
-  lane_critic ==>|bound| s_finding_rulings_ruling_dismissed
-  lane_critic ==>|bound| s_finding_rulings_ruling_upheld
-  lane_critic ==>|default| s_messages_status_open
-  lane_critic ==>|bound| s_verdicts_result_fail
-  lane_critic ==>|bound| s_verdicts_result_pass
-  lane_developer ==>|new row| s_decisions____
-  lane_developer ==>|bound| s_drop_notes_status_open
-  lane_developer ==>|bound| s_drop_notes_status_restored
-  lane_developer ==>|bound| s_faults_kind_blocked
-  lane_developer ==>|bound| s_faults_kind_fault
-  lane_developer ==>|literal| s_faults_status_open
-  lane_developer ==>|bound| s_ledger_kind_conflict
-  lane_developer ==>|bound| s_ledger_kind_default
-  lane_developer ==>|bound| s_ledger_kind_finding
-  lane_developer ==>|bound| s_ledger_kind_gap
-  lane_developer ==>|bound| s_ledger_kind_invented
-  lane_developer ==>|bound| s_ledger_kind_other
-  lane_developer ==>|bound| s_ledger_kind_scope
-  lane_developer ==>|bound| s_ledger_kind_unaddressed_answer
-  lane_developer ==>|literal| s_ledger_status_open
-  lane_developer ==>|literal| s_ledger_status_resolved
-  lane_developer ==>|default| s_messages_status_open
-  lane_developer ==>|literal| s_messages_status_unresolved
-  lane_developer ==>|literal| s_touch_strays_status_open
-  lane_liaison ==>|bound| s_drop_notes_status_open
-  lane_liaison ==>|bound| s_drop_notes_status_restored
-  lane_liaison ==>|bound| s_faults_kind_blocked
-  lane_liaison ==>|bound| s_faults_kind_fault
-  lane_liaison ==>|literal| s_faults_status_open
-  lane_liaison ==>|bound| s_ledger_kind_conflict
-  lane_liaison ==>|bound| s_ledger_kind_default
-  lane_liaison ==>|bound| s_ledger_kind_finding
-  lane_liaison ==>|bound| s_ledger_kind_gap
-  lane_liaison ==>|bound| s_ledger_kind_invented
-  lane_liaison ==>|bound| s_ledger_kind_other
-  lane_liaison ==>|bound| s_ledger_kind_scope
-  lane_liaison ==>|bound| s_ledger_kind_unaddressed_answer
-  lane_liaison ==>|literal| s_ledger_status_open
-  lane_liaison ==>|default| s_messages_status_open
-  lane_liaison ==>|literal| s_messages_status_unresolved
-  lane_liaison ==>|literal| s_rulings_status_open
-  lane_liaison ==>|literal| s_statements_status_proposed
-  lane_liaison ==>|literal| s_statements_status_ratified
-  lane_liaison ==>|bound| s_survey_records_outcome_found
-  lane_liaison ==>|bound| s_survey_records_outcome_none_found
-  lane_principal ==>|default| s_messages_status_open
-  lane_researcher ==>|default| s_messages_status_open
-  lane_terminologist ==>|new row| s_decisions____
-  lane_terminologist ==>|bound| s_drop_notes_status_open
-  lane_terminologist ==>|bound| s_drop_notes_status_restored
-  lane_terminologist ==>|bound| s_faults_kind_blocked
-  lane_terminologist ==>|bound| s_faults_kind_fault
-  lane_terminologist ==>|literal| s_faults_status_open
-  lane_terminologist ==>|new row| s_glossary_terms____
-  lane_terminologist ==>|bound| s_ledger_kind_conflict
-  lane_terminologist ==>|bound| s_ledger_kind_default
-  lane_terminologist ==>|bound| s_ledger_kind_finding
-  lane_terminologist ==>|bound| s_ledger_kind_gap
-  lane_terminologist ==>|bound| s_ledger_kind_invented
-  lane_terminologist ==>|bound| s_ledger_kind_other
-  lane_terminologist ==>|bound| s_ledger_kind_scope
-  lane_terminologist ==>|bound| s_ledger_kind_unaddressed_answer
-  lane_terminologist ==>|literal| s_ledger_status_open
-  lane_terminologist ==>|literal| s_ledger_status_resolved
-  lane_terminologist ==>|default| s_messages_status_open
-  lane_terminologist ==>|literal| s_messages_status_unresolved
-  lane_terminologist ==>|bound| s_refs_kind_grain
-  lane_terminologist ==>|bound| s_refs_kind_reference
-  lane_terminologist ==>|bound| s_refs_kind_ruling
-  lane_terminologist ==>|bound| s_refs_kind_statement
-  lane_terminologist ==>|bound| s_refs_kind_term
-  lane_terminologist ==>|bound| s_refs_src_table_business_rules
-  lane_terminologist ==>|bound| s_refs_src_table_constraints
-  lane_terminologist ==>|bound| s_refs_src_table_criteria
-  lane_terminologist ==>|bound| s_refs_src_table_frame_rulings
-  lane_terminologist ==>|bound| s_refs_src_table_glossary_terms
-  lane_terminologist ==>|bound| s_refs_src_table_items
-  lane_terminologist ==>|bound| s_refs_src_table_model_areas
-  lane_terminologist ==>|bound| s_survey_records_outcome_found
-  lane_terminologist ==>|bound| s_survey_records_outcome_none_found
-  lane_tester ==>|bound| s_drop_notes_status_open
-  lane_tester ==>|bound| s_drop_notes_status_restored
-  lane_tester ==>|bound| s_faults_kind_blocked
-  lane_tester ==>|bound| s_faults_kind_fault
-  lane_tester ==>|literal| s_faults_status_open
-  lane_tester ==>|bound| s_ledger_kind_conflict
-  lane_tester ==>|bound| s_ledger_kind_default
-  lane_tester ==>|bound| s_ledger_kind_finding
-  lane_tester ==>|bound| s_ledger_kind_gap
-  lane_tester ==>|bound| s_ledger_kind_invented
-  lane_tester ==>|bound| s_ledger_kind_other
-  lane_tester ==>|bound| s_ledger_kind_scope
-  lane_tester ==>|bound| s_ledger_kind_unaddressed_answer
-  lane_tester ==>|literal| s_ledger_status_open
-  lane_tester ==>|default| s_messages_status_open
-  lane_tester ==>|literal| s_messages_status_unresolved
-  lane_vision_keeper ==>|new row| s_decisions____
-  lane_vision_keeper ==>|bound| s_drop_notes_status_open
-  lane_vision_keeper ==>|bound| s_drop_notes_status_restored
-  lane_vision_keeper ==>|bound| s_faults_kind_blocked
-  lane_vision_keeper ==>|bound| s_faults_kind_fault
-  lane_vision_keeper ==>|literal| s_faults_status_open
-  lane_vision_keeper ==>|bound| s_items_approval_approved
-  lane_vision_keeper ==>|bound| s_items_approval_contested
-  lane_vision_keeper ==>|bound| s_items_approval_draft
-  lane_vision_keeper ==>|literal| s_items_approval_draft
-  lane_vision_keeper ==>|bound| s_items_approval_pending
-  lane_vision_keeper ==>|bound| s_items_kind_in_scope
-  lane_vision_keeper ==>|bound| s_items_kind_out_of_scope
-  lane_vision_keeper ==>|bound| s_ledger_kind_conflict
-  lane_vision_keeper ==>|bound| s_ledger_kind_default
-  lane_vision_keeper ==>|bound| s_ledger_kind_finding
-  lane_vision_keeper ==>|bound| s_ledger_kind_gap
-  lane_vision_keeper ==>|bound| s_ledger_kind_invented
-  lane_vision_keeper ==>|bound| s_ledger_kind_other
-  lane_vision_keeper ==>|bound| s_ledger_kind_scope
-  lane_vision_keeper ==>|bound| s_ledger_kind_unaddressed_answer
-  lane_vision_keeper ==>|literal| s_ledger_status_open
-  lane_vision_keeper ==>|literal| s_ledger_status_resolved
-  lane_vision_keeper ==>|default| s_messages_status_open
-  lane_vision_keeper ==>|literal| s_messages_status_unresolved
-  lane_vision_keeper ==>|bound| s_refs_kind_grain
-  lane_vision_keeper ==>|bound| s_refs_kind_reference
-  lane_vision_keeper ==>|bound| s_refs_kind_ruling
-  lane_vision_keeper ==>|bound| s_refs_kind_statement
-  lane_vision_keeper ==>|bound| s_refs_kind_term
-  lane_vision_keeper ==>|bound| s_refs_src_table_business_rules
-  lane_vision_keeper ==>|bound| s_refs_src_table_constraints
-  lane_vision_keeper ==>|bound| s_refs_src_table_criteria
-  lane_vision_keeper ==>|bound| s_refs_src_table_frame_rulings
-  lane_vision_keeper ==>|bound| s_refs_src_table_glossary_terms
-  lane_vision_keeper ==>|bound| s_refs_src_table_items
-  lane_vision_keeper ==>|bound| s_refs_src_table_model_areas
-  lane_vision_keeper ==>|bound| s_survey_records_outcome_found
-  lane_vision_keeper ==>|bound| s_survey_records_outcome_none_found
-  lane_vision_keeper ==>|new row| s_tickets____
-  t_cancel_scheduler -.-> not_derived
+  lane_architect ==>|"batch_touch.grain_kind = #lt;bound#gt;"| c_batch_touch_grain_kind
+  lane_architect ==>|"constraint_bindings.grain_kind = #lt;bound#gt;"| c_constraint_bindings_grain_kind
+  lane_architect ==>|"drop_notes.status = #lt;bound#gt;"| c_drop_notes_status
+  lane_architect ==>|"faults.kind = #lt;bound#gt;"| c_faults_kind
+  lane_architect ==>|"findings.status = #lt;bound#gt;"| c_findings_status
+  lane_architect ==>|"frame_rulings.kind = #lt;bound#gt;"| c_frame_rulings_kind
+  lane_architect ==>|"ledger.kind = #lt;bound#gt;"| c_ledger_kind
+  lane_architect ==>|"refs.kind = #lt;bound#gt;"| c_refs_kind
+  lane_architect ==>|"refs.src_table = #lt;bound#gt;"| c_refs_src_table
+  lane_architect ==>|"survey_records.outcome = #lt;bound#gt;"| c_survey_records_outcome
+  lane_architect ==>|"touch_guesses.confidence = #lt;bound#gt;"| c_touch_guesses_confidence
+  lane_architect ==>|"touch_guesses.grain_kind = #lt;bound#gt;"| c_touch_guesses_grain_kind
+  lane_architect ==>|"literal"| s_batch_touch_confidence_expected
+  lane_architect ==>|"literal"| s_batch_touch_confidence_possible
+  lane_architect ==>|"literal"| s_batch_touch_grain_kind_path
+  lane_architect ==>|"literal"| s_batch_touch_grain_kind_symbol
+  lane_architect ==>|"literal"| s_batches_status_pending
+  lane_architect ==>|"new row"| s_constraints____
+  lane_architect ==>|"new row"| s_decisions____
+  lane_architect ==>|"literal"| s_faults_status_open
+  lane_architect ==>|"literal"| s_ledger_status_open
+  lane_architect ==>|"literal"| s_ledger_status_resolved
+  lane_architect ==>|"default"| s_messages_status_open
+  lane_architect ==>|"literal"| s_messages_status_unresolved
+  lane_architect ==>|"new row"| s_model_areas____
+  lane_architect ==>|"literal"| s_touch_strays_status_foreseen
+  lane_architect ==>|"literal"| s_touch_strays_status_mistake
+  lane_critic ==>|"finding_rulings.ruling = #lt;bound#gt;"| c_finding_rulings_ruling
+  lane_critic ==>|"verdicts.result = #lt;bound#gt;"| c_verdicts_result
+  lane_critic ==>|"literal"| s_challenges_verdict_falsified
+  lane_critic ==>|"literal"| s_challenges_verdict_stands
+  lane_critic ==>|"literal"| s_challenges_verdict_unfounded
+  lane_critic ==>|"default"| s_messages_status_open
+  lane_developer ==>|"drop_notes.status = #lt;bound#gt;"| c_drop_notes_status
+  lane_developer ==>|"faults.kind = #lt;bound#gt;"| c_faults_kind
+  lane_developer ==>|"ledger.kind = #lt;bound#gt;"| c_ledger_kind
+  lane_developer ==>|"new row"| s_decisions____
+  lane_developer ==>|"literal"| s_faults_status_open
+  lane_developer ==>|"literal"| s_ledger_status_open
+  lane_developer ==>|"literal"| s_ledger_status_resolved
+  lane_developer ==>|"default"| s_messages_status_open
+  lane_developer ==>|"literal"| s_messages_status_unresolved
+  lane_developer ==>|"literal"| s_touch_strays_status_open
+  lane_liaison ==>|"drop_notes.status = #lt;bound#gt;"| c_drop_notes_status
+  lane_liaison ==>|"faults.kind = #lt;bound#gt;"| c_faults_kind
+  lane_liaison ==>|"ledger.kind = #lt;bound#gt;"| c_ledger_kind
+  lane_liaison ==>|"survey_records.outcome = #lt;bound#gt;"| c_survey_records_outcome
+  lane_liaison ==>|"literal"| s_faults_status_open
+  lane_liaison ==>|"literal"| s_ledger_status_open
+  lane_liaison ==>|"default"| s_messages_status_open
+  lane_liaison ==>|"literal"| s_messages_status_unresolved
+  lane_liaison ==>|"literal"| s_rulings_status_open
+  lane_liaison ==>|"literal"| s_statements_status_proposed
+  lane_liaison ==>|"literal"| s_statements_status_ratified
+  lane_principal ==>|"default"| s_messages_status_open
+  lane_researcher ==>|"default"| s_messages_status_open
+  lane_terminologist ==>|"drop_notes.status = #lt;bound#gt;"| c_drop_notes_status
+  lane_terminologist ==>|"faults.kind = #lt;bound#gt;"| c_faults_kind
+  lane_terminologist ==>|"ledger.kind = #lt;bound#gt;"| c_ledger_kind
+  lane_terminologist ==>|"refs.kind = #lt;bound#gt;"| c_refs_kind
+  lane_terminologist ==>|"refs.src_table = #lt;bound#gt;"| c_refs_src_table
+  lane_terminologist ==>|"survey_records.outcome = #lt;bound#gt;"| c_survey_records_outcome
+  lane_terminologist ==>|"new row"| s_decisions____
+  lane_terminologist ==>|"literal"| s_faults_status_open
+  lane_terminologist ==>|"new row"| s_glossary_terms____
+  lane_terminologist ==>|"literal"| s_ledger_status_open
+  lane_terminologist ==>|"literal"| s_ledger_status_resolved
+  lane_terminologist ==>|"default"| s_messages_status_open
+  lane_terminologist ==>|"literal"| s_messages_status_unresolved
+  lane_tester ==>|"drop_notes.status = #lt;bound#gt;"| c_drop_notes_status
+  lane_tester ==>|"faults.kind = #lt;bound#gt;"| c_faults_kind
+  lane_tester ==>|"ledger.kind = #lt;bound#gt;"| c_ledger_kind
+  lane_tester ==>|"literal"| s_faults_status_open
+  lane_tester ==>|"literal"| s_ledger_status_open
+  lane_tester ==>|"default"| s_messages_status_open
+  lane_tester ==>|"literal"| s_messages_status_unresolved
+  lane_vision_keeper ==>|"drop_notes.status = #lt;bound#gt;"| c_drop_notes_status
+  lane_vision_keeper ==>|"faults.kind = #lt;bound#gt;"| c_faults_kind
+  lane_vision_keeper ==>|"items.approval = #lt;bound#gt;"| c_items_approval
+  lane_vision_keeper ==>|"items.kind = #lt;bound#gt;"| c_items_kind
+  lane_vision_keeper ==>|"ledger.kind = #lt;bound#gt;"| c_ledger_kind
+  lane_vision_keeper ==>|"refs.kind = #lt;bound#gt;"| c_refs_kind
+  lane_vision_keeper ==>|"refs.src_table = #lt;bound#gt;"| c_refs_src_table
+  lane_vision_keeper ==>|"survey_records.outcome = #lt;bound#gt;"| c_survey_records_outcome
+  lane_vision_keeper ==>|"new row"| s_decisions____
+  lane_vision_keeper ==>|"literal"| s_faults_status_open
+  lane_vision_keeper ==>|"literal"| s_items_approval_draft
+  lane_vision_keeper ==>|"literal"| s_ledger_status_open
+  lane_vision_keeper ==>|"literal"| s_ledger_status_resolved
+  lane_vision_keeper ==>|"default"| s_messages_status_open
+  lane_vision_keeper ==>|"literal"| s_messages_status_unresolved
+  lane_vision_keeper ==>|"new row"| s_tickets____
+  t_batch_start_developer ==>|"literal"| s_batches_status_running
+  t_batch_start_developer ==>|"new row"| s_config____
+  t_cancel_scheduler ==>|"literal"| s_batches_status_abandoned
   t_checkpoint_invalid_any_seat -.-> not_derived
   t_constraint_zero_scheduler -.-> not_derived
-  t_harness_scheduler -.-> not_derived
-  t_merge_scheduler ==>|literal| s_batches_status_deferred
-  t_merge_scheduler ==>|literal| s_batches_status_merged
-  t_merge_scheduler ==>|new row| s_config____
+  t_harness_scheduler ==>|"test_run_journal.result = #lt;bound#gt;"| c_test_run_journal_result
+  t_harness_scheduler ==>|"test_runs.result = #lt;bound#gt;"| c_test_runs_result
+  t_merge_scheduler ==>|"literal"| s_batches_status_deferred
+  t_merge_scheduler ==>|"literal"| s_batches_status_merged
+  t_merge_scheduler ==>|"new row"| s_config____
   t_message_tips_any_seat -.-> not_derived
-  t_preempt_scheduler -.-> not_derived
+  t_preempt_scheduler ==>|"literal"| s_batches_status_deferred
   t_survey_any_seat -.-> not_derived
   %% ticks with no trigger found: none
   %% graph tools with no @op function: criteria.cite, frame.cite, glossary.cite, model.cite, problem.cite

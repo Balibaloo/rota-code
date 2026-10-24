@@ -36,6 +36,7 @@ GRAPH = ROOT / "rota" / "design" / "graph.json"
 PREDICATES = ROOT / "rota" / "core" / "predicates.py"
 SCHEDULER_PY = ROOT / "rota" / "core" / "scheduler.py"
 LIFECYCLE_PY = ROOT / "rota" / "core" / "lifecycle.py"
+LOOP_PY = ROOT / "rota" / "core" / "loop.py"
 API_PY = ROOT / "rota" / "roles" / "api.py"
 SCHEMA = ROOT / "rota" / "core" / "schema.sql"
 OUT_FULL = ROOT / "probes" / "flowchart" / "flowchart.mmd"
@@ -302,6 +303,46 @@ def read_ops() -> dict[tuple[str, str], str]:
     return ops
 
 
+def _module_file(base: Path, level: int, module: str | None, name: str) -> Path:
+    """The file of `from <dots><module> import <name>`, seen from `base`."""
+    root = base.parent
+    for _ in range(level - 1):
+        root = root.parent
+    parts = (module.split(".") if module else []) + [name]
+    return root.joinpath(*parts).with_suffix(".py")
+
+
+def read_loop_joins() -> dict[str, list[tuple[Path, str]]]:
+    """Return {wake kind literal: [(module file, function)]} from loop.py.
+
+    The loop dispatches on `kind == "tick:<name>"` and on `action == "<name>"`.
+    Inside each such `if` body the tool collects the calls `lifecycle.<fn>(...)`
+    and `<module>.<fn>(...)` of a module the body imports with `from . import`.
+    The tool follows the import to the module's file. A literal that starts
+    with "tick:" names a tick; any other names a `do:` action."""
+    tree = ast.parse(LOOP_PY.read_text(encoding="utf-8"))
+    joins: dict[str, set[tuple[Path, str]]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If):
+            continue
+        lits = [c.value for cmp in ast.walk(node.test) if isinstance(cmp, ast.Compare)
+                and all(isinstance(o, ast.Eq) for o in cmp.ops)
+                for c in [cmp.left, *cmp.comparators]
+                if isinstance(c, ast.Constant) and isinstance(c.value, str)]
+        if len(lits) != 1:
+            continue
+        mods = {"lifecycle": LIFECYCLE_PY}
+        body = ast.Module(body=node.body, type_ignores=[])
+        for n in ast.walk(body):
+            if isinstance(n, ast.ImportFrom) and n.level >= 1:
+                for a in n.names:
+                    mods[a.asname or a.name] = _module_file(LOOP_PY, n.level, n.module, a.name)
+        for n in ast.walk(body):
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)                     and isinstance(n.func.value, ast.Name) and n.func.value.id in mods:
+                joins.setdefault(lits[0], set()).add((mods[n.func.value.id], n.func.attr))
+    return {k: sorted(v) for k, v in joins.items()}
+
+
 # ---------------------------------------------------------------------------
 # SQL reading
 # ---------------------------------------------------------------------------
@@ -448,6 +489,18 @@ def sid(t: str, c: str, v: str) -> str:
     return ident("s", t, c, v)
 
 
+def cid(t: str, c: str) -> str:
+    return ident("c", t, c)
+
+
+def end_of(src: str, t: str, c: str, v: str, how: str) -> tuple[str, str, str, str]:
+    """One end arrow. A bound value is folded: it points at the column's box,
+    labelled "table.col = <bound>", not at each value the CHECK allows."""
+    if how == "bound":
+        return (src, cid(t, c), f"{t}.{c} = #lt;bound#gt;", "end")
+    return (src, sid(t, c, v), how, "end")
+
+
 def build() -> dict:
     graph = read_graph()
     state_cols = read_schema()
@@ -456,6 +509,30 @@ def build() -> dict:
     api_fns = read_functions(API_PY)
     ops = read_ops()
     preds, sentinels, terminal = read_predicates(sched_fns)
+    loop_joins = read_loop_joins()
+    file_fns: dict[Path, dict] = {LIFECYCLE_PY: life_fns}
+
+    def joined_end(kind: str) -> set[tuple[str, str, str, str]]:
+        """The states the loop's dispatch of one wake kind writes.
+
+        A lifecycle function gives its closure's SQL. A function of another
+        module gives its own SQL and the lifecycle functions it calls."""
+        found: set[tuple[str, str, str, str]] = set()
+        for (path, fn) in loop_joins.get(kind, []):
+            fns = file_fns.setdefault(path, read_functions(path) if path.exists() else {})
+            if fn not in fns:
+                continue
+            names = closure(fns, [fn])
+            sql = " ".join(_sql_of(fns[f]) for f in names)
+            if path != LIFECYCLE_PY:
+                called = sorted({n.func.attr for f in names for n in ast.walk(fns[f])
+                                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                                 and isinstance(n.func.value, ast.Name)
+                                 and n.func.value.id == "lifecycle"})
+                sql += " " + " ".join(_sql_of(life_fns[f])
+                                      for f in closure(life_fns, called))
+            found |= written_states(sql, state_cols)
+        return found
     derived, scheduler = sentinels["DERIVED"], sentinels["SCHEDULER"]
 
     # A column the lifecycle module sets with a literal is a state as well.
@@ -505,7 +582,7 @@ def build() -> dict:
     ends: list[tuple[str, str, str, str]] = []    # (from id, state id, how, style)
     states: dict[str, set[tuple[str, str]]] = {}  # table -> {(col, val)}
     stats = {"exclusions": 0, "filters": set(), "left_behind": [],
-             "not_derived": [], "derived": [], "no_trigger": [], "scheduler_sql": []}
+             "not_derived": [], "derived": [], "loop_ticks": set(), "no_trigger": [], "scheduler_sql": []}
     tick_lane: dict[str, str] = {}
     for p in preds:
         if p["wakes"] == scheduler:
@@ -520,10 +597,11 @@ def build() -> dict:
         act_end: set[tuple[str, str, str, str]] = set()
         if p["wakes"] == scheduler:
             for a in p["actions"]:
-                fn = a
-                if fn in life_fns:
-                    sql = " ".join(_sql_of(life_fns[f]) for f in closure(life_fns, [fn]))
+                act_end |= joined_end(a)
+                if a in life_fns and a not in loop_joins:
+                    sql = " ".join(_sql_of(life_fns[f]) for f in closure(life_fns, [a]))
                     act_end |= written_states(sql, state_cols)
+        tick_end = joined_end("tick:" + p["name"]) if p["wakes"] != scheduler else set()
         act_keys = {(t, c, v) for (t, c, v, _) in act_end}
         on, how = [], "drains"
         for d in sorted(set(p["drains"])):
@@ -563,12 +641,16 @@ def build() -> dict:
                     stats["derived"].append(p["name"])
                     for (t, c, v, h) in sorted(act_end):
                         states.setdefault(t, set()).add((c, v))
-                        ends.append((tid, sid(t, c, v), h, "end"))
+                        ends.append(end_of(tid, t, c, v, h))
                 else:
                     stats["not_derived"].append(p["name"])
                     ends.append((tid, NOT_DERIVED, "", "dashed"))
-            elif seat_end.get(lane):
+            elif seat_end.get(lane) or tick_end:
                 stats["derived"].append(f"{p['name']} ({lane})")
+                for (t, c, v, h) in sorted(tick_end):
+                    states.setdefault(t, set()).add((c, v))
+                    ends.append(end_of(tid, t, c, v, h))
+                    stats["loop_ticks"].add(p["name"])
             else:
                 stats["not_derived"].append(f"{p['name']} ({lane})")
                 ends.append((tid, NOT_DERIVED, "", "dashed"))
@@ -582,7 +664,7 @@ def build() -> dict:
             if c == "*" and sid(t, c, v) not in waited:
                 continue
             states.setdefault(t, set()).add((c, v))
-            ends.append((f"lane_{ident(seat)}", sid(t, c, v), h, "end"))
+            ends.append(end_of(f"lane_{ident(seat)}", t, c, v, h))
 
     start_col = state_cols[PATH_START_COL]
     return {
@@ -592,7 +674,7 @@ def build() -> dict:
         "stats": stats, "no_op": sorted(no_op), "sends": sends,
         "receivers": receivers, "msg_default": msg_default,
         "start": sid(PATH_START_COL[0], PATH_START_COL[1], start_col["default"]),
-        "end": sid(*PATH_END),
+        "end": sid(*PATH_END), "loop_joins": loop_joins,
     }
 
 
@@ -620,7 +702,37 @@ def _tick_node(tid: str, p: dict, flag_none: bool) -> str:
 def _end_arrow(src: str, dst: str, how: str, style: str) -> str:
     if style == "dashed":
         return f"  {src} -.-> {dst}"
-    return f"  {src} ==>|{how}| {dst}"
+    return f'  {src} ==>|"{label(how)}"| {dst}'
+
+
+def _records(b: dict, marks: dict, keep, pad: str) -> list[str]:
+    """The record boxes: one box per table, and inside it one box per state
+    column, which holds the column's values. A folded bound arrow points at
+    the column's box. `keep` picks the nodes to draw."""
+    out: list[str] = []
+    for t in sorted(b["states"]):
+        rows = sorted(b["states"][t])
+        cols = sorted({c for (c, _) in rows if c != "*"})
+        shown = [(c, v) for (c, v) in rows if keep(sid(t, c, v)) or
+                 (c != "*" and keep(cid(t, c)))]
+        if not shown:
+            continue
+        out.append(f'{pad}subgraph tbl_{ident(t)}["{t}"]')
+        for (c, v) in shown:
+            if c == "*":
+                s = sid(t, c, v)
+                out.append(f'{pad}  {s}["{label(t + " (new row)" + marks.get(s, ""))}"]')
+        for c in cols:
+            vals = [v for (cc, v) in shown if cc == c]
+            if not vals:
+                continue
+            out.append(f'{pad}  subgraph {cid(t, c)}["{c}"]')
+            for v in vals:
+                s = sid(t, c, v)
+                out.append(f'{pad}    {s}["{label(c + " = " + v + marks.get(s, ""))}"]')
+            out.append(f"{pad}  end")
+        out.append(f"{pad}end")
+    return out
 
 
 def draw_full(b: dict) -> list[str]:
@@ -637,13 +749,7 @@ def draw_full(b: dict) -> list[str]:
             out.append(f'    {ident("idle", lane)}["no tick wakes this seat"]')
         out.append("  end")
     out.append('  subgraph records["records"]')
-    for t in sorted(b["states"]):
-        out.append(f'    subgraph tbl_{ident(t)}["{t}"]')
-        for (c, v) in sorted(b["states"][t]):
-            s = sid(t, c, v)
-            text = f"{t} (any row)" if c == "*" else f"{c} = {v}"
-            out.append(f'      {s}["{label(text + marks.get(s, ""))}"]')
-        out.append("    end")
+    out += _records(b, marks, lambda n: True, "    ")
     out.append("  end")
     out.append(f'  {NOT_DERIVED}["not derived"]')
     for (s, tid, how) in b["triggers"]:
@@ -669,9 +775,18 @@ def draw_path(b: dict) -> list[str]:
     for tid, lane in b["tick_lane"].items():
         if lane != LANE_SCHEDULER:
             edges.add((tid, f"lane_{ident(lane)}", "wakes"))
+    thick: set[tuple[str, str, str]] = set()
     for (src, dst, how, style) in b["ends"]:
         if style == "end" and dst != msg_open:
-            edges.add((src, dst, how))
+            thick.add((src, dst, how))
+    edges |= thick
+    # A column's box reaches each of its values. These edges are not drawn.
+    member: set[tuple[str, str, str]] = set()
+    for t, cv in b["states"].items():
+        for (c, v) in cv:
+            if c != "*":
+                member.add((cid(t, c), sid(t, c, v), "member"))
+    edges |= member
     for seat, verbs in b["sends"].items():
         for v in verbs:
             edges.add((f"lane_{ident(seat)}", ident("msg", v), "sends"))
@@ -709,24 +824,15 @@ def draw_path(b: dict) -> list[str]:
         if not mine:
             out.append(f'    {ident("idle", lane)}["no tick on the path"]')
         out.append("  end")
-    for t in sorted(b["states"]):
-        rows = [(c, v) for (c, v) in sorted(b["states"][t]) if sid(t, c, v) in on]
-        if not rows:
-            continue
-        out.append(f'  subgraph tbl_{ident(t)}["{t}"]')
-        for (c, v) in rows:
-            s = sid(t, c, v)
-            text = f"{t} (new row)" if c == "*" else f"{c} = {v}"
-            out.append(f'    {s}["{label(text + marks.get(s, ""))}"]')
-        out.append("  end")
+    out += _records(b, marks, lambda n: n in on, "  ")
     for v in sorted(b["receivers"]):
         m = ident("msg", v)
         if m in on:
             out.append(f'  {m}[/"message: {label(v)}"/]')
-    for (a, z, how) in sorted(edges):
+    for (a, z, how) in sorted(edges - member):
         if a in on and z in on:
-            arrow = "-->" if how not in ("literal", "default", "bound", "new row") else "==>"
-            out.append(f"  {a} {arrow}|{how}| {z}")
+            arrow = "==>" if (a, z, how) in thick else "-->"
+            out.append(f'  {a} {arrow}|"{label(how)}"| {z}')
     return out
 
 
@@ -743,6 +849,10 @@ def main() -> int:
     print(f"exclusions cut {st['exclusions']}; filters dropped: "
           + ", ".join(".".join(f) for f in sorted(st["filters"])))
     print("graph tools with no @op: " + ", ".join(b["no_op"]))
+    print("loop joins: " + "; ".join(f"{k} -> " + ", ".join(
+        f"{p.relative_to(ROOT).as_posix()}:{f}" for (p, f) in v)
+        for k, v in sorted(b["loop_joins"].items())))
+    print("ticks with a loop end: " + ", ".join(sorted(st["loop_ticks"])))
     return 0
 
 
