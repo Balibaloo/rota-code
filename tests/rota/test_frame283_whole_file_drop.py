@@ -204,3 +204,18 @@ def test_an_edited_line_is_named_as_removed_or_rewritten(db, tmp_path):
     sb.begin_reply()
     got = _call(sb, "code.commit", message=MESSAGE)["refused"]
     assert "removal or a rewrite" in got and "name the change" in got
+
+
+def test_the_refused_commit_names_both_routes_for_a_rewrite(db, tmp_path):
+    """Pass 5c: the re-probe of review 5. "Put the line back" alone undoes a
+    wanted edit, so the refusal says how to undo it and how to keep it."""
+    old = _l("def keep(x):", "    y = x", "    return x")
+    sb, _root = _small(db, tmp_path, old)
+    _call(sb, "code.write", path=PATH, text=old.replace("return x", "return x + 1"))
+    sb.begin_reply()
+    got = _call(sb, "code.commit", message=MESSAGE)["refused"]
+    assert got.endswith(
+        "A note does not allow a removal or a rewrite. To undo the change, put "
+        "the line back with code.write, then commit in your next reply. To keep "
+        "the change, send msg.escalate_architect and name the change to the "
+        "Architect.")
