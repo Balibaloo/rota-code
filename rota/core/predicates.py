@@ -141,6 +141,10 @@ LIFECYCLE_COLUMNS = {
 # States that are ends, with the reason. A terminal state is a claim that nothing
 # further is owed — which is exactly the claim worth having to write down.
 TERMINAL: dict[tuple[str, str, str], str] = {
+    ("ledger", "status", "parked"):
+        "the row's item merged with the row open. The shipped line of the "
+        "state view counts it, and no page asks for it (frame 204's design, "
+        "section 4)",
     ("batches", "status", "abandoned"):
         "cancelled by ruling: the item's approval was withdrawn and the work "
         "did not happen. Never re-offered; the worktree stays as evidence",

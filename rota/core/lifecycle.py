@@ -240,6 +240,9 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
     if row is not None:
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                      (f"delivered:{row['id']}", str(row["version"])))
+    # Night 162's version pages carried 28 open rows of the two merged items,
+    # and a drop of them changed a version test (frame 316, pass 2).
+    park_merged(conn, batch_id)
     environments.teardown(conn, batch_id, release_ports=True)
     try:
         worktrees.destroy(conn, batch_id)
@@ -628,6 +631,62 @@ def _writer_batches(conn: sqlite3.Connection, ledger_id: str) -> set[str]:
         if s["batch_id"]:
             found.add(s["batch_id"])
     return found
+
+
+def ledger_items(conn: sqlite3.Connection, ledger_id: str) -> set[str]:
+    """The items one ledger row is about, for its agenda page and its park.
+
+    The row's `about_ref` names them through `_items_reached`. A test names
+    them through its criterion. A row of no item belongs to its writer's
+    batch (frame 198's scope, section 4). An empty set means no item and no
+    batch."""
+    from ..roles.principal import _items_reached
+
+    row = conn.execute("SELECT about_ref FROM ledger WHERE id = ?",
+                       (ledger_id,)).fetchone()
+    if row is None:
+        return set()
+    ref = row["about_ref"]
+    # `_items_reached` has no `tests` lookup. Night 162's l_71e52c9d0a on
+    # `tst_c2_version_on` reached no item (frame 316, pass 2). An inherited
+    # test has no criterion, so its row reaches no request (frame 209).
+    test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
+                        (ref,)).fetchone()
+    if test is not None and test["criterion_id"]:
+        ref = test["criterion_id"]
+    items = set(_items_reached(conn, ref))
+    if items:
+        return items
+    batches = _writer_batches(conn, ledger_id)
+    if not batches:
+        return set()
+    marks = ",".join("?" * len(batches))
+    return {r["item_id"] for r in conn.execute(
+        f"SELECT item_id FROM batches WHERE id IN ({marks})", tuple(batches))}
+
+
+def park_merged(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """Park the open ledger rows of the merged batch's item, and return them.
+
+    A park is not a close: a close writes a decision with no keypress,
+    against DECISIONS of 2026-09-03. The parked row leaves every page, and
+    the shipped line of `render_state` counts it (frame 204's design,
+    section 4, frame 198's option (a))."""
+    row = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    if row is None:
+        return []
+    item = row["item_id"]
+    parked = []
+    for r in conn.execute("SELECT id FROM ledger WHERE status = 'open' ORDER BY rowid"
+                          ).fetchall():
+        # A row that also reaches a live item stays for that item's page.
+        items = ledger_items(conn, r["id"])
+        if items and items <= {item}:
+            parked.append(r["id"])
+    for ledger_id in parked:
+        conn.execute("UPDATE ledger SET status = 'parked' WHERE id = ?", (ledger_id,))
+    return parked
 
 
 def _batch_notes(conn: sqlite3.Connection, batch_id: str,

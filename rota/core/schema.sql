@@ -621,7 +621,10 @@ CREATE TABLE IF NOT EXISTS ledger (
                    CHECK (kind IN ('default','unaddressed_answer','invented',
                                    'scope','gap','finding','conflict',
                                    'other')),
-    status         TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
+    -- 'parked': the row's item merged with the row open. No page shows it,
+    -- and the shipped line counts it (frame 204's design, section 4).
+    status         TEXT NOT NULL DEFAULT 'open'
+                   CHECK (status IN ('open','resolved','parked')),
     author         TEXT NOT NULL,
     version        INTEGER NOT NULL DEFAULT 1
 );

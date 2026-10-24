@@ -737,10 +737,10 @@ def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
 
     fresh = tmp_path / "fresh.db"
     conn = init_db(fresh)
-    # Frame 204 moved the mark: both CHECKs of `ledger` widened, and
-    # `faults` is new.
+    # Frame 316, pass 2, moved the mark: the status CHECK of `ledger`
+    # gained `parked`.
     assert conn.execute("SELECT value FROM config WHERE key = 'schema'"
-                        ).fetchone()["value"] == "ledger-grid-faults"
+                        ).fetchone()["value"] == "ledger-parked"
     conn.close()
     init_db(fresh).close()          # the same run, opened again
 

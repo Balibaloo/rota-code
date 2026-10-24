@@ -322,6 +322,13 @@ def render_state(conn: sqlite3.Connection) -> str:
     if merged:
         out.append(f"Done: {merged} change{'s' if merged > 1 else ''} built, "
                    "tested and merged.")
+    # A parked row is shown quietly, as a count that asks nothing (ruled:
+    # Roman, 2026-10-11 15:00, frame 204's design, section 4).
+    parked = count("SELECT COUNT(*) FROM ledger WHERE status = 'parked'")
+    if merged and parked:
+        carry = "They carry" if merged > 1 else "It carries"
+        out[-1] += (f" {carry} {parked} choice{'s' if parked > 1 else ''} "
+                    "the team made where you said nothing.")
     # A cold cockpit sees the cycle the walk printed, read from the rows
     # (ruled: Roman, 2026-09-24, an alert first). The line goes under what
     # is stuck.

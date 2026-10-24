@@ -171,7 +171,8 @@ SCHEMA_KEY = "schema"
 # A new table needs no move: `init_db` adds it, and `cmd_run` calls
 # `init_db` before `drive` (frame 309, review 1, finding 1). A new door that
 # opens a run with `connect` alone must call `init_db` first.
-SCHEMA_MARK = "ledger-grid-faults"
+# Frame 316, pass 2, widened the status CHECK of `ledger` with `parked`.
+SCHEMA_MARK = "ledger-parked"
 SCHEMA_STALE = ("the run database is behind the current schema, so it needs "
                 "a fresh onboarding: wipe it, or onboard under a new name")
 

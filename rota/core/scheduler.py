@@ -1090,25 +1090,39 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
         rows = [r for r in rows if not waits(r)]
     if not chosen:
         return []
-    # The request's own lineage first, by law 8: its assumptions are
-    # presented at its gates. Then the others, oldest first.
-    from ..roles.principal import _items_reached, open_requests
-    requests = set(open_requests(conn))
+    # law 8: a lineage's assumptions are presented at its gates
+    # A page is about one item and carries that item's rows. Night 162's
+    # version pages carried 28 rows of the two merged items, and a drop of
+    # them changed a version test (frame 316, pass 2). The live batch's
+    # item goes first, then the open requests, then the oldest row's item.
+    # The rows of another item wait for that item's page.
+    from ..roles.principal import open_requests
+    from .lifecycle import ledger_items
+    from .runner import _is_description
 
-    def reaches_request(row) -> bool:
-        ref = row["about_ref"]
-        test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
-                            (ref,)).fetchone()
-        # law 6: at the Liaison it is a page, a hold or a note
-        # An inherited test has no criterion, so its ref stays the test's
-        # own and reaches no request. Night 141's s198 notes on two `inh_*`
-        # tests made the ref None, and every `frontier` call raised (frame 209).
-        if test is not None and test["criterion_id"]:
-            ref = test["criterion_id"]
-        return any(i in requests for i in _items_reached(conn, ref))
+    def items_of(ref: str) -> set[str]:
+        # The account belongs to no request, so its rows ride on every page,
+        # as in `off_page` (the review of 61a0f41d, finding 2).
+        return {i for i in ledger_items(conn, ref) if not _is_description(conn, i)}
 
-    if requests:
-        chosen.sort(key=lambda r: not reaches_request(r))
+    reach = {r["id"]: items_of(r["id"]) for r in chosen}
+    found = set().union(*reach.values())
+    if found:
+        order = [r["item_id"] for r in conn.execute(
+            "SELECT item_id FROM batches WHERE status = 'running' ORDER BY id")]
+        order += open_requests(conn)
+        order += [i for r in chosen for i in sorted(reach[r["id"]])]
+        page = next(i for i in order if i in found)
+        # A row of no item and no batch has no page of its own, so it rides
+        # on this page and is not lost.
+        chosen = ([r for r in chosen if page in reach[r["id"]]]
+                  + [r for r in chosen if not reach[r["id"]]])
+
+        def on_page(ref: str) -> bool:
+            items = items_of(ref)
+            return not items or page in items
+
+        replies = {ref for ref in replies if on_page(ref)}
     # law 14: identity stamps from birth content, never a model's id
     # The wake carries the rows a page may hold, so the Liaison has real ids
     # to copy. clickI night 20 (2026-09-12): 66 open rows, and the Liaison
