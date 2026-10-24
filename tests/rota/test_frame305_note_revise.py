@@ -112,3 +112,49 @@ def test_a_sentence_that_only_describes_the_note_is_no_revise(db):
 def test_a_question_about_the_note_is_no_revise(db):
     with pytest.raises(ValueError):
         _rule(db, "Should line 11 use click directly?", "revise")
+
+
+# Pass 2: the review of dcf7a6e3 (`plans/frame305-review-teamnote.md`).
+
+@pytest.mark.parametrize("ruling", ["contest", "revise"])
+def test_a_keep_of_the_note_refuses_a_revise_as_it_refuses_a_contest(db, ruling):
+    # Finding 1: the keep door read contests only, and a revise slipped by.
+    with pytest.raises(ValueError):
+        _rule(db, "Leave line 11 as it is.", ruling)
+
+
+@pytest.mark.parametrize("words", [
+    "I don't understand line 11.",                    # night 160, m11
+    "Line 11 and its check now say what I want.",     # night 160, m45
+    "Line 11: no.",
+    "Line 11 is wrong.",
+])
+def test_words_with_no_change_are_no_revise(db, words):
+    # Finding 2: a confusion, an agreement or a bare fault asks no change.
+    with pytest.raises(ValueError) as refused:
+        _rule(db, words, "revise")
+    assert str(refused.value).startswith("line 11 is the team's note")
+
+
+@pytest.mark.parametrize("words", [
+    "Line 11 should say that callers don't need to change anything.",
+    "Line 11 should say the escaping is not needed.",
+])
+def test_a_change_that_holds_a_need_word_is_a_revise(db, words):
+    # Finding 4: "don't need" and "not needed" are no drop words.
+    out = _rule(db, words, "revise")
+    assert out["per_item"]["l_9"] == "revise"
+
+
+def test_a_plain_drop_of_a_note_that_holds_the_word_is_a_drop(db):
+    # Finding 5: the note holds "removed", and "Remove" is another word.
+    with pytest.raises(ValueError) as refused:
+        _rule(db, "Remove line 11.", "revise", last=NOTE_OWN)
+    assert "To change the note" not in str(refused.value)
+
+
+def test_the_refusal_says_the_words_must_name_the_line(db):
+    # Finding 3: the door reads a reference by number only.
+    with pytest.raises(ValueError) as refused:
+        _rule(db, "Use click directly in the test.", "revise")
+    assert "words that name line 11 by number" in str(refused.value)

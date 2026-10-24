@@ -11070,8 +11070,23 @@ def _lines(ns: list[int]) -> str:
 # read "take them off this page" for lines 10, 13 and 14 (frame 305).
 _NOTE_DROP = re.compile(
     r"\b(?:drop(?:s|ped|ping)?|remov(?:e|es|ed|ing)|delet(?:e|es|ed|ing)|"
-    r"strike|struck|get rid of)\b|\btake\b[^.?!]{0,40}?\boff\b|"
-    r"\b(?:not|no longer) needed\b|\b(?:don['’]?t|do not) need\b", re.I)
+    r"strike|struck|get rid of)\b|\btake\b[^.?!]{0,40}?\boff\b", re.I)
+# The words that ask a note for new words. A fault alone names no change, so
+# "Line 11 is wrong" stays no revise (frame 305, review 1, finding 2).
+_NOTE_CHANGE = re.compile(
+    r"\b(?:use|change|make|replace|rewrite|reword|say|switch|rename|move|add|"
+    r"update|set|fix|put|correct|call|run|mention|include|cover|instead|"
+    r"rather|should|must|needs? to|has to|have to)\b", re.I)
+# A clause that keeps the note, or that does not follow it, asks no change.
+# Night 160's m11 said "I don't understand line 2", and m45 said "Line 2 and
+# its check now say what I want" (frame 305, review 1, findings 1 and 2).
+_NOTE_NO_CHANGE = re.compile(
+    r"\bas (?:it is|they are|written|it stands)\b|\bunchanged\b|\bstays?\b|"
+    r"\bunderstand\b|\bunclear\b|\bconfus\w*|\bwhat I (?:want|wanted|asked|meant)\b",
+    re.I)
+# The words before a drop word that make it part of the note's new text:
+# "Line 11 should say the escaping is removed" (review 1, finding 4).
+_NOTE_SAYS = re.compile(r"\b(?:say|says|read|reads)\b", re.I)
 
 
 def _line_body(page_text: str, n: int) -> str:
@@ -11085,36 +11100,38 @@ def _note_words(words: str, n: int, page_text: str) -> str | None:
     """What the principal's words ask of team-note line `n`.
 
     "drop" when a clause about the line asks to take it off. "change" when a
-    clause about the line asks for anything else than agreement. "own" when
-    a clause reads as a drop only by a word the line's own text holds. None
-    when no clause is about the line. Night 161's s357 said "On line 11, use
-    click directly in the test" (frame 305).
+    clause about the line asks for new words by a change verb. "own" when a
+    clause reads as a drop only by a word the line's own text holds. None
+    otherwise. Night 161's s357 said "On line 11, use click directly in the
+    test" (frame 305).
     """
-    own = {m.group(0).lower()[:4] for m in _NOTE_DROP.finditer(_line_body(page_text, n))}
+    # Whole words: "Remove line 11" on a note that holds "removed" is a drop
+    # (frame 305, review 1, finding 5).
+    body = " " + " ".join(re.findall(r"[\w']+", _line_body(page_text, n).lower())) + " "
     found: set[str] = set()
     for cl, refs, question in _cue_clauses(words):
         if not refs or n not in refs:
             continue
         drops = [m for m in _NOTE_DROP.finditer(cl)
-                 if not _NEGATED.search(cl[:m.start()])]
+                 if not _NEGATED.search(cl[:m.start()])
+                 and not _NOTE_SAYS.search(cl[:m.start()])]
         if drops and not _KEEP_CHANGE.search(cl):
-            if all(m.group(0).lower()[:4] in own for m in drops):
+            if all(" " + " ".join(re.findall(r"[\w']+", m.group(0).lower())) + " "
+                   in body for m in drops):
                 found.add("own")
             else:
                 found.add("drop")
             continue
-        if question or _BARE_AGREEMENT.fullmatch(cl) or _CUE_BARE_FAULT.match(cl):
-            continue
-        if _CUE_AGREE.search(cl) and not _CUE_FAULT.search(cl):
+        if question or _CUE_KEEP.search(cl) or _NOTE_NO_CHANGE.search(cl):
             continue
         rest = _LINE_REF.sub(" ", cl)
-        # "Line 11 is about the echo change" describes the line and asks
-        # for nothing. A fault word makes the description a request.
+        # "Line 11 is about the echo json change" describes the line. Its
+        # "change" is a noun, and only a modal makes it a request.
         if (re.match(r"\W*(?:on\s+)?(?:is|are|was|were)\b", rest, re.I)
-                and not _CUE_FAULT.search(rest)):
+                and not re.search(r"\b(?:should|must|needs? to|has to|have to|"
+                                  r"instead|rather)\b", rest, re.I)):
             continue
-        # Any other word after the reference asks for a change.
-        if re.search(r"[A-Za-z]{2,}", re.sub(r"\b(?:on|in|for|at)\b", " ", rest, flags=re.I)):
+        if _NOTE_CHANGE.search(rest):
             found.add("change")
     for kind in ("drop", "change", "own"):
         if kind in found:
@@ -11411,9 +11428,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # A revise of a note now lands on words that say the change, so the
         # old "revise rewrites a line of what the principal asked for" is
         # gone. The drop route stays first (frame 296).
+        # The door reads a reference by number only, so the text says so
+        # (frame 305, review 1, finding 3).
         change = ("" if said == "drop" else
-                  "To change the note, revise it only on words that say the "
-                  "change. ")
+                  f"To change the note, revise it only on words that name {line} "
+                  f"by number and say the change. A revise of the request "
+                  f"rewrites a line of what the principal asked for. ")
         raise ValueError(
             f"{line} is the team's note, not your request. To drop the note, "
             f"contest it. {change}{offer}")
@@ -11557,8 +11577,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             if batch is not None and batch["item_id"] in order and (
                     batch["status"] in ("merged", "abandoned")):
                 faulted.add(order.index(batch["item_id"]) + 1)
+        # A team's note lands a revise as a contest, so his keep refuses
+        # both. "Leave line 11 as it is." admitted the revise (frame 305,
+        # review 1, finding 1).
         contested = {i + 1 for i, r in enumerate(order)
-                     if per_item.get(r) == "contest"}
+                     if per_item.get(r) == "contest"
+                     or (per_item.get(r) == "revise" and _is_team_note(ctx.conn, r))}
         # A shift page numbers requests, and a page can open with a note, so
         # line 1 is the request only when it is a request item (frame 234,
         # review 1, finding 1).
