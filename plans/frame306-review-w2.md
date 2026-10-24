@@ -72,3 +72,26 @@ No gate and no model ran. The change does not stand as it is: two high findings.
 Estimate: about 48k input tokens, 9k output tokens, 57k total.
 
 Stands line: does not stand. Findings 1 and 2 are high, and the brief names finding 2's route as high.
+
+## Re-check of 3b90b8de
+
+The reviewer did not check out the worktree, because the review rules forbid a command that changes a tree. The reviewer extracted 3b90b8de with `git archive` into `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e7141541-fc20-4c5c-a91b-4a10a610ec42/scratchpad/r306w2_3b`. The probes ran there: `scratchpad/r306w2/test_probe_r306w2_b.py`, 11 passed.
+
+1. Fixed, CONFIRMED. One relay session retires two rows, rewrites line 6 and specifies `c8_output_same`. The next page shows six criteria, `c8_output_same` among them.
+2. Fixed, CONFIRMED. With a red old test on a retired criterion:
+   - `park_reds` gives no own red, `park_rows` gives `['bg_2']`, and `park_criteria` lists no retired row.
+   - `failing_attempt` gives 0, and `tests_failing`, `exhausted` and `harness` give no wake.
+   - `live_tests_for` leaves out the old test.
+   - `mergeable` and `tests_triage` filter it, by reading and by the pass 2b tests.
+   - An all-retired batch makes `harness.run` return no rows, and the harness predicate owes that batch no run.
+3. Fixed, CONFIRMED. A retire is staged with `amends` False. Both retired rows keep version 1.
+4. Fixed, CONFIRMED. The reader now reads "add a check that" and "add a line:", splits two adds, and keeps "e.g.". `_page_added_lines` leaves out the line about another item, and that sentence then reaches nobody. Residue accepted.
+5. Partly fixed, CONFIRMED by reading. `criteria_retire` refuses unless the trigger is a relay that names the criterion. No restore op exists. Residue accepted.
+6. Fixed, CONFIRMED. The `identity.py` rule says "one live row", and the exact twin check in `criteria_specify` reads live rows. `test_identity` passes.
+7. Still noted, PLAUSIBLE. The 81-case check stays at the same 40 reds. A red case can still hide a change to its prompt hash.
+
+`test_scene_two_batches::test_a_right_call_lands[the project test tests/test_templates.py as an encode]` fails at 3b90b8de. It also fails at 1464cfb7, the base of pass 2, so these two commits did not cause it. Older commits were not checked.
+
+Stands line: 3b90b8de stands. No high finding remains, and the open residue is the three items the coordinator accepted.
+
+Usage of the re-check: about 17k input tokens and 4k output tokens, 21k in total.
