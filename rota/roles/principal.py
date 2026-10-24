@@ -1275,16 +1275,10 @@ def _stalled_keys(conn: sqlite3.Connection, batches: list[str]) -> list[str]:
 
 
 def _stalled_words(conn: sqlite3.Connection, keys: list[str]) -> str:
-    """'tests_missing for bg_2, 3 attempts', one part per key."""
-    parts = []
-    for key in keys:
-        bits = (key.split("|", 2) + ["", ""])[:3]
-        row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
-                           (key,)).fetchone()
-        tries = row["attempts"] if row else 0
-        parts.append(f"{bits[1].replace('tick:', '')} for {bits[2] or 'the whole project'}, "
-                     f"{tries} attempt{'' if tries == 1 else 's'}")
-    return "; ".join(parts)
+    """'the team could not write the tests after 3 attempts', one part per
+    key, in the words of TICK_WORDS and never the tick's name."""
+    return "; ".join(f"{_tick_words(kind)} after {_tries(n)}"
+                     for kind, n in _stuck_ticks(conn, "", keys))
 
 
 def _stuck_ticks(conn: sqlite3.Connection, batch: str,
@@ -1304,6 +1298,29 @@ def _stuck_ticks(conn: sqlite3.Connection, batch: str,
         kind = (key.split("|", 2) + ["", ""])[1].replace("tick:", "")
         out.append((kind, row["attempts"] if row else 0))
     return out
+
+
+# A tick's kind as the principal reads it. The page contract shows his
+# words, never rota's names (frame 312, review 1, finding 1).
+TICK_WORDS = {
+    "review": "the review gave no verdict",
+    "tests_failing": "the tests still fail",
+    "tests_missing": "the team could not write the tests",
+    "verdict_failed": "the review failed the change",
+    "do:preempt": "the change was set aside",
+    "do:park": "the change was stopped",
+    "challenge": "a challenge got no answer",
+    "contested": "a contested line got no answer",
+    "quarantined": "the team could not report a stopped step",
+    "agenda": "a question to you got no answer",
+    "constraint_zero": "the team could not read the code first",
+    "batch_start": "the change could not start",
+    "touch_strayed": "the change went outside the files it expected",
+}
+
+
+def _tick_words(kind: str) -> str:
+    return TICK_WORDS.get(kind, "a step of the team")
 
 
 def _tries(n: int) -> str:
@@ -1368,7 +1385,7 @@ def _shift_where(conn: sqlite3.Connection, item: str) -> str:
         return said + " No change is built for it yet."
     return said + _built_words(conn, batch) + "".join(
         f" Its review stopped after {_tries(n)} with no verdict." if kind == "review"
-        else f" The team gave up on {kind} after {_tries(n)}."
+        else f" The team stopped after {_tries(n)}, because {_tick_words(kind)}."
         for kind, n in _stuck_ticks(conn, batch["id"]))
 
 
@@ -1430,7 +1447,7 @@ def _shift_waits(conn: sqlite3.Connection, item: str) -> str:
     batch = _live_batch(conn, item)
     for kind, _ in (_stuck_ticks(conn, batch["id"]) if batch else []):
         parts.append("a new start of its review" if kind == "review"
-                     else f"a new start of {kind}")
+                     else f"a new start of its work, because {_tick_words(kind)}")
     return ", and ".join(parts) + "." if parts else "nothing from you."
 
 
@@ -1674,7 +1691,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         asked = request_block(conn, refs, order, out, batch=batches[0],
                               stalled=keys)
         numbered(does + account)
-        out.append(f"The team gave up on: {_stalled_words(conn, keys)}.")
+        out.append(f"The team gave up: {_stalled_words(conn, keys)}.")
         out.append("The team expects to touch:")
         numbered(touches)
         out.append("Reply 'ok' if every line says what you want. Name a line "

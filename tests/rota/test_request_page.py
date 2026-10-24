@@ -361,12 +361,12 @@ def test_the_quarantined_page_says_the_team_gave_up_on_a_criterions_test(bg2):
     (ask,) = [a for a in pending_asks(bg2) if a.message_id == mid]
     page = ask.rendered
     assert not page.startswith("Before I build this"), page
-    assert "The team gave up on: tests_missing for bg_2, 3 attempts." in page
+    assert "The team gave up: the team could not write the tests after 3 attempts." in page
     cr3 = page.index("  4. When confirm() is invoked with")
     assert page[cr3:].splitlines()[1] == (
         "     check: none. The team gave up writing it after 3 tries.")
     assert page.count("check: x, expects confirm(). Not run yet.") == 2
-    assert page.index("The team gave up on:") < page.index("The team expects to touch:") \
+    assert page.index("The team gave up:") < page.index("The team expects to touch:") \
         < page.index("  5. the work for:")
     assert ask.order == [ITEM_136] + [c for c, _ in CRIT_136] + ["bg_2"]
     # The input names the keys too, and an empty list is no stalled page.

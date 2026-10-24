@@ -78,7 +78,7 @@ def test_m45_names_the_review_with_no_verdict_and_its_attempts(bg1):
     assert page.splitlines()[0] == (
         "The review of this change stopped after 3 attempts with no verdict. "
         "Its tests passed at the review's last attempt."), page
-    assert "The team gave up on: review for bg_1, 3 attempts." in page
+    assert "The team gave up: the review gave no verdict after 3 attempts." in page
 
 
 def test_a_tester_tick_keeps_the_stopped_work_page(bg1):
@@ -87,7 +87,7 @@ def test_a_tester_tick_keeps_the_stopped_work_page(bg1):
     _quarantine(bg1, key)
     page = render_page(bg1, "present", M45_REFS, stalled=[key])[0]
     assert page.startswith("The team stopped work on this change."), page
-    assert "The team gave up on: tests_missing for bg_1, 3 attempts." in page
+    assert "The team gave up: the team could not write the tests after 3 attempts." in page
 
 
 def test_a_review_beside_a_failing_tick_keeps_the_stopped_work_page(bg1):
@@ -124,3 +124,19 @@ def test_a_shift_row_with_no_quarantined_key_renders_as_before(bg1):
     assert where == ("Where it stands: approved. The change bg_1 is built, and "
                      "all 35 of its tests pass.")
     assert waits == "What it waits on: nothing from you."
+
+
+def test_the_park_scenes_shift_row_shows_no_tick_name(tmp_path):
+    """Review 1, finding 1: the park scene's row said "a new start of
+    tests_failing", and night 160's copy said "a new start of do:preempt"."""
+    from rota.roles.principal import _shift_waits, _shift_where
+    from rota.testkit.scenes import park
+
+    sc = park(tmp_path)
+    sc.conn.execute("INSERT OR REPLACE INTO tick_attempts (tick_key, attempts, "
+                    "quarantined, reported) VALUES ('-|do:preempt|b1,b2', 3, 1, 1)")
+    row = _shift_where(sc.conn, "i1") + " " + _shift_waits(sc.conn, "i1")
+    for name in ("tests_failing", "do:", "preempt", "tick", "_"):
+        assert name not in row, row
+    assert "the tests still fail" in row, row
+    assert "the change was set aside" in row, row
