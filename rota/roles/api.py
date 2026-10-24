@@ -10697,7 +10697,9 @@ _FILES_TALK = re.compile(r"\btests?\b|\w\.py\b", re.I)
 # review named "keep the change" (`plans/frame258-provenance.md`, 4).
 _KEEP_CHANGE = re.compile(
     r"\b(?:don['’]?t|do not)(?: want to)? (?:drop|give up)\b|\bkeep going\b"
-    r"|\bkeep the change\b", re.I)
+    # A negated keep asks to stop: "Do not keep the change. Abandon it"
+    # (frame 258, pass 1 review).
+    r"|(?<!not )(?<!n't )(?<!n’t )\bkeep the change\b", re.I)
 
 # --- the files cue: words that fault only the code a request touches --------
 # Ported with its patterns unchanged from `plans/frame298-count.md`, section

@@ -338,16 +338,19 @@ M65 = ("Line 2's check is wrong because it compares against the default spaced "
 
 def _refusal(words, contested, size, batch_lines=frozenset(),
              item_lines=frozenset({1, 2, 3, 4}), request_lines=frozenset(),
-             request_texts=()):
+             request_texts=(), faulted_texts=()):
     """The door's reading of a page of `size` lines that opens with a request
     item, as `rulings_rule` calls it. Lines 1 to 4 are the request and its
-    criteria on m131's and m65's pages."""
+    criteria on m131's and m65's pages. `faulted_texts` are the texts that
+    the caller reads for the faulted lines."""
     from rota.roles.api import _line_reading, _line_refusal
 
     faulted, matched = _line_reading(words)
     kw = {"request_lines": frozenset(request_lines)} if request_lines else {}
     if request_texts:
         kw["request_texts"] = tuple(request_texts)
+    if faulted_texts:
+        kw["faulted_texts"] = tuple(faulted_texts)
     return _line_refusal(words, set(contested), faulted, matched, size, True,
                          False, frozenset(batch_lines), frozenset(item_lines),
                          **kw)
@@ -675,8 +678,10 @@ def test_m64s_contest_of_the_request_line_is_refused(texts):
 
 def test_m167s_contest_of_the_request_line_is_refused():
     # Night 144's m167 on m166: line 1 echo_json, line 5 bg_1's prediction.
+    # The words fault line 5 only, a batch line. The caller reads no text
+    # for a batch line, so the faulted texts hold one empty text.
     out = _refusal(M167, {1}, 5, frozenset({5}), frozenset({1, 2, 3, 4}),
-                   frozenset({1}), ECHO_JSON)
+                   frozenset({1}), ECHO_JSON, ("",))
     assert out is not None and "the words do not fault the request" in out
 
 
@@ -855,8 +860,10 @@ ECHO_JSON_TESTS = ("echo_json_tests", "Put the new tests in the utils test "
 ], ids=["m62", "m93", "m179"])
 def test_night155s_contest_of_the_request_line_is_refused(
         words, contested, size, batch, items, texts, line):
+    # The faulted line is the batch line, so the caller passes its empty
+    # text. Line 2 of m62 is fine, so no criterion is faulted.
     out = _refusal(words, contested, size, frozenset(batch), frozenset(items),
-                   frozenset({1}), texts)
+                   frozenset({1}), texts, ("",))
     assert out == (f"line 1: the words do not fault the request. They fault "
                    f"line {line}. Rule line {line} as the words say, and "
                    f"approve line 1.")

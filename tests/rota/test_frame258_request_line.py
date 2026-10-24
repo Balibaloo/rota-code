@@ -148,6 +148,22 @@ def test_the_keep_rule_reads_the_new_shapes(words):
     assert _KEEP_CHANGE.search(words)
 
 
+@pytest.mark.parametrize("words", [
+    "Do not keep the change. Abandon it, I asked for something else.",
+    "Please don't keep the change. Abandon it, I asked for something else.",
+])
+def test_a_negated_keep_is_no_keep(words):
+    from rota.roles.api import _KEEP_CHANGE, _line_refusal
+
+    assert not _KEEP_CHANGE.search(words)
+    # Line 1 contested and no line faulted: the keep refusal does not fire.
+    out = _line_refusal(words, {1}, set(), set(), 3, True, False,
+                        frozenset({3}), frozenset({1, 2}),
+                        request_lines=frozenset({1}),
+                        request_texts=(ITEM, TEXT))
+    assert out is None or "ask to keep the change" not in out
+
+
 def test_m25_keeps_its_path():
     """Night 149's m25 names no line, so `_agreed_contest` reads it before
     the line-1 test. Its two results are in `test_frame234_verdict_lines.py`
