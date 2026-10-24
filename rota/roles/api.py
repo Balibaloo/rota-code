@@ -12425,6 +12425,21 @@ _NO_BEHAVIOUR_PLURAL = {
     "`...`": "`...` lines", "a comment": "comments",
     "a plain import": "plain imports", "a docstring line": "docstring lines",
 }
+# A criterion that holds one of these words asks for the code's
+# documentation. Then a docstring line or a comment meets it (ruled: Roman,
+# 2026-10-24 01:05, frame 311). Night 160 refused 40 correct docstring lines
+# under such a criterion. "explain" and "describe" stay out, because
+# criteria that ask for behaviour use them too.
+_ASKS_FOR_DOCS = ("docstring", "document", "help text")
+# The kinds that document the code. The refusals treat the two as one, so
+# the ruling applies to both.
+_DOC_KINDS = ("a docstring line", "a comment")
+
+
+def _asks_for_docs(text: str) -> bool:
+    """True when a criterion's own words ask for the code's documentation."""
+    t = " ".join(text.split()).casefold()
+    return any(w in t for w in _ASKS_FOR_DOCS)
 _HEADER_STARTS = ("def ", "async def ", "class ")
 _FENCES = ('"""', "'''")
 # A header line that ends in one of these continues on the next line.
@@ -12619,11 +12634,13 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     the criterion. It sees only that the line is one the batch added.
     """
     # The same query as `criteria.load`, so the door and the prompt name
-    # the same set in the same order.
-    ids = [r["id"] for r in ctx.conn.execute(
-        "SELECT c.id FROM criteria c "
+    # the same set in the same order. The text is per criterion, because
+    # the kind check reads each criterion's own words (frame 311).
+    texts_of = {r["id"]: r["text"] or "" for r in ctx.conn.execute(
+        "SELECT c.id, c.text FROM criteria c "
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE bt.batch_id = ?", (batch_id,))]
+        "WHERE bt.batch_id = ?", (batch_id,))}
+    ids = list(texts_of)
     if not ids:
         return
     named = ", ".join(ids)
@@ -12672,6 +12689,14 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         more = (f", and {len(code) - _CODE_LINES_MAX} more"
                 if len(code) > _CODE_LINES_MAX else "")
         listed = f"The added lines of code are {shown}{more}. "
+    # A criterion that asks for the documentation reads a documentation
+    # line as a line with behaviour (frame 311). The list above stays the
+    # diff's code lines, because it is one list for every criterion.
+    kinds_of = {
+        cid: ([(a, None if k in _DOC_KINDS else k) for a, k in kinds]
+              if _asks_for_docs(texts_of[cid]) else kinds)
+        for cid in ids}
+    kind_of = {a: k for a, k in kinds}
 
     def claim_for(cid: str) -> str:
         return _offer(
@@ -12695,7 +12720,8 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         n = len(parts[cid])
         # A part that the diff does not hold is a re-wrapped line, so only
         # the held parts give the kind (s324 cut "to the message." apart).
-        held = [f for f in (_held_kinds(q, kinds) for q in parts[cid]) if f]
+        held = [f for f in (_held_kinds(q, kinds_of[cid])
+                            for q in parts[cid]) if f]
         if held and all(all(f) for f in held):
             found = {k for f in held for k in f}
             kind = found.pop() if len(found) == 1 else None
@@ -12712,17 +12738,23 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         # The seat's own code lines come first, because the right line is
         # among them, and the capped list of the diff can omit all of them
         # (frame 201's review 1, finding 2, probe e1).
-        own = list(dict.fromkeys(_held_code(q, kinds) for q in parts[cid]))
+        own = list(dict.fromkeys(_held_code(q, kinds_of[cid])
+                                 for q in parts[cid]))
         own = [a for a in own if a]
         # Two lines or more get their own words, because "that one" names
         # one line (frame 201's review 2, finding 5).
         shown = ", ".join(repr(a) for a in own)
+        # Lines of the docstring are named so, because the seat must copy
+        # one line of the docstring, not a line of code (frame 311, s205).
+        noun = ("lines of the docstring"
+                if own and all(kind_of.get(a) == "a docstring line"
+                               for a in own) else "added lines")
         sent = ""
         if len(own) == 1:
             sent = (f"One of the lines you sent is the line: {shown}. "
                     f"Copy that one. ")
         elif own:
-            sent = (f"The lines you sent hold these added lines: {shown}. "
+            sent = (f"The lines you sent hold these {noun}: {shown}. "
                     f"Copy the one that does what the criterion says. ")
         raise LinesRefusal(
             f"the value for {cid} holds {n} lines, and a pass names one added "
@@ -12730,10 +12762,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             f"meets {cid}, without the +, and send the pass again. "
             f"{sent}{listed}If no added line meets {cid}, that is a fail on "
             f"it: {claim_for(cid)}")
-    texts = [r["text"] or "" for r in ctx.conn.execute(
-        "SELECT c.text FROM criteria c "
-        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE bt.batch_id = ?", (batch_id,))]
+    texts = list(texts_of.values())
     added = [a for a, _ in kinds]
     for cid in ids:
         for quote in parts[cid]:
@@ -12769,8 +12798,9 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                 f"it: {claim}")
         # A line with no behaviour meets no criterion (frame 180). A value
         # of two parts lands when one part does something, because a
-        # statement that wraps can start or end on a comment.
-        found = [_held_kinds(q, kinds) for q in parts[cid]]
+        # statement that wraps can start or end on a comment. A criterion
+        # that asks for the documentation admits its lines (frame 311).
+        found = [_held_kinds(q, kinds_of[cid]) for q in parts[cid]]
         if all(f and all(f) for f in found):
             quote, kind = parts[cid][0], found[0][0]
             # The code lines come before the fail route, as in the block

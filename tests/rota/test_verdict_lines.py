@@ -1265,3 +1265,213 @@ def test_a_missing_temp_directory_still_gives_kinds(s279, tmp_path,
     out = _land(_critic(s279), batch_id="bg_3", result="pass",
                 lines=S279_LINES)
     assert out["result"] == "pass"
+
+
+# Frame 311: a docstring line counts when the criterion asks for one (ruled:
+# Roman, 2026-10-24 01:05). Night 160's bg_2 at 905345ed: 40 docstring lines
+# were refused under cr_3, whose own words name the docstring. The texts are
+# verbatim from `.rota/clickI_night160.db`, s205's first prompt.
+
+N160_IDS = ("cr_1_confirm_default_on_eof", "cr_2_confirm_default_on_eof",
+            "cr_3_confirm_default_on_eof")
+N160_TEXTS = {
+    "cr_1_confirm_default_on_eof":
+        "confirm() must accept an optional 'default_on_eof' argument which "
+        "is False by default. When this flag is True and stdin is closed "
+        "(EOF), confirm() returns the provided default value instead of "
+        "raising UsageError or aborting. Callers who do not turn it on still "
+        "abort at end of input, just as they do now.",
+    "cr_2_confirm_default_on_eof":
+        "Line 3's check must close stdin first to show that confirm() "
+        "returns the default at end of input without waiting.",
+    # Version 7, the text the night's seats read.
+    "cr_3_confirm_default_on_eof":
+        "Line 4's check must verify that confirm()'s docstring explains the "
+        "'default_on_eof' flag and its effect on EOF behavior.",
+}
+N160_FLAG = "    default_on_eof: bool = False,\n"
+N160_DOC = (
+    "    :param default_on_eof: If True, when stdin is closed (EOF), return the\n"
+    "        provided default value instead of raising :exc:`Abort`. Callers who\n"
+    "        do not enable this flag will still abort at end of input, just as\n"
+    "        they do now. When enabled, confirm() returns the default value on\n"
+    "        EOF rather than waiting for further input or aborting.\n")
+N160_VERSION = ("\n"
+                "    .. versionadded:: 8.5.0\n"
+                "        Added the ``default_on_eof`` parameter.\n")
+N160_CODE = ("            if default_on_eof and default is not None:\n"
+             "                return default\n")
+# A short `confirm`. The added lines fall where bg_2's diff put them.
+N160_BEFORE = (
+    "def confirm(\n"
+    "    text: str,\n"
+    "    default: bool | None = False,\n"
+    "    err: bool = False,\n"
+    "{flag}"
+    ") -> bool:\n"
+    '    """Prompts for confirmation (yes/no question).\n'
+    "\n"
+    "    :param err: if set to true the file defaults to ``stderr`` instead of\n"
+    "                ``stdout``, the same as with echo.\n"
+    "{doc}"
+    "\n"
+    "    .. versionadded:: 4.0\n"
+    "        Added the ``err`` parameter.\n"
+    "{version}"
+    '    """\n'
+    "    while True:\n"
+    "        try:\n"
+    "            value = _readline_prompt(text, err).lower().strip()\n"
+    "        except (KeyboardInterrupt, EOFError):\n"
+    "{code}"
+    "            raise Abort() from None\n"
+    '        if value in ("y", "yes"):\n'
+    "            rv = True\n"
+    "    return rv\n"
+)
+# s205's call, `tool_calls` s205 seq 7, verbatim from turn 1's completion.
+S205_CALL = r"""TOOL: verdicts.emit(batch_id='bg_2', result='pass', failed_criterion=None, reason='', diff_ref='', lines={'cr_1_confirm_default_on_eof': '    default_on_eof: bool = False,', 'cr_2_confirm_default_on_eof': '            if default_on_eof and default is not None:', 'cr_3_confirm_default_on_eof': ':param default_on_eof: If True, when stdin is closed (EOF), return the\n        provided default value instead of raising :exc:`Abort`. Callers who\ndoes not enable this flag will still abort at end of input, just as\nthey do now. When enabled, confirm() returns the default value on\nEOF rather than waiting for further input or aborting.'})"""
+# s206's call, `turns` s206 seq 1, verbatim.
+S206_CALL = r"""TOOL: verdicts.emit(batch_id='bg_2', result='pass', failed_criterion=None, reason='', diff_ref='', lines={'cr_1_confirm_default_on_eof': '    default_on_eof: bool = False,', 'cr_2_confirm_default_on_eof': '            if default_on_eof and default is not None:', 'cr_3_confirm_default_on_eof': '    :param default_on_eof: If True, when stdin is closed (EOF), return the'})"""
+N160_LISTED = ("The added lines of code are 'default_on_eof: bool = False,', "
+               "'if default_on_eof and default is not None:', "
+               "'return default'. ")
+
+
+def _seed_texts(conn, texts: dict) -> None:
+    for cid, text in texts.items():
+        conn.execute("UPDATE criteria SET text = ? WHERE id = ?", (text, cid))
+    conn.commit()
+
+
+@pytest.fixture
+def n160(tmp_path):
+    """Night 160's bg_2: the batch adds `default_on_eof` to `confirm`."""
+    before = N160_BEFORE.format(flag="", doc="", version="", code="")
+    after = N160_BEFORE.format(flag=N160_FLAG, doc=N160_DOC,
+                               version=N160_VERSION, code=N160_CODE)
+    repo, head = _repo_of(tmp_path, "src/click/termui.py", before, after)
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "bg_2", N160_IDS, worktree=repo, head=head)
+    _seed_texts(conn, N160_TEXTS)
+    return conn
+
+
+def test_s206_docstring_line_lands_for_the_docstring_criterion(n160):
+    """cr_3's text names the docstring, so its one `:param` line lands."""
+    (call,) = toolproto.extract(S206_CALL)
+    out = _land(_critic(n160, "bg_2"), call.name, **call.args)
+    assert out["result"] == "pass"
+
+
+def test_s205_docstring_block_meets_the_cap_and_no_kind_words(n160):
+    """s205's five parts still meet frame 170's block cap. The text does not
+    call the docstring useless, and it tells the seat to copy one line of
+    the docstring."""
+    cid = "cr_3_confirm_default_on_eof"
+    (call,) = toolproto.extract(S205_CALL)
+    said = _refused(_critic(n160, "bg_2"), **call.args)
+    held = ", ".join(repr(ln.strip()) for ln in (
+        N160_DOC.splitlines()[0:2] + N160_DOC.splitlines()[3:5]))
+    assert "does nothing that a criterion asks for" not in said
+    assert said == (
+        f"the value for {cid} holds 5 lines, and a pass names one added line "
+        f"per criterion. Copy the one line of the [diff] block that meets "
+        f"{cid}, without the +, and send the pass again. The lines you sent "
+        f"hold these lines of the docstring: {held}. Copy the one that does "
+        f"what the criterion says. " + N160_LISTED + _bg2_fail_route(cid))
+
+
+def test_a_docstring_line_for_another_criterion_stays_refused(n160):
+    """cr_1 asks for behaviour, so the same docstring line meets nothing."""
+    cid = "cr_1_confirm_default_on_eof"
+    quote = N160_DOC.splitlines()[0].strip()
+    said = _refused(_critic(n160, "bg_2"), batch_id="bg_2", result="pass",
+                    lines={cid: quote,
+                           "cr_2_confirm_default_on_eof":
+                               "if default_on_eof and default is not None:",
+                           "cr_3_confirm_default_on_eof": quote})
+    assert said == _no_behaviour(cid, quote, "a docstring line", [
+        "default_on_eof: bool = False,",
+        "if default_on_eof and default is not None:", "return default"])
+
+
+@pytest.mark.parametrize("words", [
+    "The docstring of work names its argument.",
+    "work is documented.",
+    "The help text of work names its argument.",
+    "The DOCUMENTATION of work names its argument.",
+])
+def test_the_words_that_ask_for_documentation(kinds, words):
+    """Each word of the ruling admits a docstring line and a comment."""
+    _seed_texts(kinds, {"cr_1": words})
+    for value in ("The prose line of the docstring.",
+                  "# the comment line of the work"):
+        out = _land(_critic(kinds, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": value})
+        assert out["result"] == "pass"
+
+
+@pytest.mark.parametrize("value,kind", [
+    ("from x import y", "a plain import"),
+    ("pass", "`pass`"),
+])
+def test_a_documentation_criterion_still_refuses_other_kinds(kinds, value,
+                                                             kind):
+    """Only the kinds that document the code meet a documentation
+    criterion."""
+    _seed_texts(kinds, {"cr_1": "The docstring of work names its argument."})
+    said = _refused(_critic(kinds, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": value})
+    assert said == _no_behaviour("cr_1", value, kind, KIND_CODE)
+
+
+# Night 160's s146 quoted the docstring of `echo_json` for a criterion that
+# asks for behaviour. Its refusals stay as they were. The texts are verbatim
+# from s146's first prompt and its session account.
+S146_TEXT = ("The function `echo_json` must not print any additional text "
+             "(such as labels or prompts) before or after the JSON output.")
+S146_ADDED = (
+    "def echo_json(obj: object) -> None:\n"
+    '    """Print an object as compact JSON on one line, followed by a newline.\n'
+    "\n"
+    "    :param obj: The object to serialize and print.\n"
+    '    """\n'
+    "    import json\n"
+    "    file = _default_text_stdout()\n"
+    "    file.write(json.dumps(obj, separators=(',', ':')))\n"
+    "    file.write('\\n')\n"
+    "    file.flush()\n"
+    "\n")
+S146_CODE = ["def echo_json(obj: object) -> None:",
+             "file = _default_text_stdout()",
+             "file.write(json.dumps(obj, separators=(',', ':')))",
+             "file.write('\\n')",
+             "file.flush()"]
+
+
+@pytest.fixture
+def s146(tmp_path):
+    """Night 160's bg_1: the batch adds `echo_json` to `src/click/utils.py`."""
+    repo, head = _repo_of(tmp_path, "src/click/utils.py", S134_BEFORE,
+                          S134_BEFORE + S146_ADDED)
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "bg_1", ["echo_json_helper"], worktree=repo, head=head)
+    _seed_texts(conn, {"echo_json_helper": S146_TEXT})
+    return conn
+
+
+@pytest.mark.parametrize("call,quote,kind", [
+    ("TOOL: verdicts.emit(batch_id='bg_1', result='pass', reason='', "
+     "lines={'echo_json_helper': '    import json'})",
+     "import json", "a plain import"),
+    ("TOOL: verdicts.emit(batch_id='bg_1', result='pass', reason='', "
+     "lines={'echo_json_helper': '    \"\"\"Print an object as compact JSON "
+     "on one line, followed by a newline.'})",
+     '"""Print an object as compact JSON on one line, followed by a newline.',
+     "a docstring line"),
+], ids=["import", "docstring"])
+def test_s146_calls_stay_refused(s146, call, quote, kind):
+    (c,) = toolproto.extract(call)
+    said = _refused(_critic(s146, "bg_1"), **c.args)
+    assert said == _no_behaviour("echo_json_helper", quote, kind, S146_CODE)

@@ -8,8 +8,10 @@ Work through it in this order:
 
 1. **Does the diff satisfy each criterion?** For each criterion, find the
    added line of the diff that meets it, a line that starts with `+`, and copy
-   it without the `+`. A criterion with no such line looks like it fails. For
-   each one that looks like it fails, the branch is not yours to skip:
+   it without the `+`. A docstring or comment line is evidence only for a
+   criterion that asks for documentation. A criterion with no such line looks
+   like it fails. For each one that looks like it fails, the branch is not
+   yours to skip:
    `verdicts.claim_encodes` first — does this criterion's own test actually
    encode it? `True` and the code is what's wrong; `False` and the test is. A
    fail you have not claimed for does not land — the tool refuses it.
