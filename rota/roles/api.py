@@ -12886,65 +12886,6 @@ def _held_code(line: str, added: list[tuple[str, str | None]]) -> str:
     return next((a for a in code if text in a), "")
 
 
-def _holds_code(ctx, tree, rel: str) -> bool:
-    """True when the file `rel` of the worktree `tree` holds code: the index
-    holds a definition in it, or it is Python with one statement or more.
-
-    Frame 306's case, night 162: s203 committed the criteria rows of b_2 as
-    `criteria/c1_confirm_default_on_eof`, a file with neither. A file that
-    cannot be read gives no fact, so it counts as code and no door fires.
-    """
-    import ast as _ast
-    from pathlib import Path as _P
-    rel = rel.replace("\\", "/")
-    if ctx.conn.execute(
-            "SELECT 1 FROM code_index WHERE grain_kind = 'symbol' "
-            "AND substr(grain, 1, ?) = ? LIMIT 1",
-            (len(rel) + 2, rel + "::")).fetchone():
-        return True
-    if not tree:
-        return True
-    f = _P(tree) / rel
-    try:
-        text = f.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return True         # a deleted file is no note
-    if not rel.endswith((".py", ".pyi")):
-        return False
-    try:
-        return bool(_ast.parse(text).body)
-    except SyntaxError:
-        return True         # broken source is still source
-
-
-def _note_files(ctx, batch_id: str, diff_text: str
-                ) -> tuple[dict[str, list[str]], list[str]]:
-    """The files of the diff that hold no code, each with its added lines,
-    and the added lines of every other file."""
-    row = ctx.conn.execute("SELECT worktree FROM batches WHERE id = ?",
-                           (batch_id,)).fetchone()
-    tree = row["worktree"] if row else None
-    by_file: dict[str, list[str]] = {}
-    rel = None
-    for ln in diff_text.splitlines():
-        if ln.startswith("+++ "):
-            name = ln[4:].rstrip()
-            rel = None if name == "/dev/null" else (
-                name[2:] if name.startswith("b/") else name)
-            if rel is not None:
-                by_file.setdefault(rel, [])
-            continue
-        if ln.startswith(("---", "@@", "diff ")) or rel is None:
-            continue
-        if ln.startswith("+"):
-            by_file[rel].append(ln[1:].strip())
-    notes = {p: got for p, got in by_file.items()
-             if not _holds_code(ctx, tree, p)}
-    code_added = [a for p, got in by_file.items() if p not in notes
-                  for a in got]
-    return notes, code_added
-
-
 def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     """Refuse a pass that does not name an added line for each criterion.
 
@@ -12997,17 +12938,12 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     # block. A plain hunk can start inside a docstring and show no opening
     # fence. Then the walk reads docstring prose as code (frame 201's review
     # 1, finding 1: night 157's bg_2, hunk `@@ -461,6 +462,9 @@`).
-    diff_text = _batch_diff(ctx, batch_id, function_context=True)
-    kinds = _added_kinds(diff_text)
-    # Frame 306's case, night 162: s247 passed b_2 on six lines of a file
-    # of criteria rows. A line of a file with no code is no evidence.
-    notes, code_added = _note_files(ctx, batch_id, diff_text)
+    kinds = _added_kinds(_batch_diff(ctx, batch_id, function_context=True))
     # With no near line, name the lines the seat can name, so a correct
     # batch does not go to the fail route (frame 180's review: s134's next
     # value, `raise TypeError`, is not in the diff). Three refusals read
     # this one list.
-    code = list(dict.fromkeys(a for a, k in kinds if k is None
-                              and (not notes or a in code_added)))
+    code = list(dict.fromkeys(a for a, k in kinds if k is None))
     listed = ""
     if code:
         shown = ", ".join(repr(a) for a in code[:_CODE_LINES_MAX])
@@ -13091,17 +13027,6 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     for cid in ids:
         for quote in parts[cid]:
             if _line_held(quote, added):
-                if notes and not _line_held(quote, code_added):
-                    where = next(p for p, got in notes.items()
-                                 if _line_held(quote, got))
-                    raise LinesRefusal(
-                        f"the line for {cid}, {quote!r}, is in {where}, and "
-                        f"{where} holds no code. A criterion is met by code "
-                        f"or by a test, not by a note. Copy the added line of "
-                        f"code or of a test that does what {cid} says, without "
-                        f"the +, and send the pass again. {listed}If no added "
-                        f"line meets {cid}, that is a fail on it: "
-                        f"{claim_for(cid)}")
                 continue
             # Name the set, do not merely reject the guess.
             best, ratio = "", 0.0
@@ -19938,33 +19863,6 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
         raise ValueError(
             f"{dropped}{', '.join(left)} {'is' if len(left) == 1 else 'are'} still "
             f"unjudged. Every open stray is foreseen or a mistake; say which")
-    # Frame 306's case, night 162: s239 judged b_2's file of criteria rows
-    # foreseen, and the judgement wrote the only prediction of the path. A
-    # whole-path stray proves that no prediction named the file before the
-    # commit (detector two's rule). A file with no code is then no part of
-    # the work, so only a mistake judges it.
-    tree = (ctx.conn.execute("SELECT worktree FROM batches WHERE id = ?",
-                             (batch_id,)).fetchone() or {"worktree": None})["worktree"]
-    unplanned = [p for p in foreseen
-                 if "::" not in p and not _holds_code(ctx, tree, p)]
-    if unplanned:
-        one = len(unplanned) == 1
-        names = ", ".join(unplanned)
-        # The offered call judges every open stray, so it lands as sent.
-        rest = [p for p in foreseen if p not in unplanned]
-        wrong = mistakes + unplanned
-        call = _offer(
-            ctx, f"batches.judge_touch(batch_id={batch_id!r}, "
-                 + (f"foreseen={rest!r}, " if rest else "")
-                 + f"mistakes={wrong!r}) lands",
-            "batches.judge_touch",
-            {"batch_id": batch_id, "foreseen": rest, "mistakes": wrong})
-        raise ValueError(
-            f"{names} {'holds' if one else 'hold'} no code, and the plan did "
-            f"not name the file before the write. A foreseen judgement needs "
-            f"a prediction older than the commit. Judge "
-            f"{'it' if one else 'them'} a mistake, and the Developer takes "
-            f"{'it' if one else 'them'} out: {call}")
     for path in foreseen:
         ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
             "batch_id": batch_id, "grain": path,
