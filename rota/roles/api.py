@@ -12681,10 +12681,20 @@ _ASKS_FOR_DOCS = ("docstring", "documentation")
 _DOC_KINDS = ("a docstring line", "a comment")
 
 
+# The words of a criterion that asks for a file of prose: frame 311's list,
+# and the changelog, the docs and the help text (frame 306, pass 1b). The
+# docstring door keeps its own list, so its rulings do not move.
+_ASKS_FOR_NOTES = _ASKS_FOR_DOCS + ("changelog", "docs", "help text")
+
+
+def _asks_for(text: str, words: tuple[str, ...]) -> bool:
+    t = " ".join(text.split()).casefold()
+    return any(w in t for w in words)
+
+
 def _asks_for_docs(text: str) -> bool:
     """True when a criterion's own words ask for the code's documentation."""
-    t = " ".join(text.split()).casefold()
-    return any(w in t for w in _ASKS_FOR_DOCS)
+    return _asks_for(text, _ASKS_FOR_DOCS)
 
 
 def _why_refused(cid: str, kind: str | None) -> str:
@@ -12917,6 +12927,26 @@ def _holds_code(ctx, tree, rel: str) -> bool:
         return True         # broken source is still source
 
 
+def _new_directory(ctx, tree, rel: str) -> bool:
+    """True when the directory of `rel` held no tracked file at the batch's
+    base commit. The top directory always counts as held. A fact that git
+    cannot give counts as held, so no door fires on it."""
+    import subprocess as _sp
+    from ..core import worktrees as _wt
+    folder = rel.replace("\\", "/").rpartition("/")[0]
+    if not folder or not tree:
+        return False
+    try:
+        base = _batch_base(ctx, tree)
+        out = _sp.run([*_wt.GIT, "-C", str(tree), "ls-tree", "-r",
+                       "--name-only", base, "--", folder + "/"],
+                      capture_output=True, text=True, encoding="utf-8",
+                      errors="replace")
+    except Exception:                                      # noqa: BLE001
+        return False
+    return out.returncode == 0 and not out.stdout.strip()
+
+
 def _note_files(ctx, batch_id: str, diff_text: str
                 ) -> tuple[dict[str, list[str]], list[str]]:
     """The files of the diff that hold no code, each with its added lines,
@@ -13091,7 +13121,10 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     for cid in ids:
         for quote in parts[cid]:
             if _line_held(quote, added):
-                if notes and not _line_held(quote, code_added):
+                # A criterion that asks for the docs reads a docs line as
+                # work (frame 306, pass 1b: frame 311's words and three more).
+                if (notes and not _line_held(quote, code_added)
+                        and not _asks_for(texts_of[cid], _ASKS_FOR_NOTES)):
                     where = next(p for p, got in notes.items()
                                  if _line_held(quote, got))
                     raise LinesRefusal(
@@ -19941,12 +19974,14 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
     # Frame 306's case, night 162: s239 judged b_2's file of criteria rows
     # foreseen, and the judgement wrote the only prediction of the path. A
     # whole-path stray proves that no prediction named the file before the
-    # commit (detector two's rule). A file with no code is then no part of
-    # the work, so only a mistake judges it.
+    # commit (detector two's rule). A file with no code in a new directory
+    # is then no part of the work, so only a mistake judges it. A changelog
+    # entry or a docs page in a held directory stays foreseeable (pass 1b).
     tree = (ctx.conn.execute("SELECT worktree FROM batches WHERE id = ?",
                              (batch_id,)).fetchone() or {"worktree": None})["worktree"]
     unplanned = [p for p in foreseen
-                 if "::" not in p and not _holds_code(ctx, tree, p)]
+                 if "::" not in p and not _holds_code(ctx, tree, p)
+                 and _new_directory(ctx, tree, p)]
     if unplanned:
         one = len(unplanned) == 1
         names = ", ".join(unplanned)
