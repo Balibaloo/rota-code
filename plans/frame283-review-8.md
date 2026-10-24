@@ -1,45 +1,31 @@
-# Frame 283, review 8: pass 6 at f99cc25f
+# Frame 283, review 8 of 90c8d5ef: a rewrite is not a removal
 
-Reviewer: one Opus agent, read-only, worktree `C:/Users/roman/rota_r283b` at
-f99cc25f. Written 2026-10-24. Nothing was built. `git status` of the worktree is clean.
+Reviewer on Opus, read-only. Worktree `C:/Users/roman/rota_r283` at 90c8d5ef.
+Verdict: does not stand. The span branch now admits a removal that no note names (finding 1).
 
-## Verdict
+## (a) The points
 
-Accept pass 6. The code matches the rule, s340 stays refused, and every scene file is green.
-The four Developer tests still check the head stamp and the Critic diff.
-The known price is real: a same-kind swap of a `return` or a call opens no note.
-Night 163 cannot measure that price, because night 163 runs the 214d22d0 code.
-
-## (a) Verdict per point
-
-1. Pass. `_whole_lost` names a statement only when its (owner, kind) and its (owner, key) both fall. Probes A to D give the expected notes. One mis-name exists in a mixed shape (finding 2).
-2. Pass. `test_frame283_whole_file_drop.py` is 17 passed. The s340 case names 8 statements and refuses the commit. The six shapes pass: `class_shared_line`, `def_inside_if_block`, `dup_inside_one_def`, `nested_inner_shared_with_outer`, `no_def_file_middle`, `toplevel_if_block`.
-3. Pass. `test_scene_review.py` 34 passed. `test_scene_large_module.py` 19 passed, 2 skipped, 1 xfailed. `test_developer.py` 37 passed. The four tests keep their assertions unchanged, and only the written text changed.
-4. Pass, with one note. `_whole_drop`, `_tail_drop` and `_unruled_removal` have no hunk. `_lost_statements` moved its key to `_line_key` with the same body. `_drop_note` moved its sentence to `_with_lost` with the same logic. The pinned texts changed beyond "removes or rewrites" in the route sentence (finding 4).
-5. One realistic admitted edit exists: `validate(r)` replaced by `log.debug(r)` in `save`, Expr Call 2 to 2. Night 163 cannot measure it (finding 1).
+1. Holds. The s221 shape opens no note, the write result has no `dropped` key, and `code.commit` lands. The test `test_a_span_write_that_rewrites_a_bare_return_opens_no_note` shows it, green on this run.
+2. Partly holds. The door notes the `if` drop with the rewrite, and it notes `return x` to `raise`. The door misses a move between owners, and it misses a same-kind swap (findings 1 and 2).
+3. Holds. 491 tests pass: test_frame283_rewrite_not_removal 4, test_frame283_whole_file_drop 17, test_frame283_removal_on_ruling 59, test_frame140_commit_beside_note 51 (s388), test_desk_guards 360 (s386). s340 is at test_frame283_whole_file_drop.py:211. The whole-file branch keeps its old logic, now moved into `_kind_shortfall`.
+4. Holds. In `batch_start` mode the text is "A note does not allow a removal or a rewrite. To undo the change, put the line back with code.write, then commit in your next reply." The mode holds `code.write` and `code.commit` and does not hold `msg.escalate_architect`. So the text names only calls that the mode's doors admit, as frame 135 requires. In `tests_failing` mode the text keeps the tool.
+5. Partly holds. Before pass 8, the test showed that a same-kind span rewrite (`return x` to `return x + 1`) opens a note and the refusal names both routes. Now it puts `print(x + 1)` where the return was. The test still pins the two-route text. It no longer pins a rewrite, so the name "for_a_rewrite" is now wrong (finding 4).
 
 ## (b) Findings
 
-1. **The same-kind swap opens no note.** `rota/roles/api.py` 21153-21159. Severity high for the case class of the frame. CONFIRMED: probe F (`ctx.exit()` to `log(msg)`), probe G (`return option(f, **kw)` to `return None`) and probe I (`validate(r)` to `log.debug(r)`) each return None. A guard `raise` changed to a `return` is still named (probe H), because the Raise count falls. Night 163 runs on b29b6d8b, the 214d22d0 code tree (`plans/stack.md` line 1547), so it holds no pass 6 code. A swap also writes no note row, so only a diff read of each whole-file write can find one. Night 162 saw 0 whole-file drop samples in 7 whole-file writes. Fix: record the price in the frame, or keep Return and Raise on the line-key rule.
-2. **A rewritten sibling takes the shortfall of a statement inside a lost block.** `rota/roles/api.py` 21156-21162. Severity low. CONFIRMED: probe E drops `if q: return b` and rewrites `return a` to `return A`. The note names `return a` and `if q:`. The Return inside the lost block consumes no shortfall before `return a` does. The note still opens and the commit is still held. Fix: let a statement inside a key-short block take its kind's shortfall before a sibling outside the block.
-3. **An assignment keys on its target, so the note can name the kept one of two assignments to one name.** `rota/roles/api.py` 21089-21091. Severity low. PLAUSIBLE: with old `x = 1` and `x = 2` and new `x = 1`, both counts fall by 1, and the file-order walk names `x = 1`. The `_owned_statements` docstring says that a new value is a new wording, but the target key makes the value invisible. Fix: key an assignment on its whole line, or correct the docstring.
-4. **The pinned route sentence changed beyond "removes or rewrites".** `rota/roles/api.py` 19479-19487 (`_note_routes`, pass 5c), pinned in `test_frame140_commit_beside_note.py` and `test_frame283_removal_on_ruling.py`. Severity low. CONFIRMED by `git diff 214d22d0 f99cc25f`. The route now says "To undo the change ... To keep the change, send msg.escalate_architect and name the change to the Architect." `_code_write` 18331-18342 also adds the sentence "The file no longer defines ..." to a stored note on both branches (pass 5b). Both are intended by earlier passes. Fix: name both changes in the frame's closing record, so that night 163 and later reads do not take them for pass 6.
-5. Outside the points. **The commit message of the four Developer tests still says "empty formatting".** `tests/rota/test_developer.py` 282, 303, 334, 535. Severity low. CONFIRMED by read. No assertion reads the message. Fix: none needed for behaviour.
+1. rota/roles/api.py:21582-21595 and 21480-21484. High. CONFIRMED. `_rewritten_heads` reads a held count of each kind as "every change is a rewrite", and then the door clears every lost line. A span write that drops `validate(x)` and adds a second copy of `self.log(x)` under the same owner now gets no note (probe E5). At 90c8d5ef^ the same write named `validate(x)`. The swap of `validate(x)` for `print(x)` also gets no note now (E4). E5 is a removal that adds no content, so it does not fit the frame's design. The whole-file branch has the same gap: `_whole_lost` returns None on E5. Fix: count a changed statement as a rewrite only when its owner and line key also fall and the text gains a new key under that owner, not a copy of a key the old owner already holds.
+2. rota/roles/api.py:21474-21482. Medium. CONFIRMED. The span branch misses a move of `validate(x)` from `clear` to `other` (probe E2). The cause is that `_lost_statements` finds the line text elsewhere in the file. Pass 8 computes the `Expr` shortfall under `clear` and then discards it, because `_rewritten_heads` returns an empty set. `_whole_lost` on the same text names `validate(x)`. The gap was there before pass 8, and pass 8 does not make it worse. Fix: when `_kind_shortfall` reports a fall, add the statements that `_whole_lost` selects to `lost`.
+3. tests/rota/test_frame283_rewrite_not_removal.py:79-87. Low. PLAUSIBLE. No test covers the `tests_failing` mode after an escalation went this session. That is the second half of the frame 135 condition, `_escalation_admitted`. The refs are the note's file paths, and a real escalation can carry other refs. Fix: add a test that sends one escalation and then expects the write route alone.
+4. tests/rota/test_frame283_whole_file_drop.py:252-262. Low. CONFIRMED by reading. The test name says "rewrite", but the write is now a removal and an add. A same-kind span rewrite now has no route test, because no note opens. Fix: rename the test to say a kind change, and keep the route assertion.
+
+Outside the points: none beyond finding 2, which comes before pass 8.
 
 ## (c) Probes
 
-- `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/f3a8d4c2-cdca-42d3-8f1d-12549648d58a/scratchpad/probe283r8.py`, run with `PYTHONPATH=.` from the worktree root. It calls `_whole_lost` on nine shapes. Results:
-  - A, two Returns and the text keeps one: names `return a` only.
-  - B, `return go()` becomes `go()`: names `return go()`.
-  - C, nested `inner` renamed `inner2` with its lines intact: None.
-  - D, `go()` moved from `f` to `g`: names `go()`, a drop under `f`.
-  - E, a rewrite beside a dropped block: names `return a` and `if q:` (finding 2).
-  - F, G, I, same-kind swaps: None (finding 1).
-  - H, `raise ValueError(x)` becomes `return 0`: names the `raise`.
-- One pytest run of `test_developer.py`, `test_scene_review.py`, `test_scene_large_module.py`, `test_frame283_whole_file_drop.py`, `test_frame140_commit_beside_note.py` and `test_frame283_removal_on_ruling.py` with `ROTA_MODEL=qwen3:8b`: 217 passed, 2 skipped, 1 xfailed in 165 s.
-- `git diff 28cb0d00 f99cc25f` and `git diff 214d22d0 f99cc25f` on `rota/roles/api.py` and the five test files.
-- A first copy of the probe under `tests/rota/` failed on the import path and was deleted. No gate ran.
+- `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e7141541-fc20-4c5c-a91b-4a10a610ec42/scratchpad/r8/probe_edges.py` calls `_drop_note` on a nine-line, two-function file for edges E0 to E6. At 90c8d5ef: E0 None, E1 names `if x:` and `return`, E2 None, E3 names `return x`, E4 None, E5 None, E6 names `return`. At 90c8d5ef^, from `git archive` into `scratchpad/r8/parent`: E0, E4 and E5 name the line, and E2 is None.
+- An inline `python -c` run of `_whole_lost` on E2 names `validate(x)`, and on E5 it returns None. The same run of `prompts.mode_tools` shows that `batch_start` holds code.write and code.commit and does not hold msg.escalate_architect.
+- pytest on the three frame 283 files, test_desk_guards.py and test_frame140_commit_beside_note.py: 491 passed in 76 s.
 
 ## (d) Usage
 
-About 75k input tokens and 9k output tokens, about 84k in total. This is an estimate, because the agent sees no exact count.
+About 45k tokens in and 6k out. These numbers are an estimate.
