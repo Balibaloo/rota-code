@@ -310,3 +310,45 @@ def test_a_barren_reply_to_another_role_is_answered_as_before(db):
     db.execute("UPDATE messages SET cause_id = 'm51' WHERE id = 'm_p2'")
     _commit(db, "s149", attempts=1)
     assert _row(db, "m_p2")["status"] == "answered"
+
+
+def test_the_agenda_lists_a_closed_resend_until_a_request_lands(
+        tmp_path, monkeypatch, capsys):
+    """Finding 9: his resend's second miss sends no line, so the agenda
+    shows the closed request with its note. A later request that lands
+    clears the list."""
+    from rota import cli
+
+    monkeypatch.setattr(cli, "RUNS", tmp_path)
+    conn = init_db(tmp_path / "run.db")
+    conn.execute("INSERT INTO entries (id, author, text, ts_order) "
+                 "VALUES ('e_p2','principal',?,2)", (E_P2,))
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                 "verb, body_refs, seq, status, attempts) VALUES ('m_p2',"
+                 "'t_p1','principal','liaison','converse','[\"e_p2\"]',44,"
+                 "'open',2)")
+    _commit(conn, "s145", attempts=2)
+    _resend(conn, attempts=2)
+    conn.execute("UPDATE messages SET status = 'answered' "
+                 "WHERE from_role = 'liaison'")
+    session_commit(conn, SessionResult(
+        session_id="s180", role="liaison", trigger_msg="m_p3",
+        wake_kind="message", wake_detail="converse"))
+    conn.commit()
+    assert cli.main(["agenda", "run"]) == 0
+    out = capsys.readouterr().out
+    assert "not reached the team" in out
+    assert f"[m_p3] closed with nothing landed: {REQUEST_NOTHING}" in out
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                 "verb, seq, status) VALUES ('m_p4','t_p4','principal',"
+                 "'liaison','converse',200,'open')")
+    session_commit(conn, SessionResult(
+        session_id="s181", role="liaison", trigger_msg="m_p4",
+        wake_kind="message", wake_detail="converse",
+        messages=[OutboundMessage(id="m201", to_role="principal",
+                                  verb="clarify", cause_id="m_p4")]))
+    conn.execute("UPDATE messages SET status = 'answered' WHERE id = 'm201'")
+    conn.commit()
+    conn.close()
+    assert cli.main(["agenda", "run"]) == 0
+    assert "closed with nothing landed" not in capsys.readouterr().out

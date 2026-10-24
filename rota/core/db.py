@@ -882,6 +882,27 @@ def _answers_unread(conn: sqlite3.Connection, trig: sqlite3.Row) -> bool:
         (trig["cause_id"], UNREAD_HEAD + "%")).fetchone() is not None
 
 
+def closed_requests(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """
+    The requests that closed with nothing landed, as (id, note), until a
+    later request lands.
+
+    His resend's second miss sends no line (finding 7). Without this list,
+    nothing he looks at shows the closed request (frame 320, finding 9).
+    A request that lands answers with no note.
+    """
+    return [(r["id"], r["unresolved_note"]) for r in conn.execute(
+        "SELECT r.id, r.unresolved_note FROM messages r "
+        "WHERE r.from_role = 'principal' AND r.verb = 'converse' "
+        "AND r.status = 'answered' AND r.unresolved_note IS NOT NULL "
+        "AND (r.cause_id IS NULL OR r.cause_id IN (SELECT id FROM messages "
+        "WHERE from_role = 'liaison' AND body_text LIKE ?)) "
+        "AND NOT EXISTS (SELECT 1 FROM messages l WHERE l.seq > r.seq "
+        "AND l.from_role = 'principal' AND l.verb = 'converse' "
+        "AND l.status = 'answered' AND l.unresolved_note IS NULL) "
+        "ORDER BY r.seq", (UNREAD_HEAD + "%",))]
+
+
 def _tell_unread(conn: sqlite3.Connection, trig: sqlite3.Row, request: str,
                  why: str) -> None:
     """Send him the line of `unread_line` as a Liaison chat line, the route
@@ -1281,6 +1302,15 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     "UPDATE messages SET status = 'answered' WHERE id = ?",
                     (result.trigger_msg,),
                 )
+                # A request that lands after a first miss drops its note, so
+                # `closed_requests` lists only the requests that closed
+                # unlanded (frame 320, finding 9).
+                conn.execute(
+                    "UPDATE messages SET unresolved_note = NULL WHERE id = ? "
+                    "AND from_role = 'principal' AND verb = 'converse' "
+                    "AND (cause_id IS NULL OR cause_id IN (SELECT id FROM "
+                    "messages WHERE body_text LIKE ?))",
+                    (result.trigger_msg, UNREAD_HEAD + "%"))
                 if page is not None:
                     # Frame 267, the second miss: the page goes back to the
                     # principal. It stays open, so `pending_asks` shows it,

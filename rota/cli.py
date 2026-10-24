@@ -742,13 +742,19 @@ def cmd_agenda(args: argparse.Namespace) -> int:
     # displayed by the TUI only, so the command line never saw them.
     # A line that says his request did not reach the team asks him to act,
     # so it prints under its own heading (frame 320, review 1, finding 6).
-    from .core.db import UNREAD_HEAD
+    from .core.db import UNREAD_HEAD, closed_requests
 
     replies = pending_replies(conn)
     unread = [r for r in replies if (r.rendered or "").startswith(UNREAD_HEAD)]
     replies = [r for r in replies if r not in unread]
-    if unread:
+    # A resend that closed sends no line, so its note shows here until a
+    # later request lands (frame 320, finding 9).
+    closed = closed_requests(conn)
+    if unread or closed:
         print("\nnot reached the team (reply to send the request again):")
+        for mid, note in closed:
+            print(f"  [{mid}] closed with nothing landed: "
+                  f"{' '.join(note.split())[:160]}")
         for r in unread:
             for line in (r.rendered or "").splitlines()[:args.limit]:
                 print(f"  {line}")
