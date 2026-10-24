@@ -128,7 +128,7 @@ def run(conn: sqlite3.Connection, batch_id: str,
             lifecycle.record_test_run(conn, new_id("tr", conn), batch_id,
                                       test_id, result, attempt,
                                       commit_sha=head, output=said)
-        _judge_key(conn, batch_id, head)
+        # No code ran, so the red did not move. The key keeps its count.
         return results
 
     root = Path(worktree)
@@ -148,6 +148,11 @@ def run(conn: sqlite3.Connection, batch_id: str,
         output[t["id"]] = said
 
     head = lifecycle.head_of(conn, batch_id)
+    # The red before this run: the run at this head when one exists, so a
+    # re-run at one head compares with itself (frame 318, review 1).
+    from .db import lift_on_red_move, red_before
+
+    before = red_before(conn, batch_id)
     # A run supersedes the run before it at the same commit: the tests may
     # have changed under it (walk eighteen), and the `review` gate reads
     # "no non-pass run at this commit", which stale fail rows kept false
@@ -158,15 +163,23 @@ def run(conn: sqlite3.Connection, batch_id: str,
         lifecycle.record_test_run(conn, new_id("tr", conn), batch_id, test_id,
                                   result, attempt, commit_sha=head,
                                   output=output.get(test_id, ""))
-    _judge_key(conn, batch_id, head)
+    lift_on_red_move(conn, batch_id, head, before)
     return results
 
 
-def _judge_key(conn: sqlite3.Connection, batch_id: str, head: str | None) -> None:
-    """The runs at a new head decide whether the red moved (frame 318)."""
-    from .db import lift_on_red_move
-
-    lift_on_red_move(conn, batch_id, head)
+def _tail(text: str, size: int = 2000) -> str:
+    """
+    The last `size` characters from a line start, led by the run's first
+    `E ` line when the cut drops it.
+    """
+    # Frame 318, review 1 finding 2: the red's identity is the first `E `
+    # line. A cut mid-output gave a later line or half a line instead.
+    if len(text) <= size:
+        return text.strip()
+    cut = text.rfind("\n", 0, len(text) - size) + 1
+    tail = text[cut:]
+    first = next((ln for ln in text[:cut].splitlines() if ln.startswith("E ")), None)
+    return (f"{first}\n{tail}" if first else tail).strip()
 
 
 def _run_one(root: Path, path: str, timeout: int,
@@ -224,7 +237,7 @@ def _run_one(root: Path, path: str, timeout: int,
 
     # Tail rather than head: pytest puts the summary and the failing assertion
     # at the end, and the beginning is collection chatter.
-    said = (out.stdout or out.stderr or "")[-2000:].strip()
+    said = _tail(out.stdout or out.stderr or "")
     if out.returncode == EXIT_OK:
         return "pass", said
     if out.returncode == EXIT_FAILED and "No module named pytest" not in out.stderr:

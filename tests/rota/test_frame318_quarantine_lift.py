@@ -153,3 +153,45 @@ def test_a_commit_on_a_parked_batch_still_lifts_the_key(db, monkeypatch):
     db.commit()
     _commit(db, "f1x")
     assert _key(db) is None
+
+
+def test_a_second_run_at_one_head_on_the_same_red_keeps_the_key(db, monkeypatch):
+    """Review 1, finding 1: a re-run at one head compared with the commit
+    before, so a moved red then a quarantine lifted again on a re-run."""
+    _run(db, monkeypatch, {"tst1": SAME})
+    _commit(db, "b5edb9a")
+    _run(db, monkeypatch, {"tst2": SAME})
+    _quarantine(db)
+    _run(db, monkeypatch, {"tst2": SAME})
+    assert _key(db) == (3, 1), "the run before is the run at this head"
+
+
+def test_a_run_with_no_worktree_keeps_the_key(db, monkeypatch):
+    """Review 1, finding 4: no code ran, so the red did not move."""
+    _run(db, monkeypatch, {"tst1": SAME})
+    _quarantine(db)
+    db.execute("UPDATE batches SET worktree = 'missing' WHERE id = 'b1'")
+    _commit(db, "c0ffee5")
+    harness.run(db, "b1")
+    assert _key(db) == (3, 1)
+
+
+def test_a_long_output_keeps_its_first_error_line(tmp_path, monkeypatch):
+    """Review 1, finding 2: the output keeps a 2000-character tail, and the
+    first `E ` line of the tail was not the run's."""
+    from types import SimpleNamespace
+
+    from rota.core import execute, provision
+    from rota.core.db import _first_error
+
+    text = ("E   AssertionError: the first error\n"
+            + "".join(f"E   line {i} of a long diff\n" for i in range(200))
+            + "1 failed in 0.12s\n")
+    assert len(text) > 2000
+    monkeypatch.setattr(provision, "python_for", lambda root: "python")
+    monkeypatch.setattr(execute, "run", lambda *a, **k: SimpleNamespace(
+        stdout=text, stderr="", returncode=harness.EXIT_FAILED, error=None))
+    verdict, said = harness._run_one(tmp_path, "tests/test_x.py", 10)
+    assert verdict == "fail"
+    assert _first_error(said) == "AssertionError: the first error"
+    assert said.endswith("1 failed in 0.12s")

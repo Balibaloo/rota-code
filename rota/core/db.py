@@ -695,34 +695,40 @@ def _first_error(output: str) -> str:
     return ""
 
 
-def _red(conn: sqlite3.Connection, batch_id: str, head: str | None,
-         at_head: bool) -> dict[str, str]:
+def _red_of(rows) -> dict[str, str]:
+    return {r["test_id"]: _first_error(r["output"]) for r in rows
+            if r["result"] in ("fail", "error")}
+
+
+def red_before(conn: sqlite3.Connection, batch_id: str) -> dict[str, str]:
     """
-    The batch's red as test id to first error line. With `at_head`, the runs
-    at the head. Otherwise the newest run per test at any other commit.
+    The batch's red before a harness run, as test id to first error line.
+    The newest run per test is the run at this head when one exists, and
+    the run at the commit before otherwise.
     """
-    op = "=" if at_head else "IS NOT"
-    return {r["test_id"]: _first_error(r["output"]) for r in conn.execute(
-        "SELECT test_id, result, output FROM test_runs "
-        f"WHERE rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        f"AND commit_sha {op} ? GROUP BY test_id)", (batch_id, head))
-        if r["result"] in ("fail", "error")}
+    return _red_of(conn.execute(
+        "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
+        "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? GROUP BY test_id)",
+        (batch_id,)))
 
 
 def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
-                     head: str | None) -> bool:
+                     head: str | None, before: dict[str, str]) -> bool:
     """
     Reset the batch's `tests_failing` key when the red moved at `head`.
 
-    The harness calls this after it records the runs at a new head. The
-    red moved when a red test passes, the failing set changes, or a test
-    raises another first error line. The key remembers nothing: the last
-    red is the newest run per test at the commit before, in `test_runs`.
+    The harness reads `before` with `red_before` and calls this after it
+    records its runs. The red moved when a red test passes, the failing set
+    changes, or a test raises another first error line. The key remembers
+    nothing: the last red is in `test_runs`.
     """
     # Frame 318, night 162: s315's docstring commit wiped the quarantine on
     # the same red. Law 6's attempt cap still bounds a red that moves.
-    before = _red(conn, batch_id, head, at_head=False)
-    if not before or _red(conn, batch_id, head, at_head=True) == before:
+    now = _red_of(conn.execute(
+        "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
+        "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
+        "AND commit_sha = ? GROUP BY test_id)", (batch_id, head)))
+    if not before or now == before:
         return False
     conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
                  (f"%|tick:tests_failing|{batch_id}",))
