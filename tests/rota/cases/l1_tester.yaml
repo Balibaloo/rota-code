@@ -1482,15 +1482,17 @@
       # The ruling also says the assertion checks a generic version number,
       # not a literal. The case format matches substrings only, with one
       # `text_includes_any` list per table, and that list holds the
-      # decorator forms. So the case refuses the plain forms of a hard-coded
-      # Python version or the word Python as a string, and does not
-      # require a pattern.
+      # decorator forms. So the case cannot require a pattern on the assert
+      # line, and the night measures the generic-pattern clause, not this
+      # case. The case refuses the word Python as a string, a literal the
+      # criterion does not give. It does not refuse a version literal,
+      # because the test may set its own version, such as "3.0".
       tests: {count: "1..1",
               text_includes_any: ["version_option(version=",
                                   "show_python=True, version=",
                                   "version_option(\"", "version_option('"],
               text_excludes: ["'test_version_option'", "\"test_version_option\"",
-                              "\"3.", "'3.", "\"Python", "'Python"]}
+                              "\"Python", "'Python"]}
     messages:
       - {to: developer, verb: answer, count: "0..0"}
   forbidden:
