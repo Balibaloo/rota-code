@@ -740,7 +740,19 @@ def cmd_agenda(args: argparse.Namespace) -> int:
                 print(f"  ... {len(a.rendered.splitlines()) - args.limit} more")
     # Liaison's own words. They are displayed, not asked. "Displayed" meant
     # displayed by the TUI only, so the command line never saw them.
+    # A line that says his request did not reach the team asks him to act,
+    # so it prints under its own heading (frame 320, review 1, finding 6).
+    from .core.db import UNREAD_HEAD
+
     replies = pending_replies(conn)
+    unread = [r for r in replies if (r.rendered or "").startswith(UNREAD_HEAD)]
+    replies = [r for r in replies if r not in unread]
+    if unread:
+        print("\nnot reached the team (reply to send the request again):")
+        for r in unread:
+            for line in (r.rendered or "").splitlines()[:args.limit]:
+                print(f"  {line}")
+            print(f"  reply with: rota sign {args.name} {r.message_id} --say '...'")
     if replies:
         print("\nsaid to you (no answer needed, but you can reply):")
         for r in replies:

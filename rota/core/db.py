@@ -835,7 +835,8 @@ def _page_under_reply(conn: sqlite3.Connection, trig: sqlite3.Row,
     return page["id"] if page else None
 
 
-def _request_missed(trig: sqlite3.Row, result: SessionResult) -> bool:
+def _request_missed(conn: sqlite3.Connection, trig: sqlite3.Row,
+                    result: SessionResult) -> bool:
     """
     Whether `trig` is a new request that its session landed nothing on.
 
@@ -844,32 +845,61 @@ def _request_missed(trig: sqlite3.Row, result: SessionResult) -> bool:
     commit marked m_p2 answered, and the walk read quiet (frame 320). A new
     request has no `cause_id`, so `_page_under_reply` never saw it.
 
+    His resend after the line of `unread_line` is a reply to a Liaison
+    chat line, so a request whose cause is such a line is a request too.
+    Only a statement or an item lands a request. A glossary row or a note
+    does not intake it, so a retry cannot intake it twice (frame 320,
+    review 1, findings 1 and 2).
+
     composition: nothing stops quietly, so a barren session leaves the request open
     """
-    return bool(trig and trig["status"] == "open" and trig["verb"] == "converse"
-                and trig["from_role"] == "principal" and not trig["cause_id"]
-                and result.checkpoint is None
-                and not result.writes and not result.messages)
+    if not (trig and trig["status"] == "open" and trig["verb"] == "converse"
+            and trig["from_role"] == "principal"
+            and result.checkpoint is None and not result.messages):
+        return False
+    if any(w.table in REQUEST_LANDS for w in result.writes):
+        return False
+    if not trig["cause_id"]:
+        return True
+    return conn.execute(
+        "SELECT 1 FROM messages WHERE id = ? AND from_role = 'liaison' "
+        "AND to_role = 'principal' AND verb = 'converse'",
+        (trig["cause_id"],)).fetchone() is not None
+
+
+# The tables whose write lands a request (frame 320, review 1, finding 2).
+REQUEST_LANDS = ("statements", "items")
+# The note of a request miss with no refusal and no error. A request owes no
+# ruling, so frame 267's note does not fit it (review 1, finding 5).
+REQUEST_NOTHING = "the session landed nothing and sent nothing"
+# The first sentence of the line to him. `rota agenda` keys its heading on it.
+UNREAD_HEAD = "Your request did not reach the team."
 
 
 def unread_line(note: str) -> str:
     """
-    The line that tells the principal the team could not read his request.
+    The line that tells the principal his request did not reach the team.
 
-    Frame 320: two sessions on a new request landed nothing. The reason is
-    the last refusal, which speaks to the seat. The line drops the op name
-    and keeps the first sentence. It names the principal as "you", because
-    the line is to him.
+    Frame 320: two sessions on a request landed nothing. The note is the
+    last refusal, and it speaks to the seat. The line says what happened in
+    his terms: the team's question to him was refused, and why. It quotes
+    no text, because the quote was his own words (review 1, finding 3).
     """
-    why = re.sub(r"^[a-z_]+\.[a-z_]+: ", "", (note or "").strip())
+    note = (note or "").strip()
+    op = re.match(r"^([a-z_]+\.[a-z_]+): ", note)
+    why = note[op.end():] if op else ""
     why = re.split(r"(?<=[.!?])\s", why, maxsplit=1)[0].rstrip(".!? ")
-    if "the principal" in why:
-        why = (why.replace("the principal's", "your")
-               .replace("the principal", "you")
-               .replace("back to them", "back to you"))
-    because = f" The last try stopped on this: {why}." if why else ""
-    return ("The team could not read your request, and it did not reach the "
-            f"work.{because} Send the request again in other words.")
+    why = re.sub(r"'[^']*'", "the question", why)
+    why = (why.replace("the principal's", "your")
+           .replace("the principal", "you")
+           .replace("back to them", "back to you"))
+    if op and op.group(1) == "msg.clarify_principal" and why:
+        said = f"The team tried to ask you about it, and the ask was refused: {why}."
+    elif why:
+        said = f"The team could not turn it into work: {why}."
+    else:
+        said = "The team tried twice and landed nothing."
+    return f"{UNREAD_HEAD} {said} Reply to this line to send it again."
 
 
 # The repeat door's end line. It says how the session ended, not what failed.
@@ -885,14 +915,17 @@ def _is_end_line(line: str) -> bool:
     return line == REPEAT_END or line.endswith(REFUSED_END)
 
 
-def _why_no_ruling(result: SessionResult) -> str:
+def _why_no_ruling(result: SessionResult,
+                   nothing: str = "the session wrote no ruling and sent nothing"
+                   ) -> str:
     """
     The newest fault of the session: its last error, else its last refusal.
 
     The errors come first because they hold every fault in order, parse
     errors included. Night 151's s226 fixed its first refusal at turn 2 and
     then failed four turns on a quote. The last refusal named the fixed
-    fault (frame 267, review 1, finding 1).
+    fault (frame 267, review 1, finding 1). With no fault, the note is
+    `nothing`. A request miss passes its own text (frame 320).
     """
     for e in reversed(result.errors or []):
         if e and not _is_end_line(str(e)):
@@ -900,7 +933,7 @@ def _why_no_ruling(result: SessionResult) -> str:
     for r in reversed(result.refusals or []):
         if len(r) > 1 and r[1]:
             return f"{r[0]}: {r[1]}"
-    return "the session wrote no ruling and sent nothing"
+    return nothing
 
 
 def _receipt_rule(trig: sqlite3.Row) -> str | None:
@@ -1139,7 +1172,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 (result.trigger_msg,)).fetchone()
             was_unresolved = bool(trig and trig["status"] == "unresolved")
             page = _page_under_reply(conn, trig, result)
-            missed = _request_missed(trig, result)
+            missed = _request_missed(conn, trig, result)
             returned = bool(page) and conn.execute(
                 "SELECT unresolved_note FROM messages WHERE id = ?",
                 (page,)).fetchone()["unresolved_note"] is not None
@@ -1194,13 +1227,14 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 # next wake's head.
                 conn.execute(
                     "UPDATE messages SET unresolved_note = ? WHERE id = ?",
-                    (_why_no_ruling(result), result.trigger_msg))
+                    (_why_no_ruling(result, REQUEST_NOTHING),
+                     result.trigger_msg))
             elif missed:
                 # Frame 320, the second miss: the request stops, and one line
                 # tells him why. The line goes out as a Liaison chat line,
                 # the route `pending_replies` shows him. The request keeps
                 # the reason, so the record says why it closed.
-                why = _why_no_ruling(result)
+                why = _why_no_ruling(result, REQUEST_NOTHING)
                 conn.execute(
                     "UPDATE messages SET status = 'answered', "
                     "unresolved_note = ? WHERE id = ?",

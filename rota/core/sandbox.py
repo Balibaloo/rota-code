@@ -3237,12 +3237,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "WHERE from_role = 'principal' AND body_text IS NOT NULL"):
                 run = _longest_word_run(asked, re.findall(r"[a-z0-9']+", (row["said"] or "").lower()))
                 if len(run) >= QUOTE_RUN:
+                    # Only a mode that holds brief.segment is told to use it.
+                    # Four Liaison modes hold this door and not brief.segment
+                    # (frame 320, review 1, finding 4).
+                    route = ("A sentence of theirs that asks for work is a "
+                             "request: segment it with brief.segment, not a "
+                             "clarify. "
+                             if "brief.segment" in api._wake_mode_tools(ctx)
+                             else "")
                     raise ValueError(
                         f"'{' '.join(run[:QUOTE_RUN])} ...' is the principal's own "
                         f"sentence, pasted back to them. They know what they said, "
                         f"and reading it to them again is not an answer to it. "
-                        f"A sentence of theirs that asks for work is a request: "
-                        f"segment it with brief.segment, not a clarify. Ask "
+                        f"{route}Ask "
                         f"the one thing you do not know, in your words. If the "
                         f"reply was an answer to a role, that role reads it, not "
                         f"the principal")

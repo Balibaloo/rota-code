@@ -2717,19 +2717,23 @@ def _missed_reply_line(conn: sqlite3.Connection, wake) -> str:
         return ""
     from .db import PAGE_VERBS
 
+    # A request has no cause, or a Liaison chat line as its cause: his
+    # resend after the line of `unread_line` (frame 320, review 1, finding 1).
     row = conn.execute(
-        "SELECT r.unresolved_note, r.cause_id FROM messages r "
+        "SELECT r.unresolved_note, p.verb AS cause_verb FROM messages r "
         "LEFT JOIN messages p ON p.id = r.cause_id "
         "WHERE r.id = ? AND r.verb = 'converse' AND r.from_role = 'principal' "
         "AND r.status = 'open' AND r.unresolved_note IS NOT NULL "
-        f"AND (r.cause_id IS NULL "
+        "AND (r.cause_id IS NULL "
+        "OR (p.from_role = 'liaison' AND p.to_role = 'principal' "
+        "AND p.verb = 'converse') "
         f"OR p.verb IN ({','.join('?' * len(PAGE_VERBS))}))",
         (wake.message_id, *PAGE_VERBS)).fetchone()
     if row is None:
         return ""
     note = row["unresolved_note"].strip()
     stop = "" if note.endswith((".", "!", "?")) else "."
-    if row["cause_id"] is None:
+    if row["cause_verb"] not in PAGE_VERBS:
         return (f"A session on this request ended with nothing landed. Its "
                 f"last refusal or error: {note}{stop}")
     return (f"A session on this reply ended with no ruling. Its last refusal "
