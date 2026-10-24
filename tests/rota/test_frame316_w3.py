@@ -210,3 +210,13 @@ def test_a_sentence_the_contest_carries_stays_an_amend(db):
     said = ("For clear(), the output stays the same and only the return value "
             "changes.")
     assert _reply_sentence_fault(vk.ctx, ITEM1, said, None, [ITEM1]) is None
+
+
+def test_a_word_before_a_spaced_bracket_is_not_a_function():
+    """The re-check of 1b513c31: "the terminal (TERM=dumb)" named a
+    function `terminal`, so a correction of clear() was refused."""
+    from rota.roles.api import _named_surfaces
+
+    said = "clear() prints nothing on the terminal (TERM=dumb)."
+    assert "terminal" not in _named_surfaces(said)
+    assert "clear" in _named_surfaces(said)

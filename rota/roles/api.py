@@ -922,7 +922,7 @@ def _named_surfaces(text: str) -> set[str]:
     # `_identifiers` takes `format_filename` and drops `clear()`, a plain
     # word with a call after it.
     called = {m.group(1).lower() for m in re.finditer(
-        r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", text or "")}
+        r"\b([A-Za-z_][A-Za-z0-9_]*)\(", text or "")}
     return {n.lower() for n in _identifiers(text or "")} | called
 
 
