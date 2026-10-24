@@ -382,10 +382,25 @@ def test_a_test_sets_every_input_the_criterion_leaves_open():
         flat = " ".join(prompts.compose("tester", mode).split()).replace("**", "")
         assert rule in flat, mode
         assert kind in flat, mode
+
+
+
+def test_the_open_input_rule_sits_at_the_step_that_writes_the_call():
+    """Frame 281, pass 1b: the base paragraph alone moved 0 of 8 replays.
+    Frame 223's interview 2 found that text at the point of decision moves
+    the seat and a distant sentence does not. So each step that writes a
+    call line carries the rule in the imperative."""
     challenge = " ".join(prompts.compose("tester", "challenge").split())
-    assert ("The fixed call line sets every input the criterion leaves open "
-            "with a value of the test's own, as the paragraph on open inputs "
-            "above says.") in challenge
+    assert ("When the failure names an input the call did not set, set that "
+            "input with a value you choose, and log the choice. Do not take a "
+            "name the error suggests, and do not take a name you find "
+            "installed. The paragraph on open inputs above gives the "
+            "rule.") in challenge
+    missing = " ".join(prompts.compose("tester", "tests_missing").split())
+    assert ("Set every input of that call that the criterion leaves open with "
+            "a value you choose, and log the choice. Do not take a name you "
+            "find installed, as the paragraph on open inputs above "
+            "says.") in missing
 
 
 def test_the_tester_edits_the_test_the_reason_row_names():
