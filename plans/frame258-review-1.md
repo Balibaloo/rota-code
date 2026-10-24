@@ -1,71 +1,42 @@
-# Frame 258, review 1 of e445aa64
+# Frame 258, review 1 of f77bf455 (parent a3f2f96e)
 
-Reviewer: a read-only agent on the worktree `C:/Users/roman/rota_r258` at e445aa64. Rota workflow throughout. Date 2026-10-16.
+Verdict: accept with one fix. 0 high, 3 low. The fix is finding 1.
 
-Verdict: **accept with fixes**. The door refuses what the frame names, and no named-line ruling moves. One refusal text sends three agreement replies to the request line, and two of those replies are plain approvals.
+## (a) The verdict on each point
 
-## (a) Verdict on each point
+1. Holds. The predicate changes only in the last branch of the line-1 refusal, and no other line's reading changes.
+2. A false refusal exists and is CONFIRMED on the full door path. The cost is low: the correction still reaches the criteria.
+3. Every changed assertion changes the refusal text only. No ruling path changes. Frame 234 judged the old text. Nobody ruled it or measured it.
+4. None. No recorded case holds the old text or "have no ruling".
+5. One wrong match, CONFIRMED: "Do not keep the change." now reads as a keep.
+6. `11 passed in 0.77s`.
 
-1. CONFIRMED. All six maps are refused at HEAD and admitted at db7c950d. Three named-line maps are still admitted.
-2. CONFIRMED with one finding. 15 of the 16 refusals are right. The text on 3 agreement replies sends the seat to the wrong line (finding 1).
-3. CONFIRMED. The m28 row now asserts on a page with no request line. The m181 row, frame 234’s own case, still holds.
-4. PLAUSIBLE. The item text gains the constraint, and no batch dies at m25. A contested wake can still make a new item (finding 2).
-5. CONFIRMED. 181 passed and 5 xfailed. No assertion of frames 250, 255 or 256 changed.
-6. CONFIRMED. The refusal texts and comments follow STE. No finding.
+Point 1, the predicate in one sentence: an unnumbered sentence spares a line-1 contest only when it opens with a build verb, or when it shares a content word with the request that no faulted line's text holds.
+
+Point 1, the reach. `faulted_texts` is read in one place only, `_names_request`, at `rota/roles/api.py:10675`. That call is past every earlier exit of `_line_refusal`: `request_first`, `1 in contested`, `not quoted`, `named` non-empty, `1 not in faulted`, and no reference to line 1. So an approve, a park or a question on line 1 never reaches it. `faulted`, `matched`, `contested` and `_unnamed_contest` take the same inputs as at the parent. The new SQL at `api.py:11507` reads the texts and writes nothing. The new text replaces the old one only where the old text fired.
+
+Point 2. A false refusal is easy to make on a page whose criteria restate the request. On m66, cr_1 holds every request word except "let" and "take". The probe sent "Lines 2 to 4 are wrong. The default on a closed stdin should always be False, not a flag." with line 1 contested. The full door path refused line 1 with the new text, and the parent admitted it. "Actually confirm should raise a clear error when stdin is closed instead." gave the same result. These sentences change the request itself. "Make the flag default to True." still lands, because it opens with a build verb. The chance on a real page is moderate. A request correction in the request's own words usually has no word of its own. The seat then approves line 1 and contests lines 2 to 4. The criteria writer gets his words, the item text stays the old one, and the batch goes on. A later page can show the item and let him contest line 1 by number. No night count measures the rate. Provenance section 6 already names that gap.
+
+Point 3. The diff has 8 hunks. The 3 tests through `_rule_request` run the full path with the subtraction, and they were refusals before and stay refusals. The 5 tests through the helper `_refusal` pass no `faulted_texts`, so the subtraction cannot fire there. Each hunk swaps "Line 1 is the request" or "approve the rest" for the new text, and keeps the raise or the not-None. Frame 234's block is in `plans/archive/stack-2026-10-15.md`, not in `plans/stack.md`. The block says the session judged the text at pass 1 and changed only its pronoun. No ruling and no measurement stand behind it. Night 159's s241 and night 161's s181 then measured harm from "approve the rest".
 
 ## (b) Findings
 
-1. `rota/roles/api.py:8920-8948`, `_agreed_contest`. Severity low. CONFIRMED by probe 3.
-   - Night 121’s m119, "yes that all looks right, go ahead", and night 139’s m132, "ok, this matches what I asked for, so go ahead.", are plain approvals.
-   - `_BARE_AGREEMENT` does not fullmatch either reply, so the "adds an instruction" test passes on the agreement sentence alone.
-   - The refusal says "their instruction is about the request, line 1 ... rule line 1 as the words say". A seat can read that as "contest line 1". On m119 and m132 a batch line is on the page, so an item contest can cancel the batch.
-   - Night 137’s m175 asks for "the new page for the show_python flag". That is a different request. The same text steers the seat to contest the confirm item with the show_python words.
-   - The refusal is right on all three. The text is wrong.
-   - Fix: require one sentence after the agreeing first sentence. When no such sentence exists, refuse with "The words agree with the page. Approve every line."
-2. `rota/roles/api.py:1325-1336`, `_assert_words_fault`. Severity low. PLAUSIBLE.
-   - On a `tick:contested` wake, an assert on a new id is admitted, because the `cur is None` branch returns None for every verb except challenge.
-   - Night 150’s `json_only` came from that route.
-   - At HEAD the contest lands on `echo_json`. The contested brief says "One call, on the item’s own id". The drop check at 1441-1465 keeps `echo_json` in the text. The carried-words check at 1467-1486 admits the json words of the principal. So the instructed path makes the item gain the constraint.
-   - No batch exists at m25 on night 150, because that page is the first present. The amendment drops the approval, and the item is presented again. Nothing is cancelled.
-   - The door still does not stop a second `json_only`. No recorded case shows this route at HEAD.
-   - Fix: on a `tick:contested` wake, refuse an assert on an id that is not in `wake_refs`, and name the contested item.
-3. `tests/rota/test_frame234_verdict_lines.py:497-508`. Severity low. CONFIRMED by a read of the diff.
-   - The m28 row now runs with `request_lines` empty. No night showed that page shape. The night 147 m28 page had the request on line 1, and the count refuses it.
-   - The row now guards the `not request_lines` branch only. The old shape moved to `test_m28s_words_with_the_request_on_line_1_are_refused`, which asserts the refusal.
-   - The change is deliberate and is not a weakening. The comment says so.
-   - The m181 row, "Ok, go ahead." on the batch line, still returns None with request line 1. That is the case of frame 234.
-   - Fix: none needed. Optionally change the row comment to "a page that shows no request".
+1. `rota/roles/api.py:10700`, `_KEEP_CHANGE`. Low. CONFIRMED. The new pattern is `\b(?:don['’]?t|do not)(?: want to)? (?:drop|give up)\b|\bkeep going\b|\bkeep the change\b`. The branch `\bkeep the change\b` has no guard for a negation. "Do not keep the change. Abandon it, I asked for something else." with line 1 contested and no line faulted gives the refusal "The words do not fault line 1, and they ask to keep the change. Approve line 1." The parent admitted that contest. `_CUE_KEEP` at `api.py:10724` copies the pattern, so the cue reader inherits the match. Fix: put a negative lookbehind for "not " and "n't " before `keep the change`, and add the probe sentence as a test.
+2. `rota/roles/api.py:10860`, the subtraction in `_names_request`. Low. CONFIRMED on the full door path, as point 2 says. A request correction in the criteria's words is refused, and the route says approve line 1. Fix: none for this frame. Count the shape over the nights' records before a later pass widens the spare.
+3. `tests/rota/test_frame234_verdict_lines.py:339`, the helper `_refusal`. Low. CONFIRMED by a read. The helper passes no `faulted_texts`, so 5 of the 8 changed tests run the old spare and not the new one. Only `test_frame258_request_line.py` covers the subtraction. Fix: let `_refusal` take `faulted_texts`, and pass the criteria texts on the m167 and night 155 tests.
 
-Point 2 in detail. Probe 2 lists 18 maps that move: 16 newly refused, and 2 that now also name the batch line (night 143 m142, night 146 m259).
-
-- Night 150 m25, night 149 m25, night 147 m29: they contest the description row, or the description row and a note. Refusal right.
-- Night 121 m119, night 139 m132: they contest a batch line on a plain approval. Refusal right, text wrong (finding 1).
-- Night 137 m175: it contests all 13 lines for a request about another flag. Refusal right, text wrong (finding 1).
-- Night 150 m38, m53, m59, night 138 m49, night 142 m327, night 144 m375: a batch line is contested, and the words fault criteria only and name no files or tests. Refusal right by the night 150 evidence, where m37 cost an Architect relay.
-- Night 140 m98: line 3 is a description row, and "It should also name ..." follows line 1. Refusal right.
-- Night 150 m140: "Ok, I approve the page." contests the description row. Refusal right.
-- Night 150 m317: lines 3 (`json_only`) and 9 (`how_it_works`) are never named. "They repeat ..." follows "Lines 4 to 8". Refusal right.
-- Night 146 m64: it contests line 3, `echo_json_output_format`. "It also points at the existing echo function ..." follows "Line 5", and line 5 is the prediction of bg_3. The surface ref of the criterion at the night end is also `src/click/utils.py::echo`, so the seat may have read "It" as line 3. The grammar binds "It" to line 5, and the criterion does not say "return a string". Refusal right, with doubt. No high.
-
-Outside the points:
-
-- The line-1 refusal near `api.py` 8780 still uses the old unnumbered test, not `_unnumbered`. The pass report names it. No case shows it. Low.
-- `_LINE_WORD` leaves alone any reply that holds "note" or "notes", for example "Please note that ...". That is a bypass of `_agreed_contest`. No case shows it. Low.
-- `request_lines` comes from `_is_request_item`, which leaves out a delivered item. After a merge, the line of that item loses the item spare until its version moves. No case among the 160 shows it. Low.
+Outside the points: none at high. The neighbour files `test_request_page.py`, `test_frame250_verdict_faults.py`, `test_frame296_revise_note_text.py` and `test_park_page.py` give `144 passed, 5 xfailed`. `test_frame234_verdict_lines.py` gives `89 passed, 4 xfailed`. No prompt under `rota/roles/prompts` quotes the old text.
 
 ## (c) Probes
 
-All probes are under `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/cc1d654e-81ee-41bf-8230-9fa3f5a060b9/scratchpad/f258/rev1/`. Every night database was opened `mode=ro`.
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/b00cc646-4611-4fd9-8f73-b6b404eeda3a/scratchpad/f258r1/`.
 
-1. `run_count.py` runs the `count.py` of the pass with `sys.path` on the worktree. The main checkout has an uncommitted `rota/roles/api.py` from another frame, so it was not used. Output in `head.out`, then in `parent.out` with `api_db7c950d.py`. That file is byte-equal to `git show db7c950d:rota/roles/api.py`. Result: a 160 and b 204, refused 72 against 56, and 17 b refusals at both.
-2. `pair.py` compares the a sections of the two outputs. `moved.txt` holds the 18 moved maps with the refusal texts.
-3. A `python -c` call checks `_BARE_AGREEMENT` on the m119, m132 and m140 openings. All three return False.
-4. `bthree.py` runs the night 150 named-line maps m7, m67 and m78 through the same door at HEAD. All three return None.
-5. A heredoc reads the full words and `per_item` of night 146 m64, night 150 m317, m38 and m25, and night 149 m25. It also reads the criteria texts of night 146.
-6. `pytest` ran `test_frame234_verdict_lines.py`, `test_frame250_verdict_faults.py`, `test_frame255_files_correction.py` and `test_request_page.py` with `ROTA_MODEL=qwen3:8b`. Result: 181 passed, 5 xfailed. `git diff db7c950d e445aa64 --stat -- tests/` shows that only the frame 234 file changed.
-
-The probes replay `_line_refusal` with inputs that the `door()` function of the count rebuilds. They are not a live `rulings_rule` call. The rebuild matches `rulings_rule` at 9271-9296. The one difference: it takes `request_lines` from the "You asked:" header of the page, because the night-end state marks some items delivered.
+- `probe_false_refusal.py`: five request corrections through `_line_refusal`, with and without the criteria texts. The script also checks `_KEEP_CHANGE` on six sentences.
+- `probe_full_path.py`: a spy on `_line_refusal` under the m66 fixture. The spy showed the door refuses REST, M67 and the false-refusal sentence on the full path.
+- `probe_keep.py`: the negated keep through `_line_refusal`.
+- pytest with `-n 0` on the 6 test files above, in `C:/Users/roman/rota_p258`.
+- Greps: `tests/rota/cases/*.yaml` and `rota/roles/prompts` for the old text and for "have no ruling".
 
 ## (d) Usage
 
-The harness counter fell about 85k over the review. The agent cannot see the input and output split. The estimate is about 75k input and 10k output, 85k total. That is over the 60k cap, because each turn reads the context again.
+Input about 60k tokens, output about 9k tokens, total about 69k.
