@@ -21,12 +21,16 @@ and blocked on Roman.
 
 - Frame 306's route, sprint 18 row 8: designed in
   `plans/frame306-route-design.md` and built, a shape detector into the
-  stray route and a notice of foreseen strays under the Done line. Four
-  commits on the branch at 8b20fb70 to d272edbd, accepted on
-  `plans/frame306-review-3.md`. Its case, sprint 19 row 1, is at 97fbdcac
-  in `rota_p306c`: the lines check refuses evidence from a file that is
-  not code, and `foreseen` is refused on a no-code file in a new
-  directory. See the frame's last status line for where its review ended.
+  stray route and a notice of foreseen strays under the Done line, in
+  `rota_p306b` at c1879bf1, accepted on `plans/frame306-review-3.md`. Its
+  case, sprint 19 row 1, is in `rota_p306c` at 40276a10: the lines check
+  refuses evidence from a file that is not code. **Both are reverted on
+  the branch**: the gate on 0e16a18e showed 52 scene reds in
+  `test_scene_review.py` and `test_scene_large_module.py`, because the
+  detector raises stray rows on the scenes' every rewritten line and the
+  merges hold. The next pass reads the scene reds before it narrows: see
+  the frame's last status line. The lines check can land alone after a
+  gate.
 - Frame 283: met on night 3 of 3. Its whole-file gap, found by frame 306's
   review, was built as pass 5 in `rota_p283b` at 28cb0d00, and the gate on
   c49fcf7c showed 67 new reds from it: the Developer scenes rewrite whole
@@ -71,4 +75,8 @@ open from before.
 - Night 162's records: `.rota/clickI_night162.db`, `.rota/night162.log`,
   `.rota/night162_report.txt`, `.rota/night162_truth.txt`. The read brief
   form is `n162_read_brief.md` in my scratchpad.
-- The reserve held no free standby at 10:57.
+- The branch head is b29b6d8b: 214d22d0's code tree with the day's
+  docs, gated clean but for the floor case at 07:33. It is night 163's
+  head unless the taker lands the lines check and gates it first.
+- `rota_g301` is detached at 0e16a18e; move it to the head before a gate.
+- The reserve held no free standby at 11:20.
