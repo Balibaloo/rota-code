@@ -3119,6 +3119,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 f"row, the thing to send is the row that talks about it")
         # A signoff submit carries every draft its wake named (frame 261).
         api.refuse_signoff_without_draft(ctx, recipient, verb, refs)
+        # A signoff submit carries the items its wake named and no other
+        # (frame 316, W3 of night 163).
+        refs = api.signoff_own_refs(ctx, recipient, verb, refs)
 
         # The principal is the one recipient that does not share the database.
         # They have seen the transcript and whatever came out of it; they have
@@ -3655,10 +3658,20 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # items alone, five of five.
         if verb == "present" and ctx.trigger:
             row = ctx.conn.execute(
-                "SELECT verb FROM messages WHERE id = ?",
+                "SELECT verb, body_refs FROM messages WHERE id = ?",
                 (ctx.trigger,)).fetchone()
             if row is not None and row["verb"] == "submit":
+                from ..core.db import refs_of
                 from ..roles.principal import uncovered_statements
+
+                # law 8: signoff is per-item approval, presented as one document
+                # A submit page shows the submitted items' rows and no other
+                # item's. Night 163's s152 copied six items onto m48, and his
+                # contest of item 1's rows cancelled bg_1 (frame 316, W3).
+                sent = set(refs_of(row["body_refs"]))
+                if sent:
+                    refs = [r for r in refs if r in sent or not ctx.conn.execute(
+                        "SELECT 1 FROM items WHERE id = ?", (r,)).fetchone()]
 
                 uncovered = [r["id"] for r in uncovered_statements(ctx.conn)]
                 refs += [r for r in uncovered if r not in refs]

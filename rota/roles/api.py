@@ -776,6 +776,25 @@ def refuse_signoff_without_draft(ctx: Ctx, recipient: str, verb: str,
         "msg.submit_liaison", {"refs": full}))
 
 
+def signoff_own_refs(ctx: Ctx, recipient: str, verb: str, refs: list) -> list:
+    """The refs of a signoff submit less each item that its wake did not name."""
+    # law 8: signoff is per-item approval, presented as one document
+    # Night 163's s151 read `problem.consult` and submitted all six items
+    # beside the one draft that woke it. Page m48 then carried item 1's
+    # item, guess and criteria as lines 3 to 6, and his "take lines 3 to 6
+    # off" cancelled bg_1 (frame 316, W3 of night 163). The door drops the
+    # extra items and keeps every other ref, so a recorded submit still lands.
+    if (getattr(ctx, "role", None) != "vision_keeper"
+            or getattr(ctx, "wake_kind", "") != "tick:signoff"
+            or recipient != "liaison" or verb != "submit"):
+        return refs
+    woke = {r for r in (getattr(ctx, "wake_refs", ()) or ()) if isinstance(r, str)}
+    if not woke:
+        return refs
+    return [r for r in refs or [] if r in woke or not ctx.conn.execute(
+        "SELECT 1 FROM items WHERE id = ?", (r,)).fetchone()]
+
+
 def answered_question(conn: sqlite3.Connection, text: str | None
                       ) -> tuple[str, str] | None:
     """
@@ -1475,6 +1494,84 @@ def _request_cause_fault(ctx: Ctx, id: str, row, wake: str,
         f"Liaison brings it to the principal.", ask, {"refs": refs})
 
 
+def _reply_sentence_fault(ctx: Ctx, id: str, text: str, row,
+                          wake_refs: list[str]) -> str | None:
+    """
+    The refusal for an item text that is a sentence of his reply which this
+    wake does not carry, or None.
+
+    Night 163's s167, on a contest of m49's words, asserted his m61 refusal
+    "I don't know whether that example is there, ..." as item 1's text.
+    Pages m70 and m92 then showed it under "You asked" (frame 316, W3). A
+    sentence that the wake carries stays an amend, as `_amend_step` offers.
+    A sentence inside a statement row is a reading he ratified, so it stays.
+
+    law 11: decided rows rest on a ratified statement or landed ruling
+    """
+    from ..core.db import refs_of
+
+    new = _prose_words(text)
+    if len(new) < 4:
+        return None
+    # What the wake carries: its refs, the trigger's refs and entry, and the
+    # words of each contest on the items it names.
+    carried: list[str] = []
+    named = set(wake_refs)
+    trigger = getattr(ctx, "trigger", None)
+    if trigger:
+        named.add(f"e_{trigger}")
+        if row is not None:
+            named |= set(refs_of(row["body_refs"]))
+    for ref in named:
+        for table in ("entries", "statements"):
+            hit = ctx.conn.execute(f"SELECT text FROM {table} WHERE id = ?",
+                                   (ref,)).fetchone()
+            if hit and hit["text"]:
+                carried.append(hit["text"])
+    from ..core.runner import _resolve_contest
+
+    for ref in wake_refs:
+        for r in ctx.conn.execute(
+                "SELECT words FROM rulings WHERE status = 'landed' "
+                "AND per_item LIKE ?", (f'%"{ref}"%',)):
+            if r["words"]:
+                carried.append(r["words"])
+        said = _resolve_contest(ctx.conn, ref).get("principal_said")
+        if said:
+            carried.append(said)
+    carried_sents = [s for c in carried for s in _sentences(c)]
+    ratified = [r["text"] for r in ctx.conn.execute(
+        "SELECT text FROM statements WHERE text <> ''")]
+
+    def _match(sent: str) -> bool:
+        return _same_words(text, sent) or _near_duplicate(
+            new, _prose_words(sent), min_ratio=0.8)
+
+    for entry in ctx.conn.execute(
+            "SELECT e.id, e.text FROM entries e JOIN messages m "
+            "ON e.id = 'e_' || m.id WHERE e.author = 'principal' "
+            "AND m.from_role = 'principal' ORDER BY e.ts_order DESC"):
+        for sent in _sentences(entry["text"]):
+            if not _match(sent):
+                continue
+            if any(_match(c) for c in carried_sents):
+                continue
+            if any(sent in s or _match(s) for s in ratified):
+                continue
+            # A refusal names only a call the mode offers (frame 135's law).
+            tools = _wake_mode_tools(ctx)
+            step = ("Send msg.report_liaison with what the item should say."
+                    if "msg.report_liaison" in tools else
+                    "Assert only what he asked for.")
+            if "decisions.author" in tools:
+                step += " Or answer with decisions.author"
+            return (f"those are his words from his reply {entry['id']}, "
+                    f"{sent!r}. That reply answers the team, and this wake "
+                    f"does not carry it, so it is not the text of {id}. "
+                    f"{step}")
+    return None
+
+
 def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     """
     The refusal for an assert that puts the seat's words on the principal's
@@ -1514,6 +1611,9 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
                  if isinstance(r, str)]
     if wake == "tick:contested" and wake_refs and id not in wake_refs:
         return _contested_elsewhere(ctx, id, cur is not None, wake_refs)
+    reply = _reply_sentence_fault(ctx, id, text, row, wake_refs)
+    if reply:
+        return reply
     if cur is None:
         if verb == "challenge":
             try:

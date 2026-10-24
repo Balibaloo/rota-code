@@ -1,0 +1,187 @@
+"""
+Frame 316 with 315, W3 of night 163: a contest of another item's rows.
+
+Night 163 met the wall in three hops (`plans/night163-walk1-read.md`,
+sections 3 and 4). The signoff s151 submitted six items beside the one
+draft that woke it, so page m48 under item 3 carried item 1's item, guess
+and criteria as lines 3 to 6. His m49 "take lines 3 to 6 off this page"
+contested item 1, and the cancel predicate abandoned bg_1. On the contested
+wake, s167 stored his m61 refusal as item 1's text, and pages m70 and m92
+showed it under "You asked".
+
+The fixture has the shape of night 163's rows: two requests, item 1
+approved with a live batch, item 3 a draft.
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from rota.core.db import init_db
+from rota.core.predicates import Wake
+from rota.core.sandbox import build
+from rota.roles.principal import Answer, land, pending_asks, verdict_for
+from rota.testkit.fixtures import seed_provenance, seed_ref
+
+ITEM1 = "format_filename_example"
+ITEM3 = "clear_returns_bool"
+DESCRIPTIONS = ["defines_commands_and_options", "how_it_works",
+                "parses_and_executes_inputs", "provides_command_line_interface"]
+S151_SUBMIT = [ITEM3, "defines_commands_and_options", ITEM1, "how_it_works",
+               "parses_and_executes_inputs", "provides_command_line_interface"]
+M48_REFS = S151_SUBMIT + ["c_1", "c_2", f"guess:{ITEM3}", f"guess:{ITEM1}"]
+M49 = ("Line 3 is about the format_filename docstring, which was my first "
+       "change, not this one. Please take lines 3 to 6 off this page and keep "
+       "only the clear() work. For clear(), the output stays the same and only "
+       "the return value changes.")
+M61 = ("I don't know whether that example is there, and it doesn't matter here "
+       "because the format_filename docstring is my first change, not this one. "
+       "Please drop format_filename from this page completely and plan only the "
+       "clear() work, where the output stays the same and only the return value "
+       "changes.")
+M61_FIRST = M61.split(". ")[0] + "."
+
+
+@pytest.fixture
+def db(tmp_path):
+    conn = init_db(tmp_path / "rota.db")
+    for n, (entry, order, item, approval, text) in enumerate((
+            ("e_p1", 1, ITEM1, "approved",
+             "Give format_filename one example in its docstring: with shorten "
+             "set to True, the path a/b/c.txt shows as c.txt."),
+            ("e_p3", 3, ITEM3, "draft",
+             "Make clear() return True when it cleared the screen and False "
+             "when stdout is not a terminal.")), start=1):
+        conn.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+                     "(?, 'principal', ?, ?)", (entry, order, text))
+        conn.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+                     "text, status) VALUES (?, ?, 0, 10, ?, 'ratified')",
+                     (f"s{n}", entry, text))
+        conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                     "version) VALUES (?, ?, 'in_scope', ?, 1, 1)",
+                     (item, f"the {item} change", approval))
+        seed_ref(conn, "items", item, "statement", f"s{n}")
+        seed_provenance(conn, "items", item, "decided")
+    for item in DESCRIPTIONS:
+        conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                     "version, is_description) VALUES (?, ?, 'in_scope', "
+                     "'approved', 1, 1, 1)", (item, f"Click {item}"))
+        seed_provenance(conn, "items", item, "observed")
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1', ?, 'a ticket')",
+                 (ITEM1,))
+    for crit in ("c_1", "c_2"):
+        conn.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) "
+                     "VALUES (?, 'tk_1', 'a criterion', '[]')", (crit,))
+    conn.execute("INSERT INTO batches (id, item_id, status) VALUES ('bg_1', ?, 'running')",
+                 (ITEM1,))
+    conn.commit()
+    return conn
+
+
+def _approval(db, item):
+    return db.execute("SELECT approval FROM items WHERE id = ?", (item,)
+                      ).fetchone()["approval"]
+
+
+def test_s151_signoff_submit_carries_only_the_woken_draft(db):
+    """Hop 1: s151 sent six refs on a wake that named item 3 only."""
+    vk = build("vision_keeper", db, mode="normal",
+               wake=Wake("vision_keeper", "tick:signoff", refs=(ITEM3,)))
+    vk.call("msg.submit_liaison", refs=list(S151_SUBMIT))
+    assert [m["body_refs"] for m in vk.ctx.outbound] == [[ITEM3]]
+
+
+def test_m48_submit_page_shows_only_item_3s_rows(db):
+    """Hop 1: s152 presented m48 on six items for a submit of item 3."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m47', 'th', 'vision_keeper', "
+               "'liaison', 'submit', ?, 1, 'open')", (json.dumps([ITEM3]),))
+    db.commit()
+    li = build("liaison", db, mode="normal",
+               wake=Wake("liaison", "message", "m47", refs=(ITEM3,), detail="submit"))
+    # The runner sets the trigger after the build.
+    li.ctx.trigger = "m47"
+    li.call("msg.present_principal", refs=list(S151_SUBMIT))
+    refs = li.ctx.outbound[0]["body_refs"]
+    assert ITEM3 in refs
+    for row in (ITEM1, "c_1", "c_2", f"guess:{ITEM1}", *DESCRIPTIONS):
+        assert row not in refs, refs
+
+
+def test_m49_takes_item_1s_rows_off_and_leaves_item_1_approved(db):
+    """Hop 2: his m49 on a page that carries item 1's rows, as m48 did."""
+    for mid, cause, frm, to, verb, seq, status in (
+            ("m47", None, "vision_keeper", "liaison", "submit", 1, "answered"),
+            ("m48", "m47", "liaison", "principal", "present", 2, "open")):
+        db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, "
+                   "verb, body_refs, seq, status) VALUES (?, 'th', ?, ?, ?, ?, ?, ?, ?)",
+                   (mid, cause, frm, to, verb, json.dumps(M48_REFS), seq, status))
+    db.commit()
+    ask = pending_asks(db)[0]
+    per_item = {ITEM3: "approve", f"guess:{ITEM3}": "approve",
+                **{d: "approve" for d in DESCRIPTIONS},
+                ITEM1: "contest", f"guess:{ITEM1}": "contest",
+                "c_1": "contest", "c_2": "contest"}
+    mid = land(db, ask, Answer(verb="verdict", text=M49, per_item=per_item))
+    db.commit()
+    assert _approval(db, ITEM1) == "approved"
+    assert _approval(db, ITEM3) == "approved"
+    ruled = verdict_for(db, mid)
+    for row in (ITEM1, f"guess:{ITEM1}", "c_1", "c_2"):
+        assert row not in ruled, ruled
+    # The cancel predicate abandons a live batch whose item is not approved.
+    assert db.execute("SELECT status FROM batches WHERE id = 'bg_1'"
+                      ).fetchone()["status"] == "running"
+
+
+def test_a_contest_of_a_draft_of_another_request_still_lands(db):
+    """A signoff page asks about each draft, so its contest stays."""
+    db.execute("UPDATE items SET approval = 'draft' WHERE id = ?", (ITEM1,))
+    for mid, cause, frm, to, verb, seq, status in (
+            ("m47", None, "vision_keeper", "liaison", "submit", 1, "answered"),
+            ("m48", "m47", "liaison", "principal", "present", 2, "open")):
+        db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, "
+                   "verb, body_refs, seq, status) VALUES (?, 'th', ?, ?, ?, ?, ?, ?, ?)",
+                   (mid, cause, frm, to, verb, json.dumps([ITEM3, ITEM1]), seq, status))
+    db.commit()
+    land(db, pending_asks(db)[0],
+         Answer(verb="verdict", text="Line 2 is wrong.",
+                per_item={ITEM3: "approve", ITEM1: "contest"}))
+    assert _approval(db, ITEM1) == "contested"
+
+
+def _contested_wake(db):
+    for mid, seq, text in (("m49", 10, M49), ("m61", 20, M61)):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                   "body_refs, body_text, seq, status) VALUES (?, 'th', 'principal', "
+                   "'liaison', 'converse', '[]', ?, ?, 'answered')", (mid, text, seq))
+        db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+                   "(?, 'principal', ?, ?)", (f"e_{mid}", seq, text))
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m49', ?)",
+               (json.dumps({ITEM1: "contest"}),))
+    db.execute("UPDATE items SET approval = 'contested' WHERE id = ?", (ITEM1,))
+    db.commit()
+    return build("vision_keeper", db, mode="normal",
+                 wake=Wake("vision_keeper", "tick:contested", refs=(ITEM1,)))
+
+
+def test_s167_assert_of_his_m61_refusal_is_refused(db):
+    """Hop 3: s167 turn 4 stored m61's first sentence as item 1's text."""
+    vk = _contested_wake(db)
+    with pytest.raises(ValueError) as exc:
+        vk.call("problem.assert", id=ITEM1, text=M61_FIRST, kind="in_scope")
+    assert "e_m61" in str(exc.value)
+    assert M61_FIRST in str(exc.value)
+    assert db.execute("SELECT text FROM items WHERE id = ?", (ITEM1,)
+                      ).fetchone()["text"] == f"the {ITEM1} change"
+
+
+def test_a_sentence_the_contest_carries_stays_an_amend(db):
+    """The m49 sentence about the item is the words of the contest."""
+    from rota.roles.api import _reply_sentence_fault
+
+    vk = _contested_wake(db)
+    said = ("For clear(), the output stays the same and only the return value "
+            "changes.")
+    assert _reply_sentence_fault(vk.ctx, ITEM1, said, None, [ITEM1]) is None
