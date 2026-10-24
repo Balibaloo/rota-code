@@ -39,3 +39,22 @@ All probes are under C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e714
 About 45k input tokens and about 9k output tokens, about 54k in total. These are estimates. The harness gives no exact count.
 
 Stands: 80f7d211 stands for m48 through hop 1. Hop 2 needs findings 1 and 2 before it protects the night's shape. The supersede link of finding 1 is the open cause.
+
+## Re-check of 1b513c31
+
+Result: 1b513c31 closes findings 1, 3 and 4. Finding 2 is moot because hop 2 is gone. One new low finding is open.
+
+- Finding 1, closed, CONFIRMED. `_named_surfaces` gives {format_filename} for s1 and {clear} for e_p3, so the door refuses s146's `supersedes='s1'`. With s2 unlinked on probe.db, `current_request` gives m_p3, and `off_page(m48)` drops c_1, c_2, format_filename_example and guess:format_filename_example.
+- A correction of the same function still lands. "Make format_filename show two examples ..." names {format_filename}, and test_a_follow_up_on_the_same_function_keeps_supersedes passes.
+- Finding 2 is moot. The hop 2 rule is removed, and `off_page` now holds the night's shape.
+- Finding 3, closed. The submit result note names each dropped item and the wake's items (sandbox.py, the `signoff_dropped` block). test_s151 checks it.
+- Finding 4, closed. The refusal now says "no statement holds that sentence yet" and no longer says that the text is not the item's text.
+- Frame 193: test_frame193_pass3 and test_frame316_w3 give 33 passed on the archive.
+- New finding 6, rota/roles/api.py `_named_surfaces`, low, CONFIRMED. The regex `\b([A-Za-z_]\w*)\s*\(` reads a prose word before a parenthesis as a called name. "Also make it return False when the terminal (TERM=dumb) cannot clear." gives {terminal}. That correction of clear() would be refused as a new request. Fix: drop the `\s*` so that only `name(` with no space counts as a call.
+- Finding 5 (the present filter keeps a criterion that the Liaison names directly) stays open, as the implementer says.
+
+Probes: the archive of 1b513c31 is at scratchpad/a1b5, with a copy of the register of C:/Users/roman/rota_r316w3. r1.py ran `_named_surfaces` on the night's texts and on four corrections. r2.py ran `off_page` on probe.db with s2 unlinked. pytest ran the two test files.
+
+Usage of the re-check: about 12k input tokens and about 3k output tokens, about 15k in total, estimated.
+
+Stands: 1b513c31 stands. Finding 6 and finding 5 are low and can go in the next pass.
