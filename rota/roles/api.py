@@ -16203,12 +16203,34 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
         said = (f"The run of this body on the batch's head raises at line "
                 f"{fault['line']}, `{quote}`: `{error}`. The test fails in its "
                 f"own arrange step, and no code can pass it.")
-        if fault["rule"] == "signature":
+        # Frame 304, night 162: the step named `custom_version_option`, a
+        # name from the body, and s351 filed faults against it. The batch
+        # changes `version_option`. Cause 9: a door's text points the wrong
+        # way. So the step names only a criterion surface that the batch's
+        # touch rows also name. A criterion with one surface needs no row.
+        touched = {str(g).rsplit("::", 1)[-1] for (g,) in ctx.conn.execute(
+            "SELECT grain FROM batch_touch WHERE batch_id = ? "
+            "AND grain_kind = 'symbol'", (batch_id,))}
+        target = sorted(surface & touched) or (
+            sorted(surface) if len(surface) == 1 else [])
+        names = " or ".join(f"`{t}`" for t in target)
+        kind = error.split(":", 1)[0].strip() or "an error"
+        if fault["rule"] == "signature" and fault["name"] in target:
             step = (f"Call `{fault['name']}` with "
                     f"{', '.join(f'`{a}`' for a in fault['attr'])}, because "
                     f"its signature requires it.")
+        elif fault["rule"] == "signature" and target:
+            step = (f"Line {fault['line']} raises `{kind}` before the call "
+                    f"under test runs. The criterion's surface is {names}, "
+                    f"so call {names} in the test and assert on its result.")
+        elif target:
+            step = (f"Line {fault['line']} raises `{kind}` before the call "
+                    f"of {names} runs. Fix line {fault['line']} so that it "
+                    f"runs.")
         else:
-            step = f"Fix line {fault['line']} so that it runs."
+            step = (f"Line {fault['line']} raises `{kind}` before the call "
+                    f"under test runs. Fix line {fault['line']} so that it "
+                    f"runs.")
     # The stdin route of frame 254 fits a click body that stubs stdin, as in
     # pass 1b's texts.
     try:
