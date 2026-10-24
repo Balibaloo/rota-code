@@ -2803,6 +2803,15 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                     (ref,)).fetchone()
                 if hit:
                     resolved[ref] = {**dict(hit), "table": "decisions"}
+            # Frame 303: a report carries refs only (ruled 2026-08-15), so
+            # the Liaison relays what the refs say. Night 162's s232 got
+            # `["b_2"]` and no row. It wrote its brief's invoice example as
+            # the question m110. A batch travels with its item's text, its
+            # state and its last verdict. Other seats keep their prompts.
+            if role == "liaison" and ref not in resolved:
+                batch = _batch_row(conn, ref)
+                if batch:
+                    resolved[ref] = batch
     if role == "tester" and detail == "answer":
         # Frame 317, night 161: an answer refs criteria only. So s364 and
         # s410 saw no test and no run, and s364 removed the fix that
@@ -2830,6 +2839,25 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
             resolved.update(_resolve_refs(conn, named, role=role,
                                           detail=detail))
     return resolved
+
+
+def _batch_row(conn: sqlite3.Connection, ref: str) -> dict[str, Any] | None:
+    """A batch as the Liaison relays it: the item's words, the state, the
+    head commit and the last verdict. A merge is the state `merged`."""
+    hit = conn.execute(
+        "SELECT b.id, b.item_id, i.text AS item_text, b.status, b.head_commit "
+        "FROM batches b LEFT JOIN items i ON i.id = b.item_id "
+        "WHERE b.id = ?", (ref,)).fetchone()
+    if not hit:
+        return None
+    row = {**dict(hit), "table": "batches"}
+    verdict = conn.execute(
+        "SELECT result, failed_criterion, reason FROM verdicts "
+        "WHERE batch_id = ? ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone()
+    if verdict:
+        # Empty fields say nothing, so they stay out of the prompt.
+        row["last_verdict"] = {k: v for k, v in dict(verdict).items() if v}
+    return row
 
 
 def _raising_line_head(output: str) -> str:
