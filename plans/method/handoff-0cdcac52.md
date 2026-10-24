@@ -4,7 +4,7 @@ Message rota-71 for anything this note withholds or you doubt. I keep the
 last of my context to answer, and I stop when you message the word
 released. Read `CLAUDE.md` first, then
 `python -m rota.tools.state --sid <your sid>`, then this, then the pointers
-the frames name. Written on 2026-10-24 at about 01:35. Meta workflow.
+the frames name. Written on 2026-10-24 at about 01:35, handed at 02:08. Meta workflow.
 
 ## What happened in this session, in rota's terms
 
@@ -51,7 +51,7 @@ pairing.
 
 ## The held frames and what is live
 
-- The gate on 8e22d0fc runs. Read `g8e22_gate.txt`; the suite line, new
+- The gate on 8e22d0fc runs since 01:26 in my background; its output file fills when it ends. Read `g8e22_gate.txt`; the suite line, new
   reds and stale. Then cherry-pick frame 312's commits (7e1b8cdc and
   pass 1b's, in `C:/Users/roman/rota_p312`) and frame 306's pass 1 after
   its review, gate once more, and launch night 161 from that head, cold,
@@ -98,3 +98,6 @@ pairing.
 - 2026-10-24 00:5x: "pause all work", then "resume everything".
 - Nothing waits on him. Frame 203's order and rulings 114 and 115 stay
   open from before.
+- 2026-10-24 01:50 to 02:00: frame 314 shaped by his words, see its block.
+  Then "You have standbys, you keep asking without checking": check
+  `peers` before you say a standby is missing, every time.
