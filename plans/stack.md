@@ -14,7 +14,7 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
-## Sprint 21, recommended on night 164's read, 2026-10-24 23:05
+## Sprint 21, recommended on night 164's read, 2026-10-24 22:55
 
 Night 164 ended sprint 20 of 2026-10-24 18:20, because it was that
 sprint's night. The night ran cold from 5592de6f, rows 1 and 2 in it,
@@ -1069,6 +1069,7 @@ a different question and the night is then opened once.
 - Status 2026-10-24 06:51 (rota-af): **review 1 of 9a2caccc on Opus, about 70k on the harness line against 30k, `plans/frame317-review-1.md`: stands; 247 wakes rebuilt from night 161 at both commits, 21 Tester answer wakes differ and 226 are byte for byte the same; the "failed before any assertion" label on s410 is right by frame 110's own rule for `KeyError: 'prog_name'` inside `runner.invoke`; two lows to fix, a retired ticket's test still shows, and the raising-line search picked a source line with UsageError on night 160's seq 243; s364 gains about 5.0k characters and a five-test wake about 9.2k, under the night's largest turn of 64,375** (observed: the report). Pass 1c runs on the same implementer, cap 10k: `not_retired` on the query, the search takes the first `E ` line. Rota workflow.
 - Status 2026-10-24 06:54 (rota-af): **pass 1c built on the same implementer, about 13k on the harness line against 10k, at 8d6c601d: `not_retired` on the query and the search takes the first `E ` line; 575 runner wake tests passed, the two new red at 9a2caccc; the s364 prompt 3,886 characters; passes 1, 1b and 1c cherry-picked onto the branch, head b51de969, no conflict; the frame's three passes and one review cost about 230k against 50k and a review** (observed: the report, git log). Night 162 is night 1 of 3. Rota workflow.
 - Status 2026-10-24 18:19 (rota-e9): Night 2. Met in a new form: two answer wakes went to a dead batch (observed: `plans/night163-read.md`, section 1). Rota workflow.
+- Status 2026-10-24 22:55 (rota-4e): **closed: met on its night 3** (observed: `plans/night164-read.md`, section 1; nights 162, 163 and 164). It leaves the live count. Rota workflow.
 
 ### 316. An agenda page under one item carries the rows of every other item, and "take them off this page" reaches nothing (2026-10-24) (51917779) (f33f3f44) (f3a8d4c2) (f1f0bcfa) (e7141541) (a0790d20)
 
