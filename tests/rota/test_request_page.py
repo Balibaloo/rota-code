@@ -424,6 +424,14 @@ def test_a_note_about_an_inherited_test_reaches_no_request(db):
         db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
                    "kind, status, author) VALUES (?, ?, ?, ?, 'default', 'open', "
                    "'developer')", (lid, ref, table, text))
+    # s198 was bg_2's Developer. The notes reach no request even through
+    # the writer's batch (frame 316's review 2, finding 4).
+    db.execute("INSERT INTO sessions (id, role, seq) VALUES ('s198', 'developer', 1)")
+    db.execute("INSERT INTO checkpoints (session_id, role, batch_id, working_set) "
+               "VALUES ('s198', 'developer', 'bg_2', '[]')")
+    for lid in ("l_a94d65762d", "l_96c403d182"):
+        db.execute("INSERT INTO receipts (session_id, table_name, row_id, new_version) "
+                   "VALUES ('s198', 'ledger', ?, 1)", (lid,))
     db.commit()
     (wake,) = tick_agenda(db, principal_present=True)
     assert wake.refs == ("l_req", "l_a94d65762d", "l_96c403d182")

@@ -1093,24 +1093,31 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     # law 8: a lineage's assumptions are presented at its gates
     # A page is about one item and carries that item's rows. Night 162's
     # version pages carried 28 rows of the two merged items, and a drop of
-    # them changed a version test (frame 316, pass 2). The live batch's
-    # item goes first, then the open requests, then the oldest row's item.
-    # The rows of another item wait for that item's page.
+    # them changed a version test (frame 316, pass 2). The rows of another
+    # item wait for that item's page.
+    # The item of the oldest row that no page has shown goes first, so every
+    # row ages onto a page before its batch merges. A running item first
+    # left the queued item's rows to park unseen (frame 316's review 2,
+    # finding 3). Then the running batch's item, then the open requests.
     from ..roles.principal import open_requests
+    from .db import refs_of
     from .lifecycle import ledger_items
-    from .runner import _is_description
 
-    def items_of(ref: str) -> set[str]:
-        # The account belongs to no request, so its rows ride on every page,
-        # as in `off_page` (the review of 61a0f41d, finding 2).
-        return {i for i in ledger_items(conn, ref) if not _is_description(conn, i)}
-
-    reach = {r["id"]: items_of(r["id"]) for r in chosen}
+    reach = {r["id"]: ledger_items(conn, r["id"]) for r in chosen}
     found = set().union(*reach.values())
     if found:
-        order = [r["item_id"] for r in conn.execute(
-            "SELECT item_id FROM batches WHERE status = 'running' ORDER BY id")]
-        order += open_requests(conn)
+        running = [r["item_id"] for r in conn.execute(
+            "SELECT item_id FROM batches WHERE status = 'running' ORDER BY rowid")]
+        merged = {r["item_id"] for r in conn.execute(
+            "SELECT item_id FROM batches WHERE status = 'merged'")}
+        shown: set[str] = set()
+        for m in conn.execute("SELECT body_refs FROM messages "
+                              "WHERE to_role = 'principal'"):
+            shown.update(refs_of(m["body_refs"]))
+        order = [i for r in chosen if r["id"] not in shown
+                 for i in sorted(reach[r["id"]], key=lambda i: i not in running)
+                 if i not in merged]
+        order += running + open_requests(conn)
         order += [i for r in chosen for i in sorted(reach[r["id"]])]
         page = next(i for i in order if i in found)
         # A row of no item and no batch has no page of its own, so it rides
@@ -1119,7 +1126,7 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
                   + [r for r in chosen if not reach[r["id"]]])
 
         def on_page(ref: str) -> bool:
-            items = items_of(ref)
+            items = ledger_items(conn, ref)
             return not items or page in items
 
         replies = {ref for ref in replies if on_page(ref)}

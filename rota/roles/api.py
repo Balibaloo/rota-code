@@ -12328,10 +12328,24 @@ def ledger_unaddressed(ctx: Ctx, about_ref: str, question: str) -> dict:
 
 
 @op("ledger", "list")
-def ledger_list(ctx: Ctx) -> list[dict]:
-    return _rows(ctx.conn.execute(
-        "SELECT id, about_ref, about_table, default_taken, author FROM ledger "
-        "WHERE status = 'open' ORDER BY id"))
+def ledger_list(ctx: Ctx, shipped: str | None = None) -> list[dict] | dict:
+    """
+    The open ledger rows. With `shipped`, the id of a merged item: the rows
+    that were open when that item merged, under their own heading.
+    """
+    if shipped is None:
+        return _rows(ctx.conn.execute(
+            "SELECT id, about_ref, about_table, default_taken, author FROM ledger "
+            "WHERE status = 'open' ORDER BY id"))
+    # The shipped line says "Ask me to show them", and this is the route to
+    # the words (frame 316's review 2, finding 2).
+    from ..core.lifecycle import ledger_items
+
+    rows = [r for r in _rows(ctx.conn.execute(
+        "SELECT id, about_ref, about_table, kind, default_taken, author FROM ledger "
+        "WHERE status = 'parked' ORDER BY id"))
+        if shipped in ledger_items(ctx.conn, r["id"])]
+    return {f"open when {shipped} shipped": rows}
 
 
 @op("decisions", "author")

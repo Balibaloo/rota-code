@@ -126,14 +126,39 @@ def test_a_row_of_no_item_and_no_batch_stays_on_the_live_page(db):
 
 
 def test_the_rows_of_another_open_item_wait_for_its_page(db):
-    """Two live items: the running batch's item goes first. The other
-    item's rows come on the next page, and no row is lost."""
+    """Two live items: the item of the oldest row no page has shown goes
+    first. The other item's rows come on the next page, and no row is
+    lost."""
     _batch(db, "b_3", VERSION, "running")
     _notes(db, [("l_c0", "c_2"), ("l_v0", "c_3"), ("l_c1", "tk_2"), ("l_v1", "c_3")])
-    assert _page(db) == ["l_v0", "l_v1"]
-    db.execute("UPDATE ledger SET status = 'resolved' WHERE id IN ('l_v0', 'l_v1')")
-    db.commit()
     assert _page(db) == ["l_c0", "l_c1"]
+    db.execute("UPDATE ledger SET status = 'resolved' WHERE id IN ('l_c0', 'l_c1')")
+    db.commit()
+    assert _page(db) == ["l_v0", "l_v1"]
+
+
+def _shown(db, mid, refs):
+    """A page that the principal answered and that left its rows open."""
+    import json
+
+    seq = db.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM messages").fetchone()[0]
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES (?, 'th', 'liaison', 'principal', "
+               "'present', ?, ?, 'answered')", (mid, json.dumps(refs), seq))
+    db.commit()
+
+
+def test_a_queued_items_row_reaches_a_page_within_two_ticks(db):
+    """Review 2, finding 3: the probe added a version row on each of 5
+    ticks, and the confirm row l_c0 was on none of the 5 pages. Its batch
+    then merged, and the row parked unseen."""
+    _batch(db, "b_3", VERSION, "running")
+    _notes(db, [("l_v0", "c_3"), ("l_c0", "c_2"), ("l_v1", "c_3")])
+    first = _page(db)
+    assert first == ["l_v0", "l_v1"]
+    _shown(db, "m1", first)
+    _notes(db, [("l_v2", "c_3")])
+    assert _page(db) == ["l_c0"]
 
 
 def test_m237_a_drop_on_the_live_page_has_no_foreign_row_to_reach(db):
@@ -176,10 +201,76 @@ def test_the_merge_parks_the_merged_items_open_rows(db, monkeypatch):
     assert _page(db) == ["l_v0", "l_n0"]
 
 
-def test_the_shipped_line_counts_the_parked_rows(db, monkeypatch):
+def test_the_shipped_line_counts_the_parked_rows_by_kind(db, monkeypatch):
+    """Review 2, finding 2: 6 of night 162's 28 rows are `scope` rows, and
+    a scope row is not a choice. The line offers the words, because
+    `ledger.list(shipped=...)` now shows them."""
     _batch(db, "b_2", CONFIRM, "running")
-    _notes(db, [("l_c0", "c_2"), ("l_c1", "tk_2")])
+    _notes(db, [("l_c0", "c_2"), ("l_c1", "tk_2"), ("l_c2", "c_2")])
+    db.execute("UPDATE ledger SET kind = 'scope' WHERE id = 'l_c2'")
+    db.commit()
     _merge(db, monkeypatch, "b_2")
     text = render_state(db)
-    assert "Done: 1 change built, tested and merged." in text
-    assert "2 choices the team made where you said nothing" in text
+    assert ("Done: 1 change built, tested and merged. It carries 2 choices the "
+            "team made where you said nothing and 1 change of scope the team "
+            "noted. Ask me to show them.") in text, text
+
+
+def test_ledger_list_shows_a_shipped_items_parked_rows(db, monkeypatch):
+    from rota.roles.api import Ctx, ledger_list
+
+    _batch(db, "b_2", CONFIRM, "running")
+    _batch(db, "b_3", VERSION, "running")
+    _notes(db, [("l_c0", "c_2"), ("l_v0", "c_3")])
+    _merge(db, monkeypatch, "b_2")
+    ctx = Ctx(conn=db, role="liaison", session_id="s1")
+    assert [r["id"] for r in ledger_list(ctx)] == ["l_v0"]
+    shown = ledger_list(ctx, shipped=CONFIRM)
+    assert [r["id"] for r in shown[f"open when {CONFIRM} shipped"]] == ["l_c0"]
+
+
+def test_a_ruling_on_a_row_parked_while_its_page_was_open_lands(db, monkeypatch):
+    """Review 2, finding 1: the page named l_c0, b_2 merged, and the
+    contest wrote no decision. The row stayed parked."""
+    import json
+
+    from rota.roles.principal import Answer, land, pending_asks
+
+    _batch(db, "b_2", CONFIRM, "running")
+    _notes(db, [("l_c0", "c_2")])
+    for mid, cause, frm, to, verb, seq, status in (
+            ("m8", None, "vision_keeper", "liaison", "submit", 0, "answered"),
+            ("m9", "m8", "liaison", "principal", "present", 1, "open")):
+        db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, "
+                   "verb, body_refs, seq, status) VALUES (?, 'th', ?, ?, ?, ?, ?, ?, ?)",
+                   (mid, cause, frm, to, verb, json.dumps([CONFIRM, "l_c0"]), seq,
+                    status))
+    db.commit()
+    (ask,) = pending_asks(db)
+    _merge(db, monkeypatch, "b_2")
+    assert db.execute("SELECT status FROM ledger WHERE id = 'l_c0'"
+                      ).fetchone()["status"] == "parked"
+    land(db, ask, Answer(verb="verdict", text="no, the default is wrong",
+                         per_item={CONFIRM: "approve", "l_c0": "contest"}))
+    db.commit()
+    assert db.execute("SELECT status FROM ledger WHERE id = 'l_c0'"
+                      ).fetchone()["status"] == "resolved"
+    assert db.execute("SELECT COUNT(*) FROM decisions WHERE resolves_ledger = 'l_c0'"
+                      ).fetchone()[0] == 1
+
+
+def test_the_park_drops_the_account_as_the_agenda_does(db, monkeypatch):
+    """Review 2, finding 5: a row that reaches the merged item and the
+    account stayed open at the merge."""
+    from rota.testkit.fixtures import seed_ref as _ref
+
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version, "
+               "is_description) VALUES ('how_it_works', 'the account', 'in_scope', "
+               "'approved', 1, 1, 1)")
+    _ref(db, "items", "how_it_works", "statement", "s2")
+    db.commit()
+    _batch(db, "b_2", CONFIRM, "running")
+    _notes(db, [("l_c0", "s2")])
+    _merge(db, monkeypatch, "b_2")
+    assert db.execute("SELECT status FROM ledger WHERE id = 'l_c0'"
+                      ).fetchone()["status"] == "parked"

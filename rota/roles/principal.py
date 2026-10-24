@@ -281,6 +281,20 @@ def aside_lines(conn: sqlite3.Connection) -> list[str]:
     return out
 
 
+# The shipped line's words for the parked rows of each ledger kind (frame
+# 204's design, section 4). The kinds not named here count as notes.
+PARKED_WORDS = (
+    (("default",), "choice the team made where you said nothing",
+     "choices the team made where you said nothing"),
+    (("invented",), "invented test value", "invented test values"),
+    (("scope",), "change of scope the team noted", "changes of scope the team noted"),
+    (("conflict",), "disagreement that no one on the team could answer",
+     "disagreements that no one on the team could answer"),
+    (("unaddressed_answer",), "question your answer left open",
+     "questions your answer left open"),
+)
+
+
 def render_state(conn: sqlite3.Connection) -> str:
     """
     Where the run is, in words, for the person who waits on it.
@@ -324,11 +338,23 @@ def render_state(conn: sqlite3.Connection) -> str:
                    "tested and merged.")
     # A parked row is shown quietly, as a count that asks nothing (ruled:
     # Roman, 2026-10-11 15:00, frame 204's design, section 4).
-    parked = count("SELECT COUNT(*) FROM ledger WHERE status = 'parked'")
-    if merged and parked:
+    # Each kind has its own words: a `scope` row is not a choice (frame
+    # 316's review 2, finding 2). `ledger.list(shipped=...)` shows the rows.
+    kinds = dict(conn.execute("SELECT kind, COUNT(*) FROM ledger "
+                              "WHERE status = 'parked' GROUP BY kind").fetchall())
+    if merged and kinds:
+        words = []
+        for kind, one, many in PARKED_WORDS:
+            n = sum(kinds.pop(k, 0) for k in kind)
+            if n:
+                words.append(f"{n} {one if n == 1 else many}")
+        n = sum(kinds.values())
+        if n:
+            words.append(f"{n} other note{'s' if n > 1 else ''} from the team")
+        listed = (words[0] if len(words) == 1
+                  else ", ".join(words[:-1]) + " and " + words[-1])
         carry = "They carry" if merged > 1 else "It carries"
-        out[-1] += (f" {carry} {parked} choice{'s' if parked > 1 else ''} "
-                    "the team made where you said nothing.")
+        out[-1] += f" {carry} {listed}. Ask me to show them."
     # A cold cockpit sees the cycle the walk printed, read from the rows
     # (ruled: Roman, 2026-09-24, an alert first). The line goes under what
     # is stuck.
@@ -2154,9 +2180,12 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     for ref, ruling in list(per_item.items()):
         if ruling not in ("approve", "contest", "revise"):
             continue
+        # A row that the merge parked while its page was open is still his
+        # word to give. The ruling lands, and the row leaves `parked` (frame
+        # 316's review 2, finding 1).
         row = conn.execute(
             "SELECT id, about_ref, default_taken, kind FROM ledger "
-            "WHERE id = ? AND status = 'open'", (ref,)).fetchone()
+            "WHERE id = ? AND status IN ('open', 'parked')", (ref,)).fetchone()
         if row is None:
             continue
         if ruling == "approve":

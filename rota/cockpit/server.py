@@ -152,6 +152,12 @@ def snapshot(conn: sqlite3.Connection) -> dict:
         "ledger": rows(
             "SELECT id, about_ref, default_taken, status, author FROM ledger "
             "WHERE status='open'"),
+        # The rows that were open when their item merged, under their own
+        # heading (frame 316's review 2, finding 2). An old run has no
+        # `kind` column, and the cockpit still shows it.
+        "ledger_parked": rows(
+            "SELECT id, about_ref, default_taken, author FROM ledger "
+            "WHERE status='parked'"),
         # Frame 204: a seat's fault report stays visible until a build frame
         # closes it (composition, Records). An old run has no table, and the
         # cockpit still shows it.

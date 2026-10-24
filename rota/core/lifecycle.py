@@ -639,8 +639,9 @@ def ledger_items(conn: sqlite3.Connection, ledger_id: str) -> set[str]:
     The row's `about_ref` names them through `_items_reached`. A test names
     them through its criterion. A row of no item belongs to its writer's
     batch (frame 198's scope, section 4). An empty set means no item and no
-    batch."""
+    batch, or the account alone."""
     from ..roles.principal import _items_reached
+    from .runner import _is_description
 
     row = conn.execute("SELECT about_ref FROM ledger WHERE id = ?",
                        (ledger_id,)).fetchone()
@@ -648,14 +649,22 @@ def ledger_items(conn: sqlite3.Connection, ledger_id: str) -> set[str]:
         return set()
     ref = row["about_ref"]
     # `_items_reached` has no `tests` lookup. Night 162's l_71e52c9d0a on
-    # `tst_c2_version_on` reached no item (frame 316, pass 2). An inherited
-    # test has no criterion, so its row reaches no request (frame 209).
+    # `tst_c2_version_on` reached no item (frame 316, pass 2).
     test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
                         (ref,)).fetchone()
-    if test is not None and test["criterion_id"]:
+    if test is not None and not test["criterion_id"]:
+        # An inherited test has no criterion, so its row reaches no request,
+        # not even through its writer's batch (frame 209; frame 316's
+        # review 2, finding 4).
+        return set()
+    if test is not None:
         ref = test["criterion_id"]
-    items = set(_items_reached(conn, ref))
-    if items:
+    reached = set(_items_reached(conn, ref))
+    # The account belongs to no request, so its rows ride on every page, as
+    # in `off_page`. The park and the agenda drop it alike (the review of
+    # 61a0f41d, finding 2; frame 316's review 2, finding 5).
+    items = {i for i in reached if not _is_description(conn, i)}
+    if reached:
         return items
     batches = _writer_batches(conn, ledger_id)
     if not batches:
