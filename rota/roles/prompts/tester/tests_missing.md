@@ -43,7 +43,8 @@ real assertions, and the path is `tests/test_<thing>.py`:
 The test calls the program: import the function the criterion's surface
 names and assert on what it returns. Set every input of that call that the
 criterion leaves open with a value you choose, and log the choice. Do not take
-a name you find installed, as the paragraph on open inputs above says.
+a name you find installed, as the paragraph on inputs the criterion leaves
+open above says.
 
 A bare assertion with no function, or a sentence about the criterion, is
 refused -- pytest would collect nothing from either. A string the material

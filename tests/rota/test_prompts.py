@@ -357,9 +357,9 @@ def test_the_tester_puts_the_argument_where_the_reason_row_says():
     # goes, never which input the test sets. Night 162's s309 read the row
     # as naming the input and passed a value found on the machine.
     assert ("A claim in the row that an argument is required is the "
-            "Developer's reading. The criterion and the paragraph on open "
-            "inputs decide which input the test sets, and with what "
-            "value.") in flat
+            "Developer's reading. The criterion and the paragraph on inputs "
+            "the criterion leaves open decide which input the test sets, and "
+            "with what value.") in flat
     assert "outranks the criterion's wording" not in flat
     # Pass 5d: the traceback names `runner.invoke`, the wrong call.
     assert "on the call the traceback names" not in flat
@@ -384,7 +384,6 @@ def test_a_test_sets_every_input_the_criterion_leaves_open():
         assert kind in flat, mode
 
 
-
 def test_the_open_input_rule_sits_at_the_step_that_writes_the_call():
     """Frame 281, pass 1b: the base paragraph alone moved 0 of 8 replays.
     Frame 223's interview 2 found that text at the point of decision moves
@@ -394,13 +393,15 @@ def test_the_open_input_rule_sits_at_the_step_that_writes_the_call():
     assert ("When the failure names an input the call did not set, set that "
             "input with a value you choose, and log the choice. Do not take a "
             "name the error suggests, and do not take a name you find "
-            "installed. The paragraph on open inputs above gives the "
-            "rule.") in challenge
+            "installed. The paragraph on inputs the criterion leaves open "
+            "above gives the rule.") in challenge
     missing = " ".join(prompts.compose("tester", "tests_missing").split())
     assert ("Set every input of that call that the criterion leaves open with "
             "a value you choose, and log the choice. Do not take a name you "
-            "find installed, as the paragraph on open inputs above "
-            "says.") in missing
+            "find installed, as the paragraph on inputs the criterion leaves "
+            "open above says.") in missing
+    # Review 1, finding 3: the pointer uses the base paragraph's own words.
+    assert "open inputs" not in challenge + missing
 
 
 def test_the_tester_edits_the_test_the_reason_row_names():

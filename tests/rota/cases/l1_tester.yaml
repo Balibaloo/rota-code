@@ -700,18 +700,20 @@
           1 failed in 0.30s
   expect:
     writes:
-      # The argument goes to the decorator, not to runner.invoke.
+      # The argument goes to the decorator, not to runner.invoke. The value
+      # is a literal version that the test sets itself. Roman ruled on
+      # 2026-10-24 at 13:44 that a test brings its own value for every
+      # input the criterion leaves open. The name of an installed package
+      # is a value found on the machine, so the case refuses it
+      # (`plans/frame281-history.md`, sections 3 and 4).
       tests: {count: "1..1",
               text_includes_any: ["version_option(version=",
-                                  "version_option(package_name=",
                                   "version_option(\"", "version_option('",
-                                  "show_python=True, version=",
-                                  "show_python=True, package_name="],
-              # The exclude names the invoke form alone: the keyword after
-              # the argument list. The decorator form carries the keyword
-              # after `show_python=True,`, and the value it carries is the
-              # value wall, which is its own frame (frame 200, pass 5).
-              text_excludes: ["], package_name="]}
+                                  "show_python=True, version="],
+              text_excludes: ["], package_name=",
+                              "package_name=\"click\"", "package_name='click'",
+                              "package_name=\"pytest\"", "package_name='pytest'",
+                              "package_name=\"pip\"", "package_name='pip'"]}
   forbidden:
     writes: [criteria, items]
 
@@ -1477,11 +1479,18 @@
       # test brings its own value for every input the criterion leaves
       # open, and a value found on the machine does not count
       # (`plans/frame281-history.md`, sections 3 and 4).
+      # The ruling also says the assertion checks a generic version number,
+      # not a literal. The case format matches substrings only, with one
+      # `text_includes_any` list per table, and that list holds the
+      # decorator forms. So the case refuses the plain forms of a hard-coded
+      # Python version or the word Python as a string, and does not
+      # require a pattern.
       tests: {count: "1..1",
               text_includes_any: ["version_option(version=",
                                   "show_python=True, version=",
                                   "version_option(\"", "version_option('"],
-              text_excludes: ["'test_version_option'", "\"test_version_option\""]}
+              text_excludes: ["'test_version_option'", "\"test_version_option\"",
+                              "\"3.", "'3.", "\"Python", "'Python"]}
     messages:
       - {to: developer, verb: answer, count: "0..0"}
   forbidden:
