@@ -109,7 +109,7 @@ def _asked(cid: str, text: str, line: str) -> str:
             f"\"{text}\". Your line holds '{line}'. Does that line do what "
             f"the criterion says, or the opposite? Say which in your own "
             f"words, and in the same reply send the same pass again or your "
-            f"own fail.")
+            f"own fail on the criterion.")
 
 
 def test_the_recorded_turn_gets_the_hold(case):
@@ -147,7 +147,10 @@ def test_the_hold_offers_no_fail_route(case):
     sb = _critic(case)
     said = _held(sb, lines={C1: L_INVOICES, C2: L_NONE})
     assert "Does that line do what the criterion says, or the opposite?" in said
-    assert "claim" not in said and "fail on" not in said
+    # The reply names no call for the fail route. A criterion text may
+    # hold the word "claim", so the check reads call text only (review 5).
+    assert "claim_encodes" not in said and "verdicts.emit" not in said
+    assert "result='fail'" not in said and "claim and fail" not in said
     assert not [o for o in sb.ctx.offers
                 if o.op == "verdicts.claim_encodes"
                 or o.args.get("result") == "fail" or o.then]
@@ -231,7 +234,7 @@ def test_two_criteria_are_quoted_by_id_in_order(case):
         f"Criterion c2 says: \"{C2_TEXT}\". Your line holds '{L_NONE}'. Does "
         "that line do what the criterion says, or the opposite? Say which in "
         "your own words, and in the same reply send the same pass again or "
-        "your own fail.")
+        "your own fail on the criterion.")
 
 
 def test_a_second_hold_quotes_only_the_moved_criterion(case):
