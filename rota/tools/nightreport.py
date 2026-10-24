@@ -876,13 +876,6 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
     for (call, kind), k in sorted(per_call.items(), key=lambda x: (-x[1], str(x[0]))):
         w(f"{call} {kind} {k}")
 
-    # 11b. The principal's notice of foreseen strays, as the end state shows
-    # it (frame 306, pass plan step 2). One line per merged batch.
-    w("== foreseen strays on merged batches")
-    from ..roles.principal import foreseen_notices
-    for line in foreseen_notices(conn):
-        w(line)
-
     # 12. Frame 298's measures (its design, section 5).
     out.extend(_guess_section(n, messages, batches, repo, log))
     # A section with no rows says so, so an empty section and a cut report differ.
