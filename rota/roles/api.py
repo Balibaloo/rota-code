@@ -5128,17 +5128,28 @@ def _about_a_check(text: str) -> bool:
     return any(_CHECK_SUBJECT.match(s) for s in _SENTENCE_END.split(flat))
 
 
-def _about_the_tests_refusal(text: str, rewrite: str) -> str:
+def _about_the_tests_refusal(ctx: Ctx, text: str, rewrite: str) -> str:
     """The door's text for a criterion that `_about_the_tests` refuses. A
     text that opens with the tests keeps db3b0944's refusal. A note about a
     check names the Tester's route (frame 306)."""
     if _opens_with_the_tests(text):
         return ("a criterion names what the program does; this one names the "
                 f"Tester's job. {rewrite}")
-    return ("a criterion names what the program does, and this text names a "
+    said = ("a criterion names what the program does, and this text names a "
             "page line or a check. Write the behaviour that the check must "
-            "show. Send a note about the check to the Tester with "
-            "msg.answer_tester, with this criterion in refs")
+            "show")
+    # Frame 135's law: a refusal names only a call that the mode holds
+    # (frame 306, review 1, finding 1).
+    if not _holds_tester_route(ctx):
+        return said
+    # The answer cites a criterion row, so the behaviour lands first.
+    return (f"{said}. When the behaviour lands, send a note about the check "
+            "to the Tester with msg.answer_tester, with the criterion in refs")
+
+
+def _holds_tester_route(ctx: Ctx) -> bool:
+    """True when the wake's mode offers `msg.answer_tester`."""
+    return "msg.answer_tester" in _wake_mode_tools(ctx)
 
 
 def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
@@ -5396,7 +5407,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                                      "text": text, "term_refs": term_refs,
                                      "surface_refs": surface_refs}))
     if _about_the_tests(text):
-        raise ValueError(_about_the_tests_refusal(
+        raise ValueError(_about_the_tests_refusal(ctx,
             text, "Say what the script does for a valid name and "
             "for an empty or wrong one -- the tests that validate it are "
             "the Tester's to write from that"))
@@ -6036,7 +6047,7 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
             f"Send his words about the check to the Tester with "
             f"msg.answer_tester, with this criterion in refs")
     if _about_the_tests(text, held["text"] if held else None):
-        raise ValueError(_about_the_tests_refusal(
+        raise ValueError(_about_the_tests_refusal(ctx,
             text, "Rewrite it as what the script does for a valid "
             "name and for an empty or wrong one"))
     # The principal approved these words and ruled their test. A rewrite

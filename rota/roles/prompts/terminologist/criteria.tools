@@ -4,6 +4,7 @@ glossary.lookup
 tickets.scan
 code.callables
 ledger.log
+msg.answer_tester
 msg.challenge_vision_keeper
 code.source
 # ledger.log kinds: invented, default, scope, conflict, blocked, fault, other

@@ -3900,7 +3900,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         if verb == "answer" and ctx.role == "terminologist":
             cited = [r for r in (refs or []) if ctx.conn.execute(
                 "SELECT 1 FROM glossary_terms WHERE id = ? UNION ALL "
-                "SELECT 1 FROM criteria WHERE id = ?", (r, r)).fetchone()]
+                "SELECT 1 FROM criteria WHERE id = ?", (r, r)).fetchone()
+                or any(w[0] == "criteria" and w[1] == r for w in ctx.writes)]
+            # A criterion that this session specified counts too. The
+            # criteria mode sends a note about a check to the Tester after
+            # the behaviour lands (frame 306, review 1, finding 1).
             if not cited:
                 # The Terminologist holds one report edge, to the Liaison.
                 # The door named msg.report_<recipient>, a tool that does not

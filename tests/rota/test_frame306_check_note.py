@@ -182,7 +182,9 @@ def test_s195_notes_are_refused_with_the_tester_route_by_the_text_door(db):
                "version) VALUES (?, ?, ?, ?, 2)",
                (CR2, TICKET, M76_TEXTS[CR2], json.dumps([CONFIRM])))
     db.commit()
-    sb = _seat(db, "s195", "m78")
+    # No wake: the sandbox's own mode names the tools it holds.
+    sb = build("terminologist", db, mode="criterion_repair", session_id="s195",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
     said = _refused(sb, CR2, S195_CR2, ["line"])
     assert "names a page line or a check" in said, said
     assert ROUTE in said, said
@@ -200,7 +202,7 @@ def test_s255_cr_2_note_is_refused_by_the_text_door(db):
 
 def test_a_text_that_opens_with_the_tests_keeps_db3b0944s_refusal():
     said = api._about_the_tests_refusal(
-        "Unit tests must validate the script's behaviour", "Rewrite it.")
+        None, "Unit tests must validate the script's behaviour", "Rewrite it.")
     assert "names the Tester's job" in said, said
 
 
@@ -282,3 +284,64 @@ def test_the_rows_own_words_under_a_check_ruling_keep_the_same_words_branch(db):
     said = _refused(sb, CR3, M115_TEXTS[CR3], ["default_on_eof"])
     assert "The criterion stands" in said, said
     assert "rewrite the text" not in said, said
+
+
+# --- pass 1b: the route exists in every mode that meets the refusal ----------
+
+def _criteria_seat(conn):
+    return build("terminologist", conn, mode="criteria",
+                 allow=prompts.mode_tools("terminologist", "criteria"))
+
+
+def test_the_criteria_mode_sends_the_note_after_the_behaviour_lands(db):
+    """Review 1, finding 1: the criteria mode met the refusal and held no
+    msg.answer_tester. The ruling of 2026-10-08, point 2, sends the note to
+    the Tester."""
+    sb = _criteria_seat(db)
+    with pytest.raises(ValueError) as refused:
+        sb.call("criteria.specify", id="cr_9", ticket_id=TICKET, text=S195_CR2,
+                surface_refs=[CONFIRM])
+    assert ROUTE in str(refused.value), str(refused.value)
+    sb.call("criteria.specify", id="cr_9", ticket_id=TICKET, text=BEHAVIOUR,
+            surface_refs=[CONFIRM])
+    out = sb.call("msg.answer_tester", refs=["cr_9"], round_no=0)
+    assert out["to"] == "tester", out
+
+
+def _named_ops(said):
+    import re
+    return set(re.findall(r"\bmsg\.\w+|\bcriteria\.\w+", said))
+
+
+def _refusals(db):
+    """Each new refusal of frame 306, with the mode that meets it."""
+    out = []
+    sb = _criteria_seat(db)
+    with pytest.raises(ValueError) as e:
+        sb.call("criteria.specify", id="cr_9", ticket_id=TICKET, text=S195_CR3,
+                surface_refs=[CONFIRM])
+    out.append(("criteria", str(e.value)))
+    sb = _s195(db)
+    out.append(("criterion_repair",
+                _refused(sb, CR2, S195_CR2, ["line"])))
+    out.append(("criterion_repair",
+                _refused(sb, CR2, M76_TEXTS[CR2], ["line"])))
+    return out
+
+
+def test_each_refusal_names_only_a_tool_its_mode_holds(db):
+    """Frame 135's law, in the shape of frame 308's pass 1."""
+    for mode, said in _refusals(db):
+        held = set(prompts.mode_tools("terminologist", mode))
+        assert _named_ops(said) <= held, (mode, said)
+
+
+def test_a_mode_without_the_route_is_not_told_to_use_it(db, monkeypatch):
+    monkeypatch.setattr(api, "_wake_mode_tools",
+                        lambda ctx: ["criteria.specify"])
+    sb = _criteria_seat(db)
+    with pytest.raises(ValueError) as e:
+        sb.call("criteria.specify", id="cr_9", ticket_id=TICKET, text=S195_CR3,
+                surface_refs=[CONFIRM])
+    assert ROUTE not in str(e.value), str(e.value)
+    assert "Write the behaviour that the check must show" in str(e.value)
