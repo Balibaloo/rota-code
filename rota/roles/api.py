@@ -4950,6 +4950,30 @@ def _callable_source(ctx: Ctx, ref: str) -> tuple[str, int, list[str]] | None:
     return row["grain"], start + 1, lines[start:end]
 
 
+def _named_callables(ctx: Ctx, text: str) -> list[str]:
+    """The index's program callables whose bare name is a word of `text`.
+
+    The lookup reads the whole index. Frame 319, review 1, finding 1: the
+    pushed `code.callables` list holds 20 of clickI's 897 symbols, and
+    `confirm` was not in it, so its source never reached s157.
+    """
+    words = {w.strip(".,;:()'\"`").lower() for w in (text or "").split()} - {""}
+    if not words:
+        return []
+    out = []
+    for row in ctx.conn.execute("SELECT grain FROM code_index WHERE "
+                                "grain_kind = 'symbol' ORDER BY grain"):
+        path, sep, name = row["grain"].partition("::")
+        if not sep or name.rsplit(".", 1)[-1].lower() not in words:
+            continue
+        # A test is not a surface.
+        if (path.replace("\\", "/").split("/")[-1].startswith("test")
+                or "/tests/" in f"/{path}"):
+            continue
+        out.append(row["grain"])
+    return out
+
+
 def _raise_lines(first: int, lines: list[str]) -> list[str]:
     """Each `raise` line of a source, with its line number in the file."""
     return [f"line {first + i}: {text.strip()}" for i, text in enumerate(lines)
@@ -5027,7 +5051,15 @@ def _exception_from_a_source(ctx: Ctx, ticket_id: str, text: str,
     identifier occurs, not a meaning, so the rule of 2026-09-09 holds.
     """
     idents = _exception_idents(ctx, text)
-    if not idents or not surface:
+    if not idents:
+        return
+    if not surface:
+        # Review 1, finding 3: with no surface named, the door reads the
+        # callables the ticket's headline names, as the wake does.
+        head = ctx.conn.execute("SELECT text FROM tickets WHERE id = ?",
+                                (ticket_id,)).fetchone()
+        surface = _named_callables(ctx, head["text"] if head else "")
+    if not surface:
         return
     sources = [_callable_source(ctx, ref) for ref in surface]
     # A source the index cannot give is no evidence either way.

@@ -157,3 +157,27 @@ def test_the_criteria_wake_shows_the_raise_line_of_confirm(db):
     block = pushed.get(RAISE_LINES_KEY) or {}
     assert "line 15: raise Abort() from None" in block.get(
         "src/click/termui.py::confirm", ""), pushed.keys()
+
+
+def _many_callables(db, n=30):
+    """More than the 20 rows `code.callables` pushes, all depended on more
+    than `confirm`, so the named one sits past the cut (review 1, finding 1)."""
+    for i in range(n):
+        db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind, fan_in) VALUES "
+                   "(?, 'symbol', 'function', 5)", (f"src/click/aaa.py::default_{i:02d}",))
+    db.commit()
+
+
+def test_the_criteria_wake_holds_the_source_of_a_callable_past_twenty(db):
+    _many_callables(db)
+    pushed = push_working_set("terminologist", _seat(db),
+                              Wake("terminologist", "tick:criteria", refs=(ITEM,)))
+    source = (pushed.get("code.source") or {}).get("src/click/termui.py") or {}
+    assert "raise Abort() from None" in str(source.get("text", "")), pushed.get("code.source")
+
+
+def test_s157_c2_with_no_surface_reads_the_callables_the_headline_names(db):
+    with pytest.raises(Exception) as err:
+        _specify(_seat(db), "c2_confirm_default_on_eof_false", C2,
+                 ["option", "usageerror"], surface_refs=())
+    assert "line 15: raise Abort() from None" in str(err.value)

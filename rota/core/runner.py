@@ -4073,27 +4073,16 @@ def _retired_carry(conn, item_id: str, *, before_slice: bool = False) -> dict[st
 RAISE_LINES_KEY = "the raise lines of each surface this wake names"
 
 
-def _criteria_raise_lines(sb: sandbox_mod.Sandbox, hint: str,
-                          rows: Any) -> dict[str, str]:
+def _criteria_raise_lines(sb: sandbox_mod.Sandbox, hint: str) -> dict[str, str]:
     """The raise lines of each callable the criteria wake's subject names.
 
-    A callable is named when its bare name is a word of the hint, the same
-    match as the module push above. A test is not a surface.
+    `_named_callables` is the lookup, the same one the source push and the
+    exception door read.
     """
-    from ..roles.api import _callable_source, _raise_block
+    from ..roles.api import RAISE_LINES_SHOWN, _callable_source, _named_callables, _raise_block
 
-    words = {w.strip(".,;:()'\"`").lower() for w in hint.split()} - {""}
     out: dict[str, str] = {}
-    for row in rows if isinstance(rows, list) else []:
-        grain = row.get("grain", "") if isinstance(row, dict) else ""
-        if "::" not in grain:
-            continue
-        path, name = grain.split("::", 1)
-        bare = name.rsplit(".", 1)[-1]
-        if (bare.lower() not in words
-                or path.replace("\\", "/").split("/")[-1].startswith("test")
-                or "/tests/" in f"/{path}"):
-            continue
+    for grain in _named_callables(sb.ctx, hint)[:RAISE_LINES_SHOWN]:
         found = _callable_source(sb.ctx, grain)
         if found is not None:
             out[found[0]] = _raise_block(found[1], found[2])
@@ -4217,20 +4206,29 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             if item:
                 pushed["the item"] = {"text": item["text"], "the principal said": said,
                                       **_retired_carry(conn, wake.refs[0])}
-            words = {w.strip(".,;:()'\"`").lower() for w in hint.split()} - {""}
-            files: list[str] = []
-            for row in (pushed.get("code.callables") or []) if isinstance(pushed.get("code.callables"), list) else []:
-                grain = row.get("grain", "") if isinstance(row, dict) else ""
-                if "::" in grain:
-                    path, name = grain.split("::", 1)
-                    if name.lower() in words and not path.replace("\\", "/").split("/")[-1].startswith("test") \
-                            and "/tests/" not in f"/{path}" and path not in files:
-                        files.append(path)
-            if files and "code.source" in have:
+            # Frame 319, review 1, finding 1: the lookup reads the whole
+            # index. The pushed list held 20 of clickI's 897 symbols, and
+            # s157 never got `confirm`'s source.
+            from ..roles.api import RAISE_LINES_SHOWN, _named_callables
+
+            spans: dict[str, list[tuple[int, int]]] = {}
+            for grain in _named_callables(sb.ctx, hint)[:RAISE_LINES_SHOWN]:
+                row = conn.execute("SELECT line_start, line_end FROM code_index "
+                                   "WHERE grain = ?", (grain,)).fetchone()
+                spans.setdefault(grain.split("::", 1)[0], []).append(
+                    (row["line_start"], row["line_end"]) if row else (0, 0))
+            if spans and "code.source" in have:
                 pushed["code.source"] = {}
-                for path in files[:2]:
+                for path, held in spans.items():
+                    # The named callables' lines when the index holds their
+                    # spans, the head of the module when it does not.
+                    if any(e == 0 for _, e in held):
+                        lo, hi = 0, 400
+                    else:
+                        lo, hi = min(s for s, _ in held), max(e for _, e in held)
                     try:
-                        pushed["code.source"][path] = sb.call("code.source", path=path, start=0, end=400)
+                        pushed["code.source"][path] = sb.call(
+                            "code.source", path=path, start=lo, end=min(hi, lo + 400))
                     except Exception:                      # noqa: BLE001
                         continue
         # The Architect predicting a batch's touch reads by the same lens.
@@ -4266,7 +4264,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # `raise Abort() from None` (frame 319). The wake shows what each
         # surface it names raises, by the same lines the door quotes.
         if wake is not None and wake.kind == "tick:criteria" and wake.refs:
-            block = _criteria_raise_lines(sb, hint, pushed.get("code.callables"))
+            block = _criteria_raise_lines(sb, hint)
             if block:
                 pushed[RAISE_LINES_KEY] = block
 
