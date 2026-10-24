@@ -108,6 +108,13 @@ def test_liaison_converse_prompt_prioritizes_work_over_greeting():
     assert "ignore the greeting" in composed.lower()
 
 
+def test_liaison_converse_names_the_route_to_a_shipped_requests_rows():
+    """The shipped line says "Ask me to show them". `converse` answers that
+    ask through `ledger.list(shipped=...)` (frame 316, pass 2c)."""
+    composed = prompts.compose("liaison", "converse")
+    assert "ledger.list(shipped=" in composed
+
+
 def test_compose_falls_back_to_base_for_unknown_mode():
     composed = prompts.compose("liaison", "not_a_verb")
     assert "You are Liaison" in composed

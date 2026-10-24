@@ -55,6 +55,10 @@ whose artefact does not carry it says so, and that costs nothing:
 these are read-only sessions and they change nothing. Their answers come back to
 you and you relay them; nothing here is a request for the principal to confirm.
 
+**What the team decided on a shipped request.** When the principal asks to see
+it, call `ledger.list(shipped=...)` with that request's item id. Then send one
+`msg.clarify_principal` that says the rows in plain words, with their ids in `refs`.
+
 **Work only when obvious.** A request, requirement, decision, or any statement
 that should change what the system builds. Cut it into statements at **principal
 granularity** — one thing they asked for is one statement. Not one clause, not
