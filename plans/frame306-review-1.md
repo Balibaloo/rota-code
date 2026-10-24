@@ -1,39 +1,32 @@
-# Frame 306, review 1: repair 1 at 07e4d1bc
+# Frame 306, review 1 of pass 1 (6f4fd0c2)
 
-Verdict: accept for the branch. The claim holds on every point that a probe reached. The repair cures the missing-key refusal and the double wake. It does not move night 158's words on the seat's recorded first call. That call, `{cr_2: approve, tst_02: approve}`, now lands and wakes the Terminologist in `relay` mode, as s287 did. Only a revise reaches `criterion_repair`, and with change 3 held nothing pushes the seat to a revise.
+Verdict: accept with one fix. 6f4fd0c2 goes on the branch after the gate, with finding 1 fixed in a pass 1b or with the fix recorded as owed. Reviewer read-only in C:/Users/roman/rota_r308 at 6f4fd0c2.
 
-Reviewer: Opus, read-only, worktree `C:/Users/roman/rota_r306` at 07e4d1bc, parent d2b4f79a. No gate and no re-record ran.
+## (a) The verdict on each point
 
-## (a) The claim, point by point
-
-1. CONFIRMED. On a copy of night 158 at 07e4d1bc, `{cr_2: approve, tst_02: approve}` lands with no refusal. `{cr_2: revise, tst_02: approve}` lands, stages one relay `[cr_2]`, and that relay keys `criterion_repair`. `open_tips` gives one Terminologist wake. See finding 1 for what the recorded call now does.
-2. One site disagrees with the door, `prior_answers` (finding 3). The relay widening reads the reply's refs, which are the clarify's own refs (finding 4). Parking keeps the clarify's own refs on purpose, and the re-present reads the parked ledger rows, so both agree with each other. The page shows the clarify's own refs to the principal. That is what he read, so it is no fault. The receipt does not read a clarify's refs.
-3. On nights 150 to 158, one clarify of 72 with an asker has an asker criterion that the clarify did not carry: night 158's m145, reply m146. The seat ruled `{cr_2: approve, tst_02: approve}`, the old door refused cr_2, and `{tst_02: approve}` landed. The new door admits the first call. The words of m146 are a revise of cr_2, so the new door admits an approve that the words do not support (finding 1). On nights 140 to 158, ten other clarifies have asker-only rows: batches, message ids and one entry. The door now admits each as a key (finding 2).
-4. CONFIRMED. The relay of a revised cr_2 carries `principal_verdict {cr_2: revise}` and `principal_said` with the words of m146. `chain_verdict` finds the landed `rulings` row by `reply_id`.
-5. The rebuilt held door gives 70 of 125, with the same cue split as the pass report: should 44, not 8, instead 6, drop 4, also 4, still 2, wrong 2. A sample of five "should" fires: night 143 m279, 145 m132, 146 m60 and 147 m110 are right approves, and 144 m312 is a faulted approve. The narrow set, "do not", "don't", "never", "instead of", fires on 47 of 125. It fires on m146 ("Do not"). It does not fire on m313. By my reading, at most 7 of the 47 fault a ruled row. Most fires are "I don't know" and "instead of aborting" in agreement. The narrow set is not a better words test.
-6. CONFIRMED. The diff is five files. Every source hunk is inside `answer_about`, `resolve_inbound`, `rulings_rule`, `park_criterion_relay`, `ruled_clarify_criteria` and `_bind_send.stage`. The test file is new. `test_frame306_clarify_about.py` and `test_frame250_verdict_faults.py` give 22 passed, 1 xfailed with `-n 0`.
+1. CONFIRMED. count2.py on 6f4fd0c2 gives 857 texts, 46 named, 28 refused, 18 passed, 0 refused outside. No night text is refused wrongly. Three note texts pass (finding 3). Synthetic behaviour texts are refused (finding 2).
+2. CONFIRMED. The s195 calls under m76 and the s255 cr_3 call under m115 get "The criterion stands" with his words. The s255 cr_2 call gets the repair 1 refusal. Frame 308's tests stay green: 68 passed over the three files. The Tester route is callable from criterion_repair. The route is not callable from the criteria mode (finding 1).
+3. Deviation 1, the order: right. Repair 1 asks for a rewrite that repair 2 refuses under a check-only ruling, so repair 2 must speak first. Deviation 2, the own-words skip: right. The skip runs after db3b0944's rule, and the same-words branch answers the row's own text. Deviation 3, "Also add a second check" admitted: acceptable for now, but it keeps a note door open to fit one test (finding 3).
+4. Neither stale case goes red from its stored transcript. Both recorded respecify texts pass `_about_the_tests`. Neither ruling makes `ruling_asks_no_new_words` true, so repair 2 does not fire. Both cases are stale only by the prompt hash.
+5. CONFIRMED. The diff touches only api.py, criterion_repair.md and the new test file. The test file asserts that night 158's cr_2 "contain" text passes the text door. No evidence page code changes.
 
 ## (b) Findings
 
-1. `rota/roles/api.py` 10185 to 10196 with `rota/core/scheduler.py` 1873. Severity: low for the night, high for the frame. CONFIRMED. A whole session on a night 158 copy, with the calls of s286 turn 1, `{cr_2: approve, tst_02: approve}` and `relay_terminologist([cr_2])`, commits. Relay m150 `[cr_2]` keys `relay`, not `criterion_repair`, and cr_2 keeps its text. This is night 158's s287 end by another route. The seat's recorded reading of m146 was approve. The repair needs a revise that no door asks for. Fix: keep the frame open on the m146 shape, and measure the seat on the new door with the held change 3 still out.
-2. `rota/core/runner.py` 183 to 203, `answer_about`. Severity: low for the night, low for the frame. CONFIRMED. The union takes every asker ref, not only rows. On a night 144 copy, the door admits `m385`, a message id, as a key on m399, and lands it in `per_item`. Batch keys `bg_2` and `bg_3` reach the batch door. They are refused there only because each batch closed by the night's end. Fix: keep an asker ref in `answer_about` only when `_table_of_ref` finds a criterion or a test row.
-3. `rota/core/runner.py` 2219 to 2233, `prior_answers`. Severity: low for the night, low for the frame. PLAUSIBLE. A later report shows a prior clarify answer only when the report's refs meet the clarify's own refs. m146 is about cr_2 by the door and the prompt, but a later report that names only cr_2 does not see it. Fix: match `prior_answers` on `answer_about(conn, c["id"])` when the clarify has an asker.
-4. `rota/core/sandbox.py` 3623 to 3634, the relay widening. Severity: low for the night, low for the frame. PLAUSIBLE. The widening adds the reply's refs, which `land` copies from the clarify's own refs. A criterion that the seat rules contest from the asker's refs is not added when the seat leaves it out of the relay. On night 158 the test row covers this, because tst_02 travels as cr_2. A clarify with no test of that criterion has no such cover. Fix: on a clarify reply, also add the landed ruling's contest and revise keys to the relay's refs.
+1. rota/roles/api.py 5136-5141 with 5379. High. CONFIRMED. `criteria_specify` uses `_about_the_tests_refusal`, and the note form names `msg.answer_tester`. `rota/roles/prompts/terminologist/criteria.tools` holds no `msg.answer_tester`. Only criterion_repair.tools and unresolved.tools hold it. The refusal names a call that the criteria mode cannot make, against frame 135's law. Night 155's "Line 1 adds the `echo_json` helper..." is a specify-time text that meets this refusal. Fix: give `_about_the_tests_refusal` a flag, and let the specify door drop the Tester sentence and say "Write the behaviour that the check must show".
+2. rota/roles/api.py 5108-5130. Low. CONFIRMED on synthetic texts (probe_fp.py). The widened rule refuses these behaviour texts: "The check command exits with status 1 ...", "Each check reports its name ...", "Line 2 shows the Python version ...", "A test run with --verbose prints each test name.", "Assertions in the user's code raise AssertionError ...". Click nights hold no such text, so the count shows 0. A linter, a test runner or a page of output lines in an adopting repository meets a false refusal. Fix: anchor the subject rule to the modal of a note ("must", "should" plus a check verb) or to "Line N's check", and add these five texts as controls.
+3. rota/roles/api.py 5108-5121. Low. CONFIRMED by the count. Three note shapes pass the door. Night 157 cr_2 ends "so that the output check can see True". Night 159 ver_opt_show_py ends "Also add a second check that turns the flag on and checks ...". Night 155's nine "The new tests must be placed ..." texts pass because a word sits between "the" and "tests". The pass keeps the imperative open to keep frame 308's S398_TEXT test green. Fix: decide in a ruling whether a placement rule for new tests is a criterion, and match "add a ... check" after frame 308's test is re-read against the 2026-10-08 ruling.
+4. rota/roles/api.py 5138-5141. Low. PLAUSIBLE. Under a ruling that asks new words (s255 cr_2 under m115), repair 1 says "Send a note about the check to the Tester with msg.answer_tester". The answer door in sandbox.py 1604-1650 refuses that answer until a respecify of cr_2 lands. The refusal text gives the order only by sentence order. Fix: say "When the behaviour lands, send the note ..." in the note form.
 
 ## (c) Probes
 
-All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/1b2c3f89-168f-4708-a241-5ecb0a745d11/scratchpad/r306/`. Each copies a night database with `?mode=ro` and the SQLite backup, then works on the copy.
+All probes are in C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/0cdcac52-3588-4266-b1fb-fc5d7d31b805/scratchpad/r306/.
 
-- `p1_replay.py`: night 158 copy, the m146 rulings deleted, m146 reopened. Three door calls, the prompt's `about`, a scripted session with the revise, `apply_rulings`, the mode key, the Terminologist's inbound and `open_tips`.
-- `p1c_turn1.py`: night 158 copy, the scripted session with s286 turn 1's calls, the relay's mode and cr_2's text.
-- `p3_count.py`: nights 150 to 158, read-only. It lists clarifies whose asker named a criterion that the clarify did not carry, with the ruling and the seat's tool calls.
-- `p3b_any.py`: nights 140 to 158, read-only. It lists clarifies whose asker named any ref that the clarify did not carry.
-- `p3c_door.py`: night 155, 144 and 148 copies. It runs the door with asker-only keys `bg_3`, `m385` and `bg_2`.
-- `p5_held.py`: nights 143 to 158, read-only. It rebuilds the held door from `_live_cues`, `_SENTENCE` and `_WEAK_CUES`, counts it, and counts the narrow cue set.
-- `pytest tests/rota/test_frame306_clarify_about.py tests/rota/test_frame250_verdict_faults.py -q -n 0`: 22 passed, 1 xfailed.
+- count2.py, count.py: the pass's count, pointed at rota_r308. It read nights 140 to 160 with ?mode=ro and printed 857, 46, 28, 18, 0.
+- probe_fp.py: eleven synthetic texts through `_about_the_tests`. Five behaviour texts gave True, and three note texts gave False.
+- An inline probe read the full ends of the 143, 157 cr_2 and 159 texts from the night databases.
+- An inline probe read tests/rota/cassettes.db (?mode=ro) for the two stale cases' latest qwen3:8b transcripts. A second probe ran `_CHECK_FAULT` on the case entry "line 3 is wrong: ..." (False) and `_about_the_tests` on both recorded texts (False, False).
+- pytest -n 0 on test_frame306_check_note.py, test_frame308_answer_after_respecify.py and test_frame308_ruling_answer.py: 68 passed.
 
 ## (d) Usage
 
-- Input tokens: about 110k, from the remaining-token counter.
-- Output tokens: about 14k, estimated.
-- Total: about 124k. The harness does not show the exact split.
+The harness count is not visible to this agent. My estimate is 75k input tokens, 9k output tokens, 84k total. This is above the 25k cap. Take the harness line as the measure.
