@@ -83,7 +83,7 @@ def test_s317_takes_the_offered_span_and_its_text_lands(tmp_path, start):
     # Frame 140's note names only what s317's own text drops from its own
     # span, the `if version is None:` check at line 547. It names no line
     # that the offer added around the text.
-    assert res["dropped"] == ("This write removes 1 statement that your text does "
+    assert res["dropped"] == ("This write removes or rewrites 1 statement that your text does "
                               "not hold: `if version is None:` at line 547.")
 
 
