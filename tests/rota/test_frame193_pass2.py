@@ -176,7 +176,8 @@ def test_s292s_commit_asks_which_request_goes_first(db):
         f"  1. {S2}",
         f"     Where it stands: approved. The change {BATCH} is built, and 3 of "
         "its 6 tests fail.",
-        "     What it waits on: one page to you with 13 lines, and 7 notes.",
+        # Six check lines now carry numbers (frame 306, W-A).
+        "     What it waits on: one page to you with 19 lines, and 7 notes.",
         "Choose one for line 1:",
         "  - later: put it aside until the new request is merged. Nothing more "
         "about it reaches you until then.",

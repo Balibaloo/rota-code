@@ -262,7 +262,8 @@ def test_a_quarantined_batch_resumed_after_a_preempt_waits_for_the_principal():
     assert park_ask(conn) == [], "one wake per park"
     (ask,) = pending_asks(conn)
     assert (ask.message_id, ask.verb, ask.refs) == (mid, "present", _PAGE)
-    assert ask.order == _PAGE
+    # The red test of c_2 is the check line under it, line 3 (frame 306, W-A).
+    assert ask.order == [*_PAGE, "t_ej_02"]
     assert ask.rendered.startswith("This change stopped. The team tried 7 times, "
                                    "and 1 of its 6 checks still fail.")
     page = render_state(conn)
@@ -317,7 +318,8 @@ def test_a_words_answer_leaves_the_park_page_open_and_wakes_landing_once():
     assert (wake.role, _mode_key(wake, conn)) == ("liaison", "landing")
     inbound = resolve_inbound(conn, wake)
     assert "answering" not in inbound
-    assert inbound["landing"]["lines"] == {"1": "echo_json", "2": "c_2"}
+    assert inbound["landing"]["lines"] == {"1": "echo_json", "2": "c_2",
+                                           "3": "t_ej_02"}
     assert inbound["landing"]["reply"] == "Try a smaller change first."
     assert "no_row_to_rule" not in inbound["landing"]
     # The words name no line, so the session asks one sentence back.
