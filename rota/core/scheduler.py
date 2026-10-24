@@ -279,6 +279,23 @@ def live_criteria(conn: sqlite3.Connection, col: str) -> str:
     return f" AND {col} IS NULL"
 
 
+def live_tests(conn: sqlite3.Connection, col: str) -> str:
+    """
+    An SQL condition that drops a test of a retired criterion. `col` holds a
+    test id.
+
+    The test and its runs stay in the table as the record. A red run of it
+    holds no merge and parks no batch, because he dropped its line (frame
+    306, pass 2, finding 2).
+    """
+    from .db import _has_column
+
+    if not _has_column(conn, "criteria", "retired_by"):
+        return ""
+    return (f" AND {col} NOT IN (SELECT t.id FROM tests t JOIN criteria c "
+            f"ON c.id = t.criterion_id WHERE c.retired_by IS NOT NULL)")
+
+
 # The items whose newest `item_parks` row puts them aside: the principal said
 # later or drop on the shift page (frame 193's design, 2.F.4).
 _ASIDE = ("SELECT p.item_id FROM item_parks p WHERE p.kind IN ('park', 'drop') "
@@ -1663,8 +1680,9 @@ def park_reds(conn: sqlite3.Connection, batch_id: str) -> tuple[list[dict], list
         "LEFT JOIN tests t ON t.id = r.test_id "
         "WHERE r.batch_id = ? AND r.result IN ('fail','error') "
         "AND r.rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id) ORDER BY r.test_id", (batch_id, batch_id)).fetchall()
-    own = [dict(r) for r in rows if r["criterion_id"] is not None]
+        "GROUP BY test_id)" + live_tests(conn, "r.test_id") +
+        " ORDER BY r.test_id", (batch_id, batch_id)).fetchall()
+    own =[dict(r) for r in rows if r["criterion_id"] is not None]
     project = [dict(r) for r in rows if r["criterion_id"] is None]
     return own, project
 
@@ -1674,12 +1692,15 @@ def park_criteria(conn: sqlite3.Connection, batch_id: str) -> list[str]:
     tests name."""
     # A criterion move lifts the park through `batch_tickets`
     # (`db._lift_quarantines`). A test's criterion is read too, because a
-    # night fixture can hold the tests without the tickets.
+    # night fixture can hold the tests without the tickets. The park page
+    # lists live rows only, because he dropped a retired line (frame 306,
+    # pass 2, finding 2).
+    live = live_criteria(conn, "c.retired_by")
     return [r["id"] for r in conn.execute(
         "SELECT c.id FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE bt.batch_id = ? UNION "
+        "WHERE bt.batch_id = ?" + live + " UNION "
         "SELECT c.id FROM criteria c JOIN tests t ON t.criterion_id = c.id "
-        "WHERE t.batch_id = ? ORDER BY 1", (batch_id, batch_id))]
+        "WHERE t.batch_id = ?" + live + " ORDER BY 1", (batch_id, batch_id))]
 
 
 def park_rows(conn: sqlite3.Connection, batch_id: str) -> list[str]:

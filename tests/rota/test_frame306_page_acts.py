@@ -210,3 +210,100 @@ def test_the_tester_encodes_only_live_criteria(db):
     with pytest.raises(ValueError, match="is retired"):
         sb.call("tests.encode", id="tst_x", criterion_id=RETIRED,
                 path="tests/test_clear.py", body="def test_x():\n    pass\n")
+
+
+# Pass 2: the findings of the review of 1464cfb7.
+ADDED_SENTENCE = "The output of clear() stays exactly the same as today."
+
+
+def test_one_relay_session_retires_rewrites_and_adds(db):
+    """Finding 1: the cap counts the retires staged in the same session."""
+    sb = _repair(db)
+    sb.call("criteria.retire", id="c3_no_terminal_true")
+    sb.call("criteria.retire", id="c3_terminal_failure_true")
+    sb.call("criteria.respecify", id="c3_terminal_check",
+            text="clear() determines terminal status by inspecting the "
+                 "current sys.stdout.")
+    sb.call("criteria.specify", id="c8_output_same", ticket_id=TICKET,
+            text=ADDED_SENTENCE)
+    _commit(db, sb, "s226")
+    shown = [r for r in request_rows(db, [ITEM]) if r in CRITERIA
+             or r == "c8_output_same"]
+    assert len(shown) == 6 and "c8_output_same" in shown
+
+
+def test_a_retire_moves_no_version(db):
+    """Finding 3: the park ask id reads the versions, so a retire keeps them."""
+    sb = _repair(db)
+    sb.call("criteria.retire", id="c3_no_terminal_true")
+    _commit(db, sb, "s226")
+    assert db.execute("SELECT version FROM criteria WHERE id = "
+                      "'c3_no_terminal_true'").fetchone()[0] == 1
+
+
+def test_a_red_test_of_a_retired_criterion_holds_no_merge_and_no_park(db):
+    """Finding 2: the readers of a red test skip a retired criterion."""
+    from rota.core.lifecycle import mergeable
+    from rota.core.scheduler import park_criteria, park_reds, park_rows
+
+    _batch(db)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst_old', 'bg_2', ?, 'tests/test_clear.py', "
+               "'assert 0')", (RETIRED,))
+    db.execute("INSERT INTO test_runs (test_id, batch_id, result, output, "
+               "commit_sha) VALUES ('tst_old', 'bg_2', 'fail', 'E boom', "
+               "'abc123')")
+    # A passing verdict takes `mergeable` past its earlier holds to the reds.
+    db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+               "VALUES ('v1', 'bg_2', 'abc123', 'pass')")
+    db.commit()
+    own, _ = park_reds(db, "bg_2")
+    assert own == []
+    assert park_rows(db, "bg_2") == ["bg_2"]
+    assert RETIRED not in park_criteria(db, "bg_2")
+    assert "not passing" not in (mergeable(db, "bg_2") or "")
+    assert db.execute("SELECT 1 FROM tests WHERE id = 'tst_old'").fetchone()
+
+
+@pytest.mark.parametrize("words, texts", [
+    ("Add a check that the output stays the same.",
+     ["the output stays the same"]),
+    ("Please add a line: the output stays the same.",
+     ["the output stays the same"]),
+    ("Also add a line that says X stays, and also add a line that says Y "
+     "holds.", ["X stays", "Y holds"]),
+    ("Add a line that says clear() returns True, e.g. on a tty.",
+     ["clear() returns True, e.g. on a tty"]),
+    ("Add a line that says item two keeps its colour.", []),
+    (WORDS, [ADDED]),
+])
+def test_the_added_lines_he_writes(db, words, texts):
+    """Finding 4: each added sentence is one line, under its own item only."""
+    from rota.roles.api import criteria_page_acts
+
+    db.execute("UPDATE rulings SET words = ?", (words,))
+    db.commit()
+    acts = criteria_page_acts(db, CONTESTED)
+    assert [s for _, s in acts["add"]] == texts
+    assert all(t == TICKET for t, _ in acts["add"])
+
+
+def test_a_retire_needs_the_relay_wake(db):
+    """Finding 5: the door checks the wake as well as the ruling."""
+    sb = _repair(db)
+    sb.ctx.trigger = "m112"
+    with pytest.raises(ValueError, match="relay"):
+        sb.call("criteria.retire", id="c3_no_terminal_true")
+
+
+def test_a_retired_rows_words_may_return_under_a_new_id(db):
+    """Finding 6: same ticket, same words, one live row."""
+    db.execute("UPDATE criteria SET retired_by = 'r_fae8c0a559' WHERE id = ?",
+               (RETIRED,))
+    db.execute("DELETE FROM criteria WHERE id IN ('c2_non_terminal_false', "
+               "'c3_terminal_true')")
+    db.commit()
+    sb = build("terminologist", db, mode="criteria",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    sb.call("criteria.specify", id="c9_back", ticket_id=TICKET,
+            text=CRITERIA[RETIRED])

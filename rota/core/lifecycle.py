@@ -846,9 +846,14 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
             return f"touch strayed, unjudged: {s['paths']}"
         return f"touch strayed, a mistake still in the head commit: {s['paths']}"
 
+    # A red test of a retired criterion holds no merge. He dropped its line
+    # (frame 306, pass 2, finding 2).
+    from .scheduler import live_tests
+
     failing = conn.execute(
         "SELECT COUNT(*) AS n FROM test_runs "
-        "WHERE batch_id = ? AND commit_sha = ? AND result != 'pass'",
+        "WHERE batch_id = ? AND commit_sha = ? AND result != 'pass'"
+        + live_tests(conn, "test_id"),
         (batch_id, head)).fetchone()["n"]
     if failing:
         return f"{failing} test(s) not passing"

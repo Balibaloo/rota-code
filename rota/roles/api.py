@@ -5608,7 +5608,10 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                  and w[2].get("ticket_id") == ticket_id), None) or (
         lambda r: r["id"] if r else None)(ctx.conn.execute(
             "SELECT id FROM criteria WHERE ticket_id = ? AND "
-            "lower(trim(text)) = ?", (ticket_id, words)).fetchone())
+            "lower(trim(text)) = ?"
+            # A retired row is no twin, as in `_near_twin` (frame 306,
+            # pass 2, finding 6).
+            + _live_rows(ctx.conn, "retired_by"), (ticket_id, words)).fetchone())
     if twin:
         raise ValueError(
             f"those are {twin}'s words already, on the same ticket. The same "
@@ -5636,6 +5639,12 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
         + live_criteria(ctx.conn, "retired_by"), (ticket_id,))}
     existing |= {w[1] for w in ctx.writes
                  if w[0] == "criteria" and w[2].get("ticket_id") == ticket_id}
+    # A retire staged in this session frees its seat too. Night 163's relay
+    # wake asks for two retires and one added line in one session, and the
+    # added line had no second wake (frame 306, pass 2, finding 1).
+    existing -= {w[1] for w in ctx.writes
+                 if w[0] == "criteria" and isinstance(w[2], dict)
+                 and w[2].get("retired_by")}
     if id not in existing and len(existing) >= 6:
         raise ValueError(
             f"{ticket_id} has {len(existing)} criteria already, and six is many. "
@@ -6080,24 +6089,55 @@ def ruling_drops_line(ctx: Ctx, id: str) -> int | None:
 # His words that add a line to the page. Night 163's m112: "Also add a line
 # that says the output stays exactly the same as today, and the rest is
 # fine." No route took that sentence to a criterion (frame 306, pass 1b).
+# The review of 1464cfb7 found four more forms: "add a check that X", "add a
+# line: X", two adds in one sentence, and "e.g." inside the text (frame 306,
+# pass 2, finding 4). A full stop ends the text only before a space or the
+# end, and never after "e.g" or "i.e".
 _ADD_LINE = re.compile(
-    r"\badd\s+(?:a|one|another)\s+(?:new\s+)?(?:line|criterion|requirement)\s+"
-    r"(?:that\s+says?|saying|to\s+say)\s+(?:that\s+)?(?P<text>[^.;!?]+?)"
-    r"(?:,\s*(?:and|but)\s+the\s+rest\b[^.;!?]*)?\s*(?:[.;!?]|$)", re.I)
+    r"\badd\s+(?:a|one|another)\s+(?:new\s+)?"
+    r"(?:line|criterion|requirement|check)\s*"
+    r"(?::\s*|(?:that\s+says?|saying|to\s+say|that)\s+(?:that\s+)?)"
+    r"(?P<text>(?:[^.;!?]|\.(?!\s|$)|(?<=\be\.g)\.|(?<=\bi\.e)\.)+?)"
+    r"(?=,?\s+(?:and\s+)?(?:also\s+)?add\s+(?:a|one|another)\b"
+    r"|,\s*(?:and|but)\s+the\s+rest\b|\s*[;!?]"
+    r"|(?<!\be\.g)(?<!\bi\.e)\s*\.(?:\s|$)|\s*$)", re.I)
+
+# A sentence that names an item by its place ("item two") or by another
+# item's id is about that item. It is not filed under the contested ticket.
+_NAMES_AN_ITEM = re.compile(
+    r"\bitem\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b",
+    re.I)
+
+
+def _page_added_lines(conn: sqlite3.Connection, words: str, ticket_id: str) -> list:
+    """The (ticket, sentence) pairs of the lines his words add to this
+    ticket. A sentence about another item is left out."""
+    own = conn.execute("SELECT item_id FROM tickets WHERE id = ?",
+                       (ticket_id,)).fetchone()
+    others = [r["id"] for r in conn.execute(
+        "SELECT id FROM items WHERE id != ?", (own["item_id"] if own else "",))]
+    out = []
+    for m in _ADD_LINE.finditer(words or ""):
+        text = m.group("text").strip()
+        if _NAMES_AN_ITEM.search(text) or any(
+                re.search(rf"\b{re.escape(i)}\b", text) for i in others):
+            continue
+        out.append((ticket_id, text))
+    return out
 
 
 def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
     """What his last ruling on the criteria in `refs` asks beyond a rewrite.
 
-    "retire" lists the criteria whose line the ruling drops. "add" is the
-    ticket and the sentence of a line he adds, or None. The relay wake of
+    "retire" lists the criteria whose line the ruling drops. "add" lists the
+    ticket and the sentence of each line he adds. The relay wake of
     `criterion_repair` offers `criteria.retire` and `criteria.specify` by
     this reading only, so other wakes keep their prompt (frame 306, pass 1b).
     """
     from ..core.scheduler import live_criteria
     from .principal import last_ruling_on
 
-    out: dict = {"retire": [], "add": None}
+    out: dict = {"retire": [], "add": []}
     for ref in refs or ():
         if not isinstance(ref, str):
             continue
@@ -6109,9 +6149,9 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
             continue
         if _line_dropped_on(conn, ruled, ref) is not None:
             out["retire"].append(ref)
-        added = _ADD_LINE.search(ruled["words"] or "")
-        if added and out["add"] is None:
-            out["add"] = (row["ticket_id"], added.group("text").strip())
+        # One ruling covers every contested row, so its words add once.
+        if not out["add"]:
+            out["add"] = _page_added_lines(conn, ruled["words"], row["ticket_id"])
     return out
 
 
@@ -6142,8 +6182,26 @@ def criteria_retire(ctx: Ctx, id: str) -> dict:
             f"no ruling of the principal drops the line of {id}. Only his "
             f"ruling retires a criterion. Rewrite it with criteria.respecify "
             f"instead")
+    # A mode with no tools file offers every op, so the door reads the wake
+    # too. Only the relay of his ruling on this criterion retires it (frame
+    # 306, pass 2, finding 5).
+    wake = ctx.conn.execute(
+        "SELECT verb, body_refs FROM messages WHERE id = ?",
+        (getattr(ctx, "trigger", None),)).fetchone()
+    try:
+        relayed = wake is not None and wake["verb"] == "relay" and id in (
+            json.loads(wake["body_refs"] or "[]"))
+    except (TypeError, ValueError):
+        relayed = False
+    if not relayed:
+        raise ValueError(
+            f"this wake is not the relay of his ruling on {id}. Only the relay "
+            f"of the ruling that drops its line retires a criterion")
     ruled = last_ruling_on(ctx.conn, id)
-    ctx.writes.append(("criteria", id, {"retired_by": ruled["id"]}))
+    # No version move: the words did not change, so no Tester re-encodes,
+    # and no version pair of the park ask moves (frame 306, pass 2,
+    # finding 3).
+    ctx.writes.append(("criteria", id, {"retired_by": ruled["id"]}, False))
     return {"id": id, "retired_by": ruled["id"]}
 
 

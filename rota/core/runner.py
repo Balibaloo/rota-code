@@ -292,8 +292,7 @@ def _page_act_lines(wake: Wake, conn) -> list[str]:
     acts = _page_acts(wake, conn) or {}
     lines = [f"His ruling drops the line of {cid}. Retire it with "
              f"criteria.retire(id='{cid}')." for cid in acts.get("retire") or ()]
-    if acts.get("add"):
-        ticket, sentence = acts["add"]
+    for ticket, sentence in acts.get("add") or ():
         lines.append(f"He asks for a new line: {sentence!r}. Write it with "
                      f"criteria.specify under ticket {ticket}.")
     return lines

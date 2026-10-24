@@ -49,7 +49,8 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
                            "statement, whatever id it is given"),
     "tickets": ("words", "tickets.slice: the same words are the same ticket"),
     "criteria": ("words", "criteria.specify: same ticket, same words, one "
-                          "row; a second criterion needs a second sentence"),
+                          "live row; a second criterion needs a second "
+                          "sentence, and a retired row counts for none"),
     "batches": ("relation", "batches.group: one item's open work is one "
                             "batch; abandoned/merged leave the game"),
     "tests": ("supersede", "a re-encode for the same criterion withdraws the "
