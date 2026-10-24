@@ -174,3 +174,54 @@ def test_a_short_removed_statement_beside_a_longer_added_line_raises(db, tmp_pat
     head = "def echo(ctx):\n    ctx.text_exit_value(1)\n"
     sb, out = _commit(db, tmp_path, base, head)
     assert out["committed"] and _shape_rows(sb) == [f"{PATH}::echo:L2"]
+
+
+# Pass 3 (frame 306, pass plan step 2): a foreseen row reaches the principal
+# as a notice with no question, so nothing stays invisible.
+
+def _merged_with(db, *rows):
+    db.execute("UPDATE batches SET status = 'merged', head_commit = 'abc' WHERE id = 'b1'")
+    for path, status, note in rows:
+        db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status, note) "
+                   "VALUES ('b1','abc',?,?,?)", (path, status, note))
+    db.commit()
+
+
+def _under_done(page):
+    lines = page.splitlines()
+    at = next(i for i, ln in enumerate(lines) if ln.startswith("Done:"))
+    return [ln for ln in lines[at + 1:] if ln.startswith("  ")]
+
+
+def test_a_foreseen_shape_row_shows_under_the_done_line(db):
+    from rota.roles.principal import render_state
+    _merged_with(db, (f"{PATH}::echo_json(file)", "foreseen", "the stream is asked for"),
+                 ("src/click/termui.py::confirm:L319", "foreseen", None))
+    assert _under_done(render_state(db)) == [
+        '  In "echo json": a `file` parameter on `echo_json` in src/click/utils.py, '
+        'not asked for (the Architect: the stream is asked for). Line 319 of '
+        '`confirm` in src/click/termui.py removed, not asked for.']
+
+
+def test_a_mistake_row_and_no_row_show_nothing(db):
+    from rota.roles.principal import render_state
+    _merged_with(db, (f"{PATH}::echo_json(file)", "mistake", "take it out"))
+    assert _under_done(render_state(db)) == []
+    db.execute("DELETE FROM touch_strays")
+    db.commit()
+    assert _under_done(render_state(db)) == []
+
+
+def test_the_night_report_prints_the_foreseen_rows(db, tmp_path):
+    import shutil
+    import sqlite3
+    from rota.tools import nightreport
+    _merged_with(db, (f"{PATH}::module:L9", "foreseen", None))
+    copy = tmp_path / "copy.db"
+    db.execute("PRAGMA wal_checkpoint(FULL)")
+    shutil.copy(tmp_path / "rota.db", copy)
+    ro = sqlite3.connect(f"file:{copy.as_posix()}?mode=ro", uri=True)
+    ro.row_factory = sqlite3.Row
+    out = nightreport.build(ro)
+    at = out.index("== foreseen strays on merged batches")
+    assert out[at + 1] == '  In "echo json": line 9 of src/click/utils.py removed, not asked for.'

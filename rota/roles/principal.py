@@ -281,6 +281,57 @@ def aside_lines(conn: sqlite3.Connection) -> list[str]:
     return out
 
 
+def _grain_words(grain: str) -> str:
+    """A stray grain of the definition or the shape detector, in words."""
+    path, _sep, rest = grain.partition("::")
+    m = re.fullmatch(r"(.+)\((\w+)\)", rest)
+    if m:
+        return f"a `{m.group(2)}` parameter on `{m.group(1)}` in {path}, not asked for"
+    m = re.fullmatch(r"(.+):L(\d+)", rest)
+    if m:
+        where = path if m.group(1) == "module" else f"`{m.group(1)}` in {path}"
+        return f"line {m.group(2)} of {where} removed, not asked for"
+    return f"a change to `{rest}` in {path}, not asked for"
+
+
+def foreseen_notices(conn: sqlite3.Connection) -> list[str]:
+    """
+    One line per merged batch with a stray inside a file that the Architect
+    judged foreseen. A notice, not a question: nothing waits on it.
+
+    Frame 306: "no work stays invisible" (composition). The stray hold
+    shows a change to the Architect only. A foreseen change merged and the
+    principal saw a count. A mistake row names a change taken out, so it
+    shows nothing. The rows are read from `touch_strays` at every commit,
+    not through `batches.strays`: a judgement keeps the sha it was made on,
+    and a later commit moves the head past it.
+    """
+    try:
+        rows = conn.execute(
+            "SELECT b.id AS batch, i.text AS item, s.path, s.note "
+            "FROM touch_strays s JOIN batches b ON b.id = s.batch_id "
+            "LEFT JOIN items i ON i.id = b.item_id "
+            "WHERE b.status = 'merged' AND s.status = 'foreseen' "
+            "AND s.path LIKE '%::%' ORDER BY b.id, s.rowid").fetchall()
+    except sqlite3.Error:
+        return []        # a database from before the stray route
+    by: dict = {}
+    for r in rows:
+        held = by.setdefault(r["batch"], (r["item"] or r["batch"], {}))
+        held[1].setdefault(r["path"], r["note"])
+    out = []
+    for item, grains in by.values():
+        said = []
+        for grain, note in grains.items():
+            words = _grain_words(grain)
+            words = words[0].upper() + words[1:]
+            said.append(f"{words} (the Architect: {note})." if note else f"{words}.")
+        name = item if len(item) <= 60 else item[:57] + "..."
+        out.append(f'  In "{name}": ' + " ".join(
+            s[0].lower() + s[1:] if k == 0 else s for k, s in enumerate(said)))
+    return out
+
+
 def render_state(conn: sqlite3.Connection) -> str:
     """
     Where the run is, in words, for the person who waits on it.
@@ -322,6 +373,7 @@ def render_state(conn: sqlite3.Connection) -> str:
     if merged:
         out.append(f"Done: {merged} change{'s' if merged > 1 else ''} built, "
                    "tested and merged.")
+        out.extend(foreseen_notices(conn))
     # A cold cockpit sees the cycle the walk printed, read from the rows
     # (ruled: Roman, 2026-09-24, an alert first). The line goes under what
     # is stuck.
