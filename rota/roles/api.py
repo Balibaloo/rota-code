@@ -5296,6 +5296,31 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             f"{id!r} is already {prior_ticket}'s criterion. An id you invent "
             f"is yours once -- {ticket_id} needs its own; two tickets never "
             f"share one criterion's id, even written in the same turn")
+    # The same ticket holds an id once too. a9cb55de refused another ticket
+    # only, and no record decided the same ticket (frame 310's provenance).
+    # Night 160's s111 wrote four texts under one id, the last won at
+    # commit, and the principal's "followed by a newline" was lost. The
+    # same words are no second write, so they return `unchanged`.
+    if prior_ticket == ticket_id:
+        session = [w[2].get("text", "") for w in ctx.writes
+                   if w[0] == "criteria" and w[1] == id]
+        landed = None if session else ctx.conn.execute(
+            "SELECT text FROM criteria WHERE id = ?", (id,)).fetchone()
+        first = session[-1] if session else (landed["text"] if landed else "")
+        if _same_words(text or "", first or ""):
+            return {"id": id, "unchanged": True,
+                    "note": f"those are {id}'s own words; nothing was written"}
+        opening = " ".join((first or "").split()[:10])
+        route = (" To replace the landed criterion, send "
+                 "msg.challenge_vision_keeper with its id." if landed else "")
+        raise ValueError(_offer(
+            ctx,
+            f"{id!r} already holds a criterion on {ticket_id}: {opening!r}. "
+            f"An id you invent is yours once. For a new criterion, send "
+            f"criteria.specify with a new id of your own.{route}",
+            "criteria.specify", {"id": INVENT, "ticket_id": ticket_id,
+                                 "text": text, "term_refs": term_refs,
+                                 "surface_refs": surface_refs}))
     if _about_the_tests(text):
         raise ValueError(
             "a criterion names what the program does; this one names the "

@@ -34,7 +34,8 @@ cannot hold together, and write nothing for it.
 six is many. Each one costs a test, a review, and a page if it fails. A
 criterion for an edge the item's words never mentioned is a guess, and a
 guess is a ledger entry, not a criterion. Sixty criteria for one flag
-(clickI, 2026-09-12) buried the four that mattered.
+(clickI, 2026-09-12) buried the four that mattered. Each criterion has its
+own id, and a new text takes a new id.
 
 Criteria describe what must be *true when it is done*, not how to build it.
 "Deleting an account tombstones it and preserves billing history" is a criterion.
