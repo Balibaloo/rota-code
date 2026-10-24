@@ -305,6 +305,10 @@ comes first, then the state print, then the sender's note.
   checkout, with the checkout's `.rota-gate.json` and register copied in,
   or `new reds (0)` means nothing (observed: 2 strikes by 2026-10-12,
   memory `rota-gate-from-a-worktree.md`).
+  The copy goes from the newer register to the older, by `max(at)` of
+  `case_runs`: a gate worktree that re-recorded holds the newer one, and a
+  copy from the checkout over it erased a day's re-records (observed: 1
+  strike, 2026-10-24, `plans/operating-facts.md`, the gate section).
 - [M6] Never `cp` over the checkout's `cassettes.db` under a running gate:
   the copy cuts it at 1 GiB. Never filter processes on a word in the
   session's own command line, because the filter kills the session's shell

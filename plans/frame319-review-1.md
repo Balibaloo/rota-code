@@ -67,3 +67,49 @@ All probes are under `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/f1f
 About 75k input tokens, 14k output tokens, about 89k in total. These numbers are an estimate.
 
 Stands: the door and the block do what the frame asks with no false refusal on the three nights. Before the frame closes, fix finding 3 and add the empty-surface and negation routes of findings 1 and 2.
+
+## Re-check of d84fb350
+
+### (a) Verdicts on the points
+
+1. The cap: fixed. On night 162, `_named_callables` with the real headline returns `src/click/termui.py::confirm` first, out of 897 symbols. The test `test_the_criteria_wake_holds_the_source_of_a_callable_past_twenty` adds 30 rows, and it is red at 3aa6ccba.
+2. The empty surface: refused now. The refusal quotes `line 15: raise Abort() from None` and `line 18: raise Abort()`. When the headline names no callable, c2 lands silently with the "no surface named" note.
+3. The helper: the push and the raise block read the same list, capped at ten. The door reads the list uncapped, and from one ticket's text, not from the item's headlines and `asked`. No reader takes the first unhinted 20 now.
+4. The cases: both recorded criteria cases keep their prompt shape. Their wake refs name `<tk1>`, so the item lookup and `tickets.scan` find nothing, and the hint is empty. No other recorded case changes. The two L3 criteria cases hold no `code_index`.
+5. The suite: the new file gives 8 passed. The five named files give 78 passed. Both counts match the report.
+
+### (b) Findings
+
+1. `rota/roles/api.py:5061` (the fallback `surface = _named_callables(...)`). Medium. CONFIRMED.
+   With an empty surface, the pool holds the source of every callable the headline names.
+   The probe set the headline to name `confirm` and `edit`, and `edit` raises `UsageError`.
+   s157's c2 with an empty surface then landed. The same text with `surface_refs=["confirm"]` was refused.
+   So a refused seat can still land the wrong exception by dropping the surface, when the headline names a second callable.
+   No headline on nights 160 to 162 names two callables, so the route is not measured.
+   Fix: with no surface named, refuse when any named callable's source lacks the identifier, not when all of them lack it.
+
+2. `rota/roles/api.py:5061` against `rota/core/runner.py:4215` and `:4085`. Low. CONFIRMED by reading.
+   The wake reads `asked` and every headline of the item, capped at ten. The door reads one ticket's text, uncapped.
+   The door can quote a callable the wake did not show, or miss one the wake showed.
+   Fix: give the door the same hint and the same `[:RAISE_LINES_SHOWN]` cut, or record why they differ.
+
+3. `rota/core/runner.py:4215` (the span loop). Low. PLAUSIBLE.
+   `_named_callables` sorts by grain, and the cut takes the first ten. A headline word such as `cli` matches 13 files on night 162.
+   The push then reads up to ten files of 400 lines each, where pass 1 read two. A common word can also push the wanted callable past the cut.
+   Fix: cap the files at two again, and order the named callables by the headline word that matched first.
+
+### (c) Probes
+
+All probes are under `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e7141541-fc20-4c5c-a91b-4a10a610ec42/scratchpad/r319b/`.
+
+- `p1.py`: `_named_callables` on the headlines of each criteria item of nights 160 to 162, opened with `?mode=ro`. Each item names one callable. `confirm` is at position 0. No symbol row has a NULL or zero span.
+- `old/`: `git archive 3aa6ccba` of `rota` and `tests`, with d84fb350's test file. Result: 2 failed, 6 passed. The import came from the archive.
+- `test_p2.py`: the door on the frame's fixture. Empty surface: refused with lines 15 and 18. Headline with no callable: landed. Headline naming `confirm` and `edit`: landed with an empty surface, refused with `confirm`. The wake pushed lines 4 to 22 and two raise-block keys.
+- The case scan: `tick: criteria` occurs in `l1_surface.yaml`, `l1_terminologist.yaml` and `l3_handoffs.yaml` only.
+- The suite: the new file and the five named files, run from the worktree root.
+
+### (d) Usage
+
+About 45k input tokens, 7k output tokens, about 52k in total. These numbers are an estimate.
+
+Stands: findings 1 and 3 of review 1 are fixed and proved red-then-green. Finding 1 above leaves a narrower empty-surface route open.
