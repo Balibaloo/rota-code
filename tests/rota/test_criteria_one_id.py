@@ -100,11 +100,14 @@ def test_a_landed_criterion_is_replaced_through_the_vision_keeper(db):
     assert _texts(sb, "echo_json_helper") == []
 
 
-def test_the_same_text_twice_is_unchanged(db):
+def test_the_same_text_twice_keeps_the_twin_refusal(db):
     sb = _seat(db)
     _specify(sb, _FIRST, ["stream"])
-    out = _specify(sb, _FIRST, ["stream"])
-    assert out.get("unchanged") is True
+    with pytest.raises(ValueError, match=r"^those are echo_json_helper's words "
+                       r"already, on the same ticket\. The same words are the "
+                       r"same criterion; if the ticket needs a second "
+                       r"criterion, it needs a second sentence$"):
+        _specify(sb, _FIRST, ["stream"])
     assert _texts(sb, "echo_json_helper") == [_FIRST]
 
 
