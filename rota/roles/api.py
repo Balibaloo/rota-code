@@ -19735,10 +19735,15 @@ def _owner_at(text: str, line: int) -> str:
     return best
 
 
-def _is_subsequence(short: str, long: str) -> bool:
-    """True when the characters of `short` occur in `long` in order."""
-    it = iter(long)
-    return all(c in it for c in short)
+def _is_widening(short: str, long: str) -> bool:
+    """True when `long` holds `short` whole, or holds `short` with one run
+    of text put in at one place, as `foo(x)` in `foo(x, y)`."""
+    # Review 3, low: a character subsequence let `ctx.exit()` hide in any
+    # longer line. One insertion keeps the removed text in two pieces only.
+    if short in long:
+        return True
+    return any(long.startswith(short[:i]) and long.endswith(short[i:])
+               for i in range(1, len(short))) and len(long) > len(short)
 
 
 def shape_grains(rel: str, old: str, new: str, diff: str,
@@ -19748,10 +19753,10 @@ def shape_grains(rel: str, old: str, new: str, diff: str,
 
     Shape 1, `rel::def(param)`: a parameter with a default that the diff
     adds to a definition, when no criterion text or surface names it as a
-    word. Shape 2, `rel::def:Lnnn`: a hunk with a removed line that is not
-    empty, is not added back anywhere in the file's diff, and is not a
-    character subsequence of an added line of the same hunk. `Lnnn` is the
-    line of that removed line in the base. One row per hunk.
+    word. Shape 2, `rel::def:Lnnn`: a removed line that is not empty, is
+    not added back anywhere in the file's diff, and is not widened by an
+    added line of the same hunk. `Lnnn` is the line in the base. One row
+    per removed line.
 
     law 12: the touch set is a prediction, never a permission
     """
@@ -19786,14 +19791,15 @@ def shape_grains(rel: str, old: str, new: str, diff: str,
             hunks[-1][1].append(raw[1:])
     added_anywhere = {a.strip() for _r, added in hunks for a in added}
     for removed, added in hunks:
+        # One row per removed line: a judged line must not hide a later
+        # removal in the same hunk (frame 306, review 3, high).
         for at, r in removed:
             r = r.strip()
             if not r or r in added_anywhere:
                 continue        # an empty line, or a moved line
-            if any(_is_subsequence(r, a.strip()) for a in added):
+            if any(_is_widening(r, a.strip()) for a in added):
                 continue        # a widening, not a removal
             out.append(f"{rel}::{_owner_at(old, at)}:L{at}")
-            break
     return out
 
 

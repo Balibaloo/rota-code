@@ -153,3 +153,24 @@ def test_covers_matches_each_shape_grain_exactly(db):
                   mistakes=[f"{PATH}::module:L9"])
     assert out["foreseen"] == [f"{PATH}::echo(file)"]
     assert out["mistakes"] == [f"{PATH}::module:L9"]
+
+
+def test_a_judged_line_does_not_hide_a_later_removal_in_its_hunk(db, tmp_path):
+    """Review 3, high: a docstring edit judged at `f:L2` hid `ctx.exit()`
+    that a later commit removed in the same hunk. One row per removed line."""
+    base = 'def echo(ctx):\n    """Print ``ctx``."""\n    ctx.exit()\n'
+    head = 'def echo(ctx):\n    """Print `ctx`."""\n'
+    db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status) "
+               "VALUES ('b1','old',?,'foreseen')", (f"{PATH}::echo:L2",))
+    db.commit()
+    sb, out = _commit(db, tmp_path, base, head)
+    assert out["committed"] and _shape_rows(sb) == [f"{PATH}::echo:L3"]
+
+
+def test_a_short_removed_statement_beside_a_longer_added_line_raises(db, tmp_path):
+    """Review 3, low: `ctx.exit()` is a character subsequence of the added
+    line, but the added line does not hold it, so it is a removal."""
+    base = "def echo(ctx):\n    ctx.exit()\n"
+    head = "def echo(ctx):\n    ctx.text_exit_value(1)\n"
+    sb, out = _commit(db, tmp_path, base, head)
+    assert out["committed"] and _shape_rows(sb) == [f"{PATH}::echo:L2"]
