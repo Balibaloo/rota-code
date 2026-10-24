@@ -52,14 +52,15 @@ def test_a_span_write_that_rewrites_a_bare_return_opens_no_note(db, tmp_path):
 
 
 def test_a_span_write_that_removes_one_statement_and_rewrites_another(db, tmp_path):
-    """`ctx.exit()` has no new statement at its place under `show_version`,
-    so the note opens and names it. `return False` sits at the place of
-    `return` and holds its token, so the note does not name `return`."""
+    """The note opens and names `ctx.exit()`. Pass 8c: the owner's count
+    of statements falls, so no place pairs, and the note names the
+    rewritten `return` too (review 8's finding 5)."""
     sb, _root = _developer(db, tmp_path)
     out = sb.call("code.write", path=PATH, start=592, end=597,
                   text=REWRITE + "\n\n        echo(callback(ctx), color=ctx.color)")
-    assert out["dropped"] == ("This write removes or rewrites 1 statement that "
-                              "your text does not hold: `ctx.exit()` at line 596.")
+    assert out["dropped"] == ("This write removes or rewrites 2 statements that "
+                              "your text does not hold: `return` at line 593, "
+                              "`ctx.exit()` at line 596.")
     assert PATH in api._open_notes(sb.ctx)
 
 
@@ -117,6 +118,7 @@ SMALL = ["def clear(self, x):",
          "def other(x):",
          "    go(x)",
          "    return x"]
+LOGS = ["def f(x):", "    log(x)", "    log(x, 2)", "    return x"]
 
 
 @pytest.mark.parametrize("start,stop,new,named", [
@@ -128,12 +130,16 @@ SMALL = ["def clear(self, x):",
     (2, 4, ["        self.log(x)", "        self.log(x)"], "`validate(x)` at line 3"),
     # E6: `pass` is no statement the walk counts, so `return` is dropped.
     (4, 5, ["    pass"], "`return` at line 4"),
+    # E8 of the re-check: with `log(x)` gone, `log(x, 2)` moves into its
+    # place and holds its tokens. The owner's count falls, so no pairing.
+    (1, 3, ["    log(x, 2)"], "`log(x)` at line 1"),
 ])
 def test_a_rewrite_is_paired_by_its_place_under_the_owner(start, stop, new, named):
     """Pass 8b, review 8's finding 1: a held count of a kind let
     `validate(x)` go with no note. A dropped statement is a rewrite only
     when the new statement at its place under its owner holds its tokens."""
-    note = api._drop_note(SMALL, start, stop, chr(10).join(new), lines_out=[])
+    old = LOGS if "log(x, 2)" in new[0] else SMALL
+    note = api._drop_note(old, start, stop, chr(10).join(new), lines_out=[])
     if named is None:
         assert note is None
     else:

@@ -21604,9 +21604,16 @@ def _rewritten_heads(old_lines: list[str], text: str) -> set[int]:
         placed[o].append(set(re.findall(r"\w+", new_lines[a])))
     seen: dict = defaultdict(int)
     out: set[int] = set()
+    count: dict = defaultdict(int)
+    for o, _k, _a, _b, _t in olds:
+        count[o] += 1
     for o, _k, a, _b, _t in olds:
         at = seen[o]
         seen[o] += 1
+        # Pass 8c, review 8's finding 5: a removal moves the next statement
+        # into the index. So the place pairs only when the counts match.
+        if count[o] != len(placed[o]):
+            continue
         toks = set(re.findall(r"\w+", old_lines[a]))
         if toks and at < len(placed[o]) and toks <= placed[o][at]:
             out.add(a)
