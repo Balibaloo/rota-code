@@ -1510,3 +1510,26 @@ rule on the want of a criterion, not on the reach). The fixes are frame
 unnamed-definition door records a definition-level stray for the Architect
 instead of refusing.
 
+### A docstring line counts for a criterion that asks for one (2026-10-24)
+
+Roman, 2026-10-24 at 01:05, in the terminal, to the question of 01:02 asked
+in plain words: "Yes" (ruled: Roman, in his words; the question is in
+frame 311's status of 01:02 on the stack).
+
+The question: when the requirement itself asks for a docstring, may the
+reviewer point at a docstring line as proof. The provenance,
+`plans/frame311-provenance.md`: frame 180 added the kind refusal of
+`_pass_lines_check` at 20ac26ce on 2026-10-08 by analogy from an `import
+json` case that held no docstring line, the frame closed by timeout with
+no reply from Roman, and frame 170's design admitted docstring lines on
+purpose. On night 160 the door refused 42 times in 16 Critic sessions, 40
+under a criterion whose text named the docstring, and 13 of 15 sessions
+ended with no verdict (observed: the provenance, section 4).
+
+The rule: a line of a kind that does no behaviour, a docstring or a
+comment, is evidence for a criterion only when that criterion's own words
+ask for the code's documentation, with the words "docstring", "document"
+or "help text". For every other criterion the kind refusal of frame 180
+stays as built, so a reviewer cannot pass a behaviour criterion by
+pointing at a comment (reasoned: the general form of the ruling, from the
+provenance's section 6). The fix is frame 311.
