@@ -264,10 +264,11 @@ def test_a_batch_key_keeps_its_count_until_the_batch_moves(tmp_path):
 
     _lift_quarantines(db, SimpleNamespace(table="batches", row_id="b1", op="update",
                                           values={"head_commit": "c1"}), True)
-    assert not db.execute("SELECT 1 FROM tick_attempts").fetchone(), \
-        "a head commit is the batch moving, so its count resets"
+    # Frame 318: on a running batch the harness run at the new head judges
+    # the `tests_failing` key, so the commit alone keeps the count.
+    count = db.execute("SELECT attempts FROM tick_attempts").fetchone()
+    assert count and count["attempts"] == 2, "a head commit alone is not progress"
 
-    note_dispatch(db, wake)
     db.execute("UPDATE batches SET status = 'merged' WHERE id = 'b1'")
     frontier(db)
     assert not db.execute("SELECT 1 FROM tick_attempts").fetchone(), \

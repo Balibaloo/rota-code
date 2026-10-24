@@ -2576,12 +2576,15 @@ def test_a_tester_cannot_hold_a_test_whose_run_reached_stdin(db):
                 quotes="leaves its invoices in place")
 
 
-def test_a_commit_resets_the_failing_ticks_attempts(db):
+def test_a_moved_red_resets_the_failing_ticks_attempts(db):
     """Walk seventeen: four, three, two tests failing across three commits
     and the third session was the quarantine -- progress counted as
-    dispatch without progress. A new head commit is the wake stopping
-    being produced, from the counter's point of view."""
-    from rota.core.db import _lift_quarantines
+    dispatch without progress. Frame 318: the progress is the red moving
+    at the new head, not the head commit alone (night 162)."""
+    from rota.core.db import _lift_quarantines, lift_on_red_move
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r1','b1','tst1','abc123',"
+               "'fail',1,'E  AssertionError: no invoices')")
     db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
                "VALUES ('developer|tick:tests_failing|b1', 2, 0)")
     db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
@@ -2592,6 +2595,13 @@ def test_a_commit_resets_the_failing_ticks_attempts(db):
     W = Write(table="batches", row_id="b1", values={"head_commit": "def456"})
 
     _lift_quarantines(db, W, moved=True)
+    rows = {r["tick_key"]: r["attempts"] for r in db.execute(
+        "SELECT tick_key, attempts FROM tick_attempts")}
+    assert rows["developer|tick:tests_failing|b1"] == 2, "the red has not run yet"
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r2','b1','tst1','def456',"
+               "'pass',2,'')")
+    assert lift_on_red_move(db, "b1", "def456")
     rows = {r["tick_key"]: r["attempts"] for r in db.execute(
         "SELECT tick_key, attempts FROM tick_attempts")}
     assert "developer|tick:tests_failing|b1" not in rows, "progress resets"

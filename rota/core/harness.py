@@ -128,6 +128,7 @@ def run(conn: sqlite3.Connection, batch_id: str,
             lifecycle.record_test_run(conn, new_id("tr", conn), batch_id,
                                       test_id, result, attempt,
                                       commit_sha=head, output=said)
+        _judge_key(conn, batch_id, head)
         return results
 
     root = Path(worktree)
@@ -157,7 +158,15 @@ def run(conn: sqlite3.Connection, batch_id: str,
         lifecycle.record_test_run(conn, new_id("tr", conn), batch_id, test_id,
                                   result, attempt, commit_sha=head,
                                   output=output.get(test_id, ""))
+    _judge_key(conn, batch_id, head)
     return results
+
+
+def _judge_key(conn: sqlite3.Connection, batch_id: str, head: str | None) -> None:
+    """The runs at a new head decide whether the red moved (frame 318)."""
+    from .db import lift_on_red_move
+
+    lift_on_red_move(conn, batch_id, head)
 
 
 def _run_one(root: Path, path: str, timeout: int,

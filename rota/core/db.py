@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -600,18 +601,23 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
         # (observed: frame 86's pass 4 review, 2026-09-25).
         commit = w.table == "batches" and "head_commit" in (
             getattr(w, "values", None) or {})
+        # Frame 318: on a running batch the harness run at the new head
+        # judges the `tests_failing` key, in `lift_on_red_move`.
+        failing = commit and _running(conn, w.row_id)
         conn.execute(
             "DELETE FROM tick_attempts WHERE quarantined = 1 AND (tick_key LIKE ? "
             "OR tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?) "
-            "AND tick_key NOT LIKE ?",
+            "AND tick_key NOT LIKE ? AND tick_key NOT LIKE ?",
             (f"%|{w.row_id}", f"%|{w.row_id},%",
              f"%,{w.row_id}", f"%,{w.row_id},%",
-             "%|do:park|%" if commit else "\x00"))
-    # A new head commit is progress, and the bound is on dispatch *without*
+             "%|do:park|%" if commit else "\x00",
+             "%|tick:tests_failing|%" if failing else "\x00"))
+    # Progress is the red moving, and the bound is on dispatch *without*
     # progress. Walk seventeen: four, three, two tests failing across three
-    # commits, and the third session was the quarantine -- the key
-    # `developer|tick:tests_failing|b1` never changed, so the counter never
-    # saw the loop working. The commit is the wake stopping being produced.
+    # commits, and the third session was the quarantine. So a moved red
+    # resets the key. Night 162: a docstring commit wiped the quarantine,
+    # and the same red bought three more ticks. So a head move alone does
+    # not reset it on a running batch (frame 318).
     fields = getattr(w, "values", None) or {}
     # A re-encoded test's runs describe a body that no longer exists. Walk
     # eighteen: the hold guard, the Developer's wake and the harness gate
@@ -619,8 +625,12 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
     if w.table == "tests" and "body" in fields:
         conn.execute("DELETE FROM test_runs WHERE test_id = ?", (w.row_id,))
     if w.table == "batches" and "head_commit" in fields:
-        conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
-                     (f"%|tick:tests_failing|{w.row_id}",))
+        running = _running(conn, w.row_id)
+        # A parked batch gets no harness run until it resumes, so the commit
+        # still lifts its key. The commit is the park's way out (frame 87).
+        if not running:
+            conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
+                         (f"%|tick:tests_failing|{w.row_id}",))
         # The commit is the way out the park ask names, so the ask closes
         # with the keys it asked about (frame 87).
         from .scheduler import close_park_asks
@@ -631,8 +641,10 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
         # too: a commit is the park's own exit, so a reset would let park,
         # commit and fail loop without a bound (observed: frame 86's pass 3
         # review, 2026-09-25). Law 6 bounds the loop at the attempt cap.
-        _forget_batch_counts(conn, w.row_id,
-                             keep=("%|tick:tests_missing|%", "%|do:park|%"))
+        keep = ("%|tick:tests_missing|%", "%|do:park|%")
+        if running:
+            keep += ("%|tick:tests_failing|%",)
+        _forget_batch_counts(conn, w.row_id, keep=keep)
     if moved and w.table in ("criteria", "tests"):
         if w.table == "criteria":
             batches = [r["batch_id"] for r in conn.execute(
@@ -666,6 +678,55 @@ def _forget_batch_counts(conn: sqlite3.Connection, batch_id: str,
         "AND (tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?)",
         (*keep, f"%|{batch_id}", f"%|{batch_id},%", f"%,{batch_id}",
          f"%,{batch_id},%"))
+
+
+def _running(conn: sqlite3.Connection, batch_id: str) -> bool:
+    row = conn.execute("SELECT status FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    return bool(row) and row["status"] == "running"
+
+
+def _first_error(output: str) -> str:
+    """The first `E ` line of a run, with object addresses blanked."""
+    # Night 160: the same red printed a new `0x...` address on each run.
+    for line in (output or "").splitlines():
+        if line.startswith("E "):
+            return re.sub(r"0x[0-9a-fA-F]+", "0x", line[1:].strip())
+    return ""
+
+
+def _red(conn: sqlite3.Connection, batch_id: str, head: str | None,
+         at_head: bool) -> dict[str, str]:
+    """
+    The batch's red as test id to first error line. With `at_head`, the runs
+    at the head. Otherwise the newest run per test at any other commit.
+    """
+    op = "=" if at_head else "IS NOT"
+    return {r["test_id"]: _first_error(r["output"]) for r in conn.execute(
+        "SELECT test_id, result, output FROM test_runs "
+        f"WHERE rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
+        f"AND commit_sha {op} ? GROUP BY test_id)", (batch_id, head))
+        if r["result"] in ("fail", "error")}
+
+
+def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
+                     head: str | None) -> bool:
+    """
+    Reset the batch's `tests_failing` key when the red moved at `head`.
+
+    The harness calls this after it records the runs at a new head. The
+    red moved when a red test passes, the failing set changes, or a test
+    raises another first error line. The key remembers nothing: the last
+    red is the newest run per test at the commit before, in `test_runs`.
+    """
+    # Frame 318, night 162: s315's docstring commit wiped the quarantine on
+    # the same red. Law 6's attempt cap still bounds a red that moves.
+    before = _red(conn, batch_id, head, at_head=False)
+    if not before or _red(conn, batch_id, head, at_head=True) == before:
+        return False
+    conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
+                 (f"%|tick:tests_failing|{batch_id}",))
+    return True
 
 
 # The verbs whose addressee owes a reply. A woken session that sends nothing
