@@ -12917,49 +12917,6 @@ def _holds_code(ctx, tree, rel: str) -> bool:
     return not (_P(tree) / rel).is_file()
 
 
-def _new_directory(ctx, tree, rel: str) -> bool:
-    """True when the directory of `rel` held no tracked file at the batch's
-    base commit. The top directory always counts as held. A fact that git
-    cannot give counts as held, so no door fires on it."""
-    import subprocess as _sp
-    from ..core import worktrees as _wt
-    folder = rel.replace("\\", "/").rpartition("/")[0]
-    if not folder or not tree:
-        return False
-    try:
-        base = _batch_base(ctx, tree)
-        out = _sp.run([*_wt.GIT, "-C", str(tree), "ls-tree", "-r",
-                       "--name-only", base, "--", folder + "/"],
-                      capture_output=True, text=True, encoding="utf-8",
-                      errors="replace")
-    except Exception:                                      # noqa: BLE001
-        return False
-    return out.returncode == 0 and not out.stdout.strip()
-
-
-def _new_kind(ctx, tree, rel: str) -> bool:
-    """True when no file of the batch's base tree has the extension of
-    `rel`, or has no extension when `rel` has none (frame 306's review 3,
-    low B: a `.json` file in a tree of `.json` files is foreseeable). A
-    fact that git cannot give counts as held, so no door fires on it."""
-    import subprocess as _sp
-    from pathlib import PurePosixPath as _PP
-    from ..core import worktrees as _wt
-    if not tree:
-        return False
-    try:
-        out = _sp.run([*_wt.GIT, "-C", str(tree), "ls-tree", "-r",
-                       "--name-only", _batch_base(ctx, tree)],
-                      capture_output=True, text=True, encoding="utf-8",
-                      errors="replace")
-    except Exception:                                      # noqa: BLE001
-        return False
-    if out.returncode != 0:
-        return False
-    kind = _PP(rel.replace("\\", "/")).suffix.casefold()
-    return all(_PP(p).suffix.casefold() != kind for p in out.stdout.splitlines())
-
-
 def _note_files(ctx, batch_id: str, diff_text: str
                 ) -> tuple[dict[str, list[str]], list[str]]:
     """The files of the diff that hold no code, each with its added lines,
@@ -19984,35 +19941,6 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
         raise ValueError(
             f"{dropped}{', '.join(left)} {'is' if len(left) == 1 else 'are'} still "
             f"unjudged. Every open stray is foreseen or a mistake; say which")
-    # Frame 306's case, night 162: s239 judged b_2's file of criteria rows
-    # foreseen, and the judgement wrote the only prediction of the path. A
-    # whole-path stray proves that no prediction named the file before the
-    # commit (detector two's rule). A file with no code in a new directory
-    # is then no part of the work, so only a mistake judges it. A changelog
-    # entry or a docs page in a held directory stays foreseeable (pass 1b).
-    tree = (ctx.conn.execute("SELECT worktree FROM batches WHERE id = ?",
-                             (batch_id,)).fetchone() or {"worktree": None})["worktree"]
-    unplanned = [p for p in foreseen
-                 if "::" not in p and not _holds_code(ctx, tree, p)
-                 and _new_directory(ctx, tree, p) and _new_kind(ctx, tree, p)]
-    if unplanned:
-        one = len(unplanned) == 1
-        names = ", ".join(unplanned)
-        # The offered call judges every open stray, so it lands as sent.
-        rest = [p for p in foreseen if p not in unplanned]
-        wrong = mistakes + unplanned
-        call = _offer(
-            ctx, f"batches.judge_touch(batch_id={batch_id!r}, "
-                 + (f"foreseen={rest!r}, " if rest else "")
-                 + f"mistakes={wrong!r}) lands",
-            "batches.judge_touch",
-            {"batch_id": batch_id, "foreseen": rest, "mistakes": wrong})
-        raise ValueError(
-            f"{names} {'holds' if one else 'hold'} no code, and the plan did "
-            f"not name the file before the write. A foreseen judgement needs "
-            f"a prediction older than the commit. Judge "
-            f"{'it' if one else 'them'} a mistake, and the Developer takes "
-            f"{'it' if one else 'them'} out: {call}")
     for path in foreseen:
         ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
             "batch_id": batch_id, "grain": path,
