@@ -1287,7 +1287,36 @@ def _stalled_words(conn: sqlite3.Connection, keys: list[str]) -> str:
     return "; ".join(parts)
 
 
-TEAM_NOTES = ("The team's notes. A seat wrote each of these where your words "
+def _stuck_ticks(conn: sqlite3.Connection, batch: str,
+                 keys: list[str] | None = None) -> list[tuple[str, int]]:
+    """
+    The batch's quarantined ticks as (kind, attempts), from `tick_attempts`.
+
+    `keys` names the keys of a page's wake. None reads the live keys of the
+    batch. The stopped page and the shift page both read this, so the two
+    pages cannot disagree. Night 160's m45 said "stopped work" on a green
+    change, and m53 then said "nothing from you" (frame 312's provenance).
+    """
+    out = []
+    for key in (_stalled_keys(conn, [batch]) if keys is None else keys):
+        row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+                           (key,)).fetchone()
+        kind = (key.split("|", 2) + ["", ""])[1].replace("tick:", "")
+        out.append((kind, row["attempts"] if row else 0))
+    return out
+
+
+def _tries(n: int) -> str:
+    return f"{n} attempt{'' if n == 1 else 's'}"
+
+
+def _review_only(ticks: list[tuple[str, int]]) -> bool:
+    """True when every stuck tick is a review. The review fires only on a
+    green harness at the head, so its tests passed at its last attempt."""
+    return bool(ticks) and all(kind == "review" for kind, _ in ticks)
+
+
+TEAM_NOTES =("The team's notes. A seat wrote each of these where your words "
               "were silent. They are not your request.")
 
 
@@ -1334,25 +1363,38 @@ def _shift_where(conn: sqlite3.Connection, item: str) -> str:
     its head commit and its newest test runs."""
     row = conn.execute("SELECT approval FROM items WHERE id = ?", (item,)).fetchone()
     said = f"{row['approval'] if row else 'unknown'}."
-    batch = conn.execute(
+    batch = _live_batch(conn, item)
+    if batch is None:
+        return said + " No change is built for it yet."
+    return said + _built_words(conn, batch) + "".join(
+        f" Its review stopped after {_tries(n)} with no verdict." if kind == "review"
+        else f" The team gave up on {kind} after {_tries(n)}."
+        for kind, n in _stuck_ticks(conn, batch["id"]))
+
+
+def _live_batch(conn: sqlite3.Connection, item: str) -> sqlite3.Row | None:
+    """The item's change that is not closed, or None."""
+    return conn.execute(
         "SELECT id, head_commit FROM batches WHERE item_id = ? "
         "AND status IN ('pending', 'running', 'deferred') ORDER BY id",
         (item,)).fetchone()
-    if batch is None:
-        return said + " No change is built for it yet."
+
+
+def _built_words(conn: sqlite3.Connection, batch: sqlite3.Row) -> str:
+    """The live change's build and its newest test runs."""
     if not batch["head_commit"]:
-        return said + f" The change {batch['id']} is not built yet."
+        return f" The change {batch['id']} is not built yet."
     runs = conn.execute(
         "SELECT result FROM test_runs WHERE batch_id = ? AND rowid IN "
         "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? GROUP BY test_id)",
         (batch["id"], batch["id"])).fetchall()
     if not runs:
-        return said + f" The change {batch['id']} is built, and no test has run yet."
+        return f" The change {batch['id']} is built, and no test has run yet."
     failing = sum(1 for r in runs if r["result"] in ("fail", "error"))
     if not failing:
-        return said + (f" The change {batch['id']} is built, and all {len(runs)} "
+        return (f" The change {batch['id']} is built, and all {len(runs)} "
                        f"of its tests pass.")
-    return said + (f" The change {batch['id']} is built, and {failing} of its "
+    return (f" The change {batch['id']} is built, and {failing} of its "
                    f"{len(runs)} tests fail.")
 
 
@@ -1382,6 +1424,13 @@ def _shift_waits(conn: sqlite3.Connection, item: str) -> str:
                      + f" and {pages[-1]} lines")
     if notes:
         parts.append(f"{notes} note{'' if notes == 1 else 's'}")
+    # A quarantined tick holds the change until a move revives it (law 6).
+    # Night 160's m53 read "nothing from you" on a stuck review, and he
+    # parked the change (frame 312's provenance, section 4).
+    batch = _live_batch(conn, item)
+    for kind, _ in (_stuck_ticks(conn, batch["id"]) if batch else []):
+        parts.append("a new start of its review" if kind == "review"
+                     else f"a new start of {kind}")
     return ", and ".join(parts) + "." if parts else "nothing from you."
 
 
@@ -1612,8 +1661,16 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     if verb == "present" and keys and touches:
         # A quarantined batch is no plan any more. Night 136's m96 opened
         # "Before I build this" on a batch the Tester had given up on
-        # (frame 190's design, 2.F, amendment 6).
-        out.append("The team stopped work on this change.")
+        # (frame 190's design, 2.F, amendment 6). A review with no verdict
+        # is no code fault. Night 160's m45 said "stopped work" on a change
+        # whose 35 tests passed (frame 312's provenance, section 3).
+        ticks = _stuck_ticks(conn, batches[0], keys)
+        if _review_only(ticks):
+            out.append(f"The review of this change stopped after "
+                       f"{_tries(max(n for _, n in ticks))} with no verdict. "
+                       "Its tests passed at the review's last attempt.")
+        else:
+            out.append("The team stopped work on this change.")
         asked = request_block(conn, refs, order, out, batch=batches[0],
                               stalled=keys)
         numbered(does + account)
