@@ -19497,10 +19497,12 @@ def _note_routes(write_only: bool = False, one: bool = False) -> str:
         return "Put the lines back with code.write, then commit in your next reply."
     # Frame 283's W1 a, pass 2: a note never admits a removal of a base
     # statement, so the ledger route is gone (review 1, finding 2).
-    return (f"A note does not allow a removal or a rewrite. Put the "
-            f"{'line' if one else 'lines'} back with code.write, then commit "
-            f"in your next reply. Or send msg.escalate_architect and name the "
-            f"change.")
+    # Pass 5c: "Put the line back" alone undid a wanted rewrite, so the
+    # route names the way to keep the change too (review 5's re-probe).
+    return (f"A note does not allow a removal or a rewrite. To undo the "
+            f"change, put the {'line' if one else 'lines'} back with "
+            f"code.write, then commit in your next reply. To keep the change, "
+            f"send msg.escalate_architect and name the change to the Architect.")
 
 
 def _close_restored(ctx: Ctx, tree, stage: bool = True) -> dict:

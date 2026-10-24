@@ -59,9 +59,10 @@ SCOPE = "ctx.exit() at line 550 was unreachable after echo() call, removed in wr
 MESSAGE = ("Fix show_python output format to include 'Python' prefix and "
            "restore ctx.exit()")
 
-ROUTE = ("A note does not allow a removal or a rewrite. Put the line back with code.write, "
-         "then commit in your next reply. Or send msg.escalate_architect and "
-         "name the change.")
+ROUTE = ("A note does not allow a removal or a rewrite. To undo the change, put "
+         "the line back with code.write, then commit in your next reply. To keep "
+         "the change, send msg.escalate_architect and name the change to the "
+         "Architect.")
 REFUSAL = ("src/click/decorators.py: this commit removes `ctx.exit()` at line "
            "550. No criterion, request or ruling of the principal names it. "
            + ROUTE)
@@ -506,9 +507,10 @@ def test_the_same_reply_refusal_says_its_fact_once_and_gives_the_route(db, tmp_p
     assert "You sent this commit" not in msg
     assert msg.count("you had not read it") == 1
     assert msg.endswith("If the tree holds those lines again, commit in your "
-                        "next reply. A note does not allow a removal or a rewrite. Put the "
-                        "lines back with code.write, then commit in your next "
-                        "reply. Or send msg.escalate_architect and name the "
-                        "change.")
+                        "next reply. A note does not allow a removal or a rewrite. To undo "
+                        "the change, put the lines back with code.write, then "
+                        "commit in your next reply. To keep the change, send "
+                        "msg.escalate_architect and name the change to the "
+                        "Architect.")
 
 
