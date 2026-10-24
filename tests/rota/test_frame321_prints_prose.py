@@ -108,11 +108,36 @@ def test_a_writes_after_an_identifier_still_counts(tmp_path):
 
 def test_a_docstring_sentence_holds_no_prints_word():
     """Candidate D reads the sentence. A sentence that names a docstring,
-    a help text, documentation, a comment or a message text is about text."""
+    documentation or a comment is about text. A help text is what a command
+    prints, so it is not on the list (review 1, finding 1)."""
     from rota.roles.api import _about_text
     assert _about_text("The docstring of f includes an example.")
-    assert _about_text("The help text names the flag.")
+    assert not _about_text("The command prints the help text and exits.")
     assert not _about_text("the output message must include the version")
+
+
+# Review 1 of frame 321: a help text is printed output, and "e.g." or a
+# stop with no space must not cut the sentence.
+REVIEW_1 = {
+    "help": ("The command prints the help text and exits.", REFUSAL),
+    "docstring": ("The docstring of f shows the path as c.txt.", "landed"),
+    "eg": ("The docstring of f, e.g. shows the path as c.txt.", "landed"),
+    "ie": ("The docstring of f, i.e. shows the path as c.txt.", "landed"),
+    "nospace": ("The docstring of f has an example.The helper prints the "
+                "value.", REFUSAL),
+}
+
+
+@pytest.mark.parametrize("case", sorted(REVIEW_1))
+def test_review_1_shapes(tmp_path, case):
+    """Finding 1: "prints the help text" counts. Findings 2 and 5: the door
+    splits sentences as `_ADD_LINE` guards "e.g." and "i.e.", and a stop
+    before a capital ends a sentence with or without a space."""
+    text, want = REVIEW_1[case]
+    conn = _db(tmp_path, "a compact mode for the JSON helper",
+               "add a compact mode to the JSON helper", text, '["echo_json"]',
+               {"script.py": SCRIPT})
+    assert _outcome(conn, "tests/test_r.py", RETURN_TEST) == want
 
 
 def _night164() -> tuple[tuple[str, str], str] | None:

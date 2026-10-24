@@ -7394,6 +7394,8 @@ def _code_names(ctx: Ctx, criterion_id: str) -> frozenset[str]:
     `HelpFormatter.write` is a plain verb when it stands alone. An indexed
     name that is a print or return word stays prose for the same reason:
     click indexes `echo`, and a sentence can still say "echo" as a verb.
+    So the two sources differ on purpose. A surface ref `show` strips the
+    word "show", and an indexed `show` alone does not.
     """
     row = ctx.conn.execute("SELECT surface_refs FROM criteria WHERE id = ?",
                            (criterion_id,)).fetchone()
@@ -7413,15 +7415,23 @@ def _code_names(ctx: Ctx, criterion_id: str) -> frozenset[str]:
 
 
 # A sentence that names one of these is about text, not about what the code
-# does (frame 321, night 164's cr_1: "shows as c.txt" in a docstring).
-_ABOUT_TEXT = re.compile(r"\bdocstrings?\b|\bhelp[ -]texts?\b|"
-                         r"\bdocumentation\b|\bcomments?\b|\bmessage texts?\b",
+# does (frame 321, night 164's cr_1: "shows as c.txt" in a docstring). The
+# words name text that lives in the source. A help text or a message text
+# is what a command prints, so "prints the help text" still counts
+# (frame 321, review 1, finding 1).
+_ABOUT_TEXT = re.compile(r"\bdocstrings?\b|\bdocumentation\b|\bcomments?\b",
                          re.I)
+
+# A sentence ends at a full stop before a space, or before a capital with
+# no space. "e.g." and "i.e." end no sentence, as in `_ADD_LINE` (frame
+# 321, review 1, findings 2 and 5).
+_DOOR_SENTENCE = re.compile(
+    r"(?<!\be\.g\.)(?<!\bi\.e\.)(?<=\.)\s+|(?<=[a-z]\.)(?=[A-Z])")
 
 
 def _about_text(sentence: str) -> bool:
-    """True when the sentence names a docstring, a help text, documentation,
-    a comment or a message text."""
+    """True when the sentence names a docstring, documentation or a
+    comment."""
     return bool(_ABOUT_TEXT.search(sentence or ""))
 
 
@@ -10064,10 +10074,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         item_about_text = _about_text(item_row["text"] if item_row else "")
 
         def _prose(text: str) -> set[str]:
-            """The stems of the prose words. A sentence splits as
-            `_sentence_around` splits it, on a full stop before a space."""
+            """The stems of the prose words, read sentence by sentence as
+            `_DOOR_SENTENCE` splits a text."""
             out: set[str] = set()
-            for sentence in re.split(r"(?<=\.)\s+", text or ""):
+            for sentence in _DOOR_SENTENCE.split(text or ""):
                 ws = _plain_words(sentence, names)
                 if item_about_text or _about_text(sentence):
                     printed = set(_family_hits(ws, PRINTS))
