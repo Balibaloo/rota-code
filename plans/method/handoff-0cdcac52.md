@@ -58,9 +58,10 @@ pairing.
   held on the review, by sprint 17 row 8 and the launch script's form in
   `.rota/launch_night160.sh`. Check `%LOCALAPPDATA%/Ollama/app.log` for
   a downloaded update before the launch.
-- Frame 306: pass 1 runs on an implementer in `C:/Users/roman/rota_p308`
-  at 4f69d0a4 from `f306_pass1_brief.md` in my scratchpad; its report
-  goes to `f306_pass1_report.md` there. Review it, then cherry-pick.
+- Frame 306: passes 1 and 1b at 6f4fd0c2 and 671d3b94 in
+  `C:/Users/roman/rota_p308`, review 1 accepted with the fix built. Read
+  the pass 1b change to `rota/core/sandbox.py` about 3900 first, outside
+  the request, then cherry-pick both after the gate.
 - Frame 312: pass 1b runs on the pass 1 implementer in `rota_p312`; its
   report is `f312_pass1_report.md`. The lever, his approve clears the
   review key, is ruled and not built; one cycle, after the lines-check
