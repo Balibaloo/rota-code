@@ -88,3 +88,29 @@ def test_a_criterion_with_no_surface_names_the_line_and_no_function(
                            "under test runs. Fix line 2 so that it runs.")
     assert "`" not in step.replace("`KeyError`", "").split(" If ")[0]
     assert "Call `" not in step
+
+
+def test_s351_name_error_hint_names_the_surface_the_batch_changes(db, tmp_path):
+    """Pass 1b: s351's first body used `custom_version_option` unbound. The
+    NameError door said "The criterion's surface is
+    src/click/decorators.py::custom_version_option", the first of the two
+    refs. The batch's touch rows name `version_option`."""
+    import pytest
+
+    _version_batch(db, tmp_path, C3_REFS)
+    (tmp_path / "wt" / "src" / "click" / "__init__.py").write_text("")
+    (tmp_path / "wt" / "src" / "click" / "decorators.py").write_text(
+        "def version_option(*param_decls, **kwargs):\n    return None\n\n\n"
+        "def custom_version_option(callback, *param_decls, **kwargs):\n"
+        "    return None\n")
+    body = S351_TST_C3.replace(
+        "    from click.decorators import custom_version_option\n", "")
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    with pytest.raises(ValueError) as ex:
+        sb.call("tests.encode", id="tst_new", criterion_id="c1", path=PATH,
+                body=body)
+    said = str(ex.value)
+    assert "never imports or defines it" in said
+    assert "surface is src/click/decorators.py::custom_version_option" not in said
+    assert "surface src/click/decorators.py::custom_version_option" not in said

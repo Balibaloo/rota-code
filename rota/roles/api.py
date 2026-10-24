@@ -8392,6 +8392,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             (criterion_id,)).fetchone()
         named = [s for s in (json.loads(srow["surface_refs"] or "[]") if srow else [])
                  if isinstance(s, str) and "::" in s]
+        # Frame 304, night 162: s351's criterion named two surfaces, and
+        # this door named the first, `custom_version_option`. The batch
+        # changes `version_option`. Cause 9: a door's text points the wrong
+        # way. So the door names a surface that a touch row also names, or
+        # the one surface. With neither, the door names no surface.
+        _touched = {r[0] for r in ctx.conn.execute(
+            "SELECT grain FROM batch_touch WHERE batch_id = ? "
+            "AND grain_kind = 'symbol'", (batch_id or ctx.batch_id,))}
+        named = ([s for s in named if s in _touched]
+                 or (named if len(named) == 1 else []))[:1]
         # A project with no build system is not installed, so pytest imports
         # it from the root and `src.` stays in the line. Frame 82's diff
         # review: `from billing.accounts import ...` failed at collection.
