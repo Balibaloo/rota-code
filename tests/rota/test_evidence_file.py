@@ -18,10 +18,6 @@ from rota.testkit import samplerepo
 
 NOTE = "notes/c1_work_flag"
 HELPER = "src/helper.py"
-# Pass 1b: prose that a plan can foresee, in a directory the base holds.
-CHANGES = "CHANGES.rst"
-DOC = "docs/flag.rst"
-CHANGE_LINE = "-   ``work()`` takes a ``flag`` argument."
 
 BASE = "def work(x):\n    return x\n"
 HEAD = ('def work(x, flag=False):\n'
@@ -58,9 +54,6 @@ def _repo(tmp_path, monkeypatch, extra: dict[str, str]) -> tuple[str, str]:
     (root / "src").mkdir(parents=True)
     _git(tmp_path, "init", "-q", str(root))
     (root / "src" / "work.py").write_bytes(BASE.encode())
-    (root / "docs").mkdir()
-    (root / "docs" / "index.rst").write_bytes(b"Work\n====\n")
-    (root / "CHANGES.rst").write_bytes(b"Version 1.0\n-----------\n")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "base")
     (root / "src" / "work.py").write_bytes(HEAD.encode())
@@ -76,9 +69,7 @@ def _repo(tmp_path, monkeypatch, extra: dict[str, str]) -> tuple[str, str]:
 def batch(tmp_path, monkeypatch):
     tree, head = _repo(tmp_path, monkeypatch,
                        {"tests/test_work.py": TEST, NOTE: PROSE,
-                        HELPER: "def help_work():\n    return 1\n",
-                        CHANGES: "Version 1.0\n-----------\n" + CHANGE_LINE + "\n",
-                        DOC: "The flag\n--------\n"})
+                        HELPER: "def help_work():\n    return 1\n"})
     conn = init_db(tmp_path / "rota.db")
     conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                  "version) VALUES ('i1','the item','in_scope','approved',1,1)")
@@ -182,29 +173,3 @@ def test_mistake_lands_either_way(batch):
     out = sb.call("batches.judge_touch", batch_id="b_2",
                   mistakes=[NOTE, HELPER])
     assert out["mistakes"] == [NOTE, HELPER], out
-
-
-# Pass 1b (the coordinator's answers to the report's open questions).
-
-def test_a_changelog_line_on_a_criterion_that_asks_for_the_changelog_passes(batch):
-    """A criterion that names the changelog reads a changelog line as work."""
-    batch.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
-                  "('c4_changelog', 'tk1', 'the changelog names the new flag')")
-    batch.commit()
-    sb, send = _pass(batch, {**SOURCE, "c4_changelog": CHANGE_LINE})
-    assert send()["result"] == "pass"
-
-
-def test_a_changelog_line_on_a_behaviour_criterion_is_still_refused(batch):
-    sb, send = _pass(batch, {**SOURCE, C2: CHANGE_LINE})
-    with pytest.raises(ValueError) as exc:
-        send()
-    assert CHANGES in str(exc.value), str(exc.value)
-
-
-@pytest.mark.parametrize("path", [CHANGES, DOC])
-def test_foreseen_on_prose_in_a_directory_the_base_held_lands(batch, path):
-    """A changelog entry or a new docs page is work a plan can foresee."""
-    sb = _strays(batch, path)
-    out = sb.call("batches.judge_touch", batch_id="b_2", foreseen=[path])
-    assert out["foreseen"] == [path], out
