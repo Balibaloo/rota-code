@@ -23,8 +23,9 @@ their next encode meets the new words.
 `principal_verdict`, the principal read this criterion and its check on a
 page, and ruled. The principal's words are the note. For each criterion with
 contest or revise, rewrite it with `criteria.respecify` to say what the words
-say. Write the criterion in the principal's words. Do not send the sentence he
-contested. Keep the other words of the criterion. When the change has a
+say. Write the criterion in the principal's words. His words about a check go
+to the Tester in the answer below, and the criterion keeps its behaviour. Do
+not send the sentence he contested. Keep the other words of the criterion. When the change has a
 commit, send one `msg.answer_tester` with every contested or revised criterion
 in `refs`. Send that answer only after each respecify lands. Before the commit, the Tester has no test of them yet, so stop
 after the rewrite.

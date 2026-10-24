@@ -5073,17 +5073,72 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
             f"Name that callable in surface_refs")
 
 
-def _about_the_tests(text: str) -> bool:
+def _about_the_tests(text: str, held: str | None = None) -> bool:
     """A criterion whose subject is the tests names the Tester's job, not a
     behaviour of the program. S0 walks eleven to twenty-eight: "Unit tests
     must validate the script's behaviour..." was encoded as `assert True`,
     as an invented dict API, as calls to tests that exist nowhere -- and
     `criterion_repair` respecified the three good criteria around it with
     identical words. Nothing a machine can check follows from a sentence
-    about checking."""
-    import re as _re
+    about checking.
+
+    Frame 306 widens the rule to a note about a page line or a check. The
+    widened rule reads a new text only. The row's own words in `held` write
+    nothing, and the same-words branch of `criteria_respecify` answers them."""
+    if _opens_with_the_tests(text):
+        return True
+    if held is not None and _same_words(text or "", held or ""):
+        return False
+    return _about_a_check(text)
+
+
+def _opens_with_the_tests(text: str) -> bool:
+    """db3b0944's rule: the text opens with the tests as its subject."""
     head = " ".join((text or "").lower().split())[:60]
-    return bool(_re.match(r"^(the\s+)?(unit\s+|automated\s+)?tests?\b", head))
+    return bool(re.match(r"^(the\s+)?(unit\s+|automated\s+)?tests?\b", head))
+
+
+# A sentence whose subject is a page line, a check, a test or an assertion
+# is a note about the check, not a behaviour. Night 160's s195 wrote "Line
+# 3's check must close stdin first" into cr_2 from his note on m76, and the
+# Tester encoded the note (frame 306). Roman's ruling of 2026-10-08, point 2:
+# the Tester rewrites the test from the ruled words. "Line 3 of the output"
+# names the program's output, so it stays a behaviour.
+_CHECK_SUBJECT = re.compile(
+    r"^(?:lines? \d+(?:(?:,| and| to| through) \d+)*\b(?! of\b)"
+    r"|(?:the |this |that |each |every |its |their |a |one |another "
+    r"|the second |a second )?(?:checks?|tests?|assertions?)\b)",
+    re.IGNORECASE)
+# A page line's check named inside a sentence: "line 3's check", "the check
+# on line 2". The verb in "then check the printed output" is not a subject.
+_LINE_CHECK = re.compile(
+    r"\bline \d+'s (?:checks?|tests?|assertions?)\b"
+    r"|\b(?:checks?|tests?|assertions?) (?:on|in|of|at|for) lines? \d+\b",
+    re.IGNORECASE)
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def _about_a_check(text: str) -> bool:
+    """True when a sentence of `text` names a page line, a check, a test or
+    an assertion as its subject. `_about_the_tests` reads the whole text's
+    opening only, so a note in the second sentence passed it."""
+    flat = " ".join((text or "").split())
+    if _LINE_CHECK.search(flat):
+        return True
+    return any(_CHECK_SUBJECT.match(s) for s in _SENTENCE_END.split(flat))
+
+
+def _about_the_tests_refusal(text: str, rewrite: str) -> str:
+    """The door's text for a criterion that `_about_the_tests` refuses. A
+    text that opens with the tests keeps db3b0944's refusal. A note about a
+    check names the Tester's route (frame 306)."""
+    if _opens_with_the_tests(text):
+        return ("a criterion names what the program does; this one names the "
+                f"Tester's job. {rewrite}")
+    return ("a criterion names what the program does, and this text names a "
+            "page line or a check. Write the behaviour that the check must "
+            "show. Send a note about the check to the Tester with "
+            "msg.answer_tester, with this criterion in refs")
 
 
 def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
@@ -5341,11 +5396,10 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                                      "text": text, "term_refs": term_refs,
                                      "surface_refs": surface_refs}))
     if _about_the_tests(text):
-        raise ValueError(
-            "a criterion names what the program does; this one names the "
-            "Tester's job. Say what the script does for a valid name and "
+        raise ValueError(_about_the_tests_refusal(
+            text, "Say what the script does for a valid name and "
             "for an empty or wrong one -- the tests that validate it are "
-            "the Tester's to write from that")
+            "the Tester's to write from that"))
     # The same words are the same criterion -- `brief.segment`'s rule, two
     # artefacts along. The over-production disease grew a criteria organ the
     # day the mode was handed candidate callables: eleven criteria for one
@@ -5954,11 +6008,37 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     where it lives.
     """
     _must_exist(ctx, "criteria", id)
-    if _about_the_tests(text):
-        raise ValueError(
-            "a criterion names what the program does; this one names the "
-            "Tester's job. Rewrite it as what the script does for a valid "
-            "name and for an empty or wrong one")
+    # Roman's ruling of 2026-10-08, point 2: when his words fault only the
+    # check, the Tester rewrites the test from the ruled words, and the
+    # criterion keeps its text. So no new text lands. Night 160's s195 and
+    # s255 wrote his note on a check into cr_2 and cr_3 (frame 306).
+    # `ruling_asks_no_new_words` already yields "stands" for this case and
+    # for a kept line, so the door reads that one predicate. The same words
+    # go on to the branch below, which keeps frame 226's surface repair.
+    # This check runs before the text door. A refusal that asks a rewrite
+    # would name a call that this check refuses.
+    held = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
+                            (id,)).fetchone()
+    if (held and not _same_words(text, held["text"])
+            and ruling_asks_no_new_words(ctx, id)):
+        from .principal import last_ruling_on
+
+        said = last_ruling_on(ctx.conn, id)["words"]
+        if not _tester_answer_open(ctx):
+            raise _stands(
+                f"the principal faulted the check and not these words: "
+                f"{said!r}. The criterion stands, and a new text does not "
+                f"land. {_closed_answer_note(ctx, id).rstrip('.')}, "
+                f"and your work on {id} is done")
+        raise _stands(
+            f"the principal faulted the check and not these words: "
+            f"{said!r}. The criterion stands, and a new text does not land. "
+            f"Send his words about the check to the Tester with "
+            f"msg.answer_tester, with this criterion in refs")
+    if _about_the_tests(text, held["text"] if held else None):
+        raise ValueError(_about_the_tests_refusal(
+            text, "Rewrite it as what the script does for a valid "
+            "name and for an empty or wrong one"))
     # The principal approved these words and ruled their test. A rewrite
     # changes words he approved, and the brief paragraph alone did not stop
     # it (the review of 126b8c4e, finding 2).
@@ -6084,17 +6164,16 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         if ((_CHECK_FAULT.search(mine)
              or _keeps_words_on(ctx.conn, contested, id))
                 and not _words_fault_on(ctx.conn, contested, id)):
+            # No "rewrite the text" follows: the check at the top of this
+            # door refuses a new text under this ruling (frame 306).
             if closed:
                 raise _stands(
                     f"the principal faulted the check and not these words: "
-                    f"{contested['words']!r}. The criterion stands. {route}. "
-                    f"If his words also contradict this criterion's text, "
-                    f"rewrite the text. If not, your work on {id} is done")
+                    f"{contested['words']!r}. The criterion stands. {route}, "
+                    f"and your work on {id} is done")
             raise _stands(
                 f"the principal faulted the check and not these words: "
-                f"{contested['words']!r}. The criterion stands. {route}. "
-                f"If his words also contradict this criterion's text, "
-                f"rewrite the text")
+                f"{contested['words']!r}. The criterion stands. {route}")
         if _CHECK_FAULT.search(contested["words"]):
             raise ValueError(
                 f"the principal contested these words: {contested['words']!r}. "
