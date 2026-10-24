@@ -4070,6 +4070,36 @@ def _retired_carry(conn, item_id: str, *, before_slice: bool = False) -> dict[st
     return carry
 
 
+RAISE_LINES_KEY = "the raise lines of each surface this wake names"
+
+
+def _criteria_raise_lines(sb: sandbox_mod.Sandbox, hint: str,
+                          rows: Any) -> dict[str, str]:
+    """The raise lines of each callable the criteria wake's subject names.
+
+    A callable is named when its bare name is a word of the hint, the same
+    match as the module push above. A test is not a surface.
+    """
+    from ..roles.api import _callable_source, _raise_block
+
+    words = {w.strip(".,;:()'\"`").lower() for w in hint.split()} - {""}
+    out: dict[str, str] = {}
+    for row in rows if isinstance(rows, list) else []:
+        grain = row.get("grain", "") if isinstance(row, dict) else ""
+        if "::" not in grain:
+            continue
+        path, name = grain.split("::", 1)
+        bare = name.rsplit(".", 1)[-1]
+        if (bare.lower() not in words
+                or path.replace("\\", "/").split("/")[-1].startswith("test")
+                or "/tests/" in f"/{path}"):
+            continue
+        found = _callable_source(sb.ctx, grain)
+        if found is not None:
+            out[found[0]] = _raise_block(found[1], found[2])
+    return out
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -4231,6 +4261,14 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             pushed["code.callables"] = sb.call("code.callables", hint=hint)
         except Exception:                                  # noqa: BLE001
             pass
+        # Night 162's s157 saw `confirm` as a name and `UsageError` as a
+        # glossary term, and wrote "must raise UsageError". `confirm` runs
+        # `raise Abort() from None` (frame 319). The wake shows what each
+        # surface it names raises, by the same lines the door quotes.
+        if wake is not None and wake.kind == "tick:criteria" and wake.refs:
+            block = _criteria_raise_lines(sb, hint, pushed.get("code.callables"))
+            if block:
+                pushed[RAISE_LINES_KEY] = block
 
     # The same rule pointed at the decision record. `decisions.search` was
     # the single largest gap in the one-wake-one-completion conversion map

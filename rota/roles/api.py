@@ -4912,6 +4912,151 @@ def ref_resolves(ctx: Ctx, ref: str) -> bool:
                             (ref,)).fetchone() is not None
 
 
+RAISE_LINES_SHOWN = 10
+
+
+def _callable_source(ctx: Ctx, ref: str) -> tuple[str, int, list[str]] | None:
+    """The index's grain for `ref`, its first line number and its lines.
+
+    None when the index holds no symbol for `ref` or the file does not open.
+    Frame 319: a source that cannot be read makes the exception door silent.
+    """
+    if not isinstance(ref, str) or not ref.strip():
+        return None
+    try:
+        row = ctx.conn.execute(
+            "SELECT grain, line_start, line_end FROM code_index "
+            "WHERE grain_kind = 'symbol' AND (grain = ? OR grain LIKE ?) "
+            "ORDER BY grain = ? DESC LIMIT 1", (ref, f"%::{ref}", ref)).fetchone()
+        if row is None or "::" not in row["grain"]:
+            return None
+        path, _, name = row["grain"].partition("::")
+        target = _within(_worktree_of(ctx), path)
+        lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
+    except Exception:                                      # noqa: BLE001
+        return None
+    start, end = row["line_start"], row["line_end"]
+    if not end:
+        # An index built before the spans were kept holds 0 and 0.
+        try:
+            tree = _ast.parse(chr(10).join(lines))
+        except SyntaxError:
+            return None
+        top = next((n for n in tree.body if getattr(n, "name", None)
+                    == name.split(".")[0]), None)
+        if top is None:
+            return None
+        start, end = top.lineno - 1, getattr(top, "end_lineno", top.lineno)
+    return row["grain"], start + 1, lines[start:end]
+
+
+def _raise_lines(first: int, lines: list[str]) -> list[str]:
+    """Each `raise` line of a source, with its line number in the file."""
+    return [f"line {first + i}: {text.strip()}" for i, text in enumerate(lines)
+            if re.match(r"\s*raise\b", text)]
+
+
+def _raise_block(first: int, lines: list[str]) -> str:
+    """The raise lines of one source, the first ten and the count of the rest."""
+    found = _raise_lines(first, lines)
+    if not found:
+        return "no raise line"
+    shown = found[:RAISE_LINES_SHOWN]
+    if len(found) > len(shown):
+        shown.append(f"and {len(found) - len(shown)} more raise lines")
+    return "\n".join(shown)
+
+
+def _is_project_exception(ctx: Ctx, name: str, depth: int = 0) -> bool:
+    """True when the project's source defines `name` as an exception class."""
+    import builtins as _builtins
+    import textwrap as _textwrap
+
+    obj = getattr(_builtins, name, None)
+    if isinstance(obj, type) and issubclass(obj, BaseException):
+        return True
+    if depth > 6:
+        return False
+    rows = ctx.conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
+        "AND sym_kind = 'class' AND grain LIKE ?", (f"%::{name}",)).fetchall()
+    for row in rows:
+        found = _callable_source(ctx, row["grain"])
+        if found is None:
+            continue
+        try:
+            node = _ast.parse(_textwrap.dedent(chr(10).join(found[2]))).body[0]
+        except (SyntaxError, IndexError):
+            continue
+        if not isinstance(node, _ast.ClassDef):
+            continue
+        for base in node.bases:
+            bare = getattr(base, "id", None) or getattr(base, "attr", None)
+            if bare and bare != name and _is_project_exception(ctx, bare, depth + 1):
+                return True
+    return False
+
+
+def _exception_idents(ctx: Ctx, text: str) -> list[str]:
+    """The capitalised names of `text` that are exceptions, by a fact.
+
+    Frame 319: a name is an exception when Python's builtins or the
+    project's source define it as one, or a glossary row names it so.
+    The door reads the identifier, not a meaning.
+    """
+    out: list[str] = []
+    for name in dict.fromkeys(re.findall(r"\b[A-Z][A-Za-z0-9_]*\b", text or "")):
+        gloss = ctx.conn.execute(
+            "SELECT 1 FROM glossary_terms WHERE (term = ? OR id = ?) "
+            "AND lower(sense_short) LIKE '%exception%'",
+            (name, name.lower())).fetchone()
+        if gloss or _is_project_exception(ctx, name):
+            out.append(name)
+    return out
+
+
+def _exception_from_a_source(ctx: Ctx, ticket_id: str, text: str,
+                             surface: list[str]) -> None:
+    """A criterion names an exception that his words, the item or the
+    surface's source holds.
+
+    Night 162's s157 wrote "must raise UsageError if stdin is closed" for
+    `confirm`, which runs `raise Abort() from None`. His words said
+    "instead of aborting". The name came from a glossary row, and the tests
+    and two Developers followed it (frame 319). The door reads where an
+    identifier occurs, not a meaning, so the rule of 2026-09-09 holds.
+    """
+    idents = _exception_idents(ctx, text)
+    if not idents or not surface:
+        return
+    sources = [_callable_source(ctx, ref) for ref in surface]
+    # A source the index cannot give is no evidence either way.
+    if any(found is None for found in sources):
+        return
+    row = ctx.conn.execute("SELECT t.item_id AS item_id, i.text AS text "
+                           "FROM tickets t LEFT JOIN items i ON i.id = t.item_id "
+                           "WHERE t.id = ?", (ticket_id,)).fetchone()
+    pool = [row["text"] or ""] if row else []
+    if row:
+        pool += [r["text"] or "" for r in ctx.conn.execute(
+            "SELECT s.text AS text FROM refs x JOIN statements s "
+            "ON s.id = x.target WHERE x.src_table = 'items' AND x.kind = 'statement' "
+            "AND x.src_id = ? AND s.status != 'superseded'", (row["item_id"],))]
+    pool += [chr(10).join(found[2]) for found in sources]
+    held = chr(10).join(pool)
+    missing = [name for name in idents
+               if not re.search(rf"\b{re.escape(name)}\b", held)]
+    if not missing:
+        return
+    shown = "\n".join(f"{grain} raises:\n{_raise_block(first, lines)}"
+                      for grain, first, lines in sources)
+    raise ValueError(
+        f"{', '.join(missing)} is in none of his words, the item, or the "
+        f"source of the surface. A criterion names the exception the code "
+        f"raises or the one he names.\n{shown}\nWrite the criterion again "
+        f"with the exception from one of those")
+
+
 def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
                  ticket_id: str | None = None) -> list[str]:
     """
@@ -5483,6 +5628,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             f"criteria are written; end")
     _surface_names_what_the_item_names(ctx, ticket_id, surface_refs)
     surface = _vet_surface(ctx, surface_refs, required=False, ticket_id=ticket_id)
+    _exception_from_a_source(ctx, ticket_id, text, surface)
     ctx.writes.append(("criteria", id, {
         "ticket_id": ticket_id, "text": text,
         "surface_refs": json.dumps(surface)}))
