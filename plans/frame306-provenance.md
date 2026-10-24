@@ -1,257 +1,290 @@
-# Frame 306, the provenance: the principal's words on a page do not reach the criterion, and a change outside the criteria merges with no page that shows it
+# Frame 306, the provenance: his words about a check become the criterion's text, and a deletion outside the criteria merges with no page that shows it
 
-Provenance read on Opus, 2026-10-23, by the ruling of 2026-10-18 12:02
-(every new wall gets a provenance read before its first fix). Repository at
-HEAD 4293e3d6. Sources: `rota/roles/api.py` (`rulings_rule` 10189 to 10593,
-`_faulted_approve` 9915, `_pass_lines_check` 11782), `rota/core/runner.py`
-2239 to 2283 and 286 to 298, `rota/core/sandbox.py` 3900 to 3990,
-`rota/core/scheduler.py` 1748 to 1903, `rota/core/lifecycle.py` 704 to 802,
-`rota/core/config.py` 70, `rota/LAWS.md` 218 and 233, `rota/DECISIONS.md`
-155 and 1485 to 1505, `plans/composition.md` 8 to 26,
-`plans/frame213-scope.md`, `plans/night158-read.md` sections 2 and 5,
-`git log -S`, `.rota/clickI_night150.db` to `.rota/clickI_night158.db`
-opened `?mode=ro`, and the sample tree `D:/repos/_AI/sample_repos/clickI`
-(git read-only). Meta workflow. No file but this one is changed.
+Provenance read on Opus, 2026-10-24, second edition. The first edition of
+2026-10-23 (commit 6dc7706c) read night 158 only. This edition adds night
+160's W2, the count over nights 140 to 160, and the repair. Repository at
+HEAD 53e49cfb. Night 160 ran at 695e8be7 (observed: `plans/night160-read.md`
+line 4). Databases `.rota/clickI_night140.db` to `.rota/clickI_night160.db`,
+opened `?mode=ro`. The sample tree `D:/repos/_AI/sample_repos/clickI`, git
+read-only. Meta workflow. No file but this one is changed.
 
-## The provenance in one paragraph
+## The verdict
 
-His m145 words stopped in three doors in series, and each door is a
-separate design. The prompt shows the reply's `about` from the asker's
-refs, but the ruling door keys on the clarify's own refs, so s286's
-revise of cr_2 was refused (observed: `runner.py` 2259, 9c5c71fe of
-2026-09-08; `api.py` 10330, a268266b of 2026-09-18). The seat then ruled
-the test row approve, and no door reads an approve against the words on a
-clarify, because frame 250's door reads numbered lines only (observed:
-f0b2924c, 2026-10-16). Even a landed revise of cr_2 on a clarify would
-wake the Terminologist in `relay` mode, which cannot respecify (observed:
-`park_criterion_relay`, f252df24 of 2026-10-13, maps ruled tests only).
-The evidence half has no page at all. The merge gate checks criterion to
-line, never line to criterion, and no page shows a diff (observed:
-1663c2bb, 2026-10-07; `principal.py`). The composition makes merge
-sign-off opt-in, and the opt-in setting `merge_gate = review` blocks with
-no page behind it (observed: `config.py` 70, `lifecycle.py` 799).
+**The words stop at one design choice: a page line is a criterion, so his
+note about a line's check is ruled as a contest of the criterion, and the
+Terminologist's brief tells it to write the criterion "in the principal's
+words", while `criteria.respecify` refuses only a test-subject text and the
+same words sent back, never a new text that names a page line or a check**
+(observed: `rota/roles/prompts/terminologist/criterion_repair.md` 22 to 31,
+`rota/core/runner.py` 493, `rota/roles/api.py` 5076 and 5894 to 6093).
 
-## 1. The hop from a page reply to the criteria
+No ruling of Roman's decided that the criterion takes his words about a
+check. His ruling of 2026-10-08, point 2, says the opposite order: "A
+contest or a revision moves the criterion's version, the Tester rewrites
+the test from the ruled words" (ruled: `rota/DECISIONS.md` 1459 to 1465).
+The text rule came from frames 226 and 227, commit 33cd99b2 of 2026-10-13
+(observed: the commit body).
 
-**The words of m146 reached the `rulings.words` column and stopped there**
-(observed: `rulings` r_ac84d845ff, per_item `{tst_version_option_shows_python_02:
-approve}`, texts `{}`). The chain on night 158 was this:
+## 1. The hop today, from a page reply to a criterion's text
 
-1. Critic s288's challenge m144 named cr_2 and tst_02 (observed: `messages`
-   m144 body_refs).
-2. Liaison s285 woke on `tick:unresolved` for m144 and sent the clarify
-   m145 with refs `[tst_02]` only (observed: `tool_calls` s285 seq 8).
-3. The principal answered m146: "Do not put parentheses around it"
-   (observed: `.rota/night158.log` line 151).
-4. Liaison s286 read an `answering.about` of `[cr_2, tst_02]`, built from
-   the asker m144 (observed: `turns` s286 t1; `runner.py` 2259 to 2261).
-5. s286 ruled `{cr_2: approve, tst_02: approve}`. The door refused cr_2:
-   "is not a row of this question ... each key is a row id from `about`:
-   tst_version_option_shows_python_02" (observed: `turns` s286 t2). The
-   door's `about` is m145's body_refs, not the prompt's (observed:
-   `api.py` 10255 to 10334).
-6. s286 ruled `{tst_02: approve}` with the words and relayed. The relay
-   split sent the test row as its criterion to the Terminologist as m147
-   (observed: `sandbox.py` 3953 to 3958; `messages` m147).
-7. `park_criterion_relay` counts a criterion only from a verdict or from a
-   test row ruled contest or revise. The test was approved, so s287 woke in
-   `relay` mode, tried `glossary.adopt` on cr_2, was refused, and ended
-   (observed: `turns` s287 t1 to t6; `scheduler.py` 1893 to 1903).
-8. cr_2 kept "must contain the word "Python" ... ", written by s274 after
-   m136 (observed: `receipts`, no criteria row after s274). The test
-   passes on "(Python 3.14.2)", and bg_3 merged (observed: night 158 read,
-   W1 b).
+The seats wake in this order (observed: night 160, `messages` m75 to m78,
+`turns` s195; the code at HEAD):
 
-**The designs that made each stop.**
+1. The Liaison shows the page. Each criterion row carries its check line,
+   by point 2 of the 2026-10-08 ruling (observed: `render_page`,
+   `rota/roles/principal.py` 1456, and `request_block` 1145).
+2. He replies. The Liaison calls `rulings.rule`, which is `rulings_rule`
+   (`rota/roles/api.py` 10986). The row stores `per_item`, his `words`,
+   and `texts`, the contested criterion texts from `contested_texts`
+   (`principal.py` 712; written at `api.py` 11387 to 11394).
+3. `land` (`principal.py` 1847) and `apply_rulings` (`principal.py` 2331)
+   close the ask. The relay of a contest on a criterion goes to the
+   Terminologist. `park_criterion_relay` (`rota/core/scheduler.py` 1843)
+   and `ruled_clarify_criteria` (1873) key the wake as `criterion_repair`.
+4. The runner builds the wake: `resolve_inbound` (`runner.py` 1936) and
+   the repair block at `runner.py` 480 to 500, which prints his last words
+   per criterion and "Write the criterion in the principal's words. Do not
+   send the sentence he contested." `_contest_block` (`runner.py` 539) adds
+   every contested text.
+5. The Terminologist calls `criteria.respecify`, which is
+   `criteria_respecify` (`api.py` 5894). That door writes the criterion.
+   Then it calls `msg.answer_tester` with the criteria in `refs`. The
+   Tester reads his words through the chain as `principal_said` (observed:
+   `rota/core/sandbox.py` 1647 to 1673 and 3281 to 3298).
+6. The Tester rewrites the test from the new criterion text and his words.
 
-- The prompt's `about` is from 9c5c71fe, 2026-09-08, "an answer reaches the
-  desk that asked": "The chain holds the context: answer, clarify, the ask
-  that caused the clarify" (observed: `runner.py` 2239 to 2247).
-- The clarify door is from a268266b, 2026-09-18, "a ruling parks the word":
-  "A clarify takes a partial map, and each row the map leaves out is
-  parked, not approved" (observed: `api.py` 10256 to 10267). Neither commit
-  names the other's set, so the two `about` sets were never compared
-  (reasoned).
-- The faulted-approve door is f0b2924c, 2026-10-16, frame 250: "An approve
-  keeps the line as it is, and his words reach nobody" (observed:
-  `api.py` 9960). It reads page line numbers, and "A clarify numbers no
-  line" (observed: `api.py` 10256). So the door's own sentence describes
-  m146, and the door cannot fire on it (reasoned).
-- The repair-mode key is f252df24, 2026-10-13, frame 213 pass 1b: "a ruled
-  test row wakes the Terminologist in the repair mode" (observed: the
-  commit body). A criterion ruled directly on a clarify is not in that
-  set, so frame 213 closed route B for a test row and left it open for a
-  criterion row (reasoned: `scheduler.py` 1764 to 1769 needs a verdict).
-- The ruling that every one of these serves is Roman's of 2026-10-08,
-  point 4: "Every word of the principal is a ruling on a row, or it earns
-  one Liaison question that names a row" (ruled: Roman, 2026-10-08, quoted
-  in `plans/frame213-scope.md` 220). Point 2 adds "The principal never
-  rules on a test" (ruled: the same).
+**A route to the Tester exists, and it runs only behind a respecify**
+(observed: the brief, lines 26 to 31: "Send that answer only after each
+respecify lands"). The only path that skips the respecify is
+`principal_test_verdict`, which needs a ruling keyed on a test row, and
+"The principal never rules on a test" (ruled: 2026-10-08, point 2). On a
+park page the row he faults is always the criterion row (reasoned).
 
-**The same shape before night 158.** Frame 213's scope counted night 144's
-m312 as route B, yet its ruling was "all approve" (observed:
-`plans/frame213-scope.md` line 60). Route B moves only a contest or a
-revise, so m312 was the m146 shape and did not move (reasoned: `scheduler.py`
-1900). The scope's count of 4 of 4 route B cases is 3 of 4.
+The commits that built each hop:
 
-## 2. The evidence page before a merge
-
-**No page shows the principal a diff, before or after a merge** (observed:
-`rota/roles/principal.py`, the page renderers `render_page`,
-`request_block`, `_park_page` and `code_line`). The pages show:
-
-- the request lines and each criterion with its check line;
-- a code line: "The team's guess at the code this touches", or "The team's
-  plan of the code this touches: expected to touch ..." (observed:
-  `principal.py` 1108 to 1142);
-- a park page, "The team stopped work on this change", with the criteria
-  and the tests' state.
-
-**The merge needs no page.** `mergeable` holds a batch on a missing test,
-no verdict, a failed verdict, an unjudged file stray, a failing test, a
-missing structural review, a violated constraint and an owing seat
-(observed: `lifecycle.py` 704 to 797). Then `merge_gate = review` returns
-"waiting on the principal's review", and nothing else reads that state
-(observed: `lifecycle.py` 799; `git grep merge_gate`). The setting has
-been `auto` on nights 150 to 158 (observed: `config`, no `merge_gate` row).
-
-**The rulings and designs.**
-
-- "Sign-offs after that, including on merges, are opt-in" (ruled: Roman,
-  2026-09-16, `plans/composition.md` 22 to 23, commit 9f8cbdf5).
-- "PR versus auto-merge is a config switch ... a diff-level gate is
-  redundant when supervised and essential when unattended" (ruled:
-  DECISIONS, 035ad351, 2026-08-11, `rota/DECISIONS.md` 153 to 155).
-- `merge_gate` with "auto" and "review", "trust should not increase on a
-  schedule" (observed: 7e3be756, 2026-08-09; `rota/LAWS.md` 218). The
-  `review` value was built as a block with no page (reasoned).
-- "the Critic names, for each criterion, the line of the change that meets
-  it ... The door cannot see whether the line meets the criterion"
-  (ruled: Roman, 2026-10-07 08:57, `api.py` 11785, commit 1663c2bb). The
-  map runs criterion to line. No door maps a line to a criterion
-  (observed: `_pass_lines_check`).
-- Law 12: the touch set "is a prediction, never a permission. Nothing
-  rejects a diff for straying outside it", and the Architect judges each
-  stray path (ruled: Roman, 2026-10-17, `rota/DECISIONS.md` 1489 to 1499).
-  The route works per file, so a change inside a predicted file is never a
-  stray (observed: frame 114's history read, `plans/stack.md` 2215).
-
-**bg_1 and `separators`.** s120 committed `json.dumps(obj,
-separators=(',', ':'))` at 42415b9. s133, on `tick:tests_failing`,
-committed 3f89c75 and 055b2dc, "Remove separators argument from json.dumps
-to use default formatting with spaces", because the test expected spaces
-(observed: clickI `git log -S separators`; `tool_calls` s133). Critic s135
-passed with the line `file.write(json.dumps(obj))` for `echo_json_helper`,
-whose text says "compact" (observed: `verdicts`). The principal's last
-pages on bg_1 were m29, the touch note before the build, and m34, the park
-page before s133 (observed: the log, lines 32 and 38). **No page showed
-the `separators` change**, and the merge ran at 75cf8ed (observed: the log
-line 45).
-
-## 3. The composition's line against the records
-
-**The records do not meet "no work happens that the Principal did not ask
-for, and no work stays invisible"** (reasoned: sections 1, 2 and 4). Six of
-twelve merged batches hold a hunk no criterion names, and no page showed
-any of them (observed: section 4).
-
-The build tested the condition from four sides and left one open:
-
-- Did the work touch an unpredicted file? Tested, the stray route
-  (cf067ce4, 2026-09-13).
-- Did the work add an unpredicted definition? Tested, frame 286's
-  definition-level stray (64fa6b6a, 2026-10-18).
-- Does each criterion have a test and an added line? Tested, `mergeable`
-  and the 2026-10-07 door.
-- Did the principal's words reach a row? Tested on numbered pages only,
-  frame 250's door.
-- **Does every hunk of the merged diff answer a criterion, and did he see
-  the hunks that do not?** Untested. No door, no page and no instrument
-  reads it (observed: section 2). The night report counts "1 change built,
-  tested and merged" as the good line (observed: the log, line 49).
-
-Night 158's read found W1 by a manual run of clickI `main`, not by any
-count of the build (observed: `plans/night158-read.md` section 2). The
-instrument that would see it does not exist (reasoned).
-
-## 4. The counts over nights 150 to 158
-
-**Merged batches: 12 in 9 nights. 6 hold a source hunk no criterion
-names, and 2 more hold code against the request with every hunk named**
-(observed: `batches`, `criteria`, and `git diff -U0` of each head against
-the night's base in clickI, `src/` only).
-
-| Night | Batch | Unnamed hunk | Judged |
+| Hop | Commit | Date | Decided by |
 |---|---|---|---|
-| 151 | bg_2 echo_json | no | compact, all named |
-| 151 | bg_3 confirm | yes, cosmetic | two blank lines removed, typo "a" to "an" in the base |
-| 152 | bg_1 echo_json | yes | an `nl` parameter and `obj=None` that prints nothing |
-| 152 | bg_2 confirm | yes, dead | `import sys` in `confirm` with no use |
-| 152 | bg_3 version_option | yes | `param_decls` default added, and no code appends the version |
-| 153 | bg_1 echo_json | no, against the ticket | `print(json.dumps(obj))`, spaces; the criterion did not say compact |
-| 153 | bg_2 confirm | no | all named |
-| 154 | b1 echo_json | yes | `file` and `nl` parameters |
-| 154 | b3 confirm | no | a `False` for a `None` default, inside the criterion |
-| 156 | bg_1 confirm | no | all named |
-| 158 | bg_1 echo_json | no, against the criterion | `separators` removed, spaces against "compact" |
-| 158 | bg_3 version_option | yes | `ctx.exit()` removed, a duplicate block, three `versionchanged` entries deleted |
+| A park page with criterion rows and their check lines | b0a2086e, 2dace61b | 2026-10-09 | Roman's ruling of 2026-10-08 23:25, `DECISIONS.md` 1445 |
+| A contest of a criterion on a park page wakes `criterion_repair` | 172b373b | 2026-10-09 | the diff review of b0a2086e |
+| `texts` on a ruling, and "Write the criterion in the principal's words" | 33cd99b2, 81ce21b7 | 2026-10-13 | frames 226 and 227, after night 144 |
+| The answer to the Tester after the respecify, and `principal_test_verdict` | 126b8c4e, 57c1a869 | 2026-10-13 | frame 213 fix 1 and a review |
+| The door: a criterion whose subject is the tests | db3b0944 | 2026-09-02 | S0 walks 11 to 28 |
+| The door: a check fault refuses the same words, "The criterion stands" | 84a06216 (`_CHECK_FAULT`, `api.py` 5418) | 2026-10-13 | frame 226 candidate E |
+| The answer carries every ruled criterion | 983194bd | 2026-10-23 | frame 308 |
+| A clarify reply rules the asker's rows | 6e72b8b9 (`answer_about`, `runner.py` 183) | 2026-10-23 | frame 306 repair 1 |
+| A ruling read per criterion on the page order | c93d8d8c, 63cf4993, e62e1081, 6413e4ee | 2026-10-23 | frame 308, after night 160 ran |
 
-How I judged: a hunk counts when it changes behaviour, the public surface
-or base text that no criterion of the batch names. A docstring or a
-`versionadded` note for the asked parameter counts as named (reasoned).
-Four of the six change behaviour or the surface (reasoned).
+**The sentence that decided the rewrite from his words is a frame's, not
+Roman's.** "The criterion repair wake carries the principal's last ruling
+verbatim" (observed: 33cd99b2). No ruling, frame or review separates his
+words about a check from his words about a behaviour at the Terminologist.
+The `_CHECK_FAULT` door separates them only when the seat sends the
+criterion's own words back (observed: `api.py` 6041 to 6045, the branch
+needs `_same_words(text, cur["text"])`). A new text that copies the note
+passes every door (reasoned: the branches of `criteria_respecify`).
 
-**His page replies, sampled on nights 156, 157 and 158: 24 replies fault
-a criterion or a test row, and 11 of them left the faulted criterion with
-no later write** (observed: `rulings` with words and a contest, a revise,
-or an approve whose words fault the row; `receipts` of `criteria` in later
-sessions; script in the scratchpad, `f306_q4.py`). Night 156: 4 of 7
-(m165, m179, m186, m191). Night 157: 5 of 12 (m110, m139, m183, m205,
-m210). Night 158: 2 of 5 (m89, m145).
+## 2. Where the words stopped
 
-How I judged: a reply faults a row when its words say a line is wrong or
-must change. The count is an upper bound. Some words fault the check and
-not the criterion text, and route B then rewrites the test, not the
-criterion (reasoned: frame 213, fix 2). m145 is not of that kind: cr_2's
-"contain" admits the parentheses he refused (reasoned).
+**Night 158, bg_3, "Do not put parentheses around it."** The brief names
+m145. m145 is the Liaison's clarify, and the words are his reply m146
+(observed: first edition, section 1, `.rota/night158.log` line 151). The
+clarify carried only `tst_version_option_shows_python_02`. Liaison s286
+ruled `{cr_2: approve, tst_02: approve}`, and the door refused cr_2 as no
+row of the question. s286 then ruled `{tst_02: approve}`, so no contest
+reached cr_2. The relay woke s287 in `relay` mode, which cannot respecify
+(observed: `turns` s286 t1 and t2, s287 t1 to t6). cr_2 kept "contain",
+which admits "(Python 3.14.2)" (observed: `criteria`, night 158). Repair 1
+landed as 6e72b8b9 and closes the refused key (observed: commit). It
+moves nothing when the seat rules an approve, because only a contest or a
+revise wakes `criterion_repair` (observed: `plans/frame306-review-1.md`,
+finding 1).
 
-## 5. The repairs, their prices, and the doubt
+**Night 160, bg_2, the note in the criterion.** The first note came from
+his m76 on page m75, which faulted only checks: "Line 4's check only looks
+at the signature, but it should check that confirm's docstring explains
+the flag. Line 3's check should also close stdin first" (observed:
+`rulings` r_42118c7554). The Liaison ruled cr_2 and cr_3 `contest`,
+because the page lines 3 and 4 are criteria (observed: `per_item`).
 
-**Half 1, the hop.** One `about` set for the prompt and the clarify door,
-the asker's refs with the clarify's, so a criterion the asker named is a
-key. A criterion ruled contest or revise on a clarify reply wakes
-`criterion_repair`, as a ruled test row does, and an approve on a clarify
-whose words fault the row is refused as frame 250 refuses it on a page.
-Price: 2 cycles, red test s286 turns 1 and 2 of night 158, and night
-144's m312 as the second case (reasoned). It crosses no ruling. It carries
-out point 4 of the 2026-10-08 ruling (reasoned: section 1).
+s195 woke on relay m78 in `criterion_repair`. Its wake showed "He contested
+this text" with the old behaviour texts, his words, and the brief line
+"Write the criterion in the principal's words" (observed: `turns` s195 t1).
+It wrote the note as the text, and the door admitted both (observed:
+`receipts` s195, cr_2 v6, cr_3 v7):
 
-**Half 2, the evidence.** The Critic's pass maps each added hunk to a
-criterion, and a hunk no criterion names becomes a hunk-level stray that
-the Architect judges, as law 12 routes a file. The end page and the night
-report list every merged hunk that no criterion named, as a notice with no
-question. Price: 3 cycles, red tests night 158's bg_3 diff and night 152's
-bg_1 diff (reasoned). This crosses no ruling. It holds the merge as a
-file stray holds it and refuses no write (ruled: Roman, 2026-10-17).
+```
+criteria.respecify(id='cr_2_confirm_default_on_eof', text="Line 3's check must close stdin first to show that confirm() returns the default at end of input without waiting.", term_refs=['line'], surface_refs=['src/click/termui.py::confirm'])
+criteria.respecify(id='cr_3_confirm_default_on_eof', text="Line 4's check must verify that confirm()'s docstring explains the 'default_on_eof' flag and its effect on EOF behavior.", term_refs=['line'], surface_refs=['src/click/termui.py::confirm'])
+```
 
-**A question to Roman, only if he wants more.** A page that shows the diff
-and waits for him before every merge crosses the composition: "Sign-offs
-after that, including on merges, are opt-in" (ruled: 2026-09-16). So
-`merge_gate = review` gets a page only as his opt-in, and a default of
-`review` is his ruling to make (reasoned).
+Its turn 2 says why: "the checks must be observable and testable against
+the `confirm` implementation" (observed: `turns` s195 t2). The repair brief
+asks for "words that name an observable outcome", and a check is the most
+observable thing in his words (reasoned).
 
-**The doubt.**
+**m84 to m121.** He then said six times that the text is "my note pasted
+in" (observed: `rulings` r_9b2fa6b320, r_ac7f186294, r_b9397f2bc9,
+r_13005d5d2c, r_44b442e2a3, r_04b24ea9ce). Each reply mixed a behaviour
+sentence and a check sentence for the same line. Each was ruled `contest`
+of the criterion, so each woke a Terminologist with every earlier ruling
+(observed: `turns` s255 t1 lists r_42118c7554 first). The `texts` column
+then quoted the note-shaped text as "He contested this text", so the wake
+showed the note as the thing to replace and his words as the thing to
+write (observed: r_ac7f186294 `texts`). s211 copied his meta sentence into
+cr_2: "The text of line 3 should also say what confirm must do again"
+(observed: r_ac7f186294 `texts`).
 
-- A hunk-to-criterion map is the same judgement the Critic failed on
-  night 158. It passed `separators` and a duplicate it named itself
-  (observed: `verdicts`). The map would not have caught bg_1, because the
-  `separators` hunk is named and wrong. That is frame 201's half, not this
-  one (reasoned).
-- Version notes sit in 8 of 12 merged diffs, and docstrings in all 12. A strict map
-  floods the Architect, and a loose one admits 151's cosmetic edits
-  (reasoned: section 4 table).
-- The reply count rests on a lexical reading of "faults" and on any later
-  criteria write. Both are coarse (reasoned).
+s255 woke on m117 for m114's reply. It tried six times. The door refused
+cr_3 with "Write what he asked for. Send his words about the check to the
+Tester", from the same-words branch (observed: `turns` s255 t7). Turn 4's
+calls landed as cr_2 v13 and cr_3 v14 (observed: `receipts`; the texts
+match the head rows):
+
+```
+criteria.respecify(id='cr_2_confirm_default_on_eof', text="Line 3's check must close stdin first to give confirm an empty, closed input before calling it. Its text should say that with the flag on and stdin closed, confirm returns the default right away without waiting for input.", term_refs=['default_on_eof'], surface_refs=['src/click/termui.py::confirm'])
+criteria.respecify(id='cr_3_confirm_default_on_eof', text="Line 4's check must verify that confirm()'s docstring explains what happens at end of input, specifically that with the flag on and stdin closed, confirm returns the default right away without waiting.", term_refs=['default_on_eof'], surface_refs=['src/click/termui.py::confirm'])
+```
+
+**Why a note and not a behaviour.** Three causes act together (reasoned:
+the calls above and the doors).
+
+- His words name the line and the check. The page made the check part of
+  the criterion row, so the Liaison had no other row to rule.
+- The brief says to write the criterion in his words, and his words were
+  about the check.
+- No door reads the new text for a page line or a check. `_about_the_tests`
+  matches only a text that starts with "the tests" (`api.py` 5076 to 5086).
+
+The Tester then encoded the note's wording as an assertion, "without
+waiting" or "immediately", and the head docstring failed it (observed:
+`plans/night160-read.md` section 2, W2).
+
+## 3. The evidence page before a merge
+
+**No page shows him the diff, and no page lists a deletion** (observed:
+`principal.py`, `render_page` 1456, `request_block` 1145, `code_line` 1108,
+`_park_page` 1294; no renderer reads a diff). The pages show the request
+lines, each criterion with its check line, the team's guess or plan of the
+touch set as files, and on a park page the tests' state.
+
+**The merge needs no page.** `mergeable` (`rota/core/lifecycle.py` 711)
+holds on tests, verdicts, strays, reviews and constraints. The setting
+`merge_gate = review` blocks with no page behind it, and the nights run
+`auto` (observed: first edition, section 2). "Sign-offs after that,
+including on merges, are opt-in" (ruled: Roman, 2026-09-16,
+`plans/composition.md` 22 to 23).
+
+**Neither frame 298's guess nor the stray route covers a deletion inside a
+named definition.**
+
+- Frame 298's guess is the Architect's scope guess at sign-off, before the
+  build (observed: `plans/frame298-design.md` title). It predicts files,
+  not lines.
+- The stray route judges files (cf067ce4, 2026-09-13) and changed
+  definitions no criterion names (`_unnamed_def_strays`, `api.py` 19162,
+  b0dbd926, 2026-10-18; `batches_strays` 19283).
+- bg_3's three deleted `versionchanged` entries sit in the docstring of
+  `version_option`, which cr_2 names. So the definition is named, and no
+  stray is recorded (reasoned: the door's grain is the definition).
+
+## 4. The count over nights 140 to 160
+
+Script: `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/0cdcac52-3588-4266-b1fb-fc5d7d31b805/scratchpad/f306_count.py`,
+read-only. All 21 databases exist. Criterion versions come from three
+places, because no table holds each version's text: the `criteria` rows,
+every `criteria.specify` or `criteria.respecify` call parsed from
+`turns.completion`, and the `rulings.texts` values.
+
+**(a) Quoted phrases of four words or more in his ruling words: 13. Held
+by no criterion text of the same item: 8.** Nights 144 (1), 146 (1), 147
+(3), 156 (2), 157 (1). The test reads any version, not only later ones,
+so 8 is a lower bound. The measure is blind to night 158 and night 160,
+because "Do not put parentheses around it" and "my note pasted in" are not
+quoted phrases. The first edition's wider count stands beside it: on
+nights 156 to 158, 11 of 24 replies that fault a row left the row with no
+later write.
+
+```sql
+SELECT id, per_item, words FROM rulings WHERE words != '';
+-- per row: the items of the criteria in per_item; each "quoted" span of
+-- 4+ words, normalised to [a-z0-9_] tokens, tested as a substring of the
+-- normalised texts of every criterion version of those items
+```
+
+**(b) Criterion texts on file: 857. Texts that name a page line, a check
+or a test: 46. Texts that name a page line ("Line N"): 15, on 5 criteria
+over 4 nights:** night 155 `c_1_echo_json_tests` (1), night 157
+`crit_show_python_help` (3), night 159 `cr_1_confirm_default_on_eof` (1),
+night 160 cr_2 (7) and cr_3 (3). The shape is new from night 155 and
+grows (observed).
+
+```sql
+SELECT id, text FROM criteria;
+SELECT completion FROM turns WHERE completion LIKE '%criteria.%specify(%';
+SELECT texts FROM rulings WHERE texts IS NOT NULL;
+-- regex on each text: \bline \d+\b | \bcheck(s|ed|ing)?\b | \btests?\b
+```
+
+**(c) Merged batches: 23. Batches whose diff deletes a source line that
+no criterion text names: 1, night 158 bg_3, 9 lines,** among them the
+three `.. versionchanged:: 8.0` entries (observed: `git diff -U0` of
+`merge-base(head, 2c8cd3a)` to the head, `src/` only). A deleted line
+counts when its stripped text is not among the added lines and no token of
+four letters or more is a word of the item's criteria. The first edition's
+hunk count, which also reads added code, found 6 of 12 on nights 150 to
+158.
+
+```sql
+SELECT id, item_id, head_commit FROM batches WHERE status = 'merged';
+-- per row: git merge-base <head> 2c8cd3a; git diff -U0 <base> <head> -- src/
+```
+
+## 5. The repair
+
+The candidates, one sentence each:
+
+1. **The route.** In `criteria_respecify` (`api.py` 5894), when his words
+   on this criterion's line match `_CHECK_FAULT` and not
+   `_words_fault_on`, refuse any new text and point to
+   `msg.answer_tester`, as the same-words branch does today.
+2. **The text door.** `criteria_respecify` and `criteria_specify` refuse a
+   text that names a page line ("Line 3's") or whose subject is a check,
+   by a wider `_about_the_tests` (`api.py` 5076).
+3. **The brief.** `criterion_repair.md` 22 to 31 and `runner.py` 493 say
+   to write the behaviour his words ask for and to send his words about a
+   check to the Tester, in place of "Write the criterion in the
+   principal's words".
+4. **The evidence page.** The end page and the night report list each
+   merged line deletion that no criterion names, as a notice with no
+   question, from `batches_strays` (`api.py` 19283).
+
+**Recommended: the pair 2 and 1, in that order.** Candidate 2 keeps
+db3b0944's design that "a criterion names what the program does", and it
+catches all 15 "Line N" texts of section 4 (b) with no reading of his
+words. Candidate 1 keeps the 2026-10-08 ruling, point 2, that the Tester
+rewrites the test from the ruled words, and frame 213 fix 1's
+`principal_said` route. It extends frame 308's "The criterion stands"
+from the same words to any words. Candidate 3 is a brief change, and the
+brief has said the opposite since 33cd99b2, so it follows the doors and
+does not replace them (reasoned). Candidate 4 is a separate frame: it
+fires on 1 batch of 23, and the merge page is his opt-in by the 2026-09-16
+ruling.
+
+**The red tests**, on copies of `.rota/clickI_night160.db`:
+
+- s195 turn 1, before its landed writes: the two calls quoted in section
+  2. Both must be refused, and the refusal must name
+  `msg.answer_tester`.
+- s255 turn 4, with relay m117 and ruling r_44b442e2a3 live: the two calls
+  quoted in section 2. Both must be refused. A third case keeps a true
+  behaviour text admitted: "With default_on_eof=True and stdin closed,
+  confirm() returns the default without waiting for input."
+
+**The doubt.** A check that is the behaviour, such as "the docstring
+explains the flag", reads as a check to a regex. Candidate 2 must refuse
+the page-line form and the "check must" subject, and not the word "check"
+anywhere (reasoned: 46 texts hold the words, and 31 of them do not name a
+line).
 
 ## Usage
 
