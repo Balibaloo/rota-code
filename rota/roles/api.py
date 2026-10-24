@@ -5191,6 +5191,22 @@ def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -
     refs = [str(r) for r in (surface_refs or [])]
     tails = {r.split("::")[-1] for r in refs}
     if tails & set(new):
+        # Frame 257, night 160's gate: c_004 named calculate_tip beside
+        # split_bill, and the door admitted it. A test of an existing
+        # callable tests the old behaviour, so an old name beside the new
+        # one is refused too.
+        mine = sorted(tails & set(new))[0]
+        old = sorted({r.split("::")[-1] for r in refs
+                      if r.split("::")[-1] not in new and ctx.conn.execute(
+                          "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
+                          (r, f"%::{r.split('::')[-1]}")).fetchone()})
+        if old:
+            raise ValueError(
+                f"the item names {mine}, a new callable, and this surface also "
+                f"names {', '.join(old)}, which exists today. The surface is "
+                f"what the test calls. A test of {old[0]} tests the old "
+                f"behaviour. Name {mine} alone as the surface, in its own "
+                f"file: surface_refs=[\"{mine}\"]")
         return
     # The mirror: a bare name the index does not hold and no item names is
     # invented. clickI night 9: `range_argument` and `get_usage` as

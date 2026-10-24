@@ -229,6 +229,54 @@ def test_a_surface_names_the_callable_the_item_names(db):
     assert out["id"] == "c_9"
 
 
+def _split_bill(db):
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i7', ?, 'in_scope', 'approved', 1, 1)",
+               ("Each share is the total with tip divided by the people. "
+                "The share lives in a new function named split_bill.",))
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk7','i7','split the bill')")
+    _index(db, "main.py::calculate_tip")
+    return build("terminologist", db, mode="normal",
+                 allow=prompts.mode_tools("terminologist", "criteria"))
+
+
+def test_an_existing_callable_beside_the_new_one_is_refused(db):
+    """Frame 257, night 160's gate: c_004 named calculate_tip beside
+    split_bill, the door admitted it, and the row held the old callable."""
+    sb = _split_bill(db)
+    with pytest.raises(ValueError) as err:
+        sb.call("criteria.specify", id="c_7", ticket_id="tk7",
+                text="split_bill divides the total with tip by the people",
+                surface_refs=["main.py::calculate_tip", "split_bill"])
+    said = str(err.value)
+    assert "split_bill" in said and "calculate_tip" in said
+    assert "The surface is what the test calls." in said
+    assert 'surface_refs=["split_bill"]' in said
+    assert len(said.split()) < 60
+
+
+def test_the_new_callable_alone_is_admitted(db):
+    sb = _split_bill(db)
+    assert sb.call("criteria.specify", id="c_7", ticket_id="tk7",
+                   text="split_bill divides the total with tip by the people",
+                   surface_refs=["split_bill"])["id"] == "c_7"
+
+
+def test_an_item_with_no_new_callable_keeps_a_mixed_surface(db):
+    """The rule reads only an item that names a new callable."""
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i6', 'give calculate_tip a rounding flag', "
+               "'in_scope', 'approved', 1, 1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk6','i6','round the tip')")
+    _index(db, "main.py::calculate_tip", "main.py::display_results")
+    sb = build("terminologist", db, mode="normal",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    assert sb.call("criteria.specify", id="c_6", ticket_id="tk6",
+                   text="calculate_tip rounds the tip",
+                   surface_refs=["main.py::calculate_tip",
+                                 "main.py::display_results"])["id"] == "c_6"
+
+
 def test_a_call_with_arguments_names_the_callable(db):
     """clickI night 11 (2026-09-11): "an echo_json(obj, indent=2) helper" did
     not match the door's X() shape, and echo_json was refused as invented."""
