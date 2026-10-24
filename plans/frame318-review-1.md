@@ -29,3 +29,13 @@ Verdict: accept with one fix. The s315 shape holds, and Law 6 still bounds the l
 ## (d) Usage
 
 The counter is not visible to this agent. The estimate is about 75k context at the end, about 1.2M cumulative input with the cache, and about 10k output. That is above the 30k cap, mostly because of one long dump of night 162's runs.
+
+## Re-probe at 1e74b727
+
+Verdict: stands. F1 and F2 are fixed, and the probes confirm both. F4 is fixed on its own path, with one small residue that is noted below.
+
+- F1: CONFIRMED fixed. `harness.run` now reads `red_before` before the DELETE, so the baseline is the run at this head when one exists. The probe ran a new red, a quarantine, and a second run at the same head on the same red. The key stayed at (3, 1). The s315 shape with two runs at the new head also kept (3, 1). The implementer's test `test_a_second_run_at_one_head_on_the_same_red_keeps_the_key` passed.
+- F2: CONFIRMED fixed. The probe built a 3800-character output with the first `E ` line in line 2. `_tail` returned that line first, and `_first_error` gave that line. The tail now starts at a line start.
+- F4: fixed by reading the diff. The no-worktree path returns before any lift, so the key keeps its count. The normal path still calls `lift_on_red_move`. The commit-time branches in `_lift_quarantines` did not change. No other path lost its lift. Residue, low, PLAUSIBLE: the error rows that the no-worktree path writes become the next run's `red_before`, with empty first lines. The first real run after them then lifts the key once. Fix: skip runs whose output starts with "the batch has no worktree" in `red_before`, or accept the residue as safe toward the old behaviour.
+- Tests: `test_frame318_quarantine_lift.py` and `test_frontier.py`, 28 passed. Probe `tests/rota/test_r318_probe2.py`, 3 passed, deleted after. `git status` is clean.
+- Usage: about 6k tokens for the re-probe.
