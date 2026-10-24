@@ -263,6 +263,22 @@ def not_retired(conn: sqlite3.Connection, col: str) -> str:
             f"(SELECT MAX(n.item_ver) FROM tickets n WHERE n.item_id = r.item_id))")
 
 
+def live_criteria(conn: sqlite3.Connection, col: str) -> str:
+    """
+    An SQL condition that drops a retired criterion. `col` holds a
+    criterion's `retired_by`.
+
+    His ruling that drops a criterion line retires the row, and the row stays
+    with its ruling (frame 306, pass 1b). The condition is empty on a run
+    database that predates the column.
+    """
+    from .db import _has_column
+
+    if not _has_column(conn, "criteria", "retired_by"):
+        return ""
+    return f" AND {col} IS NULL"
+
+
 # The items whose newest `item_parks` row puts them aside: the principal said
 # later or drop on the shift page (frame 193's design, 2.F.4).
 _ASIDE = ("SELECT p.item_id FROM item_parks p WHERE p.kind IN ('park', 'drop') "

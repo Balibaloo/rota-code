@@ -629,12 +629,13 @@ def grouping(conn) -> list[Wake]:
     # abandon it at once. Night 137's s321 grouped a contested item's ticket
     # twice (frame 193's design, 2.4).
     # An item set aside opens no batch (frame 193's design, 2.F.4).
-    from .scheduler import not_described, not_parked, not_retired
+    from .scheduler import live_criteria, not_described, not_parked, not_retired
     rows = conn.execute(
         "SELECT DISTINCT c.ticket_id AS tid FROM criteria c "
         "JOIN tickets t ON t.id = c.ticket_id "
         "JOIN items i ON i.id = t.item_id "
         "WHERE i.approval = 'approved' AND i.approval_ver >= i.version "
+        + live_criteria(conn, "c.retired_by") + " "
         "  AND c.ticket_id NOT IN (SELECT bt.ticket_id FROM batch_tickets bt "
         "                          JOIN batches b ON b.id = bt.batch_id "
         "                          WHERE b.status != 'abandoned')"
@@ -819,7 +820,8 @@ def tests_missing(conn) -> list[Wake]:
     # abandoned with three tests, and bg_3 took its criteria. Those tests
     # satisfied the NOT EXISTS, so this predicate gave no wake. bg_3 merged
     # with no test of its own (frame 239).
-    from .scheduler import not_retired
+    # A retired criterion owes no test either (frame 306, pass 1b).
+    from .scheduler import live_criteria, not_retired
     rows = conn.execute(
         "SELECT bt.batch_id AS bid, c.id AS cid FROM batch_tickets bt "
         "JOIN batches b ON b.id = bt.batch_id "
@@ -831,8 +833,8 @@ def tests_missing(conn) -> list[Wake]:
         "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'tester' "
         "                  AND m.verb = 'question' AND m.status IN ('open', 'unresolved') "
         "                  AND m.body_refs LIKE '%\"' || c.id || '\"%') "
-        + not_retired(conn, "bt.ticket_id") +
-        "ORDER BY bt.batch_id, c.id"
+        + not_retired(conn, "bt.ticket_id") + live_criteria(conn, "c.retired_by")
+        + " ORDER BY bt.batch_id, c.id"
     ).fetchall()
     missing: dict[str, list[str]] = {}
     for r in rows:

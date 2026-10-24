@@ -486,7 +486,11 @@ CREATE TABLE IF NOT EXISTS criteria (        -- Terminologist
     -- downstream of that. A name to call is intent's vocabulary, not
     -- implementation, which is why this does not breach the charter.
     surface_refs TEXT NOT NULL DEFAULT '[]',
-    version    INTEGER NOT NULL DEFAULT 1
+    version    INTEGER NOT NULL DEFAULT 1,
+    -- The ruling that dropped the criterion's line. A retired criterion is
+    -- read by no tick and shows on no page as live. It stays with its
+    -- ruling, so the record keeps it (frame 306, pass 1b).
+    retired_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS batches (         -- Architect, sole writer

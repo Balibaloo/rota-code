@@ -1058,7 +1058,8 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     # listed the old criteria above the new one, and a contest went to
     # `criterion_repair` on a row nobody builds (the diff review of
     # 2dace61b, finding 1).
-    from ..core.scheduler import not_retired
+    # A retired criterion is no line either (frame 306, pass 1b).
+    from ..core.scheduler import live_criteria, not_retired
 
     out: list[str] = []
     for item in items:
@@ -1066,6 +1067,7 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
         out += [r["id"] for r in conn.execute(
             "SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
             "WHERE t.item_id = ?" + not_retired(conn, "c.ticket_id")
+            + live_criteria(conn, "c.retired_by")
             + " ORDER BY c.id", (item,))]
     return out
 

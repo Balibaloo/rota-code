@@ -738,9 +738,9 @@ def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
     fresh = tmp_path / "fresh.db"
     conn = init_db(fresh)
     # Frame 316, pass 2, moved the mark: the status CHECK of `ledger`
-    # gained `parked`.
+    # gained `parked`. Frame 306, pass 1b, moved it for `criteria.retired_by`.
     assert conn.execute("SELECT value FROM config WHERE key = 'schema'"
-                        ).fetchone()["value"] == "ledger-parked"
+                        ).fetchone()["value"] == "criteria-retired"
     conn.close()
     init_db(fresh).close()          # the same run, opened again
 

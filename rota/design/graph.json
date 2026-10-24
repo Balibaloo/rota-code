@@ -381,6 +381,14 @@
       "s": "terminologist",
       "t": "criteria",
       "type": "writes",
+      "v": "retire",
+      "n": "a criterion whose line he dropped",
+      "rows": "delta"
+    },
+    {
+      "s": "terminologist",
+      "t": "criteria",
+      "type": "writes",
       "v": "specify",
       "n": "criteria",
       "label": "contested",

@@ -438,6 +438,7 @@ def test_every_operation_is_offered_by_some_mode():
             continue                      # an un-narrowed mode offers everything
         offered = {fn for m in modes for fn in (prompts.mode_tools(role, m) or [])}
         offered |= set(SUPERSEDED.get(role, ()))
+        offered |= set(WAKE_OFFERED.get(role, ()))
         missing = sorted(set(build(role, conn).functions()) - offered)
         if missing:
             stranded[role] = missing
@@ -461,6 +462,15 @@ def test_every_operation_is_offered_by_some_mode():
 SUPERSEDED = {
     "terminologist": ("code.survey", "code.vocabulary"),
     "architect": ("code.survey",),
+}
+
+# Operations that no `.tools` file lists, because one wake adds them. The
+# wake that offers the operation names it in its own line, so no brief needs
+# it. A line in the brief would change every recorded prompt of the mode.
+# `criteria.retire` comes on a criterion relay whose ruling drops a line
+# (frame 306, pass 1b, `runner._wake_allow`).
+WAKE_OFFERED = {
+    "terminologist": ("criteria.retire",),
 }
 
 
@@ -506,7 +516,8 @@ def test_every_operation_is_mentioned_in_some_prompt():
             text += "\n" + prompts.piece(role, mode)
         missing = sorted(f for f in sb.functions()
                          if f not in text and f not in pushed
-                         and f not in KNOWN_UNBRIEFED.get(role, ()))
+                         and f not in KNOWN_UNBRIEFED.get(role, ())
+                         and f not in WAKE_OFFERED.get(role, ()))
         if missing:
             unbriefed[role] = missing
     assert not unbriefed, unbriefed

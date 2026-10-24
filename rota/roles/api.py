@@ -5628,8 +5628,12 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     # indent"), then a signoff page of twenty-five lines the principal
     # would not read, a relay that mistook them for items, and a landing
     # cut at the output budget. The count is a fact.
+    # A retired criterion is no criterion of the ticket, so it takes no seat
+    # under the cap (frame 306, pass 1b).
+    from ..core.scheduler import live_criteria
     existing = {r["id"] for r in ctx.conn.execute(
-        "SELECT id FROM criteria WHERE ticket_id = ?", (ticket_id,))}
+        "SELECT id FROM criteria WHERE ticket_id = ?"
+        + live_criteria(ctx.conn, "retired_by"), (ticket_id,))}
     existing |= {w[1] for w in ctx.writes
                  if w[0] == "criteria" and w[2].get("ticket_id") == ticket_id}
     if id not in existing and len(existing) >= 6:
@@ -6073,6 +6077,76 @@ def ruling_drops_line(ctx: Ctx, id: str) -> int | None:
     return _line_dropped_on(ctx.conn, ruled, id)
 
 
+# His words that add a line to the page. Night 163's m112: "Also add a line
+# that says the output stays exactly the same as today, and the rest is
+# fine." No route took that sentence to a criterion (frame 306, pass 1b).
+_ADD_LINE = re.compile(
+    r"\badd\s+(?:a|one|another)\s+(?:new\s+)?(?:line|criterion|requirement)\s+"
+    r"(?:that\s+says?|saying|to\s+say)\s+(?:that\s+)?(?P<text>[^.;!?]+?)"
+    r"(?:,\s*(?:and|but)\s+the\s+rest\b[^.;!?]*)?\s*(?:[.;!?]|$)", re.I)
+
+
+def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
+    """What his last ruling on the criteria in `refs` asks beyond a rewrite.
+
+    "retire" lists the criteria whose line the ruling drops. "add" is the
+    ticket and the sentence of a line he adds, or None. The relay wake of
+    `criterion_repair` offers `criteria.retire` and `criteria.specify` by
+    this reading only, so other wakes keep their prompt (frame 306, pass 1b).
+    """
+    from ..core.scheduler import live_criteria
+    from .principal import last_ruling_on
+
+    out: dict = {"retire": [], "add": None}
+    for ref in refs or ():
+        if not isinstance(ref, str):
+            continue
+        row = conn.execute("SELECT ticket_id FROM criteria WHERE id = ?"
+                           + live_criteria(conn, "retired_by"),
+                           (ref,)).fetchone()
+        ruled = last_ruling_on(conn, ref) if row else None
+        if not ruled or ruled["verdict"] not in ("contest", "revise"):
+            continue
+        if _line_dropped_on(conn, ruled, ref) is not None:
+            out["retire"].append(ref)
+        added = _ADD_LINE.search(ruled["words"] or "")
+        if added and out["add"] is None:
+            out["add"] = (row["ticket_id"], added.group("text").strip())
+    return out
+
+
+@op("criteria", "retire")
+def criteria_retire(ctx: Ctx, id: str) -> dict:
+    """
+    Retire a criterion whose line the principal's ruling drops.
+
+    The row stays in the table with the ruling's id in `retired_by`. No tick
+    reads it, and no page shows it as live. Night 163's m112 said "delete
+    line 5" and "delete line 7", and both rows stayed for six rounds,
+    because no op retired a criterion (frame 306, pass 1b).
+    """
+    from ..core.scheduler import live_criteria
+    from .principal import last_ruling_on
+
+    cur = ctx.conn.execute("SELECT id FROM criteria WHERE id = ?",
+                           (id,)).fetchone()
+    if cur is None:
+        raise ValueError(f"{id} is not a criterion. Retire a criterion by its id")
+    if not live_criteria(ctx.conn, "retired_by") or ctx.conn.execute(
+            "SELECT 1 FROM criteria WHERE id = ? AND retired_by IS NOT NULL",
+            (id,)).fetchone():
+        return {"id": id, "unchanged": True, "note": f"{id} is retired already"}
+    # law 6: nothing is ruled on the principal's behalf
+    if ruling_drops_line(ctx, id) is None:
+        raise ValueError(
+            f"no ruling of the principal drops the line of {id}. Only his "
+            f"ruling retires a criterion. Rewrite it with criteria.respecify "
+            f"instead")
+    ruled = last_ruling_on(ctx.conn, id)
+    ctx.writes.append(("criteria", id, {"retired_by": ruled["id"]}))
+    return {"id": id, "retired_by": ruled["id"]}
+
+
 def _ruling_line(conn: sqlite3.Connection, ruled: dict, cid: str) -> int | None:
     """The line of criterion `cid` on the page the ruling `ruled` is on, or
     None when the page or the row on it is not known."""
@@ -6176,8 +6250,10 @@ def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
     others = [(w[1], w[2].get("text", "")) for w in ctx.writes
               if w[0] == "criteria" and isinstance(w[2], dict)
               and w[2].get("ticket_id") == ticket_id]
+    from ..core.scheduler import live_criteria
     others += [(r["id"], r["text"]) for r in ctx.conn.execute(
-        "SELECT id, text FROM criteria WHERE ticket_id = ?", (ticket_id,))]
+        "SELECT id, text FROM criteria WHERE ticket_id = ?"
+        + live_criteria(ctx.conn, "retired_by"), (ticket_id,))]
     for other_id, other_text in others:
         if other_id == skip:
             continue

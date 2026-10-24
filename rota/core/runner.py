@@ -241,6 +241,56 @@ def message_entry_id(conn: sqlite3.Connection, message_id: str) -> str | None:
     return None
 
 
+def _page_acts(wake: Wake, conn: sqlite3.Connection | None) -> dict | None:
+    """His ruling's drops and added line, on a criterion relay wake only.
+
+    None on any other wake, so no other prompt changes (frame 306, pass 1b).
+    """
+    if (conn is None or wake is None or not wake.message_id
+            or wake.role != "terminologist"
+            or _mode_key(wake, conn) != "criterion_repair"):
+        return None
+    row = conn.execute("SELECT verb, body_refs FROM messages WHERE id = ?",
+                       (wake.message_id,)).fetchone()
+    if row is None or row["verb"] != "relay":
+        return None
+    try:
+        refs = json.loads(row["body_refs"] or "[]")
+    except (TypeError, ValueError):
+        return None
+    from ..roles.api import criteria_page_acts
+
+    return criteria_page_acts(conn, refs)
+
+
+def _wake_allow(wake: Wake, conn: sqlite3.Connection | None) -> list[str] | None:
+    """The mode's tools, and the criteria ops his ruling asks for on this wake.
+
+    A tool in `criterion_repair.tools` is an invitation on every wake. So
+    `criteria.retire` comes only when the ruling drops a line, and
+    `criteria.specify` only when it adds one (frame 306, pass 1b).
+    """
+    allow = prompts.mode_tools(wake.role, _mode_key(wake, conn))
+    acts = _page_acts(wake, conn)
+    if allow is None or not acts:
+        return allow
+    extra = (["criteria.retire"] if acts["retire"] else []) + (
+        ["criteria.specify"] if acts["add"] else [])
+    return allow + [t for t in extra if t not in allow]
+
+
+def _page_act_lines(wake: Wake, conn) -> list[str]:
+    """The lines that tell the seat what his ruling drops and adds."""
+    acts = _page_acts(wake, conn) or {}
+    lines = [f"His ruling drops the line of {cid}. Retire it with "
+             f"criteria.retire(id='{cid}')." for cid in acts.get("retire") or ()]
+    if acts.get("add"):
+        ticket, sentence = acts["add"]
+        lines.append(f"He asks for a new line: {sentence!r}. Write it with "
+                     f"criteria.specify under ticket {ticket}.")
+    return lines
+
+
 def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
     """
     Which prompt piece this wake selects.
@@ -745,6 +795,9 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         contests = _relay_contest_block(sb.ctx.conn, role, inbound)
         if contests:
             body.append(f"\n[{CONTESTS_KEY}]\n{contests}")
+        acts = _page_act_lines(wake, sb.ctx.conn)
+        if acts:
+            body.append("\n" + "\n".join(acts))
     if pushed:
         # Say that these have *already run*. Without it a survey session spent
         # four of its eight turns calling `code.survey` again -- the results were
@@ -4679,7 +4732,7 @@ def session_sandbox(conn: sqlite3.Connection, wake: Wake, *,
                            # for a word. Never the role's to choose.
                            area=area or (wake.refs[0]
                                  if wake.kind in ONBOARDING_TICKS and wake.refs else None),
-                           allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)),
+                           allow=_wake_allow(wake, conn),
                            wake=wake)
     sb._order = prompts.mode_order(wake.role, _mode_key(wake, conn)) or []
     # The words `ledger.log` offers in this mode (frame 204, section 8).
