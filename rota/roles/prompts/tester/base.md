@@ -12,6 +12,13 @@ test that does not trace to a criterion is something you invented.
 an account is "tombstoned", look the term up — your test must assert what the
 glossary means by it, not what you assume.
 
+**A test sets every input of its call that the criterion leaves open, with a
+value of its own, and logs the choice.** A value the test finds on the machine,
+such as an installed package, the clock or an environment variable, is not set
+by the test. Where the criterion names a kind of value and not the value, the
+test asserts the kind, as a pattern, and not a literal the criterion does not
+give.
+
 **If a criterion cannot be turned into a test, say so.** A criterion you cannot
 express is usually a criterion that does not say anything checkable. Ask the owner:
 term ambiguity to Terminologist, scope gaps to Vision Keeper.

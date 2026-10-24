@@ -352,10 +352,40 @@ def test_the_tester_puts_the_argument_where_the_reason_row_says():
     assert ("When the reason row, the Developer's ref whose `table` is "
             "`decisions`, names the callable that takes an argument, the next "
             "body puts that argument on that callable, because the row "
-            "outranks the criterion's wording and the traceback for where an "
-            "argument goes.") in flat
+            "outranks the traceback for where an argument goes.") in flat
+    # Frame 281, ruled 2026-10-24 13:44: the row says where an argument
+    # goes, never which input the test sets. Night 162's s309 read the row
+    # as naming the input and passed a value found on the machine.
+    assert ("A claim in the row that an argument is required is the "
+            "Developer's reading. The criterion and the paragraph on open "
+            "inputs decide which input the test sets, and with what "
+            "value.") in flat
+    assert "outranks the criterion's wording" not in flat
     # Pass 5d: the traceback names `runner.invoke`, the wrong call.
     assert "on the call the traceback names" not in flat
+
+
+def test_a_test_sets_every_input_the_criterion_leaves_open():
+    """Frame 281, ruled 2026-10-24 13:44: a test brings its own value for
+    every input the criterion leaves open. Night 162's Testers passed names
+    found on the machine, and a test passed only where that name was
+    installed. The paragraph sits in the base, so every Tester wake reads
+    it."""
+    rule = ("A test sets every input of its call that the criterion leaves "
+            "open, with a value of its own, and logs the choice. A value the "
+            "test finds on the machine, such as an installed package, the "
+            "clock or an environment variable, is not set by the test.")
+    kind = ("Where the criterion names a kind of value and not the value, "
+            "the test asserts the kind, as a pattern, and not a literal the "
+            "criterion does not give.")
+    for mode in ("tests_missing", "challenge", "answer"):
+        flat = " ".join(prompts.compose("tester", mode).split()).replace("**", "")
+        assert rule in flat, mode
+        assert kind in flat, mode
+    challenge = " ".join(prompts.compose("tester", "challenge").split())
+    assert ("The fixed call line sets every input the criterion leaves open "
+            "with a value of the test's own, as the paragraph on open inputs "
+            "above says.") in challenge
 
 
 def test_the_tester_edits_the_test_the_reason_row_names():

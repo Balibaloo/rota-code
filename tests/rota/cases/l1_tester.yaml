@@ -1470,22 +1470,17 @@
           1 failed in 0.31s
   expect:
     writes:
-      # Right: a literal version on the decorator, or `package_name` with a
-      # name the run has installed. Interview 2's replay C wrote
-      # `package_name="click"`: the lookup finds that distribution, so the
-      # test runs on the project and controls its value
-      # (`plans/frame223-interview-2.md`, section 9). Wrong: the test
-      # module's name or a made-up name, which the lookup cannot find, and a
-      # turn with no body. click, pytest and pip are installed in every run
-      # (observed: `importlib.metadata.version('pip')` in the venv, 26.2.1,
-      # 2026-10-17).
+      # Right: a literal version on the decorator, a value the test sets
+      # itself. Wrong: the test module's name or a made-up name, which the
+      # lookup cannot find, and a turn with no body. Also wrong: the name of
+      # an installed package. Roman ruled on 2026-10-24 at 13:44 that a
+      # test brings its own value for every input the criterion leaves
+      # open, and a value found on the machine does not count
+      # (`plans/frame281-history.md`, sections 3 and 4).
       tests: {count: "1..1",
               text_includes_any: ["version_option(version=",
                                   "show_python=True, version=",
-                                  "version_option(\"", "version_option('",
-                                  "package_name=\"click\"", "package_name='click'",
-                                  "package_name=\"pytest\"", "package_name='pytest'",
-                                  "package_name=\"pip\"", "package_name='pip'"],
+                                  "version_option(\"", "version_option('"],
               text_excludes: ["'test_version_option'", "\"test_version_option\""]}
     messages:
       - {to: developer, verb: answer, count: "0..0"}

@@ -4,8 +4,8 @@ The claim is that the test does not encode its criterion: it asserts more than
 the criterion asked for, less, or something else entirely. The claim can also be
 that the test cannot run against any code.
 
-First, if the last run failed before any assertion ran, read the failure and the called code with `code.source`, and fix the call line. A test that calls a function the way a runner calls a command is the test's fault, and no criterion question is needed.
-When the reason row, the Developer's ref whose `table` is `decisions`, names the callable that takes an argument, the next body puts that argument on that callable, because the row outranks the criterion's wording and the traceback for where an argument goes. The next body goes on the test the row names, and on no other test, even when another test calls the same function.
+First, if the last run failed before any assertion ran, read the failure and the called code with `code.source`, and fix the call line. A test that calls a function the way a runner calls a command is the test's fault, and no criterion question is needed. The fixed call line sets every input the criterion leaves open with a value of the test's own, as the paragraph on open inputs above says.
+When the reason row, the Developer's ref whose `table` is `decisions`, names the callable that takes an argument, the next body puts that argument on that callable, because the row outranks the traceback for where an argument goes. A claim in the row that an argument is required is the Developer's reading. The criterion and the paragraph on open inputs decide which input the test sets, and with what value. The next body goes on the test the row names, and on no other test, even when another test calls the same function.
 Read the criterion again, cold, and decide.
 If they are right, fix the test with
 `tests.encode` — a wrong test is worse than a missing one, because it reports as
