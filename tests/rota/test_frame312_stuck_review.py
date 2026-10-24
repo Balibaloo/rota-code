@@ -275,3 +275,36 @@ def test_a_start_with_no_refused_write_keeps_the_stopped_work_page(bg1):
     page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
     assert page.startswith("The team stopped work on this change."), page
     assert "A check refused" not in page, page
+
+
+def test_the_next_start_window_holds_his_answer(bg1):
+    """Review w5, re-check: the page says the team reads his words, so the
+    Developer's next start window holds the landed ruling's words."""
+    import json
+
+    from rota.core.runner import START_RULED_KEY, push_working_set
+    from rota.core.sandbox import build
+    from rota.core.scheduler import Wake
+    from rota.roles import prompts
+    from rota.roles.principal import apply_rulings
+
+    _refused_start(bg1)
+    words = "Remove the return at line 609 in clear(). It returns False there."
+    bg1.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                "body_refs, seq, status) VALUES ('m115', 't1', 'liaison', "
+                "'principal', 'present', ?, 115, 'open')", (json.dumps(M45_REFS),))
+    bg1.execute("INSERT INTO config (key, value) VALUES ('stalled:m115', ?)",
+                (json.dumps([START]),))
+    # His reply reaches the Liaison, whose `rulings.rule` stages the row,
+    # and `apply_rulings` lands it through `land`.
+    bg1.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
+                "('r_m115', 'm115', '{\"echo_json_helper\": \"approve\"}', ?, "
+                "'open')", (words,))
+    apply_rulings(bg1)
+    assert not bg1.execute("SELECT 1 FROM tick_attempts WHERE tick_key = ?",
+                           (START,)).fetchone()
+    sb = build("developer", bg1, batch_id="bg_1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    pushed = push_working_set("developer", sb,
+                              Wake("developer", "tick:batch_start", refs=("bg_1",)))
+    assert words in str(pushed.get(START_RULED_KEY)), list(pushed)

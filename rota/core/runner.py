@@ -4067,6 +4067,7 @@ RETIRED_KEY = "criteria of an old ticket, written before the item changed"
 # A 9b seat's window is small, so the carry keeps the last three rulings
 # (frame 315, pass 1).
 RULED_CAP = 3
+START_RULED_KEY = "the principal's words on this change, newest last"
 
 
 def _retired_carry(conn, item_id: str, *, before_slice: bool = False) -> dict[str, Any]:
@@ -4206,6 +4207,19 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 if key == "criteria.load":
                     ordered[CONTESTS_KEY] = block
             pushed = ordered
+    # The stopped page tells him the team reads his answer, and his answer
+    # lifts the start key. Night 163's start windows held no word of his
+    # (frame 312, review w5, re-check). The commit door reads the same set.
+    if (role == "developer" and wake is not None
+            and wake.kind == "tick:batch_start" and wake.refs):
+        from types import SimpleNamespace
+
+        from ..roles.api import _ruling_texts
+
+        said = [t for t, principal in _ruling_texts(SimpleNamespace(
+            conn=sb.ctx.conn, batch_id=wake.refs[0])) if principal and t.strip()]
+        if said:
+            pushed[START_RULED_KEY] = said[-RULED_CAP:]
 
     # One read needs an argument the *wake* already knows, and leaving it to
     # the model cost the whole inquiry route.
