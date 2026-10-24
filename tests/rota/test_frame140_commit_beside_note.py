@@ -194,19 +194,18 @@ S282_NOTE = ('This write removes or rewrites 3 statements that your text does no
 # Frame 283's review 3, finding 3: the step says its fact once and ends on
 # the shared route.
 STEP = ("If the tree holds those lines again, commit in your next reply. A "
-        "note does not allow a removal or a rewrite. To undo the change, put the "
-        "lines back with code.write, then commit in your next reply. To keep the "
-        "change, send msg.escalate_architect and name the change to the Architect.")
+        "note does not allow a removal or a rewrite. Put the lines back with code.write, "
+        "then commit in your next reply. Or send msg.escalate_architect and "
+        "name the change.")
 
 # The refusal of a commit in a reply after the noted one (frame 283).
 LATER = ("a code.write in an earlier reply returned a note, and the tree "
          "still does not hold those lines.")
 # Frame 283's W1 a, pass 2: a note never allows a removal of a base
 # statement, so the route names no ledger note.
-LATER_STEP = ("A note does not allow a removal or a rewrite. To undo the change, put "
-              "the lines back with code.write, then commit in your next reply. To "
-              "keep the change, send msg.escalate_architect and name the change to "
-              "the Architect.")
+LATER_STEP = ("A note does not allow a removal or a rewrite. Put the lines back with "
+              "code.write, then commit in your next reply. Or send "
+              "msg.escalate_architect and name the change.")
 
 # The dropped statements put back around s282's text, as one span.
 RESTORED = ('        base_message = message % {"prog": prog_name, "package": '
