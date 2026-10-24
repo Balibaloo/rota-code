@@ -87,13 +87,15 @@ def _page(db, refs):
     return pending_asks(db)[0]
 
 
-def _land(db, notes, ruling, said):
+def _land(db, notes, ruling, said, rulings=False):
     _notes(db, notes)
     page = [VERSION] + CRITERIA + [n for n, _ in notes]
     ask = _page(db, page)
     per_item = {VERSION: "approve", **{c: "approve" for c in CRITERIA}, **ruling}
     mid = land(db, ask, Answer(verb="verdict", text=said, per_item=per_item))
     db.commit()
+    if rulings:
+        return verdict_for(db, mid)
     body = json.loads(db.execute("SELECT body_refs FROM messages WHERE id = ?",
                                  (mid,)).fetchone()["body_refs"])
     return set(body) | set(verdict_for(db, mid))
@@ -146,13 +148,30 @@ def test_m218_takes_the_confirm_rows_off_and_contests_its_own_criterion(db):
     the page's own `c_2_..._format` still contests that criterion."""
     notes = [("l_2d8cfe55d7", "cr_1_confirm_default_on_eof"),
              ("l_843f17e810", "tk_1_confirm_default_on_eof"),
-             ("l_7b7a3bfff9", CRITERIA[0])]
+             ("l_7b7a3bfff9", CRITERIA[0]),
+             # The page's own ticket, which the ruling does not name. A skip
+             # of every note that reaches an item would drop its contest
+             # (frame 316, review 1, finding 1).
+             ("l_own_ticket", f"tk_2_{VERSION}")]
     refs = _land(db, notes, {CRITERIA[-1]: "revise", **{n: "contest" for n, _ in notes}},
                  "Lines 10 and 12 belong to the confirm change, not this one, so "
-                 "please take them off this page.")
+                 "please take them off this page.", rulings=True)
     assert "cr_1_confirm_default_on_eof" not in refs, sorted(refs)
     assert "tk_1_confirm_default_on_eof" not in refs, sorted(refs)
     assert f"c_6_{VERSION}_help" in refs
+    assert refs.get(f"tk_2_{VERSION}") == "contest", refs
+
+
+def test_a_note_about_a_statement_reaches_the_items_that_cite_it(db):
+    """Frame 316, review 1, finding 4: a statement id reaches every item
+    that cites it. A note about `s1`, which only echo_json cites, is
+    skipped on the version page. A note about `s3`, which the page's own
+    item cites, keeps the contest."""
+    notes = [("l_s1_note", "s1"), ("l_s3_note", "s3")]
+    refs = _land(db, notes, {n: "contest" for n, _ in notes},
+                 "Both lines are wrong.")
+    assert "s1" not in refs, sorted(refs)
+    assert "s3" in refs, sorted(refs)
 
 
 def test_m191_takes_the_echo_json_criterion_off_and_keeps_a_note_of_no_item(db):

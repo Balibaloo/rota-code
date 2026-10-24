@@ -444,7 +444,8 @@ def test_a_note_s_contest_never_reaches_an_item_of_another_request(db):
 def test_a_note_s_contest_reaches_the_page_s_own_request_item(db):
     """Night 136, m165 (2026-10-11): a note about the confirm item on the
     confirm page, and he faulted it. The item goes contested. A challenge
-    of the other request's item names it as `items:echo_json`."""
+    of the other request's item names it as `items:echo_json`, and its
+    contest stays on the challenge (frame 316)."""
     _two_requests(db)
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
                "kind, status, author) VALUES ('challenge_items_echo_json',"
@@ -464,6 +465,9 @@ def test_a_note_s_contest_reaches_the_page_s_own_request_item(db):
     assert verdict_for(db, mid).get("confirm_default_on_eof") == "contest"
     assert db.execute("SELECT approval FROM items WHERE id = 'confirm_default_on_eof'"
                       ).fetchone()["approval"] == "contested"
+    # `items:echo_json` is no item id, so the approval below holds on any
+    # carrier. The verdict is what the skip changes (frame 316, review 1).
+    assert "items:echo_json" not in verdict_for(db, mid)
     assert db.execute("SELECT approval FROM items WHERE id = 'echo_json'"
                       ).fetchone()["approval"] == "approved"
 
