@@ -639,6 +639,8 @@ def test_a_revise_of_the_item_line_lands_with_the_words_on_the_item(m399):
     # A revise of the team's note is refused. The refusal names the drop
     # first, and names a request line only when the words name it by number
     # or quote it (frame 190's design, 2.F, amendment 2, and frame 296).
+    # The words do not name line 9, so the refusal also names the change
+    # route of the note (frame 305).
     sb = _sandbox(m399, "liaison", "landing", reply)
     ruling = {str(n): "approve" for n in range(1, 10)}
     ruling["9"] = "revise"
@@ -646,7 +648,7 @@ def test_a_revise_of_the_item_line_lands_with_the_words_on_the_item(m399):
         sb.call("rulings.rule", rulings=ruling, words=M400)
     assert str(refused.value) == (
         "line 9 is the team's note, not your request. To drop the note, contest "
-        "it. revise rewrites a line of what the principal asked for. The words "
+        "it. To change the note, revise it only on words that say the change. The words "
         "name no line of the request, and a revise of the request needs the principal's words "
         "on the request.")
 

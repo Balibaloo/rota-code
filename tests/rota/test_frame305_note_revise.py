@@ -1,0 +1,114 @@
+"""
+A sentence that asks to change a team's note is a revise of the note.
+
+Night 161, s357 (frame 305): the principal wrote "On line 11, use click
+directly in the test instead of installing a separate package." Line 11 was
+a ledger row, a team's note. s357 ruled it `revise`, and the door refused:
+"line 11 is the team's note, not your request. To drop the note, contest
+it." The door fired five times that night, on s156, s356, s357, s358 and
+s392. s357 then spent one of the principal's answers on a question back.
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from rota.core.db import init_db
+
+from .test_frame234_verdict_lines import _request_page
+from .test_principal_reply import _landing
+
+
+@pytest.fixture
+def db(tmp_path):
+    return init_db(tmp_path / "rota.db")
+
+
+# Line 11 of s357's page, verbatim (`.rota/clickI_night161.db`, turns).
+NOTE_11 = ("the answer did not address the question: The test for the "
+           "version_option show_python flag is failing because the "
+           "'test_version_option' package is not installed. Should the test be "
+           "modified to use 'click' directly instead of 'test_version_option', "
+           "or should the package be installed to resolve the issue?")
+# A note that holds a drop word of its own. Line 13 of the same page.
+NOTE_OWN = "ensure_ascii=False was removed per ruling, keeping json.dumps defaults"
+
+
+def _page(db, last: str = NOTE_11):
+    """The request page of frame 234 with eight more notes: line 11 is a note."""
+    ask = _request_page(db)
+    notes = [f"l_{k}" for k in range(2, 10)]
+    for k, lid in enumerate(notes):
+        text = last if lid == "l_9" else f"the team assumed default {k}"
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+                   "status, author) VALUES (?, 'how_it_works', 'items', ?, 'open', "
+                   "'vision_keeper')", (lid, text))
+    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm9'",
+               (json.dumps(ask.order + notes),))
+    db.commit()
+    from rota.roles.principal import pending_asks
+
+    ask = pending_asks(db)[0]
+    assert ask.order[10] == "l_9", ask.order
+    return ask
+
+
+def _rule(db, words, line_11: str, last: str = NOTE_11, **more):
+    ask = _page(db, last)
+    sb, _ = _landing(db, ask, words)
+    rulings = {str(n): "approve" for n in range(1, 12)}
+    rulings["11"] = line_11
+    rulings.update(more)
+    return sb.call("rulings.rule", rulings=rulings, words=words)
+
+
+def test_s357s_words_revise_the_note_and_land(db):
+    out = _rule(db, "On line 11, use the normal test runner", "revise")
+    assert out["per_item"]["l_9"] == "revise"
+
+
+def test_s357s_whole_reply_revises_line_11(db):
+    words = ("Lines 10, 13 and 14 are about the echo json change, not this one, "
+             "so please take them off this page. On line 11, use click directly "
+             "in the test instead of installing a separate package. The rest is "
+             "fine.")
+    # The page has 11 lines, so line 10 is the one note of the three on it.
+    out = _rule(db, words, "revise", **{"10": "contest"})
+    assert out["per_item"]["l_9"] == "revise"
+    assert out["per_item"]["l_8"] == "contest"
+
+
+@pytest.mark.parametrize("words", ["Drop line 11", "take line 11 off"])
+def test_a_drop_of_the_note_is_still_told_to_contest(db, words):
+    with pytest.raises(ValueError) as refused:
+        _rule(db, words, "revise")
+    text = str(refused.value)
+    assert text.startswith("line 11 is the team's note, not your request. "
+                           "To drop the note, contest it.")
+    assert "To change the note" not in text
+
+
+@pytest.mark.parametrize("words", ["Drop line 11", "take line 11 off"])
+def test_the_contest_of_a_dropped_note_lands(db, words):
+    out = _rule(db, words, "contest")
+    assert out["per_item"]["l_9"] == "contest"
+
+
+def test_a_drop_word_the_note_holds_names_both_routes(db):
+    with pytest.raises(ValueError) as refused:
+        _rule(db, "Line 11: keep it removed", "revise", last=NOTE_OWN)
+    text = str(refused.value)
+    assert "To change the note, revise it" in text
+    assert "To drop the note, contest it." in text
+
+
+def test_a_sentence_that_only_describes_the_note_is_no_revise(db):
+    with pytest.raises(ValueError) as refused:
+        _rule(db, "Line 11 is about the echo json change.", "revise")
+    assert str(refused.value).startswith("line 11 is the team's note")
+
+
+def test_a_question_about_the_note_is_no_revise(db):
+    with pytest.raises(ValueError):
+        _rule(db, "Should line 11 use click directly?", "revise")

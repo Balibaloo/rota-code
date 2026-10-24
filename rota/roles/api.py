@@ -11066,6 +11066,62 @@ def _lines(ns: list[int]) -> str:
     return f"line{'' if len(ns) == 1 else 's'} {_line_set(ns)}"
 
 
+# The words that ask to take a team's note off the page. Night 161's s357
+# read "take them off this page" for lines 10, 13 and 14 (frame 305).
+_NOTE_DROP = re.compile(
+    r"\b(?:drop(?:s|ped|ping)?|remov(?:e|es|ed|ing)|delet(?:e|es|ed|ing)|"
+    r"strike|struck|get rid of)\b|\btake\b[^.?!]{0,40}?\boff\b|"
+    r"\b(?:not|no longer) needed\b|\b(?:don['’]?t|do not) need\b", re.I)
+
+
+def _line_body(page_text: str, n: int) -> str:
+    """The text of line `n` of the rendered page, with its sub-lines."""
+    found = re.search(rf"^\s*{n}\.\s+(.*(?:\n(?!\s*\d+\.\s|\s*$)[ \t]+.*)*)",
+                      page_text or "", re.M)
+    return found.group(1) if found else ""
+
+
+def _note_words(words: str, n: int, page_text: str) -> str | None:
+    """What the principal's words ask of team-note line `n`.
+
+    "drop" when a clause about the line asks to take it off. "change" when a
+    clause about the line asks for anything else than agreement. "own" when
+    a clause reads as a drop only by a word the line's own text holds. None
+    when no clause is about the line. Night 161's s357 said "On line 11, use
+    click directly in the test" (frame 305).
+    """
+    own = {m.group(0).lower()[:4] for m in _NOTE_DROP.finditer(_line_body(page_text, n))}
+    found: set[str] = set()
+    for cl, refs, question in _cue_clauses(words):
+        if not refs or n not in refs:
+            continue
+        drops = [m for m in _NOTE_DROP.finditer(cl)
+                 if not _NEGATED.search(cl[:m.start()])]
+        if drops and not _KEEP_CHANGE.search(cl):
+            if all(m.group(0).lower()[:4] in own for m in drops):
+                found.add("own")
+            else:
+                found.add("drop")
+            continue
+        if question or _BARE_AGREEMENT.fullmatch(cl) or _CUE_BARE_FAULT.match(cl):
+            continue
+        if _CUE_AGREE.search(cl) and not _CUE_FAULT.search(cl):
+            continue
+        rest = _LINE_REF.sub(" ", cl)
+        # "Line 11 is about the echo change" describes the line and asks
+        # for nothing. A fault word makes the description a request.
+        if (re.match(r"\W*(?:on\s+)?(?:is|are|was|were)\b", rest, re.I)
+                and not _CUE_FAULT.search(rest)):
+            continue
+        # Any other word after the reference asks for a change.
+        if re.search(r"[A-Za-z]{2,}", re.sub(r"\b(?:on|in|for|at)\b", " ", rest, flags=re.I)):
+            found.add("change")
+    for kind in ("drop", "change", "own"):
+        if kind in found:
+            return kind
+    return None
+
+
 def _quotes_line(words: str, page_text: str, n: int) -> bool:
     """Whether the words quote line `n` of the rendered page: a run of five
     or more of the line's words, case-folded. The capture takes the line's
@@ -11319,6 +11375,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     for ref, ruling in per_item.items():
         if ruling != "revise" or not asked or not _is_team_note(ctx.conn, ref):
             continue
+        # A sentence that asks to change the note is a revise of the note.
+        # Night 161's s357 heard "On line 11, use click directly in the
+        # test", and the old door refused it five times (frame 305).
+        said = (_note_words(words, order.index(ref) + 1, page_text)
+                if order and ref in order else None)
+        if said == "change":
+            continue
         line = (f"line {order.index(ref) + 1}" if order and ref in order else ref)
         # law 6: nothing is ruled on the principal's behalf
         # The refusal offers a request line only when the words name it by
@@ -11336,10 +11399,24 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                  if named else
                  "The words name no line of the request, and a revise of the "
                  "request needs the principal's words on the request.")
+        if said == "own":
+            # The drop word is the note's own word, so the words can mean
+            # either route. law 6: the Liaison picks none for the principal.
+            raise ValueError(
+                f"{line} is the team's note, not your request. The words use a "
+                f"word the note itself holds, so they do not say which route. "
+                f"To change the note, revise it on words that say the change. "
+                f"To drop the note, contest it. If neither fits, ask the "
+                f"principal: rulings.rule(ask=...) with no rulings.")
+        # A revise of a note now lands on words that say the change, so the
+        # old "revise rewrites a line of what the principal asked for" is
+        # gone. The drop route stays first (frame 296).
+        change = ("" if said == "drop" else
+                  "To change the note, revise it only on words that say the "
+                  "change. ")
         raise ValueError(
             f"{line} is the team's note, not your request. To drop the note, "
-            f"contest it. revise rewrites a line of what the principal asked "
-            f"for. {offer}")
+            f"contest it. {change}{offer}")
     # law 3: a message routes to the writer of the artefact holding the answer
     # A files correction of a request belongs on the code it touches, and
     # never on the request. Over nights 136 to 156 it landed on line 1 19 of
