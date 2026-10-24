@@ -3875,6 +3875,63 @@ def _guess_seed(conn, batch_id: str) -> dict | None:
     return seed
 
 
+RULED_KEY = "the principal ruled on this item, newest last"
+RETIRED_KEY = "criteria of an old ticket, written before the item changed"
+# A 9b seat's window is small, so the carry keeps the last three rulings
+# (frame 315, pass 1).
+RULED_CAP = 3
+
+
+def _retired_carry(conn, item_id: str) -> dict[str, Any]:
+    """The principal's landed words and an old ticket's criteria, for an
+    item that has an old ticket. Empty for every other item.
+
+    Night 161: his correction landed on tk_1's criteria at version 4. The
+    item was amended, tk_2 was sliced, and the criteria wake of s282 showed
+    only the statement s3. Every word of the principal is a ruling on a row
+    (ruling of 2026-10-08, point 4), so the row's words follow the item
+    (frame 315's provenance, repair 1).
+    """
+    from .db import _has_column
+
+    if not _has_column(conn, "tickets", "item_ver"):
+        return {}
+    # A ticket is old when its slice predates the item's version. The
+    # slicing wake runs before the new ticket exists, so `not_retired`
+    # alone cannot see the old ticket there.
+    old = [r["id"] for r in conn.execute(
+        "SELECT t.id FROM tickets t WHERE t.item_id = ? AND (t.item_ver < "
+        "(SELECT i.version FROM items i WHERE i.id = t.item_id) OR t.item_ver < "
+        "(SELECT MAX(n.item_ver) FROM tickets n WHERE n.item_id = t.item_id)) "
+        "ORDER BY t.rowid", (item_id,))]
+    if not old:
+        return {}
+    names = {item_id} | {r["id"] for r in conn.execute(
+        "SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+        "WHERE t.item_id = ?", (item_id,))}
+    words: list[str] = []
+    for r in conn.execute("SELECT per_item, words FROM rulings "
+                          "WHERE status = 'landed' ORDER BY rowid"):
+        try:
+            ruled = json.loads(r["per_item"] or "{}")
+        except (TypeError, ValueError):
+            continue
+        if isinstance(ruled, dict) and names & set(ruled) and (r["words"] or "").strip():
+            words.append(r["words"])
+    marks = ",".join("?" * len(old))
+    criteria = [{"old ticket": r["ticket_id"], "id": r["id"],
+                 "version": r["version"], "text": r["text"]}
+                for r in conn.execute(
+                    f"SELECT id, ticket_id, version, text FROM criteria "
+                    f"WHERE ticket_id IN ({marks}) ORDER BY rowid", old)]
+    carry: dict[str, Any] = {}
+    if words:
+        carry[RULED_KEY] = words[-RULED_CAP:]
+    if criteria:
+        carry[RETIRED_KEY] = criteria
+    return carry
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -3990,7 +4047,8 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 "AND x.src_id = ? AND s.status != 'superseded' "
                 "ORDER BY s.id", (wake.refs[0],))]
             if item:
-                pushed["the item"] = {"text": item["text"], "the principal said": said}
+                pushed["the item"] = {"text": item["text"], "the principal said": said,
+                                      **_retired_carry(conn, wake.refs[0])}
             words = {w.strip(".,;:()'\"`").lower() for w in hint.split()} - {""}
             files: list[str] = []
             for row in (pushed.get("code.callables") or []) if isinstance(pushed.get("code.callables"), list) else []:
@@ -4057,6 +4115,9 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         mine = [r for r in rows if isinstance(r, dict) and r.get("id") in wake.refs]
         rest = [r.get("id") for r in rows if isinstance(r, dict) and r.get("id") not in wake.refs]
         if mine:
+            # Night 161's s281 sliced from the headline alone. The item's
+            # old ticket held his corrected criteria (frame 315).
+            mine = [{**r, **_retired_carry(sb.ctx.conn, r["id"])} for r in mine]
             pushed["problem.consult"] = {
                 "to slice, this wake": mine,
                 "the rest of the account, not this wake's": rest,
