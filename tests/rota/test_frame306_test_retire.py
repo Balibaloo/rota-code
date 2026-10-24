@@ -68,9 +68,13 @@ def db(tmp_path):
              [CRIT], 122)
     _message(conn, "m123", "m122", "terminologist", "tester", "answer",
              [CRIT, RED], 123)
-    # The order his reply saw: the check lines hold lines 3 and 4.
+    # The order his reply saw is the order the page renders: the check
+    # lines hold lines 3 and 4.
+    order: list[str] = []
+    request_block(conn, [ITEM, CRIT], order, [])
+    assert order == page
     conn.execute("INSERT INTO config (key, value) VALUES ('order:m121', ?)",
-                 (json.dumps(page),))
+                 (json.dumps(order),))
     conn.commit()
     return conn
 
@@ -103,7 +107,9 @@ def test_his_remove_of_the_red_check_retires_that_test(db):
     _ruling(db, {ITEM: "approve", CRIT: "approve", GREEN: "approve",
                  RED: "contest"}, WORDS)
     db.commit()
-    assert len(_checks(db)) == 2 and _reds(db)
+    before = _checks(db)
+    assert [c.split(".")[0].strip() for c in before] == ["3", "4"]
+    assert _reds(db)
     sb = _tester(db)
     sb.call("tests.retire", id=RED)
     _commit(db, sb)
@@ -111,7 +117,7 @@ def test_his_remove_of_the_red_check_retires_that_test(db):
         "SELECT id, retired_by, version FROM tests")}
     assert rows[RED] == ("r_m121", 2), "a retire moves no version"
     assert rows[GREEN] == (None, 2)
-    assert len(_checks(db)) == 1
+    assert _checks(db) == [before[0]], "one numbered check, the green one"
     assert _reds(db) == []
 
 

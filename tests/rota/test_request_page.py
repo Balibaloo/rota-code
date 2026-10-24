@@ -362,13 +362,17 @@ def test_the_quarantined_page_says_the_team_gave_up_on_a_criterions_test(bg2):
     page = ask.rendered
     assert not page.startswith("Before I build this"), page
     assert "The team gave up: the team could not write the tests after 3 attempts." in page
-    cr3 = page.index("  4. When confirm() is invoked with")
+    cr3 = page.index("  6. When confirm() is invoked with")
     assert page[cr3:].splitlines()[1] == (
         "     check: none. The team gave up writing it after 3 tries.")
     assert page.count("check: x, expects confirm(). Not run yet.") == 2
     assert page.index("The team gave up:") < page.index("The team expects to touch:") \
-        < page.index("  5. the work for:")
-    assert ask.order == [ITEM_136] + [c for c, _ in CRIT_136] + ["bg_2"]
+        < page.index("  7. the work for:")
+    tests = {"cr_1_confirm_eof_default": "tst_confirm_eof_returns_default_when_enabled",
+             "cr_2_confirm_eof_default_behavior":
+                 "tst_confirm_eof_returns_default_when_default_on_eof_true"}
+    assert ask.order == [ITEM_136] + [r for c, _ in CRIT_136
+                                      for r in (c, tests.get(c)) if r] + ["bg_2"]
     # The input names the keys too, and an empty list is no stalled page.
     assert render_page(bg2, "present", refs, stalled=[])[0].startswith("Before I build this")
 
@@ -1883,10 +1887,10 @@ def test_a_test_of_an_abandoned_batch_is_no_check_line(m399):
 
     _vo_test(m399, "bg_3", "abandoned", "aa28d1d")
     m399.commit()
-    line = f"     check: {check_line(m399, TST_VO)}"
+    line = f"     3. check: {check_line(m399, TST_VO)}"
     out: list[str] = []
     request_block(m399, [ITEM_VO, C1_VO], [], out)
-    assert line not in out
+    assert not any(check_line(m399, TST_VO) in o for o in out)
     assert "     check: none yet." in out
     out = []
     request_block(m399, [ITEM_VO, C1_VO], [], out, batch="bg_3")

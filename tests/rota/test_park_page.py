@@ -219,10 +219,10 @@ def test_the_park_ask_is_a_page_with_the_item_and_the_criteria_each_with_its_che
 
     (ask,) = pending_asks(n132)
     page = ask.rendered
-    assert ask.order == [ITEM_132] + [c[0] for c in N132]
+    assert ask.order == [ITEM_132] + [r for c in N132 for r in (c[0], c[2])]
     assert page.startswith("This change stopped. The team tried 6 times, and 4 of "
                            "its 6 checks still fail.")
-    assert f"  1. {ITEM_TEXT}" in page and "  7. The behavior of confirm()" in page
+    assert f"  1. {ITEM_TEXT}" in page and "  12. The behavior of confirm()" in page
     assert page.count("Fails:") == 4 and page.count("Passes.") == 2
     assert ('check: confirm eof default, calls result = confirm("y/n", '
             'default_on_eof=True), expects result == True. Fails: assert False '
@@ -240,30 +240,30 @@ PAGE_132 = [
     "  2. confirm() must accept an optional 'default_on_eof' boolean argument. When "
     "True and stdin is closed (EOF), confirm() returns the provided default value "
     "instead of raising an exception or aborting.",
-    '     check: confirm eof default, calls result = confirm("y/n", default_on_eof=True), '
+    '     3. check: confirm eof default, calls result = confirm("y/n", default_on_eof=True), '
     "expects result == True. Fails: assert False == True.",
-    "  3. When 'default_on_eof' is True and stdin reaches EOF, confirm() must not "
+    "  4. When 'default_on_eof' is True and stdin reaches EOF, confirm() must not "
     "attempt to read further or wait for input; it immediately returns the default value.",
-    '     check: confirm eof behavior, calls result = confirm("y/n", default_on_eof=True), '
+    '     5. check: confirm eof behavior, calls result = confirm("y/n", default_on_eof=True), '
     "expects result == True. Fails: assert False == True.",
-    "  4. The default value returned by confirm() on EOF must be the same value passed "
+    "  6. The default value returned by confirm() on EOF must be the same value passed "
     "to confirm() as the 'default' argument, or a sentinel if no default was provided.",
-    '     check: confirm eof default value, calls result = confirm("y/n", '
+    '     7. check: confirm eof default value, calls result = confirm("y/n", '
     "default_on_eof=True, default=False), expects result == False. Passes.",
-    "  5. When 'default_on_eof' is True, confirm() must detect the EOF condition on "
+    "  8. When 'default_on_eof' is True, confirm() must detect the EOF condition on "
     "stdin and treat it as a valid input state that triggers the default return path, "
     "rather than treating it as an error or blocking wait.",
-    '     check: confirm eof input handling, calls result = confirm("y/n", '
+    '     9. check: confirm eof input handling, calls result = confirm("y/n", '
     "default_on_eof=True), expects result == True. Fails: assert False == True.",
-    "  6. Upon returning the default value due to EOF with 'default_on_eof' enabled, "
+    "  10. Upon returning the default value due to EOF with 'default_on_eof' enabled, "
     "confirm() must not perform any cleanup operations, logging, or state changes that "
     "would differ from a normal successful return.",
-    '     check: confirm eof no side effects, calls result = confirm("y/n", '
+    '     11. check: confirm eof no side effects, calls result = confirm("y/n", '
     "default_on_eof=True), expects result == True. Fails: assert False == True.",
-    "  7. The behavior of confirm() with 'default_on_eof' must be consistent regardless "
+    "  12. The behavior of confirm() with 'default_on_eof' must be consistent regardless "
     "of whether the default value is provided via a direct argument or resolved from "
     "the context's default map.",
-    "     check: confirm eof default map consistency, calls result_direct = "
+    "     13. check: confirm eof default map consistency, calls result_direct = "
     'confirm("y/n", default_on_eof=True, default=False), expects result_direct == '
     "False. Passes.",
     "The last attempt: tests/test_confirm_eof_behavior.py failed: assert False == True. "
@@ -287,7 +287,7 @@ def test_a_full_map_on_the_park_page_lands_and_a_contest_of_a_criterion_line_nam
     Liaison had no line to rule and sent one sentence back (m118)."""
     mid = _liaison_presents(n132, ITEM_132)
     reply = _reply(n132, mid, WALK)
-    whole = json.dumps({str(n): "approve" for n in range(1, 8)})
+    whole = json.dumps({str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)})
     out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={whole}, words='{WALK}')")
     assert out.committed, out.errors
     assert n132.execute("SELECT status FROM messages WHERE id = ?",
@@ -310,11 +310,11 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     from rota.core.sandbox import _owner_of_ref
 
     mid = _liaison_presents(n132, ITEM_132)
-    reply = _reply(n132, mid, "line 3 is wrong: it must not hang")
-    ruling = {str(n): "approve" for n in range(1, 8)}
-    ruling["3"] = "contest"
+    reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
+    ruling = {str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)}
+    ruling["4"] = "contest"
     out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 3 is wrong: it must not hang')")
+                                "words='line 4 is wrong: it must not hang')")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id, status FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -370,11 +370,11 @@ def test_the_door_relays_a_park_verdicts_contested_criteria_to_the_terminologist
     from rota.core.runner import run_session
 
     mid = _liaison_presents(n132, ITEM_132)
-    reply = _reply(n132, mid, "line 3 is wrong: it must not hang")
-    ruling = {str(n): "approve" for n in range(1, 8)}
-    ruling["3"] = "contest"
+    reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
+    ruling = {str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)}
+    ruling["4"] = "contest"
     out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 3 is wrong: it must not hang')")
+                                "words='line 4 is wrong: it must not hang')")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -406,11 +406,11 @@ def test_the_door_drops_an_approved_criterion_from_a_held_terminologist_relay(n1
     from rota.roles import prompts
 
     mid = _liaison_presents(n132, ITEM_132)
-    reply = _reply(n132, mid, "line 3 is wrong: it must not hang")
-    ruling = {str(n): "approve" for n in range(1, 8)}
-    ruling["3"] = "contest"
+    reply = _reply(n132, mid, "line 4 is wrong: it must not hang")
+    ruling = {str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)}
+    ruling["4"] = "contest"
     out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
-                                "words='line 3 is wrong: it must not hang')")
+                                "words='line 4 is wrong: it must not hang')")
     assert out.committed, out.errors
     (verdict,) = n132.execute("SELECT id FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
@@ -441,7 +441,7 @@ def test_a_contest_of_the_item_line_relays_the_item_to_the_vision_keeper(n132, c
 
     mid = _liaison_presents(n132, ITEM_132)
     reply = _reply(n132, mid, "line 1 is wrong: it must not abort")
-    ruling = {str(n): "approve" for n in range(1, 8)}
+    ruling = {str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)}
     ruling["1"] = "contest"
     out = _landing(n132, reply, f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
                                 "words='line 1 is wrong: it must not abort')")
@@ -682,7 +682,7 @@ def test_a_whole_approve_on_a_park_page_rests_the_park(tmp_path):
     _night(conn, item=ITEM_133, text=ITEM_TEXT, head="fb5736cf", attempt=7, rows=N121)
     mid = _liaison_presents(conn, ITEM_133)
     (ask,) = pending_asks(conn)
-    assert len(ask.order) == 7
+    assert len(ask.order) == 13
     reply = _reply(conn, mid, WALK)
     from rota.core.sandbox import build
     from rota.roles import prompts
@@ -690,10 +690,10 @@ def test_a_whole_approve_on_a_park_page_rests_the_park(tmp_path):
     sb = build("liaison", conn, mode="normal", session_id="s278",
                allow=prompts.mode_tools("liaison", "landing"))
     sb.ctx.trigger = reply
-    with pytest.raises(ValueError, match="'8' is not a line of the page"):
-        sb.call("rulings.rule", rulings={str(n): "approve" for n in range(1, 9)},
+    with pytest.raises(ValueError, match="'14' is not a line of the page"):
+        sb.call("rulings.rule", rulings={str(n): "approve" for n in range(1, 15)},
                 words=WALK)
-    seven = json.dumps({str(n): "approve" for n in range(1, 8)})
+    seven = json.dumps({str(n): "approve" for n in (1, 2, 4, 6, 8, 10, 12)})
     out = _landing(conn, reply, f"TOOL: rulings.rule(rulings={seven}, words='{WALK}')")
     assert out.committed, out.errors
     (verdict,) = conn.execute("SELECT status FROM messages WHERE cause_id = ? "

@@ -12103,7 +12103,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             f"{named}the words do not fault {ref}'s files. "
             f"{end[0].upper()}{end[1:]}.")
     if not is_clarify:
-        unnamed =[str(i + 1) for i, r in enumerate(order) if r not in per_item]
+        # A check line carries a number so that his words can name a test
+        # (frame 306, W-A). A check line the reply leaves out keeps its test.
+        from .principal import is_test_row
+
+        unnamed = [str(i + 1) for i, r in enumerate(order)
+                   if r not in per_item and not is_test_row(ctx.conn, r)]
         if unnamed:
             raise ValueError(
                 f"lines {', '.join(unnamed)} have no ruling. Every line of the "

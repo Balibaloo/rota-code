@@ -1186,6 +1186,12 @@ def _test_retired(conn: sqlite3.Connection, test_id: str) -> bool:
         (test_id,)).fetchone() is not None
 
 
+def is_test_row(conn: sqlite3.Connection, ref: str) -> bool:
+    """True when the page row `ref` is a check line, a row of `tests`."""
+    return isinstance(ref, str) and conn.execute(
+        "SELECT 1 FROM tests WHERE id = ?", (ref,)).fetchone() is not None
+
+
 def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                   out: list[str], *, said: list[tuple[str, str]] | None = None,
                   batch: str | None = None, code: dict | None = None,
@@ -1268,11 +1274,15 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                 + ("AND t.batch_id = ? " if batch else
                    "AND COALESCE(b.status, '') != 'abandoned' ") + "ORDER BY t.id",
                 (r, batch) if batch else (r,))]
-            # A test he retired is no check line. Night 164's m121 dropped a
-            # check, and the check stayed on six pages (frame 306, W-A).
+            # A check line has a number and a ref in the page's sequence, so
+            # his words about a test land on the test. Night 164's m121 said
+            # "remove the second check under line 2", and the words landed on
+            # the criterion. A test he retired is no check line (frame 306,
+            # W-A).
             mine = [t for t in mine if not _test_retired(conn, t)]
             for t in mine:
-                out.append(f"     check: {check_line(conn, t)}")
+                order.append(t)
+                out.append(f"     {len(order)}. check: {check_line(conn, t)}")
             if mine:
                 continue
             # The Tester writes no test before the head commit, so a touch
