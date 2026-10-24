@@ -705,7 +705,9 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         body.append(wake.detail)
     if wake.kind == "tick:criterion_repair":
         body.extend(_last_word_lines(sb.ctx.conn, wake))
-    if inbound and role == "tester" and wake.detail == "challenge":
+    # Frame 317: a Tester woken by an answer reads the same failed runs as a
+    # challenged one. s370 saw them and fixed tst_v3. s364 did not.
+    if inbound and role == "tester" and wake.detail in ("challenge", "answer"):
         # Frame 110's interview: inside an escaped JSON string the seat read
         # the challenge as a criterion question. Asked in plain words, it
         # blamed the test. The JSON below stays as it is for other readers.
@@ -2744,8 +2746,11 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                         # The 700 tail of night 106's `_03` held parser
                         # frames and not the test's own call line (frame
                         # 110, revision 2). Every other wake keeps the tail,
-                        # so its prompt does not move.
-                        whole = role == "tester" and detail == "challenge"
+                        # so its prompt does not move. A Tester answer gets
+                        # the whole output too: s410's `KeyError` sat 1929
+                        # characters from the end (frame 317).
+                        whole = (role == "tester"
+                                 and detail in ("challenge", "answer"))
                         keep = out if whole else out[-700:]
                         resolved[ref]["last_run"] = {
                             "result": run["result"],
@@ -2770,6 +2775,23 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                     (ref,)).fetchone()
                 if hit:
                     resolved[ref] = {**dict(hit), "table": "decisions"}
+    if role == "tester" and detail == "answer":
+        # Frame 317, night 161: an answer refs criteria only. So s364 and
+        # s410 saw no test and no run, and s364 removed the fix that
+        # s315 made after it read "is not installed". Each criterion's
+        # test now travels, and the blocks for a test ref fire for it.
+        named = []
+        for row in list(resolved.values()):
+            if row.get("table") != "criteria":
+                continue
+            test = conn.execute(
+                "SELECT id FROM tests WHERE criterion_id = ? "
+                "ORDER BY rowid DESC LIMIT 1", (row["id"],)).fetchone()
+            if test and test["id"] not in resolved and test["id"] not in named:
+                named.append(test["id"])
+        if named:
+            resolved.update(_resolve_refs(conn, named, role=role,
+                                          detail=detail))
     return resolved
 
 
