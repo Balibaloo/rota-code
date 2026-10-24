@@ -22,9 +22,6 @@ HELPER = "src/helper.py"
 CHANGES = "CHANGES.rst"
 DOC = "docs/flag.rst"
 CHANGE_LINE = "-   ``work()`` takes a ``flag`` argument."
-# Pass 1c: an empty package file, and data of a kind the base tree holds.
-PACKAGE = "src/flags/__init__.py"
-DATA = "data/x.json"
 
 BASE = "def work(x):\n    return x\n"
 HEAD = ('def work(x, flag=False):\n'
@@ -64,7 +61,6 @@ def _repo(tmp_path, monkeypatch, extra: dict[str, str]) -> tuple[str, str]:
     (root / "docs").mkdir()
     (root / "docs" / "index.rst").write_bytes(b"Work\n====\n")
     (root / "CHANGES.rst").write_bytes(b"Version 1.0\n-----------\n")
-    (root / "src" / "schema.json").write_bytes(b"{}\n")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "base")
     (root / "src" / "work.py").write_bytes(HEAD.encode())
@@ -82,8 +78,7 @@ def batch(tmp_path, monkeypatch):
                        {"tests/test_work.py": TEST, NOTE: PROSE,
                         HELPER: "def help_work():\n    return 1\n",
                         CHANGES: "Version 1.0\n-----------\n" + CHANGE_LINE + "\n",
-                        DOC: "The flag\n--------\n",
-                        PACKAGE: "", DATA: '{"flag": false}\n'})
+                        DOC: "The flag\n--------\n"})
     conn = init_db(tmp_path / "rota.db")
     conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                  "version) VALUES ('i1','the item','in_scope','approved',1,1)")
@@ -210,17 +205,6 @@ def test_a_changelog_line_on_a_behaviour_criterion_is_still_refused(batch):
 @pytest.mark.parametrize("path", [CHANGES, DOC])
 def test_foreseen_on_prose_in_a_directory_the_base_held_lands(batch, path):
     """A changelog entry or a new docs page is work a plan can foresee."""
-    sb = _strays(batch, path)
-    out = sb.call("batches.judge_touch", batch_id="b_2", foreseen=[path])
-    assert out["foreseen"] == [path], out
-
-
-# Pass 1c (frame 306's review 3: one high, low B).
-
-@pytest.mark.parametrize("path", [PACKAGE, DATA])
-def test_foreseen_on_a_package_file_or_known_data_in_a_new_directory_lands(batch, path):
-    """An empty `__init__.py` is code. A `.json` file in a tree that holds
-    `.json` files is a kind of file a plan can foresee."""
     sb = _strays(batch, path)
     out = sb.call("batches.judge_touch", batch_id="b_2", foreseen=[path])
     assert out["foreseen"] == [path], out

@@ -12898,23 +12898,33 @@ def _held_code(line: str, added: list[tuple[str, str | None]]) -> str:
 
 def _holds_code(ctx, tree, rel: str) -> bool:
     """True when the file `rel` of the worktree `tree` holds code: the index
-    holds a definition in it, or it is a Python file, empty or not.
+    holds a definition in it, or it is Python with one statement or more.
 
     Frame 306's case, night 162: s203 committed the criteria rows of b_2 as
-    `criteria/c1_confirm_default_on_eof`, a file with neither. An empty
-    `__init__.py` makes a package, so it is code (frame 306's review 3, the
-    high). A file that is gone gives no fact, so no door fires on it.
+    `criteria/c1_confirm_default_on_eof`, a file with neither. A file that
+    cannot be read gives no fact, so it counts as code and no door fires.
     """
+    import ast as _ast
     from pathlib import Path as _P
     rel = rel.replace("\\", "/")
-    if rel.endswith((".py", ".pyi")) or not tree:
-        return True
     if ctx.conn.execute(
             "SELECT 1 FROM code_index WHERE grain_kind = 'symbol' "
             "AND substr(grain, 1, ?) = ? LIMIT 1",
             (len(rel) + 2, rel + "::")).fetchone():
         return True
-    return not (_P(tree) / rel).is_file()
+    if not tree:
+        return True
+    f = _P(tree) / rel
+    try:
+        text = f.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return True         # a deleted file is no note
+    if not rel.endswith((".py", ".pyi")):
+        return False
+    try:
+        return bool(_ast.parse(text).body)
+    except SyntaxError:
+        return True         # broken source is still source
 
 
 def _new_directory(ctx, tree, rel: str) -> bool:
@@ -12935,29 +12945,6 @@ def _new_directory(ctx, tree, rel: str) -> bool:
     except Exception:                                      # noqa: BLE001
         return False
     return out.returncode == 0 and not out.stdout.strip()
-
-
-def _new_kind(ctx, tree, rel: str) -> bool:
-    """True when no file of the batch's base tree has the extension of
-    `rel`, or has no extension when `rel` has none (frame 306's review 3,
-    low B: a `.json` file in a tree of `.json` files is foreseeable). A
-    fact that git cannot give counts as held, so no door fires on it."""
-    import subprocess as _sp
-    from pathlib import PurePosixPath as _PP
-    from ..core import worktrees as _wt
-    if not tree:
-        return False
-    try:
-        out = _sp.run([*_wt.GIT, "-C", str(tree), "ls-tree", "-r",
-                       "--name-only", _batch_base(ctx, tree)],
-                      capture_output=True, text=True, encoding="utf-8",
-                      errors="replace")
-    except Exception:                                      # noqa: BLE001
-        return False
-    if out.returncode != 0:
-        return False
-    kind = _PP(rel.replace("\\", "/")).suffix.casefold()
-    return all(_PP(p).suffix.casefold() != kind for p in out.stdout.splitlines())
 
 
 def _note_files(ctx, batch_id: str, diff_text: str
@@ -19994,7 +19981,7 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
                              (batch_id,)).fetchone() or {"worktree": None})["worktree"]
     unplanned = [p for p in foreseen
                  if "::" not in p and not _holds_code(ctx, tree, p)
-                 and _new_directory(ctx, tree, p) and _new_kind(ctx, tree, p)]
+                 and _new_directory(ctx, tree, p)]
     if unplanned:
         one = len(unplanned) == 1
         names = ", ".join(unplanned)
