@@ -98,3 +98,88 @@ Each one opens the night db read only and copies it into memory.
 
 Input tokens about 60k, output tokens about 9k, total about 69k. The
 harness shows no exact count to the reviewer.
+
+## Re-check of 26186652
+
+Verdict: the commit does not stand. Findings 3, 4 and 5 are closed. Finding 1 is closed
+in its text, and a medium remains on the offered sentence. Finding 2 is
+closed for the restart. A new high replaces it: the page says "the team
+reads your words", and the Developer's window does not hold them.
+
+The page at m115's own moment (probe `r6_p3.py`, sessions after s222 cut,
+key at 3):
+
+```
+The team gave up: the change could not start after 3 attempts.
+A check refused the commits, because the change rewrites `return` at line 609 of src/click/termui.py, in clear(), as `return False`.
+To allow that, say so, as 'remove the `return` at line 609 in clear()'.
+The team wrote src/click/termui.py 2 times, and the runner put the file back each time.
+Your answer to this page starts the team once more, and the team reads your words. Do not correct a line that you agree with.
+```
+
+1. Finding 1: closed in text. The page now says "rewrites ... as
+   `return False`". A medium remains on the offered sentence at
+   `principal.py` about 1462. The door admits only removal words:
+   `_REMOVAL_WORDS` in `api.py` 19665 holds remove, drop, delete, take
+   out, no longer, stop and without. Probe `r6_p4.py`: "change ... to `return False`",
+   "replace ... with `return False`" and "rewrite ... as `return False`"
+   are all refused. So the page cannot offer the rewrite's own words
+   today, and "remove" is the only sentence the door admits. That
+   sentence also admits a pure removal of the guard, which he did not ask
+   for. CONFIRMED. Fix: teach `_removal_spans` a rewrite verb with its
+   new text, and admit only that new line. Then offer "change the
+   `return` at line 609 in clear() to `return False`". Do it in a new frame.
+2. Finding 2: closed for the restart. `land` at `principal.py` 2137-2144
+   deletes the quarantined `developer|tick:batch_start` key that the
+   page's `stalled:` config row names. The night's config holds
+   `stalled:m115` with that key. The lift runs only when the ask closes,
+   so a words reply lifts the key when `apply_rulings` lands the Liaison's ruling.
+3. New, high, CONFIRMED (`principal.py` about 1471-1473). "the team
+   reads your words" is false. Probe `r6_p4.py` landed an approve-all
+   ruling with the page's sentence on the night copy. Then it built the
+   Developer's `tick:batch_start` window with `push_working_set`. The
+   pushes are `batches.expect`, `criteria.load`, `glossary.lookup`,
+   `the principal contested these criteria` and `tickets.load`. His words
+   are in none of them. The only ruling push is `contests_on`
+   (`runner.py` 568), which shows contested criteria only. The page
+   tells him not to contest a line. So the route the page advises keeps
+   his words out of the window. Only the commit door reads them, through
+   `_ruling_texts`. Fix: push the landed rulings that `_ruling_texts`
+   returns with the principal's flag into the Developer start window. Or
+   change the text to "the check reads your words".
+4. Finding 3: closed. The page says the runner put the file back each
+   time. "2 times" beside "3 attempts" is true. s220 wrote no file.
+5. Finding 4: closed. The page runs `_unruled_gone` on the row's
+   `noted` text at render. It counts only the last N sessions of the
+   key, where N is the key's attempts. At the end of night 163 the last
+   three bg_2 start sessions, s259 to s261, wrote nothing, so no
+   refusal shows. That is correct.
+6. Finding 5: closed. The page gives one ask for each gone statement.
+
+Counts: 11 page files with the frame's file: 259 passed, 5 xfailed.
+
+Probes, in the scratchpad named in (c): `r6_p1.py` reads the row's
+`noted` text and `stalled:m115`. `r6_p2.py` lists the last start
+sessions. `r6_p3.py` renders m115 at its own moment. `r6_p4.py` builds
+the Developer window and tries three rewrite sentences.
+
+Usage of the re-check: input about 45k, output about 5k, total about 50k.
+
+## Re-check of a3f2d8e8
+
+Verdict: the commit stands. The open high from the re-check of 26186652
+is closed.
+
+1. The window holds his words. CONFIRMED. Probe `r6_p4.py` ran again on
+   the night copy. It lands an approve-all ruling on m115 with the page's
+   sentence. Then it builds the Developer's `tick:batch_start` window for
+   bg_2. The window now has the push "the principal's words on this
+   change, newest last". Probe `r7_p1.py` prints that block: the night's
+   two newest landed words, then "remove the `return` at line 609 in
+   clear()" last. So the page's line "the team reads your words" is true.
+2. The medium on the offered "remove" sentence stays open, as the
+   re-check of 26186652 says. It needs a door change in a new frame.
+
+Counts: `test_prompts.py` with `test_frame312_stuck_review.py`: 49 passed.
+
+Usage of this re-check: input about 8k, output about 2k, total about 10k.
