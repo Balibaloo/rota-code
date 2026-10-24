@@ -19214,7 +19214,7 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
                 group.remove((p, _n))
     if not held and not later:
         return None
-    routes = _note_routes(write_only=bool(later) and all(
+    routes = _note_routes(ctx, [p for p, _n in held + later], write_only=bool(later) and all(
         not (opened[p]["lines"] or opened[p]["defs"]) for p, _n in later),
         one=len(gone) == 1)
     if held:
@@ -19271,7 +19271,7 @@ def _unruled_removal(ctx: Ctx, tree) -> str | None:
                        else "an earlier commit of this batch")
         return (f"{p}: {who} removes {', '.join(g['shown'] for g in gone)}. "
                 f"No criterion, request or ruling of the principal names "
-                f"{'it' if one else 'them'}. {_note_routes(one=one)}")
+                f"{'it' if one else 'them'}. {_note_routes(ctx, [p], one=one)}")
     return None
 
 
@@ -19862,7 +19862,8 @@ def _ref_names(path: str, about_ref: str) -> bool:
                                 or _grain_path(path) == _grain_path(about_ref))
 
 
-def _note_routes(write_only: bool = False, one: bool = False) -> str:
+def _note_routes(ctx: Ctx | None = None, refs: list | None = None,
+                 write_only: bool = False, one: bool = False) -> str:
     """The routes out of an open `dropped` note. The commit door and the
     ledger door say this one sentence (frame 297). No ledger note closes
     an entry with no line and no definition, so such an entry gets the
@@ -19871,12 +19872,20 @@ def _note_routes(write_only: bool = False, one: bool = False) -> str:
         return "Put the lines back with code.write, then commit in your next reply."
     # Frame 283's W1 a, pass 2: a note never admits a removal of a base
     # statement, so the ledger route is gone (review 1, finding 2).
+    undo = (f"A note does not allow a removal or a rewrite. To undo the "
+            f"change, put the {'line' if one else 'lines'} back with "
+            f"code.write, then commit in your next reply.")
+    # Pass 8, the law of frame 135: name a call only where the door then
+    # admits it. s252's `batch_start` mode lacks the escalation tool.
+    from ..core import sandbox as _sandbox
+    if ctx is not None and not (
+            "msg.escalate_architect" in _wake_mode_tools(ctx)
+            and _sandbox._escalation_admitted(ctx, list(refs or []))):
+        return undo
     # Pass 5c: "Put the line back" alone undid a wanted rewrite, so the
     # route names the way to keep the change too (review 5's re-probe).
-    return (f"A note does not allow a removal or a rewrite. To undo the "
-            f"change, put the {'line' if one else 'lines'} back with "
-            f"code.write, then commit in your next reply. To keep the change, "
-            f"send msg.escalate_architect and name the change to the Architect.")
+    return (f"{undo} To keep the change, send msg.escalate_architect and "
+            f"name the change to the Architect.")
 
 
 def _close_restored(ctx: Ctx, tree, stage: bool = True) -> dict:
@@ -19944,7 +19953,7 @@ def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | Non
         if gone:
             return (f"{p} holds an uncommitted write that removes "
                     f"{', '.join(g['shown'] for g in gone)}, so this note "
-                    f"closes nothing. {_note_routes(one=len(gone) == 1)}")
+                    f"closes nothing. {_note_routes(ctx, [p], one=len(gone) == 1)}")
     return None
 
 
@@ -21464,6 +21473,15 @@ def _drop_note(old_lines: list[str], start: int, stop: int, text: str,
     tail = _tail_drop(old_lines, start, stop, text, gone_out=gone)
     lost = [(i, h) for i, h in _lost_statements(old_lines, start, stop, text)
             if i not in gone]
+    # Frame 283 pass 8: a rewrite is not a removal. s221 wrote `return
+    # False` over `return` under `clear`, and the note blocked every commit.
+    # The span branch now runs the kind count of the whole-file branch.
+    new = text.splitlines() if text.strip() else []
+    kept = _rewritten_heads(old_lines, chr(10).join(
+        old_lines[:start] + new + old_lines[stop:]))
+    lost = [(i, h) for i, h in lost if i not in kept]
+    if gone and all(i in kept for i in gone):
+        tail, gone = None, []
     # Every dropped line as data, not the eight the sentence names (frame
     # 283's review 1, finding 1).
     if lines_out is not None:
@@ -21544,13 +21562,50 @@ def _whole_lost(old_lines: list[str], text: str, note: str | None,
     dropped none. s340 dropped 7, and each lost its kind's count. The
     shortfall per owner and kind is the number of statements named.
     """
+    counted = _kind_shortfall(old_lines, text)
+    if counted is None:
+        return note    # a note never refuses a write
+    olds, kinds, keys = counted
+    lost: list[tuple[int, str, int]] = []
+    for o, k, a, b, t in olds:
+        if kinds.get((o, t), 0) > 0 and keys.get((o, k), 0) > 0:
+            kinds[(o, t)] -= 1
+            keys[(o, k)] -= 1
+            # A statement inside a lost block is named by the block's line.
+            if not any(x < a <= y for x, _h, y in lost):
+                lost.append((a, old_lines[a].strip(), b))
+    out = [(i, h) for i, h, _e in lost if i not in gone]
+    gone.extend(i for i, _h in out)
+    return _with_lost(note, sorted(out))
+
+
+def _rewritten_heads(old_lines: list[str], text: str) -> set[int]:
+    """The first lines of the old statements, when `text` holds the count
+    of every AST kind under every owner. Then each changed statement is a
+    rewrite in place. An empty set when a count falls or a text does not
+    parse, so the note keeps today's lines."""
+    counted = _kind_shortfall(old_lines, text)
+    if counted is None:
+        return set()
+    olds, kinds, _keys = counted
+    # The brief of pass 8: a write that lowers one count keeps today's
+    # note whole. The tests of s340, s386 and s388 pin that note's words.
+    if any(n > 0 for n in kinds.values()):
+        return set()
+    return {a for _o, _k, a, _b, _t in olds}
+
+
+def _kind_shortfall(old_lines: list[str], text: str):
+    """(old statements, shortfall per owner and kind, shortfall per owner
+    and line key) of `text` against `old_lines`, or None when either does
+    not parse. `_whole_lost` and `_rewritten_heads` share the one count."""
     import ast as _ast
     from collections import Counter
     try:
         olds = _owned_statements(_ast.parse(chr(10).join(old_lines)), old_lines)
         news = _owned_statements(_ast.parse(text), text.splitlines())
     except Exception:                                      # noqa: BLE001
-        return note    # a note never refuses a write
+        return None
     owners = {o for o, _k, _a, _b, _t in news} | {
         n for n, _lo, _hi in _def_spans(text) or []} | {""}
 
@@ -21573,17 +21628,7 @@ def _whole_lost(old_lines: list[str], text: str, note: str | None,
     # cannot tell which of two `go()` calls went (the count page, finding 2).
     kinds = shortfall(lambda s: (s[0], s[4]))
     keys = shortfall(lambda s: (s[0], s[1]))
-    lost: list[tuple[int, str, int]] = []
-    for o, k, a, b, t in olds:
-        if kinds.get((o, t), 0) > 0 and keys.get((o, k), 0) > 0:
-            kinds[(o, t)] -= 1
-            keys[(o, k)] -= 1
-            # A statement inside a lost block is named by the block's line.
-            if not any(x < a <= y for x, _h, y in lost):
-                lost.append((a, old_lines[a].strip(), b))
-    out = [(i, h) for i, h, _e in lost if i not in gone]
-    gone.extend(i for i, _h in out)
-    return _with_lost(note, sorted(out))
+    return olds, kinds, keys
 
 
 def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
