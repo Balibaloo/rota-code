@@ -1398,8 +1398,7 @@ def test_a_docstring_line_for_another_criterion_stays_refused(n160):
 
 @pytest.mark.parametrize("words", [
     "The docstring of work names its argument.",
-    "work is documented.",
-    "The help text of work names its argument.",
+    "The documentation of work names its argument.",
     "The DOCUMENTATION of work names its argument.",
 ])
 def test_the_words_that_ask_for_documentation(kinds, words):
@@ -1410,6 +1409,23 @@ def test_the_words_that_ask_for_documentation(kinds, words):
         out = _land(_critic(kinds, "bg_1"), batch_id="bg_1", result="pass",
                     lines={"cr_1": value})
         assert out["result"] == "pass"
+
+
+# Night 160's ver_opt_show_py_help, verbatim from the `criteria` table. A
+# help string is code the user sees, so a docstring line does not meet it
+# (frame 311, pass 1b).
+HELP_TEXT = ("The --version flag help text must document the new show_python "
+             "flag and describe its effect on the output message.")
+
+
+@pytest.mark.parametrize("words", [HELP_TEXT, "work is documented."],
+                         ids=["help_text", "documented"])
+def test_a_help_text_criterion_refuses_a_docstring_line(kinds, words):
+    _seed_texts(kinds, {"cr_1": words})
+    value = "The prose line of the docstring."
+    said = _refused(_critic(kinds, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": value})
+    assert said == _no_behaviour("cr_1", value, "a docstring line", KIND_CODE)
 
 
 @pytest.mark.parametrize("value,kind", [

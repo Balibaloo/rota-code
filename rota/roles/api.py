@@ -12429,8 +12429,10 @@ _NO_BEHAVIOUR_PLURAL = {
 # documentation. Then a docstring line or a comment meets it (ruled: Roman,
 # 2026-10-24 01:05, frame 311). Night 160 refused 40 correct docstring lines
 # under such a criterion. "explain" and "describe" stay out, because
-# criteria that ask for behaviour use them too.
-_ASKS_FOR_DOCS = ("docstring", "document", "help text")
+# criteria that ask for behaviour use them too. "document" and "help text"
+# stay out, because a help string is code the user sees (frame 311, pass
+# 1b: night 160's ver_opt_show_py_help).
+_ASKS_FOR_DOCS = ("docstring", "documentation")
 # The kinds that document the code. The refusals treat the two as one, so
 # the ruling applies to both.
 _DOC_KINDS = ("a docstring line", "a comment")
