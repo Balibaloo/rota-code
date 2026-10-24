@@ -29,3 +29,22 @@ Outside the points: none beyond finding 2, which comes before pass 8.
 ## (d) Usage
 
 About 45k tokens in and 6k out. These numbers are an estimate.
+
+## Re-check of 876b1ec5
+
+I did not move the worktree with `git checkout`. My rules forbid a git command that changes a tree. I extracted 876b1ec5 with `git archive` into `scratchpad/r8/b876` and ran everything from that copy.
+
+- Finding 1: closed, CONFIRMED. probe_edges.py at 876b1ec5 gives these results. E0 None. E1 names `if x:` and `return`. E2 None. E3 names `return x`. E4 names `validate(x)`. E5 names `validate(x)`. E6 names `return`.
+- Finding 2: open, medium, as before. E2, a move to another owner, opens no note. The report names this as older than pass 8.
+- Finding 3: closed. A new test pins the write route alone after an escalation went in the session.
+- Finding 4: closed, low residue. The pin writes `print(x)` at the place of `return x`, so the test is a rewrite at one place again. A token-superset rewrite such as `return x + 1` now opens no note, so no span test can pin the keep route on such a rewrite.
+- New edge E7: wrong refusal, low, CONFIRMED. A statement inserted above `return` shifts the index, and the door names `return` that became `return False`. At 90c8d5ef^ the door gives the same result. This is a false refusal and not a silent removal, so the frame's design accepts it.
+- New finding 5, rota/roles/api.py:21602-21613: medium, CONFIRMED. The index pairing hides a removal when the next sibling holds the removed statement's tokens. Probe E8 drops `log(x)` before `log(x, 2)`. At 876b1ec5 the door gives None, and at 90c8d5ef^ it named `log(x)`. Fix: pair by index only when the owner's old and new statement counts are equal.
+- Outside: E9 drops one of two equal `save(x)` calls, and the door gives None at 876b1ec5 and at 90c8d5ef^. The line-key rule of `_lost_statements` causes this, not pass 8b.
+- s221: lands, CONFIRMED. `test_a_span_write_that_rewrites_a_bare_return_opens_no_note` passes on the copy.
+- Counts: 496 passed. rewrite_not_removal 9, whole_file_drop 17, removal_on_ruling 59, frame140_commit_beside_note 51, desk_guards 360.
+- Probe: `scratchpad/r8/probe_8b.py` holds E7, E7b, E8 and E9. It ran on the 876b1ec5 copy and on the 90c8d5ef^ copy.
+
+Stands line: does not stand. Finding 5 is a new silent removal, and its fix is one line.
+
+Usage of the re-check: about 15k tokens in and 3k out, an estimate.
