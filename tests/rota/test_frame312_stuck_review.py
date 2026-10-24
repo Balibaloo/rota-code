@@ -163,27 +163,110 @@ def _refused_start(db) -> None:
         db.execute("INSERT INTO tool_calls (session_id, fn, args_summary, seq) "
                    "VALUES (?, 'code.commit', 'message=''Implement clear()''', 14)",
                    (sid,))
-    db.execute("INSERT INTO drop_notes (batch_id, path, status, note, lines) "
-               "VALUES ('bg_1', 'src/click/termui.py', 'open', ?, "
-               "'[[\"clear\", \"return\", 1]]')", (NOTE,))
+    # s254's write: the bare `return` under the isatty check became
+    # `return False`, which the criteria ask for (review w5, finding 1).
+    db.execute("INSERT INTO drop_notes (batch_id, path, status, note, lines, noted) "
+               "VALUES ('bg_1', 'src/click/termui.py', 'restored', ?, "
+               "'[[\"clear\", \"return\", 1]]', ?)", (NOTE, NOTED))
     _quarantine(db, START)
 
 
-def test_m115_names_the_refused_line_the_ask_and_the_written_file(bg1):
+NOTED = ("import sys\n\n\ndef clear() -> bool:\n"
+         "    if not isatty(sys.stdout):\n        return False\n"
+         "    sys.stdout.write('\\033[2J')\n    return True\n")
+
+
+def test_m115_names_the_rewrite_the_ask_and_the_written_file(bg1):
     _refused_start(bg1)
     page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
     assert "The team gave up: the change could not start after 3 attempts." in page
-    assert ("A check refused each commit, because the change removes `return` "
-            "at line 609 of src/click/termui.py, in clear(), and no words of "
-            "yours ask for that.") in page, page
-    assert ("The check lets the commit through when the code keeps that line, "
-            "or when your words ask to remove it.") in page, page
-    assert ("The team wrote src/click/termui.py and did not commit it."
-            in page), page
-    assert "remove the `return` at line 609 in clear()" in page, page
+    assert ("A check refused the commits, because the change rewrites `return` "
+            "at line 609 of src/click/termui.py, in clear(), as `return False`."
+            ) in page, page
+    assert "no words of yours" not in page, page
+    assert ("To allow that, say so, as 'remove the `return` at line 609 in "
+            "clear()'.") in page, page
+    assert ("The team wrote src/click/termui.py 3 times, and the runner put "
+            "the file back each time.") in page, page
+    assert ("Your answer to this page starts the team once more, and the team "
+            "reads your words. Do not correct a line that you agree with."
+            ) in page, page
     assert "check: none yet." not in page, page
     for name in ("drop_notes", "code.write", "tick", "note door"):
         assert name not in page, page
+
+
+def test_a_ruling_that_allows_the_removal_shows_no_refusal(bg1):
+    """Finding 4: the page reads the door's verdict at render, not the row."""
+    _refused_start(bg1)
+    bg1.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                "body_refs, seq, status) VALUES ('m_x', 't1', 'liaison', "
+                "'principal', 'present', '[]', 1, 'answered')")
+    bg1.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
+                "VALUES ('r_1', 'm_x','{\"bg_1\": \"approve\"}', "
+                "'Remove the return at line 609 in clear().', 'landed')")
+    page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
+    assert "A check refused" not in page, page
+
+
+def test_a_note_whose_line_the_write_kept_shows_no_refusal(bg1):
+    """Finding 4: a note row on a written path is no refusal by itself."""
+    _refused_start(bg1)
+    bg1.execute("UPDATE drop_notes SET noted = ? WHERE batch_id = 'bg_1'",
+                ("def clear() -> bool:\n    return\n",))
+    page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
+    assert "A check refused" not in page, page
+
+
+def test_two_notes_get_one_ask_each(bg1):
+    """Finding 5: each note names its own line and its own ask."""
+    _refused_start(bg1)
+    bg1.execute("INSERT INTO tool_calls (session_id, fn, args_summary, seq) "
+                "VALUES ('s238', 'code.write', 'path=''src/click/utils.py''', 20)")
+    bg1.execute("INSERT INTO drop_notes (batch_id, path, status, note, lines, noted) "
+                "VALUES ('bg_1', 'src/click/utils.py', 'open', ?, "
+                "'[[\"echo\", \"return\", 1]]', ?)",
+                ("This write removes or rewrites 1 statement that your text does "
+                 "not hold: `return` at line 40.", "def echo():\n    pass\n"))
+    page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
+    assert "'remove the `return` at line 609 in clear()'" in page, page
+    assert "'remove the `return` at line 40 in echo()'" in page, page
+    assert "removes `return` at line 40 of src/click/utils.py, in echo()." in page
+
+
+def test_an_answer_to_the_page_lifts_the_start_key_once(bg1):
+    """Finding 2: a landed answer on the stopped page lifts the quarantined
+    Developer start key, and only that key."""
+    import json
+
+    from rota.roles.principal import Answer, Ask, land
+
+    _refused_start(bg1)
+    other = "tester|tick:tests_missing|bg_1"
+    _quarantine(bg1, other)
+    for mid in ("m115", "m116"):
+        bg1.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                    "body_refs, seq, status) VALUES (?, 't1', 'liaison', "
+                    "'principal', 'present', ?, ?, 'open')",
+                    (mid, json.dumps(M45_REFS), int(mid[1:])))
+        bg1.execute("INSERT INTO config (key, value) VALUES (?, ?)",
+                    (f"stalled:{mid}", json.dumps([START, other])))
+    answer = Answer(verb="verdict", text="Remove the return at line 609 in clear().",
+                    per_item={"echo_json_helper": "approve"})
+    # An all-approve on a stopped page returns None, as m35 did, and still
+    # closes the page.
+    land(bg1, Ask(message_id="m115", verb="present", refs=M45_REFS), answer)
+    assert bg1.execute("SELECT status FROM messages WHERE id = 'm115'"
+                       ).fetchone()["status"] == "answered"
+    keys = {r["tick_key"] for r in bg1.execute("SELECT tick_key FROM tick_attempts")}
+    assert keys == {other}, keys
+    # The key quarantines again, and a second answer to the same page lands
+    # nothing, so it lifts nothing.
+    _quarantine(bg1, START)
+    assert land(bg1, Ask(message_id="m115", verb="present", refs=M45_REFS),
+                answer) is None
+    assert bg1.execute("SELECT 1 FROM tick_attempts WHERE tick_key = ?",
+                       (START,)).fetchone()
 
 
 def test_a_start_with_no_refused_write_keeps_the_stopped_work_page(bg1):

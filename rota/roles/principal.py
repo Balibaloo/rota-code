@@ -1375,66 +1375,105 @@ def _review_only(ticks: list[tuple[str, int]]) -> bool:
 def _refused_commit(conn: sqlite3.Connection, batch: str,
                     keys: list[str]) -> list[str]:
     """
-    The page lines for a stop whose attempts wrote code that the note door
-    refused to commit, or [] when no attempt of `keys` wrote a noted file.
+    The page lines for a stop whose last attempts wrote code that the note
+    door refuses to commit, or [] when the door would refuse nothing.
 
-    The record is the batch's `drop_notes` row. The door reads that row at
-    each commit, so the row is the refusal itself. A `faults` row is the
-    Developer's own guess, and night 163's said "phantom" and "stale".
-    Night 163's m115 to m139 hid the refusal at `termui.py` line 609
-    (frame 312, W5).
+    The door's verdict is read at render: `_unruled_gone` runs on the text
+    each note row holds, against today's rulings. A row alone is no refusal,
+    because a later write overwrites it (frame 312, review w5, finding 4).
+    A `faults` row is the Developer's own guess, and night 163's said
+    "phantom". Night 163's m115 to m139 hid the refusal at line 609.
     """
-    written: list[str] = []
+    from types import SimpleNamespace
+
+    from .api import _def_lines, _def_spans, _ruling_texts, _unruled_gone
+
+    times: dict[str, int] = {}
+    start = False
     for key in keys:
         role, kind = (key.split("|", 2) + ["", ""])[:2]
         if kind in ("tick:review", "tick:tests_failing", "tick:tests_missing"):
             continue
+        start = start or key.startswith("developer|tick:batch_start|")
+        row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+                           (key,)).fetchone()
+        # Only the attempts of this quarantine count, the last N sessions.
+        left = row["attempts"] if row else 0
         for s in conn.execute(
-                "SELECT id, wake_refs FROM sessions WHERE role = ? AND wake_kind = ?",
-                (role, kind)):
+                "SELECT id, wake_refs FROM sessions WHERE role = ? AND wake_kind = ? "
+                "ORDER BY seq DESC", (role, kind)):
+            if left <= 0:
+                break
             try:
                 if batch not in json.loads(s["wake_refs"] or "[]"):
                     continue
             except (TypeError, ValueError):
                 continue
+            left -= 1
+            paths = set()
             for c in conn.execute(
                     "SELECT args_summary FROM tool_calls WHERE session_id = ? "
-                    "AND fn = 'code.write' ORDER BY seq", (s["id"],)):
+                    "AND fn = 'code.write'", (s["id"],)):
                 m = re.search(r"path='([^']+)'", c["args_summary"] or "")
-                if m and m.group(1) not in written:
-                    written.append(m.group(1))
-    notes = [r for r in conn.execute(
-        "SELECT path, note, lines FROM drop_notes WHERE batch_id = ? ORDER BY path",
-        (batch,)) if r["path"] in written]
-    if not notes:
-        return []
+                if m:
+                    paths.add(m.group(1))
+            for path in paths:
+                times[path] = times.get(path, 0) + 1
+    ctx = SimpleNamespace(conn=conn, batch_id=batch)
+    texts = None
     out: list[str] = []
-    asks: list[str] = []
-    for r in notes:
-        try:
-            owners = [o for o, _l, _n in json.loads(r["lines"] or "[]") if o]
-        except (TypeError, ValueError):
-            owners = []
-        where = f", in {owners[0]}()" if owners else ""
-        gone = re.findall(r"(`[^`]+`) at line (\d+)", r["note"] or "")
-        if not gone:
-            out.append(f"A check refused each commit of {r['path']}.")
+    for r in conn.execute("SELECT path, note, lines, defs, noted FROM drop_notes "
+                          "WHERE batch_id = ? ORDER BY path", (batch,)):
+        if r["path"] not in times:
             continue
-        said = " and ".join(f"{g} at line {n}" for g, n in gone)
-        out.append(f"A check refused each commit, because the change removes "
-                   f"{said} of {r['path']}{where}, and no words of yours ask "
-                   "for that.")
-        asks += [f"remove the {g} at line {n}{where.replace(', ', ' ')}"
-                 for g, n in gone]
-    out.append("The check lets the commit through when the code keeps that "
-               "line, or when your words ask to remove it.")
-    out.append(f"The team wrote {', '.join(written)} and did not commit it.")
-    # The routes of today: `_ruling_texts` in api.py reads his landed words
-    # on the item's pages, and only a moved row lifts the quarantine (db.py).
-    if asks:
-        out.append(f"If the change must remove it, say so, as '{asks[0]}'. "
-                   "The team starts again only when you correct a line here.")
+        try:
+            e = {"note": r["note"] or "", "lines": json.loads(r["lines"] or "[]"),
+                 "defs": json.loads(r["defs"] or "[]")}
+        except (TypeError, ValueError):
+            continue
+        if texts is None:
+            texts = _ruling_texts(ctx)
+        noted = r["noted"] or ""
+        gone = _unruled_gone(noted, e, texts)
+        if not gone:
+            continue
+        spans = _def_spans(noted)
+        for g in gone:
+            where = f", in {g['owner']}()" if g["owner"] else ""
+            # The note says "removes or rewrites". A line of the same kind
+            # in the written definition is the rewrite, so the page quotes
+            # it. s254's `return False` is what the criteria ask for
+            # (frame 312, review w5, finding 1).
+            word = g["line"].split()[0] if g["line"].split() else ""
+            held = (_def_lines(noted, spans, g["owner"]) or []) if (
+                g["owner"] and spans is not None) else []
+            new = next((ln for ln in held if ln != g["line"]
+                        and ln.split()[:1] == [word]), None) if word else None
+            done = (f"rewrites {g['shown']} of {r['path']}{where}, as `{new}`"
+                    if new else f"removes {g['shown']} of {r['path']}{where}")
+            out.append(f"A check refused the commits, because the change {done}.")
+            out.append(f"To allow that, say so, as 'remove the {g['shown']}"
+                       f"{where.replace(', ', ' ')}'.")
+    if not out:
+        return []
+    for path, n in times.items():
+        # The runner resets the tree to the head at each Developer session's
+        # end, so the written code is not there (review w5, finding 3).
+        if any(path in line for line in out):
+            out.append(f"The team wrote {path} {_times(n)}, and the runner put "
+                       f"the file back each time.")
+    if start:
+        # `land` lifts the start key once for an answer to this page
+        # (review w5, finding 2).
+        out.append("Your answer to this page starts the team once more, and the "
+                   "team reads your words. Do not correct a line that you agree with.")
+    else:
+        out.append("The team starts again only when you correct a line here.")
     return out
+
+
+def _times(n: int) -> str:
+    return "once" if n == 1 else f"{n} times"
 
 
 TEAM_NOTES =("The team's notes. A seat wrote each of these where your words "
@@ -2095,6 +2134,14 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         "WHERE id = ? AND status = 'open'", (ask.message_id,)).rowcount
     if not closed:
         return None
+    # A landed answer to a stopped page lifts the quarantined Developer start
+    # key it shows, once, because the page closes here. The next Developer
+    # reads his ruling. Night 163's m115 to m139 restarted the team only
+    # through corrections he did not mean (frame 312, review w5, finding 2).
+    for key in door_rows(conn, ask.message_id, "stalled"):
+        if key.startswith("developer|tick:batch_start|"):
+            conn.execute("DELETE FROM tick_attempts WHERE tick_key = ? "
+                         "AND quarantined = 1", (key,))
     # The shift question changes no item. Its answer is one `item_parks` row,
     # and a drop closes the earlier request's open asks and notes (frame
     # 193's design, 2.F.3).
