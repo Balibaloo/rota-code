@@ -5606,6 +5606,31 @@ def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -
             f"names or the one the existing callables live in")
 
 
+def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
+    """
+    The exact-twin refusal. It names each sibling ticket with no criterion
+    in place of "a second sentence", and keeps the old text when every
+    ticket of the item has one.
+
+    Night 163, item `clear()`: "it needs a second sentence" sent s199 to
+    invent cases on tk_1 while tk_2 held nothing (frame 322, cause 9).
+    """
+    from ..core.scheduler import criteria_tickets
+
+    head = (f"those are {twin}'s words already, on the same ticket. The same "
+            f"words are the same criterion")
+    row = ctx.conn.execute("SELECT item_id FROM tickets WHERE id = ?",
+                           (ticket_id,)).fetchone()
+    written = {w[2].get("ticket_id") for w in ctx.writes
+               if w[0] == "criteria" and isinstance(w[2], dict)}
+    empty = criteria_tickets(ctx.conn, row["item_id"], written)[0] if row else []
+    if not empty:
+        return (f"{head}; if the ticket needs a second criterion, it needs a "
+                f"second sentence")
+    return f"{head}. " + " ".join(
+        f"{tid}, {headline}, has no criterion yet." for tid, headline in empty)
+
+
 @op("criteria", "specify")
 def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                      term_refs: list[str] | None = None,
@@ -5739,10 +5764,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             # pass 2, finding 6).
             + _live_rows(ctx.conn, "retired_by"), (ticket_id, words)).fetchone())
     if twin:
-        raise ValueError(
-            f"those are {twin}'s words already, on the same ticket. The same "
-            f"words are the same criterion; if the ticket needs a second "
-            f"criterion, it needs a second sentence")
+        raise ValueError(_twin_refusal(ctx, twin, ticket_id))
     # law 14: exact match at the door; fuzzy behind named guards
     # Nearly the same words are the same criterion too. clickI night 18
     # (2026-09-12): 63 criteria for one flag, "the usage string must

@@ -435,7 +435,9 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 "tick:park_ask",
                 # Which earlier item the shift question is about, and where
                 # it stands (frame 193's design, 2.F.1).
-                "tick:request_shift"}
+                "tick:request_shift",
+                # Which ticket of the item has no criterion (frame 322).
+                "tick:criteria"}
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
@@ -4287,11 +4289,19 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         if wake is not None and wake.kind == "tick:criteria" and wake.refs:
             conn = sb.ctx.conn
             item = conn.execute("SELECT text FROM items WHERE id = ?", (wake.refs[0],)).fetchone()
+            # Every ratified statement of the item's entries, not only the
+            # statements the item's refs name. A seat that reads one clause
+            # of an entry misses the clause that bounds it (frame 322).
             said = [r["text"] for r in conn.execute(
-                "SELECT s.text AS text FROM refs x JOIN statements s "
-                "ON s.id = x.target WHERE x.src_table = 'items' AND x.kind = 'statement' "
-                "AND x.src_id = ? AND s.status != 'superseded' "
-                "ORDER BY s.id", (wake.refs[0],))]
+                "SELECT s.text AS text FROM statements s WHERE s.id IN ("
+                "  SELECT x.target FROM refs x JOIN statements t ON t.id = x.target "
+                "  WHERE x.src_table = 'items' AND x.kind = 'statement' "
+                "    AND x.src_id = ? AND t.status != 'superseded') "
+                "OR (s.status = 'ratified' AND s.span_entry IN ("
+                "  SELECT t.span_entry FROM refs x JOIN statements t ON t.id = x.target "
+                "  WHERE x.src_table = 'items' AND x.kind = 'statement' "
+                "    AND x.src_id = ?)) "
+                "ORDER BY s.id", (wake.refs[0], wake.refs[0]))]
             if item:
                 pushed["the item"] = {"text": item["text"], "the principal said": said,
                                       **_retired_carry(conn, wake.refs[0])}

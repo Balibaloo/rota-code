@@ -441,9 +441,48 @@ def tick_criteria(conn: sqlite3.Connection) -> list[Wake]:
         + not_parked(conn, "t.item_id")
     ).fetchall()
     return [
-        Wake("terminologist", "tick:criteria", refs=(r["item_id"],))
+        Wake("terminologist", "tick:criteria", refs=(r["item_id"],),
+             detail=criteria_detail(conn, r["item_id"]))
         for r in rows
     ]
+
+
+def criteria_tickets(conn: sqlite3.Connection, item_id: str,
+                     written: set[str] = frozenset()) -> tuple[list, list]:
+    """
+    The live tickets of an item, split into those with no criterion and
+    those with one. Each is a pair of the id and the headline. `written`
+    holds ticket ids that a staged write covers.
+
+    The test is `tick_criteria`'s own, so the wake and the list agree.
+    """
+    rows = conn.execute(
+        "SELECT t.id AS id, substr(t.text, 1, 120) AS headline, "
+        "t.id IN (SELECT ticket_id FROM criteria) AS covered "
+        "FROM tickets t WHERE t.item_id = ?" + not_retired(conn, "t.id")
+        + " ORDER BY t.rowid", (item_id,)).fetchall()
+    empty = [(r["id"], r["headline"]) for r in rows
+             if not r["covered"] and r["id"] not in written]
+    covered = [(r["id"], r["headline"]) for r in rows
+               if r["covered"] or r["id"] in written]
+    return empty, covered
+
+
+def criteria_detail(conn: sqlite3.Connection, item_id: str) -> str:
+    """
+    The criteria wake's detail: each ticket with no criterion first, then
+    each covered ticket.
+
+    Night 163, item `clear()`: the wake named the item only. s199 wrote three
+    criteria on tk_1 and none on tk_2, and three attempts wrote invented
+    cases (frame 322, cause 9). The detail names a row state, not a meaning
+    (the rule of 2026-09-09).
+    """
+    # One line, because `Wake.__str__` puts the detail in the log line.
+    empty, covered = criteria_tickets(conn, item_id)
+    parts = [f"No criterion yet: {tid} ({head})." for tid, head in empty]
+    parts += [f"Covered: {tid} ({head})." for tid, head in covered]
+    return " ".join(parts)
 
 
 def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
