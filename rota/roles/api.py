@@ -10596,7 +10596,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   cues: dict[int, tuple[str, str]] | None = None,
                   closed_lines: frozenset[int] = frozenset(),
                   request_lines: frozenset[int] = frozenset(),
-                  request_texts: tuple[str, ...] = ()
+                  request_texts: tuple[str, ...] = (),
+                  faulted_texts: tuple[str, ...] = ()
                   ) -> str | None:
     """The refusal of a ruling the words do not support, or None.
 
@@ -10610,6 +10611,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     `closed_lines` are the batch lines of a merged or abandoned change.
     `request_lines` are the lines that show a request item.
     `request_texts` are the ids and the texts of those items.
+    `faulted_texts` are the texts of the items and criteria on the lines in
+    `faulted`.
     """
     reversed_ = sorted((matched - faulted) & contested)
     if reversed_:
@@ -10669,11 +10672,15 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
             s.strip() and not _LINE_REF.search(s)
             and not _BARE_AGREEMENT.fullmatch(s)
             and not (batch_faulted and _FILES_TALK.search(s))
-            and _names_request(s, request_texts) for s in sentences):
+            and _names_request(s, request_texts, faulted_texts)
+            for s in sentences):
         return approve
+    # The shape of the batch door's refusal, which names the line first.
+    # Night 161's s181 read "approve the rest" as no answer for line 1
+    # (`plans/frame258-provenance.md`, 3).
     lines = f"line{'' if len(named) == 1 else 's'} {_line_set(named)}"
-    return (f"The words fault {lines}. Line 1 is the request, and they do "
-            f"not fault it. Rule {lines}, and approve the rest.")
+    return (f"line 1: the words do not fault the request. They fault "
+            f"{lines}. Rule {lines} as the words say, and approve line 1.")
 
 
 # The words of a batch's prediction: what the change touches.
@@ -10686,8 +10693,11 @@ _FILES_TALK = re.compile(r"\btests?\b|\w\.py\b", re.I)
 # (frame 258, review 2, finding 2). The apostrophe can be straight or curly.
 # "change" stays out: "Do not change echo itself" is a files correction, and
 # the rule reads the whole reply (frame 258, pass 3b review, finding 1).
+# Night 161's s181 said "I don't want to drop this change", and the pass 3c
+# review named "keep the change" (`plans/frame258-provenance.md`, 4).
 _KEEP_CHANGE = re.compile(
-    r"\b(?:don['’]?t|do not) (?:drop|give up)\b|\bkeep going\b", re.I)
+    r"\b(?:don['’]?t|do not)(?: want to)? (?:drop|give up)\b|\bkeep going\b"
+    r"|\bkeep the change\b", re.I)
 
 # --- the files cue: words that fault only the code a request touches --------
 # Ported with its patterns unchanged from `plans/frame298-count.md`, section
@@ -10822,7 +10832,8 @@ _BATCH_TALK = frozenset({
     "don", "doesn", "isn", "won", "didn"})
 
 
-def _names_request(sentence: str, request_texts: tuple[str, ...]) -> bool:
+def _names_request(sentence: str, request_texts: tuple[str, ...],
+                   faulted_texts: tuple[str, ...] = ()) -> bool:
     """Whether a sentence with no line number names the request.
 
     The sentence says what to build, or it shares a content word with an
@@ -10830,6 +10841,9 @@ def _names_request(sentence: str, request_texts: tuple[str, ...]) -> bool:
     155, 58 line-1 contests reached the line-1 refusal on a request page.
     At frame 258's pass 3b the refusal fires on 10, and night 143's m263
     still lands (`f258/count3.py`).
+
+    `faulted_texts` are the texts of the lines the words fault. A word that
+    one of them holds names that line, not the request.
     """
     if _BUILD_VERB.match(sentence):
         return True
@@ -10840,6 +10854,11 @@ def _names_request(sentence: str, request_texts: tuple[str, ...]) -> bool:
     asked: set[str] = set()
     for text in request_texts:
         asked |= words(text)
+    # A criterion restates the request's words, so a correction of the
+    # criterion shares them. Night 161's s181 contested line 1 on "closed
+    # stdin", which cr_1 to cr_3 hold (`plans/frame258-provenance.md`, 4).
+    for text in faulted_texts:
+        asked -= words(text)
     return bool(words(sentence) & asked)
 
 
@@ -11485,7 +11504,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             closed_lines, request_lines, tuple(
                 t for _, r in asked for t in (r, (ctx.conn.execute(
                     "SELECT text FROM items WHERE id = ?", (r,)).fetchone()
-                    or [""])[0] or "")))
+                    or [""])[0] or "")),
+            tuple((ctx.conn.execute(
+                "SELECT text FROM items WHERE id = ? UNION ALL "
+                "SELECT text FROM criteria WHERE id = ?",
+                (order[n - 1], order[n - 1])).fetchone() or [""])[0] or ""
+                for n in sorted(faulted) if 1 <= n <= len(order)))
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():

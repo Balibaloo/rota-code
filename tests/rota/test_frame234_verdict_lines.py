@@ -80,9 +80,9 @@ def test_a_contest_on_the_request_line_the_words_do_not_fault_is_refused(db):
         _rule_request(db, S122_ON_REQUEST,
                       {"1": "contest", "2": "contest", "3": "contest"})
     text = str(e.value)
-    assert "Line 1 is the request" in text
-    assert text.startswith("The words fault lines 2 and 3.")
-    assert "Rule lines 2 and 3, and approve the rest." in text
+    assert text.startswith("line 1: the words do not fault the request. "
+                           "They fault lines 2 and 3.")
+    assert "Rule lines 2 and 3 as the words say, and approve line 1." in text
 
 
 def test_the_same_words_land_when_line_1_is_approved(db):
@@ -115,12 +115,12 @@ def test_a_sentence_with_no_line_number_lets_line_1_be_contested(db):
 
 def test_a_bare_agreement_is_no_correction_of_the_request(db):
     words = "Ok, go ahead. Line 2 is wrong because the bill is typed once."
-    with pytest.raises(ValueError, match="Line 1 is the request"):
+    with pytest.raises(ValueError, match="the words do not fault the request"):
         _rule_request(db, words, {"1": "contest", "2": "contest", "3": "approve"})
 
 
 def test_a_quote_of_line_1_inside_the_door_lets_it_be_contested(db):
-    with pytest.raises(ValueError, match="Line 1 is the request"):
+    with pytest.raises(ValueError, match="the words do not fault the request"):
         _rule_request(db, "Line 2 is wrong, and the tip is wrong too.",
                       {"1": "contest", "2": "contest", "3": "approve"})
 
@@ -677,7 +677,7 @@ def test_m167s_contest_of_the_request_line_is_refused():
     # Night 144's m167 on m166: line 1 echo_json, line 5 bg_1's prediction.
     out = _refusal(M167, {1}, 5, frozenset({5}), frozenset({1, 2, 3, 4}),
                    frozenset({1}), ECHO_JSON)
-    assert out is not None and "Line 1 is the request" in out
+    assert out is not None and "the words do not fault the request" in out
 
 
 def test_m359s_contest_of_the_request_line_is_refused():
@@ -697,8 +697,8 @@ def test_m359s_contest_of_the_request_line_is_refused():
                    "in the message.")
     out = _refusal(words, {1}, 5, frozenset({5}), frozenset({1, 2, 3, 4}),
                    frozenset({1}), show_python)
-    assert out == ("The words fault line 5. Line 1 is the request, and they "
-                   "do not fault it. Rule line 5, and approve the rest.")
+    assert out == ("line 1: the words do not fault the request. They fault "
+                   "line 5. Rule line 5 as the words say, and approve line 1.")
 
 
 def test_m25s_words_with_a_batch_line_contested_are_still_refused():
@@ -857,9 +857,9 @@ def test_night155s_contest_of_the_request_line_is_refused(
         words, contested, size, batch, items, texts, line):
     out = _refusal(words, contested, size, frozenset(batch), frozenset(items),
                    frozenset({1}), texts)
-    assert out == (f"The words fault line {line}. Line 1 is the request, and "
-                   f"they do not fault it. Rule line {line}, and approve the "
-                   f"rest.")
+    assert out == (f"line 1: the words do not fault the request. They fault "
+                   f"line {line}. Rule line {line} as the words say, and "
+                   f"approve line 1.")
 
 
 QUIET = ("quiet_flag", "Add a quiet flag so the command doesn't print "
@@ -901,9 +901,9 @@ def test_a_sentence_about_the_batch_does_not_let_line_1_be_contested(
     # The m46 page: line 1 the request, line 2 its criterion, line 3 bg_1.
     out = _refusal(f"{sentence} Line {line} is wrong.", {1, line}, 3,
                    frozenset({3}), frozenset({1, 2}), frozenset({1}), texts)
-    assert out == (f"The words fault line {line}. Line 1 is the request, and "
-                   f"they do not fault it. Rule line {line}, and approve the "
-                   f"rest.")
+    assert out == (f"line 1: the words do not fault the request. They fault "
+                   f"line {line}. Rule line {line} as the words say, and "
+                   f"approve line 1.")
 
 
 def test_a_keep_sentence_anywhere_in_the_reply_refuses_line_1():
@@ -913,7 +913,7 @@ def test_a_keep_sentence_anywhere_in_the_reply_refuses_line_1():
              "should print compact JSON.")
     out = _refusal(words, {1, 2}, 3, frozenset({3}), frozenset({1, 2}),
                    frozenset({1}), ECHO_JSON)
-    assert out is not None and "Line 1 is the request" in out
+    assert out is not None and "the words do not fault the request" in out
 
 
 @pytest.mark.parametrize("words", [
