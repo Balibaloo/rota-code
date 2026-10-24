@@ -48,3 +48,18 @@ I did not move the worktree with `git checkout`. My rules forbid a git command t
 Stands line: does not stand. Finding 5 is a new silent removal, and its fix is one line.
 
 Usage of the re-check: about 15k tokens in and 3k out, an estimate.
+
+## Re-check of 563b17d9
+
+I extracted 563b17d9 with `git archive` into `scratchpad/r8/b563` and ran everything from that copy.
+
+- Diff: `_rewritten_heads` counts each owner's old statements in a separate first loop. It pairs by index only when that count equals the owner's new count, at rota/roles/api.py:21607-21616. The commit also changes tests/rota/test_frame283_rewrite_not_removal.py and nothing else in `rota/`.
+- Finding 5: closed, CONFIRMED. E8 names `log(x)` at line 1.
+- probe_edges.py: E0 None. E1 names `if x:` and `return`. E2 None. E3 names `return x`. E4 and E5 name `validate(x)`. E6 names `return`.
+- probe_8b.py: E7 and E7b name `return`, a false refusal that the design accepts. E8 names `log(x)`. E9 None.
+- Still open: finding 2 (E2) and E9. Both come from `_lost_statements` and are older than pass 8.
+- s221: lands, CONFIRMED. The bare-return test passes. The five frame test files give 497 passed.
+
+Stands line: stands. The open residue is older than pass 8 and does not block this frame.
+
+Usage of the re-check: about 6k tokens in and 1.5k out, an estimate.
