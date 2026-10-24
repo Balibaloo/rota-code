@@ -255,6 +255,24 @@ def test_an_existing_callable_beside_the_new_one_is_refused(db):
     assert len(said.split()) < 60
 
 
+def test_the_route_repeats_the_seats_own_ref(db):
+    sb = _split_bill(db)
+    with pytest.raises(ValueError, match=r'surface_refs=\["main.py::split_bill"\]'):
+        sb.call("criteria.specify", id="c_7", ticket_id="tk7",
+                text="split_bill divides the total with tip by the people",
+                surface_refs=["main.py::split_bill", "calculate_tip"])
+
+
+def test_the_new_callable_beside_its_own_file_is_admitted(db):
+    """Review 2 of pass 1c: a file row is not an old behaviour."""
+    sb = _split_bill(db)
+    db.execute("INSERT INTO code_index (grain, grain_kind) VALUES ('main.py', 'path')")
+    db.commit()
+    assert sb.call("criteria.specify", id="c_7", ticket_id="tk7",
+                   text="split_bill divides the total with tip by the people",
+                   surface_refs=["split_bill", "main.py"])["id"] == "c_7"
+
+
 def test_the_new_callable_alone_is_admitted(db):
     sb = _split_bill(db)
     assert sb.call("criteria.specify", id="c_7", ticket_id="tk7",
