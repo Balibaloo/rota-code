@@ -3226,6 +3226,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # principal what they had said. Whether a question is worth asking
         # is judgement. That eight words in a row are the principal's is a
         # fact the entries hold. A short quote that anchors a question passes.
+        # The refusal names brief.segment. Night 163's s145 met this refusal
+        # four times on a new request and only tried other clarifies, because
+        # the text named no other route (frame 320, cause 9).
         if recipient == "principal" and verb == "clarify" and text:
             asked = re.findall(r"[a-z0-9']+", text.lower())
             for row in ctx.conn.execute(
@@ -3237,7 +3240,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     raise ValueError(
                         f"'{' '.join(run[:QUOTE_RUN])} ...' is the principal's own "
                         f"sentence, pasted back to them. They know what they said, "
-                        f"and reading it to them again is not an answer to it. Ask "
+                        f"and reading it to them again is not an answer to it. "
+                        f"A sentence of theirs that asks for work is a request: "
+                        f"segment it with brief.segment, not a clarify. Ask "
                         f"the one thing you do not know, in your words. If the "
                         f"reply was an answer to a role, that role reads it, not "
                         f"the principal")

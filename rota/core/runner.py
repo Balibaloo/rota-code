@@ -2708,22 +2708,30 @@ def _missed_reply_line(conn: sqlite3.Connection, wake) -> str:
     prompt gives the same calls, so the second wake must differ. Only a
     principal reply that carries `session_commit`'s note gets the line, so
     no other wake's prompt moves.
+
+    Frame 320: a new request, with no cause, takes the same retry. Its
+    line says that the session landed nothing, because a request owes no
+    ruling.
     """
     if wake.detail != "converse" or not wake.message_id:
         return ""
     from .db import PAGE_VERBS
 
     row = conn.execute(
-        "SELECT r.unresolved_note FROM messages r "
-        "JOIN messages p ON p.id = r.cause_id "
+        "SELECT r.unresolved_note, r.cause_id FROM messages r "
+        "LEFT JOIN messages p ON p.id = r.cause_id "
         "WHERE r.id = ? AND r.verb = 'converse' AND r.from_role = 'principal' "
         "AND r.status = 'open' AND r.unresolved_note IS NOT NULL "
-        f"AND p.verb IN ({','.join('?' * len(PAGE_VERBS))})",
+        f"AND (r.cause_id IS NULL "
+        f"OR p.verb IN ({','.join('?' * len(PAGE_VERBS))}))",
         (wake.message_id, *PAGE_VERBS)).fetchone()
     if row is None:
         return ""
     note = row["unresolved_note"].strip()
     stop = "" if note.endswith((".", "!", "?")) else "."
+    if row["cause_id"] is None:
+        return (f"A session on this request ended with nothing landed. Its "
+                f"last refusal or error: {note}{stop}")
     return (f"A session on this reply ended with no ruling. Its last refusal "
             f"or error: {note}{stop}")
 

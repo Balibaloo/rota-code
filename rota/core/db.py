@@ -835,6 +835,43 @@ def _page_under_reply(conn: sqlite3.Connection, trig: sqlite3.Row,
     return page["id"] if page else None
 
 
+def _request_missed(trig: sqlite3.Row, result: SessionResult) -> bool:
+    """
+    Whether `trig` is a new request that its session landed nothing on.
+
+    Night 163's s145 woke on m_p2, his new request. The paste door refused
+    its four clarifies, and the session wrote nothing and sent nothing. The
+    commit marked m_p2 answered, and the walk read quiet (frame 320). A new
+    request has no `cause_id`, so `_page_under_reply` never saw it.
+
+    composition: nothing stops quietly, so a barren session leaves the request open
+    """
+    return bool(trig and trig["status"] == "open" and trig["verb"] == "converse"
+                and trig["from_role"] == "principal" and not trig["cause_id"]
+                and result.checkpoint is None
+                and not result.writes and not result.messages)
+
+
+def unread_line(note: str) -> str:
+    """
+    The line that tells the principal the team could not read his request.
+
+    Frame 320: two sessions on a new request landed nothing. The reason is
+    the last refusal, which speaks to the seat. The line drops the op name
+    and keeps the first sentence. It names the principal as "you", because
+    the line is to him.
+    """
+    why = re.sub(r"^[a-z_]+\.[a-z_]+: ", "", (note or "").strip())
+    why = re.split(r"(?<=[.!?])\s", why, maxsplit=1)[0].rstrip(".!? ")
+    if "the principal" in why:
+        why = (why.replace("the principal's", "your")
+               .replace("the principal", "you")
+               .replace("back to them", "back to you"))
+    because = f" The last try stopped on this: {why}." if why else ""
+    return ("The team could not read your request, and it did not reach the "
+            f"work.{because} Send the request again in other words.")
+
+
 # The repeat door's end line. It says how the session ended, not what failed.
 REPEAT_END = "repeated its previous turn verbatim twice; ended"
 # The refusal door's end line, after its op name: "<op> was refused the same
@@ -1102,6 +1139,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 (result.trigger_msg,)).fetchone()
             was_unresolved = bool(trig and trig["status"] == "unresolved")
             page = _page_under_reply(conn, trig, result)
+            missed = _request_missed(trig, result)
             returned = bool(page) and conn.execute(
                 "SELECT unresolved_note FROM messages WHERE id = ?",
                 (page,)).fetchone()["unresolved_note"] is not None
@@ -1150,6 +1188,37 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 conn.execute(
                     "UPDATE messages SET unresolved_note = ? WHERE id = ?",
                     (_why_no_ruling(result), result.trigger_msg))
+            elif missed and (trig["attempts"] or 0) < REPLY_SESSIONS:
+                # Frame 320, the first miss on a new request: frame 267's
+                # retry. The request stays open, and its note goes into the
+                # next wake's head.
+                conn.execute(
+                    "UPDATE messages SET unresolved_note = ? WHERE id = ?",
+                    (_why_no_ruling(result), result.trigger_msg))
+            elif missed:
+                # Frame 320, the second miss: the request stops, and one line
+                # tells him why. The line goes out as a Liaison chat line,
+                # the route `pending_replies` shows him. The request keeps
+                # the reason, so the record says why it closed.
+                why = _why_no_ruling(result)
+                conn.execute(
+                    "UPDATE messages SET status = 'answered', "
+                    "unresolved_note = ? WHERE id = ?",
+                    (why, result.trigger_msg))
+                from .runner import new_id
+
+                told = OutboundMessage(
+                    id=new_id("m", conn), to_role="principal", verb="converse",
+                    body_refs=json.loads(trig["body_refs"] or "[]"),
+                    body_text=unread_line(why), cause_id=result.trigger_msg)
+                conn.execute(
+                    "INSERT INTO messages (id, cause_id, cause_kind, thread_id, "
+                    "from_role, to_role, verb, body_refs, body_text, round_no, "
+                    "seq, status) VALUES (?, ?, 'message', ?, 'liaison', "
+                    "'principal', 'converse', ?, ?, 0, ?, 'open')",
+                    (told.id, told.cause_id, _thread_of(conn, told),
+                     json.dumps(told.body_refs), told.body_text,
+                     _next_seq(conn, "messages")))
             elif not (barren and was_unresolved):
                 conn.execute(
                     "UPDATE messages SET status = 'answered' WHERE id = ?",
