@@ -157,3 +157,24 @@ def test_a_head_that_cures_the_red_lifts_the_quarantine(db):
     _runs(db, "h2", {RED: None, "tst_plain": None})
     assert lift_on_red_move(db, "bg_2", "h2", before) is True
     assert _key(db) is None
+
+
+def test_a_new_red_test_at_the_same_head_lifts_the_quarantine(db):
+    """Pass 3b: the Tester's new red test is a new cause for the Developer.
+    The head did not change, so the growth is not the Developer's commit."""
+    _grow(db, 1)
+    _quarantine(db)
+    _quarantine(db, TIRED)
+    before = red_before(db, "bg_2")
+    _runs(db, "h1", {RED: SAME, "tst_plain": None, "tst_g0": SAME})
+    assert lift_on_red_move(db, "bg_2", "h1", before, same_head=True) is True
+    assert _key(db) is None
+    assert _key(db, TIRED) is None
+
+
+def test_the_same_red_at_the_same_head_keeps_the_quarantine(db):
+    _quarantine(db)
+    before = red_before(db, "bg_2")
+    _runs(db, "h1", {RED: SAME, "tst_plain": None})
+    assert lift_on_red_move(db, "bg_2", "h1", before, same_head=True) is False
+    assert _key(db) == (3, 1)

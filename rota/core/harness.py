@@ -164,6 +164,11 @@ def run(conn: sqlite3.Connection, batch_id: str,
     from .db import lift_on_red_move, red_before
 
     before = red_before(conn, batch_id)
+    # A run at this head already exists, so a new red is a new test, not a
+    # new commit (frame 318, pass 3b).
+    same_head = conn.execute(
+        "SELECT 1 FROM test_runs WHERE batch_id = ? AND commit_sha IS ?",
+        (batch_id, head)).fetchone() is not None
     # A run supersedes the run before it at the same commit: the tests may
     # have changed under it (walk eighteen), and the `review` gate reads
     # "no non-pass run at this commit", which stale fail rows kept false
@@ -174,7 +179,7 @@ def run(conn: sqlite3.Connection, batch_id: str,
         lifecycle.record_test_run(conn, new_id("tr", conn), batch_id, test_id,
                                   result, attempt, commit_sha=head,
                                   output=output.get(test_id, ""))
-    lift_on_red_move(conn, batch_id, head, before)
+    lift_on_red_move(conn, batch_id, head, before, same_head)
     return results
 
 

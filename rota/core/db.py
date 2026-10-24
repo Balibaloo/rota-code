@@ -789,15 +789,17 @@ def red_before(conn: sqlite3.Connection, batch_id: str) -> dict[str, str]:
 
 
 def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
-                     head: str | None, before: dict[str, str]) -> bool:
+                     head: str | None, before: dict[str, str],
+                     same_head: bool = False) -> bool:
     """
     Reset the batch's `tests_failing` key when the red moved at `head`.
 
     The harness reads `before` with `red_before` and calls this after it
     records its runs. The red moved when a red test of `before` passes,
     leaves the failing set, or raises another first error line. A red that
-    only grows or stays the same did not move. The key remembers nothing:
-    the last red is in `test_runs`.
+    only grows or stays the same did not move. At an unchanged head
+    (`same_head`), a test that is red now and was not red before is a new
+    cause. The key remembers nothing: the last red is in `test_runs`.
     """
     # Frame 318, night 162: s315's docstring commit wiped the quarantine on
     # the same red. Law 6's attempt cap still bounds a red that moves.
@@ -808,7 +810,15 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
     # Night 164: s229's commit 63c65435 grew the red from 1 to 5, and the
     # reset bought the same red more ticks (W-B).
     if before.items() <= now.items():
-        return False
+        # Pass 3b: at one head the growth is not the Developer's commit. It
+        # is a new red test from the Tester, so the Developer has a new cause.
+        if not (same_head and now.keys() - before.keys()):
+            return False
+        conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ? "
+                     "OR tick_key LIKE ?",
+                     (f"%|tick:tests_failing|{batch_id}",
+                      f"%|tick:exhausted|{batch_id}"))
+        return True
     conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
                  (f"%|tick:tests_failing|{batch_id}",))
     return True

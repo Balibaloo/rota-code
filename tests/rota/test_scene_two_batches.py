@@ -92,10 +92,9 @@ def test_every_run_names_a_test_of_its_own_batch(scene):
 globals().update(make(
     NAME,
     end=["tester|tick:tests_missing|b2"],
-    # Frame 318, W-B: the Tester's new test leaves the red key quarantined,
-    # so the Liaison reports it once, and the Tester's move reset that count.
     attempts=[("developer|tick:tests_failing|b1", 3, 1, 1),
-              (PARK, 1, 0, 0)],
+              (PARK, 1, 0, 0),
+              ("liaison|tick:quarantined|b1", 1, 0, 0)],
     asks=[],
     # I4: b2 took in the project's tests under b1's ids, so b1's runs name
     # tests of b2. I5 holds: the approved page rests, so parked b1 owes no
