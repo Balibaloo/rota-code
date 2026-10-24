@@ -658,10 +658,35 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                 "SELECT batch_id FROM tests WHERE id = ?", (w.row_id,))]
         for b in batches:
             if b:
-                conn.execute(
-                    "DELETE FROM tick_attempts WHERE quarantined = 1 "
-                    "AND tick_key LIKE ?", (f"%|{b}",))
+                held = [r["tick_key"] for r in conn.execute(
+                    "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
+                    "AND tick_key LIKE ?", (f"%|{b}",))]
+                for key in held:
+                    if _row_move_reaches(key):
+                        conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
+                                     (key,))
                 _forget_batch_counts(conn, b)
+
+
+# The Developer's ticks that wake on a red test. A criteria move retires or
+# re-encodes the criterion's tests, so it can move the red (frame 306).
+_RED_TICKS = ("tick:tests_failing", "tick:exhausted")
+
+
+def _row_move_reaches(key: str) -> bool:
+    """
+    Whether a criteria or tests move can change the cause of a batch's key.
+
+    The other seats read the criteria or the tests at their wake, so a move
+    can change their cause. The Developer's start, verdict and finding ticks
+    meet the code tree and the note door, and a criteria move changes
+    neither.
+    """
+    # Frame 318, night 163: each respecify of a bg_2 criterion lifted
+    # `developer|tick:batch_start|bg_2`. Three more Developers met the same
+    # note refusal at termui.py line 609, five rounds.
+    role, _, rest = key.partition("|")
+    return role != "developer" or rest.split("|", 1)[0] in _RED_TICKS
 
 
 def _forget_batch_counts(conn: sqlite3.Connection, batch_id: str,
