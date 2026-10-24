@@ -13,7 +13,8 @@ import json
 
 import pytest
 
-from rota.core.db import (OutboundMessage, SessionResult, Write, init_db,
+from rota.core.db import (REQUEST_NOTHING, OutboundMessage, SessionResult,
+                          Write, init_db,
                           session_commit)
 from rota.core.runner import _missed_reply_line, run_session
 from rota.core.scheduler import Wake
@@ -149,9 +150,54 @@ def test_his_resend_after_the_line_takes_the_retry_and_the_line(db):
     session_commit(db, SessionResult(
         session_id="s151", role="liaison", trigger_msg="m_p3",
         wake_kind="message", wake_detail="converse"))
-    assert _row(db, "m_p3")["status"] == "answered"
-    lines = [t for t in _told(db) if t["cause_id"] == "m_p3"]
-    assert len(lines) == 1, lines
+    # Review 1, finding 7: the resend closes with its note and sends no
+    # new line, so the chain ends.
+    assert _row(db, "m_p3") == {"status": "answered",
+                                "unresolved_note": REQUEST_NOTHING}
+    assert [t for t in _told(db) if t["cause_id"] == "m_p3"] == []
+
+
+def test_a_walk_that_replies_to_every_line_stops(db):
+    """Review 1, finding 7: the walk replies to every Liaison line. A
+    request that never lands sends him one line and then stops."""
+    from rota.roles.principal import pending_replies
+
+    _commit(db, "s160", attempts=2)
+    asked, sent = ["m_p2"], 0
+    for k in range(4):
+        open_lines = [a for a in pending_replies(db)]
+        if not open_lines:
+            break
+        for line in open_lines:
+            db.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
+                       (line.message_id,))
+            rid = f"m_r{k}"
+            db.execute("INSERT INTO messages (id, cause_id, thread_id, "
+                       "from_role, to_role, verb, body_text, seq, status, "
+                       "attempts) VALUES (?, ?, 't_p1', 'principal', "
+                       "'liaison', 'converse', ?, ?, 'open', 2)",
+                       (rid, line.message_id, E_P2, 100 + k))
+            sent += 1
+            session_commit(db, SessionResult(
+                session_id=f"s16{k + 1}", role="liaison", trigger_msg=rid,
+                wake_kind="message", wake_detail="converse"))
+            asked.append(rid)
+    lines = [t for t in _told(db) if t["from_role"] == "liaison"]
+    assert len(lines) == 1 and sent == 1, (lines, asked)
+    assert pending_replies(db) == []
+
+
+def test_an_empty_session_on_a_chat_reply_raises_no_alarm(db):
+    """Review 1, finding 8: "Noted, I filed it." asks for nothing. Only a
+    reply to the line of `unread_line` is a request."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_text, seq, status) VALUES ('m52','t_p1','liaison',"
+               "'principal','converse','I filed it for you.',52,'answered')")
+    db.execute("UPDATE messages SET cause_id = 'm52', body_text = 'Noted, "
+               "I filed it.' WHERE id = 'm_p2'")
+    _commit(db, "s170", attempts=2, refusals=[])
+    assert _row(db, "m_p2")["status"] == "answered"
+    assert [t for t in _told(db) if t["cause_id"] == "m_p2"] == []
 
 
 def test_a_glossary_write_does_not_land_a_request(db):
@@ -244,15 +290,15 @@ def test_a_request_answered_with_a_message_is_answered_as_before(db):
     assert _row(db, "m_p2") == {"status": "answered", "unresolved_note": None}
 
 
-def test_a_barren_reply_to_a_chat_line_is_a_request(db):
-    """A reply to any Liaison chat line is his words to the team, so a
-    barren session on it takes the retry (review 1, finding 1)."""
+def test_a_barren_reply_to_a_chat_line_is_answered_as_before(db):
+    """A reply to an ordinary Liaison chat line keeps today's path. Only a
+    reply to the line of `unread_line` is a request (review 1, finding 8)."""
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_text, seq, status) VALUES ('m50','t_p1','liaison',"
                "'principal','converse','hello',50,'answered')")
     db.execute("UPDATE messages SET cause_id = 'm50' WHERE id = 'm_p2'")
     _commit(db, "s148", attempts=1)
-    assert _row(db, "m_p2")["status"] == "open"
+    assert _row(db, "m_p2")["status"] == "answered"
 
 
 def test_a_barren_reply_to_another_role_is_answered_as_before(db):

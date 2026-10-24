@@ -863,8 +863,43 @@ def _request_missed(conn: sqlite3.Connection, trig: sqlite3.Row,
         return True
     return conn.execute(
         "SELECT 1 FROM messages WHERE id = ? AND from_role = 'liaison' "
-        "AND to_role = 'principal' AND verb = 'converse'",
-        (trig["cause_id"],)).fetchone() is not None
+        "AND to_role = 'principal' AND verb = 'converse' AND body_text LIKE ?",
+        (trig["cause_id"], UNREAD_HEAD + "%")).fetchone() is not None
+
+
+def _answers_unread(conn: sqlite3.Connection, trig: sqlite3.Row) -> bool:
+    """
+    Whether `trig` replies to a line of `unread_line`.
+
+    The walk replies to every Liaison line. A resend that misses twice
+    would send a new line, and the walk would reply again with no end. So
+    the resend's second miss closes with its note and sends no line (frame
+    320, review 1, finding 7).
+    """
+    return bool(trig["cause_id"]) and conn.execute(
+        "SELECT 1 FROM messages WHERE id = ? AND from_role = 'liaison' "
+        "AND body_text LIKE ?",
+        (trig["cause_id"], UNREAD_HEAD + "%")).fetchone() is not None
+
+
+def _tell_unread(conn: sqlite3.Connection, trig: sqlite3.Row, request: str,
+                 why: str) -> None:
+    """Send him the line of `unread_line` as a Liaison chat line, the route
+    `pending_replies` shows him (frame 320)."""
+    from .runner import new_id
+
+    told = OutboundMessage(
+        id=new_id("m", conn), to_role="principal", verb="converse",
+        body_refs=json.loads(trig["body_refs"] or "[]"),
+        body_text=unread_line(why), cause_id=request)
+    conn.execute(
+        "INSERT INTO messages (id, cause_id, cause_kind, thread_id, "
+        "from_role, to_role, verb, body_refs, body_text, round_no, "
+        "seq, status) VALUES (?, ?, 'message', ?, 'liaison', "
+        "'principal', 'converse', ?, ?, 0, ?, 'open')",
+        (told.id, told.cause_id, _thread_of(conn, told),
+         json.dumps(told.body_refs), told.body_text,
+         _next_seq(conn, "messages")))
 
 
 # The tables whose write lands a request (frame 320, review 1, finding 2).
@@ -1239,20 +1274,8 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     "UPDATE messages SET status = 'answered', "
                     "unresolved_note = ? WHERE id = ?",
                     (why, result.trigger_msg))
-                from .runner import new_id
-
-                told = OutboundMessage(
-                    id=new_id("m", conn), to_role="principal", verb="converse",
-                    body_refs=json.loads(trig["body_refs"] or "[]"),
-                    body_text=unread_line(why), cause_id=result.trigger_msg)
-                conn.execute(
-                    "INSERT INTO messages (id, cause_id, cause_kind, thread_id, "
-                    "from_role, to_role, verb, body_refs, body_text, round_no, "
-                    "seq, status) VALUES (?, ?, 'message', ?, 'liaison', "
-                    "'principal', 'converse', ?, ?, 0, ?, 'open')",
-                    (told.id, told.cause_id, _thread_of(conn, told),
-                     json.dumps(told.body_refs), told.body_text,
-                     _next_seq(conn, "messages")))
+                if not _answers_unread(conn, trig):
+                    _tell_unread(conn, trig, result.trigger_msg, why)
             elif not (barren and was_unresolved):
                 conn.execute(
                     "UPDATE messages SET status = 'answered' WHERE id = ?",

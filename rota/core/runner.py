@@ -2715,7 +2715,7 @@ def _missed_reply_line(conn: sqlite3.Connection, wake) -> str:
     """
     if wake.detail != "converse" or not wake.message_id:
         return ""
-    from .db import PAGE_VERBS
+    from .db import PAGE_VERBS, UNREAD_HEAD
 
     # A request has no cause, or a Liaison chat line as its cause: his
     # resend after the line of `unread_line` (frame 320, review 1, finding 1).
@@ -2726,9 +2726,9 @@ def _missed_reply_line(conn: sqlite3.Connection, wake) -> str:
         "AND r.status = 'open' AND r.unresolved_note IS NOT NULL "
         "AND (r.cause_id IS NULL "
         "OR (p.from_role = 'liaison' AND p.to_role = 'principal' "
-        "AND p.verb = 'converse') "
+        "AND p.verb = 'converse' AND p.body_text LIKE ?) "
         f"OR p.verb IN ({','.join('?' * len(PAGE_VERBS))}))",
-        (wake.message_id, *PAGE_VERBS)).fetchone()
+        (wake.message_id, UNREAD_HEAD + "%", *PAGE_VERBS)).fetchone()
     if row is None:
         return ""
     note = row["unresolved_note"].strip()
