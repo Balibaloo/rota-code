@@ -5377,11 +5377,19 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
         row = ctx.conn.execute(
             "SELECT ticket_id FROM criteria WHERE id = ?", (id,)).fetchone()
         prior_ticket = row["ticket_id"] if row else None
+    # Night 161's s282 sent c_1 twice under tk_1's id and never under a new
+    # one, so the one criterion that said what show_python is never landed.
+    # The refusal offers the call with a new id, as the same-ticket branch
+    # does (frame 315's provenance, repair 2).
     if prior_ticket is not None and prior_ticket != ticket_id:
-        raise ValueError(
+        raise ValueError(_offer(
+            ctx,
             f"{id!r} is already {prior_ticket}'s criterion. An id you invent "
             f"is yours once -- {ticket_id} needs its own; two tickets never "
-            f"share one criterion's id, even written in the same turn")
+            f"share one criterion's id, even written in the same turn",
+            "criteria.specify", {"id": INVENT, "ticket_id": ticket_id,
+                                 "text": text, "term_refs": term_refs,
+                                 "surface_refs": surface_refs}))
     # The same ticket holds an id once too. a9cb55de refused another ticket
     # only, and no record decided the same ticket (frame 310's provenance).
     # Night 160's s111 wrote four texts under one id, the last won at

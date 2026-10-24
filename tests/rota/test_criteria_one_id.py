@@ -118,3 +118,35 @@ def test_the_same_id_on_another_ticket_keeps_its_refusal(db):
                        r"tk_1's criterion\. An id you invent is yours once "
                        r"-- tk_2 needs its own"):
         _specify(sb, _SECOND, ["line"], ticket_id="tk_2")
+
+
+def test_the_id_of_another_ticket_is_refused_with_an_offer_of_a_new_id(tmp_path):
+    """Frame 315's provenance, section 5, test 3. Night 161's s282 sent
+    c_1 under tk_1's id twice and never under a new id, so the criterion
+    that said what show_python is never landed."""
+    from rota.roles.api import INVENT
+
+    db = init_db(tmp_path / "rota.db")
+    item = "version_option_show_python"
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES (?, 'Give version_option a show_python flag', 'in_scope', "
+               "'approved', 4, 4)", (item,))
+    for tk, ver in (("tk_1_" + item, 3), ("tk_2_" + item, 4)):
+        db.execute("INSERT INTO tickets (id, item_id, text, item_ver) VALUES (?, ?, 'x', ?)",
+                   (tk, item, ver))
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs, version) "
+               "VALUES (?, ?, 'the old c_1', '[]', 4)", ("c_1_" + item, "tk_1_" + item))
+    db.commit()
+    sb = _seat(db)
+    text = ("version_option accepts a boolean argument show_python that the "
+            "developer passes.")
+    with pytest.raises(ValueError, match=r"is already tk_1_version_option_show_python's "
+                       r"criterion\. An id you invent is yours once"):
+        sb.call("criteria.specify", id="c_1_" + item, ticket_id="tk_2_" + item,
+                text=text, term_refs=["show_python"], surface_refs=["version_option"])
+    [offer] = [o for o in sb.ctx.offers if o.op == "criteria.specify"]
+    assert offer.args["id"] is INVENT
+    assert offer.args["ticket_id"] == "tk_2_" + item
+    out = sb.call("criteria.specify", **{**offer.args, "id": "c_1_tk_2_" + item})
+    assert out["id"] == "c_1_tk_2_" + item
+    assert _texts(sb, "c_1_tk_2_" + item) == [text]
