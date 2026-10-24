@@ -4408,3 +4408,5 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
   lines 20 and 34): the reference drift predicate that DECISIONS.md
   promises and no code reads, and the law-13 schema test that finds no
   date column. Neither is in COMPLETION.md.
+- Status 2026-10-24 14:30 (rota-49): **unparked on Roman's word at 14:40, "do the chart changes", after this session rendered `path.mmd` through Graphviz and read it: 89 boxes, 196 arrows, no line from asked to merged, because each tick's end arrows run through one hub per lane** (observed: the render in this session's scratchpad, `mmd/path.png`). Probe 4 runs on the same agent, cap 50k: the lane hubs go and an end arrow runs from the tick to a state another tick reads; `path.mmd` keeps the walk from the item's first state to the merge plus the fix loops, derived from the graph; the EXISTS subqueries of the predicates become ordering edges, so the Tester, the harness and the review wake in a line; the agent renders both charts through Graphviz and reads the picture; report to `plans/frame314-flowchart-report-4.md`. Live count 23 of 10 with this unpark. Meta workflow.
+
