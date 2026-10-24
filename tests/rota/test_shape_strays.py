@@ -200,7 +200,7 @@ def test_a_foreseen_shape_row_shows_under_the_done_line(db):
     assert _under_done(render_state(db)) == [
         '  In "echo json": a `file` parameter on `echo_json` in src/click/utils.py, '
         'not asked for (the Architect: the stream is asked for). Line 319 of '
-        '`confirm` in src/click/termui.py removed, not asked for.']
+        '`confirm` in src/click/termui.py removed or rewritten, not asked for.']
 
 
 def test_a_mistake_row_and_no_row_show_nothing(db):
@@ -224,4 +224,20 @@ def test_the_night_report_prints_the_foreseen_rows(db, tmp_path):
     ro.row_factory = sqlite3.Row
     out = nightreport.build(ro)
     at = out.index("== foreseen strays on merged batches")
-    assert out[at + 1] == '  In "echo json": line 9 of src/click/utils.py removed, not asked for.'
+    assert out[at + 1] == '  In "echo json": line 9 of src/click/utils.py removed or rewritten, not asked for.'
+
+
+def test_the_lines_of_one_definition_fold_into_runs_and_a_file_stray_shows(db):
+    """Pass 3 review, lows A and C: eleven lines gave eleven sentences, and a
+    whole-file stray judged foreseen showed nothing."""
+    from rota.roles.principal import render_state
+    deco = "src/click/decorators.py::version_option"
+    rows = [(f"{deco}:L{n}", "foreseen", "the docs move") for n in
+            (300, 301, 302, 304, 305, 306, 307, 308, 309, 310, 319)]
+    rows.append(("src/click/extra.py", "foreseen", "helper"))
+    _merged_with(db, *rows)
+    assert _under_done(render_state(db)) == [
+        '  In "echo json": lines 300 to 302, 304 to 310 and 319 of `version_option` in '
+        'src/click/decorators.py removed or rewritten, not asked for (the Architect: '
+        'the docs move). src/click/extra.py changed, a file the plan did not name '
+        '(the Architect: helper).']

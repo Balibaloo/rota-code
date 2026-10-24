@@ -281,23 +281,45 @@ def aside_lines(conn: sqlite3.Connection) -> list[str]:
     return out
 
 
-def _grain_words(grain: str) -> str:
-    """A stray grain of the definition or the shape detector, in words."""
-    path, _sep, rest = grain.partition("::")
+def _line_runs(lines: list[int]) -> str:
+    """`[300, 301, 302, 319]` as "lines 300 to 302 and 319"."""
+    runs: list[list[int]] = []
+    for n in sorted(set(lines)):
+        if runs and n == runs[-1][1] + 1:
+            runs[-1][1] = n
+        else:
+            runs.append([n, n])
+    said = [f"{a}" if a == b else f"{a} to {b}" for a, b in runs]
+    if len(said) == 1 and runs[0][0] == runs[0][1]:
+        return f"line {said[0]}"
+    joined = said[0] if len(said) == 1 else f"{', '.join(said[:-1])} and {said[-1]}"
+    return f"lines {joined}"
+
+
+def _grain_words(grain: str, lines: list[int] | None = None) -> str:
+    """A stray grain in words. `lines` holds every removed line of the
+    grain's definition, so one sentence names them all."""
+    path, sep, rest = grain.partition("::")
+    if not sep:
+        return f"{path} changed, a file the plan did not name"
     m = re.fullmatch(r"(.+)\((\w+)\)", rest)
     if m:
         return f"a `{m.group(2)}` parameter on `{m.group(1)}` in {path}, not asked for"
     m = re.fullmatch(r"(.+):L(\d+)", rest)
     if m:
         where = path if m.group(1) == "module" else f"`{m.group(1)}` in {path}"
-        return f"line {m.group(2)} of {where} removed, not asked for"
+        # A rewritten line that is no widening is a removed line to the
+        # detector, so the words name both (pass 3 review, low B).
+        return (f"{_line_runs(lines or [int(m.group(2))])} of {where} "
+                f"removed or rewritten, not asked for")
     return f"a change to `{rest}` in {path}, not asked for"
 
 
 def foreseen_notices(conn: sqlite3.Connection) -> list[str]:
     """
-    One line per merged batch with a stray inside a file that the Architect
-    judged foreseen. A notice, not a question: nothing waits on it.
+    One line per merged batch with a stray that the Architect judged
+    foreseen: a file, a definition, a parameter or removed lines. A notice,
+    not a question: nothing waits on it.
 
     Frame 306: "no work stays invisible" (composition). The stray hold
     shows a change to the Architect only. A foreseen change merged and the
@@ -312,23 +334,34 @@ def foreseen_notices(conn: sqlite3.Connection) -> list[str]:
             "FROM touch_strays s JOIN batches b ON b.id = s.batch_id "
             "LEFT JOIN items i ON i.id = b.item_id "
             "WHERE b.status = 'merged' AND s.status = 'foreseen' "
-            "AND s.path LIKE '%::%' ORDER BY b.id, s.rowid").fetchall()
+            "ORDER BY b.id, s.rowid").fetchall()
     except sqlite3.Error:
         return []        # a database from before the stray route
+    # The removed lines of one definition fold into one sentence with one
+    # note. Night 158 bg_3 would give eleven sentences (pass 3 review, low A).
     by: dict = {}
     for r in rows:
-        held = by.setdefault(r["batch"], (r["item"] or r["batch"], {}))
-        held[1].setdefault(r["path"], r["note"])
+        item, groups = by.setdefault(r["batch"], (r["item"] or r["batch"], {}))
+        m = re.fullmatch(r"(.+::.+):L(\d+)", r["path"])
+        key = m.group(1) + ":L" if m else r["path"]
+        group = groups.setdefault(key, {"grain": r["path"], "lines": [], "note": None})
+        if m:
+            group["lines"].append(int(m.group(2)))
+        group["note"] = group["note"] or r["note"]
     out = []
-    for item, grains in by.values():
+    for item, groups in by.values():
         said = []
-        for grain, note in grains.items():
-            words = _grain_words(grain)
-            words = words[0].upper() + words[1:]
+        for g in groups.values():
+            words = _grain_words(g["grain"], g["lines"] or None)
+            # A sentence after the first starts with a capital, unless it
+            # starts with a path, which is copied exactly.
+            first = words.split(" ", 1)[0]
+            if said and "/" not in first and "." not in first:
+                words = words[0].upper() + words[1:]
+            note = g["note"]
             said.append(f"{words} (the Architect: {note})." if note else f"{words}.")
         name = item if len(item) <= 60 else item[:57] + "..."
-        out.append(f'  In "{name}": ' + " ".join(
-            s[0].lower() + s[1:] if k == 0 else s for k, s in enumerate(said)))
+        out.append(f'  In "{name}": ' + " ".join(said))
     return out
 
 
