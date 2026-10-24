@@ -70,6 +70,11 @@ pairing.
   route with s148's fragment key as the red test, needs its provenance
   first. Frame 266's case moves to it.
 - Frame 313: pushed, waits on frame 311's commit, now landed; 2 cycles.
+- Frame 314: Roman's probe, the flow chart from the role graph and the
+  tick predicates checked against night 159's bg_1; launch it first, one
+  agent, 60k, and give him the chart to read. He also asked for a page
+  of a change's states in his words, and a rule that every sentence to
+  him uses only those words; not yet a frame.
 - Frame 305: sprint row 3, the `revise` case, r_b517f1bc53 as the red
   test; waits on the api.py order.
 - Frame 201: decide after row 1. Frames 304, 308, 283, 272, 302, 303 at
