@@ -567,10 +567,15 @@ def _no_behaviour(cid, quote, kind, code=()) -> str:
     code lines, which the refusal lists before the fail route (frame 201)."""
     listed = ("The added lines of code are "
               + ", ".join(repr(c) for c in code) + ". ") if code else ""
+    if kind in ("a docstring line", "a comment"):
+        why = (f"A docstring or comment line counts only for a criterion "
+               f"that asks for documentation, and {cid} asks for behaviour.")
+    else:
+        why = (f"{kind[0].upper()}{kind[1:]} does nothing that a criterion "
+               f"asks for.")
     return (
-        f"the line for {cid}, {quote!r}, is {kind}, and a blank line, `pass`, "
-        f"`...`, a comment, a plain import or a docstring line does nothing "
-        f"that a criterion asks for. Copy the added line that does what "
+        f"the line for {cid}, {quote!r}, is {kind}. {why} "
+        f"Copy the added line that does what "
         f"{cid} says, without the +, and send the pass again. {listed}If no "
         f"added line meets {cid}, that is a fail on it: "
         f"`verdicts.claim_encodes({cid!r}, encodes=...)` first, as for any "
@@ -1002,7 +1007,8 @@ def test_s324_docstring_block_names_the_code_lines(bg2):
     cid = "crit_show_python_version"
     assert said == (
         f"the value for {cid} holds 3 lines, and they are docstring lines. "
-        f"A docstring line does nothing that a criterion asks for. A pass "
+        f"A docstring or comment line counts only for a criterion that asks "
+        f"for documentation, and {cid} asks for behaviour. A pass "
         f"names one added line per criterion. Copy the one added line of "
         f"code that does what {cid} says, without the +, and send the pass "
         f"again. " + BG2_LISTED + _bg2_fail_route(cid))
@@ -1025,10 +1031,10 @@ def test_s326_two_docstring_lines_name_the_code_lines(bg2):
                                "show_python: bool = False,"})
     quote = ":param show_python: If True, append the running Python interpreter"
     assert said == (
-        f"the line for {cid}, {quote!r}, is a docstring line, and a blank "
-        f"line, `pass`, `...`, a comment, a plain import or a docstring line "
-        f"does nothing that a criterion asks for. Copy the added line that "
-        f"does what {cid} says, without the +, and send the pass again. "
+        f"the line for {cid}, {quote!r}, is a docstring line. A docstring or "
+        f"comment line counts only for a criterion that asks for "
+        f"documentation, and {cid} asks for behaviour. Copy the added line "
+        f"that does what {cid} says, without the +, and send the pass again. "
         + BG2_LISTED + _bg2_fail_route(cid))
 
 
@@ -1129,7 +1135,8 @@ def test_s324_on_the_real_diff_gets_the_docstring_text(real_bg2):
     cid = "crit_show_python_version"
     assert said == (
         f"the value for {cid} holds 3 lines, and they are docstring lines. "
-        f"A docstring line does nothing that a criterion asks for. A pass "
+        f"A docstring or comment line counts only for a criterion that asks "
+        f"for documentation, and {cid} asks for behaviour. A pass "
         f"names one added line per criterion. Copy the one added line of "
         f"code that does what {cid} says, without the +, and send the pass "
         f"again. " + BG2_LISTED + _bg2_fail_route(cid))
@@ -1147,10 +1154,10 @@ def test_one_real_docstring_line_is_refused(real_bg2):
                            "crit_show_python_default":
                                "show_python: bool = False,"})
     assert said == (
-        f"the line for {cid}, {quote!r}, is a docstring line, and a blank "
-        f"line, `pass`, `...`, a comment, a plain import or a docstring line "
-        f"does nothing that a criterion asks for. Copy the added line that "
-        f"does what {cid} says, without the +, and send the pass again. "
+        f"the line for {cid}, {quote!r}, is a docstring line. A docstring or "
+        f"comment line counts only for a criterion that asks for "
+        f"documentation, and {cid} asks for behaviour. Copy the added line "
+        f"that does what {cid} says, without the +, and send the pass again. "
         + BG2_LISTED + _bg2_fail_route(cid))
 
 

@@ -12416,10 +12416,8 @@ def _line_held(line: str, added: list[str]) -> bool:
 
 # The kinds of line that do nothing a criterion can ask for, in the words
 # the refusal uses. Frame 180: night 130's s134 named `import json` for the
-# criterion that asks for a TypeError, and the door admitted it.
-_NO_BEHAVIOUR = ("a blank line, `pass`, `...`, a comment, a plain import or a "
-                 "docstring line")
-# Each kind for a value of several lines of that kind (frame 201).
+# criterion that asks for a TypeError, and the door admitted it. Each kind
+# has a plural for a value of several lines of that kind (frame 201).
 _NO_BEHAVIOUR_PLURAL = {
     "a blank line": "blank lines", "`pass`": "`pass` lines",
     "`...`": "`...` lines", "a comment": "comments",
@@ -12442,6 +12440,22 @@ def _asks_for_docs(text: str) -> bool:
     """True when a criterion's own words ask for the code's documentation."""
     t = " ".join(text.split()).casefold()
     return any(w in t for w in _ASKS_FOR_DOCS)
+
+
+def _why_refused(cid: str, kind: str | None) -> str:
+    """Why a line of `kind` meets no behaviour criterion. A documentation
+    line meets a criterion that asks for documentation, so the text must not
+    say that it does nothing (frame 311's review 1, finding 1). None is a
+    value of several kinds."""
+    docs = (f"A docstring or comment line counts only for a criterion that "
+            f"asks for documentation, and {cid} asks for behaviour.")
+    if kind in _DOC_KINDS:
+        return docs
+    if kind:
+        return (f"{kind[0].upper()}{kind[1:]} does nothing that a "
+                f"criterion asks for.")
+    return ("A blank line, `pass`, `...` or a plain import does nothing that "
+            "a criterion asks for. " + docs)
 _HEADER_STARTS = ("def ", "async def ", "class ")
 _FENCES = ('"""', "'''")
 # A header line that ends in one of these continues on the next line.
@@ -12728,11 +12742,10 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             found = {k for f in held for k in f}
             kind = found.pop() if len(found) == 1 else None
             plural = _NO_BEHAVIOUR_PLURAL.get(kind, "lines with no behaviour")
-            does = kind or _NO_BEHAVIOUR
             raise LinesRefusal(
                 f"the value for {cid} holds {n} lines, and they are {plural}. "
-                f"{does[0].upper()}{does[1:]} does nothing that a criterion "
-                f"asks for. A pass names one added line per criterion. Copy "
+                f"{_why_refused(cid, kind)} A pass names one added line per "
+                f"criterion. Copy "
                 f"the one added line of code that does what {cid} says, "
                 f"without the +, and send the pass again. {listed}If no "
                 f"added line meets {cid}, that is a fail on it: "
@@ -12809,10 +12822,10 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             # refusal, so a two-line docstring gets the same candidates
             # (frame 201).
             raise LinesRefusal(
-                f"the line for {cid}, {quote!r}, is {kind}, and "
-                f"{_NO_BEHAVIOUR} does nothing that a criterion asks for. "
-                f"Copy the added line that does what {cid} says, without the "
-                f"+, and send the pass again. {listed}If no added line meets "
+                f"the line for {cid}, {quote!r}, is {kind}. "
+                f"{_why_refused(cid, kind)} Copy the added line that does "
+                f"what {cid} says, without the +, and send the pass again. "
+                f"{listed}If no added line meets "
                 f"{cid}, that is a fail on it: {claim_for(cid)}")
 
 
