@@ -8395,13 +8395,26 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # Frame 304, night 162: s351's criterion named two surfaces, and
         # this door named the first, `custom_version_option`. The batch
         # changes `version_option`. Cause 9: a door's text points the wrong
-        # way. So the door names a surface that a touch row also names, or
-        # the one surface. With neither, the door names no surface.
-        _touched = {r[0] for r in ctx.conn.execute(
-            "SELECT grain FROM batch_touch WHERE batch_id = ? "
-            "AND grain_kind = 'symbol'", (batch_id or ctx.batch_id,))}
-        named = ([s for s in named if s in _touched]
-                 or (named if len(named) == 1 else []))[:1]
+        # way. So the door names only the surface that `_surface_pick` keeps.
+        _refs = named
+        named = _surface_pick(ctx, batch_id, criterion_id, _refs)
+        # Review 4, finding 2: the frame 82 text below made Testers invent
+        # stand-ins five runs of five. With no pick from two or more refs,
+        # the door names the line and the name, and no function.
+        if not named and len(_refs) > 1:
+            _at = min((n.lineno for n in _ast.walk(tree)
+                       if isinstance(n, _ast.Name) and n.id == unbound[0]),
+                      default=0)
+            raise Wall(
+                f"the test uses {unbound[0]} and never imports or defines it: "
+                f"a NameError against any code. Line {_at} uses {unbound[0]}. "
+                f"Import or define {unbound[0]} before line {_at}, and send "
+                f"the encode again.")
+        # Review 4, finding 1: a ref that the pick dropped is not the
+        # surface, even when the project defines it. So the hint says to
+        # call the kept surface in its place, and shape 4 does not run.
+        _dropped = (bool(named) and unbound[0] != _ref_symbol(named[0])
+                    and unbound[0] in {_ref_symbol(s) for s in _refs})
         # A project with no build system is not installed, so pytest imports
         # it from the root and `src.` stays in the line. Frame 82's diff
         # review: `from billing.accounts import ...` failed at collection.
@@ -8425,7 +8438,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # Frame 222, pass 1c: a name the project's package defines gets
             # its own module's line. Night 149 met `CliRunner` 15 times.
             _defined_in = ""
-            if unbound[0] not in _fixtures:
+            if _dropped:
+                _called = set()
+            elif unbound[0] not in _fixtures:
                 try:
                     _found = _project_module_of(_worktree_of(ctx), unbound[0],
                                                 keep_root=not _installed)
@@ -8438,7 +8453,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # the body already holds is not offered again.
             _invoked = {c.args[0].id for c in calls
                         if isinstance(c.func, _ast.Attribute) and c.func.attr == "invoke"
-                        and c.args and isinstance(c.args[0], _ast.Name)}
+                        and c.args and isinstance(c.args[0], _ast.Name)
+                        and not _dropped}
             _imported = {(a.asname or a.name) for n in _ast.walk(tree)
                          if isinstance(n, _ast.ImportFrom) for a in n.names}
             shape, hint = _unbound_name_hint(unbound[0], named[0], module, _fixtures,
@@ -16133,6 +16149,36 @@ def _encode_run(ctx, root, path: str, body: str) -> tuple[str, str]:
             target.write_bytes(prior)
 
 
+def _ref_symbol(ref: str) -> str:
+    """The top name after `::` in a surface ref, as `_unbound_name_hint` reads it."""
+    return ref.split("::", 1)[1].split(".", 1)[0] if "::" in ref else ""
+
+
+def _surface_pick(ctx, batch_id, criterion_id, refs: list) -> list:
+    """
+    The criterion's refs that a door may name as its surface.
+
+    Frame 304, night 162: s351's criterion named `custom_version_option` and
+    `version_option`, and the batch changes `version_option`. Two doors
+    named `custom_version_option`. Cause 9: a door's text points the wrong
+    way. One ref is kept as it is. Of two or more refs, the one ref whose
+    name after `::` a symbol touch row names is kept. Night 161's b_4
+    touches both functions, so two touched refs, or none, give no pick.
+
+    The batch is found as `tests_encode` finds it: the argument, the wake,
+    then the criterion's ticket (review 4, finding 3).
+    """
+    refs = [str(r) for r in refs]
+    if len(refs) <= 1:
+        return refs
+    bid = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
+    touched = {str(g).rsplit("::", 1)[-1] for (g,) in ctx.conn.execute(
+        "SELECT grain FROM batch_touch WHERE batch_id = ? "
+        "AND grain_kind = 'symbol'", (bid,))}
+    hit = [r for r in refs if r.rsplit("::", 1)[-1] in touched]
+    return hit if len(hit) == 1 else []
+
+
 def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
                          body: str, notes: list | None = None) -> str | None:
     """
@@ -16216,15 +16262,16 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
         # Frame 304, night 162: the step named `custom_version_option`, a
         # name from the body, and s351 filed faults against it. The batch
         # changes `version_option`. Cause 9: a door's text points the wrong
-        # way. So the step names only a criterion surface that the batch's
-        # touch rows also name. A criterion with one surface needs no row.
-        touched = {str(g).rsplit("::", 1)[-1] for (g,) in ctx.conn.execute(
-            "SELECT grain FROM batch_touch WHERE batch_id = ? "
-            "AND grain_kind = 'symbol'", (batch_id,))}
-        target = sorted(surface & touched) or (
-            sorted(surface) if len(surface) == 1 else [])
+        # way. So the step names only the surface that `_surface_pick` keeps.
+        target = sorted({r.rsplit("::", 1)[-1] for r in
+                         _surface_pick(ctx, batch_id, criterion_id, refs)})
         names = " or ".join(f"`{t}`" for t in target)
         kind = error.split(":", 1)[0].strip() or "an error"
+        # Review 4, finding 4: with no pick from two or more surfaces, the
+        # step lists them in one clause and tells no call.
+        listed = (" The criterion names the surfaces "
+                  + " and ".join(f"`{s}`" for s in sorted(surface)) + "."
+                  if not target and len(surface) > 1 else "")
         if fault["rule"] == "signature" and fault["name"] in target:
             step = (f"Call `{fault['name']}` with "
                     f"{', '.join(f'`{a}`' for a in fault['attr'])}, because "
@@ -16239,8 +16286,8 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
                     f"runs.")
         else:
             step = (f"Line {fault['line']} raises `{kind}` before the call "
-                    f"under test runs. Fix line {fault['line']} so that it "
-                    f"runs.")
+                    f"under test runs.{listed} Fix line {fault['line']} so "
+                    f"that it runs.")
     # The stdin route of frame 254 fits a click body that stubs stdin, as in
     # pass 1b's texts.
     try:

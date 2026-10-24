@@ -95,9 +95,21 @@ def test_s351_name_error_hint_names_the_surface_the_batch_changes(db, tmp_path):
     NameError door said "The criterion's surface is
     src/click/decorators.py::custom_version_option", the first of the two
     refs. The batch's touch rows name `version_option`."""
+    _version_batch(db, tmp_path, C3_REFS)
+    said = _s351_name_error(db, tmp_path)
+    assert "surface is src/click/decorators.py::custom_version_option" not in said
+    # Review 4, findings 1 and 6: one way, before the project-definition hint.
+    assert ("custom_version_option is not the criterion's surface. A test "
+            "calls the criterion's surface src/click/decorators.py::"
+            "version_option: add `from src.click.decorators import "
+            "version_option`, call version_option in place of "
+            "custom_version_option") in said
+    assert "import custom_version_option`" not in said
+
+
+def _s351_name_error(db, tmp_path) -> str:
     import pytest
 
-    _version_batch(db, tmp_path, C3_REFS)
     (tmp_path / "wt" / "src" / "click" / "__init__.py").write_text("")
     (tmp_path / "wt" / "src" / "click" / "decorators.py").write_text(
         "def version_option(*param_decls, **kwargs):\n    return None\n\n\n"
@@ -112,5 +124,54 @@ def test_s351_name_error_hint_names_the_surface_the_batch_changes(db, tmp_path):
                 body=body)
     said = str(ex.value)
     assert "never imports or defines it" in said
-    assert "surface is src/click/decorators.py::custom_version_option" not in said
-    assert "surface src/click/decorators.py::custom_version_option" not in said
+    return said
+
+
+def _touch_both(db):
+    db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind, "
+               "confidence) VALUES ('b1', "
+               "'src/click/decorators.py::custom_version_option', 'symbol', "
+               "'possible')")
+    db.commit()
+
+
+def test_name_error_with_both_refs_touched_names_the_line_and_no_function(
+        db, tmp_path):
+    """Review 4, finding 2: no pick from two refs never falls back to the
+    frame 82 text "import the function the criterion's surface names"."""
+    _version_batch(db, tmp_path, C3_REFS)
+    _touch_both(db)
+    said = _s351_name_error(db, tmp_path)
+    assert said.endswith(
+        "a NameError against any code. Line 5 uses custom_version_option. "
+        "Import or define custom_version_option before line 5, and send the "
+        "encode again.")
+    assert "surface" not in said and "version_option`" not in said
+
+
+def test_the_pick_finds_the_batch_through_the_criterion(db, tmp_path,
+                                                        monkeypatch):
+    """Review 4, finding 3: a wake that names no batch and an encode with no
+    `batch_id` still read the touch rows of the criterion's batch."""
+    _version_batch(db, tmp_path, C3_REFS)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    monkeypatch.setattr(sb.ctx, "batch_id", None)
+    assert api._surface_pick(sb.ctx, None, "c1", C3_REFS.strip("[]").replace(
+        '"', "").split(", ")) == ["src/click/decorators.py::version_option"]
+
+
+def test_s351_step_with_both_surfaces_touched_tells_no_call(
+        db, tmp_path, monkeypatch):
+    """Review 4, finding 4: night 161's b_4 touches both functions. The step
+    then lists the surfaces and never says "Call `custom_version_option`"."""
+    _version_batch(db, tmp_path, C3_REFS)
+    _touch_both(db)
+    _ran(monkeypatch, S351_RUN)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    step = _step(api._arrange_run_refusal(sb.ctx, "b1", "c1", PATH,
+                                          S351_TST_C3))
+    assert step.startswith(
+        "Line 6 raises `TypeError` before the call under test runs. The "
+        "criterion names the surfaces `custom_version_option` and "
+        "`version_option`. Fix line 6 so that it runs.")
+    assert "Call `" not in step
