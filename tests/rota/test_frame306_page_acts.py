@@ -346,3 +346,38 @@ def test_the_tester_triages_no_retired_criterion(db):
                allow=prompts.mode_tools("tester", "tests_missing"))
     with pytest.raises(ValueError, match="is retired"):
         sb.call("tests.triage", criterion_id=RETIRED, verdict="encodable")
+
+
+# Night 164's W-C: bg_1 was green at 37 of 37 from 21:41. His m37 retired
+# c3, c4 and c6. `review` still counted them as owed a test, so no Critic woke.
+def _green_with_retired(conn, untested=()):
+    conn.execute("INSERT INTO batches (id, item_id, head_commit, status) "
+                 "VALUES ('bg_2', ?, 'abc123', 'running')", (ITEM,))
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+                 "('bg_2', ?)", (TICKET,))
+    live = [c for c in CRITERIA if c not in CONTESTED and c not in untested]
+    for n, cid in enumerate(live):
+        conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, "
+                     "body) VALUES (?, 'bg_2', ?, 'tests/test_clear.py', "
+                     "'assert True')", (f"tst{n}", cid))
+        conn.execute("INSERT INTO test_runs (test_id, batch_id, result, "
+                     "commit_sha, attempt) VALUES (?, 'bg_2', 'pass', "
+                     "'abc123', 1)", (f"tst{n}",))
+    conn.executemany("UPDATE criteria SET retired_by = 'r_2131db161c' "
+                     "WHERE id = ?", [(c,) for c in CONTESTED])
+    conn.commit()
+
+
+def test_three_retired_criteria_hold_no_review(db):
+    from rota.core.predicates import review, tests_missing
+
+    _green_with_retired(db)
+    assert not [w for w in tests_missing(db) if "bg_2" in w.refs]
+    assert [w.kind for w in review(db) if "bg_2" in w.refs] == ["tick:review"]
+
+
+def test_a_live_criterion_with_no_test_still_holds_review(db):
+    from rota.core.predicates import review
+
+    _green_with_retired(db, untested=("c1_clear_terminal",))
+    assert not [w for w in review(db) if "bg_2" in w.refs]

@@ -1361,6 +1361,7 @@ def review(conn) -> list[Wake]:
     Per commit, not per batch. Guarding on "has a verdict" meant a batch that
     failed review could never pass: the Developer fixed it, committed, and
     nothing re-judged."""
+    from .scheduler import live_criteria, not_retired
     rows = conn.execute(
         "SELECT b.id AS bid FROM batches b "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
@@ -1379,12 +1380,17 @@ def review(conn) -> list[Wake]:
         # is in the start band; review waits for it.
         # The test must be of this batch. Night 147, walk 2: bg_2's tests
         # let the Critic judge bg_3 before its Tester ran (frame 239).
+        # The debt is the one `tests_missing` wakes the Tester for. Night 164:
+        # his m37 retired three of bg_1's criteria. This count kept them, so
+        # bg_1 stayed green at 37 of 37 and no Critic woke (frame 306, W-C).
         "  AND NOT EXISTS (SELECT 1 FROM batch_tickets bt "
         "                  JOIN criteria c ON c.ticket_id = bt.ticket_id "
         "                  WHERE bt.batch_id = b.id "
         "                    AND NOT EXISTS (SELECT 1 FROM tests t "
         "                                    WHERE t.criterion_id = c.id "
-        "                                      AND t.batch_id = b.id))"
+        "                                      AND t.batch_id = b.id)"
+        + not_retired(conn, "bt.ticket_id") + live_criteria(conn, "c.retired_by")
+        + ")"
     ).fetchall()
     return [Wake("critic", "tick:review", refs=(r["bid"],)) for r in rows]
 
