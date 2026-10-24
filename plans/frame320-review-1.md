@@ -72,3 +72,74 @@ All probe files are under `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rot
 ## (d) Usage
 
 About 56k tokens of context, about 9k output, about 65k total. The cap was about 20k. The gate and the case replays took most of the excess.
+
+## Re-check of db4d2da2
+
+Verdict: does not stand. Findings 1 to 6 are closed. The fix for finding 1 opens two new paths.
+
+### The verdict on each finding
+
+1. Closed. Probe P3: one empty session on his reply leaves the reply open with the note.
+2. Closed. Probe P2: a glossary-only first miss leaves m_p2 open with the note.
+3. Closed. His line, once: "Your request did not reach the team. The team tried to ask you about it, and the ask was refused: the question is your own sentence, pasted back to you. Reply to this line to send it again."
+   He can act on the line. "Pasted back to you" still describes an ask that never reached him, but the clause before it says so.
+4. Closed. `sandbox.py:3243` adds the route only when `api._wake_mode_tools(ctx)` holds `brief.segment`.
+5. Closed. `REQUEST_NOTHING` at `db.py:839` gives a request its own note.
+6. Closed. `cli.py:743` prints the line under "not reached the team (reply to send the request again)".
+
+### New findings
+
+7. `db.py:828`, `_request_missed`, high. CONFIRMED.
+   The walk's `answer_replies` replies to every Liaison line, the line of `unread_line` among them.
+   The reply is a request again, so two empty sessions send a new line, and the walk replies again.
+   Probe LOOP: 4 cycles of a request that never lands each ended with 1 new line to him. Nothing ends the chain.
+   Each cycle costs two sessions. Before db4d2da2 the chain ended after one quiet session.
+   Fix: when the cause is itself a line of `unread_line`, close the second miss with the note and send no new line.
+
+8. `db.py:828`, `_request_missed`, medium. CONFIRMED.
+   The rule accepts a reply to any Liaison chat line, not only to the line of `unread_line`.
+   Probe THANKS: he answers "Noted, I filed it." with a reply, and the Liaison sends nothing back twice.
+   He then gets "Your request did not reach the team. The team tried twice and landed nothing."
+   Chat is not work, so the line is a false alarm.
+   Fix: accept a Liaison line as the cause only when its body starts with `UNREAD_HEAD`.
+
+### Counts
+
+- `test_runner.py` with `test_frame320_request_miss.py` in the worktree: 149 passed.
+- `test_l1.py -k "LI or G1"` on a `git archive db4d2da2` copy with the register: 43 passed, 2 failed, 1 skipped.
+  The 2 reds are the same as on the parent. No STALE line printed.
+
+### Probes
+
+- `f320r1/probe_recheck.py` imports `probe_p2p3p6.py` and runs P2, P3 and P6 again. It then runs LOOP and THANKS through `session_commit` and `scenes.answer_replies`.
+- `f320r1/head2/` is `git archive db4d2da2` with a copy of the main register.
+
+### Usage
+
+The re-check used about 10k input and 3k output, about 13k total.
+
+## Re-check of 07b3bf0c
+
+Verdict: stands, with one low finding. Findings 7 and 8 are closed.
+
+- Finding 7 closed. Probe LOOP: he gets 1 line for a request that never lands. The walk's resend misses twice and closes with its note. No message stays open.
+- Finding 8 closed. Probe THANKS: an empty session on a reply to an ordinary chat line sends him no line. `_request_missed` at `db.py:829` accepts only a cause whose body starts with `UNREAD_HEAD`.
+- Counts: `test_runner.py` with `test_frame320_request_miss.py`: 151 passed.
+
+### New finding
+
+9. `db.py:1242`, low. CONFIRMED by reading and probe.
+   The resend closes as `answered` with its note, and no line follows it.
+   The only reader of a note in front of him is `principal.py:1534`, and it reads open pages to him only.
+   `rota agenda`, the cockpit and the pages show no closed request. The note is visible in the database only.
+   He saw one line already, so the chain does not stop in silence. A second miss on his resend is invisible to him.
+   Fix: let `rota agenda` list a closed resend with its note under "not reached the team", or accept the gap and record it.
+
+### Probes
+
+- `f320r1/probe_recheck.py` runs LOOP and THANKS again.
+- A stdin probe builds the LOOP end state, then lists the messages that are not answered (none) and the resend's status and note.
+
+### Usage
+
+About 5k input and 1.5k output, about 6.5k total.
