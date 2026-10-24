@@ -5620,26 +5620,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     # include --show-python" beside "the usage string must explicitly list
     # --show-python", 55 of them in one reply. Word overlap is a fact about
     # two sentences; whether the ticket needs a fifth criterion is not.
-    mine = set(_prose_words(text or ""))
-    if mine:
-        others = [(w[1], w[2].get("text", "")) for w in ctx.writes
-                  if w[0] == "criteria" and isinstance(w[2], dict)
-                  and w[2].get("ticket_id") == ticket_id]
-        others += [(r["id"], r["text"]) for r in ctx.conn.execute(
-            "SELECT id, text FROM criteria WHERE ticket_id = ?", (ticket_id,))]
-        for other_id, other_text in others:
-            theirs = set(_prose_words(other_text or ""))
-            # 0.85, not 0.7: at 0.7 the door refused the fifth criterion of
-            # `L3-a-challenge-reaches-the-role-that-can-answer-it` and llama
-            # fell into prose instead of the challenge the case measures.
-            # Near-verbatim only; the size of a ticket's criteria is the
-            # brief's sentence, not this door's.
-            if theirs and len(mine & theirs) >= 0.85 * len(mine | theirs):
-                raise ValueError(
-                    f"this says what {other_id} says, in nearly the same words "
-                    f"({other_text[:80]!r}). One criterion per thing that must "
-                    f"be true; a second sentence for the same thing is a second "
-                    f"test of one fact")
+    _near_twin(ctx, ticket_id, text)
     # law 7: every cap is a ruling, declared in config; the door breaks this law, see frame287-door-laws.md, Contradicts
     # Three is usual and six is many (the criteria brief, ruled 2026-09-12).
     # clickI night 38 (2026-09-13): twenty-four criteria on one ticket
@@ -6185,6 +6166,35 @@ def _ruling_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> str:
     return " ".join(keep)
 
 
+def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
+               skip: str | None = None) -> None:
+    """Refuse `text` when another criterion of the ticket says it in nearly
+    the same words. `skip` is the criterion that the text rewrites."""
+    mine = set(_prose_words(text or ""))
+    if not mine:
+        return
+    others = [(w[1], w[2].get("text", "")) for w in ctx.writes
+              if w[0] == "criteria" and isinstance(w[2], dict)
+              and w[2].get("ticket_id") == ticket_id]
+    others += [(r["id"], r["text"]) for r in ctx.conn.execute(
+        "SELECT id, text FROM criteria WHERE ticket_id = ?", (ticket_id,))]
+    for other_id, other_text in others:
+        if other_id == skip:
+            continue
+        theirs = set(_prose_words(other_text or ""))
+        # 0.85, not 0.7: at 0.7 the door refused the fifth criterion of
+        # `L3-a-challenge-reaches-the-role-that-can-answer-it` and llama
+        # fell into prose instead of the challenge the case measures.
+        # Near-verbatim only; the size of a ticket's criteria is the
+        # brief's sentence, not this door's.
+        if theirs and len(mine & theirs) >= 0.85 * len(mine | theirs):
+            raise ValueError(
+                f"this says what {other_id} says, in nearly the same words "
+                f"({other_text[:80]!r}). One criterion per thing that must "
+                f"be true; a second sentence for the same thing is a second "
+                f"test of one fact")
+
+
 @op("criteria", "respecify")
 def criteria_respecify(ctx: Ctx, id: str, text: str,
                        term_refs: list[str] | None = None,
@@ -6384,6 +6394,10 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                         "what a test can assert, and this did not. If this "
                         "criterion is right as it stands, the one that cannot "
                         "be encoded is a different row"}
+    # law 14: the same fuzzy guard as `criteria.specify`. Night 163's
+    # respecifies of s209 to s265 wrote c3_terminal_failure_true with
+    # c2_non_terminal_false's words, and two rows held one fact (frame 306).
+    _near_twin(ctx, cur["ticket_id"] if cur else None, text, skip=id)
     if surface is None:
         surface = _vet_surface(ctx, surface_refs, required=True,
                                ticket_id=cur["ticket_id"] if cur else None)
