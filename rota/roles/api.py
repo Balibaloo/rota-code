@@ -12968,7 +12968,11 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
 _HOLD_QUESTION = "Does that line do what the criterion says, or the opposite?"
 _HOLD_QUESTION_MANY = ("Do those lines do what the criterion says, or the "
                        "opposite?")
-_HOLD_SAY = "Say which in one sentence, and send the call in the same reply."
+# One instruction ends the hold, and it names no call for the fail route.
+# On night 161 the prefilled fail turned 2 right passes of 5 into wrong
+# fails, and it caught no wrong pass (frame 201, sprint 18, pass 1).
+_HOLD_SAY = ("Say which in your own words, and in the same reply send the "
+             "same pass again or your own fail.")
 
 
 def _or_list(ids: list[str], last: str) -> str:
@@ -13018,34 +13022,23 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
 
     def holds(parts: list[str]) -> str:
         if len(parts) == 1:
-            return f"Your line holds '{parts[0]}'. {_HOLD_QUESTION} {_HOLD_SAY}"
+            return f"Your line holds '{parts[0]}'. {_HOLD_QUESTION}"
         shown = ", then ".join(f"'{p}'" for p in parts)
-        return f"Your lines hold {shown}. {_HOLD_QUESTION_MANY} {_HOLD_SAY}"
+        return f"Your lines hold {shown}. {_HOLD_QUESTION_MANY}"
 
     ids = list(ask)
     if len(ids) == 1:
         cid = ids[0]
-        it = "it does" if len(ask[cid]) == 1 else "they do"
         body = f"The criterion says: \"{texts[cid]}\". {holds(ask[cid])}"
-        fail = f"If {it} the opposite, claim and fail on {cid}"
-        again = f"If {it} what the criterion says, send the same pass again"
     else:
         body = " ".join(f"Criterion {cid} says: \"{texts[cid]}\". "
                         f"{holds(ask[cid])}" for cid in ids)
-        fail = (f"If a line does the opposite, claim and fail on its "
-                f"criterion, {_or_list(ids, 'or')}")
-        again = ("If each line does what its criterion says, send the same "
-                 "pass again")
-    # The pass route comes first, as in probe (c), the measured text (frame
-    # 201, pass 3c, after the register run at 794339cd).
-    for cid in ids:
-        _offer(ctx, fail, "verdicts.claim_encodes",
-               {"criterion_id": cid, "encodes": True},
-               then=(_fail_on(batch_id, cid),))
-    _offer(ctx, again, "verdicts.emit",
+    # The seat writes a fail itself, with its own claim when it needs one.
+    # So the hold offers the pass route only (frame 201, sprint 18, pass 1).
+    _offer(ctx, _HOLD_SAY, "verdicts.emit",
            {"batch_id": batch_id, "result": "pass", "lines": dict(lines)})
     raise PassHeld(f"before the pass lands, answer for {_or_list(ids, 'and')}. "
-                   f"{body} {again}. {fail}.")
+                   f"{body} {_HOLD_SAY}")
 
 
 def _fail_on(batch_id: str, cid: str) -> tuple:

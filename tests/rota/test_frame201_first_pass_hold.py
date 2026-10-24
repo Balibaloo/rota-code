@@ -107,9 +107,9 @@ def _held(sb, **kwargs) -> str:
 def _asked(cid: str, text: str, line: str) -> str:
     return (f"before the pass lands, answer for {cid}. The criterion says: "
             f"\"{text}\". Your line holds '{line}'. Does that line do what "
-            f"the criterion says, or the opposite? Say which in one sentence, "
-            f"and send the call in the same reply. If it does what the criterion says, send the same pass again. "
-            f"If it does the opposite, claim and fail on {cid}.")
+            f"the criterion says, or the opposite? Say which in your own "
+            f"words, and in the same reply send the same pass again or your "
+            f"own fail.")
 
 
 def test_the_recorded_turn_gets_the_hold(case):
@@ -134,6 +134,45 @@ def test_the_runner_prints_the_hold_as_held(case):
     prompt = backend.calls[1][1]
     assert f"HELD verdicts.emit: {_asked(C1, C1_TEXT, L_INVOICES)}" in prompt
     assert "ERROR verdicts.emit" not in prompt
+    (row,) = case.execute("SELECT result FROM verdicts").fetchall()
+    assert row["result"] == "pass"
+
+
+def test_the_hold_offers_no_fail_route(case):
+    """Night 161, s133: the hold asked about three lines and offered a claim
+    and a fail on each. The seat took the fail on a right pass. The hold now
+    keeps its question and names no call for the fail route (frame 201,
+    sprint 18, pass 1)."""
+    _two_criteria(case)
+    sb = _critic(case)
+    said = _held(sb, lines={C1: L_INVOICES, C2: L_NONE})
+    assert "Does that line do what the criterion says, or the opposite?" in said
+    assert "claim" not in said and "fail on" not in said
+    assert not [o for o in sb.ctx.offers
+                if o.op == "verdicts.claim_encodes"
+                or o.args.get("result") == "fail" or o.then]
+    [offer] = sb.ctx.offers
+    assert offer.op == "verdicts.emit" and offer.args["result"] == "pass"
+
+
+def test_a_held_pass_sent_again_lands_in_a_session(case):
+    """Night 161, s226: the seat claimed, passed with a line of two parts,
+    and read a hold that offered the fail. The seat now reads the pass route
+    only, sends the same pass again, and the pass lands."""
+    from rota.core.predicates import Wake
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    two = {C1: f"{L_LOAD}\n    if rec is None:"}
+    claim = f"TOOL: verdicts.claim_encodes(criterion_id='{C1}', encodes=True)"
+    call = f"TOOL: verdicts.emit(batch_id='b1', result='pass', lines={two!r})"
+    backend = ScriptedBackend([f"{claim}\n{call}", call, "Done."])
+    run_session(case, Wake("critic", "tick:review", refs=("b1",)),
+                backend=backend, pins=Pins(model="scripted"), batch_id="b1")
+    prompt = backend.calls[1][1]
+    assert "HELD verdicts.emit" in prompt
+    assert "or the opposite?" in prompt
+    assert "claim and fail" not in prompt
     (row,) = case.execute("SELECT result FROM verdicts").fetchall()
     assert row["result"] == "pass"
 
@@ -188,13 +227,11 @@ def test_two_criteria_are_quoted_by_id_in_order(case):
         "before the pass lands, answer for c1 and c2. "
         f"Criterion c1 says: \"{C1_TEXT}\". Your lines hold '{L_INVOICES}', "
         f"then '{L_ACCOUNT}'. Do those lines do what the criterion says, or "
-        "the opposite? Say which in one sentence, and send the call in the "
-        "same reply. "
+        "the opposite? "
         f"Criterion c2 says: \"{C2_TEXT}\". Your line holds '{L_NONE}'. Does "
         "that line do what the criterion says, or the opposite? Say which in "
-        "one sentence, and send the call in the same reply. If each line does what its criterion says, send the "
-        "same pass again. If a line does the opposite, claim and fail on its "
-        "criterion, c1 or c2.")
+        "your own words, and in the same reply send the same pass again or "
+        "your own fail.")
 
 
 def test_a_second_hold_quotes_only_the_moved_criterion(case):
