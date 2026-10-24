@@ -5477,7 +5477,7 @@ def test_a_whole_write_that_drops_an_unused_helper_names_the_lines_and_no_span(d
     out = sb.call("code.write", path="src/m.py", text="def keep(x):\n    return x + 1\n")
     assert out["dropped"] == ("This write drops 2 lines of the old file, from "
                               "`def helper():`; write the whole file again with "
-                              "those lines kept. This write removes 1 statement "
+                              "those lines kept. This write removes or rewrites 1 statement "
                               "that your text does not hold: `return x` at line 1.")
     assert "start=" not in out["dropped"]
 
@@ -6016,7 +6016,7 @@ def test_s386s_span_over_version_option_names_the_body_it_removes(db, tmp_path):
     out = sb.call("code.write", path="src/click/decorators.py", start=421,
                   end=568, text=S386_TEXT)
     note = out["dropped"]
-    assert note.startswith("This write removes 10 statements")
+    assert note.startswith("This write removes or rewrites 10 statements")
     assert "`if message is None:` at line 487" in note
     # The review of 319c7f19, P3: eight are named, and the rest are counted.
     # Pass 1d: the `return` the night broke on is named first, then seven
@@ -6041,7 +6041,7 @@ def test_a_nested_assignment_in_the_text_does_not_hold_a_removed_one(db, tmp_pat
     text = _lines("    def inner():", "        rv = 0", "    check(rv)")
     out = sb.call("code.write", path="m.py", start=1, end=3,
                   text=chr(10).join(text) + chr(10))
-    assert out["dropped"] == ("This write removes 1 statement that your text "
+    assert out["dropped"] == ("This write removes or rewrites 1 statement that your text "
                               "does not hold: `rv = load()` at line 1.")
 
 

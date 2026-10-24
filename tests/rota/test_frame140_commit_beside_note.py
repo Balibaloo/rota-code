@@ -187,25 +187,25 @@ S282_TEXT = ('        if show_python:\n            import sys\n'
              '            base_message += f", Python {python_version_str}"')
 
 # The note s282 read after the reply, copied from the record.
-S282_NOTE = ('This write removes 3 statements that your text does not hold: '
+S282_NOTE = ('This write removes or rewrites 3 statements that your text does not hold: '
              '`base_message = message % {"prog": prog_name, "package": pack` '
              'at line 546, `echo(` at line 551, `ctx.exit()` at line 555.')
 
 # Frame 283's review 3, finding 3: the step says its fact once and ends on
 # the shared route.
 STEP = ("If the tree holds those lines again, commit in your next reply. A "
-        "note does not allow a removal. Put the lines back with code.write, "
+        "note does not allow a removal or a rewrite. Put the lines back with code.write, "
         "then commit in your next reply. Or send msg.escalate_architect and "
-        "name the removal.")
+        "name the change.")
 
 # The refusal of a commit in a reply after the noted one (frame 283).
 LATER = ("a code.write in an earlier reply returned a note, and the tree "
          "still does not hold those lines.")
 # Frame 283's W1 a, pass 2: a note never allows a removal of a base
 # statement, so the route names no ledger note.
-LATER_STEP = ("A note does not allow a removal. Put the lines back with "
+LATER_STEP = ("A note does not allow a removal or a rewrite. Put the lines back with "
               "code.write, then commit in your next reply. Or send "
-              "msg.escalate_architect and name the removal.")
+              "msg.escalate_architect and name the change.")
 
 # The dropped statements put back around s282's text, as one span.
 RESTORED = ('        base_message = message % {"prog": prog_name, "package": '
@@ -565,7 +565,7 @@ S274_TEXT = ("removed 7 statements after Python version append logic to keep "
 S300_TEXT = ("removed logic for version detection and echo when show_python is "
              "False to simplify callback")
 # The note s214 and s215 met in bg_2.
-N214 = "This write removes 1 statement that your text does not hold: `echo(` at line 543."
+N214 = "This write removes or rewrites 1 statement that your text does not hold: `echo(` at line 543."
 N214_LINES = [["version_option.callback", "echo(", 1]]
 # The note s274 met in bg_3, at its turn 9.
 S274_LINES = ['if not param_decls:', 'kwargs.setdefault("is_flag", True)',
@@ -574,11 +574,11 @@ S274_LINES = ['if not param_decls:', 'kwargs.setdefault("is_flag", True)',
               'kwargs.setdefault("help", _("Show the version and exit."))',
               'kwargs["callback"] = callback',
               'return option(*param_decls, **kwargs)']
-N274 = ("This write removes 7 statements that your text does not hold: "
+N274 = ("This write removes or rewrites 7 statements that your text does not hold: "
         + ", ".join(f"`{x}` at line {n}" for x, n in zip(
             S274_LINES, (562, 565, 566, 567, 568, 569, 570))) + ".")
 # bg_3's row: the text shows `output = ...`, and the entry does not store it.
-N300 = ('This write removes 4 statements that your text does not hold: '
+N300 = ('This write removes or rewrites 4 statements that your text does not hold: '
         '`if version is None:` at line 541, `output = message % {"prog": '
         'prog_name, "package": package_na` at line 547, `echo(` at line 555, '
         '`ctx.exit()` at line 559.')
@@ -663,7 +663,7 @@ BG2_KWARGS = ['kwargs.setdefault("is_flag", True)',
               'kwargs.setdefault("help", _("Show the version and exit."))',
               'kwargs["callback"] = callback',
               'return option(*param_decls, **kwargs)']
-BG2_NOTE = ("This write removes 6 statements that your text does not hold: "
+BG2_NOTE = ("This write removes or rewrites 6 statements that your text does not hold: "
             + ", ".join(f"`{x}` at line {n}" for x, n in zip(BG2_KWARGS, range(559, 565)))
             + ".")
 BG2_LINES = ([["version_option.callback", "echo(", 1],
@@ -695,7 +695,7 @@ def test_a_nine_line_refusal_lists_the_lines_the_tree_lacks(db, tmp_path):
     _noted_then_refused(sb, root)
     lost = [(i, f"value_{i} = compute({i})") for i in range(1, 9)] + [
         (9, "return value_9")]
-    note = f"This write removes 9 statements: {api._lost_sentence(lost)}."
+    note = f"This write removes or rewrites 9 statements: {api._lost_sentence(lost)}."
     _night_note(sb, note, [["f", h, 1] for _i, h in lost])
     shown = api._shown_lines(api._open_notes(sb.ctx)[PATH])
     assert "value_8 = compute(8)" not in shown and len(shown) == 8
@@ -721,7 +721,7 @@ def test_a_ledger_note_closes_no_restored_note_early(db, tmp_path):
     _noted_then_refused(sb, root)
     sb.call("code.write", path=PATH, start=546, end=550, text=RESTORED)
     sb.begin_reply()
-    api._put_note(sb.ctx, other, {"note": "This write removes 1 statement that "
+    api._put_note(sb.ctx, other, {"note": "This write removes or rewrites 1 statement that "
                                   "your text does not hold: `x = 1` at line 1.",
                                   "lines": [["", "x = 1", 1]], "defs": [],
                                   "whole": [], "noted": "y"})

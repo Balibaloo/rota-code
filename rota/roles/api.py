@@ -18331,6 +18331,15 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     if entry is not None and entry["lines"] and not _shown_lines(entry):
         entry["note"] = f"{entry['note']} It drops {_quote(entry['lines'][0][1][:60])}."
         tail_note = entry["note"]
+    # `_restored` needs each stored definition by its own name, so the text
+    # names it. A definition moved under a class closed nothing when its
+    # lines alone went back (frame 283's review 5, finding 3).
+    unnamed = [d for d in (entry or {}).get("defs") or [] if not _says(entry["note"], d)]
+    if unnamed:
+        named = ", ".join(_quote(d) for d in unnamed)
+        entry["note"] = (f"{entry['note']} The file no longer defines {named} "
+                         f"by that name. The note closes when it does again.")
+        tail_note = entry["note"]
     if tail_note:
         out["dropped"] = tail_note
         # The seat decides only once it has read the note (frame 140). The
@@ -19331,7 +19340,7 @@ def _stored_note(entry: dict, before: str, drop: list[int]) -> str:
             at.setdefault(old[i].strip(), i)
     lost = [(at[line], line) for _o, line, _n in entry["lines"] if line in at]
     word = "statement" if len(lost) == 1 else "statements"
-    return (f"This write removes {len(lost)} {word} that your text does not "
+    return (f"This write removes or rewrites {len(lost)} {word} that your text does not "
             f"hold: {_lost_sentence(lost)}.")
 
 
@@ -19488,10 +19497,10 @@ def _note_routes(write_only: bool = False, one: bool = False) -> str:
         return "Put the lines back with code.write, then commit in your next reply."
     # Frame 283's W1 a, pass 2: a note never admits a removal of a base
     # statement, so the ledger route is gone (review 1, finding 2).
-    return (f"A note does not allow a removal. Put the "
+    return (f"A note does not allow a removal or a rewrite. Put the "
             f"{'line' if one else 'lines'} back with code.write, then commit "
             f"in your next reply. Or send msg.escalate_architect and name the "
-            f"removal.")
+            f"change.")
 
 
 def _close_restored(ctx: Ctx, tree, stage: bool = True) -> dict:
@@ -21044,6 +21053,20 @@ def _tail_drop(old_lines: list[str], start: int, stop: int, text: str,
         return None
 
 
+def _line_key(line: str) -> str:
+    """The syntax tree of one line, or its characters outside spaces. Two
+    lines with the same key hold the same statement (frame 173)."""
+    import ast as _ast
+    t = line.strip()
+    if t.startswith("elif "):
+        t = t[2:]
+    try:
+        src = t + " pass" if t.endswith(":") else t
+        return _ast.dump(_ast.parse(src))
+    except Exception:                                      # noqa: BLE001
+        return "".join(t.split())
+
+
 def _lost_statements(old_lines: list[str], start: int, stop: int,
                      text: str) -> list[tuple[int, str]]:
     """
@@ -21073,15 +21096,7 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
     calls = (_ast.Call, _ast.Yield, _ast.YieldFrom, _ast.Await)
     clauses = (_ast.ExceptHandler, _ast.match_case)
 
-    def key(line):
-        t = line.strip()
-        if t.startswith("elif "):
-            t = t[2:]
-        try:
-            src = t + " pass" if t.endswith(":") else t
-            return _ast.dump(_ast.parse(src))
-        except Exception:                                  # noqa: BLE001
-            return "".join(t.split())
+    key = _line_key
 
     def lo(n):
         if isinstance(n, _ast.match_case):
@@ -21234,45 +21249,97 @@ def _with_lost(note: str | None, lost: list[tuple[int, str]]) -> str | None:
         return note
     # A fact and not an order, as the tail note is: the seat decides.
     word = "statement" if len(lost) == 1 else "statements"
-    span = (f"This write removes {len(lost)} {word} that your text does not "
+    span = (f"This write removes or rewrites {len(lost)} {word} that your text does not "
             f"hold: {_lost_sentence(lost)}.")
     return f"{note} {span}" if note else span
+
+
+def _owned_statements(tree, lines: list[str]) -> list[tuple[str, str, int, int]]:
+    """Each statement of `tree` as (owner, key, first line, last line),
+    0-based. The owner is the qualified name of the innermost definition,
+    as `_def_spans` names it, or "" for the module. A definition is an
+    owner and not a statement. An assignment keys on its targets, so a new
+    value for the same name is a new wording, as `_lost_statements` reads
+    it."""
+    import ast as _ast
+    defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
+    plain = (_ast.Return, _ast.Raise, _ast.Break, _ast.Continue,
+             _ast.Assign, _ast.AugAssign, _ast.AnnAssign)
+    calls = (_ast.Call, _ast.Yield, _ast.YieldFrom, _ast.Await)
+    fields = ("body", "handlers", "orelse", "finalbody", "cases")
+    out: list = []
+
+    def walk(nodes, owner):
+        for s in nodes:
+            if isinstance(s, defs):
+                walk(s.body, f"{owner}.{s.name}" if owner else s.name)
+                continue
+            kids = [x for f in fields for x in getattr(s, f, None) or []]
+            if isinstance(s, _ast.match_case):
+                head = s.pattern.lineno - 1
+            else:
+                head = s.lineno - 1
+            if isinstance(s, (_ast.Assign, _ast.AugAssign, _ast.AnnAssign)):
+                ts = s.targets if isinstance(s, _ast.Assign) else [s.target]
+                key = "=" + "|".join(_ast.dump(t) for t in ts)
+            else:
+                key = _line_key(lines[head])
+            if (kids or isinstance(s, plain + (_ast.ExceptHandler, _ast.match_case))
+                    or (isinstance(s, _ast.Expr) and isinstance(s.value, calls))):
+                end = getattr(s, "end_lineno", None) or head + 1
+                out.append((owner, key, head, end - 1))
+            walk(kids, owner)
+    walk(tree.body, "")
+    return out
 
 
 def _whole_lost(old_lines: list[str], text: str, note: str | None,
                 gone: list[int]) -> str | None:
     """
     The `dropped` note of a whole-file write: `note`, then each statement
-    inside a kept top-level definition that the text does not hold.
+    that the text holds fewer times under its owner than the old file does.
 
     Frame 283 pass 5. Review 3 of frame 306, "High 2, pinned": a first
     whole-file write dropped `ctx.exit()` inside the kept `version_option`,
-    opened no note, and the commit landed. A line in `gone` is not named
-    twice. A line outside the kept definitions is the business of
-    `_whole_drop` and `_tail_drop`.
+    opened no note, and the commit landed. Pass 5b, review 5, findings 1
+    and 2: a copy of the line in another method, in the outer body or in
+    another branch hid the drop, and a module-level block or a file with no
+    definition gave no note. So each statement is counted under its owner,
+    as `_restored` counts the stored lines. An owner the text no longer
+    defines is read under the nearest owner it still defines, with every
+    statement below that owner. A line in `gone` is not named twice.
     """
     import ast as _ast
+    from collections import Counter
     try:
-        new_tree = _ast.parse(text)
-        spans = _kept_spans(_ast.parse(chr(10).join(old_lines)), new_tree)
+        olds = _owned_statements(_ast.parse(chr(10).join(old_lines)), old_lines)
+        news = _owned_statements(_ast.parse(text), text.splitlines())
     except Exception:                                      # noqa: BLE001
         return note    # a note never refuses a write
-    # Each old definition is read against the new definitions of its name
-    # alone. A walk over the whole file read `ctx.exit()` as kept, because
-    # `custom_version_option` holds the same line.
-    new = text.splitlines()
-    mine: dict[str, list[str]] = {}
-    for n in new_tree.body:
-        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
-            lo = min([n.lineno] + [d.lineno for d in n.decorator_list]) - 1
-            mine.setdefault(n.name, []).extend(new[lo:n.end_lineno])
-    lost: list[tuple[int, str]] = []
-    for name, lo, hi in spans:
-        lost += [(i, h) for i, h in _lost_statements(
-                     old_lines, lo, hi, chr(10).join(mine.get(name, [])))
-                 if i not in gone and (i, h) not in lost]
-    gone.extend(i for i, _h in lost)
-    return _with_lost(note, sorted(lost))
+    owners = {o for o, _k, _a, _b in news} | {
+        n for n, _lo, _hi in _def_spans(text) or []} | {""}
+    mine = Counter((o, k) for o, k, _a, _b in news)
+
+    def held(owner: str, key: str) -> int:
+        if owner in owners:
+            return mine[(owner, key)]
+        while owner and owner not in owners:
+            owner = owner.rpartition(".")[0]
+        return sum(n for (o, k), n in mine.items() if k == key
+                   and (not owner or o == owner or o.startswith(owner + ".")))
+
+    seen = Counter((o, k) for o, k, _a, _b in olds)
+    short = {ok: n - held(*ok) for ok, n in seen.items() if held(*ok) < n}
+    lost: list[tuple[int, str, int]] = []
+    for o, k, a, b in olds:
+        if short.get((o, k), 0) > 0:
+            short[(o, k)] -= 1
+            # A statement inside a lost block is named by the block's line.
+            if not any(x < a <= y for x, _h, y in lost):
+                lost.append((a, old_lines[a].strip(), b))
+    out = [(i, h) for i, h, _e in lost if i not in gone]
+    gone.extend(i for i, _h in out)
+    return _with_lost(note, sorted(out))
 
 
 def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:

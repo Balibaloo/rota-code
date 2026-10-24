@@ -59,16 +59,16 @@ SCOPE = "ctx.exit() at line 550 was unreachable after echo() call, removed in wr
 MESSAGE = ("Fix show_python output format to include 'Python' prefix and "
            "restore ctx.exit()")
 
-ROUTE = ("A note does not allow a removal. Put the line back with code.write, "
+ROUTE = ("A note does not allow a removal or a rewrite. Put the line back with code.write, "
          "then commit in your next reply. Or send msg.escalate_architect and "
-         "name the removal.")
+         "name the change.")
 REFUSAL = ("src/click/decorators.py: this commit removes `ctx.exit()` at line "
            "550. No criterion, request or ruling of the principal names it. "
            + ROUTE)
 # Pass 2, review 1's finding 2: the first refusal and the ledger door give
 # the same route, and neither offers the ledger.
 FIRST = ("a code.write in an earlier reply returned a note, and the tree still "
-         "does not hold those lines. src/click/decorators.py: This write removes "
+         "does not hold those lines. src/click/decorators.py: This write removes or rewrites "
          "1 statement that your text does not hold: `ctx.exit()` at line 550. "
          + ROUTE)
 LEDGER = ("src/click/decorators.py holds an uncommitted write that removes "
@@ -141,7 +141,7 @@ def _replay(sb):
     finding 2, which is not this frame's door."""
     out = {}
     out[15] = _call(sb, "code.write", path=PATH, start=540, end=555, text=ECHO)
-    assert out[15]["dropped"] == ("This write removes 1 statement that your text "
+    assert out[15]["dropped"] == ("This write removes or rewrites 1 statement that your text "
                                   "does not hold: `ctx.exit()` at line 550.")
     sb.begin_reply()
     out[16] = _call(sb, "code.commit", message=MESSAGE)
@@ -305,7 +305,7 @@ def test_a_restored_row_with_the_line_gone_from_the_tree_is_refused(db, tmp_path
     gone = text.replace("        )\n        ctx.exit()\n", "        )\n", 1)
     assert gone != text
     sb = _restored_row(db, root, "ctx.exit()", "version_option.callback", gone,
-                       "This write removes 1 statement that your text does not "
+                       "This write removes or rewrites 1 statement that your text does not "
                        "hold: `ctx.exit()` at line 550.")
     head = _git(root, "rev-parse", "HEAD")
     with pytest.raises(ValueError) as err:
@@ -326,7 +326,7 @@ def test_an_edit_after_an_earlier_commit_removed_the_line_names_that_commit(db, 
     sha = _git(root, "rev-parse", "HEAD")[:8]
     sb = _restored_row(db, root, "ctx.exit()", "version_option.callback",
                        gone + "\n# kept\n",
-                       "This write removes 1 statement that your text does not "
+                       "This write removes or rewrites 1 statement that your text does not "
                        "hold: `ctx.exit()` at line 550.")
     with pytest.raises(ValueError) as err:
         sb.call("code.commit", message="micro")
@@ -506,9 +506,9 @@ def test_the_same_reply_refusal_says_its_fact_once_and_gives_the_route(db, tmp_p
     assert "You sent this commit" not in msg
     assert msg.count("you had not read it") == 1
     assert msg.endswith("If the tree holds those lines again, commit in your "
-                        "next reply. A note does not allow a removal. Put the "
+                        "next reply. A note does not allow a removal or a rewrite. Put the "
                         "lines back with code.write, then commit in your next "
                         "reply. Or send msg.escalate_architect and name the "
-                        "removal.")
+                        "change.")
 
 
