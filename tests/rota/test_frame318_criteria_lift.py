@@ -65,11 +65,27 @@ def test_a_respecify_keeps_the_developers_start_key_quarantined(db):
     assert _key(db, START) == (3, 1), "the second round stays too"
 
 
-def test_a_respecify_keeps_the_developers_verdict_failed_key(db):
+def test_a_respecify_lifts_the_developers_verdict_failed_key(db):
+    """Review 2, finding 1: the failed verdict stays at the head, so the
+    Critic never judges again. Night 160's s195 and s255 respecifies lifted
+    the key, and the Developer then committed at s197 and s258."""
     key = "developer|tick:verdict_failed|bg_2"
     _quarantine(db, key)
     _respecify(db)
-    assert _key(db, key) == (3, 1)
+    assert _key(db, key) is None
+
+
+def test_a_respecify_keeps_a_live_start_count(db):
+    """Review 2, finding 2: a reset count at 2 of 3 bought the same note
+    refusal two more ticks."""
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES (?, 2, 0, 0)", (START,))
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES ('critic|tick:review|bg_2', 2, 0, 0)")
+    db.commit()
+    _respecify(db)
+    assert _key(db, START) == (2, 0)
+    assert _key(db, "critic|tick:review|bg_2") is None, "the rest reset"
 
 
 def test_a_respecify_still_lifts_the_seats_that_read_the_criteria(db):

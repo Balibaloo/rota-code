@@ -665,12 +665,22 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                     if _row_move_reaches(key):
                         conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
                                      (key,))
-                _forget_batch_counts(conn, b)
+                # Review 2, finding 2: a reset count below the cap bought the
+                # same refusal more ticks, so the refused keys keep it too.
+                spared = tuple(r["tick_key"] for r in conn.execute(
+                    "SELECT tick_key FROM tick_attempts WHERE quarantined = 0 "
+                    "AND (tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ? "
+                    "OR tick_key LIKE ?)",
+                    (f"%|{b}", f"%|{b},%", f"%,{b}", f"%,{b},%"))
+                    if not _row_move_reaches(r["tick_key"]))
+                _forget_batch_counts(conn, b, keep=spared)
 
 
-# The Developer's ticks that wake on a red test. A criteria move retires or
-# re-encodes the criterion's tests, so it can move the red (frame 306).
-_RED_TICKS = ("tick:tests_failing", "tick:exhausted")
+# The Developer's ticks that a criteria move can free. A criteria move
+# retires or re-encodes the criterion's tests, so it can move the red (frame
+# 306). A held failed verdict stays at the head, and `review` cannot fire
+# again, so only this lift frees the batch (review 2, finding 1, night 160).
+_RED_TICKS = ("tick:tests_failing", "tick:exhausted", "tick:verdict_failed")
 
 
 def _row_move_reaches(key: str) -> bool:
@@ -678,7 +688,7 @@ def _row_move_reaches(key: str) -> bool:
     Whether a criteria or tests move can change the cause of a batch's key.
 
     The other seats read the criteria or the tests at their wake, so a move
-    can change their cause. The Developer's start, verdict and finding ticks
+    can change their cause. The Developer's start, finding and touch ticks
     meet the code tree and the note door, and a criteria move changes
     neither.
     """
