@@ -1,35 +1,61 @@
-# Frame 283, review 5 of f99988f5
+# Frame 283, review 5: pass 5 at 05fd6976
 
-Verdict: the commit stands. Review 4's F1 and F2 are fixed. Four low findings remain, and none blocks the night.
-
-## (a) Verdicts on the points
-
-1. F1 is fixed (observed: probes R5b and R5d). An unchanged old line no longer hides a dropped line, and a re-indented old line counts as old. The brief's extra shape still hides the loss (observed: probe R5a). See finding 1.
-2. F2 is fixed (observed: `r4_probe_close.py`, PATH-ONLY stays open). The "It drops" sentence fires on a tail note with one stored line, and the path alone does not close that note (observed: probe T3). A tail note with no stored line opens no note, so the sentence has nothing to show (observed: probe T5). A line with a backtick and a quote closes when the seat quotes it exactly (observed: probe T4). The display of that line is ambiguous. See finding 3.
-3. The s192 test sends the widened tuple through `code.write` (observed: the diff). It asserts that `RuntimeError` is in the file, that no note is open, and that a separate `code.commit` returns `committed` True. The commit is a second call, not part of the write reply. The test passes at 02ea9522 too (reasoned: `_changed_kept(..., before="")` is the old rule, and it returns False on this entry, observed). It is coverage of the call order, not a red-then-green test.
-4. s340 and s388 stay refused (observed: `test_s388s_commit_in_the_next_reply_with_no_write_is_refused`, `test_s340s_unchanged_write_sends_the_note_again_and_holds_the_commit`, `test_s340s_commit_in_the_reply_after_the_unchanged_write_is_refused`, 3 passed). The three files are green: `test_frame140_commit_beside_note.py` and `test_frame234_verdict_lines.py` 104 passed, `test_runner.py` 137 passed.
-5. The next night meets finding 2 first: the s192 reply still tells the seat that its changed `except` line is removed.
+**Verdict: not accepted.** The red case is fixed, and the four test files give 475 passed. The frame's mechanism is still not met. `_whole_lost` reads each kept top-level definition against one set of lines. So a line held anywhere else in the same definition hides the drop. This is the pass's own deviation 1, one level down. Read-only review on Opus, 2026-10-24, in `C:/Users/roman/rota_r283b` at 05fd6976.
 
 ## (b) Findings
 
-1. `rota/roles/api.py:16105-16125` `_changed_kept`, low, CONFIRMED (observed: probe R5a). The old text holds `self.conn.commit()` twice and the new text holds it once. A new unrelated line `log(self.conn, 'commit')` holds the three tokens, so the dropped copy opens no note. This is the subset rule's known risk, the same as review 4's `validate(user, token)` shape (observed: R5c). Fix: count a dropped line as kept only when the count of that stripped line in the new text plus the subset matches is at least its count in the old text, or accept the risk by ruling.
-2. `rota/roles/api.py:15494-15509` `_code_write`, low, CONFIRMED (observed: probe S192). When `_changed_kept` removes every stored line, `entry` is None but `tail_note` stays. The reply then carries `dropped`: "This write removes 1 statement that your text does not hold: `except (KeyboardInterrupt, EOFError):` at line 3." The seat reads a false fact about the line it widened. No note opens, so the commit door does not refuse. Fix: when `_changed_kept` left no line and no definition, drop `out["dropped"]` or say that the line is changed and kept.
-3. `rota/roles/api.py:15505-15506` "It drops" sentence, low, PLAUSIBLE (reasoned: probe T4 output). The sentence wraps the stored line in backticks without an escape. The line `return f'`{x}` "q"'` shows as `` `return f'`{x}` "q"'` ``. A seat can read the quote as `return f'` and quote that, which closes nothing. The quote character also needs a JSON escape in the `ledger.log` argument. A closure works only on the exact line (observed: T4 closes). Fix: choose the first stored line with no backtick for the sentence, or use a double-backtick fence when the line holds a backtick.
-4. Outside the points. `rota/roles/api.py:16191-16197` `_shown_lines` with `_says` at 16188, low, CONFIRMED (observed: probe LONG). A stored line longer than 60 characters shows cut, here `result = compute_the_long_value(alpha_parameter, beta_parame`. A seat that quotes the whole line does not close the note, because `_says` needs no word character after the cut text. The "It drops" sentence uses the same cut. Fix: in `_close_logged_notes`, accept the full stored line when the note shows its cut form.
+### High
+
+1. `rota/roles/api.py:21054-21080` `_whole_lost`, high, CONFIRMED (probe `r5/test_p5r.py`). The scope of the held set is the whole top-level definition, not the owner of the line. Three probes drop a statement, see no note, and the commit lands:
+   - `class_shared_line`: `return self.v` dropped from `Box.a`, and `Box.b` holds `return self.v`.
+   - `nested_inner_shared_with_outer`: `stop()` dropped from `f.inner`, and `f` holds `stop()`.
+   - `dup_inside_one_def`: one of two `go()` lines in `f` dropped.
+   Click's classes, such as `Context` and `Command`, repeat lines such as `return rv` across methods. Fix: for each old statement line, compare its count under its qualified owner in the old text and in the new text, as `_restored` does with `_def_spans` and `_def_lines`.
+2. `rota/roles/api.py:18279-18283`, the whole-file branch, high, CONFIRMED (probe `r5/test_p5r.py`). A statement outside every kept definition and below a kept top-level line opens no note. Three probes land the commit:
+   - `toplevel_if_block_nested`: `stop()` dropped inside a top-level `if sys.argv:` block. `_whole_drop` keeps the block on its header line.
+   - `def_inside_if_block`: `stop()` dropped inside `def h()` under a top-level `if`.
+   - `no_def_file_middle`: `stop()` dropped from a file with no definition. `_kept_spans` is empty, so `_whole_drop` and `_whole_lost` return nothing, and `_tail_drop` reads the tail only.
+   The gap is older than the pass. It still leaves the mechanism unmet. Fix: the owner-count walk of finding 1 over the whole file, with owner `""` for module-level lines, covers these too.
+
+### Low
+
+3. `rota/roles/api.py:18323-18328` with `_stored_note`, low, CONFIRMED (probe `moved_under_class`). A definition moved under a class stores `defs: ["f"]`, but the note text names only `go()` and `stop()`. The Developer cannot restore by putting those lines in `C.f`, because `_restored` needs a top-level `f`. The cause is older than the pass. Fix: name each dropped definition in the text that `_stored_note` builds.
+4. The note text for a changed line, low, CONFIRMED (probe `price_flow`). The note says "removes" and "Put the line back" for an edit of `return x` to `return x + 1`. The restore undoes the edit, so the escalation is the only route. Fix: say "changes or removes" when the owner holds a new line at the same place.
+
+## (a) The points
+
+1. Met. CONFIRMED by the new test file and by the full run. The first whole-file write that drops `ctx.exit()` in `version_option` gives one note, "`ctx.exit()` at line 550". `custom_version_option` still holds `ctx.exit()`. The next commit is refused with `FIRST`. The restore write gives a `restored` row. The restore test asserts only that the commit is not `True`, which is weak but correct.
+2. Probe results for each shape:
+   - A renamed definition (`f` to `g`): a note opens through `_whole_drop`, with 3 lines and `defs: ["f"]`. The commit is refused.
+   - A definition moved under a class: a note opens with `go()` and `stop()`, and the commit is refused. See finding 3.
+   - A nested function: a note opens for `stop()` under owner `f.inner`. If the outer body holds the same line, no note opens (finding 1).
+   - Two classes with method `m`: a note opens for `go()` under `A.m`. The scope by top-level name keeps `B.m` out.
+   - A method in a kept class: a distinct line opens a note under `Box.a`. A line that another method holds opens none (finding 1).
+   The `_base_held` exact-name finding of review 3 does not return. `_base_held` at 19399 reads the base lines under any owner, and the renamed and moved cases store and refuse.
+3. No double note. CONFIRMED (probe `span_after_whole`). A top-level and a nested drop give one note with `UNUSED = 1` and `stop()`, each once. A whole-file write that repeats the open note returns the same `dropped` text by the unchanged path and stages no new row. A later span write on the same path adds `go()` to the one entry, and no line repeats.
+4. The price holds, CONFIRMED. By the frame's words, a whole-file write is "whatever reply wrote it", so the same rule applies as for a span write. `return x` to `return x + 1` opens "This write removes 1 statement that your text does not hold: `return x` at line 2." The next commit is refused with "A note does not allow a removal. Put the line back with code.write, then commit in your next reply. Or send msg.escalate_architect and name the removal." The Developer keeps the edit only by the escalation. The recovery costs one reply for the refused commit, one reply for the escalation, one Architect turn and one reply for the commit, so three Developer replies and one Architect turn at the least. The pass counted zero such cases on nights 160 and 161.
+5. Confirmed. `_drop_note(old, 0, 2, new)` and `_whole_lost` on the test's text both give "This write removes 1 statement that your text does not hold: `return x` at line 1."
+6. `test_frame140_commit_beside_note.py`, `test_frame283_removal_on_ruling.py`, `test_frame283_whole_file_drop.py` and `test_desk_guards.py` give 475 passed. Those files hold all of the span and whole-file write tests that a grep for `_whole_drop`, `_tail_drop` and `_drop_note` finds. `tests/rota/test_shape_strays.py` does not exist at 05fd6976. The probe file gives 14 passed, because the probe prints its results and asserts nothing.
 
 ## (c) Probes
 
-All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/d7c5dc6d-485b-4232-840c-a248ec516e0f/scratchpad/f283/`. All ran from `C:/Users/roman/rota_r283` at f99988f5.
-
-- `r4_probe_subset.py`: the same five results as review 4, because the probe passes no `before`. Three shapes stay hidden, and they are genuine changed-line shapes with an empty old text.
-- `r4_probe_close.py`, run under pytest: PARROT closes, DEF-UNNAMED closes (ruled in review 4's F3), PATH-ONLY stays open.
-- `r5_probe_subset.py`: R5a hidden, R5b opens, R5c hidden, R5d opens.
-- `r5_probe_tail.py`, under pytest: S192 reply text, span notes ONE, TICK, CMT, CM2, MANY, and LONG with the full-line quote that stays open.
-- `r5_probe_whole.py`, under pytest: whole-file tail notes T1 and T2. The note's `from` line is shown, so no "It drops" sentence fires.
-- `r5_probe_itdrops.py`, under pytest: T3, T4 and T5, where a changed line removes the first tail line. T3 and T4 add "It drops", T5 opens no note.
-- A `python -c` call: `_changed_kept` on the s192 entry with `before=""` returns False.
-- pytest on the three test files, and `-k "s340 or s388"`.
+- `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/f33f3f44-c058-42c9-90d1-bfcf8f3dafaa/scratchpad/r5/test_p5r.py`: 14 cases through the Developer sandbox, `code.write` then `code.commit`, on a small two-commit worktree. Run from the worktree root with pytest `-s`.
+- `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/f33f3f44-c058-42c9-90d1-bfcf8f3dafaa/scratchpad/r5/p5_span.py`: `_drop_note` against `_whole_lost` on the desk guard's text.
+- The four test files with pytest, from the worktree root.
 
 ## (d) Usage
 
-Input about 48k tokens, output about 9k tokens, total about 57k (estimate from this session's context; the harness line holds the true count).
+About 50k input tokens, 10k output tokens, 60k in total. These are estimates from the context.
+
+## Pass 5b re-probe
+
+Read-only re-probe on Opus, 2026-10-24, of 3a1f8112, on a `git archive` copy in `scratchpad/r5/at3a1`.
+
+**Verdict: accepted.** The 14 probe cases each give a note and a refused commit. The four test files give 483 passed.
+
+- High 1, fixed. CONFIRMED: `class_shared_line` names `return self.v` under `Box.a`. `nested_inner_shared_with_outer` names `stop()` under `f.inner`. `dup_inside_one_def` names `go()` with count 2. Each commit is refused.
+- High 2, fixed. CONFIRMED: the top-level `if` block names `stop()` under owner `""`. The def under the `if` names `stop()` under `h`. The file with no definition names `stop()` under `""`. Each commit is refused.
+- Low 3, fixed. CONFIRMED: `moved_under_class` now adds "The file no longer defines `f` by that name. The note closes when it does again."
+- Low 4, fixed in part. The note for `return x` to `return x + 1` is now "This write removes or rewrites 1 statement that your text does not hold: `return x` at line 2." The refusal is "A note does not allow a removal or a rewrite. Put the line back with code.write, then commit in your next reply. Or send msg.escalate_architect and name the change." The text still sends an edit to "Put the line back", which undoes the edit.
+- The route still exists. `msg.escalate_architect` is in the Developer's `tests_failing` tools. "Name the change" asks for an escalation message, not a ledger note, so it does not point at the close that pass 2 removed. The recovery cost of point 4 stays the same: three Developer replies and one Architect turn at the least.
+- Tests: the four files give 483 passed at 3a1f8112. `tests/rota/test_shape_strays.py` is still absent.
