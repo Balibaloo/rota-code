@@ -175,3 +175,26 @@ Read-only review on Opus, 2026-10-24, of 237d4fb6 on a `git archive` copy in `sc
 5. The three pass 2 files, the five `render_state` files, `test_frame307_night_counters.py`, `test_nightreport.py`, `test_frame309_test_run_journal.py` and `test_verdict_lines.py` give 658 passed and 1 skipped.
 
 Outside: the notice drops `mistake` rows because "a mistake row names a change taken out". L2 shows that a `mistake` can merge after any later commit. Such a change then shows nowhere. The fix for L2 also closes this gap.
+
+## The case, review
+
+Read-only review on Opus, 2026-10-24, of 3c0a2310 and 97fbdcac in `C:/Users/roman/rota_r306c`. Probes: `scratchpad/r3/p10_n162.py` runs on a copy of `.rota/clickI_night162.db` with shared clones of clickI at 8717098b, the tree, and 6c2d0b5, the root. `scratchpad/r3/p11_yield.py` runs on a two-commit repository.
+
+**Verdict: not accepted as is. One high is in the case, and one high outside it turns `test_shape_strays.py` red.**
+
+1. Both doors refuse night 162's shapes. CONFIRMED: s247's six lines, replayed from its completion, are refused on `criteria/c1_confirm_default_on_eof`. s239's `foreseen` is refused. Before the replay, the copy loses s247's verdict and s239's rows.
+2. The yields:
+   - A changelog line under a criterion that names "the changelog" passes. `CHANGES.rst` at the top directory can be judged foreseen.
+   - A new helper `pkg/helper.py` in a new directory can be judged foreseen.
+   - A test line passes, per `test_a_test_line_passes`.
+   - A new `docs/x.rst` can be judged foreseen only when `docs/` held a file at the base. Click's base holds `docs/`. A repository with no `docs/` gets a refusal (low B).
+3. "Holds no code" means that the index holds no `rel::` symbol and that the file is not a `.py` or `.pyi` file whose parse has one statement or more. A `.py` file that fails to parse counts as code, a docstring-only file counts as code, and a file that cannot be read counts as code. An empty `.py` file counts as no code (high A).
+4. Both refusal texts name the file. The Critic's text names the code lines and the fail route, `verdicts.claim_encodes`, which `review` mode holds. The Architect's text offers `batches.judge_touch(... mistakes=[...])`, which `touch_strayed` mode holds. That offer is the only route, and high A shows where it is wrong.
+5. The six files, the new file, `test_shape_strays.py`, `test_touch_divergence.py` and the three verdict files, give 3 failed, 230 passed and 5 xfailed. The 3 reds are all in `test_shape_strays.py`, and they are not from the case (high B).
+
+Findings:
+
+- **High A. An empty `__init__.py` of a new package cannot be judged foreseen.** `rota/roles/api.py` `_holds_code`, `bool(_ast.parse(text).body)`. CONFIRMED: `pkg/__init__.py` gives `holds_code=False new_dir=True`, so `foreseen` is refused. `pkg/helper.py` beside it is admitted. The Architect then can only judge it a mistake, and the Developer takes out the file that makes the package. Fix: admit a no-code file when a file in the same new directory holds code, or count every `.py` file as code.
+- **High B (outside the case, frame 283). 6fbb3559 turns three tests of `test_shape_strays.py` red.** CONFIRMED on `git archive` copies: d272edbd gives 15 passed, 6fbb3559 and c49fcf7c give 3 failed and 12 passed. The new whole-file note reads the widening `foo(x)` to `foo(x, y)` as "removes or rewrites 1 statement". The note door then refuses the commit in that reply. A whole-file write that edits one statement now holds the commit for one reply. The pass report calls these reds pre-existing, but they are new since frame 283's pass on 2026-10-24. Fix: let `_lost_statements` in the whole-file branch leave out a line that an added line widens, by `_is_widening`, or rule that a rewrite opens a note and fix the three tests.
+- **Low A. "help text" yields on a criterion about behaviour.** `_ASKS_FOR_NOTES`, substring match. CONFIRMED: "The --help text lists the --show-python flag" yields. In click, help output is behaviour, so a criteria file that restates such a criterion passes as evidence. Fix: drop "help text", or yield only for a line in a file that the criterion's surface names.
+- **Low B. A no-code file in a new directory is refused for every format.** CONFIRMED: `docs/x.rst` with no base `docs/`, `pkg/data.json` and `conf/settings.toml` are refused. A Python package with new data or config files gets a false mistake. Fix: the same as high A, or narrow the refusal to the file kind of the night 162 case, a file with no extension at the top of a new directory.
