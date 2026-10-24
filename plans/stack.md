@@ -14,6 +14,59 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 17, recommended on night 160's read, 2026-10-24 01:10
+
+Night 160 ended sprint 16 of 2026-10-23 17:51, because it was that
+sprint's night. The night ran cold from 695e8be7, 20:11 to 21:44: 314
+sessions, 370 steps, 27 asks, 3 batches, 0 merged, against 1 of 4 on
+night 159 (observed: `plans/night160-read.md`, section 0). Walk 3 ended
+when Ollama's desktop app shut itself down at 21:42 after an update
+download, an operating fact and not a wall. The test loop moved: frame
+304's door fired once and right, frame 308 is met on night 1 with 0
+partial answers of 8 and 12 right fires, frame 283's door fired 9 times
+and right, frame 305 is met on its counts, frame 309 is met. Frames 297
+and 301 close their three nights at 0. Frame 201 is not met on night 3,
+because no pass landed to count (observed: the read, section 1). Both
+deaths moved to the review: W1, the Critic's lines check refused 30
+docstring lines on a docstring criterion and named a phantom key on a
+quoted line, about 32 sessions and 5 asks, cause 8 and cause 9; W2,
+bg_2's criteria held his notes about the checks and the head docstring
+met his words and still failed, about 18 sessions and 6 asks, cause 1
+with cause 10 as the mechanism; W3, a `revise` on line 1 cancelled bg_3,
+which he wanted built, 1 ask (observed: the read, section 2). Night 161
+is held on the review: a right diff gets a verdict, and a criterion
+keeps behaviour and not his notes about a check (reasoned: the read,
+section 5). The order below is the next sprint (reasoned: the read,
+section 5, with rows 1 and 5 already in build at 01:10; ruled: Roman,
+2026-10-16 22:33, so the session starts row 1 at once). The branch head
+holds frame 308's passes 3 to 3d at 6413e4ee, and the gate on it runs.
+
+1. Frame 311, the Critic's lines check, 3 cycles: pass 1, ruled by Roman
+   at 01:05, a docstring line counts when the criterion asks for one, in
+   build; then the provenance of the quote requirement, 1 cycle, and the
+   line-by-number route so no seat copies quotes, with s148's fragment
+   key as the red test, 2 cycles. Frame 266's case moves here.
+2. Frame 306's provenance, 1 cycle, then its route, 2 to 3 cycles: a note
+   about a check goes to the Tester, and `criteria.respecify` refuses a
+   text that names a page line or a check; s195 and s255 as the red tests.
+3. Frame 305, a case, 1 cycle: the reader reads `revise` on line 1 as it
+   reads `contest`, with r_b517f1bc53 as the red test and s169's approve
+   read first.
+4. A new frame under cause 11, 1 cycle: the page names a review that
+   landed no verdict, with m45 and m53 as the cases. Pushed after three
+   closes, 309, 297 and 301.
+5. Frame 257's door, 2 cycles, in build: a second specify of one id on
+   one ticket is refused; its commit lands before frame 311's.
+6. An interview of s250's docstring edit, 1 cycle, before any door
+   change.
+7. Frame 201's hold, 1 cycle for the decision, after row 1, because the
+   lines check hides the hold in 19 of 20 sessions.
+8. Night 161 from the gated head, cold, held on the review: frames 302,
+   303, 304, 308, 272 and 283 on their night 2, frames 305 and 306 after
+   their rows, frame 201's hold, and frames 257 and 311 on their night 1.
+   Before the launch, check that Ollama runs and that its app holds no
+   downloaded update.
+
 ## Sprint 16, recommended on night 159's read, 2026-10-23 17:51
 
 Night 159 ended sprint 15 of 2026-10-21 16:23, because it was that
