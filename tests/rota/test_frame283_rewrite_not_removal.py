@@ -52,15 +52,14 @@ def test_a_span_write_that_rewrites_a_bare_return_opens_no_note(db, tmp_path):
 
 
 def test_a_span_write_that_removes_one_statement_and_rewrites_another(db, tmp_path):
-    """The `Expr` count under `show_version` falls by one, so the note
-    opens and names `ctx.exit()`. A fallen count keeps today's note whole,
-    so the note names the rewritten `return` too."""
+    """`ctx.exit()` has no new statement at its place under `show_version`,
+    so the note opens and names it. `return False` sits at the place of
+    `return` and holds its token, so the note does not name `return`."""
     sb, _root = _developer(db, tmp_path)
     out = sb.call("code.write", path=PATH, start=592, end=597,
                   text=REWRITE + "\n\n        echo(callback(ctx), color=ctx.color)")
-    assert out["dropped"] == ("This write removes or rewrites 2 statements that "
-                              "your text does not hold: `return` at line 593, "
-                              "`ctx.exit()` at line 596.")
+    assert out["dropped"] == ("This write removes or rewrites 1 statement that "
+                              "your text does not hold: `ctx.exit()` at line 596.")
     assert PATH in api._open_notes(sb.ctx)
 
 
@@ -89,3 +88,53 @@ def test_the_refusal_in_tests_failing_keeps_the_escalation(db, tmp_path):
     with pytest.raises(ValueError) as err:
         sb.call("code.commit", message=MESSAGE)
     assert KEEP in str(err.value)
+
+
+def test_the_refusal_after_an_escalation_this_session_names_no_escalation(db, tmp_path):
+    """Review 8, finding 3: the duplicate guard of `_escalation_admitted`
+    refuses a second escalation in one session, whatever its refs. So the
+    route names the write route alone, as in `batch_start`."""
+    sb, _root = _developer(db, tmp_path)
+    sb.call("msg.escalate_architect", refs=["cr_3"])
+    sb.begin_reply()
+    assert "dropped" in sb.call("code.write", path=PATH, start=540, end=555, text=ECHO)
+    sb.begin_reply()
+    with pytest.raises(ValueError) as err:
+        sb.call("code.commit", message=MESSAGE)
+    msg = str(err.value)
+    assert "msg.escalate_architect" not in msg
+    assert msg.endswith("put the line back with code.write, then commit in "
+                        "your next reply.")
+
+
+# Review 8's probe file: two owners, nine lines, in code.write numbering.
+SMALL = ["def clear(self, x):",
+         "    if x:",
+         "        self.log(x)",
+         "    validate(x)",
+         "    return",
+         "",
+         "def other(x):",
+         "    go(x)",
+         "    return x"]
+
+
+@pytest.mark.parametrize("start,stop,new,named", [
+    # E0, s221's shape: the new statement at the same place holds `return`.
+    (4, 5, ["    return False"], None),
+    # E4: `print(x)` at the same place does not hold `validate`.
+    (3, 4, ["    print(x)"], "`validate(x)` at line 3"),
+    # E5: a second `self.log(x)` takes the place of `validate(x)`.
+    (2, 4, ["        self.log(x)", "        self.log(x)"], "`validate(x)` at line 3"),
+    # E6: `pass` is no statement the walk counts, so `return` is dropped.
+    (4, 5, ["    pass"], "`return` at line 4"),
+])
+def test_a_rewrite_is_paired_by_its_place_under_the_owner(start, stop, new, named):
+    """Pass 8b, review 8's finding 1: a held count of a kind let
+    `validate(x)` go with no note. A dropped statement is a rewrite only
+    when the new statement at its place under its owner holds its tokens."""
+    note = api._drop_note(SMALL, start, stop, chr(10).join(new), lines_out=[])
+    if named is None:
+        assert note is None
+    else:
+        assert named in note

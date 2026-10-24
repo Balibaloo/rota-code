@@ -254,11 +254,12 @@ def test_the_refused_commit_names_both_routes_for_a_rewrite(db, tmp_path):
     wanted edit, so the refusal says how to undo it and how to keep it.
     Pass 6: the whole-file branch admits a same-kind rewrite, and the span
     branch keeps its line-key rule. So a span write carries the rewrite.
-    Pass 8: the span branch admits a same-kind rewrite too. So the span
-    write puts a call where the `return` was, and the `Return` count falls."""
+    Pass 8b: the span branch admits a rewrite whose new statement at the
+    same place holds the old tokens. `print(x)` at the place of `return x`
+    does not hold `return`, so the rewrite still opens a note."""
     old = _l("def keep(x):", "    y = x", "    return x")
     sb, _root = _small(db, tmp_path, old)
-    out = _call(sb, "code.write", path=PATH, text="    print(x + 1)" + NL, start=2, end=3)
+    out = _call(sb, "code.write", path=PATH, text="    print(x)" + NL, start=2, end=3)
     assert _quote_in("return x", out["dropped"])
     sb.begin_reply()
     got = _call(sb, "code.commit", message=MESSAGE)["refused"]

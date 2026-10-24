@@ -21475,7 +21475,8 @@ def _drop_note(old_lines: list[str], start: int, stop: int, text: str,
             if i not in gone]
     # Frame 283 pass 8: a rewrite is not a removal. s221 wrote `return
     # False` over `return` under `clear`, and the note blocked every commit.
-    # The span branch now runs the kind count of the whole-file branch.
+    # Pass 8b: a statement is a rewrite when the new statement at its place
+    # under its owner holds its tokens (review 8, finding 1).
     new = text.splitlines() if text.strip() else []
     kept = _rewritten_heads(old_lines, chr(10).join(
         old_lines[:start] + new + old_lines[stop:]))
@@ -21580,19 +21581,36 @@ def _whole_lost(old_lines: list[str], text: str, note: str | None,
 
 
 def _rewritten_heads(old_lines: list[str], text: str) -> set[int]:
-    """The first lines of the old statements, when `text` holds the count
-    of every AST kind under every owner. Then each changed statement is a
-    rewrite in place. An empty set when a count falls or a text does not
-    parse, so the note keeps today's lines."""
-    counted = _kind_shortfall(old_lines, text)
-    if counted is None:
+    """The first lines of the old statements that `text` rewrites in
+    place. The new statement at the same index of the same owner's
+    statements holds every token of the old statement's first line. An
+    empty set when either text does not parse, so the note keeps today's
+    lines.
+
+    Pass 8b, review 8's finding 1: a held count of a kind let `validate(x)`
+    become `print(x)` with no note. The place and the tokens decide, with
+    no token floor. A statement that moves to another owner keeps today's
+    rule (finding 2, older than pass 8)."""
+    import ast as _ast
+    from collections import defaultdict
+    try:
+        olds = _owned_statements(_ast.parse(chr(10).join(old_lines)), old_lines)
+        new_lines = text.splitlines()
+        news = _owned_statements(_ast.parse(text), new_lines)
+    except Exception:                                      # noqa: BLE001
         return set()
-    olds, kinds, _keys = counted
-    # The brief of pass 8: a write that lowers one count keeps today's
-    # note whole. The tests of s340, s386 and s388 pin that note's words.
-    if any(n > 0 for n in kinds.values()):
-        return set()
-    return {a for _o, _k, a, _b, _t in olds}
+    placed: dict = defaultdict(list)
+    for o, _k, a, _b, _t in news:
+        placed[o].append(set(re.findall(r"\w+", new_lines[a])))
+    seen: dict = defaultdict(int)
+    out: set[int] = set()
+    for o, _k, a, _b, _t in olds:
+        at = seen[o]
+        seen[o] += 1
+        toks = set(re.findall(r"\w+", old_lines[a]))
+        if toks and at < len(placed[o]) and toks <= placed[o][at]:
+            out.add(a)
+    return out
 
 
 def _kind_shortfall(old_lines: list[str], text: str):
