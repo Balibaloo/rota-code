@@ -6372,8 +6372,9 @@ def tests_retire(ctx: Ctx, id: str) -> dict:
     if not found or id not in found[1]:
         raise ValueError(
             f"this wake does not carry his ruling {ruled['id']} on {id}. Only "
-            f"the wake that carries the ruling that drops its line retires a "
-            f"test")
+            f"the Tester's answer wake whose chain carries the ruling that "
+            f"drops its line retires a test: the relay to the Terminologist, "
+            f"then its answer to the Tester")
     # No version move: the test's words did not change, and a version move
     # would read as a new encode.
     ctx.writes.append(("tests", id, {"retired_by": ruled["id"]}, False))
@@ -7422,7 +7423,11 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
         raise ValueError(
             "contradicts_request needs two spans. Copy request_span= from the "
             "request's words. Copy criterion_span= from the criterion.")
-    done = ctx.conn.execute("SELECT id FROM tests WHERE criterion_id = ?",
+    # A test he retired encodes nothing (frame 306, W-A, review medium 2).
+    from ..core.scheduler import live_tests
+
+    done = ctx.conn.execute("SELECT id FROM tests WHERE criterion_id = ?"
+                            + live_tests(ctx.conn, "id"),
                             (criterion_id,)).fetchone()
     crit_text = (ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
                                   (criterion_id,)).fetchone()["text"] or "")

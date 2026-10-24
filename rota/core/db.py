@@ -748,9 +748,13 @@ def red_before(conn: sqlite3.Connection, batch_id: str) -> dict[str, str]:
     The newest run per test is the run at this head when one exists, and
     the run at the commit before otherwise.
     """
+    from .scheduler import live_tests
+
+    # A test he retired holds no red (frame 306, W-A, review low 2).
     return _red_of(conn.execute(
         "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
-        "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? GROUP BY test_id)",
+        "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? GROUP BY test_id)"
+        + live_tests(conn, "test_id"),
         (batch_id,)))
 
 

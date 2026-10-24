@@ -820,8 +820,10 @@ def tests_missing(conn) -> list[Wake]:
     # abandoned with three tests, and bg_3 took its criteria. Those tests
     # satisfied the NOT EXISTS, so this predicate gave no wake. bg_3 merged
     # with no test of its own (frame 239).
-    # A retired criterion owes no test either (frame 306, pass 1b).
-    from .scheduler import live_criteria, not_retired
+    # A retired criterion owes no test either (frame 306, pass 1b). A test he
+    # retired encodes nothing, so its criterion owes a test again (frame 306,
+    # W-A, review medium 2).
+    from .scheduler import live_criteria, live_tests, not_retired
     rows = conn.execute(
         "SELECT bt.batch_id AS bid, c.id AS cid FROM batch_tickets bt "
         "JOIN batches b ON b.id = bt.batch_id "
@@ -829,7 +831,8 @@ def tests_missing(conn) -> list[Wake]:
         "WHERE b.status = 'running' "
         "  AND b.head_commit IS NOT NULL AND b.head_commit != '' "
         "  AND NOT EXISTS (SELECT 1 FROM tests t WHERE t.criterion_id = c.id "
-        "                  AND t.batch_id = bt.batch_id) "
+        "                  AND t.batch_id = bt.batch_id" + live_tests(conn, "t.id")
+        + ") "
         "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'tester' "
         "                  AND m.verb = 'question' AND m.status IN ('open', 'unresolved') "
         "                  AND m.body_refs LIKE '%\"' || c.id || '\"%') "

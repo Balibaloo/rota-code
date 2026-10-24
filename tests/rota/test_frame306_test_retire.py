@@ -157,3 +157,36 @@ def test_only_the_tester_retires_a_test(db):
     sb.ctx.trigger = "m122"
     with pytest.raises(Exception, match="not in terminologist's working set"):
         sb.call("tests.retire", id=RED)
+
+
+def _missing(conn):
+    from rota.core.predicates import tests_missing
+
+    return [w.detail for w in tests_missing(conn) if w.refs == ("bg_1",)]
+
+
+def test_a_criterion_whose_only_test_he_retired_owes_a_test_again(db):
+    """Review medium 2: a retired test encodes nothing."""
+    db.execute("DELETE FROM test_runs WHERE test_id = ?", (GREEN,))
+    db.execute("DELETE FROM tests WHERE id = ?", (GREEN,))
+    db.commit()
+    assert _missing(db) == []
+    db.execute("UPDATE tests SET retired_by = 'r_m121' WHERE id = ?", (RED,))
+    db.commit()
+    assert _missing(db) == [f"without a test: {CRIT}"]
+
+
+def test_one_live_test_left_owes_no_test(db):
+    db.execute("UPDATE tests SET retired_by = 'r_m121' WHERE id = ?", (RED,))
+    db.commit()
+    assert _missing(db) == []
+
+
+def test_a_retired_tests_old_red_is_no_red_before(db):
+    """Review low 2."""
+    from rota.core.db import red_before
+
+    assert RED in red_before(db, "bg_1")
+    db.execute("UPDATE tests SET retired_by = 'r_m121' WHERE id = ?", (RED,))
+    db.commit()
+    assert RED not in red_before(db, "bg_1")
