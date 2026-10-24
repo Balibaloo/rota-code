@@ -991,6 +991,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 21, row 3 (reasoned: night 164's read, section 5).
 - Pointer: `plans/frame321-provenance.md`, the verdict and sections 4 and 5; `plans/night164-read.md`, section 2, W-A1.
 - Status 2026-10-24 23:34 (rota-80): pushed from the provenance read, by the rule of 2026-10-18, with frame 257 closed and frame 303 parked in the same commit. The provenance ran on Opus, about 115k on the harness line against 80k, the count over 65 databases took the extra. Meta workflow.
+- Status 2026-10-24 23:36 (rota-80): **Pass 1 runs on a fresh implementer on Opus, cap 60k, from `f321_brief.md` in this session's scratchpad, in a new worktree `rota_p321` at 7b8a5f27**: candidates P and D of the provenance in one door, prose words only through one helper the encode door and the triage wall share, and a PRINTS word in a sentence about a docstring, a help text or documentation does not count; red tests cr_1 v2 with s210's test from night 164's database, and an identifier-piece criterion of the sample; the September cases kept. Rota workflow.
 
 ### 320. A fresh request whose Liaison session lands nothing is marked answered, so the request stops and the walk reads quiet (2026-10-24) (a0790d20) (48122667)
 
