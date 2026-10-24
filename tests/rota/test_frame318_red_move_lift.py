@@ -3,10 +3,11 @@ Frame 318, W-B of night 164: a tests move lifts `tests_failing` only when
 the failing test moves.
 
 Night 164, bg_2: `developer|tick:tests_failing|bg_2` was quarantined four
-times. Three lifts restarted the same round. s228 and s244 added a passing
-test, and s252 re-encoded a passing test. The failing test
-`tst_format_filename_shorten_example` never changed. Inside round 2, s229's
-commit 63c65435 grew the red from 1 to 5, and the harness reset the key.
+times. s244 added a passing test, and s252 re-encoded a passing test. The
+failing test `tst_format_filename_shorten_example` never changed. s228's new
+test was red at attempt 5. Its move keeps the key, and the harness run at
+the same head lifts it (pass 3b). Inside round 2, s229's commit 63c65435
+cured one red and broke four, and the harness reset the key (review 3).
 """
 from __future__ import annotations
 
@@ -178,3 +179,53 @@ def test_the_same_red_at_the_same_head_keeps_the_quarantine(db):
     _runs(db, "h1", {RED: SAME, "tst_plain": None})
     assert lift_on_red_move(db, "bg_2", "h1", before, same_head=True) is False
     assert _key(db) == (3, 1)
+
+
+def test_a_head_that_cures_one_red_and_breaks_four_keeps_the_quarantine(db):
+    """s229's shape, review 3 high 1: the red went from {shorten,
+    docstring_example} to {shorten and four inherited tests}."""
+    _grow(db, 5)
+    _runs(db, "h1", {"tst_g4": SAME})
+    _quarantine(db)
+    before = red_before(db, "bg_2")
+    assert set(before) == {RED, "tst_g4"}
+    _runs(db, "63c6543", {RED: SAME, "tst_g4": None,
+                          **{f"tst_g{i}": SAME for i in range(4)}})
+    assert lift_on_red_move(db, "bg_2", "63c6543", before) is False
+    assert _key(db) == (3, 1), "the head broke four tests"
+
+
+def test_a_head_that_cures_one_of_two_reds_and_breaks_none_lifts(db):
+    _grow(db, 1)
+    _runs(db, "h1", {"tst_g0": SAME})
+    _quarantine(db)
+    before = red_before(db, "bg_2")
+    _runs(db, "h2", {RED: SAME, "tst_g0": None, "tst_plain": None})
+    assert lift_on_red_move(db, "bg_2", "h2", before) is True
+    assert _key(db) is None
+
+
+def test_runs_after_a_retire_of_the_red_criterion_lift_nothing(db):
+    """Review 3, high 3: the retired red test left each run's red set, so
+    every run after the retire lifted the key."""
+    _session(db, "terminologist", Write("criteria", "c_shorten",
+                                        {"retired_by": "r1"}, op="update"))
+    _quarantine(db)
+    lifts = 0
+    for sha in ("h2", "h3", "h4"):
+        before = red_before(db, "bg_2")
+        _runs(db, sha, {RED: SAME, "tst_plain": None})
+        lifts += lift_on_red_move(db, "bg_2", sha, before)
+    assert lifts == 0
+    assert _key(db) == (3, 1)
+
+
+def test_a_no_worktree_error_row_is_no_run_before(db):
+    """Review 3, low: the error rows ran no code, so the red before is the
+    last real run."""
+    from rota.core.db import NO_WORKTREE
+
+    _runs(db, "h1", {"tst_plain": f"{NO_WORKTREE}'x'; nothing can run."})
+    db.execute("UPDATE test_runs SET result = 'error' WHERE output LIKE ?",
+               (f"{NO_WORKTREE}%",))
+    assert set(red_before(db, "bg_2")) == {RED}

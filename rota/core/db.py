@@ -700,7 +700,8 @@ def _moves_red(conn: sqlite3.Connection, w) -> dict[str, bool]:
     moved: dict[str, set[str]] = {}
     for r in rows:
         moved.setdefault(r["batch_id"], set()).add(r["test_id"])
-    return {b: bool(tests & set(red_before(conn, b)))
+    # The retire is applied already, so the red is read with retired tests in.
+    return {b: bool(tests & set(red_before(conn, b, live=False)))
             for b, tests in moved.items() if b}
 
 
@@ -772,20 +773,32 @@ def _red_of(rows) -> dict[str, str]:
             if r["result"] in ("fail", "error")}
 
 
-def red_before(conn: sqlite3.Connection, batch_id: str) -> dict[str, str]:
+# The output of the error row that the harness records when no worktree
+# exists. No code ran, so the row is no red and no run at its head.
+NO_WORKTREE = "the batch has no worktree at "
+
+
+def _real_run() -> str:
+    return f" AND output NOT LIKE '{NO_WORKTREE}%'"
+
+
+def red_before(conn: sqlite3.Connection, batch_id: str,
+               live: bool = True) -> dict[str, str]:
     """
     The batch's red before a harness run, as test id to first error line.
     The newest run per test is the run at this head when one exists, and
-    the run at the commit before otherwise.
+    the run at the commit before otherwise. With `live`, a test of a
+    retired criterion is in no red set.
     """
+    # Frame 318, review 3, high 3: after a retire, the retired red test left
+    # each run's red set, and every run lifted `tests_failing`.
     from .scheduler import live_tests
 
-    # A test he retired holds no red (frame 306, W-A, review low 2).
+    alive = live_tests(conn, "test_id") if live else ""
     return _red_of(conn.execute(
         "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
-        "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? GROUP BY test_id)"
-        + live_tests(conn, "test_id"),
-        (batch_id,)))
+        f"(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ?{_real_run()}"
+        f"{alive} GROUP BY test_id)", (batch_id,)))
 
 
 def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
@@ -795,30 +808,35 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
     Reset the batch's `tests_failing` key when the red moved at `head`.
 
     The harness reads `before` with `red_before` and calls this after it
-    records its runs. The red moved when a red test of `before` passes,
-    leaves the failing set, or raises another first error line. A red that
-    only grows or stays the same did not move. At an unchanged head
-    (`same_head`), a test that is red now and was not red before is a new
-    cause. The key remembers nothing: the last red is in `test_runs`.
+    records its runs. With no new red test, the red moved when a red test
+    of `before` passes or raises another first error line. At an unchanged
+    head (`same_head`), a new red test is a new cause, and the key lifts.
+    After a new head, a new red test is the Developer's own breakage, and
+    the key stays. The key remembers nothing: the last red is in
+    `test_runs`. A test of a retired criterion is in neither red set.
     """
     # Frame 318, night 162: s315's docstring commit wiped the quarantine on
     # the same red. Law 6's attempt cap still bounds a red that moves.
+    from .scheduler import live_tests
+
     now = _red_of(conn.execute(
         "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
         "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "AND commit_sha = ? GROUP BY test_id)", (batch_id, head)))
-    # Night 164: s229's commit 63c65435 grew the red from 1 to 5, and the
-    # reset bought the same red more ticks (W-B).
-    if before.items() <= now.items():
-        # Pass 3b: at one head the growth is not the Developer's commit. It
-        # is a new red test from the Tester, so the Developer has a new cause.
-        if not (same_head and now.keys() - before.keys()):
+        f"AND commit_sha = ?{live_tests(conn, 'test_id')} GROUP BY test_id)",
+        (batch_id, head)))
+    if now.keys() - before.keys():
+        # Night 164: s229's commit 63c65435 cured one red and broke four, and
+        # the cure reset the key (review 3, high 1). Pass 3b: at one head the
+        # new red is the Tester's new test, so the Developer has a new cause.
+        if not same_head:
             return False
         conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ? "
                      "OR tick_key LIKE ?",
                      (f"%|tick:tests_failing|{batch_id}",
                       f"%|tick:exhausted|{batch_id}"))
         return True
+    if before.items() <= now.items():
+        return False
     conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
                  (f"%|tick:tests_failing|{batch_id}",))
     return True

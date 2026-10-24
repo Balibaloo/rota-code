@@ -165,10 +165,13 @@ def run(conn: sqlite3.Connection, batch_id: str,
 
     before = red_before(conn, batch_id)
     # A run at this head already exists, so a new red is a new test, not a
-    # new commit (frame 318, pass 3b).
+    # new commit (frame 318, pass 3b). A no-worktree error row ran no code,
+    # so it is no run at this head (review 3, low).
+    from .db import NO_WORKTREE
+
     same_head = conn.execute(
-        "SELECT 1 FROM test_runs WHERE batch_id = ? AND commit_sha IS ?",
-        (batch_id, head)).fetchone() is not None
+        "SELECT 1 FROM test_runs WHERE batch_id = ? AND commit_sha IS ? "
+        "AND output NOT LIKE ?", (batch_id, head, f"{NO_WORKTREE}%")).fetchone() is not None
     # A run supersedes the run before it at the same commit: the tests may
     # have changed under it (walk eighteen), and the `review` gate reads
     # "no non-pass run at this commit", which stale fail rows kept false

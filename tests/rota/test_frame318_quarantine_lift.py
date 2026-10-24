@@ -97,12 +97,14 @@ def test_a_commit_that_turns_the_red_test_green_lifts_the_key(db, monkeypatch):
     assert _key(db) is None, "the red test passes at the new head"
 
 
-def test_a_commit_after_which_another_test_fails_lifts_the_key(db, monkeypatch):
+def test_a_commit_after_which_another_test_fails_keeps_the_key(db, monkeypatch):
+    """Review 3, high 1: a head that adds a new red is the Developer's own
+    breakage, even when it cures the old red."""
     _run(db, monkeypatch, {"tst1": SAME})
     _quarantine(db)
     _commit(db, "c0ffee2")
     _run(db, monkeypatch, {"tst2": SAME})
-    assert _key(db) is None, "the failing set changed"
+    assert _key(db) == (3, 1), "the head broke another test"
 
 
 def test_a_commit_after_which_the_first_error_line_changes_lifts_the_key(
