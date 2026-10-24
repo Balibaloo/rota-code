@@ -132,3 +132,60 @@ def test_an_item_with_no_old_ticket_wakes_unchanged(tmp_path):
                allow=prompts.mode_tools("terminologist", "criteria"))
     pushed = push_working_set("terminologist", sb, Wake("terminologist", "tick:criteria", refs=(ITEM,)))
     assert set(pushed["the item"]) == {"text", "the principal said"}
+
+
+def _ruling(db, rid: str, seq: int, per_item: dict, words: str) -> None:
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+               "VALUES (?, 't1', 'liaison', 'principal', 'ask', ?)", (f"m{seq}", seq))
+    db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
+               "VALUES (?, ?, ?, ?, 'landed')", (rid, f"m{seq}", json.dumps(per_item), words))
+
+
+def _criteria_wake(db) -> dict:
+    sb = build("terminologist", db, mode="criteria",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    return push_working_set("terminologist", sb,
+                            Wake("terminologist", "tick:criteria", refs=(ITEM,)))["the item"]
+
+
+def test_rulings_on_the_live_ticket_do_not_push_his_correction_out(tmp_path):
+    """Review 1, finding 1: at night 161's end, r_40c94b2c6d, r_288739e866
+    and r_810ee68dc8 said "take the confirm lines off this page" on tk_2's
+    rows, and filled the cap of three."""
+    db = _night161(tmp_path, sliced=True)
+    live = f"c_2_{ITEM}_format"
+    db.execute("INSERT INTO criteria (id, ticket_id, text, version) VALUES (?, ?, 'x', 1)", (live, TK2))
+    for n, rid in enumerate(("r_40c94b2c6d", "r_288739e866", "r_810ee68dc8")):
+        _ruling(db, rid, 218 + n, {ITEM: "approve", live: "approve", f"l_{n}": "contest"},
+                "Lines 8 to 12 are about the confirm change, not this one, so please take them off this page.")
+    db.commit()
+    carry = _criteria_wake(db)
+    assert carry[RULED_KEY] == [M128, M131, M137]
+
+
+def test_a_ruling_that_names_only_the_old_ticket_is_carried(tmp_path):
+    """Review 1, finding 5."""
+    db = _night161(tmp_path, sliced=True)
+    _ruling(db, "r_tk1", 300, {TK1: "contest"}, "The old ticket said flag.")
+    db.commit()
+    assert _criteria_wake(db)[RULED_KEY][-1] == "The old ticket said flag."
+
+
+def test_the_criteria_wake_never_counts_the_live_ticket_old(tmp_path):
+    """Review 1, finding 4: an amend raises the item above every ticket."""
+    db = _night161(tmp_path, sliced=True)
+    db.execute("UPDATE items SET version = 5 WHERE id = ?", (ITEM,))
+    db.execute("INSERT INTO criteria (id, ticket_id, text, version) VALUES ('c_live', ?, 'live', 1)", (TK2,))
+    db.commit()
+    shown = [c["id"] for c in _criteria_wake(db)[RETIRED_KEY]]
+    assert shown == [f"c_{n}_{ITEM}" for n in (1, 2, 3)]
+
+
+def test_the_old_criteria_keep_the_newest_old_generation(tmp_path):
+    """Review 1, finding 6: one slicing wake holds every item due a slice."""
+    db = _night161(tmp_path, sliced=True)
+    db.execute("INSERT INTO tickets (id, item_id, text, item_ver) VALUES ('tk_0', ?, 'first', 2)", (ITEM,))
+    db.execute("INSERT INTO criteria (id, ticket_id, text, version) VALUES ('c_0', 'tk_0', 'first', 1)")
+    db.commit()
+    shown = [c["id"] for c in _criteria_wake(db)[RETIRED_KEY]]
+    assert shown == [f"c_{n}_{ITEM}" for n in (1, 2, 3)]

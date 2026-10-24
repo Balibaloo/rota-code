@@ -3882,7 +3882,7 @@ RETIRED_KEY = "criteria of an old ticket, written before the item changed"
 RULED_CAP = 3
 
 
-def _retired_carry(conn, item_id: str) -> dict[str, Any]:
+def _retired_carry(conn, item_id: str, *, before_slice: bool = False) -> dict[str, Any]:
     """The principal's landed words and an old ticket's criteria, for an
     item that has an old ticket. Empty for every other item.
 
@@ -3896,19 +3896,32 @@ def _retired_carry(conn, item_id: str) -> dict[str, Any]:
 
     if not _has_column(conn, "tickets", "item_ver"):
         return {}
-    # A ticket is old when its slice predates the item's version. The
-    # slicing wake runs before the new ticket exists, so `not_retired`
-    # alone cannot see the old ticket there.
-    old = [r["id"] for r in conn.execute(
-        "SELECT t.id FROM tickets t WHERE t.item_id = ? AND (t.item_ver < "
-        "(SELECT i.version FROM items i WHERE i.id = t.item_id) OR t.item_ver < "
-        "(SELECT MAX(n.item_ver) FROM tickets n WHERE n.item_id = t.item_id)) "
-        "ORDER BY t.rowid", (item_id,))]
-    if not old:
+    # In the criteria wake, a live ticket is never old: an amend raises
+    # the item's version above every ticket (review 1, finding 4). The
+    # slicing wake runs before the new ticket exists, so there a ticket
+    # below the item's version is old too.
+    newer = "(SELECT MAX(n.item_ver) FROM tickets n WHERE n.item_id = t.item_id)"
+    if before_slice:
+        newer = f"MAX({newer}, (SELECT i.version FROM items i WHERE i.id = t.item_id))"
+    rows = conn.execute(
+        f"SELECT t.id, t.item_ver FROM tickets t WHERE t.item_id = ? "
+        f"AND t.item_ver < {newer} ORDER BY t.rowid", (item_id,)).fetchall()
+    if not rows:
         return {}
-    names = {item_id} | {r["id"] for r in conn.execute(
-        "SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
-        "WHERE t.item_id = ?", (item_id,))}
+    old = [r["id"] for r in rows]
+    marks = ",".join("?" * len(old))
+    old_criteria = conn.execute(
+        f"SELECT c.id, c.ticket_id, c.version, c.text, t.item_ver FROM criteria c "
+        f"JOIN tickets t ON t.id = c.ticket_id WHERE c.ticket_id IN ({marks}) "
+        f"ORDER BY c.rowid", old).fetchall()
+    # A ruling on a live ticket's criteria is that ticket's business, and
+    # the seat reads those rows already. Counted here, three such rulings
+    # pushed m131 and m137 out of the cap (review 1, finding 1). A ruling
+    # that names only an old ticket is carried (finding 5).
+    names = {item_id} | set(old) | {r["id"] for r in old_criteria}
+    live = {r["id"] for r in conn.execute(
+        f"SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+        f"WHERE t.item_id = ? AND t.id NOT IN ({marks})", (item_id, *old))}
     words: list[str] = []
     for r in conn.execute("SELECT per_item, words FROM rulings "
                           "WHERE status = 'landed' ORDER BY rowid"):
@@ -3916,14 +3929,15 @@ def _retired_carry(conn, item_id: str) -> dict[str, Any]:
             ruled = json.loads(r["per_item"] or "{}")
         except (TypeError, ValueError):
             continue
-        if isinstance(ruled, dict) and names & set(ruled) and (r["words"] or "").strip():
+        if (isinstance(ruled, dict) and names & set(ruled) and not live & set(ruled)
+                and (r["words"] or "").strip()):
             words.append(r["words"])
-    marks = ",".join("?" * len(old))
+    # One slicing wake holds every item due a slice, so the list keeps the
+    # newest old generation only (review 1, finding 6).
+    last = max((r["item_ver"] for r in old_criteria), default=None)
     criteria = [{"old ticket": r["ticket_id"], "id": r["id"],
                  "version": r["version"], "text": r["text"]}
-                for r in conn.execute(
-                    f"SELECT id, ticket_id, version, text FROM criteria "
-                    f"WHERE ticket_id IN ({marks}) ORDER BY rowid", old)]
+                for r in old_criteria if r["item_ver"] == last]
     carry: dict[str, Any] = {}
     if words:
         carry[RULED_KEY] = words[-RULED_CAP:]
@@ -4117,7 +4131,8 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         if mine:
             # Night 161's s281 sliced from the headline alone. The item's
             # old ticket held his corrected criteria (frame 315).
-            mine = [{**r, **_retired_carry(sb.ctx.conn, r["id"])} for r in mine]
+            mine = [{**r, **_retired_carry(sb.ctx.conn, r["id"], before_slice=True)}
+                    for r in mine]
             pushed["problem.consult"] = {
                 "to slice, this wake": mine,
                 "the rest of the account, not this wake's": rest,
