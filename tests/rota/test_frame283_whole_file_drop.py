@@ -193,25 +193,71 @@ def test_a_definition_moved_under_a_class_is_named_in_the_note(db, tmp_path):
     assert api._restored(old, api._open_notes(sb.ctx)[PATH])
 
 
-def test_an_edited_line_is_named_as_removed_or_rewritten(db, tmp_path):
-    """Finding 4: `return x` to `return x + 1` is a rewrite, and the note
-    and the refusal say so in both branches' words."""
+def test_a_rewrite_of_one_statement_with_the_same_kind_opens_no_note(db, tmp_path):
+    """Pass 6, the kind count: `return x` to `return x + 1` keeps one Return
+    under `keep`, so the write is a rewrite and the commit lands. Review 5
+    named this shape `price`, and finding 3 of the count page accepts it."""
     old = _l("def keep(x):", "    y = x", "    return x")
-    sb, _root = _small(db, tmp_path, old)
+    sb, root = _small(db, tmp_path, old)
+    head = _git(root, "rev-parse", "HEAD")
     out = _call(sb, "code.write", path=PATH, text=old.replace("return x", "return x + 1"))
-    assert out["dropped"] == ("This write removes or rewrites 1 statement that your "
-                              "text does not hold: `return x` at line 2.")
+    assert "dropped" not in out
+    assert PATH not in api._open_notes(sb.ctx)
     sb.begin_reply()
-    got = _call(sb, "code.commit", message=MESSAGE)["refused"]
-    assert "removal or a rewrite" in got and "name the change" in got
+    assert _call(sb, "code.commit", message=MESSAGE)["committed"] is True
+    assert _git(root, "rev-parse", "HEAD") != head
+
+
+def test_the_s340_shape_names_each_dropped_statement_and_holds_the_commit(db, tmp_path):
+    """Night 154's s340 dropped `ctx.exit()` and the tail of the kept
+    `version_option`, and put nothing of those kinds in their place."""
+    lines = TEXT.splitlines(keepends=True)
+    assert lines[556].strip() == "if not param_decls:"
+    assert lines[564].strip() == "return option(*param_decls, **kwargs)"
+    text = "".join(lines[:550] + lines[551:556] + lines[565:])
+    sb, root = _developer(db, tmp_path)
+    head = _git(root, "rev-parse", "HEAD")
+    out = _call(sb, "code.write", path=PATH, text=text)
+    assert "8 statements" in out["dropped"]
+    assert [x[1] for x in _lines(sb)] == [
+        "ctx.exit()", "if not param_decls:", 'kwargs.setdefault("is_flag", True)',
+        'kwargs.setdefault("expose_value", False)', 'kwargs.setdefault("is_eager", True)',
+        'kwargs.setdefault("help", _("Show the version and exit."))',
+        'kwargs["callback"] = callback', "return option(*param_decls, **kwargs)"]
+    sb.begin_reply()
+    assert "refused" in _call(sb, "code.commit", message=MESSAGE)
+    assert _git(root, "rev-parse", "HEAD") == head
+
+
+def test_one_of_two_statements_of_a_kind_kept_names_the_one_gone(db, tmp_path):
+    old = _l("def keep():", "    return 0", "", "", "def f(x):", "    go()", "    stop()")
+    sb, _root = _small(db, tmp_path, old)
+    out = _call(sb, "code.write", path=PATH, text=old.replace("    go()" + NL, ""))
+    assert out["dropped"] == ("This write removes or rewrites 1 statement that your "
+                              "text does not hold: `go()` at line 5.")
+    assert [x[:2] for x in _lines(sb)] == [["f", "go()"]]
+
+
+def test_a_top_level_drop_beside_a_nested_rewrite_names_the_top_level_line(db, tmp_path):
+    old = _l("import sys", "go()", "stop()", "", "", "def keep(x):", "    return x")
+    new = old.replace("stop()" + NL, "").replace("return x", "return x + 1")
+    sb, _root = _small(db, tmp_path, old)
+    out = _call(sb, "code.write", path=PATH, text=new)
+    # `_whole_drop` names the top-level line, so `_whole_lost` names it not twice.
+    assert out["dropped"] == ("This write drops 1 line of the old file, from `stop()`; "
+                              "write the whole file again with those lines kept.")
+    assert [x[1] for x in _lines(sb)] == ["stop()"]
 
 
 def test_the_refused_commit_names_both_routes_for_a_rewrite(db, tmp_path):
     """Pass 5c: the re-probe of review 5. "Put the line back" alone undoes a
-    wanted edit, so the refusal says how to undo it and how to keep it."""
+    wanted edit, so the refusal says how to undo it and how to keep it.
+    Pass 6: the whole-file branch admits a same-kind rewrite, and the span
+    branch keeps its line-key rule. So a span write carries the rewrite."""
     old = _l("def keep(x):", "    y = x", "    return x")
     sb, _root = _small(db, tmp_path, old)
-    _call(sb, "code.write", path=PATH, text=old.replace("return x", "return x + 1"))
+    out = _call(sb, "code.write", path=PATH, text="    return x + 1" + NL, start=2, end=3)
+    assert _quote_in("return x", out["dropped"])
     sb.begin_reply()
     got = _call(sb, "code.commit", message=MESSAGE)["refused"]
     assert got.endswith(

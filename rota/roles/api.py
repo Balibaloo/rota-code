@@ -21061,9 +21061,9 @@ def _with_lost(note: str | None, lost: list[tuple[int, str]]) -> str | None:
     return f"{note} {span}" if note else span
 
 
-def _owned_statements(tree, lines: list[str]) -> list[tuple[str, str, int, int]]:
-    """Each statement of `tree` as (owner, key, first line, last line),
-    0-based. The owner is the qualified name of the innermost definition,
+def _owned_statements(tree, lines: list[str]) -> list[tuple[str, str, int, int, str]]:
+    """Each statement of `tree` as (owner, key, first line, last line,
+    AST kind), 0-based. The owner is the qualified name of the innermost definition,
     as `_def_spans` names it, or "" for the module. A definition is an
     owner and not a statement. An assignment keys on its targets, so a new
     value for the same name is a new wording, as `_lost_statements` reads
@@ -21094,7 +21094,7 @@ def _owned_statements(tree, lines: list[str]) -> list[tuple[str, str, int, int]]
             if (kids or isinstance(s, plain + (_ast.ExceptHandler, _ast.match_case))
                     or (isinstance(s, _ast.Expr) and isinstance(s.value, calls))):
                 end = getattr(s, "end_lineno", None) or head + 1
-                out.append((owner, key, head, end - 1))
+                out.append((owner, key, head, end - 1, type(s).__name__))
             walk(kids, owner)
     walk(tree.body, "")
     return out
@@ -21104,7 +21104,8 @@ def _whole_lost(old_lines: list[str], text: str, note: str | None,
                 gone: list[int]) -> str | None:
     """
     The `dropped` note of a whole-file write: `note`, then each statement
-    that the text holds fewer times under its owner than the old file does.
+    of a kind that the text holds fewer times under its owner than the old
+    file does.
 
     Frame 283 pass 5. Review 3 of frame 306, "High 2, pinned": a first
     whole-file write dropped `ctx.exit()` inside the kept `version_option`,
@@ -21115,6 +21116,12 @@ def _whole_lost(old_lines: list[str], text: str, note: str | None,
     as `_restored` counts the stored lines. An owner the text no longer
     defines is read under the nearest owner it still defines, with every
     statement below that owner. A line in `gone` is not named twice.
+
+    Pass 6, the kind count of the count page: under one owner, a statement
+    is dropped when the count of its AST kind falls, and rewritten when the
+    count holds. The scene writes rewrote 201 statements in place and
+    dropped none. s340 dropped 7, and each lost its kind's count. The
+    shortfall per owner and kind is the number of statements named.
     """
     import ast as _ast
     from collections import Counter
@@ -21123,24 +21130,33 @@ def _whole_lost(old_lines: list[str], text: str, note: str | None,
         news = _owned_statements(_ast.parse(text), text.splitlines())
     except Exception:                                      # noqa: BLE001
         return note    # a note never refuses a write
-    owners = {o for o, _k, _a, _b in news} | {
+    owners = {o for o, _k, _a, _b, _t in news} | {
         n for n, _lo, _hi in _def_spans(text) or []} | {""}
-    mine = Counter((o, k) for o, k, _a, _b in news)
 
-    def held(owner: str, key: str) -> int:
-        if owner in owners:
-            return mine[(owner, key)]
-        while owner and owner not in owners:
-            owner = owner.rpartition(".")[0]
-        return sum(n for (o, k), n in mine.items() if k == key
-                   and (not owner or o == owner or o.startswith(owner + ".")))
+    def counter(of: Counter):
+        def held(owner: str, part: str) -> int:
+            if owner in owners:
+                return of[(owner, part)]
+            while owner and owner not in owners:
+                owner = owner.rpartition(".")[0]
+            return sum(n for (o, p), n in of.items() if p == part
+                       and (not owner or o == owner or o.startswith(owner + ".")))
+        return held
 
-    seen = Counter((o, k) for o, k, _a, _b in olds)
-    short = {ok: n - held(*ok) for ok, n in seen.items() if held(*ok) < n}
+    def shortfall(pick) -> dict:
+        held = counter(Counter(pick(s) for s in news))
+        seen = Counter(pick(s) for s in olds)
+        return {op: n - held(*op) for op, n in seen.items() if held(*op) < n}
+
+    # The kind count says how many went. The line key says which: the rule
+    # cannot tell which of two `go()` calls went (the count page, finding 2).
+    kinds = shortfall(lambda s: (s[0], s[4]))
+    keys = shortfall(lambda s: (s[0], s[1]))
     lost: list[tuple[int, str, int]] = []
-    for o, k, a, b in olds:
-        if short.get((o, k), 0) > 0:
-            short[(o, k)] -= 1
+    for o, k, a, b, t in olds:
+        if kinds.get((o, t), 0) > 0 and keys.get((o, k), 0) > 0:
+            kinds[(o, t)] -= 1
+            keys[(o, k)] -= 1
             # A statement inside a lost block is named by the block's line.
             if not any(x < a <= y for x, _h, y in lost):
                 lost.append((a, old_lines[a].strip(), b))

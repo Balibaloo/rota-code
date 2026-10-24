@@ -22,6 +22,19 @@ from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.testkit import gitfixture, venvtemplate
 
+# The fixture's `formatting.py` with one line inside `plural` changed. The
+# old text, "# emptied", dropped `ELLIPSIS`, `truncate` and `plural`. Frame
+# 283 pass 5 noted that drop and refused the commit, and the note is right
+# (the count page, finding 4). So these tests change a line and drop nothing.
+REWRITTEN = (
+    "ELLIPSIS = chr(8230)\n\n\n"
+    "def truncate(text, limit=72):\n"
+    "    return text if len(text) <= limit else text[: limit - 1] + ELLIPSIS\n\n\n"
+    "def plural(count, singular, plural_form=None):\n"
+    "    if count == 1:\n"
+    "        return \"1 \" + singular\n"
+    "    return f\"{count} {plural_form or singular + 's'}\"\n")
+
 
 @pytest.fixture
 def project(tmp_path, monkeypatch):
@@ -265,7 +278,7 @@ def test_the_commit_stamps_the_batch_head(project):
     db, _ = project
     lifecycle.start(db, "b1")
     sb = build("developer", db, batch_id="b1")
-    sb.call("code.write", path="src/notify/formatting.py", text="# emptied\n")
+    sb.call("code.write", path="src/notify/formatting.py", text=REWRITTEN)
     out = sb.call("code.commit", message="empty formatting")
 
     staged = [w for w in sb.ctx.writes if w[0] == "batches"]
@@ -286,7 +299,7 @@ def test_critic_sees_an_actual_diff(project):
     db, _ = project
     lifecycle.start(db, "b1")
     dev = build("developer", db, batch_id="b1")
-    dev.call("code.write", path="src/notify/formatting.py", text="# emptied\n")
+    dev.call("code.write", path="src/notify/formatting.py", text=REWRITTEN)
     dev.call("code.commit", message="empty formatting")
 
     seen = build("critic", db, batch_id="b1").call("code.read")
@@ -317,7 +330,7 @@ def test_what_critic_sees_is_the_same_twice(project):
     db, _ = project
     lifecycle.start(db, "b1")
     dev = build("developer", db, batch_id="b1")
-    dev.call("code.write", path="src/notify/formatting.py", text="# emptied\n")
+    dev.call("code.write", path="src/notify/formatting.py", text=REWRITTEN)
     out = dev.call("code.commit", message="empty formatting")
 
     seen = build("critic", db, batch_id="b1").call("code.read")
@@ -516,7 +529,7 @@ def test_a_batch_with_no_commit_says_so(project):
         "this batch has no change since its fork: "
         "no commit and no uncommitted edit"), diff
 
-    dev.call("code.write", path="src/notify/formatting.py", text="# emptied\n")
+    dev.call("code.write", path="src/notify/formatting.py", text=REWRITTEN)
     # An uncommitted edit is a change, and its own entry names it.
     diff = dev.call("code.diff")
     assert "note" not in diff and diff["not committed"], diff
