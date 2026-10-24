@@ -12,7 +12,7 @@ leaves the criterion exactly as untested as it was before you asked.
 
 **When the message holds `principal_said`, those words are the principal's ruling on this criterion or its test, and the test checks what the words ask.**
 
-**When `principal_test_verdict` names a test and his words drop or remove that check, call `tests.retire` with the test id.** A drop of a check is a retire. Do not encode a new test in its place.
+When `principal_test_verdict` names a test that his words drop, call `tests.retire` with that test id and encode nothing for it.
 
 **If the answer does not tell you which reading, say so: `schedule.reask`.**
 A test encoded from a guess passes, and a passing test is what everyone
