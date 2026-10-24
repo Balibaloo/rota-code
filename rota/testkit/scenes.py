@@ -685,10 +685,9 @@ def two_batches(tmp: Path) -> Scene:
     turns `tests/test_charges.py` red. The Developer commits once more and
     stays red, then ends three sessions with nothing done, and the key is
     quarantined. The Liaison reports it. The Tester's wake on b1's missing
-    test comes next. Its new test row lifts the key (`db._lift_quarantines`),
-    and three more empty sessions quarantine the key again. The Liaison
-    reports it again, and the loop is quiet. So the walk ends, and the next
-    walk says item 2.
+    test comes next. Its new test row does not move the red, so the key
+    stays quarantined (frame 318, night 164's W-B), and the loop is quiet.
+    So the walk ends, and the next walk says item 2.
 
     Item 2 ranks above item 1, and right after its grouping the preempt
     defers b1. b1 is then parked, and the Liaison sends the park page: the
@@ -712,10 +711,8 @@ def two_batches(tmp: Path) -> Scene:
          commit([("src/billing/charges.py", _charges_red())], "prorate the remainder"))
     seat(sc, "developer|tick:tests_failing|b1",
          commit([("src/billing/charges.py", _charges_red(2))], "round the remainder"),
-         IDLE, IDLE, IDLE, IDLE, IDLE, IDLE)
-    seat(sc, "liaison|tick:quarantined|b1", ["TOOL: msg.present_principal(refs=['b1'])"],
-         ["TOOL: msg.present_principal(refs=['b1'])"])
-    rule(sc, "present", ["b1"], {"b1": "approve"})
+         IDLE, IDLE, IDLE)
+    seat(sc, "liaison|tick:quarantined|b1", ["TOOL: msg.present_principal(refs=['b1'])"])
     rule(sc, "present", ["b1"], {"b1": "approve"})
     seat(sc, "tester|tick:tests_missing|b1", encode(PRORATE_TEST))
     play_to_quiet(sc)

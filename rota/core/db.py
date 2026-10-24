@@ -626,6 +626,10 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
     # and the same red bought three more ticks. So a head move alone does
     # not reset it on a running batch (frame 318).
     fields = getattr(w, "values", None) or {}
+    # Read the red before the re-encode below deletes the old body's runs.
+    # A re-encoded red test replaces a red body, so its move reaches the red.
+    reaches = (_moves_red(conn, w) if moved and w.table in ("criteria", "tests")
+               else {})
     # A re-encoded test's runs describe a body that no longer exists. Walk
     # eighteen: the hold guard, the Developer's wake and the harness gate
     # all read the run of the old body after the new one landed.
@@ -653,21 +657,13 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
             keep += ("%|tick:tests_failing|%",)
         _forget_batch_counts(conn, w.row_id, keep=keep)
     if moved and w.table in ("criteria", "tests"):
-        if w.table == "criteria":
-            batches = [r["batch_id"] for r in conn.execute(
-                "SELECT DISTINCT bt.batch_id FROM batch_tickets bt "
-                "JOIN criteria c ON c.ticket_id = bt.ticket_id "
-                "WHERE c.id = ?", (w.row_id,))]
-        else:
-            batches = [r["batch_id"] for r in conn.execute(
-                "SELECT batch_id FROM tests WHERE id = ?", (w.row_id,))]
-        for b in batches:
+        for b, red_moved in reaches.items():
             if b:
                 held = [r["tick_key"] for r in conn.execute(
                     "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
                     "AND tick_key LIKE ?", (f"%|{b}",))]
                 for key in held:
-                    if _row_move_reaches(key):
+                    if _row_move_reaches(key, red_moved):
                         conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
                                      (key,))
                 # Review 2, finding 2: a reset count below the cap bought the
@@ -677,8 +673,35 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                     "AND (tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ? "
                     "OR tick_key LIKE ?)",
                     (f"%|{b}", f"%|{b},%", f"%,{b}", f"%,{b},%"))
-                    if not _row_move_reaches(r["tick_key"]))
+                    if not _row_move_reaches(r["tick_key"], red_moved))
                 _forget_batch_counts(conn, b, keep=spared)
+
+
+def _moves_red(conn: sqlite3.Connection, w) -> dict[str, bool]:
+    """
+    Each batch a criteria or tests move touches, and whether the move
+    reaches a test that is red at the batch's head.
+
+    A tests move reaches the red when the moved test is red. A criteria
+    move reaches it when a test of the criterion is red. The rule reads
+    test ids, so a retire column that a later frame adds needs no change.
+    """
+    # Frame 318, night 164: s228 and s244 added a passing test, and s252
+    # re-encoded one. Each lift restarted the same round on an unchanged red.
+    if w.table == "criteria":
+        rows = conn.execute(
+            "SELECT bt.batch_id, t.id AS test_id FROM batch_tickets bt "
+            "JOIN criteria c ON c.ticket_id = bt.ticket_id "
+            "LEFT JOIN tests t ON t.criterion_id = c.id "
+            "AND t.batch_id = bt.batch_id WHERE c.id = ?", (w.row_id,))
+    else:
+        rows = conn.execute(
+            "SELECT batch_id, id AS test_id FROM tests WHERE id = ?", (w.row_id,))
+    moved: dict[str, set[str]] = {}
+    for r in rows:
+        moved.setdefault(r["batch_id"], set()).add(r["test_id"])
+    return {b: bool(tests & set(red_before(conn, b)))
+            for b, tests in moved.items() if b}
 
 
 # The Developer's ticks that a criteria move can free. A criteria move
@@ -688,20 +711,27 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
 _RED_TICKS = ("tick:tests_failing", "tick:exhausted", "tick:verdict_failed")
 
 
-def _row_move_reaches(key: str) -> bool:
+def _row_move_reaches(key: str, red_moved: bool) -> bool:
     """
     Whether a criteria or tests move can change the cause of a batch's key.
 
     The other seats read the criteria or the tests at their wake, so a move
     can change their cause. The Developer's start, finding and touch ticks
     meet the code tree and the note door, and a criteria move changes
-    neither.
+    neither. The red and exhausted ticks change only when the move reaches
+    a test that is red at the head, which `red_moved` says.
     """
     # Frame 318, night 163: each respecify of a bg_2 criterion lifted
     # `developer|tick:batch_start|bg_2`. Three more Developers met the same
     # note refusal at termui.py line 609, five rounds.
     role, _, rest = key.partition("|")
-    return role != "developer" or rest.split("|", 1)[0] in _RED_TICKS
+    if role != "developer":
+        return True
+    tick = rest.split("|", 1)[0]
+    # Night 164: a new passing test is not progress on the red (W-B).
+    if tick in _RED_TICKS[:2]:
+        return red_moved
+    return tick in _RED_TICKS
 
 
 def _forget_batch_counts(conn: sqlite3.Connection, batch_id: str,
@@ -764,9 +794,10 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
     Reset the batch's `tests_failing` key when the red moved at `head`.
 
     The harness reads `before` with `red_before` and calls this after it
-    records its runs. The red moved when a red test passes, the failing set
-    changes, or a test raises another first error line. The key remembers
-    nothing: the last red is in `test_runs`.
+    records its runs. The red moved when a red test of `before` passes,
+    leaves the failing set, or raises another first error line. A red that
+    only grows or stays the same did not move. The key remembers nothing:
+    the last red is in `test_runs`.
     """
     # Frame 318, night 162: s315's docstring commit wiped the quarantine on
     # the same red. Law 6's attempt cap still bounds a red that moves.
@@ -774,7 +805,9 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
         "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
         "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
         "AND commit_sha = ? GROUP BY test_id)", (batch_id, head)))
-    if not before or now == before:
+    # Night 164: s229's commit 63c65435 grew the red from 1 to 5, and the
+    # reset bought the same red more ticks (W-B).
+    if before.items() <= now.items():
         return False
     conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
                  (f"%|tick:tests_failing|{batch_id}",))

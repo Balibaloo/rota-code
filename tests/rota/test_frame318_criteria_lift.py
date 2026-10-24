@@ -92,6 +92,11 @@ def test_a_respecify_still_lifts_the_seats_that_read_the_criteria(db):
     """The Critic's verdict, the Tester's encode and the Developer's red
     read the criteria or their tests, so a criteria move lifts them as
     before. A Terminologist key that names the criterion lifts too."""
+    # Night 164 (W-B): the red key lifts only when the criterion's test is red.
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('t3', 'bg_2', 'c3_no_terminal_true', 'tests/t3.py', 'x')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, result) "
+               "VALUES ('tr1', 'bg_2', 't3', 'fail')")
     lifted = ("critic|tick:review|bg_2", "tester|tick:tests_missing|bg_2",
               "developer|tick:tests_failing|bg_2",
               "terminologist|tick:criterion_repair|c3_no_terminal_true")
