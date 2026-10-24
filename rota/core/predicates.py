@@ -31,7 +31,7 @@ from pathlib import Path
 from .. import paths
 from typing import Callable
 
-from .scheduler import SURVEY_ORDER, Wake
+from .scheduler import SURVEY_ORDER, Wake, live_tests
 
 SCHEMA = paths.SCHEMA
 
@@ -872,6 +872,10 @@ def harness(conn) -> list[Wake]:
         "  AND NOT EXISTS (SELECT 1 FROM test_runs r "
         "                  WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit "
         "                    AND r.test_id = t.id)"
+        # The harness run skips a test of a retired criterion, so that test
+        # owes no run. Without this line the harness fires for ever (frame
+        # 306, pass 2b).
+        + live_tests(conn, "t.id")
     ).fetchall()
     return [Wake("", "do:harness", refs=(r["bid"],)) for r in rows]
 
@@ -966,7 +970,10 @@ def tests_failing(conn) -> list[Wake]:
         "JOIN batches b ON b.id = r.batch_id AND b.status = 'running' "
         "WHERE r.result IN ('fail','error') "
         "  AND r.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id) "
-        "GROUP BY r.batch_id"
+        # A red test of a retired criterion wakes no fix. Night 163 looped
+        # on the stop page that such a red led to (frame 306, pass 2b).
+        + live_tests(conn, "r.test_id") +
+        " GROUP BY r.batch_id"
     ).fetchall()
     return [Wake("developer", "tick:tests_failing", refs=(r["bid"],),
                  detail=f"attempt {r['att']}")
@@ -1039,7 +1046,9 @@ def exhausted(conn) -> list[Wake]:
         # Each test's latest run only, like tests_failing: a fail that a later
         # pass superseded is not an attempt still failing (2026-09-16 review).
         "AND rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id) "
-        "GROUP BY batch_id"
+        # A retired criterion's red climbs no ladder (frame 306, pass 2b).
+        + live_tests(conn, "test_id") +
+        " GROUP BY batch_id"
     ).fetchall()
 
     wakes = []

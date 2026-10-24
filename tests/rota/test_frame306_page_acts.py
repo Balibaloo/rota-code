@@ -307,3 +307,42 @@ def test_a_retired_rows_words_may_return_under_a_new_id(db):
                allow=prompts.mode_tools("terminologist", "criteria"))
     sb.call("criteria.specify", id="c9_back", ticket_id=TICKET,
             text=CRITERIA[RETIRED])
+
+
+# Pass 2b: a red test of a retired criterion wakes no fix and no ladder.
+def _old_red(conn, attempt):
+    _batch(conn)
+    for n, cid in enumerate(c for c in CRITERIA if c != RETIRED):
+        conn.execute("INSERT INTO test_runs (test_id, batch_id, result, "
+                     "commit_sha, attempt) VALUES (?, 'bg_2', 'pass', "
+                     "'abc123', ?)", (f"tst{n}", attempt))
+    conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                 "VALUES ('tst_old', 'bg_2', ?, 'tests/test_clear.py', "
+                 "'assert 0')", (RETIRED,))
+    conn.execute("INSERT INTO test_runs (test_id, batch_id, result, output, "
+                 "commit_sha, attempt) VALUES ('tst_old', 'bg_2', 'fail', "
+                 "'E boom', 'abc123', ?)", (attempt,))
+    conn.commit()
+
+
+def test_a_retired_red_wakes_no_developer_and_no_ladder(db):
+    from rota.core import harness
+    from rota.core.predicates import exhausted, harness as owed, tests_failing
+    from rota.core.scheduler import failing_attempt
+
+    _old_red(db, 1)
+    assert not [w for w in tests_failing(db) if "bg_2" in w.refs]
+    assert failing_attempt(db, "bg_2") == 0
+    assert not [w for w in owed(db) if "bg_2" in w.refs]
+    assert "tst_old" not in {t["id"] for t in harness.live_tests_for(db, "bg_2")}
+    db.execute("UPDATE test_runs SET attempt = 99")
+    db.commit()
+    assert not [w for w in exhausted(db) if "bg_2" in w.refs]
+
+
+def test_the_tester_triages_no_retired_criterion(db):
+    _batch(db)
+    sb = build("tester", db, batch_id="bg_2", mode="tests_missing",
+               allow=prompts.mode_tools("tester", "tests_missing"))
+    with pytest.raises(ValueError, match="is retired"):
+        sb.call("tests.triage", criterion_id=RETIRED, verdict="encodable")

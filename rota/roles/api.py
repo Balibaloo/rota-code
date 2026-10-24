@@ -7234,6 +7234,9 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
     brief: tests_missing.md, a criterion that says what the request does not
     """
     _must_exist(ctx, "criteria", criterion_id)
+    # His ruling dropped a retired line, so it owes no verdict and no test
+    # (frame 306, pass 2b).
+    _refuse_retired(ctx, criterion_id)
     if not hasattr(ctx, "triaged"):
         ctx.triaged = {}
     # A span on another verdict is ignored, not refused. qwen3:8b fills both

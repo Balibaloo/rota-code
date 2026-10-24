@@ -1641,11 +1641,14 @@ def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 def failing_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
     """The highest attempt among a batch's failing tests, or 0 when none fail."""
     # Each test's latest run only, as `tests_failing` and `exhausted` read it.
+    # They skip a test of a retired criterion, so this count skips it too
+    # (frame 306, pass 2b).
     row = conn.execute(
         "SELECT MAX(COALESCE(attempt, 1)) AS att FROM test_runs "
         "WHERE batch_id = ? AND result IN ('fail','error') "
         "AND rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id)", (batch_id, batch_id)).fetchone()
+        "GROUP BY test_id)" + live_tests(conn, "test_id"),
+        (batch_id, batch_id)).fetchone()
     return int(row["att"] or 0)
 
 

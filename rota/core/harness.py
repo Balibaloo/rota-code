@@ -50,6 +50,17 @@ def tests_for(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
         (batch_id,))]
 
 
+def live_tests_for(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
+    """The batch's tests less those of a retired criterion. The run skips
+    them, so their old red sets no colour on the batch (frame 306, pass 2b).
+    The tests and their runs stay in the table."""
+    from .scheduler import live_tests
+
+    return [dict(r) for r in conn.execute(
+        "SELECT id, path, body, criterion_id FROM tests WHERE batch_id = ?"
+        + live_tests(conn, "id") + " ORDER BY id", (batch_id,))]
+
+
 def tester_paths(conn: sqlite3.Connection, batch_id: str) -> set[str]:
     """The paths of tests that rota's Tester wrote for a merged batch.
 
@@ -102,7 +113,7 @@ def run(conn: sqlite3.Connection, batch_id: str,
     that has not started, not a batch whose tests all pass, and the difference
     matters to every predicate downstream.
     """
-    tests = tests_for(conn, batch_id)
+    tests = live_tests_for(conn, batch_id)
     if not tests:
         return []
     worktree = worktree_of(conn, batch_id)
