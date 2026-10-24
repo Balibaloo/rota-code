@@ -5480,13 +5480,16 @@ def test_a_whole_write_of_one_def_that_uses_the_dropped_helpers_is_refused(db, t
 
 def test_a_whole_write_that_drops_an_unused_helper_names_the_lines_and_no_span(db, tmp_path):
     """Frame 95 pass 5: a whole-file write that keeps `keep` and drops a helper
-    nothing uses lands, and the sentence counts the dropped lines."""
+    nothing uses lands, and the sentence counts the dropped lines. Frame 283
+    pass 5: the changed `return x` inside the kept `keep` is named as the
+    span branch names it."""
     old = "def keep(x):\n    return x\n\n\ndef helper():\n    return 2\n"
     root, sb = _ui_worktree(db, tmp_path, "m.py", old)
     out = sb.call("code.write", path="src/m.py", text="def keep(x):\n    return x + 1\n")
     assert out["dropped"] == ("This write drops 2 lines of the old file, from "
                               "`def helper():`; write the whole file again with "
-                              "those lines kept.")
+                              "those lines kept. This write removes 1 statement "
+                              "that your text does not hold: `return x` at line 1.")
     assert "start=" not in out["dropped"]
 
 

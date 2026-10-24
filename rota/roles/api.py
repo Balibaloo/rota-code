@@ -18278,6 +18278,9 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             # a write that keeps the whole shape and stops short.
             tail_note = (_whole_drop(old, text, gone_out=drop_lines)
                          or _tail_drop(old, 0, len(old), text, gone_out=drop_lines))
+            # A statement lost inside a kept definition opens the note too,
+            # as on the span branch (frame 283 pass 5).
+            tail_note = _whole_lost(old, text, tail_note, drop_lines)
         except Exception:                                  # noqa: BLE001
             tail_note = None
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -21027,13 +21030,54 @@ def _drop_note(old_lines: list[str], start: int, stop: int, text: str,
     # 283's review 1, finding 1).
     if lines_out is not None:
         lines_out.extend(gone + [i for i, _h in lost])
+    return _with_lost(tail, lost)
+
+
+def _with_lost(note: str | None, lost: list[tuple[int, str]]) -> str | None:
+    """`note` with the sentence that names each statement of `lost`."""
     if not lost:
-        return tail
+        return note
     # A fact and not an order, as the tail note is: the seat decides.
     word = "statement" if len(lost) == 1 else "statements"
     span = (f"This write removes {len(lost)} {word} that your text does not "
             f"hold: {_lost_sentence(lost)}.")
-    return f"{tail} {span}" if tail else span
+    return f"{note} {span}" if note else span
+
+
+def _whole_lost(old_lines: list[str], text: str, note: str | None,
+                gone: list[int]) -> str | None:
+    """
+    The `dropped` note of a whole-file write: `note`, then each statement
+    inside a kept top-level definition that the text does not hold.
+
+    Frame 283 pass 5. Review 3 of frame 306, "High 2, pinned": a first
+    whole-file write dropped `ctx.exit()` inside the kept `version_option`,
+    opened no note, and the commit landed. A line in `gone` is not named
+    twice. A line outside the kept definitions is the business of
+    `_whole_drop` and `_tail_drop`.
+    """
+    import ast as _ast
+    try:
+        new_tree = _ast.parse(text)
+        spans = _kept_spans(_ast.parse(chr(10).join(old_lines)), new_tree)
+    except Exception:                                      # noqa: BLE001
+        return note    # a note never refuses a write
+    # Each old definition is read against the new definitions of its name
+    # alone. A walk over the whole file read `ctx.exit()` as kept, because
+    # `custom_version_option` holds the same line.
+    new = text.splitlines()
+    mine: dict[str, list[str]] = {}
+    for n in new_tree.body:
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+            lo = min([n.lineno] + [d.lineno for d in n.decorator_list]) - 1
+            mine.setdefault(n.name, []).extend(new[lo:n.end_lineno])
+    lost: list[tuple[int, str]] = []
+    for name, lo, hi in spans:
+        lost += [(i, h) for i, h in _lost_statements(
+                     old_lines, lo, hi, chr(10).join(mine.get(name, [])))
+                 if i not in gone and (i, h) not in lost]
+    gone.extend(i for i, _h in lost)
+    return _with_lost(note, sorted(lost))
 
 
 def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
