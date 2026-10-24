@@ -7308,8 +7308,9 @@ def _contradiction_offer(ctx: Ctx, criterion_id: str, crit_text: str,
     # On the request side, "echo" names the helper in "next to echo". The
     # criterion side keeps the full set (frame 81, the diff review).
     req_prints = PRINTS - {"echo", "echoes"}
-    crit_words = _verb_words(crit_text)
-    req = [(name, _verb_words(text)) for name, text in request]
+    names = _code_names(ctx, criterion_id)
+    crit_words = _plain_words(crit_text, names)
+    req = [(name, _plain_words(text, names)) for name, text in request]
     req_words = [w for _, ws in req for w in ws]
     for c_says, c_other, r_says, r_other in (
             (RETURNS, PRINTS, req_prints, RETURNS),
@@ -7347,27 +7348,86 @@ def _span_flat(span: str) -> str:
     return _span_clean(span).lower()
 
 
-def _verb_words(text: str) -> list[str]:
+def _plain_words(text: str, names: frozenset[str] = frozenset()) -> list[str]:
     """
-    The plain words of a sentence, in order, without its identifiers.
+    The plain words of a text, in order, without its identifiers.
 
     An identifier is a name and not a claim. Night 91's criterion says
-    "echo_json returns a string", and "echo" there names the helper.
+    "echo_json returns a string", and "echo" there names the helper. An
+    identifier is a backticked span, a dotted name, a name with an
+    underscore, or a token in `names`. The triage wall and the prints door
+    of `tests.encode` both read through this one function (frame 321).
 
     brief: tests_missing.md, a criterion that says what the request does not
     """
     import re as _re
     out: list[str] = []
-    for token in (text or "").lower().split():
-        if "_" in token or _re.search(r"[a-z]\.[a-z]", token):
+    text = _re.sub(r"`[^`]*`", " ", text or "")
+    for token in text.lower().split():
+        bare = token.strip(_QUOTES + ".,;:!?()[]{}")
+        if ("_" in token or _re.search(r"[a-z]\.[a-z]", token)
+                or bare in names):
             continue
         out += _re.findall(r"[a-z]+", token)
     return out
 
 
+def _family_hits(words: list[str], family: set[str]) -> list[str]:
+    """
+    The words whose stem is the stem of a word of the family, in order.
+
+    Both sides go through `_stem`, so "writes" meets "write" and "displayed"
+    meets "display". Before frame 321 the encode door stemmed the text only,
+    and "writes" became "writ", which the set did not hold.
+    """
+    stems = {_stem(w) for w in family}
+    return [w for w in words if _stem(w) in stems]
+
+
+def _code_names(ctx: Ctx, criterion_id: str) -> frozenset[str]:
+    """
+    The names that the criterion's surface refs and the code index hold,
+    lowercased, as `_plain_words` strips them.
+
+    A surface ref names the surface, so each of its names is an identifier.
+    The code index gives top-level names only. A method name such as
+    `HelpFormatter.write` is a plain verb when it stands alone. An indexed
+    name that is a print or return word stays prose for the same reason:
+    click indexes `echo`, and a sentence can still say "echo" as a verb.
+    """
+    row = ctx.conn.execute("SELECT surface_refs FROM criteria WHERE id = ?",
+                           (criterion_id,)).fetchone()
+    try:
+        refs = json.loads(row["surface_refs"] or "[]") if row else []
+    except (TypeError, ValueError):
+        refs = []
+    names = {str(r).rsplit("::", 1)[-1].lower() for r in refs or []}
+    names |= {n.rsplit(".", 1)[-1] for n in list(names)}
+    family = {_stem(w) for w in PRINTS | RETURNS}
+    for r in ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'symbol'"):
+        name = r["grain"].rsplit("::", 1)[-1].lower()
+        if "." not in name and _stem(name) not in family:
+            names.add(name)
+    return frozenset(names)
+
+
+# A sentence that names one of these is about text, not about what the code
+# does (frame 321, night 164's cr_1: "shows as c.txt" in a docstring).
+_ABOUT_TEXT = re.compile(r"\bdocstrings?\b|\bhelp[ -]texts?\b|"
+                         r"\bdocumentation\b|\bcomments?\b|\bmessage texts?\b",
+                         re.I)
+
+
+def _about_text(sentence: str) -> bool:
+    """True when the sentence names a docstring, a help text, documentation,
+    a comment or a message text."""
+    return bool(_ABOUT_TEXT.search(sentence or ""))
+
+
 def _first_verb(words: list[str], family: set[str]) -> str | None:
     """The word of the family to quote: a print or return word first."""
-    hits = [w for w in words if w in family]
+    hits = _family_hits(words, family)
     if not hits:
         return None
     return sorted(hits, key=lambda w: (not w.startswith(("print", "return")),
@@ -7578,9 +7638,9 @@ def _words(s: str) -> set[str]:
     return {_stem(w) for w in _re.findall(r"[a-z]{3,}", (s or "").lower())}
 
 
-def _material_words(ctx: Ctx, criterion_id: str) -> set[str]:
-    """Every word the material said about this criterion."""
-    words = _words
+def _material_words(ctx: Ctx, criterion_id: str, words=_words) -> set[str]:
+    """Every word the material said about this criterion, as `words` reads
+    a text. The prints door passes its prose reader (frame 321)."""
     material: set[str] = set()
     crit = ctx.conn.execute(
         "SELECT text, surface_refs, ticket_id FROM criteria "
@@ -9990,13 +10050,40 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         return f": `{orig}` is a plain function in `{where}`"
 
     if uses_return:
-        material = _material_words(ctx, criterion_id)
+        # Prose words only, and no prints word in a sentence about text
+        # (frame 321). Over nights 100 to 164 the door fired on 57 criteria
+        # through a piece of an identifier such as `echo_json`. Night 164's
+        # cr_1 said "shows as c.txt" about a docstring, and the Tester then
+        # wrote an output test no code could pass. Whether "display" means
+        # return or print stays a judgement (DECISIONS.md 956 to 958).
+        names = _code_names(ctx, criterion_id)
+        item_row = ctx.conn.execute(
+            "SELECT i.text FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+            "JOIN items i ON i.id = t.item_id WHERE c.id = ?",
+            (criterion_id,)).fetchone()
+        item_about_text = _about_text(item_row["text"] if item_row else "")
+
+        def _prose(text: str) -> set[str]:
+            """The stems of the prose words. A sentence splits as
+            `_sentence_around` splits it, on a full stop before a space."""
+            out: set[str] = set()
+            for sentence in re.split(r"(?<=\.)\s+", text or ""):
+                ws = _plain_words(sentence, names)
+                if item_about_text or _about_text(sentence):
+                    printed = set(_family_hits(ws, PRINTS))
+                    ws = [w for w in ws if w not in printed]
+                out |= {_stem(w) for w in ws}
+            return out
+
+        prints_s = {_stem(w) for w in PRINTS}
+        returns_s = {_stem(w) for w in RETURNS}
+        material = _material_words(ctx, criterion_id, words=_prose)
         logged: set[str] = set()
         for r in ctx.conn.execute("SELECT default_taken FROM ledger WHERE about_ref = ?",
                                   (criterion_id,)):
-            logged |= _words(r["default_taken"] or "")
+            logged |= _prose(r["default_taken"] or "")
         logged |= {w for t, i, *rest in ctx.writes if t == "ledger"
-                   for w in _words(rest[0].get("default_taken", ""))}
+                   for w in _prose(rest[0].get("default_taken", ""))}
         material |= logged
         # no law, no ruling: a test asserts on what the criterion says it prints
         # Only when the material's own words say the surface prints, writes
@@ -10010,8 +10097,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # that printed the right JSON.
         own_row = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
                                    (criterion_id,)).fetchone()
-        own = _words(own_row["text"] or "") if own_row else set()
-        own_prints = bool(PRINTS & own and not RETURNS & own)
+        own = _prose(own_row["text"] or "") if own_row else set()
+        own_prints = bool(prints_s & own and not returns_s & own)
         if own_prints:
             # law 11: a ledger entry is resolved only by a decision naming it
             # No lift by a ledger row: clickI night 45 (2026-09-14) logged
@@ -10019,10 +10106,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # words lifted the door, and the test asserted on the return
             # value it had just said did not exist. The criterion says it
             # prints; the test asserts on what it prints.
-            says_prints, says_returns = PRINTS & own, set()
+            says_prints, says_returns = prints_s & own, set()
         else:
-            says_prints = PRINTS & material
-            says_returns = RETURNS & material
+            says_prints = prints_s & material
+            says_returns = returns_s & material
         if says_prints and not says_returns and own_prints:
             raise ValueError(
                 f"the test uses what {uses_return} returns, and the criterion "
