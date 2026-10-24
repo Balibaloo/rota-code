@@ -2202,9 +2202,18 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                 # description cites the earliest request, so the skip lost
                 # the contest of a note about `how_it_works` (frame 274's
                 # review 1, finding 1).
-                owner = (None if _is_description(conn, row["about_ref"])
-                         else request_of(conn, row["about_ref"]))
-                if page_req is None or owner is None or owner == page_req:
+                # The owner comes from the items the note reaches, not from
+                # its `about_ref` alone. `request_of` reads an item id only,
+                # so a note about `cr_1` had no owner, and night 161's m234
+                # contested the merged confirm item's `cr_1` (frame 316,
+                # `plans/frame316-provenance.md`, repair 1). A note that
+                # reaches no item keeps the carrier.
+                reached = _items_reached(conn, row["about_ref"])
+                owners = {None if _is_description(conn, item)
+                          else request_of(conn, item) for item in reached}
+                elsewhere = bool(owners) and all(
+                    o is not None and o != page_req for o in owners)
+                if page_req is None or not elsewhere:
                     per_item[row["about_ref"]] = "contest"
         conn.execute(
             "INSERT INTO decisions (id, author, text, refs, resolves_ledger) "
