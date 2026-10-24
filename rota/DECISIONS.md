@@ -1533,3 +1533,20 @@ or "help text". For every other criterion the kind refusal of frame 180
 stays as built, so a reviewer cannot pass a behaviour criterion by
 pointing at a comment (reasoned: the general form of the ruling, from the
 provenance's section 6). The fix is frame 311.
+
+### An approve restarts a review that ran out of attempts, and the review must still pass (2026-10-24)
+
+Roman, 2026-10-24 at 01:30, in the terminal, to frame 312's question whether
+his approve of a page may restart a review that ran out of attempts on a
+change whose tests pass: "Yes there needs to be a passing review" (ruled:
+Roman, in his words). He asked whether the fault behind the case is being
+fixed; it is frame 266's fragment key in the Critic's lines check, sprint
+17 row 1 (observed: `plans/frame312-provenance.md`, m45 is bg_1's review).
+
+The rule: an approve on a page whose quarantined key is a review clears
+that one key, and the Critic gets its attempts again. The approve never
+stands in for the verdict. A stuck Tester or Developer step still needs a
+moved row, law 6 (reasoned: the general form, from the provenance's
+section 5). The fix is frame 312's second half, after the lines-check
+fixes.
+
