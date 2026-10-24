@@ -3121,7 +3121,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         api.refuse_signoff_without_draft(ctx, recipient, verb, refs)
         # A signoff submit carries the items its wake named and no other
         # (frame 316, W3 of night 163).
-        refs = api.signoff_own_refs(ctx, recipient, verb, refs)
+        kept = api.signoff_own_refs(ctx, recipient, verb, refs)
+        signoff_dropped = [r for r in refs or [] if r not in kept]
+        signoff_woke = [r for r in (getattr(ctx, "wake_refs", ()) or ())
+                        if isinstance(r, str)]
+        refs = kept
 
         # The principal is the one recipient that does not share the database.
         # They have seen the transcript and whatever came out of it; they have
@@ -4255,6 +4259,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             out["note"] = (f"this replaces the question to {replaced}, which "
                            f"will not be sent. One block, one owner, and you "
                            f"have named {recipient}.")
+        if signoff_dropped:
+            # Said, so the drop of frame 316's W3 is never silent (review
+            # finding 3).
+            left = (f"left out {', '.join(signoff_dropped)}: this signoff was "
+                    f"woken for {', '.join(signoff_woke)}, and a signoff page "
+                    f"carries only the items that woke it")
+            out["note"] = f"{out['note']}. {left}" if "note" in out else left
         return out
 
     # Two signatures, because the model is shown exactly what it may pass and an

@@ -21,7 +21,6 @@ import pytest
 from rota.core.db import init_db
 from rota.core.predicates import Wake
 from rota.core.sandbox import build
-from rota.roles.principal import Answer, land, pending_asks, verdict_for
 from rota.testkit.fixtures import seed_provenance, seed_ref
 
 ITEM1 = "format_filename_example"
@@ -88,8 +87,11 @@ def test_s151_signoff_submit_carries_only_the_woken_draft(db):
     """Hop 1: s151 sent six refs on a wake that named item 3 only."""
     vk = build("vision_keeper", db, mode="normal",
                wake=Wake("vision_keeper", "tick:signoff", refs=(ITEM3,)))
-    vk.call("msg.submit_liaison", refs=list(S151_SUBMIT))
+    out = vk.call("msg.submit_liaison", refs=list(S151_SUBMIT))
     assert [m["body_refs"] for m in vk.ctx.outbound] == [[ITEM3]]
+    # The drop is said, never silent (review finding 3).
+    for ref in S151_SUBMIT[1:]:
+        assert ref in out["note"], out
 
 
 def test_m48_submit_page_shows_only_item_3s_rows(db):
@@ -109,46 +111,69 @@ def test_m48_submit_page_shows_only_item_3s_rows(db):
         assert row not in refs, refs
 
 
-def test_m49_takes_item_1s_rows_off_and_leaves_item_1_approved(db):
-    """Hop 2: his m49 on a page that carries item 1's rows, as m48 did."""
-    for mid, cause, frm, to, verb, seq, status in (
-            ("m47", None, "vision_keeper", "liaison", "submit", 1, "answered"),
-            ("m48", "m47", "liaison", "principal", "present", 2, "open")):
-        db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, "
-                   "verb, body_refs, seq, status) VALUES (?, 'th', ?, ?, ?, ?, ?, ?, ?)",
-                   (mid, cause, frm, to, verb, json.dumps(M48_REFS), seq, status))
-    db.commit()
-    ask = pending_asks(db)[0]
-    per_item = {ITEM3: "approve", f"guess:{ITEM3}": "approve",
-                **{d: "approve" for d in DESCRIPTIONS},
-                ITEM1: "contest", f"guess:{ITEM1}": "contest",
-                "c_1": "contest", "c_2": "contest"}
-    mid = land(db, ask, Answer(verb="verdict", text=M49, per_item=per_item))
-    db.commit()
-    assert _approval(db, ITEM1) == "approved"
-    assert _approval(db, ITEM3) == "approved"
-    ruled = verdict_for(db, mid)
-    for row in (ITEM1, f"guess:{ITEM1}", "c_1", "c_2"):
-        assert row not in ruled, ruled
-    # The cancel predicate abandons a live batch whose item is not approved.
-    assert db.execute("SELECT status FROM batches WHERE id = 'bg_1'"
-                      ).fetchone()["status"] == "running"
+E_P3 = ("Make clear() return True when it cleared the screen and False when "
+        "stdout is not a terminal.")
 
 
-def test_a_contest_of_a_draft_of_another_request_still_lands(db):
-    """A signoff page asks about each draft, so its contest stays."""
-    db.execute("UPDATE items SET approval = 'draft' WHERE id = ?", (ITEM1,))
-    for mid, cause, frm, to, verb, seq, status in (
-            ("m47", None, "vision_keeper", "liaison", "submit", 1, "answered"),
-            ("m48", "m47", "liaison", "principal", "present", 2, "open")):
-        db.execute("INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, "
-                   "verb, body_refs, seq, status) VALUES (?, 'th', ?, ?, ?, ?, ?, ?, ?)",
-                   (mid, cause, frm, to, verb, json.dumps([ITEM3, ITEM1]), seq, status))
+def _requests(db):
+    """His two request messages, as m_p1 and m_p3 on night 163."""
+    for mid, entry, seq in (("m_p1", "e_p1", 17), ("m_p3", "e_p3", 45)):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                   "body_refs, seq, status) VALUES (?, ?, 'principal', 'liaison', "
+                   "'converse', ?, ?, 'answered')",
+                   (mid, f"t_{mid}", json.dumps([entry]), seq))
     db.commit()
-    land(db, pending_asks(db)[0],
-         Answer(verb="verdict", text="Line 2 is wrong.",
-                per_item={ITEM3: "approve", ITEM1: "contest"}))
-    assert _approval(db, ITEM1) == "contested"
+
+
+def test_s146_segment_of_the_clear_request_takes_no_supersedes(db):
+    """The cause of hop 2: s146 saved the clear() request as a follow-up of
+    the format_filename request s1, so both items sat in request e_p1."""
+    _requests(db)
+    # At s146, e_p3 had no statement yet.
+    db.execute("DELETE FROM refs WHERE target = 's2'")
+    db.execute("DELETE FROM statements WHERE id = 's2'")
+    db.commit()
+    li = build("liaison", db, mode="normal", entry_id="e_p3",
+               wake=Wake("liaison", "message", "m_p3", detail="converse"))
+    li.ctx.trigger = "m_p3"
+    with pytest.raises(ValueError) as err:
+        li.call("brief.segment", id="s2", span_entry="e_p3", span_start=0,
+                span_end=len(E_P3), text=E_P3, supersedes="s1")
+    assert str(err.value) == (
+        "`supersedes` names `s1`, which is about format_filename. These words "
+        "name clear, so they are a new request. Leave `supersedes` out.")
+    assert not [w for w in li.ctx.writes if w[0] == "statements"]
+    # The same words with no supersedes land as a request of their own.
+    li.call("brief.segment", id="s2", span_entry="e_p3", span_start=0,
+            span_end=len(E_P3), text=E_P3)
+
+
+def test_a_follow_up_on_the_same_function_keeps_supersedes(db):
+    _requests(db)
+    li = build("liaison", db, mode="normal", entry_id="e_p3",
+               wake=Wake("liaison", "message", "m_p3", detail="converse"))
+    li.ctx.trigger = "m_p3"
+    said = "Give format_filename a second example for a path with no folder."
+    db.execute("UPDATE entries SET text = ? WHERE id = 'e_p3'", (said,))
+    db.commit()
+    out = li.call("brief.segment", id="s9", span_entry="e_p3", span_start=0,
+                  span_end=len(said), text=said, supersedes="s1")
+    staged = [w for w in li.ctx.writes if w[0] == "statements" and w[1] == "s9"]
+    assert staged[0][2].get("supersedes") == "s1", (staged, out)
+
+
+def test_m48_with_no_supersede_link_holds_no_row_of_item_1(db):
+    """With two requests, as the door now keeps them, `off_page` takes item
+    1's rows off m48. With s146's link, the night's shape, it took none, and
+    m49's contest of lines 3 to 6 reached item 1."""
+    from rota.roles.principal import off_page
+
+    _requests(db)
+    rows = {ITEM1, "c_1", "c_2", f"guess:{ITEM1}"}
+    assert rows <= off_page(db, M48_REFS), off_page(db, M48_REFS)
+    db.execute("UPDATE statements SET supersedes = 's1' WHERE id = 's2'")
+    db.commit()
+    assert not rows & off_page(db, M48_REFS), off_page(db, M48_REFS)
 
 
 def _contested_wake(db):

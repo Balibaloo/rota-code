@@ -1953,53 +1953,6 @@ def _page_order(conn: sqlite3.Connection, ask: Ask) -> list[str]:
                        ask_id=ask.message_id)[1]
 
 
-def _drop_other_request_contests(conn: sqlite3.Connection, ask: Ask,
-                                 per_item: dict) -> dict:
-    """`per_item` less each contest of a row whose items are all approved
-    items of another request than the page's."""
-    # law 9: a contest reaches the row's owner, who amends; an approve never skips it
-    # A contest of another item's row takes the row off this page. It is no
-    # contest of that item. Night 163's m49 said "take lines 3 to 6 off this
-    # page" about item 1's rows on the clear() page. The contest set item 1
-    # to contested, and the cancel predicate abandoned bg_1 (frame 316, W3).
-    # Frame 274 skips a note about such an item. This skips the item's own
-    # rows. A draft keeps its contest, because a signoff page asks about it.
-    from ..core.runner import _is_description
-
-    page_req = None
-    out = dict(per_item)
-    for ref, ruling in per_item.items():
-        if ruling not in ("contest", "revise"):
-            continue
-        if conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone():
-            continue
-        reached = _items_reached(conn, ref)
-        if not reached:
-            continue
-        if page_req is None:
-            page_req = page_request(conn, ask.refs) or ""
-            # The page is an item's page when it asks about one item of its
-            # request: a draft or a contested item. A page of approved items
-            # of two requests keeps the old rule (frame 190's design, 2.F).
-            asks = page_req and any(
-                request_of(conn, item) == page_req and conn.execute(
-                    "SELECT 1 FROM items WHERE id = ? AND approval IN "
-                    "('draft', 'contested')", (item,)).fetchone()
-                for item in _reached(conn, ask.refs))
-            if not asks:
-                page_req = ""
-        if not page_req:
-            return out
-        approved = all(conn.execute(
-            "SELECT 1 FROM items WHERE id = ? AND approval = 'approved'",
-            (item,)).fetchone() for item in reached)
-        owners = {None if _is_description(conn, item) else request_of(conn, item)
-                  for item in reached}
-        if approved and all(o is not None and o != page_req for o in owners):
-            out.pop(ref)
-    return out
-
-
 def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
          ruling_id: str | None = None) -> str | None:
     """
@@ -2186,8 +2139,6 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     if ask.verb == "present" and answer.verb == "verdict" and per_item and stamped:
         per_item = {k: v for k, v in per_item.items()
                     if k not in stamped or v in ("contest", "revise")}
-    if ask.verb == "present" and answer.verb == "verdict" and per_item:
-        per_item = _drop_other_request_contests(conn, ask, per_item)
 
     msg_id = new_id("m", conn)
     seq = conn.execute(

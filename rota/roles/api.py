@@ -917,6 +917,15 @@ def _shares_a_word(new: str, earlier: str) -> bool:
                 or _content_words(new) & _content_words(earlier))
 
 
+def _named_surfaces(text: str) -> set[str]:
+    """The identifiers and the called names, as `clear()`, that a text names."""
+    # `_identifiers` takes `format_filename` and drops `clear()`, a plain
+    # word with a call after it.
+    called = {m.group(1).lower() for m in re.finditer(
+        r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", text or "")}
+    return {n.lower() for n in _identifiers(text or "")} | called
+
+
 @op("brief", "segment")
 def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                   text: str, span_entry: str | None = None,
@@ -985,6 +994,19 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                 f"word with it. A follow-up names the function or the feature "
                 f"it continues. Leave `supersedes` out when the words are about "
                 f"another function.")
+        # A shared word is not a shared function. Night 163's s146 saved the
+        # clear() request with `supersedes='s1'`, the format_filename
+        # request, and the check above passed on "True". Both items then sat
+        # in request e_p1, so `off_page` kept item 1's rows on page m48
+        # (frame 316, W3, review finding 1).
+        old_names = _named_surfaces(earlier["text"] if earlier else "")
+        new_names = _named_surfaces(text)
+        if old_names and new_names and not old_names & new_names:
+            raise ValueError(
+                f"`supersedes` names `{supersedes}`, which is about "
+                f"{', '.join(sorted(old_names))}. These words name "
+                f"{', '.join(sorted(new_names))}, so they are a new request. "
+                f"Leave `supersedes` out.")
 
     # You cannot ratify a question. Handed "remind me, what did we decide
     # about invoice retention?", intake segmented it into three statements
@@ -1565,10 +1587,14 @@ def _reply_sentence_fault(ctx: Ctx, id: str, text: str, row,
                     "Assert only what he asked for.")
             if "decisions.author" in tools:
                 step += " Or answer with decisions.author"
-            return (f"those are his words from his reply {entry['id']}, "
-                    f"{sent!r}. That reply answers the team, and this wake "
-                    f"does not carry it, so it is not the text of {id}. "
-                    f"{step}")
+            # An item text is the Vision Keeper's reading, not his words
+            # (frame 315, status of 2026-10-24 14:05). The refusal says what
+            # is true: no statement holds the sentence (frame 316, W3 review,
+            # finding 4).
+            return (f"the text copies his reply {entry['id']}, {sent!r}, and "
+                    f"no statement holds that sentence yet. An item text for "
+                    f"{id} is your reading of a statement he ratified, not a "
+                    f"copy of his reply. {step}")
     return None
 
 
