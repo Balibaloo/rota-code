@@ -319,3 +319,49 @@ def test_a_developer_wake_on_the_same_answer_is_unchanged(night):
     assert list(refs) == [C2, C6]
     user = _user(night, "developer", "m200d")
     assert "[last run of" not in user and "tst_v2_format" not in user
+
+
+def test_a_retired_ticket_s_test_does_not_travel(night):
+    """Review 1, F2: a newer slice of the item retires the ticket, and
+    `tests_missing` asks no test of it. Its test does not travel either."""
+    night.execute("UPDATE tickets SET item_ver = 1 "
+                  "WHERE id = 'tk_2_version_option_show_python'")
+    night.execute("INSERT INTO tickets (id, item_id, text, item_ver) "
+                  "VALUES ('tk_3','i1','the newer slice',2)")
+    night.execute("INSERT INTO batch_tickets (batch_id, ticket_id) "
+                  "VALUES ('b_5','tk_3')")
+    night.commit()
+    user = _user(night, "tester", "m200")
+    assert "[last run of" not in user and "tst_v2_format" not in user
+
+
+# Night 160, seq 243: a source line above the error holds "UsageError".
+RUN_N160 = ('        original_stdin = sys.stdin\n'
+            '        try:\n'
+            '            sys.stdin = io.StringIO("")\n'
+            '            try:\n'
+            '                confirm("Are you sure?", default_on_eof=False)\n'
+            '                assert False, "Expected UsageError on EOF with '
+            'default_on_eof=False"\n'
+            '            except Exception as e:\n'
+            '>               assert "UsageError" in str(type(e)) or "EOF" in '
+            'str(e), f"Unexpected error type: {type(e)}"\n'
+            "E               AssertionError: Unexpected error type: "
+            "<class 'click.exceptions.Abort'>\n"
+            "E               assert ('UsageError' in \"<class "
+            "'click.exceptions.Abort'>\" or 'EOF' in '')\n"
+            + "x" * 800)
+
+
+def test_the_raising_line_is_the_first_e_line_not_a_source_line():
+    """Review 1, F3: the word "Error" picked the source line on night 160."""
+    from rota.core.runner import _raising_line_head
+
+    head = _raising_line_head(RUN_N160)
+    lines = head.splitlines()
+    assert lines[1].startswith("E               AssertionError: Unexpected")
+    assert lines[0].startswith(">               assert") and lines[-1] == "..."
+    # No `E ` line: the first Traceback line, and none inside the tail.
+    assert _raising_line_head("a\nTraceback (most recent call last):\nb\n"
+                              + "x" * 800).startswith("a\nTraceback")
+    assert _raising_line_head("x" * 800 + "\nE   KeyError: 'k'\n") == ""

@@ -36,7 +36,7 @@ from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
 from .db import (OutboundMessage, REPEAT_END, SessionResult, Turn, Write,
                  session_commit, session_fail, session_note)
-from .scheduler import Wake, claim, release
+from .scheduler import Wake, claim, not_retired, release
 
 _log = logging.getLogger(__name__)
 
@@ -2819,7 +2819,10 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
                 "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
                 " AND bt.batch_id = t.batch_id "
                 "WHERE t.criterion_id = ? AND t.batch_id = ? "
-                "ORDER BY t.rowid DESC LIMIT 1",
+                # Review 1, F2: a retired ticket owes no test, as in
+                # `tests_missing`, so its test does not travel.
+                + not_retired(conn, "bt.ticket_id")
+                + " ORDER BY t.rowid DESC LIMIT 1",
                 (row["id"], batch_id)).fetchone()
             if test and test["id"] not in resolved and test["id"] not in named:
                 named.append(test["id"])
@@ -2832,20 +2835,26 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
 def _raising_line_head(output: str) -> str:
     """The raising line and its two neighbours, when the 700 tail lacks it.
 
-    Frame 317, pass 1b: the raising line is the first line that holds
-    "Error", "Traceback" or "Try passing". A line inside the tail gives "".
+    Frame 317, pass 1c: the raising line is the first line that starts with
+    "E ", else the first that holds "Traceback". A word search for "Error"
+    picked a source line on night 160, seq 243 (review 1, F3). A line
+    inside the tail gives "".
     """
     tail_from = len(output) - 700
-    at = 0
     lines = output.splitlines(keepends=True)
-    for i, line in enumerate(lines):
-        if any(w in line for w in ("Error", "Traceback", "Try passing")):
-            if at < tail_from:
-                lo, hi = max(i - 1, 0), min(i + 2, len(lines))
-                return "".join(lines[lo:hi]).rstrip("\n") + "\n...\n"
-            return ""
+    starts, at = [], 0
+    for line in lines:
+        starts.append(at)
         at += len(line)
-    return ""
+    i = next((n for n, line in enumerate(lines) if line.startswith("E ")),
+             None)
+    if i is None:
+        i = next((n for n, line in enumerate(lines) if "Traceback" in line),
+                 None)
+    if i is None or starts[i] >= tail_from:
+        return ""
+    lo, hi = max(i - 1, 0), min(i + 2, len(lines))
+    return "".join(lines[lo:hi]).rstrip("\n") + "\n...\n"
 
 
 # Frame 110's label, given to every reader of a red row whose test raised in
