@@ -14,6 +14,56 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 20, recommended on night 163's read, 2026-10-24 18:20
+
+Night 163 ended sprint 19 of 2026-10-24 10:32, because it was that
+sprint's night. The night ran cold from 5758cc46, 16:33 to 18:05, on
+three new click items, and the session stopped it in walk 3 by the rule
+of 2026-10-09 20:19: 265 sessions, 1224 turns, 26 asks, 2 batches, 0
+merged, against 2 of 3 on night 162 (observed: `plans/night163-read.md`,
+section 0). Item 2, frame 283's sample, never ran. W1: the note door of
+frame 283 refused `return` to `return False` at `termui.py:609`, the
+item's own ask, and its keep route named `msg.escalate_architect`, a tool
+the Developer's `batch_start` set lacks, so 20 Developer sessions and 6
+asks looped on bg_2 and 38 sessions wrote their own tool results. W2:
+his four corrections to the plan page landed six times and changed
+nothing, because a contest can only respecify and no route adds or
+removes a criterion. W3: a contest on another item's rows kept item 1
+alive and his refusal became its text. W5: the stop page named no door.
+W6: item 2 died in s145 on four refused clarify calls, and nothing
+retried the message. The read's section 5 holds the ranks and the sites.
+
+The order, each row a frame on the stack (reasoned: the read, section 5;
+rows 1 to 3 share `api.py` and `principal.py`, so their passes land one
+at a time):
+
+1. Frame 283, W1: a provenance read of the keep route and of the
+   one-token rewrite, then the fix: the seat holds every tool a refusal
+   names, and a rewrite that a criterion names is not an unruled removal.
+   1 cycle for the read, 2 for the tool set and the text, 2 for the
+   predicate.
+2. Frame 306, W2: "delete" on a criterion line removes the row,
+   respecify meets the near-duplicate check, and a page can add a
+   criterion. 2 to 4 cycles.
+3. Frames 316 and 315, W3: a contest on another item's rows does not keep
+   that item alive or show it to him again. 2 cycles.
+4. W6, a new frame when its row comes, with a park by the economy: a
+   Liaison message wake that ends with nothing done is retried or
+   reported. 1 cycle to read, 2 to fix.
+5. Frame 312, W5: a stop page names the refused door and the code already
+   written. 2 cycles.
+6. Frame 318: a criteria move lifts only the keys it can change. 2 cycles.
+7. W7 and W8, read first: the criteria writer's invented cases, frame 319's
+   kin, and bg_2 that started with no Tester. 1 cycle.
+8. The 63 stale cases of the register loss of 17:07 re-record from
+   `rota_g301`; the gate's five lines before any commit.
+
+Night 164 runs from the branch head after row 1 lands, held on the commit
+door, with the same three items and item 2 first. It measures frames 283,
+306 and 312 on the commit and the page, frames 258, 305, 316 and 317 on
+their night 3, frames 281 and 318 on their night 2, frame 315's words
+door, and frame 113's share of sessions that write their own results.
+
 ## Sprint 19, recommended on night 162's read, 2026-10-24 10:32
 
 Night 162 ended sprint 18 of 2026-10-24 05:58, because it was that
