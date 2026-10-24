@@ -6516,7 +6516,8 @@ def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
             " AND t.batch_id = bt.batch_id LIMIT 1) "
             "AS tested_by "
             "FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-            "WHERE bt.batch_id = ?", (bid,)))
+            "WHERE bt.batch_id = ?" + _live_rows(ctx.conn, "c.retired_by"),
+            (bid,)))
         # A test of another batch is not this batch's test. Night 147: the
         # Tester of bg_3 saw bg_2's tests here (frame 239's review, finding 2).
         for r in rows:
@@ -6537,7 +6538,8 @@ def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
                 "FROM criteria c WHERE c.id = ? OR EXISTS ("
                 "  SELECT 1 FROM refs r WHERE r.src_table = 'criteria' "
                 "    AND r.src_id = c.id AND r.kind = 'term' AND r.target = ?) "
-                "ORDER BY c.id", (ref, ref))))
+                + _live_rows(ctx.conn, "c.retired_by") +
+                " ORDER BY c.id", (ref, ref))))
         seen = set()
         rows = [r for r in rows if not (r["id"] in seen or seen.add(r["id"]))]
     # The `term_refs` key stays, in its place in the row: after `text`,
@@ -8431,6 +8433,28 @@ def _sentence_around(text: str, match) -> str:
     return text[start:(end + 1 if end != -1 else len(text))].strip()
 
 
+def _live_rows(conn: sqlite3.Connection, col: str) -> str:
+    """The retired criteria filter for the loads of the Critic and the
+    Tester. His ruling retires a row, so no seat judges or tests it (frame
+    306, pass 1c)."""
+    from ..core.scheduler import live_criteria
+
+    return live_criteria(conn, col)
+
+
+def _refuse_retired(ctx: Ctx, criterion_id: str) -> None:
+    """Refuse a test of a criterion that his ruling retired."""
+    if not _live_rows(ctx.conn, "retired_by"):
+        return
+    row = ctx.conn.execute("SELECT retired_by FROM criteria WHERE id = ?",
+                           (criterion_id,)).fetchone()
+    if row is not None and row["retired_by"]:
+        raise ValueError(
+            f"{criterion_id} is retired: the principal's ruling "
+            f"{row['retired_by']} dropped its line. Encode only the live "
+            f"criteria of the batch")
+
+
 @op("tests", "encode")
 def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                  batch_id: str | None = None) -> dict:
@@ -8452,6 +8476,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     with it — the same shape as the invented item id, and recoverable for the
     same reason: the model can be told and try again.
     """
+    _refuse_retired(ctx, criterion_id)
     # One form of the path for every door and for the stored row. A row
     # stored with backslashes ran as `error no tests ran` in
     # `harness._run_one` for good (frame 135's review at eb6c7ef).

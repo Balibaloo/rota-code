@@ -164,3 +164,49 @@ def test_a_relay_with_no_drop_and_no_added_line_keeps_the_mode_tools(db):
     assert _wake_allow(_wake(), db) == prompts.mode_tools(
         "terminologist", "criterion_repair")
     assert _page_act_lines(_wake(), db) == []
+
+
+# Pass 1c: no seat that judges, tests or merges reads a retired criterion.
+RETIRED = "c3_no_terminal_true"
+
+
+def _batch(conn):
+    conn.execute("INSERT INTO batches (id, item_id, head_commit, status) "
+                 "VALUES ('bg_2', ?, 'abc123', 'running')", (ITEM,))
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+                 "('bg_2', ?)", (TICKET,))
+    for n, cid in enumerate(c for c in CRITERIA if c != RETIRED):
+        conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, "
+                     "body) VALUES (?, 'bg_2', ?, 'tests/test_clear.py', "
+                     "'assert True')", (f"tst{n}", cid))
+    conn.execute("UPDATE criteria SET retired_by = 'r_fae8c0a559' WHERE id = ?",
+                 (RETIRED,))
+    conn.commit()
+
+
+def test_a_retired_criterion_holds_no_merge(db):
+    from rota.core.lifecycle import mergeable
+
+    _batch(db)
+    assert "criteria without a test" not in (mergeable(db, "bg_2") or "")
+
+
+def test_the_critics_load_shows_no_retired_line(db):
+    _batch(db)
+    sb = build("critic", db, batch_id="bg_2", mode="review",
+               allow=prompts.mode_tools("critic", "review"))
+    ids = {r["id"] for r in sb.call("criteria.load")}
+    assert RETIRED not in ids and "c3_terminal_check" in ids
+
+
+def test_the_tester_encodes_only_live_criteria(db):
+    _batch(db)
+    db.execute("DELETE FROM tests")
+    db.commit()
+    sb = build("tester", db, batch_id="bg_2", mode="challenge",
+               allow=prompts.mode_tools("tester", "challenge"))
+    ids = {r["id"] for r in sb.call("criteria.load")}
+    assert RETIRED not in ids
+    with pytest.raises(ValueError, match="is retired"):
+        sb.call("tests.encode", id="tst_x", criterion_id=RETIRED,
+                path="tests/test_clear.py", body="def test_x():\n    pass\n")

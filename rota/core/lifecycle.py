@@ -776,6 +776,12 @@ def waiting_on_a_seat(conn: sqlite3.Connection, batch_id: str) -> str | None:
                      for owner, ids in held.items())
 
 
+def _live(conn, col: str) -> str:
+    from .scheduler import live_criteria
+
+    return live_criteria(conn, col)
+
+
 def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     """
     Why this batch cannot merge, or None if it can.
@@ -811,7 +817,10 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
         "WHERE bt.batch_id = ? AND NOT EXISTS (SELECT 1 FROM tests t "
         "                                       WHERE t.criterion_id = c.id "
         "                                       AND t.batch_id = bt.batch_id) "
-        "ORDER BY c.id", (batch_id,))] if has_tests else []
+        # A retired criterion owes no test, so it holds no merge (frame 306,
+        # pass 1c).
+        + _live(conn, "c.retired_by") +
+        " ORDER BY c.id", (batch_id,))] if has_tests else []
     if untested:
         return f"criteria without a test: {', '.join(untested)}"
 

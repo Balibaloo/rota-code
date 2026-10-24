@@ -1340,7 +1340,8 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
             ok = ctx.conn.execute(
                 "SELECT 1 FROM batch_tickets bt "
                 "JOIN criteria c ON c.ticket_id = bt.ticket_id "
-                "WHERE bt.batch_id = ? AND c.id = ?",
+                "WHERE bt.batch_id = ? AND c.id = ?"
+                + api._live_rows(ctx.conn, "c.retired_by"),
                 (ctx.batch_id, crit[0])).fetchone()
             if not ok:
                 raise ValueError(
@@ -1385,7 +1386,8 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
                     other = next((o["id"] for o in ctx.conn.execute(
                         "SELECT c.id, c.text FROM criteria c "
                         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-                        "WHERE c.id != ? AND bt.batch_id = ?",
+                        "WHERE c.id != ? AND bt.batch_id = ?"
+                        + api._live_rows(ctx.conn, "c.retired_by"),
                         (r, ctx.batch_id or ""))
                         if _quotes_span(o["text"] or "", text)), None)
                     if other:
@@ -1570,7 +1572,9 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     for r in relay_refs:
         if verdict.get(r) not in ("contest", "revise"):
             continue
-        if ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
+        # A retired criterion asks for no answer (frame 306, pass 1c).
+        if ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?"
+                            + api._live_rows(ctx.conn, "retired_by"),
                             (r,)).fetchone():
             ruled.append(r)
             continue
@@ -1593,7 +1597,8 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
                 "SELECT 1 FROM criteria c JOIN batch_tickets bt "
                 "ON bt.ticket_id = c.ticket_id JOIN batches b ON b.id = bt.batch_id "
                 "WHERE c.id = ? AND b.status NOT IN ('merged', 'abandoned') "
-                "AND b.head_commit IS NOT NULL AND b.head_commit != ''",
+                "AND b.head_commit IS NOT NULL AND b.head_commit != ''"
+                + api._live_rows(ctx.conn, "c.retired_by"),
                 (r,)).fetchone() for r in ids)
     missing = [r for r in ruled if r not in given]
     # The answer carries a criterion by its ref, so the Tester reads the row

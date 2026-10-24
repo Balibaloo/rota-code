@@ -241,6 +241,14 @@ def message_entry_id(conn: sqlite3.Connection, message_id: str) -> str | None:
     return None
 
 
+def live_criteria(conn, col: str) -> str:
+    """`scheduler.live_criteria`, imported late as this module's other
+    scheduler reads are."""
+    from .scheduler import live_criteria as live
+
+    return live(conn, col)
+
+
 def _page_acts(wake: Wake, conn: sqlite3.Connection | None) -> dict | None:
     """His ruling's drops and added line, on a criterion relay wake only.
 
@@ -527,8 +535,10 @@ def _last_word_lines(conn, wake: Wake) -> list[str]:
         except (TypeError, ValueError):
             refs = []
         for ref in refs:
+            # A retired criterion takes no repair (frame 306, pass 1c).
             if not isinstance(ref, str) or not conn.execute(
-                    "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone():
+                    "SELECT 1 FROM criteria WHERE id = ?"
+                    + live_criteria(conn, "retired_by"), (ref,)).fetchone():
                 continue
             # An approve's words are about other lines of its page. Night
             # 144's r_373fbae7da approved this criterion and asked about
@@ -641,7 +651,8 @@ def _relay_contest_block(conn, role: str, inbound: dict[str, Any]) -> str:
     rows = [{"id": ref} for ref in inbound.get("refs") or ()
             if isinstance(ref, str) and verdict.get(ref) == "contest"
             and conn.execute(
-                "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()]
+                "SELECT 1 FROM criteria WHERE id = ?"
+                + live_criteria(conn, "retired_by"), (ref,)).fetchone()]
     return _contest_block(conn, rows)
 
 
