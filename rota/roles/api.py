@@ -17103,6 +17103,43 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                                      start=_lo(p), end=_end(p), text=_whole(p))
                 return None
 
+            def _holding(a, b):
+                # Night 161 (frame 313): s317 sent 540..560 and 537..560
+                # three times each. The refusals offered the raise or the
+                # whole callback, and no span that held the seat's lines.
+                # This gives the smallest span of whole statements of one
+                # list that holds a..b, the list's parent and its field.
+                n, level = None, tops
+                while True:
+                    hit = [s for s in level if _lo(s) <= a and b <= _end(s)]
+                    if not hit:
+                        break
+                    n, level = hit[0], _children(hit[0])
+                fields = _fields if n is not None else ("body",)
+                for f in fields:
+                    ns = _stmts(getattr(n, f, None)) if n is not None else tops
+                    if not ns or not (_lo(ns[0]) <= a and b <= _end(ns[-1])):
+                        continue
+                    lo = min([a] + [_lo(s) for s in ns if _lo(s) < a < _end(s)])
+                    hi = max([b] + [_end(s) for s in ns if _lo(s) < b < _end(s)])
+                    return n, f, lo, hi
+                return None
+
+            def _holding_offer(a, b, skip):
+                # The offer names the span and its block. The seat's text
+                # covers a..b only, so the seat writes the text again.
+                h = _holding(a, b)
+                if h is None or (h[2], h[3]) in skip:
+                    return []
+                n, f, lo, hi = h
+                where = ("the top level of the file" if n is None
+                         else f"the {_block[f]} of {_what(n)}")
+                _fact(ctx, "span", (lo, hi), path=wpath)
+                return [f"Lines {lo} to {hi} hold start={start} and end={end} "
+                        f"in whole statements of {where}.",
+                        _send(f"To replace lines {lo} to {hi} send start={lo}, end={hi}.",
+                              start=lo, end=hi, text=INVENT)]
+
             tops = original.body if original else []
             cuts = {b: _cut(tops, b) for b in (start, stop)}
             if any(isinstance(c, list) for c in cuts.values()):
@@ -17219,6 +17256,9 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     parts.append(_send(f"To add after {name} send start={hi}, end={hi}.",
                                        start=hi, end=hi))
                 else:
+                    # s237's docstring held both boundaries, so its span is
+                    # the named one, and the refusal keeps its words.
+                    parts.extend(_holding_offer(start, stop, {(lo, hi)}))
                     parts.append(_send(f"To replace {name} whole send start={lo}, end={hi}.",
                                        start=lo, end=hi, text=_whole(named[0])))
                     parts.append(_send(f"To add after it send start={hi}, end={hi}.",
@@ -17303,9 +17343,13 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 # boundaries were whole, and the span still removed the
                 # header of async def h or ended on a finally: header.
                 def _where(x):
-                    p, f = x[0], x[1]
-                    return ("the top level of the file" if p is None
-                            else f"the {_block[f]} of {_what(p)}")
+                    p, f, ns = x
+                    if p is None:
+                        return "the top level of the file"
+                    # Frame 313: the block's own lines, so the seat can see
+                    # where each block starts and ends.
+                    blo, bhi = _fact(ctx, "span", (_lo(ns[0]), _end(ns[-1])), path=wpath)
+                    return f"the {_block[f]} of {_what(p)} (lines {blo} to {bhi})"
 
                 parts = [f"start={start}, end={end} crosses from one block to another.",
                          f"start={start} is in {_where(sl[-1]) if sl else 'no block'}.",
@@ -17332,6 +17376,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                         break
                     n, level = hit[0], _children(hit[0])
                 if n is not None:
+                    parts.extend(_holding_offer(start, stop, {(_lo(n), _end(n))}))
                     parts.append(_send(f"To replace {_what(n)} whole send "
                                        f"start={_lo(n)}, end={_end(n)}.",
                                        start=_lo(n), end=_end(n), text=_whole(n)))

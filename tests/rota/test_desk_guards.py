@@ -4295,7 +4295,9 @@ def test_a_span_from_one_def_into_the_next_is_refused_with_both_edges(db, tmp_pa
            "async def h():\n    '''D.'''\n    await y\n    return 1\n")
     msg = _span_refusal(db, tmp_path, src, 4, 8, "    a = 2\n")
     assert "crosses from one block to another" in msg
-    assert "start=4 is in the body of C." in msg and "end=8 is in the body of h." in msg
+    # Frame 313: each block names its own lines.
+    assert "start=4 is in the body of C (lines 3 to 6)." in msg
+    assert "end=8 is in the body of h (lines 7 to 10)." in msg
     assert "To edit C alone send end=6, which is where C ends." in msg
     assert "To edit inside h send start=7, which is where the body of h starts." in msg
     assert "Your text replaces the docstring too." in msg
@@ -4308,7 +4310,7 @@ def test_a_span_that_ends_on_a_finally_header_is_refused(db, tmp_path):
     """Frame 92's diff review of pass 5 (2026-09-29): the span 6 to 8 ended
     on the finally: header and passed."""
     msg = _span_refusal(db, tmp_path, _TRY, 6, 8, "        c = 4\n")
-    assert "end=8 is in the finally block of try." in msg
+    assert "end=8 is in the finally block of try (lines 8 to 9)." in msg
     assert "To stop where except block ends send end=7." in msg
     assert "To replace try whole send start=1, end=9." in msg
     for s, e in ((6, 7), (1, 9)):
