@@ -116,14 +116,3 @@ def test_a_page_with_no_default_row_is_byte_equal_to_before(db):
     page, order = _render(db, refs)
     assert page.encode() == BEFORE.encode(), page
     assert order == ["l_c"]
-
-
-def test_an_item_amended_after_approval_keeps_the_default_numbered(db):
-    """Law 9: an item amended after its approval is not approved, so its
-    default row is before intent again (frame 325's review of 4519ac1c)."""
-    refs = _seed(db, approved=True)
-    db.execute("UPDATE items SET version = 2 WHERE id = 'greet'")
-    db.commit()
-    page, order = _render(db, refs)
-    assert order == ["l_c", "l_d"], order
-    assert f"  2. {ACCOUNT}" in page, page

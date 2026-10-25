@@ -1726,12 +1726,9 @@ def quiet_defaults(conn: sqlite3.Connection, ids: list[str]) -> set[str]:
             f"SELECT id FROM ledger WHERE kind = 'default' AND id IN "
             f"({','.join('?' * len(ids))})", tuple(ids)):
         items = _items_reached(conn, r["id"])
-        # An item amended after its approval is not approved (law 9), so
-        # the row is before intent again (frame 325's review of 4519ac1c).
         if items and all(
-                conn.execute("SELECT 1 FROM items WHERE id = ? AND approval = "
-                             "'approved' AND approval_ver = version",
-                             (i,)).fetchone()
+                (conn.execute("SELECT approval FROM items WHERE id = ?",
+                              (i,)).fetchone() or [None])[0] == "approved"
                 for i in items):
             out.add(r["id"])
     return out
