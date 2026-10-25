@@ -109,19 +109,12 @@ def param_description(doc: str, name: str) -> str:
     """
     What one parameter holds, for its schema.
 
-    The order is the docstring's `Arguments:` entry, then the first sentence
-    that names the parameter in backticks or as a word, then the name.
+    The docstring's `Arguments:` entry, else the bare name. A sentence
+    fallback picked design history and dotted text calls such as
+    `verdicts.emit(fail, ...)`, which teach the text form (frame 323,
+    review 2).
     """
-    text = _arguments_section(doc).get(name, "")
-    if not text:
-        flat = " ".join(doc.split())
-        sentences = re.split(r"(?<=[.!?])\s+", flat)
-        for pattern in (rf"`{re.escape(name)}`", rf"\b{re.escape(name)}\b"):
-            hit = next((s for s in sentences if re.search(pattern, s)), "")
-            if hit:
-                text = hit
-                break
-    text = text or name
+    text = _arguments_section(doc).get(name, "") or name
     return text[:PARAM_DESCRIPTION_CAP]
 
 

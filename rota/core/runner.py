@@ -1350,7 +1350,7 @@ def _cap_exchange(transcript: list[str], budget: int) -> list[str]:
 
 
 def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
-                    note_room: int) -> list[str]:
+                    note_room: int, native: bool = False) -> list[str]:
     """
     Cut the latest reply when the tail leaves no middle unit any room.
 
@@ -1379,7 +1379,7 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
     holds the second case.
     """
     middle, middle_kinds = transcript[1:-2], kinds[1:-2]
-    smallest = _smallest_unit(middle, middle_kinds)
+    smallest = _smallest_unit(middle, middle_kinds, native)
     if smallest is None:
         return transcript
     fixed = len(transcript[0]) + 2 + sum(len(t) + 2 for t in transcript[-2:])
@@ -1387,7 +1387,7 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
     # fits whole once tier 1 stubs its replies drops nothing, so the tail
     # takes no cut (the diff review of frame 108's pass 2, finding 1).
     if _NOTICE not in middle_kinds and fixed + sum(
-            _unit_chars(block, kind)
+            _unit_chars(block, kind, native)
             for block, kind in zip(middle, middle_kinds)) <= budget:
         return transcript
     if budget - fixed - note_room >= smallest:
@@ -1398,13 +1398,15 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
     reply_room = max(tail_room - 4 - len(results), _MIN_EXCHANGE // 2)
     if len(reply) <= reply_room:
         return transcript
-    stub = _stub(reply)
+    stub = _stub(reply, native)
     plain = _exchange_cut(reply, reply_room)
     # The plain cut serves when its own stub still lists every call: a call
     # inside the kept prefix showed twice under a stub prefix (the diff
     # review of frame 108's pass 3, finding 2).
-    if (stub == _STUB_EMPTY or reply.startswith(stub) or _stub(plain) == stub
-            or len(stub) + 1 >= reply_room // 2 or _stub(stub) != stub):
+    if (stub == _STUB_EMPTY or reply.startswith(stub)
+            or _stub(plain, native) == stub
+            or len(stub) + 1 >= reply_room // 2
+            or _stub(stub, native) != stub):
         cut = plain
     else:
         cut = stub + chr(10) + _exchange_cut(
@@ -1416,13 +1418,14 @@ def _cap_tail_reply(transcript: list[str], kinds: list[str], budget: int,
     # runs `_pack`, never `_fit`, so the cap does not recurse. A runner note
     # alone is no read, so it buys no cut (frame 119, pass 4).
     capped = transcript[:-2] + [cut, results]
-    trial, trial_kinds = _pack(capped, kinds, budget, note_room)
+    trial, trial_kinds = _pack(capped, kinds, budget, note_room, native)
     if not _reads_in(trial[1:-2], trial_kinds[1:-2]):
         return transcript
     return capped
 
 
-def _smallest_unit(middle: list[str], kinds: list[str]) -> int | None:
+def _smallest_unit(middle: list[str], kinds: list[str],
+                   native: bool = False) -> int | None:
     """
     The fewest characters one middle unit can keep after the packing.
 
@@ -1441,19 +1444,19 @@ def _smallest_unit(middle: list[str], kinds: list[str]) -> int | None:
         if kind == _RESULTS:
             size = len(block) + 2
             if i > 0 and kinds[i - 1] == _REPLY:
-                size += _unit_chars(middle[i - 1], _REPLY)
+                size += _unit_chars(middle[i - 1], _REPLY, native)
             units.append(size)
     return min(units) if units else None
 
 
-def _unit_chars(block: str, kind: str) -> int:
+def _unit_chars(block: str, kind: str, native: bool = False) -> int:
     """
     The characters one middle block holds after tier 1, its separator
     included. Tier 1 puts a stub in place of a reply only when the stub is
     shorter (the diff review of frame 108's pass 2, finding 2).
     """
     if kind == _REPLY:
-        return min(len(block), len(_stub(block))) + 2
+        return min(len(block), len(_stub(block, native))) + 2
     return len(block) + 2
 
 
@@ -1528,7 +1531,7 @@ def _append(transcript: list[str], kinds: list[str], kind: str,
     kinds.append(kind)
 
 
-def _stub(reply: str) -> str:
+def _stub(reply: str, native: bool = False) -> str:
     """
     An old reply as its call lines only. The results of the turn say what ran,
     so the call lines are enough to read them by (frame 100, night 99, s132).
@@ -1537,12 +1540,24 @@ def _stub(reply: str) -> str:
     anywhere in a line. A call in a list item or in backticks ran, so its
     stub keeps it (the diff review of frame 100's pass 1, finding 2). Each
     call is its first line, cut to `_STUB_CALL_CHARS`.
+
+    A native session also keeps the `name(...)` lines that
+    `_with_native_lines` wrote. Without them an old native reply became
+    `_STUB_EMPTY`, and the history again showed only results (frame 323).
+    A text session never reads such a line, so its stubs do not change.
     """
     calls = [(f"{toolproto.MARKER} {call.raw}".splitlines() or [""])[0]
              [:_STUB_CALL_CHARS]
              for call in toolproto.extract(reply)
              if isinstance(call, toolproto.ToolCall)]
+    if native:
+        calls += [line[:_STUB_CALL_CHARS] for line in reply.splitlines()
+                  if _NATIVE_LINE.match(line)]
     return chr(10).join(calls) or _STUB_EMPTY
+
+
+# A line that `_with_native_lines` writes: a dotted name, then its brackets.
+_NATIVE_LINE = re.compile(r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\(")
 
 
 def _source_spans(block: str) -> list[tuple[str, int, int]]:
@@ -1569,7 +1584,7 @@ def _source_spans(block: str) -> list[tuple[str, int, int]]:
 
 
 def _fit(transcript: list[str], kinds: list[str],
-         budget: int) -> tuple[list[str], list[str]]:
+         budget: int, native: bool = False) -> tuple[list[str], list[str]]:
     """
     Keep the session inside its window, evicting the middle rather than the front.
 
@@ -1627,8 +1642,8 @@ def _fit(transcript: list[str], kinds: list[str],
     def keeps_a_read(room: int) -> bool:
         trial = [_render_cut(transcript[0], room)] + transcript[1:]
         trial_note = len(_dropped_note(len(trial))) + 2
-        trial = _cap_tail_reply(trial, kinds, budget, trial_note)
-        out, trial_kinds = _pack(trial, kinds, budget, trial_note)
+        trial = _cap_tail_reply(trial, kinds, budget, trial_note, native)
+        out, trial_kinds = _pack(trial, kinds, budget, trial_note, native)
         return _reads_in(out[1:-2], trial_kinds[1:-2])
 
     wake_room = (budget * 2) // 3
@@ -1654,13 +1669,14 @@ def _fit(transcript: list[str], kinds: list[str],
     # of 34c3e72, F5). Reserved at the longest it can be, which is the notice
     # for every block dropping.
     note_room = len(_dropped_note(len(transcript))) + 2
-    transcript = _cap_tail_reply(transcript, kinds, budget, note_room)
-    out, out_kinds = _pack(transcript, kinds, budget, note_room)
+    transcript = _cap_tail_reply(transcript, kinds, budget, note_room,
+                                 native)
+    out, out_kinds = _pack(transcript, kinds, budget, note_room, native)
     return _cap_exchange(out, budget), out_kinds
 
 
 def _pack(transcript: list[str], kinds: list[str], budget: int,
-          note_room: int) -> tuple[list[str], list[str]]:
+          note_room: int, native: bool = False) -> tuple[list[str], list[str]]:
     """
     Pack the middle by the tiers of `_fit`, and keep the head and the tail.
 
@@ -1702,7 +1718,7 @@ def _pack(transcript: list[str], kinds: list[str], budget: int,
         if not over():
             break
         if entry[1] == _REPLY:
-            stub = _stub(entry[0])
+            stub = _stub(entry[0], native)
             if len(stub) < len(entry[0]):
                 entry[0] = stub
 
@@ -5196,7 +5212,8 @@ def run_session(
                 outcome.errors.append(stop_reason)
                 break
             outcome.iterations = iteration
-            transcript, kinds = _fit(transcript, kinds, budget)
+            transcript, kinds = _fit(transcript, kinds, budget,
+                                     native=use_native)
             # The repeat refusals were true in the prompt they answered. Any
             # later fit can drop the answer before the seat reads them again
             # (frame 169, night 126's s159 turn 20, and its review's probe F).
@@ -6410,7 +6427,7 @@ _REPLY_CUT_ADVICE = ("Send less in one reply: one or two calls, then read "
                      "not the whole file")
 
 
-def native_default(conn) -> bool:
+def native_default(conn=None) -> bool:
     """
     Whether a run speaks native tool calls when its caller does not say.
 
@@ -6418,10 +6435,12 @@ def native_default(conn) -> bool:
     decides next, because the register suite names its profile there and
     binds none (`llm.think_for` reads it the same way). Else the text
     protocol, so a run with no profile keeps its recordings (frame 323).
+    With no connection only the environment decides, as for a register
+    reader that has no run.
     """
     try:
         from ..llm import profile as _profile
-        prof = _profile.of_run(conn)
+        prof = _profile.of_run(conn) if conn is not None else None
         if prof is not None:
             return bool(prof.native_tools)
     except Exception:

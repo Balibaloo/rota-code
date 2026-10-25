@@ -33,6 +33,7 @@ import rota_serial_plugin
 from rota import paths
 from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend,
                                open_dev_db, record_case_run)
+from rota.core.runner import native_default
 from rota.llm.llm import OllamaBackend, Pins, profile_pins, think_for
 from rota.roles import prompts
 from rota.testkit import fixtures, interview, obligations
@@ -53,9 +54,16 @@ MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 # The rule lives in `rota.llm.llm` because `casestatus` matches a recording
 # on the pin it sets, and two copies of one rule drift (frame 54).
 # The profile's `max_tokens`, and its `num_ctx` when ROTA_NUM_CTX is unset
-# (frame 323: the trial's cap never reached Ollama).
-PINS = Pins(model=MODEL, temperature=0.0, think=think_for(MODEL),
-            **profile_pins())
+# (frame 323: the trial's cap never reached Ollama). A misspelt profile
+# fails each case by name, and does not stop the collection of the suite.
+try:
+    PROFILE_PINS, PROFILE_ERROR = profile_pins(), ""
+    PINS = Pins(model=MODEL, temperature=0.0, think=think_for(MODEL),
+                **PROFILE_PINS)
+except FileNotFoundError as exc:
+    PROFILE_PINS = {}
+    PROFILE_ERROR = f"ROTA_PROFILE={os.environ.get('ROTA_PROFILE')!r}: {exc}"
+    PINS = Pins(model=MODEL, temperature=0.0)
 
 # The door, called from the file that reads the register (frame 54,
 # 2026-09-21). It refuses a replay whose ambient key the register does
@@ -130,6 +138,8 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     Sampled, with a threshold. The count is kept rather than a bare boolean so a
     drift from 5/5 to 3/5 is visible as the regression it is.
     """
+    if PROFILE_ERROR:
+        pytest.fail(PROFILE_ERROR)
     instructions = prompts.compose(case["role"], fixtures.mode_of(case))
 
     # The ruling (2026-08-29): we are not locked to a model -- one model
@@ -139,7 +149,7 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     # benchmark column measures one model across the register.
     pinned = MODEL if os.environ.get("ROTA_MODEL_FORCE") else case.get("model", MODEL)
     pins = Pins(model=pinned, temperature=0.0, think=think_for(pinned),
-                **profile_pins())
+                **PROFILE_PINS)
     passed, threshold, results = fixtures.run_sampled(
         case, tmp_path, backend_factory, pins=pins, instructions=instructions)
 
@@ -158,7 +168,8 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
         # the register counted one reply many times (frame 66, 2026-09-23).
         record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
                         r.problems, r.transcript(), live=r.live_calls > 0,
-                        system=r.system_text())
+                        system=r.system_text(),
+                        protocol="native" if native_default() else "text")
 
     # Opt-in, and only on a failure. It costs a model call per failed run and
     # answers a question no assertion does: what did the session think it had?

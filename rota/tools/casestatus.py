@@ -48,7 +48,7 @@ from pathlib import Path
 from .. import paths
 from ..llm.cassettes import (ERRORS_KEY, MISS_MARKERS, UNBUILT, system_hash,
                              trust)
-from ..llm.llm import DEFAULT_NUM_CTX, Pins, think_for
+from ..llm.llm import DEFAULT_NUM_CTX, Pins, profile_pins, think_for
 
 from ..testkit import fixtures
 
@@ -102,8 +102,10 @@ def wanted_pins(case: dict, model: str) -> Pins:
     `ROTA_PROFILE`, through the one rule the tier stamps with.
     """
     pinned = case.get("model", model)
+    # The profile's `max_tokens` and `num_ctx`, by the suite's own rule, so
+    # a capped trial reads its own recordings (frame 323).
     return Pins(model=pinned, temperature=0.0,
-                think=think_for(pinned)).with_prompt(
+                think=think_for(pinned), **profile_pins()).with_prompt(
         fixtures.instructions_for(case))
 
 
@@ -313,7 +315,10 @@ def _key_clauses(case: dict, want: Pins, *, keyed: bool,
         # Text, because 18570 of the register's 18604 cassettes key as text
         # and none as native (observed: the design review's probe 5,
         # 2026-09-21). A tier offers the model no native schemas.
-        args += [want.num_ctx, want.temperature, "text",
+        # Frame 323: a profile with `native_tools` keys its rows as native.
+        from ..core.runner import native_default
+        args += [want.num_ctx, want.temperature,
+                 "native" if native_default() else "text",
                  json.dumps(want.extras(), sort_keys=True)]
     return sql, args
 
@@ -627,10 +632,13 @@ def render(rows: list[dict], red_only: bool = False, model: str = "") -> str:
         # The key these counts were read under, printed with them. A count
         # quoted without its model is the 72 of frame 49: a true number about
         # a model the suite does not run.
-        extras = json.dumps(Pins(model=model, think=think_for(model)).extras(),
-                            sort_keys=True)
-        out.append(f"  read under {model}, window {DEFAULT_NUM_CTX}, "
-                   f"protocol text" + (f", pins {extras}" if extras != "{}" else ""))
+        from ..core.runner import native_default
+        read = Pins(model=model, think=think_for(model), **profile_pins())
+        extras = json.dumps(read.extras(), sort_keys=True)
+        protocol = "native" if native_default() else "text"
+        out.append(f"  read under {model}, window {read.num_ctx}, "
+                   f"protocol {protocol}"
+                   + (f", pins {extras}" if extras != "{}" else ""))
     if counts["PROV"]:
         out.append("  provisional greened on one load after being red: "
                    "re-earn on a second load before quoting it as fixed")

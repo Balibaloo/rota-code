@@ -195,7 +195,8 @@ def open_dev_db(path: str | Path) -> sqlite3.Connection:
     return conn
 
 
-def key_for(system: str, user: str, pins: Pins, protocol: str = "text") -> str:
+def key_for(system: str, user: str, pins: Pins, protocol: str = "text",
+            tools: list | None = None) -> str:
     """
     A recording is evidence about one prompt, one model, and one *protocol*.
 
@@ -212,6 +213,13 @@ def key_for(system: str, user: str, pins: Pins, protocol: str = "text") -> str:
     extras = pins.extras()
     if extras:
         fields.append(extras)
+    # The schemas a native run offered. The prompt text does not hold them,
+    # so a schema change replayed an old native recording (frame 323). A
+    # text key never takes this element, so no text key moves.
+    if protocol == "native" and tools:
+        offered = json.dumps(tools, sort_keys=True)
+        fields.append({"tools": hashlib.sha256(
+            offered.encode("utf-8")).hexdigest()[:16]})
     blob = json.dumps(fields, sort_keys=True)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
 
@@ -340,7 +348,7 @@ class RecordingBackend:
     def complete(self, system: str, user: str, pins: Pins,
                  tools: list | None = None) -> Completion:
         protocol = "native" if tools else "text"
-        key = key_for(system, user, pins, protocol)
+        key = key_for(system, user, pins, protocol, tools)
 
         started = time.perf_counter()
         if self.replay and not self.refresh:
@@ -392,7 +400,7 @@ class ReplayOnlyBackend:
     def complete(self, system: str, user: str, pins: Pins,
                  tools: list | None = None) -> Completion:
         started = time.perf_counter()
-        key = key_for(system, user, pins, "native" if tools else "text")
+        key = key_for(system, user, pins, "native" if tools else "text", tools)
         row = self.conn.execute(
             "SELECT completion, backend, tool_calls FROM cassettes WHERE key = ?",
             (key,)

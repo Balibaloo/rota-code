@@ -782,8 +782,17 @@ class CaseResult:
         unfair, the role under-briefed, or the model out of its depth — which is
         all of the remaining work, so it is kept with the verdict rather than
         printed once and lost."""
+        # The same string the history shows: the text, then one line per
+        # native call. A native turn's text is empty, and a refused native
+        # call reaches no `tool_calls` row (frame 323).
+        from ..core.runner import _with_native_lines
+
+        said = self.outcome.completions if self.outcome else []
+        native = (getattr(self.outcome, "native", None) or []) if self.outcome else []
+        said = [_with_native_lines(t, native[i] if i < len(native) else [])
+                for i, t in enumerate(said)]
         out = [{"say": t, "scripted": True} if i < self.scripted else {"say": t}
-               for i, t in enumerate(self.outcome.completions if self.outcome else [])]
+               for i, t in enumerate(said)]
         if self.delta:
             out.append({"called": self.delta.tool_calls,
                         "wrote": {k: len(v) for k, v in self.delta.writes.items()},
@@ -1258,6 +1267,11 @@ def _first_call(case: dict, outcome: RunOutcome, scripted: int) -> list[str]:
     if not calls:
         return [f"expected a first call to {want['fn']}; the reply holds no call"]
     first = calls[0]
+    # A refused call has no name. The grader names the refusal, because an
+    # `AttributeError` here ended the case with no verdict (frame 323).
+    if isinstance(first, toolproto.ToolError):
+        return [f"expected a first call to {want['fn']}; the first call "
+                f"was refused: {first.raw[:120]} ({first.reason})"]
     if first.name != want["fn"]:
         return [f"expected a first call to {want['fn']}; got {first.name}"]
     wrong = {k: first.args.get(k) for k, v in (want.get("args") or {}).items()

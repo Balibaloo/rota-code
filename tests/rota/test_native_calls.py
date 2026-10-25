@@ -180,11 +180,11 @@ def test_glossary_amend_describes_each_parameter():
     assert "\n\n" not in schema["function"]["description"]
 
 
-def test_a_parameter_with_no_entry_takes_its_sentence_or_its_name():
-    doc = "Do a thing.\n\nThe `alpha` value picks the row. Nothing else."
-    assert toolschema.param_description(doc, "alpha") == (
-        "The `alpha` value picks the row.")
-    assert toolschema.param_description(doc, "beta") == "beta"
+def test_a_parameter_with_no_entry_takes_its_name():
+    doc = ("Do a thing.\n\nThe `alpha` value picks the row.\n\n"
+           "Arguments:\n    beta: the second value.\n")
+    assert toolschema.param_description(doc, "alpha") == "alpha"
+    assert toolschema.param_description(doc, "beta") == "the second value."
 
 
 def test_the_profile_pins_reach_the_suite_and_the_key(tmp_path, monkeypatch):
@@ -238,3 +238,55 @@ def test_the_graders_read_native_calls():
                     offered=["problem.consult"])
     assert fixtures._no_call({"expect": {"no_call": True}}, quiet, 0) == []
     assert fixtures._first_call(want, quiet, 0)
+
+
+# -- pass 3: review 2 ----------------------------------------------------------
+
+def test_a_native_stub_keeps_its_call_lines():
+    from rota.core.runner import _STUB_EMPTY, _stub, _with_native_lines
+    from rota.llm import toolproto
+    said = _with_native_lines("", [toolproto.ToolCall(
+        "glossary.amend", {"term": "x" * 400}, raw="glossary.amend(term='" + "x" * 400 + "')")])
+    stub = _stub(said, native=True)
+    assert stub.startswith("glossary.amend(term='") and len(stub) == 200
+    assert _stub(stub, native=True) == stub
+    assert _stub(said) == _STUB_EMPTY, "a text session reads no native line"
+
+
+def test_the_register_transcript_shows_native_calls():
+    from rota.core.runner import RunOutcome
+    from rota.testkit import fixtures
+    from rota.llm import toolproto
+    out = RunOutcome("s1", True, 1, completions=["", "Done."],
+                     native=[[toolproto.ToolCall("problem.consult", {"id": "p1"},
+                                                 raw="problem.consult(id='p1')")],
+                             []])
+    result = fixtures.CaseResult("c1", 1, True, outcome=out)
+    said = [t["say"] for t in result.transcript() if "say" in t]
+    assert said == ["problem.consult(id='p1')", "Done."]
+
+
+def test_a_text_key_does_not_move_and_native_keys_follow_the_schemas():
+    pins = Pins("m")
+    text = cassettes.key_for("s", "u", pins)
+    assert text == cassettes.key_for("s", "u", pins, "text", [{"a": 1}])
+    import hashlib, json
+    old = hashlib.sha256(json.dumps(
+        ["m", pins.temperature, pins.num_ctx, "text", "s", "u"],
+        sort_keys=True).encode()).hexdigest()[:32]
+    assert text == old, "the text key is the blob of every old recording"
+    one = cassettes.key_for("s", "u", pins, "native", [{"name": "a"}])
+    two = cassettes.key_for("s", "u", pins, "native", [{"name": "b"}])
+    assert one != two
+
+
+def test_a_refused_first_call_is_a_grader_problem():
+    from rota.testkit import fixtures
+    from rota.llm import toolproto
+    bad = toolproto.ToolError(raw="problem.consult('x')",
+                              reason="could not parse arguments")
+    out = _graded("  problem.consult(id)\n", "", native=[bad],
+                  offered=["problem.consult"])
+    want = {"expect": {"first_call": {"fn": "problem.consult"}}}
+    [problem] = fixtures._first_call(want, out, 0)
+    assert "refused" in problem and "could not parse arguments" in problem
