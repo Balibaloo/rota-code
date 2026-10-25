@@ -77,15 +77,31 @@ def test_the_refs_door_names_a_list_in_a_string_and_shows_the_form(db):
     assert said == (
         "refs is a list, not a string that holds a list. You sent "
         "'[\"c_734322\", \"tst_dcae01\"]'. Send the list itself: "
-        'refs=["s_1b9009", "c_734322"]')
+        'refs=["c_734322", "tst_dcae01"]')
     assert "bare string" not in said
     assert not db.execute("SELECT 1 FROM messages").fetchall()
 
 
-def test_the_refs_door_shows_a_bare_id_as_a_list_of_one(db):
+def test_a_list_string_that_does_not_parse_shows_the_example(db):
     sb = build("vision_keeper", db)
     with pytest.raises(ValueError) as refused:
-        sb.call("msg.report_liaison", refs="m_283ec8")
+        sb.call("msg.report_liaison", refs="[c_734322, tst_dcae01]")
+    assert str(refused.value).endswith(
+        'Send the list itself: refs=["s_1b9009", "c_734322"]')
+
+
+@pytest.mark.parametrize("sent, form", [
+    ("m_283ec8", 'refs=["m_283ec8"]'),
+    ("b_9f9824, i_62de3d", 'refs=["b_9f9824", "i_62de3d"]'),
+    ("b_9f9824 i_62de3d", 'refs=["b_9f9824", "i_62de3d"]'),
+    ("refs: b_348da1", 'refs=["b_348da1"]'),
+    ("", "refs=[]"),
+])
+def test_the_refs_door_lists_each_id_of_a_bare_string(db, sent, form):
+    sb = build("vision_keeper", db)
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.report_liaison", refs=sent)
     said = str(refused.value)
-    assert "one id as a bare string, 'm_283ec8'" in said
-    assert said.endswith('Send a list: refs=["m_283ec8"]')
+    assert f"you sent a bare string, {sent!r}" in said
+    assert said.endswith(f"Send a list: {form}")
+    assert not db.execute("SELECT 1 FROM messages").fetchall()

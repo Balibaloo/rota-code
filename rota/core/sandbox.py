@@ -61,6 +61,17 @@ def _longest_word_run(a, b):
 _ID = re.compile(r"\S{1,64}")
 
 
+def _listed_refs(text: str) -> list[str]:
+    """
+    The ids in a bare `refs` string, one per item, for the refusal's form.
+
+    The string splits on commas and whitespace. Quotes and brackets around
+    a token go, and a label such as `refs:` goes (frame 327, review 1, H1).
+    """
+    tokens = [t.strip("'\"[]()") for t in re.split(r"[,\s]+", text)]
+    return [t for t in tokens if t and not t.endswith((":", "="))]
+
+
 class SandboxError(RuntimeError):
     pass
 
@@ -3065,17 +3076,28 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # inside a string, and the old text called it one bare id. A small
         # model follows a refusal literally, so the text states the true
         # fault and shows the form (frame 327, wall guide cause 9).
+        # The form shows the seat's own ids, because a seat copies the form
+        # literally. A fixed example sent ids that name no row, and one
+        # element that held `b_9f9824, i_62de3d` sent two ids as one
+        # (frame 327, review 1, findings H1 and L2).
         if isinstance(refs, str):
             if refs.lstrip().startswith("["):
+                try:
+                    sent = json.loads(refs)
+                except ValueError:
+                    sent = None
+                if not (isinstance(sent, list)
+                        and all(isinstance(r, str) for r in sent)):
+                    sent = ["s_1b9009", "c_734322"]
                 raise ValueError(
                     f"refs is a list, not a string that holds a list. You "
                     f"sent {refs!r}. Send the list itself: "
-                    f'refs=["s_1b9009", "c_734322"]')
+                    f"refs={json.dumps(sent)}")
             raise ValueError(
-                f"refs is a list of ids and you sent one id as a bare string, "
+                f"refs is a list of ids and you sent a bare string, "
                 f"{refs!r}. A string is a sequence of characters here, so this "
                 f"would travel as one ref per letter. Send a list: "
-                f'refs=["{refs.strip()}"]')
+                f"refs={json.dumps(_listed_refs(refs))}")
 
         # A list of one-element lists is unambiguous, unlike the dicts below,
         # and it is what a model does when it builds refs one at a time. Liaison
