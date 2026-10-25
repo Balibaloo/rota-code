@@ -615,7 +615,7 @@ The standby's steps stay in `CLAUDE.md`, "Standby duty", byte for byte
 [C14 to C23]. This section holds only what that section does not.
 
 - [C14, C15, C16, C17, C19, C20, C21, C23] Arm one watcher with `handover.py standby --sid <sid>`, on
-  one line, with no name, in the background with a `timeout` of 7200000.
+  one line, with no name, in the background with a `timeout` of 86400000.
   Prove the arm with `peers`. Act on the exits 0, 3, 1 and 2. Correct the
   `handed` column with `holding`. Never spend a standby's context. The
   origins: a typed description (observed: git `f06ffbf8`, 2026-09-20), the

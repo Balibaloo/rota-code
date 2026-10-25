@@ -530,7 +530,10 @@ the machine the tool was built on.
 - The cost of arming a standby: one command and one line of reply. Not yet
   measured here.
 - The cost of a re-arm when the wait runs out: one turn per standby per
-  `--wait`. At the 7000 default that is one turn per session per two hours.
+  `--wait`. At the 7000 default that was one turn per session per two
+  hours, about 1k of context a turn, 6 turns and about 6k over twelve hours
+  (observed: session 0699ee05, 2026-10-25). At the 86000 default from
+  2026-10-25 it is one turn per day.
   Two standbys ran out at 10:37 and re-armed four and seven seconds later with
   no person present, and both still read about 20k after twelve and a half hours
   in the reserve (observed: a destination's hand-off log, 2026-09-20).
@@ -543,7 +546,14 @@ the machine the tool was built on.
   at 2 hours exactly. The sign is a task notification with status `killed`
   and no exit code. The `--wait` default is 7000 from 2026-10-02, so the
   watcher exits 3 before the kill (observed: session 4612e9cc, 2026-10-01
-  22:05 to 2026-10-02 00:36).
+  22:05 to 2026-10-02 00:36). The two-hour cap is the harness setting
+  `BASH_MAX_TIMEOUT_MS`, and the documentation says a value above two
+  hours becomes the background cap too. From 2026-10-25 the project's
+  `.claude/settings.json` sets it to 86400000, one day, and the `--wait`
+  default is 86000, so a standby re-arms once a day (ruled: Roman,
+  2026-10-25 13:2x, "if not implement"). A session reads the setting at
+  its start, so a standby opened before the change keeps the old cap.
+  Not yet measured: one standby that lives past two hours is the proof.
 
 **All seven of the kit's update steps are installed, 2026-09-20 02:30.** The
 last two needed Roman to approve them by hand. A session running in auto mode

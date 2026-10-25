@@ -172,9 +172,10 @@ until it lists its peers, so a typed name is a guess. One session typed a
 description, and its row then named nobody a message could reach.
 
 Run it with the Bash tool, its background flag, and a `timeout` of
-7200000. The harness kills a background command at two hours, and the
-default limit is thirty minutes. The watcher blocks 7000 seconds and
-exits 3 by itself, so a re-arm is one turn per two hours. Then run
+86400000. The harness kills a background command at the cap that
+`BASH_MAX_TIMEOUT_MS` in `.claude/settings.json` sets, one day, and at
+thirty minutes with no `timeout`. The watcher blocks 86000 seconds and
+exits 3 by itself, so a re-arm is one turn per day. Then run
 `python rota/tools/handover.py peers` and find your own session id in
 the table. A background command returns at once and can still fail, so
 prove the arm before you report it. The name beside your session id is

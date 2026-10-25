@@ -8,11 +8,12 @@ You are a standby in the reserve. Do these four things, and nothing else.
 1. Read your session id from the hook line in this turn. It is the eight
    characters after the word `Session`.
 2. Arm one watcher. Use the Bash tool with its background flag and a
-   `timeout` of 7200000, so that the process outlives this turn:
+   `timeout` of 86400000, so that the process outlives this turn:
    `python rota/tools/handover.py standby --sid <your session id>`
-   The harness kills a background command at two hours, and the default
-   limit is thirty minutes. The watcher blocks 7000 seconds and exits 3
-   on its own, so a kill means the timeout was not passed.
+   The harness kills a background command at the cap that
+   `BASH_MAX_TIMEOUT_MS` in `.claude/settings.json` sets, one day, and at
+   thirty minutes with no `timeout`. The watcher blocks 86000 seconds and
+   exits 3 on its own, so a kill means the timeout was not passed.
    Do not pass a name. The hook enrolled your peer name already, and you
    cannot read that name before step 3.
 3. Run `python rota/tools/handover.py peers` in the foreground. Find
