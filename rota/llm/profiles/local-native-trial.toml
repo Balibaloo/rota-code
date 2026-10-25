@@ -1,0 +1,31 @@
+# `local` with native tool calls on, for the trial of frame 323
+# (2026-10-25). The trial measures one thing: whether native calls remove
+# the call-format faults of the text protocol on four cases both models
+# fail. The register suite forces every case onto `ROTA_MODEL` with
+# `ROTA_MODEL_FORCE=1`, so the `[models]` table here is the one `local`
+# has and does not decide the trial's model.
+name = "local-native-trial"
+native_tools = true
+
+[provider]
+kind = "ollama"
+timeout = 300
+
+# The 3080 sets this number: qwen3:8b needs 6.89 to 7.40 GB at 16384
+# with no spill, and 8.01 GB at 20480, which leaves a 10 GB card
+# nothing (the design record and probes/frame43/p_window.py, both
+# 2026-09-19).
+[pins]
+temperature = 0.0
+num_ctx = 16384
+max_tokens = 2048
+
+[think]
+"gemma4:12b-it-qat" = false
+
+[models]
+default = "qwen3:8b"
+tester = "qwen3.5:9b"
+critic = "qwen3.5:9b"
+terminologist = "qwen3.5:9b"
+developer = "qwen3.5:9b"

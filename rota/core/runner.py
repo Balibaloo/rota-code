@@ -441,7 +441,7 @@ DETAIL_SHOWN = {"tick:tests_missing",
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
-                   oneshot: bool = False) -> str:
+                   oneshot: bool = False, native: bool = False) -> str:
     """
     The system prompt, whole: who you are and what you may do.
 
@@ -454,7 +454,21 @@ def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
     The sandbox must already carry `_order`, because `signatures()` reads it.
     `session_sandbox` sets it before it returns.
     """
-    fns = "\n".join(f"  TOOL: {sig}" for sig in sb.signatures())
+    # Under native calls the list loses its `TOOL:` prefix, because the
+    # prefix teaches the text form that the native block forbids (frame 323).
+    marker = "" if native else "TOOL: "
+    fns = "\n".join(f"  {marker}{sig}" for sig in sb.signatures())
+    calling = (
+        f"Call the offered tools directly. Make one tool call for each use "
+        f"of a function from the list above. Write no `TOOL:` line, because "
+        f"a native call is the only form that runs.\n\n"
+        if native else
+        f"Call one per line. `TOOL:` is a literal marker — write those five "
+        f"characters, then the function name from the list above, then its "
+        f"arguments in brackets:\n"
+        f"  TOOL: artefact.verb(key='value')\n"
+        f"Only `artefact.verb` and `key` stand in for something; everything "
+        f"else on that line is written exactly as shown.\n\n")
     system = (
         f"{instructions.strip()}\n\n"
         f"You are {role.replace('_', ' ')}. This is a single session: you are woken once, you act, "
@@ -474,13 +488,8 @@ def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
         # and `TS-fix-a-test-that-asserts-more`. A worked example earns its keep
         # somewhere other than where it misleads, so it stays until there is a
         # version that measures better -- the confusion is real and the obvious
-        # fix for it is not an improvement.
-        f"Call one per line. `TOOL:` is a literal marker — write those five "
-        f"characters, then the function name from the list above, then its "
-        f"arguments in brackets:\n"
-        f"  TOOL: artefact.verb(key='value')\n"
-        f"Only `artefact.verb` and `key` stand in for something; everything "
-        f"else on that line is written exactly as shown.\n\n"
+        # fix for it is not an improvement. The text lives in `calling` above.
+        f"{calling}"
         f"Two kinds of id, and telling them apart matters. An id for something "
         f"you are creating is yours to invent — make it short and unique, and "
         f"do not build it out of an id you were shown. An id for something that "
@@ -835,7 +844,8 @@ def _files_contest_block(inbound: dict[str, Any]) -> tuple[dict[str, Any], str]:
 def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                  pushed: dict[str, Any], instructions: str,
                  inbound: dict[str, Any] | None = None,
-                 oneshot: bool = False) -> tuple[str, str]:
+                 oneshot: bool = False,
+                 native: bool = False) -> tuple[str, str]:
     """
     System prompt = who you are and what you may do; user prompt = why you woke.
 
@@ -845,7 +855,7 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     deeper than the push.
     """
     system = compose_system(role, sb, instructions=instructions,
-                            oneshot=oneshot)
+                            oneshot=oneshot, native=native)
 
     body = [f"You were woken by: {wake.kind}"]
     if wake.message_id:
@@ -5014,8 +5024,14 @@ def run_session(
         pushed = push_working_set(
             wake.role, sb, wake, g,
             asked=inbound.get("principal_said") or inbound.get("asks") or "")
+        # Resolved before the prompt, because the prompt teaches the protocol.
+        # A caller's value wins. Else the profile decides, and every profile
+        # before frame 323 except `local-openai-native` leaves it off.
+        use_native = (native_default(conn) if native_tools is None
+                      else bool(native_tools))
         system, user = build_prompt(wake.role, sb, wake, pushed, instructions,
-                                    inbound, oneshot=oneshot)
+                                    inbound, oneshot=oneshot,
+                                    native=use_native)
         outcome.system, outcome.user = system, user
         pins = pins.with_prompt(system + user)
 
@@ -5044,7 +5060,8 @@ def run_session(
         # fact spoken the text protocol; handing them over under that
         # default would have switched the protocol on every capable model
         # at once. Opt in per run, and the schemas travel (2026-09-09).
-        use_native = bool(native_tools)
+        # Frame 323 adds the profile as the second way to opt in, and
+        # `use_native` is set above the prompt for that reason.
         schemas = toolschema.schemas_for_sandbox(sb) if use_native else None
 
         # Every read this session has already performed, so that re-sending one
@@ -5189,10 +5206,15 @@ def run_session(
             _started = time.perf_counter()
             completion = backend.complete(system, user, pins, tools=schemas)
             outcome.completions.append(completion.text)
+            # The provider's own calls. They are not in the text, so the turn
+            # names each one on a line of its own (frame 323).
+            native_calls = _native_calls(completion) if use_native else []
+            said = completion.text + "".join(
+                f"\n[native call] {c.raw}" for c in native_calls)
             # The exact context and the exact response, kept. Everything else
             # about a session is recoverable from its rows; this is not, and it
             # is what every session that behaved oddly has turned out to need.
-            turns.append(Turn(iteration, system, user, completion.text,
+            turns.append(Turn(iteration, system, user, said,
                               int((time.perf_counter() - _started) * 1000)))
             # The single-step hook. Called for every completion, whether or
             # not it carried a tool call — the seat's pause is "one model
@@ -5223,9 +5245,19 @@ def run_session(
             # `call_at` carries each call's start offset in `scanned`, and
             # `scanned` is the text those offsets index into. Rule 1 below
             # compares them with the first invented result (frame 77).
-            calls, call_at, scanned = toolproto.extract_lenient(
-                completion.text, allowed, signatures=_param_sets(sb),
-                with_offsets=True)
+            #
+            # Native calls take the place of the parse, and an empty native
+            # list falls back to it, so a `TOOL:` line still runs. A native
+            # call is not in the text, so each offset is 0: rule 1 then
+            # never drops one, and the cut test below skips them (frame 323).
+            if native_calls:
+                calls = native_calls
+                call_at = [0] * len(calls)
+                scanned = completion.text
+            else:
+                calls, call_at, scanned = toolproto.extract_lenient(
+                    completion.text, allowed, signatures=_param_sets(sb),
+                    with_offsets=True)
             # Frame 237. The record of night 147 showed a refused attest and
             # no cause for the empty glossary, and s187 read only the general
             # nudge and wrote the list again for five turns. So the account
@@ -5477,8 +5509,9 @@ def run_session(
             served_keys: set[str] = set()
             # One test for the line and for the loop below, so the line and
             # the skipped error never disagree on which call the cut broke.
-            cut_inside = bool(cut_note) and _cut_inside_last(
-                calls, call_at, scanned, allowed)
+            cut_inside = (bool(cut_note) and not native_calls
+                          and _cut_inside_last(calls, call_at, scanned,
+                                               allowed))
             if cut_note:
                 feedback.append(
                     f"ERROR reply cut: {_reply_cut_line(calls, cut_inside)}")
@@ -6364,6 +6397,49 @@ _REPLY_CUT_ADVICE = ("Send less in one reply: one or two calls, then read "
                      "their results. For a long file, write the span you "
                      "changed with start and end copied from code.source, "
                      "not the whole file")
+
+
+def native_default(conn) -> bool:
+    """
+    Whether a run speaks native tool calls when its caller does not say.
+
+    The run's bound profile decides first. The `ROTA_PROFILE` profile
+    decides next, because the register suite names its profile there and
+    binds none (`llm.think_for` reads it the same way). Else the text
+    protocol, so a run with no profile keeps its recordings (frame 323).
+    """
+    try:
+        from ..llm import profile as _profile
+        prof = _profile.of_run(conn)
+        if prof is not None:
+            return bool(prof.native_tools)
+    except Exception:
+        pass
+    name = os.environ.get("ROTA_PROFILE")
+    if not name:
+        return False
+    try:
+        from ..llm import profile as _profile
+        return bool(_profile.find(name).native_tools)
+    except Exception:
+        return False
+
+
+def _native_calls(completion) -> list:
+    """
+    The completion's native calls, as the objects `extract_lenient` returns.
+
+    The dispatch below the parse then runs them unchanged. A name arrives
+    mangled, because a schema name cannot hold a dot (`toolschema.mangle`).
+    """
+    calls = []
+    for nc in completion.tool_calls or []:
+        name = toolschema.demangle(getattr(nc, "name", "") or "")
+        args = getattr(nc, "args", None)
+        args = dict(args) if isinstance(args, dict) else {}
+        shown = ", ".join(f"{k}={v!r}" for k, v in args.items())
+        calls.append(toolproto.ToolCall(name, args, raw=f"{name}({shown})"))
+    return calls
 
 
 def _cut_inside_last(calls: list, call_at: list, scanned: str,

@@ -1134,7 +1134,7 @@ def system_text_for(case: dict) -> str:
     once per case.
     """
     from ..core.loop import _batch_of
-    from ..core.runner import compose_system, session_sandbox
+    from ..core.runner import compose_system, native_default, session_sandbox
 
     conn = init_db(":memory:")
     try:
@@ -1144,10 +1144,12 @@ def system_text_for(case: dict) -> str:
                              batch_id=_batch_of(conn, wake),
                              area=area_for(case, wake))
         # The same variable `run_session` reads, because the flag changes the
-        # last paragraph of the system text.
+        # last paragraph of the system text. The native flag changes the
+        # call paragraph, and `run_session` resolves it the same way.
         return compose_system(case["role"], sb,
                               instructions=instructions_for(case),
-                              oneshot=bool(os.environ.get("ROTA_ONESHOT")))
+                              oneshot=bool(os.environ.get("ROTA_ONESHOT")),
+                              native=native_default(conn))
     finally:
         conn.close()
 
