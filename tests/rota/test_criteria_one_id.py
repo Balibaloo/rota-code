@@ -105,8 +105,8 @@ def test_the_same_text_twice_keeps_the_twin_refusal(db):
     _specify(sb, _FIRST, ["stream"])
     with pytest.raises(ValueError, match=r"^those are echo_json_helper's words "
                        r"already, on the same ticket\. The same words are the "
-                       r"same criterion; if the ticket needs a second "
-                       r"criterion, it needs a second sentence$"):
+                       r"same criterion\. tk_2, the second slice, has no "
+                       r"criterion yet\.$"):
         _specify(sb, _FIRST, ["stream"])
     assert _texts(sb, "echo_json_helper") == [_FIRST]
 
