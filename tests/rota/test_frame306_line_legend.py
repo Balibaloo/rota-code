@@ -95,9 +95,9 @@ def test_s132_repair_wake_quotes_the_line_2_sentence_with_its_legend(tmp_path):
     user = _repair_prompt(_seed_m37(tmp_path))
     assert (f"The principal's last word on this criterion, c1 "
             f"(ruling r_ee6e30a55d, contest):\n{S1_M37}\n") in user
-    assert f"On his page, line 2 was c1: {TEXTS_M37['c1']}" in user
+    assert f"On his page, line 2 was c1: {TEXTS_M37['c1']}\n" in user
     # The kept sentence also names line 3, so the seat learns it is c2.
-    assert f"On his page, line 3 was c2: {TEXTS_M37['c2']}" in user
+    assert f"On his page, line 3 was c2: {TEXTS_M37['c2'][:-1]}" in user
     assert "Write the behaviour his words ask for. His line numbers name " \
            "lines of his page, listed above." in user
     assert "Write the criterion in the principal's words." not in user
@@ -181,7 +181,8 @@ def test_s359_developer_block_names_lines_3_and_4_as_crit_2_and_crit_3(tmp_path)
 
 def test_a_check_line_is_named_as_the_check_of_its_criterion(tmp_path):
     """A check line holds a test id in the page order. His "line 4" there
-    means the test of the criterion above it."""
+    means the test of the criterion above it. "Drop it." has no line number
+    and stays with "Line 4 is wrong." (the review of 2a464938, finding 1)."""
     db = _seed_m201(tmp_path, words="Line 4 is wrong. Drop it.", order=False)
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
                "VALUES ('t_2', 'bg_3', ?, 'tests/test_x.py', 'def test(): pass')",
@@ -191,6 +192,11 @@ def test_a_check_line_is_named_as_the_check_of_its_criterion(tmp_path):
     db.commit()
     block = _contest_block(db, [{"id": CRIT_2}])
     assert block.endswith(f"On his page, line 4 was the check of {CRIT_2}.")
+    # On the row of line 4 the two sentences stay together.
+    narrowed = _contest_block(db, [{"id": CRIT_2}], on_rows=True)
+    assert "He said: Line 4 is wrong. Drop it.\n" in narrowed
+    # Neither sentence reaches crit_1, the row of line 2, which he approved.
+    assert _contest_block(db, [{"id": CRIT_1}], on_rows=True) == ""
 
 
 # The block of 03f6e900 for a ruling that names no line, with the page
@@ -220,3 +226,82 @@ def test_no_recorded_order_gives_no_legend(tmp_path):
     block = _developer_block(_seed_m201(tmp_path, order=False))
     assert "On his page" not in block
     assert block.endswith(f"He said: {WORDS_M201}")
+
+
+# --- the review of 2a464938 -----------------------------------------------------
+
+LINE_2_B2 = "Line 2 should only apply when the roaming flag is True."
+WORDS_B2 = f"{LINE_2_B2} Line 4 is wrong. Delete it."
+
+
+def _seed_words(tmp_path, words: str):
+    db = _seed_m37(tmp_path)
+    db.execute("UPDATE rulings SET words = ? WHERE id = 'r_ee6e30a55d'",
+               (words,))
+    db.commit()
+    return db
+
+
+def test_a_sentence_with_no_line_stays_with_the_sentence_before_it(tmp_path):
+    """Probe B2 of the review, finding 1. The c1 wake read "Line 2 should
+    only apply ... Delete it.", and "it" had only line 2 to refer to."""
+    db = _seed_words(tmp_path, WORDS_B2)
+    user = _repair_prompt(db)
+    assert (f"(ruling r_ee6e30a55d, contest):\n{LINE_2_B2}\n"
+            f"On his page, line 2 was c1:") in user
+    assert "Delete it." not in user
+    assert "Line 4 is wrong" not in user
+    # The row of line 4 gets the two sentences together.
+    block = _contest_block(db, [{"id": "c3"}], on_rows=True)
+    assert "He said: Line 4 is wrong. Delete it.\n" in block
+
+
+def test_a_sentence_before_any_line_number_stays_on_every_row(tmp_path):
+    db = _seed_words(tmp_path, f"Fix these rows. {WORDS_B2}")
+    for cid, said in (("c1", f"Fix these rows. {LINE_2_B2}"),
+                      ("c3", "Fix these rows. Line 4 is wrong. Delete it.")):
+        block = _contest_block(db, [{"id": cid}], on_rows=True)
+        assert f"He said: {said}\n" in block, cid
+
+
+# The repair wake of 03f6e900 on s132's ruling with no page order recorded.
+# No legend means no change, so its recorded prompts stay green (finding 2).
+WAKE_NO_ORDER_03F6E900 = (
+    "You were woken by: tick:criterion_repair\nRefs: m60\n\n"
+    "The principal's last word on this criterion, c1 (ruling r_ee6e30a55d, "
+    f"contest):\n{WORDS_M37}\n"
+    "Write the criterion in the principal's words. Do not send the sentence "
+    "he contested.\n\n"
+    "[the principal contested these criteria]\n"
+    "ruling r_ee6e30a55d:\nHe contested c1.\n"
+    f"c1: He contested this text: {TEXTS_M37['c1']}\n"
+    f"He said: {WORDS_M37}").encode("utf-8")
+
+
+def test_the_repair_wake_with_no_order_keeps_the_wake_of_03f6e900(tmp_path):
+    db = _seed_m37(tmp_path)
+    db.execute("DELETE FROM config WHERE key = 'order:m37'")
+    db.commit()
+    assert _repair_prompt(db).encode("utf-8") == WAKE_NO_ORDER_03F6E900
+
+
+def test_the_repair_wake_shows_the_legend_once_under_the_quote(tmp_path):
+    """Finding 3. The contest block on the repair wake narrows to the row and
+    adds no legend. Two legends of one ruling can name different lines."""
+    user = _repair_prompt(_seed_m37(tmp_path))
+    assert user.count("On his page, line 2 was c1") == 1
+    block = user[user.index(f"[{CONTESTS_KEY}]"):]
+    assert "On his page" not in block
+    assert block.endswith(f"He said: {S1_M37}")
+
+
+def test_a_legend_row_of_another_criterion_is_marked_not_this_repair(tmp_path):
+    """Finding 4. The c1 wake named "line 3 was c2" beside "change line 3",
+    and nothing said that c2 is outside this repair."""
+    user = _repair_prompt(_seed_m37(tmp_path))
+    assert (f"On his page, line 3 was c2: {TEXTS_M37['c2'][:-1]}, another "
+            f"criterion, not this repair\n") in user
+    assert f"On his page, line 2 was c1: {TEXTS_M37['c1']}\n" in user
+    (tmp_path / "dev").mkdir()
+    dev = _developer_block(_seed_m201(tmp_path / "dev"))
+    assert "not this repair" not in dev

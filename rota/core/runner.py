@@ -551,22 +551,27 @@ def _last_word_lines(conn, wake: Wake) -> list[str]:
             # got his sentences on lines 2 to 7, and wrote "Delete lines 5
             # and 6" as c1's text (frame 306, W-A).
             words = _words_on_rows(conn, ruled["id"], ruled["words"], [ref])
-            legend = _line_legend(conn, ruled["id"], words)
+            legend = _line_legend(conn, ruled["id"], words, woken=ref)
             lines.append(
                 f"\nThe principal's last word on this criterion, {ref} "
                 f"(ruling {ruled['id']}, {ruled['verdict']}):\n"
                 + "\n".join([words, *legend]))
-            lines.append("Write the behaviour his words ask for. "
-                         + ("His line numbers name lines of his page, listed "
-                            "above. " if legend else "")
+            # With no legend the wake keeps the sentence of 03f6e900, so its
+            # recorded prompts stay green (the review of 2a464938, finding 2).
+            lines.append(("Write the behaviour his words ask for. His line "
+                          "numbers name lines of his page, listed above. "
+                          if legend else
+                          "Write the criterion in the principal's words. ")
                          + "Do not send the sentence he contested.")
             if ref not in ruled_refs:
                 ruled_refs.append(ref)
     # Night 149's s178 held his words six times and no text he contested.
     # It wrote "UsageError" back into 3 of 6 criteria (frame 243, review 2,
-    # finding 5). The block shows the texts, as on the relay wake.
+    # finding 5). The block shows the texts, as on the relay wake. The
+    # legend stands once, under the quote. Two legends of one ruling can
+    # name different lines (the review of 2a464938, finding 3).
     block = _contest_block(conn, [{"id": ref} for ref in ruled_refs],
-                           on_rows=True)
+                           on_rows=True, legend=False)
     if block:
         lines.append(f"\n[{CONTESTS_KEY}]\n{block}")
     return lines
@@ -574,8 +579,8 @@ def _last_word_lines(conn, wake: Wake) -> list[str]:
 
 def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
     """The sentences of ruling `rid`'s words that bear on any of `cids`, in
-    his order. The whole words when no sentence is kept, or when no page
-    order is recorded at his reply."""
+    his order. The whole words when no sentence is kept, when no page
+    order is recorded at his reply, or when a row's line is not known."""
     from ..roles.principal import door_rows
 
     # Without the order of frame 272, `_ruling_line` reads today's render.
@@ -586,17 +591,32 @@ def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
     if not (row and door_rows(conn, row["reply_id"], "order")):
         return words
     ruled = {"id": rid, "words": words}
-    kept: set[str] = set()
+    rows: set[int] = set()
     for cid in cids:
-        kept.update(api._RULING_SENTENCE.split(
-            api._ruling_words_on(conn, ruled, cid)))
-    out = [s for s in api._RULING_SENTENCE.split(words) if s in kept]
+        line = api._ruling_line(conn, ruled, cid)
+        if line is None:
+            return words
+        rows.add(line)
+    # A sentence with no line number continues the sentence before it.
+    # "Line 4 is wrong. Delete it." put "Delete it." on c1's wake, with no
+    # referent but line 2 (the review of 2a464938, finding 1). A sentence
+    # before any line number stays on every row.
+    out: list[str] = []
+    bound: set[int] | None = None
+    for sentence in api._RULING_SENTENCE.split(words):
+        refs = list(api._LINE_REF.finditer(sentence))
+        if refs:
+            bound = set().union(*(api._ref_lines(r) for r in refs))
+        if bound is None or bound & rows:
+            out.append(sentence)
     return " ".join(out) if out else words
 
 
-def _line_legend(conn, rid: str, words: str) -> list[str]:
+def _line_legend(conn, rid: str, words: str,
+                 woken: str | None = None) -> list[str]:
     """One line for each page line that ruling `rid`'s words name: the row
     that stood on that line of his page. Empty when the words name no line.
+    With `woken`, a row of another criterion says it is not this repair.
 
     His words stay verbatim, and the legend stands beside them (composition
     line 106). The seat never sees his page, so "line 3" had no referent.
@@ -629,8 +649,9 @@ def _line_legend(conn, rid: str, words: str) -> list[str]:
         test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
                             (rid_n,)).fetchone()
         if test is not None:
-            out.append(f"On his page, line {n} was the check of "
-                       f"{test['criterion_id']}.")
+            out.append(_other_row(f"On his page, line {n} was the check of "
+                                  f"{test['criterion_id']}.",
+                                  woken, test["criterion_id"]))
             continue
         # The text he read first. A row he did not contest keeps its text.
         text = texts.get(rid_n)
@@ -640,9 +661,22 @@ def _line_legend(conn, rid: str, words: str) -> list[str]:
                 (rid_n,)).fetchone() or conn.execute(
                 "SELECT text FROM items WHERE id = ?", (rid_n,)).fetchone()
             text = got["text"] if got else None
-        out.append(f"On his page, line {n} was {rid_n}: {text}" if text
-                   else f"On his page, line {n} was {rid_n}.")
+        out.append(_other_row(f"On his page, line {n} was {rid_n}: {text}"
+                              if text else f"On his page, line {n} was {rid_n}.",
+                              woken, rid_n))
     return out
+
+
+def _other_row(line: str, woken: str | None, rid: str) -> str:
+    """The legend line, marked when its row is not the woken criterion.
+
+    The c1 wake said "line 3 was c2" beside "change line 3 so ...", and
+    night 165's seat copied other rows' sentences into c1 (the review of
+    2a464938, finding 4).
+    """
+    if woken is None or rid == woken:
+        return line
+    return line.rstrip(".") + ", another criterion, not this repair"
 
 
 CONTESTS_KEY = "the principal contested these criteria"
@@ -678,7 +712,8 @@ def contests_on(conn, ref: str) -> list[dict]:
     return out
 
 
-def _contest_block(conn, rows: list, on_rows: bool = False) -> str:
+def _contest_block(conn, rows: list, on_rows: bool = False,
+                   legend: bool = True) -> str:
     """
     The principal's contests on the pushed criteria, as plain lines.
 
@@ -693,7 +728,8 @@ def _contest_block(conn, rows: list, on_rows: bool = False) -> str:
 
     A legend under his words names the row on each page line they name.
     `on_rows` keeps only his sentences on the pushed rows, for the repair
-    wake (frame 306, W-A).
+    wake (frame 306, W-A). `legend` False drops the legend, because the
+    repair wake shows it under the quote.
     """
     rulings: dict[str, dict] = {}
     for r in rows:
@@ -715,7 +751,8 @@ def _contest_block(conn, rows: list, on_rows: bool = False) -> str:
             words = _words_on_rows(conn, rid, words,
                                    [cid for cid, _ in entry["on"]])
         lines.append(f"He said: {words}")
-        lines.extend(_line_legend(conn, rid, words))
+        if legend:
+            lines.extend(_line_legend(conn, rid, words))
     return "\n".join(lines)
 
 
