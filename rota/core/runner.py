@@ -547,21 +547,102 @@ def _last_word_lines(conn, wake: Wake) -> list[str]:
             ruled = last_ruling_on(conn, ref)
             if ruled is None or ruled["verdict"] not in ("contest", "revise"):
                 continue
+            # Only the sentences on this row. Night 165's s132 woke for c1,
+            # got his sentences on lines 2 to 7, and wrote "Delete lines 5
+            # and 6" as c1's text (frame 306, W-A).
+            words = _words_on_rows(conn, ruled["id"], ruled["words"], [ref])
+            legend = _line_legend(conn, ruled["id"], words)
             lines.append(
                 f"\nThe principal's last word on this criterion, {ref} "
                 f"(ruling {ruled['id']}, {ruled['verdict']}):\n"
-                f"{ruled['words']}")
-            lines.append("Write the criterion in the principal's words. "
-                         "Do not send the sentence he contested.")
+                + "\n".join([words, *legend]))
+            lines.append("Write the behaviour his words ask for. "
+                         + ("His line numbers name lines of his page, listed "
+                            "above. " if legend else "")
+                         + "Do not send the sentence he contested.")
             if ref not in ruled_refs:
                 ruled_refs.append(ref)
     # Night 149's s178 held his words six times and no text he contested.
     # It wrote "UsageError" back into 3 of 6 criteria (frame 243, review 2,
     # finding 5). The block shows the texts, as on the relay wake.
-    block = _contest_block(conn, [{"id": ref} for ref in ruled_refs])
+    block = _contest_block(conn, [{"id": ref} for ref in ruled_refs],
+                           on_rows=True)
     if block:
         lines.append(f"\n[{CONTESTS_KEY}]\n{block}")
     return lines
+
+
+def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
+    """The sentences of ruling `rid`'s words that bear on any of `cids`, in
+    his order. The whole words when no sentence is kept, or when no page
+    order is recorded at his reply."""
+    from ..roles.principal import door_rows
+
+    # Without the order of frame 272, `_ruling_line` reads today's render.
+    # That render can put the row on another line and drop the sentence
+    # that rules it, as a probe of night 144's r_c4bf70291d shows.
+    row = conn.execute("SELECT reply_id FROM rulings WHERE id = ?",
+                       (rid,)).fetchone()
+    if not (row and door_rows(conn, row["reply_id"], "order")):
+        return words
+    ruled = {"id": rid, "words": words}
+    kept: set[str] = set()
+    for cid in cids:
+        kept.update(api._RULING_SENTENCE.split(
+            api._ruling_words_on(conn, ruled, cid)))
+    out = [s for s in api._RULING_SENTENCE.split(words) if s in kept]
+    return " ".join(out) if out else words
+
+
+def _line_legend(conn, rid: str, words: str) -> list[str]:
+    """One line for each page line that ruling `rid`'s words name: the row
+    that stood on that line of his page. Empty when the words name no line.
+
+    His words stay verbatim, and the legend stands beside them (composition
+    line 106). The seat never sees his page, so "line 3" had no referent.
+    Night 165's s359 read "remove both lines" as docstring lines and cut 17
+    of them (frame 306, W-A).
+    """
+    from ..roles.principal import door_rows
+
+    row = conn.execute("SELECT reply_id, texts FROM rulings WHERE id = ?",
+                       (rid,)).fetchone()
+    # Only the order `principal.land` recorded at his reply (frame 272).
+    # Today's render can put another row on his line, as night 158's did.
+    order = door_rows(conn, row["reply_id"], "order") if row else []
+    if not order:
+        return []
+    named: set[int] = set()
+    for ref in api._LINE_REF.finditer(words):
+        if ref.group(0).lower().startswith("note"):
+            continue
+        named |= api._ref_lines(ref, len(order))
+    try:
+        texts = json.loads(row["texts"] or "{}")
+    except (TypeError, ValueError):
+        texts = {}
+    if not isinstance(texts, dict):
+        texts = {}
+    out: list[str] = []
+    for n in sorted(x for x in named if 1 <= x <= len(order)):
+        rid_n = order[n - 1]
+        test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
+                            (rid_n,)).fetchone()
+        if test is not None:
+            out.append(f"On his page, line {n} was the check of "
+                       f"{test['criterion_id']}.")
+            continue
+        # The text he read first. A row he did not contest keeps its text.
+        text = texts.get(rid_n)
+        if not isinstance(text, str):
+            got = conn.execute(
+                "SELECT text FROM criteria WHERE id = ? ORDER BY version DESC",
+                (rid_n,)).fetchone() or conn.execute(
+                "SELECT text FROM items WHERE id = ?", (rid_n,)).fetchone()
+            text = got["text"] if got else None
+        out.append(f"On his page, line {n} was {rid_n}: {text}" if text
+                   else f"On his page, line {n} was {rid_n}.")
+    return out
 
 
 CONTESTS_KEY = "the principal contested these criteria"
@@ -597,7 +678,7 @@ def contests_on(conn, ref: str) -> list[dict]:
     return out
 
 
-def _contest_block(conn, rows: list) -> str:
+def _contest_block(conn, rows: list, on_rows: bool = False) -> str:
     """
     The principal's contests on the pushed criteria, as plain lines.
 
@@ -609,6 +690,10 @@ def _contest_block(conn, rows: list) -> str:
     One entry per ruling, oldest first, with each criterion's text under it
     and his words once. On night 149's s190, one entry per criterion said
     each ruling's words six times (frame 243, review 2, finding 2).
+
+    A legend under his words names the row on each page line they name.
+    `on_rows` keeps only his sentences on the pushed rows, for the repair
+    wake (frame 306, W-A).
     """
     rulings: dict[str, dict] = {}
     for r in rows:
@@ -625,7 +710,12 @@ def _contest_block(conn, rows: list) -> str:
         for cid, text in entry["on"]:
             if text:
                 lines.append(f"{cid}: He contested this text: {text}")
-        lines.append(f"He said: {entry['words']}")
+        words = entry["words"]
+        if on_rows:
+            words = _words_on_rows(conn, rid, words,
+                                   [cid for cid, _ in entry["on"]])
+        lines.append(f"He said: {words}")
+        lines.extend(_line_legend(conn, rid, words))
     return "\n".join(lines)
 
 
