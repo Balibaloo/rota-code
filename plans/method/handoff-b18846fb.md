@@ -1,6 +1,6 @@
-# Momentum note of session b18846fb, peer name rota-3a
+# Momentum note of session b18846fb, peer name rota-3c after the restart, rota-3a before
 
-Message rota-3a for anything this note withholds or you doubt. I keep the
+Message rota-3c for anything this note withholds or you doubt. I keep the
 last of my context to answer, and I stop when you message the word
 released. Read `CLAUDE.md` first, then
 `python -m rota.tools.state --sid <your sid>`, then this, then the pointers
