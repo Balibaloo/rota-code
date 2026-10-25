@@ -14,10 +14,11 @@ import json
 
 from rota.core.db import init_db
 from rota.core.predicates import Wake
-from rota.core.runner import (CONTESTS_KEY, _contest_block, build_prompt,
+from rota.core.runner import (CONTESTS_KEY, _contest_block, _line_legend,
+                              _words_on_rows, build_prompt,
                               push_working_set)
 from rota.core.sandbox import build
-from rota.roles import prompts
+from rota.roles import api, prompts
 
 # --- night 165, walk 1: s132 and r_ee6e30a55d ----------------------------------
 
@@ -97,7 +98,7 @@ def test_s132_repair_wake_quotes_the_line_2_sentence_with_its_legend(tmp_path):
             f"(ruling r_ee6e30a55d, contest):\n{S1_M37}\n") in user
     assert f"On his page, line 2 was c1: {TEXTS_M37['c1']}\n" in user
     # The kept sentence also names line 3, so the seat learns it is c2.
-    assert f"On his page, line 3 was c2: {TEXTS_M37['c2'][:-1]}" in user
+    assert f"On his page, line 3 was c2 (another criterion" in user
     assert "Write the behaviour his words ask for. His line numbers name " \
            "lines of his page, listed above." in user
     assert "Write the criterion in the principal's words." not in user
@@ -182,21 +183,47 @@ def test_s359_developer_block_names_lines_3_and_4_as_crit_2_and_crit_3(tmp_path)
 def test_a_check_line_is_named_as_the_check_of_its_criterion(tmp_path):
     """A check line holds a test id in the page order. His "line 4" there
     means the test of the criterion above it. "Drop it." has no line number
-    and stays with "Line 4 is wrong." (the review of 2a464938, finding 1)."""
-    db = _seed_m201(tmp_path, words="Line 4 is wrong. Drop it.", order=False)
+    and stays with "Line 4 is wrong." (the review of 2a464938, finding 1).
+    The check line is crit_2's row, so both sentences stay on crit_2's wake
+    (the re-check of 2ece9cd2, point 5)."""
+    db = _seed_check_line(tmp_path, "Line 2 is fine. Line 4 is wrong. Drop it.")
+    block = _contest_block(db, [{"id": CRIT_2}])
+    assert block.endswith(f"On his page, line 4 was the check of {CRIT_2}.")
+    # On the row of line 4 the two sentences stay together, and line 2's
+    # sentence leaves. The words are not the whole-words fallback.
+    narrowed = _contest_block(db, [{"id": CRIT_2}], on_rows=True)
+    assert "He said: Line 4 is wrong. Drop it.\n" in narrowed
+    ruled = {"id": "r_39fbc7b24e",
+             "words": "Line 2 is fine. Line 4 is wrong. Drop it."}
+    assert api._ruling_words_on(db, ruled, CRIT_2) == \
+        "Line 4 is wrong. Drop it."
+    # Neither sentence reaches crit_1, the row of line 2, which he approved.
+    assert _contest_block(db, [{"id": CRIT_1}], on_rows=True) == ""
+
+
+def _seed_check_line(tmp_path, words: str):
+    db = _seed_m201(tmp_path, words=words, order=False)
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
                "VALUES ('t_2', 'bg_3', ?, 'tests/test_x.py', 'def test(): pass')",
                (CRIT_2,))
     db.execute("INSERT INTO config (key, value) VALUES ('order:m201', ?)",
                (json.dumps([ITEM_C, CRIT_1, CRIT_2, "t_2", CRIT_3]),))
     db.commit()
-    block = _contest_block(db, [{"id": CRIT_2}])
-    assert block.endswith(f"On his page, line 4 was the check of {CRIT_2}.")
-    # On the row of line 4 the two sentences stay together.
-    narrowed = _contest_block(db, [{"id": CRIT_2}], on_rows=True)
-    assert "He said: Line 4 is wrong. Drop it.\n" in narrowed
-    # Neither sentence reaches crit_1, the row of line 2, which he approved.
-    assert _contest_block(db, [{"id": CRIT_1}], on_rows=True) == ""
+    return db
+
+
+def test_the_check_line_of_crit_2_stays_on_its_wake(tmp_path):
+    """The re-check's probe2 shape. The crit_2 wake kept "Line 3 is fine."
+    alone, and `api._ruling_words_on` kept "Line 3 is fine. Drop it."."""
+    words = "Line 3 is fine. Line 4 is wrong. Drop it."
+    db = _seed_check_line(tmp_path, words)
+    assert _words_on_rows(db, "r_39fbc7b24e", words, [CRIT_2]) == words
+    assert api._ruling_words_on(
+        db, {"id": "r_39fbc7b24e", "words": words}, CRIT_2) == words
+    # On crit_3's repair, the check of crit_2 is another criterion's row.
+    assert _line_legend(db, "r_39fbc7b24e", words, woken=CRIT_3)[1] == (
+        f"On his page, line 4 was the check of {CRIT_2} (another criterion, "
+        f"not this repair).")
 
 
 # The block of 03f6e900 for a ruling that names no line, with the page
@@ -299,8 +326,8 @@ def test_a_legend_row_of_another_criterion_is_marked_not_this_repair(tmp_path):
     """Finding 4. The c1 wake named "line 3 was c2" beside "change line 3",
     and nothing said that c2 is outside this repair."""
     user = _repair_prompt(_seed_m37(tmp_path))
-    assert (f"On his page, line 3 was c2: {TEXTS_M37['c2'][:-1]}, another "
-            f"criterion, not this repair\n") in user
+    assert (f"On his page, line 3 was c2 (another criterion, not this "
+            f"repair): {TEXTS_M37['c2']}\n") in user
     assert f"On his page, line 2 was c1: {TEXTS_M37['c1']}\n" in user
     (tmp_path / "dev").mkdir()
     dev = _developer_block(_seed_m201(tmp_path / "dev"))

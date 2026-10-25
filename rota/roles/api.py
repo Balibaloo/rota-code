@@ -6406,6 +6406,30 @@ def tests_retire(ctx: Ctx, id: str) -> dict:
 def _ruling_line(conn: sqlite3.Connection, ruled: dict, cid: str) -> int | None:
     """The line of criterion `cid` on the page the ruling `ruled` is on, or
     None when the page or the row on it is not known."""
+    order = _ruling_order(conn, ruled)
+    return order.index(cid) + 1 if order and cid in order else None
+
+
+def _ruling_rows(conn: sqlite3.Connection, ruled: dict,
+                 cid: str) -> set[int] | None:
+    """The lines of criterion `cid` and of its checks on the page the ruling
+    `ruled` is on, or None when the line of `cid` is not known.
+
+    A check line is its criterion's row. "Line 4 is wrong. Drop it." about
+    the check of crit_2 left crit_2's wake (frame 306, the re-check of
+    2ece9cd2, point 5).
+    """
+    order = _ruling_order(conn, ruled)
+    if not order or cid not in order:
+        return None
+    checks = {r["id"] for r in conn.execute(
+        "SELECT id FROM tests WHERE criterion_id = ?", (cid,))}
+    return {n for n, rid in enumerate(order, 1) if rid == cid or rid in checks}
+
+
+def _ruling_order(conn: sqlite3.Connection, ruled: dict) -> list | None:
+    """The row ids of the page the ruling `ruled` is on, in page order, or
+    None when the page is not known."""
     from .principal import Ask, _page_order, door_rows
 
     row = conn.execute(
@@ -6427,7 +6451,7 @@ def _ruling_line(conn: sqlite3.Connection, ruled: dict, cid: str) -> int | None:
                 refs=json.loads(row["body_refs"] or "[]")))
         except Exception:  # noqa: BLE001 - an unreadable page gives no line
             return None
-    return order.index(cid) + 1 if cid in order else None
+    return order
 
 
 def _keeps_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> bool:
@@ -6478,20 +6502,21 @@ def _line_dropped_on(conn: sqlite3.Connection, ruled: dict,
 
 def _ruling_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> str:
     """The sentences of a ruling's words that bear on criterion `cid`: each
-    sentence that names its page line, and each sentence that names no line.
+    sentence that names its page line or the line of one of its checks, and
+    each sentence that names no line.
     The whole words when the line of `cid` is not known.
 
     One ruling can rule several lines. Night 158's m98 said "Keep line 4, but
     fix its check" for cr_2 and "Drop line 5" for cr_3 (frame 308, pass 3).
     """
     words = ruled.get("words") or ""
-    line = _ruling_line(conn, ruled, cid)
-    if line is None:
+    rows = _ruling_rows(conn, ruled, cid)
+    if rows is None:
         return words
     keep = []
     for sentence in _RULING_SENTENCE.split(words):
         refs = list(_LINE_REF.finditer(sentence))
-        if not refs or any(line in _ref_lines(r) for r in refs):
+        if not refs or any(rows & _ref_lines(r) for r in refs):
             keep.append(sentence)
     return " ".join(keep)
 

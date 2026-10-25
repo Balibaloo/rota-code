@@ -593,10 +593,11 @@ def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
     ruled = {"id": rid, "words": words}
     rows: set[int] = set()
     for cid in cids:
-        line = api._ruling_line(conn, ruled, cid)
-        if line is None:
+        # A check line is its criterion's row (the re-check of 2ece9cd2).
+        lines = api._ruling_rows(conn, ruled, cid)
+        if lines is None:
             return words
-        rows.add(line)
+        rows |= lines
     # A sentence with no line number continues the sentence before it.
     # "Line 4 is wrong. Delete it." put "Delete it." on c1's wake, with no
     # referent but line 2 (the review of 2a464938, finding 1). A sentence
@@ -649,9 +650,9 @@ def _line_legend(conn, rid: str, words: str,
         test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
                             (rid_n,)).fetchone()
         if test is not None:
-            out.append(_other_row(f"On his page, line {n} was the check of "
-                                  f"{test['criterion_id']}.",
-                                  woken, test["criterion_id"]))
+            tag = _other_row(woken, test["criterion_id"])
+            out.append(f"On his page, line {n} was the check of "
+                       f"{test['criterion_id']}{tag}.")
             continue
         # The text he read first. A row he did not contest keeps its text.
         text = texts.get(rid_n)
@@ -661,22 +662,23 @@ def _line_legend(conn, rid: str, words: str,
                 (rid_n,)).fetchone() or conn.execute(
                 "SELECT text FROM items WHERE id = ?", (rid_n,)).fetchone()
             text = got["text"] if got else None
-        out.append(_other_row(f"On his page, line {n} was {rid_n}: {text}"
-                              if text else f"On his page, line {n} was {rid_n}.",
-                              woken, rid_n))
+        tag = _other_row(woken, rid_n)
+        out.append(f"On his page, line {n} was {rid_n}{tag}: {text}" if text
+                   else f"On his page, line {n} was {rid_n}{tag}.")
     return out
 
 
-def _other_row(line: str, woken: str | None, rid: str) -> str:
-    """The legend line, marked when its row is not the woken criterion.
+def _other_row(woken: str | None, rid: str) -> str:
+    """The mark for a legend row that is not the woken criterion, else "".
 
     The c1 wake said "line 3 was c2" beside "change line 3 so ...", and
     night 165's seat copied other rows' sentences into c1 (the review of
-    2a464938, finding 4).
+    2a464938, finding 4). The mark stands in brackets before his text. After
+    the text, a comma joined it to the criterion (the re-check of 2ece9cd2).
     """
     if woken is None or rid == woken:
-        return line
-    return line.rstrip(".") + ", another criterion, not this repair"
+        return ""
+    return " (another criterion, not this repair)"
 
 
 CONTESTS_KEY = "the principal contested these criteria"
