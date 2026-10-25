@@ -59,13 +59,24 @@ def test_an_api_list_parameter_is_an_array():
     assert _shape(_props(consult)["terms"]) == ARRAY
 
 
-def test_an_annotation_that_does_not_evaluate_keeps_the_old_reading():
+def test_an_annotation_that_does_not_evaluate_keeps_the_old_reading(caplog):
     def fn(a: NoSuchName, b: list[str]) -> dict:  # noqa: F821
         return {}
 
-    props = _props(toolschema.schema_for("x.y", fn))
+    with caplog.at_level("WARNING", logger="rota.llm.toolschema"):
+        props = _props(toolschema.schema_for("x.y", fn))
     assert _shape(props["a"]) == {"type": "string"}
     assert _shape(props["b"]) == {"type": "string"}
+    (warned,) = [r for r in caplog.records if r.name == "rota.llm.toolschema"]
+    assert warned.levelname == "WARNING"
+    assert "x.y" in warned.getMessage()
+    assert "NoSuchName" in warned.getMessage()
+
+
+def test_a_function_that_evaluates_warns_nothing(caplog):
+    with caplog.at_level("WARNING", logger="rota.llm.toolschema"):
+        toolschema.schema_for("glossary.adopt", api.glossary_adopt)
+    assert not [r for r in caplog.records if r.name == "rota.llm.toolschema"]
 
 
 def test_the_refs_door_names_a_list_in_a_string_and_shows_the_form(db):

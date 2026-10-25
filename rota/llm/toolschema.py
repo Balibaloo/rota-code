@@ -20,9 +20,12 @@ concern that never reaches the graph or the database.
 from __future__ import annotations
 
 import inspect
+import logging
 import re
 import typing
 from typing import Any, Callable
+
+_log = logging.getLogger(__name__)
 
 SEP = "__"
 
@@ -125,9 +128,13 @@ def schema_for(dotted: str, fn: Callable) -> dict[str, Any]:
     # reads `'list[str]'` as a string. A native seat then sent a list as a
     # JSON string (frame 327). An annotation that does not evaluate keeps
     # the old reading, so no tool loses its schema.
+    # The fallback turns every list and int of the function back into a
+    # string, so it names the function (frame 327, review 1, L1).
     try:
         sig = inspect.signature(fn, eval_str=True)
-    except Exception:
+    except Exception as exc:
+        _log.warning("schema for %s falls back to string annotations: %s: %s",
+                     dotted, type(exc).__name__, exc)
         sig = inspect.signature(fn)
     properties: dict[str, Any] = {}
     required: list[str] = []
