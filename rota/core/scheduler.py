@@ -1152,12 +1152,18 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     replies = reply_rows(conn)
     # An `other` row is a count line with no number, so it alone makes a
     # page that asks nothing (frame 204's design, section 8, frame 325).
+    # A default past intent under `auto` wakes no page either. It shows in
+    # the quiet section of the next page that another row puts up (frame
+    # 204's design, section 5, point 2 of the agenda tick).
+    from ..roles.principal import quiet_defaults
+
+    quiet = quiet_defaults(conn, [r["id"] for r in rows])
     chosen = [r for r in rows if r["id"] not in replies
-              and r["kind"] != "other"]
+              and r["kind"] != "other" and r["id"] not in quiet]
     # The `other` rows ride on a page that another row wakes, so its count
     # line shows them (frame 325's re-check of bda07c54).
     riders = [r for r in rows if r["id"] not in replies
-              and r["kind"] == "other"]
+              and (r["kind"] == "other" or r["id"] in quiet)]
     # A row that reaches only a held or set-aside item waits with it. After
     # m161 closed, 19 rows of the confirm item would have made confirm pages
     # (frame 193's design, 2.F.9, finding 2).

@@ -1702,6 +1702,38 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     return (f"{back}\n{page}" if back else page), order
 
 
+QUIET_DEFAULTS = ("The team also noted these after you approved the request. "
+                  "They need no answer:")
+
+
+def quiet_defaults(conn: sqlite3.Connection, ids: list[str]) -> set[str]:
+    """
+    The `default` rows of `ids` that are past intent under `merge_gate = auto`.
+
+    Frame 204's design, section 5, row 2: after intent under `auto` a default
+    is "listed, not numbered, in the request's quiet section". Night 165's
+    m239 numbered a Developer's account of its own work as his assumption.
+    A row is past intent when it reaches an item and every item it reaches
+    is approved.
+    """
+    from ..core import config
+
+    ids = [r for r in ids if isinstance(r, str)]
+    if not ids or config.get(conn, "merge_gate") != "auto":
+        return set()
+    out: set[str] = set()
+    for r in conn.execute(
+            f"SELECT id FROM ledger WHERE kind = 'default' AND id IN "
+            f"({','.join('?' * len(ids))})", tuple(ids)):
+        items = _items_reached(conn, r["id"])
+        if items and all(
+                (conn.execute("SELECT approval FROM items WHERE id = ?",
+                              (i,)).fetchone() or [None])[0] == "approved"
+                for i in items):
+            out.add(r["id"])
+    return out
+
+
 def _quiet_line(conn: sqlite3.Connection, refs: list[str]) -> str:
     """
     The count line for ledger rows of kind `other`: the count and the seats.
@@ -1799,6 +1831,8 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     kind_other = {r["id"] for r in conn.execute(
         f"SELECT id FROM ledger WHERE kind = 'other' AND id IN "
         f"({','.join('?' * len(ids))})", tuple(ids))} if ids else set()
+    listed: list[tuple[str, str]] = []
+    after = quiet_defaults(conn, ids) if verb == "present" else set()
     zero = False
     batches: list[str] = []
     for ref in refs:
@@ -1824,6 +1858,9 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             # 204's design, section 8, ruled 2026-10-11 15:44).
             if ref in kind_other:
                 quiet.append(ref)
+                continue
+            if ref in after:
+                listed.append((ref, row["default_taken"]))
                 continue
             assumed.append((ref, row["default_taken"]))
             continue
@@ -1954,6 +1991,9 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             out.append("A word that means more than one thing here:")
             numbered(terms)
         numbered(other)
+        if listed:
+            out.append(QUIET_DEFAULTS)
+            out += [f"  - {text}" for _, text in listed]
         if quiet:
             out.append(_quiet_line(conn, quiet))
         if zero:

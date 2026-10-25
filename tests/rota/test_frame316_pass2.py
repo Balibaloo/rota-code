@@ -66,6 +66,13 @@ def _notes(db, rows):
     db.commit()
 
 
+def _review(db):
+    """The review gate, so a default row past intent still wakes a page."""
+    from rota.core import config
+
+    config.set(db, "merge_gate", "review")
+
+
 def _page(db):
     wakes = tick_agenda(db, principal_present=True)
     return list(wakes[0].refs) if wakes else []
@@ -86,6 +93,9 @@ def _night162(db):
 
 def test_m217_the_page_of_the_live_item_carries_only_its_rows(db):
     """The m217 shape: the version page carried 6 echo_json rows of 7."""
+    # Through `merge_gate = review`: under `auto` a default row past
+    # intent wakes no page (frame 204's design, section 5; frame 325).
+    _review(db)
     own = _night162(db)
     assert _page(db) == own
 
@@ -93,6 +103,9 @@ def test_m217_the_page_of_the_live_item_carries_only_its_rows(db):
 def test_a_test_row_reaches_its_item_through_its_criterion(db):
     """s331's l_71e52c9d0a was about `tst_c2_version_on`. A test reaches no
     item through `_items_reached`, so its criterion names the item."""
+    # Through `merge_gate = review`: under `auto` a default row past
+    # intent wakes no page (frame 204's design, section 5; frame 325).
+    _review(db)
     own = _night162(db)
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
                "('tst_c2', 'b_3', 'c_3', 'tests/test_version.py', '')")
@@ -103,6 +116,9 @@ def test_a_test_row_reaches_its_item_through_its_criterion(db):
 def test_a_row_of_a_path_goes_to_its_writers_batch(db):
     """A row about a path reaches no item. Its writer's batch names the item,
     frame 198's route through `receipts` and `checkpoints.batch_id`."""
+    # Through `merge_gate = review`: under `auto` a default row past
+    # intent wakes no page (frame 204's design, section 5; frame 325).
+    _review(db)
     own = _night162(db)
     _notes(db, [("l_p0", "tests/test_utils/")])
     db.execute("INSERT INTO sessions (id, role, seq) VALUES ('s9', 'developer', 9)")
@@ -120,6 +136,9 @@ def test_a_row_of_a_path_goes_to_its_writers_batch(db):
 def test_a_row_of_no_item_and_no_batch_stays_on_the_live_page(db):
     """A row with no item and no batch has no other page, so it rides on
     the page of the item the Liaison is about and is not lost."""
+    # Through `merge_gate = review`: under `auto` a default row past
+    # intent wakes no page (frame 204's design, section 5; frame 325).
+    _review(db)
     own = _night162(db)
     _notes(db, [("l_n0", "f_3f3b740531")])
     assert _page(db) == own + ["l_n0"]
@@ -129,6 +148,9 @@ def test_the_rows_of_another_open_item_wait_for_its_page(db):
     """Two live items: the item of the oldest row no page has shown goes
     first. The other item's rows come on the next page, and no row is
     lost."""
+    # Through `merge_gate = review`: under `auto` a default row past
+    # intent wakes no page (frame 204's design, section 5; frame 325).
+    _review(db)
     _batch(db, "b_3", VERSION, "running")
     _notes(db, [("l_c0", "c_2"), ("l_v0", "c_3"), ("l_c1", "tk_2"), ("l_v1", "c_3")])
     assert _page(db) == ["l_c0", "l_c1"]
@@ -152,6 +174,9 @@ def test_a_queued_items_row_reaches_a_page_within_two_ticks(db):
     """Review 2, finding 3: the probe added a version row on each of 5
     ticks, and the confirm row l_c0 was on none of the 5 pages. Its batch
     then merged, and the row parked unseen."""
+    # Through `merge_gate = review`: under `auto` a default row past
+    # intent wakes no page (frame 204's design, section 5; frame 325).
+    _review(db)
     _batch(db, "b_3", VERSION, "running")
     _notes(db, [("l_v0", "c_3"), ("l_c0", "c_2"), ("l_v1", "c_3")])
     first = _page(db)
@@ -188,6 +213,9 @@ def _merge(db, monkeypatch, batch_id):
 def test_the_merge_parks_the_merged_items_open_rows(db, monkeypatch):
     """Frame 204's design, section 4: a park is not a close. The rows of
     the merged item leave the open set, and no decision is written."""
+    # Through `merge_gate = review`: under `auto` a default row past
+    # intent wakes no page (frame 204's design, section 5; frame 325).
+    _review(db)
     _batch(db, "b_2", CONFIRM, "running")
     _batch(db, "b_3", VERSION, "running")
     _notes(db, [("l_c0", "c_2"), ("l_c1", "tk_2"), ("l_v0", "c_3"),
