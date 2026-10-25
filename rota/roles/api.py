@@ -17039,6 +17039,36 @@ def _surface_pick(ctx, batch_id, criterion_id, refs: list) -> list:
     return hit if len(hit) == 1 else []
 
 
+def _own_assertion(body: str, path: str, said: str) -> dict | None:
+    """
+    The failed assertion of the test's own file in a run, or None.
+
+    The last traceback location must be the test's file and must name an
+    `AssertionError`. An assert inside the project's code gives None,
+    because the test did not write it.
+    """
+    from ..core.runner import _LOCATION
+
+    lines = (said or "").splitlines()
+    found = [(i, m) for i, ln in enumerate(lines) if (m := _LOCATION.match(ln))]
+    if not found or not lines[found[-1][0]].endswith("AssertionError"):
+        return None
+    at, m = found[-1]
+    where = m.group(1).replace("\\", "/")
+    if not path or not (where == path or where.endswith("/" + path)):
+        return None
+    src = (body or "").splitlines()
+    line = int(m.group(2))
+    arrow = max((i for i in range(at) if lines[i].startswith(">")), default=-1)
+    error = next((ln[1:].strip() for ln in lines[arrow + 1:at]
+                  if ln.startswith("E ")), "AssertionError")
+    name = next((ln.split("::", 1)[1].split(" ", 1)[0] for ln in lines
+                 if ln.startswith("FAILED ") and "::" in ln), "")
+    return {"line": line, "name": name,
+            "quote": src[line - 1].strip() if 0 < line <= len(src) else "",
+            "error": error if len(error) <= 160 else error[:157] + "..."}
+
+
 def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
                          body: str, notes: list | None = None) -> str | None:
     """
@@ -17099,6 +17129,20 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
                           (crit["text"] if crit else "") or "", str(root),
                           "\n".join(adds))
     if fault is None:
+        # Frame 328, night 166: s198's tests failed at their own assertion on
+        # a head that held the right docstring. The door stored them, and the
+        # red woke only the Developer. The Tester never saw its own run. So
+        # the run's assertion goes to the Tester as a note. The door refuses
+        # nothing, because the code at the head can be wrong.
+        held = _own_assertion(body, path, said)
+        if held and notes is not None:
+            who = f"`{held['name']}`" if held["name"] else "this body"
+            notes.append(
+                f"The run of {who} on the batch's head fails at line "
+                f"{held['line']}, `{held['quote']}`: `{held['error']}`. The "
+                f"test is stored. The batch's head has a commit. If the "
+                f"criterion's words give the value that the run shows, the "
+                f"test is wrong. Encode it again with the same id.")
         return None
 
     def _short(s: str) -> str:
