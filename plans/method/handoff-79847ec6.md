@@ -77,3 +77,12 @@ after the table.
 
 ## After this note was written
 
+Sprint 22 row 3's provenance read landed, `plans/frame306-provenance-wa.md`,
+repair A judged, and pass 1 built at 2a464938 in `rota_p306wa2`: the
+legend and the narrowed quote, no recorded case stale, three reds older
+than the pass. First after the take: review 2a464938 on Opus, cap 20k,
+points: s132 and s359 end to end through `build_prompt`, the legend twice
+on the repair wake, the no-order fallback, the three old reds named in
+the report, the pins; then the cherry-pick onto the head. Then frame 323's
+table when `f323_run.log` gains `== done`, then the gate with re-records,
+then night 166. At 03:00 the trial had recorded about 4 of 63 cases.
