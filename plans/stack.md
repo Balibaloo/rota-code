@@ -1088,6 +1088,7 @@ a different question and the night is then opened once.
 - Status 2026-10-25 23:04 (rota-69): **ruled. Roman, 2026-10-25 23:04, in the terminal: "did i already rule on this or what is the question?"** (ruled: Roman, in his words). Rota workflow.
 - Status 2026-10-25 23:04 (rota-69): No question is open: the ruling of 2026-08-26 stands, and the build departed from it. Repairs 2 and 3 are built as ruled in pass 2, after pass 1 lands, on the same implementer. The asking rule of 2026-10-18 is amended in memory: a departure from his own ruling is reported in the status line and built, not asked; 1 strike, this question. Rota workflow.
 - Status 2026-10-25 23:05 (rota-69): **ruled. Roman, 2026-10-25 23:05, in the terminal: "oh, no ok then still ask it, just make it more up front why its being raised"** (ruled: Roman, in his words). Rota workflow.
+- Status 2026-10-25 23:06 (rota-69): **ruled. Roman, 2026-10-25 23:06, in the terminal: "1"** (ruled: Roman, in his words). Rota workflow.
 
 ### 329. `criteria.respecify` takes the exact text of a sibling criterion on the same ticket, so a contest lands as two copies (2026-10-25) (66edc387)
 
