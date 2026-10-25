@@ -204,11 +204,11 @@ def test_a_prose_channel_is_woken_with_words(case):
 CODE_READS = {"code.source", "code.probe", "code.read"}
 
 #: The cases that broke the two rules below when they came in (frame 326,
-#: pass 1). Each one owes a fix that is more than one YAML line: a `repo:`
-#: block with the source the case names, or an index of the batch's tree.
-#: `onboard: true` indexes the main checkout, not the batch worktree, and it
-#: writes constraint zero, so on a constraint case it moves what the case
-#: measures. Remove an id when its case is fixed. Add none.
+#: passes 1 and 1b). Each one owes a `repo:` block with the source the case
+#: names, or `repo.index_batch: true`. `onboard: true` is not the fix: it
+#: indexes the main checkout before the batch worktree exists, and it writes
+#: constraint zero. The index fixes wait because each one moves the case's
+#: recordings. Remove an id when its case is fixed. Add none.
 OWED = {
     # A `repo:` block with the source the case names.
     "L1-AR-rewrite-the-guess-from-the-ruling",
@@ -231,7 +231,21 @@ OWED = {
     "L1-DV-ask-when-the-test-contradicts-its-criterion-at-the-fix-wake",
     "L1-DV-act-on-an-answered-challenge",
     "L1-DV-read-the-map-not-the-whole-file",
+    # An index that holds the batch's code. Rule 2 found these when it
+    # moved from the brief to the tools.
+    "L1-DV-apply-the-answer-and-carry-on",
+    "L1-DV-a-wordless-answer-leaves-a-wrong-test-alone",
+    "L1-DV-a-wordless-answer-on-a-right-red-test-is-carried-on",
+    "L1-DV-take-out-what-nobody-asked-for",
+    "L1-DV-fix-what-the-verdict-names",
+    "L1-DV-restore-what-the-finding-names",
+    "L1-DV-take-a-mistake-out",
+    "L3-a-failed-verdict-turns-into-a-fix",
 }
+
+#: The size of `OWED` when it came in. The set may only shrink, so lower this
+#: number when an id leaves it.
+OWED_CEILING = 27
 
 
 def _seats(case):
@@ -257,9 +271,12 @@ def _code_problems(case):
             yield (f"{role}/{mode} holds {', '.join(reads)} and the case "
                    f"declares no `repo:`, so a read refuses with no "
                    f"project_root")
-        if "code.probe" in prompts.piece(role, mode) and not indexed:
-            yield (f"the {role}/{mode} brief relies on `code.probe` and the "
-                   f"case neither sets `repo.onboard: true` nor seeds "
+        # The tools, not the brief: `verdict_failed` and `finding_violated`
+        # hold the probe and never name it, and their cases probed an empty
+        # index (frame 326, review 1, finding 2).
+        if "code.probe" in tools and not indexed:
+            yield (f"{role}/{mode} holds `code.probe` and the case sets no "
+                   f"`repo.index_batch`, no `repo.onboard` and no "
                    f"`fixture.code_index`, so every probe returns nothing")
 
 
@@ -271,8 +288,8 @@ def test_a_case_whose_mode_reads_code_holds_the_code(case):
     The Developer's tests_failing brief says the probe "will find it", and
     its cases indexed nothing. Each case then measured a refusal or an
     empty result, and only in the register: a night always onboards and
-    always has project_root. The rule reads the mode's own tools and brief,
-    so a new mode or a new case meets it with no edit here.
+    always has project_root. The rule reads the mode's own tools, so a new
+    mode or a new case meets it with no edit here.
 
     A seeded `fixture.code_index` counts as an index. Three Architect cases
     seed the night's rows so the prompt does not move.
@@ -282,3 +299,20 @@ def test_a_case_whose_mode_reads_code_holds_the_code(case):
         assert problems, (f"{case['id']} is fixed. Remove it from OWED")
         pytest.skip(f"owed since frame 326: {problems[0]}")
     assert not problems, f"{case['id']}: " + "; ".join(problems)
+
+
+def test_the_owed_set_only_shrinks_and_names_real_cases():
+    """
+    `OWED` excuses a case from the rule above. An id that joins the set
+    excuses a new fault, and an id that names no case excuses nothing and
+    hides a rename (frame 326, review 1, finding 4).
+    """
+    ids = {c["id"] for c in CASES}
+    assert not OWED - ids, (
+        f"OWED names no case for {sorted(OWED - ids)}. Remove the id, or "
+        f"follow the rename")
+    assert len(OWED) <= OWED_CEILING, (
+        f"OWED holds {len(OWED)} ids against a ceiling of {OWED_CEILING}. "
+        f"Fix the new case. Do not excuse it")
+    assert len(OWED) == OWED_CEILING, (
+        f"OWED shrank to {len(OWED)}. Lower OWED_CEILING to match")
