@@ -66,3 +66,26 @@ def test_an_annotation_that_does_not_evaluate_keeps_the_old_reading():
     props = _props(toolschema.schema_for("x.y", fn))
     assert _shape(props["a"]) == {"type": "string"}
     assert _shape(props["b"]) == {"type": "string"}
+
+
+def test_the_refs_door_names_a_list_in_a_string_and_shows_the_form(db):
+    """The trial's refused call, qwen3.5:9b on the Developer challenge."""
+    sb = build("vision_keeper", db)
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.report_liaison", refs='["c_734322", "tst_dcae01"]')
+    said = str(refused.value)
+    assert said == (
+        "refs is a list, not a string that holds a list. You sent "
+        "'[\"c_734322\", \"tst_dcae01\"]'. Send the list itself: "
+        'refs=["s_1b9009", "c_734322"]')
+    assert "bare string" not in said
+    assert not db.execute("SELECT 1 FROM messages").fetchall()
+
+
+def test_the_refs_door_shows_a_bare_id_as_a_list_of_one(db):
+    sb = build("vision_keeper", db)
+    with pytest.raises(ValueError) as refused:
+        sb.call("msg.report_liaison", refs="m_283ec8")
+    said = str(refused.value)
+    assert "one id as a bare string, 'm_283ec8'" in said
+    assert said.endswith('Send a list: refs=["m_283ec8"]')

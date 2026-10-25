@@ -3061,11 +3061,21 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # a message whose refs are eight single letters that resolve to nothing.
         # Silent at both ends, which is the worst kind, and Liaison did it five
         # runs out of five.
+        # A native seat sent `refs='["c_734322", "tst_dcae01"]'`, a list
+        # inside a string, and the old text called it one bare id. A small
+        # model follows a refusal literally, so the text states the true
+        # fault and shows the form (frame 327, wall guide cause 9).
         if isinstance(refs, str):
+            if refs.lstrip().startswith("["):
+                raise ValueError(
+                    f"refs is a list, not a string that holds a list. You "
+                    f"sent {refs!r}. Send the list itself: "
+                    f'refs=["s_1b9009", "c_734322"]')
             raise ValueError(
                 f"refs is a list of ids and you sent one id as a bare string, "
                 f"{refs!r}. A string is a sequence of characters here, so this "
-                f"would travel as one ref per letter")
+                f"would travel as one ref per letter. Send a list: "
+                f'refs=["{refs.strip()}"]')
 
         # A list of one-element lists is unambiguous, unlike the dicts below,
         # and it is what a model does when it builds refs one at a time. Liaison
