@@ -22181,11 +22181,15 @@ def _rewritten_heads(old_lines: list[str], text: str) -> set[int]:
         news = _owned_statements(_ast.parse(text), new_lines)
     except Exception:                                      # noqa: BLE001
         return set()
-    # The parts of a signature stay out of the place index. An added
-    # parameter or decorator moved each body statement off its place, so a
-    # rewrite beside it read as a removal (review of 07887a4b, finding 1).
-    olds = [s for s in olds if not (s[4] == "decorator" or s[4].startswith("arg "))]
-    news = [s for s in news if not (s[4] == "decorator" or s[4].startswith("arg "))]
+    # The parameters stay out of the place index. An added parameter or
+    # decorator moved each body statement off its place, so a rewrite beside
+    # it read as a removal (review of 07887a4b, finding 1). The decorators
+    # get their own index under the owner, so a decorator rewritten in place
+    # is a rewrite, and a dropped one shifts only that count (pass 2c).
+    def own(ss):
+        return [((s[0], "@") if s[4] == "decorator" else s[0],) + tuple(s[1:])
+                for s in ss if not s[4].startswith("arg ")]
+    olds, news = own(olds), own(news)
     placed: dict = defaultdict(list)
     for o, _k, a, _b, _t in news:
         placed[o].append(set(re.findall(r"\w+", new_lines[a])))

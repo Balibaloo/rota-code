@@ -244,3 +244,11 @@ def test_an_added_argument_of_a_one_line_decorator_opens_no_note(db, tmp_path):
     out = _call(sb, "code.write", path=PATH, text=text, start=3, end=6)
     assert "refused" not in out, out
     assert "dropped" not in out
+
+
+def test_an_added_argument_of_a_one_line_decorator_is_a_rewrite_at_the_note():
+    """Pass 2c: the note itself reads the decorator as rewritten in place,
+    not only the floor of `_changed_kept` in `code.write`."""
+    old = ["import click", "", "", '@click.option("--name")', "def f(name):", "    return name"]
+    text = _l('@click.option("--name", default="x")', "def f(name):", "    return name")
+    assert api._drop_note(old, 3, 6, text) is None
