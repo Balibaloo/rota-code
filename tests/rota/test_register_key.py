@@ -277,6 +277,27 @@ def test_the_report_names_the_model_it_read(monkeypatch):
     assert "qwen3:8b" in line and str(DEFAULT_NUM_CTX) in line
 
 
+def test_casestatus_lists_a_case_red_by_construction_apart():
+    """Frame 326, fault C. A comment was the only marker, so the per-model
+    table counted `L1-TE-log-the-word-you-took-one-way` as a model failure.
+    The `red:` field takes the case out of every count and prints its
+    reason apart, with `--red` too."""
+    by_id = {c["id"]: c for c in casestatus._cases()}
+    assert "ledger.log" in casestatus.red_by_construction(
+        by_id["L1-TE-log-the-word-you-took-one-way"])
+
+    row = {"state": "FAIL", "passed": 0, "of": 5, "need": 3, "why": "",
+           "live_at": "", "replays": 0}
+    rows = [dict(row, id="marked", red="no tool writes the row"),
+            dict(row, id="plain", red="")]
+    text = casestatus.render(rows, red_only=True)
+    head, apart = text.split("red by construction, in no count:")
+    assert text.splitlines()[0].startswith("1 failing,")
+    assert text.splitlines()[0].endswith(", 1 red by construction")
+    assert "plain" in head and "marked" not in head
+    assert "marked" in apart and "no tool writes the row" in apart
+
+
 # ---------------------------------------------------------------------------
 # The door: a replay at a key the register does not hold
 # ---------------------------------------------------------------------------

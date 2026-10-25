@@ -11,6 +11,11 @@
   role: terminologist
   runs: 5
   pass: 3
+  red: >-
+    No tool can write the expected ledger row. d207a0bd (2026-09-12) withdrew
+    `ledger.log` from terminologist/deliver. The owed mode is the
+    Terminologist's word-sense generator, a mode of its own keyed by a
+    statement word with two senses.
   # Attributed 2026-09-12: the paragraph and the `ledger.log` tool this case
   # measured (44468f9, 2026-09-09) turned `L3-ratified-statement-becomes-a-term`
   # red on both 8B models, the plain deliver case, and the replay hid it

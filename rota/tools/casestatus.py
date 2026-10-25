@@ -611,8 +611,21 @@ def status(model: str = "") -> list[dict]:
         rows.append({"id": case["id"], "state": state, "passed": passed,
                      "of": len(here), "need": threshold, "why": why,
                      "role": role, "ever": ever,
-                     "live_at": live_at, "replays": replays})
+                     "live_at": live_at, "replays": replays,
+                     "red": red_by_construction(case)})
     return rows
+
+
+def red_by_construction(case: dict) -> str:
+    """
+    The reason a case cannot pass on any model, or "" for a case that can.
+
+    A case marks this with `red: <the reason and the owed mode>`. Before the
+    field, a YAML comment was the only marker, and the per-model table of
+    frame 323 counted `L1-TE-log-the-word-you-took-one-way` as a model failure
+    (frame 326, fault C). A reader of the register uses this one definition.
+    """
+    return str(case.get("red") or "").strip()
 
 
 #: The width of the live column, so the case ids line up. It holds the longest
@@ -622,12 +635,17 @@ _LIVE_WIDTH = 40
 
 def render(rows: list[dict], red_only: bool = False, model: str = "") -> str:
     order = {"FAIL": 0, "PROV": 1, "STALE": 2, "NEW": 3, "green": 4}
-    rows = sorted(rows, key=lambda r: (order[r["state"]], r["id"]))
+    # A case red by construction measures the case, not the model, so it
+    # counts in no state and prints apart below (frame 326, fault C).
+    marked = sorted((r for r in rows if r.get("red")), key=lambda r: r["id"])
+    rows = sorted((r for r in rows if not r.get("red")),
+                  key=lambda r: (order[r["state"]], r["id"]))
     counts = {k: sum(1 for r in rows if r["state"] == k) for k in order}
 
     out = [f"{counts['FAIL']} failing, {counts['PROV']} provisional, "
            f"{counts['STALE']} stale, {counts['NEW']} never measured, "
-           f"{counts['green']} green"]
+           f"{counts['green']} green"
+           + (f", {len(marked)} red by construction" if marked else "")]
     if model:
         # The key these counts were read under, printed with them. A count
         # quoted without its model is the 72 of frame 49: a true number about
@@ -676,6 +694,14 @@ def render(rows: list[dict], red_only: bool = False, model: str = "") -> str:
         out.append(line)
         if r["why"]:
             out.append(f"              {r['why'][:96]}")
+    if marked:
+        # Printed with `--red` too. A hidden marked case reads as a case
+        # nobody owes anything, and the owed mode is the point of the marker.
+        out.append("")
+        out.append("  red by construction, in no count:")
+        for r in marked:
+            out.append(f"  {r['state']:<5} {r['id']}")
+            out.append(f"              {r['red'][:96]}")
     return "\n".join(out)
 
 
