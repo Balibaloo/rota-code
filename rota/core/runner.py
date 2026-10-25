@@ -57,6 +57,11 @@ class RunOutcome:
     # a story. Never fed back into a prompt, so it does not touch replay.
     system: str = ""
     user: str = ""
+    # The native calls of each completion, in step with `completions`, and
+    # the functions the session offered. A grader reads them, because a
+    # native call is not in the text (frame 323).
+    native: list[list] = field(default_factory=list)
+    offered: list[str] = field(default_factory=list)
 
 
 _COUNTED = {"s": "sessions", "m": "messages", "tr": "test_runs"}
@@ -5044,6 +5049,7 @@ def run_session(
         noop_warned = False
         stoodby_retried = False
         allowed = set(sb.functions())
+        outcome.offered = sorted(allowed)
         # Which of them answer a question. The graph is the authority: a read
         # edge is a read, whatever the verb happens to be called.
         read_fns = {f"{e.t}.{e.v}" for e in (g or graph_mod.load()).of_type("reads")
@@ -5207,10 +5213,12 @@ def run_session(
             completion = backend.complete(system, user, pins, tools=schemas)
             outcome.completions.append(completion.text)
             # The provider's own calls. They are not in the text, so the turn
-            # names each one on a line of its own (frame 323).
+            # record and the next turn's history name each one on a line of
+            # its own. Without the lines the history showed only results, and
+            # Gemma sent the same three calls again (frame 323's trial).
             native_calls = _native_calls(completion) if use_native else []
-            said = completion.text + "".join(
-                f"\n[native call] {c.raw}" for c in native_calls)
+            outcome.native.append(native_calls)
+            said = _with_native_lines(completion.text, native_calls)
             # The exact context and the exact response, kept. Everything else
             # about a session is recoverable from its rows; this is not, and it
             # is what every session that behaved oddly has turned out to need.
@@ -5248,11 +5256,12 @@ def run_session(
             #
             # Native calls take the place of the parse, and an empty native
             # list falls back to it, so a `TOOL:` line still runs. A native
-            # call is not in the text, so each offset is 0: rule 1 then
-            # never drops one, and the cut test below skips them (frame 323).
+            # call comes after the text, so its offset is the text's end.
+            # Rule 1 of frame 77 then drops it behind an invented result. The
+            # cut test below skips native calls, because each one is whole.
             if native_calls:
                 calls = native_calls
-                call_at = [0] * len(calls)
+                call_at = [len(completion.text)] * len(calls)
                 scanned = completion.text
             else:
                 calls, call_at, scanned = toolproto.extract_lenient(
@@ -6009,7 +6018,9 @@ def run_session(
                     "results of the calls that did run follow. Send the rest "
                     "again with those results in view.")
 
-            _append(transcript, kinds, _REPLY, completion.text)
+            # `said` is the text plus one line per native call. In text mode
+            # it equals the text, so the history of a text run is unchanged.
+            _append(transcript, kinds, _REPLY, said)
 
             # One wake, one completion: once the reply has committed to
             # something -- a write, a message, a terminal act -- that is the
@@ -6436,10 +6447,29 @@ def _native_calls(completion) -> list:
     for nc in completion.tool_calls or []:
         name = toolschema.demangle(getattr(nc, "name", "") or "")
         args = getattr(nc, "args", None)
-        args = dict(args) if isinstance(args, dict) else {}
+        if not isinstance(args, dict):
+            # A string, a list or bad JSON names no arguments. Running the
+            # call with none would hide the fault behind a door's refusal.
+            calls.append(toolproto.ToolError(
+                raw=f"{name}({args!r})"[:300],
+                reason="could not parse arguments"))
+            continue
         shown = ", ".join(f"{k}={v!r}" for k, v in args.items())
-        calls.append(toolproto.ToolCall(name, args, raw=f"{name}({shown})"))
+        calls.append(toolproto.ToolCall(name, dict(args),
+                                        raw=f"{name}({shown})"))
     return calls
+
+
+def _with_native_lines(text: str, calls: list) -> str:
+    """
+    The reply as the history shows it: the text, then one line per native
+    call in call order, as `name(key=value, ...)`. With no native call it is
+    the text unchanged, so a text run keeps its prompts and its recordings.
+    """
+    if not calls:
+        return text
+    lines = "\n".join(c.raw for c in calls)
+    return f"{text.rstrip()}\n{lines}" if text.strip() else lines
 
 
 def _cut_inside_last(calls: list, call_at: list, scanned: str,

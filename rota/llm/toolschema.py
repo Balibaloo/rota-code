@@ -20,6 +20,7 @@ concern that never reaches the graph or the database.
 from __future__ import annotations
 
 import inspect
+import re
 import typing
 from typing import Any, Callable
 
@@ -65,6 +66,65 @@ def _json_type(annotation: Any) -> dict[str, Any]:
     }.get(annotation, {"type": "string"})
 
 
+#: The longest description one parameter gets. The schemas travel on every
+#: turn, so the cap keeps a role's offered set inside the prompt budget.
+PARAM_DESCRIPTION_CAP = 200
+
+
+def _arguments_section(doc: str) -> dict[str, str]:
+    """
+    The `Arguments:` section of a docstring, as {name: text}.
+
+    Each entry is `name: text` one indent in, and a deeper line continues it.
+    """
+    out: dict[str, str] = {}
+    lines = doc.splitlines()
+    try:
+        start = next(i for i, ln in enumerate(lines)
+                     if ln.strip() in ("Arguments:", "Args:"))
+    except StopIteration:
+        return out
+    indent = None
+    current = None
+    for ln in lines[start + 1:]:
+        if not ln.strip():
+            if out:
+                break
+            continue
+        depth = len(ln) - len(ln.lstrip())
+        if indent is None:
+            indent = depth
+        if depth < indent:
+            break
+        m = re.match(r"\s*(\w+):\s*(.*)$", ln)
+        if depth == indent and m:
+            current = m.group(1)
+            out[current] = m.group(2).strip()
+        elif current:
+            out[current] = f"{out[current]} {ln.strip()}".strip()
+    return out
+
+
+def param_description(doc: str, name: str) -> str:
+    """
+    What one parameter holds, for its schema.
+
+    The order is the docstring's `Arguments:` entry, then the first sentence
+    that names the parameter in backticks or as a word, then the name.
+    """
+    text = _arguments_section(doc).get(name, "")
+    if not text:
+        flat = " ".join(doc.split())
+        sentences = re.split(r"(?<=[.!?])\s+", flat)
+        for pattern in (rf"`{re.escape(name)}`", rf"\b{re.escape(name)}\b"):
+            hit = next((s for s in sentences if re.search(pattern, s)), "")
+            if hit:
+                text = hit
+                break
+    text = text or name
+    return text[:PARAM_DESCRIPTION_CAP]
+
+
 def schema_for(dotted: str, fn: Callable) -> dict[str, Any]:
     from ..core.sandbox import ENUMS, ENUMS_BY_OP
 
@@ -88,6 +148,10 @@ def schema_for(dotted: str, fn: Callable) -> dict[str, Any]:
             required.append(name)
 
     doc = inspect.getdoc(fn) or ""
+    # A type alone does not say what a parameter holds. On frame 323's trial
+    # Gemma put a meaning into `sense`, because the schema gave no prose.
+    for name, prop in properties.items():
+        prop["description"] = param_description(doc, name)
     return {
         "type": "function",
         "function": {

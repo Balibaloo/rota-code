@@ -33,7 +33,7 @@ import rota_serial_plugin
 from rota import paths
 from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend,
                                open_dev_db, record_case_run)
-from rota.llm.llm import OllamaBackend, Pins, think_for
+from rota.llm.llm import OllamaBackend, Pins, profile_pins, think_for
 from rota.roles import prompts
 from rota.testkit import fixtures, interview, obligations
 
@@ -52,7 +52,10 @@ MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 # Without it the pin stays None and every earlier recording keeps its key.
 # The rule lives in `rota.llm.llm` because `casestatus` matches a recording
 # on the pin it sets, and two copies of one rule drift (frame 54).
-PINS = Pins(model=MODEL, temperature=0.0, think=think_for(MODEL))
+# The profile's `max_tokens`, and its `num_ctx` when ROTA_NUM_CTX is unset
+# (frame 323: the trial's cap never reached Ollama).
+PINS = Pins(model=MODEL, temperature=0.0, think=think_for(MODEL),
+            **profile_pins())
 
 # The door, called from the file that reads the register (frame 54,
 # 2026-09-21). It refuses a replay whose ambient key the register does
@@ -135,7 +138,8 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     # ROTA_MODEL_FORCE=1 puts every case on ROTA_MODEL, pins included: a
     # benchmark column measures one model across the register.
     pinned = MODEL if os.environ.get("ROTA_MODEL_FORCE") else case.get("model", MODEL)
-    pins = Pins(model=pinned, temperature=0.0, think=think_for(pinned))
+    pins = Pins(model=pinned, temperature=0.0, think=think_for(pinned),
+                **profile_pins())
     passed, threshold, results = fixtures.run_sampled(
         case, tmp_path, backend_factory, pins=pins, instructions=instructions)
 

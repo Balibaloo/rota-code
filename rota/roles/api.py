@@ -2593,6 +2593,14 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
     the row it was creating. Declining to define a term stays free: not writing
     the row at all is always allowed, and a thin glossary of real meanings beats
     a full one of labels.
+
+    Arguments:
+        term: the word, as this project writes it.
+        sense_body: the meaning of the word, in two to four sentences. The
+            explanation goes here, and nowhere else.
+        sense_short: one line that summarises `sense_body`, written after it.
+        sense: leave it empty. Only a word that already has a different
+            meaning gets a second sense, named in a word or two.
     """
     import re
 

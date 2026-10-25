@@ -1220,11 +1220,27 @@ def _no_call(case: dict, outcome: RunOutcome, scripted: int) -> list[str]:
     text = outcome.completions[scripted]
     if re.search(r"^\s*TOOL:", text, re.M):
         return ["expected a reply with no call; the reply holds a TOOL: line"]
-    allowed = set(re.findall(r"^\s*TOOL: ([a-z_]+\.[a-z_]+)\(",
-                             outcome.system, re.M))
-    if toolproto.extract_lenient(text, allowed):
+    if _reply_calls(outcome, scripted, toolproto):
         return ["expected a reply with no call; the reply holds a call"]
     return []
+
+
+def _reply_calls(outcome: RunOutcome, n: int, toolproto) -> list:
+    """
+    The calls of reply `n`: its native calls when it made any, else the
+    calls the parser reads in its text.
+
+    The offered set comes from the `TOOL:` lines of the system text, as it
+    always has. A native prompt has no such line, so the set then comes
+    from the functions the session offered (frame 323).
+    """
+    native = getattr(outcome, "native", None) or []
+    if n < len(native) and native[n]:
+        return list(native[n])
+    allowed = set(re.findall(r"^\s*TOOL: ([a-z_]+\.[a-z_]+)\(",
+                             outcome.system, re.M))
+    allowed = allowed or set(getattr(outcome, "offered", None) or [])
+    return toolproto.extract_lenient(outcome.completions[n], allowed)
 
 
 def _first_call(case: dict, outcome: RunOutcome, scripted: int) -> list[str]:
@@ -1238,9 +1254,7 @@ def _first_call(case: dict, outcome: RunOutcome, scripted: int) -> list[str]:
 
     if len(outcome.completions) <= scripted:
         return [f"expected a first call to {want['fn']}; the model made none"]
-    allowed = set(re.findall(r"^\s*TOOL: ([a-z_]+\.[a-z_]+)\(",
-                             outcome.system, re.M))
-    calls = toolproto.extract_lenient(outcome.completions[scripted], allowed)
+    calls = _reply_calls(outcome, scripted, toolproto)
     if not calls:
         return [f"expected a first call to {want['fn']}; the reply holds no call"]
     first = calls[0]

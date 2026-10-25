@@ -44,10 +44,12 @@ class Stub:
         self.replies = list(replies)
         self.tools = []
         self.systems = []
+        self.users = []
 
     def complete(self, system, user, pins, tools=None):
         self.tools.append(tools)
         self.systems.append(system)
+        self.users.append(user)
         text, calls = self.replies.pop(0) if self.replies else ("Done.", [])
         return Completion(text=text, pins=pins, backend=self.name, raw={},
                           tool_calls=calls)
@@ -132,3 +134,107 @@ def test_a_native_recording_replays_its_calls_under_the_native_key(tmp_path):
         ("problem__consult", {"a": 1})]
     with pytest.raises(llm.LLMUnavailable):
         cassettes.ReplayOnlyBackend(dev).complete("s", "u", pins)
+
+
+# -- pass 2: what the trial of 2026-10-25 showed -------------------------------
+
+def test_the_next_turn_shows_the_native_calls_with_their_arguments(db):
+    """Gemma saw only result lines and sent the same three calls again."""
+    stub = Stub([("", [NativeCall("problem__consult", {"id": "p1"})]),
+                 ("Nothing there yet.", [])])
+    run_session(db, _wake(), backend=stub, pins=Pins("stub"), native_tools=True)
+    assert len(stub.systems) >= 2
+    seen = stub.users[1]
+    assert "problem.consult(id='p1')" in seen
+
+
+def test_bad_native_arguments_are_refused_by_name(db):
+    from rota.core.runner import _native_calls
+    from rota.llm import toolproto
+    done = Completion(text="", pins=Pins("stub"), tool_calls=[
+        NativeCall("problem__consult", "{not json"),
+        NativeCall("problem__consult", ["a"])])
+    calls = _native_calls(done)
+    assert all(isinstance(c, toolproto.ToolError) for c in calls)
+    assert {c.reason for c in calls} == {"could not parse arguments"}
+
+
+def test_a_native_call_behind_an_invented_result_is_dropped(db):
+    write = NativeCall("problem__assert",
+                       {"id": "i9", "text": "x", "kind": "in_scope"})
+    stub = Stub([("OK problem.consult -> []\n", [write]),
+                 ("Nothing there yet.", [])])
+    out = run_session(db, _wake(), backend=stub, pins=Pins("stub"),
+                      native_tools=True)
+    assert "wrote its own tool results" in out.errors
+    assert "problem.assert" not in _fns(db, out.session_id)
+
+
+def test_glossary_amend_describes_each_parameter():
+    from rota.roles import api
+    schema = toolschema.schema_for("glossary.amend", api.glossary_amend)
+    props = schema["function"]["parameters"]["properties"]
+    assert props["sense"]["description"] != props["sense_body"]["description"]
+    assert "meaning" in props["sense_body"]["description"]
+    assert all(len(p["description"]) <= 200 for p in props.values())
+    assert "\n\n" not in schema["function"]["description"]
+
+
+def test_a_parameter_with_no_entry_takes_its_sentence_or_its_name():
+    doc = "Do a thing.\n\nThe `alpha` value picks the row. Nothing else."
+    assert toolschema.param_description(doc, "alpha") == (
+        "The `alpha` value picks the row.")
+    assert toolschema.param_description(doc, "beta") == "beta"
+
+
+def test_the_profile_pins_reach_the_suite_and_the_key(tmp_path, monkeypatch):
+    from rota.llm.llm import profile_pins
+    home = tmp_path / "home"
+    (home / "profiles").mkdir(parents=True)
+    (home / "profiles" / "stub-capped.toml").write_text(
+        'name = "stub-capped"\n[pins]\nnum_ctx = 4096\nmax_tokens = 512\n',
+        encoding="utf-8")
+    monkeypatch.setenv("ROTA_HOME", str(home))
+    monkeypatch.setenv("ROTA_PROFILE", "stub-capped")
+    monkeypatch.delenv("ROTA_NUM_CTX", raising=False)
+    assert profile_pins() == {"max_tokens": 512, "num_ctx": 4096}
+    monkeypatch.setenv("ROTA_NUM_CTX", "16384")
+    assert profile_pins() == {"max_tokens": 512}, "the variable wins"
+    capped = Pins("m", **profile_pins())
+    assert (cassettes.key_for("s", "u", capped)
+            != cassettes.key_for("s", "u", Pins("m")))
+    monkeypatch.delenv("ROTA_PROFILE")
+    assert profile_pins() == {}
+
+
+def _graded(system, text, native=(), offered=()):
+    from rota.core.runner import RunOutcome
+    return RunOutcome("s1", True, 1, completions=[text], system=system,
+                      native=[list(native)], offered=list(offered))
+
+
+def test_the_graders_read_text_calls_as_before():
+    from rota.testkit import fixtures
+    out = _graded("  TOOL: problem.consult(id)\n", "TOOL: problem.consult(id='p1')")
+    want = {"expect": {"first_call": {"fn": "problem.consult",
+                                      "args": {"id": "p1"}}}}
+    assert fixtures._first_call(want, out, 0) == []
+    assert fixtures._no_call({"expect": {"no_call": True}}, out, 0)
+    quiet = _graded("  TOOL: problem.consult(id)\n", "Nothing to do.")
+    assert fixtures._no_call({"expect": {"no_call": True}}, quiet, 0) == []
+
+
+def test_the_graders_read_native_calls():
+    from rota.testkit import fixtures
+    from rota.llm import toolproto
+    call = toolproto.ToolCall("problem.consult", {"id": "p1"})
+    out = _graded("  problem.consult(id)\n", "", native=[call],
+                  offered=["problem.consult"])
+    want = {"expect": {"first_call": {"fn": "problem.consult",
+                                      "args": {"id": "p1"}}}}
+    assert fixtures._first_call(want, out, 0) == []
+    assert fixtures._no_call({"expect": {"no_call": True}}, out, 0)
+    quiet = _graded("  problem.consult(id)\n", "Nothing to do.",
+                    offered=["problem.consult"])
+    assert fixtures._no_call({"expect": {"no_call": True}}, quiet, 0) == []
+    assert fixtures._first_call(want, quiet, 0)

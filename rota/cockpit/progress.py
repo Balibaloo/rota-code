@@ -538,7 +538,8 @@ def message_text(case_id: str) -> dict:
     a panel that raises shows a person nothing at all (frame 63,
     2026-09-22).
     """
-    from ..core.runner import build_prompt, push_working_set, resolve_inbound
+    from ..core.runner import (build_prompt, native_default, push_working_set,
+                               resolve_inbound)
     from ..core.worktrees import WorktreeError
 
     case = next((c for c in _cases() if c["id"] == case_id), None)
@@ -564,7 +565,8 @@ def message_text(case_id: str) -> dict:
                f"prompt above. Everything else is what the session is told.]")
     system, user = build_prompt(role, sb, wake, pushed,
                                 prompts.compose(role, mode),
-                                resolve_inbound(conn, wake))
+                                resolve_inbound(conn, wake),
+                                native=native_default(conn))
     conn.close()
     # The size of the prompt, and not the size of the note below it. The
     # number answers "how much of the window does this session spend".

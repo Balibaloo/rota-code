@@ -91,6 +91,30 @@ def think_for(model: str, root: Path | None = None) -> bool:
     return THINK_DEFAULT if pinned is None else pinned
 
 
+def profile_pins(root: Path | None = None) -> dict:
+    """
+    The `ROTA_PROFILE` profile's pins that a register run carries.
+
+    `max_tokens` always joins. `num_ctx` joins only when `ROTA_NUM_CTX` is
+    unset, because the variable wins over the file. Frame 323's trial set
+    `max_tokens = 2048` in its profile, and Ollama still got 8192, because
+    the suite built its pins without the profile. Both pins are in the
+    cassette key, so a capped recording never answers an uncapped run.
+    """
+    name = os.environ.get("ROTA_PROFILE")
+    if not name:
+        return {}
+    from . import profile as profile_mod
+
+    pins = profile_mod.find(name, root).pins or {}
+    out: dict = {}
+    if pins.get("max_tokens") is not None:
+        out["max_tokens"] = int(pins["max_tokens"])
+    if pins.get("num_ctx") is not None and not os.environ.get("ROTA_NUM_CTX"):
+        out["num_ctx"] = int(pins["num_ctx"])
+    return out
+
+
 @dataclass(frozen=True)
 class Pins:
     """
@@ -494,11 +518,14 @@ class OllamaBackend:
             fn = call.get("function", {}) or {}
             args = fn.get("arguments")
             if isinstance(args, str):
+                # Bad JSON stays a string, so the runner refuses the call by
+                # name and does not run it with no arguments (frame 323).
                 try:
                     args = json.loads(args)
                 except json.JSONDecodeError:
-                    args = {}
-            native.append(NativeCall(name=fn.get("name", ""), args=args or {}))
+                    pass
+            native.append(NativeCall(name=fn.get("name", ""),
+                                     args={} if args is None else args))
 
         return Completion(
             text=message.get("content", ""),
@@ -596,10 +623,19 @@ class LiteLLMBackend:
             raise LLMUnavailable(f"litellm ({pins.model}): {exc}") from exc
         message = resp.choices[0].message
         calls = [NativeCall(name=c.function.name,
-                            args=json.loads(c.function.arguments or "{}"))
+                            args=_native_args(c.function.arguments))
                  for c in (getattr(message, "tool_calls", None) or [])]
         return Completion(text=message.content or "", pins=pins,
                           backend=self.name, raw={}, tool_calls=calls)
+
+
+def _native_args(text):
+    """The arguments of a native call. Bad JSON stays a string, so the
+    runner refuses the call by name and does not run it empty (frame 323)."""
+    try:
+        return json.loads(text or "{}")
+    except (TypeError, ValueError):
+        return text
 
 
 class ScriptedBackend:
