@@ -170,3 +170,52 @@ def test_the_nights_texts_open_a_note_on_both_doors():
     assert api._drop_note(old, a, b, text) == want
     merged = chr(10).join(old[:a] + text.splitlines() + old[b:]) + chr(10)
     assert api._whole_lost(old, merged, None, []) == want
+
+
+# Pass 2, the review of 07887a4b (`plans/frame283-review-wd.md`).
+NOTE1 = "This write removes or rewrites 1 statement that your text does not hold: "
+
+
+def test_a_new_parameter_beside_a_body_rewrite_opens_no_note(db, tmp_path):
+    """Finding 1: the parts of a signature sat in the place index of
+    `_rewritten_heads`, so an added parameter made a rewrite a removal."""
+    old = _l("def f(a):", "    return")
+    sb, _root = _small(db, tmp_path, old)
+    out = _call(sb, "code.write", path=PATH, text=_l("def f(a, b=None):", "    return False"),
+                start=0, end=2)
+    assert "dropped" not in out
+
+
+def test_a_new_decorator_beside_a_body_rewrite_opens_no_note(db, tmp_path):
+    old = _l("from functools import cache", "", "", "def f(a):", "    go(a)")
+    sb, _root = _small(db, tmp_path, old)
+    out = _call(sb, "code.write", path=PATH, text=_l("@cache", "def f(a):", "    go(a, 1)"),
+                start=3, end=5)
+    assert "dropped" not in out
+
+
+TWO = _l("import click", "", "", "@click.option(", '    "--a",', ")", "@click.option(",
+         '    "--b",', ")", "def f(a, b):", "    return a")
+
+
+def test_one_of_two_multi_line_decorators_dropped_is_named(db, tmp_path):
+    """Finding 2: two decorators with the same first line shared one key."""
+    sb, _root = _small(db, tmp_path, TWO)
+    text = _l("@click.option(", '    "--a",', ")", "def f(a, b):", "    return a")
+    out = _call(sb, "code.write", path=PATH, text=text, start=3, end=11)
+    assert out["dropped"] == NOTE1 + "`@click.option(` at line 6."
+
+
+def test_a_renamed_definition_over_its_header_names_the_old_header():
+    """Finding 3: a span over the header alone holds no whole statement, so
+    the walk named nothing when the merged file lost the owner."""
+    old = ["def f(", "    a,", "    b,", "):", "    return a"]
+    note = api._drop_note(old, 0, 4, _l("def g(", "    a,", "):"))
+    assert note == NOTE1 + "`def f(` at line 0."
+
+
+def test_a_whole_file_write_that_drops_two_parameters_of_one_line_names_it_once():
+    """Finding 4: the bound `x <= a <= y` of `_whole_lost`."""
+    old = ["def f(a, b):", "    return 1"]
+    note = api._whole_lost(old, _l("def f():", "    return 1"), None, [])
+    assert note == NOTE1 + "`def f(a, b):` at line 0."
