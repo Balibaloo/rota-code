@@ -238,6 +238,9 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    # The brief says `code.probe` will find the code, so the index must
+    # exist (frame 326, fault A).
+    onboard: true
     message: "close an account"
     edit:
       src/billing/accounts.py: |

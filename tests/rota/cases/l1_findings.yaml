@@ -87,6 +87,9 @@
   detail: "round 1: the Critic upheld <f1> on <k1>"
   repo:
     batch: <b1>
+    # The mode holds `code.probe`, and an empty index answers every probe
+    # with nothing (frame 326, fault A).
+    onboard: true
     message: "split the bill"
     edit:
       main.py: |
