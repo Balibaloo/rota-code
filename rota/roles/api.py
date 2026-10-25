@@ -22002,20 +22002,17 @@ def _signature_parts(node, owner: str,
     A parameter keys on its name, as an assignment keys on its targets. So
     a new default or annotation is a new wording, and a rename is a
     removal. Its kind is its key, so the kind count of `_whole_lost` never
-    reads a rename as a rewrite. A decorator keys on its whole text. The
+    reads a rename as a rewrite. A decorator keys on its first line. The
     return annotation and the docstring are not statements: the brief of
     W-D leaves them out."""
     import ast as _ast
     out: list = []
     for d in node.decorator_list:
-        # The whole decorator and not its first line: two `@click.option(`
-        # decorators shared one key (review of 07887a4b, finding 2).
-        seg = lines[d.lineno - 1:d.end_lineno]
-        seg = [seg[0][:d.end_col_offset] if len(seg) == 1 else seg[0]] + seg[1:]
-        if len(seg) > 1:
-            seg[-1] = seg[-1][:d.end_col_offset]
-        seg[0] = seg[0][d.col_offset:]
-        out.append((owner, "@" + _line_key(chr(10).join(seg)), d.lineno - 1,
+        # The first line and not the whole text: a key on the whole text made
+        # each edit of an argument a removal (review of 266aadb0, finding 5).
+        # `_lost_signature` counts the keys, so two `@click.option(` lines
+        # stay two parts (finding 2).
+        out.append((owner, "@" + _line_key(lines[d.lineno - 1]), d.lineno - 1,
                     d.end_lineno - 1, "decorator"))
     if isinstance(node, _ast.ClassDef):
         return out
@@ -22046,6 +22043,7 @@ def _lost_signature(old_lines: list[str], start: int, stop: int,
     (review of 07887a4b, finding 3). One line is named once, so a one-line
     signature that loses two parameters names its line once."""
     import ast as _ast
+    from collections import Counter
     merged = old_lines[:start] + new + old_lines[stop:]
     try:
         olds = _owned_statements(_ast.parse(chr(10).join(old_lines)), old_lines)
@@ -22053,7 +22051,13 @@ def _lost_signature(old_lines: list[str], start: int, stop: int,
     except Exception:                                      # noqa: BLE001
         return []
     owners = {n for n, _lo, _hi in _def_spans(chr(10).join(merged)) or []}
-    held = {(o, k) for o, k, _a, _b, t in news if t == "decorator" or t == k}
+    # A count and not a set: two decorators with the same first line are
+    # two parts (review of 266aadb0, finding 5). The parts outside the span
+    # take their share first, because the write cannot drop them.
+    held = Counter((o, k) for o, k, _a, _b, t in news if t == "decorator" or t == k)
+    for o, k, a, b, t in olds:
+        if (t == "decorator" or t == k) and (b < start or a >= stop) and held[(o, k)]:
+            held[(o, k)] -= 1
     heads = {}
     for n in _ast.walk(_ast.parse(chr(10).join(old_lines))):
         if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
@@ -22067,7 +22071,8 @@ def _lost_signature(old_lines: list[str], start: int, stop: int,
             # The definition's own line, past its decorators.
             lo = spans.get(o, a)
             a = min((i for i in heads if i >= lo), default=a)
-        elif (o, k) in held:
+        elif held[(o, k)]:
+            held[(o, k)] -= 1
             continue
         if a not in {i for i, _h in out}:
             out.append((a, old_lines[a].strip()))

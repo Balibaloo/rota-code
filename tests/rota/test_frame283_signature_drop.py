@@ -116,7 +116,9 @@ def test_a_dropped_decorator_opens_a_note(db, tmp_path):
 def test_a_kept_decorator_opens_no_note(db, tmp_path):
     sb, _root = _small(db, tmp_path, DEC)
     text = _l("@functools.lru_cache()", "def f(x):", "    return x + 1")
-    assert "dropped" not in _call(sb, "code.write", path=PATH, text=text, start=3, end=6)
+    out = _call(sb, "code.write", path=PATH, text=text, start=3, end=6)
+    assert "refused" not in out, out
+    assert "dropped" not in out
     assert PATH not in api._open_notes(sb.ctx)
 
 
@@ -219,3 +221,26 @@ def test_a_whole_file_write_that_drops_two_parameters_of_one_line_names_it_once(
     old = ["def f(a, b):", "    return 1"]
     note = api._whole_lost(old, _l("def f():", "    return 1"), None, [])
     assert note == NOTE1 + "`def f(a, b):` at line 0."
+
+
+# Pass 2b, finding 5 of the review: a decorator keyed on its whole text made
+# each edit of its arguments a removal (probe p8).
+OPT = _l("import click", "", "", "@click.option(", '    "--name",', '    default="a",', ")",
+         "def f(name):", "    return name")
+
+
+def test_an_edited_argument_inside_a_multi_line_decorator_opens_no_note(db, tmp_path):
+    sb, _root = _small(db, tmp_path, OPT)
+    text = _l(*OPT.splitlines()[3:]).replace('default="a"', 'default="b"')
+    out = _call(sb, "code.write", path=PATH, text=text, start=3, end=9)
+    assert "refused" not in out
+    assert "dropped" not in out
+
+
+def test_an_added_argument_of_a_one_line_decorator_opens_no_note(db, tmp_path):
+    old = _l("import click", "", "", '@click.option("--name")', "def f(name):", "    return name")
+    sb, _root = _small(db, tmp_path, old)
+    text = _l('@click.option("--name", default="x")', "def f(name):", "    return name")
+    out = _call(sb, "code.write", path=PATH, text=text, start=3, end=6)
+    assert "refused" not in out, out
+    assert "dropped" not in out
