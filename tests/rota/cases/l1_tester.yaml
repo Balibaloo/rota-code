@@ -13,6 +13,23 @@
   runs: 5
   pass: 4
   inbound: {from: developer, to: tester, verb: challenge, body_refs: [<tst1>, <c1>]}
+  # The challenge mode holds `code.source`, and without a repository it
+  # refuses with no project_root (frame 326, fault B).
+  repo:
+    batch: <b1>
+    message: "close an account"
+    edit:
+      src/accounts/close.py: |
+        _closed = set()
+        _invoices = {}
+
+
+        def close_account(account):
+            _closed.add(account)
+
+
+        def invoices_for(account):
+            return _invoices.get(account, [])
   fixture:
     items:
       - {id: <i1>, text: "closing an account keeps its invoices", kind: in_scope,
@@ -58,6 +75,15 @@
   # challenge in words instead of narrowing the test. 8B judgement on what
   # the criterion asserts.
   inbound: {from: developer, to: tester, verb: challenge, body_refs: [<tst1>, <c1>]}
+  # The challenge mode holds `code.source`, and without a repository it
+  # refuses with no project_root (frame 326, fault B).
+  repo:
+    batch: <b1>
+    message: "truncate the subject"
+    edit:
+      src/mail/subject.py: |
+        def truncate(subject, width=72):
+            return subject[:width]
   fixture:
     items:
       - {id: <i1>, text: "long subject lines are truncated", kind: in_scope,
@@ -232,6 +258,19 @@
       writes its JSON representation to the stream using
       `json.dumps(obj, separators=(\",\", \":\"))`, followed by a single
       newline. ... output = sys.stdout.getvalue()"
+  # The challenge mode holds `code.source`, and without a repository it
+  # refuses with no project_root (frame 326, fault B). The edit commit is
+  # the batch head, and the run below is seeded against it, as on the night.
+  repo:
+    batch: <b1>
+    message: "add echo_json"
+    edit:
+      src/click/utils.py: |
+        import json
+
+
+        def echo_json(obj):
+            print(json.dumps(obj, separators=(",", ":")))
   replies:
     - |-
       The test failed because `sys.stdout` is not a plain file object but an `EncodedFile`. The test's attempt to call `.getvalue()` on it fails. This is a common pattern when testing code that writes to stdout: you must capture the output differently (e.g., by redirecting at the process level or using a custom stream wrapper).
@@ -333,7 +372,7 @@
       - id: <r1>
         batch_id: <b1>
         test_id: <tst1>
-        commit_sha: a7045de
+        commit_sha: HEAD
         result: fail
         attempt: 5
         output: |-
