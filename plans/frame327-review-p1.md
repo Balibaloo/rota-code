@@ -157,3 +157,86 @@ All probe files are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/6
 ## Usage
 
 The harness shows no exact count. Estimate: about 95k input tokens in context at the end, about 18k output tokens, about 113k total. No sub-agent.
+
+## Review 1b at 8807288b
+
+Verdict: accept all four commits for the branch: d85a8db4, 19ae12b5, fefb9a14 and 8807288b. H1 and L1 are closed. L2 is closed for a list in JSON form. One low residue stays open (finding R1 below), and it does not block.
+
+Method. The reviewer rules forbid a git command that changes a tree, so I did not run the checkout the coordinator asked for. I extracted 8807288b with `git archive` into `scratchpad/r327/tree1b` and ran every probe and test from there. The worktree `C:/Users/roman/rota_r327` stays at 19ae12b5 and is clean.
+
+### 1. H1 and L2, CONFIRMED closed for the named inputs
+
+Probe `p6b.py`, the Vision Keeper's `msg.report_liaison`. Every input refuses, and 0 messages are stored.
+
+| sent | the form shown | words | longest sentence |
+|---|---|---|---|
+| `b_9f9824, i_62de3d` | `refs=["b_9f9824", "i_62de3d"]` | 35 | 17 |
+| `b_9f9824 i_62de3d` | `refs=["b_9f9824", "i_62de3d"]` | 35 | 17 |
+| the empty string | `refs=[]` | 34 | 17 |
+| `refs: b_1` | `refs=["b_1"]` | 34 | 17 |
+| `["c_734322", "tst_dcae01"]` | `refs=["c_734322", "tst_dcae01"]` | 20 | 11 |
+| `[not json` | `refs=["s_1b9009", "c_734322"]`, the example | 20 | 11 |
+
+Both texts keep to the two per-door rules: 20 words per sentence and under 50 words.
+
+Other inputs I probed:
+
+- A list in Python form, `['c_c2e7a4', 'tst_a8b667']`, shows the fixed example. A qwen3:8b live run in the register sent this exact form (point 7). That is finding R1.
+- `[c_734322, tst_dcae01]` shows the fixed example. The new test pins that choice.
+- `["c_1", 5]` shows the example, `[]` shows `refs=[]`, and ` , ` shows `refs=[]`.
+- `the batch b_1` shows `refs=["the", "batch", "b_1"]`. Prose words become ids, which is a low edge.
+
+### 2. L1, CONFIRMED
+
+Probe `p_l1.py` puts a handler on the `rota.llm.toolschema` logger.
+
+- A function with `nosuchmod.Thing` gives 1 record. A function that evaluates gives 0. The same bad function again gives a second record. So the warning fires once for each fallback call.
+- The record is WARNING: `schema for x.f1 falls back to string annotations: NameError: name 'nosuchmod' is not defined`.
+- 448 `api.py` functions and the eight roles' working sets give 0 warnings.
+- Review 3's text-mode probe at 8807288b gives 0 warnings. Its output is 98 cases and 325 prompts, the same as `p327/h_base.json` when parsed. The bytes differ only by the line end that my wrapper wrote. `keyprobe.py` gives byte-identical keys.
+- The warning fires on each call, so a function that falls back warns on every turn that builds the schemas. No function falls back today.
+
+### 3. The stale count, CONFIRMED
+
+The register, opened `mode=ro`:
+
+| text | runs, cases | qwen3:8b live runs, cases |
+|---|---|---|
+| "one id as a bare string" (the old text) | 11,183, 40 | 170, 13 |
+| "you sent a bare string" (the new text) | 0, 0 | 0, 0 |
+| "a string that holds a list" (the 19ae12b5 text) | 0, 0 | 0, 0 |
+| "Send a list: refs=" (the 19ae12b5 form) | 0, 0 | 0, 0 |
+
+No run recorded the interim text of 19ae12b5. So the count from point 7 stands. 8 cases hold the old text on their latest qwen3:8b prompt, with 49 live runs. The gate's stale line can rise by up to 8:
+
+- L1-AR-a-dead-end-is-reported-not-sat-on
+- L1-AR-a-dead-end-leaves-the-desk-to-a-named-seat
+- L1-CR-fail-names-its-criterion (a baseline red)
+- L1-DV-a-wordless-answer-leaves-a-wrong-test-alone (a baseline red)
+- L1-DV-escalate-a-finding-the-loop-could-not-answer
+- L1-DV-fix-what-the-verdict-names
+- L1-LI-present-the-touch
+- L2-AR-place-a-block-developer-could-not
+
+The 13 cases of the live column include 5 on an older prompt. The gate does not replay an older prompt.
+
+### 4. The frame file and the pins, CONFIRMED
+
+- `test_frame327_schema.py`, `test_native_calls.py` and `test_request_page.py` at 8807288b: 139 passed, 4 xfailed.
+- The frame file has 0 CR, 0 doubled backslash, and 4 backslashes, all in the backslash-quote escapes.
+- A search of `tests/` and `rota/` (py, md, yaml) for "bare string", "holds a list", "per letter", "sequence of characters", `s_1b9009` and the warning text finds only the frame file and the door. The two other hits, `test_desk_guards.py:4418` and `test_request_page.py:1474`, are docstrings about other doors. No other pin holds either text.
+
+### Findings of review 1b
+
+1. R1, low, CONFIRMED. `rota/core/sandbox.py`, the `[` branch of the `refs` door. A list in Python form, or a list with no quotes, does not parse as JSON. So it shows the fixed example ids, not the seat's own. The register holds `['c_c2e7a4', 'tst_a8b667']` from a qwen3:8b live run. Fix: when `json.loads` fails, try `ast.literal_eval`, and keep the example only when neither gives a list of strings.
+2. R2, low, CONFIRMED. `_listed_refs` at `rota/core/sandbox.py:64-72`. Prose such as `the batch b_1` shows each word as an id, and `refs=b_1` stays one token. Fix: keep only the tokens that match the id form, and show the example when none match.
+
+### Probes of review 1b
+
+The probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/66edc387-a3b2-48b8-8dec-bb5b3aa63e50/scratchpad/r327/`.
+
+- `tree1b/`: 8807288b extracted with `git archive`.
+- `p6b.py`: the door with 13 inputs.
+- `p_l1.py`: the warning count, then `p1.py` or review 3's `hist_identity.py` under a log handler. Its outputs are `h_1b.json` and `h_1b.err`.
+- A read-only `python -c` count of the four texts in the register.
+- pytest on the three files, and the search for pins.
