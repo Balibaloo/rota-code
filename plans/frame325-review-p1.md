@@ -25,3 +25,22 @@ All are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/b18846fb-98a1
 
 ## (d) Usage
 About 75k input tokens and 10k output tokens, about 85k in total. This is an estimate from the session.
+
+## Re-check of bda07c54
+Verdict: Does not stand. Findings 1, 3 and 4 are fixed, but an `other` row now reaches no page that the tick wakes.
+1. Fixed, CONFIRMED. `git diff 7ebf2612 -- rota/core/runner.py` is empty, so the Liaison's wake bytes equal the baseline. `test_l1.py -k L1-LI` on a copy of `cassettes.db` gives 1 failed and 37 passed, the same red as the baseline. The review deleted the copy.
+2. Half fixed, high, CONFIRMED. An `other` row alone wakes no page: `tick_agenda` returns `[]`. An `other` row beside a `default` row wakes the Liaison with `refs=('l_d',)` only, because `first` is built from `chosen` (`scheduler.py:1221`). The page from those refs shows "1. the tip is typed each time" and no count line. The test `test_an_other_row_beside_a_default_row_rides_the_page` passes its own refs to `_page`, not the wake's, so it misses this. The comment at `scheduler.py:1144` says the row "rides only on a page that a different row wakes", but no code adds it. The row is then on no page, which breaks "visible and countable" (composition, Records). Fix: append the page's open `other` rows to the wake's refs after `first`, and pin the test on `wakes[0].refs`.
+3. Fixed, CONFIRMED. On `clarify`, `confirm` and the fallback, the probe finds no words of the `other` row.
+4. Fixed for line numbers, CONFIRMED. The test sends "3: take this off the page", and the row stays open with no `rulings` row. A ruling keyed by the row's id still lands: `rulings_rule` admits `key in keys`, and `keys` is the page's refs (`api.py:12044`, `12087`). It matters only for `contest`, which contests the row's item through `land`. Low. Fix: refuse a key that is a quiet `other` id on a present page.
+5. Pins hold. The 7 files give 66 passed. The diff removes no test line, so no assertion is weaker.
+Probe: `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/b18846fb-98a1-4a67-92e0-2b450b5603d8/scratchpad/r325/p6_pass2.py`. Re-check usage: about 30k input and 4k output tokens, an estimate.
+Does not stand
+
+## Re-check of c7367d0f
+Verdict: Stands. Finding 2 is fixed in full.
+1. Fixed, CONFIRMED. `p6_pass2.py`: an `other` row alone wakes no page. Beside a `default` row, the wake's refs are `('l_d', 'l_o')`. The page from those refs shows "1. the tip is typed each time" and then "Not shown: 1 note from the Developer that fits no category."
+2. The limit, CONFIRMED by `p7_cap.py`. When 7 rows fill the cap of 7 (`PAGE_ASSUMPTIONS`), the `other` row drops out of the refs. The row stays open and rides on a later page when the cap has room. That is acceptable for a quiet count line, because the line asks nothing and nothing waits on it. The count on the full page is low by the dropped rows. Low.
+3. Outside, low, PLAUSIBLE. `riders` skips the held-item filter at `scheduler.py:1166`. A rider of a held item can then ride a page. `on_page` drops a row of another item, so the effect is small.
+4. Pins hold. The 7 files give 66 passed. 4 test lines changed. The page is now built from the tick's refs, and the reply names line 2, the count line's position on that page. No assertion is weaker.
+Usage for this re-check: about 15k input and 2k output tokens, an estimate.
+Stands
