@@ -10,6 +10,8 @@ the quiet section". The page read no kind, so that pass was never built.
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from rota.core.db import init_db
@@ -102,3 +104,60 @@ def test_two_other_rows_from_two_seats_make_one_line(db):
             "no category.") in page, page
     assert page.count("Not shown:") == 1
     assert order == ["s1", "l_a69ad6edd4"]
+
+
+def _page(db, refs, mid="m172"):
+    from rota.roles.principal import pending_asks
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES (?, ?, 'liaison', 'principal', "
+               "'present', ?, 1, 'open')", (mid, mid, json.dumps(refs)))
+    db.commit()
+    return next(a for a in pending_asks(db) if a.message_id == mid)
+
+
+def test_an_other_row_alone_wakes_no_page(db):
+    from rota.core.scheduler import tick_agenda
+
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e1','principal','tip calculator pls',1)")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1','e1',0,18,'tip calculator pls',"
+               "'ratified')")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "kind, status, author) VALUES ('l_0553f217b1','s1','statements',"
+               "?,'other','open','developer')", (OTHER_TEXT,))
+    db.commit()
+    assert tick_agenda(db, principal_present=True) == []
+
+
+def test_an_other_row_beside_a_default_row_rides_the_page(db):
+    from rota.core.scheduler import tick_agenda
+
+    refs = _seed(db, with_other=True)
+    wakes = tick_agenda(db, principal_present=True)
+    assert len(wakes) == 1 and wakes[0].role == "liaison", wakes
+    page = _page(db, refs).rendered
+    assert "Not shown: 1 note from the Developer that fits no category." in page
+
+
+def test_a_reply_on_the_count_line_rules_nothing(db):
+    from rota.roles.principal import land, parse_reply
+
+    refs = _seed(db, with_other=True)
+    ask = _page(db, refs)
+    assert ask.order == ["s1", "l_a69ad6edd4"]
+    msg = land(db, ask, parse_reply(ask, "3: take this off the page"))
+    assert msg is not None
+    assert db.execute("SELECT status FROM ledger WHERE id = 'l_0553f217b1'"
+                      ).fetchone()[0] == "open"
+    assert db.execute("SELECT count(*) FROM rulings").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("verb", ["clarify", "confirm", "ask"])
+def test_no_verb_shows_the_words_of_an_other_row(db, verb):
+    refs = _seed(db, with_other=True)
+    page, order = render_page(db, verb, refs, "Which?", ask_id="m10",
+                              returned=False)
+    assert OTHER_TEXT not in page, page
+    assert "l_0553f217b1" not in order

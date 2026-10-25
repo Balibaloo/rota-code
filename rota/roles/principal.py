@@ -1792,6 +1792,13 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     touches: list[tuple[str, str]] = []
     other: list[tuple[str, str]] = []
     quiet: list[str] = []
+    # The page reads the kind itself. A `kind` on the ledger resolve changed
+    # the Liaison's wake bytes, and 5 L1-LI cases went stale (frame 325's
+    # review, finding 1).
+    ids = [r for r in refs if isinstance(r, str)]
+    kind_other = {r["id"] for r in conn.execute(
+        f"SELECT id FROM ledger WHERE kind = 'other' AND id IN "
+        f"({','.join('?' * len(ids))})", tuple(ids))} if ids else set()
     zero = False
     batches: list[str] = []
     for ref in refs:
@@ -1815,7 +1822,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             # A note that fits no category is no assumption of his. It is a
             # count with no number, so a reply cannot rule on it (frame
             # 204's design, section 8, ruled 2026-10-11 15:44).
-            if verb == "present" and row.get("kind") == "other":
+            if ref in kind_other:
                 quiet.append(ref)
                 continue
             assumed.append((ref, row["default_taken"]))

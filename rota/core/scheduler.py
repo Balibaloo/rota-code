@@ -1140,7 +1140,8 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
         return []
 
     rows = conn.execute(
-        "SELECT id, about_ref FROM ledger WHERE status = 'open' ORDER BY rowid"
+        "SELECT id, about_ref, kind FROM ledger WHERE status = 'open' "
+        "ORDER BY rowid"
     ).fetchall()
     if not rows:
         return []
@@ -1149,7 +1150,10 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     # left one such row, the agenda fired 13 times after s514, and
     # `annotate` for bg_4 never ran (frame 190's design, 2.4).
     replies = reply_rows(conn)
-    chosen = [r for r in rows if r["id"] not in replies]
+    # An `other` row is a count line with no number, so it alone makes a
+    # page that asks nothing (frame 204's design, section 8, frame 325).
+    chosen = [r for r in rows if r["id"] not in replies
+              and r["kind"] != "other"]
     # A row that reaches only a held or set-aside item waits with it. After
     # m161 closed, 19 rows of the confirm item would have made confirm pages
     # (frame 193's design, 2.F.9, finding 2).
