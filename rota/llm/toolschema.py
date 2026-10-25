@@ -121,7 +121,14 @@ def param_description(doc: str, name: str) -> str:
 def schema_for(dotted: str, fn: Callable) -> dict[str, Any]:
     from ..core.sandbox import ENUMS, ENUMS_BY_OP
 
-    sig = inspect.signature(fn)
+    # The future import makes every annotation a string, and `_json_type`
+    # reads `'list[str]'` as a string. A native seat then sent a list as a
+    # JSON string (frame 327). An annotation that does not evaluate keeps
+    # the old reading, so no tool loses its schema.
+    try:
+        sig = inspect.signature(fn, eval_str=True)
+    except Exception:
+        sig = inspect.signature(fn)
     properties: dict[str, Any] = {}
     required: list[str] = []
     # An argument that its op's own door reads carries no flat enum (frame
