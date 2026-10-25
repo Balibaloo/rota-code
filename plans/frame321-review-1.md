@@ -9,7 +9,7 @@ Verdict: stands, with two mediums. Worktree `C:/Users/roman/rota_r321` at cb4ed2
 3. Stands for the sentence rule, and the prints sentence wins. "The docstring of f includes an example. The helper prints the value." is refused. The same text under an item "fix the docstring of f" lands. See finding 3.
 4. Stands. The ten readings match the table: 1 and 3 to 8 refused with the full text, 2, 9 and 10 landed. On the old door 2, 9 and 10 are refused.
 5. Stands, with one correction to the brief. "echo_json prints an object as JSON." with a return-value test is refused on both doors with the same text and no `ledger.log` offer: the criterion's own word takes the law 11 branch (10059). The `ledger.log` offer belongs to the material branch (10063). The night 28 test in `test_desk_guards.py` 4001 passes.
-6. Stands. `test_l1.py -k TS` on cb4ed2c9 against a copy of the cassettes: 23 failed, 134 passed, 1 skipped. Three by name fail on the old door too: `L1-TS-fix-a-test-that-asserts-more-than-its-criterion`, `L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner`, `L1-TS-act-on-the-reason-of-a-challenge`. No STALE count: `casestatus` against the main database printed nothing in 280 s, twice. The worktree holds no cassettes and reports 0 stale, 166 never measured.
+6. Stands. `test_l1.py -k TS` on cb4ed2c9 against a copy of the cassettes: 23 failed, 134 passed, 1 skipped. Three by name fail on the old door too: `L1-TS-fix-a-test-that-asserts-more-than-its-criterion`, `L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner`, `L1-TS-act-on-the-reason-of-a-challenge`. `casestatus` from the worktree against the main database: 21 failing, 19 provisional, 0 stale, 0 never measured, 126 green. The run took more than 20 min.
 7. Does not stand on "e.g." and "i.e.". See finding 2. A colon does not split. A text with no full stop is one sentence.
 
 ## (b) Findings
@@ -26,7 +26,7 @@ Verdict: stands, with two mediums. Worktree `C:/Users/roman/rota_r321` at cb4ed2
 - A second inline probe printed the full refusal texts for 2a, 2b, 3f to 3h and 7a.
 - `pytest tests/rota/test_frame321_prints_prose.py`: 12 passed. `pytest tests/rota/test_desk_guards.py -k printing_surfaces_return_value_logs_the_assumption`: 1 passed.
 - `ROTA_DEV_DB=<copy> pytest tests/rota/test_l1.py -k TS` on cb4ed2c9: 23 failed, 134 passed, 1 skipped in 13 min. The three names above on the old door: 3 failed. The copy is deleted.
-- `casestatus` from the worktree, from the main root with `timeout 280`: no output. The output file `f321_casestatus.txt` beside the probe is empty.
+- `ROTA_DEV_DB=D:/repos/rota/tests/rota/cassettes.db python -m rota.tools.casestatus` from the worktree, in the background: 0 stale, 21 failing, 19 provisional, 126 green, after more than 20 min. A second run from the main root under `timeout 280` printed nothing.
 
 ## (d) Usage
 
