@@ -9,8 +9,11 @@ When the reason row, the Developer's ref whose `table` is `decisions`, names the
 Read the criterion again, cold, and decide.
 If they are right, fix the test with
 `tests.encode` — a wrong test is worse than a missing one, because it reports as
-coverage. If they are wrong, answer whoever disputed it, `msg.answer_developer` or
-`msg.answer_critic`, with `refs=` naming the test's id and its criterion's
+coverage. If they are wrong, answer the role that sent the challenge with the
+one `msg.` answer call you hold. Two roles can challenge you,
+`msg.answer_developer` and `msg.answer_critic`, and exactly one of them is in
+front of you: the channel you have is the role that challenged. Send it with
+`refs=` naming the test's id and its criterion's
 id, and with `quotes=` copying the criterion's words your assertion comes
 from, verbatim. An answer without them is refused. If they
 are right, that is `tests.encode`, not an answer (night 80, 2026-09-15: the
