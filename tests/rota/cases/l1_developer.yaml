@@ -20,6 +20,7 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    index_batch: true
   fixture:
     items:
       - {id: <i1>, text: "show money amounts in the invoice email", kind: in_scope,
@@ -62,6 +63,7 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    index_batch: true
   fixture:
     items:
       - {id: <i1>, text: "show money amounts in the invoice email", kind: in_scope,
@@ -321,6 +323,7 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    index_batch: true
     message: "print a value as JSON"
     edit:
       src/billing/export.py: |
@@ -397,6 +400,7 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    index_batch: true
     message: "print a value as compact JSON"
     edit:
       src/billing/export.py: |
@@ -462,6 +466,7 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    index_batch: true
     message: "ask for the user's name"
     edit:
       src/greet/prompt.py: |
@@ -535,6 +540,7 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    index_batch: true
     message: "truncate long subject lines"
     edit:
       src/notify/formatting.py: |
@@ -621,6 +627,7 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    index_batch: true
     message: "confirm reads stdin"
     edit:
       src/pkg/termui.py: |

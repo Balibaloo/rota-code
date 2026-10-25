@@ -15,6 +15,7 @@
   detail: "round 1: the Critic upheld <f1> on <k1>"
   repo:
     batch: <b1>
+    index_batch: true
     message: "split the bill"
     edit:
       main.py: |

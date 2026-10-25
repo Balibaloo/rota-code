@@ -204,13 +204,12 @@ def test_a_prose_channel_is_woken_with_words(case):
 CODE_READS = {"code.source", "code.probe", "code.read"}
 
 #: The cases that broke the two rules below when they came in (frame 326,
-#: passes 1 and 1b). Each one owes a `repo:` block with the source the case
-#: names, or `repo.index_batch: true`. `onboard: true` is not the fix: it
-#: indexes the main checkout before the batch worktree exists, and it writes
-#: constraint zero. The index fixes wait because each one moves the case's
-#: recordings. Remove an id when its case is fixed. Add none.
+#: passes 1 to 1c). Each one owes a `repo:` block with the source the case
+#: names, which is more than one YAML line. A case that only needed an index
+#: got `repo.index_batch: true` in pass 1c. `onboard: true` is not that fix:
+#: it indexes the main checkout before the batch worktree exists, and it
+#: writes constraint zero. Remove an id when its case is fixed. Add none.
 OWED = {
-    # A `repo:` block with the source the case names.
     "L1-AR-rewrite-the-guess-from-the-ruling",
     "L1-AR-re-annotate-from-the-principals-correction",
     "L1-AR-constrain-an-external-commitment",
@@ -221,31 +220,11 @@ OWED = {
     "L1-TS-act-on-the-reason-of-a-challenge",
     "L3-scope-becomes-a-ticket-with-criteria",
     "L3-a-challenge-reaches-the-role-that-can-answer-it",
-    # An index that holds the batch's code.
-    "L1-AR-find-against-a-constraint",
-    "L1-AR-a-diff-no-constraint-binds-files-k0",
-    "L1-AR-judge-a-stray-foreseen-or-a-mistake",
-    "L1-DV-build-a-clear-criterion",
-    "L1-DV-log-the-choice-the-criteria-did-not-make",
-    "L1-DV-challenge-a-test-with-a-long-body",
-    "L1-DV-ask-when-the-test-contradicts-its-criterion-at-the-fix-wake",
-    "L1-DV-act-on-an-answered-challenge",
-    "L1-DV-read-the-map-not-the-whole-file",
-    # An index that holds the batch's code. Rule 2 found these when it
-    # moved from the brief to the tools.
-    "L1-DV-apply-the-answer-and-carry-on",
-    "L1-DV-a-wordless-answer-leaves-a-wrong-test-alone",
-    "L1-DV-a-wordless-answer-on-a-right-red-test-is-carried-on",
-    "L1-DV-take-out-what-nobody-asked-for",
-    "L1-DV-fix-what-the-verdict-names",
-    "L1-DV-restore-what-the-finding-names",
-    "L1-DV-take-a-mistake-out",
-    "L3-a-failed-verdict-turns-into-a-fix",
 }
 
-#: The size of `OWED` when it came in. The set may only shrink, so lower this
-#: number when an id leaves it.
-OWED_CEILING = 27
+#: The size of `OWED` now. The set may only shrink, so lower this number
+#: when an id leaves it.
+OWED_CEILING = 10
 
 
 def _seats(case):

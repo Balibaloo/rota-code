@@ -175,6 +175,7 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    index_batch: true
     message: "export invoices as CSV"
     edit:
       src/billing/invoices.py: |
@@ -238,6 +239,7 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    index_batch: true
     message: "export invoices as compact JSON"
     edit:
       src/billing/invoices.py: |

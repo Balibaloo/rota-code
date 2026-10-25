@@ -142,6 +142,7 @@
   then:  {role: developer, tick: verdict_failed, refs: [<b1>]}
   repo:
     batch: <b1>
+    index_batch: true
     message: "close an account"
     edit:
       src/billing/accounts.py: |

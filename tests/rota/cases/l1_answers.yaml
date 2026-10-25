@@ -14,6 +14,7 @@
   inbound: {from: terminologist, to: developer, verb: answer, body_refs: [<g1>]}
   repo:
     batch: <b1>
+    index_batch: true
   fixture:
     items:
       - {id: <i1>, text: "show money amounts in the invoice email", kind: in_scope,
@@ -60,6 +61,7 @@
             body_refs: [<c1>, <tst1>, <d1>], cause: <m_esc>}
   repo:
     batch: <b1>
+    index_batch: true
     message: "add a show_python flag to version_option"
     edit:
       src/notify/decorators.py: |
@@ -183,6 +185,7 @@
             body_refs: [<g1>], cause: <m_q>}
   repo:
     batch: <b1>
+    index_batch: true
     message: "format cent amounts for display"
     edit:
       src/notify/formatting.py: |
@@ -263,6 +266,7 @@
                         for this.\"\"\""}
   repo:
     batch: <b1>
+    index_batch: true
     message: "truncate long subject lines"
     edit:
       src/notify/formatting.py: |
