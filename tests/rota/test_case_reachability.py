@@ -197,3 +197,87 @@ def test_a_prose_channel_is_woken_with_words(case):
         f"{case['id']} wakes {inbound.get('to')} with a `{inbound.get('verb')}` "
         f"carrying no words. That channel declares `prose` on the graph because "
         f"refs mean nothing to the recipient, so this is an empty question")
+
+
+#: The calls that read a repository. `code.source` and `code.read` refuse
+#: with no project_root, and `_with_repo` writes it only for a `repo:` block.
+CODE_READS = {"code.source", "code.probe", "code.read"}
+
+#: The cases that broke the two rules below when they came in (frame 326,
+#: pass 1). Each one owes a fix that is more than one YAML line: a `repo:`
+#: block with the source the case names, or an index of the batch's tree.
+#: `onboard: true` indexes the main checkout, not the batch worktree, and it
+#: writes constraint zero, so on a constraint case it moves what the case
+#: measures. Remove an id when its case is fixed. Add none.
+OWED = {
+    # A `repo:` block with the source the case names.
+    "L1-AR-rewrite-the-guess-from-the-ruling",
+    "L1-AR-re-annotate-from-the-principals-correction",
+    "L1-AR-constrain-an-external-commitment",
+    "L1-DV-say-why-the-test-cannot-pass",
+    "L1-TE-a-new-behaviour-is-a-new-callable",
+    "L1-TE-specify-criteria",
+    "L1-TE-put-a-word-with-two-senses-to-the-principal",
+    "L1-TS-act-on-the-reason-of-a-challenge",
+    "L3-scope-becomes-a-ticket-with-criteria",
+    "L3-a-challenge-reaches-the-role-that-can-answer-it",
+    # An index that holds the batch's code.
+    "L1-AR-find-against-a-constraint",
+    "L1-AR-a-diff-no-constraint-binds-files-k0",
+    "L1-AR-judge-a-stray-foreseen-or-a-mistake",
+    "L1-DV-build-a-clear-criterion",
+    "L1-DV-log-the-choice-the-criteria-did-not-make",
+    "L1-DV-challenge-a-test-with-a-long-body",
+    "L1-DV-ask-when-the-test-contradicts-its-criterion-at-the-fix-wake",
+    "L1-DV-act-on-an-answered-challenge",
+    "L1-DV-read-the-map-not-the-whole-file",
+}
+
+
+def _seats(case):
+    """The role and the mode of each session the case runs."""
+    if case.get("first"):
+        return [(leg["role"], leg.get("prompt") or leg.get("verb")
+                 or leg.get("tick", "")) for leg in (case["first"], case["then"])]
+    return [(case.get("role"), fixtures.mode_of(case))]
+
+
+def _code_problems(case):
+    from rota.roles import prompts
+
+    repo = case.get("repo") or {}
+    indexed = repo.get("onboard") or (case.get("fixture") or {}).get("code_index")
+    for role, mode in _seats(case):
+        if not role or not mode:
+            continue
+        tools = prompts.mode_tools(role, mode) or prompts.available(role)
+        reads = sorted(CODE_READS & set(tools))
+        if reads and not repo:
+            yield (f"{role}/{mode} holds {', '.join(reads)} and the case "
+                   f"declares no `repo:`, so a read refuses with no "
+                   f"project_root")
+        if "code.probe" in prompts.piece(role, mode) and not indexed:
+            yield (f"the {role}/{mode} brief relies on `code.probe` and the "
+                   f"case neither sets `repo.onboard: true` nor seeds "
+                   f"`fixture.code_index`, so every probe returns nothing")
+
+
+@pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
+def test_a_case_whose_mode_reads_code_holds_the_code(case):
+    """
+    Frame 326, faults A and B. The Tester's challenge mode gained
+    `code.source` on 2026-10-02, and three of its cases kept no repository.
+    The Developer's tests_failing brief says the probe "will find it", and
+    its cases indexed nothing. Each case then measured a refusal or an
+    empty result, and only in the register: a night always onboards and
+    always has project_root. The rule reads the mode's own tools and brief,
+    so a new mode or a new case meets it with no edit here.
+
+    A seeded `fixture.code_index` counts as an index. Three Architect cases
+    seed the night's rows so the prompt does not move.
+    """
+    problems = list(_code_problems(case))
+    if case["id"] in OWED:
+        assert problems, (f"{case['id']} is fixed. Remove it from OWED")
+        pytest.skip(f"owed since frame 326: {problems[0]}")
+    assert not problems, f"{case['id']}: " + "; ".join(problems)
