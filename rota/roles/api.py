@@ -5215,6 +5215,43 @@ def _exception_from_a_source(ctx: Ctx, ticket_id: str, text: str,
         f"with the exception from one of those")
 
 
+def _program_rank(conn, name: str, grains: list[str],
+                  prefer: list[str] | tuple = ()) -> tuple[str | None, str]:
+    """
+    The one index row a bare name means, or the refusal that lists the rows.
+
+    Returns `(grain, "")` when one row wins and `(None, text)` when none does.
+    A row inside `prefer`, the seat's own paths, wins first. Then the one row
+    whose frame kind is `program` wins. The text lists `program` rows first.
+    """
+    # Frame 324, candidate R (ruled: Roman, 2026-10-25). The index proves
+    # existence only. The frame's rulings say which row is the program's.
+    from ..onboarding.areas import is_attached, ruling_for
+
+    if len(grains) == 1:
+        return grains[0], ""
+    own = [g for g in grains if g.partition("::")[0] in set(prefer)]
+    if len(own) == 1:
+        return own[0], ""
+
+    def kind(g: str) -> str:
+        path = g.partition("::")[0]
+        # With no frame ruling the heuristics decide, as areas.propose does.
+        return ruling_for(conn, path) or (
+            "attached" if is_attached(path) else "program")
+
+    program = sorted(g for g in grains if kind(g) == "program")
+    if len(program) == 1:
+        return program[0], ""
+    rest = sorted(g for g in grains if g not in program)
+    listed = program + rest
+    more = f" and {len(listed) - 5} more" if len(listed) > 5 else ""
+    return None, (
+        f"{name} names {len(grains)} symbols in the index, and "
+        f"{len(program)} of them are program code. Write one as path::name, "
+        f"the program's first: {', '.join(listed[:5])}{more}")
+
+
 def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
                  ticket_id: str | None = None) -> list[str]:
     """
@@ -5243,9 +5280,19 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
         return refs                       # greenfield: intent is the surface
     vetted = []
     for ref in refs:
-        hit = ctx.conn.execute(
+        rows = ctx.conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind='symbol' AND "
-            "(grain = ? OR grain LIKE ?)", (ref, f"%::{ref}")).fetchone()
+            "(grain = ? OR grain LIKE ?)", (ref, f"%::{ref}")).fetchall()
+        hit = rows[0] if rows else None
+        if len(rows) > 1 and "::" not in ref:
+            # A bare name of several rows took the lowest rowid, and night
+            # 165 stored an example's `clear` (frame 324). A qualified ref
+            # stays as written.
+            pick, refusal = _program_rank(ctx.conn, ref,
+                                          [r["grain"] for r in rows])
+            if pick is None:
+                raise ValueError(refusal)
+            hit = {"grain": pick}
         if hit:
             # A test is not a surface. tipsS (2026-09-09): the split's first
             # criterion named `tests/test_calculate_tip.py::test_calculate_tip`
@@ -7234,19 +7281,33 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
     _refuse_unindexed_files(
         ctx.conn, list(paths) + [s for s in symbols or [] if "::" in s],
         new_files, symbols, (item["text"] or "") if item else "")
-    bare = [s for s in symbols or [] if "::" not in s]
-    if bare:
+    resolved = []
+    for s in symbols or []:
+        if "::" in s:
+            resolved.append(s)
+            continue
+        rows = [r["grain"] for r in ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
+            "AND grain LIKE ? ORDER BY grain", (f"%::{s}",))]
+        if len(rows) > 1:
+            # Night 165: six Architects sent a bare `clear` of two rows and
+            # never copied a path. The seat's paths and the frame decide
+            # (frame 324, candidate R).
+            pick, refusal = _program_rank(ctx.conn, s, rows, paths)
+            if pick is None:
+                raise ValueError(f"{refusal}. Or leave symbols out")
+            resolved.append(pick)
+            continue
         # The refusal names the index's own grain, because the L1 case's
         # qwen3.5:9b seat repeated a bare `line_total` four times against a
         # text that named no grain of its tree (frame 298, pass 1).
-        found = [r["grain"] for r in ctx.conn.execute(
-            "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
-            "AND grain LIKE ? ORDER BY grain LIMIT 3", (f"%::{bare[0]}",))]
-        where = (f"The index holds {', '.join(found)}. " if found
+        where = (f"The index holds {', '.join(rows)}. " if rows
                  else "The index holds no symbol of that name. ")
         raise ValueError(
-            f"{bare[0]} names no path. A symbol is written path::name. "
+            f"{s} names no path. A symbol is written path::name. "
             f"{where}Write the symbol that way, or leave symbols out")
+    if symbols:
+        symbols = resolved
     # One guess per item per session: a re-issued call would write a second
     # set at one version (frame 298's design review, finding 10).
     if any(w[0] == "touch_guesses" and isinstance(w[2], dict)
