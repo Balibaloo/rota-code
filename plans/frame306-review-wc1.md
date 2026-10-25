@@ -44,3 +44,16 @@ All in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/79847ec6-3334-49c
 About 48k input tokens and 7k output tokens, total about 55k (an estimate).
 
 Stands.
+
+## Re-check of 79391b21
+
+All four findings are closed. The same p2 and p3 ran on the new code.
+1. Closed. A retired line gets "crit_2 is retired by the principal's ruling r_m244. ... Send the pass again with lines= naming only crit_1."
+2. Closed. A fail on retired crit_2 is refused three times, also after `claim_encodes(True)`. No verdict lands.
+3. Closed. The key is now `RETIRED_NOTE_KEY`. No `RETIRED_KEY` remains in api.py or in the test.
+4. Closed. The note now says "no seat tests, passes or reviews it".
+- p3 with no retired criterion: critic 2cbca532, tester a9fb8013. These are the same bytes as at bc16c86d.
+- The nine pin files: 267 passed, 4 xfailed. The changed test assertions are exact-equality checks now, so they are stronger, not weaker.
+- New, low, PLAUSIBLE: when every criterion is retired, the fail refusal ends with an empty list, "bg_3: .". Fix: say that no criterion is live.
+
+Stands.

@@ -34,3 +34,18 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/79847e
 About 45k input tokens and 9k output tokens, about 54k in total.
 
 Does not stand.
+
+## Re-check of ade87ab7
+
+Finding 1 is closed. Findings 2 and 3 read as accepted. Open question 1 is older than this pass, and it dates from bc16c86d.
+- Finding 1: closed. `[log(x), log(x, 2)]` to `[log(x, 2), z(), w()]` now names `log(x)` (r283wb_shapes.py, shape P2d).
+- Finding 2: accepted. `log(a, x)` plus `c()` and `return y` plus `stop()` still give no note, and tests now record both shapes.
+- Finding 3: accepted. The two tail shapes are pinned. The implementer's open question 2 is a ruling for the coordinator, not a defect.
+- Open question 1: confirmed and older than this pass. Two held-count two-drop shapes hide `log(x)` under the bc16c86d rule and under ade87ab7 alike.
+- The night: the five probe spans give None. Three sandbox span writes and one whole-file write commit with no note.
+- p7: of 93 spans, 1 changes against bc16c86d. That span is 5bac8625 `clear`, the W-B rewrite.
+- Pins: 202 passed in 170 s.
+- New, low, CONFIRMED: the commit replaces the test where `validate(x)` becomes `print(x)` plus `stop(x)`. The point-3 shape now has no pin. Probe P3b still shows the note. Fix: restore the test beside the finding-1 pin.
+- Usage: about 9k input and 2k output tokens.
+
+Stands.
