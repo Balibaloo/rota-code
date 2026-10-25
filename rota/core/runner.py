@@ -2919,7 +2919,10 @@ def _resolve_refs(conn: sqlite3.Connection, refs,
             # is all that survived the hop.
             ("constraints", "id, headline, text"),
             ("glossary_terms", "id, term, sense_short, sense_body"),
-            ("ledger", "id, about_ref, default_taken"),
+            # The kind travels, so the page can keep an `other` row quiet.
+            # Night 165's m172 numbered a Developer's account of its own
+            # state as an assumption (frame 204's design, section 8).
+            ("ledger", "id, about_ref, default_taken, kind"),
             # The transcript, and it is the whole of the inquiry route.
             #
             # An `ask` carries refs and no words, so the entry id *is* the

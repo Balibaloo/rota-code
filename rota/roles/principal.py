@@ -1702,6 +1702,28 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     return (f"{back}\n{page}" if back else page), order
 
 
+def _quiet_line(conn: sqlite3.Connection, refs: list[str]) -> str:
+    """
+    The count line for ledger rows of kind `other`: the count and the seats.
+
+    The line names no row's words. A seat's account of its own state reached
+    him as his assumption on night 165's m172, and he asked three times to
+    remove it (frame 325's provenance, section 1).
+    """
+    seats: list[str] = []
+    for ref in refs:
+        row = conn.execute("SELECT author FROM ledger WHERE id = ?",
+                           (ref,)).fetchone()
+        seat = "the " + str(row[0] if row else "team").replace("_", " ").title()
+        if seat not in seats:
+            seats.append(seat)
+    n = len(refs)
+    names = (", ".join(seats[:-1]) + " and " + seats[-1]) if len(seats) > 1 \
+        else seats[0]
+    return (f"Not shown: {n} note{'s' if n != 1 else ''} from {names} that "
+            f"{'fit' if n != 1 else 'fits'} no category.")
+
+
 def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                question: str | None = None, *,
                ask_id: str | None = None,
@@ -1769,6 +1791,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     assumed: list[tuple[str, str]] = []
     touches: list[tuple[str, str]] = []
     other: list[tuple[str, str]] = []
+    quiet: list[str] = []
     zero = False
     batches: list[str] = []
     for ref in refs:
@@ -1789,6 +1812,12 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                 x for x in (row["term"], row.get("sense_short")) if x)))
             continue
         if row.get("default_taken"):
+            # A note that fits no category is no assumption of his. It is a
+            # count with no number, so a reply cannot rule on it (frame
+            # 204's design, section 8, ruled 2026-10-11 15:44).
+            if verb == "present" and row.get("kind") == "other":
+                quiet.append(ref)
+                continue
             assumed.append((ref, row["default_taken"]))
             continue
         text = next((row[k] for k in ("text", "headline", "body") if row.get(k)), "")
@@ -1918,6 +1947,8 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
             out.append("A word that means more than one thing here:")
             numbered(terms)
         numbered(other)
+        if quiet:
+            out.append(_quiet_line(conn, quiet))
         if zero:
             out.append("Some of this code has not been read yet. I will flag "
                        "anything I touch there.")
