@@ -44,3 +44,15 @@ Verdict: Stands. Finding 2 is fixed in full.
 4. Pins hold. The 7 files give 66 passed. 4 test lines changed. The page is now built from the tick's refs, and the reply names line 2, the count line's position on that page. No assertion is weaker.
 Usage for this re-check: about 15k input and 2k output tokens, an estimate.
 Stands
+
+## Review of 4519ac1c
+Verdict: Stands, with one plausible misread of "after intent" to fix in a later pass.
+1. Holds, CONFIRMED by the new file. A `default` row of an approved item under `auto` wakes no page by itself. It rides in the refs of the page that a conflict wakes, as `('l_c', 'l_d')`. The page lists it as "  - <words>" under `QUIET_DEFAULTS`, and `order` is `["l_c"]`.
+2. Holds, CONFIRMED by `p8_bytes.py` on the worktree and on `git archive 73e1cf69` in `r325/base73`. Before intent and under `review`, the wake's refs are `('l_c', 'l_d')`, `order` is `['l_c', 'l_d']`, and the page hash is `214d7294fc42` at both commits.
+3. A misread exists, PLAUSIBLE, medium. `quiet_defaults` (`principal.py:1717-1734`) reads `approval = 'approved'` and not `approval_ver = version`. An item that changed after his approval still reads as approved, so a `default` row about the new text loses its number. Law 9 treats that item as not approved. A second, low case: on the sign-off page he approves line 1 and leaves line 2 open. A default row of item 1 then goes quiet before the request's intent is settled. Fix: require `approval_ver = version`, and read intent from the request's sign-off page, not from each item.
+4. Holds. `git diff 7ebf2612 -- rota/core/runner.py` is empty. `test_l1.py -k L1-LI` gives 1 failed and 37 passed, as at the baseline. The review deleted the copy of `cassettes.db`.
+5. Holds, with one low gap. The 7 pins add `_review(db)` and lose no assertion. Each still checks what it checked, but only under `review`. No pin now checks the per-item page scope under `auto`, the default gate, with a non-default row. Fix: copy one scope pin with a `conflict` row under `auto`.
+6. No other reader disagrees with the page. `_shift_waits` counts the lines of `order` and every open note. `ledger.list` and the cockpit read rows, not pages. An "ok" leaves the listed rows open, and the merge parks them, as section 5 rules.
+Counts: the 9 files give 90 passed. Probe: `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/b18846fb-98a1-4a67-92e0-2b450b5603d8/scratchpad/r325/p8_bytes.py`.
+Usage for this review: about 25k input and 4k output tokens, an estimate.
+Stands
