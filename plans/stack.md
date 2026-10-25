@@ -14,6 +14,49 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 23, recommended on night 166's read, 2026-10-25 22:50
+
+Night 166 ended sprint 22 of 2026-10-25 02:30, because it was that
+sprint's night. The night ran cold from 741d2d06, 18:32 to 19:59, items
+get_app_dir, clear, format_filename, and Roman killed it in walk 3 after
+bg_3 went green: 213 sessions, 13 live principal calls, 3 batches, 2
+merged, against 427, 33 and 0 on night 165 (observed:
+`plans/night166-read.md`, section 0). No frame closes on one night; this
+head is night 1 of 3 for frames 283, 311, 321, 324 and 325, each at 0.
+W-A: the Tester's three bg_3 tests were red on any code, and 14 sessions
+and 5 Developer challenges followed, frame 328. W-B: the converse cycle
+of walk 1, his "that line" refused as unnamed, `plans/night166-cycle1.md`,
+one resend. W-C: an unasked `msg.answer_tester` woke the Tester before
+bg_1 existed. W-D: a respecify wrote two copies of a sibling criterion,
+frame 329. W-F: the Tester repeated a paraphrased span 24 times. Not met:
+frame 306's merge condition, bg_2 merged two new test files; frame 322 at
+4 of 7 criteria called wrong. Not exercised: 312, 315, 318 (reasoned: the
+read, sections 1, 2 and 5).
+
+The order, each row a frame on the stack or a candidate in the read
+(reasoned: the read, section 5; W-B, W-C and W-F stay in the read with
+the economy at 22 of 10 until a close makes room):
+
+1. Frame 328, W-A: a red at encode goes back to the Tester, and a
+   challenge quotes the live criterion. Provenance read first, then 2
+   cycles. The next night's wall.
+2. Frame 329, W-D: a respecify into a sibling's exact words is refused.
+   1 cycle.
+3. Frame 322, W-E: a docstring item keeps its criteria on the docstring.
+   Read first, 1 cycle.
+4. W-B, next sprint rank 1: the naming door reads the Liaison's own ask,
+   `plans/night166-cycle1.md`. 1 cycle.
+5. W-C, next sprint rank 2: the answer door refuses an unasked answer in
+   every mode. 1 read, 1 to 2 build.
+6. Frame 306, the third condition: measured on the next night.
+7. W-F, next sprint rank 3: the span repeat read. 1 read.
+
+Frames 327 and 326, the native schema and the register fixtures, are
+under review in worktrees and go to the branch first, then the gate with
+re-records from `rota_g301`. The next night runs cold from that head
+after rows 1 and 2, the same three items in the same order, and measures
+night 2 of 3.
+
 ## Sprint 22, recommended on night 165's read, 2026-10-25 02:30
 
 Night 165 ended sprint 21 of 2026-10-24 22:55, because it was that
@@ -1031,6 +1074,24 @@ a different question and the night is then opened once.
 **Roman ruled the order on 2026-10-07 00:55** (ruled: Roman, "Ok" to this session's recommendation after the five-day read, `plans/stack.md` of this minute). After night 127's read: 1. **Frame 131, a test calls a plain function as a Click command**, first, ahead of every unclaimed stall frame, because every night since 120 ends on its shape. 2. **Frame 170, a merge's review leaves no trace a person can read**, pushed on the same word. 3. **Frame 144, the night databases as a test tier**, runs to its close after pass 10 and takes no new item. 4. The rest of batch C stays unclaimed until a night shows one of its frames stopping a batch that frames 131 and 152 no longer stop. The reasoning: 24 frames closed in five days against 32 pushed in two, merges per night flat at 0 or 1 from night 116 to 126, and about 3M agent tokens on batch C's doors and nudges while frame 131 stood unclaimed since 2026-10-05 (observed: the five-day read of this session, 2026-10-07 00:40).
 
 **Roman ruled the order on 2026-10-09 10:31** (ruled: Roman, chose "Re-batch around what the principal sees" from three options, the recommended one, asked by `AskUserQuestion` at 10:31 after the two momentum notes of 2026-10-09 put it as the next question). The next frame is one design frame on the present page, frame 190, what the principal sees. Frame 45, frames 184 to 189, night 133's wall 2 and night 136's walls 3, 4 and 12 are its walls. Frame 189's correction lands inside it. Frames 185 and 189 alone were the other two options and were declined. The reasoning: night 136's walk 3 showed 11 one-line pages whose one line was a seat's ledger row, and no ruling could carry the principal's exact line to the item, 1.35 dollars and 42 sessions; night 133 showed 16 whole-page contests, 11 in walk 2, each "none of these lines is about my request"; and the frames pushed since 2026-10-08 are each one symptom of that fact (observed: `plans/night136-read.md`, sections 2 and 8, and `plans/night133-read.md`, section 8, 2026-10-09). Meta workflow.
+
+### 328. The Tester's test asserts what the code under its criterion cannot return, and the red goes to the Developer, who challenges it one test at a time (2026-10-25) (66edc387)
+
+- **Site: `tests.encode` in `rota/roles/api.py`, and the quote check of `msg.challenge_tester`.** Rota workflow. On night 166's walk 3, s198 wrote three tests for three docstring criteria, each `format_filename("a/b/c.txt", shorten=True)` asserting `"a/b/c.txt" in result`, red on any code; 5 Developer ticks challenged, m82 to m90, 2 of them a green test, and m82 and m88 quoted a contested old text; 14 sessions s198 to s212 before s213 passed (observed: `plans/night166-read.md`, section 2, W-A). Cause 5 at the Tester, cause 8 behind the challenges (reasoned: the read).
+- Ends when: first, a test written on a batch with a head runs at encode, and a red result goes back to the Tester with its failing line, with s198 seq 6 as the red test; second, a challenge quote must be in the live criterion text, with m88 as the red test; third, on a night, Developer ticks spent on a test the Tester later rewrites, from 5 of 5 toward 0 over the next 3 nights.
+- Waits on: the provenance read, by the rule of 2026-10-18. Priced 1 cycle for the read and 2 for the fix, about 60k on Opus and a review (reasoned: a door predicate and a refusal text, by the rule of 2026-10-11 05:51).
+- Sprint: sprint 23, row 1, the next night's wall (reasoned: the read, section 5; shares the held site `tests.encode` with frame 321).
+- Pointer: `plans/night166-read.md`, W-A; s198, m82 to m90, bg_3 in `.rota/clickI_night166.db`.
+- Status 2026-10-25 22:50 (rota-69): pushed from night 166's read. The provenance read runs on Opus. Rota workflow.
+
+### 329. `criteria.respecify` takes the exact text of a sibling criterion on the same ticket, so a contest lands as two copies (2026-10-25) (66edc387)
+
+- **Site: `criteria.respecify` beside `_twin_refusal`, `rota/roles/api.py` about 5669.** Rota workflow. On night 166's walk 3, s194 respecified c_1 and c_2 into c_3's words, and the night had three identical criteria, three tests and three verdict lines; frame 328's rewrites tripled with them (observed: `plans/night166-read.md`, section 2, W-D). The exact-twin door guards `criteria.specify` and not `respecify`, cause 8 (reasoned: the read).
+- Ends when: first, a respecify into a sibling's exact words is refused and names the retire for a contest that says "not what I asked for", with s194 seq 2 as the red test; second, on a night, tickets with two criteria of one text, from 1 of 3 toward 0 over the next 3 nights.
+- Waits on: nothing. Priced 1 cycle, about 40k on Opus and a review (reasoned: a door predicate on a held site).
+- Sprint: sprint 23, row 2, after frame 328 (reasoned: the read, section 5; shares the held site with frame 322).
+- Pointer: `plans/night166-read.md`, W-D; s194, `criteria` v10 and v11.
+- Status 2026-10-25 22:50 (rota-69): pushed from night 166's read. Rota workflow.
 
 ### 326. The register carries cases red by construction, and the per-model table reports them as model failures (2026-10-25) (0699ee05) (66edc387)
 
