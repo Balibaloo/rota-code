@@ -14,6 +14,55 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 22, recommended on night 165's read, 2026-10-25 02:30
+
+Night 165 ended sprint 21 of 2026-10-24 22:55, because it was that
+sprint's night. The night ran cold from 1d53d881, row 1 in it, 23:15 to
+02:04, items get_app_dir, clear, format_filename, and ended on its own:
+427 sessions, 2198 turns, 33 live principal calls, 3 batches, 0 merged
+(observed: `plans/night165-read.md`, section 0). W-A: his page line numbers
+reach a seat that does not see the page, so c1's text became "Delete lines
+5 and 6" and s149 failed the code on it; in walk 3 s359 cut 17 docstring
+lines on "remove lines 3 and 4". W-B: the note door refused the requested
+rewrite of a bare `return` to `return False` 22 times on bg_2, each wrong,
+and a probe shows the same note at bc16c86d: the write adds `return True`,
+the owner's count grows, and pass 8c's count condition blocks the
+positional keep (observed: the read's probe, re-run here). W-C1: the pass
+check `_pass_lines_check` still counts retired criteria, so after his
+retires in walk 3 no pass was possible. W-D: the criterion surface pointed
+at `examples/termui/termui.py::clear` and not the library's. W-E: the
+Liaison's quoting fault sent his answer back on m35 and m172, and the
+refusal text names `text=` where the argument is `words=`. W-F: a
+Developer's ledger row showed on his page as his assumption, m172 line 6.
+W-G: the docstring item became three behaviour criteria. W-H: seven
+Architect sessions sent the bare symbol `clear` and claimed a guess with
+no call. Met: frame 306 row 1, the Critic woke on the green bg_3. Not
+met: frame 311's ruled repair would not have fired, because only the item
+names the docstring (reasoned: the read, section 1).
+
+The order, each row a frame on the stack (reasoned: the read, section 5):
+
+1. Frame 306, W-C1: `_pass_lines_check` and `criteria.load` skip retired
+   criteria, the sweep of row 1. 1 cycle. Night 166 waits on it.
+2. Frame 283, W-B: the positional keep holds when the owner's new count is
+   at least the old count, so a rewrite beside an added statement is a
+   rewrite. 1 cycle. Night 166 waits on it.
+3. Frame 306, W-A: a quote of his words to a seat names what each page
+   line is about. Provenance read first. 2 to 3 cycles.
+4. A new frame, W-D and W-H: a surface prefers the package over
+   `examples/`, read first. 1 cycle to read, 2 to build.
+5. W-E, read first: why the Liaison's ruling call sends his answer back,
+   and the refusal text's argument name. 1 cycle.
+6. A new frame, W-F: a Developer's own ledger row is not shown as his
+   assumption. 2 cycles.
+7. Frame 322 and W-G: measured on night 166 before any build.
+
+Frame 323, Roman's own ask, holds the card first: the 63 re-records run
+since 02:08, then the gate with re-records on the head, then night 166
+from that head, cold, the same three items in the same order. It measures
+sprint 21 rows 2 to 5 and 7 on their first night, row 1 on its second,
+and rows 1 and 2 above.
+
 ## Sprint 21, recommended on night 164's read, 2026-10-24 22:55
 
 Night 164 ended sprint 20 of 2026-10-24 18:20, because it was that
@@ -1240,6 +1289,7 @@ a different question and the night is then opened once.
 - Status 2026-10-25 01:01 (rota-80): **Row 2, pass 2c built on the same implementer, about 196k cumulative on the harness line, about 19k for the pass against 20k, at 9c3f35ea in `rota_p306wa`, on the branch as 43688cd5: the retire rule is one conditional sentence after the `principal_said` paragraph, 23 words against 40, the unconditioned 'Do not encode a new test in its place' gone; 49 passed over three prompt files. The two red cases read neither `answer.md` nor a tools file with `tests.retire`: ACT-TS-five runs in tests_missing mode and act-on-the-reason in challenge mode, and their system prompts are equal at 643db050 and 4a3fd82c** (observed: `f306_wa_report.md`, section Pass 2c). So the reds come from the user prompt or a door between 1d53d881 and 18e0df6b, or are variance. A read-only probe on Opus, cap 30k, in `rota_r306wb` at 18e0df6b, renders both cases at both commits and names the cause, to `plans/frame306-tester-reds-read.md`. Rota workflow.
 - Status 2026-10-25 01:10 (rota-80): **The Tester reds probe on Opus, about 69k on the harness line against 30k, `plans/frame306-tester-reds-read.md`: neither red is row 2's or frame 318's; both commits compose byte-equal prompts, every cassette key hits, and a read-only replay gives 3 of 5 and 0 of 5 at 1d53d881 and 18e0df6b alike; the cause is the Tester prompt edit of 2026-10-24 14:08 on `base.md`, `tests_missing.md` and `challenge.md`, whose live re-records at 18:28 and 19:32 replay at those counts since** (observed: the read). Row 2 stands on the gate but for its three STALE answer cases. Rota workflow.
 - Status 2026-10-25 01:43 (rota-4a): Night 165, walk 3: row 1 held, the Critic woke on bg_3 at 37 of 37 green and reviewed, so W-C is met on its night 1; the first half of this frame is the walk's wall: the item asks for a docstring example and the three criteria restate behaviour the code already has, so the Critic could name no added line and the review quarantined at 3 rounds, see frame 311's line of 01:41 (observed: `.rota/clickI.db`, criteria and items of bg_3). Rota workflow.
+- Status 2026-10-25 02:19 (rota-4a): **Night 165's read, `plans/night165-read.md`: row 1 met, the Critic woke on the green bg_3; W-C1 is row 1's sweep, `_pass_lines_check` and `criteria.load` still count retired criteria, so after his retires in walk 3, s412 on crit_2 and crit_3, sessions s415 to s417 could not pass bg_3; W-A is this frame's by the read, his page line numbers reach a seat that does not see the page, s132 and s359** (observed: the read, sections 1 and 2). Sprint 22 rows 1 and 3. Rota workflow.
 
 ### 300. A ruling names its rows inside a JSON map, so no row can be walked to the rulings on it and no moved row points back (2026-10-18)
 
@@ -1649,6 +1699,7 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
 - Status 2026-10-25 01:38 (rota-4a): **Pass 2c built on the same implementer, about 5k, at 0cdca657 in `rota_p283wd`: decorators pair by their own index under the owner in `_rewritten_heads`, parameters stay out, the body index unchanged; the one-line decorator edit returns None from `_drop_note`, red first on d9660002; 18 passed in the new file, 155 over the frame files, 37 in `test_developer.py`, no deviation** (observed: the report, Pass 2c). The reviewer re-checks 0cdca657, cap 5k, then the cherry-pick of the four commits onto the branch. Cycles: 40 of 2 priced. Rota workflow.
 - Status 2026-10-25 01:44 (rota-4a): **The re-check of 0cdca657 stands, `plans/frame283-review-wd.md` last section: all five findings closed, s229's note holds on both doors, 0 false notes over the 93 night spans, 192 pins pass** (observed: the re-check). **The W-D passes are on the branch as ceaa6e55, 8ab9e065, 1276ab8c and bc16c86d, cherry-picked from `rota_p283wd`, no conflict.** Sprint 21 row 5 is built; the gate with re-records on the head runs from `rota_g301` after frame 323's card time, and night 166 measures it. The second ends-when sign gains the signature shape: a landed commit that drops a parameter or a decorator with no note, from 1 of 58 toward 0. Cycles: 41 of 2 priced. Rota workflow.
 - Status 2026-10-25 02:06 (rota-4a): **Night 165 ended at 02:04, 0 of 3 merged: walk 1 stuck on 2 red tests, walk 2 quiet after 150 steps with bg_2 at 1 red, walk 3 quiet after 137 steps and 11 asks with bg_3's review quarantined; 427 sessions, 2198 turns, three CYCLE lines** (observed: `.rota/night165.log` lines 236 to 255). The records are `.rota/clickI_night165.db` and `.rota/clickI_night165.principal.jsonl`. The read runs on one Opus agent, cap 120k, from `n165_read_brief.md` in this session's scratchpad, with night 164's read as the form, to `plans/night165-read.md`; sprint 22 comes from its section 5. Frame 323's run started on the card at 02:06 by Roman's order; the gate with re-records on bc16c86d and night 166 follow it. Meta workflow.
+- Status 2026-10-25 02:19 (rota-4a): **Night 165's read on Opus, about 145k on the harness line against 120k, `plans/night165-read.md`: 0 of 3 merged; W-B is this frame's: the note door refused 22 right commits of `return` to `return False` on bg_2, and the probe shows the same note at bc16c86d, re-run here: the write adds `return True` after `echo`, the owner's statement count grows from 3 to 4, and pass 8c's positional keep needs an equal count, so the one-token rewrite falls under the floor** (observed: the read, section 2, and `probe165.py` in this session's scratchpad). Sprint 22 is at the top of the stack; row 2 is this frame's one-line pass: the keep holds when the new count is at least the old count, the `log(x)` before `log(x, 2)` shape still noted because its count shrinks. Night 166 waits on it. Cycles: 42 of 2 priced. Rota workflow.
 ### 284. The raised-signature push reads only native traceback frames, so a raise that pytest reports is never pushed (2026-10-17)
 
 - **Site: `_TRACE_FRAME` and `_raised_signature_pushes` in `rota/core/runner.py`, frame 223's site, which closed on this read.** Rota workflow. On night 154 the push of frame 223 fired on 0 of 19 Tester challenge wakes: no failed run's output holds a `File "..."` frame, because pytest prints its frames in its own form, and s293's real `raise` in project source, `src/click/termui.py:340: Abort`, got no push (observed: `plans/night154-read.md`, section 1, 2026-10-17). Cause 8 by the guide, a door wrong not to fire (reasoned: the read, section 11).
