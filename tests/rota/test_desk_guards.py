@@ -6026,14 +6026,18 @@ def test_s386s_span_over_version_option_names_the_body_it_removes(db, tmp_path):
     out = sb.call("code.write", path="src/click/decorators.py", start=421,
                   end=568, text=S386_TEXT)
     note = out["dropped"]
-    assert note.startswith("This write removes or rewrites 10 statements")
+    # Frame 283, W-D: the text drops six parameters of the signature, and
+    # the note door counts each one as a statement. 10 body statements and
+    # 6 parameters make 16.
+    assert note.startswith("This write removes or rewrites 16 statements")
+    assert "`version: str | None = None,` at line 422" in note
     assert "`if message is None:` at line 487" in note
     # The review of 319c7f19, P3: eight are named, and the rest are counted.
     # Pass 1d: the `return` the night broke on is named first, then seven
     # by line, so the lines 565 and 566 are counted.
     assert note.endswith(
-        "`kwargs.setdefault(\"is_eager\", True)` at line 564, "
-        "`return option(*param_decls, **kwargs)` at line 567 and 2 more.")
+        "`if message is None:` at line 487, "
+        "`return option(*param_decls, **kwargs)` at line 567 and 8 more.")
     assert "at line 565" not in note and "at line 566" not in note
 
 

@@ -587,7 +587,9 @@ def test_the_commit_records_an_unnamed_definition_as_a_stray_the_architect_judge
     _proj, _wt, db, _git = _unnamed_batch(tmp_path)
     sb = build("developer", db, batch_id="b1", mode="batch_start",
                allow=prompts.mode_tools("developer", "batch_start"))
-    changed = "import sys\n\n\ndef echo(message):\n    print(message)\n" + _ECHO_JSON
+    # The write changes the body of echo only. W-D of frame 283 reads a
+    # dropped parameter as a removed statement, and this test is not about one.
+    changed = "import sys\n\n\ndef echo(message, nl=True):\n    print(message)\n" + _ECHO_JSON
     assert "not named" in sb.call("code.write", path="src/click/utils.py", text=changed)
     out = sb.call("code.commit", message="echo_json beside echo")
     assert out["committed"], out

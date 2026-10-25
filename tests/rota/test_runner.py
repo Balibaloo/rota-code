@@ -1347,6 +1347,10 @@ def test_the_critic_wake_keeps_the_criteria_and_tests_in_front_of_the_diff(db):
                "tests.load": [{"id": "t1"}]}
 
     class Stub:
+        # The push reads the retired note through the sandbox's context
+        # (frame 306, W-C1). No batch means no retired criteria.
+        ctx = SimpleNamespace(conn=db, batch_id=None)
+
         def functions(self):
             return ["code.read", "criteria.load", "tests.load"]
 
