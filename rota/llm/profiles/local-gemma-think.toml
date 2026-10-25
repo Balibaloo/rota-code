@@ -1,0 +1,26 @@
+# `local` with thinking on for the Gemma 4 trial of frame 323. Through
+# ollama with think off, `gemma4:12b-it-qat` generated 8192 tokens and
+# returned no text on half of the trial's runs (2026-10-25, the interview
+# read, `plans/frame323-gemma-interview.md`). With think on the same turn
+# thinks about 300 tokens and makes the call. The register suite forces
+# every case onto `ROTA_MODEL` with `ROTA_MODEL_FORCE=1`, so the `[models]`
+# table here is the one `local` has and does not decide the trial's model.
+name = "local-gemma-think"
+
+[provider]
+kind = "ollama"
+timeout = 300
+
+[pins]
+temperature = 0.0
+num_ctx = 16384
+
+[think]
+"gemma4:12b-it-qat" = true
+
+[models]
+default = "qwen3:8b"
+tester = "qwen3.5:9b"
+critic = "qwen3.5:9b"
+terminologist = "qwen3.5:9b"
+developer = "qwen3.5:9b"
