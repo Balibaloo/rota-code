@@ -113,6 +113,40 @@ def test_the_push_shows_every_ratified_statement_of_the_items_entries(tmp_path):
         "Make f() return 1.", "Keep its output as it is."]
 
 
+def test_an_entry_that_rules_two_items_pushes_this_items_words_only(tmp_path):
+    # Review 1, finding 2: one entry, s1 named by f_one and s2 by g_quiet.
+    conn = init_db(tmp_path / "rota.db")
+    words = "Make f() return 1. Make g() print nothing."
+    conn.execute("INSERT INTO entries (id, author, ts_order, text) "
+                 "VALUES ('e1', 'principal', 1, ?)", (words,))
+    for sid, start, end in (("s1", 0, 18), ("s2", 19, 42)):
+        conn.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+                     "status) VALUES (?, 'e1', ?, ?, ?, 'ratified')",
+                     (sid, start, end, words[start:end]))
+    for iid, sid in (("f_one", "s1"), ("g_quiet", "s2")):
+        conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+                     "VALUES (?, ?, 'in_scope', 'approved', 1, 1)", (iid, iid))
+        seed_ref(conn, "items", iid, "statement", sid)
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1', 'f_one', 'f() returns 1')")
+    conn.commit()
+    pushed = push_working_set("terminologist", _seat(conn),
+                              Wake("terminologist", "tick:criteria", refs=("f_one",)))
+    assert pushed["the item"]["the principal said"] == ["Make f() return 1."]
+
+
+def test_a_case_wake_carries_the_live_criteria_detail(tmp_path):
+    from rota.testkit.fixtures import live_detail
+
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+                 "VALUES ('f_one', 'f() returns 1', 'in_scope', 'approved', 1, 1)")
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_2', 'f_one', 'f() returns 1')")
+    conn.commit()
+    wake = live_detail(conn, Wake("terminologist", "tick:criteria", refs=("f_one",),
+                                  detail="criteria"))
+    assert wake.detail == "No criterion yet: tk_2 (f() returns 1)."
+
+
 @pytest.fixture
 def covered(tmp_path):
     conn = init_db(tmp_path / "rota.db")

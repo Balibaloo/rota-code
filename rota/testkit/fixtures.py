@@ -1040,6 +1040,30 @@ def seed_inbound(conn: sqlite3.Connection, case: dict) -> str | None:
     return msg_id
 
 
+def live_detail(conn, wake: Wake) -> Wake:
+    """
+    The wake with the detail its predicate builds in a live run.
+
+    A criteria wake carries the empty and the covered tickets of its item
+    (frame 322). A case wake built from the case file carried the tick's
+    name, which `build_prompt` drops. So the register never measured the
+    line a live seat reads (frame 322, review 1, finding 1).
+    """
+    if wake.kind != "tick:criteria" or not wake.refs:
+        return wake
+    from dataclasses import replace
+
+    from ..core.scheduler import criteria_detail
+
+    # The L1 criteria cases name a ticket in `refs`, and the live wake names
+    # the item. The detail reads the item either way. The refs stay as the
+    # case wrote them, so the rest of the prompt does not move.
+    row = conn.execute("SELECT item_id FROM tickets WHERE id = ?",
+                       (wake.refs[0],)).fetchone()
+    item = row[0] if row else wake.refs[0]
+    return replace(wake, detail=criteria_detail(conn, item) or wake.detail)
+
+
 def wake_for(case: dict, msg_id: str | None) -> Wake:
     """
     The wake a case declares, built once for the run and for the reader.
@@ -1115,7 +1139,7 @@ def system_text_for(case: dict) -> str:
     conn = init_db(":memory:")
     try:
         seed(conn, case.get("fixture") or {})
-        wake = wake_for(case, seed_inbound(conn, case))
+        wake = live_detail(conn, wake_for(case, seed_inbound(conn, case)))
         sb = session_sandbox(conn, wake, mode=case.get("mode"),
                              batch_id=_batch_of(conn, wake),
                              area=area_for(case, wake))
@@ -1237,7 +1261,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
 
     before = snapshot_versions(conn)
     seeded = {r["id"] for r in conn.execute("SELECT id FROM messages")}
-    wake = wake_for(case, msg_id)
+    wake = live_detail(conn, wake_for(case, msg_id))
 
     # The same resolution the loop does, for the same reason: a role that works
     # in a worktree needs to be told which one, and it is never the role's to
@@ -1337,7 +1361,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
         mode = spec.get("prompt") or spec.get("verb") or spec.get("tick", "")
         # Same as the L1 path: a leg declaring a tick has to wake as one, or the
         # handoff under test starts from a wake shape production never produces.
-        wake = leg_wake(spec, message_id)
+        wake = live_detail(conn, leg_wake(spec, message_id))
         seen = {r["id"] for r in conn.execute("SELECT id FROM messages")}
         versions = snapshot_versions(conn)
         backends.append(backend_factory())

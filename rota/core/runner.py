@@ -4300,8 +4300,13 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 "OR (s.status = 'ratified' AND s.span_entry IN ("
                 "  SELECT t.span_entry FROM refs x JOIN statements t ON t.id = x.target "
                 "  WHERE x.src_table = 'items' AND x.kind = 'statement' "
-                "    AND x.src_id = ?)) "
-                "ORDER BY s.id", (wake.refs[0], wake.refs[0]))]
+                "    AND x.src_id = ?) "
+                # A statement another item names is that item's words. One
+                # page entry can rule two items (frame 322, review 1, finding 2).
+                "  AND s.id NOT IN (SELECT o.target FROM refs o "
+                "    WHERE o.src_table = 'items' AND o.kind = 'statement' "
+                "      AND o.src_id != ?)) "
+                "ORDER BY s.id", (wake.refs[0], wake.refs[0], wake.refs[0]))]
             if item:
                 pushed["the item"] = {"text": item["text"], "the principal said": said,
                                       **_retired_carry(conn, wake.refs[0])}

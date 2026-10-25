@@ -509,9 +509,9 @@ def preview_sandbox(case: dict):
         # A chain previews leg one, which wakes on a message its own fixture
         # seeded and names its verb directly. The single-session rule seeds
         # the message and reads the verb off it, so the two rules are two.
-        wake = fixtures.leg_wake(spec, spec.get("inbound"))
+        wake = fixtures.live_detail(conn, fixtures.leg_wake(spec, spec.get("inbound")))
     else:
-        wake = fixtures.wake_for(case, fixtures.seed_inbound(conn, case))
+        wake = fixtures.live_detail(conn, fixtures.wake_for(case, fixtures.seed_inbound(conn, case)))
     sb = session_sandbox(conn, wake, mode=case.get("mode"),
                          batch_id=_batch_of(conn, wake),
                          area=fixtures.area_for(spec, wake))
