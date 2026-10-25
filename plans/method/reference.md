@@ -441,10 +441,11 @@ comes first, then the state print, then the sender's note.
   build met the design's own condition, about one cycle, and writes it at
   the frame. The rule covers any inconsistency or issue with rota, not only
   a departure from a design. A build that departed from one of Roman's own
-  rulings is reported in the status line with the ruling's date and built
-  as ruled, never asked (ruled: Roman, 2026-10-25 23:03, "did i already
-  rule on this or what is the question?", frame 328, after the quote check
-  of 2026-08-26 was asked again). A wall that recurs under an open frame whose
+  rulings is still asked, and the question opens with why it is raised: the
+  ruling, its date, and that the build departed from it, before the options
+  (ruled: Roman, 2026-10-25 23:08, "still ask it, just make it more up front
+  why its being raised", frame 328, after a question on the quote check of
+  2026-08-26 read as a question he had answered). A wall that recurs under an open frame whose
   provenance is already written keeps the guide's cheap path. Frame 298's
   pointer line was a fallback of the 2026-09-03 design shipped on
   2026-09-12 before its condition was tested, and three questions reached
