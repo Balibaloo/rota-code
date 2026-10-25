@@ -22261,8 +22261,10 @@ def _rewritten_heads(old_lines: list[str], text: str) -> set[int]:
     seen: dict = defaultdict(int)
     out: set[int] = set()
     count: dict = defaultdict(int)
-    for o, _k, _a, _b, _t in olds:
+    mine: dict = defaultdict(list)
+    for o, _k, a, _b, _t in olds:
         count[o] += 1
+        mine[o].append(a)
     for o, _k, a, _b, _t in olds:
         at = seen[o]
         seen[o] += 1
@@ -22273,8 +22275,16 @@ def _rewritten_heads(old_lines: list[str], text: str) -> set[int]:
         if count[o] > len(placed[o]):
             continue
         toks = set(re.findall(r"\w+", old_lines[a]))
-        if toks and at < len(placed[o]) and toks <= placed[o][at]:
-            out.add(a)
+        if not (toks and at < len(placed[o]) and toks <= placed[o][at]):
+            continue
+        # Review W-B, finding 1: on a grown count, a removal can still move
+        # the next statement into the place. A place that the next old
+        # statement also fits does not pair.
+        if count[o] < len(placed[o]) and at + 1 < count[o]:
+            nxt = set(re.findall(r"\w+", old_lines[mine[o][at + 1]]))
+            if nxt <= placed[o][at]:
+                continue
+        out.add(a)
     return out
 
 

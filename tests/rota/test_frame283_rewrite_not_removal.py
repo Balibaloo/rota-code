@@ -192,9 +192,44 @@ def test_a_return_rewritten_with_one_added_return_opens_no_note():
 
 
 def test_a_removal_beside_an_added_statement_opens_a_note():
-    """The count grows, but the new statement at the old place does not
-    hold the removed statement's tokens, so the note names it."""
-    old = ["def f(x):", "    validate(x)", "    go(x)"]
-    new = ["    print(x)", "    go(x)", "    stop(x)"]
-    note = api._drop_note(old, 1, 3, chr(10).join(new), lines_out=[])
-    assert "`validate(x)` at line 1" in note
+    """Review W-B, finding 1: with `log(x)` gone, `log(x, 2)` moves into
+    its place, and two added statements grow the count. The next old
+    statement also fits the place, so the place does not pair."""
+    new = ["    log(x, 2)", "    z()", "    w()", "    return x"]
+    note = api._drop_note(LOGS, 1, 4, chr(10).join(new), lines_out=[])
+    assert "`log(x)` at line 1" in note
+
+
+@pytest.mark.parametrize("old,new", [
+    (["def f(a, x):", "    a(x)"], ["    log(a, x)", "    c()"]),
+    (["def f(y):", "    return"], ["    return y", "    stop()"]),
+])
+def test_a_rewrite_that_holds_the_old_tokens_beside_an_add_is_accepted(old, new):
+    """Review W-B, finding 2, accepted: each new line holds the old
+    statement's tokens, and no next old statement fits its place."""
+    assert api._drop_note(old, 1, 2, chr(10).join(new), lines_out=[]) is None
+
+
+TAIL = ["def f(x):", "    if x:", "        log(x)", "        log(x, 2)",
+        "        go(x)", "        return x", "    done(x)"]
+
+
+def test_a_tail_drop_beside_added_statements_keeps_the_tail_note():
+    """Review W-B, finding 3: the text stops at `return x`, drops `done(x)`,
+    and adds `z()` and `w()`. The tail note stays, and the shifted
+    `log(x)` is named."""
+    new = ["    if x:", "        log(x, 2)", "        z()", "        w()",
+           "        return x"]
+    note = api._drop_note(TAIL, 1, 7, chr(10).join(new), lines_out=[])
+    assert note.startswith("This write drops 1 line that came after "
+                           "`return x`, from `done(x)`.")
+    assert "`log(x)` at line 2" in note
+
+
+def test_a_tail_line_rewritten_at_its_place_clears_the_tail_note():
+    """Review W-B, finding 3, pinned as the door does it: `done(x)` moves
+    above `return x` as `done(x, 1)`, at its old place under the owner.
+    The place pairs, so the tail note clears."""
+    new = ["    if x:", "        log(x)", "        log(x, 2)", "        go(x)",
+           "        z()", "        done(x, 1)", "        return x"]
+    assert api._drop_note(TAIL, 1, 7, chr(10).join(new), lines_out=[]) is None
