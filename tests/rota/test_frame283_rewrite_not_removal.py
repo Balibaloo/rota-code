@@ -144,3 +144,57 @@ def test_a_rewrite_is_paired_by_its_place_under_the_owner(start, stop, new, name
         assert note is None
     else:
         assert named in note
+
+
+# Night 165, walk 2, bg_2: `clear` as the Developers found it, in code.write
+# numbering. The bare `return` is line 4.
+CLEAR = ["import sys",
+         "",
+         "def clear() -> None:",
+         "    if not isatty(sys.stdout):",
+         "        return",
+         "",
+         "    echo(\"[2J\", nl=False)",
+         "",
+         "",
+         "def other(x):",
+         "    return x"]
+CLEARED = ["def clear() -> bool:",
+           "    if not isatty(sys.stdout):",
+           "        return False",
+           "",
+           "    echo(\"[2J\", nl=False)",
+           "",
+           "    return True"]
+
+
+@pytest.mark.parametrize("start,stop", [(2, 7), (2, 8), (3, 7)])
+def test_a_rewrite_beside_an_added_statement_opens_no_note(start, stop):
+    """W-B of night 165: `return` became `return False`, and `return True`
+    was added after the `echo` line. The owner's count grew from 3 to 4.
+    The new statement at the old place holds `return`, so no note opens."""
+    new = CLEARED if start == 2 else CLEARED[1:]
+    assert api._drop_note(CLEAR, start, stop, chr(10).join(new),
+                          lines_out=[]) is None
+
+
+def test_the_whole_file_write_of_the_night_opens_no_note():
+    """The same `clear` as a whole-file write opens no note."""
+    full = CLEAR[:2] + CLEARED + ["", ""] + CLEAR[9:]
+    assert api._whole_lost(CLEAR, chr(10).join(full), None, []) is None
+
+
+def test_a_return_rewritten_with_one_added_return_opens_no_note():
+    """`return` to `return False` plus an added `return True`."""
+    old = ["def f(x):", "    if x:", "        return", "    go(x)"]
+    new = ["    if x:", "        return False", "    go(x)", "    return True"]
+    assert api._drop_note(old, 1, 4, chr(10).join(new), lines_out=[]) is None
+
+
+def test_a_removal_beside_an_added_statement_opens_a_note():
+    """The count grows, but the new statement at the old place does not
+    hold the removed statement's tokens, so the note names it."""
+    old = ["def f(x):", "    validate(x)", "    go(x)"]
+    new = ["    print(x)", "    go(x)", "    stop(x)"]
+    note = api._drop_note(old, 1, 3, chr(10).join(new), lines_out=[])
+    assert "`validate(x)` at line 1" in note

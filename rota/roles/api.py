@@ -22235,7 +22235,9 @@ def _rewritten_heads(old_lines: list[str], text: str) -> set[int]:
     Pass 8b, review 8's finding 1: a held count of a kind let `validate(x)`
     become `print(x)` with no note. The place and the tokens decide, with
     no token floor. A statement that moves to another owner keeps today's
-    rule (finding 2, older than pass 8)."""
+    rule (finding 2, older than pass 8). Pass 8c pairs no place when the
+    owner's count shrinks. Night 165's W-B pairs a place when the count
+    holds or grows."""
     import ast as _ast
     from collections import defaultdict
     try:
@@ -22265,8 +22267,10 @@ def _rewritten_heads(old_lines: list[str], text: str) -> set[int]:
         at = seen[o]
         seen[o] += 1
         # Pass 8c, review 8's finding 5: a removal moves the next statement
-        # into the index. So the place pairs only when the counts match.
-        if count[o] != len(placed[o]):
+        # into the index. So a shrinking count pairs no place. W-B of night
+        # 165: a statement added below a rewrite grows the count and moves
+        # nothing above it, so a held or grown count pairs.
+        if count[o] > len(placed[o]):
             continue
         toks = set(re.findall(r"\w+", old_lines[a]))
         if toks and at < len(placed[o]) and toks <= placed[o][at]:
