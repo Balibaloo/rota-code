@@ -6815,6 +6815,36 @@ def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     return rows
 
 
+RETIRED_KEY = "retired criteria"
+
+
+def retired_note(conn: sqlite3.Connection, batch_id: str | None) -> str:
+    """One line that names the batch's retired criteria, or "".
+
+    The load drops a retired row, so a seat that read the page sees a gap.
+    The line goes beside the rows, not in them, because a ragged row turns
+    the pushed table into JSON (frame 243, review 1, finding 2). Frame 306,
+    W-C1: night 165's s415 to s417 still sent lines for crit_2 and crit_3.
+    """
+    if not batch_id or not _live_rows(conn, "c.retired_by"):
+        return ""
+    rows = conn.execute(
+        "SELECT c.id, c.retired_by FROM criteria c "
+        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "WHERE bt.batch_id = ? AND c.retired_by IS NOT NULL ORDER BY c.id",
+        (batch_id,)).fetchall()
+    if not rows:
+        return ""
+    ids = [r["id"] for r in rows]
+    rulings = list(dict.fromkeys(r["retired_by"] for r in rows))
+    verb = "is" if len(ids) == 1 else "are"
+    noun = "ruling" if len(rulings) == 1 else "rulings"
+    them, it = ("It stays", "it") if len(ids) == 1 else ("They stay", "them")
+    return (f"{', '.join(ids)} {verb} retired by the principal's {noun} "
+            f"{', '.join(rulings)}. {them} on his page, and a pass or a "
+            f"review does not name {it}.")
+
+
 @op("criteria", "consult")
 def criteria_consult(ctx: Ctx) -> list[dict]:
     # Same scope rule as `tickets.scan`: the wake's batch, then its items,
@@ -13696,11 +13726,14 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     """
     # The same query as `criteria.load`, so the door and the prompt name
     # the same set in the same order. The text is per criterion, because
-    # the kind check reads each criterion's own words (frame 311).
+    # the kind check reads each criterion's own words (frame 311). A retired
+    # criterion needs no line, as in the load (frame 306, W-C1: night 165's
+    # s415 to s417 could not pass bg_3 after s412 retired two criteria).
     texts_of = {r["id"]: r["text"] or "" for r in ctx.conn.execute(
         "SELECT c.id, c.text FROM criteria c "
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE bt.batch_id = ?", (batch_id,))}
+        "WHERE bt.batch_id = ?" + _live_rows(ctx.conn, "c.retired_by"),
+        (batch_id,))}
     ids = list(texts_of)
     if not ids:
         return
@@ -13929,10 +13962,12 @@ def _first_pass_hold(ctx, batch_id: str, lines) -> None:
     """
     if not isinstance(lines, dict) or ctx.pass_held_again:
         return
+    # The hold reads the set the pass door reads (frame 306, W-C1).
     texts = {r["id"]: r["text"] or "" for r in ctx.conn.execute(
         "SELECT c.id, c.text FROM criteria c "
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE bt.batch_id = ?", (batch_id,))}
+        "WHERE bt.batch_id = ?" + _live_rows(ctx.conn, "c.retired_by"),
+        (batch_id,))}
     sent = {cid: parts for cid in texts
             if (parts := _line_parts(lines.get(cid)))}
     if not sent:

@@ -4202,6 +4202,19 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             pushed[name] = sb.call(name)
         except (TypeError, sandbox_mod.ArgumentError):
             continue     # needs to be told something; leave it to the model
+    # The retired criteria get one line right after the rows, so no seat
+    # names a line for them (frame 306, W-C1: night 165's s415 to s417).
+    if isinstance(pushed.get("criteria.load"), list):
+        from ..roles.api import RETIRED_KEY, retired_note
+
+        note = retired_note(sb.ctx.conn, sb.ctx.batch_id)
+        if note:
+            ordered_r: dict[str, Any] = {}
+            for key, value in pushed.items():
+                ordered_r[key] = value
+                if key == "criteria.load":
+                    ordered_r[RETIRED_KEY] = note
+            pushed = ordered_r
     # The cut keeps the front of the wake, so the criteria and the tests go
     # before the diff. The diff is the push that scales with the work
     # (frame 101, night 103).
