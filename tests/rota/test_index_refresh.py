@@ -510,6 +510,21 @@ def test_an_empty_probe_says_when_the_index_is_behind(world):
         "a probe that matches is a read, not a note"
 
 
+def test_a_probe_of_an_index_with_no_rows_says_the_index_is_empty(world):
+    """Frame 326, fault A. A register case without `onboard: true` has an
+    empty index, and a bare `[]` read as "the name is absent". The note
+    names the empty index and the read that still works."""
+    db, repo, tree = world
+    db.execute("DELETE FROM code_index")
+    db.commit()
+
+    out = _probe(db, "line_total", batch_id="b1")
+    assert out == [{"note": "the code index holds no code, so no pattern can "
+                            "match, 'line_total' included. The empty result "
+                            "says nothing about the tree. Read the file with "
+                            "`code.source`."}], out
+
+
 def test_a_refresh_that_works_ends_the_note_the_failed_one_left(world):
     """Nothing cleared the row, so one failed resume told every later probe
     that the index was behind, long after a refresh had caught it up."""

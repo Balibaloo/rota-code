@@ -14387,6 +14387,15 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
                          f"was not rebuilt after this batch's last commit "
                          f"({note['value']}), so a name this batch wrote can "
                          f"be missing from it -- read the file instead."}]
+    # An index that holds no row at all answers every pattern with nothing.
+    # A bare `[]` then reads as "the name is absent", and Gemma looped on it
+    # in the register, where `_with_repo` indexes only on `onboard: true`
+    # (frame 326, fault A). The refresh note above covers a stale index only.
+    if ctx.conn.execute("SELECT 1 FROM code_index LIMIT 1").fetchone() is None:
+        return [{"note": f"the code index holds no code, so no pattern can "
+                         f"match, '{pattern}' included. The empty result "
+                         f"says nothing about the tree. Read the file with "
+                         f"`code.source`."}]
     return hits
 
 
