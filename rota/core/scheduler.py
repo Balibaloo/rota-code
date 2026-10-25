@@ -1154,6 +1154,10 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     # page that asks nothing (frame 204's design, section 8, frame 325).
     chosen = [r for r in rows if r["id"] not in replies
               and r["kind"] != "other"]
+    # The `other` rows ride on a page that another row wakes, so its count
+    # line shows them (frame 325's re-check of bda07c54).
+    riders = [r for r in rows if r["id"] not in replies
+              and r["kind"] == "other"]
     # A row that reaches only a held or set-aside item waits with it. After
     # m161 closed, 19 rows of the confirm item would have made confirm pages
     # (frame 193's design, 2.F.9, finding 2).
@@ -1209,6 +1213,7 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
             return not items or page in items
 
         replies = {ref for ref in replies if on_page(ref)}
+        riders = [r for r in riders if on_page(r["id"])]
     # law 14: identity stamps from birth content, never a model's id
     # The wake carries the rows a page may hold, so the Liaison has real ids
     # to copy. clickI night 20 (2026-09-12): 66 open rows, and the Liaison
@@ -1222,6 +1227,7 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     first = [r["id"] for r in chosen[:PAGE_ASSUMPTIONS]]
     first += [r["id"] for r in rows
               if r["id"] in replies][:PAGE_ASSUMPTIONS - len(first)]
+    first += [r["id"] for r in riders][:PAGE_ASSUMPTIONS - len(first)]
     return [Wake("liaison", "tick:agenda", refs=tuple(first),
                  detail=f"ledger={len(rows)}")]
 

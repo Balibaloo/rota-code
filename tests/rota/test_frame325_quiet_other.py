@@ -134,20 +134,26 @@ def test_an_other_row_alone_wakes_no_page(db):
 def test_an_other_row_beside_a_default_row_rides_the_page(db):
     from rota.core.scheduler import tick_agenda
 
-    refs = _seed(db, with_other=True)
+    _seed(db, with_other=True)
     wakes = tick_agenda(db, principal_present=True)
     assert len(wakes) == 1 and wakes[0].role == "liaison", wakes
+    # The page is built from the refs the tick chose, not from the seed.
+    refs = list(wakes[0].refs)
+    assert refs == ["l_a69ad6edd4", "l_0553f217b1"], refs
     page = _page(db, refs).rendered
     assert "Not shown: 1 note from the Developer that fits no category." in page
 
 
 def test_a_reply_on_the_count_line_rules_nothing(db):
+    from rota.core.scheduler import tick_agenda
     from rota.roles.principal import land, parse_reply
 
-    refs = _seed(db, with_other=True)
+    _seed(db, with_other=True)
+    refs = list(tick_agenda(db, principal_present=True)[0].refs)
     ask = _page(db, refs)
-    assert ask.order == ["s1", "l_a69ad6edd4"]
-    msg = land(db, ask, parse_reply(ask, "3: take this off the page"))
+    assert "l_0553f217b1" in ask.refs and "Not shown:" in ask.rendered
+    assert ask.order == ["l_a69ad6edd4"], ask.order
+    msg = land(db, ask, parse_reply(ask, "2: take this off the page"))
     assert msg is not None
     assert db.execute("SELECT status FROM ledger WHERE id = 'l_0553f217b1'"
                       ).fetchone()[0] == "open"
