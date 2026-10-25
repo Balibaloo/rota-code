@@ -204,6 +204,19 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     if noted:
         print(f"\n{case['id']} — reached and refused:\n  " + "\n  ".join(noted))
 
+    # A case red by construction fails on every model, so its red says
+    # nothing about the model (frame 326, fault C). After the STALE check,
+    # because the gate reads STALE from a FAILED line. A pass means the owed
+    # mode exists, and the marker must go.
+    from rota.tools.casestatus import red_by_construction
+
+    red = red_by_construction(case)
+    if red:
+        assert passed < threshold, (
+            f"{case['id']}: {passed}/{len(results)} passed while it is marked "
+            f"red by construction. Remove `red:` from the case")
+        pytest.xfail(f"red by construction: {red}")
+
     assert passed >= threshold, (
         f"{case['id']}: {passed}/{len(results)} passed, needs {threshold}\n"
         + "\n".join(f"  run {r.run}: {'; '.join(r.problems)}"
