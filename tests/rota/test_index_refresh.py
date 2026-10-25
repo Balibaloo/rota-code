@@ -525,6 +525,22 @@ def test_a_probe_of_an_index_with_no_rows_says_the_index_is_empty(world):
                             "`code.source`."}], out
 
 
+def test_the_empty_index_note_names_no_read_the_mode_lacks(world):
+    """`architect/deliver` holds the probe and not `code.source`, so the note
+    stops before the read (frame 326, review 1, finding 6)."""
+    db, repo, tree = world
+    db.execute("DELETE FROM code_index")
+    db.commit()
+    allow = prompts.mode_tools("architect", "deliver")
+    assert "code.probe" in allow and "code.source" not in allow, allow
+
+    sb = build_sandbox("architect", db, mode="deliver", allow=allow)
+    out = sb.call("code.probe", pattern="line_total")
+    assert out == [{"note": "the code index holds no code, so no pattern can "
+                            "match, 'line_total' included. The empty result "
+                            "says nothing about the tree."}], out
+
+
 def test_a_refresh_that_works_ends_the_note_the_failed_one_left(world):
     """Nothing cleared the row, so one failed resume told every later probe
     that the index was behind, long after a refresh had caught it up."""

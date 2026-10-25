@@ -14392,10 +14392,17 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
     # in the register, where `_with_repo` indexes only on `onboard: true`
     # (frame 326, fault A). The refresh note above covers a stale index only.
     if ctx.conn.execute("SELECT 1 FROM code_index LIMIT 1").fetchone() is None:
+        # The read is named only to a mode that holds it. `architect/deliver`
+        # holds the probe and not `code.source`, and a text that offers a call
+        # the seat lacks is fault D's class (frame 326, review 1, finding 6).
+        from . import prompts as _prompts
+
+        tools = _wake_mode_tools(ctx) or _prompts.available(ctx.role)
+        read = (" Read the file with `code.source`."
+                if "code.source" in tools else "")
         return [{"note": f"the code index holds no code, so no pattern can "
                          f"match, '{pattern}' included. The empty result "
-                         f"says nothing about the tree. Read the file with "
-                         f"`code.source`."}]
+                         f"says nothing about the tree.{read}"}]
     return hits
 
 
