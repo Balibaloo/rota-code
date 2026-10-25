@@ -877,6 +877,15 @@ def _with_repo(conn, case: dict, db_path: Path, run_no: int = 1):
             # ten-reds record, 2026-09-24).
             conn.execute("UPDATE test_runs SET commit_sha = ? "
                          "WHERE batch_id = ? AND commit_sha = 'HEAD'", (sha, batch_id))
+        # `index_batch:` indexes the batch's worktree after its commit, the
+        # call `runner._refresh_index` makes on a night. `onboard:` indexes
+        # the main checkout before the worktree exists, so a probe of a name
+        # the batch wrote came back empty (frame 326, review 1, finding 1).
+        # No onboarding here, so no constraint zero moves what a case seeds.
+        if spec.get("index_batch"):
+            from ..onboarding import indexer
+
+            indexer.refresh(conn, tree, main=False, batch_id=batch_id)
     return repo
 
 

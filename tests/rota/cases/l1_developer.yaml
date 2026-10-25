@@ -238,9 +238,9 @@
   refs: [<b1>]
   repo:
     batch: <b1>
-    # The brief says `code.probe` will find the code, so the index must
-    # exist (frame 326, fault A).
-    onboard: true
+    # The brief says `code.probe` will find the code, so the index holds
+    # the batch's tree, as on a night (frame 326, fault A).
+    index_batch: true
     message: "close an account"
     edit:
       src/billing/accounts.py: |

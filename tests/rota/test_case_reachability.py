@@ -246,7 +246,8 @@ def _code_problems(case):
     from rota.roles import prompts
 
     repo = case.get("repo") or {}
-    indexed = repo.get("onboard") or (case.get("fixture") or {}).get("code_index")
+    indexed = (repo.get("onboard") or repo.get("index_batch")
+               or (case.get("fixture") or {}).get("code_index"))
     for role, mode in _seats(case):
         if not role or not mode:
             continue
