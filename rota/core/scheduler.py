@@ -1139,8 +1139,13 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     if awaiting:
         return []
 
+    # A run database that predates the column reads every row as `default`,
+    # as `live_criteria` reads no `retired_by` there (frame 325, pass 1d).
+    from .db import _has_column
+
+    kind = "kind" if _has_column(conn, "ledger", "kind") else "'default' AS kind"
     rows = conn.execute(
-        "SELECT id, about_ref, kind FROM ledger WHERE status = 'open' "
+        f"SELECT id, about_ref, {kind} FROM ledger WHERE status = 'open' "
         "ORDER BY rowid"
     ).fetchall()
     if not rows:

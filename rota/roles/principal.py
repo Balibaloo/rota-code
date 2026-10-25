@@ -1796,9 +1796,14 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     # the Liaison's wake bytes, and 5 L1-LI cases went stale (frame 325's
     # review, finding 1).
     ids = [r for r in refs if isinstance(r, str)]
+    # A run database that predates the column has no `other` row, as
+    # `live_criteria` reads no `retired_by` there (frame 325, pass 1d).
+    from ..core.db import _has_column
+
     kind_other = {r["id"] for r in conn.execute(
         f"SELECT id FROM ledger WHERE kind = 'other' AND id IN "
-        f"({','.join('?' * len(ids))})", tuple(ids))} if ids else set()
+        f"({','.join('?' * len(ids))})", tuple(ids))} if ids and _has_column(
+            conn, "ledger", "kind") else set()
     zero = False
     batches: list[str] = []
     for ref in refs:
