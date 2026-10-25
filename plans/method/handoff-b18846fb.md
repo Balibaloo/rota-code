@@ -75,4 +75,27 @@ after the table.
 
 ## After this note was written
 
-(filled at the hand-off)
+Written at 13:12 on 2026-10-25. Frame 324 is on the branch as 5b319bc3
+and 1e57044e after Roman's ruling at 10:11 for the shared resolver; the
+head 1e57044e is gated clean with re-records, 5 new reds, 1 flaky, the
+rest frame 281's four known Tester cases. Frame 325's second step stays
+reverted. Frame 323's trial ended at 11:25: Gemma better on the Critic,
+worse on the Developer and Terminologist, and the interview read,
+`plans/frame323-gemma-interview.md`, found the cause: with think off this
+Gemma build returns no text for 8192 tokens, a serving fault, not Qwen
+fit. Roman asked for that investigation at 11:3x. A re-run of the 13
+cases Gemma failed, with think on under the new profile
+`local-gemma-think`, holds the card since 12:21 by `f323_think_run.sh` in
+my scratchpad, log `f323_think_run.log`, suite `f323_think_suite.txt`,
+about 10 to 15 minutes a case, 2 of 13 at 12:43. A workspace restart at
+about 13:05 killed my handle on it, and the pytest process lives on.
+
+First after the take: watch `f323_think_run.log` for `== done`, then run
+`f323_table.py C:/Users/roman/rota_cassettes_f323.db gemma4:12b-it-qat`
+and compare the 13 cases with their think-off rows on frame 323; Roman
+rules the switch, with the Critic recommended. Then launch night 166 by
+`.rota/launch_night166.sh`, which reads 1e57044e, and hand off at that
+boundary. The read's three model-neutral changes are frames to push with
+a park each: the empty reply at the budget as a backend fault, the file
+the criterion names and the probe does not find, and door texts that
+name a step the seat has. The W-E read's offer repair is frame 266's.
