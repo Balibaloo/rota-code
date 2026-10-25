@@ -119,3 +119,30 @@ def test_with_no_frame_the_example_is_attached(db):
     db.execute("DELETE FROM frame_rulings")
     db.commit()
     assert _specify(db, "clear") == [LIBRARY]
+
+
+def test_a_class_of_another_case_is_not_the_bare_name(db):
+    """Review 1, finding 1: LIKE ignores case, so `clear` found `Clear`."""
+    db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES "
+               "('src/click/_compat.py::Clear', 'symbol', 'class')")
+    db.commit()
+    assert _specify(db, "clear") == [LIBRARY]
+    assert _guess(db, ["src/click/_compat.py"], ["clear"]) == [
+        "src/click/_compat.py", LIBRARY]
+
+
+def test_the_frame_ruling_outranks_is_attached(db):
+    """Review 1, finding 2: the ruling decides where the heuristic differs."""
+    db.execute("DELETE FROM frame_rulings")
+    db.execute("INSERT INTO frame_rulings (id, kind, reason) VALUES "
+               "('examples', 'program', 'The examples are the product')")
+    db.execute("INSERT INTO frame_rulings (id, kind, reason) VALUES "
+               "('src', 'attached', 'Vendored')")
+    db.commit()
+    assert _specify(db, "clear") == [EXAMPLE]
+
+
+def test_a_bare_name_and_its_qualified_form_write_one_grain(db):
+    """Review 1, finding 3."""
+    assert _guess(db, ["src/click/termui.py"], ["clear", LIBRARY]) == [
+        "src/click/termui.py", LIBRARY]

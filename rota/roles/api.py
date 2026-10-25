@@ -5284,6 +5284,11 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
             "SELECT grain FROM code_index WHERE grain_kind='symbol' AND "
             "(grain = ? OR grain LIKE ?)", (ref, f"%::{ref}")).fetchall()
         hit = rows[0] if rows else None
+        # LIKE ignores case and reads `_` as any character, so a bare `clear`
+        # also finds a class `Clear` (frame 324, review 1, finding 1).
+        exact = [r for r in rows if r["grain"].endswith(f"::{ref}")]
+        if exact:
+            rows, hit = exact, exact[0]
         if len(rows) > 1 and "::" not in ref:
             # A bare name of several rows took the lowest rowid, and night
             # 165 stored an example's `clear` (frame 324). A qualified ref
@@ -7289,11 +7294,14 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
         rows = [r["grain"] for r in ctx.conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
             "AND grain LIKE ? ORDER BY grain", (f"%::{s}",))]
-        if len(rows) > 1:
+        # LIKE ignores case and reads `_` as any character (frame 324,
+        # review 1, finding 1).
+        exact = [g for g in rows if g.endswith(f"::{s}")]
+        if len(exact) > 1:
             # Night 165: six Architects sent a bare `clear` of two rows and
             # never copied a path. The seat's paths and the frame decide
             # (frame 324, candidate R).
-            pick, refusal = _program_rank(ctx.conn, s, rows, paths)
+            pick, refusal = _program_rank(ctx.conn, s, exact, paths)
             if pick is None:
                 raise ValueError(f"{refusal}. Or leave symbols out")
             resolved.append(pick)
@@ -7301,13 +7309,15 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
         # The refusal names the index's own grain, because the L1 case's
         # qwen3.5:9b seat repeated a bare `line_total` four times against a
         # text that named no grain of its tree (frame 298, pass 1).
-        where = (f"The index holds {', '.join(rows)}. " if rows
+        where = (f"The index holds {', '.join(rows[:3])}. " if rows
                  else "The index holds no symbol of that name. ")
         raise ValueError(
             f"{s} names no path. A symbol is written path::name. "
             f"{where}Write the symbol that way, or leave symbols out")
     if symbols:
-        symbols = resolved
+        # A bare name and its qualified form resolve to one grain, and one
+        # grain is one row (frame 324, review 1, finding 3).
+        symbols = list(dict.fromkeys(resolved))
     # One guess per item per session: a re-issued call would write a second
     # set at one version (frame 298's design review, finding 10).
     if any(w[0] == "touch_guesses" and isinstance(w[2], dict)
