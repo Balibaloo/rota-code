@@ -6815,11 +6815,16 @@ def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     return rows
 
 
-RETIRED_KEY = "retired criteria"
+RETIRED_NOTE_KEY = "retired criteria"
 
 
-def retired_note(conn: sqlite3.Connection, batch_id: str | None) -> str:
+def retired_note(conn: sqlite3.Connection, batch_id: str | None,
+                 only: str | None = None) -> str:
     """One line that names the batch's retired criteria, or "".
+
+    With `only`, the line names that one criterion, or "" when it is live.
+    The pass door and the fail branch quote it in a refusal (frame 306,
+    review of W-C1, findings 1 and 2).
 
     The load drops a retired row, so a seat that read the page sees a gap.
     The line goes beside the rows, not in them, because a ragged row turns
@@ -6833,6 +6838,8 @@ def retired_note(conn: sqlite3.Connection, batch_id: str | None) -> str:
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
         "WHERE bt.batch_id = ? AND c.retired_by IS NOT NULL ORDER BY c.id",
         (batch_id,)).fetchall()
+    if only is not None:
+        rows = [r for r in rows if r["id"] == only]
     if not rows:
         return ""
     ids = [r["id"] for r in rows]
@@ -6840,9 +6847,11 @@ def retired_note(conn: sqlite3.Connection, batch_id: str | None) -> str:
     verb = "is" if len(ids) == 1 else "are"
     noun = "ruling" if len(rulings) == 1 else "rulings"
     them, it = ("It stays", "it") if len(ids) == 1 else ("They stay", "them")
+    # The Tester reads the line too, so it names no one seat (review
+    # finding 4).
     return (f"{', '.join(ids)} {verb} retired by the principal's {noun} "
-            f"{', '.join(rulings)}. {them} on his page, and a pass or a "
-            f"review does not name {it}.")
+            f"{', '.join(rulings)}. {them} on his page, and no seat tests, "
+            f"passes or reviews {it}.")
 
 
 @op("criteria", "consult")
@@ -13314,6 +13323,18 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
             f"landed, and one commit gets one verdict: end the session")
     if failed_criterion:
         _must_exist(ctx, "criteria", failed_criterion)
+        # A fail on a retired criterion sends the batch back for a criterion
+        # that review and merge ignore (frame 306, review of W-C1, finding 2).
+        gone = retired_note(ctx.conn, batch_id, only=failed_criterion)
+        if gone:
+            live = ", ".join(r["id"] for r in ctx.conn.execute(
+                "SELECT c.id FROM criteria c JOIN batch_tickets bt "
+                "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?"
+                + _live_rows(ctx.conn, "c.retired_by") + " ORDER BY c.id",
+                (batch_id,)))
+            raise ValueError(
+                f"{gone} A fail names a live criterion of batch {batch_id}: "
+                f"{live}.")
         # The mandatory branch: a fail names a criterion whose test was
         # claimed to encode it. Unclaimed or claimed False means the thing
         # actually wrong might be the test, and that question was never
@@ -13745,6 +13766,13 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             f"'<the line>'}}, one entry for each of {named}")
     lines = lines or {}
     for key in lines:
+        # A retired criterion is still a criterion of the batch, so the
+        # refusal names the ruling (frame 306, review of W-C1, finding 1).
+        gone = retired_note(ctx.conn, batch_id, only=key)
+        if gone:
+            raise LinesRefusal(
+                f"{gone} Send the pass again with lines= naming only "
+                f"{named}.")
         if key not in ids:
             raise LinesRefusal(
                 f"{key!r} is not a criterion of batch {batch_id}. Its criteria "

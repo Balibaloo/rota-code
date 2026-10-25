@@ -12,7 +12,7 @@ import pytest
 from rota.core.db import init_db
 from rota.core.runner import push_working_set
 from rota.core.sandbox import build
-from rota.roles.api import RETIRED_KEY
+from rota.roles.api import RETIRED_NOTE_KEY
 from tests.rota.test_verdict_lines import _git, a_batch_repo
 
 LIVE = "crit_1_format_basename"
@@ -65,7 +65,29 @@ def test_a_line_for_a_retired_criterion_is_refused(bg_3):
     with pytest.raises(ValueError) as exc:
         sb.call("verdicts.emit", batch_id="bg_3", result="pass",
                 lines={LIVE: LINE.strip(), RETIRED[0]: LINE.strip()})
-    assert f"{RETIRED[0]!r} is not a criterion of batch bg_3" in str(exc.value)
+    # Review finding 1: crit_2 is a criterion of bg_3, so the refusal names
+    # the ruling that retired it, not "is not a criterion of batch".
+    assert str(exc.value) == (
+        "crit_2_format_invalid_bytes is retired by the principal's ruling "
+        "r_m244. It stays on his page, and no seat tests, passes or reviews "
+        "it. Send the pass again with lines= naming only "
+        "crit_1_format_basename.")
+
+
+def test_a_fail_on_a_retired_criterion_is_refused(bg_3):
+    # Review finding 2: a fail on a retired criterion sent the batch back to
+    # the Developer for a criterion that review and merge ignore.
+    sb = build("critic", bg_3, batch_id="bg_3", mode="review")
+    sb.call("verdicts.claim_encodes", criterion_id=RETIRED[0], encodes=True)
+    with pytest.raises(ValueError) as exc:
+        sb.call("verdicts.emit", batch_id="bg_3", result="fail",
+                failed_criterion=RETIRED[0], reason="it does not")
+    assert str(exc.value) == (
+        "crit_2_format_invalid_bytes is retired by the principal's ruling "
+        "r_m244. It stays on his page, and no seat tests, passes or reviews "
+        "it. A fail names a live criterion of batch bg_3: "
+        "crit_1_format_basename.")
+    assert not [w for w in sb.ctx.writes if w[0] == "verdicts"]
 
 
 def test_criteria_load_lists_the_live_criterion(bg_3):
@@ -79,13 +101,13 @@ def test_the_push_says_in_one_line_that_two_are_retired(bg_3):
     pushed = push_working_set("critic", sb, None)
     assert [r["id"] for r in pushed["criteria.load"]] == [LIVE]
     keys = list(pushed)
-    assert keys[keys.index("criteria.load") + 1] == RETIRED_KEY
-    note = pushed[RETIRED_KEY]
+    assert keys[keys.index("criteria.load") + 1] == RETIRED_NOTE_KEY
+    note = pushed[RETIRED_NOTE_KEY]
     assert "\n" not in note
     assert note == (
         "crit_2_format_invalid_bytes, crit_3_format_default_full_path are "
         "retired by the principal's ruling r_m244. They stay on his page, "
-        "and a pass or a review does not name them.")
+        "and no seat tests, passes or reviews them.")
 
 
 def test_a_batch_with_no_retired_criterion_pushes_no_note(bg_3):
@@ -93,4 +115,4 @@ def test_a_batch_with_no_retired_criterion_pushes_no_note(bg_3):
     bg_3.commit()
     sb = build("critic", bg_3, batch_id="bg_3", mode="review")
     pushed = push_working_set("critic", sb, None)
-    assert RETIRED_KEY not in pushed
+    assert RETIRED_NOTE_KEY not in pushed
