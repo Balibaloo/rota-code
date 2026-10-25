@@ -21882,6 +21882,13 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
                     row = new[k + n.lineno - 1]
                     bound |= {(d, indent(row) - base) for d in targets(n)}
         tree = _ast.parse(chr(10).join(old_lines))
+        # Frame 283, W-D: a span over a signature alone holds no whole
+        # statement, so the parts of a signature are read before the pool.
+        sig = _lost_signature(old_lines, start, stop, new)
+
+        def with_sig(found):
+            more = [x for x in sig if x[0] not in {i for i, _h in found}]
+            return sorted(found + more) if more else found
         # The outermost list that holds whole statements of the span.
         level = tree.body
         while True:
@@ -21890,7 +21897,7 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
                 break
             host = [x for x in level if lo(x) <= start and stop <= end(x)]
             if not host:
-                return []
+                return with_sig([])
             level = kids(host[0])
         lost = []
         top = indent(old_lines[head_at(pool[0])])
@@ -21912,7 +21919,7 @@ def _lost_statements(old_lines: list[str], start: int, stop: int,
                     lost.append((i, old_lines[i].strip()))
 
         walk(pool)
-        return lost
+        return with_sig(lost)
     except Exception:                                      # noqa: BLE001
         return []
 
@@ -21981,13 +21988,80 @@ def _with_lost(note: str | None, lost: list[tuple[int, str]]) -> str | None:
     return f"{note} {span}" if note else span
 
 
+def _signature_parts(node, owner: str,
+                     lines: list[str]) -> list[tuple[str, str, int, int, str]]:
+    """Each decorator and each parameter of the definition `node` as
+    (owner, key, first line, last line, kind), 0-based, `owner` being the
+    definition's qualified name.
+
+    Frame 283, W-D of night 164: s229's span write dropped `shorten: bool =
+    False,` from `format_filename` and kept the body. Both walks read the
+    body only, so no note opened and the red count went from 2 to 5. The
+    read's repair B makes each part a statement.
+
+    A parameter keys on its name, as an assignment keys on its targets. So
+    a new default or annotation is a new wording, and a rename is a
+    removal. Its kind is its key, so the kind count of `_whole_lost` never
+    reads a rename as a rewrite. A decorator keys on its first line. The
+    return annotation and the docstring are not statements: the brief of
+    W-D leaves them out."""
+    import ast as _ast
+    out: list = []
+    for d in node.decorator_list:
+        out.append((owner, "@" + _line_key(lines[d.lineno - 1]), d.lineno - 1,
+                    d.end_lineno - 1, "decorator"))
+    if isinstance(node, _ast.ClassDef):
+        return out
+    a = node.args
+    pos = a.posonlyargs + a.args
+    pairs = list(zip(pos, [None] * (len(pos) - len(a.defaults)) + list(a.defaults)))
+    if a.vararg:
+        pairs.append((a.vararg, None))
+    pairs += list(zip(a.kwonlyargs, a.kw_defaults))
+    if a.kwarg:
+        pairs.append((a.kwarg, None))
+    for p, default in pairs:
+        star = "*" if p is a.vararg else "**" if p is a.kwarg else ""
+        key = f"arg {star}{p.arg}"
+        last = max(p.end_lineno, default.end_lineno if default is not None else 0)
+        out.append((owner, key, p.lineno - 1, last - 1, key))
+    return out
+
+
+def _lost_signature(old_lines: list[str], start: int, stop: int,
+                    new: list[str]) -> list[tuple[int, str]]:
+    """The decorators and parameters of the span `start`..`stop` that the
+    merged file no longer holds under their definition, as (line, head).
+
+    A definition the merged file no longer names is left to the walk of
+    `_lost_statements`, which names its header. One line is named once, so
+    a one-line signature that loses two parameters names its line once."""
+    import ast as _ast
+    merged = old_lines[:start] + new + old_lines[stop:]
+    try:
+        olds = _owned_statements(_ast.parse(chr(10).join(old_lines)), old_lines)
+        news = _owned_statements(_ast.parse(chr(10).join(merged)), merged)
+    except Exception:                                      # noqa: BLE001
+        return []
+    owners = {n for n, _lo, _hi in _def_spans(chr(10).join(merged)) or []}
+    held = {(o, k) for o, k, _a, _b, t in news if t == "decorator" or t == k}
+    out: list = []
+    for o, k, a, b, t in olds:
+        if not (t == "decorator" or t == k) or b < start or a >= stop:
+            continue
+        if o in owners and (o, k) not in held and a not in {i for i, _h in out}:
+            out.append((a, old_lines[a].strip()))
+    return out
+
+
 def _owned_statements(tree, lines: list[str]) -> list[tuple[str, str, int, int, str]]:
     """Each statement of `tree` as (owner, key, first line, last line,
     AST kind), 0-based. The owner is the qualified name of the innermost definition,
     as `_def_spans` names it, or "" for the module. A definition is an
-    owner and not a statement. An assignment keys on its targets, so a new
-    value for the same name is a new wording, as `_lost_statements` reads
-    it."""
+    owner and not a statement. Its parameters and decorators are statements
+    under it, as `_signature_parts` reads them. An assignment keys on its
+    targets, so a new value for the same name is a new wording, as
+    `_lost_statements` reads it."""
     import ast as _ast
     defs = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
     plain = (_ast.Return, _ast.Raise, _ast.Break, _ast.Continue,
@@ -21999,7 +22073,9 @@ def _owned_statements(tree, lines: list[str]) -> list[tuple[str, str, int, int, 
     def walk(nodes, owner):
         for s in nodes:
             if isinstance(s, defs):
-                walk(s.body, f"{owner}.{s.name}" if owner else s.name)
+                name = f"{owner}.{s.name}" if owner else s.name
+                out.extend(_signature_parts(s, name, lines))
+                walk(s.body, name)
                 continue
             kids = [x for f in fields for x in getattr(s, f, None) or []]
             if isinstance(s, _ast.match_case):
@@ -22053,7 +22129,8 @@ def _whole_lost(old_lines: list[str], text: str, note: str | None,
             kinds[(o, t)] -= 1
             keys[(o, k)] -= 1
             # A statement inside a lost block is named by the block's line.
-            if not any(x < a <= y for x, _h, y in lost):
+            # Frame 283, W-D: two parameters of one line name the line once.
+            if not any(x <= a <= y for x, _h, y in lost):
                 lost.append((a, old_lines[a].strip(), b))
     out = [(i, h) for i, h, _e in lost if i not in gone]
     gone.extend(i for i, _h in out)
