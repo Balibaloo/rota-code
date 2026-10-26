@@ -54,7 +54,7 @@ def test_every_shipped_profile_pins_the_measured_window():
     # The shipped folder, never `available()`: a user profile of the same
     # name wins the lookup, and this test is about what rota ships.
     shipped = {f.stem: P.Profile.from_toml(f) for f in sorted(P.SHIPPED.glob("*.toml"))}
-    assert len(shipped) == 10, f"expected the ten shipped profiles, got {sorted(shipped)}"
+    assert len(shipped) == 12, f"expected the twelve shipped profiles, got {sorted(shipped)}"
     for name, p in shipped.items():
         assert p.pins.get("num_ctx") == 16384, f"{name} does not pin 16384"
     for name in ("local-gemma-critic", "local-gemma-dev"):
