@@ -29,7 +29,11 @@ known fact is a count on its row, not a new frame. A frame still shows
 its own Reach line, and the pass brief carries it. The readers by file
 and line are in the record, under the fact's number.
 
-Night 170, the two walls that stopped night 169:
+Night 170 runs after every row below is built (ruled: Roman, 2026-10-26
+23:4x, "Fuck it, I want all the fixes in / The walls that arise will be
+on a new baseline"; this amends the one night per row set of 19:3x).
+
+The two walls that stopped night 169:
 
 1. F7 and F8, a removed base statement is a stray for the Architect.
    Frame 339 runs, pass 1b on the review. At the fact: 140, 133, 173,
@@ -44,7 +48,7 @@ Night 170, the two walls that stopped night 169:
    (observed: F20). Then the gate and night 170 on 339 and 330, night 1
    of 3 for both and for 335 to 338 as built.
 
-Night 171, the seam and the view:
+The seam and the view, built before the same night:
 
 3. F1, F2 and F3, his ruling on a ref: the `rulings` row, the page lines
    his words name, and what his words permit by a phrase. Frames 337,
@@ -1438,6 +1442,8 @@ a different question and the night is then opened once.
 - Status 2026-10-26 23:12 (rota-70): **ruled. Roman, 2026-10-26 22:5x, in the terminal: "No it should be every time no? Why not"** (ruled: Roman, in his words). Rota workflow.
 - Status 2026-10-26 23:12 (rota-70): The reading of his words of about 22:5x, relayed by rota-b4 from its terminal, on the read-back of the Liaison's reading, sprint 26 row 3, the question the match of 22:04 left to him: every page carries one line per reply that shows the Liaison's reading of his words, and he confirms it, by the composition's line that the Liaison's confirmed reading is a second record and an unchecked inference is never a record. The record per ref carries confirmed_by. Row 3's seam brief carries both when it is written. Meta workflow.
 - Status 2026-10-26 23:34 (rota-70): Pass 5 runs on a fresh implementer on Opus, cap 60k, in rota_p330b at 421839b7, from f330_pass5_brief.md in this session's scratchpad, the agency read's five points: stopped_bouncing reads given_up for a running batch, exhausted iterates every stopped running batch, parked frees the seat on a given_up key with no failing run, _next_rung counts a quarantined exhausted key as asked, stop_detail reads _stalled_words over given_up and its second table goes; red first on night 169's shape, a quarantined batch_start key with a second batch pending, then one test per key over the nine others. It runs beside frame 339's re-check, because the two edit different regions of principal.py and predicates.py; 339 lands first. Reach: 1 of 10 toward 10 of 10. Rota workflow.
+- Status 2026-10-26 23:42 (rota-70): **ruled. Roman, 2026-10-26 23:4x, in the terminal: "Fuck it, I want all the fixes in / The walls that arise will be on a new baseline"** (ruled: Roman, in his words). Rota workflow.
+- Status 2026-10-26 23:42 (rota-70): The reading of his words of 23:4x, in the terminal, after the session's plan of two fixes before night 170: every row of sprint 26, rows 1 to 5, is built before the next night, and the night runs on the new baseline; a wall that arises is read against that baseline and not against night 169's counts. This amends the reading of his ruling of 19:3x that one night runs per row set. The order stays by fact: 339 and 340 are on the branch at d495db74 and the gate runs on it with re-records; 330 pass 5 runs; row 4, the quote check of 333 and 328 in one pass, and row 3, the seam design of his ruling per ref, start now; row 5, the partition build of 324, when an agent seat frees. Three agents are the ceiling. Meta workflow.
 
 ### 331. The 19 owed cases run on no fixture, the fourth Tester case is not recorded, and the batch tree is indexed only under a case flag (2026-10-26)
 
