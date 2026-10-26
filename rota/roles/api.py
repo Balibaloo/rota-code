@@ -17453,9 +17453,12 @@ _ESCAPE_MESSAGES = (re.compile(r'"(\\.)" is an invalid escape sequence'),
 #: A string literal that is not raw, with its prefix, its mark and its text.
 _PLAIN_LITERAL = re.compile(
     r"(?<![A-Za-z0-9_])([bBuUfF]?)(\"|')((?:\\.|(?!\2).)*)\2")
-#: A path: names split by `/`, or by a backslash that opens a name.
+#: A path: names split by `/`, or by a backslash that opens a name. Review
+#: 2, point 6: a path has a drive, a name before its first backslash, or
+#: two backslashes, so `\R` alone is no path.
 _PATH_TEXT = re.compile(
-    r"(?:[A-Za-z]:)?[\w.~ $/-]*(?:\\[A-Za-z_.$~][\w.~ $/-]*)+")
+    r"(?:[A-Za-z]:[\w.~ $/-]*|[\w.~ $/-]+)(?:\\[A-Za-z_.$~][\w.~ $/-]*)+"
+    r"|(?:\\[A-Za-z_.$~][\w.~ $/-]*){2,}")
 
 
 def _invalid_escape(message: str) -> str | None:
@@ -17520,8 +17523,10 @@ def _raw_advice(line: str, escape: str) -> str:
     kept = [f for f in ([slash] if path else []) + ([raw] if raw else [])
             if _call_keeps(f)]
     if not kept:
-        return (f"No raw string form of this string comes through the call "
-                f"unchanged. Write it with forward slashes: `{slash}`.")
+        # Review 2, point 4: a slash form of a value that is not a path
+        # gives a wrong value, so the advice names no form.
+        return ("No form of this string with a backslash comes through the "
+                "call unchanged. Write the value with no backslash.")
     said = (f"Write the path with forward slashes: `{kept[0]}`."
             if kept[0] == slash else
             f"Write the string as a raw string with one backslash: "
@@ -17529,6 +17534,15 @@ def _raw_advice(line: str, escape: str) -> str:
     if len(kept) > 1:
         said += (f" The raw string `{kept[1]}`, with one backslash, also "
                  f"comes through the call unchanged.")
+    elif kept[0] == slash and not prefix:
+        # Review 2, point 3: with no raw form, a criterion about a
+        # backslash needs a form that holds a real backslash on both paths.
+        joined = " + chr(92) + ".join(f"{mark}{p}{mark}"
+                                      for p in one.split("\\"))
+        if _call_keeps(joined):
+            said += (f" For a criterion about a backslash, write `{joined}`. "
+                     f"That form keeps a real backslash on both parse "
+                     f"paths.")
     return said
 
 

@@ -160,10 +160,23 @@ def test_an_import_error_keeps_the_advice_of_pytest():
      + 'Roaming"`, with one backslash, also comes through the call '
      'unchanged.'),
     ("C:" + BS + "Roaming" + BS + "new",
-     'Write the path with forward slashes: `"C:/Roaming/new"`.'),
+     'Write the path with forward slashes: `"C:/Roaming/new"`. For a '
+     'criterion about a backslash, write `"C:" + chr(92) + "Roaming" + '
+     'chr(92) + "new"`. That form keeps a real backslash on both parse '
+     'paths.'),
     ("C:" + BS + "Roaming" + BS + "temp",
-     'Write the path with forward slashes: `"C:/Roaming/temp"`.'),
-], ids=["users", "roaming_new", "roaming_temp"])
+     'Write the path with forward slashes: `"C:/Roaming/temp"`. For a '
+     'criterion about a backslash, write `"C:" + chr(92) + "Roaming" + '
+     'chr(92) + "temp"`. That form keeps a real backslash on both parse '
+     'paths.'),
+    # Pass 2b, review 2, point 3: `\U` fails the strict path and `\n` the
+    # fallback, so no raw form of `C:\Users\new` comes through.
+    ("C:" + BS + "Users" + BS + "new",
+     'Write the path with forward slashes: `"C:/Users/new"`. For a '
+     'criterion about a backslash, write `"C:" + chr(92) + "Users" + '
+     'chr(92) + "new"`. That form keeps a real backslash on both parse '
+     'paths.'),
+], ids=["users", "roaming_new", "roaming_temp", "users_new"])
 def test_the_advice_gives_a_form_that_the_call_keeps(
         db, monkeypatch, text, advice):  # noqa: F811
     _no_run(monkeypatch)
@@ -182,6 +195,11 @@ def test_an_invalid_octal_escape_meets_the_escape_refusal(db, monkeypatch):  # n
     said = str(err.value)
     assert said.startswith(f"line 4 of the body, `{line}`, holds `{BS}777`")
     assert "not Python" not in said and "Did you mean" not in said
+    # Pass 2b, review 2, point 4: `"\777"` is no path, and the strict path
+    # reads its raw form as one character. So the advice names no form.
+    assert said.endswith(
+        "No form of this string with a backslash comes through the call "
+        "unchanged. Write the value with no backslash.")
     assert seen == []
 
 
