@@ -966,8 +966,13 @@ def large_module(tmp: Path) -> Scene:
        whole with a fee that is still wrong and a cent added to every rate,
        and commits. The project's test goes red, and the diff holds 199
        changed lines. The loop picks the fix wake before the Tester's, so
-       three empty fix sessions quarantine the key, and the Liaison reports
-       it. Night 121 holds the same order (scene `two_batches`).
+       three empty fix sessions quarantine the key. The quarantined key
+       stops the bounce, so law 6's three rungs wake one by one with
+       nothing done (frame 330). Before frame 330 the loop went quiet
+       here, and on night 168 that quiet held the one batch seat. No other
+       batch waits, so nothing parks b1. The Liaison reports the
+       quarantine. Night 121 holds the same order up to the ladder (scene
+       `two_batches`).
     2. `tester|tick:tests_missing|b1`: the Tester encodes the criterion's
        test at the root. Its new row lifts the key, and the harness runs
        the test red.
@@ -994,6 +999,7 @@ def large_module(tmp: Path) -> Scene:
         f"body={LATE_TEST!r})"])
     seat(sc, "developer|tick:tests_failing|b1", IDLE, IDLE, IDLE,
          commit([(LEDGER_PATH, ledger(FEE_FIXED))], "charge five per mille a day"))
+    _climb(sc, "b1")
     seat(sc, "liaison|tick:quarantined|b1", ["TOOL: msg.present_principal(refs=['b1'])"])
     rule(sc, "present", ["b1"], {"b1": "approve"})
     seat(sc, "critic|tick:review|b1", [
