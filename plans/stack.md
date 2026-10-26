@@ -1212,6 +1212,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 25, row 1, the next night's wall (reasoned: the read, section 5; without it any stuck first batch ends a night at its first walk).
 - Pointer: `plans/night168-read.md`, sections 1 and 5, W5; s154 and after in `.rota/clickI_night168.db`.
 - Status 2026-10-26 18:10 (rota-af): Pushed from night 168's read at the close of frames 283 and 321, by the rule of 2026-10-18 that the provenance comes before the first fix. Held by this session, peer name rota-af. The provenance read runs on Opus, cap 60k. Rota workflow.
+- Status 2026-10-26 18:11 (rota-af): The provenance read runs on a fresh agent on Opus, cap 60k, from f330_provenance_brief.md in this session's scratchpad, to plans/frame330-provenance.md: five questions, the commits that added the tick cap of 3 and loop_cap 10, the rule that should free the seat, night 168's rows after s154, the count of the shape over nights 160 to 168, and any ruling it departs from. The gate with re-records runs from rota_g328 at e03b1098 since 17:55 for the five stale cases; the register copies into the checkout, newest over older, when it ends. Rota workflow.
 
 ### 331. The 19 owed cases run on no fixture, the fourth Tester case is not recorded, and the batch tree is indexed only under a case flag (2026-10-26)
 
