@@ -110,3 +110,18 @@ def test_the_refusal_says_that_it_read_the_earlier_answers(db):
         _rule6(db, ["I don't understand the ticket, so what is it?"])
     assert str(e.value) == (REFUSAL + " His earlier answers to this page do "
                             "not name line 5 either.")
+
+
+# Review 1, finding 1: an earlier "Line 5 is fine" let the contest of line 5
+# land against his word. The latest answer about a line wins.
+def test_an_earlier_match_with_no_later_word_refuses_the_contest(db):
+    with pytest.raises(ValueError) as e:
+        _rule6(db, ["Line 5 is fine. What is the ticket on line 6?"])
+    assert str(e.value).startswith("The words say line 5 matches what the "
+                                   "principal asked for")
+
+
+def test_a_later_fault_after_an_earlier_match_lands_the_contest(db):
+    out = _rule6(db, ["Line 5 is fine. What is the ticket on line 6?",
+                      "Line 5 is wrong after all."])
+    assert out["per_item"]["challenge_items_clear_returns_status"] == "contest"

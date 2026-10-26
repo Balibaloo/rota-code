@@ -11773,7 +11773,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   request_lines: frozenset[int] = frozenset(),
                   request_texts: tuple[str, ...] = (),
                   faulted_texts: tuple[str, ...] = (),
-                  earlier_lines: frozenset[int] | None = None
+                  earlier_lines: frozenset[int] | None = None,
+                  earlier_matched: frozenset[int] = frozenset()
                   ) -> str | None:
     """The refusal of a ruling the words do not support, or None.
 
@@ -11789,9 +11790,12 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     `request_texts` are the ids and the texts of those items.
     `faulted_texts` are the texts of the items and criteria on the lines in
     `faulted`. `earlier_lines` are the lines that his earlier answers to the
-    page name, or None when the reply is his only answer.
+    page name, or None when the reply is his only answer. `earlier_matched`
+    are the lines that his latest earlier answer about each says match.
     """
-    reversed_ = sorted((matched - faulted) & contested)
+    # law 6: the latest answer about a line wins, and the reply is the latest
+    reversed_ = sorted(((matched - faulted)
+                        | (earlier_matched - faulted - matched)) & contested)
     if reversed_:
         one = len(reversed_) == 1
         return (f"The words say line{'' if one else 's'} {_line_set(reversed_)} "
@@ -12193,9 +12197,10 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
             f"words say.{read_earlier}")
 
 
-def _earlier_lines(conn, ask_id: str, reply_id: str,
-                   size: int) -> frozenset[int] | None:
-    """The page lines that his earlier answers to the page name, or None.
+def _earlier_reading(conn, ask_id: str, reply_id: str, size: int
+                     ) -> tuple[frozenset[int] | None, frozenset[int]]:
+    """The page lines that his earlier answers to the page name, or None,
+    and the lines that his latest earlier answer about each line says match.
 
     The rows are the principal rows of the query that fills
     `earlier_exchange` in `runner.py`, so the door reads the answers that
@@ -12206,9 +12211,18 @@ def _earlier_lines(conn, ask_id: str, reply_id: str,
         "AND id != ? AND from_role = 'principal' AND body_text IS NOT NULL "
         "ORDER BY seq", (ask_id, reply_id))]
     if not texts:
-        return None
-    return frozenset(n for t in texts for ref in _LINE_REF.finditer(t)
-                     for n in _ref_lines(ref, size) if 1 <= n <= size)
+        return None, frozenset()
+    # The latest answer about a line wins. An earlier "Line 5 is fine" let a
+    # contest of line 5 land against his word (frame 337, review 1, finding
+    # 1), and a later "Line 5 is wrong" overrides it.
+    said: dict[int, bool] = {}
+    for t in texts:
+        faulted, matched = _line_reading(t, size)
+        said.update({n: True for n in matched - faulted})
+        said.update({n: False for n in faulted})
+    return (frozenset(n for t in texts for ref in _LINE_REF.finditer(t)
+                      for n in _ref_lines(ref, size) if 1 <= n <= size),
+            frozenset(n for n, fine in said.items() if fine and 1 <= n <= size))
 
 
 def _agreed_contest(sentences: list[str], contested: set[int], size: int,
@@ -12824,7 +12838,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 "SELECT text FROM criteria WHERE id = ?",
                 (order[n - 1], order[n - 1])).fetchone() or [""])[0] or ""
                 for n in sorted(faulted) if 1 <= n <= len(order)),
-            _earlier_lines(ctx.conn, ask["id"], ctx.trigger, len(order)))
+            *_earlier_reading(ctx.conn, ask["id"], ctx.trigger, len(order)))
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():
