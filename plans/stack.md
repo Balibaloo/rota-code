@@ -37,18 +37,18 @@ every row of the sprint is built and gated, by his ruling of 19:3x on
 4. Frame 335, `_render` shows nested text plainly and one escape helper
    serves the three refusals and `code.write`, 4 of 10 to 10 of 10. 3
    cycles.
-6. Frames 337, 338 and 322, one group by the cross-frame match: one
+5. Frames 337, 338 and 322, one group by the cross-frame match: one
    reader of the `rulings` row, 337's `words` built once from his
    converse answers the general one, 338's `ruled_rows` and 322's item
    reader read that row by key; it takes the 11 phrase readers of frame
    339's reach. 7 cycles in three passes, 339 first because 322 widens
    `_ruling_texts`.
-7. Frame 329, the same fix and one brief sentence, with `quotes=` on
+6. Frame 329, the same fix and one brief sentence, with `quotes=` on
    the offered call, or it makes a new case of 333's problem. 2 cycles.
-8. Frame 336, one `error_line()` in the harness for all four readers,
+7. Frame 336, one `error_line()` in the harness for all four readers,
    before 333 and 328, which edit the same refusal. 2 cycles.
 
-Night 170 on the head of rows 1 to 8, eleven issues in fourteen frames
+Night 170 on the head of rows 1 to 7, eleven issues in fourteen frames
 (observed: `plans/agency-groups-2026-10-26.md`). Parked, in order, for
 sprint 27: frame 324 at the agency read's 13 of 13 (3 cycles, ruled
 general at 20:37); frames 333 and 328 one group, a per-quote span rule
