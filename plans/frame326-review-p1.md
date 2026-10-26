@@ -190,3 +190,52 @@ A re-record can absorb each change. Two changes need a decision first:
 Probes of review 1b, in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/66edc387-a3b2-48b8-8dec-bb5b3aa63e50/scratchpad/r326p1/`: `a1db/` (the `git archive` of a1db0e89), `probe_1b.py` (the defaults case and the chain, built with `index_batch` alone and in the night order), `l1l3_a1db.log` (`test_l1.py` and `test_l3.py` at a1db0e89), and the two locked chains run again alone.
 
 Usage of review 1b: input about 45k, output about 9k, total about 54k.
+
+## Review 1c at 647c34d0
+
+Date: 2026-10-26. Read-only review of 103f3dc5 and 647c34d0 above a1db0e89. The tree is a `git archive` of 647c34d0, extracted into the scratchpad folder `r326p1/b647`. The register is the same read-only copy `reg.db`.
+
+Verdict: accept both commits for the branch. Re-record 16 of the 18 STALE cases now. Hold `L1-DV-say-why-the-test-cannot-pass` and `L1-TS-act-on-the-reason-of-a-challenge` until each case has a repository. A re-record now would record fault B, a refused `code.source`. The implementer's shared source file, `repo.edit_from`, is the right general repair, because three Click cases need the same 624 lines.
+
+### 1. The finding on the re-record order is closed
+
+CONFIRMED. `probe_1b.py` against 647c34d0 shows these results:
+
+- With `index_batch` alone, the defaults case carries the areas `.`, `src/auth`, `src/billing`, `src/catalog`, `src/notify`, `src/store` and `web`. These are the same areas as in the night order, and the phase is `done`.
+- The 96 rows are the same in both shapes.
+- `code.probe("calculate_tip")` returns the batch's row. Its area is `.` because `main.py` is at the root. A night gives the same area.
+- On `L3-a-failed-verdict-turns-into-a-fix`, `predicates.frame` and `predicates.constraint_zero` offer nothing in both shapes.
+
+### 2. The written state against a night's state
+
+`probe_1c.py` builds the defaults case in two shapes. The first shape is `index_batch` alone. The second shape adds `onboard`, so that `boot.onboard` runs first. The script then compares every table. Four tables differ:
+
+- `code_lexicon`, 0 rows against 23. Only onboarding reads the table: `pending_terms`, `_define_wakes`, `stresses` and `code.front`. Only `vision_keeper/orient` holds `code.front`. No delivery seat sees the difference.
+- `config`, 3 keys against 7. The night shape adds `created_at`, `lexicon_bigrams`, `project_branch` and `project_commit`. In a session, only the frame session reads `project_commit` (`runner.py` 6581). `compare.py` and `cli.py` read the keys for a person, not for a seat. No delivery seat sees the difference.
+- `survey_records`, 20 rows against 40. The extra rows are the term records that close the define phase in the night shape. Only `surveys.consult` and `code_gaps` read the table. The modes that hold `surveys.consult` are the four survey and blindspot modes, and no delivery mode holds it.
+- `constraints`, 1 row against 2. In the night shape, `k0` stays as a row with no bindings after every area has a survey. `constraints_for_grains` reads a constraint with no bindings as global. So on a night, `model.consult` returns `k0`, "this area has not been surveyed", for every grain set (observed: `probe_k0.py`, `['k0', 'k_d389ff']` against `['k_d389ff']`).
+
+The `k0` difference is the only difference that a seat's prompt can show. It reaches a seat only through `model.consult`. Ten Architect modes and `vision_keeper/reorient` hold that call. No Developer or Tester mode holds it. None of the 18 STALE recordings calls `model.consult` (observed: `consult.py`, 0 of 18). So a re-record of the 18 does not record it. Two `architect/structural_review` cases have `index_batch` and still replay, so their recordings do not change.
+
+Outside the points, the `k0` row on a night is probably a defect of the night, not of the fixture. `boot.refresh_constraint_zero` (`rota/onboarding/boot.py` 254 to 266) keeps the `k0` row when no coded area is left unsurveyed, and it deletes the row only when no coded area exists. So after onboarding, each night shows "this area has not been surveyed" as a global constraint to every seat that consults. The constraint's own text says that a survey removes an area from it. The fixture leaves the row out, which is the state that the text describes. PLAUSIBLE for real nights: the probe ran the night's own functions, and no night database was read. Fix: delete `k0` in `refresh_constraint_zero` when `remaining` is empty. Then the fixture matches the night.
+
+A low inconsistency: `L1-AR-a-diff-no-constraint-binds-files-k0` seeds its own `k0`, "everything in this repository no survey has reached". With `index_batch`, the fixture records a survey for every area. The seat cannot see the surveys, because `structural_review` does not hold `surveys.consult`, and the case still replays. So nothing changes now.
+
+### 3. No expected count shifts
+
+CONFIRMED. Without `onboard`, `_delivery_index` writes rows to `code_index`, the area records, `survey_records`, `config` and `challenges`. It writes no row to `constraints`, `constraint_bindings` or `ledger`. The probe shows that the fixture's `constraints` hold only the seeded `k_d389ff`. No `index_batch` case also sets `onboard`, so `boot.refresh_constraint_zero` never runs for one of them (observed: `expects.py`).
+
+The expectations of the 19 `index_batch` cases name `findings`, `batches`, `ledger` and `touch_strays`. Their forbidden writes name `constraints`, `criteria`, `items`, `tests`, `tickets`, `verdicts`, `glossary_terms` and `findings`. None of these cases counts `survey_records` or `challenges`. The grader counts the session's own writes after `snapshot_versions`, and the fixture runs before that call (`fixtures.py` 1287 to 1292). So a seeded record cannot enter a count.
+
+### 4. The STALE set
+
+CONFIRMED: 18, with the same names as at a1db0e89. `test_l1.py` and `test_l3.py` at 647c34d0 give 38 failed, 125 passed, 1 skipped and 1 xfailed. Of the reds, 18 fail `STALE`, and `diff` of the two STALE lists is empty. The other 20 are the reds that were in the 0265b414 set, and the xfail is the Terminologist case. This is the gate's expected stale line.
+
+### Findings of review 1c
+
+1. The `k0` row on a night, `rota/onboarding/boot.py` 254 to 266. Low, outside the frame. PLAUSIBLE: `probe_k0.py` shows the night shape returning `k0` from `model.consult` after every area has a survey. Fix: delete `k0` when no coded area is left unsurveyed. That is a frame of its own.
+2. The two STALE cases in `OWED`. Low. CONFIRMED in review 1b, and still open. Fix: build `repo.edit_from` with one shared Click source, then re-record both cases.
+
+Probes of review 1c, in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/66edc387-a3b2-48b8-8dec-bb5b3aa63e50/scratchpad/r326p1/`: `b647/` (the archive), `probe_1b.py`, `probe_1c.py` (the table counts in two shapes), `probe_k0.py` (`constraints_for_grains`, `model.consult` and `needs_structural_review` in two shapes), `expects.py`, `consult.py` (a read-only query of `case_runs`), and `l1l3_b647.log` with `stale_b647.txt`.
+
+Usage of review 1c: input about 40k, output about 8k, total about 48k.
