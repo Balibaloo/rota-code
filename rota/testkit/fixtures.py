@@ -877,16 +877,77 @@ def _with_repo(conn, case: dict, db_path: Path, run_no: int = 1):
             # ten-reds record, 2026-09-24).
             conn.execute("UPDATE test_runs SET commit_sha = ? "
                          "WHERE batch_id = ? AND commit_sha = 'HEAD'", (sha, batch_id))
-        # `index_batch:` indexes the batch's worktree after its commit, the
-        # call `runner._refresh_index` makes on a night. `onboard:` indexes
-        # the main checkout before the worktree exists, so a probe of a name
-        # the batch wrote came back empty (frame 326, review 1, finding 1).
-        # No onboarding here, so no constraint zero moves what a case seeds.
+        # `index_batch:` leaves the run in the state a delivery night has.
+        # `onboard:` alone indexes the main checkout before the worktree
+        # exists, so a probe of a name the batch wrote came back empty
+        # (frame 326, review 1, finding 1).
         if spec.get("index_batch"):
-            from ..onboarding import indexer
-
-            indexer.refresh(conn, tree, main=False, batch_id=batch_id)
+            _delivery_index(conn, repo.root, tree, batch_id,
+                            onboarded=bool(spec.get("onboard")))
     return repo
+
+
+def _delivery_index(conn, root: Path, tree: Path, batch_id: str, *,
+                    onboarded: bool) -> None:
+    """
+    The index and the onboarding record of a night at delivery.
+
+    A night pins the partition over main, finishes onboarding, and then
+    re-indexes the batch worktree after each Developer commit. The index
+    alone left every row in area `.` and the phase at `frame`, which holds
+    delivery and offered `tick:frame` and `tick:constraint_zero` to a chain
+    (frame 326, review 1b, finding 1). So this writes the end state of each
+    phase as a record, and not by `boot.onboard`. No lexicon is built, and
+    no constraint zero row is written, so a case's seeded constraints stay
+    the only ones.
+    """
+    from ..core import scheduler as S
+    from ..onboarding import areas as areas_mod, indexer
+    from ..roles.api import area_content_hash
+
+    if not onboarded:
+        indexer.build(conn, root)
+        areas_mod.pin(conn, areas_mod.propose(conn))
+        indexer.stamp_area_hashes(conn)
+    # The call `runner._refresh_index` makes after a Developer commit.
+    indexer.refresh(conn, tree, main=False, batch_id=batch_id)
+
+    def record(rid: str, area: str, area_hash: str = "") -> None:
+        conn.execute("INSERT OR IGNORE INTO survey_records (id, area, outcome, "
+                     "area_hash) VALUES (?, ?, 'none_found', ?)",
+                     (rid, area, area_hash))
+
+    # The frame was judged, and its re-pin already ran: a second re-pin
+    # would rebuild the lexicon and constraint zero over main.
+    record(f"system:{S.FRAME}", S.FRAME)
+    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                 "('frame_repinned', '1')")
+    for area in (S.PROGRAM, S.REORIENT, S.BLINDSPOTS, *S.prose_areas(conn)):
+        record(f"system:{area}", area)
+    # With `onboard:` too, the lexicon exists and its words are owed. A
+    # night settles each one before delivery.
+    for word in S.pending_terms(conn):
+        record(f"terminologist:{S.TERM_PREFIX}{word}", S.TERM_PREFIX + word)
+    # A survey per area and role, at the area's content now. Constraint
+    # zero then binds no grain, and `tick:constraint_zero` stays quiet.
+    areas = [r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL")]
+    for area in areas:
+        for role in S.survey_order():
+            record(f"{role}:{area}", area, area_content_hash(conn, area))
+    if onboarded:
+        # `boot.onboard` bound constraint zero to every coded area, and the
+        # surveys above now cover each one.
+        from ..onboarding import boot
+
+        boot.refresh_constraint_zero(conn)
+    for rel in S.boundary_subjects(conn):
+        record(f"architect:{S.SURFACE_PREFIX}{rel}", S.SURFACE_PREFIX + rel)
+    # The Critic challenged every load-bearing claim during onboarding. Only
+    # the Critic's onboarding ops read the table, so no delivery seat sees it.
+    for subject in S.challenge_subjects(conn):
+        conn.execute("INSERT OR IGNORE INTO challenges (id, verdict) "
+                     "VALUES (?, 'stands')", (subject,))
 
 
 # ---------------------------------------------------------------------------

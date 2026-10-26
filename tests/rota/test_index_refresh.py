@@ -556,3 +556,33 @@ def test_a_refresh_that_works_ends_the_note_the_failed_one_left(world):
                       ).fetchone() is None, "a refresh that worked clears it"
     assert _probe(db, "echo_json", batch_id="b1") == [], \
         "an empty probe with a current index is a read that found nothing"
+
+
+def test_index_batch_leaves_the_run_in_a_delivery_nights_state(tmp_path):
+    """Frame 326, review 1b, finding 1. The batch index alone put every row
+    in area `.` and left the phase at `frame`, which holds delivery. The
+    fixture now writes the end state of a night's onboarding."""
+    from rota.core import predicates, scheduler
+    from rota.testkit import fixtures
+
+    case = {"id": "index-batch", "repo": {
+        "batch": "b1", "index_batch": True, "message": "close an account",
+        "edit": {"src/billing/accounts.py":
+                 "def close_account(account_id):\n    return account_id\n"}}}
+    db = init_db(tmp_path / "case.db")
+    fixtures.seed(db, {"items": [{"id": "i1", "text": "close an account",
+                                  "kind": "in_scope", "approval": "approved",
+                                  "approval_ver": 1, "version": 1}],
+                       "batches": [{"id": "b1", "item_id": "i1",
+                                    "status": "running"}]})
+    repo = fixtures._with_repo(db, case, tmp_path / "case.db")
+    try:
+        row = db.execute("SELECT area, line_start FROM code_index WHERE grain = "
+                         "'src/billing/accounts.py::close_account'").fetchone()
+        assert row is not None, "the batch's own definition is indexed"
+        assert row["area"] == "src/billing", row["area"]
+        assert scheduler.onboarding_phase(db) == "done"
+        assert predicates.frame(db) == []
+        assert predicates.constraint_zero(db) == []
+    finally:
+        gitfixture.cleanup(repo)
