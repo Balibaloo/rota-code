@@ -73,3 +73,25 @@ The implementer's note is right. Scenario B, an answer that leaves out c_2 after
 - Input tokens: about 25k more for this pass, an estimate.
 - Output tokens: about 5k, an estimate.
 - Total for review 1 and 1b: about 146k, an estimate.
+
+## Review 1c at 9b60957d
+
+**Verdict: accept 9b60957d for the branch.** Finding 5 is built and confirmed. No new finding. The deviation is right. `respecify_refused` keeps only the last refusal of each criterion, so a later refusal of another kind would erase the twin, and scenario F shows that case.
+
+### (a) The three checks
+
+1. CONFIRMED. On the night 166 copy, scenarios C and D are refused again with "No respecify of ... has landed in this session". Scenario E stays refused. Scenario A, the s194 replay, still lands its answer. In scenario B, the answer without c_2 is refused, and the full answer then lands.
+2. CONFIRMED. The flag is set on the `ValueError` in `_near_twin` (api.py 6663 to 6667), only on the respecify branch. `_respecify_record` (sandbox.py 1733 to 1738) adds the id to `ctx.respecify_twinned`, and no code removes it. In scenario F, a twin refusal of c_2 is followed by a refusal for a bad argument, an "about the tests" refusal, a `glossary.lookup` and the challenge. The answer then lands. In scenario G, a different fact for c_2 lands after the twin refusal, and the answer lands. In scenario H, the challenge names c_1 only, and the answer is still refused. The ctx lives for the whole session, because `run_session` builds one sandbox. The `dry_run` of the follow check snapshots and restores a set, so a dry run leaves no flag. `dry_run` runs only in the case harness.
+3. CONFIRMED. `_ruling_answer_refusal` (sandbox.py 1627) is the only reader of `respecify_twinned` and of `criterion_twin`. No test and no other module reads either name.
+
+### (b) Probes
+
+- `replay2.py`, scenarios A to H, on 9b60957d. The tree was extracted with `git archive` and is deleted.
+- `pytest` on 9b60957d: the five touched files gave 421 passed.
+- `git status` in `C:/Users/roman/rota_p329`: clean.
+
+### (c) Usage
+
+- Input tokens: about 20k more for this pass, an estimate.
+- Output tokens: about 4k, an estimate.
+- Total for reviews 1, 1b and 1c: about 170k, an estimate.
