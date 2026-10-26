@@ -1212,6 +1212,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 25, row 4, pushed from its read (reasoned: `plans/night168-read.md`, section 5; frame 306's sign, frame 278 parked beside it).
 - Pointer: `plans/c3-relay-provenance.md`; m50, m57, s156, s157, s165, s166 in `.rota/clickI_night168.db`.
 - Status 2026-10-26 19:40 (rota-af): Pushed from the C3 read on Opus, 116k on the harness line against 50k. Held by this session, peer name rota-af. Pass 1 runs on a fresh implementer on Opus, cap 40k, in the worktree rota_p338 at the branch tip. Rota workflow.
+- Status 2026-10-26 19:46 (rota-af): **Pass 1 built on Opus, 72k on the harness line against 40k, at eb3439ea in rota_p338: the relay split drops an approved test row as it drops an approved criterion, a test row with no verdict keeps frame 213's route, park_criterion_relay and the mode key unchanged; the night 168 test red on HEAD and green after, 14 nearby relay files green** (observed: f338_pass1.md in this session's scratchpad). One med question: with an item row on the page, the split also sends an approved item to the Vision Keeper on HEAD and after; the fixture has no item row, as the record quotes none, and the item route is not this frame's. The review reads it. Cycles: 2 of 1. Rota workflow.
 
 ### 337. The naming door reads his last reply only, so a contest that rests on his earlier answer to the same page is refused, and the ruling then approves the line he called wrong (2026-10-26) (ac089aa1)
 
