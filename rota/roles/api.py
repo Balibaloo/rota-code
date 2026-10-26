@@ -10691,7 +10691,21 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                              "batch_id": batch_id}))
     done = [w for w in ctx.writes
             if w[0] == "tests" and w[2].get("criterion_id") == criterion_id]
-    if done and not replaces:
+    # Frame 328, night 167: the encode note told s271 to encode tst_tk3
+    # again with the same id. The stored-row check above does not see a test
+    # staged in this session, so three right re-encodes came back unchanged
+    # and the red version landed. After the note, the same id replaces the
+    # session's own staged test. A same body is still no change.
+    own = next((w for w in done if prior is None and w[1] == id
+                and w[2].get("batch_id") == batch_id
+                and w[2].get("path") == path), None)
+    noted = own is not None and (batch_id, criterion_id, path) in (
+        getattr(ctx, "encode_noted", None) or set())
+    if noted and (own[2].get("body") or "").rstrip() == body.rstrip():
+        return {"id": id, "unchanged": True,
+                "note": "identical to the test this session already encoded, "
+                        "so nothing was written and no version moved."}
+    if done and not replaces and not noted:
         return {"id": done[0][1], "unchanged": True,
                 "note": f"{criterion_id} already has a test this session "
                         f"({done[0][1]}), and one criterion takes one. Nothing "
@@ -10765,6 +10779,19 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         raise Wall(_past_run)
     if invented_note:
         _stage_ledger(ctx, criterion_id, "criteria", invented_note, "invented")
+    if noted:
+        # law 14: a re-emitted act is the same row, never a new one
+        # One staged write per id. The version is explicit, because the
+        # commit INSERTs a new row at version 1.
+        version = int(own[2].get("version") or 1) + 1
+        ctx.writes[:] = [w for w in ctx.writes if w is not own]
+        ctx.writes.append(("tests", id, {
+            "batch_id": batch_id, "criterion_id": criterion_id,
+            "path": path, "body": body, "version": version}))
+        return {"id": id, "version": version, "note": " ".join(
+            [f"{id} replaces the version this session encoded before the "
+             f"note, and it lands as version {version} when the session "
+             f"commits."] + _run_notes)}
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": criterion_id,
         "path": path, "body": body}))
@@ -17415,6 +17442,10 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
                 if notes is not None and _developer_committed(ctx, batch_id)
                 else [])
         if held:
+            # Night 167, s271: the note asks for a re-encode with the same
+            # id, so `tests.encode` must know that this test got the note.
+            ctx.encode_noted = (getattr(ctx, "encode_noted", None)
+                                or set()) | {(batch_id, criterion_id, path)}
             runs = " ".join(
                 f"The run of {('`' + h['name'] + '`') if h['name'] else 'this body'}"
                 f" on the batch's head fails at line {h['line']}, "

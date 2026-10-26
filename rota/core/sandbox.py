@@ -1283,6 +1283,26 @@ def _span_of(quote: str, source: str, floor: int = QUOTE_MIN) -> bool:
     return False
 
 
+_ESCAPE = re.compile(r"\\(?:x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4})|([0-7]{3}))")
+
+
+def _unescaped(s: str) -> str:
+    """The text with each `\\xNN`, `\\uNNNN` and `\\NNN` read as its one
+    character. Frame 328, night 167: tst_tk3 holds the raw ESC byte, and
+    a seat can only type its escape form."""
+    def _one(m: re.Match) -> str:
+        hexa, uni, octal = m.groups()
+        return chr(int(hexa or uni, 16) if (hexa or uni) else int(octal, 8))
+    return _ESCAPE.sub(_one, s or "")
+
+
+def _escaped_view(s: str) -> str:
+    """The text with each control character shown as `\\xNN`, so that a
+    refusal can show a raw byte."""
+    return "".join(f"\\x{ord(ch):02x}" if ord(ch) < 32 and ch not in "\n\t"
+                   else ch for ch in s)
+
+
 def _quote_list(text: str, quotes=None) -> list[str]:
     """The quotes of a challenge, one string per quote.
 
@@ -1318,6 +1338,15 @@ def _quote_refusal(row: str, table: str, quote: str, crit: str,
         said = f"quotes= holds no span of the live text of {row}."
     if table == "tests":
         said += " A comment of the test does not count."
+        # Frame 328, pass 3: the refusal names the form the door compared,
+        # so a seat sees that an escape and its raw byte are one character.
+        read = " ".join(_unescaped(quote).split())
+        if quote and read != " ".join(quote.split()):
+            said += (f" The door reads `\\xNN`, `\\uNNNN` and `\\NNN` as one "
+                     f"character and each whitespace run as one space, on "
+                     f"both sides. Read that way, the quote is "
+                     f"`{_escaped_view(read)}`, and the code of {row} holds "
+                     f"no such span.")
     return (f"{said} Quote, not paraphrase: copy a contiguous span of each "
             f"row, verbatim, from the rows in front of you. Send quotes as a "
             f"list of two strings: one copied from {crit}, one copied from "
@@ -1540,9 +1569,15 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
         crit_words = [rows[crit[0]][1]] + siblings
         code = _code_only(rows[test[0]][1])
 
+        # Frame 328, night 167: s284 and s286 quoted tst_tk3's line with
+        # `\x1b` and `\u001b`, and the row holds the raw ESC byte. The test
+        # half reads each escape as its one character on both sides. The
+        # criterion half stays strict.
         def _cites(q: str, floor: int = QUOTE_MIN) -> tuple[bool, bool]:
+            c = _code_only(q)
             return (any(_span_of(q, s, floor) for s in crit_words),
-                    _span_of(_code_only(q), code, floor))
+                    _span_of(c, code, floor)
+                    or _span_of(_unescaped(c), _unescaped(code), floor))
 
         # Review 1, finding 2: a quote of a few characters pays no reading.
         short = next((q for q in quotes
