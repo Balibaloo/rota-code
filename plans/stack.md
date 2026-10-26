@@ -32,21 +32,20 @@ every row of the sprint is built and gated, by his ruling of 19:3x on
 1. Frame 340, the status tool's two gates of C76. 2 cycles. Runs.
 2. Frame 339, the removal door records a stray for the Architect, frame
    286's route. 3 cycles. Night 170's blocker. Runs.
-3. Frames 337, 338 and 322, moved up on the closed-frame reads: his
-   ruling on a ref cost twelve frames in two weeks and has about 20
-   readers at head, so the one reader of the `rulings` row closes the
-   most (observed: `plans/closed-reach-2026-10-26.md`). See row 5's text.
-4. Frame 330, `stopped_bouncing` reads `given_up`, 1 of 10 stalled keys
-   to 10 of 10; night 169 stalled on `batch_start`. 4 cycles.
-5. Frame 335, `_render` shows nested text plainly and one escape helper
-   serves the three refusals and `code.write`, 4 of 10 to 10 of 10. 3
-   cycles.
-5a. Row 3's text. Frames 337, 338 and 322, one group by the cross-frame match: one
+3. Frames 337, 338 and 322, one group by the cross-frame match: one
    reader of the `rulings` row, 337's `words` built once from his
    converse answers the general one, 338's `ruled_rows` and 322's item
    reader read that row by key; it takes the 11 phrase readers of frame
    339's reach. 7 cycles in three passes, 339 first because 322 widens
    `_ruling_texts`.
+   Moved up on the closed-frame reads: his ruling on a ref cost twelve
+   frames in two weeks and has about 20 readers at head, so this reader
+   closes the most (observed: `plans/closed-reach-2026-10-26.md`).
+4. Frame 330, `stopped_bouncing` reads `given_up`, 1 of 10 stalled keys
+   to 10 of 10; night 169 stalled on `batch_start`. 4 cycles.
+5. Frame 335, `_render` shows nested text plainly and one escape helper
+   serves the three refusals and `code.write`, 4 of 10 to 10 of 10. 3
+   cycles.
 6. Frame 329, the same fix and one brief sentence, with `quotes=` on
    the offered call, or it makes a new case of 333's problem. 2 cycles.
 7. Frame 336, one `error_line()` in the harness for all four readers,
