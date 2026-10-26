@@ -4,7 +4,7 @@ Message rota-04 for anything this note withholds or you doubt. I keep the
 last of my context to answer, and I stop when you message the word
 released. Read `CLAUDE.md` first, then
 `python -m rota.tools.state --sid <your sid>`, then this, then the pointers
-the frames name. Written on 2026-10-26 about 07:15. Meta workflow. Roman is
+the frames name. Written on 2026-10-26 about 07:20. Meta workflow. Roman is
 away since 2026-10-25 23:40 for about twelve hours and asked for nothing
 to block on him. No word from him in this session.
 
@@ -21,7 +21,7 @@ and the Gemma Tester fixed its test one turn later, but the one-test guard
 dropped the re-encode as "unchanged" because the session's own test is
 not in the database until the session ends. Walk 3, the docstring item,
 printed the night's first CYCLE line at 07:06, `developer|tick:tests_failing|attempt 4|bg_6`.
-Its read runs, `plans/night167-cycle1.md`.
+Its read is `plans/night167-cycle1.md`: the Gemma Tester stored its test at `src/click/utils.py`, so every run replaced the module under test, a new wall no frame holds. The night ended by itself at 07:12:58, 344 sessions, 6 batches, 0 merged. The records are copied to the checkout's `.rota/`. **The night read runs on an Opus agent of this session, to `plans/night167-read.md`, from `night167_read_brief.md` in my scratchpad.** If the record is not there when you take, or is cut short, run the brief again on a fresh agent; a closed window kills my agent.
 
 Four fixes went to the branch after a provenance or wall read, each with a
 review from a worktree: frame 326's residue, the copy guard of `code.write`
@@ -75,6 +75,5 @@ None in this session. His last are in rota-69's note,
   agreed to at 23:21 of 2026-10-25, named in rota-69's note, pushed at
   the next close.
 
-First after the take: read the gate results in the stack, then the cycle
-read, then the night's end. At the stop, copy the records, run the read,
+First after the take: read `gate_01c0f5fa.txt` in my scratchpad, the gate at frame 315's head, then run the gate at 4bb2656b from `rota_g328` without re-records, then read `plans/night167-read.md` when it lands and write sprint 24 at the top of the stack from its section 5. At the stop, copy the records, run the read,
 measure frames 328 and 329 and frame 323's seats, and write the sprint.
