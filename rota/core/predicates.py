@@ -1055,7 +1055,7 @@ def exhausted(conn) -> list[Wake]:
         " GROUP BY batch_id"
     ).fetchall()
 
-    from .scheduler import stop_detail, stopped_bouncing
+    from .scheduler import failing_attempt, stop_detail, stopped_bouncing
 
     wakes = []
     for r in rows:
@@ -1067,7 +1067,8 @@ def exhausted(conn) -> list[Wake]:
         if role:
             wakes.append(Wake(role, "tick:exhausted", refs=(r["bid"],),
                               detail=stop_detail(conn, r["bid"])
-                              or f"attempt {r['att']} of {cap}"))
+                              # The gate's own count, so the text is true.
+                              or f"attempt {failing_attempt(conn, r['bid'])} of {cap}"))
     return wakes
 
 

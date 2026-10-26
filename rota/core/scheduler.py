@@ -1727,7 +1727,10 @@ def stopped_bouncing(conn: sqlite3.Connection, batch_id: str) -> bool:
     Law 6 says "Budget exhaustion escalates one rung" and "It is never
     silence". The key's cap of 3 can run out below `loop_cap`, and then no
     rule read it (frame 330, night 168). `exhausted` and `parked` read this
-    one check, so the ladder climbs and the park frees the seat.
+    one check, so the ladder climbs and the park frees the seat. A
+    quarantine below the cap spends the ladder for a later `loop_cap` too,
+    which is accepted because the park defers the batch and the ladder
+    climbs once per batch.
     """
     from . import config
 
@@ -2285,8 +2288,9 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     # Roman, 2026-09-27). Night 94 resumed `bg_1` with its `tests_failing` key
     # quarantined, nothing woke on it, and `bg_2` never started (observed:
     # night 94, 2026-09-25). A head commit lifts the key in
-    # `db._lift_quarantines`, and that ends the park. A running batch keeps the
-    # old test, so this changes no preempt of a running batch.
+    # `db._lift_quarantines`, and that ends the park. A running batch parks
+    # through `stopped_bouncing`: at `loop_cap`, or with its quarantined key
+    # (frame 330).
     status = conn.execute("SELECT status FROM batches WHERE id = ?",
                           (batch_id,)).fetchone()
     if status and status["status"] == "deferred" and given_up(conn, batch_id):

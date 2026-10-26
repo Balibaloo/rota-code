@@ -73,6 +73,21 @@ def test_a_running_batch_at_the_cap_still_wakes_the_first_rung(night_168):
     night_168.execute("DELETE FROM tick_attempts")
     night_168.execute("UPDATE test_runs SET attempt = 10")
     assert _ladder(night_168) == [("developer", "tick:exhausted", ("batch_1",))]
+    # Review finding 2: a later run of a shared test id in another batch
+    # hid attempt 10 from the detail, and the gate still read it.
+    night_168.execute("UPDATE test_runs SET attempt = 4 WHERE id = 'r_2'")
+    night_168.execute("INSERT INTO test_runs (id, batch_id, test_id, result, attempt) "
+                      "VALUES ('r_b2', 'batch_2', 'tst_crit_1', 'error', 4)")
+    assert [w.detail for w in P.exhausted(night_168)] == ["attempt 10 of 10"]
+
+
+def test_a_rung_still_owed_keeps_law_9_s_preempt(night_168):
+    """Review finding 1: law 9's preempt of a quarantined running batch.
+    With a rung owed `preempt` does not park, so a higher priority wins."""
+    night_168.execute("UPDATE items SET priority = 9 WHERE id = 'i_2'")
+    _asked(night_168, "developer")
+    (wake,) = P.preempt(night_168)
+    assert (wake.kind, wake.refs) == ("do:preempt", ("batch_1", "batch_2"))
 
 
 def test_a_running_batch_below_the_cap_with_no_quarantine_wakes_nothing(night_168):
