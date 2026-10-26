@@ -3,6 +3,10 @@
 # criteria turn on 4 of 4 nights (`plans/frame322-we-read.md`, section 4).
 
 - id: L1-TE-a-docstring-ticket-gets-a-docstring-criterion
+  # The night's Terminologist model. qwen3:8b sent a behaviour criterion
+  # and a Vision Keeper challenge in one reply on 10 of 10 live runs at
+  # 44137683, 2026-10-26; qwen3.5:9b passed on its first recording.
+  model: qwen3.5:9b
   tier: T1
   role: terminologist
   runs: 5
