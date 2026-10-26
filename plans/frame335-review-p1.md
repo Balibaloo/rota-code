@@ -40,3 +40,25 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/ac089a
 ## (d) Usage
 
 The harness gives no split into input and output tokens. Its counter fell from 15,000,000 to about 14,900,000, so the review used about 100k tokens in total. That is over the 60k cap. No sub-agent ran.
+
+## Review 2 of 0404c4f4
+
+Date: 2026-10-26. Commit `0404c4f4` on `b0f06d41`, read in `C:/Users/roman/rota_r335`. Probe: `test_probe_r2.py` in the probe folder above. `test_frame335_escape.py` and `test_frame328_path_door.py` give 26 passed.
+
+**Stands: both high findings of review 1 are closed, and two low faults stay in the advice text.**
+
+1. Stands. The `ImportError` and the `AttributeError` with `Did you mean:` now keep the text of pytest and get no escape advice. Probe `test_notes`.
+2. Stands. Probe `test_advice` gave this advice:
+   - `"C:\Users\x\AppData\Roaming"`: "Write the path with forward slashes: `"C:/Users/x/AppData/Roaming"`. The raw string `r"C:\Users\x\AppData\Roaming"`, with one backslash, also comes through the call unchanged."
+   - `"C:\Roaming\new"`: "Write the path with forward slashes: `"C:/Roaming/new"`."
+   - `"C:\Roaming\temp"`: "Write the path with forward slashes: `"C:/Roaming/temp"`."
+   - The record's line gives both forms. A regex `"\d+\.\w"` gets the raw form `r"\d+\.\w"` only.
+   - `_call_keeps` refused `r"C:\Users\new"`, so the advice drops that raw form.
+3. Only the forward-slash form for `C:\Users\new`. The doubled, the quadrupled, the `\x5c` and the raw forms all fail `_call_keeps`. Two forms come through both paths with a real backslash in the value: `"C:" + chr(92) + "Users" + chr(92) + "new"` and `str(PureWindowsPath("C:/Users/new"))`. Probe `test_keeps` gave `True` for both. Low. Fix: when no raw form comes through, name the `chr(92)` form after the forward-slash form, for a criterion about a backslash.
+4. A fault, low, worth one line now. `"\777"` gets "Write it with forward slashes: `"/777"`", and that text gives a wrong value. The same branch serves any string that is not a path. Fix: when the string is not a path and no raw form comes through, say "write the value with no backslash" and name no form.
+5. Stands. Against a criterion with one backslash, the quote with `\\` passes both halves, and a quote off the row with `\\` is refused. Probe `test_crit_half`. The criterion refusal does not name the `\\` reading, as open question 3 of the pass says.
+6. One new fault, low, CONFIRMED. `_PATH_TEXT` reads `"\R"` alone as a path. Probe `test_advice[sep_R]` gave "Write the path with forward slashes: `"/R"`" first, which changes the value. Fix: ask `_PATH_TEXT` for two names or a drive before it reads a string as a path. Low, PLAUSIBLE: `api.py` 17487 is the first import of `rota.llm` by `rota/roles/api.py`, and it is local to avoid a cycle. No CR byte, no `print` and no bare `except` in the diff. The `except Exception` in `_call_keeps` carries its reason.
+
+Open findings after review 2: med 1, the triple mark in the fallback (finding 6 of review 1, ruled out of this frame). Low 4: point 3, point 4, the `\R` path, and finding 7 of review 1.
+
+Usage, review 2: the harness gives no split. Its counter fell from about 14,902,000 to about 14,880,000, so review 2 used about 22k tokens, and the two reviews used about 120k.
