@@ -5020,6 +5020,40 @@ def test_a_seventh_criterion_on_one_ticket_is_refused(db):
                 text="echo_json also serialises datetimes as ISO 8601 strings", term_refs=[], surface_refs=[])
 
 
+def test_a_staged_respecify_takes_no_second_seat_under_the_cap(db):
+    """Frame 329: a respecify stages no `ticket_id`. Its row on file holds
+    the seat when the row is live, and a retired row holds none, so a
+    rewrite of either moves the count by nothing."""
+    from rota.roles import prompts
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('i9','echo json','in_scope','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','add echo_json next to echo')")
+    texts = ["echo_json accepts an object and prints it",
+             "the indent argument defaults to two spaces",
+             "nested lists keep their order in the output",
+             "a None value prints as the JSON literal null",
+             "the output ends with one newline"]
+    for k, text in enumerate(texts):
+        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES (?, 'tk9', ?)",
+                   (f"c9_{k}", text))
+    db.execute("INSERT INTO criteria (id, ticket_id, text, retired_by) VALUES "
+               "('c9_old', 'tk9', 'echo_json colours its keys', 'r_drop')")
+    db.commit()
+    allow = prompts.mode_tools("terminologist", "criteria") + ["criteria.respecify"]
+    sb = build("terminologist", db, mode="criteria", allow=allow)
+    sb.call("criteria.respecify", id="c9_0",
+            text="echo_json accepts a dict and prints it as JSON", surface_refs=[])
+    sb.call("criteria.respecify", id="c9_old",
+            text="echo_json prints keys in the order they were given", surface_refs=[])
+    sb.call("criteria.specify", id="c9_5", ticket_id="tk9",
+            text="strings with quotes are escaped as JSON requires",
+            term_refs=[], surface_refs=[])
+    with pytest.raises(ValueError, match="six is many"):
+        sb.call("criteria.specify", id="c9_6", ticket_id="tk9",
+                text="echo_json also serialises datetimes as ISO 8601 strings",
+                term_refs=[], surface_refs=[])
+
+
 def test_a_span_whose_own_lines_do_not_parse_is_told_which_line(db, tmp_path):
     """clickI night 40 (2026-09-13): the fragment ended with a dangling
     `def echo(` copied from the file to show where it goes, and the refusal

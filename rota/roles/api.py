@@ -5666,6 +5666,24 @@ def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -
             f"names or the one the existing callables live in")
 
 
+def _staged_ticket(ctx: Ctx, w) -> str | None:
+    """
+    The ticket of a staged criteria write. A respecify stages no
+    `ticket_id`, so the row on file names the ticket. Night 166's s194 wrote
+    one text into two rows of one ticket, and no door saw the first (frame
+    329). A retired row has no ticket here: a retired row is no twin, as in
+    `_near_twin` (frame 306, pass 2, finding 6).
+    """
+    from ..core.scheduler import live_criteria
+
+    if "ticket_id" in w[2]:
+        return w[2]["ticket_id"]
+    row = ctx.conn.execute("SELECT ticket_id FROM criteria WHERE id = ?"
+                           + live_criteria(ctx.conn, "retired_by"),
+                           (w[1],)).fetchone()
+    return row["ticket_id"] if row else None
+
+
 def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     """
     The exact-twin refusal. It names each sibling ticket with no criterion
@@ -5816,7 +5834,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     twin = next((w[1] for w in ctx.writes
                  if w[0] == "criteria" and isinstance(w[2], dict)
                  and " ".join(w[2].get("text", "").lower().split()) == words
-                 and w[2].get("ticket_id") == ticket_id), None) or (
+                 and _staged_ticket(ctx, w) == ticket_id), None) or (
         lambda r: r["id"] if r else None)(ctx.conn.execute(
             "SELECT id FROM criteria WHERE ticket_id = ? AND "
             "lower(trim(text)) = ?"
@@ -5845,6 +5863,9 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     existing = {r["id"] for r in ctx.conn.execute(
         "SELECT id FROM criteria WHERE ticket_id = ?"
         + live_criteria(ctx.conn, "retired_by"), (ticket_id,))}
+    # A staged respecify takes no seat here. Its row is on file, so the read
+    # above counts it when it is live. A staged read of its ticket would
+    # seat a retired row (frame 329).
     existing |= {w[1] for w in ctx.writes
                  if w[0] == "criteria" and w[2].get("ticket_id") == ticket_id}
     # A retire staged in this session frees its seat too. Night 163's relay
@@ -6588,13 +6609,18 @@ def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
     mine = set(_prose_words(text or ""))
     if not mine:
         return
-    others = [(w[1], w[2].get("text", "")) for w in ctx.writes
+    # A staged text replaces the text on file for its id. Without it, the
+    # old words of a row that this session rewrote refuse a right call
+    # (frame 329, repair R).
+    staged = {w[1]: w[2]["text"] for w in ctx.writes
               if w[0] == "criteria" and isinstance(w[2], dict)
-              and w[2].get("ticket_id") == ticket_id]
+              and "text" in w[2] and _staged_ticket(ctx, w) == ticket_id}
+    others = list(staged.items())
     from ..core.scheduler import live_criteria
     others += [(r["id"], r["text"]) for r in ctx.conn.execute(
         "SELECT id, text FROM criteria WHERE ticket_id = ?"
-        + live_criteria(ctx.conn, "retired_by"), (ticket_id,))]
+        + live_criteria(ctx.conn, "retired_by"), (ticket_id,))
+        if r["id"] not in staged]
     for other_id, other_text in others:
         if other_id == skip:
             continue
@@ -6605,11 +6631,23 @@ def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
         # Near-verbatim only; the size of a ticket's criteria is the
         # brief's sentence, not this door's.
         if theirs and len(mine & theirs) >= 0.85 * len(mine | theirs):
-            raise ValueError(
-                f"this says what {other_id} says, in nearly the same words "
-                f"({other_text[:80]!r}). One criterion per thing that must "
-                f"be true; a second sentence for the same thing is a second "
-                f"test of one fact")
+            said = (f"this says what {other_id} says, in nearly the same words "
+                    f"({other_text[:80]!r}). One criterion per thing that must "
+                    f"be true; a second sentence for the same thing is a "
+                    f"second test of one fact")
+            if skip is None:
+                raise ValueError(said)
+            # A rewrite needs a way out that is not a second copy. Night
+            # 166's s194 had only the rewrite. The tail names no retire:
+            # law 6 rules nothing on his behalf, and `criteria.retire` is
+            # for his drop words only (frame 329, repair R2).
+            out = (f". {other_id} holds this fact already. Write a fact "
+                   f"that this line alone holds")
+            if "msg.challenge_vision_keeper" in _wake_mode_tools(ctx):
+                out += (f". If the principal's words give {skip} no fact of "
+                        f"its own, send msg.challenge_vision_keeper with "
+                        f"{skip}")
+            raise ValueError(said + out)
 
 
 @op("criteria", "respecify")

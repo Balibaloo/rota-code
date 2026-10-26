@@ -52,11 +52,13 @@ def test_a_respecify_into_another_criterions_words_is_refused(db):
 
 
 def test_the_refusal_is_the_text_of_specify(db):
+    """The respecify refusal opens with the text of specify. Frame 329's
+    repair R2 adds a tail that names the acts of the repair mode."""
     respecify = _refusal(db, "criteria.respecify", "criterion_repair",
                          id="c3", text=TWIN, surface_refs=["clear"])
     specify = _refusal(db, "criteria.specify", "criteria", id="c4",
                        ticket_id="tk1", text=TWIN, surface_refs=["clear"])
-    assert respecify == specify
+    assert respecify.startswith(specify)
 
 
 def test_a_respecify_close_to_its_own_old_words_is_no_twin(db):
