@@ -17,22 +17,16 @@ with no enrolment gets its session id in the line and a warning. The tool
 never refuses a status line for a missing name (ruled: Roman, 2026-10-18
 02:25, "enabling not inhibiting").
 
-Two gates enforce rule C76 of `plans/method/reference.md`: an issue is
-read, and its reach counted, before it is fixed (ruled: Roman, 2026-10-26
-about 21:17). Fourteen frames fixed 0 of 14 at the source while the rule
-was a reminder (observed: `plans/agency-prevalence-2026-10-26.md`). So
-the tool refuses a pass line on a frame with no `- Reach:` line. It also
-refuses a close while the last Reach line reads fewer places than its
-count, or reads no count. `--force-close` passes the second gate and
-writes its reason into the line. Nothing passes the first gate. A
-`--ruling` body is his words, so no gate refuses it and no flag forces it.
-
-The night count of C76 step 7 stays a rule and is not a gate. The close
-refusal names it as a reminder only (reasoned: frame 340, pass 2).
+The tool refuses a time that is not from the clock and a frame that the
+stack does not hold. It refuses nothing else. The `- Reach:` line of rule
+C76 is read by `state`, and the session applies the rule. "No don't make
+it a hard rule, the model should be smart enough to do it" (ruled: Roman,
+2026-10-26 about 22:5x). So no pass line and no close is refused for its
+Reach line.
 
 Exit codes: 0 the line is written and committed, or written with
 `--no-commit`; 1 the line is written and the commit failed; 2 a usage
-error, a frame that the stack does not hold, or a refusal of a gate.
+error or a frame that the stack does not hold.
 """
 from __future__ import annotations
 
@@ -44,50 +38,6 @@ from datetime import datetime
 from pathlib import Path
 
 from rota.tools import handover, state
-
-
-# A word of read, review or gate exempts nothing. Each of the 23 live pass
-# lines of 2026-10-26 held one, and an exemption let all 23 pass
-# (observed: plans/frame340-review-p1.md, finding 1).
-PASS_LINE = re.compile(r"\bPass \d+[a-z]?\b|\bimplementer\b.{0,80}\bruns\b",
-                       re.IGNORECASE)
-# Each close of 2026-10-26 starts "**Met on night", and a list of closed
-# words alone missed it (observed: plans/frame340-review-p1.md, finding 2).
-CLOSE_LINE = re.compile(
-    r"^\s*(?:\*\*)?\s*(?:closed\b|closes\b|met on night\b|met,|popped\b|pops\b)"
-    r"|closes on night|to plans/archive/stack-", re.IGNORECASE)
-COUNT = re.compile(r"^(\d+)\s+of\s+(\d+)\b")
-WANT_REACH = '"- Reach: <k> of <N>, <where the gap is>"'
-FORCE = 'give --force-close "<reason>"'
-NIGHT = "and the night count in the body"
-
-
-def gate(frame: str, block: list[str], body: str) -> tuple[str, str]:
-    """The gate a body meets and its refusal, or two empty strings.
-
-    The gate is "pass" or "close". The pass gate comes first, so a close
-    that is also a pass line on a frame with no Reach line meets it.
-    """
-    reach = state.reach_line(block)
-    if reach is None and PASS_LINE.search(body):
-        return "pass", ("frame %s has no Reach line. Write %s after the Waits on "
-                        "line before any pass." % (frame, WANT_REACH))
-    if not CLOSE_LINE.search(body):
-        return "", ""
-    if reach is None:
-        return "close", ("frame %s has no Reach line, so no count shows its reach. "
-                         "Write %s before the close, %s, or %s."
-                         % (frame, WANT_REACH, NIGHT, FORCE))
-    m = COUNT.match(reach)
-    if not m:
-        return "close", ("frame %s: the Reach line carries no count. Write %s "
-                         "before the close, %s, or %s." % (frame, WANT_REACH, NIGHT, FORCE))
-    if int(m.group(1)) < int(m.group(2)):
-        return "close", ("frame %s has Reach %s of %s. Close it when the Reach line "
-                         "reads %s of %s, %s, or %s."
-                         % (frame, m.group(1), m.group(2), m.group(2), m.group(2),
-                            NIGHT, FORCE))
-    return "", ""
 
 
 def _clock() -> datetime:
@@ -208,9 +158,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--stack", default=None, help="the stack, plans/stack.md by default")
     p.add_argument("--no-commit", action="store_true",
                    help="write the line and commit nothing")
-    p.add_argument("--force-close", default=None, metavar="REASON",
-                   help="close a frame below its Reach count. The reason goes "
-                        "in the line as (forced: REASON)")
     return p
 
 
@@ -257,30 +204,6 @@ def main(argv: list[str] | None = None) -> int:
     if not body:
         print("the body is empty, so no line was written.", file=sys.stderr)
         return 2
-    force = None
-    if args.force_close is not None:
-        if args.ruling is not None:
-            print("--force-close never applies to --ruling, so no line was written.",
-                  file=sys.stderr)
-            return 2
-        force = one_line(args.force_close)
-        if not force:
-            print("--force-close needs a reason, so no line was written.",
-                  file=sys.stderr)
-            return 2
-    if args.ruling is None:
-        bare = [r.rstrip("\r") for r in text.split("\n")]
-        found = [f for f in state.parse(bare, bounded=False)
-                 if f.number == str(args.frame)]
-        kind, refusal = gate(args.frame, found[0].lines, body) if found else ("", "")
-        if kind == "close" and force is not None:
-            body += " (forced: %s)" % force
-        elif kind:
-            print(refusal, file=sys.stderr)
-            return 2
-        elif force is not None:
-            print("WARNING: the close gate does not refuse this body, so "
-                  "--force-close is not written.")
 
     name = peer_name(stack, sid)
     if not name:
