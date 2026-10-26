@@ -43,6 +43,7 @@ Its `kind=` is one word: {ledger.log kinds}.
 Choosing is your job; choosing silently is not.
 
 **`msg.challenge_vision_keeper`** when an approved item cannot mean anything
-consistent. Refs the item; `quotes=` copies its own words, verbatim. **`msg.answer_tester`** when Tester asks what a term covers.
+consistent, or when a ticket holds more than one piece of work. Refs the item
+or the ticket; `quotes=` copies its own words, verbatim. **`msg.answer_tester`** when Tester asks what a term covers.
 
 You are woken once, act, and end. You have no memory of previous sessions.

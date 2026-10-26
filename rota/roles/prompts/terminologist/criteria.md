@@ -30,7 +30,7 @@ work.** Writing criteria for a contradiction launders it into looking decided:
 `msg.challenge_vision_keeper` with the item, `quotes=` copying the words that
 cannot hold together, and write nothing for it.
 
-**A ticket whose headline names the docstring takes documentation criteria.**
+**A ticket whose headline names the docstring or the documentation takes documentation criteria.**
 Each one says what the docstring, the docs or the help text must say. A
 behaviour change that the ticket also needs goes to the Vision Keeper:
 `msg.challenge_vision_keeper` with the ticket, after its criteria land.
