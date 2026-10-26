@@ -448,10 +448,11 @@ comes first, then the state print, then the sender's note.
      why.
   7. Close on two counts: the reach reads one reader, and the night's
      count moved. One without the other is a residue line.
-  Two gates enforce it, owed as a frame: the status tool refuses a pass
-  line on a frame with no reach line, and the close refuses a frame
-  whose reach reads more than one reader. Until the gates exist, the
-  session writes the reach line by hand before any pass. C64's
+  No tool refuses for it. The session writes the reach line before any
+  pass, and `state` prints it. Frame 340 built two refusals in the status
+  tool and took them out again (ruled: Roman, 2026-10-26 about 22:5x, "No
+  don't make it a hard rule, the model should be smart enough to do it").
+  The read agent, not the session, writes the count where a read ran. C64's
   provenance read is step 3's second question and keeps its own entry.
   Memory `rota-read-before-fix.md` holds the same rule.
 - [C32] In a loop, a cause goes on the stack only after the turns of the
