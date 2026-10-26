@@ -229,3 +229,35 @@ def test_a_junction_table_loads_the_rows_its_receipt_labels_name():
     hit = fixtures.check({"expect": {"writes": {"batch_touch": {
         "text_excludes": ["tests/test_defaults.py"]}}}}, delta)
     assert hit and "tests/test_defaults.py" in hit[0]
+
+
+def test_each_text_includes_any_reads_every_row_and_not_the_ids():
+    """
+    Frame 322, review 2, finding 2. Night 166's s185 wrote two behaviour
+    criteria and one docstring criterion on the docstring ticket. The blob
+    of `text_includes_any` passes that turn, because one row and every id
+    hold "docstring". The per-row field refuses it.
+    """
+    s185 = [
+        {"id": "c_1_docstring", "text": "When shorten=True, format_filename "
+         "strips the directory prefix from the path."},
+        {"id": "c_2_docstring", "text": "When shorten=True, format_filename "
+         "returns only the basename of the provided path."},
+        {"id": "c_3_docstring", "text": "The docstring of format_filename must "
+         "include an example demonstrating that with shorten=True, a/b/c.txt "
+         "is displayed as c.txt."},
+    ]
+    delta = fixtures.Delta(session_id="s", committed=True,
+                           writes={"criteria": [r["id"] for r in s185]},
+                           rows={"criteria": s185})
+    words = ["docstring", "documentation"]
+    assert fixtures.check({"expect": {"writes": {"criteria": {
+        "text_includes_any": words}}}, "forbidden": {}}, delta) == []
+    hit = fixtures.check({"expect": {"writes": {"criteria": {
+        "each_text_includes_any": words}}}, "forbidden": {}}, delta)
+    assert [h.split(" names")[0] for h in hit] == [
+        "a criteria row c_1_docstring", "a criteria row c_2_docstring"]
+    delta.rows["criteria"] = s185[2:]
+    delta.writes["criteria"] = ["c_3_docstring"]
+    assert fixtures.check({"expect": {"writes": {"criteria": {
+        "each_text_includes_any": ["DocString"]}}}, "forbidden": {}}, delta) == []

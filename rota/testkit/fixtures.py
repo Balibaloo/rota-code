@@ -611,6 +611,20 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
                     problems.append(
                         f"expected writes to {table} to carry one of {anyw}; "
                         f"the rows carry {blob[:200]}")
+            # One of several words in each row's own `text`, case folded.
+            # The blob above passes when one row or one id holds a word, so
+            # s185's two behaviour criteria passed beside its docstring one
+            # (frame 322, review 2, finding 2).
+            each = (spec.get("each_text_includes_any") or []
+                    if isinstance(spec, dict) else [])
+            if each:
+                folded = [w.casefold() for w in each]
+                for row in delta.rows.get(table, []):
+                    said = str(row.get("text") or "")
+                    if not any(w in said.casefold() for w in folded):
+                        problems.append(
+                            f"a {table} row {row.get('id')} names none of "
+                            f"{each}: {said[:160]!r}")
             banned = spec.get("text_excludes") or [] if isinstance(spec, dict) else []
             if banned:
                 written = delta.rows.get(table, [])

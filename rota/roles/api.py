@@ -5692,15 +5692,20 @@ def _staged_retired(ctx: Ctx) -> set[str]:
             and w[2].get("retired_by")}
 
 
-# The words of a ticket headline that asks for a change to the documentation.
-# A criterion on such a ticket names one of them too. Roman ruled at
+# The words of a criterion that names documentation. Roman ruled at
 # 2026-10-24 01:05 that a criterion asks for documentation by its own words
 # (frame 311). Frame 322's W-E read counted 13 landed behaviour criteria on
 # the docstring item over nights 163 to 166. He called each one wrong, and
-# the list refuses no right one (`plans/frame322-we-read.md`, section 3).
+# the door refuses no right one (`plans/frame322-we-read.md`, section 3).
 # The list is wider than `_ASKS_FOR_DOCS`. That list judges a diff line, and
-# this list judges the words of a headline and a criterion.
+# this list admits the words of a criterion.
 _NAMES_DOCS = ("docstring", "documentation", "document", "docs", "help text")
+# The words of a headline that starts the refusal, as whole words. A word
+# that starts a refusal is narrow, and a word that admits a criterion can be
+# wide (frame 322, review 2, finding 1). As substrings, "load_document" and
+# "help text says" made behaviour tickets read as documentation tickets.
+# The ruling of 01:05 governs the criterion's words and not the headline.
+_HEADLINE_NAMES_DOCS = re.compile(r"\b(?:docstrings?|documentation)\b")
 
 
 def _docs_ticket_refusal(ctx: Ctx, ticket_id: str | None,
@@ -5719,11 +5724,13 @@ def _docs_ticket_refusal(ctx: Ctx, ticket_id: str | None,
     row = ctx.conn.execute("SELECT text FROM tickets WHERE id = ?",
                            (ticket_id,)).fetchone()
     headline = (row["text"] or "") if row else ""
-    if not _asks_for(headline, _NAMES_DOCS):
+    if not _HEADLINE_NAMES_DOCS.search(" ".join(headline.split()).casefold()):
         return None
-    return (f"{ticket_id}'s headline is {headline!r}. The ticket asks for a "
-            f"change to the documentation and not to the behaviour, and "
-            f"this criterion names no documentation. Write the criterion on "
+    # The door cannot read "only" in a headline, so the text claims no
+    # intent past the words (frame 322, review 2, finding 3).
+    return (f"{ticket_id}'s headline is {headline!r}. The headline names the "
+            f"documentation, and this criterion names no documentation. "
+            f"Write the criterion on "
             f"the documentation: say what the docstring, the docs or the "
             f"help text must say. If the item also needs a code change, that "
             f"is the Vision Keeper's to slice: send "

@@ -28,13 +28,11 @@
   expect:
     writes:
       # The ticket asks for a change to the docstring, and the code stays
-      # the same. `criteria.specify` refuses a text with no documentation
-      # word on this ticket, so every landed text holds one. The format
-      # checks one word over all rows, not one per row.
+      # the same. So each landed criterion text names the documentation, in
+      # the five words of `criteria.specify` (frame 322, review 2).
       criteria: {count: "1..6",
-                 text_includes_any: ["docstring", "Docstring", "documentation",
-                                     "Documentation", "document", "Document",
-                                     "docs", "Docs", "help text", "Help text"]}
+                 each_text_includes_any: ["docstring", "documentation",
+                                          "document", "docs", "help text"]}
   forbidden:
     # Criteria are written in glossary terms. A ticket or an item from this
     # seat decides scope, which is the Vision Keeper's.

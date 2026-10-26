@@ -52,7 +52,7 @@ _S116 = (
      "before falling back to os.path.expanduser(\"~\")."),
 )
 
-_MARK = "asks for a change to the documentation"
+_MARK = "The headline names the documentation"
 
 
 @pytest.fixture
@@ -125,6 +125,32 @@ def test_the_refusal_names_the_headline_and_the_two_routes(db):
         _specify(_seat(db), *_S185[1])
     said = str(exc.value)
     assert _DOC_HEAD in said
-    assert "not to the behaviour" in said
+    assert "The headline names the documentation" in said
     assert "Write the criterion on the documentation" in said
     assert "msg.challenge_vision_keeper" in said
+
+
+def _ticket(db, tid, headline):
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES (?, ?, ?)",
+               (tid, "get_app_dir_windows", headline))
+    db.commit()
+
+
+def test_a_headline_with_load_document_takes_a_behaviour_criterion(db):
+    """Review 2, finding 1: a substring made this behaviour ticket read as a
+    documentation ticket."""
+    _ticket(db, "tk_2", "load_document raises ValueError on an empty file")
+    sb = _seat(db)
+    _specify(sb, "c_9", "load_document raises ValueError when the file is "
+             "empty.", ticket_id="tk_2", surface="load_document")
+    assert _landed(sb) == ["c_9"]
+
+
+def test_a_headline_with_the_docstring_of_refuses_a_behaviour_criterion(db):
+    _ticket(db, "tk_2", "fix the example in The Docstring of load_document")
+    with pytest.raises(ValueError) as exc:
+        # The criterion list matches substrings, so the text does not say
+        # load_document: "document" in it would admit the criterion.
+        _specify(_seat(db), "c_9", "The loader raises ValueError when the "
+                 "file is empty.", ticket_id="tk_2", surface="load_document")
+    assert "The headline names the documentation" in str(exc.value)
