@@ -32,12 +32,16 @@ every row of the sprint is built and gated, by his ruling of 19:3x on
 1. Frame 340, the status tool's two gates of C76. 2 cycles. Runs.
 2. Frame 339, the removal door records a stray for the Architect, frame
    286's route. 3 cycles. Night 170's blocker. Runs.
-3. Frame 330, `stopped_bouncing` reads `given_up`, 1 of 10 stalled keys
+3. Frames 337, 338 and 322, moved up on the closed-frame reads: his
+   ruling on a ref cost twelve frames in two weeks and has about 20
+   readers at head, so the one reader of the `rulings` row closes the
+   most (observed: `plans/closed-reach-2026-10-26.md`). See row 5's text.
+4. Frame 330, `stopped_bouncing` reads `given_up`, 1 of 10 stalled keys
    to 10 of 10; night 169 stalled on `batch_start`. 4 cycles.
-4. Frame 335, `_render` shows nested text plainly and one escape helper
+5. Frame 335, `_render` shows nested text plainly and one escape helper
    serves the three refusals and `code.write`, 4 of 10 to 10 of 10. 3
    cycles.
-5. Frames 337, 338 and 322, one group by the cross-frame match: one
+5a. Row 3's text. Frames 337, 338 and 322, one group by the cross-frame match: one
    reader of the `rulings` row, 337's `words` built once from his
    converse answers the general one, 338's `ruled_rows` and 322's item
    reader read that row by key; it takes the 11 phrase readers of frame
@@ -50,7 +54,9 @@ every row of the sprint is built and gated, by his ruling of 19:3x on
 
 Night 170 on the head of rows 1 to 7, eleven issues in fourteen frames
 (observed: `plans/agency-groups-2026-10-26.md`). Parked, in order, for
-sprint 27: frame 324 at the agency read's 13 of 13 (3 cycles, ruled
+sprint 27: frame 341 the wall guide prices by reach (2 cycles) and frame 342 the
+close gate refuses a zero baseline (1 cycle), both before night 170's
+walls are placed; frame 324 at the agency read's 13 of 13 (3 cycles, ruled
 general at 20:37); frames 333 and 328 one group, a per-quote span rule
 that replaces the 12-character window, 333 the general one, after 336
 and 335 (about 12 cycles); frame 331 the night's world as the
@@ -1247,6 +1253,24 @@ a different question and the night is then opened once.
 **Roman ruled the order on 2026-10-07 00:55** (ruled: Roman, "Ok" to this session's recommendation after the five-day read, `plans/stack.md` of this minute). After night 127's read: 1. **Frame 131, a test calls a plain function as a Click command**, first, ahead of every unclaimed stall frame, because every night since 120 ends on its shape. 2. **Frame 170, a merge's review leaves no trace a person can read**, pushed on the same word. 3. **Frame 144, the night databases as a test tier**, runs to its close after pass 10 and takes no new item. 4. The rest of batch C stays unclaimed until a night shows one of its frames stopping a batch that frames 131 and 152 no longer stop. The reasoning: 24 frames closed in five days against 32 pushed in two, merges per night flat at 0 or 1 from night 116 to 126, and about 3M agent tokens on batch C's doors and nudges while frame 131 stood unclaimed since 2026-10-05 (observed: the five-day read of this session, 2026-10-07 00:40).
 
 **Roman ruled the order on 2026-10-09 10:31** (ruled: Roman, chose "Re-batch around what the principal sees" from three options, the recommended one, asked by `AskUserQuestion` at 10:31 after the two momentum notes of 2026-10-09 put it as the next question). The next frame is one design frame on the present page, frame 190, what the principal sees. Frame 45, frames 184 to 189, night 133's wall 2 and night 136's walls 3, 4 and 12 are its walls. Frame 189's correction lands inside it. Frames 185 and 189 alone were the other two options and were declined. The reasoning: night 136's walk 3 showed 11 one-line pages whose one line was a seat's ledger row, and no ruling could carry the principal's exact line to the item, 1.35 dollars and 42 sessions; night 133 showed 16 whole-page contests, 11 in walk 2, each "none of these lines is about my request"; and the frames pushed since 2026-10-08 are each one symptom of that fact (observed: `plans/night136-read.md`, sections 2 and 8, and `plans/night133-read.md`, section 8, 2026-10-09). Meta workflow.
+
+### 341. The wall guide prices a fix at one door as the norm, so a placed wall is fixed where the night showed it and not where its reach is (2026-10-26)
+
+- **Site: `plans/wall-guide.md`, section 4 and the price lines of each cause.** Meta workflow. Of 56 closed frames of the shape since 2026-10-12, 48 fixed one door of N at a median of 1 of 6 places, and 45 of them have a later frame at the same fact (observed: `plans/closed-reach-2026-10-26.md`). The guide, frame 251, prices the one-door fix as cheap and the norm (observed: `plans/closed-reach-b.md`).
+- Ends when: first, the mechanism: section 4 of the guide ends with the reach question of rule C76, and each cause's price line prices by the reach count, one reader for N places, with the fourteen agency reads as the cases; second, the count: frames closed at one door of N while a reach line said N above 1, from 48 of 56 toward 0 over the next two weeks; third, a frame that still closes at one door is read, and the frame closes when its cause is not this one.
+- Waits on: nothing. Priced 2 cycles, one read of the guide and one text pass (reasoned: a door text is 2 cycles).
+- Reach: 1 of 1, the guide is the one page that prices a wall's fix (observed: rule C34).
+- Sprint: next sprint, rank 1 among the parked, before any wall of night 170 is placed (reasoned: every placement after night 170 reads the guide).
+- Pointer: `plans/closed-reach-2026-10-26.md`; `plans/agency-prevalence-2026-10-26.md`.
+
+### 342. The close gate accepts a night count with a zero baseline, so a frame closes on three nights of zero at a door that never fired (2026-10-26)
+
+- **Site: the close gate of `rota/tools/status.py`, built by frame 340.** Meta workflow. Frames 228, 229 and 236 closed on three nights of 0 cases at a door that never fired, and 236 closed with no fix built; rule C31 forbids a zero baseline since 2026-10-03 (observed: `plans/closed-reach-b.md`; ruled: Roman, 2026-10-03). Frame 330's night 169 count read 0 of 0 the same way (observed: its status line of 20:57).
+- Ends when: first, the mechanism: a closing status whose count reads `0 of 0`, or whose Ends-when baseline is 0, is refused with the line it wants, unless `--force-close` carries a reason; with frame 236's closing line as the red test; second, the count: frames closed on a zero baseline, from 3 of 56 toward 0; third, the residue rule as frame 340's.
+- Waits on: frame 340's commit d1c934ae, which it extends. Priced 1 cycle (reasoned: a number is a door text).
+- Reach: 1 of 1, the status tool is the one writer of a closing line (observed: frame 340).
+- Sprint: next sprint, rank 2 among the parked (reasoned: it bites at the first close after night 170).
+- Pointer: `plans/closed-reach-b.md`; `plans/frame340-review-p1.md`.
 
 ### 340. The status tool accepts a pass line on a frame with no reach line and a close on a reach above one reader, so rule C76 is a reminder and not a gate (2026-10-26) (8db3a3f9)
 
