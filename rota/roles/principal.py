@@ -519,10 +519,9 @@ def _failure_line(output: str | None) -> str:
         return ""
     # A collection error puts the traceback frame first and the error last.
     # Night 168's m53 showed him only the file and the line (frame 336).
-    # The error's own period goes, because check_line's tail adds one.
-    if re.match(r'File ".*", line \d+', lines[0]):
-        return lines[-1].removesuffix(".")
-    return lines[0]
+    line = lines[-1] if re.match(r'File ".*", line \d+', lines[0]) else lines[0]
+    # The line's own period goes, because check_line's tail adds one.
+    return line.removesuffix(".")
 
 
 def check_line(conn: sqlite3.Connection, test_id: str) -> str:

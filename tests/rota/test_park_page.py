@@ -548,6 +548,12 @@ def test_the_check_line_takes_fails_from_the_e_line_adds_the_call_and_strips_com
                  (">           assert result is True\nE           assert False is True\n",))
     assert check_line(n132, "tst_confirm_eof_cr3").endswith(
         "expects result is True. Fails: assert False is True.")
+    # An assertion message with its own period keeps one period on the page.
+    n132.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, output) "
+                 "VALUES ('tr435', 'bg_2', 'tst_confirm_eof_cr3', 'h', 'fail', ?)",
+                 (">           assert result is True\nE           AssertionError: no default.\n",))
+    assert check_line(n132, "tst_confirm_eof_cr3").endswith(
+        "expects result is True. Fails: AssertionError: no default.")
 
 
 # Night 168's tr35, word for word: a collection error of tst_crit_1 at
