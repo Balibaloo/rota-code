@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from rota.core import sandbox
 from rota.core.sandbox import build
 from rota.roles import api
 from tests.rota.test_frame328_encode_note import C1_TEXT, S198_C1, db  # noqa: F401
@@ -122,3 +123,45 @@ def test_the_collection_note_gives_the_raw_string_form():
     assert "Did you mean" not in note
     assert "\\\\R" not in note
     assert note.endswith("Encode it again with the same id.")
+
+
+# The test row of night 168 as s146 stored it, one backslash. s147 quoted
+# it with `\\` for that backslash, as the JSON of `tests.load` shows it.
+TST_W2 = ("from click.utils import format_filename\n\n"
+          "def test_format_filename_keeps_a_windows_path():\n"
+          "    result = format_filename(\"C:/AppData" + BS + "Roaming\")\n"
+          "    assert \"AppData" + BS + "Roaming\" in result\n")
+TST_ID = "tst_crit_1"
+
+
+@pytest.fixture
+def cdb(db):  # noqa: F811
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES (?, 'bg_3', ?, 'tests/test_windows_path.py', ?)",
+               (TST_ID, CRIT, TST_W2))
+    db.commit()
+    return db
+
+
+def _challenge(db, test_quote):
+    ctx = build("developer", db, batch_id="bg_3", mode="tests_failing").ctx
+    return sandbox._challenge_evidence(ctx, "tester", [CRIT, TST_ID], "",
+                                       quotes=[C1_TEXT, test_quote])
+
+
+def test_a_quote_with_two_backslashes_for_one_passes_the_test_half(cdb):
+    quote = "assert \"AppData" + BS * 2 + "Roaming\" in result"
+    assert _challenge(cdb, quote) is None
+
+
+def test_a_quote_on_neither_reading_is_refused_with_both_readings(cdb):
+    quote = "assert \"AppData" + BS * 2 + "Local\" in result"
+    with pytest.raises(ValueError) as err:
+        _challenge(cdb, quote)
+    said = str(err.value)
+    assert said.startswith(
+        f"quotes= holds `{quote}`, and it is not in the live text of "
+        f"{TST_ID}. A comment of the test does not count.")
+    assert ("The door also reads each `\\\\` as one backslash. Read that way, "
+            "the quote is `assert \"AppData\\Local\" in result`, and the code "
+            f"of {TST_ID} holds no such span.") in said

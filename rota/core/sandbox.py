@@ -1322,6 +1322,14 @@ def _seat_forms(quote: str) -> list[str]:
     return forms or [d]
 
 
+def _one_backslash(quote: str) -> str:
+    """The quote with each `\\\\` read as one backslash.
+
+    Frame 335, night 168: s147 quoted tst_crit_1 as the JSON of
+    `tests.load` shows it, with `\\\\` for the one backslash of the row."""
+    return (quote or "").replace("\\\\", "\\")
+
+
 _ESCAPE = re.compile(r"\\(?:x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4})|([0-7]{3}))")
 # A raw or bytes literal, where an escape is not one text character.
 _RAW_OR_BYTES = re.compile(
@@ -1412,6 +1420,12 @@ def _quote_refusal(row: str, table: str, quote: str, crit: str,
                      f"both sides. Read that way, the quote is "
                      f"`{_escaped_view(read)}`, and the code of {row} holds "
                      f"no such span.")
+        one = _one_backslash(quote)
+        if quote and one != quote:
+            one = one if len(one) <= 80 else one[:77] + "..."
+            said += (f" The door also reads each `\\\\` as one backslash. "
+                     f"Read that way, the quote is `{_escaped_view(one)}`, "
+                     f"and the code of {row} holds no such span.")
     return (f"{said} Quote, not paraphrase: copy a contiguous span of each "
             f"row, verbatim, from the rows in front of you. Send quotes as a "
             f"list of two strings: one copied from {crit}, one copied from "
@@ -1640,12 +1654,18 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
         # The residue of frame 328, night 167 walk 3: the criterion half
         # also reads the seat's call syntax, one outer mark and `\'`
         # (`_seat_forms`). The span stays verbatim at the same floor.
+        # Frame 335: the test half also reads each `\\` of the quote as one
+        # backslash when the quote as written misses.
+        def _in_code(c: str, floor: int) -> bool:
+            return (_span_of(c, code, floor)
+                    or _span_of(_unescaped(c), _unescaped(code), floor))
+
         def _cites(q: str, floor: int = QUOTE_MIN) -> tuple[bool, bool]:
             c = _code_only(q)
+            one = _one_backslash(c)
             return (any(_span_of(f, s, floor) for f in [q] + _seat_forms(q)
                         for s in crit_words),
-                    _span_of(c, code, floor)
-                    or _span_of(_unescaped(c), _unescaped(code), floor))
+                    _in_code(c, floor) or (one != c and _in_code(one, floor)))
 
         # Review 1, finding 2: a quote of a few characters pays no reading.
         short = next((q for q in quotes
