@@ -4271,13 +4271,28 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                            if recipient == "critic"
                            else "an answer from the glossary carries a term")
                 source = "The criteria do" if recipient == "critic" else "The glossary does"
-                raise ValueError(api._offer(
-                    ctx,
-                    f"{carries}, and "
-                    f"refs={list(refs or [])} names none. {source} "
-                    f"not carry this: send msg.report_liaison"
-                    f"(refs={list(refs or [])}) with the same refs.",
-                    "msg.report_liaison", {"refs": list(refs or [])}))
+                said = (f"{carries}, and refs={list(refs or [])} names none. "
+                        f"{source} not carry this")
+                # A refusal names only a call the session holds (frame 135's
+                # law). The criteria mode holds no report edge, and the
+                # offer met NotInWorkingSet on the docstring case (frame
+                # 322, pass 3b). A context that `build` did not make holds
+                # no working set, and it keeps the report.
+                working = getattr(ctx, "working_set", None)
+                if working is None or "msg.report_liaison" in working:
+                    raise ValueError(api._offer(
+                        ctx,
+                        f"{said}: send msg.report_liaison"
+                        f"(refs={list(refs or [])}) with the same refs.",
+                        "msg.report_liaison", {"refs": list(refs or [])}))
+                # glossary.amend is the call that writes a term down.
+                if "glossary.amend" in working:
+                    raise ValueError(api._offer(
+                        ctx,
+                        f"{said}: write the term down with glossary.amend, "
+                        f"then cite its id in refs.",
+                        "glossary.amend", {}))
+                raise ValueError(f"{said}.")
 
         # Frame 115, design 200 change 4: law 2 keeps words off this channel,
         # so an answer that hands back the escalation's own rows tells the

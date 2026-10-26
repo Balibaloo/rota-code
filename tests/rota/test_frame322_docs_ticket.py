@@ -174,3 +174,29 @@ def test_a_headline_with_the_docstring_of_refuses_a_behaviour_criterion(db):
         _specify(_seat(db), "c_9", "The loader raises ValueError when the "
                  "file is empty.", ticket_id="tk_2", surface="load_document")
     assert "The headline names the documentation" in str(exc.value)
+
+
+# Pass 3b: the gate at 1277b6b4 recorded the docstring case green 5 of 5 on
+# qwen3.5:9b. The follow check still read it red: the criteria mode sent
+# msg.answer_tester(refs=['tk_c4d9c0']), and the door offered
+# msg.report_liaison, which the mode does not hold.
+_NO_TERM = ("an answer from the glossary carries a term, and "
+            f"refs=['{_DOC_TK}'] names none. The glossary does not carry this")
+
+
+def test_the_criteria_mode_is_offered_no_call_it_does_not_hold(db):
+    sb = _seat(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.answer_tester", refs=[_DOC_TK], round_no=0)
+    said = str(exc.value)
+    assert said == f"{_NO_TERM}.", said
+    assert "msg.report_liaison" not in sb.functions()
+
+
+def test_a_mode_that_holds_the_report_is_offered_it_unchanged(db):
+    sb = _seat(db, mode="question")
+    assert "msg.report_liaison" in sb.functions()
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.answer_tester", refs=[_DOC_TK], round_no=0)
+    assert str(exc.value) == (f"{_NO_TERM}: send msg.report_liaison"
+                              f"(refs=['{_DOC_TK}']) with the same refs.")
