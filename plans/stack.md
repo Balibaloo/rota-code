@@ -87,9 +87,10 @@ frames at them (observed: the record):
   one by one.
 
 Live things stay over the economy until a row closes its frames. The
-status tool's two refusals of frame 340 are a departure from "enabling
-not inhibiting" put to Roman at 22:14 and not answered; nothing in this
-sprint waits on it.
+status tool's two refusals of frame 340 come out (ruled: Roman,
+2026-10-26 about 22:5x, "No don't make it a hard rule, the model should
+be smart enough to do it", relayed by rota-b4). Frame 342 closed on the
+same ruling. The Reach line stays a record the session reads.
 
 
 ## Sprint 25, recommended on night 168's read, 2026-10-26 18:08
