@@ -1222,7 +1222,9 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
         if fault and any(_quotes_span(s, text) for s in
                          (fault["quote"], fault["error"]) if s):
             continue
-        named = " or ".join(f"`{s}`" for s in (line, said) if s)
+        # Frame 328, review of pass 3, finding 3: tst_tk3's line holds raw
+        # ESC bytes, and a seat reads them as `assert "[2J[H"`.
+        named = " or ".join(f"`{_escaped_view(s)}`" for s in (line, said) if s)
         return (f"{ref} is red, and its run names the line it fails at: {named}. "
                 f"quotes= copies that line verbatim, because a quote of "
                 f"another line of the test names the wrong conflict")
@@ -1284,16 +1286,31 @@ def _span_of(quote: str, source: str, floor: int = QUOTE_MIN) -> bool:
 
 
 _ESCAPE = re.compile(r"\\(?:x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4})|([0-7]{3}))")
+# A raw or bytes literal, where an escape is not one text character.
+_RAW_OR_BYTES = re.compile(
+    r"(?<![A-Za-z0-9_])(?:[rR][bB]?|[bB][rR]?)(\"|')(?:\\.|(?!\1).)*\1")
 
 
 def _unescaped(s: str) -> str:
-    """The text with each `\\xNN`, `\\uNNNN` and `\\NNN` read as its one
-    character. Frame 328, night 167: tst_tk3 holds the raw ESC byte, and
-    a seat can only type its escape form."""
+    """The text with each `\\xNN`, `\\uNNNN` and `\\NNN` that gives a
+    control character read as that one character. Frame 328, night 167:
+    tst_tk3 holds the raw ESC byte, and a seat can only type its escape
+    form.
+
+    Review of pass 3, finding 1: a printable escape and a raw or bytes
+    literal stay as written. Otherwise `\\x41` matched a letter, and
+    `r"\\033[2J"` matched a test that holds `r"\\x1b[2J"`."""
     def _one(m: re.Match) -> str:
         hexa, uni, octal = m.groups()
-        return chr(int(hexa or uni, 16) if (hexa or uni) else int(octal, 8))
-    return _ESCAPE.sub(_one, s or "")
+        ch = chr(int(hexa or uni, 16) if (hexa or uni) else int(octal, 8))
+        return ch if ord(ch) < 32 or ord(ch) == 127 else m.group()
+
+    s = s or ""
+    out, at = [], 0
+    for lit in _RAW_OR_BYTES.finditer(s):
+        out += [_ESCAPE.sub(_one, s[at:lit.start()]), lit.group()]
+        at = lit.end()
+    return "".join(out + [_ESCAPE.sub(_one, s[at:])])
 
 
 def _escaped_view(s: str) -> str:

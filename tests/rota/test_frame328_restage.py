@@ -226,3 +226,45 @@ def test_a_wrong_test_line_names_the_form_the_door_compared(db):
         "each whitespace run as one space, on both sides. Read that way, the "
         "quote is `assert \"\\x1b[2J\\x1b[1;1H\" in sys.stdout.getvalue()`, "
         "and the code of tst_tk3 holds no such span.") in str(exc.value)
+
+
+# The review of pass 3, finding 1: the reviewer's probe P3W. The test holds
+# a raw literal, so its escape is four characters and not ESC.
+RAW_LINE = 'assert r"\\x1b[2J" in sys.stdout.getvalue()'
+RAW_QUOTE = 'assert r"\\033[2J" in sys.stdout.getvalue()'
+
+
+def test_a_raw_literal_quote_with_another_escape_is_refused(db):
+    sb = _challenge_db(db)
+    db.execute("UPDATE tests SET body = ? WHERE id = ?",
+               (TST_TK3_V1.replace(
+                   "            assert \"\x1b[2J\x1b[H\" in "
+                   "sys.stdout.getvalue()\n", f"            {RAW_LINE}\n"),
+                TEST))
+    db.commit()
+    with pytest.raises(ValueError, match="not in the live text of tst_tk3"):
+        sandbox._challenge_evidence(sb.ctx, "tester", [CRIT, TEST],
+                                    f"{TK3_LIVE} ... {RAW_QUOTE}")
+
+
+def test_only_an_escape_of_a_control_character_is_read_as_one():
+    assert sandbox._unescaped('"\\x1b[2J\\u001b[H\\033"') == '"\x1b[2J\x1b[H\x1b"'
+    assert sandbox._unescaped('"\\x41BCDEF"') == '"\\x41BCDEF"'
+    assert sandbox._unescaped('b"\\u001b[2J"') == 'b"\\u001b[2J"'
+    assert not sandbox._span_of(sandbox._unescaped('x = "\\x41BCDEF"'),
+                                sandbox._unescaped('x = "ABCDEF"'))
+
+
+def test_the_failing_line_shows_the_escape_and_not_the_raw_byte(db):
+    """The review of pass 3, finding 3: the red-line refusal showed raw ESC
+    bytes, so the seat read `assert "[2J[H"`."""
+    sb = _challenge_db(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=[CRIT, TEST],
+                quotes=[TK3_LIVE, "assert result is True"],
+                reason="tst_tk3 asserts a sequence that clear() never writes.")
+    said = str(exc.value)
+    assert "\x1b" not in said
+    assert said.startswith(
+        "tst_tk3 is red, and its run names the line it fails at: "
+        "`assert \"\\x1b[2J\\x1b[H\" in sys.stdout.getvalue()`")
