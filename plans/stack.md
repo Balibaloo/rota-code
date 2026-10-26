@@ -14,6 +14,48 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 26, written on night 169's read and the fourteen agency reads, 2026-10-26 21:3x
+
+Night 169 ended sprint 25 at 20:56, stopped by the session 29 minutes
+into walk 1 on get_app_dir's loop at the removal door, frame 339: 153
+sessions, 7 live principal calls, 1 batch, 0 merged, 0 verdicts, and no
+door of frames 330 and 335 to 338 reached (observed:
+`plans/night169-read.md`). Roman ruled at about 21:17 that an issue is
+read before it is fixed, rule C76, after fourteen frames read with no
+cause in the brief fixed 0 of 14 at the source (observed:
+`plans/agency-prevalence-2026-10-26.md`). Each row below builds the
+agent's proposal from `plans/frame<n>-agency-read.md`, at the reach it
+counted, and carries a Reach line before its pass. Night 170 runs when
+every row of the sprint is built and gated, by his ruling of 19:3x on
+2026-10-26 (reasoned: the read, section 5, re-ordered by the reach).
+
+1. Frame 340, the status tool's two gates of C76. 2 cycles. Runs.
+2. Frame 339, the removal door records a stray for the Architect, frame
+   286's route. 3 cycles. Night 170's blocker. Runs.
+3. Frame 330, `stopped_bouncing` reads `given_up`, 1 of 10 stalled keys
+   to 10 of 10; night 169 stalled on `batch_start`. 4 cycles.
+4. Frame 335, `_render` shows nested text plainly and one escape helper
+   serves the three refusals and `code.write`, 4 of 10 to 10 of 10. 3
+   cycles.
+5. Frame 329, the same fix and one brief sentence, 4 of 5 to 5 of 5. 2
+   cycles.
+6. Frame 337, `words` built once from his converse answers, every door
+   reads it, 2 of 14 to 14 of 14, and it takes the 11 phrase readers of
+   frame 339's reach. 5 cycles.
+7. Frame 338, one `ruled_rows` reader for the verdict map and the
+   rulings row, night 164's m94 the red test. 2 cycles.
+8. Frame 336, one `error_line()` in the harness for all four readers.
+   2 cycles.
+
+Night 170 on the head of rows 1 to 8. Parked, in order, for sprint 27:
+frame 324 at the agency read's 13 of 13 (3 cycles, ruled general at
+20:37); frame 328 one quote reader on seven sites (9 cycles); frame 322
+one reader of his landed words on an item (2 to 3); frame 333 the
+12-character window deleted (3 to 4); frame 331 the night's world as the
+kit's default (4); frame 332 `open_frames()` and the held-by form (3);
+frame 334 the lint per mode, its wait closed from cf2898b0 (4). Live
+things stay over the economy until rows close on night 170.
+
 ## Sprint 25, recommended on night 168's read, 2026-10-26 18:08
 
 Night 168 ended sprint 24 of 2026-10-26 07:32, because it was that
