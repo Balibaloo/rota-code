@@ -7402,6 +7402,49 @@ def _with_new_files(paths: list[str] | None,
     return list(dict.fromkeys(list(paths or []) + list(new_files or [])))
 
 
+def _test_shaped(f: str) -> bool:
+    """The basename is pytest's default test file form."""
+    return bool(re.fullmatch(r"test_\w+\.py|\w+_test\.py",
+                             f.rpartition("/")[2]))
+
+
+def _test_dirs(indexed: set[str]) -> set[str]:
+    """The folders of the indexed paths that hold a test-shaped file."""
+    return {g.rpartition("/")[0] for g in indexed if _test_shaped(g)}
+
+
+def _refuse_program_path(conn: sqlite3.Connection, path: str) -> None:
+    """Refuse a test path that is a program file of the code index outside
+    the test folders.
+
+    The test folders are the folders of `_test_dirs`, the rule of
+    `_refuse_unindexed_files`. A path that the index lacks is not refused
+    here."""
+    # Frame 328, pass 4: night 167's Tester encoded at src/click/utils.py 15
+    # times, and night 166's 14 times. The harness writes the body at its
+    # path, so the test replaced the module it tests and every run errored.
+    indexed = {r["grain"].replace("\\", "/") for r in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
+    if path not in indexed:
+        return
+    dirs = _test_dirs(indexed)
+    folder = path.rpartition("/")[0]
+    if folder in dirs or any(d and folder.startswith(f"{d}/") for d in dirs):
+        return
+    named = sorted(dirs, key=lambda d: (d.count("/"), d)) or ["tests"]
+    stem = path.rpartition("/")[2][:-3].lstrip("_") or "thing"
+    example = f"{named[0]}/test_{stem}.py" if named[0] else f"test_{stem}.py"
+    if example in indexed:
+        example = (f"{named[0]}/test_<thing>.py" if named[0]
+                   else "test_<thing>.py")
+    shown = ", ".join(d or "the root" for d in named[:4])
+    raise ValueError(
+        f"path {path!r} is a program file of the project. The harness "
+        f"writes the test at its path, so the test replaces that file. "
+        f"Write the test in a test folder of the index: {shown}. For "
+        f"example, path='{example}'")
+
+
 def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
                             new_files: list[str] | None,
                             symbols: list[str] | None = None,
@@ -7437,11 +7480,8 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
             return left
         return p
 
-    def test_shaped(f: str) -> bool:
-        return bool(re.fullmatch(r"test_\w+\.py|\w+_test\.py",
-                                 f.rpartition("/")[2]))
-
-    test_dirs = {g.rpartition("/")[0] for g in indexed if test_shaped(g)}
+    test_shaped = _test_shaped
+    test_dirs = _test_dirs(indexed)
 
     def new_test_file(f: str) -> bool:
         # Frame 302, pass 2: 7 of 15 refusals on nights 150 to 158 were right
@@ -9266,6 +9306,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         raise ValueError(
             f"path {path!r} is not a Python file. The harness runs pytest; "
             f"name the file test_<thing>.py")
+    _refuse_program_path(ctx.conn, path)
     try:
         tree = _ast.parse(body)
     except SyntaxError as exc:
@@ -17371,6 +17412,37 @@ def _own_assertions(body: str, path: str, said: str) -> list[dict]:
     return out
 
 
+#: The header pytest writes above a collection error's traceback.
+_COLLECT_HEADER = re.compile(r"^_{3,} ERROR collecting (\S.*?) _{3,}$")
+
+
+def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
+                           notes: list) -> None:
+    """Add the encode note for a run that errored at collection: the file
+    pytest collected and the run's last `E ` line."""
+    lines = (said or "").splitlines()
+    where = next((m.group(1) for ln in lines
+                  if (m := _COLLECT_HEADER.match(ln))), "")
+    if not where:
+        where = next((ln[len("ERROR "):].split(" - ", 1)[0].strip()
+                      for ln in lines if ln.startswith("ERROR ")), "")
+    where = where.replace("\\", "/") or path
+    error = next((ln[1:].strip() for ln in reversed(lines)
+                  if ln.startswith("E ") and ln[1:].strip()), "")
+    if len(error) > 160:
+        error = error[:157] + "..."
+    # Night 167, s271: the note asks for a re-encode with the same id, so
+    # `tests.encode` must know that this test got the note.
+    ctx.encode_noted = (getattr(ctx, "encode_noted", None)
+                        or set()) | {(batch_id, criterion_id, path)}
+    raised = f": `{error}`" if error else ""
+    notes.append(
+        f"The run of this body on the batch's head errors when pytest "
+        f"collects `{where}`{raised}. No test in the body runs. The test is "
+        f"stored. The batch's head holds the Developer's commit. Fix the "
+        f"test and encode it again with the same id.")
+
+
 def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
                          body: str, notes: list | None = None) -> str | None:
     """
@@ -17408,6 +17480,17 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
     try:
         verdict, said = _encode_run(ctx, root, path, body)
     except Exception:  # noqa: BLE001 -- a run that cannot start proves nothing
+        return None
+    if verdict == "error" and notes is not None and (
+            "error during collection" in said or "ERROR collecting" in said):
+        # Frame 328, pass 4: night 167's tst_c1 errored at collection four
+        # times on the Developer's right commit, and the Tester heard
+        # nothing. After that commit the code exists, so a collection error
+        # is the test's red. Before it, pass 2c's silence holds for an import
+        # of a name the Developer has not written yet.
+        if _developer_committed(ctx, batch_id):
+            _note_collection_error(ctx, batch_id, criterion_id, path, said,
+                                   notes)
         return None
     if verdict != "fail":
         return None
