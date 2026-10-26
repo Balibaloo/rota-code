@@ -609,11 +609,10 @@ def test_the_check_line_of_a_collection_error_ends_with_the_error_not_the_frame(
     """Night 168's m53 line 4 read `Fails: File "...", line 13.`, and he
     read a wrong cause from it (frame 336)."""
     _seed_batch_1(n132, "error", TR35)
-    # The error ends with its own period, and the tail adds one more.
-    assert check_line(n132, "tst_crit_1").rstrip(".") == (
+    assert check_line(n132, "tst_crit_1") == (
         'crit 1, calls result = get_app_dir(app_name="test_app", roaming=True), '
         'expects "AppData\\Roaming" in result. Fails: SyntaxError: "\\R" is an '
-        'invalid escape sequence. Did you mean "\\\\R"? A raw string is also an option')
+        'invalid escape sequence. Did you mean "\\\\R"? A raw string is also an option.')
 
 
 def test_the_check_line_of_an_assertion_red_keeps_the_first_e_line(n132):
