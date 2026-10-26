@@ -312,6 +312,26 @@ def test_a_removal_in_an_unpredicted_file_writes_one_row(db, tmp_path):
     assert rows[0][2].startswith(f"removal: `{GONE}`"), rows
 
 
+def test_a_change_outside_the_removed_grain_keeps_its_path_row(db, tmp_path):
+    """The pass 1b re-check, probe p2b. Line 1 of the unpredicted file also
+    changed, outside `get_app_dir`. On a0b0b6ae only the grain row was
+    written, and the line 1 change merged with no judgement (law 12)."""
+    db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) VALUES "
+               "('batch_1', 'src/click/core.py', 'path')")
+    db.commit()
+    sb, _root = _developer(db, tmp_path)
+    sb.call("code.write", path=PATH, start=517, end=519, text=FIX)
+    sb.begin_reply()
+    first = BASE.decode("utf-8").splitlines()[0]
+    sb.call("code.write", path=PATH, start=1, end=1, text=first + "  # outside the grain")
+    sb.begin_reply()
+    out = sb.call("code.commit", message="two changes")
+    assert out["committed"] is True, out
+    rows = _strays(sb)
+    assert sorted((g, s) for g, s, _n in rows) == [(PATH, "open"), (GRAIN, "open")], rows
+    assert [n for g, _s, n in rows if g == GRAIN][0].startswith(f"removal: `{GONE}`")
+
+
 def test_a_judged_removal_is_not_raised_again(db, tmp_path):
     """Frame 286's rule: a grain judged foreseen is not raised again on a
     later commit of the batch."""

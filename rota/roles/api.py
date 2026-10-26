@@ -20517,9 +20517,12 @@ def code_commit(ctx: Ctx, message: str) -> dict:
         held = set(removals) | set(mistaken)
         for path in strays:
             # The removal's row holds the path with its note. A removal
-            # inside a definition has the grain `path::owner`, so the path
-            # row would be a second row (review 1, finding 8).
-            if path in held or any(g.startswith(path + "::") for g in held):
+            # inside a definition has the grain `path::owner`. Its row
+            # replaces the path row only when the file has no other change.
+            # A change outside the grain needs its own row (law 12; pass 1b
+            # re-check, finding 2).
+            owners = [g.split("::", 1)[1] for g in held if g.startswith(path + "::")]
+            if path in held or (owners and not _changed_outside(ctx, tree, path, owners)):
                 continue
             ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{path}", {
                 "batch_id": ctx.batch_id, "commit_sha": sha, "path": path,
@@ -20646,6 +20649,31 @@ def _removal_strays(ctx: Ctx, tree) -> tuple[dict[str, str], dict[str, str]]:
     mistaken = {g: judged[g][1] or n for g, n in found.items()
                 if g in judged and judged[g][0] == "mistake"}
     return unjudged, mistaken
+
+
+def _changed_outside(ctx: Ctx, tree, path: str, owners: list[str]) -> bool:
+    """True when `path` differs from its base outside the definitions
+    `owners`, or when the texts do not tell. A definition that one side
+    lacks is no span to cut, so the answer is True."""
+    old = _base_text(ctx, tree, path)
+    new = _tree_text(tree, path)
+    if old is None:
+        return True
+    cut = []
+    for text in (old, new):
+        spans = _def_spans(text)
+        if spans is None:
+            return True
+        lines = text.splitlines()
+        keep = [True] * len(lines)
+        for owner in owners:
+            found = [(lo, hi) for n, lo, hi in spans if n == owner]
+            if not found:
+                return True
+            for lo, hi in found:
+                keep[lo:hi + 1] = [False] * (hi + 1 - lo)
+        cut.append([ln for ln, k in zip(lines, keep) if k])
+    return cut[0] != cut[1]
 
 
 def _tree_text(tree, path: str) -> str:
