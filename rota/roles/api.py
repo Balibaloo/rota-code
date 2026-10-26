@@ -9245,6 +9245,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # stored with backslashes ran as `error no tests ran` in
     # `harness._run_one` for good (frame 135's review at eb6c7ef).
     path = path.replace("\\", "/")
+    # Frame 328, review of pass 4, finding 1: `./src/click/utils.py` missed
+    # the program file door, and the run wrote over the module. So every
+    # path check reads the normal form, and the row stores that form.
+    import posixpath as _posixpath
+    if path.strip():
+        path = _posixpath.normpath(path)
+        if (path.startswith("/") or re.match(r"[A-Za-z]:", path)
+                or path == ".." or path.startswith("../")):
+            raise ValueError(
+                f"path {path!r} is outside the project. The harness writes "
+                f"the test at its path inside the project. Name the file "
+                f"tests/test_<thing>.py")
     # The runner's fence nudge writes `id='...'` where the wake names no test.
     # A seat that keeps the dots stored a test row with the id `...` (frame
     # 152's review of 5e0dd71, F2).
@@ -17439,8 +17451,9 @@ def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
     notes.append(
         f"The run of this body on the batch's head errors when pytest "
         f"collects `{where}`{raised}. No test in the body runs. The test is "
-        f"stored. The batch's head holds the Developer's commit. Fix the "
-        f"test and encode it again with the same id.")
+        f"stored. The batch's head holds the Developer's commit. If the "
+        f"criterion's words give the value that the run shows, the test is "
+        f"wrong. Encode it again with the same id.")
 
 
 def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,

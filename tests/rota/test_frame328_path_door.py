@@ -44,6 +44,12 @@ TST_C4_BODY = ("from click.utils import format_filename\n\n"
                "    assert format_filename(mock_appdata) == mock_appdata\n")
 
 
+# The re-encode after the collection note: the same id, a body that runs.
+FIXED_BODY = ("from click.utils import format_filename\n\n"
+              "def test_format_filename_shortens():\n"
+              "    assert format_filename(\"a/b/c.txt\", shorten=True) == \"c.txt\"\n")
+
+
 @pytest.fixture
 def idb(db):  # noqa: F811
     """bg_3 of frame 328's encode note, with night 157's `code_index` path
@@ -86,6 +92,42 @@ def test_s326_encode_at_the_module_under_test_is_refused(idb, monkeypatch):
     assert not idb.execute("SELECT 1 FROM tests").fetchone()
 
 
+def _no_run(monkeypatch):
+    """A fake run, so that a door that misses a path writes nothing on disk
+    outside the worktree."""
+    seen = []
+
+    def fake(ctx, root, path, body):
+        seen.append(path)
+        return "pass", ""
+    monkeypatch.setattr(api, "_encode_run", fake)
+    return seen
+
+
+def test_a_dot_spelling_of_the_module_meets_the_same_door(idb, monkeypatch):
+    """Review of pass 4, finding 1: probe P5 encoded at
+    `./src/click/utils.py`, the run wrote over the module, and the test
+    landed."""
+    seen = _no_run(monkeypatch)
+    with pytest.raises(ValueError) as err:
+        _encode(idb, "./src/click/utils.py", S326_BODY)
+    assert "'src/click/utils.py' is a program file of the project" in str(
+        err.value)
+    assert seen == []
+
+
+@pytest.mark.parametrize("path", ["../x.py", "C:/x.py", "/x.py",
+                                  "tests/../../x.py"])
+def test_a_path_outside_the_project_is_refused(idb, monkeypatch, path):
+    seen = _no_run(monkeypatch)
+    with pytest.raises(ValueError) as err:
+        _encode(idb, path, S326_BODY)
+    said = str(err.value)
+    assert "is outside the project" in said
+    assert said.endswith("Name the file tests/test_<thing>.py")
+    assert seen == []
+
+
 def test_an_encode_under_the_test_folder_lands(idb):
     out = _encode(idb, "tests/test_utils.py", S326_BODY)
     assert out["id"] == S198_C1["id"]
@@ -119,13 +161,29 @@ def test_a_collection_error_after_the_developer_commit_is_noted(
     Path(root, "pytest.ini").write_bytes(
         b"[pytest]\npythonpath = src\nfilterwarnings =\n    error\n")
     seen = _spy(monkeypatch)
-    out = _encode(idb, "tests/test_shorten.py", body)
+    sb = build("tester", idb, batch_id="bg_3", mode="tests_missing")
+    sb.call("tests.triage", criterion_id=CRIT, verdict="encodable")
+    out = sb.call("tests.encode", id=S198_C1["id"], criterion_id=CRIT,
+                  path="tests/test_shorten.py", body=body)
     assert [v for v, _ in seen] == ["error"]
     assert "error during collection" in seen[0][1]
     note = out["note"]
     assert ("The run of this body on the batch's head errors when pytest "
             "collects `tests/test_shorten.py`: `" + raised) in note
-    assert note.endswith("Fix the test and encode it again with the same id.")
+    # Review of pass 4, finding 2: the hedge of the `fail` note, word for
+    # word.
+    assert note.endswith(
+        "The test is stored. The batch's head holds the Developer's commit. "
+        "If the criterion's words give the value that the run shows, the "
+        "test is wrong. Encode it again with the same id.")
+    # Review of pass 4, finding 3: the note's re-encode with the same id
+    # replaces the staged test.
+    again = sb.call("tests.encode", id=S198_C1["id"], criterion_id=CRIT,
+                    path="tests/test_shorten.py", body=FIXED_BODY)
+    assert "unchanged" not in again
+    assert again["version"] == 2
+    staged = [w for w in sb.ctx.writes if w[0] == "tests"]
+    assert len(staged) == 1 and staged[0][2]["body"] == FIXED_BODY
 
 
 def test_a_collection_error_before_the_developer_commit_stays_silent(
