@@ -1722,12 +1722,13 @@ def given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
 def stopped_bouncing(conn: sqlite3.Connection, batch_id: str) -> bool:
     """
     The batch stopped bouncing: its failing attempt reached `loop_cap`, or it
-    runs and the tick quarantine took its `tests_failing` key.
+    runs and `given_up` lists a key of it.
 
     Law 6 says "Budget exhaustion escalates one rung" and "It is never
-    silence". The key's cap of 3 can run out below `loop_cap`, and then no
-    rule read it (frame 330, night 168). `exhausted` and `parked` read this
-    one check, so the ladder climbs and the park frees the seat. A
+    silence". A seat key's cap of 3 can run out below `loop_cap`, and then
+    no seat rule read it (frame 330, nights 168 and 169). `given_up` is the
+    one record of those keys, for every kind. `exhausted` and `parked` read
+    this one check, so the ladder climbs and the park frees the seat. A
     quarantine below the cap spends the ladder for a later `loop_cap` too,
     which is accepted because the park defers the batch and the ladder
     climbs once per batch.
@@ -1736,19 +1737,18 @@ def stopped_bouncing(conn: sqlite3.Connection, batch_id: str) -> bool:
 
     if failing_attempt(conn, batch_id) >= config.get(conn, "loop_cap"):
         return True
-    return bool(_quarantined_tries(conn, batch_id))
+    return bool(_running_given_up(conn, batch_id))
 
 
-def _quarantined_tries(conn: sqlite3.Connection, batch_id: str) -> int:
-    """The tries of a running batch's quarantined `tests_failing` key, or 0."""
-    # A running batch only. A deferred batch's given-up key waits for the
-    # principal, and the ladder does not wake on it (frame 87, ruled
-    # 2026-09-27).
-    row = conn.execute(
-        "SELECT t.attempts FROM tick_attempts t JOIN batches b ON b.id = ? "
-        "WHERE t.tick_key = ? AND t.quarantined = 1 AND b.status = 'running'",
-        (batch_id, f"developer|tick:tests_failing|{batch_id}")).fetchone()
-    return int(row["attempts"]) if row else 0
+def _running_given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """`given_up` for a running batch, or [] for a batch of any other status."""
+    # A deferred batch's given-up key waits for the principal, and the
+    # ladder does not wake on it (frame 87, ruled 2026-09-27).
+    row = conn.execute("SELECT status FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone()
+    if row is None or row["status"] != "running":
+        return []
+    return given_up(conn, batch_id)
 
 
 def stop_detail(conn: sqlite3.Connection, batch_id: str) -> str:
@@ -1760,11 +1760,13 @@ def stop_detail(conn: sqlite3.Connection, batch_id: str) -> str:
     both false, and the detail reaches a prompt (frame 330, pass 2).
     """
     from . import config
+    # The page's words for a quarantined key, so the detail and the page
+    # read one table (frame 312, review 1, finding 1).
+    from ..roles.principal import _stalled_words
 
     if failing_attempt(conn, batch_id) >= config.get(conn, "loop_cap"):
         return ""
-    tries = _quarantined_tries(conn, batch_id)
-    return f"the tests still fail after {tries} tries" if tries else ""
+    return _stalled_words(conn, _running_given_up(conn, batch_id))
 
 
 # The id prefix of a park ask, then ten hex characters, `_` and the batch id.
@@ -2289,14 +2291,22 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     # quarantined, nothing woke on it, and `bg_2` never started (observed:
     # night 94, 2026-09-25). A head commit lifts the key in
     # `db._lift_quarantines`, and that ends the park. A running batch parks
-    # through `stopped_bouncing`: at `loop_cap`, or with its quarantined key
-    # (frame 330).
+    # through `stopped_bouncing`: at `loop_cap`, or with a key that
+    # `given_up` lists (frame 330).
     status = conn.execute("SELECT status FROM batches WHERE id = ?",
                           (batch_id,)).fetchone()
     if status and status["status"] == "deferred" and given_up(conn, batch_id):
         return True
     if not stopped_bouncing(conn, batch_id):
         return False
+    # A head commit lifts every key of a running batch but its
+    # `tests_failing` key, so such a key ends its own park, as on the
+    # deferred branch. A green batch has no failing run at head (frame 330,
+    # pass 5). The harness judges the `tests_failing` key at a new head
+    # instead (frame 318), so that key keeps the exit below.
+    if any(k.split("|", 2)[1] != "tick:tests_failing"
+           for k in _running_given_up(conn, batch_id)):
+        return True
     # A head commit newer than the failing runs is a fix nobody has tested.
     # Only the harness tests it, and the harness tests running batches only.
     # Without this exit the park is for ever (observed: frame 86's pass 2

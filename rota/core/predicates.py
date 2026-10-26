@@ -1022,7 +1022,7 @@ def reopen(conn) -> list[Wake]:
 def exhausted(conn) -> list[Wake]:
     """
     A batch that stopped bouncing: it hit `loop_cap`, or the tick quarantine
-    took its `tests_failing` key while it runs.
+    took a key of it that `given_up` lists while it runs.
 
     `tests_failing` goes quiet above the cap, which on its own is abandonment
     wearing the clothes of a budget: the work is still undone, nothing fires,
@@ -1057,18 +1057,23 @@ def exhausted(conn) -> list[Wake]:
 
     from .scheduler import failing_attempt, stop_detail, stopped_bouncing
 
+    # A running batch stops on any key that `given_up` lists, and a green
+    # batch has no failing test. Night 169's batch ran with no commit and
+    # no test (frame 330, pass 5).
+    bids = sorted({r["bid"] for r in rows} | {r["id"] for r in conn.execute(
+        "SELECT id FROM batches WHERE status = 'running'")})
     wakes = []
-    for r in rows:
-        # Law 6: the first budget that runs out climbs the ladder, the tick
+    for bid in bids:
+        # Law 6: the first budget that runs out climbs the ladder, a seat
         # key's cap of 3 too (frame 330).
-        if not stopped_bouncing(conn, r["bid"]):
-            continue                       # still bouncing; tests_failing has it
-        role = _next_rung(conn, r["bid"])
+        if not stopped_bouncing(conn, bid):
+            continue                       # still bouncing; its seat has it
+        role = _next_rung(conn, bid)
         if role:
-            wakes.append(Wake(role, "tick:exhausted", refs=(r["bid"],),
-                              detail=stop_detail(conn, r["bid"])
+            wakes.append(Wake(role, "tick:exhausted", refs=(bid,),
+                              detail=stop_detail(conn, bid)
                               # The gate's own count, so the text is true.
-                              or f"attempt {failing_attempt(conn, r['bid'])} of {cap}"))
+                              or f"attempt {failing_attempt(conn, bid)} of {cap}"))
     return wakes
 
 
@@ -1139,6 +1144,14 @@ def _next_rung(conn, batch_id: str) -> str:
         "SELECT DISTINCT role FROM sessions WHERE wake_kind IN "
         "('tick:exhausted', 'tick:findings_exhausted') "
         "AND committed = 1 AND wake_refs LIKE ?", (f'%"{batch_id}"%',))}
+    # A rung whose own key the tick quarantine took was asked too. It
+    # committed no session, so the ladder asked it for ever and `preempt`
+    # never parked (frame 330, the agency read, instance 10).
+    asked |= {r["tick_key"].split("|", 1)[0] for r in conn.execute(
+        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
+        "AND tick_key IN (" + ",".join("?" * (2 * len(LADDER))) + ")",
+        [f"{role}|{kind}|{batch_id}" for role in LADDER
+         for kind in ("tick:exhausted", "tick:findings_exhausted")])}
     for role in LADDER:
         if role not in asked:
             return role

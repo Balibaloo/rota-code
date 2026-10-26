@@ -117,16 +117,17 @@ def test_the_spent_ladder_parks_the_quarantined_batch_and_frees_the_seat(night_1
     assert [w.refs for w in tick_batch_start(night_168)] == [("batch_2",)]
 
 
-def test_the_wake_says_the_tests_still_fail_after_3_tries(night_168):
+def test_the_wake_says_the_tests_still_fail_after_3_attempts(night_168):
     """Pass 2: below the cap "attempt 6 of 10" is false, and the detail
-    reaches a prompt. A batch at `loop_cap` keeps the old text."""
+    reaches a prompt. A batch at `loop_cap` keeps the old text. Pass 5: the
+    words come from the page's one table, `TICK_WORDS`."""
     def details(conn):
         return [w.detail for w in P.exhausted(conn)]
 
-    assert details(night_168) == ["the tests still fail after 3 tries"]
+    assert details(night_168) == ["the tests still fail after 3 attempts"]
     _asked(night_168, *LADDER)
     (wake,) = P.preempt(night_168)
-    assert wake.detail == ("batch_1: the tests still fail after 3 tries, "
+    assert wake.detail == ("batch_1: the tests still fail after 3 attempts, "
                            "and its ladder is spent")
 
     night_168.execute("DELETE FROM sessions")
@@ -135,6 +136,79 @@ def test_the_wake_says_the_tests_still_fail_after_3_tries(night_168):
     _asked(night_168, *LADDER)
     (wake,) = P.preempt(night_168)
     assert wake.detail == "batch_1 is past its cap and its ladder is spent"
+
+
+def _only_key(conn, key: str, *, red: bool = False) -> None:
+    """The batch holds `key` quarantined as its one given-up key. Its tests
+    pass unless `red`."""
+    conn.execute("DELETE FROM tick_attempts")
+    conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                 "reported) VALUES (?, 3, 1, 1)", (key,))
+    if not red:
+        conn.execute("UPDATE test_runs SET result = 'pass'")
+
+
+def _frees_the_seat(conn) -> None:
+    """The spent ladder parks `batch_1`, and `batch_2` starts."""
+    from rota.core.loop import _perform
+
+    assert parked(conn, "batch_1")
+    _asked(conn, *LADDER)
+    assert _ladder(conn) == []
+    (wake,) = P.preempt(conn)
+    assert (wake.kind, wake.refs) == ("do:park", ("batch_1",))
+    assert [r["id"] for r in next_batch(conn)] == ["batch_2"]
+    _perform(conn, Wake(P.SCHEDULER, "do:park", refs=("batch_1",)))
+    assert [w.refs for w in tick_batch_start(conn)] == [("batch_2",)]
+
+
+def test_night_169_a_quarantined_start_climbs_the_ladder_and_frees_the_seat(night_168):
+    """Night 169: `batch_1` ran with no commit, its start key ran out at 3,
+    and `batch_2` never started. `given_up` listed the key, and no seat rule
+    read it (plans/frame330-agency-read.md, section 3, instance 9)."""
+    night_168.execute("DELETE FROM test_runs")
+    night_168.execute("DELETE FROM tests")
+    night_168.execute("UPDATE batches SET head_commit = NULL WHERE id = 'batch_1'")
+    _only_key(night_168, "developer|tick:batch_start|batch_1")
+    assert _ladder(night_168) == [("developer", "tick:exhausted", ("batch_1",))]
+    assert [w.detail for w in P.exhausted(night_168)] == [
+        "the change could not start after 3 attempts"]
+    _frees_the_seat(night_168)
+
+
+# The nine other keys of a running batch that `given_up` lists, section 3 of
+# the agency read. The last is a ladder rung's own key, so its rung is asked.
+OTHER_KEYS = [
+    ("developer|tick:verdict_failed|batch_1", "developer"),
+    ("developer|tick:finding_violated|batch_1", "developer"),
+    ("developer|tick:touch_mistaken|batch_1", "developer"),
+    ("critic|tick:review|batch_1", "developer"),
+    ("architect|tick:structural_review|batch_1", "developer"),
+    ("architect|tick:touch_strayed|batch_1", "developer"),
+    ("tester|tick:tests_missing|batch_1", "developer"),
+    ("developer|tick:batch_start|batch_1", "developer"),
+    ("developer|tick:exhausted|batch_1", "architect"),
+]
+
+
+@pytest.mark.parametrize("key, rung", OTHER_KEYS, ids=[k.split("|")[1] for k, _ in OTHER_KEYS])
+def test_every_given_up_key_of_a_green_running_batch_climbs_and_parks(night_168, key, rung):
+    """Law 6: "Budget exhaustion escalates one rung" and "It is never
+    silence". The check read the `tests_failing` key only, so a green batch
+    with any other key kept the seat and woke nobody."""
+    _only_key(night_168, key)
+    assert _ladder(night_168) == [(rung, "tick:exhausted", ("batch_1",))]
+    _frees_the_seat(night_168)
+
+
+def test_a_quarantined_rung_counts_as_asked(night_168):
+    """Instance 10: a rung whose own key ran out committed no session, so
+    `_next_rung` asked it for ever and `preempt` never parked."""
+    night_168.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+                      "reported) VALUES ('developer|tick:exhausted|batch_1', 3, 1, 1)")
+    assert _ladder(night_168) == [("architect", "tick:exhausted", ("batch_1",))]
+    assert [w.detail for w in P.exhausted(night_168)] == [
+        "a step of the team after 3 attempts; the tests still fail after 3 attempts"]
 
 
 def test_a_deferred_batch_s_given_up_key_still_parks_it(night_168):
