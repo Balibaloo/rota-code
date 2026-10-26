@@ -1,0 +1,141 @@
+{
+ "source": "plans/stack.md and plans/archive/stack-2026-10-26.md at b889c93d",
+ "pass": [
+  {
+   "line": 1235,
+   "body": "Pushed from the C3 read on Opus, 116k on the harness line against 50k. Held by this session, peer name rota-af. Pass 1 runs on a fresh implementer on Opus, cap 40k, in the worktree rota_p338 at the branch tip. Rota workflow."
+  },
+  {
+   "line": 1236,
+   "body": "**Pass 1 built on Opus, 72k on the harness line against 40k, at eb3439ea in rota_p338: the relay split drops an approved test row as it drops an approved criterion, a test row with no verdict keeps frame 213's route, park_criterion_relay and the mode key unchanged; the night 168 test red on HEAD and green after, 14 nearby relay files green** (observed: f338_pass1.md in this session's scratchpad). One med question: with an item row on the page, the split also sends an approved item to the Vision Keeper on HEAD and after; the fixture has no item row, as the record quotes none, and the item route is not this frame's. The review reads it. Cycles: 2 of 1. Rota workflow."
+  },
+  {
+   "line": 1245,
+   "body": "Pushed from the W-B read on Opus, 99k on the harness line against 50k. Held by this session, peer name rota-af. Pass 1 runs on a fresh implementer on Opus, cap 50k, in the worktree rota_p337 at the branch tip. Rota workflow."
+  },
+  {
+   "line": 1246,
+   "body": "**Pass 1 built on Opus, 68k on the harness line against 50k, at 21f67802 in rota_p337: rulings_rule passes the lines his earlier answers to the page name, from the earlier_exchange query's principal rows, to _unnamed_contest; a single reply reads as today; the refusal ends with one sentence when it read earlier answers; s193 turn 1 red on HEAD and green after, s281 stays refused, 94 green in the two touched files, 794 green in the 27 files that call the door with one red from before** (observed: f337_pass1.md in this session's scratchpad). The four commits of frames 336, 337 and 338 are on the branch at 7121f613. One review of the three from rota_r336 and the gate from rota_g328 run in parallel on 7121f613. Cycles: 2 of 1. Rota workflow."
+  },
+  {
+   "line": 1248,
+   "body": "**Pass 2 built on the same implementer, 80k cumulative on the harness line, at af60c5b9: the reversal guard reads his earlier answers to the page and his latest answer about a line wins, the reply itself the latest of all; 'Line 5 is fine' with no later word refuses the contest, a later 'Line 5 is wrong' lands it; 96 green in the touched files, 796 in the door files with the one red from before** (observed: f337_pass1.md, section Pass 2). On the branch with frame 336's pass 1c at 322da4b9. The gate on 7121f613 ends first, then the gate on 322da4b9 from rota_g328, then night 169 launches from it. Cycles: 4 of 1. Rota workflow."
+  },
+  {
+   "line": 1258,
+   "body": "Pushed from the C5 read on Opus, 90k on the harness line against 40k. Held by this session, peer name rota-af. Pass 1 runs on a fresh implementer on Opus, cap 40k, in the worktree rota_p336 at the branch tip. Rota workflow."
+  },
+  {
+   "line": 1259,
+   "body": "**Pass 1 built on Opus, 49k on the harness line against 40k, at 90a3a817 in rota_p336: _failure_line returns the last E line when the first is a traceback frame, _tail unchanged; 1 red on HEAD and 24 green after in test_park_page.py, test 1 on tr35's stored output** (observed: f336_pass1.md in this session's scratchpad). One low: the line ends with two periods because the error carries its own; pass 1b strips it, cap 10k. Then one review of the three frames' commits together and one gate. Cycles: 2 of 1. Rota workflow."
+  },
+  {
+   "line": 1270,
+   "body": "**Pass 1 built on Opus, 87k on the harness line against 80k, at 8a258a69 and b0f06d41 in rota_p335 above ecf63fde: tests_encode raises SyntaxWarning as an error and refuses an invalid escape with the raw string form of the line, cut-short \\x, \\u, \\U and \\N escapes taken too because the brief's own fixture was a SyntaxError and not a warning; the collection note gives the same form in place of pytest's advice; the test half of _cites reads each double backslash as one through a new _one_backslash when the written form misses; six tests 6 red on HEAD and 47 green after with frame 328's five files, 370 green in the desk guards** (observed: f335_pass1.md in this session's scratchpad). Deviations: the criterion half does not read a double backslash as one, so the brief's premise was wrong and the two halves do not yet read one rule, the implementer's high question; tst_c4 moved from test_frame328_path_door.py to test_frame335_escape.py because the encode now refuses it. Review 1 runs on Opus from rota_r335 at b0f06d41, cap 60k, from f335_review1_brief.md, eight points, the criterion half's reading among them. Cycles: 2 of 3. Rota workflow."
+  },
+  {
+   "line": 1272,
+   "body": "**Pass 2 built on the same implementer, 120k cumulative on the harness line, at 0404c4f4 in rota_p335 above b0f06d41: the raw string advice on the escape patterns only, the advice form checked through both parse paths with the forward-slash form first, the octal pattern, the reason in the refusal's comment, TST_C4_BODY deleted, _one_backslash in the criterion half; 10 red with the new tests on the old code, 423 green after in the touched files** (observed: f335_pass1.md, section Pass 2). Open: the forward-slash form is wrong when a criterion asserts a backslash in the output, the implementer's med question; the octal advice names /777. Review 2 runs on the same reviewer from rota_r335 at 0404c4f4, cap 30k: the two high findings re-probed, the backslash form that survives both paths, the octal residue, the criterion half. Then the gate on its commits above frame 330's head. Cycles: 4 of 3. Rota workflow."
+  },
+  {
+   "line": 1274,
+   "body": "**Pass 2b built on the same implementer, 129k cumulative on the harness line, at 602136c0 in rota_p335: the chr(92) form beside the forward-slash form for a path with no surviving raw form, no named form for the octal value, a lone backslash-R keeps its raw form; 27 passed in the frame's file and the path door file** (observed: f335_pass1.md, section Pass 2b). The four commits, 8a258a69, b0f06d41, 0404c4f4 and 602136c0, go on the branch above frame 330's head when its gate ends, and the gate runs on that head. Cycles: 6 of 3. Rota workflow."
+  },
+  {
+   "line": 1288,
+   "body": "Pass 1 runs on a fresh implementer on Opus, cap 80k, from f330_pass1_brief.md in this session's scratchpad, in the worktree rota_p330 at 58b8c8bd: one check, the batch stopped bouncing, true at loop_cap or on a quarantined tests_failing key of a running batch; exhausted and parked read it; five unit tests, two red on HEAD; one commit fix(core). Beside it, sprint 25 row 2, C2's provenance read, runs on a second Opus agent, cap 60k, from c2_escape_read_brief.md, to plans/c2-escape-provenance.md: the call's escape level, body against quotes in one call, the parse check's warning against the project's pytest, the count over nights 160 to 168. Cycles: 2 of 3. Rota workflow."
+  },
+  {
+   "line": 1289,
+   "body": "**Pass 1 built on Opus, 82k on the harness line against 80k, uncommitted in rota_p330 on 58b8c8bd: the check is stopped_bouncing in scheduler.py, true at loop_cap or on a quarantined tests_failing key of a running batch, and exhausted and parked both read it; the five brief tests 2 red on HEAD and 5 green after; but the scripted scenes park and two_batches have no answer for the new developer|tick:exhausted|b1 wake, because they encode the old silence after a quarantine, which is night 168's wall, so 13 neighbouring files went from 1 failed to 70 failed and 4 errors, and the implementer committed nothing by the rule that forbids a commit on red touched tests** (observed: f330_pass1.md in this session's scratchpad). Judged here: the scenes are a door of the gate the same way a brief line is, frame 322's lesson, and they must prove the new rule. Pass 2 runs on the same implementer from f330_pass2_brief.md, cap 60k: the three rungs seated in both scenes with do:park before item 2, the wake details say 'the tests still fail after 3 tries' for a quarantined key through one helper, night 94's test keeps do:park, then one commit for both passes. The detail reaches a prompt, so the gate classifies the stale cases. Cycles: 3 of 3. Rota workflow."
+  },
+  {
+   "line": 1290,
+   "body": "**Pass 2 built on the same implementer, 126k cumulative on the harness line, 42k for the pass against 60k, one commit 43d5985c in rota_p330 above 58b8c8bd for both passes: the park and two_batches scenes seat the three rungs and then the park, the rung wakes say 'the tests still fail after 3 tries' from the key's own count through one helper, night 94's test keeps do:park; the 13 neighbouring files and the new one read 1 failed and 706 passed, the one red there before pass 1, test_scene_two_batches.py::test_a_right_call_lands[the project test tests/test_templates.py as an encode]** (observed: f330_pass1.md, section Pass 2, in this session's scratchpad). Deviation: the park comes at item 2's grouping and not before it, because preempt parks nothing while no other batch waits, so a stopped batch alone keeps the seat and the loop goes quiet after the ladder, the implementer's open question; the scenes no longer prove the law 9 preempt path. Review 1 runs on Opus from rota_r330 at 43d5985c, cap 60k, from f330_review1_brief.md, eight points, the quiet with no other batch and the lost preempt proof among them. Cycles: 4 of 3. Rota workflow."
+  },
+  {
+   "line": 1292,
+   "body": "**Pass 3 built on the same implementer, 135k cumulative on the harness line, 9k for the pass against 30k, at d5d6e7cd in rota_p330: one test for the law 9 preempt of a quarantined running batch with a rung still owed, the exhausted detail from the per-batch count with a shared-test-id assertion that reads 'attempt 4 of 10' on the old code, the comment in parked rewritten, the ladder-once rule in the check's docstring; 7 of 7 in the frame's file, the 13 neighbouring files 1 failed and 707 passed, the one red from before pass 1** (observed: f330_pass1.md, section Pass 3). The two commits are on the branch at ec33c1f7 and 24fd4638 above 1897a238. The gate runs from rota_g328 moved to 24fd4638, with re-records, since 18:5x, to gate_24fd4638.txt in this session's scratchpad; the registers are equal since the copy of 18:2x. On a clean gate the mechanism is closed at 24fd4638 and the frame validates at night 169. Cycles: 6 of 3. Rota workflow."
+  },
+  {
+   "line": 1294,
+   "body": "**Pass 4 built on the same implementer, 148k cumulative on the harness line, at 965bd61c: the large_module scene was the one scene left that quarantines the key on a running batch and it seats the three rungs; all 12 test_scene files 14 failed and 6 errors on d5d6e7cd, 1 failed and 165 passed after, the one red from before pass 1 on ledger.log missing kind** (observed: f330_pass1.md, section Pass 4). On the branch at 3bb5be4b. The gate runs from rota_g328 at 0fcbce6d, the head with frame 335's four commits above this frame's three, one gate for both frames because their files do not meet, since 19:3x, to gate_0fcbce6d.txt in this session's scratchpad. Cycles: 8 of 3. Rota workflow."
+  },
+  {
+   "line": 1365,
+   "body": "**Pass 2 on the same implementer, 233.5k on the harness line, in `rota_p328` above 0b98954c: 9913fc88 requires each challenge quote to be a contiguous span of its own row's live text, whitespace-normalised, with quote marks, a literal `\\n` and `'` for `\"` taken as the same span because real quotes of nights 119 to 126 need them; 5d76fddc refuses a Developer challenge on a test green at the head, placed after the same-refs door because the frame's place broke the repeat refusal; m88 refused, m85 passes, m83 and m88 meet the green-test refusal; 11 passed in the frame files, 308 in the subset; stale 24, up from 18, the 6 new all challenge cases** (observed: the report, Pass 2). Open for the review: no minimum span length, so `c.txt` passes on both sides; the other four challenge channels keep the 12-character rule, the same departure, to fix the same way; four existing tests changed and one prose-form pin now refused. Review 1 of passes 1 and 2 on a reviewer next. Cycles: 3 of 3. Rota workflow."
+  },
+  {
+   "line": 1367,
+   "body": "**Pass 2b on the sender's implementer, 01:24 to 01:52, in `rota_p328` above 5d76fddc: 1631ba36 gives a quote a floor of 12 normalised characters or the whole row, one quote per row, the escape form only at a line break of the row, and one string as one quote through the binder; 8f960862 fires the encode note only on a Developer's own `code.commit` receipt on the batch and names each red test's own line; 17 passed in the frame files, 8 known reds in the subset, 11 reds in the unit suite of which 6 are older and 5 in `test_developer.py` pass alone in 190s; no gate** (observed: the report, section Pass 2b). Deviations: finding 6 pinned by a test only, because `session_commit` deletes a test's runs on a body change; the reason and answer-mode doors now offer the quote list, or 8 unit tests go red; the Critic to Tester channel stays strict and unnamed. Review 2 on a reviewer, `plans/frame328-review-p2b.md`. Then the cherry-pick above 150607c1 and one gate with re-records, the 5 stale challenge cases among them. Claimed by 192bbbc0 (rota-b5) from the handed stack. Cycles: 5 of 3. Rota workflow."
+  },
+  {
+   "line": 1226,
+   "body": "**The provenance read on Opus, 124k on the harness line against 30k, plans/frame339-provenance.md: no ruling made the removal door, the session built it in frame 283 W1a pass 1 at 92e240fc on 2026-10-21 from night 158's read, on the composition line that only a fact or a ruling gates; the 'line N' matcher came at 2acc7b5c on 2026-10-23 in pass 2 with no brief, status line or review that asked for it; the sentence to copy came at e1cfcdd2 on 2026-10-24 in frame 312, and review w5 found there that his own words fail and called it a seat's route, a residue frame 283 closed with still open; the door departs in part from his ruling of 2026-10-17 16:50 that an unexpected change goes to the Architect for sign-off, because the batch_start mode names no Architect route; his structured per_item 'batch_1: approve' in r_58bf1e8c70 exists and the door does not read it; refusals 0 on each of nights 160 to 168 and at least 15 in 5 Developer sessions on night 169 by 20:41, 12 of them after an answer that granted the removal in other words; s122 and s123 met the open-note door, not this one** (observed: the record). Placed by the guide: the rule never covered the case, his words in another form, and the door re-reads his text where the Liaison's reading already exists as a record. The fix question goes to Roman now, by the rule that a departure from his ruling is asked, the ruling first. Cycles: 4 of 5. Rota workflow."
+  },
+  {
+   "line": 1247,
+   "body": "**Review 1 of the three frames on Opus, 74k on the harness line against 60k, plans/frames336-338-review-p1.md: this frame held on one high, the reversal guard at api.py about 11794 reads only the last reply, so an earlier 'Line 5 is fine' now lets a contest of line 5 land against his word; frames 336 and 338 stand; 1 med older than the three, an item row on a non-park page goes to the Vision Keeper by frame 190's amendment 1; 2 low** (observed: the review). Pass 2 runs on the same implementer, cap 25k: the guard reads the same earlier answers and the latest answer about a line wins, two tests. The gate on 7121f613 runs meanwhile and a second gate follows on the final head. Cycles: 3 of 1. Rota workflow."
+  },
+  {
+   "line": 1249,
+   "body": "**The gate on 7121f613 from rota_g328: 5 new reds, the known five, 0 flaky, stale 0; suite 32 failed and 5416 passed** (observed: gate_7121f613.txt in this session's scratchpad). Frames 336, 338 and this frame's pass 1 are clean on it. The final gate runs on 322da4b9, with this frame's pass 2 and frame 336's pass 1c, from rota_g328 since 20:0x, to gate_322da4b9.txt. On its five clean lines night 169 launches from 322da4b9 by .rota/launch_night169.sh, and this session hands off at the night boundary with plans/method/handoff-ac089aa1.md. Rota workflow."
+  },
+  {
+   "line": 1260,
+   "body": "Review 1 stands with one low: the period strip applied only to the traceback case, so an assertion red that ends with a period still doubles it. Pass 1c on the same implementer, cap 10k, strips one period on every returned line. Cycles: 3 of 1. Rota workflow."
+  },
+  {
+   "line": 1271,
+   "body": "**Review 1 of b0f06d41 on Opus, 100k on the harness line against 60k, plans/frame335-review-p1.md: held, 2 high, 2 med, 3 low. High 1: the collection note gives the raw string advice on any 'Did you mean', so an ImportError typo gets escape advice. High 2: the raw form typed with one backslash in the call stores a real line break before n and a tab before t on both parse paths, so the advice breaks the body on the common Windows path. Med: the refusal fires on a project with no warnings filter; the fallback parser reads one quote mark only, so the triple-mark form rota teaches loses the body, an older fault. Low: the octal escape pattern, the unused TST_C4_BODY, the fallback's value cut from the right. Point 5: the criterion half reads a double backslash as two, so the halves disagree on one quote** (observed: the review). Pass 2 runs on the same implementer from f335_pass2_brief.md, cap 60k: the advice gated on the escape patterns, a form checked through both parse paths with the forward-slash form first, the octal pattern, the reason in the refusal's comment, the dead body deleted, and _one_backslash in the criterion half. The two fallback-parser faults are older than this frame and stay recorded here for a frame of their own. Cycles: 3 of 3. Rota workflow."
+  },
+  {
+   "line": 1273,
+   "body": "**Review 2 of 0404c4f4 on the same reviewer, 22k for the review and 120k cumulative on the harness line, appended to plans/frame335-review-p1.md: stands; both high findings fixed, an ImportError typo keeps pytest's advice and every named form comes through both parse paths unchanged; 1 med left, the fallback parser's triple-quote fault, older than this frame; 4 low, among them that for C:\\Users\\new only the forward-slash form survives, where the chr(92) form keeps a real backslash on both paths, and the octal advice names /777** (observed: the review). Pass 2b runs on the same implementer, cap 20k: the chr(92) form beside the forward-slash form, and no named form for a value that is not a path, one test each. Then the gate above frame 330's head once its gate ends. The fallback parser's two faults, the single quote mark read and the value cut from the right, are a candidate for the next read, not this frame. Cycles: 5 of 3. Rota workflow."
+  },
+  {
+   "line": 1287,
+   "body": "**The gate with re-records from rota_g328 at e03b1098, 17:55 to 18:16, 885.4s: exit 1, 5 new reds, the known five, 0 flaky, stale 0; 4 of the 5 stale cases re-recorded green on qwen3:8b, and L3-a-challenge-reaches-the-role-that-can-answer-it re-recorded FAIL 0 of 5 while the suite still reads it green, a residue for the next read** (observed: gate_e03b1098_rr.txt in this session's scratchpad). The register copied from the worktree into the checkout by the backup API, 509129 case_runs rows, newest 18:16:20, under no pytest. **The provenance read on Opus, 119k on the harness line against 60k, plans/frame330-provenance.md: a gap, not a departure; the tick cap of 3 came at 90f09152 on 2026-08-11 on the premise that a Developer bouncing on a red harness is never touched, frames 83 and 318 removed that premise, loop_cap 10 came at 7e3be756 on 2026-08-09 and exhausted reads it since 9b6499d4; after s154 the quarantined predicate fired once and no wake named batch_1 again, run attempts stayed at 6 on three 'nothing changed' commits; the shape is 2 walks of night 168 and 0 of nights 160 to 167; no ruling of Roman's covers it** (observed: the read). The repair: one check, the batch stopped bouncing, reads failing_attempt at loop_cap or a quarantined tests_failing key of a running batch, and exhausted and parked both read it, so law 6's first rung wakes and frame 86's do:park frees the seat. Pass 1 runs on a fresh implementer on Opus in a worktree. Cycles: 1 of 3. Rota workflow."
+  },
+  {
+   "line": 1291,
+   "body": "**Review 1 of 43d5985c on Opus, 78k on the harness line against 60k, plans/frame330-review-p1.md: stands, 0 high, 1 med, 3 low. Med: no test covers the law 9 preempt of a running batch with a quarantined key, the two scenes were its only proof. Low: exhausted writes its detail from the cross-batch count; the comment in parked is now false; a quarantine below the cap uses up the ladder before a later real loop_cap. Point 2: the quiet with no other batch is not silence, the Liaison's quarantined note reaches him once, and law 6 allows a note. Point 5: no recorded case goes stale, the three files with tick:exhausted or do:park wakes are at or past the cap** (observed: the review). Pass 3 runs on the same implementer, cap 30k: one unit test for the preempt path, the detail from the per-batch count, the comment rewritten, the ladder-once rule in the docstring. Then the gate from rota_g328 on its commit. Cycles: 5 of 3. Rota workflow."
+  },
+  {
+   "line": 1293,
+   "body": "**The gate on 24fd4638 from rota_g328, 875.1s: exit 1, 25 new reds, 1 flaky, stale 0, reds gone 5; the known five and 20 of one cause, the scene script has no answer for developer|tick:exhausted|b1, in test_scene_large_module.py, its _again file and test_scene_merged_then_next_again.py; the 13 neighbouring files of pass 2 did not hold them** (observed: gate_24fd4638.txt in this session's scratchpad). Judged here: the same door as pass 1, more scenes encode the old quiet after a quarantine, and the pass 2 brief named only the two the implementer saw. Pass 4 runs on the same implementer, cap 40k: every scene in scenes.py that quarantines a tests_failing key on a running batch seats the rungs and the park, every test_scene file run. Then the gate again. Night 169 waits on it. Cycles: 7 of 3. Rota workflow."
+  },
+  {
+   "line": 1366,
+   "body": "**Review 1 on Opus, 132.5k on the harness line against 70k, `plans/frame328-review-p1.md`: 5d76fddc accepted, 9913fc88 and 0b98954c held; two high, a quote has no floor and one quote serves both rows, so `[\"in\", \"a1\"]` passes where the 12-character rule refused it, and a boot writes the base commit as the head, so a test written before the code gets the note and the note invites a fit to the old behaviour; five low, the first test's name with the second test's line, the escape form matching a space, an elided quote as two spans, a green run of an older body, and the strict check also on the Critic to Tester channel; three other channels keep the 12-character rule, the Terminologist's needs a brief change because its text is a proposed wording, 182 of 206 would refuse** (observed: the review). Pass 2b on the implementer: a floor of 12 characters or the whole row, one quote per row, the note only after a `code.commit` of the batch, the first test's own line, the escape form narrowed, the green run of the same body. The other channels are a frame of their own. Cycles: 4 of 3. Rota workflow."
+  },
+  {
+   "line": 1368,
+   "body": "**Review 2 on Opus, 188.9k on the harness line against 70k, `plans/frame328-review-p2b.md`: both pass 2b commits accepted, all nine points hold, five low findings and no high; the stale estimate is 0 new cases on the latest recordings, and 22 older recorded calls now meet the stricter check because their test quotes hold lines after a comment that are not in the row** (observed: the review). The five lows stay as residue for a night to show: the same quote twice passes the own-quote rule, a decoded tab matches a space, the answer-mode door offers an elided string that the follow check then refuses, the refusal shows the quote as sent, and the note stays silent on a Developer that committed in git and died before its session commit. Cherry-picked onto the branch as 98c47ba2, bde0e6ea, 73c57a08, a9231619 and 937b5093, clean. The gate with re-records runs from a worktree at 937b5093 when frame 329's pass gate ends. Cycles: 6 of 3. Rota workflow."
+  },
+  {
+   "line": 1369,
+   "body": "**The gate with re-records at 937b5093 from `rota_g328`, 02:29 to 03:02, 741.0s: exit 1 with the same 7 known new reds as the branch at 150607c1, stale 0, 7 reds cleared by re-record of 9 stale cases, the 5 challenge cases of pass 2 among them green 4 or 5 of 5; two re-records red, L1-DV-fix-the-code-not-the-test 0 of 5 as before, and L1-DV-a-wordless-answer-leaves-a-wrong-test-alone from green to 2 of 5, the case review 2 named for test quotes with lines after a comment** (observed: the five lines). That case is read on Opus before the merge is called accepted. Rota workflow."
+  }
+ ],
+ "not_pass": [
+  {
+   "line": 1276,
+   "body": "**The gate on 0fcbce6d from rota_g328, 813.3s: 5 new reds, the known five, 0 flaky, stale 0** (observed: gate_0fcbce6d.txt in this session's scratchpad). The mechanism is closed at 0fcbce6d, and the frame validates at night 169 on landed encodes that error at collection on an escape, from 6 of 7 toward 0, and challenge quotes refused on a double backslash, from 14 of 24 toward 0. Actual against the price of 1 to 2 build: 1 read 124k, 3 passes on one implementer 129k in all, 2 reviews 120k in all, 1 gate shared with frame 330. Night 169's launcher is .rota/launch_night169.sh at this head, profile local; the launch waits on Roman's word of 19:4x, build rows 4 to 6 first or launch now. Rota workflow."
+  },
+  {
+   "line": 1286,
+   "body": "The provenance read runs on a fresh agent on Opus, cap 60k, from f330_provenance_brief.md in this session's scratchpad, to plans/frame330-provenance.md: five questions, the commits that added the tick cap of 3 and loop_cap 10, the rule that should free the seat, night 168's rows after s154, the count of the shape over nights 160 to 168, and any ruling it departs from. The gate with re-records runs from rota_g328 at e03b1098 since 17:55 for the five stale cases; the register copies into the checkout, newest over older, when it ends. Rota workflow."
+  }
+ ],
+ "met": [
+  {
+   "line": 16,
+   "body": "**Met on night 3 of 3: 0 prints-door refusals in 61 tests.encode calls on night 168, after 0 of 51 on night 166 and 0 of 62 on night 167** (observed: plans/night168-read.md, section 3, and the two reads before it). Passes 1 and 1b are on the branch at a9f56f29 since 2026-10-25, and the count of the second clause is in plans/frame321-provenance.md. Closed to plans/archive/stack-2026-10-26.md with sprint 25. Rota workflow."
+  },
+  {
+   "line": 241,
+   "body": "**Met on night 3 of 3 at this head: night 168 read 0 of 1 batches whose first red project test follows an unnoted removal, 35 of 35 project tests green at d607d440, 6 note-door refusals and all 6 right, the one drop_notes row restored; nights 166 and 167 read 0 of 1 and 0 of 3, with 19 right refusals on night 167** (observed: plans/night168-read.md, section 3; plans/night167-read.md, section 3; plans/night166-read.md, section 3). The mechanism of the first clause is on the branch since pass 8b and the W-D pass, and no session on the three nights shows the sign, so the third clause has nothing to read. Closed to plans/archive/stack-2026-10-26.md with sprint 25. The meta status lines of the sessions that held it since 2026-10-17 stay on this block. Rota workflow."
+  }
+ ]
+}

@@ -210,15 +210,18 @@ REACH = "- Reach:"
 
 
 def reach_line(block: list[str] | str) -> str | None:
-    """The text after `Reach:` on a frame block's Reach line, or None.
+    """The text after `Reach:` on a frame block's last Reach line, or None.
 
     Rule C76 of `plans/method/reference.md` counts the reach of a placed
     cause before its pass. The status tool gates on this one reader, so
-    no second reader parses the line its own way. A wrapped Reach line
-    keeps its continuation lines, as a wrapped status line does.
+    no second reader parses the line its own way. A recount is a new Reach
+    line below the old one, so the last line wins, as the last status line
+    does (observed: plans/frame340-review-p1.md, finding 4). A wrapped
+    Reach line keeps its continuation lines.
     """
     lines = block.split("\n") if isinstance(block, str) else block
     lines = [line.rstrip("\r") for line in lines]
+    found = None
     for i, line in enumerate(lines):
         if not line.startswith(REACH):
             continue
@@ -227,8 +230,8 @@ def reach_line(block: list[str] | str) -> str | None:
             if not nxt.strip() or nxt.startswith("- ") or nxt.startswith("#"):
                 break
             parts.append(nxt.strip())
-        return " ".join(p for p in parts if p)
-    return None
+        found = " ".join(p for p in parts if p)
+    return found
 
 
 def read_lines(path: Path) -> list[str]:
