@@ -5865,14 +5865,15 @@ def _docs_ticket_refusal(ctx: Ctx, ticket_id: str | None,
     if not _HEADLINE_NAMES_DOCS.search(" ".join(headline.split()).casefold()):
         return None
     # The door cannot read "only" in a headline, so the text claims no
-    # intent past the words (frame 322, review 2, finding 3).
+    # intent past the words (frame 322, review 2, finding 3). The rewrite is
+    # the last and only instruction. A Vision Keeper route here was obeyed on
+    # 5 of 5 runs, and a message ends the session before a retry (frame 322,
+    # pass 3). The criteria brief holds that route.
     return (f"{ticket_id}'s headline is {headline!r}. The headline names the "
             f"documentation, and this criterion names no documentation. "
-            f"Write the criterion on "
-            f"the documentation: say what the docstring, the docs or the "
-            f"help text must say. If the item also needs a code change, that "
-            f"is the Vision Keeper's to slice: send "
-            f"msg.challenge_vision_keeper with the ticket")
+            f"A documentation criterion says what the docstring, the docs or "
+            f"the help text must say. Write the criterion on the "
+            f"documentation and send it again.")
 
 
 def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:

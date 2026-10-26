@@ -120,14 +120,33 @@ def test_respecify_into_behaviour_is_refused_with_the_same_text(db):
     assert not _landed(sb)
 
 
-def test_the_refusal_names_the_headline_and_the_two_routes(db):
+_REWRITE = "Write the criterion on the documentation and send it again."
+
+
+def test_the_refusal_names_the_headline_and_ends_on_the_rewrite(db):
+    """Pass 3: on 5 of 5 runs of the register case, the seat obeyed the
+    refusal's last instruction, a Vision Keeper challenge, and the session
+    ended before a retry (`plans/frame322-case-read.md`, section 2)."""
     with pytest.raises(ValueError) as exc:
         _specify(_seat(db), *_S185[1])
     said = str(exc.value)
     assert _DOC_HEAD in said
     assert "The headline names the documentation" in said
-    assert "Write the criterion on the documentation" in said
-    assert "msg.challenge_vision_keeper" in said
+    assert "the docstring, the docs or the help text must say" in said
+    assert "challenge_vision_keeper" not in said
+    assert said.endswith(_REWRITE)
+    assert said.count("Write ") == 1
+
+
+def test_the_criteria_brief_routes_a_mixed_ticket_once():
+    """Pass 3: the brief holds the Vision Keeper route, and the seat reads
+    it before any refusal (`plans/frame322-case-read.md`, the repair)."""
+    brief = prompts.compose("terminologist", "criteria")
+    head = "**A ticket whose headline names the docstring takes documentation"
+    assert brief.count(head) == 1
+    line = brief[brief.index(head):].split("\n\n", 1)[0]
+    assert "msg.challenge_vision_keeper" in line
+    assert "after its criteria land" in line
 
 
 def _ticket(db, tid, headline):

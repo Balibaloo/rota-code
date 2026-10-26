@@ -30,6 +30,11 @@ work.** Writing criteria for a contradiction launders it into looking decided:
 `msg.challenge_vision_keeper` with the item, `quotes=` copying the words that
 cannot hold together, and write nothing for it.
 
+**A ticket whose headline names the docstring takes documentation criteria.**
+Each one says what the docstring, the docs or the help text must say. A
+behaviour change that the ticket also needs goes to the Vision Keeper:
+`msg.challenge_vision_keeper` with the ticket, after its criteria land.
+
 **A ticket has the few criteria a person would check.** Three is usual and
 six is many. Each one costs a test, a review, and a page if it fails. A
 criterion for an edge the item's words never mentioned is a guess, and a
