@@ -244,7 +244,15 @@ def _code_problems(case):
     for role, mode in _seats(case):
         if not role or not mode:
             continue
-        tools = prompts.mode_tools(role, mode) or prompts.available(role)
+        # A mode with no `.tools` file holds the role's whole namespace, and
+        # `prompts.available` lists mode names (frame 326, review 1b).
+        tools = prompts.mode_tools(role, mode)
+        if tools is None:
+            import sqlite3
+
+            from rota.core.sandbox import build
+
+            tools = build(role, sqlite3.connect(":memory:")).functions()
         reads = sorted(CODE_READS & set(tools))
         if reads and not repo:
             yield (f"{role}/{mode} holds {', '.join(reads)} and the case "

@@ -14395,9 +14395,14 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
         # The read is named only to a mode that holds it. `architect/deliver`
         # holds the probe and not `code.source`, and a text that offers a call
         # the seat lacks is fault D's class (frame 326, review 1, finding 6).
-        from . import prompts as _prompts
+        # A mode with no `.tools` file holds the role's whole namespace.
+        # `prompts.available` lists mode names, not functions (review 1b,
+        # finding 2).
+        tools = _wake_mode_tools(ctx)
+        if not tools:
+            from ..core.sandbox import build as _build
 
-        tools = _wake_mode_tools(ctx) or _prompts.available(ctx.role)
+            tools = _build(ctx.role, ctx.conn).functions()
         read = (" Read the file with `code.source`."
                 if "code.source" in tools else "")
         return [{"note": f"the code index holds no code, so no pattern can "
