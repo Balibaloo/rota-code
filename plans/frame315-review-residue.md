@@ -116,3 +116,67 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/ad481e
 ## (e) Usage
 
 The harness gives no per-agent token split. The session counter moved from about 14,986k to about 14,909k tokens left. So this review used about 77k tokens, input and output together. That is past the cap of about 40k in the brief. The causes are the rejected first scan of point 3, the base comparison and a failed write of this record.
+
+# Second look at 2383c991
+
+Verdict: stands for the branch. Commit 2383c991 closes both high findings. Two low findings and one older med finding remain.
+
+- Method: this review did not run `git checkout` in the worktree. The reviewer rules forbid a git command that changes a tree. A `git archive` of 2383c991 in the scratchpad (`r315/head2/`) gives the same code. The worktree stays at 035d86c7.
+- Sources: `git show 2383c991`, and the "Pass 1b" section of `f315_residue_pass1.md`.
+
+## Point 1. The two highs
+
+- CONFIRMED, closed. His recorded words ("Line 1 still has the extra sentence about which tests to run, so please take it out and keep only what I asked for") are on an item whose second sentence came from s161 on `tick:contested`. The step names that sentence. The assert of the first sentence alone lands with `removed` (probe p9, case A).
+- CONFIRMED, closed. On "Remove the fallback ...", the assert that drops the first sentence is refused. The assert that drops only the added sentence lands (probe p9, case B). `_added_sentences` never counts the first sentence.
+- "Do not remove" now asks for no removal (`_removal_asks`).
+
+## Point 2. The "added" rule
+
+| Case | Result | Kind |
+|---|---|---|
+| A sentence of his request, held by no statement, also in a reply, on an item with a contested receipt | Counted as added. The drop lands. | Over-count, CONFIRMED (p9 case C) |
+| A sentence that an amend added as a paraphrase, not a copy of his reply | Not counted. The drop is refused, and the step says "nothing was added". | Miss, CONFIRMED (p9 case D) |
+| Two added sentences | Both counted. The drop of both lands. | Correct (p9 case E) |
+
+- The contested receipt is a fact about the item, not about the sentence. One contested amend makes every later sentence that copies a reply a candidate.
+- Over nights 163 to 166, the over-count is 0 items. Each text that an assert landed is in the scan (probe p8b). Only `format_filename_example` on night 163 has a contested receipt, and its text has one sentence. Each other item has one sentence, or it is `how_it_works` from orient with no copy of a reply. So the four nights do not exercise the rule.
+
+## Point 3. The pronoun rule and the removed cue
+
+- CONFIRMED. m57 gives no item sentence. "Its check ..." follows "Line 10 is still wrong." and counts as a page sentence. The step names line 10 and offers no amend (p9 case F, test 1 green).
+- CONFIRMED. m24's correction stays an item sentence, and the step offers it (p9 case F, the m24 test green).
+- The check, test and file cue is gone, so finding 3 of the first look is closed.
+- A sentence of the item that starts with "Its" or "Their" and follows a page sentence is lost. "Line 3 is fine. Their folder must be Local when roaming is False." gives no item sentence (p9 case F). Low.
+
+## The five files
+
+`1 failed, 446 passed`. The one red is `test_invoke_door.py::test_a_session_with_no_batch_reads_the_root`, the known red.
+
+## Findings of the second look
+
+7. `rota/roles/api.py:1474-1505` at 2383c991, `_added_sentences`. Low. CONFIRMED by p9 case C. A sentence of his request that no statement holds word for word, and that he repeats in a reply, counts as added once any contested receipt exists. The count on nights 163 to 166 is 0.
+   Fix: count a sentence as added only when it is absent from the item text before the first contested receipt. Or keep an item text per version.
+8. `rota/roles/api.py:1474-1505` at 2383c991. Low. CONFIRMED by p9 case D. A paraphrase that an amend added copies no reply, so a removal cannot take it out. The step says "nothing was added", which is not true. The old wall comes back for a paraphrase.
+   Fix: say "no amend added a copy of his reply" in place of "nothing was added". Or read the added sentence from the receipt's session call.
+9. `rota/roles/api.py:1428-1449` at 2383c991. Low. CONFIRMED by p9 case F. A sentence that starts with "Its" or "Their" after a page sentence is always a page sentence, even when it is about the item.
+   Fix: accept for now. Read it again if a night shows a lost correction.
+10. Outside the points, older than the commit. Med. CONFIRMED by p10 on de4e2fb0 and by p9 case A at 2383c991. On a contested wake, the paraphrase "In get_app_dir, use AppData." of a two-sentence item lands. No check refuses an assert that is not a subset in order and adds no new word but loses most of his words.
+    Fix: refuse an assert that loses a sentence of the item text with no removal request, when the sentence is not a subset match.
+
+## Probes of the second look
+
+All are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/ad481e08-d0cc-4317-a992-02d5208ea7e8/scratchpad/r315/`.
+
+- `head2/`: `git archive` of 2383c991. The five files ran there.
+- `head2/tests/rota/test_p9_probe.py`: cases A to F through the fixtures of the test file.
+- `base/tests/rota/test_p10_probe.py`: the paraphrase case on de4e2fb0.
+- `p8.py` and `p8b.py`: the added rule over each text that an assert landed on nights 163 to 166, read-only.
+
+## Counts of the second look
+
+- Over-count, the items where the rule calls a ratified sentence added: night 163 0, night 164 0, night 165 0, night 166 0.
+- The five files: 1 failed, 446 passed.
+
+## Usage of the second look
+
+The session counter moved from about 14,909k to about 14,885k tokens left. So the second look used about 24k tokens, inside its cap of about 25k.
