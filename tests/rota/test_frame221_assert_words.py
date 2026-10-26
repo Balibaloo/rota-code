@@ -498,3 +498,86 @@ def test_an_item_the_wake_did_not_name_is_refused(db):
                 kind="in_scope",
                 text="The `version_option` will include a `show_python` "
                      "flag, shown as major.minor.micro.")
+
+
+# Night 167, walk 1: s161 seq 9 amended get_app_dir_windows with his m57
+# sentence about the test, and no seat could take it out again
+# (plans/night167-walk1-loop.md, section 1).
+APPDIR = ("In get_app_dir on Windows, when APPDATA or LOCALAPPDATA is not "
+          "set, use the AppData Roaming or AppData Local folder under the home "
+          "folder instead of the bare home folder.")
+APPDIR_CHECK = ("Its check calls the function without an app name, so it "
+                "fails before it tests anything.")
+APPDIR_RULE = ("Use the Roaming folder when the roaming flag is True, and the "
+               "Local folder otherwise.")
+M57 = f"Line 10 is still wrong. {APPDIR_CHECK}"
+M66 = ("Someone added my note about the failing check to the end of it, and "
+       "that note is not part of what I asked for, so please remove it.")
+M24 = ("Replace it with the rule I want: use the Roaming folder when the "
+       "roaming flag is True, and the Local folder otherwise.")
+# s161's own paraphrase, refused for new words (s161 turn 5).
+APPDIR_PARA = ("In get_app_dir on Windows, use the AppData folders when the "
+               "variables are missing.")
+
+
+def test_s161_his_sentence_about_the_test_is_not_the_items(db):
+    _night150_item(db, "get_app_dir_windows", APPDIR)
+    _contest(db, "get_app_dir_windows", M57, "m58")
+    sb = _contested(db, "get_app_dir_windows")
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
+                text=APPDIR_PARA)
+    step = str(err.value)
+    assert f"with his sentence {APPDIR_CHECK!r}" not in step
+    assert "line 10" in step
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
+                text=f"{APPDIR} {APPDIR_CHECK}")
+    msg = str(err.value)
+    assert "line 10" in msg and "not the item" in msg
+    assert f"with his sentence {APPDIR_CHECK!r}" not in msg
+    assert not _item_writes(sb)
+
+
+def test_m66_a_removal_is_an_amend(db):
+    _night150_item(db, "get_app_dir_windows", f"{APPDIR} {APPDIR_CHECK}")
+    _contest(db, "get_app_dir_windows", M66, "m67")
+    sb = _contested(db, "get_app_dir_windows")
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
+                text=APPDIR_PARA)
+    step = str(err.value)
+    assert f"remove {APPDIR_CHECK!r}" in step
+    assert f"assert {APPDIR!r}" in step
+    out = sb.call("problem.assert", id="get_app_dir_windows",
+                  kind="in_scope", text=APPDIR)
+    assert out == {"id": "get_app_dir_windows", "removed": [APPDIR_CHECK]}
+    assert _item_writes(sb)
+
+
+def test_m24_a_correction_keeps_the_amend_and_refuses_a_drop(db):
+    _night150_item(db, "get_app_dir_windows", f"{APPDIR} {APPDIR_RULE}")
+    _contest(db, "get_app_dir_windows", M24, "m25")
+    sb = _contested(db, "get_app_dir_windows")
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
+                text=f"{APPDIR} Pick the folder from the profile type.")
+    assert f"with his sentence {M24!r}" in str(err.value)
+    with pytest.raises(ValueError):
+        sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
+                text=APPDIR)
+    assert not _item_writes(sb)
+
+
+def test_a_removal_drops_only_the_sentence_his_words_name(db):
+    _night150_item(db, "get_app_dir_windows",
+                   f"{APPDIR} {APPDIR_RULE} {APPDIR_CHECK}")
+    _contest(db, "get_app_dir_windows", M66, "m67")
+    sb = _contested(db, "get_app_dir_windows")
+    with pytest.raises(ValueError) as err:
+        sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
+                text=f"{APPDIR} {APPDIR_CHECK}")
+    msg = str(err.value)
+    assert repr(APPDIR_RULE) in msg
+    assert f"remove {APPDIR_CHECK!r}" in msg
+    assert not _item_writes(sb)

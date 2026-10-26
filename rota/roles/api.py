@@ -1425,31 +1425,128 @@ def _page_reply_fault(text: str, said: str) -> str | None:
     return None
 
 
-def _item_sentence(said: str) -> str | None:
+# A check, a test or a file. His sentence that names one the item text does
+# not name is about another line of the page: m57's "Its check calls the
+# function without an app name" (night 167, s161 seq 9).
+_OTHER_CUE = re.compile(
+    r"\b(?:check|test|file)(?:s|ing|ed)?\b|\b[\w/]+\.(?:py|toml|cfg|ini|txt)\b",
+    re.I)
+
+
+def _names_other(sent: str, item_text: str) -> bool:
+    low = (item_text or "").lower()
+    for m in _OTHER_CUE.finditer(sent):
+        term = m.group(0).lower()
+        base = re.sub(r"(?:s|ing|ed)$", "", term) if "." not in term else term
+        if base not in low:
+            return True
+    return False
+
+
+def _item_sentences(said: str, item_text: str = "") -> tuple[list, list]:
     """
-    His longest sentence about the item, or None.
+    His sentences about the item, and his sentences about another check, test
+    or file than the item text names.
 
     A sentence about the page is out, and so is the next sentence when its
     subject is a pronoun: in m91, "It should also say" is the page. A verdict
     ("Ok") and a request to the team ("Please build it") are out too.
     """
-    rest, prev_page = [], False
+    rest, other, prev_page = [], [], False
     for s in _sentences(said):
         page = bool(_PAGE_CUE.search(s)) or (
             prev_page and bool(re.match(r"(?i)(?:it|they|that|this)\b", s)))
         prev_page = page
         if not page and not re.match(r"(?i)(?:ok|okay|yes|no|please)\b", s):
-            rest.append(s)
-    return max(rest, key=len) if rest else None
+            (other if _names_other(s, item_text) else rest).append(s)
+    return rest, other
+
+
+# His request to take a sentence out of the item text. Night 167's m66 to
+# m118 asked five times, and each became another appended sentence.
+_REMOVAL_ASK = re.compile(
+    r"\btake (?:it|that|this|them) (?:out|off)\b|\bremove\b"
+    r"|\bis not part of what i asked\b|\bkeep only what i asked for\b"
+    r"|\bnot what i asked\b", re.I)
+
+
+def _removal_sentence(item_text: str, said: str) -> str | None:
+    """
+    The sentence of the item text that his removal request points at, or None.
+
+    His words point at a sentence by the words they share with it and with no
+    other sentence: m66's "my note about the failing check" names the check.
+    """
+    sents = _sentences(item_text)
+    asks = [s for s in _sentences(said) if _REMOVAL_ASK.search(s)]
+    if len(sents) < 2 or not asks:
+        return None
+
+    def _stem(a: str, b: str) -> bool:
+        n = 0
+        while n < min(len(a), len(b)) and a[n] == b[n]:
+            n += 1
+        return n >= 3 and n >= min(len(a), len(b)) - 1
+
+    words = [set(_prose_words(s)) for s in sents]
+    for his in (set(_prose_words(" ".join(asks))), set(_prose_words(said))):
+        scores = []
+        for i, own in enumerate(words):
+            others = set().union(*(w for j, w in enumerate(words) if j != i))
+            scores.append(sum(1 for h in his
+                              if any(_stem(h, w) for w in own)
+                              and not any(_stem(h, w) for w in others)))
+        best = max(scores)
+        if best and scores.count(best) == 1:
+            return sents[scores.index(best)]
+    return None
+
+
+def _dropped_sentences(item_text: str, text: str) -> list[str] | None:
+    """
+    The sentences of the item text that `text` leaves out, when `text` is the
+    item text's sentences in their order with one or more out. Else None.
+    """
+    cur, new = _sentences(item_text), _sentences(text)
+    if not new or len(new) >= len(cur):
+        return None
+    kept, i = set(), 0
+    for s in new:
+        while i < len(cur) and not _same_words(s, cur[i]):
+            i += 1
+        if i == len(cur):
+            return None
+        kept.add(i)
+        i += 1
+    return [s for j, s in enumerate(cur) if j not in kept]
 
 
 def _amend_step(id: str, cur_text: str, said: str) -> str:
     """The words door's step: what an item's text is, and the amend."""
-    sent = _item_sentence(said)
+    head = (f"Write his words about {id}, never his instruction about the "
+            f"page or the team")
+    # A removal is an amend. Night 167's s161 seq 9 appended his m57 sentence
+    # about the test, and no refusal offered the shorter text.
+    gone = _removal_sentence(cur_text, said)
+    if gone:
+        rest = " ".join(s for s in _sentences(cur_text) if s != gone)
+        return (f"{head}: he asks to remove {gone!r}, so assert {rest!r}, "
+                f"the text without it, or keep the item and answer with "
+                f"decisions.author")
+    rest, other = _item_sentences(said, cur_text)
+    if not rest and other:
+        line = next((m.group(1) for m in re.finditer(
+            r"(?i)\bline\s+(\d+)", said) if m.group(1) != "1"), None)
+        named = (f"line {line} of the page" if line else
+                 "a check, a test or a file")
+        return (f"His words contest {named}, which is not the item {id}. "
+                f"Do not amend {cur_text!r} with them. Keep the item. Send "
+                f"msg.report_liaison with what the contest needs, or answer "
+                f"with decisions.author")
+    sent = max(rest, key=len) if rest else None
     his = (f"his sentence {sent!r}" if sent
            else f"what he said about {id}")
-    return (f"Write his words about {id}, never his instruction about the "
-            f"page or the team: amend {cur_text!r} with {his}, or keep the "
+    return (f"{head}: amend {cur_text!r} with {his}, or keep the "
             f"item and answer with decisions.author")
 
 
@@ -1763,6 +1860,30 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
         return f"{id} is the principal's own words, and {why}. {keep}"
     if not words:
         return None
+    said = " ".join(words)
+    # A drop lands only as the removal his words ask for. Night 167's m66
+    # asked to remove the test sentence, and no refusal offered the shorter
+    # text (s161 seq 9, m57).
+    dropped = _dropped_sentences(cur["text"], text)
+    if dropped:
+        if dropped == [_removal_sentence(cur["text"], said)]:
+            return None
+        return (f"{id} is the principal's own words. The new text drops "
+                f"{' '.join(dropped)!r}, and the principal said {words[0]!r}. "
+                f"{_amend_step(id, cur['text'], said)}")
+    # His sentence about another check, test or file is not the item's. s161
+    # seq 9 appended m57's "Its check calls the function ..." to the item.
+    _, other = _item_sentences(said, cur["text"])
+    for s in _sentences(text):
+        if any(_same_words(s, c) for c in _sentences(cur["text"])):
+            continue
+        hit = next((o for o in other if _same_words(s, o) or _near_duplicate(
+            _prose_words(s), _prose_words(o), min_ratio=0.8)), None)
+        if hit:
+            return (f"{id} is the principal's own words, and the new text "
+                    f"adds his sentence {hit!r}, which names a check, a test "
+                    f"or a file that the item does not name. "
+                    f"{_amend_step(id, cur['text'], said)}")
     # An item's text is his words about the item. His reply about the page
     # is not, and the old step "Write what the principal said" sent s205
     # and s404 to write it into json_only (frame 263).
@@ -2098,7 +2219,10 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
     # read. A `source_refs` parameter for a reference waits for the
     # re-record: the advertised signature is in the prompt.
     stage_grain_refs(ctx, "items", id)
-    return {"id": id}
+    # The receipt names a removed sentence, so the seat sees what left the
+    # item (night 167, s161 seq 9 and m57).
+    removed = _dropped_sentences(cur["text"], text) if cur else None
+    return {"id": id, "removed": removed} if removed else {"id": id}
 
 
 @op("problem", "set approval")
