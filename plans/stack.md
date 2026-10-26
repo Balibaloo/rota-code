@@ -1211,6 +1211,7 @@ a different question and the night is then opened once.
 - Waits on: nothing. Priced 1 cycle, about 40k on Opus, and a review (reasoned: the read, the repair; one query and one argument).
 - Sprint: sprint 25, row 5, pushed from its read (reasoned: `plans/night168-read.md`, section 5; W-B of night 166 repeated on nights 167 and 168).
 - Pointer: `plans/wb-naming-provenance.md`; m76, m78, s193, s194 in `.rota/clickI_night168.db`; `plans/night166-read.md`, W-B.
+- Status 2026-10-26 19:39 (rota-af): Pushed from the W-B read on Opus, 99k on the harness line against 50k. Held by this session, peer name rota-af. Pass 1 runs on a fresh implementer on Opus, cap 50k, in the worktree rota_p337 at the branch tip. Rota workflow.
 
 ### 336. The page's check line shows the file and the line of a red test and not its error, so he reads a wrong cause (2026-10-26) (ac089aa1)
 
@@ -1219,6 +1220,7 @@ a different question and the night is then opened once.
 - Waits on: nothing. Priced 1 cycle, about 30k on Opus, and a review (reasoned: the read, the repair; one function).
 - Sprint: sprint 25, row 6, pushed from its read (reasoned: `plans/night168-read.md`, section 5).
 - Pointer: `plans/c5-check-line-provenance.md`; m53 and tr35 in `.rota/clickI_night168.db`.
+- Status 2026-10-26 19:39 (rota-af): Pushed from the C5 read on Opus, 90k on the harness line against 40k. Held by this session, peer name rota-af. Pass 1 runs on a fresh implementer on Opus, cap 40k, in the worktree rota_p336 at the branch tip. Rota workflow.
 
 ### 335. The encode check lets an invalid escape through as a warning that the project's pytest turns into a collection error, and no line tells the seat the call's escape level (2026-10-26) (ac089aa1)
 
