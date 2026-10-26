@@ -296,6 +296,22 @@ def test_a_new_python_copy_beside_a_python_name_is_still_refused(db, tmp_path):
                 text="def truncate(text, limit=72):\n    return text[:limit]\n")
 
 
+def test_a_base_name_comes_back_beside_a_python_twin(db, tmp_path, monkeypatch):
+    """Review 1 of 9492a40b, finding 1: the suffix filter alone does not
+    pass this write. `src/notify/templates.py` also defines `render`, so only
+    the base read shows that `legacy.py` had `render` before the batch."""
+    from rota.roles import api
+    base = "def render(template, **values):\n    return template\n"
+    wt, sb = _sample_batch(db, tmp_path, {"src/notify/legacy.py": base})
+    (wt / "src" / "notify" / "legacy.py").write_text("X = 1\n", encoding="utf-8")
+    with monkeypatch.context() as m:
+        m.setattr(api, "_base_text", lambda *a, **k: None)
+        with pytest.raises(ValueError, match="already defines render in src/notify/templates.py"):
+            sb.call("code.write", path="src/notify/legacy.py", text=base)
+    assert sb.call("code.write", path="src/notify/legacy.py", text=base)["bytes"], \
+        "the base commit's own `render` is not a copy of templates.py"
+
+
 def test_a_base_that_does_not_parse_leaves_the_working_file_names(db, tmp_path):
     """A base text with a syntax error adds no names. The working file's
     names still pass, and a name the index holds once in Python is refused."""

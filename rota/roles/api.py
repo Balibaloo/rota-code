@@ -18881,6 +18881,10 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                         f"one definition: give the new behaviour its own "
                         f"name, or change the one definition")
                 seen[node.name] = node.lineno - 1
+        # The file at the batch's base commit. The copy guard and the fence
+        # both read it, and each read runs git twice (review 1 of 9492a40b,
+        # finding 4).
+        _base_src = _base_text(ctx, _root, wpath.replace("\\", "/"))
         # One name, one definition, across the tree too. clickI night 35
         # (2026-09-13): the Developer wrote `src/click/main.py` with its own
         # `def echo` beside `echo_json`, when `src/click/utils.py::echo` is
@@ -18908,10 +18912,9 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             # Gate at 150607c1 (frame 326): a partial write dropped
             # `truncate`, and the write that put the base text back was
             # refused as a copy. The fence below reads the same base (frame 220).
-            _base_defs = _base_text(ctx, _root, wpath.replace("\\", "/"))
-            if _base_defs:
+            if _base_src:
                 try:
-                    had_before |= {n.name for n in _ast.parse(_base_defs).body
+                    had_before |= {n.name for n in _ast.parse(_base_src).body
                                    if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))}
                 except SyntaxError:
                     pass
@@ -18964,7 +18967,6 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 _baseline.append(_ast.parse(target.read_text(encoding="utf-8")))
             except (SyntaxError, UnicodeDecodeError):
                 pass
-        _base_src = _base_text(ctx, _root, wpath.replace("\\", "/"))
         if _base_src:
             try:
                 _baseline.append(_ast.parse(_base_src))
