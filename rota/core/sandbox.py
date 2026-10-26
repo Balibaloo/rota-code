@@ -1779,9 +1779,14 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     # A criterion that this session challenged to the Vision Keeper counts as
     # written. The twin door sends the seat to that challenge, and a second
     # order to rewrite invites a paraphrase twin (frame 329, review 1, F1).
+    # Only a twin refusal of the respecify opens the route. A challenge in
+    # place of a rewrite lets the Tester read the contested words, as on
+    # night 159 (frame 329, review 1b, F5).
+    twinned = getattr(ctx, "respecify_twinned", None) or set()
     stands |= {r for m in ctx.outbound
                if m["to_role"] == "vision_keeper" and m["verb"] == "challenge"
-               for r in m.get("body_refs") or () if isinstance(r, str)}
+               for r in m.get("body_refs") or ()
+               if isinstance(r, str) and r in twinned}
     unwritten = [r for r in relay_refs
                  if verdict.get(r) in ("contest", "revise") and r in ruled
                  and r not in stands
@@ -1883,6 +1888,12 @@ def _respecify_record(ctx: api.Ctx, respecify: Callable) -> Callable:
                 if getattr(ctx, "respecify_stands", None) is None:
                     ctx.respecify_stands = set()
                 ctx.respecify_stands.add(cid)
+            # A twin refusal: the twin door named the challenge as the way
+            # out (frame 329, review 1b, F5).
+            if getattr(exc, "criterion_twin", None) and isinstance(cid, str):
+                if getattr(ctx, "respecify_twinned", None) is None:
+                    ctx.respecify_twinned = set()
+                ctx.respecify_twinned.add(cid)
             raise
 
     return record

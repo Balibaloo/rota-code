@@ -179,20 +179,57 @@ def _night166_relay(conn) -> None:
     conn.commit()
 
 
-def test_a_challenge_after_the_twin_refusal_lets_the_answer_out(db):
-    """Review 1, finding 1: the twin refusal sends the seat to the Vision
-    Keeper. A criterion that the session challenged counts as written, so
-    the answer door lets the answer with c_1's rewrite reach the Tester."""
+def _s194(db):
     _night166_relay(db)
     sb = build("terminologist", db, mode="criterion_repair", session_id="s194",
                allow=prompts.mode_tools("terminologist", "criterion_repair"))
     sb.ctx.trigger = "m79"
     sb.ctx.wake_kind = "message"
+    return sb
+
+
+def _challenge(sb, refs):
+    sb.call("msg.challenge_vision_keeper", refs=refs,
+            quotes=f"{BEFORE[C2]!r} holds the fact that c_1 now holds")
+
+
+def _answer_refused(sb) -> str:
+    with pytest.raises(ValueError) as caught:
+        sb.call("msg.answer_tester", refs=[C1, C2], round_no=0)
+    assert not [m for m in sb.ctx.outbound
+                if m["to_role"] == "tester" and m["verb"] == "answer"]
+    return str(caught.value)
+
+
+def test_a_challenge_with_no_rewrite_lets_no_answer_out(db):
+    """Review 1b, finding 5, scenario C: a challenge in place of a rewrite
+    counts as no write. The Tester would read the words he contested, the
+    fault of night 159 that frame 308 closed."""
+    sb = _s194(db)
+    _challenge(sb, [C1, C2])
+    said = _answer_refused(sb)
+    assert f"No respecify of {C1}, {C2} has landed in this session" in said
+
+
+def test_a_challenge_of_an_untried_criterion_lets_no_answer_out(db):
+    """Review 1b, finding 5, scenario D: c_1's rewrite lands, and c_2 is
+    challenged with no try at c_2. c_2 still has no write."""
+    sb = _s194(db)
+    sb.call("criteria.respecify", id=C1, text=NEW, surface_refs=SURFACE)
+    _challenge(sb, [C2])
+    said = _answer_refused(sb)
+    assert f"No respecify of {C2} has landed in this session" in said
+
+
+def test_a_challenge_after_the_twin_refusal_lets_the_answer_out(db):
+    """Review 1, finding 1: the twin refusal sends the seat to the Vision
+    Keeper. A criterion that the session challenged after its twin refusal
+    counts as written, so the answer with c_1's rewrite reaches the Tester."""
+    sb = _s194(db)
     sb.call("criteria.respecify", id=C1, text=NEW, surface_refs=SURFACE)
     with pytest.raises(ValueError):
         sb.call("criteria.respecify", id=C2, text=NEW, surface_refs=SURFACE)
-    sb.call("msg.challenge_vision_keeper", refs=[C2],
-            quotes=f"{BEFORE[C2]!r} holds the fact that c_1 now holds")
+    _challenge(sb, [C2])
     sb.call("msg.answer_tester", refs=[C1, C2], round_no=0)
     assert [m["body_refs"] for m in sb.ctx.outbound
             if m["to_role"] == "tester" and m["verb"] == "answer"] == [[C1, C2]]

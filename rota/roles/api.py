@@ -6660,7 +6660,11 @@ def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
                 out += (f". If the principal's words give {skip} no fact of "
                         f"its own, send msg.challenge_vision_keeper with "
                         f"{skip}")
-            raise ValueError(said + out)
+            exc = ValueError(said + out)
+            # The answer door reads the flag: a challenge after this refusal
+            # counts as the rewrite (frame 329, review 1b, F5).
+            exc.criterion_twin = other_id
+            raise exc
 
 
 @op("criteria", "respecify")
