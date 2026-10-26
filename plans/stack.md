@@ -14,60 +14,83 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
-## Sprint 26, by fact, rewritten 2026-10-26 22:0x after the closed-frame reads
+## Sprint 26, by fact, re-cut 2026-10-26 23:06 from `plans/facts-2026-10-27.md`
 
-Night 169 ended sprint 25 at 20:56, stopped by the session 29 minutes
-into walk 1 on get_app_dir's loop at the removal door, frame 339
-(observed: `plans/night169-read.md`). Roman ruled at about 21:17 that
-an issue is read before it is fixed, rule C76. Fourteen open frames
-read that way fixed 0 of 14 at the source, and 7 of 56 closed frames
-of the last two weeks did (observed: `plans/agency-prevalence-2026-10-26.md`,
-`plans/closed-reach-2026-10-26.md`). The unit of this sprint is the
-fact and its one reader, not the frame: a row closes every frame at
-its fact (reasoned: the closed-frame reads, 45 of 48 one-door frames
-had a later frame at the same fact). A night runs on every fix of a
-row set (ruled: Roman, 2026-10-26 19:3x), and a seam across many
-readers takes its own night (reasoned: C42 prices a seam with its
-night; a seam is not one of the door fixes his ruling names).
-
-0. The re-cut, the taker's first step: one agent lists the open facts
-   from the code, each with its readers at head by `git grep`, its one
-   reader, and every frame at it, open or closed at one door, to
-   `plans/facts-2026-10-27.md`; the stack's head then lists facts with
-   frames as rows under them, and a night's wall at a known fact is a
-   count on that row (ruled: Roman, 2026-10-26 about 22:1x, "we found an
-   issue with the workflow and the processed backlog, so what follows?",
-   the reading is the session's). About 3 cycles. The counts of
-   2026-10-26 are the reason to re-cut, not the plan.
+The unit of this sprint is the fact and its one reader, not the frame
+(ruled: Roman, 2026-10-26 about 22:1x, "we found an issue with the
+workflow and the processed backlog, so what follows?", the reading is
+the session's). Row 0, the list, is done: 37 open facts, 471 readers at
+head, 99 of the open frames placed under a fact and 48 under none, the
+most of them instruments, measures and model behaviour (observed:
+`plans/facts-2026-10-27.md`, the head). Each row below is one fact with
+every open frame at it. A row closes its frames when the fact reads one
+reader and the night's count moved (C76 step 7). A night's wall at a
+known fact is a count on its row, not a new frame. A frame still shows
+its own Reach line, and the pass brief carries it. The readers by file
+and line are in the record, under the fact's number.
 
 Night 170, the two walls that stopped night 169:
 
-1. Frame 339, the removal recorded as a stray for the Architect, two
-   doors. Runs. Night 170's blocker.
-2. Frame 330, `stopped_bouncing` reads `given_up`, every stalled key.
-   4 cycles. Then the gate and night 170 on 339 and 330, night 1 of 3
-   for both and for 335 to 338 as built.
+1. F7 and F8, a removed base statement is a stray for the Architect.
+   Frame 339 runs, pass 1b on the review. At the fact: 140, 133, 173,
+   270, and 306's second half. Three doors of three on the removal path,
+   twelve removal finders at head and no one reader; `_base_text` and
+   the `drop_notes` row are the candidates (observed: F7). The one
+   reader is the frame after 339, not 339.
+2. F20 and F21, a quarantined key, the stalled seat and the lift, and a
+   tick key in words. Frame 330, pass 5 on `given_up`, after 339's
+   commit. At the fact: 242, 318, 157, 312's second half, 253, and 87
+   and 86 parked. 11 readers of quarantined keys and 8 lift sites
+   (observed: F20). Then the gate and night 170 on 339 and 330, night 1
+   of 3 for both and for 335 to 338 as built.
 
-Night 171, the facts:
+Night 171, the seam and the view:
 
-3. His ruling on a ref. Frames 337, 338, 322, the 11 phrase readers of
-   339, and 329's sentence. Matched first against frame 293's
-   rulings-ledger pilot (`plans/rulings-ledger-match-2026-10-26.md`,
-   running); the source by the composition is the Liaison's confirmed
-   reading as one record per ref. A seam, about 10 cycles, with night
-   171. Twelve frames sat at this fact in two weeks.
-4. The view the seat was shown. Frames 335, 333, 328: one span rule per
-   quote against each form the seat saw, nested text shown plainly, one
-   escape helper. About 6 cycles, 336's `error_line()` first because
-   the three edit one refusal.
-5. The program partition. Frame 324 at 13 of 13, `areas.kind_of` the one
-   reader. 3 cycles.
+3. F1, F2 and F3, his ruling on a ref: the `rulings` row, the page lines
+   his words name, and what his words permit by a phrase. Frames 337,
+   338, 322, 315, 329 first, then 268, 300, 250, 243, 249, 306, 289,
+   292, 185, 192, 265, 275, 299. 21 readers of `rulings`, 16 line
+   readers, 12 phrase readers; `last_ruling_on` is named the one reader
+   and 20 others read by their own rule (observed: F1 to F3). The source
+   by the composition is the Liaison's confirmed reading per ref
+   (observed: `plans/rulings-ledger-match-2026-10-26.md`). A seam,
+   about 10 cycles, with its own night. Twelve closed frames sat here in
+   two weeks.
+4. F18, F19 and F5, the view the seat was shown: the live text a quote
+   must match, the seat's call text at its escape level, and the error
+   line of a red run. Frames 335, 333, 328, 336 first, then 284, 285,
+   158, 266, 155, 156, 137, 160, 327. About 6 cycles, 336's
+   `error_line()` first because three frames edit `_red_line_refusal`
+   (observed: the shared places).
+5. F9, F10 and F11, the program partition of a path, the surface a
+   criterion names, and the path form of a file. Frame 324 at 13 of 13,
+   `areas.kind_of` the one reader, then 262, 319, 218, 295, 194, 141,
+   216 and 328's line 4. 3 cycles.
 
-Parked for sprint 27, in order: 341 the wall guide prices by reach and
-342 the close gate refuses a zero baseline, both before night 170's
-walls are placed; 331 the kit's world as the default; 332 debts name
-their frame; 334 the brief per mode, its wait closed from cf2898b0.
-Live things stay over the economy until a row closes its frames.
+Sprint 27, the facts with open frames and no row yet, by the count of
+frames at them (observed: the record):
+
+- F25, the calls a mode offers against the doors that refuse them: 334
+  and twelve older frames. F17, the criteria a session holds now: 329,
+  322, 315, 324. F6, the criterion of a test: 338, 128, 114, 138, 182.
+  F15, which request owns a row: 316, 325, 241, 276, 264, 303. F4, the
+  newest run of a test in its batch: 318, 330, 130, 84, 24 readers.
+- F13 the module that defines a name (260, 270, 288, 146), F14 whether
+  an assert can fail (328, 304, 147, 143), F12 the click names (304,
+  269, 176), F16 a reply that landed nothing (320, 174, 98), F35 the
+  predicted files (271, 196, 299), F22 the table an id lives in (167,
+  162), F31 what a criterion's prose is about (311, 322), F37 the added
+  lines a pass names (311, 201), F23 (280, 243), F27 (150), F28 (306),
+  F33 (332, 61), F34 (331), F36 (340, 342).
+- 341 the wall guide prices by reach, before night 170's walls are
+  placed. The 48 frames under no fact keep their own blocks and close
+  one by one.
+
+Live things stay over the economy until a row closes its frames. The
+status tool's two refusals of frame 340 are a departure from "enabling
+not inhibiting" put to Roman at 22:14 and not answered; nothing in this
+sprint waits on it.
+
 
 ## Sprint 25, recommended on night 168's read, 2026-10-26 18:08
 
@@ -1404,6 +1427,7 @@ a different question and the night is then opened once.
 - Status 2026-10-26 22:46 (rota-b4): Handed to e03f97fc (rota-70) at 22:46, commit 8aa7e301, confirmed 11 seconds after the claim. The stack is theirs. This session stops here and answers the taker until the word released. Meta workflow.
 - Status 2026-10-26 22:48 (rota-70): Taken from session 8db3a3f9 (rota-b4) with the stack, commit 8aa7e301; claimed by e03f97fc, peer name rota-70. Frames 330, 339, 340 and 324 claimed in the same edit. First step by the hand-off note: the review of frame 339's pass 1 at c7264f5a in rota_p339, then the gate with re-records and the cherry-pick, then sprint 26 row 0. Meta workflow.
 - Status 2026-10-26 22:50 (rota-70): Sprint 26 row 0, the re-cut's list, runs on Opus, read-only, cap 150k, from row0_facts_brief.md in this session's scratchpad, to plans/facts-2026-10-27.md: every open fact with its readers at head by git grep and the map tool, its one reader, every frame at it open or closed since 2026-10-12, the nights that showed it, and the code places two facts share. The agent lists and names no cause. The stack head is re-cut from the record when it lands. Meta workflow.
+- Status 2026-10-26 23:06 (rota-70): **Row 0 done on Opus, about 224k on the harness line against 150k, plans/facts-2026-10-27.md: 37 open facts, 471 readers at head, 99 open frames placed under a fact and 19 of them under two to four, 48 under none, most of them instruments, measures and model behaviour; the largest readers his ruling on a ref with 21 readers of rulings, the newest run of a test with 24, the removal finders with 12 and no one reader, the quarantined keys with 11 and 8 lift sites; 24 code places that two or more facts share, tests_encode with eight** (observed: the record; doubt: the counts come from grep on names and are lower bounds, and 32 placements rest on the heading alone). The stack head is re-cut by fact in the same commit: five rows for nights 170 and 171, each a fact with every open frame at it, and the facts with no row listed for sprint 27; frame 339's row names F7 and F8, this frame's row F20 and F21. Meta workflow.
 
 ### 331. The 19 owed cases run on no fixture, the fourth Tester case is not recorded, and the batch tree is indexed only under a case flag (2026-10-26)
 
