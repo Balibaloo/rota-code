@@ -1222,6 +1222,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 25, row 5, pushed from its read (reasoned: `plans/night168-read.md`, section 5; W-B of night 166 repeated on nights 167 and 168).
 - Pointer: `plans/wb-naming-provenance.md`; m76, m78, s193, s194 in `.rota/clickI_night168.db`; `plans/night166-read.md`, W-B.
 - Status 2026-10-26 19:39 (rota-af): Pushed from the W-B read on Opus, 99k on the harness line against 50k. Held by this session, peer name rota-af. Pass 1 runs on a fresh implementer on Opus, cap 50k, in the worktree rota_p337 at the branch tip. Rota workflow.
+- Status 2026-10-26 19:50 (rota-af): **Pass 1 built on Opus, 68k on the harness line against 50k, at 21f67802 in rota_p337: rulings_rule passes the lines his earlier answers to the page name, from the earlier_exchange query's principal rows, to _unnamed_contest; a single reply reads as today; the refusal ends with one sentence when it read earlier answers; s193 turn 1 red on HEAD and green after, s281 stays refused, 94 green in the two touched files, 794 green in the 27 files that call the door with one red from before** (observed: f337_pass1.md in this session's scratchpad). The four commits of frames 336, 337 and 338 are on the branch at 7121f613. One review of the three from rota_r336 and the gate from rota_g328 run in parallel on 7121f613. Cycles: 2 of 1. Rota workflow.
 
 ### 336. The page's check line shows the file and the line of a red test and not its error, so he reads a wrong cause (2026-10-26) (ac089aa1)
 
