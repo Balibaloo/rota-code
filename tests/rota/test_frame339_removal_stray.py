@@ -216,10 +216,104 @@ def test_a_mistake_keeps_the_line_for_the_developer(db, tmp_path):
     db.commit()
     assert [(w.role, w.kind) for w in P.touch_mistaken(db)] == [
         ("developer", "tick:touch_mistaken")]
+    # Review 1, finding 7: the Developer's own call shows the line.
+    dev = build("developer", db, batch_id="batch_1", mode="touch_mistaken",
+                allow=prompts.mode_tools("developer", "touch_mistaken"))
+    shown = dev.call("batches.strays", batch_id="batch_1")
+    assert [(r["path"], r["status"]) for r in shown] == [(GRAIN, "mistake")]
+    assert GONE in shown[0]["note"], shown
+
+
+def _land(db, sb, sha: str, since: int) -> list[tuple]:
+    """Apply the staged stray rows of `sb` from index `since` and move the
+    head to `sha`, as the pipeline does after the session."""
+    rows = [w[2] for w in sb.ctx.writes[since:] if w[0] == "touch_strays"]
+    for r in rows:
+        db.execute("INSERT OR REPLACE INTO touch_strays (batch_id, commit_sha, "
+                   "path, status, note) VALUES (?,?,?,?,?)",
+                   (r["batch_id"], r["commit_sha"], r["path"], r["status"],
+                    r.get("note")))
+    db.execute("UPDATE batches SET head_commit = ? WHERE id = 'batch_1'", (sha,))
+    db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) VALUES "
+               "(?, 'batch_1', ?, 'pass')", (f"v_{sha[:8]}", sha))
+    db.commit()
+    return [(r["path"], r["status"], r.get("note")) for r in rows]
+
+
+def _judged_a_mistake(db, tmp_path):
+    """The first commit raises the removal, and the Architect judges it a
+    mistake at that head."""
+    sb, root = _developer(db, tmp_path)
+    sha1 = _write_then_commit(sb)["head_commit"]
+    note = f"{_strays(sb)[0][2]} the fallback must stay"
+    db.execute("UPDATE batches SET head_commit = ? WHERE id = 'batch_1'", (sha1,))
+    db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status, note) "
+               "VALUES ('batch_1', ?, ?, 'mistake', ?)", (sha1, GRAIN, note))
+    db.commit()
+    return sb, root, note
+
+
+def test_a_mistake_stays_raised_while_the_line_stays_gone(db, tmp_path):
+    """Review 1, finding 1, probe P5m. On c7264f5a the next commit wrote no
+    row, `mergeable` gave None, and the removal merged. The mistake now
+    stays on the new head with its note, and the Architect is not asked
+    again."""
+    sb, root, note = _judged_a_mistake(db, tmp_path)
+    first = BASE.decode("utf-8").splitlines()[0]
+    sb.begin_reply()
+    sb.call("code.write", path=PATH, start=1, end=1, text=first + "  # probe")
+    sb.begin_reply()
+    since = len(sb.ctx.writes)
+    out = sb.call("code.commit", message="second")
+    assert out["committed"] is True, out
+    assert GONE not in (root / PATH).read_text(encoding="utf-8")
+    assert _land(db, sb, out["head_commit"], since) == [(GRAIN, "mistake", note)]
+    assert out["removals judged a mistake"] == [f"{GRAIN}: {note}"]
+    assert "removals" not in out
+    assert lifecycle.mergeable(db, "batch_1") is not None
+    assert [(w.kind, w.refs) for w in P.touch_mistaken(db)] == [
+        ("tick:touch_mistaken", ("batch_1",))]
+    assert P.touch_strayed(db) == []
+
+
+def test_a_commit_that_puts_the_line_back_leaves_the_mistake_behind(db, tmp_path):
+    """Frame 286's close: the commit that takes the mistake out writes no
+    row at the new head, and the old row stays on the old head."""
+    sb, root, _note = _judged_a_mistake(db, tmp_path)
+    # The base with a changed first line: a tree equal to the base would
+    # meet the revert door, which is not the case under test.
+    lines = BASE.decode("utf-8").split("\n")
+    lines[0] += "  # probe"
+    sb.begin_reply()
+    sb.call("code.write", path=PATH, text="\n".join(lines))
+    sb.begin_reply()
+    since = len(sb.ctx.writes)
+    out = sb.call("code.commit", message="put the fallback back")
+    assert out["committed"] is True, out
+    assert GONE in (root / PATH).read_text(encoding="utf-8")
+    assert _land(db, sb, out["head_commit"], since) == []
+    assert lifecycle.mergeable(db, "batch_1") is None
+    assert P.touch_mistaken(db) == []
+
+
+def test_a_removal_in_an_unpredicted_file_writes_one_row(db, tmp_path):
+    """Review 1, finding 8: the prediction names another file, so the path
+    is a stray too. The grain row holds the note, and no path row joins
+    it."""
+    db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) VALUES "
+               "('batch_1', 'src/click/core.py', 'path')")
+    db.commit()
+    sb, _root = _developer(db, tmp_path)
+    out = _write_then_commit(sb)
+    assert out["committed"] is True, out
+    assert out["outside_prediction"] == [PATH], out
+    rows = _strays(sb)
+    assert [(g, s) for g, s, _n in rows] == [(GRAIN, "open")], rows
+    assert rows[0][2].startswith(f"removal: `{GONE}`"), rows
 
 
 def test_a_judged_removal_is_not_raised_again(db, tmp_path):
-    """Frame 286's rule: a grain judged either way is not raised again on a
+    """Frame 286's rule: a grain judged foreseen is not raised again on a
     later commit of the batch."""
     sb, _root = _developer(db, tmp_path)
     db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status) "

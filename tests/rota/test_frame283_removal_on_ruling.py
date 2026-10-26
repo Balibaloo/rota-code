@@ -63,7 +63,7 @@ SCOPE = "ctx.exit() at line 550 was unreachable after echo() call, removed in wr
 MESSAGE = ("Fix show_python output format to include 'Python' prefix and "
            "restore ctx.exit()")
 
-ROUTE = ("A note does not allow a removal or a rewrite. To undo the change, put "
+ROUTE = ("A note does not close a removal. To undo the change, put "
          "the line back with code.write, then commit in your next reply. To keep "
          "the change, commit in your next reply. The Architect then judges the "
          "removal before the batch merges.")
@@ -181,6 +181,10 @@ def test_s279s_removal_reaches_the_architect_as_an_open_stray_before_a_merge(db,
     assert _strays(sb) == [STRAY]
     assert PATH in api._open_notes(sb.ctx)
     assert [v["status"] for v in _staged(sb)] == ["open"]
+    # Review 2, finding 1, kept by frame 339's review 1, finding 6: the
+    # fault note of seq 20 lands in `faults`, as on the night.
+    assert "fault" in out[20], out[20]
+    assert [w for w in sb.ctx.writes if w[0] == "faults"]
     sha = out[16]["head_commit"]
     db.execute("UPDATE batches SET head_commit = ? WHERE id = 'bg_3'", (sha,))
     db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status, note) "
@@ -516,7 +520,7 @@ def test_the_same_reply_refusal_says_its_fact_once_and_gives_the_route(db, tmp_p
     assert "You sent this commit" not in msg
     assert msg.count("you had not read it") == 1
     assert msg.endswith("If the tree holds those lines again, commit in your "
-                        "next reply. A note does not allow a removal or a rewrite. To undo "
+                        "next reply. A note does not close a removal. To undo "
                         "the change, put the lines back with code.write, then "
                         "commit in your next reply. To keep the change, commit "
                         "in your next reply. The Architect then judges the "

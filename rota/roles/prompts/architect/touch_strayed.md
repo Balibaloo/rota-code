@@ -22,4 +22,7 @@ A stray can be a definition, written `path::name`, when your prediction named
 the file and no criterion names the definition. Judge it with
 `batches.judge_touch`, as you judge a path.
 
+A `removal:` note names a base line that the commit removed, inside a
+definition the prediction named.
+
 The prediction never blocked the commit. Only your silence holds the merge.

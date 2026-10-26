@@ -274,7 +274,7 @@ def test_the_refused_commit_names_both_routes_for_a_rewrite(db, tmp_path):
     assert _quote_in("return x", out["dropped"])
     got = _call(sb, "code.commit", message=MESSAGE)["refused"]
     assert got.endswith(
-        "A note does not allow a removal or a rewrite. To undo the change, put "
+        "A note does not close a removal. To undo the change, put "
         "the lines back with code.write, then commit in your next reply. To keep "
         "the change, commit in your next reply. The Architect then judges the "
         "removal before the batch merges.")

@@ -194,7 +194,7 @@ S282_NOTE = ('This write removes or rewrites 3 statements that your text does no
 # Frame 283's review 3, finding 3: the step says its fact once and ends on
 # the shared route.
 STEP = ("If the tree holds those lines again, commit in your next reply. A "
-        "note does not allow a removal or a rewrite. To undo the change, put the "
+        "note does not close a removal. To undo the change, put the "
         "lines back with code.write, then commit in your next reply. To keep the "
         "change, commit in your next reply. The Architect then judges the "
         "removal before the batch merges.")
@@ -202,7 +202,7 @@ STEP = ("If the tree holds those lines again, commit in your next reply. A "
 # Frame 283's W1 a, pass 2: a note never allows a removal of a base
 # statement, so the route names no ledger note. Frame 339: the commit of a
 # later reply lands, so the route to keep the change is that commit.
-LATER_STEP = ("A note does not allow a removal or a rewrite. To undo the change, put "
+LATER_STEP = ("A note does not close a removal. To undo the change, put "
               "the lines back with code.write, then commit in your next reply. To "
               "keep the change, commit in your next reply. The Architect then "
               "judges the removal before the batch merges.")
@@ -818,6 +818,29 @@ def test_an_entry_with_no_stored_line_names_the_write_route_only(db, tmp_path):
     assert str(err.value).endswith(
         "Put the lines back with code.write, then commit in your next reply.")
     assert "ledger.log" not in str(err.value)
+
+
+def test_a_held_entry_with_no_line_names_the_route_the_next_reply_takes(db, tmp_path):
+    """Frame 339's review 1, finding 3, probe P4: the note of this reply
+    holds no line and no definition. The next reply's commit is refused
+    with the write route, so the first refusal names that route only."""
+    sb, root = _developer(db, tmp_path)
+    now = DECORATORS + "\n# dirty\n"
+    (root / PATH).write_bytes(now.encode("utf-8"))
+    note = "This write drops 2 lines."
+    api._put_note(sb.ctx, PATH, {"note": note, "lines": [], "defs": [],
+                                 "whole": [], "noted": now})
+    sb.ctx.reply_notes[PATH] = note
+    route = "Put the lines back with code.write, then commit in your next reply."
+    with pytest.raises(ValueError) as first:
+        sb.call("code.commit", message="x")
+    assert str(first.value).startswith("your code.write in this reply"), first.value
+    assert str(first.value).endswith(route), first.value
+    assert "To keep the change" not in str(first.value)
+    sb.begin_reply()
+    with pytest.raises(ValueError) as later:
+        sb.call("code.commit", message="x")
+    assert str(later.value).endswith(route), later.value
 
 
 def test_a_write_note_shows_only_the_lines_its_entry_stores(db, tmp_path):

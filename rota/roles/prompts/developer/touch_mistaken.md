@@ -11,6 +11,9 @@ For a mistaken definition, `path::name`, write the base source of that
 definition back over its span with `code.write`. Keep the rest of the file.
 Then run `code.commit`.
 
+For a `removal:` row, put back that line only, and keep the rest of the
+definition.
+
 If the criteria need that file, the judgement is wrong, and that is a question
 for the Architect: `msg.escalate_architect` with the batch and the path, and
 say which criterion needs it. Do not both keep the file and stay silent.
