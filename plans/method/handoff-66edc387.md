@@ -91,10 +91,23 @@ stays awake and the standby watchers live.
 - Night 166: `.rota/night166.log`, `.rota/clickI_night166.db`,
   `plans/night166-read.md`, `plans/night166-cycle1.md`.
 
-First after the take: the two pass reports, one review each on the
-worktree heads, cherry-pick onto the branch (326's five accepted commits
-plus 1b and 1c, 328's three), one gate with re-records from `rota_g301`
-at the head. Then the native trial on both models from a worktree at the
+Update at 01:25, the hand-off. Frame 326's whole pass is on the branch,
+13 commits, head 150607c1, reviewed three times and accepted. The gate
+with re-records runs from `rota_g301` at 150607c1 since 01:03, 18 stale
+cases expected; its five lines land in my task output
+`C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/66edc387-a3b2-48b8-8dec-bb5b3aa63e50/tasks/b19qzepjh.output`
+and in `C:/Users/roman/rota_g301/.rota-gate.log`. When it accepts, copy
+the register from `rota_g301` into the checkout, only while no `pytest`
+runs. Frame 328: pass 2b runs on my implementer in `rota_p328` above
+5d76fddc, against `plans/frame328-review-p1.md`, which held 9913fc88 and
+0b98954c and accepted 5d76fddc; its report lands in `f328_pass1.md`,
+section Pass 2b, in my scratchpad. Then one review of 2b, the
+cherry-pick of 328's commits, and a gate. The three other challenge
+channels that keep the 12-character rule are a frame of their own, to
+push at the next close with the three Roman agreed to at 23:21.
+
+First after the take: the gate's five lines, then frame 328's pass 2b
+report and its review, the cherry-pick, one gate with re-records. Then the native trial on both models from a worktree at the
 gated head, `f323_native_run.sh` in session 0699ee05's scratchpad is the
 shape, with think off and on. Then the Gemma night, with a notification
 to Roman. Then frame 329, then night 167 from the gated head, the same
