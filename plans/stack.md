@@ -1211,6 +1211,7 @@ a different question and the night is then opened once.
 - Waits on: nothing. Priced 1 cycle, about 40k on Opus, and a review (reasoned: the read, the repair; one branch of the split).
 - Sprint: sprint 25, row 4, pushed from its read (reasoned: `plans/night168-read.md`, section 5; frame 306's sign, frame 278 parked beside it).
 - Pointer: `plans/c3-relay-provenance.md`; m50, m57, s156, s157, s165, s166 in `.rota/clickI_night168.db`.
+- Status 2026-10-26 19:40 (rota-af): Pushed from the C3 read on Opus, 116k on the harness line against 50k. Held by this session, peer name rota-af. Pass 1 runs on a fresh implementer on Opus, cap 40k, in the worktree rota_p338 at the branch tip. Rota workflow.
 
 ### 337. The naming door reads his last reply only, so a contest that rests on his earlier answer to the same page is refused, and the ruling then approves the line he called wrong (2026-10-26) (ac089aa1)
 
