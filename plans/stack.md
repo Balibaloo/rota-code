@@ -1230,6 +1230,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 25, row 6, pushed from its read (reasoned: `plans/night168-read.md`, section 5).
 - Pointer: `plans/c5-check-line-provenance.md`; m53 and tr35 in `.rota/clickI_night168.db`.
 - Status 2026-10-26 19:39 (rota-af): Pushed from the C5 read on Opus, 90k on the harness line against 40k. Held by this session, peer name rota-af. Pass 1 runs on a fresh implementer on Opus, cap 40k, in the worktree rota_p336 at the branch tip. Rota workflow.
+- Status 2026-10-26 19:44 (rota-af): **Pass 1 built on Opus, 49k on the harness line against 40k, at 90a3a817 in rota_p336: _failure_line returns the last E line when the first is a traceback frame, _tail unchanged; 1 red on HEAD and 24 green after in test_park_page.py, test 1 on tr35's stored output** (observed: f336_pass1.md in this session's scratchpad). One low: the line ends with two periods because the error carries its own; pass 1b strips it, cap 10k. Then one review of the three frames' commits together and one gate. Cycles: 2 of 1. Rota workflow.
 
 ### 335. The encode check lets an invalid escape through as a warning that the project's pytest turns into a collection error, and no line tells the seat the call's escape level (2026-10-26) (ac089aa1)
 
