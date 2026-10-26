@@ -30,6 +30,16 @@ row set (ruled: Roman, 2026-10-26 19:3x), and a seam across many
 readers takes its own night (reasoned: C42 prices a seam with its
 night; a seam is not one of the door fixes his ruling names).
 
+0. The re-cut, the taker's first step: one agent lists the open facts
+   from the code, each with its readers at head by `git grep`, its one
+   reader, and every frame at it, open or closed at one door, to
+   `plans/facts-2026-10-27.md`; the stack's head then lists facts with
+   frames as rows under them, and a night's wall at a known fact is a
+   count on that row (ruled: Roman, 2026-10-26 about 22:1x, "we found an
+   issue with the workflow and the processed backlog, so what follows?",
+   the reading is the session's). About 3 cycles. The counts of
+   2026-10-26 are the reason to re-cut, not the plan.
+
 Night 170, the two walls that stopped night 169:
 
 1. Frame 339, the removal recorded as a stray for the Architect, two
