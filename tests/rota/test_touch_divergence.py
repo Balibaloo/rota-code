@@ -235,6 +235,80 @@ def test_a_file_may_keep_a_name_it_already_defined(db, tmp_path):
                 text="def calculate_tip(t, p):\n    return t * p / 100\n\n\ndef ask_people_count():\n    return 3\n")
 
 
+# The sample repository's rows that the copy guard reads. `web/format.js`
+# defines `money` and `truncate` as well, in a second language (frame 326).
+_SAMPLE_SYMBOLS = ("src/notify/formatting.py::truncate", "src/notify/formatting.py::plural",
+                   "src/notify/templates.py::render", "src/notify/templates.py::money",
+                   "web/format.js::money", "web/format.js::truncate")
+
+
+def _sample_batch(db, tmp_path, extra=None):
+    """The sample repository is the project, and batch b1 is its git worktree.
+    The project commits `extra`, a map of path to text, before the fork."""
+    from rota.testkit import samplerepo
+    proj = samplerepo.create(tmp_path / "proj")
+    if extra:
+        for rel, body in extra.items():
+            (proj / rel).write_text(body, encoding="utf-8")
+        _git(proj, "add", "-A"); _git(proj, "commit", "-q", "-m", "extra")
+    wt = tmp_path / "wt"
+    _git(proj, "worktree", "add", "-q", "-b", "batch/b1", str(wt))
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(wt),))
+    for grain in _SAMPLE_SYMBOLS:
+        db.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'symbol')", (grain,))
+    db.commit()
+    return wt, build("developer", db, batch_id="b1", mode="batch_start",
+                     allow=prompts.mode_tools("developer", "batch_start"))
+
+
+@pytest.mark.parametrize("path, name, partial", [("src/notify/formatting.py", "truncate", True),
+                                                 ("src/notify/templates.py", "money", False)])
+def test_a_write_back_of_the_base_text_is_not_a_copy(db, tmp_path, path, name, partial):
+    """Gate at 150607c1 (frame 326): a partial write dropped `truncate`, and
+    the whole-file write of the base text was refused as a copy of
+    `web/format.js`. The base commit holds the name, and a Python caller
+    cannot reach a JavaScript export. The drop door refuses a partial drop
+    of `money`, because the tests use it, so that drop is made on disk."""
+    from rota.testkit import samplerepo
+    wt, sb = _sample_batch(db, tmp_path)
+    base = samplerepo.FILES[path]
+    lines = base.splitlines()
+    at = next(i for i, ln in enumerate(lines) if ln.startswith(f"def {name}("))
+    stop = next((i for i in range(at + 1, len(lines))
+                 if lines[i].startswith(("def ", "class "))), len(lines))
+    if partial:
+        sb.call("code.write", path=path, start=at, end=stop, text="")
+    else:
+        (wt / path).write_text("\n".join(lines[:at] + lines[stop:]) + "\n", encoding="utf-8")
+    assert f"def {name}(" not in (wt / path).read_text(encoding="utf-8")
+    out = sb.call("code.write", path=path, text=base)
+    assert out["bytes"], "the base commit's own name is not a new definition"
+
+
+def test_a_new_python_copy_beside_a_python_name_is_still_refused(db, tmp_path):
+    """The index also holds `web/format.js::truncate`. A new `truncate` in a
+    new module is still a copy of `src/notify/formatting.py`."""
+    _, sb = _sample_batch(db, tmp_path)
+    with pytest.raises(ValueError, match=r"already defines truncate in "
+                       r"src/notify/formatting\.py\. A second definition .* is a copy"):
+        sb.call("code.write", path="src/notify/text.py",
+                text="def truncate(text, limit=72):\n    return text[:limit]\n")
+
+
+def test_a_base_that_does_not_parse_leaves_the_working_file_names(db, tmp_path):
+    """A base text with a syntax error adds no names. The working file's
+    names still pass, and a name the index holds once in Python is refused."""
+    wt, sb = _sample_batch(db, tmp_path, {"src/notify/legacy.py": "def plural(:\n"})
+    (wt / "src" / "notify" / "legacy.py").write_text(
+        "def plural(count, word):\n    return word\n", encoding="utf-8")
+    keep = "def plural(count, word):\n    return word + 's'\n"
+    assert sb.call("code.write", path="src/notify/legacy.py", text=keep)["bytes"]
+    with pytest.raises(ValueError, match="already defines render in src/notify/templates.py"):
+        sb.call("code.write", path="src/notify/legacy.py",
+                text=keep + "\n\ndef render(template, **values):\n    return template\n")
+
+
 def test_a_placeholder_path_and_an_empty_write(db, tmp_path):
     """tipsBG (2026-09-14): `code.write(path=path, ...)` made a file called
     `path`, and the Developer took a mistake out by writing the file empty."""

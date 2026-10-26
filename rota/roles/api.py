@@ -18904,6 +18904,18 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                         if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))}
                 except (SyntaxError, UnicodeDecodeError):
                     had_before = set()
+            # A name the batch's base commit defines is the project's too.
+            # Gate at 150607c1 (frame 326): a partial write dropped
+            # `truncate`, and the write that put the base text back was
+            # refused as a copy. The fence below reads the same base (frame 220).
+            _base_defs = _base_text(ctx, _root, wpath.replace("\\", "/"))
+            if _base_defs:
+                try:
+                    had_before |= {n.name for n in _ast.parse(_base_defs).body
+                                   if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))}
+                except SyntaxError:
+                    pass
+            from os.path import splitext as _splitext
             for node in tree.body:
                 if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
                     continue
@@ -18914,6 +18926,9 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                         "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
                         "AND grain LIKE ?", (f"%::{node.name}",))
                     if r["grain"].endswith(f"::{node.name}")
+                    # The index holds every language, and a Python caller
+                    # cannot reach `web/format.js::truncate` (frame 326).
+                    and _splitext(r["grain"].split("::", 1)[0])[1] == _splitext(path)[1]
                     and r["grain"].split("::", 1)[0].replace("\\", "/") != path.replace("\\", "/")
                     and not _is_test_path(r["grain"].split("::", 1)[0])}
                 # The index is the tree at onboarding; the batch's own commits
