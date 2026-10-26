@@ -1285,6 +1285,43 @@ def _span_of(quote: str, source: str, floor: int = QUOTE_MIN) -> bool:
     return False
 
 
+def _seat_forms(quote: str) -> list[str]:
+    """The criterion quote read through the seat's call syntax, the form
+    the refusal shows first.
+
+    Frame 328, the residue, night 167 walk 3: s327 and s336 to s338 sent
+    `'When ... returns \\'c.txt\\'.` and `... \\'c.txt\\''.`. One mark
+    opens the quote and none closes it, or the closing mark stands before
+    a `.`. `_span_of` strips an outer mark only as a pair, and the seat
+    cannot type that pair. Each form only drops one mark at the start and
+    one mark, or a mark and a `.`, at the end. So a form is still a
+    verbatim span of the seat's text, and the floor still holds.
+    """
+    d = (quote or "").strip().replace("\\'", "'").replace('\\"', '"')
+    mark = d[:1] if d[:1] in "'\"" else ""
+    # A form whose inner marks pair up is the likelier reading, so the
+    # refusal shows that form.
+    first, rest = [], []
+    if mark:
+        for end in (len(d) - 1, len(d) - 2):
+            if end > 1 and d[end] == mark and d[end + 1:] in ("", "."):
+                inner = d[1:end]
+                (first if inner.count(mark) % 2 == 0 else rest).append(inner)
+                break
+        (first if d[1:].count(mark) % 2 == 0 else rest).append(d[1:])
+    end_mark = (d[-1:] if d[-1:] in "'\"" else
+                d[-2:-1] if d.endswith(".") and d[-2:-1] in "'\"" else "")
+    if end_mark and not mark:
+        cut = d[:-1] if d.endswith(end_mark) else d[:-2]
+        if cut.count(end_mark) % 2 == 0:
+            rest.append(cut)
+    forms = []
+    for f in first + rest + [d]:
+        if f.strip() and f not in forms:
+            forms.append(f)
+    return forms or [d]
+
+
 _ESCAPE = re.compile(r"\\(?:x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4})|([0-7]{3}))")
 # A raw or bytes literal, where an escape is not one text character.
 _RAW_OR_BYTES = re.compile(
@@ -1353,6 +1390,17 @@ def _quote_refusal(row: str, table: str, quote: str, crit: str,
                 f"of {row}.")
     else:
         said = f"quotes= holds no span of the live text of {row}."
+    if table == "criteria" and quote:
+        # The residue of frame 328: the seat sees the form the door
+        # compared, so a refusal of the old text is not read as a syntax one.
+        read = _seat_forms(quote)[0]
+        if " ".join(read.split()) != " ".join(quote.split()):
+            read = read if len(read) <= 80 else read[:77] + "..."
+            said += (f" The door reads `\\'` as `'` and `\\\"` as `\"`. It "
+                     f"drops one outer quote mark at each end, and a `.` "
+                     f"after the closing quote mark. Read that way, the "
+                     f"quote is `{read}`, and the live text of {row} holds "
+                     f"no such span.")
     if table == "tests":
         said += " A comment of the test does not count."
         # Frame 328, pass 3: the refusal names the form the door compared,
@@ -1588,11 +1636,14 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
 
         # Frame 328, night 167: s284 and s286 quoted tst_tk3's line with
         # `\x1b` and `\u001b`, and the row holds the raw ESC byte. The test
-        # half reads each escape as its one character on both sides. The
-        # criterion half stays strict.
+        # half reads each escape as its one character on both sides.
+        # The residue of frame 328, night 167 walk 3: the criterion half
+        # also reads the seat's call syntax, one outer mark and `\'`
+        # (`_seat_forms`). The span stays verbatim at the same floor.
         def _cites(q: str, floor: int = QUOTE_MIN) -> tuple[bool, bool]:
             c = _code_only(q)
-            return (any(_span_of(q, s, floor) for s in crit_words),
+            return (any(_span_of(f, s, floor) for f in [q] + _seat_forms(q)
+                        for s in crit_words),
                     _span_of(c, code, floor)
                     or _span_of(_unescaped(c), _unescaped(code), floor))
 
