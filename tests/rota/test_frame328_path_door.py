@@ -35,13 +35,6 @@ COLLECT_BODY = ("from click.utils import format_filename\n"
                 "def test_shorten_keeps_the_basename():\n"
                 "    name = format_filename(\"a/b/c.txt\")\n"
                 "    assert click.shorten.basename(name) == \"c.txt\"\n")
-# tst_c4's shape, s142 t2, from `night167-read.md`: the stored body held
-# `"C:\MockAppData"` with one backslash. The project's `filterwarnings =
-# error` makes the invalid escape a SyntaxError at collection.
-TST_C4_BODY = ("from click.utils import format_filename\n\n"
-               "def test_format_filename_keeps_a_windows_path():\n"
-               "    mock_appdata = \"C:\\MockAppData\"\n"
-               "    assert format_filename(mock_appdata) == mock_appdata\n")
 
 
 # The re-encode after the collection note: the same id, a body that runs.

@@ -9328,6 +9328,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             tree = _ast.parse(body)
     except SyntaxError as exc:
         escape = _invalid_escape(exc.msg)
+        # Frame 335, review 1, finding 4: the refusal holds on every
+        # project. Python plans to make an invalid escape an error. A test
+        # that depends on the value of a warned escape is wrong on any
+        # project.
         if escape is not None:
             lines = body.splitlines()
             line = (lines[exc.lineno - 1] if exc.lineno
@@ -17442,11 +17446,16 @@ def _own_assertions(body: str, path: str, said: str) -> list[dict]:
 #: SyntaxError already.
 _ESCAPE_MESSAGES = (re.compile(r'"(\\.)" is an invalid escape sequence'),
                     re.compile(r"invalid escape sequence '(\\.)'"),
+                    re.compile(r'"(\\[0-7]+)" is an invalid octal escape '
+                               r'sequence'),
                     re.compile(r"truncated (\\[xuU])"),
                     re.compile(r"malformed (\\N)"))
 #: A string literal that is not raw, with its prefix, its mark and its text.
 _PLAIN_LITERAL = re.compile(
     r"(?<![A-Za-z0-9_])([bBuUfF]?)(\"|')((?:\\.|(?!\2).)*)\2")
+#: A path: names split by `/`, or by a backslash that opens a name.
+_PATH_TEXT = re.compile(
+    r"(?:[A-Za-z]:)?[\w.~ $/-]*(?:\\[A-Za-z_.$~][\w.~ $/-]*)+")
 
 
 def _invalid_escape(message: str) -> str | None:
@@ -17459,29 +17468,68 @@ def _invalid_escape(message: str) -> str | None:
     return None
 
 
-def _raw_form(line: str, escape: str) -> str | None:
-    """The literal of the line that holds the escape, as a raw string with
-    one backslash for each backslash the writer meant, or None.
-
-    Frame 335: a raw string reads the same through the call's literal
-    parse and through its fallback, so one form serves both levels."""
+def _escape_literal(line: str, escape: str) -> tuple[str, str, str] | None:
+    """The prefix, the mark and the text of the literal of the line that
+    holds the escape, or None."""
     for m in _PLAIN_LITERAL.finditer(line or ""):
         prefix, mark, text = m.groups()
-        if escape not in re.findall(r"\\.", text):
-            continue
-        one = text.replace("\\\\", "\\")
-        # A raw string cannot end in one backslash or hold its own mark.
-        if one.endswith("\\") or "\\" + mark in one:
-            return None
-        return f"r{prefix.replace('u', '').replace('U', '')}{mark}{one}{mark}"
+        if escape[:2] in re.findall(r"\\.", text):
+            return prefix.replace("u", "").replace("U", ""), mark, text
     return None
 
 
+def _call_keeps(form: str) -> bool:
+    """Both parse paths of the call store the form as it is written.
+
+    Frame 335, review 1, finding 2: the call's value is a literal that is
+    not raw. So `r"C:\\Users\\new"` lost `\\n` to a line break, and
+    `\\temp` gave a TAB on the strict path only."""
+    from ..llm import toolproto as _tp
+    import warnings as _warnings
+
+    outer = "'" if "'" not in form else '"' if '"' not in form else ""
+    if not outer:
+        return False
+    call = f"body={outer}{form}{outer}"
+    try:
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("ignore")
+            strict = _tp.parse_args(call)[0].get("body")
+            lenient = _tp._parse_args_lenient(_tp._quote_bare_keywords(
+                _tp._escape_newlines_in_quotes(call))).get("body")
+    except Exception:  # noqa: BLE001 -- a form the call cannot carry
+        return False
+    return strict == form and lenient == form
+
+
 def _raw_advice(line: str, escape: str) -> str:
-    """The sentence that names the raw string form of the line."""
-    raw = _raw_form(line, escape)
-    return ("Write the string as a raw string with one backslash: "
-            + (f"`{raw}`." if raw else "`r\"...\"`."))
+    """The sentence that names a form of the string that comes through the
+    call unchanged. A path takes forward slashes first, because that form
+    holds no escape on either parse path."""
+    lit = _escape_literal(line, escape)
+    if lit is None:
+        return ("Write the string with no backslash. A path takes forward "
+                "slashes.")
+    prefix, mark, text = lit
+    one = text.replace("\\\\", "\\")
+    slash = f"{prefix}{mark}{one.replace(chr(92), '/')}{mark}"
+    # A raw string cannot end in one backslash or hold its own mark.
+    raw = (None if one.endswith("\\") or "\\" + mark in one
+           else f"r{prefix}{mark}{one}{mark}")
+    path = _PATH_TEXT.fullmatch(one) is not None
+    kept = [f for f in ([slash] if path else []) + ([raw] if raw else [])
+            if _call_keeps(f)]
+    if not kept:
+        return (f"No raw string form of this string comes through the call "
+                f"unchanged. Write it with forward slashes: `{slash}`.")
+    said = (f"Write the path with forward slashes: `{kept[0]}`."
+            if kept[0] == slash else
+            f"Write the string as a raw string with one backslash: "
+            f"`{kept[0]}`.")
+    if len(kept) > 1:
+        said += (f" The raw string `{kept[1]}`, with one backslash, also "
+                 f"comes through the call unchanged.")
+    return said
 
 
 def _escape_refusal(where: str, escape: str, line: str) -> str:
@@ -17510,17 +17558,19 @@ def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
                   if ln.startswith("E ") and ln[1:].strip()), "")
     advice = ""
     escape = _invalid_escape(error)
-    if escape is not None or "Did you mean" in error:
+    # Review 1, finding 1: an ImportError, a NameError and an
+    # AttributeError also say `Did you mean`. Their advice stays.
+    if escape is not None:
         # Frame 335: pytest's `Did you mean "\\R"?` is the level of the
-        # file. The call reads one level off it, so the note gives the raw
-        # string form, which reads the same on both levels.
+        # file. The call reads one level off it, so the note gives a form
+        # that both parse paths of the call keep as it is written.
         error = re.sub(r"\s*Did you mean .*$", "", error)
         at = next((i for i, ln in enumerate(lines)
                    if re.match(r'E\s+File ".*", line \d+$', ln)), None)
         line = (lines[at + 1][1:].strip() if at is not None
                 and at + 1 < len(lines) and lines[at + 1].startswith("E ")
                 else "")
-        advice = " " + _raw_advice(line, escape or "\\")
+        advice = " " + _raw_advice(line, escape)
     if len(error) > 160:
         error = error[:157] + "..."
     # Night 167, s271: the note asks for a re-encode with the same id, so

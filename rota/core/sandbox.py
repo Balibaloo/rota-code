@@ -1663,7 +1663,12 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
         def _cites(q: str, floor: int = QUOTE_MIN) -> tuple[bool, bool]:
             c = _code_only(q)
             one = _one_backslash(c)
-            return (any(_span_of(f, s, floor) for f in [q] + _seat_forms(q)
+            forms = [q] + _seat_forms(q)
+            # Frame 335, pass 2: the criterion half reads `\\` by the same
+            # rule as the test half.
+            forms += [g for f in forms
+                      if (g := _one_backslash(f)) != f and g not in forms]
+            return (any(_span_of(f, s, floor) for f in forms
                         for s in crit_words),
                     _in_code(c, floor) or (one != c and _in_code(one, floor)))
 
