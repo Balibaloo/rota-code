@@ -1280,6 +1280,47 @@ def _quote_refusal(row: str, table: str, quote: str, crit: str,
             f"{test}")
 
 
+def _green_at_head_refusal(ctx: api.Ctx, refs) -> str | None:
+    """
+    The refusal of a Developer challenge on a test that passes at the
+    batch's head, or None.
+
+    Frame 328, night 166: m83 and m88 named tst_c1 while its last run at
+    a0295dff passed. The Tester s202 then rewrote a green test. The tests a
+    Developer may challenge are the red ones, so the door reads the test's
+    last run at the head commit. Other roles do not meet this door.
+    """
+    if ctx.role != "developer" or not ctx.batch_id:
+        return None
+    test_id = next((r for r in refs or [] if isinstance(r, str) and
+                    ctx.conn.execute("SELECT 1 FROM tests WHERE id = ?",
+                                     (r,)).fetchone()), None)
+    if test_id is None:
+        return None
+    run = ctx.conn.execute(
+        "SELECT tr.result, tr.output, b.head_commit FROM test_runs tr "
+        "JOIN batches b ON b.id = tr.batch_id "
+        "WHERE tr.test_id = ? AND tr.batch_id = ? "
+        "AND tr.commit_sha = b.head_commit "
+        "ORDER BY tr.rowid DESC LIMIT 1", (test_id, ctx.batch_id)).fetchone()
+    if not run or run["result"] != "pass":
+        return None
+    last = next((ln.strip() for ln in reversed((run["output"] or "").splitlines())
+                 if ln.strip()), "pass")
+    red = [f"{r['test_id']} ({r['criterion_id']})" for r in ctx.conn.execute(
+        "SELECT DISTINCT tr.test_id, t.criterion_id FROM test_runs tr "
+        "JOIN tests t ON t.id = tr.test_id "
+        "WHERE t.batch_id = ? AND tr.batch_id = t.batch_id "
+        "AND tr.result IN ('fail', 'error') AND t.criterion_id IS NOT NULL "
+        "AND tr.rowid IN (SELECT MAX(rowid) FROM test_runs "
+        "GROUP BY batch_id, test_id)", (ctx.batch_id,))]
+    then = (" The failing tests of this batch: " + ", ".join(red[:3]) + "."
+            if red else " No test of this batch with a criterion fails.")
+    return (f"{test_id} passes on the batch's head {run['head_commit'][:8]}: "
+            f"its last run there says `{last}`. A challenge disputes a red "
+            f"test, and this test is green.{then}")
+
+
 def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
                         reason=None, quotes=None) -> None:
     """
@@ -3522,6 +3563,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             red = _red_line_refusal(ctx, refs, text or "")
             if red:
                 raise ValueError(red)
+        # After the same-refs door too, for the same end form.
+        if verb == "challenge" and recipient == "tester":
+            green = _green_at_head_refusal(ctx, refs)
+            if green:
+                raise ValueError(green)
         if verb == "question" and refs:
             # A question answered twice on the same rows is not a third
             # question. tipsAB (2026-09-09): the Tester asked the
@@ -5136,7 +5182,8 @@ def _span_holds(lines: list[str], lo: int, hi: int, where: dict) -> tuple[bool, 
 def _challenge_admitted(ctx: api.Ctx, refs: list, quotes: list) -> bool:
     """
     True when `msg.challenge_tester` on these refs, with these quotes,
-    passes the evidence door and the two repeat doors of `_bind_send`.
+    passes the evidence door, the two repeat doors and the green-test door
+    of `_bind_send`.
 
     The revert door names the challenge only where the doors admit it
     (frame 135's law, frame 149's review of 9278be2, finding 5).
@@ -5148,7 +5195,8 @@ def _challenge_admitted(ctx: api.Ctx, refs: list, quotes: list) -> bool:
                             quotes=quotes)
     except ValueError:
         return False
-    return _same_refs_refusal(ctx, "tester", "challenge", refs) is None
+    return (_same_refs_refusal(ctx, "tester", "challenge", refs) is None
+            and _green_at_head_refusal(ctx, refs) is None)
 
 
 def _stored_runs(ctx: api.Ctx, sha: str) -> dict:
