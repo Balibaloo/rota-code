@@ -303,6 +303,28 @@ def test_order_waits_are_not_open_decisions(repo, capsys):
     assert "Live things: 3 of 10" in out
 
 
+def test_a_cited_ruling_is_not_an_open_decision(repo, capsys):
+    """A mark cites a word he gave, and a wait names a word he has not."""
+    extra = "".join(
+        "### %d. Cited %d (2026-10-17)
+
+- **Site: x.** Meta workflow.
+"
+        "- Waits on: %s
+
+" % (n, n, wait) for n, wait in (
+            (30, "the gate. The repair is ruled (ruled: Roman, 2026-10-24 "
+                 "01:05, \"Yes\")."),
+            (31, "night 9's end (reasoned: Roman's own price, and the facts "
+                 "page)."),
+            (32, "Roman's ruling on the cap (observed: frame 9's count).")))
+    write(repo, STACK.replace("## Parked", extra + "## Parked"))
+    out = page(repo, capsys=capsys)
+    assert "30. Cited" not in out and "31. Cited" not in out
+    assert "32. Cited 32" in out, "a wait beside a mark still counts"
+    assert "Live things: 3 of 10" in out
+
+
 def test_a_ruling_finds_the_workflow_on_another_bullet(repo, clock):
     old = STACK.replace("- **Site: the brief.** Meta workflow. A story.",
                         "- **Site: the brief.** A story.\n- Rota workflow.")

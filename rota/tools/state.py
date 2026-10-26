@@ -37,6 +37,10 @@ WORKFLOW = re.compile(r"\b(Meta|Rota) workflow\b")
 BOLD_SITE = re.compile(r"\*\*Site:\s*(.*?)\*\*")
 PLAIN_SITE = re.compile(r"Site:\s*(.*?\.)(?:\s|$)")
 ORDER_WAIT = re.compile(r"Roman's order|the sprint order|Roman orders it")
+# A mark cites a word he gave. It is not a wait for a word he has not
+# given, so it opens no decision (observed: 2026-10-26, five Waits-on
+# lines read as open decisions on a citation alone).
+CITED = re.compile(r"\((?:ruled|reasoned|observed)[^)]*\)")
 DOUBTS = "## What I believe, and what to doubt"
 
 FIELD_LIMIT = 200
@@ -160,7 +164,7 @@ class Frame:
         """
         if self.waits.lower().startswith("nothing"):
             return False
-        return "Roman" in ORDER_WAIT.sub("", self.waits)
+        return "Roman" in CITED.sub("", ORDER_WAIT.sub("", self.waits))
 
 
 def parse(lines: list[str], bounded: bool = True) -> list[Frame]:
