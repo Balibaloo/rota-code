@@ -684,14 +684,19 @@ def two_batches(tmp: Path) -> Scene:
     """S1. b1 starts, takes in the project's tests, and its Developer's commit
     turns `tests/test_charges.py` red. The Developer commits once more and
     stays red, then ends three sessions with nothing done, and the key is
-    quarantined. The Liaison reports it. The Tester's wake on b1's missing
-    test comes next. Its new test row lifts the key (`db._lift_quarantines`),
-    and three more empty sessions quarantine the key again. The Liaison
-    reports it again, and the loop is quiet. So the walk ends, and the next
-    walk says item 2.
+    quarantined. The quarantined key stops the bounce, so law 6's three
+    rungs wake one by one with nothing done (frame 330). Before frame 330
+    the loop went quiet here, and on night 168 that quiet held the one batch
+    seat. The Liaison reports the quarantine. The Tester's wake on b1's
+    missing test comes next. Its new test row lifts the key
+    (`db._lift_quarantines`), and three more empty sessions quarantine the
+    key again. The ladder is spent, so no rung wakes. The Liaison reports it
+    again, and the loop is quiet. So the walk ends, and the next walk says
+    item 2.
 
-    Item 2 ranks above item 1, and right after its grouping the preempt
-    defers b1. b1 is then parked, and the Liaison sends the park page: the
+    Item 2 ranks above item 1. Right after its grouping b2 can start, and
+    the spent ladder parks b1 (`do:park`, frame 86's path). Before frame 330
+    the preempt deferred b1 here. The Liaison then sends the park page: the
     item and c1, whose own test is red. The walk with no words approves
     every line. That is the ceiling: the page rests, and the park asks
     nothing more (frame 142, ruled: Roman, 2026-10-08, point 5). b2 then
@@ -701,7 +706,8 @@ def two_batches(tmp: Path) -> Scene:
 
     Night 121 holds the same order up to the park, bg_2 from its start at
     s212: two quarantines of `tests_failing` with the Tester between (s224,
-    s226, s243), and the preempt after the grouping (s276). Night 121 then
+    s226, s243), and the preempt after the grouping (s276). The scene now
+    departs from night 121 at the ladder and at the park. Night 121 then
     asked three times, because its park ask had no row to rule (s277, s282,
     s287). The page ends that loop."""
     sc = _base("two_batches", tmp)
@@ -718,6 +724,7 @@ def two_batches(tmp: Path) -> Scene:
     rule(sc, "present", ["b1"], {"b1": "approve"})
     rule(sc, "present", ["b1"], {"b1": "approve"})
     seat(sc, "tester|tick:tests_missing|b1", encode(PRORATE_TEST))
+    _climb(sc, "b1")
     play_to_quiet(sc)
     sc.ids["head1"] = sc.conn.execute(
         "SELECT head_commit FROM batches WHERE id = 'b1'").fetchone()[0]
@@ -740,6 +747,18 @@ def two_batches(tmp: Path) -> Scene:
     sc.ids.update(wt1=worktree(sc, "b1"), wt2=worktree(sc, "b2"),
                   charges=harness.inherited_id("tests/test_charges.py"))
     return sc
+
+
+def _climb(sc: Scene, batch: str) -> None:
+    """Seat law 6's three rungs on `batch`, each a session with nothing done.
+
+    A quarantined `tests_failing` key stops the bounce, so the ladder climbs
+    and the spent ladder parks the batch (frame 330). Before frame 330 the
+    loop went quiet here, and on night 168 that quiet held the seat."""
+    from ..core.predicates import LADDER
+
+    for role in LADDER:
+        seat(sc, f"{role}|tick:exhausted|{batch}", IDLE)
 
 
 # -- S2: a merged batch's Tester file is a project test of the next batch ---------
@@ -826,13 +845,18 @@ def park(tmp: Path) -> Scene:
     after the Developer's first commit, again after the Tester's test, which
     is red, and after each of three more commits, red each time. The
     scheduler's `tests_failing` wake is then dispatched three times with no
-    commit, and the next frontier quarantines the key. The Liaison tells the
+    commit, and the next frontier quarantines the key. The quarantined key
+    stops the bounce, so law 6's three rungs wake one by one with nothing
+    done (frame 330). Before frame 330 the loop went quiet here, and on
+    night 168 that quiet held the one batch seat. The Liaison tells the
     principal on the `quarantined` wake, and the loop is then quiet. So the
-    walk ends, and the next walk says item 2. Item 2 ranks above item 1,
-    and right after its grouping the preempt defers b1. The Liaison's
-    `park_ask` wake opens the ask, and the scene ends there, before the walk
-    answers it. Night 121 holds the same order, from bg_2's start at s212 to
-    the park ask at s277. The scene `two_batches` holds the answer.
+    walk ends, and the next walk says item 2. Item 2 ranks above item 1.
+    Right after its grouping b2 can start, and the spent ladder parks b1
+    (`do:park`, frame 86's path). Before frame 330 the preempt deferred b1
+    here. The Liaison's `park_ask` wake opens the ask, and the scene ends
+    there, before the walk answers it. Night 121 holds the same order, from
+    bg_2's start at s212 to the park ask at s277, except the ladder and the
+    park. The scene `two_batches` holds the answer.
 
     The design named b3 behind b1 by a `batch_dep_facts` row (S4). No op in
     `rota/` writes that table, and nights 119 to 124 hold no row in it
@@ -855,6 +879,7 @@ def park(tmp: Path) -> Scene:
     seat(sc, "liaison|tick:quarantined|b1", ["TOOL: msg.present_principal(refs=['b1'])"])
     # The principal reads it. A present on a batch alone is acknowledged.
     rule(sc, "present", ["b1"], {"b1": "approve"})
+    _climb(sc, "b1")
     # The walk ends at quiet, and the next walk says item 2.
     play_to_quiet(sc)
     item(sc, 2, 2)

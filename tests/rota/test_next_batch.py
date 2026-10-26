@@ -198,8 +198,11 @@ def _night_94_parked():
                  "('c_2', 'tk_ej', 'echo_json writes compact JSON', 1)")
     conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b_1', 'tk_ej')")
 
+    # Night 93's rows hold `b_1`'s three rungs asked. Since frame 330 the
+    # quarantined key stops the bounce, so the park comes before the
+    # preempt. Both defer `b_1`, and the start offers `b_1_version`.
     (wake,) = P.REGISTRY["preempt"].fn(conn)
-    assert (wake.kind, wake.refs) == ("do:preempt", ("b_1", "b_1_version"))
+    assert (wake.kind, wake.refs) == ("do:park", ("b_1",))
     _perform(conn, wake)
     assert [w.refs for w in P.REGISTRY["batch_start"].fn(conn)] == [("b_1_version",)]
     _status(conn, "b_1_version", "merged")

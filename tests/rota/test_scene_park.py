@@ -2,7 +2,8 @@
 S3 and S4, one park scene.
 
 b1 failed five attempts, its `tests_failing` key is quarantined and
-reported, item 2's preempt deferred it, and the Liaison opened its park
+reported, law 6's three rungs woke on it (frame 330), the spent ladder
+parked it once item 2's batch could start, and the Liaison opened its park
 ask. The scene ends there, before the walk answers the ask, as night 121
 stood at s277. b2 is pending. The proof by removal is the park ask that
 names its batch (the design's section 5, 0c6e54e, in its present form from
@@ -43,16 +44,22 @@ def test_the_key_is_quarantined_at_the_cap_and_the_liaison_reported_it(scene):
     row = scene.conn.execute("SELECT attempts, quarantined, reported FROM tick_attempts "
                              "WHERE tick_key = ?", (KEY,)).fetchone()
     assert tuple(row) == (3, 1, 1)
-    # The report is the loop's next pick after the key's last dispatch.
+    # Frame 330: the quarantined key stops the bounce, so law 6's three rungs
+    # come first after the key's last dispatch. The report is the next pick.
     last = max(i for i, s in enumerate(scene.steps) if s == KEY)
-    assert scene.steps[last + 1] == "liaison|tick:quarantined|b1"
+    assert scene.steps[last + 1:last + 5] == [
+        "developer|tick:exhausted|b1", "architect|tick:exhausted|b1",
+        "vision_keeper|tick:exhausted|b1", "liaison|tick:quarantined|b1"]
 
 
 globals().update(make(
     NAME,
     end=["architect|tick:annotate|b2", "developer|tick:batch_start|b2"],
-    attempts=[("-|do:preempt|b1,b2", 1, 0, 0),
+    attempts=[("-|do:park|b1", 1, 0, 0),
+              ("architect|tick:exhausted|b1", 1, 0, 0),
+              ("developer|tick:exhausted|b1", 1, 0, 0),
               (KEY, 3, 1, 1),
               ("liaison|tick:park_ask|i1,b1", 1, 0, 0),
-              ("liaison|tick:quarantined|b1", 1, 0, 0)],
+              ("liaison|tick:quarantined|b1", 1, 0, 0),
+              ("vision_keeper|tick:exhausted|b1", 1, 0, 0)],
     asks=[("present", "i1", "c1")]))

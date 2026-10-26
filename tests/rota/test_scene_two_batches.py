@@ -2,10 +2,11 @@
 S1, two batches that share the project's tests.
 
 b1's Developer turns `tests/test_charges.py` red and stays red, b1 is
-deferred by the preempt, and b2 starts and takes in the project's tests
+deferred by the park, and b2 starts and takes in the project's tests
 under the same ids. In the night's order b1's key is quarantined twice
-before item 2 comes, so b1 is parked once the preempt defers it, and the
-walk approves every line of the park page before b2 starts. The proof by removal is
+before item 2 comes. The first quarantine climbs law 6's ladder (frame
+330), so the park defers b1 once item 2's batch can start, and the walk
+approves every line of the park page before b2 starts. The proof by removal is
 frame 135's project-id door (the design's section 5): without it, the
 catalogue's two calls with the project's id land.
 
@@ -46,9 +47,10 @@ def test_b1_failed_the_project_test_and_b2_took_the_project_tests_in(scene):
     conn, ids = scene.conn, scene.ids
     assert [tuple(r) for r in conn.execute(
         "SELECT id, status FROM batches ORDER BY id")] == [("b1", "deferred"), ("b2", "running")]
-    # The preempt deferred b1, and not the park's own action.
-    assert "-|do:preempt|b1,b2" in scene.steps
-    assert "-|do:park|b1" not in scene.steps
+    # Frame 330: the spent ladder parks b1, so the park's own action defers
+    # it, and the preempt does not.
+    assert "-|do:park|b1" in scene.steps
+    assert "-|do:preempt|b1,b2" not in scene.steps
     assert conn.execute(
         "SELECT result FROM test_runs WHERE batch_id = 'b1' AND test_id = ? "
         "AND commit_sha = ?", (ids["charges"], ids["head1"])).fetchone()["result"] == "fail"
@@ -92,7 +94,8 @@ def test_every_run_names_a_test_of_its_own_batch(scene):
 globals().update(make(
     NAME,
     end=["tester|tick:tests_missing|b2"],
-    attempts=[("developer|tick:tests_failing|b1", 3, 1, 1),
+    attempts=[("-|do:park|b1", 1, 0, 0),
+              ("developer|tick:tests_failing|b1", 3, 1, 1),
               (PARK, 1, 0, 0),
               ("liaison|tick:quarantined|b1", 1, 0, 0)],
     asks=[],

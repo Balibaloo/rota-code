@@ -1719,6 +1719,51 @@ def given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
         and r["tick_key"].split("|", 2)[-1] == batch_id]
 
 
+def stopped_bouncing(conn: sqlite3.Connection, batch_id: str) -> bool:
+    """
+    The batch stopped bouncing: its failing attempt reached `loop_cap`, or it
+    runs and the tick quarantine took its `tests_failing` key.
+
+    Law 6 says "Budget exhaustion escalates one rung" and "It is never
+    silence". The key's cap of 3 can run out below `loop_cap`, and then no
+    rule read it (frame 330, night 168). `exhausted` and `parked` read this
+    one check, so the ladder climbs and the park frees the seat.
+    """
+    from . import config
+
+    if failing_attempt(conn, batch_id) >= config.get(conn, "loop_cap"):
+        return True
+    return bool(_quarantined_tries(conn, batch_id))
+
+
+def _quarantined_tries(conn: sqlite3.Connection, batch_id: str) -> int:
+    """The tries of a running batch's quarantined `tests_failing` key, or 0."""
+    # A running batch only. A deferred batch's given-up key waits for the
+    # principal, and the ladder does not wake on it (frame 87, ruled
+    # 2026-09-27).
+    row = conn.execute(
+        "SELECT t.attempts FROM tick_attempts t JOIN batches b ON b.id = ? "
+        "WHERE t.tick_key = ? AND t.quarantined = 1 AND b.status = 'running'",
+        (batch_id, f"developer|tick:tests_failing|{batch_id}")).fetchone()
+    return int(row["attempts"]) if row else 0
+
+
+def stop_detail(conn: sqlite3.Connection, batch_id: str) -> str:
+    """
+    Why a batch below `loop_cap` stopped bouncing, or "" at the cap.
+
+    `exhausted` and `preempt`'s park both say it. A batch at the cap keeps
+    their old text. Below the cap "attempt 6 of 10" and "past its cap" are
+    both false, and the detail reaches a prompt (frame 330, pass 2).
+    """
+    from . import config
+
+    if failing_attempt(conn, batch_id) >= config.get(conn, "loop_cap"):
+        return ""
+    tries = _quarantined_tries(conn, batch_id)
+    return f"the tests still fail after {tries} tries" if tries else ""
+
+
 # The id prefix of a park ask, then ten hex characters, `_` and the batch id.
 # The ask's refs hold the item only, so the batch rides in the id. A prefix
 # match on the batch would take `b_1_b_1` for `b_1`, so the batch is read
@@ -2232,11 +2277,9 @@ def close_stale_park_asks(conn: sqlite3.Connection) -> int:
 
 def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     """
-    A deferred batch the team gave up on, or a batch at or past `loop_cap`
+    A deferred batch the team gave up on, or a batch that stopped bouncing
     whose head commit is the one that failed.
     """
-    from . import config
-
     # law 6: at the Liaison it is a page, a hold or a note
     # A given-up batch put back in the chair waits for the principal (ruled:
     # Roman, 2026-09-27). Night 94 resumed `bg_1` with its `tests_failing` key
@@ -2248,7 +2291,7 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
                           (batch_id,)).fetchone()
     if status and status["status"] == "deferred" and given_up(conn, batch_id):
         return True
-    if failing_attempt(conn, batch_id) < config.get(conn, "loop_cap"):
+    if not stopped_bouncing(conn, batch_id):
         return False
     # A head commit newer than the failing runs is a fix nobody has tested.
     # Only the harness tests it, and the harness tests running batches only.

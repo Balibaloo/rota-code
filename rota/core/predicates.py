@@ -1021,7 +1021,8 @@ def reopen(conn) -> list[Wake]:
            drains=[("test_runs", "result", "fail")])
 def exhausted(conn) -> list[Wake]:
     """
-    A batch that hit `loop_cap` and stopped bouncing.
+    A batch that stopped bouncing: it hit `loop_cap`, or the tick quarantine
+    took its `tests_failing` key while it runs.
 
     `tests_failing` goes quiet above the cap, which on its own is abandonment
     wearing the clothes of a budget: the work is still undone, nothing fires,
@@ -1054,14 +1055,19 @@ def exhausted(conn) -> list[Wake]:
         " GROUP BY batch_id"
     ).fetchall()
 
+    from .scheduler import stop_detail, stopped_bouncing
+
     wakes = []
     for r in rows:
-        if (r["att"] or 1) < cap:
+        # Law 6: the first budget that runs out climbs the ladder, the tick
+        # key's cap of 3 too (frame 330).
+        if not stopped_bouncing(conn, r["bid"]):
             continue                       # still bouncing; tests_failing has it
         role = _next_rung(conn, r["bid"])
         if role:
             wakes.append(Wake(role, "tick:exhausted", refs=(r["bid"],),
-                              detail=f"attempt {r['att']} of {cap}"))
+                              detail=stop_detail(conn, r["bid"])
+                              or f"attempt {r['att']} of {cap}"))
     return wakes
 
 
@@ -1626,11 +1632,13 @@ def preempt(conn) -> list[Wake]:
     # (observed: night 93, 2026-09-25). The deferral frees the seat, and
     # `next_batch` keeps the batch out until a new head commit. The refs hold
     # batch ids only, so frame 83's counter rules read the key unchanged.
-    from .scheduler import parked
+    from .scheduler import parked, stop_detail
 
     if parked(conn, running["bid"]) and not _next_rung(conn, running["bid"]):
+        why = stop_detail(conn, running["bid"])
         return [Wake(SCHEDULER, "do:park", refs=(running["bid"],),
-                     detail=f"{running['bid']} is past its cap and its ladder is spent")]
+                     detail=(f"{running['bid']}: {why}, and its ladder is spent" if why
+                             else f"{running['bid']} is past its cap and its ladder is spent"))]
     if (ranked[0]["priority"] or 0) <= (running["pri"] or 0):
         return []
     return [Wake(SCHEDULER, "do:preempt",
