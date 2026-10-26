@@ -17,9 +17,19 @@ with no enrolment gets its session id in the line and a warning. The tool
 never refuses a status line for a missing name (ruled: Roman, 2026-10-18
 02:25, "enabling not inhibiting").
 
+Two gates enforce rule C76 of `plans/method/reference.md`: an issue is
+read, and its reach counted, before it is fixed (ruled: Roman, 2026-10-26
+about 21:17). Fourteen frames fixed 0 of 14 at the source while the rule
+was a reminder (observed: `plans/agency-prevalence-2026-10-26.md`). So
+the tool refuses a pass line on a frame with no `- Reach:` line. It also
+refuses a close while the Reach line reads fewer places than its count.
+`--force-close` passes the second gate and writes its reason into the
+line. Nothing passes the first gate. A `--ruling` body is his words, and
+no gate refuses it.
+
 Exit codes: 0 the line is written and committed, or written with
 `--no-commit`; 1 the line is written and the commit failed; 2 a usage
-error or a frame that the stack does not hold.
+error, a frame that the stack does not hold, or a refusal of a gate.
 """
 from __future__ import annotations
 
@@ -31,6 +41,40 @@ from datetime import datetime
 from pathlib import Path
 
 from rota.tools import handover, state
+
+
+PASS_LINE = re.compile(
+    r"\bpass \d+[a-z]? (runs|built|is at)\b|\bimplementer\b.*\bruns\b", re.IGNORECASE)
+# A read, a review or a gate runs on a pass but is not one, so it needs no
+# Reach line (reasoned: the pass 1 brief of frame 340).
+NOT_PASS = re.compile(r"\b(read|review|reviewer|gate)\b", re.IGNORECASE)
+CLOSE_LINE = re.compile(r"(?:^|\*\*)\s*(closed|closes|popped|pops)\b", re.IGNORECASE)
+COUNT = re.compile(r"^(\d+)\s+of\s+(\d+)\b")
+WANT_REACH = '"- Reach: <k> of <N>, <where the gap is>"'
+
+
+def gate(frame: str, block: list[str], body: str, force: str | None) -> str:
+    """The refusal of rule C76 for a body, or empty when the body passes.
+
+    The first gate refuses a pass line on a frame with no Reach line. The
+    second refuses a close below the count. `force` passes the second only.
+    """
+    reach = state.reach_line(block)
+    if reach is None and PASS_LINE.search(body) and not NOT_PASS.search(body):
+        return ("frame %s has no Reach line. Write %s after the Waits on line "
+                "before any pass." % (frame, WANT_REACH))
+    if force is not None or not CLOSE_LINE.search(body):
+        return ""
+    if reach is None:
+        return ("frame %s has no Reach line, so no count shows its reach. Write %s "
+                'before the close, or give --force-close "<reason>".'
+                % (frame, WANT_REACH))
+    m = COUNT.match(reach)
+    if m and int(m.group(1)) < int(m.group(2)):
+        return ("frame %s has Reach %s of %s. Close it when the Reach line reads "
+                '%s of %s, or give --force-close "<reason>".'
+                % (frame, m.group(1), m.group(2), m.group(2), m.group(2)))
+    return ""
 
 
 def _clock() -> datetime:
@@ -151,6 +195,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--stack", default=None, help="the stack, plans/stack.md by default")
     p.add_argument("--no-commit", action="store_true",
                    help="write the line and commit nothing")
+    p.add_argument("--force-close", default=None, metavar="REASON",
+                   help="close a frame below its Reach count. The reason goes "
+                        "in the line as (forced: REASON)")
     return p
 
 
@@ -197,6 +244,23 @@ def main(argv: list[str] | None = None) -> int:
     if not body:
         print("the body is empty, so no line was written.", file=sys.stderr)
         return 2
+    force = None
+    if args.force_close is not None:
+        force = one_line(args.force_close)
+        if not force:
+            print("--force-close needs a reason, so no line was written.",
+                  file=sys.stderr)
+            return 2
+    if args.ruling is None:
+        bare = [r.rstrip("\r") for r in text.split("\n")]
+        found = [f for f in state.parse(bare, bounded=False)
+                 if f.number == str(args.frame)]
+        refusal = gate(args.frame, found[0].lines, body, force) if found else ""
+        if refusal:
+            print(refusal, file=sys.stderr)
+            return 2
+    if force is not None:
+        body += " (forced: %s)" % force
 
     name = peer_name(stack, sid)
     if not name:

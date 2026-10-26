@@ -206,6 +206,31 @@ def parse(lines: list[str], bounded: bool = True) -> list[Frame]:
     return frames
 
 
+REACH = "- Reach:"
+
+
+def reach_line(block: list[str] | str) -> str | None:
+    """The text after `Reach:` on a frame block's Reach line, or None.
+
+    Rule C76 of `plans/method/reference.md` counts the reach of a placed
+    cause before its pass. The status tool gates on this one reader, so
+    no second reader parses the line its own way. A wrapped Reach line
+    keeps its continuation lines, as a wrapped status line does.
+    """
+    lines = block.split("\n") if isinstance(block, str) else block
+    lines = [line.rstrip("\r") for line in lines]
+    for i, line in enumerate(lines):
+        if not line.startswith(REACH):
+            continue
+        parts = [line[len(REACH):].strip()]
+        for nxt in lines[i + 1:]:
+            if not nxt.strip() or nxt.startswith("- ") or nxt.startswith("#"):
+                break
+            parts.append(nxt.strip())
+        return " ".join(p for p in parts if p)
+    return None
+
+
 def read_lines(path: Path) -> list[str]:
     """The file's lines with no line end, whatever line end the file uses."""
     text = path.read_bytes().decode("utf-8")
