@@ -1,0 +1,41 @@
+# L1 — Terminologist, criteria on a documentation ticket. Frame 322: on
+# nights 163 to 166 the docstring item got behaviour criteria in its first
+# criteria turn on 4 of 4 nights (`plans/frame322-we-read.md`, section 4).
+
+- id: L1-TE-a-docstring-ticket-gets-a-docstring-criterion
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 3
+  tick: criteria
+  refs: [<tk1>]
+  # The criteria mode holds `code.source`, so the seat reads the sample
+  # project's `line_total` (frame 326's reachability rule).
+  repo:
+    onboard: true
+  fixture:
+    items:
+      - {id: <i1>, text: "Give line_total one example in its docstring: ten
+           units of a 100-cent product total 950 cents.", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "the example in the docstring of
+           line_total shows that ten units of a 100-cent product total 950
+           cents"}
+    glossary_terms:
+      - {id: <g1>, term: line total, sense_short: "the price of one order
+           line after the volume band", provenance: decided}
+  expect:
+    writes:
+      # The ticket asks for a change to the docstring, and the code stays
+      # the same. `criteria.specify` refuses a text with no documentation
+      # word on this ticket, so every landed text holds one. The format
+      # checks one word over all rows, not one per row.
+      criteria: {count: "1..6",
+                 text_includes_any: ["docstring", "Docstring", "documentation",
+                                     "Documentation", "document", "Document",
+                                     "docs", "Docs", "help text", "Help text"]}
+  forbidden:
+    # Criteria are written in glossary terms. A ticket or an item from this
+    # seat decides scope, which is the Vision Keeper's.
+    writes: [tickets, items]

@@ -5692,6 +5692,44 @@ def _staged_retired(ctx: Ctx) -> set[str]:
             and w[2].get("retired_by")}
 
 
+# The words of a ticket headline that asks for a change to the documentation.
+# A criterion on such a ticket names one of them too. Roman ruled at
+# 2026-10-24 01:05 that a criterion asks for documentation by its own words
+# (frame 311). Frame 322's W-E read counted 13 landed behaviour criteria on
+# the docstring item over nights 163 to 166. He called each one wrong, and
+# the list refuses no right one (`plans/frame322-we-read.md`, section 3).
+# The list is wider than `_ASKS_FOR_DOCS`. That list judges a diff line, and
+# this list judges the words of a headline and a criterion.
+_NAMES_DOCS = ("docstring", "documentation", "document", "docs", "help text")
+
+
+def _docs_ticket_refusal(ctx: Ctx, ticket_id: str | None,
+                         text: str) -> str | None:
+    """
+    The refusal of a criterion that names no documentation on a ticket whose
+    headline names documentation, or None. `criteria.specify` and
+    `criteria.respecify` read it alike.
+
+    Night 166's s185 wrote two behaviour criteria on the docstring ticket of
+    `format_filename`, and his m77 said "only the docstring changes and the
+    code stays the same" (frame 322, the W-E read).
+    """
+    if ticket_id is None or _asks_for(text or "", _NAMES_DOCS):
+        return None
+    row = ctx.conn.execute("SELECT text FROM tickets WHERE id = ?",
+                           (ticket_id,)).fetchone()
+    headline = (row["text"] or "") if row else ""
+    if not _asks_for(headline, _NAMES_DOCS):
+        return None
+    return (f"{ticket_id}'s headline is {headline!r}. The ticket asks for a "
+            f"change to the documentation and not to the behaviour, and "
+            f"this criterion names no documentation. Write the criterion on "
+            f"the documentation: say what the docstring, the docs or the "
+            f"help text must say. If the item also needs a code change, that "
+            f"is the Vision Keeper's to slice: send "
+            f"msg.challenge_vision_keeper with the ticket")
+
+
 def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     """
     The exact-twin refusal. It names each sibling ticket with no criterion
@@ -5833,6 +5871,9 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             text, "Say what the script does for a valid name and "
             "for an empty or wrong one -- the tests that validate it are "
             "the Tester's to write from that"))
+    docs = _docs_ticket_refusal(ctx, ticket_id, text)
+    if docs:
+        raise ValueError(docs)
     # The same words are the same criterion -- `brief.segment`'s rule, two
     # artefacts along. The over-production disease grew a criteria organ the
     # day the mode was handed candidate callables: eleven criteria for one
@@ -6870,6 +6911,12 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # respecifies of s209 to s265 wrote c3_terminal_failure_true with
     # c2_non_terminal_false's words, and two rows held one fact (frame 306).
     _near_twin(ctx, cur["ticket_id"] if cur else None, text, skip=id)
+    # The same door as `criteria.specify`. Night 166's s194 respecified c_1
+    # and c_2 of the docstring ticket, and a rewrite must not land behaviour
+    # there either (frame 322).
+    docs = _docs_ticket_refusal(ctx, cur["ticket_id"] if cur else None, text)
+    if docs:
+        raise ValueError(docs)
     if surface is None:
         surface = _vet_surface(ctx, surface_refs, required=True,
                                ticket_id=cur["ticket_id"] if cur else None)

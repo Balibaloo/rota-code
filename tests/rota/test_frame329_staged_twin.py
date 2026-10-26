@@ -98,8 +98,10 @@ def test_a_sibling_s_old_words_refuse_no_right_call(db):
     old words, so c_2 may take words close to c_1's old ones."""
     sb = _repair(db)
     sb.call("criteria.respecify", id=C1, text=NEW, surface_refs=SURFACE)
-    near_old_c1 = ("When shorten=True, format_filename strips the directory "
-                   "prefix from the given path.")
+    # The text names the docstring. The ticket's headline names a docstring,
+    # so a text with no documentation word meets frame 322's door first.
+    near_old_c1 = ("In the docstring, when shorten=True, format_filename "
+                   "strips the directory prefix from the path.")
     out = sb.call("criteria.respecify", id=C2, text=near_old_c1,
                   surface_refs=SURFACE)
     assert out.get("respecified") is True
