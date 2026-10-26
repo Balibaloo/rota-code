@@ -1040,7 +1040,8 @@ def _challenge_sides(ctx: api.Ctx, refs) -> list:
 
 
 def _answer_mode_challenge_refusal(ctx: api.Ctx, refs, text: str = "",
-                                   reason=None) -> str | None:
+                                   reason=None,
+                                   spans: list | None = None) -> str | None:
     """
     The Developer's challenge from an answer wake carries a decision row.
 
@@ -1079,7 +1080,8 @@ def _answer_mode_challenge_refusal(ctx: api.Ctx, refs, text: str = "",
         offered = list(dict.fromkeys(sides + held))
         args = {"refs": offered}
         if text:
-            args["quotes"] = text
+            # The quotes as sent, because the joined text is one quote now.
+            args["quotes"] = spans if spans else text
         # Frame 200, pass 5, fix 2: the call names reason=, with the seat's
         # own words when the reason door admits them, else the slot.
         slot = ""
@@ -1227,38 +1229,71 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
     return None
 
 
-def _span_of(quote: str, source: str) -> bool:
-    """The quote is a contiguous span of the source, whitespace-normalised.
+#: The fewest characters a challenge quote holds, after whitespace
+#: normalisation, unless it is the whole row. The window of 2026-08-27 had
+#: the same length. Frame 328, review 1: with no floor, `["in", "a1"]` landed.
+QUOTE_MIN = 12
+
+
+def _lined(s: str) -> str:
+    """Whitespace normalised, but a run that holds a line break stays one."""
+    return re.sub(r"\s+", lambda m: "\n" if "\n" in m.group() else " ",
+                  (s or "").strip())
+
+
+def _span_of(quote: str, source: str, floor: int = QUOTE_MIN) -> bool:
+    """The quote is a contiguous span of the source, whitespace-normalised,
+    of `floor` characters or the whole source.
 
     Three forms of the same span count too, because each comes from the
     call's syntax, not from the seat's words. Night 119's s250 put the span
-    inside quote marks. Night 124's s144 copied a body from the prompt's
-    JSON, so a line break came as the two characters of `\\n`. Night 126's
-    s172 wrote a `"` of the row as `'` inside its double-quoted string.
+    inside quote marks. Night 126's s172 wrote a `"` of the row as `'` inside
+    its double-quoted string. Night 124's s144 copied a body from the
+    prompt's JSON, so a line break came as the two characters of `\\n`. That
+    form matches only where the row breaks the line (review 1, finding 4).
     """
     src = " ".join((source or "").split())
     raw = (quote or "").strip()
     forms = [raw]
     if len(raw) > 2 and raw[0] == raw[-1] and raw[0] in "\"'`":
         forms.append(raw[1:-1])
-    forms += [f.replace("\\n", "\n").replace("\\t", "\t")
-              .replace('\\"', '"').replace("\\'", "'") for f in list(forms)]
+
+    def _swap(s: str) -> str:
+        return s.replace("'", '"')
+
     for f in forms:
         q = " ".join(f.split())
-        if q and (q in src or q.replace("'", '"') in src.replace("'", '"')):
+        if (q and (len(q) >= floor or q == src)
+                and (q in src or _swap(q) in _swap(src))):
+            return True
+        decoded = (f.replace("\\n", "\n").replace("\\t", "\t")
+                   .replace('\\"', '"').replace("\\'", "'"))
+        if decoded == f:
+            continue
+        lined = _lined(decoded)
+        if not lined or (len(lined) < floor and lined != _lined(source)):
+            continue
+        # A space of the quote may stand for a wrap of the row. A decoded
+        # line break must meet a line break.
+        pattern = "".join("[ \n]" if t == " " else "\n" if t == "\n"
+                          else re.escape(t)
+                          for t in re.split(r"( |\n)", _swap(lined)) if t)
+        if re.search(pattern, _swap(_lined(source))):
             return True
     return False
 
 
 def _quote_list(text: str, quotes=None) -> list[str]:
-    """The quotes of a challenge, one string per span.
+    """The quotes of a challenge, one string per quote.
 
-    The binder joins a list of quotes with " ... ", so the joined text splits
-    back on the same mark. A quote that elides with " ... " gives two spans,
-    and each span is checked on its own.
+    The binder hands its list on, so an elided quote `A ... B` is one quote,
+    and it is not a span (review 1, finding 5). A stored message holds only
+    the joined text, so that text splits back on the binder's " ... " mark.
     """
     if isinstance(quotes, dict):
         quotes = list(quotes.values())
+    if isinstance(quotes, str):
+        quotes = [quotes]
     if isinstance(quotes, (list, tuple)):
         return [str(q) for q in quotes if str(q).strip()]
     return [q for q in " ".join((text or "").split()).split(" ... ")
@@ -1266,12 +1301,21 @@ def _quote_list(text: str, quotes=None) -> list[str]:
 
 
 def _quote_refusal(row: str, table: str, quote: str, crit: str,
-                   test: str) -> str:
+                   test: str, short: bool = False, both: bool = False) -> str:
     """The refusal of a challenge quote that is not in its row's live text."""
     shown = quote if len(quote) <= 80 else quote[:77] + "..."
-    said = (f"quotes= holds `{shown}`, and it is not in the live text of "
-            f"{row}." if quote else
-            f"quotes= holds no span of the live text of {row}.")
+    if short:
+        said = (f"quotes= holds `{shown}`, and it is shorter than "
+                f"{QUOTE_MIN} characters. Copy {QUOTE_MIN} characters or "
+                f"more, or the whole row.")
+    elif both:
+        said = (f"quotes= holds `{shown}` as the quote of {row}. Each row "
+                f"needs a quote of its own.")
+    elif quote:
+        said = (f"quotes= holds `{shown}`, and it is not in the live text "
+                f"of {row}.")
+    else:
+        said = f"quotes= holds no span of the live text of {row}."
     if table == "tests":
         said += " A comment of the test does not count."
     return (f"{said} Quote, not paraphrase: copy a contiguous span of each "
@@ -1493,19 +1537,34 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
         # criterion quote spanned the test row too, and a challenge with an
         # empty test-side quote went through; the Tester woken by it had
         # nothing to defend.
-        cited = {
-            crit[0]: [q for q in quotes if any(
-                _span_of(q, s) for s in [rows[crit[0]][1]] + siblings)],
-            test[0]: [q for q in quotes
-                      if _span_of(_code_only(q), _code_only(rows[test[0]][1]))]}
-        loose = [q for q in quotes
-                 if not any(q in held for held in cited.values())]
-        for i, r in enumerate((crit[0], test[0])):
-            if cited[r]:
+        crit_words = [rows[crit[0]][1]] + siblings
+        code = _code_only(rows[test[0]][1])
+
+        def _cites(q: str, floor: int = QUOTE_MIN) -> tuple[bool, bool]:
+            return (any(_span_of(q, s, floor) for s in crit_words),
+                    _span_of(_code_only(q), code, floor))
+
+        # Review 1, finding 2: a quote of a few characters pays no reading.
+        short = next((q for q in quotes
+                      if not any(_cites(q)) and any(_cites(q, 0))), None)
+        if short is not None:
+            raise ValueError(_quote_refusal(
+                "", "", short, crit[0], test[0], short=True))
+        sides = [_cites(q) for q in quotes]
+        on_crit = [i for i, s in enumerate(sides) if s[0]]
+        on_test = [i for i, s in enumerate(sides) if s[1]]
+        loose = [q for q, s in zip(quotes, sides) if not any(s)]
+        for i, (r, on) in enumerate(((crit[0], on_crit), (test[0], on_test))):
+            if on:
                 continue
             q = (quotes[i] if i < len(quotes) and quotes[i] in loose
                  else loose[0] if loose else "")
             raise ValueError(_quote_refusal(r, rows[r][0], q, crit[0], test[0]))
+        # Review 1, finding 2: one quote never stands for both rows.
+        if not any(i != j for i in on_crit for j in on_test):
+            raise ValueError(_quote_refusal(
+                f"{crit[0]} and of {test[0]}", "", quotes[on_crit[0]],
+                crit[0], test[0], both=True))
         if loose:
             raise ValueError(_quote_refusal(f"{crit[0]} or of {test[0]}", "",
                                             loose[0], crit[0], test[0]))
@@ -2368,7 +2427,7 @@ def _reason_arg(conn: sqlite3.Connection, reason, quotes: str, refs) -> str:
 
 
 def _stage_reason(ctx: api.Ctx, table: str, refs, quotes: str,
-                  reason) -> tuple[str, str]:
+                  reason, spans: list | None = None) -> tuple[str, str]:
     """
     Stage the reason of a challenge as the sender's own row of `table`, and
     return its id and a note for the sender, which is "" unless the reason
@@ -2397,7 +2456,10 @@ def _stage_reason(ctx: api.Ctx, table: str, refs, quotes: str,
             ctx, f"{problem} Send msg.challenge_tester(refs={once}, "
             f"{REASON_SLOT}) with the same quotes.",
             "msg.challenge_tester",
-            {"refs": once, "quotes": quotes, "reason": api.INVENT}))
+            # The quotes as sent: the joined text is one quote now, and the
+            # quote door refuses it (frame 328, review 1, finding 5).
+            {"refs": once, "quotes": spans if spans else quotes,
+             "reason": api.INVENT}))
     text, note = " ".join(reason.split()), ""
     if len(text) > REASON_CHARS:
         note = cut_note("your reason", len(text) - REASON_CHARS, len(text),
@@ -3107,7 +3169,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
     from .runner import new_id
 
     def stage(refs: list[str], round_no: int = 0, text: str | None = None,
-              reason: str | None = None):
+              reason: str | None = None, spans: list | None = None):
         # Logged first, before any guard, as `_bind` logs a tool call: the
         # register subtracts the refused count from the log, so a reach
         # that a guard threw out must be in the log or a landed send
@@ -3525,14 +3587,16 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # A challenge pays its reading up front: quote both sides on the
         # tester channel, quote the disputed row everywhere else.
         if verb == "challenge" and recipient == "tester":
-            said = _answer_mode_challenge_refusal(ctx, refs, text or "", reason)
+            said = _answer_mode_challenge_refusal(ctx, refs, text or "", reason,
+                                                  spans)
             if said is not None:
                 # The review of pass 2e, finding 2: an answer that holds a
                 # decision row gets the call, and the session goes on.
                 raise (api.EndRefusal if isinstance(said, _Ending)
                        else ValueError)(said)
         if verb == "challenge":
-            _challenge_evidence(ctx, recipient, refs, text or "", reason)
+            _challenge_evidence(ctx, recipient, refs, text or "", reason,
+                                quotes=spans)
         # ruling: DECISIONS 1248, an answer that keeps the test quotes the criterion
         # The Tester's answer to a challenge pays the same reading. Night 80
         # (2026-09-15): the answer said "the developer is right, the test
@@ -4340,7 +4404,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         reason_note = ""
         if reason_row:
             rid, reason_note = _stage_reason(ctx, reason_row, refs,
-                                             text or "", reason)
+                                             text or "", reason, spans)
             if rid not in (refs or []):
                 refs = list(refs or []) + [rid]
 
@@ -4472,6 +4536,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         passed = ", reason=reason" if reason_row else ""
         src = (
             f"def send(refs: list[str], {arg}: {ann}{default}{extra}, round_no: int = 0):\n"
+            # Frame 328, review 1, finding 5: the challenge door reads the
+            # quotes as sent, so an elided quote stays one quote.
+            f"    _spans = (list({arg}.values()) if isinstance({arg}, dict) else\n"
+            f"              list({arg}) if isinstance({arg}, list) else\n"
+            f"              [{arg}] if isinstance({arg}, str) else None)\n"
             f"    if isinstance({arg}, dict):\n"
             f"        {arg} = ' ... '.join(str(v) for v in {arg}.values())\n"
             f"    if isinstance({arg}, list) and any(not str(x).strip() for x in {arg}):\n"
@@ -4483,7 +4552,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             f"        {arg} = ' ... '.join(str(x) for x in {arg})\n"
             f"    if not {arg}:\n"
             "        raise ValueError(f'{_label} needs {_prose}=: {_why}')\n"
-            f"    return _stage(refs, round_no, text={arg}{passed})\n"
+            f"    return _stage(refs, round_no, text={arg}, spans=_spans{passed})\n"
         )
         exec(src, ns)  # noqa: S102 - the name is the graph's, not a session's
         send = ns["send"]

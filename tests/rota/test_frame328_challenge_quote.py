@@ -95,3 +95,39 @@ def test_m85_quoting_true_spans_of_the_live_rows_passes(db):
     ctx = _ctx(db)
     assert sandbox._challenge_evidence(ctx, "tester", M85_REFS, M85_TEXT) is None
     assert sandbox._challenge_admitted(ctx, M85_REFS, M85_TEXT.split(" ... "))
+
+
+# Word for word from .rota/clickI_night144.db, read with mode=ro: m153 and
+# m159, both from the Developer, and the two rows they name.
+N144_CRIT = "The function must print a JSON representation of an object, letting the standard json module raise its own error if the object cannot be serialized."
+N144_TEST = 'import json\nfrom click.utils import echo\nimport traceback\n\ndef test_echo_raises_on_unserializable():\n    """Test that echo lets the standard json module raise errors on unserializable objects."""\n    class Unserializable:\n        def __reduce__(self):\n            raise TypeError("Cannot serialize")\n    \n    obj = Unserializable()\n    try:\n        echo(obj)\n        assert False, "Expected TypeError to be raised"\n    except TypeError as e:\n        # Verify it is the standard json module error\n        tb = traceback.format_exc()\n        assert "json" in tb.lower(), f"Exception not from json module: {tb}"'
+N144_REFS = ["cj_serializable", "tst_serializable_01"]
+M153_TEXT = "The function must print a JSON representation of an object, letting the standard json module raise its own error if the object cannot be serialized. ... echo(obj)"
+M159_TEXT = M153_TEXT
+
+
+@pytest.mark.parametrize("text", [M153_TEXT, M159_TEXT], ids=["m153", "m159"])
+def test_the_register_quotes_under_the_floor_are_refused(db, text):
+    """Frame 328, review 1, finding 2: over the register the floor refuses
+    two quotes that the span check admits, `echo(obj)` of night 144."""
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('cj_serializable', 'tk1', ?)", (N144_CRIT,))
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst_serializable_01', 'bg_3', 'cj_serializable', "
+               "'tests/test_serializable.py', ?)", (N144_TEST,))
+    db.commit()
+    with pytest.raises(ValueError, match="`echo\\(obj\\)`, and it is shorter "
+                                         "than 12 characters"):
+        sandbox._challenge_evidence(_ctx(db), "tester", N144_REFS, text)
+
+
+def test_a_decoded_line_break_meets_only_a_line_break():
+    """Frame 328, review 1, finding 4: the JSON escape stands for a line
+    break of the row, never for a plain space."""
+    two_lines = 'assert r.exit_code != 0\n    assert "a" in r.output'
+    assert sandbox._span_of('assert r.exit_code != 0\\n    assert "a" in r.output',
+                            two_lines)
+    assert not sandbox._span_of('assert r == "a\\nb is the text"',
+                                'assert r == "a b is the text"')
+    assert sandbox._span_of('assert r == "a b is the text"',
+                            'assert r == "a b is the text"')

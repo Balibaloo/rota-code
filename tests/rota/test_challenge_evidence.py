@@ -131,6 +131,49 @@ def test_a_quote_survives_the_line_wrap_it_was_copied_across(db):
     assert sb.ctx.outbound
 
 
+def test_a_quote_under_the_floor_is_refused(db):
+    """Frame 328, review 1, finding 2: `in` and `a1` are spans of the rows,
+    and they pay no reading. A quote holds 12 characters or the whole row."""
+    sb = _dev(db)
+    with pytest.raises(ValueError, match="`in`, and it is shorter than 12 "
+                                         "characters"):
+        sb.call("msg.challenge_tester", refs=["c1", "ts1"],
+                quotes=["in", "a1"], reason=REASON)
+    with pytest.raises(ValueError, match="`invoices`, and it is shorter"):
+        sb.call("msg.challenge_tester", refs=["c1", "ts1"],
+                quotes=["invoices"], reason=REASON)
+    assert not sb.ctx.outbound
+
+
+def test_one_quote_never_stands_for_both_rows(db):
+    """Frame 328, review 1, finding 2: the test's docstring holds the
+    criterion's words, so one quote is a span of both rows."""
+    db.execute("UPDATE tests SET body = ? WHERE id = 'ts1'", (
+        'def test_close():\n    """closing an account leaves its invoices '
+        'in place"""\n    close(\'a1\')\n    assert invoices_for(\'a1\') == []',))
+    db.commit()
+    sb = _dev(db)
+    with pytest.raises(ValueError, match="as the quote of c1 and of ts1. "
+                                         "Each row needs a quote of its own"):
+        sb.call("msg.challenge_tester", refs=["c1", "ts1"],
+                quotes=["closing an account leaves its invoices in place"],
+                reason=REASON)
+    sb.call("msg.challenge_tester", refs=["c1", "ts1"],
+            quotes=["closing an account leaves its invoices in place",
+                    "assert invoices_for('a1') == []"], reason=REASON)
+    assert sb.ctx.outbound
+
+
+def test_an_elided_quote_is_one_quote_and_no_span(db):
+    """Frame 328, review 1, finding 5: the binder hands its list on, so the
+    elision inside one string is not a join of two quotes."""
+    sb = _dev(db)
+    with pytest.raises(ValueError, match="not in the live text of c1"):
+        sb.call("msg.challenge_tester", refs=["c1", "ts1"],
+                quotes=["leaves its invoices in place ... "
+                        "assert invoices_for('a1') == []"], reason=REASON)
+
+
 def test_a_contradicting_twin_constraint_is_refused_toward_the_challenge(db):
     """The wrong door, measured: handed a ratified statement conflicting with
     a decided constraint, the Architect recorded the conflict as a second
