@@ -148,3 +148,56 @@ No meter is visible to the reviewer. These are estimates.
 - Input tokens: about 100,000.
 - Output tokens: about 16,000.
 - Total: about 116,000.
+
+## Pass 1b
+
+**Does not stand.** Commit a0b0b6ae on `f339` in `C:/Users/roman/rota_p339` was read-only probed. The fix for finding 1 works. The fix for finding 8 opens a hole in the sign-off that law 12 requires: in an unpredicted file, a change outside the removal grain reaches no row, and the merge goes on.
+
+1. **Finding 1: CONFIRMED fixed.** Probe `p5m` was re-run, and the staged rows were landed.
+   - After a mistake verdict, a commit that leaves the line gone writes a `mistake` row at the new head (`batch_1:d3b4e2d2...::get_app_dir`).
+   - `mergeable` then returns "touch strayed, a mistake still in the head commit: src/click/utils.py::get_app_dir", and `touch_mistaken` wakes the Developer.
+   - Probe `p1b` put the line back under `if folder is None:` and committed. The commit wrote no row. `mergeable` returned `None`, and `touch_mistaken` returned `[]`.
+   - Caution for the next probe: a whole-file restore of the base is refused by the door "you are undoing yourself". Only a line restore reaches the stray code.
+2. **Finding 8: the fix lets a change escape the sign-off. High. CONFIRMED.**
+   - Where: `rota/roles/api.py` 20517 to 20523, `if path in held or any(g.startswith(path + "::") for g in held): continue`.
+   - Probe `p2b`: the prediction names only `src/click/core.py`. One commit rewrites `get_app_dir` and also changes line 1 of `src/click/utils.py`, which is module level and outside the grain. The diff of HEAD shows both changes.
+   - The commit returns `outside_prediction: ['src/click/utils.py']`. It writes one row only, `src/click/utils.py::get_app_dir`, open, with the removal note.
+   - `_unnamed_def_strays` skips a path that is a stray as a whole (`rel in path_strays`), so no other row exists for the file.
+   - The wake detail names the grain and the removal only. The Architect judged the grain `foreseen`, and `mergeable` then returned `None`. The line 1 change merged with no judgement.
+   - Fix: keep the path row whenever the commit changes the file outside the removal grains. Or keep the path row always, and let `judge_touch` judge the path and the grain together. Then pin the line 1 case in `test_a_removal_in_an_unpredicted_file_writes_one_row`.
+3. **Route texts: no sentence contradicts another. CONFIRMED.** The full texts at a0b0b6ae are:
+   - Commit door, held, with a line: "... If the tree holds those lines again, commit in your next reply. A note does not close a removal. To undo the change, put the lines back with code.write, then commit in your next reply. To keep the change, commit in your next reply. The Architect then judges the removal before the batch merges."
+   - Commit door, a held or later entry with no line: "... If the tree holds those lines again, commit in your next reply. Put the lines back with code.write, then commit in your next reply." The next reply gives the same write route. So finding 3 is fixed.
+   - Ledger door: "... so this note closes nothing. A note does not close a removal. To undo the change, put the line back with code.write, then commit in your next reply. To keep the change, commit in your next reply. The Architect then judges the removal before the batch merges."
+   - Two sentences say the same thing, and neither is false. In the commit door, "If the tree holds those lines again, commit in your next reply" now adds nothing, because the commit of the next reply lands either way. In the ledger door, "this note closes nothing" and "A note does not close a removal" say one fact twice. Low. Fix: drop the conditional sentence when the keep route follows it.
+4. **The prompt sentences: each one is true for some rows only. Low. CONFIRMED by a read and by the probes.**
+   - `touch_strayed.md`: "A `removal:` note names a base line that the commit removed, inside a definition the prediction named." This is false in three cases that the code writes:
+     - In probe `p2b`, the prediction did not name the file or the definition.
+     - A module-level removal has the path as its grain, with no definition. Frame 140 pins `("src/click/other.py", "open", "removal: `x = 1` at line 1")`.
+     - A removed definition has the grain `path::<the def line>` (api.py 20641). The removed text is then a definition, not a line inside one.
+     - Also, the prediction usually names files, and the criteria name definitions. One note can also name more than one line.
+   - `touch_mistaken.md`: "For a `removal:` row, put back that line only, and keep the rest of the definition." This is true for one removed line inside a definition. It is wrong in number when the note names more lines, as the frame 140 note does with three statements. It names no definition for a module-level row. The note of a `mistake` row also ends with the reason of the Architect, so "that line" is the quoted text only.
+   - Fix: in `touch_strayed.md`, write "A `removal:` note quotes each base line that the commit removed." In `touch_mistaken.md`, write "put back each quoted line only, and keep the rest of the file."
+
+Probes for pass 1b, in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e03f97fc-cdd4-4daa-864c-2ca4d7ef42a5/scratchpad/r339p/`:
+- `test_r339_probe_1b.py`: `p5m`, `p1b`, `p2b` and `p7`, run against `rota_p339`.
+- `test_r339_probe4_1b.py`: `p4`, run against `rota_p339`.
+- No tracked file changed. Usage for pass 1b is about 30,000 input tokens and 5,000 output tokens.
+
+## Pass 1c
+
+**Stands.** Commit 7f263584 on `f339` in `C:/Users/roman/rota_p339` closes the escape found in pass 1b. One low prompt gap remains. No tracked file changed.
+
+1. **Finding 8 re-probe: CONFIRMED fixed.** The probes are `p2b` and `p2c` in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e03f97fc-cdd4-4daa-864c-2ca4d7ef42a5/scratchpad/r339p/test_r339_probe_1c.py`.
+   - Line 1 changed plus the removal in `get_app_dir`, in a file that the prediction does not name: the commit writes two open rows, `src/click/utils.py::get_app_dir` with the removal note and `src/click/utils.py` with no note. The wake detail names both rows.
+   - The removal alone, in the same unpredicted file: the commit writes one row, `src/click/utils.py::get_app_dir`.
+   - A `foreseen` judgement of the grain alone cannot free the merge. `batches.judge_touch` refuses it: "src/click/utils.py is still unjudged. Every open stray is foreseen or a mistake; say which". The path row stays open at the head, so `mergeable` keeps "touch strayed, unjudged".
+2. **Prompt sentences for a removal in an unpredicted file.**
+   - `touch_strayed.md` lines 25 to 26: "A `removal:` note quotes each base line that the commit removed. A quoted `def` or `class` line stands for the whole definition." Both sentences hold. They say nothing about the prediction.
+   - `touch_mistaken.md` lines 14 to 16: "For a `removal:` row, put back each quoted base line only, and keep the rest of the file. For a quoted `def` or `class` line, put back the whole definition from the base." Both sentences hold for the grain row.
+   - Low, CONFIRMED by a read: two older sentences do not hold for this case.
+     - `touch_strayed.md` lines 21 to 23 say that a definition stray occurs "when your prediction named the file". In `p2b` the grain row is a definition in a file that the prediction did not name.
+     - `touch_mistaken.md` lines 4 to 6 tell the Developer to restore a stray file "as it stood before the batch". If the Architect judges the path row of `p2b` a mistake and the grain foreseen, that step also reverts the foreseen rewrite of `get_app_dir`.
+   - Fix: in `touch_strayed.md`, add "or the file is a stray and a removal sits in the definition". In `touch_mistaken.md`, add "keep any definition judged foreseen".
+
+Usage for pass 1c is about 9,000 input tokens and 2,000 output tokens.
