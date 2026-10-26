@@ -1775,7 +1775,13 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
     # landed, and the Tester read the text he had ruled on. The key is the
     # landed write, not the refusal before it (frame 308, review 2, F1 to F3).
     # A "The criterion stands" refusal counts as landed (review 2's fix).
-    stands = getattr(ctx, "respecify_stands", None) or set()
+    stands = set(getattr(ctx, "respecify_stands", None) or ())
+    # A criterion that this session challenged to the Vision Keeper counts as
+    # written. The twin door sends the seat to that challenge, and a second
+    # order to rewrite invites a paraphrase twin (frame 329, review 1, F1).
+    stands |= {r for m in ctx.outbound
+               if m["to_role"] == "vision_keeper" and m["verb"] == "challenge"
+               for r in m.get("body_refs") or () if isinstance(r, str)}
     unwritten = [r for r in relay_refs
                  if verdict.get(r) in ("contest", "revise") and r in ruled
                  and r not in stands

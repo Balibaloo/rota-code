@@ -12,6 +12,8 @@ relay m79 in s194's turn 1, c_3 from its row, and the new text from
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from rota.core.db import init_db
@@ -126,3 +128,71 @@ def test_a_specify_after_a_respecify_meets_the_exact_check(db):
     # The exact door's words, not the fuzzy door's.
     assert f"those are {C1}'s words already, on the same ticket" in str(
         caught.value)
+
+
+def test_a_rewrite_then_a_retire_of_a_sibling_is_no_twin(db):
+    """Review 1, finding 3: a row that the session retires is no twin, even
+    when the session rewrote it first and the row on file is still live."""
+    sb = _repair(db)
+    sb.call("criteria.respecify", id=C2, text=NEW, surface_refs=SURFACE)
+    # The write that the retire op stages for a ruled drop.
+    sb.ctx.writes.append(("criteria", C2, {"retired_by": "r_drop"}, False))
+    out = sb.call("criteria.respecify", id=C1, text=NEW, surface_refs=SURFACE)
+    assert out.get("respecified") is True
+
+
+# Night 166's rows around s194's wake: the page m76, his words m77, the
+# verdict m78 and the relay m79, with the batch bg_3 that held the ticket.
+WORDS = ("Lines 2 and 3 are not what I asked for. They make rules for how "
+         "the function behaves, but only the docstring changes and the code "
+         "stays the same.")
+PAGE = ["bg_3", "format_filename_example", C1, C2, C3]
+ORDER = ["format_filename_example", C1, C2, C3, "bg_3"]
+
+
+def _night166_relay(conn) -> None:
+    rows = (("m76", None, "liaison", "principal", "present", PAGE, None, 79),
+            ("m77", "m76", "principal", "liaison", "converse", PAGE, WORDS, 80),
+            ("m78", "m76", "principal", "liaison", "verdict", [C1, C2], None,
+             81),
+            ("m79", "m78", "liaison", "terminologist", "relay", [C1, C2],
+             None, 82))
+    for mid, cause, sender, to, verb, refs, text, seq in rows:
+        conn.execute("INSERT INTO messages (id, cause_id, thread_id, "
+                     "from_role, to_role, verb, body_refs, body_text, seq) "
+                     "VALUES (?, ?, 'm76', ?, ?, ?, ?, ?, ?)",
+                     (mid, cause, sender, to, verb, json.dumps(refs), text, seq))
+    conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m78', ?)",
+                 (json.dumps({C1: "contest", C2: "contest"}),))
+    conn.execute("INSERT INTO config (key, value) VALUES ('order:m77', ?)",
+                 (json.dumps(ORDER),))
+    per_item = {C1: "contest", C2: "contest", C3: "approve",
+                "format_filename_example": "approve", "bg_3": "approve"}
+    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+                 "status, verdict_id) VALUES ('r_a5e4b30470', 'm76', 'm77', ?, "
+                 "?, 'landed', 'm78')", (json.dumps(per_item), WORDS))
+    conn.execute("INSERT INTO batches (id, item_id, head_commit, status) "
+                 "VALUES ('bg_3', 'format_filename_example', "
+                 "'a0295dffd730b5d6d14813fded003472c8e5ed21', 'running')")
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+                 "('bg_3', ?)", (TICKET,))
+    conn.commit()
+
+
+def test_a_challenge_after_the_twin_refusal_lets_the_answer_out(db):
+    """Review 1, finding 1: the twin refusal sends the seat to the Vision
+    Keeper. A criterion that the session challenged counts as written, so
+    the answer door lets the answer with c_1's rewrite reach the Tester."""
+    _night166_relay(db)
+    sb = build("terminologist", db, mode="criterion_repair", session_id="s194",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    sb.ctx.trigger = "m79"
+    sb.ctx.wake_kind = "message"
+    sb.call("criteria.respecify", id=C1, text=NEW, surface_refs=SURFACE)
+    with pytest.raises(ValueError):
+        sb.call("criteria.respecify", id=C2, text=NEW, surface_refs=SURFACE)
+    sb.call("msg.challenge_vision_keeper", refs=[C2],
+            quotes=f"{BEFORE[C2]!r} holds the fact that c_1 now holds")
+    sb.call("msg.answer_tester", refs=[C1, C2], round_no=0)
+    assert [m["body_refs"] for m in sb.ctx.outbound
+            if m["to_role"] == "tester" and m["verb"] == "answer"] == [[C1, C2]]

@@ -5684,6 +5684,14 @@ def _staged_ticket(ctx: Ctx, w) -> str | None:
     return row["ticket_id"] if row else None
 
 
+def _staged_retired(ctx: Ctx) -> set[str]:
+    """The criteria that this session retires. A row the session retires is
+    no twin, as a retired row on file is no twin (frame 329, review 1, F3)."""
+    return {w[1] for w in ctx.writes
+            if w[0] == "criteria" and isinstance(w[2], dict)
+            and w[2].get("retired_by")}
+
+
 def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     """
     The exact-twin refusal. It names each sibling ticket with no criterion
@@ -5831,16 +5839,19 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     # item, two of them the identical sentence. Same ticket, same words, one
     # row; a session that wants a second criterion writes a second sentence.
     words = " ".join((text or "").lower().split())
+    gone = _staged_retired(ctx)
     twin = next((w[1] for w in ctx.writes
                  if w[0] == "criteria" and isinstance(w[2], dict)
+                 and w[1] not in gone
                  and " ".join(w[2].get("text", "").lower().split()) == words
-                 and _staged_ticket(ctx, w) == ticket_id), None) or (
-        lambda r: r["id"] if r else None)(ctx.conn.execute(
+                 and _staged_ticket(ctx, w) == ticket_id), None) or next(
+        (r["id"] for r in ctx.conn.execute(
             "SELECT id FROM criteria WHERE ticket_id = ? AND "
             "lower(trim(text)) = ?"
             # A retired row is no twin, as in `_near_twin` (frame 306,
             # pass 2, finding 6).
-            + _live_rows(ctx.conn, "retired_by"), (ticket_id, words)).fetchone())
+            + _live_rows(ctx.conn, "retired_by"), (ticket_id, words))
+         if r["id"] not in gone), None)
     if twin:
         raise ValueError(_twin_refusal(ctx, twin, ticket_id))
     # law 14: exact match at the door; fuzzy behind named guards
@@ -5863,9 +5874,9 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     existing = {r["id"] for r in ctx.conn.execute(
         "SELECT id FROM criteria WHERE ticket_id = ?"
         + live_criteria(ctx.conn, "retired_by"), (ticket_id,))}
-    # A staged respecify takes no seat here. Its row is on file, so the read
-    # above counts it when it is live. A staged read of its ticket would
-    # seat a retired row (frame 329).
+    # A staged read of a respecify's ticket gives the same count. The row of
+    # a respecify is on file, and the read above counts it when it is live
+    # (frame 329, review 1, F2).
     existing |= {w[1] for w in ctx.writes
                  if w[0] == "criteria" and w[2].get("ticket_id") == ticket_id}
     # A retire staged in this session frees its seat too. Night 163's relay
@@ -6612,15 +6623,17 @@ def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
     # A staged text replaces the text on file for its id. Without it, the
     # old words of a row that this session rewrote refuse a right call
     # (frame 329, repair R).
+    gone = _staged_retired(ctx)
     staged = {w[1]: w[2]["text"] for w in ctx.writes
               if w[0] == "criteria" and isinstance(w[2], dict)
-              and "text" in w[2] and _staged_ticket(ctx, w) == ticket_id}
+              and "text" in w[2] and w[1] not in gone
+              and _staged_ticket(ctx, w) == ticket_id}
     others = list(staged.items())
     from ..core.scheduler import live_criteria
     others += [(r["id"], r["text"]) for r in ctx.conn.execute(
         "SELECT id, text FROM criteria WHERE ticket_id = ?"
         + live_criteria(ctx.conn, "retired_by"), (ticket_id,))
-        if r["id"] not in staged]
+        if r["id"] not in staged and r["id"] not in gone]
     for other_id, other_text in others:
         if other_id == skip:
             continue
