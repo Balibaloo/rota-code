@@ -306,13 +306,8 @@ def test_order_waits_are_not_open_decisions(repo, capsys):
 def test_a_cited_ruling_is_not_an_open_decision(repo, capsys):
     """A mark cites a word he gave, and a wait names a word he has not."""
     extra = "".join(
-        "### %d. Cited %d (2026-10-17)
-
-- **Site: x.** Meta workflow.
-"
-        "- Waits on: %s
-
-" % (n, n, wait) for n, wait in (
+        "### %d. Cited %d (2026-10-17)\n\n- **Site: x.** Meta workflow.\n"
+        "- Waits on: %s\n\n" % (n, n, wait) for n, wait in (
             (30, "the gate. The repair is ruled (ruled: Roman, 2026-10-24 "
                  "01:05, \"Yes\")."),
             (31, "night 9's end (reasoned: Roman's own price, and the facts "
