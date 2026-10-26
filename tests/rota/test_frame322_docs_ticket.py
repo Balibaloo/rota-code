@@ -142,7 +142,8 @@ def test_the_criteria_brief_routes_a_mixed_ticket_once():
     """Pass 3: the brief holds the Vision Keeper route, and the seat reads
     it before any refusal (`plans/frame322-case-read.md`, the repair)."""
     brief = prompts.compose("terminologist", "criteria")
-    head = "**A ticket whose headline names the docstring takes documentation"
+    head = ("**A ticket whose headline names the docstring or the documentation "
+            "takes documentation")
     assert brief.count(head) == 1
     line = brief[brief.index(head):].split("\n\n", 1)[0]
     assert "msg.challenge_vision_keeper" in line
