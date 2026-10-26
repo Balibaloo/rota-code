@@ -11772,7 +11772,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   closed_lines: frozenset[int] = frozenset(),
                   request_lines: frozenset[int] = frozenset(),
                   request_texts: tuple[str, ...] = (),
-                  faulted_texts: tuple[str, ...] = ()
+                  faulted_texts: tuple[str, ...] = (),
+                  earlier_lines: frozenset[int] | None = None
                   ) -> str | None:
     """The refusal of a ruling the words do not support, or None.
 
@@ -11787,7 +11788,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     `request_lines` are the lines that show a request item.
     `request_texts` are the ids and the texts of those items.
     `faulted_texts` are the texts of the items and criteria on the lines in
-    `faulted`.
+    `faulted`. `earlier_lines` are the lines that his earlier answers to the
+    page name, or None when the reply is his only answer.
     """
     reversed_ = sorted((matched - faulted) & contested)
     if reversed_:
@@ -11806,7 +11808,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     spared = batch_lines if _TOUCH_WORDS.search(words or "") else frozenset()
     unnamed = _unnamed_contest(sentences, contested - spared,
                                faulted | matched, size, item_lines,
-                               request_lines)
+                               request_lines, earlier_lines)
     if unnamed:
         return unnamed
     approve = _faulted_approve(approved, cues or {}, size, request_first,
@@ -12137,7 +12139,8 @@ def _unnumbered(sentences: list[str]) -> list[str]:
 def _unnamed_contest(sentences: list[str], contested: set[int],
                      read: set[int], size: int,
                      item_lines: frozenset[int] = frozenset(),
-                     request_lines: frozenset[int] = frozenset()) -> str | None:
+                     request_lines: frozenset[int] = frozenset(),
+                     earlier_lines: frozenset[int] | None = None) -> str | None:
     """The refusal of a contest on a line the words never name, or None.
 
     Night 147 (frame 234, pass 2): s281's words named lines 3, 4 and 7, and
@@ -12151,6 +12154,8 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     several lines of text, and night 136's m85 said "Line 2" for one of them
     (`test_request_page.py`). `item_lines` are the lines of the request
     items and the criteria. `request_lines` are the request items alone.
+    `earlier_lines` are the lines that his earlier answers to the same page
+    name. It is None when the reply is his only answer to the page.
 
     law 6: nothing is ruled on the principal's behalf
     """
@@ -12160,7 +12165,12 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
             named |= {n for n in _ref_lines(ref, size) if 1 <= n <= size}
     if not named:
         return _agreed_contest(sentences, contested, size, request_lines)
-    unnamed = sorted(n for n in contested - named if n != 1)
+    # ruling: DECISIONS 1473, every word of the principal is a ruling on a row
+    # A contest can rest on an earlier answer of the exchange. Night 168's
+    # m76 said "Line 5 is wrong", m78 named line 6 only, and the refused
+    # contest of line 5 became an approve of it (frame 337).
+    unnamed = sorted(n for n in contested - named - (earlier_lines or set())
+                     if n != 1)
     if not unnamed:
         return None
     # A sentence with no line number can correct an item line it never
@@ -12174,10 +12184,31 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
         unnamed = [n for n in unnamed if n not in item_lines]
         if not unnamed:
             return None
+    read_earlier = ("" if earlier_lines is None else
+                    f" His earlier answers to this page do not name "
+                    f"{_lines(unnamed)} either.")
     return (f"The words name {_lines(sorted(named))} and do not name "
             f"{_lines(unnamed)}. A contest rests on the principal's words. "
             f"Approve the lines the words do not name, or rule them as the "
-            f"words say.")
+            f"words say.{read_earlier}")
+
+
+def _earlier_lines(conn, ask_id: str, reply_id: str,
+                   size: int) -> frozenset[int] | None:
+    """The page lines that his earlier answers to the page name, or None.
+
+    The rows are the principal rows of the query that fills
+    `earlier_exchange` in `runner.py`, so the door reads the answers that
+    the seat's prompt shows. None says that the reply is his only answer.
+    """
+    texts = [r[0] for r in conn.execute(
+        "SELECT body_text FROM messages WHERE cause_id = ? AND verb = 'converse' "
+        "AND id != ? AND from_role = 'principal' AND body_text IS NOT NULL "
+        "ORDER BY seq", (ask_id, reply_id))]
+    if not texts:
+        return None
+    return frozenset(n for t in texts for ref in _LINE_REF.finditer(t)
+                     for n in _ref_lines(ref, size) if 1 <= n <= size)
 
 
 def _agreed_contest(sentences: list[str], contested: set[int], size: int,
@@ -12792,7 +12823,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 "SELECT text FROM items WHERE id = ? UNION ALL "
                 "SELECT text FROM criteria WHERE id = ?",
                 (order[n - 1], order[n - 1])).fetchone() or [""])[0] or ""
-                for n in sorted(faulted) if 1 <= n <= len(order)))
+                for n in sorted(faulted) if 1 <= n <= len(order)),
+            _earlier_lines(ctx.conn, ask["id"], ctx.trigger, len(order)))
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():
