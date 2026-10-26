@@ -419,6 +419,41 @@ comes first, then the state print, then the sender's note.
 
 ## 10. A wall's placement and fix
 
+- [C76] **An issue is read before it is fixed, and the read names no cause**
+  (ruled: Roman, 2026-10-26 about 21:1x, "we need critical thinking and
+  context retreival to solve problems", then "first evaluate the issue
+  against unbuilt solutions / then do what you just did", then "yes
+  update", after fourteen frames read that way fixed 0 of 14 at the
+  source, `plans/agency-prevalence-2026-10-26.md`). The moment, in order:
+  1. Find: the turn, what the seat was shown and what it sent, verbatim.
+  2. Match by symptom against the open and the parked frames, cheap, so
+     no duplicate frame opens.
+  3. Read, on one agent with a brief that names the turn and a question
+     and no site or cause: the purpose of the mechanism and the ruling
+     or build that made it, what the code already holds for the thing by
+     file and line, the reach of the placed cause as a count of every
+     place with the same gap, a proposal at the smallest place that
+     covers the whole reach with a price, and the agent's doubt. The
+     agent retrieves and proposes. The session judges. Roman rules a
+     departure only. The cap fits the task, about 120k for a read.
+  4. Match by cause, both ways. The issue against unbuilt solutions: one
+     that covers it takes the issue as a count, and no frame opens. A
+     built or proposed solution against open issues: every frame its one
+     reader closes is named, and the stack shrinks.
+  5. Re-read a solution that waited before its pass, because the code
+     moved. Frame 334 waited six weeks on a question answered the week
+     it was asked.
+  6. Build at the reach. The pass brief carries the reach count. A fix
+     that covers fewer places than the count says which it leaves and
+     why.
+  7. Close on two counts: the reach reads one reader, and the night's
+     count moved. One without the other is a residue line.
+  Two gates enforce it, owed as a frame: the status tool refuses a pass
+  line on a frame with no reach line, and the close refuses a frame
+  whose reach reads more than one reader. Until the gates exist, the
+  session writes the reach line by hand before any pass. C64's
+  provenance read is step 3's second question and keeps its own entry.
+  Memory `rota-read-before-fix.md` holds the same rule.
 - [C32] In a loop, a cause goes on the stack only after the turns of the
   failing sessions are read: what each seat called, what came back, what it
   committed. What you changed that day is the last suspect (no origin
