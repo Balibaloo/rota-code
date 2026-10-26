@@ -37,21 +37,23 @@ every row of the sprint is built and gated, by his ruling of 19:3x on
 4. Frame 335, `_render` shows nested text plainly and one escape helper
    serves the three refusals and `code.write`, 4 of 10 to 10 of 10. 3
    cycles.
-5. Frame 329, the same fix and one brief sentence, 4 of 5 to 5 of 5. 2
-   cycles.
-6. Frame 337, `words` built once from his converse answers, every door
-   reads it, 2 of 14 to 14 of 14, and it takes the 11 phrase readers of
-   frame 339's reach. 5 cycles.
-7. Frame 338, one `ruled_rows` reader for the verdict map and the
-   rulings row, night 164's m94 the red test. 2 cycles.
-8. Frame 336, one `error_line()` in the harness for all four readers.
-   2 cycles.
+6. Frames 337, 338 and 322, one group by the cross-frame match: one
+   reader of the `rulings` row, 337's `words` built once from his
+   converse answers the general one, 338's `ruled_rows` and 322's item
+   reader read that row by key; it takes the 11 phrase readers of frame
+   339's reach. 7 cycles in three passes, 339 first because 322 widens
+   `_ruling_texts`.
+7. Frame 329, the same fix and one brief sentence, with `quotes=` on
+   the offered call, or it makes a new case of 333's problem. 2 cycles.
+8. Frame 336, one `error_line()` in the harness for all four readers,
+   before 333 and 328, which edit the same refusal. 2 cycles.
 
-Night 170 on the head of rows 1 to 8. Parked, in order, for sprint 27:
-frame 324 at the agency read's 13 of 13 (3 cycles, ruled general at
-20:37); frame 328 one quote reader on seven sites (9 cycles); frame 322
-one reader of his landed words on an item (2 to 3); frame 333 the
-12-character window deleted (3 to 4); frame 331 the night's world as the
+Night 170 on the head of rows 1 to 8, eleven issues in fourteen frames
+(observed: `plans/agency-groups-2026-10-26.md`). Parked, in order, for
+sprint 27: frame 324 at the agency read's 13 of 13 (3 cycles, ruled
+general at 20:37); frames 333 and 328 one group, a per-quote span rule
+that replaces the 12-character window, 333 the general one, after 336
+and 335 (about 12 cycles); frame 331 the night's world as the
 kit's default (4); frame 332 `open_frames()` and the held-by form (3);
 frame 334 the lint per mode, its wait closed from cf2898b0 (4). Live
 things stay over the economy until rows close on night 170.
