@@ -14,54 +14,50 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
-## Sprint 26, written on night 169's read and the fourteen agency reads, 2026-10-26 21:3x
+## Sprint 26, by fact, rewritten 2026-10-26 22:0x after the closed-frame reads
 
 Night 169 ended sprint 25 at 20:56, stopped by the session 29 minutes
-into walk 1 on get_app_dir's loop at the removal door, frame 339: 153
-sessions, 7 live principal calls, 1 batch, 0 merged, 0 verdicts, and no
-door of frames 330 and 335 to 338 reached (observed:
-`plans/night169-read.md`). Roman ruled at about 21:17 that an issue is
-read before it is fixed, rule C76, after fourteen frames read with no
-cause in the brief fixed 0 of 14 at the source (observed:
-`plans/agency-prevalence-2026-10-26.md`). Each row below builds the
-agent's proposal from `plans/frame<n>-agency-read.md`, at the reach it
-counted, and carries a Reach line before its pass. Night 170 runs when
-every row of the sprint is built and gated, by his ruling of 19:3x on
-2026-10-26 (reasoned: the read, section 5, re-ordered by the reach).
+into walk 1 on get_app_dir's loop at the removal door, frame 339
+(observed: `plans/night169-read.md`). Roman ruled at about 21:17 that
+an issue is read before it is fixed, rule C76. Fourteen open frames
+read that way fixed 0 of 14 at the source, and 7 of 56 closed frames
+of the last two weeks did (observed: `plans/agency-prevalence-2026-10-26.md`,
+`plans/closed-reach-2026-10-26.md`). The unit of this sprint is the
+fact and its one reader, not the frame: a row closes every frame at
+its fact (reasoned: the closed-frame reads, 45 of 48 one-door frames
+had a later frame at the same fact). A night runs on every fix of a
+row set (ruled: Roman, 2026-10-26 19:3x), and a seam across many
+readers takes its own night (reasoned: C42 prices a seam with its
+night; a seam is not one of the door fixes his ruling names).
 
-1. Frame 340, the status tool's two gates of C76. 2 cycles. Runs.
-2. Frame 339, the removal door records a stray for the Architect, frame
-   286's route. 3 cycles. Night 170's blocker. Runs.
-3. Frames 337, 338 and 322, one group by the cross-frame match: one
-   reader of the `rulings` row, 337's `words` built once from his
-   converse answers the general one, 338's `ruled_rows` and 322's item
-   reader read that row by key; it takes the 11 phrase readers of frame
-   339's reach. 7 cycles in three passes, 339 first because 322 widens
-   `_ruling_texts`.
-   Moved up on the closed-frame reads: his ruling on a ref cost twelve
-   frames in two weeks and has about 20 readers at head, so this reader
-   closes the most (observed: `plans/closed-reach-2026-10-26.md`).
-4. Frame 330, `stopped_bouncing` reads `given_up`, 1 of 10 stalled keys
-   to 10 of 10; night 169 stalled on `batch_start`. 4 cycles.
-5. Frame 335, `_render` shows nested text plainly and one escape helper
-   serves the three refusals and `code.write`, 4 of 10 to 10 of 10. 3
-   cycles.
-6. Frame 329, the same fix and one brief sentence, with `quotes=` on
-   the offered call, or it makes a new case of 333's problem. 2 cycles.
-7. Frame 336, one `error_line()` in the harness for all four readers,
-   before 333 and 328, which edit the same refusal. 2 cycles.
+Night 170, the two walls that stopped night 169:
 
-Night 170 on the head of rows 1 to 7, eleven issues in fourteen frames
-(observed: `plans/agency-groups-2026-10-26.md`). Parked, in order, for
-sprint 27: frame 341 the wall guide prices by reach (2 cycles) and frame 342 the
-close gate refuses a zero baseline (1 cycle), both before night 170's
-walls are placed; frame 324 at the agency read's 13 of 13 (3 cycles, ruled
-general at 20:37); frames 333 and 328 one group, a per-quote span rule
-that replaces the 12-character window, 333 the general one, after 336
-and 335 (about 12 cycles); frame 331 the night's world as the
-kit's default (4); frame 332 `open_frames()` and the held-by form (3);
-frame 334 the lint per mode, its wait closed from cf2898b0 (4). Live
-things stay over the economy until rows close on night 170.
+1. Frame 339, the removal recorded as a stray for the Architect, two
+   doors. Runs. Night 170's blocker.
+2. Frame 330, `stopped_bouncing` reads `given_up`, every stalled key.
+   4 cycles. Then the gate and night 170 on 339 and 330, night 1 of 3
+   for both and for 335 to 338 as built.
+
+Night 171, the facts:
+
+3. His ruling on a ref. Frames 337, 338, 322, the 11 phrase readers of
+   339, and 329's sentence. Matched first against frame 293's
+   rulings-ledger pilot (`plans/rulings-ledger-match-2026-10-26.md`,
+   running); the source by the composition is the Liaison's confirmed
+   reading as one record per ref. A seam, about 10 cycles, with night
+   171. Twelve frames sat at this fact in two weeks.
+4. The view the seat was shown. Frames 335, 333, 328: one span rule per
+   quote against each form the seat saw, nested text shown plainly, one
+   escape helper. About 6 cycles, 336's `error_line()` first because
+   the three edit one refusal.
+5. The program partition. Frame 324 at 13 of 13, `areas.kind_of` the one
+   reader. 3 cycles.
+
+Parked for sprint 27, in order: 341 the wall guide prices by reach and
+342 the close gate refuses a zero baseline, both before night 170's
+walls are placed; 331 the kit's world as the default; 332 debts name
+their frame; 334 the brief per mode, its wait closed from cf2898b0.
+Live things stay over the economy until a row closes its frames.
 
 ## Sprint 25, recommended on night 168's read, 2026-10-26 18:08
 
