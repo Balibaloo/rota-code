@@ -9319,9 +9319,22 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"path {path!r} is not a Python file. The harness runs pytest; "
             f"name the file test_<thing>.py")
     _refuse_program_path(ctx.conn, path)
+    import warnings as _warnings
     try:
-        tree = _ast.parse(body)
+        # Frame 335: an invalid escape such as `\R` is only a SyntaxWarning,
+        # and a project with `filterwarnings = error` stops at collection.
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error", SyntaxWarning)
+            tree = _ast.parse(body)
     except SyntaxError as exc:
+        escape = _invalid_escape(exc.msg)
+        if escape is not None:
+            lines = body.splitlines()
+            line = (lines[exc.lineno - 1] if exc.lineno
+                    and exc.lineno <= len(lines) else (exc.text or "")).rstrip()
+            raise Wall(_escape_refusal(
+                f"line {exc.lineno} of the body, `{line.strip()}`,", escape,
+                line)) from None
         raise Wall(
             f"the body is not Python ({exc.msg}, line {exc.lineno}). A test "
             f"is code the harness can execute -- def test_...(): with "
@@ -17424,6 +17437,60 @@ def _own_assertions(body: str, path: str, said: str) -> list[dict]:
     return out
 
 
+#: Python's messages for an escape it cannot read. The first is the
+#: SyntaxWarning of 3.12 and later, raised as an error. The last two are a
+#: SyntaxError already.
+_ESCAPE_MESSAGES = (re.compile(r'"(\\.)" is an invalid escape sequence'),
+                    re.compile(r"invalid escape sequence '(\\.)'"),
+                    re.compile(r"truncated (\\[xuU])"),
+                    re.compile(r"malformed (\\N)"))
+#: A string literal that is not raw, with its prefix, its mark and its text.
+_PLAIN_LITERAL = re.compile(
+    r"(?<![A-Za-z0-9_])([bBuUfF]?)(\"|')((?:\\.|(?!\2).)*)\2")
+
+
+def _invalid_escape(message: str) -> str | None:
+    """The escape that Python could not read, from its message, or None
+    when the message is about something else."""
+    for pattern in _ESCAPE_MESSAGES:
+        m = pattern.search(message or "")
+        if m:
+            return m.group(1)
+    return None
+
+
+def _raw_form(line: str, escape: str) -> str | None:
+    """The literal of the line that holds the escape, as a raw string with
+    one backslash for each backslash the writer meant, or None.
+
+    Frame 335: a raw string reads the same through the call's literal
+    parse and through its fallback, so one form serves both levels."""
+    for m in _PLAIN_LITERAL.finditer(line or ""):
+        prefix, mark, text = m.groups()
+        if escape not in re.findall(r"\\.", text):
+            continue
+        one = text.replace("\\\\", "\\")
+        # A raw string cannot end in one backslash or hold its own mark.
+        if one.endswith("\\") or "\\" + mark in one:
+            return None
+        return f"r{prefix.replace('u', '').replace('U', '')}{mark}{one}{mark}"
+    return None
+
+
+def _raw_advice(line: str, escape: str) -> str:
+    """The sentence that names the raw string form of the line."""
+    raw = _raw_form(line, escape)
+    return ("Write the string as a raw string with one backslash: "
+            + (f"`{raw}`." if raw else "`r\"...\"`."))
+
+
+def _escape_refusal(where: str, escape: str, line: str) -> str:
+    """The refusal of a body with an escape that Python cannot read."""
+    return (f"{where} holds `{escape}`, and `{escape}` there is not a correct "
+            f"Python escape. The project's pytest can stop at collection on "
+            f"it. {_raw_advice(line, escape)}")
+
+
 #: The header pytest writes above a collection error's traceback.
 _COLLECT_HEADER = re.compile(r"^_{3,} ERROR collecting (\S.*?) _{3,}$")
 
@@ -17441,6 +17508,19 @@ def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
     where = where.replace("\\", "/") or path
     error = next((ln[1:].strip() for ln in reversed(lines)
                   if ln.startswith("E ") and ln[1:].strip()), "")
+    advice = ""
+    escape = _invalid_escape(error)
+    if escape is not None or "Did you mean" in error:
+        # Frame 335: pytest's `Did you mean "\\R"?` is the level of the
+        # file. The call reads one level off it, so the note gives the raw
+        # string form, which reads the same on both levels.
+        error = re.sub(r"\s*Did you mean .*$", "", error)
+        at = next((i for i, ln in enumerate(lines)
+                   if re.match(r'E\s+File ".*", line \d+$', ln)), None)
+        line = (lines[at + 1][1:].strip() if at is not None
+                and at + 1 < len(lines) and lines[at + 1].startswith("E ")
+                else "")
+        advice = " " + _raw_advice(line, escape or "\\")
     if len(error) > 160:
         error = error[:157] + "..."
     # Night 167, s271: the note asks for a re-encode with the same id, so
@@ -17450,8 +17530,8 @@ def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
     raised = f": `{error}`" if error else ""
     notes.append(
         f"The run of this body on the batch's head errors when pytest "
-        f"collects `{where}`{raised}. No test in the body runs. The test is "
-        f"stored. The batch's head holds the Developer's commit. If the "
+        f"collects `{where}`{raised}.{advice} No test in the body runs. The "
+        f"test is stored. The batch's head holds the Developer's commit. If the "
         f"criterion's words give the value that the run shows, the test is "
         f"wrong. Encode it again with the same id.")
 

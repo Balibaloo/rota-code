@@ -149,10 +149,11 @@ def test_an_unindexed_path_outside_the_test_folders_meets_the_old_door(idb):
         "A new test file beside the indexed tests needs no `new_files`")
 
 
+# Frame 335: `tests.encode` now refuses tst_c4's body before the run, and
+# `test_frame335_escape.py` holds that case.
 @pytest.mark.parametrize("body, raised", [
     (COLLECT_BODY, "ModuleNotFoundError: No module named 'click.shorten'"),
-    (TST_C4_BODY, "SyntaxError: "),
-], ids=["module", "tst_c4"])
+], ids=["module"])
 def test_a_collection_error_after_the_developer_commit_is_noted(
         idb, monkeypatch, body, raised):
     root = idb.execute("SELECT worktree FROM batches WHERE id = 'bg_3'"
