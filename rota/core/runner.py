@@ -442,7 +442,10 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 # it stands (frame 193's design, 2.F.1).
                 "tick:request_shift",
                 # Which ticket of the item has no criterion (frame 322).
-                "tick:criteria"}
+                "tick:criteria",
+                # Which grains strayed, and the removed line of a removal
+                # (frame 339). No case carries this detail yet.
+                "tick:touch_strayed"}
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,

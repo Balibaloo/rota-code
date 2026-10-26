@@ -196,17 +196,16 @@ S282_NOTE = ('This write removes or rewrites 3 statements that your text does no
 STEP = ("If the tree holds those lines again, commit in your next reply. A "
         "note does not allow a removal or a rewrite. To undo the change, put the "
         "lines back with code.write, then commit in your next reply. To keep the "
-        "change, send msg.escalate_architect and name the change to the Architect.")
+        "change, commit in your next reply. The Architect then judges the "
+        "removal before the batch merges.")
 
-# The refusal of a commit in a reply after the noted one (frame 283).
-LATER = ("a code.write in an earlier reply returned a note, and the tree "
-         "still does not hold those lines.")
 # Frame 283's W1 a, pass 2: a note never allows a removal of a base
-# statement, so the route names no ledger note.
+# statement, so the route names no ledger note. Frame 339: the commit of a
+# later reply lands, so the route to keep the change is that commit.
 LATER_STEP = ("A note does not allow a removal or a rewrite. To undo the change, put "
               "the lines back with code.write, then commit in your next reply. To "
-              "keep the change, send msg.escalate_architect and name the change to "
-              "the Architect.")
+              "keep the change, commit in your next reply. The Architect then "
+              "judges the removal before the batch merges.")
 
 # The dropped statements put back around s282's text, as one span.
 RESTORED = ('        base_message = message % {"prog": prog_name, "package": '
@@ -307,25 +306,36 @@ def test_a_write_with_no_note_commits_in_the_same_reply(db, tmp_path):
     assert sb.call("code.commit", message="micro")["committed"] is True
 
 
-def test_s388s_commit_in_the_next_reply_with_no_write_is_refused(db, tmp_path):
+def _lands_as_stray(sb, root, message="the removal"):
+    """Frame 339: the commit of a later reply lands, and the removal is one
+    open `touch_strays` row for the Architect. The note stays open, so the
+    removal is raised again on every head until the Architect judges it."""
+    out = sb.call("code.commit", message=message)
+    assert out["committed"] is True, out
+    assert _git(root, "rev-parse", "HEAD") == out["head_commit"]
+    rows = [(w[2]["path"], w[2]["status"], w[2].get("note"))
+            for w in sb.ctx.writes if w[0] == "touch_strays"]
+    assert len(rows) == 1, rows
+    assert rows[0][1] == "open" and rows[0][2].startswith("removal: "), rows
+    assert PATH in api._open_notes(sb.ctx)
+    return rows[0]
+
+
+def test_s388s_commit_in_the_next_reply_lands_with_the_removal_as_a_stray(db, tmp_path):
     """Frame 283. Night 154, s388: the commit beside the noted write was
     refused, and the commit in the next reply, with no write between, landed
-    a90c7495 without `echo(version_msg)`. The note stays open until a write
-    puts the lines back, so that commit is refused too."""
+    a90c7495 without `echo(version_msg)`, and nobody was asked. Frame 339:
+    that commit lands, and the Architect judges the removal before a merge."""
     sb, root = _developer(db, tmp_path)
-    head = _git(root, "rev-parse", "HEAD")
     out = sb.call("code.write", path=PATH, start=546, end=556, text=S282_TEXT)
     assert out["dropped"] == S282_NOTE
     with pytest.raises(ValueError):
         sb.call("code.commit", message="micro")
     sb.begin_reply()
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message="Add show_python flag")
-    msg = str(err.value)
-    assert msg.startswith(LATER)
-    assert f"{PATH}: {S282_NOTE}" in msg
-    assert msg.endswith(LATER_STEP)
-    assert _git(root, "rev-parse", "HEAD") == head
+    grain, _status, note = _lands_as_stray(sb, root, "Add show_python flag")
+    assert grain == "src/click/decorators.py::version_option.callback"
+    assert note == (f"removal: `{FULL_HEAD}` at line 546, `echo(` at line 551, "
+                    "`ctx.exit()` at line 555"), note
 
 
 def test_the_dry_run_of_the_noted_write_records_nothing(db, tmp_path):
@@ -368,22 +378,18 @@ def test_s340s_unchanged_write_sends_the_note_again_and_holds_the_commit(db, tmp
     assert _git(root, "rev-parse", "HEAD") == head
 
 
-def test_s340s_commit_in_the_reply_after_the_unchanged_write_is_refused(db, tmp_path):
+def test_s340s_commit_in_the_reply_after_the_unchanged_write_lands_as_a_stray(db, tmp_path):
     """Frame 283, s340's own turns: turn 13 sent the same text alone, and
-    turn 14 sent the commit alone. The commit of turn 14 is refused, and so
-    is every commit after it while the lines are gone."""
+    turn 14 sent the commit alone. Frame 339: the commit of turn 14 lands
+    with the removal as a stray, and a commit after it has nothing new."""
     sb, root = _developer(db, tmp_path)
-    head = _git(root, "rev-parse", "HEAD")
     noted = _noted_then_refused(sb, root)
     assert sb.call("code.write", path=PATH, text=noted)["dropped"] == S282_NOTE
     sb.begin_reply()
-    for _ in range(2):
-        with pytest.raises(ValueError) as err:
-            sb.call("code.commit", message="Add show_python flag to version_option")
-        assert str(err.value).startswith(LATER)
-        assert f"{PATH}: {S282_NOTE}" in str(err.value)
-        sb.begin_reply()
-    assert _git(root, "rev-parse", "HEAD") == head
+    _lands_as_stray(sb, root, "Add show_python flag to version_option")
+    sb.begin_reply()
+    again = sb.call("code.commit", message="Add show_python flag to version_option")
+    assert again["committed"] is False
 
 
 def test_a_write_that_puts_the_tail_back_closes_the_note(db, tmp_path):
@@ -402,21 +408,16 @@ BASE_HEAD = 'base_message = message % {"prog": prog_name, "package": pack'
 
 def _unruled(sb, root):
     """Frame 283's W1 a, pass 2: no ledger note closes a removal of a base
-    statement. The note stays open, the commit after it is refused with
-    the first refusal, and HEAD stays."""
-    head = _git(root, "rev-parse", "HEAD")
+    statement, so the note stays open. Frame 339: the commit after it lands,
+    and the removal is a stray for the Architect."""
     assert PATH in api._open_notes(sb.ctx)
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message="the removal")
-    assert str(err.value).startswith(LATER)
-    assert str(err.value).endswith(LATER_STEP)
-    assert _git(root, "rev-parse", "HEAD") == head
+    _lands_as_stray(sb, root)
 
 
 def test_a_ledger_note_that_names_every_dropped_statement_closes_nothing(db, tmp_path):
     """Frame 283's ends-when, revised by its W1 a: the ledger note names the
     path and each of the three dropped statements. A note is the seat's
-    own claim, so it closes nothing, and the commit after it is refused."""
+    own claim, so it closes nothing, and the commit after it is a stray."""
     sb, root = _developer(db, tmp_path)
     _noted_then_refused(sb, root)
     lines = [x[1] for x in api._open_notes(sb.ctx)[PATH]["lines"]]
@@ -429,7 +430,7 @@ def test_a_ledger_note_that_names_every_dropped_statement_closes_nothing(db, tmp
 
 def test_a_ledger_note_that_names_one_shown_statement_closes_nothing(db, tmp_path):
     """Frame 283's review 3, finding 2 let one shown line close the note.
-    W1 a, pass 2: the note closes nothing, and the commit is refused."""
+    W1 a, pass 2: the note closes nothing, and the commit is a stray."""
     sb, root = _developer(db, tmp_path)
     _noted_then_refused(sb, root)
     sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
@@ -456,9 +457,7 @@ def test_a_changing_write_with_the_lines_still_gone_keeps_the_note(db, tmp_path)
     out = sb.call("code.write", path=PATH, text=noted + "\n\n# kept\n")
     assert "dropped" not in out
     sb.begin_reply()
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message="the removal")
-    assert str(err.value).startswith(LATER)
+    _lands_as_stray(sb, root)
 
 
 def test_a_second_session_on_the_worktree_finds_a_clean_tree(db, tmp_path):
@@ -489,8 +488,8 @@ def test_a_second_session_on_the_worktree_finds_a_clean_tree(db, tmp_path):
 def test_s215s_ledger_that_names_the_path_in_about_ref_is_refused(db, tmp_path):
     """Frame 283's residue, night 156's s215: the seat named the path in
     `about_ref`, where the ledger's schema puts it, and a dropped line in
-    the sentence. W1 a, pass 2: the ledger door refuses the note, and the
-    commit is refused."""
+    the sentence. W1 a, pass 2: the ledger door refuses the note. Frame
+    339: the commit lands, and the removal is a stray."""
     sb, root = _developer(db, tmp_path)
     # The night's index held the path, so `about_ref` resolved to it.
     db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES "
@@ -710,8 +709,9 @@ def test_a_nine_line_refusal_lists_the_lines_the_tree_lacks(db, tmp_path):
 def test_a_ledger_note_closes_no_restored_note_early(db, tmp_path):
     """Frame 297's review 2, finding 3, probe Q2b. A write puts the lines
     back, and a ledger note on another path lands. A silent whole-file write
-    then takes `ctx.exit()` out. The note stays open, so the commit is
-    refused."""
+    then takes `ctx.exit()` out. The note stays open, so the commit lands
+    with the removal as a stray (frame 339). The other path's `x = 1` is
+    gone too, so it is a second stray."""
     other = "src/click/other.py"
     sb, root = _developer(db, tmp_path)
     _index_path(db)
@@ -737,10 +737,15 @@ def test_a_ledger_note_closes_no_restored_note_early(db, tmp_path):
     gone = "\n".join(ln for ln in now.split("\n") if ln.strip() != "ctx.exit()")
     sb.call("code.write", path=PATH, text=gone)
     sb.begin_reply()
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message="drop again")
-    assert str(err.value).startswith(LATER)
     assert _git(root, "rev-parse", "HEAD") == head
+    out = sb.call("code.commit", message="drop again")
+    assert out["committed"] is True, out
+    rows = [(w[2]["path"], w[2]["status"], w[2].get("note"))
+            for w in sb.ctx.writes if w[0] == "touch_strays"]
+    assert rows == [
+        ("src/click/decorators.py::version_option.callback", "open",
+         "removal: `ctx.exit()` at line 556"),
+        ("src/click/other.py", "open", "removal: `x = 1` at line 1")], rows
 
 
 def test_an_architects_note_on_the_noted_path_lands_and_closes_nothing(db, tmp_path):
@@ -890,19 +895,14 @@ def test_a_write_into_an_lf_file_keeps_lf(db, tmp_path):
 def test_a_note_about_a_criterion_that_mentions_the_path_lands(db, tmp_path):
     """Frame 297: the door reads `about_ref` only. A note about a criterion
     whose text mentions the noted path lands, and the note stays open, so
-    the commit is still refused (frame 283)."""
+    the commit carries the removal as a stray (frame 339)."""
     sb, root = _developer(db, tmp_path)
-    head = _git(root, "rev-parse", "HEAD")
     _noted_then_refused(sb, root)
     out = sb.call("ledger.log", about_ref="c1", about_table="criteria", kind="default",
                   assumption=f"The version string in {PATH} uses major.minor.micro.")
     assert "id" in out
     assert PATH in api._open_notes(sb.ctx)
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message="the removal")
-    assert str(err.value).startswith(LATER)
-    assert str(err.value).endswith(LATER_STEP)
-    assert _git(root, "rev-parse", "HEAD") == head
+    _lands_as_stray(sb, root)
 
 
 def test_a_dropped_line_counts_only_inside_its_definition():

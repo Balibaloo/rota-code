@@ -20324,9 +20324,10 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     noted = _unread_drop_refusal(ctx, tree)
     if noted:
         raise ValueError(noted)
-    unruled = _unruled_removal(ctx, tree)
-    if unruled:
-        raise ValueError(unruled)
+    # Frame 339: a removal that no criterion, request or ruling asks for
+    # lands, and the Architect judges it as a stray (law 12; ruled: Roman,
+    # 2026-10-17, an unexpected change goes to the Architect for sign-off).
+    removals = _removal_strays(ctx, tree)
     # A commit that leaves a criterion's surface undefined is a certain
     # ImportError for every test of it. tipsX (2026-09-09): the criterion
     # named `main.py::split_bill`, the Developer repurposed `calculate_tip`
@@ -20471,10 +20472,26 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     # The same detector at definition grain: a predicted file whose change
     # reaches a definition no criterion names (frame 286, law 12).
     def_strays = _unnamed_def_strays(ctx, tree, touched, strays)
+    # One row per grain. A removal in an unnamed definition shares the
+    # definition's row, and its note says the removal.
     for grain in def_strays:
+        if grain in removals:
+            continue
         ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{grain}", {
             "batch_id": ctx.batch_id, "commit_sha": sha, "path": grain,
             "status": "open"}))
+    for grain, note in removals.items():
+        ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{grain}", {
+            "batch_id": ctx.batch_id, "commit_sha": sha, "path": grain,
+            "status": "open", "note": note}))
+    if removals:
+        out["removals"] = [f"{g}: {n}" for g, n in removals.items()]
+        out["removals note"] = (
+            f"no criterion, request or ruling of the principal asks for "
+            f"{'this removal' if len(removals) == 1 else 'these removals'}. "
+            f"The commit stands. The Architect is asked whether the removal "
+            f"was foreseen or a mistake before the batch merges; if you know "
+            f"it was a mistake, put the line back and commit")
     if def_strays:
         out["definitions outside the criteria"] = def_strays
         out["definitions note"] = (
@@ -20486,6 +20503,8 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             f"a mistake, put the base's source back and commit")
     if strays:
         for path in strays:
+            if path in removals:
+                continue        # the removal's row holds the path, with its note
             ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{path}", {
                 "batch_id": ctx.batch_id, "commit_sha": sha, "path": path,
                 "status": "open"}))
@@ -20522,29 +20541,29 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
     held = [(p, n) for p, n in notes.items() if _grain_path(p) in dirty]
     later = [(p, e["note"]) for p, e in opened.items()
              if p not in notes and _grain_path(p) in dirty]
-    # Frame 283's W1 a, pass 2: a removal that a ruling asks for passes the
-    # note of an earlier reply. The ledger route is gone, so nothing else
-    # would let a ruled removal land. Pass 3: the note of this reply too, so
-    # the commit beside a ruled removal lands (review 2, finding 4).
-    gone: list = []
+    # Frame 339: the note of an earlier reply was read, so its removal lands.
+    # `_removal_strays` records the removal for the Architect, unless a
+    # criterion, the request or a ruling asks for it (law 12; ruled: Roman,
+    # 2026-10-17). An entry with no line and no definition names no
+    # statement to record, so its route stays the write.
+    later = [(p, n) for p, n in later
+             if not (opened[p]["lines"] or opened[p]["defs"])]
+    # Frame 283's W1 a, pass 3: a removal that a ruling asks for passes the
+    # note of this reply, so the commit beside a ruled removal lands
+    # (review 2, finding 4).
     texts = None
-    for group in (held, later):
-        for p, _n in list(group):
-            e = opened.get(p)
-            if e is None or not (e["lines"] or e["defs"]):
-                continue
-            if texts is None:
-                texts = _ruling_texts(ctx)
-            left = _unruled_gone(_tree_text(tree, p), e, texts)
-            if left:
-                gone += left if group is later else []
-            else:
-                group.remove((p, _n))
+    for p, _n in list(held):
+        e = opened.get(p)
+        if e is None or not (e["lines"] or e["defs"]):
+            continue
+        if texts is None:
+            texts = _ruling_texts(ctx)
+        if not _unruled_gone(_tree_text(tree, p), e, texts):
+            held.remove((p, _n))
     if not held and not later:
         return None
-    routes = _note_routes(ctx, [p for p, _n in held + later], write_only=bool(later) and all(
-        not (opened[p]["lines"] or opened[p]["defs"]) for p, _n in later),
-        one=len(gone) == 1)
+    routes = _note_routes(ctx, [p for p, _n in held + later],
+                          write_only=bool(later))
     if held:
         # One fact, one step, the route (frame 135). Frame 283's review 3,
         # finding 3: the step ends on the route that the later-reply text
@@ -20559,48 +20578,41 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
             f"still does not hold those lines. {said} {routes}")
 
 
-def _unruled_removal(ctx: Ctx, tree) -> str | None:
-    """The refusal of a commit that removes a base statement that no ruling
-    asks to remove, or None. The door reads the tree at the commit, not the
-    status of the `drop_notes` row."""
-    # Frame 283's W1 a. Night 158's s279 logged a false note that named
-    # `ctx.exit()`, and bb7c4492 landed the removal. A note is the seat's
-    # own claim, so only a ruling admits a removal (composition: only a
-    # fact or a ruling gates). The ledger close set the row to `restored`.
-    closed = _closed_notes(ctx)
-    if not closed or tree is None:
-        return None
-    dirty = None
+def _removal_strays(ctx: Ctx, tree) -> dict[str, str]:
+    """The removals of base statements that the tree holds at the commit and
+    that no criterion, request or ruling asks for: grain `path::owner` ->
+    the note, `removal: ` and the lines. The door reads the tree, not the
+    status of the `drop_notes` row, so an open and a closed note count."""
+    # Frame 339. Frame 283's W1 a refused these commits, and night 169's
+    # Developer was refused on a rewrite that every criterion's definition
+    # held. Law 12: nothing rejects a diff for straying. The ruling of
+    # 2026-10-17 sends an unexpected change to the Architect. Night 158's
+    # `ctx.exit()` lands as an open stray, and the merge waits on it.
+    if tree is None or not getattr(ctx, "batch_id", None):
+        return {}
+    notes = {**_closed_notes(ctx), **_open_notes(ctx)}
+    if not notes:
+        return {}
+    # Frame 286's rule: a grain judged either way is not raised again.
+    judged = {r["path"] for r in ctx.conn.execute(
+        "SELECT path FROM touch_strays WHERE batch_id = ? AND status != 'open'",
+        (ctx.batch_id,))}
     texts = None
-    for p, e in closed.items():
+    out: dict[str, list[str]] = {}
+    for p, e in notes.items():
+        if not (e["lines"] or e["defs"]):
+            continue
         now = _tree_text(tree, p)
         if _restored(now, e):
             continue
-        if dirty is None:
-            dirty = {_grain_path(f) for f in _uncommitted(ctx, tree)}
-        # A path the commit does not take carries no removal into it.
-        if _grain_path(p) not in dirty:
-            continue
         if texts is None:
             texts = _ruling_texts(ctx)
-        gone = _unruled_gone(now, e, texts)
-        if not gone:
-            continue
-        one = len(gone) == 1
-        # Review 1's finding 3: HEAD can lack the lines already. Then an
-        # earlier commit of the batch made the removal, and the text names it.
-        who = "this commit"
-        head = _head_text(tree, p)
-        if head is not None:
-            shown = {g["shown"] for g in _gone_statements(head, e)}
-            if all(g["shown"] in shown for g in gone):
-                sha = _removing_commit(tree, p, gone[0]["line"])
-                who = (f"commit {sha}, an earlier commit of this batch," if sha
-                       else "an earlier commit of this batch")
-        return (f"{p}: {who} removes {', '.join(g['shown'] for g in gone)}. "
-                f"No criterion, request or ruling of the principal names "
-                f"{'it' if one else 'them'}. {_note_routes(ctx, [p], one=one)}")
-    return None
+        for g in _unruled_gone(now, e, texts):
+            owner = g["line"] if g["def"] else g["owner"]
+            grain = f"{_grain_path(p)}::{owner}" if owner else _grain_path(p)
+            if grain not in judged:
+                out.setdefault(grain, []).append(g["shown"])
+    return {grain: f"removal: {', '.join(shown)}" for grain, shown in out.items()}
 
 
 def _tree_text(tree, path: str) -> str:
@@ -20610,36 +20622,6 @@ def _tree_text(tree, path: str) -> str:
         return (_Path(tree) / path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return ""
-
-
-def _head_text(tree, path: str) -> str | None:
-    """The text of `path` at the worktree's HEAD, or None."""
-    import subprocess as _sp
-    from ..core import worktrees as _wt
-    rel = str(path).replace("\\", "/")
-    try:
-        got = _sp.run([*_wt.GIT, "-C", str(tree), "cat-file", "blob", f"HEAD:{rel}"],
-                      capture_output=True)
-    except OSError:
-        return None
-    if got.returncode != 0:
-        return None
-    return got.stdout.decode("utf-8", "replace").replace("\r\n", "\n")
-
-
-def _removing_commit(tree, path: str, line: str) -> str | None:
-    """The first 8 characters of the newest commit that changed the count of
-    `line` in `path`, or None."""
-    import subprocess as _sp
-    from ..core import worktrees as _wt
-    try:
-        got = _sp.run([*_wt.GIT, "-C", str(tree), "log", "-S", line, "--format=%H",
-                       "--", str(path).replace("\\", "/")],
-                      capture_output=True, text=True)
-    except OSError:
-        return None
-    first = got.stdout.split()
-    return first[0][:8] if got.returncode == 0 and first else None
 
 
 def _closed_notes(ctx: Ctx) -> dict:
@@ -20819,12 +20801,15 @@ def _removal_spans(s: str, names: tuple = ()) -> list[str]:
     return out
 
 
-def _asks_removal(text: str, g: dict, principal: bool) -> bool:
+def _asks_removal(text: str, g: dict) -> bool:
     """True when a sentence of `text` names the gone statement `g` and asks
-    for its removal. A bare keyword needs its function named too. The
-    principal's words can name the line by its number. The name sits in the
-    request clause (frame 283, review 4, finding 1). The function of a bare
-    keyword can sit anywhere in the sentence."""
+    for its removal. A bare keyword needs its function named too. The name
+    sits in the request clause (frame 283, review 4, finding 1). The
+    function of a bare keyword can sit anywhere in the sentence.
+
+    Frame 339: a miss records a stray for the Architect and refuses
+    nothing, so no seat needs his words in a fixed form. The `line N`
+    match of 2acc7b5c is gone."""
     head = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", g["line"])
     names = (g["line"], head.group(1) + "(" if head and not g["def"] else "")
     for s in re.split(r"(?<=[.!?])\s+|\n+", text or ""):
@@ -20841,8 +20826,6 @@ def _asks_removal(text: str, g: dict, principal: bool) -> bool:
             call = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", line)
             if not g["def"] and call and _says(c, call.group(1) + "("):
                 return True
-            if principal and g["no"] and re.search(rf"\bline {g['no']}\b", c, re.I):
-                return True
     return False
 
 
@@ -20850,7 +20833,7 @@ def _unruled_gone(text: str, e: dict, texts: list) -> list[dict]:
     """The statements of `e` that `text` lacks and that no ruling text
     asks to remove."""
     return [g for g in _gone_statements(text, e)
-            if not any(_asks_removal(t, g, principal) for t, principal in texts)]
+            if not any(_asks_removal(t, g) for t, _principal in texts)]
 
 
 def _ruling_texts(ctx: Ctx) -> list[tuple[str, bool]]:
@@ -21203,17 +21186,13 @@ def _note_routes(ctx: Ctx | None = None, refs: list | None = None,
     undo = (f"A note does not allow a removal or a rewrite. To undo the "
             f"change, put the {'line' if one else 'lines'} back with "
             f"code.write, then commit in your next reply.")
-    # Pass 8, the law of frame 135: name a call only where the door then
-    # admits it. s252's `batch_start` mode lacks the escalation tool.
-    from ..core import sandbox as _sandbox
-    if ctx is not None and not (
-            "msg.escalate_architect" in _wake_mode_tools(ctx)
-            and _sandbox._escalation_admitted(ctx, list(refs or []))):
-        return undo
     # Pass 5c: "Put the line back" alone undid a wanted rewrite, so the
     # route names the way to keep the change too (review 5's re-probe).
-    return (f"{undo} To keep the change, send msg.escalate_architect and "
-            f"name the change to the Architect.")
+    # Frame 339: the commit of the next reply lands, and the Architect
+    # judges the removal as a stray. Every mode holds `code.commit`, so the
+    # route needs no escalation tool (frame 135: name a call the door admits).
+    return (f"{undo} To keep the change, commit in your next reply. The "
+            f"Architect then judges the removal before the batch merges.")
 
 
 def _close_restored(ctx: Ctx, tree, stage: bool = True) -> dict:
@@ -21365,9 +21344,17 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
     _must_exist(ctx, "batches", batch_id)
     head = ctx.conn.execute("SELECT head_commit FROM batches WHERE id = ?",
                             (batch_id,)).fetchone()["head_commit"]
-    open_rows = [r["path"] for r in ctx.conn.execute(
-        "SELECT path FROM touch_strays WHERE batch_id = ? AND commit_sha = ? "
-        "AND status = 'open' ORDER BY path", (batch_id, head or ""))]
+    rows = list(ctx.conn.execute(
+        "SELECT path, note FROM touch_strays WHERE batch_id = ? AND commit_sha = ? "
+        "AND status = 'open' ORDER BY path", (batch_id, head or "")))
+    open_rows = [r["path"] for r in rows]
+    # Frame 339: a removal's note keeps the removed line in front of the
+    # reason, so the Developer of `touch_mistaken` reads the line to put back.
+    removed = {r["path"]: r["note"] for r in rows
+               if (r["note"] or "").startswith("removal")}
+
+    def _note(path: str) -> str | None:
+        return " ".join(x for x in (removed.get(path), reason) if x) or None
     if not open_rows:
         raise ValueError(f"{batch_id} has no unjudged stray on its head commit; "
                          f"nothing to judge")
@@ -21447,11 +21434,11 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
             "confidence": "expected"}))
         ctx.writes.append(("touch_strays", f"{batch_id}:{head}:{path}", {
             "batch_id": batch_id, "commit_sha": head, "path": path,
-            "status": "foreseen", "note": reason or None}))
+            "status": "foreseen", "note": _note(path)}))
     for path in mistakes:
         ctx.writes.append(("touch_strays", f"{batch_id}:{head}:{path}", {
             "batch_id": batch_id, "commit_sha": head, "path": path,
-            "status": "mistake", "note": reason or None}))
+            "status": "mistake", "note": _note(path)}))
     out = {"batch": batch_id, "foreseen": foreseen, "mistakes": mistakes}
     if unknown:
         out["ignored"] = (f"{', '.join(unknown)}: not an open stray of {batch_id}; "

@@ -7,13 +7,14 @@ calls `_drop_note`, which reads each statement of the span. The
 whole-file branch called only `_whole_drop` and `_tail_drop`. So a first
 whole-file write that dropped `ctx.exit()` inside the kept
 `version_option` opened no note, and the commit landed. Frame 283's
-mechanism refuses a commit that removes a statement no landed note names,
-whatever reply wrote it.
+mechanism refused a commit that removes a statement no landed note names,
+whatever reply wrote it. Frame 339: the commit lands, and the removal is an
+open stray for the Architect.
 """
 from __future__ import annotations
 
 from tests.rota.test_frame283_removal_on_ruling import (  # noqa: F401
-    BASE, FIRST, MESSAGE, PATH, _call, _developer, _git, _staged, db)
+    BASE, MESSAGE, PATH, _call, _developer, _git, _staged, _strays, db)
 import subprocess
 
 import pytest
@@ -47,8 +48,11 @@ def test_a_whole_file_write_that_drops_a_nested_statement_opens_a_note(db, tmp_p
     assert [x[1] for x in _lines(sb)] == ["ctx.exit()"]
     assert [v["status"] for v in _staged(sb)] == ["open"]
     sb.begin_reply()
-    assert _call(sb, "code.commit", message=MESSAGE) == {"refused": FIRST}
-    assert _git(root, "rev-parse", "HEAD") == head
+    out = _call(sb, "code.commit", message=MESSAGE)
+    assert out["committed"] is True, out
+    assert _git(root, "rev-parse", "HEAD") != head
+    assert _strays(sb) == [(f"{PATH}::version_option.callback", "open",
+                            "removal: `ctx.exit()` at line 550")]
 
 
 def test_the_whole_file_drop_lands_when_a_criterion_asks_for_it(db, tmp_path):
@@ -60,6 +64,7 @@ def test_the_whole_file_drop_lands_when_a_criterion_asks_for_it(db, tmp_path):
     assert _call(sb, "code.write", path=PATH, text=NESTED)["dropped"] == NOTE
     sb.begin_reply()
     assert _call(sb, "code.commit", message=MESSAGE)["committed"] is True
+    assert _strays(sb) == []
 
 
 def test_a_whole_file_write_that_keeps_every_statement_opens_no_note(db, tmp_path):
@@ -164,16 +169,17 @@ SHAPES = {
 
 
 @pytest.mark.parametrize("name", sorted(SHAPES))
-def test_review_5s_shapes_open_a_note_and_hold_the_commit(db, tmp_path, name):
+def test_review_5s_shapes_open_a_note_and_land_as_a_stray(db, tmp_path, name):
     old, new, (owner, line) = SHAPES[name]
     sb, root = _small(db, tmp_path, old)
     out = _call(sb, "code.write", path=PATH, text=new)
     assert _quote_in(line, out["dropped"])
     assert [x[:2] for x in _lines(sb)] == [[owner, line]]
     sb.begin_reply()
-    head = _git(root, "rev-parse", "HEAD")
-    assert "refused" in _call(sb, "code.commit", message=MESSAGE)
-    assert _git(root, "rev-parse", "HEAD") == head
+    assert _call(sb, "code.commit", message=MESSAGE)["committed"] is True
+    rows = _strays(sb)
+    assert [r[:2] for r in rows] == [(f"{PATH}::{owner}" if owner else PATH, "open")]
+    assert _quote_in(line, rows[0][2]) and rows[0][2].startswith("removal: ")
 
 
 def _quote_in(line: str, note: str) -> bool:
@@ -208,9 +214,10 @@ def test_a_rewrite_of_one_statement_with_the_same_kind_opens_no_note(db, tmp_pat
     assert _git(root, "rev-parse", "HEAD") != head
 
 
-def test_the_s340_shape_names_each_dropped_statement_and_holds_the_commit(db, tmp_path):
+def test_the_s340_shape_names_each_dropped_statement_and_lands_as_strays(db, tmp_path):
     """Night 154's s340 dropped `ctx.exit()` and the tail of the kept
-    `version_option`, and put nothing of those kinds in their place."""
+    `version_option`, and put nothing of those kinds in their place. The
+    commit lands with one stray per owner (frame 339)."""
     lines = TEXT.splitlines(keepends=True)
     assert lines[556].strip() == "if not param_decls:"
     assert lines[564].strip() == "return option(*param_decls, **kwargs)"
@@ -225,8 +232,10 @@ def test_the_s340_shape_names_each_dropped_statement_and_holds_the_commit(db, tm
         'kwargs.setdefault("help", _("Show the version and exit."))',
         'kwargs["callback"] = callback', "return option(*param_decls, **kwargs)"]
     sb.begin_reply()
-    assert "refused" in _call(sb, "code.commit", message=MESSAGE)
-    assert _git(root, "rev-parse", "HEAD") == head
+    assert _call(sb, "code.commit", message=MESSAGE)["committed"] is True
+    assert _git(root, "rev-parse", "HEAD") != head
+    assert sorted(r[0] for r in _strays(sb)) == [
+        f"{PATH}::version_option", f"{PATH}::version_option.callback"]
 
 
 def test_one_of_two_statements_of_a_kind_kept_names_the_one_gone(db, tmp_path):
@@ -256,15 +265,18 @@ def test_the_refused_commit_names_both_routes_for_a_rewrite(db, tmp_path):
     branch keeps its line-key rule. So a span write carries the rewrite.
     Pass 8b: the span branch admits a rewrite whose new statement at the
     same place holds the old tokens. `print(x)` at the place of `return x`
-    does not hold `return`, so the rewrite still opens a note."""
+    does not hold `return`, so the rewrite still opens a note. Frame 339:
+    the refusal of the write's own reply names the commit of the next reply
+    as the route to keep it, and that commit lands."""
     old = _l("def keep(x):", "    y = x", "    return x")
     sb, _root = _small(db, tmp_path, old)
     out = _call(sb, "code.write", path=PATH, text="    print(x)" + NL, start=2, end=3)
     assert _quote_in("return x", out["dropped"])
-    sb.begin_reply()
     got = _call(sb, "code.commit", message=MESSAGE)["refused"]
     assert got.endswith(
         "A note does not allow a removal or a rewrite. To undo the change, put "
-        "the line back with code.write, then commit in your next reply. To keep "
-        "the change, send msg.escalate_architect and name the change to the "
-        "Architect.")
+        "the lines back with code.write, then commit in your next reply. To keep "
+        "the change, commit in your next reply. The Architect then judges the "
+        "removal before the batch merges.")
+    sb.begin_reply()
+    assert _call(sb, "code.commit", message=MESSAGE)["committed"] is True

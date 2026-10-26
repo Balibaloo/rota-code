@@ -8,6 +8,8 @@ commit after it was refused. The whole-file branch already counts each
 statement kind under its owner (25fa18ef), and the span branch did not.
 s252, in the Developer's `batch_start` mode, then read a refusal that
 named `msg.escalate_architect`, a tool that mode does not hold.
+Frame 339: the route to keep the change is the commit of the next
+reply, which every mode holds.
 """
 from __future__ import annotations
 
@@ -24,7 +26,8 @@ GUARD = ("        if not value or ctx.resilient_parsing:\n"
          "            return\n")
 REWRITE = ("        if not value or ctx.resilient_parsing:\n"
            "            return False")
-KEEP = "To keep the change, send msg.escalate_architect"
+KEEP = ("To keep the change, commit in your next reply. The Architect "
+        "then judges the removal before the batch merges.")
 
 
 def _sandbox(db, mode: str):
@@ -64,48 +67,32 @@ def test_a_span_write_that_removes_one_statement_and_rewrites_another(db, tmp_pa
     assert PATH in api._open_notes(sb.ctx)
 
 
-def test_the_refusal_in_batch_start_names_no_escalation(db, tmp_path):
+@pytest.mark.parametrize("mode,escalated", [
+    ("batch_start", False),
+    ("tests_failing", False),
+    ("tests_failing", True),
+])
+def test_the_refusal_names_the_commit_route_in_every_mode(db, tmp_path, mode, escalated):
     """s252's shape: the Developer's `batch_start` mode lacks
-    msg.escalate_architect, so the refusal names the write route alone."""
-    _sb, _root = _developer(db, tmp_path)
-    sb = _sandbox(db, "batch_start")
+    msg.escalate_architect, and review 8's finding 3 refuses a second
+    escalation in one session. Frame 339: the commit of the next reply
+    keeps the change for the Architect, and every mode holds code.commit,
+    so the route names that commit and no escalation. The commit lands."""
+    _sb, root = _developer(db, tmp_path)
+    sb = _sandbox(db, mode)
+    if escalated:
+        sb.call("msg.escalate_architect", refs=["cr_3"])
+        sb.begin_reply()
     assert "dropped" in sb.call("code.write", path=PATH, start=540, end=555, text=ECHO)
-    sb.begin_reply()
     with pytest.raises(ValueError) as err:
         sb.call("code.commit", message=MESSAGE)
     msg = str(err.value)
     assert "msg.escalate_architect" not in msg
-    assert msg.endswith("A note does not allow a removal or a rewrite. To undo "
-                        "the change, put the line back with code.write, then "
-                        "commit in your next reply.")
-
-
-def test_the_refusal_in_tests_failing_keeps_the_escalation(db, tmp_path):
-    """The `tests_failing` mode holds msg.escalate_architect, and no
-    escalation went this session, so the route keeps it."""
-    sb, _root = _developer(db, tmp_path)
-    assert "dropped" in sb.call("code.write", path=PATH, start=540, end=555, text=ECHO)
+    assert msg.endswith(KEEP), msg
     sb.begin_reply()
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message=MESSAGE)
-    assert KEEP in str(err.value)
-
-
-def test_the_refusal_after_an_escalation_this_session_names_no_escalation(db, tmp_path):
-    """Review 8, finding 3: the duplicate guard of `_escalation_admitted`
-    refuses a second escalation in one session, whatever its refs. So the
-    route names the write route alone, as in `batch_start`."""
-    sb, _root = _developer(db, tmp_path)
-    sb.call("msg.escalate_architect", refs=["cr_3"])
-    sb.begin_reply()
-    assert "dropped" in sb.call("code.write", path=PATH, start=540, end=555, text=ECHO)
-    sb.begin_reply()
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message=MESSAGE)
-    msg = str(err.value)
-    assert "msg.escalate_architect" not in msg
-    assert msg.endswith("put the line back with code.write, then commit in "
-                        "your next reply.")
+    out = sb.call("code.commit", message=MESSAGE)
+    assert out["committed"] is True
+    assert [w[2]["status"] for w in sb.ctx.writes if w[0] == "touch_strays"] == ["open"]
 
 
 # Review 8's probe file: two owners, nine lines, in code.write numbering.

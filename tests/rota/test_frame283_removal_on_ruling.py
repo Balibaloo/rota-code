@@ -10,6 +10,10 @@ the note closed the `drop_notes` row as `restored`, and bb7c4492 landed
 the removal. `echo` returns, so `--version` then ran the command body. A
 note is the seat's own claim. Only a criterion, the request or the
 principal's words admit the removal.
+
+Frame 339: an unadmitted removal lands, and one open `touch_strays` row asks
+the Architect before any merge (law 12; ruled: Roman, 2026-10-17). The
+admitted removal lands with no row.
 """
 from __future__ import annotations
 
@@ -61,19 +65,13 @@ MESSAGE = ("Fix show_python output format to include 'Python' prefix and "
 
 ROUTE = ("A note does not allow a removal or a rewrite. To undo the change, put "
          "the line back with code.write, then commit in your next reply. To keep "
-         "the change, send msg.escalate_architect and name the change to the "
-         "Architect.")
-REFUSAL = ("src/click/decorators.py: this commit removes `ctx.exit()` at line "
-           "550. No criterion, request or ruling of the principal names it. "
-           + ROUTE)
-# Pass 2, review 1's finding 2: the first refusal and the ledger door give
-# the same route, and neither offers the ledger.
-FIRST = ("a code.write in an earlier reply returned a note, and the tree still "
-         "does not hold those lines. src/click/decorators.py: This write removes or rewrites "
-         "1 statement that your text does not hold: `ctx.exit()` at line 550. "
-         + ROUTE)
+         "the change, commit in your next reply. The Architect then judges the "
+         "removal before the batch merges.")
 LEDGER = ("src/click/decorators.py holds an uncommitted write that removes "
           "`ctx.exit()` at line 550, so this note closes nothing. " + ROUTE)
+# The stray of night 158's removal (frame 339).
+STRAY = ("src/click/decorators.py::version_option.callback", "open",
+         "removal: `ctx.exit()` at line 550")
 
 
 @pytest.fixture
@@ -165,24 +163,36 @@ def _staged(sb) -> list[dict]:
             if w[0] == "drop_notes" and w[2]["path"] == PATH]
 
 
-def test_s279s_commits_and_notes_get_the_route_and_bb7c4492_is_refused(db, tmp_path):
-    """s279's sequence. Each commit gets the first refusal with no ledger
-    route. The notes of seq 17 and 23 get the ledger door's text. The fault
-    note of seq 20 lands in `faults`, as on the night, because a report of
-    rota closes no drop note (review 2, finding 1). The note stays open and
-    no row reads `restored` (review 1, findings 2 and 4)."""
+def _strays(sb) -> list[tuple]:
+    """The staged `touch_strays` rows: grain, status and note."""
+    return [(w[2]["path"], w[2]["status"], w[2].get("note"))
+            for w in sb.ctx.writes if w[0] == "touch_strays"]
+
+
+def test_s279s_removal_reaches_the_architect_as_an_open_stray_before_a_merge(db, tmp_path):
+    """s279's sequence. The commit of seq 16, in the reply after the write,
+    lands with one open stray that names `ctx.exit()`. The stray holds the
+    merge of the head until the Architect judges it. The note stays open,
+    and no row reads `restored` (review 1, findings 2 and 4)."""
     sb, root = _developer(db, tmp_path)
-    head = _git(root, "rev-parse", "HEAD")
     out = _replay(sb)
-    for seq in (16, 19, 26):
-        assert out[seq] == {"refused": FIRST}
-    for seq in (17, 23):
-        assert out[seq] == {"refused": LEDGER}
-    assert "fault" in out[20]
-    assert [w for w in sb.ctx.writes if w[0] == "faults"]
+    assert out[16]["committed"] is True, out[16]
+    assert _git(root, "rev-parse", "HEAD") == out[16]["head_commit"]
+    assert _strays(sb) == [STRAY]
     assert PATH in api._open_notes(sb.ctx)
     assert [v["status"] for v in _staged(sb)] == ["open"]
-    assert _git(root, "rev-parse", "HEAD") == head
+    sha = out[16]["head_commit"]
+    db.execute("UPDATE batches SET head_commit = ? WHERE id = 'bg_3'", (sha,))
+    db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status, note) "
+               "VALUES ('bg_3', ?, ?, ?, ?)", (sha, *STRAY))
+    db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) VALUES "
+               "('v1','bg_3',?,'pass')", (sha,))
+    db.commit()
+    from rota.core import lifecycle
+    from rota.core import predicates as P
+    assert lifecycle.mergeable(db, "bg_3") == f"touch strayed, unjudged: {STRAY[0]}"
+    assert [(w.role, w.kind, w.detail) for w in P.touch_strayed(db)] == [
+        ("architect", "tick:touch_strayed", f"{STRAY[0]} ({STRAY[2]})")]
 
 
 def test_s279s_seq_17_note_from_the_night_database_is_refused(db, tmp_path):
@@ -215,6 +225,7 @@ def test_the_removal_lands_when_a_criterion_asks_for_it(db, tmp_path):
     out = _replay(sb)
     assert out[16]["committed"] is True
     assert "refused" not in out[23]
+    assert _strays(sb) == []
 
 
 def _ruling(db, per_item: dict, words: str) -> None:
@@ -233,6 +244,7 @@ def test_the_removal_lands_when_the_principal_asks_for_it_on_the_items_page(db, 
             "Take ctx.exit() out of the version callback.")
     sb, _root = _developer(db, tmp_path)
     assert _replay(sb)[16]["committed"] is True
+    assert _strays(sb) == []
 
 
 @pytest.mark.parametrize("words", [
@@ -241,12 +253,13 @@ def test_the_removal_lands_when_the_principal_asks_for_it_on_the_items_page(db, 
 ])
 def test_a_criterion_that_demands_or_mentions_the_line_admits_nothing(db, tmp_path, words):
     """Review 1's probe P2c: a criterion that demands the line, or only
-    mentions it, asks for no removal."""
+    mentions it, asks for no removal, so the removal is a stray."""
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',?)",
                (words,))
     db.commit()
     sb, _root = _developer(db, tmp_path)
-    assert _replay(sb)[26] == {"refused": FIRST}
+    assert _replay(sb)[16]["committed"] is True
+    assert _strays(sb) == [STRAY]
 
 
 @pytest.mark.parametrize("words,lands", [
@@ -257,16 +270,15 @@ def test_a_criterion_that_demands_or_mentions_the_line_admits_nothing(db, tmp_pa
 ])
 def test_a_sentence_that_forbids_the_removal_admits_nothing(db, tmp_path, words, lands):
     """Review 2's finding 2: a negated removal word, or "without" that a
-    name does not follow, admits nothing. A plain ask admits the removal."""
+    name does not follow, admits nothing. A plain ask admits the removal.
+    Frame 339: both commits land, and only the unadmitted one is a stray."""
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',?)",
                (words,))
     db.commit()
     sb, _root = _developer(db, tmp_path)
     out = _replay(sb)
-    if lands:
-        assert out[16]["committed"] is True
-    else:
-        assert out[16] == {"refused": FIRST}
+    assert out[16]["committed"] is True
+    assert _strays(sb) == ([] if lands else [STRAY])
 
 
 def test_a_ruled_removal_commits_in_the_same_reply(db, tmp_path):
@@ -285,7 +297,8 @@ def test_a_ruling_of_another_item_admits_nothing(db, tmp_path):
     """Review 1's probe P2b: only the rulings of the batch's own item count."""
     _ruling(db, {"echo_json": "approve"}, "Take ctx.exit() out of the version callback.")
     sb, _root = _developer(db, tmp_path)
-    assert _replay(sb)[26] == {"refused": FIRST}
+    assert _replay(sb)[16]["committed"] is True
+    assert _strays(sb) == [STRAY]
 
 
 def _restored_row(db, root, line, owner, gone_text, note=""):
@@ -298,9 +311,10 @@ def _restored_row(db, root, line, owner, gone_text, note=""):
                  allow=prompts.mode_tools("developer", "tests_failing"))
 
 
-def test_a_restored_row_with_the_line_gone_from_the_tree_is_refused(db, tmp_path):
+def test_a_restored_row_with_the_line_gone_from_the_tree_lands_as_a_stray(db, tmp_path):
     """The door reads the tree, not the row. A landed row at `restored`
-    with `ctx.exit()` absent from the uncommitted tree refuses the commit."""
+    with `ctx.exit()` absent from the uncommitted tree was refused on
+    b889c93d. Frame 339: the commit lands with one open stray."""
     _sb, root = _developer(db, tmp_path)
     text = BASE.decode("utf-8")
     gone = text.replace("        )\n        ctx.exit()\n", "        )\n", 1)
@@ -308,33 +322,28 @@ def test_a_restored_row_with_the_line_gone_from_the_tree_is_refused(db, tmp_path
     sb = _restored_row(db, root, "ctx.exit()", "version_option.callback", gone,
                        "This write removes or rewrites 1 statement that your text does not "
                        "hold: `ctx.exit()` at line 550.")
-    head = _git(root, "rev-parse", "HEAD")
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message="micro")
-    assert str(err.value) == REFUSAL
-    assert _git(root, "rev-parse", "HEAD") == head
+    out = sb.call("code.commit", message="micro")
+    assert out["committed"] is True
+    assert _git(root, "rev-parse", "HEAD") == out["head_commit"]
+    assert _strays(sb) == [STRAY]
 
 
-def test_an_edit_after_an_earlier_commit_removed_the_line_names_that_commit(db, tmp_path):
+def test_a_removal_of_an_earlier_commit_is_raised_on_the_new_head(db, tmp_path):
     """Review 1's finding 3, probe P5b: HEAD already lacks the line. An
-    unrelated edit of the path is refused, and the text names the commit
-    that removed the line, not this commit."""
+    unrelated edit of the path lands, and the removal is raised again on
+    the new head, so the merge of that head waits for the Architect."""
     _sb, root = _developer(db, tmp_path)
     text = BASE.decode("utf-8")
     gone = text.replace("        )\n        ctx.exit()\n", "        )\n", 1)
     (root / PATH).write_bytes(gone.encode("utf-8"))
     _git(root, "commit", "-q", "-am", "the removal")
-    sha = _git(root, "rev-parse", "HEAD")[:8]
     sb = _restored_row(db, root, "ctx.exit()", "version_option.callback",
                        gone + "\n# kept\n",
                        "This write removes or rewrites 1 statement that your text does not "
                        "hold: `ctx.exit()` at line 550.")
-    with pytest.raises(ValueError) as err:
-        sb.call("code.commit", message="micro")
-    assert str(err.value) == (
-        f"src/click/decorators.py: commit {sha}, an earlier commit of this "
-        f"batch, removes `ctx.exit()` at line 550. No criterion, request or "
-        f"ruling of the principal names it. " + ROUTE)
+    out = sb.call("code.commit", message="micro")
+    assert out["committed"] is True
+    assert _strays(sb) == [STRAY]
 
 
 @pytest.mark.parametrize("words,lands", [
@@ -343,7 +352,8 @@ def test_an_edit_after_an_earlier_commit_removed_the_line_names_that_commit(db, 
 ])
 def test_a_bare_return_needs_its_function_named(db, tmp_path, words, lands):
     """Review 1's probe P2d: a bare `return` is admitted only on a sentence
-    that names its function and asks for the removal."""
+    that names its function and asks for the removal. An unadmitted one is
+    a stray (frame 339)."""
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',?)",
                (words,))
     db.commit()
@@ -353,11 +363,9 @@ def test_a_bare_return_needs_its_function_named(db, tmp_path, words, lands):
                         "ctx.resilient_parsing:\n            pass\n", 1)
     assert gone != text
     sb = _restored_row(db, root, "return", "version_option.callback", gone)
-    if lands:
-        assert sb.call("code.commit", message="micro")["committed"] is True
-    else:
-        with pytest.raises(ValueError):
-            sb.call("code.commit", message="micro")
+    assert sb.call("code.commit", message="micro")["committed"] is True
+    assert [r[0] for r in _strays(sb)] == (
+        [] if lands else ["src/click/decorators.py::version_option.callback"])
 
 
 def test_a_restored_row_with_the_line_in_the_tree_lets_the_commit_land(db, tmp_path):
@@ -391,7 +399,7 @@ def test_a_removal_is_read_in_its_own_clause_and_in_the_request_form(words, asks
     """Review 3's probe Q2: the principal's shapes from nights 140 to 158,
     rewritten to name `ctx.exit()`. Only a request in the removal word's
     own clause asks for the removal."""
-    assert api._asks_removal(words, GONE, True) is asks
+    assert api._asks_removal(words, GONE) is asks
 
 
 @pytest.mark.parametrize("words,asks", [
@@ -410,7 +418,7 @@ def test_a_removal_is_read_in_its_own_clause_and_in_the_request_form(words, asks
 def test_the_name_sits_in_the_request_clause(words, asks):
     """Review 4's findings 1 and 3: the request clause names the statement,
     or its pronoun refers to the clause before it."""
-    assert api._asks_removal(words, GONE, True) is asks
+    assert api._asks_removal(words, GONE) is asks
 
 
 @pytest.mark.parametrize("words", [
@@ -431,7 +439,7 @@ def test_the_name_sits_in_the_request_clause(words, asks):
 def test_a_name_past_the_request_is_not_its_target(words):
     """Review 5's findings 1 and 2: `ctx.exit()` sits after the request
     clause ends, so the sentence asks for no removal of `ctx.exit()`."""
-    assert api._asks_removal(words, GONE, True) is False
+    assert api._asks_removal(words, GONE) is False
 
 
 @pytest.mark.parametrize("words", [
@@ -448,13 +456,13 @@ def test_a_name_past_the_request_is_not_its_target(words):
 def test_a_clause_continues_past_and_only_onto_a_noun(words):
     """Review 6: after "and", "and then" or a comma, only a noun-like word
     keeps the request clause open."""
-    assert api._asks_removal(words, GONE, True) is False
+    assert api._asks_removal(words, GONE) is False
 
 
 def test_that_as_a_determiner_keeps_the_target():
     """"that" ends the target only after a noun. Nights 143, 144 and 154
     say "please drop that line"."""
-    assert api._asks_removal("Please remove that ctx.exit() call.", GONE, True) is True
+    assert api._asks_removal("Please remove that ctx.exit() call.", GONE) is True
 
 
 def test_night_152_and_just_say_ends_the_request():
@@ -474,17 +482,17 @@ def test_remove_two_names_admits_both(words):
     """Review 5 and 6: "Remove X and Y" still asks for both removals."""
     echo = {"line": "echo(message)", "owner": "version_option.callback",
             "no": None, "def": False}
-    assert api._asks_removal(words, GONE, True) is True
-    assert api._asks_removal(words, echo, True) is True
+    assert api._asks_removal(words, GONE) is True
+    assert api._asks_removal(words, echo) is True
 
 
 def test_a_later_line_after_a_comma_and_a_verb_is_not_asked():
     """Review 5's finding 1, probe M: the line of the second clause stays."""
     third = {"line": "x = 3", "owner": "f", "no": "3", "def": False}
     first = {"line": "x = 1", "owner": "f", "no": "1", "def": False}
-    words = "Please drop line 1, rewrite line 3 in plain words."
-    assert api._asks_removal(words, first, True) is True
-    assert api._asks_removal(words, third, True) is False
+    words = "Please drop x = 1, rewrite x = 3 in plain words."
+    assert api._asks_removal(words, first) is True
+    assert api._asks_removal(words, third) is False
 
 
 def test_drop_one_and_keep_the_other_admits_the_dropped_one_only():
@@ -492,13 +500,14 @@ def test_drop_one_and_keep_the_other_admits_the_dropped_one_only():
     words = "Drop ctx.exit(), and keep echo(message)."
     echo = {"line": "echo(message)", "owner": "version_option.callback",
             "no": None, "def": False}
-    assert api._asks_removal(words, GONE, True) is True
-    assert api._asks_removal(words, echo, True) is False
+    assert api._asks_removal(words, GONE) is True
+    assert api._asks_removal(words, echo) is False
 
 
 def test_the_same_reply_refusal_says_its_fact_once_and_gives_the_route(db, tmp_path):
     """Review 3's finding 3: the same-reply refusal says once that the seat
-    did not read the note, and its step ends on the escalate route."""
+    did not read the note. Frame 339: its step ends on the commit route,
+    which keeps the change for the Architect."""
     sb, _root = _developer(db, tmp_path)
     assert "dropped" in sb.call("code.write", path=PATH, start=540, end=555, text=ECHO)
     with pytest.raises(ValueError) as err:
@@ -509,8 +518,8 @@ def test_the_same_reply_refusal_says_its_fact_once_and_gives_the_route(db, tmp_p
     assert msg.endswith("If the tree holds those lines again, commit in your "
                         "next reply. A note does not allow a removal or a rewrite. To undo "
                         "the change, put the lines back with code.write, then "
-                        "commit in your next reply. To keep the change, send "
-                        "msg.escalate_architect and name the change to the "
-                        "Architect.")
+                        "commit in your next reply. To keep the change, commit "
+                        "in your next reply. The Architect then judges the "
+                        "removal before the batch merges.")
 
 

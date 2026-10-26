@@ -9,12 +9,14 @@ None, commit 63c65435 landed, and the red count went from 2 to 5. Both
 walks read a function's body only. Repair B of `plans/frame283-wd-read.md`
 makes each parameter and each decorator a statement under its definition.
 
-Line numbers in a note are code.source numbers, 0-based.
+Line numbers in a note are code.source numbers, 0-based. Frame 339: the
+commit after the note lands, and the dropped parameter or decorator is an
+open stray for the Architect.
 """
 from __future__ import annotations
 
 from tests.rota.test_frame283_removal_on_ruling import (  # noqa: F401
-    FIRST, MESSAGE, PATH, _call, _git, _staged, db)
+    MESSAGE, PATH, _call, _git, _staged, _strays, db)
 from tests.rota.test_frame283_whole_file_drop import _l, _lines, _small
 import ast
 import subprocess
@@ -48,10 +50,11 @@ def test_s229s_span_write_that_drops_a_parameter_opens_a_note(db, tmp_path):
     assert [x[:2] for x in _lines(sb)] == [["format_filename", "shorten: bool = False,"]]
     assert [v["status"] for v in _staged(sb)] == ["open"]
     sb.begin_reply()
-    got = _call(sb, "code.commit", message=MESSAGE)["refused"]
-    assert got.startswith(FIRST.split(".")[0])
-    assert "`shorten: bool = False,`" in got
-    assert _git(root, "rev-parse", "HEAD") == head
+    assert _call(sb, "code.commit", message=MESSAGE)["committed"] is True
+    assert _git(root, "rev-parse", "HEAD") != head
+    rows = _strays(sb)
+    assert [r[:2] for r in rows] == [(f"{PATH}::format_filename", "open")]
+    assert "`shorten: bool = False,`" in rows[0][2]
 
 
 def test_the_commit_lands_after_a_write_puts_the_parameter_back(db, tmp_path):
@@ -74,8 +77,9 @@ def test_a_whole_file_write_that_drops_a_parameter_opens_a_note(db, tmp_path):
     assert out["dropped"] == NOTE
     assert [x[:2] for x in _lines(sb)] == [["format_filename", "shorten: bool = False,"]]
     sb.begin_reply()
-    assert "refused" in _call(sb, "code.commit", message=MESSAGE)
-    assert _git(root, "rev-parse", "HEAD") == head
+    assert _call(sb, "code.commit", message=MESSAGE)["committed"] is True
+    assert _git(root, "rev-parse", "HEAD") != head
+    assert [r[0] for r in _strays(sb)] == [f"{PATH}::format_filename"]
 
 
 def test_a_span_write_that_changes_only_the_docstring_opens_no_note(db, tmp_path):
@@ -109,8 +113,9 @@ def test_a_dropped_decorator_opens_a_note(db, tmp_path):
                               "text does not hold: `@functools.lru_cache()` at line 3.")
     assert [x[:2] for x in _lines(sb)] == [["f", "@functools.lru_cache()"]]
     sb.begin_reply()
-    assert "refused" in _call(sb, "code.commit", message=MESSAGE)
-    assert _git(root, "rev-parse", "HEAD") == head
+    assert _call(sb, "code.commit", message=MESSAGE)["committed"] is True
+    assert _git(root, "rev-parse", "HEAD") != head
+    assert [r[0] for r in _strays(sb)] == [f"{PATH}::f"]
 
 
 def test_a_kept_decorator_opens_no_note(db, tmp_path):

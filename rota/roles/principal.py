@@ -1200,8 +1200,7 @@ def is_test_row(conn: sqlite3.Connection, ref: str) -> bool:
 def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
                   out: list[str], *, said: list[tuple[str, str]] | None = None,
                   batch: str | None = None, code: dict | None = None,
-                  park: bool = False, stalled: list[str] | None = None,
-                  bare_checks: bool = True) -> list[int]:
+                  park: bool = False, stalled: list[str] | None = None) -> list[int]:
     """
     Render the request's rows of a page first: the principal's words, each
     item, its code line, and its criteria with their `check:` lines. Append
@@ -1295,11 +1294,8 @@ def request_block(conn: sqlite3.Connection, refs: list[str], order: list[str],
             # the team stopped trying. Night 136's m96 said nothing of cr_3
             # (frame 190's design, 2.5).
             tries = None if park else _gave_up_tries(conn, r, batch, stalled or [])
-            # A commit the note door refused leaves no test to name. Night
-            # 163's m115 put eight such lines over the cause (frame 312, W5).
             if tries is None:
-                if bare_checks:
-                    out.append("     check: none yet.")
+                out.append("     check: none yet.")
             else:
                 out.append("     check: none. The team gave up writing it after "
                            f"{tries} tries.")
@@ -1397,110 +1393,6 @@ def _review_only(ticks: list[tuple[str, int]]) -> bool:
     """True when every stuck tick is a review. The review fires only on a
     green harness at the head, so its tests passed at its last attempt."""
     return bool(ticks) and all(kind == "review" for kind, _ in ticks)
-
-
-def _refused_commit(conn: sqlite3.Connection, batch: str,
-                    keys: list[str]) -> list[str]:
-    """
-    The page lines for a stop whose last attempts wrote code that the note
-    door refuses to commit, or [] when the door would refuse nothing.
-
-    The door's verdict is read at render: `_unruled_gone` runs on the text
-    each note row holds, against today's rulings. A row alone is no refusal,
-    because a later write overwrites it (frame 312, review w5, finding 4).
-    A `faults` row is the Developer's own guess, and night 163's said
-    "phantom". Night 163's m115 to m139 hid the refusal at line 609.
-    """
-    from types import SimpleNamespace
-
-    from .api import _def_lines, _def_spans, _ruling_texts, _unruled_gone
-
-    times: dict[str, int] = {}
-    start = False
-    for key in keys:
-        role, kind = (key.split("|", 2) + ["", ""])[:2]
-        if kind in ("tick:review", "tick:tests_failing", "tick:tests_missing"):
-            continue
-        start = start or key.startswith("developer|tick:batch_start|")
-        row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
-                           (key,)).fetchone()
-        # Only the attempts of this quarantine count, the last N sessions.
-        left = row["attempts"] if row else 0
-        for s in conn.execute(
-                "SELECT id, wake_refs FROM sessions WHERE role = ? AND wake_kind = ? "
-                "ORDER BY seq DESC", (role, kind)):
-            if left <= 0:
-                break
-            try:
-                if batch not in json.loads(s["wake_refs"] or "[]"):
-                    continue
-            except (TypeError, ValueError):
-                continue
-            left -= 1
-            paths = set()
-            for c in conn.execute(
-                    "SELECT args_summary FROM tool_calls WHERE session_id = ? "
-                    "AND fn = 'code.write'", (s["id"],)):
-                m = re.search(r"path='([^']+)'", c["args_summary"] or "")
-                if m:
-                    paths.add(m.group(1))
-            for path in paths:
-                times[path] = times.get(path, 0) + 1
-    ctx = SimpleNamespace(conn=conn, batch_id=batch)
-    texts = None
-    out: list[str] = []
-    for r in conn.execute("SELECT path, note, lines, defs, noted FROM drop_notes "
-                          "WHERE batch_id = ? ORDER BY path", (batch,)):
-        if r["path"] not in times:
-            continue
-        try:
-            e = {"note": r["note"] or "", "lines": json.loads(r["lines"] or "[]"),
-                 "defs": json.loads(r["defs"] or "[]")}
-        except (TypeError, ValueError):
-            continue
-        if texts is None:
-            texts = _ruling_texts(ctx)
-        noted = r["noted"] or ""
-        gone = _unruled_gone(noted, e, texts)
-        if not gone:
-            continue
-        spans = _def_spans(noted)
-        for g in gone:
-            where = f", in {g['owner']}()" if g["owner"] else ""
-            # The note says "removes or rewrites". A line of the same kind
-            # in the written definition is the rewrite, so the page quotes
-            # it. s254's `return False` is what the criteria ask for
-            # (frame 312, review w5, finding 1).
-            word = g["line"].split()[0] if g["line"].split() else ""
-            held = (_def_lines(noted, spans, g["owner"]) or []) if (
-                g["owner"] and spans is not None) else []
-            new = next((ln for ln in held if ln != g["line"]
-                        and ln.split()[:1] == [word]), None) if word else None
-            done = (f"rewrites {g['shown']} of {r['path']}{where}, as `{new}`"
-                    if new else f"removes {g['shown']} of {r['path']}{where}")
-            out.append(f"A check refused the commits, because the change {done}.")
-            out.append(f"To allow that, say so, as 'remove the {g['shown']}"
-                       f"{where.replace(', ', ' ')}'.")
-    if not out:
-        return []
-    for path, n in times.items():
-        # The runner resets the tree to the head at each Developer session's
-        # end, so the written code is not there (review w5, finding 3).
-        if any(path in line for line in out):
-            out.append(f"The team wrote {path} {_times(n)}, and the runner put "
-                       f"the file back each time.")
-    if start:
-        # `land` lifts the start key once for an answer to this page
-        # (review w5, finding 2).
-        out.append("Your answer to this page starts the team once more, and the "
-                   "team reads your words. Do not correct a line that you agree with.")
-    else:
-        out.append("The team starts again only when you correct a line here.")
-    return out
-
-
-def _times(n: int) -> str:
-    return "once" if n == 1 else f"{n} times"
 
 
 TEAM_NOTES =("The team's notes. A seat wrote each of these where your words "
@@ -1899,12 +1791,10 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                        "Its tests passed at the review's last attempt.")
         else:
             out.append("The team stopped work on this change.")
-        refused = _refused_commit(conn, batches[0], keys)
         asked = request_block(conn, refs, order, out, batch=batches[0],
-                              stalled=keys, bare_checks=not refused)
+                              stalled=keys)
         numbered(does + account)
         out.append(f"The team gave up: {_stalled_words(conn, keys)}.")
-        out.extend(refused)
         out.append("The team expects to touch:")
         numbered(touches)
         out.append("Reply 'ok' if every line says what you want. Name a line "

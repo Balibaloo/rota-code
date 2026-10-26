@@ -176,62 +176,19 @@ NOTED = ("import sys\n\n\ndef clear() -> bool:\n"
          "    sys.stdout.write('\\033[2J')\n    return True\n")
 
 
-def test_m115_names_the_rewrite_the_ask_and_the_written_file(bg1):
+def test_m115_offers_no_sentence_to_copy(bg1):
+    """Frame 339: the commit door no longer refuses a removal, so no stop
+    comes from one, and the page asks him for no permission. Night 169's
+    m36 offered "To allow that, say so, as ...", and his m37 did not copy
+    it. The page shows the stop and the checks as for any other stop."""
     _refused_start(bg1)
     page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
     assert "The team gave up: the change could not start after 3 attempts." in page
-    assert ("A check refused the commits, because the change rewrites `return` "
-            "at line 609 of src/click/termui.py, in clear(), as `return False`."
-            ) in page, page
-    assert "no words of yours" not in page, page
-    assert ("To allow that, say so, as 'remove the `return` at line 609 in "
-            "clear()'.") in page, page
-    assert ("The team wrote src/click/termui.py 3 times, and the runner put "
-            "the file back each time.") in page, page
-    assert ("Your answer to this page starts the team once more, and the team "
-            "reads your words. Do not correct a line that you agree with."
-            ) in page, page
-    assert "check: none yet." not in page, page
+    for gone in ("A check refused", "To allow that, say so",
+                 "the runner put the file back"):
+        assert gone not in page, page
     for name in ("drop_notes", "code.write", "tick", "note door"):
         assert name not in page, page
-
-
-def test_a_ruling_that_allows_the_removal_shows_no_refusal(bg1):
-    """Finding 4: the page reads the door's verdict at render, not the row."""
-    _refused_start(bg1)
-    bg1.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-                "body_refs, seq, status) VALUES ('m_x', 't1', 'liaison', "
-                "'principal', 'present', '[]', 1, 'answered')")
-    bg1.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
-                "VALUES ('r_1', 'm_x','{\"bg_1\": \"approve\"}', "
-                "'Remove the return at line 609 in clear().', 'landed')")
-    page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
-    assert "A check refused" not in page, page
-
-
-def test_a_note_whose_line_the_write_kept_shows_no_refusal(bg1):
-    """Finding 4: a note row on a written path is no refusal by itself."""
-    _refused_start(bg1)
-    bg1.execute("UPDATE drop_notes SET noted = ? WHERE batch_id = 'bg_1'",
-                ("def clear() -> bool:\n    return\n",))
-    page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
-    assert "A check refused" not in page, page
-
-
-def test_two_notes_get_one_ask_each(bg1):
-    """Finding 5: each note names its own line and its own ask."""
-    _refused_start(bg1)
-    bg1.execute("INSERT INTO tool_calls (session_id, fn, args_summary, seq) "
-                "VALUES ('s238', 'code.write', 'path=''src/click/utils.py''', 20)")
-    bg1.execute("INSERT INTO drop_notes (batch_id, path, status, note, lines, noted) "
-                "VALUES ('bg_1', 'src/click/utils.py', 'open', ?, "
-                "'[[\"echo\", \"return\", 1]]', ?)",
-                ("This write removes or rewrites 1 statement that your text does "
-                 "not hold: `return` at line 40.", "def echo():\n    pass\n"))
-    page = render_page(bg1, "present", M45_REFS, stalled=[START])[0]
-    assert "'remove the `return` at line 609 in clear()'" in page, page
-    assert "'remove the `return` at line 40 in echo()'" in page, page
-    assert "removes `return` at line 40 of src/click/utils.py, in echo()." in page
 
 
 def test_an_answer_to_the_page_lifts_the_start_key_once(bg1):

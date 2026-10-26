@@ -2379,9 +2379,13 @@ def touch_strayed(conn) -> list[Wake]:
     with the paths, and the merge gate waits for the judgement.
 
     law 12: the touch set is a prediction, never a permission
+
+    Frame 339: a removal's row carries its note, the removed line, on the
+    grain's own entry, so the Architect reads the line it judges.
     """
     rows = conn.execute(
-        "SELECT b.id AS bid, GROUP_CONCAT(s.path, ', ') AS paths "
+        "SELECT b.id AS bid, GROUP_CONCAT(s.path || COALESCE(' (' || s.note || ')', ''), "
+        "  ', ') AS paths "
         "FROM batches b JOIN touch_strays s ON s.batch_id = b.id "
         "  AND s.commit_sha = b.head_commit AND s.status = 'open' "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
