@@ -511,8 +511,12 @@ APPDIR_CHECK = ("Its check calls the function without an app name, so it "
 APPDIR_RULE = ("Use the Roaming folder when the roaming flag is True, and the "
                "Local folder otherwise.")
 M57 = f"Line 10 is still wrong. {APPDIR_CHECK}"
-M66 = ("Someone added my note about the failing check to the end of it, and "
-       "that note is not part of what I asked for, so please remove it.")
+# His recorded reply form to the pages m66 to m118 (plans/stack.md, frame
+# 315). It points at no sentence of the item.
+TAKE_OUT = ("Line 1 still has the extra sentence about which tests to run, so "
+            "please take it out and keep only what I asked for.")
+CHANGE = ("Remove the fallback to the bare home folder and use the Local "
+          "folder.")
 M24 = ("Replace it with the rule I want: use the Roaming folder when the "
        "roaming flag is True, and the Local folder otherwise.")
 # s161's own paraphrase, refused for new words (s161 turn 5).
@@ -539,20 +543,52 @@ def test_s161_his_sentence_about_the_test_is_not_the_items(db):
     assert not _item_writes(sb)
 
 
-def test_m66_a_removal_is_an_amend(db):
-    _night150_item(db, "get_app_dir_windows", f"{APPDIR} {APPDIR_CHECK}")
-    _contest(db, "get_app_dir_windows", M66, "m67")
+def _amended_on_contest(conn, item):
+    """
+    The item at version 2: s161, on `tick:contested` after m57, appended his
+    test sentence (night 167, s161 seq 9). Its receipt is the record.
+    """
+    conn.execute("UPDATE items SET text = ?, version = 2 WHERE id = ?",
+                 (f"{APPDIR} {APPDIR_CHECK}", item))
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                 "verb, body_refs, seq) VALUES ('m57', 'th', 'principal', "
+                 "'liaison', 'reply', '[]', 3)")
+    conn.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+                 "('e_m57', 'principal', ?, 0)", (M57,))
+    conn.execute("INSERT INTO sessions (id, role, seq, wake_kind) VALUES "
+                 "('s161', 'vision_keeper', 161, 'tick:contested')")
+    conn.execute("INSERT INTO receipts (session_id, table_name, row_id, "
+                 "new_version) VALUES ('s161', 'items', ?, 2)", (item,))
+    conn.commit()
+
+
+def test_his_recorded_removal_drops_what_a_contested_amend_added(db):
+    _night150_item(db, "get_app_dir_windows", APPDIR)
+    _amended_on_contest(db, "get_app_dir_windows")
+    _contest(db, "get_app_dir_windows", TAKE_OUT, "m67")
     sb = _contested(db, "get_app_dir_windows")
     with pytest.raises(ValueError) as err:
         sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
                 text=APPDIR_PARA)
     step = str(err.value)
-    assert f"remove {APPDIR_CHECK!r}" in step
-    assert f"assert {APPDIR!r}" in step
+    assert f"added, {APPDIR_CHECK!r}" in step
+    assert f"Assert {APPDIR!r}" in step
+    assert f"with his sentence {TAKE_OUT!r}" not in step
     out = sb.call("problem.assert", id="get_app_dir_windows",
                   kind="in_scope", text=APPDIR)
     assert out == {"id": "get_app_dir_windows", "removed": [APPDIR_CHECK]}
     assert _item_writes(sb)
+
+
+def test_a_change_request_does_not_drop_the_items_own_sentence(db):
+    _night150_item(db, "get_app_dir_windows", APPDIR)
+    _amended_on_contest(db, "get_app_dir_windows")
+    _contest(db, "get_app_dir_windows", CHANGE, "m67")
+    sb = _contested(db, "get_app_dir_windows")
+    with pytest.raises(ValueError):
+        sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
+                text=APPDIR_CHECK)
+    assert not _item_writes(sb)
 
 
 def test_m24_a_correction_keeps_the_amend_and_refuses_a_drop(db):
@@ -569,15 +605,19 @@ def test_m24_a_correction_keeps_the_amend_and_refuses_a_drop(db):
     assert not _item_writes(sb)
 
 
-def test_a_removal_drops_only_the_sentence_his_words_name(db):
-    _night150_item(db, "get_app_dir_windows",
-                   f"{APPDIR} {APPDIR_RULE} {APPDIR_CHECK}")
-    _contest(db, "get_app_dir_windows", M66, "m67")
+def test_a_removal_with_nothing_added_offers_the_plain_amend(db):
+    # No receipt of a contested amend on the item: the second sentence is
+    # his, and it stays.
+    _night150_item(db, "get_app_dir_windows", f"{APPDIR} {APPDIR_RULE}")
+    _contest(db, "get_app_dir_windows", TAKE_OUT, "m67")
     sb = _contested(db, "get_app_dir_windows")
     with pytest.raises(ValueError) as err:
         sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
-                text=f"{APPDIR} {APPDIR_CHECK}")
-    msg = str(err.value)
-    assert repr(APPDIR_RULE) in msg
-    assert f"remove {APPDIR_CHECK!r}" in msg
+                text=APPDIR_PARA)
+    step = str(err.value)
+    assert "nothing was added" in step
+    assert f"with his sentence {TAKE_OUT!r}" not in step
+    with pytest.raises(ValueError, match="The new text drops"):
+        sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
+                text=APPDIR)
     assert not _item_writes(sb)
