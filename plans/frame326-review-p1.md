@@ -127,3 +127,66 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/66edc3
 5. `tests/rota/test_l1.py` 207. Low. CONFIRMED: the run at af04bbe1 fails `L1-TE-log-the-word-you-took-one-way` as a plain `0/5`. Fix: after the STALE check, call `pytest.xfail(case["red"])` for a marked case, and fail a marked case that passes.
 6. `rota/roles/api.py` 14395 to 14398. Low. CONFIRMED: `modes.py` finds `architect/deliver`, which has `code.probe` and does not have `code.source`. The note offers that mode a call it does not hold. Fix: name `code.source` only when `prompts.mode_tools(ctx.role, ctx.mode)` holds it.
 7. Outside the points: the register at `C:/Users/roman/rota_g301`. Low. CONFIRMED: during this review another process wrote `key_misses` rows (23:07 to 23:09) for four other cases. `casestatus` on a copy taken at 23:11 read 12 stale, not 6. Fix: read `casestatus` for this frame from a copy taken at a known time, or from the gate's own register.
+
+## Review 1b at a1db0e89
+
+Date: 2026-10-26. Read-only review of 0cd32362, 01be0fb1, f2c5d668, f8168ce7 and a1db0e89 above af04bbe1. The tree is a `git archive` of a1db0e89, extracted into the scratchpad folder `r326p1/a1db`. The register is the same read-only copy `reg.db`.
+
+Verdict: accept all five commits for the branch. Do not re-record the 18 STALE cases yet. First make `index_batch` leave the run in the state a delivery night has (answer 2). Then give `L1-DV-say-why-the-test-cannot-pass` and `L1-TS-act-on-the-reason-of-a-challenge` their `repo:` blocks (answer 4).
+
+### 1. The high finding is closed
+
+CONFIRMED. `probe_1b.py` builds the defaults case at a1db0e89. Its `repo:` keys are `batch`, `edit`, `index_batch` and `message`, and the case has no `onboard`. `code.probe("calculate_tip")` returns `main.py::calculate_tip`, lines 0 to 2, from 96 rows. Review 1 got `[]` from 93 rows. The diff removes both `onboard: true` lines of e41580e8 (`l1_developer.yaml` 240 to 245, `l1_findings.yaml` 88 to 93), and `index_batch: true` replaces them. `_with_repo` calls `indexer.refresh(conn, tree, main=False, batch_id=batch_id)` after the edit commit (`rota/testkit/fixtures.py` 880 to 888). That is the call that `runner._refresh_index` makes on a night.
+
+### 2. The fixture index against the night index
+
+The rows are the same, the areas are different, and the onboarding phase is wrong for delivery. `probe_1b.py` builds the defaults case two ways. The first way is `index_batch` alone. The second way adds `onboard`, which is the night order: onboard on main, then refresh the batch tree.
+
+- Rows: 96 in each. Every grain, kind and line span is the same (the difference of the two sets is empty).
+- Areas: with `index_batch` alone, every row has area `.`. With the night order, the rows carry `.`, `src/auth`, `src/billing`, `src/catalog`, `src/notify`, `src/store` and `web`. The reason is that `refresh(main=False)` keeps the areas that were there before, and with no onboarding there were none. `code.probe` returns the `area` column, so a probe of a file under `src/` shows `.` where a night shows the area. Most of the 18 STALE recordings probe a file under `src/`.
+- Phase: an empty index used to give `onboarding_phase` the value `none`. Any index gives `frame` now. The night order also gives `frame`, because no session has attested the partition. On a night, a batch is delivered only after onboarding ends, at phase `done`.
+
+The implementer's question: should `index_batch` also write the onboarding record? Yes, but the record must be the state of delivery, not the output of `boot.onboard`. The second option, a chain that sets `onboard` with `index_batch`, does not work. `probe_1b.py` shows `L3-a-failed-verdict-turns-into-a-fix` with `tick:frame` still offered under the night order, and only `tick:constraint_zero` goes away. The record a delivery night has:
+
+1. The partition is pinned, so each row carries its area.
+2. Each onboarding phase is closed, so `onboarding_phase` returns `done`.
+3. Each area has a survey record, so constraint zero binds no grain and `tick:constraint_zero` does not fire.
+
+The single-session L1 cases wake directly. So the phase does not reach their prompts, and seven of the 17 cases still replay. The areas do reach the prompts, through the probe rows. So build the record before the re-record. Otherwise the 16 recordings that probe the index go STALE a second time when the record lands.
+
+### 3. The low findings are closed
+
+CONFIRMED, all five:
+
+- Finding 2: rule 2 reads `"code.probe" in tools` (`test_case_reachability.py` 250 to 258), and it accepts `index_batch`.
+- Finding 3: the count is now 18, and the implementer quotes 18.
+- Finding 4: `test_the_owed_set_only_shrinks_and_names_real_cases` fails when an id names no case, when the set grows past `OWED_CEILING = 10`, and when the set shrinks while the ceiling stays the same.
+- Finding 5: `test_l1.py` fails a marked case that passes, then calls `pytest.xfail` after the STALE check. The run shows `XFAIL ... L1-TE-log-the-word-you-took-one-way - red by construction`.
+- Finding 6: the note names `code.source` only when the mode's tools hold it. A pin covers `architect/deliver`.
+
+A new low finding is in the fallback of findings 2 and 6. `prompts.available(role)` returns mode names, not functions (`rota/roles/prompts.py` 195 to 200). So the fallback `_wake_mode_tools(ctx) or _prompts.available(ctx.role)` (`api.py` 14400) never holds `code.source`. For the same reason, `prompts.mode_tools(role, mode) or prompts.available(role)` (`test_case_reachability.py` 247) never holds a code read. Today every mode has a `.tools` file (`modes` count: 0 without one), so neither fallback runs. A new mode without a `.tools` file would get "everything the role has", and it would pass the lint without a check.
+
+### 4. The 18 STALE cases
+
+CONFIRMED: 18. `test_l1.py` and `test_l3.py` at a1db0e89 give 39 failed, 124 passed, 1 skipped and 1 xfailed. When `L3-scope-becomes-a-ticket-with-criteria` runs alone, it passes. It failed only on `database is locked`. So there are 38 reds: 18 STALE and 20 that were in the 0265b414 set. This matches the implementer.
+
+- The probe note, 9: `L1-DV-act-on-an-answered-challenge`, `L1-DV-ask-when-the-test-contradicts-its-criterion-at-the-fix-wake`, `L1-DV-build-a-clear-criterion`, `L1-DV-challenge-a-test-with-a-long-body`, `L1-DV-fix-what-the-verdict-names`, `L1-DV-log-the-choice-the-criteria-did-not-make`, `L1-DV-read-the-map-not-the-whole-file`, `L1-DV-restore-what-the-finding-names`, `L1-DV-say-why-the-test-cannot-pass`.
+- The Tester challenge prompt and repositories, 6: `L1-TS-act-on-the-reason-of-a-challenge`, `L1-TS-fix-a-test-that-asserts-more-than-its-criterion`, `L1-TS-fix-a-test-that-calls-a-plain-function-through-a-runner`, `L1-TS-hold-a-test-that-is-right`, `L1-TS-pass-a-literal-value-for-a-name-looked-up-at-run-time`, `L1-TS-send-a-test-written-into-the-reply-as-tests-encode`.
+- The batch index, 3: `L1-DV-give-the-new-parameters-defaults`, `L1-DV-a-wordless-answer-on-a-right-red-test-is-carried-on`, `L1-DV-take-a-mistake-out`.
+
+A re-record can absorb each change. Two changes need a decision first:
+
+- Two STALE cases are still in `OWED` and have no repository: `L1-DV-say-why-the-test-cannot-pass` and `L1-TS-act-on-the-reason-of-a-challenge`. The run logs `WorktreeError: no project_root in config` for the second case. A re-record now would measure fault B, a refusal of `code.source`, and both cases would go STALE again when their `repo:` blocks land.
+- The 16 cases that probe the index would record area `.` (answer 2).
+
+`L1-DV-give-the-new-parameters-defaults` and `L1-DV-say-why-the-test-cannot-pass` are pinned to qwen3.5:9b, so their re-record needs that model on the card.
+
+### Findings of review 1b
+
+1. `rota/testkit/fixtures.py` 880 to 888. High for the order of the re-record, not for the branch. CONFIRMED: `probe_1b.py` shows that the rows are the same as the night's rows. It also shows area `.` on all 96 rows against six areas on a night, and phase `frame` in place of `done`. Fix: make `index_batch` pin the partition, close the onboarding phases and record a survey for each area before the refresh. Then re-record.
+2. `rota/roles/api.py` 14400 and `tests/rota/test_case_reachability.py` 247. Low. CONFIRMED by a read: `prompts.available` returns mode names, so each fallback holds no function. Fix: treat a `None` from `mode_tools` as the role's whole namespace, for example `build(role, conn).functions()`.
+3. `OWED`, the two STALE cases without a repository. Low. CONFIRMED: the run logs `no project_root` for `L1-TS-act-on-the-reason-of-a-challenge`. Fix: write their `repo:` blocks before the re-record, or leave both cases out of the re-record.
+
+Probes of review 1b, in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/66edc387-a3b2-48b8-8dec-bb5b3aa63e50/scratchpad/r326p1/`: `a1db/` (the `git archive` of a1db0e89), `probe_1b.py` (the defaults case and the chain, built with `index_batch` alone and in the night order), `l1l3_a1db.log` (`test_l1.py` and `test_l3.py` at a1db0e89), and the two locked chains run again alone.
+
+Usage of review 1b: input about 45k, output about 9k, total about 54k.
