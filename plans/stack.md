@@ -47,7 +47,7 @@ either Gemma night, and the Tester wrote one green test and cut no reply
 in 9 sessions (observed: the read, section 4).
 
 The order, each row a frame on the stack or a candidate in the read
-(reasoned: the read, section 5; the economy at 23 live of 10 after this
+(reasoned: the read, section 5; the economy at 19 live of 10 after this
 close's five pushes, so C2, C3 and C5 are placed and not pushed):
 
 1. Frame 330, W5: a running batch whose `tests_failing` key is
@@ -1215,7 +1215,7 @@ a different question and the night is then opened once.
 
 ### 331. The 19 owed cases run on no fixture, the fourth Tester case is not recorded, and the batch tree is indexed only under a case flag (2026-10-26)
 
-- **Site: the `OWED` guard of frame 326's pass 1b at a fixed count of 27, the Tester's recorded cases, and the `index_batch` flag of 0cd32362.** Meta workflow. Roman agreed to this frame on 2026-10-25 at 23:21 (ruled: Roman, "ok", to the terminal reply of 23:1x of session 66edc387, recorded on frame 326's block). Pushed at this close, as that status line says, with the economy at 23 live of 10 after the four pushes (reasoned: the close of frames 283 and 321 is the next close the line names).
+- **Site: the `OWED` guard of frame 326's pass 1b at a fixed count of 27, the Tester's recorded cases, and the `index_batch` flag of 0cd32362.** Meta workflow. Roman agreed to this frame on 2026-10-25 at 23:21 (ruled: Roman, "ok", to the terminal reply of 23:1x of session 66edc387, recorded on frame 326's block). Pushed at this close, as that status line says, with the economy at 19 live of 10 after the five pushes (reasoned: the close of frames 283 and 321 is the next close the line names).
 - Ends when: first, a fixture runs the owed cases with the batch tree indexed, so the `OWED` count falls from 27 toward 0 and the guard reads the register and not a constant; second, the fourth Tester case is recorded on qwen3.5:9b and green on replay; third, `index_batch` is an option a case names and not a flag in the kit.
 - Waits on: nothing. Priced 2 to 3 cycles (reasoned: rota-69's price of 23:1x).
 - Sprint: sprint 25, below row 7 (reasoned: owed work, not a wall of night 168).
