@@ -1299,6 +1299,7 @@ a different question and the night is then opened once.
 - Reach: 1 of 1, the status tool is the one writer of a closing line (observed: frame 340).
 - Sprint: next sprint, rank 2 among the parked (reasoned: it bites at the first close after night 170).
 - Pointer: `plans/closed-reach-b.md`; `plans/frame340-review-p1.md`.
+- Status 2026-10-26 23:13 (rota-70): **Closed by ruling. Roman, 2026-10-26 about 22:5x, relayed by rota-b4: "No don't make it a hard rule, the model should be smart enough to do it", on frame 340's refusals; this frame is a second refusal of the same tool, so it drops** (ruled: Roman, in his words). Rule C31's zero-baseline rule stays in plans/method/reference.md and the session applies it at a close. Reach 1 of 1. Meta workflow.
 
 ### 340. The status tool accepts a pass line on a frame with no reach line and a close on a reach above one reader, so rule C76 is a reminder and not a gate (2026-10-26) (8db3a3f9) (e03f97fc)
 
