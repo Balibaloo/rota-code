@@ -4483,6 +4483,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # ruled (the delta review of 4ef3bd9f, finding 2). The item is
             # line 1 of the page (frame 142's design, 2.A), so a contest of
             # the item still goes to its owner.
+            # None means no verdict rules these rows, so a test row keeps
+            # the route of frame 213.
+            ruled: list[str] | None = None
             if on_park:
                 ruled = park_verdict_rows(ctx.conn, ctx.trigger)
                 refs = [r for r in refs if r in ruled]
@@ -4521,6 +4524,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 test = ctx.conn.execute(
                     "SELECT criterion_id FROM tests WHERE id = ?", (ref,)).fetchone()
                 if test and test["criterion_id"]:
+                    # An approved test row adds no criterion, as an approved
+                    # criterion adds none. Night 168's m50 took crit_3 through
+                    # the approved tst_crit_3, and the relay keyed `relay`,
+                    # where no call reaches the Tester (frame 338).
+                    if ruled is not None and ref not in ruled:
+                        continue
                     split.setdefault("terminologist" + CRITERIA_RELAY, []).append(
                         test["criterion_id"])
                     continue
