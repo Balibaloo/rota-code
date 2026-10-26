@@ -1085,7 +1085,7 @@ def test_a_challenge_quote_of_the_criterion_pasted_into_a_test_comment_is_not_th
     with pytest.raises(ValueError, match="has an empty entry"):
         sb.call("msg.challenge_tester", refs=["c1", "tst1"],
                 quotes=["closing an account leaves its invoices in place", ""])
-    with pytest.raises(ValueError, match="must copy tst1's exact words"):
+    with pytest.raises(ValueError, match="no span of the live text of tst1"):
         sb.call("msg.challenge_tester", refs=["c1", "tst1"],
                 quotes=["closing an account leaves its invoices in place", "closing an account leaves its invoices in place"])
     sb.call("msg.challenge_tester", refs=["c1", "tst1"],

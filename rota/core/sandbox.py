@@ -1227,8 +1227,61 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
     return None
 
 
+def _span_of(quote: str, source: str) -> bool:
+    """The quote is a contiguous span of the source, whitespace-normalised.
+
+    Three forms of the same span count too, because each comes from the
+    call's syntax, not from the seat's words. Night 119's s250 put the span
+    inside quote marks. Night 124's s144 copied a body from the prompt's
+    JSON, so a line break came as the two characters of `\\n`. Night 126's
+    s172 wrote a `"` of the row as `'` inside its double-quoted string.
+    """
+    src = " ".join((source or "").split())
+    raw = (quote or "").strip()
+    forms = [raw]
+    if len(raw) > 2 and raw[0] == raw[-1] and raw[0] in "\"'`":
+        forms.append(raw[1:-1])
+    forms += [f.replace("\\n", "\n").replace("\\t", "\t")
+              .replace('\\"', '"').replace("\\'", "'") for f in list(forms)]
+    for f in forms:
+        q = " ".join(f.split())
+        if q and (q in src or q.replace("'", '"') in src.replace("'", '"')):
+            return True
+    return False
+
+
+def _quote_list(text: str, quotes=None) -> list[str]:
+    """The quotes of a challenge, one string per span.
+
+    The binder joins a list of quotes with " ... ", so the joined text splits
+    back on the same mark. A quote that elides with " ... " gives two spans,
+    and each span is checked on its own.
+    """
+    if isinstance(quotes, dict):
+        quotes = list(quotes.values())
+    if isinstance(quotes, (list, tuple)):
+        return [str(q) for q in quotes if str(q).strip()]
+    return [q for q in " ".join((text or "").split()).split(" ... ")
+            if q.strip()]
+
+
+def _quote_refusal(row: str, table: str, quote: str, crit: str,
+                   test: str) -> str:
+    """The refusal of a challenge quote that is not in its row's live text."""
+    shown = quote if len(quote) <= 80 else quote[:77] + "..."
+    said = (f"quotes= holds `{shown}`, and it is not in the live text of "
+            f"{row}." if quote else
+            f"quotes= holds no span of the live text of {row}.")
+    if table == "tests":
+        said += " A comment of the test does not count."
+    return (f"{said} Quote, not paraphrase: copy a contiguous span of each "
+            f"row, verbatim, from the rows in front of you. Send quotes as a "
+            f"list of two strings: one copied from {crit}, one copied from "
+            f"{test}")
+
+
 def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
-                        reason=None) -> None:
+                        reason=None, quotes=None) -> None:
     """
     A challenge quotes the thing it disputes.
 
@@ -1376,40 +1429,45 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
                 + (fact or "it passed before this batch. A challenge has no "
                    "side there. Read code.diff and restore what your change "
                    "broke"))
-        for r in (crit[0], test[0]):
-            # The test's side is its code. Click night 58 (2026-09-14): the
-            # Tester had pasted the criterion sentence into a comment, so
-            # the criterion quote spanned the test row too, and a challenge
-            # with an empty test-side quote went through; the Tester woken
-            # by it had nothing to defend.
-            source = _code_only(rows[r][1]) if r == test[0] else rows[r][1]
-            if not _quotes_span(source, text):
-                # The disputed artefact is the test, and its words are what
-                # the bar is for. A criterion quote that is another criterion
-                # of this batch, verbatim, is real evidence misfiled -- and
-                # walks twenty-three to twenty-seven measured the alternative:
-                # told whose words they were, the Developer sent the identical
-                # call nine times across three sessions, every walk, because
-                # at temperature zero the same prompt is the same answer. The
-                # challenge goes through; the Tester reads both quotes.
-                hint = ""
-                if r == crit[0]:
-                    other = next((o["id"] for o in ctx.conn.execute(
-                        "SELECT c.id, c.text FROM criteria c "
-                        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-                        "WHERE c.id != ? AND bt.batch_id = ?"
-                        + api._live_rows(ctx.conn, "c.retired_by"),
-                        (r, ctx.batch_id or ""))
-                        if _quotes_span(o["text"] or "", text)), None)
-                    if other:
-                        continue
-                raise ValueError(
-                    f"quotes= must copy {r}'s exact words and what you sent "
-                    f"is not in the {rows[r][0]} row. Quote, not paraphrase: "
-                    f"the span of each side your challenge stands on, "
-                    f"verbatim -- both rows are in front of you{hint}. Send "
-                    f"quotes as a list of two strings: one copied from "
-                    f"{crit[0]}, one copied from {test[0]}")
+        # ruling: DECISIONS 1290, a contiguous span of the disputed row, verbatim
+        # Frame 328, night 166: m82 and m88 quoted c_1's contested old text.
+        # The 12-character window found "When shorten" in the live text, and
+        # the test side matched on the other side's quote. So each quote must
+        # stand inside its own row's live text, whitespace-normalised.
+        quotes = _quote_list(text, quotes)
+        # The disputed artefact is the test, and its words are what the bar
+        # is for. A criterion quote that is another criterion of this batch,
+        # verbatim, is real evidence misfiled -- and walks twenty-three to
+        # twenty-seven measured the alternative: told whose words they were,
+        # the Developer sent the identical call nine times across three
+        # sessions. The challenge goes through; the Tester reads both quotes.
+        siblings = [o["text"] or "" for o in ctx.conn.execute(
+            "SELECT c.text FROM criteria c "
+            "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+            "WHERE c.id != ? AND bt.batch_id = ?"
+            + api._live_rows(ctx.conn, "c.retired_by"),
+            (crit[0], ctx.batch_id or ""))]
+        # The test's side is its code. Click night 58 (2026-09-14): the
+        # Tester had pasted the criterion sentence into a comment, so the
+        # criterion quote spanned the test row too, and a challenge with an
+        # empty test-side quote went through; the Tester woken by it had
+        # nothing to defend.
+        cited = {
+            crit[0]: [q for q in quotes if any(
+                _span_of(q, s) for s in [rows[crit[0]][1]] + siblings)],
+            test[0]: [q for q in quotes
+                      if _span_of(_code_only(q), _code_only(rows[test[0]][1]))]}
+        loose = [q for q in quotes
+                 if not any(q in held for held in cited.values())]
+        for i, r in enumerate((crit[0], test[0])):
+            if cited[r]:
+                continue
+            q = (quotes[i] if i < len(quotes) and quotes[i] in loose
+                 else loose[0] if loose else "")
+            raise ValueError(_quote_refusal(r, rows[r][0], q, crit[0], test[0]))
+        if loose:
+            raise ValueError(_quote_refusal(f"{crit[0]} or of {test[0]}", "",
+                                            loose[0], crit[0], test[0]))
         return
 
     # No redirect by who is quoted. A rule that sent a quoted test to the
@@ -5086,7 +5144,8 @@ def _challenge_admitted(ctx: api.Ctx, refs: list, quotes: list) -> bool:
     if _sent_this_session(ctx, "tester", "challenge"):
         return False
     try:
-        _challenge_evidence(ctx, "tester", refs, " ... ".join(quotes))
+        _challenge_evidence(ctx, "tester", refs, " ... ".join(quotes),
+                            quotes=quotes)
     except ValueError:
         return False
     return _same_refs_refusal(ctx, "tester", "challenge", refs) is None

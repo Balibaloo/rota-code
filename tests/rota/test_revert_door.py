@@ -437,8 +437,9 @@ def test_the_challenge_goes_to_the_first_red_test_that_its_doors_admit(db, tmp_p
 # session. Night 139's s274 sent challenge m152, wrote that the test was
 # wrong, and then changed the code to fit it.
 DISPUTED = "def test_x():\n    assert close_account(1) == 3\n"
-QUOTES = ("the criterion says 'prints the object as compact JSON' and the "
-          "test asserts close_account(1) == 3")
+# Frame 328: each quote is a span of its own row, so prose around the spans
+# is refused.
+QUOTES = ["prints the object as compact JSON", "assert close_account(1) == 3"]
 # The Developer's reason of a challenge (frame 200, pass 5).
 REASON = ("right code prints compact JSON, so the test must assert the "
           "printed object and not close_account")

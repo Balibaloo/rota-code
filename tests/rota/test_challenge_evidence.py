@@ -57,11 +57,18 @@ def _dev(db):
 
 def test_a_challenge_quoting_both_sides_lands(db):
     """The legitimate sibling survives easily: quoting both is trivial when
-    the contradiction is there."""
+    the contradiction is there.
+
+    Frame 328: the ruling of 2026-08-26 asks for a contiguous span of the
+    row, so each quote is a span. Prose around the spans is refused."""
     sb = _dev(db)
+    with pytest.raises(ValueError, match="not in the live text of c1"):
+        sb.call("msg.challenge_tester", refs=["c1", "ts1"],
+                quotes="the criterion says 'leaves its invoices in place' and "
+                       "the test asserts invoices_for('a1') == []", reason=REASON)
     sb.call("msg.challenge_tester", refs=["c1", "ts1"],
-            quotes="the criterion says 'leaves its invoices in place' and "
-                   "the test asserts invoices_for('a1') == []", reason=REASON)
+            quotes=["leaves its invoices in place",
+                    "invoices_for('a1') == []"], reason=REASON)
     assert sb.ctx.outbound, "the challenge staged"
 
 
@@ -119,8 +126,8 @@ def test_a_quote_survives_the_line_wrap_it_was_copied_across(db):
     still a quote."""
     sb = _dev(db)
     sb.call("msg.challenge_tester", refs=["c1", "ts1"],
-            quotes="it says 'leaves its invoices\n   in place' yet asserts "
-                   "invoices_for('a1')\n== []", reason=REASON)
+            quotes=["leaves its invoices\n   in place",
+                    "invoices_for('a1')\n== []"], reason=REASON)
     assert sb.ctx.outbound
 
 

@@ -1387,7 +1387,11 @@ def test_night122_a_judged_challenge_whose_test_moved_at_the_wake_lands(db):
     the session that m64 woke. The move admits the challenge of version 2,
     and a receipt at the woken session itself counts (the review of 4968ea7)."""
     _night122_m64(db, "woken")
-    out = _developer(db, "bg_1").call("msg.challenge_tester", reason=REASON, **S145_T7)
+    # Frame 328: s145's test quote is a line of version 1, so the quote door
+    # refuses it on version 2. A line of version 2 keeps this test on the
+    # repeat door.
+    moved = dict(S145_T7, quotes=[S145_T7["quotes"][0], "assert exception_raised"])
+    out = _developer(db, "bg_1").call("msg.challenge_tester", reason=REASON, **moved)
     assert out == {"id": "m66", "to": "tester", "verb": "challenge"}
 
 
@@ -1395,8 +1399,9 @@ def test_a_receipt_before_the_wake_is_no_move(db):
     """The same state with the only receipt from s139, before m64's wake: the
     Tester judged the version that the challenge saw."""
     _night122_m64(db, "before")
+    moved = dict(S145_T7, quotes=[S145_T7["quotes"][0], "assert exception_raised"])
     with pytest.raises(ValueError) as exc:
-        _developer(db, "bg_1").call("msg.challenge_tester", **S145_T7)
+        _developer(db, "bg_1").call("msg.challenge_tester", **moved)
     assert str(exc.value) == (
         "you sent challenge to tester on exactly these refs already (m64) and "
         "they answered (m65). Sending it again is the same argument again. "
