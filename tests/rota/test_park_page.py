@@ -550,6 +550,90 @@ def test_the_check_line_takes_fails_from_the_e_line_adds_the_call_and_strips_com
         "expects result is True. Fails: assert False is True.")
 
 
+# Night 168's tr35, word for word: a collection error of tst_crit_1 at
+# d607d440 (`plans/c5-check-line-provenance.md`, question 2).
+TR35 = r"""=================================== ERRORS ====================================
+________ ERROR collecting tests/test_utils/test_get_app_dir_roaming.py ________
+.venv\Lib\site-packages\_pytest\python.py:508: in importtestmodule
+    mod = import_path(
+.venv\Lib\site-packages\_pytest\pathlib.py:596: in import_path
+    importlib.import_module(module_name)
+C:\Users\roman\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1342: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:938: in _load_unlocked
+    ???
+.venv\Lib\site-packages\_pytest\assertion\rewrite.py:179: in exec_module
+    source_stat, co = _rewrite_test(fn, self.config)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\_pytest\assertion\rewrite.py:348: in _rewrite_test
+    tree = ast.parse(source, filename=strfn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\roman\AppData\Local\Python\pythoncore-3.14-64\Lib\ast.py:46: in parse
+    return compile(source, filename, mode, flags,
+E     File "D:\repos\_AI\sample_repos\clickI\.rota\worktrees\batch_1\tests\test_utils\test_get_app_dir_roaming.py", line 13
+E       assert "AppData\Roaming" in result
+E                      ^^
+E   SyntaxError: "\R" is an invalid escape sequence. Did you mean "\\R"? A raw string is also an option.
+=========================== short test summary info ===========================
+ERROR tests/test_utils/test_get_app_dir_roaming.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.30s"""
+TST_CRIT_1 = ('import os\nimport pytest\nfrom click.utils import get_app_dir\n\n'
+              'def test_crit_1():\n    if os.name != "nt":\n'
+              '        pytest.skip("Windows only")\n    \n'
+              '    os.environ["APPDATA"] = ""\n    os.environ["LOCALAPPDATA"] = ""\n    \n'
+              '    result = get_app_dir(app_name="test_app", roaming=True)\n'
+              '    assert "AppData\\Roaming" in result')
+
+
+def _seed_batch_1(conn, result: str, output: str) -> None:
+    """Night 168's tst_crit_1 of batch_1 and one run of it."""
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+                 "VALUES ('batch_1', ?, 'running', 'd607d440')", (ITEM_132,))
+    conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body, version) "
+                 "VALUES ('tst_crit_1', 'batch_1', NULL, "
+                 "'tests/test_utils/test_get_app_dir_roaming.py', ?, 2)", (TST_CRIT_1,))
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+                 "output, attempt) VALUES ('tr35', 'batch_1', 'tst_crit_1', 'd607d440', "
+                 "?, ?, 6)", (result, output))
+
+
+def test_the_check_line_of_a_collection_error_ends_with_the_error_not_the_frame(n132):
+    """Night 168's m53 line 4 read `Fails: File "...", line 13.`, and he
+    read a wrong cause from it (frame 336)."""
+    _seed_batch_1(n132, "error", TR35)
+    # The error ends with its own period, and the tail adds one more.
+    assert check_line(n132, "tst_crit_1").rstrip(".") == (
+        'crit 1, calls result = get_app_dir(app_name="test_app", roaming=True), '
+        'expects "AppData\\Roaming" in result. Fails: SyntaxError: "\\R" is an '
+        'invalid escape sequence. Did you mean "\\\\R"? A raw string is also an option')
+
+
+def test_the_check_line_of_an_assertion_red_keeps_the_first_e_line(n132):
+    """An assertion red puts the assertion first, and pytest's `where` lines
+    after it."""
+    output = ('>       assert "AppData\\Roaming" in result\n'
+              "E       AssertionError: assert 'AppData\\\\Roaming' in 'C:\\\\Users\\\\r'\n"
+              "E        +  where 'C:\\\\Users\\\\r' = get_app_dir()\n")
+    _seed_batch_1(n132, "fail", output)
+    assert check_line(n132, "tst_crit_1").endswith(
+        "Fails: AssertionError: assert 'AppData\\\\Roaming' in 'C:\\\\Users\\\\r'.")
+
+
+def test_the_check_line_of_a_green_run_passes(n132):
+    _seed_batch_1(n132, "pass", "1 passed in 0.05s")
+    assert check_line(n132, "tst_crit_1") == (
+        'crit 1, calls result = get_app_dir(app_name="test_app", roaming=True), '
+        'expects "AppData\\Roaming" in result. Passes.')
+
+
 # Night 133's bg_2 at 79870bfc: its own tests green, the project's two red.
 N133 = [("cr_1_confirm_eof_default", "When confirm() receives default_on_eof=True and "
          "stdin reaches EOF, it must return the provided default value rather than "
