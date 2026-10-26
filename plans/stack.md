@@ -14,6 +14,71 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 24, recommended on night 167's read, 2026-10-26 07:32
+
+Night 167 ended sprint 23 of 2026-10-25 22:50, because it was that
+sprint's night and frame 323's Gemma night. It ran cold from 40b16f78,
+04:47 to 07:12:58, items get_app_dir, clear, format_filename, profile
+`local-gemma-cr-ts`, gemma4:12b-it-qat in the Critic and Tester seats:
+344 sessions, 35 live principal calls, 6 batches, 0 merged, against 213,
+13 and 2 on night 166 (observed: `plans/night167-read.md`, section 0).
+No frame closes. This head is night 1 of 3 for frames 328 and 329, night
+2 of 3 for frames 283 and 321. Rota's doors stopped walks 2 and 3, and
+frame 315's loop stopped walk 1, before the Gemma seats had a part: the
+Critic reached no review and the night holds 0 verdict rows (reasoned: the
+read, sections 1 and 4). Twelve walls: W1 a line-1 sentence no role can
+remove, frame 315; W2 a body's backslash loses one escape level, candidate
+C2; W3 the one-test guard drops the asked re-encode, 328 pass 3; W4 the
+quote check refuses the ESC byte form, 328 pass 3b; W5 the surface door
+and the one-program door refuse each other's remedy, 324; W6 the note door
+held on 19 right refusals, 283 measured; W7 the Tester's test path
+replaces the module under test, 15 of 62 encodes, candidate C1; W8 the
+criterion half refuses an unpaired outer quote, 328 residue; W9 a
+docstring item gets a behaviour criterion first, 322 at 7d37adcd; W10 the
+Gemma seats cut 15 replies, 323; W11 the shift page hides a quarantined
+tick, 312; W12 the constraint tick at onboarding, no frame. The code on
+the branch at 4bb2656b, replayed on the rows: frame 328's pass 3 lets 6 of
+50 refused challenges through and lands s271's re-encode so bg_5 goes
+green; frame 315's 01c0f5fa gives walk 1 an exit at s161; frame 322's
+7d37adcd refuses c_1 v1, and his m180 and m195 agree (reasoned: the read,
+questions 3 to 5).
+
+The order, each row a frame on the stack or a candidate in the read
+(reasoned: the read, section 5; the economy at 20 live of 10, so a
+candidate is placed and not pushed):
+
+1. The gate at 4bb2656b with re-records from `rota_g328`, so that frame
+   328's pass 3, frame 315's 01c0f5fa and frame 322's 7d37adcd are on
+   night 168's head. Running since 07:21. Then the three red cases that
+   waited for the card re-record from the same worktree.
+2. Frame 328, pass 4, W7 and W2's second half: `tests.encode` refuses a
+   test path that is a file of the code index outside the test folders,
+   and a run that errors at collection goes back to the Tester as a red.
+   Held under the frame's first clause, which names a red at encode that
+   goes back to the Tester, and not pushed as C1 (reasoned: a collection
+   error is that red, and the economy). The count clause of C1, encodes
+   under `src/` from 15 of 62 toward 0, stays in the read. 1 read, 2
+   build and a review. The next night's wall.
+3. Frame 328, residue, W8: the criterion half reads an unpaired outer
+   quote and `\'` as the seat's call syntax. 1 cycle and a review.
+4. Frame 324, W5: a qualified `examples/` surface on a respecify, and the
+   two doors that refuse each other. Its pending read, then 2 build.
+5. Frame 312, second half, W11: the shift page names the quarantined tick
+   of the parked item. 1 cycle.
+6. Frame 323, fourth clause: Roman rules the switch. The question is in
+   the frame's block with the recommended answer. Until he rules, the
+   next night runs qwen3.5:9b in every seat (assumed: his "Nothing blocks
+   on me for multiple sessions", 2026-10-18 02:35).
+7. C2, W2: the call's escape level of a body. 1 read, in the read until a
+   close makes room.
+
+Owed from sprint 23 and before: the four frames Roman agreed to on
+2026-10-25 at 23:21 and the challenge-channels frame push at the next
+close; W-B, W-C and W-F stay in night 166's read. Night 168 runs cold from
+the head of rows 2 and 3, the same three items in the same order, qwen3.5:9b
+in every seat unless Roman rules the switch first, and measures night 2 of
+3 for frames 328 and 329.
+
 ## Sprint 23, recommended on night 166's read, 2026-10-25 22:50
 
 Night 166 ended sprint 22 of 2026-10-25 02:30, because it was that
@@ -1246,6 +1311,7 @@ a different question and the night is then opened once.
 - Status 2026-10-26 06:13 (rota-04): Night 167 at 06:1x, from `plans/night167-walk1-loop.md`, section 4: every Tester and Critic session ran on gemma4:12b-it-qat, 5 Tester sessions on bg_1 and 15 Critic sessions, 14 of them onboarding ticks and one review, with 0 verdicts; walk 1 ended stuck at 174 steps on frame 315's site, and walk 2 on `clear()` runs since 06:09. The night runs on, because walk 2 is its chance to reach the two seats with a batch. Meta workflow.
 - Status 2026-10-26 06:46 (rota-04): Night 167, walk 2, from `plans/night167-walk2-read.md`, section 5: the Gemma Tester needed 3 sessions and 15 encodes where night 166's qwen Tester needed 1 session and 6 and was green on the first run; Gemma wrote a test red on any right code and fixed it one turn after the note, and the guard dropped the fix; the Gemma Critic had no diff to review and its one challenge matched night 166's verdict. 0 of 2 items merged by 06:32 against 2 of 2 on night 166. Meta workflow.
 - Status 2026-10-26 07:14 (rota-04): Night 167 ended 07:12:58, 0 of 3 items merged against 2 of 3 on night 166; the Gemma Tester in walk 3 ran 5 sessions and 10 encodes, all at the wrong path, with reply cuts in 4 of 5 sessions; the Gemma Critic ran 0 review sessions in walks 2 and 3 and the night has 0 verdict rows. The fourth clause's question goes to Roman from the night read, `plans/night167-read.md`, with the trial's provenance first. Meta workflow.
+- Status 2026-10-26 07:32 (rota-f9): **The fourth clause's question to Roman, from night 167's read, `plans/night167-read.md` section 5.** The provenance: he asked on 2026-10-25 at 01:40 to test gemma4:12b-it-qat on the recorded cases and to switch where it is better; the trial gave Gemma 0.79 at the Critic against 0.40 and 0.73 at the Tester against 0.53; he ruled at 18:57 that the Gemma night runs after frame 327's fix. Night 167 ran it: 0 of 3 merged against 2 of 3 on night 166, the Critic reached no review and the night holds 0 verdict rows, the Gemma Tester needed 3 sessions and 15 encodes where qwen needed 1 and 6 and wrote 15 of 62 encodes at a path that replaced the module under test, and cut 15 replies in 14 of 30 sessions; rota's doors stopped walks 2 and 3 and frame 315's loop stopped walk 1 before the two seats had a part (observed: the read, sections 0, 2 and 4). The question: keep qwen3.5:9b in the Critic and Tester seats, and give Gemma one more night only after the path door and frame 328's pass 3 are on the night's head? Recommended: yes. Waits on: his answer. Until it comes, night 168 runs qwen3.5:9b in every seat (assumed: his "Nothing blocks on me for multiple sessions", 2026-10-18 02:35). Meta workflow.
 
 ### 322. The criteria wake names the item and not the ticket that has no criterion, and the twin refusal asks for a second sentence, so the Terminologist invents cases for the empty ticket (2026-10-25) (48122667) (79847ec6) (b18846fb) (0699ee05) (66edc387) (ad481e08) (4cdad7e1)
 
@@ -1960,6 +2026,7 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
 - Status 2026-10-26 07:15 (rota-04): Handed to 4cdad7e1 (rota-f9) at 07:14:57, confirmed 17 seconds after the claim, at stack commit 185e5003, at the night boundary with every held frame at a commit: the branch at 4bb2656b, the gate at 01c0f5fa running from `rota_g328`, the night read running on this session's agent to `plans/night167-read.md`. The note is `plans/method/handoff-ad481e08.md`. This session's peer name is rota-04. It keeps its last context to answer the taker and stops on the word released. Meta workflow.
 - Status 2026-10-26 07:17 (rota-f9): Taken from ad481e08 (rota-04) at 07:14:57 with the branch at 01c0f5fa, frame 315's residue on it, the gate at 01c0f5fa running from `rota_g328` since 06:59 on the sender's process, and the night read running on the sender's agent to `plans/night167-read.md` since 07:14. This session's peer name is rota-f9. The seven headings the sender held carry 4cdad7e1: 328, 326, 324, 323, 322, 315 and 283. Next in order: the gate's five lines at 01c0f5fa, the night read when it lands or run again from the sender's brief, sprint 24 at the top of the stack from its section 5, then row 1 of that sprint. Meta workflow.
 - Status 2026-10-26 07:21 (rota-f9): The gate at 4bb2656b, the branch head with frame 328's passes 3 and 3b, runs from `rota_g328` since 07:21 with re-records, the card free after the night; its output is `gate_4bb2656b.txt` in this session's scratchpad. The stale case it re-records is `L1-TE-a-docstring-ticket-gets-a-docstring-criterion`. The three red cases that waited for the card, `L1-DV-a-wordless-answer-on-a-right-red-test-is-carried-on`, `L1-DV-fix-what-the-verdict-names` and `L1-DV-give-the-new-parameters-defaults`, re-record after it from the same worktree, one register writer at a time. Meta workflow.
+- Status 2026-10-26 07:32 (rota-f9): **Night 167's read landed at 0ce71247, written by rota-04's agent, about 235k on the harness line against 120k, `plans/night167-read.md`: 0 of 3 merged against 2 of 3 on night 166, 344 sessions against 213, 35 live principal calls against 13; no frame closes; twelve walls W1 to W12 with their frames, two candidates C1 the test path that replaces the module under test and C2 a body's escape level; this frame's sign 0 of 3 batches, 19 right note-door refusals, night 2 of 3** (observed: the read, sections 0, 2 and 3). Sprint 24 is written at the top of the stack from section 5: row 1 the gate at 4bb2656b, row 2 frame 328's pass 4 for W7 held under its first clause and not pushed, the next night's wall. The frame 323 question is on its block with the recommended answer. Meta workflow.
 ### 284. The raised-signature push reads only native traceback frames, so a raise that pytest reports is never pushed (2026-10-17)
 
 - **Site: `_TRACE_FRAME` and `_raised_signature_pushes` in `rota/core/runner.py`, frame 223's site, which closed on this read.** Rota workflow. On night 154 the push of frame 223 fired on 0 of 19 Tester challenge wakes: no failed run's output holds a `File "..."` frame, because pytest prints its frames in its own form, and s293's real `raise` in project source, `src/click/termui.py:340: Abort`, got no push (observed: `plans/night154-read.md`, section 1, 2026-10-17). Cause 8 by the guide, a door wrong not to fire (reasoned: the read, section 11).
