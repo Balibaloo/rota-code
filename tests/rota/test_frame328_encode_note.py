@@ -97,6 +97,12 @@ def db(tmp_path):
                  (HEAD, str(root)))
     conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
                  "('bg_3','tk1')")
+    # s195's `code.commit` of the docstring: the batch's own commit, as the
+    # night's `receipts` table holds it.
+    conn.execute("INSERT INTO sessions (id, role, seq, committed) VALUES "
+                 "('s195','developer',195,1)")
+    conn.execute("INSERT INTO receipts (session_id, table_name, row_id, "
+                 "new_version) VALUES ('s195','batches','bg_3',6)")
     conn.commit()
     return conn
 
@@ -135,3 +141,41 @@ def test_a_test_green_at_the_head_lands_with_no_note(db, monkeypatch):
     # The run happened and passed, so the missing note is the rule's.
     assert seen == ["pass"]
     assert out == {"id": "tst_c1_format_filename_example"}
+
+
+def test_a_base_head_after_a_boot_gives_no_note(db):
+    """Review 1, finding 1: a boot writes the git head into `head_commit`
+    with no session. With no `code.commit` of the batch, a test written
+    before the code is red by design, so it lands with no note."""
+    db.execute("DELETE FROM receipts")
+    # The Architect's receipt on the batch row is no commit.
+    db.execute("INSERT INTO sessions (id, role, seq, committed) VALUES "
+               "('s187','architect',187,1)")
+    db.execute("INSERT INTO receipts (session_id, table_name, row_id, "
+               "new_version) VALUES ('s187','batches','bg_3',5)")
+    db.commit()
+    out = _encode(db, S198_C1["body"])
+    assert out == {"id": "tst_c1_format_filename_example"}
+
+
+def test_two_red_tests_in_one_body_each_name_their_own_line(db):
+    """Review 1, finding 3: the note named the first test and quoted the
+    second test's line."""
+    body = ("from click.utils import format_filename\n\n"
+            "def test_keeps_the_path():\n"
+            "    assert format_filename(\"a/b/c.txt\", shorten=True) == \"a/b/c.txt\"\n\n"
+            "def test_shortens():\n"
+            "    assert format_filename(\"a/b/c.txt\", shorten=True) == \"c.txt\"\n\n"
+            "def test_keeps_the_dir():\n"
+            "    result = format_filename(\"a/b/c.txt\", shorten=True)\n"
+            "    assert \"b/\" in result\n")
+    note = _encode(db, body)["note"]
+    first = ("The run of `test_keeps_the_path` on the batch's head fails at "
+             "line 4, `assert format_filename(\"a/b/c.txt\", shorten=True) == "
+             "\"a/b/c.txt\"`:")
+    second = ("The run of `test_keeps_the_dir` on the batch's head fails at "
+              "line 11, `assert \"b/\" in result`: `AssertionError: assert "
+              "'b/' in 'c.txt'`.")
+    assert first in note and second in note
+    assert note.index(first) < note.index(second)
+    assert "test_shortens" not in note

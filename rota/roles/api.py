@@ -17039,34 +17039,61 @@ def _surface_pick(ctx, batch_id, criterion_id, refs: list) -> list:
     return hit if len(hit) == 1 else []
 
 
-def _own_assertion(body: str, path: str, said: str) -> dict | None:
-    """
-    The failed assertion of the test's own file in a run, or None.
+#: The header pytest writes above each failed test's traceback.
+_FAIL_HEADER = re.compile(r"^_{3,} (\S.*?) _{3,}$")
 
-    The last traceback location must be the test's file and must name an
-    `AssertionError`. An assert inside the project's code gives None,
-    because the test did not write it.
+
+def _developer_committed(ctx, batch_id) -> bool:
+    """The batch has a `code.commit` of its own: a Developer session's
+    receipt on the batch's row. `code.commit` is the one session write of
+    `head_commit`, and a boot writes it with no session."""
+    return ctx.conn.execute(
+        "SELECT 1 FROM receipts r JOIN sessions s ON s.id = r.session_id "
+        "WHERE r.table_name = 'batches' AND r.row_id = ? "
+        "AND s.role = 'developer' LIMIT 1", (batch_id,)).fetchone() is not None
+
+
+def _own_assertions(body: str, path: str, said: str) -> list[dict]:
+    """
+    Each failed assertion of the test's own file in a run, one per failed
+    test, in the run's order.
+
+    In each test's traceback, the last location must be the test's file and
+    must name an `AssertionError`. An assert inside the project's code gives
+    nothing, because the test did not write it. Review 1, finding 3: with two
+    red tests in one body, each test keeps its own name and its own line.
     """
     from ..core.runner import _LOCATION
 
     lines = (said or "").splitlines()
-    found = [(i, m) for i, ln in enumerate(lines) if (m := _LOCATION.match(ln))]
-    if not found or not lines[found[-1][0]].endswith("AssertionError"):
-        return None
-    at, m = found[-1]
-    where = m.group(1).replace("\\", "/")
-    if not path or not (where == path or where.endswith("/" + path)):
-        return None
+    heads = [(i, m.group(1)) for i, ln in enumerate(lines)
+             if (m := _FAIL_HEADER.match(ln))]
+    if not heads:
+        name = next((ln.split("::", 1)[1].split(" ", 1)[0]
+                     for ln in reversed(lines)
+                     if ln.startswith("FAILED ") and "::" in ln), "")
+        heads = [(0, name)]
     src = (body or "").splitlines()
-    line = int(m.group(2))
-    arrow = max((i for i in range(at) if lines[i].startswith(">")), default=-1)
-    error = next((ln[1:].strip() for ln in lines[arrow + 1:at]
-                  if ln.startswith("E ")), "AssertionError")
-    name = next((ln.split("::", 1)[1].split(" ", 1)[0] for ln in lines
-                 if ln.startswith("FAILED ") and "::" in ln), "")
-    return {"line": line, "name": name,
-            "quote": src[line - 1].strip() if 0 < line <= len(src) else "",
-            "error": error if len(error) <= 160 else error[:157] + "..."}
+    out = []
+    for k, (start, name) in enumerate(heads):
+        end = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
+        found = [(i, m) for i in range(start, end)
+                 if (m := _LOCATION.match(lines[i]))]
+        if not found or not lines[found[-1][0]].endswith("AssertionError"):
+            continue
+        at, m = found[-1]
+        where = m.group(1).replace("\\", "/")
+        if not path or not (where == path or where.endswith("/" + path)):
+            continue
+        line = int(m.group(2))
+        arrow = max((i for i in range(start, at) if lines[i].startswith(">")),
+                    default=start - 1)
+        error = next((ln[1:].strip() for ln in lines[arrow + 1:at]
+                      if ln.startswith("E ")), "AssertionError")
+        out.append({"line": line, "name": name,
+                    "quote": src[line - 1].strip() if 0 < line <= len(src) else "",
+                    "error": error if len(error) <= 160 else error[:157] + "..."})
+    return out
 
 
 def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
@@ -17134,15 +17161,22 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
         # red woke only the Developer. The Tester never saw its own run. So
         # the run's assertion goes to the Tester as a note. The door refuses
         # nothing, because the code at the head can be wrong.
-        held = _own_assertion(body, path, said)
-        if held and notes is not None:
-            who = f"`{held['name']}`" if held["name"] else "this body"
+        # Review 1, finding 1: a boot writes the git head into `head_commit`
+        # before any Developer commit. A test written before the code is red
+        # there by design, so the note waits for the batch's own commit.
+        held = (_own_assertions(body, path, said)
+                if notes is not None and _developer_committed(ctx, batch_id)
+                else [])
+        if held:
+            runs = " ".join(
+                f"The run of {('`' + h['name'] + '`') if h['name'] else 'this body'}"
+                f" on the batch's head fails at line {h['line']}, "
+                f"`{h['quote']}`: `{h['error']}`." for h in held)
             notes.append(
-                f"The run of {who} on the batch's head fails at line "
-                f"{held['line']}, `{held['quote']}`: `{held['error']}`. The "
-                f"test is stored. The batch's head has a commit. If the "
-                f"criterion's words give the value that the run shows, the "
-                f"test is wrong. Encode it again with the same id.")
+                f"{runs} The test is stored. The batch's head holds the "
+                f"Developer's commit. If the criterion's words give the value "
+                f"that the run shows, the test is wrong. Encode it again with "
+                f"the same id.")
         return None
 
     def _short(s: str) -> str:

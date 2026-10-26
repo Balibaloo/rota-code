@@ -109,6 +109,30 @@ def test_a_run_at_another_commit_is_no_green_at_the_head(db):
     assert sandbox._green_at_head_refusal(_ctx(db), M88_REFS) is None
 
 
+def test_a_re_encode_at_the_same_head_leaves_no_green_run_for_the_door(db):
+    """Review 1, finding 6: the door must read the run of the body that
+    stands. A re-encode lands through `session_commit`, which deletes the
+    old body's runs (walk eighteen), so no run of an older body is left at
+    the head. The review's probe changed the body with a raw UPDATE."""
+    from rota.core.db import SessionResult, session_commit
+    from rota.core.runner import _as_write
+
+    db.execute("UPDATE tests SET body = ? WHERE id = "
+               "'tst_c1_format_filename_example'", (TST_C1_S200,))
+    _runs(db, 3, [("pass", PASS_3), ("fail", FAIL), ("fail", FAIL)])
+    assert sandbox._green_at_head_refusal(_ctx(db), M88_REFS)
+    sb = build("tester", db, batch_id="bg_3", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c_1_format_filename_example",
+            verdict="encodable")
+    sb.call("tests.encode", id="tst_c1_format_filename_example",
+            criterion_id="c_1_format_filename_example",
+            path="tests/test_utils/test_format_filename_c1.py",
+            body=TST_C3_S198.replace("c_3", "c_1"))
+    session_commit(db, SessionResult(session_id="s202", role="tester",
+                                     writes=[_as_write(w) for w in sb.ctx.writes]))
+    assert sandbox._green_at_head_refusal(_ctx(db), M88_REFS) is None
+
+
 def test_a_critic_challenge_on_a_green_test_does_not_meet_the_door(db):
     """At review every test is green by construction, so the door is the
     Developer's only."""
