@@ -10,6 +10,8 @@ leaves the criterion exactly as untested as it was before you asked.
 
 **Encode the test against the criterion id the answer names, and call the function its surface names after you read it with `code.source`.**
 
+**The path of `tests.encode` is a test file, `tests/test_<thing>.py`, and never the file of the code under test.**
+
 **When the message holds `principal_said`, those words are the principal's ruling on this criterion or its test, and the test checks what the words ask.**
 
 When `principal_test_verdict` names a test that his words drop, call `tests.retire` with that test id and encode nothing for it.

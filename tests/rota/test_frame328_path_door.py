@@ -138,3 +138,18 @@ def test_a_collection_error_before_the_developer_commit_stays_silent(
     out = _encode(idb, "tests/test_shorten.py", COLLECT_BODY)
     assert [v for v, _ in seen] == ["error"]
     assert out == {"id": S198_C1["id"]}
+
+
+PATH_LINE = ("The path of `tests.encode` is a test file, "
+             "`tests/test_<thing>.py`, and never the file of the code under "
+             "test.")
+
+
+@pytest.mark.parametrize("mode", ["answer", "challenge"])
+def test_the_brief_names_the_test_path_form_once(mode):
+    """All 31 encodes at a `src/` path on nights 166 and 167 came in the
+    `answer` and `challenge` modes, and neither brief named a path form."""
+    from pathlib import Path
+    text = (Path(api.__file__).parent / "prompts" / "tester"
+            / f"{mode}.md").read_bytes().decode("utf-8")
+    assert text.count(PATH_LINE) == 1
