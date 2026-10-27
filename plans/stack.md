@@ -14,6 +14,33 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
+## Sprint 27, recommended on night 170's read, 2026-10-27 13:37
+
+Night 170 merged 2 of 3 items, from 0 of 3 on nights 168 and 169. The
+walk on `format_filename` stopped at the Tester's test door (observed:
+`plans/night170-read.md`, sections 0 and 3). Night 170 is night 1 of 3
+for 330, 335, 337's second half and 339. It gives no sample for 336 and
+338. 328's third clause reads 2 on its third night (observed: the read,
+section 4). No frame closes on this night. Order:
+
+1. Frame 343, the stop: the test door refuses the touch path that the
+   Tester's brief names, and his "no new test is needed" reaches no row.
+   The read of rule C76 runs first. Beside it, frame 341, the wall guide
+   prices by reach, because its site is the guide only.
+2. Frame 339's residue: s128 removed line 518 and committed on its first
+   call with no grant, and the removal door did not fire. A read of s128
+   runs before night 171 counts 339 again (reasoned: a door that did not
+   fire may not run at all, and rota's purpose is no work he did not ask
+   for).
+3. Night 171 after 343's commit: night 2 of 3 for 330, 335, 337, 339,
+   324 and 328, with a sample for 336 and 338 if a page shows one.
+4. The rulings door, F2: 29 `rulings.rule` refusals in 11 sessions, and
+   one door text made the Liaison contest a line he did not fault (W4).
+   A count on sprint 26's row 3, read after night 171.
+5. Sprint 26's list for sprint 27 stands below it: F25 (W7), F17 (W8),
+   F4 (W3), F21 (W14, W15), F22 and F19 (W13). W10 to W12, the onboarding
+   repeats, are under no fact and slow a walk without a stop.
+
 ## Sprint 26, by fact, re-cut 2026-10-26 23:06 from `plans/facts-2026-10-27.md`
 
 The unit of this sprint is the fact and its one reader, not the frame
@@ -1286,6 +1313,16 @@ a different question and the night is then opened once.
 **Roman ruled the order on 2026-10-07 00:55** (ruled: Roman, "Ok" to this session's recommendation after the five-day read, `plans/stack.md` of this minute). After night 127's read: 1. **Frame 131, a test calls a plain function as a Click command**, first, ahead of every unclaimed stall frame, because every night since 120 ends on its shape. 2. **Frame 170, a merge's review leaves no trace a person can read**, pushed on the same word. 3. **Frame 144, the night databases as a test tier**, runs to its close after pass 10 and takes no new item. 4. The rest of batch C stays unclaimed until a night shows one of its frames stopping a batch that frames 131 and 152 no longer stop. The reasoning: 24 frames closed in five days against 32 pushed in two, merges per night flat at 0 or 1 from night 116 to 126, and about 3M agent tokens on batch C's doors and nudges while frame 131 stood unclaimed since 2026-10-05 (observed: the five-day read of this session, 2026-10-07 00:40).
 
 **Roman ruled the order on 2026-10-09 10:31** (ruled: Roman, chose "Re-batch around what the principal sees" from three options, the recommended one, asked by `AskUserQuestion` at 10:31 after the two momentum notes of 2026-10-09 put it as the next question). The next frame is one design frame on the present page, frame 190, what the principal sees. Frame 45, frames 184 to 189, night 133's wall 2 and night 136's walls 3, 4 and 12 are its walls. Frame 189's correction lands inside it. Frames 185 and 189 alone were the other two options and were declined. The reasoning: night 136's walk 3 showed 11 one-line pages whose one line was a seat's ledger row, and no ruling could carry the principal's exact line to the item, 1.35 dollars and 42 sessions; night 133 showed 16 whole-page contests, 11 in walk 2, each "none of these lines is about my request"; and the frames pushed since 2026-10-08 are each one symptom of that fact (observed: `plans/night136-read.md`, sections 2 and 8, and `plans/night133-read.md`, section 8, 2026-10-09). Meta workflow.
+
+### 343. The Tester's brief sends a test to a touch path that the test-file door refuses, and his "no new test is needed" reaches no row, so a docstring criterion stops the walk (2026-10-27) (c66eae69)
+
+- **Site: open until the read; the door is `tests_encode` in `rota/roles/api.py` by the map tool.** Rota workflow. On night 170, walk 3, s196 to s200 sent 12 encodes for c_1_format_filename_example to `tests/test_formatting.py` and one other inherited file; the door refused each as "already inh_..'s file", and no Tester sent a new file name. The brief says "A path under `touch` is the file the principal expects your tests in. Use it." The key quarantined at 3. He wrote "no new test is needed" in m91, m97 and m103, and no row changed (observed: `plans/night170-read.md`, W1, W2, section 3).
+- Ends when: first, the read of rule C76 at `plans/frame343-read.md` names the mechanism, the ruling behind a test per criterion, and the reach; second, with night 170's s196 as the red case, the Tester lands a test or his words land a row the tick reads; third, on a night, walks stopped at the test door from 1 of 3 toward 0 of the next 3.
+- Waits on: nothing. Priced 1 read cycle, about 120k on Opus, then 2 to 3 build cycles and a review (reasoned: rule C76 and rule C42).
+- Reach: open until the read writes it.
+- Sprint: sprint 27, row 1 (reasoned: the one wall that stopped night 170).
+- Pointer: `plans/night170-read.md`, sections 2 and 3; s196 to s230 in `.rota/clickI_night170.db`.
+- Status 2026-10-27 13:37 (rota-49): Pushed from night 170's read. Held by this session, peer name rota-49. The read of rule C76 runs next on Opus. Rota workflow.
 
 ### 341. The wall guide prices a fix at one door as the norm, so a placed wall is fixed where the night showed it and not where its reach is (2026-10-26)
 
