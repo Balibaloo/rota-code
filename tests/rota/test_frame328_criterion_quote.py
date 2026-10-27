@@ -17,6 +17,7 @@ import pytest
 from rota.core import sandbox
 from rota.core.db import init_db
 from rota.core.sandbox import build
+from rota.roles import api
 
 HEAD = "fa4e8230683d1c96b6db942d7e2294b088090050"
 CRIT = "c_1_format_filename_example"
@@ -128,8 +129,9 @@ def test_the_refusal_names_the_form_the_door_read(db):
     with pytest.raises(ValueError) as exc:
         _challenge(db, S336)
     assert (
-        "The door reads `\\'` as `'` and `\\\"` as `\"`. It drops one outer "
-        "quote mark at each end, and a `.` after the closing quote mark. Read "
+        "The door also reads the quote as the call stores it from your text, "
+        "with each escape read as Python reads it. It drops one outer quote "
+        "mark at each end, and a `.` after the closing quote mark. Read "
         "that way, the quote is `When shorten=True, format_filename(a/b/c.txt) "
         "returns 'c.txt'`, and the live text of c_1_format_filename_example "
         "holds no such span.") in str(exc.value)
@@ -142,8 +144,14 @@ def test_a_quote_shorter_than_the_floor_is_still_refused(db, quote):
         _challenge(db, quote)
 
 
+def _stored(quote):
+    """F19: the value that the strict path of the call stores."""
+    return api._call_values(quote)[0]
+
+
 def test_the_seat_forms_keep_the_whole_text_and_drop_only_the_outer_marks():
-    assert sandbox._seat_forms(S327)[0] == CRIT_LIVE
-    assert sandbox._seat_forms(S336)[0] == CRIT_LIVE[:-1]
-    assert sandbox._seat_forms(M189)[0] == CRIT_LIVE
-    assert sandbox._seat_forms(CRIT_LIVE) == [CRIT_LIVE]
+    assert sandbox._outer_marks(_stored(S327))[0] == CRIT_LIVE
+    assert sandbox._outer_marks(_stored(S336))[0] == CRIT_LIVE[:-1]
+    assert sandbox._outer_marks(_stored(M189))[0] == CRIT_LIVE
+    assert sandbox._outer_marks(CRIT_LIVE) == []
+    assert CRIT_LIVE in sandbox._quote_forms(S327)[1]

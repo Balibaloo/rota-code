@@ -240,7 +240,8 @@ def test_a_quote_on_neither_reading_is_refused_with_both_readings(cdb):
     assert said.startswith(
         f"quotes= holds `{quote}`, and it is not in the live text of "
         f"{TST_ID}. A comment of the test does not count.")
-    assert ("The door also reads each `\\\\` as one backslash. Read that way, "
+    assert ("The door also reads the quote as the call stores it from your "
+            "text, with each escape read as Python reads it. Read that way, "
             "the quote is `assert \"AppData\\Local\" in result`, and the code "
             f"of {TST_ID} holds no such span.") in said
 
