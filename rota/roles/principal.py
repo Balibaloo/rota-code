@@ -390,11 +390,12 @@ def render_state(conn: sqlite3.Connection) -> str:
     # wake is live. A quarantined wake writes nothing (observed: frame 87's
     # review of 4a0ab5c, 2026-09-30).
     from ..core.predicates import park_ask as _park_ask
-    from ..core.scheduler import tick_key
+    from ..core.scheduler import quarantined_keys, tick_key
 
-    coming = {w.refs[1] for w in _park_ask(conn) if not conn.execute(
-        "SELECT 1 FROM tick_attempts WHERE tick_key = ? AND quarantined = 1",
-        (tick_key(w),)).fetchone()}
+    # `quarantined_keys` is the one reader of a quarantine (fact F20).
+    quarantined = set(quarantined_keys(conn))
+    coming = {w.refs[1] for w in _park_ask(conn)
+              if tick_key(w) not in quarantined}
     from ..core.scheduler import (park_ask_id, park_message_rests, park_reds,
                                   park_ruling)
 

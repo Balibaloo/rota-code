@@ -2346,7 +2346,7 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     # deferred branch. A green batch has no failing run at head (frame 330,
     # pass 5). The harness judges the `tests_failing` key at a new head
     # instead (frame 318), so that key keeps the exit below.
-    if any(k.split("|", 2)[1] != "tick:tests_failing"
+    if any(key_parts(k)[1] != "tick:tests_failing"
            for k in _running_given_up(conn, batch_id)):
         return True
     # A head commit newer than the failing runs is a fix nobody has tested.

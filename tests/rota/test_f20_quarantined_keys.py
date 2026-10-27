@@ -220,3 +220,71 @@ def test_the_invariant_reads_a_pair_key_through_the_one_parse(db):
     _quarantine(db, "critic|tick:finding_review|b_1,f_2")
     assert [f.text for f in i6(db)] == [
         "quarantined critic|tick:finding_review|b_1,f_2 names merged b_1"]
+
+
+# The one-reader pin of fact F20. A later session that reads a quarantine or
+# splits a tick key by its own rule turns these tests red (rule C76).
+import ast
+from pathlib import Path
+
+_PKG = Path(__file__).resolve().parents[2] / "rota"
+
+# A write of the flag is not a read of the fact. Each site names its write.
+_QUARANTINE_WRITES = {
+    ("rota/core/db.py", "lift_keys"): "the one delete of a quarantined key",
+    ("rota/core/loop.py", "step"): "marks the reported keys",
+    ("rota/core/scheduler.py", "quarantine_overrun"): "sets the flag",
+    ("rota/core/scheduler.py", "quarantine_stalled"): "sets the flag",
+}
+
+# These splits read no tick key. Each site names what it splits.
+_PIPE_SPLITS = {
+    ("rota/core/sandbox.py", "_scalar_kind"): "a type annotation union",
+    ("rota/llm/toolproto.py", "_labelled"): "a markdown table row",
+}
+
+
+def _functions():
+    for path in sorted(_PKG.rglob("*.py")):
+        rel = path.relative_to(_PKG.parent).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                yield rel, node
+
+
+def _own(fn):
+    """The nodes of `fn` that no nested function holds."""
+    stack = list(ast.iter_child_nodes(fn))
+    while stack:
+        node = stack.pop()
+        yield node
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            stack.extend(ast.iter_child_nodes(node))
+
+
+def test_only_quarantined_keys_reads_the_quarantine_flag():
+    readers = set()
+    for rel, fn in _functions():
+        for node in _own(fn):
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and "quarantined = 1" in " ".join(node.value.split())):
+                readers.add((rel, fn.name))
+    allowed = {("rota/core/scheduler.py", "quarantined_keys"), *_QUARANTINE_WRITES}
+    assert readers - allowed == set()
+    assert ("rota/core/scheduler.py", "quarantined_keys") in readers
+
+
+def test_only_key_parts_splits_a_tick_key():
+    splitters = set()
+    for rel, fn in _functions():
+        for node in _own(fn):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in ("split", "rsplit", "partition",
+                                           "rpartition")
+                    and node.args and isinstance(node.args[0], ast.Constant)
+                    and node.args[0].value == "|"):
+                splitters.add((rel, fn.name))
+    allowed = {("rota/core/scheduler.py", "key_parts"), *_PIPE_SPLITS}
+    assert splitters - allowed == set()
+    assert ("rota/core/scheduler.py", "key_parts") in splitters
