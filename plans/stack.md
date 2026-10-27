@@ -1636,6 +1636,7 @@ a different question and the night is then opened once.
 - Status 2026-10-27 17:00 (rota-ba): **Night 171: bg_1's tests_failing key quarantined at 3 after 6 Developer sessions; his later in walk 2 deferred bg_1 and freed the batch seat, and bg_2 merged** (observed: plans/night171-read.md, read at 17:00). Night 2 of 3 for 330 at 9827e38a, before F20 landed. Meta workflow.
 - Status 2026-10-27 19:40 (rota-ba): Handing off at 19:40 on Roman's ask, with frames 339, 340, 324, 341, 343 and 344. The note is plans/method/handoff-6d9cf7e1.md. No standby is free, so the claim waits on disk. F25 pass 1e, F7 pass 2 and the W3 review run on this session's agents, and rota-ba relays each result to the taker. Meta workflow.
 - Status 2026-10-27 19:40 (rota-ba): Handed to nobody yet at 19:40: the reserve was empty, so frame 330 waits as a vacancy at commit b2fb61ec, .handover/waiting/frame-330-058876286.json; the next session that arms a watcher takes it. Meta workflow.
+- Status 2026-10-27 19:41 (rota-ea): Taken by b3bc8a66, peer name rota-ea, at 19:41 from rota-ba with frames 339, 340, 324, 341, 343 and 344, at ae9b99c6. Roman's ask at the take: every fix of sprints 28 to 31, W3 and the how_it_works cause lands before night 172, with a gate on each. First: land F25 after pass 1e, F37, W3, F7 after review p2, then sprint 29 by score. Meta workflow.
 
 ### 331. The 19 owed cases run on no fixture, the fourth Tester case is not recorded, and the batch tree is indexed only under a case flag (2026-10-26)
 
