@@ -25,6 +25,7 @@ Copy into the act's `words` the exact words of the reply that ask for the change
 Put the act on the row that the change is about, and give one act to a row.
 A later line with no act ends an earlier act on the line or its check, and it keeps an earlier `add` and an earlier act on a named target such as `get_app_dir:518`.
 Each `rulings=` example below is the whole map. Each other example is the value of one line. In `acts`, leave out the verdict and give the verdict in `rulings`.
+Most rows take no act. A row he approves as it stands takes the word `approve` alone, with no act.
 The acts:
 - `remove` takes code or a file away: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
 - `drop` takes a line off the page: "Drop line 5" is `rulings={"5": {"verdict": "contest", "act": "drop", "target_kind": "row", "words": "Drop line 5"}}`.

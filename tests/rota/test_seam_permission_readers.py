@@ -378,7 +378,12 @@ def test_every_example_of_the_brief_passes_the_door(name):
                 value = {"verdict": "contest", **value}
             for key, one in (value.items() if whole else [("3", value)]):
                 assert key.isdigit(), found
-                api._ruling_shape(key, one)
+                # A line with no act takes the verdict word alone (the gate
+                # on 76e18948: the small model copied `keep` onto approves).
+                if isinstance(one, str):
+                    assert one in ("approve", "contest", "revise"), found
+                else:
+                    api._ruling_shape(key, one)
                 seen += 1
     assert seen >= 8, seen
 
