@@ -409,9 +409,11 @@ def test_the_shift_page_reads_that_act_names_are_not_verdicts():
     from rota.roles import prompts
 
     piece = prompts.piece("liaison", "landing")
-    sentence = ("The act names are not verdicts. On a page that asks which "
-                "request goes first, the verdicts stay `later`, `now` and "
-                "`drop`, as below.")
+    # The gate on e3b171e5: the model still read "a separate request" as
+    # the act drop, so the sentence shows that page's verdict with no act.
+    sentence = ("The act names are not verdicts. A page that asks which "
+                "request goes first takes no act and no `acts`: \"it is a "
+                "separate request\" is `rulings={\"1\": \"later\"}`.")
     assert sentence in piece
     assert piece.index(sentence) < piece.index("The acts:")
 
