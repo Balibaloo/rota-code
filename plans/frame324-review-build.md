@@ -113,3 +113,22 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e03f97
 - Input tokens: about 120k cumulative (estimate, no counter shown).
 - Output tokens: about 15k (estimate).
 - Total: about 135k.
+
+## Pass 1b
+
+**Pass 1b at ec6edb90 stands. Both high findings are fixed, and the probes confirm both. Of the four lows left, three reasons hold. Low 8's reason does not hold, but low 8 does not block a merge.**
+
+Probes: `git archive ec6edb90` into `r324/p1b/`, then the same scripts as above. The four test files `test_frame324_one_reader.py`, `test_frame324_program_rank.py`, `test_criteria_surface.py` and `test_prompts.py` give 102 passed.
+
+1. The high findings: FIXED, CONFIRMED.
+   - Finding 1: `p7.py` and `p7b.py` give "this test imports src, ... a second module is a second program" with a surface and without one, as on d495db74. `termui` is still refused. `place_one_program` still lands, so `billing` beside `store` passes.
+   - Finding 2: `p8.py` on night 167 gives `['src/click/termui.py::clear']` for the `clear` hint. The example has a program twin, so it is dropped. `src/click/testing.py::make_input_stream` is back. `examples/aliases/aliases.py::read_config` has no twin, so it stays, after the program row.
+   - The listing of point 2 is unchanged: `src/click/termui.py::clear`, kind `program`, at row 0.
+2. The remaining path patterns: no new partition site. Beside the sites that point 1 accepted, the wider grep finds test-function names (`api.py` 8499, 9409, 9512, 9836, 18127, 19548) and the new-file layout (19303, 20059). These are not program or demo decisions. The partition sites that remain are those of point 1: `runner.py` 4710, `api.py` 19559 (low 3), `scheduler.py` 1331, `lexicon.py` 248 and `areas.py` 237. Two more sites are low and PLAUSIBLE. These are the worktree scans at `api.py` 10238 and 10372. They skip `tests` only, so the first file that defines a name can be in `examples/`. `p9b.py` showed a right hint for 10238, and no probe reached 10372.
+3. The lows left:
+   - Low 3, the copy door: the reason HOLDS. The change alters which second definition counts as a convention, and that needs its own tests. Keep it on the frame's open list.
+   - Low 6, `place_known_modules`: the reason HOLDS. An exact assertion would pin the wrong `from python.bank.core` advice. The test checks the door it names. The advice is the hint scan's defect, and it is a separate item.
+   - Low 7, the stem of a file with no `__init__.py`: the reason HOLDS. A source-root rule is a design choice, and the cost today is a door that admits too much.
+   - Low 8, the `src` and `lib` glob used only as a fallback: the reason DOES NOT HOLD. "Still open" does not justify it, because pass 1 made the regression and a union with the glob restores the parent's behaviour with no design choice. Fix: `_known |= _program_mods` and the glob always, in `api.py` 10210 to 10216 of ec6edb90.
+
+Usage, pass 1b: about 14k input and 3k output (estimate).
