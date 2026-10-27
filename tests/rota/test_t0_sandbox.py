@@ -763,7 +763,9 @@ def test_a_challenge_of_another_test_does_not_open_a_project_test(db):
     assert str(exc.value) == (
         "inh_022b8a87 is the id of the project's test "
         "tests/test_utils/test_confirm.py. An encode never replaces a "
-        "project test. Send this encode again with a new id that you invent.")
+        "project test. Send this encode again with a new id that you invent "
+        "at path='tests/test_utils/test_confirm_c1.py', because "
+        "tests/test_utils/test_confirm.py holds the project's own tests.")
     assert sb.ctx.writes == []
 
 
@@ -793,8 +795,8 @@ def test_a_project_row_that_holds_a_criterion_is_still_the_projects(db):
 
 def test_a_project_id_on_another_tests_file_gets_the_id_fact_only(db):
     """s140's call 4 sent a project id and the file of another project test.
-    The door states the id fact only. The clash door answers the path on
-    the next call, in its own words."""
+    The door states the id fact. Frame 343: the offer names a new file
+    beside the other project test, so the clash door does not refuse it."""
     _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
     _a_stored_test(db, id="inh_01fdb170", criterion_id=None,
                    path="tests/test_utils/test_echo_via_pager.py")
@@ -809,7 +811,9 @@ def test_a_project_id_on_another_tests_file_gets_the_id_fact_only(db):
     assert str(exc.value) == (
         "inh_01fdb170 is the id of the project's test "
         "tests/test_utils/test_echo_via_pager.py. An encode never replaces "
-        "a project test. Send this encode again with a new id that you invent.")
+        "a project test. Send this encode again with a new id that you invent "
+        "at path='tests/test_utils/test_echo_c1.py', because "
+        "tests/test_utils/test_echo.py holds the project's own tests.")
 
 
 def test_a_challenge_fix_sent_with_backslashes_is_stored_with_slashes(db):

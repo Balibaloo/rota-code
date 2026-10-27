@@ -117,12 +117,10 @@ def test_a_challenged_project_test_is_offered_its_own_file_and_a_new_id(db):
         assert _admitted(sb, o) == (True, None), o
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "finding of frame 144 pass 1: tests_encode, the project-id door, "
-    "'Send this encode again with a new id that you invent.' The new id keeps "
-    "the seat's path, which is the project test's file, and the clash door "
-    "refuses it"))
 def test_a_project_id_at_its_own_path_is_offered_a_new_id_that_lands(db):
+    """The finding of frame 144 pass 1: the new id kept the seat's path, the
+    project test's file, and the clash door refused it. Frame 343: the offer
+    names a new file beside the project file."""
     _a_criterion(db, _PRORATES)
     _a_stored_test(db, id="inh_022b8a87", criterion_id=None,
                    path="tests/test_utils/test_confirm.py")
@@ -130,6 +128,7 @@ def test_a_project_id_at_its_own_path_is_offered_a_new_id_that_lands(db):
     _, offers = _refused(sb, "tests.encode", id="inh_022b8a87", criterion_id="c1",
                          path="tests/test_utils/test_confirm.py",
                          body=_PRORATE + " # new", batch_id="b1")
+    assert offers[0].args["path"] == "tests/test_utils/test_confirm_c1.py"
     assert _admitted(sb, offers[0]) == (True, None)
 
 

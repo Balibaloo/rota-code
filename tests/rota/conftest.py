@@ -131,9 +131,8 @@ _api.RECORD = True
 _SB = "tests/rota/test_t0_sandbox.py::"
 _DG = "tests/rota/test_desk_guards.py::"
 _OF = "tests/rota/test_offers_followed.py::"
-# Finding 1, the project-id door: "Send this encode again with a new id that
-# you invent." The new id keeps the seat's path, and the clash door refuses.
-_CLASH = "tests/test_utils/test_"
+# Finding 1, the project-id door, is fixed by frame 343: an offer at a file
+# that a project test holds names a new file beside it.
 # Finding 2, the cut door: "To add after it send start=, end=." The seat's
 # text replaces the def, so the text after it does not compile or defines a
 # name twice.
@@ -148,15 +147,6 @@ KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
     (_OF + "test_a_text_that_breaks_the_parser_gets_the_cut_refusal", _CRASH),
     (_OF + "test_a_crash_of_one_offer_keeps_the_records_of_the_others", _CRASH),
     (_OF + "test_a_session_records_no_offer_and_a_test_records_frames", _INVALID),
-    (_SB + "test_a_project_id_at_its_own_path_is_refused_outside_a_challenge", _CLASH),
-    (_SB + "test_a_challenge_of_another_test_does_not_open_a_project_test", _CLASH),
-    (_SB + "test_a_project_id_on_another_tests_file_gets_the_id_fact_only", _CLASH),
-    (_OF + "test_a_project_id_at_its_own_path_is_offered_a_new_id_that_lands", _CLASH),
-    ("tests/rota/test_scene_two_batches.py::test_a_known_wrong_call_is_refused_by_its_door"
-     "[the project id of test_charges at its own path]",
-     "tests/test_charges.py is already inh_"),
-    ("tests/rota/test_scene_merged_then_next.py::test_a_known_wrong_call_is_refused_by_its_door"
-     "[the project id of the delivered test]", "test_upgrade.py is already inh_"),
     (_DG + "test_a_span_from_the_top_into_the_first_statement_gets_no_moved_boundary",
      _INVALID),
     (_DG + "test_a_start_on_a_decorated_def_line_names_the_decorators", _TWICE),

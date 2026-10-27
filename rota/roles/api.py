@@ -9157,13 +9157,15 @@ def _refuse_retired(ctx: Ctx, criterion_id: str) -> None:
 
 
 def _beside_project_test(ctx: Ctx, path: str, criterion_id: str,
-                         batch_id: str) -> str:
+                         batch_id: str, id: Any = None) -> str:
     """A free path in the folder of the project test file `path`, named for
     the criterion.
 
-    Frame 343: the clash door offers this path when a project test holds
-    `path`. A name that pytest collects keeps the `test_` prefix. A number
-    follows the name when a row or a staged write holds the path already.
+    Frame 343: the doors of `tests.encode` offer this path when a project
+    test holds `path`. A name that pytest collects keeps the `test_` prefix.
+    A number follows the name when a row or a staged write holds the path
+    already. The seat's own row `id` does not take a path, because the same
+    id replaces that row.
     """
     import posixpath as _posixpath
 
@@ -9173,13 +9175,61 @@ def _beside_project_test(ctx: Ctx, path: str, criterion_id: str,
         stem = "test_" + stem
     stem = f"{stem}_{re.sub(r'[^0-9A-Za-z_]+', '_', criterion_id).strip('_')}"
     taken = {r["path"] for r in ctx.conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (batch_id,))}
-    taken |= {w[2].get("path") for w in ctx.writes if w[0] == "tests"}
+        "SELECT id, path FROM tests WHERE batch_id = ?", (batch_id,))
+        if r["id"] != id}
+    taken |= {w[2].get("path") for w in ctx.writes
+              if w[0] == "tests" and w[1] != id}
     n, candidate = 1, _posixpath.join(folder, stem + ".py")
     while candidate in taken:
         n += 1
         candidate = _posixpath.join(folder, f"{stem}_{n}.py")
     return candidate
+
+
+def _project_holder(ctx: Ctx, path: str, batch_id: str | None) -> str | None:
+    """The id of the project test that holds `path` in the batch, or None.
+
+    A project row has no criterion, or it has the id that `inherit` derives
+    from its path. These are the two signs of frame 135's door.
+    """
+    from ..core.harness import inherited_id
+
+    if not batch_id:
+        return None
+    for r in ctx.conn.execute(
+            "SELECT id, criterion_id FROM tests WHERE path = ? AND batch_id = ?",
+            (path, batch_id)):
+        if r["criterion_id"] is None or r["id"] == inherited_id(path):
+            return r["id"]
+    return None
+
+
+def _wake_challenges(ctx: Ctx, test_id: Any) -> bool:
+    """True when the wake challenges `test_id`: the trigger's verb is
+    `challenge`, and its refs name the id. All 31 Tester challenges of
+    nights 113 to 120 name the challenged test there (frame 135)."""
+    if not getattr(ctx, "trigger", None):
+        return False
+    from ..core.db import refs_of
+    msg = ctx.conn.execute(
+        "SELECT verb, body_refs FROM messages WHERE id = ?",
+        (ctx.trigger,)).fetchone()
+    return (msg is not None and msg["verb"] == "challenge"
+            and test_id in refs_of(msg["body_refs"]))
+
+
+def _offered_path(ctx: Ctx, path: str, id: Any, criterion_id: str,
+                  batch_id: str | None) -> str:
+    """The path that an offered `tests.encode` names.
+
+    Frame 343: an offer at a file that a project test holds met the clash
+    door on the next call. So such an offer names a new file beside it.
+    A challenge fix of the project test under its own id keeps its file.
+    """
+    holder = _project_holder(ctx, path, batch_id)
+    if holder is None or (holder == id and _wake_challenges(ctx, id)):
+        return path
+    return _beside_project_test(ctx, path, criterion_id, batch_id, id)
 
 
 @op("tests", "encode")
@@ -9426,13 +9476,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         except (ImportError, ValueError):
             is_module = False
         if is_module:
+            _to = _offered_path(ctx, path, id, criterion_id,
+                                batch_id or ctx.batch_id)
             raise Wall(_offer(
                 ctx,
                 f"the test uses {unbound[0]} and never imports it: a NameError "
                 f"against any code. Add the line `import {unbound[0]}` at the "
-                f"top of the body and send the encode again",
+                f"top of the body and send the encode again"
+                + ("" if _to == path else
+                   f" with path={_to!r}, because {path} holds the project's "
+                   f"own tests"),
                 "tests.encode", {"id": id, "criterion_id": criterion_id,
-                                 "path": path, "body": f"import {unbound[0]}\n{body}",
+                                 "path": _to, "body": f"import {unbound[0]}\n{body}",
                                  "batch_id": batch_id}))
         # A Tester told to "import the function the surface names" invented
         # ledger, app and create_account five runs of five. The criterion
@@ -10683,33 +10738,32 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # in the sandbox mode `normal`, so the mode is no sign. A fix of the
     # project test at its own path in that wake is frame 128's open
     # question, and it behaves as it did before frame 135.
-    challenged = False
-    if project and getattr(ctx, "trigger", None):
-        from ..core.db import refs_of
-        msg = ctx.conn.execute(
-            "SELECT verb, body_refs FROM messages WHERE id = ?",
-            (ctx.trigger,)).fetchone()
-        challenged = (msg is not None and msg["verb"] == "challenge"
-                      and id in refs_of(msg["body_refs"]))
+    challenged = project and _wake_challenges(ctx, id)
     # Each sentence names only a call this door then admits. Three reviews
     # found that a sentence naming any other call opened a new route. A path
     # that is another test's file is the clash door's, on the next call.
+    # Frame 343 closes frame 144's finding: a new id at a file that a project
+    # test holds met the clash door, so the offer names a file beside it.
     if project and (prior["path"] != path or not challenged):
         _fact(ctx, "row", id)
         _fact(ctx, "test_path", prior["path"], id=id)
         said = f"{id} is the id of the project's test {prior['path']}."
         again = {"id": id, "criterion_id": criterion_id, "path": path,
                  "body": body, "batch_id": batch_id}
+        to = _offered_path(ctx, path, INVENT, criterion_id, batch_id)
+        beside = ("" if to == path else
+                  f" at path={to!r}, because {path} holds the project's own tests")
         if challenged:
             said += _offer(ctx, f" A fix of that test keeps its file: send this encode "
                                 f"again with path={prior['path']!r}, or send a new id "
-                                f"that you invent.",
+                                f"that you invent{beside}.",
                            "tests.encode", {**again, "path": prior["path"]})
-            _offer(ctx, "or send a new id", "tests.encode", {**again, "id": INVENT})
+            _offer(ctx, "or send a new id", "tests.encode",
+                   {**again, "id": INVENT, "path": to})
         else:
             said += _offer(ctx, " An encode never replaces a project test. Send this "
-                                "encode again with a new id that you invent.",
-                           "tests.encode", {**again, "id": INVENT})
+                                f"encode again with a new id that you invent{beside}.",
+                           "tests.encode", {**again, "id": INVENT, "path": to})
         raise ValueError(said)
 
     # law 14: some keys are cardinality, not content
@@ -10773,13 +10827,17 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         "SELECT batch_id FROM tests WHERE id = ? AND batch_id != ?",
         (id, batch_id)).fetchone()
     if other is not None:
+        to = _offered_path(ctx, path, INVENT, criterion_id, batch_id)
         raise ValueError(_offer(
             ctx,
             f"{_fact(ctx, 'row', id)} is a test of batch "
             f"{_fact(ctx, 'row', other['batch_id'])}, and this session "
-            f"writes batch {batch_id}. Choose another id.",
+            f"writes batch {batch_id}. Choose another id"
+            + ("." if to == path else
+               f", and send it with path={to!r}, because {path} holds the "
+               f"project's own tests."),
             "tests.encode", {"id": INVENT, "criterion_id": criterion_id,
-                             "path": path, "body": body, "batch_id": batch_id}))
+                             "path": to, "body": body, "batch_id": batch_id}))
 
     # One file per test. Walk twelve: two tests named tests/test_input_
     # validation.py, the second overwrote the first on disk, and the harness
@@ -10788,6 +10846,24 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         "SELECT id, criterion_id FROM tests "
         "WHERE path = ? AND id != ? AND batch_id = ?",
         (path, id, batch_id)).fetchone()
+    # Frame 343, night 170 s196: `inherit` makes every project test file a
+    # row of the batch, and the brief's `touch` names such files. Sixteen
+    # encodes met the bare text below, and the walk stopped. A project row
+    # carries the same two signs as frame 135's door above. Only a wake that
+    # challenges the project test may send that test's own id to its file.
+    clash_project = clash is not None and (
+        clash["criterion_id"] is None or clash["id"] == inherited_id(path))
+    if clash_project and not (clash["criterion_id"] == criterion_id
+                              and _wake_challenges(ctx, clash["id"])):
+        beside = _beside_project_test(ctx, path, criterion_id, batch_id, id)
+        raise ValueError(_offer(
+            ctx,
+            f"{_fact(ctx, 'test_path', path, id=clash['id'])} is already "
+            f"{clash['id']}'s file, and that file holds the project's own "
+            f"tests. Put the new test in a new file beside it: send this "
+            f"encode again with path={beside!r}.",
+            "tests.encode", {"id": id, "criterion_id": criterion_id,
+                             "path": beside, "body": body, "batch_id": batch_id}))
     if clash is not None and clash["criterion_id"] == criterion_id:
         # Frame 123: in 4 of 4 challenge sessions the Tester sent its fix
         # under a new id. The old door offered only a new file, so the old
@@ -10800,22 +10876,6 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"again with id={clash['id']!r}. The same id replaces it.",
             "tests.encode", {"id": clash["id"], "criterion_id": criterion_id,
                              "path": path, "body": body, "batch_id": batch_id}))
-    # Frame 343, night 170 s196: `inherit` makes every project test file a
-    # row of the batch, and the brief's `touch` names such files. Sixteen
-    # encodes met the bare text below, and the walk stopped. A project row
-    # carries the same two signs as frame 135's door above.
-    if clash is not None and (
-            clash["criterion_id"] is None
-            or clash["id"] == inherited_id(path)):
-        beside = _beside_project_test(ctx, path, criterion_id, batch_id)
-        raise ValueError(_offer(
-            ctx,
-            f"{_fact(ctx, 'test_path', path, id=clash['id'])} is already "
-            f"{clash['id']}'s file, and that file holds the project's own "
-            f"tests. Put the new test in a new file beside it: send this "
-            f"encode again with path={beside!r}.",
-            "tests.encode", {"id": id, "criterion_id": criterion_id,
-                             "path": beside, "body": body, "batch_id": batch_id}))
     if clash is None:
         clash = next((w for w in ctx.writes if w[0] == "tests" and w[1] != id
                       and w[2].get("path") == path), None)

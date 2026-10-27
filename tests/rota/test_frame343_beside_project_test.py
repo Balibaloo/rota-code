@@ -87,6 +87,23 @@ def test_a_clash_with_a_testers_test_keeps_the_text_of_today(db):
     assert not [o for o in sb.ctx.offers if o.op == "tests.encode"]
 
 
+def test_the_seats_own_row_does_not_take_the_path_beside(db):
+    """Pass 1b: a row of the seat's own id at the path beside is the row
+    the same id replaces, so the path stays free for that id. A row of
+    another id takes the path, and a number follows the name."""
+    from rota.roles.api import _beside_project_test
+
+    _batch_with_a_project_test(db)
+    beside = "tests/test_formatting_c_1_format_filename_example.py"
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('t_c1', 'b1', ?, ?, ?)", (_CRIT, beside, _PRORATE))
+    db.commit()
+    sb = _tester(db)
+    assert _beside_project_test(sb.ctx, _PROJECT, _CRIT, "b1", "t_c1") == beside
+    assert _beside_project_test(sb.ctx, _PROJECT, _CRIT, "b1", "t_other") == (
+        "tests/test_formatting_c_1_format_filename_example_2.py")
+
+
 def test_the_tests_missing_brief_sends_a_project_file_beside_it():
     """Frame 343, reach R3: the touch line of the brief names project test
     files, so the brief says where the new test goes."""
