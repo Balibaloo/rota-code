@@ -1323,6 +1323,7 @@ a different question and the night is then opened once.
 - Sprint: sprint 27, beside row 1; the fixes take rows after night 171 by reach (reasoned: Roman's ask).
 - Pointer: `plans/facts-2026-10-27.md`; `plans/closed-reach-2026-10-26.md`; `plans/method/reference.md` section 10, rule C76.
 - Status 2026-10-27 14:09 (rota-49): **ruled. Roman, 2026-10-27 14:09, in the terminal: "Ok, while we are doing fixes, a few sessions ago we analyzed the completed frames and found that many did not fix the root cause. Go back and review them to make sure that we have applied area root cause fix that we could possibly know about"** (ruled: Roman, in his words). Meta workflow.
+- Status 2026-10-27 14:09 (rota-49): Pushed on Roman's ask, held by this session, peer name rota-49. His claim checks out: 48 of 56 closed frames fixed one door of N (observed: plans/closed-reach-2026-10-26.md). Two audit agents on Opus, cap 180k each, from f344_audit_brief.md in this session's scratchpad, since 14:09: F1 to F18 to plans/rootfix-audit-2026-10-27-a.md, F19 to F37 and the closed frames under no fact to -b.md. Read only; each fix then takes a row by its reach. Meta workflow.
 
 ### 343. The Tester's brief sends a test to a touch path that the test-file door refuses, and his "no new test is needed" reaches no row, so a docstring criterion stops the walk (2026-10-27) (c66eae69)
 
