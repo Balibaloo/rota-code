@@ -355,6 +355,11 @@ def render_state(conn: sqlite3.Connection) -> str:
                   else ", ".join(words[:-1]) + " and " + words[-1])
         carry = "They carry" if merged > 1 else "It carries"
         out[-1] += f" {carry} {listed}. Ask me to show them."
+    # F7, pass 1b: the summary after the merge names each removal that no
+    # grant of his allows. It is information, and it holds nothing.
+    gone = merged_removal_line(conn) if merged else ""
+    if gone:
+        out.append(gone)
     # A cold cockpit sees the cycle the walk printed, read from the rows
     # (ruled: Roman, 2026-09-24, an alert first). The line goes under what
     # is stuck.
@@ -2091,12 +2096,36 @@ def removal_line(conn: sqlite3.Connection, refs: list[str]) -> str:
     them to him. The composition: "no work stays invisible". The line is
     information, not a gate: a sign-off by him stays opt-in. It shows
     whatever the Architect judged, and it names no row and no key."""
+    batches = [b for b in (_live_batch(conn, item)
+                           for item in sorted(_reached(conn, refs))) if b is not None]
+    said = _removal_words(conn, batches)
+    return f"The change removes code that no answer of yours allowed: {said}." if said else ""
+
+
+def merged_removal_line(conn: sqlite3.Connection) -> str:
+    """One line for the end-of-run summary about the code that the merged
+    changes removed and that no grant of his allows, or "".
+
+    F7, pass 1b (ruled: Roman, 2026-10-27, through the coordinator): under
+    `merge_gate=auto` nothing holds the merge, so the summary he reads
+    after it names each ungranted removal once. A removal that a page
+    showed before the merge is named here again. No hold and no gate."""
+    batches = list(conn.execute(
+        "SELECT id, head_commit FROM batches WHERE status = 'merged' ORDER BY id"))
+    said = _removal_words(conn, batches)
+    return (f"The merged changes removed code that no answer of yours allowed: "
+            f"{said}." if said else "")
+
+
+def _removal_words(conn: sqlite3.Connection, batches: list) -> str:
+    """The removals of the head commits of `batches` that no grant of his
+    allows, in plain words: at most three named by kind, function and first
+    line, and a count of the rest. "" when there is none."""
     from .api import _gone_targets, batch_ruled_refs
 
     places: dict[str, list[str]] = {}
-    for item in sorted(_reached(conn, refs)):
-        batch = _live_batch(conn, item)
-        if batch is None or not batch["head_commit"]:
+    for batch in batches:
+        if not batch["head_commit"]:
             continue
         ruled = None
         for r in conn.execute(
@@ -2125,8 +2154,7 @@ def removal_line(conn: sqlite3.Connection, refs: list[str]) -> str:
         parts.append(f"in {where}, " + " and ".join(shown))
     more = count - _REMOVALS_NAMED
     tail = f", and {more} more" if more > 0 else ""
-    return ("The change removes code that no answer of yours allowed: "
-            + "; ".join(parts) + tail + ".")
+    return "; ".join(parts) + tail
 
 
 def _quiet_line(conn: sqlite3.Connection, refs: list[str]) -> str:

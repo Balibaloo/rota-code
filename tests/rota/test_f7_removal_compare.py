@@ -20,7 +20,7 @@ from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.roles import api, prompts
 from rota.roles.principal import (insert_ruling_rows, removal_line, render_page,
-                                  ruling_rows)
+                                  render_state, ruling_rows)
 
 PATH = "src/click/utils.py"
 GRAIN = f"{PATH}::get_app_dir"
@@ -183,6 +183,35 @@ def test_a_merged_change_shows_no_line(db):
     db.execute("UPDATE batches SET status = 'merged' WHERE id = 'bg_1'")
     db.commit()
     assert removal_line(db, ["get_app_dir_windows"]) == ""
+
+
+def _merged(db) -> None:
+    """bg_1 merged under `merge_gate=auto` with s164's two removals open."""
+    _open_row(db, "open")
+    db.execute("UPDATE batches SET status = 'merged' WHERE id = 'bg_1'")
+    db.commit()
+
+
+def test_the_summary_after_an_auto_merge_names_both_removals(db):
+    """Pass 1b: under `merge_gate=auto` nothing holds the merge, so the
+    summary that he reads after it names s164's two removals once."""
+    _merged(db)
+    state = render_state(db)
+    assert state.split("\n")[:2] == [
+        "Done: 1 change built, tested and merged.",
+        "The merged changes removed code that no answer of yours allowed: in "
+        'get_app_dir, the branch `if sys.platform == "darwin":` and the return '
+        "`return os.path.join(`."], state
+    assert state.count("darwin") == 1
+    assert "bg_1" not in state.split("\n")[1]
+
+
+def test_a_granted_removal_is_not_in_the_summary(db):
+    _merged(db)
+    _grant(db, "r_1", "bg_1", "get_app_dir:522", 1)
+    assert "darwin" not in render_state(db)
+    _grant(db, "r_2", "get_app_dir_windows", "get_app_dir:526", 2)
+    assert "removed code" not in render_state(db)
 
 
 def test_s128s_same_target_rewrite_is_no_removal():
