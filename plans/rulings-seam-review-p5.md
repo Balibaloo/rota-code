@@ -88,3 +88,39 @@ The three probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/
 - Input tokens: about 75k, an estimate from the budget counter.
 - Output tokens: about 16k, an estimate.
 - Total: about 90k. The cap of the brief was about 50k, and the review went over it.
+
+## Pass 5b, the re-check of ff212ce3
+
+Pass 5b does not stand yet. The door now takes a corrected row and refuses the approve of probe P2b, and finding 4 is fixed. Two gaps stay. On the night, a contest of the read-back still lands without the corrected rows (high). The approve guard reads the `words` argument of the Liaison and not his reply, so `words="ok"` still confirms a reading that his reply skips (high).
+
+The tree is a `git archive` of ff212ce3 in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e03f97fc-cdd4-4daa-864c-2ca4d7ef42a5/scratchpad/p5b_tree`. The probes are `probe_a_5b.py`, `probe_b_5b.py`, `probe_c_5b.py` and `probe_d_5b.py` in `p5rev/`, and each one ran from the tree root.
+
+### Point 1, the two high findings again
+
+Finding 1: fixed at the door, CONFIRMED by probe D. A contest of the line can now rule the earlier row only by its ref, and not by the act target:
+
+- The key `l_1` lands. The old `l_1` row (`contest`, `remove`) becomes `superseded`, and the new row is `l_1` approve. The next page reads back the contest reply as `2 lines approved`.
+- The key `how_it_works`, the target that the read-back text names, gets the refusal `'how_it_works' is not a line of the page. The page numbers its rows 1 to 2; use those numbers`.
+- Probe P3b sends a contest of the line alone. The door accepts it. The first reply then leaves `readings_owed`, and its wrong rows stay landed and unconfirmed, as at 899879de.
+
+On the night, the contest lands as in P3b, high, PLAUSIBLE. The line shows the target and not the ref. The landing wake builds `line_rows` from the order of the page at `runner.py` 2617, and the implementer reports that the wake lists no row of the earlier reply. The refusal text then sends the Liaison back to the page numbers. Fix: list the row refs of each read-back line in the landing wake, and refuse a contest of a `reading:` line that rules none of its rows.
+
+Finding 2: fixed for the tested form, CONFIRMED by probe P2b. The words "2 is fine, and 1 is fine as well." with an approve of line 3 get the refusal `line 3 is his read-back line, and only his words confirm it`. Finding 4 is fixed: probe P2c shows no line on the second page after "ok". Low finding 3 is not fixed: probe B still shows two identical lines.
+
+### Point 2, landing.md and an approve on words that are not his reply
+
+The new sentences of `rota/roles/prompts/liaison/landing.md`:
+
+- "A reply that says line 3 is wrong contests line 3 and approves the others, except the read-back line."
+- "Every line gets a ruling, except the read-back line."
+- "The read-back line starts "Your answer". It shows the principal how the team read an earlier answer, and it is the principal's alone. Rule it only from the principal's words: approve it when the words name it or approve the whole page, and contest it when the words correct it. Otherwise leave it out. When the words correct a row of that earlier answer, rule that row by its row id beside the contest of the read-back line."
+
+The door does not refuse an approve whose words are not his reply, CONFIRMED by probe P2d. His reply is "2 is fine, and 1 is fine as well.", and the Liaison passes `words="ok"` with an approve of line 3. The door takes it, and all three rows read `confirmed_by = m12`. The guard in `rulings_rule` reads `words`, and nothing compares `words` with the body of `ctx.trigger`. Fix: read the guard from the body text of the trigger message, not from the `words` argument.
+
+### Findings of pass 5b
+
+5. `rota/roles/api.py`, `rulings_rule`, the read-back approve guard after 12733. High. CONFIRMED by probe P2d. The guard reads the `words` argument of the Liaison, so one paraphrase confirms a reading that his reply skips. Fix: run the guard on the `body_text` of `ctx.trigger`.
+6. `rota/core/runner.py` 2617 and the contest branch of `rulings_rule` after 12733. High. PLAUSIBLE: the code takes `l_1`, but nothing shows the Liaison that ref on the night (probes P3a and P3b). Fix: list the row refs of each read-back line in the landing wake, and refuse a contest of the line that rules none of them.
+7. Outside, low, PLAUSIBLE. The implementer reports an unchanged casestatus line after the `landing.md` edit, which changes the landing prompt. The register may not key those cases on that prompt. Fix: re-check one L1-LI case against the register before night 170.
+
+Usage of the re-check: about 12k input tokens and 4k output tokens, an estimate.
