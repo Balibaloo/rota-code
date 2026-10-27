@@ -2641,12 +2641,42 @@ def _insert_keypress_ruling(conn: sqlite3.Connection, ask: Ask, msg_id: str,
     rows = ruling_rows(conn, rid, getattr(ask, "order", None), per_item,
                        words=said, source="keypress",
                        words_from=msg_id if said else None, unheld="skip")
+    # A skipped ref is a fault on file, so his verdict on it stays visible
+    # (the review of pass 1, finding 2; composition.md, no work stays
+    # invisible).
+    record_unheld(conn, rid, [r for r in per_item if r not in
+                              {row["ref"] for row in rows}], "principal.land")
     conn.execute(
         "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
         "status, verdict_id, texts) VALUES (?, ?, ?, ?, 'landed', ?, ?)",
         (rid, ask.message_id, json.dumps(per_item), said, msg_id,
          json.dumps(contested_texts(conn, per_item))))
     insert_ruling_rows(conn, rows)
+
+
+def unheld_text(rid: str, ref: str) -> str:
+    """The fault text of a ref that no table holds."""
+    return (f"{ref}: no table holds this row, so ruling {rid} has no "
+            f"ruled_refs row on it. The ruling's per_item keeps his verdict")
+
+
+def record_unheld(conn: sqlite3.Connection, rid: str, refs: list[str],
+                  call: str) -> None:
+    """Insert one `faults` row for each ref of ruling `rid` that no table
+    holds. The row comes from `api._stage_fault`, the one builder of a
+    fault, and this door inserts it because `land` runs outside a session."""
+    from types import SimpleNamespace
+
+    from .api import _stage_fault
+
+    ctx = SimpleNamespace(conn=conn, session_id="", role="system", writes=[])
+    for ref in refs:
+        _stage_fault(ctx, call, unheld_text(rid, ref), "fault")
+    for _table, fid, row in ctx.writes:
+        cols = ["id", *row]
+        conn.execute(
+            f"INSERT OR IGNORE INTO faults ({', '.join(cols)}) "
+            f"VALUES ({', '.join('?' for _ in cols)})", [fid, *row.values()])
 
 
 def _write_park(conn: sqlite3.Connection, item: str, kind: str, by: str,

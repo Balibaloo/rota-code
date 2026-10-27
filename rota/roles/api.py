@@ -11166,7 +11166,8 @@ def _words_from(ctx: Ctx, span: str) -> str | None:
 
 
 def _ruled_rows(ctx: Ctx, ruling_id: str, order: list | None, per_item: dict,
-                words: str, shapes: dict | None = None) -> list[dict]:
+                words: str, shapes: dict | None = None,
+                unheld: str = "refuse") -> list[dict]:
     """The `ruled_refs` rows of the reading, built by the one builder,
     `principal.ruling_rows`. It refuses a ref that no table holds, so the
     door builds the rows before it stages any write."""
@@ -11179,7 +11180,7 @@ def _ruled_rows(ctx: Ctx, ruling_id: str, order: list | None, per_item: dict,
             shape["words_from"] = _words_from(ctx, shape["words"])
         reading[ref] = {**shape, "verdict": verdict}
     return ruling_rows(ctx.conn, ruling_id, order, reading, words=words,
-                       words_from=ctx.trigger)
+                       words_from=ctx.trigger, unheld=unheld)
 
 
 def _stage_ruling(ctx: Ctx, row: dict, rows: list[dict]) -> None:
@@ -12626,11 +12627,20 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     if (isinstance(rulings, dict) and not rulings and not is_clarify
             and not acts and (not order or batches_only)):
         rid = new_id("r", ctx.conn)
+        # The page numbers no line, so the Liaison cannot rule a row that is
+        # gone. A ref that no table holds is a fault on file, and the page
+        # is acknowledged as before the seam (the review of pass 1, finding
+        # 1).
+        from .principal import unheld_text
+
+        rows = _ruled_rows(ctx, rid, order, {r: "approve" for r in refs}, words,
+                           unheld="skip")
+        for ref in [r for r in refs if r not in {row["ref"] for row in rows}]:
+            _stage_fault(ctx, "rulings.rule", unheld_text(rid, ref), "fault")
         _stage_ruling(ctx, {
             "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
             "per_item": json.dumps({r: "approve" for r in refs}),
-            "words": (words or "").strip(), "status": "open"},
-            _ruled_rows(ctx, rid, order, {r: "approve" for r in refs}, words))
+            "words": (words or "").strip(), "status": "open"}, rows)
         return {"id": rid, "per_item": {r: "approve" for r in refs},
                 "note": "the page had no line to rule on; acknowledged"}
     if not isinstance(rulings, dict) or not rulings:
@@ -13108,9 +13118,10 @@ def rulings_load(ctx: Ctx, ask_id: str | None = None) -> list[dict]:
     """The readings on record, for one page or all. Read by the door, not
     offered to a session: the edge is `actor: system`.
 
-    Each reading carries its rows of `ruled_refs_live` as `refs`, and its
-    `per_item` is the map of those rows. A reading with no row keeps the
-    map on file (the seam design, pass 1)."""
+    Each reading carries its rows of `ruled_refs_live` as `refs`. Its
+    `per_item` stays the map on file, because a ref that no table holds has
+    no row and his verdict on it must not vanish (the review of pass 1,
+    finding 2)."""
     if ask_id:
         out = _rows(ctx.conn.execute(
             "SELECT * FROM rulings WHERE ask_id = ? ORDER BY rowid", (ask_id,)))
@@ -13123,8 +13134,6 @@ def rulings_load(ctx: Ctx, ask_id: str | None = None) -> list[dict]:
             "provenance FROM ruled_refs_live WHERE ruling_id = ? "
             "ORDER BY row_seq", (reading["id"],)))
         reading["refs"] = rows
-        if rows:
-            reading["per_item"] = json.dumps({r["ref"]: r["verdict"] for r in rows})
     return out
 
 

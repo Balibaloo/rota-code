@@ -310,3 +310,40 @@ def test_the_backfill_gives_an_old_ruling_its_rows(tmp_path):
     # The back-fill runs at each open and writes a row once.
     assert backfill_ruled_refs(conn) == 0
     conn.close()
+
+
+def test_an_acknowledge_with_a_gone_ref_lands_and_leaves_a_fault(db):
+    """The review of pass 1, finding 1. The page numbers no line, and its
+    one ref is gone. Red on 624621eb: rulings.rule refused `rulings={}` and
+    told the Liaison to rule rows the page does not have."""
+    ask = _page(db, refs=("x_gone",))
+    assert not ask.order
+    sb, _ = _seat(db, ask, words="ok")
+    out = sb.call("rulings.rule", rulings={}, words="ok")
+    assert out["per_item"] == {"x_gone": "approve"}
+    faults = [w[2] for w in sb.ctx.writes if w[0] == "faults"]
+    assert [f["call"] for f in faults] == ["rulings.rule"]
+    assert faults[0]["text"].startswith("x_gone: no table holds this row")
+    assert not [w for w in sb.ctx.writes if w[0] == "ruled_refs"]
+
+
+def test_a_keypress_on_a_gone_ref_keeps_his_verdict_and_leaves_a_fault(db):
+    """The review of pass 1, finding 2. Red on 624621eb: the verdict on
+    r_gone left no row, no fault, and no key in the per_item of
+    rulings_load."""
+    from types import SimpleNamespace
+
+    from rota.roles.api import rulings_load
+
+    ask = _page(db)
+    mid = land(db, ask, Answer(verb="verdict", text="", per_item={
+        "s1": "approve", "calculate_tip": "approve", "l_1": "approve",
+        "r_gone": "approve"}))
+    db.commit()
+    assert [r["ref"] for r in _rows(db, f"r_{mid}")] == ["s1", "calculate_tip", "l_1"]
+    (fault,) = db.execute("SELECT call, text FROM faults").fetchall()
+    assert fault["call"] == "principal.land"
+    assert fault["text"].startswith(f"r_gone: no table holds this row, so ruling r_{mid}")
+    (reading,) = [r for r in rulings_load(SimpleNamespace(conn=db), ask.message_id)
+                  if r["id"] == f"r_{mid}"]
+    assert json.loads(reading["per_item"])["r_gone"] == "approve"
