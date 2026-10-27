@@ -5942,20 +5942,27 @@ def test_a_challenge_to_the_tester_over_a_red_test_quotes_the_failing_line(db):
     assert out["verb"] == "challenge"
 
 
-@pytest.mark.parametrize("quote", ["assert output == expected",
-                                   "AssertionError: assert '{\"a\":1}' == '{\"a\":1}\\n'"])
-def test_the_exhaustion_challenge_over_a_red_test_quotes_the_failing_line(db, quote):
+def test_the_exhaustion_challenge_over_a_red_test_quotes_the_failing_line(db):
     """Night 142, m83: the Architect's exhausted challenge quoted the
-    `expected` line, and the door took it."""
+    `expected` line, and the door took it.
+
+    Frame 333: each row of refs has a quote, so the criterion is quoted
+    too. Each quote is a span of a row of refs, so the run's `E` line is
+    no quote of the test."""
     from rota.roles import prompts
 
     _n142(db)
     sb = build("architect", db, batch_id="bg_142", mode="exhausted",
                allow=prompts.mode_tools("architect", "exhausted"))
     with pytest.raises(ValueError, match="assert output == expected"):
-        sb.call("msg.challenge_vision_keeper", refs=N142_REFS, quotes=[N142_QUOTE])
+        sb.call("msg.challenge_vision_keeper", refs=N142_REFS,
+                quotes=[N142_CRIT, N142_QUOTE])
+    with pytest.raises(ValueError, match="not a span of the live text"):
+        sb.call("msg.challenge_vision_keeper", refs=N142_REFS,
+                quotes=[N142_CRIT,
+                        "AssertionError: assert '{\"a\":1}' == '{\"a\":1}\\n'"])
     out = sb.call("msg.challenge_vision_keeper", refs=N142_REFS,
-                  quotes=[N142_CRIT, quote])
+                  quotes=[N142_CRIT, "assert output == expected"])
     assert out["verb"] == "challenge"
 
 
@@ -5972,7 +5979,8 @@ def test_the_quote_door_names_the_runs_marked_line_when_it_does_not_assert(db):
     sb = build("architect", db, batch_id="bg_142", mode="exhausted",
                allow=prompts.mode_tools("architect", "exhausted"))
     with pytest.raises(ValueError) as refused:
-        sb.call("msg.challenge_vision_keeper", refs=N142_REFS, quotes=[N142_QUOTE])
+        sb.call("msg.challenge_vision_keeper", refs=N142_REFS,
+                quotes=[N142_CRIT, N142_QUOTE])
     assert "`output = captured.getvalue().strip()`" in str(refused.value)
     assert "`assert output == expected`" not in str(refused.value)
 
@@ -5995,7 +6003,8 @@ def test_the_quote_door_skips_a_marked_line_of_library_code(db):
     sb = build("architect", db, batch_id="bg_142", mode="exhausted",
                allow=prompts.mode_tools("architect", "exhausted"))
     with pytest.raises(ValueError) as refused:
-        sb.call("msg.challenge_vision_keeper", refs=N142_REFS, quotes=[N142_QUOTE])
+        sb.call("msg.challenge_vision_keeper", refs=N142_REFS,
+                quotes=[N142_CRIT, N142_QUOTE])
     assert "`output = captured.getvalue().strip()`" in str(refused.value)
     assert "prog_name = ctx.find_root().info_name" not in str(refused.value)
 

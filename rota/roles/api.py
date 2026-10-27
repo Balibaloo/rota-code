@@ -6003,7 +6003,8 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
         if not _same_words(text or "", first or ""):
             opening = " ".join((first or "").split()[:10])
             route = (" To replace the landed criterion, send "
-                     "msg.challenge_vision_keeper with its id." if landed else "")
+                     "msg.challenge_vision_keeper with its id and quotes= "
+                     "copying the words you dispute." if landed else "")
             raise ValueError(_offer(
                 ctx,
                 f"{id!r} already holds a criterion on {ticket_id}: {opening!r}. "
@@ -6077,7 +6078,8 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             f"{ticket_id} has {len(existing)} criteria already, and six is many. "
             f"A seventh decides scope the ticket never named. If the ticket "
             f"holds more than one piece of work, that is the Vision Keeper's to "
-            f"slice: msg.challenge_vision_keeper with the ticket. Otherwise the "
+            f"slice: msg.challenge_vision_keeper with the ticket and quotes= "
+            f"copying the words you dispute. Otherwise the "
             f"criteria are written; end")
     _surface_names_what_the_item_names(ctx, ticket_id, surface_refs)
     surface = _vet_surface(ctx, surface_refs, required=False, ticket_id=ticket_id)
@@ -6846,7 +6848,7 @@ def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
             if "msg.challenge_vision_keeper" in _wake_mode_tools(ctx):
                 out += (f". If the principal's words give {skip} no fact of "
                         f"its own, send msg.challenge_vision_keeper with "
-                        f"{skip}")
+                        f"{skip} and quotes= copying the words you dispute")
             exc = ValueError(said + out)
             # The answer door reads the flag: a challenge after this refusal
             # counts as the rewrite (frame 329, review 1b, F5).
@@ -6967,7 +6969,8 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # of nights 144 to 146 filled `body_text`, so the door does not read
         # it (the review of ee535945, finding 4).
         ask = ("If the principal's words leave the surface unclear, send "
-               "msg.challenge_vision_keeper with this criterion."
+               "msg.challenge_vision_keeper with this criterion and quotes= "
+               "copying the words you dispute."
                if "msg.challenge_vision_keeper" in _wake_mode_tools(ctx)
                else "")
         fault = _surface_move_fault(text, was, surface,
@@ -17444,15 +17447,17 @@ def _developer_committed(ctx, batch_id) -> bool:
         "AND s.role = 'developer' LIMIT 1", (batch_id,)).fetchone() is not None
 
 
-def _own_assertions(body: str, path: str, said: str) -> list[dict]:
+def _own_reds(body: str, path: str, said: str) -> list[dict]:
     """
-    Each failed assertion of the test's own file in a run, one per failed
-    test, in the run's order.
+    Each failed test of a run, one per failed test, in the run's order, at
+    the last line of the test's own file in its traceback.
 
-    In each test's traceback, the last location must be the test's file and
-    must name an `AssertionError`. An assert inside the project's code gives
-    nothing, because the test did not write it. Review 1, finding 3: with two
-    red tests in one body, each test keeps its own name and its own line.
+    Frame 328, item 4: the encode door admits every red that
+    `arrange_fault` does not refuse. That includes a raise inside the
+    project's code, so the Tester gets a note for that red too. The error
+    is the one that the traceback's last frame raises. Review 1, finding 3:
+    with two red tests in one body, each test keeps its own name and its
+    own line.
     """
     from ..core.runner import _LOCATION
 
@@ -17470,19 +17475,27 @@ def _own_assertions(body: str, path: str, said: str) -> list[dict]:
         end = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
         found = [(i, m) for i in range(start, end)
                  if (m := _LOCATION.match(lines[i]))]
-        if not found or not lines[found[-1][0]].endswith("AssertionError"):
+        own = [m for _, m in found if path and (
+            (w := m.group(1).replace("\\", "/")) == path
+            or w.endswith("/" + path))]
+        if not found:
             continue
-        at, m = found[-1]
-        where = m.group(1).replace("\\", "/")
-        if not path or not (where == path or where.endswith("/" + path)):
-            continue
-        line = int(m.group(2))
+        at = found[-1][0]
+        # The harness keeps the run's tail. A long function of the project
+        # pushes the test's own frame out of it, so the note then names the
+        # place that raised.
+        line = int(own[-1].group(2)) if own else None
+        raised = (None if own else
+                  f"{found[-1][1].group(1).replace(chr(92), '/')} line "
+                  f"{found[-1][1].group(2)}")
+        kind = lines[at].split(": ", 1)[1].strip() if ": " in lines[at] else ""
         arrow = max((i for i in range(start, at) if lines[i].startswith(">")),
                     default=start - 1)
         error = next((ln[1:].strip() for ln in lines[arrow + 1:at]
-                      if ln.startswith("E ")), "AssertionError")
-        out.append({"line": line, "name": name,
-                    "quote": src[line - 1].strip() if 0 < line <= len(src) else "",
+                      if ln.startswith("E ")), kind or "an error")
+        out.append({"line": line, "name": name, "raised": raised,
+                    "quote": (src[line - 1].strip()
+                              if line and 0 < line <= len(src) else ""),
                     "error": error if len(error) <= 160 else error[:157] + "..."})
     return out
 
@@ -17527,18 +17540,16 @@ def _escape_literal(line: str, escape: str) -> tuple[str, str, str] | None:
     return None
 
 
-def _call_keeps(form: str) -> bool:
-    """Both parse paths of the call store the form as it is written.
-
-    Frame 335, review 1, finding 2: the call's value is a literal that is
-    not raw. So `r"C:\\Users\\new"` lost `\\n` to a line break, and
-    `\\temp` gave a TAB on the strict path only."""
+def _call_values(form: str) -> tuple:
+    """The values that the strict and the lenient parse paths store when a
+    seat writes the form inside the quote marks of a call, or () when the
+    call cannot carry the form."""
     from ..llm import toolproto as _tp
     import warnings as _warnings
 
     outer = "'" if "'" not in form else '"' if '"' not in form else ""
     if not outer:
-        return False
+        return ()
     call = f"body={outer}{form}{outer}"
     try:
         with _warnings.catch_warnings():
@@ -17547,8 +17558,18 @@ def _call_keeps(form: str) -> bool:
             lenient = _tp._parse_args_lenient(_tp._quote_bare_keywords(
                 _tp._escape_newlines_in_quotes(call))).get("body")
     except Exception:  # noqa: BLE001 -- a form the call cannot carry
-        return False
-    return strict == form and lenient == form
+        return ()
+    return (strict, lenient)
+
+
+def _call_keeps(form: str) -> bool:
+    """Both parse paths of the call store the form as it is written.
+
+    Frame 335, review 1, finding 2: the call's value is a literal that is
+    not raw. So `r"C:\\Users\\new"` lost `\\n` to a line break, and
+    `\\temp` gave a TAB on the strict path only."""
+    values = _call_values(form)
+    return bool(values) and all(v == form for v in values)
 
 
 def _raw_advice(line: str, escape: str) -> str:
@@ -17725,7 +17746,7 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
         # Review 1, finding 1: a boot writes the git head into `head_commit`
         # before any Developer commit. A test written before the code is red
         # there by design, so the note waits for the batch's own commit.
-        held = (_own_assertions(body, path, said)
+        held = (_own_reds(body, path, said)
                 if notes is not None and _developer_committed(ctx, batch_id)
                 else [])
         if held:
@@ -17735,8 +17756,10 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
                                 or set()) | {(batch_id, criterion_id, path)}
             runs = " ".join(
                 f"The run of {('`' + h['name'] + '`') if h['name'] else 'this body'}"
-                f" on the batch's head fails at line {h['line']}, "
-                f"`{h['quote']}`: `{h['error']}`." for h in held)
+                + (f" on the batch's head fails at line {h['line']}, "
+                   f"`{h['quote']}`: `{h['error']}`." if h["line"] else
+                   f" on the batch's head raises `{h['error']}` at "
+                   f"{h['raised']}.") for h in held)
             notes.append(
                 f"{runs} The test is stored. The batch's head holds the "
                 f"Developer's commit. If the criterion's words give the value "

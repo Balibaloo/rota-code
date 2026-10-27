@@ -308,7 +308,8 @@ def test_the_question_route_shows_on_a_runner_built_repair_wake(db):
         sb.call("criteria.respecify", id=cid, text=S248, surface_refs=[ECHO])
     said = str(refused.value)
     assert "The criterion says `echo_json`" in said
-    assert "send msg.challenge_vision_keeper with this criterion." in said
+    assert ("send msg.challenge_vision_keeper with this criterion and quotes= "
+            "copying the words you dispute." in said)
 
 
 def test_the_question_route_is_absent_where_the_mode_lacks_it(db):

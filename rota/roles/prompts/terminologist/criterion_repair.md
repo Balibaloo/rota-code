@@ -42,7 +42,8 @@ An approved criterion needs nothing.
 The note can quote the request against the criterion. The request comes
 before the criterion. Rewrite the criterion to say what the request says. Keep
 the other words of the criterion. If the request is not clear, send
-`msg.challenge_vision_keeper`.
+`msg.challenge_vision_keeper` with the criterion and `quotes=` copying the
+words you dispute.
 
 **If the criterion is right and the promise is the problem** — no machine
 could check what the item actually asks — that is not yours to rewrite:

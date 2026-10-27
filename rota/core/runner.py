@@ -766,7 +766,19 @@ def _contest_block(conn, rows: list, on_rows: bool = False,
         lines.append(f"ruling {rid}:")
         lines.append(f"He contested {', '.join(cid for cid, _ in entry['on'])}.")
         for cid, text in entry["on"]:
-            if text:
+            if not text:
+                continue
+            # Frame 328, item 5: night 168's sessions read the old text here,
+            # and 18 of 65 challenge turns quoted it. So a replaced text says
+            # so first, and the live text stands under it.
+            live = conn.execute("SELECT text FROM criteria WHERE id = ?",
+                                (cid,)).fetchone()
+            live = live["text"] if live else None
+            if live and " ".join(live.split()) != " ".join(text.split()):
+                lines.append(f"{cid}: He contested this text, and it is "
+                             f"replaced now: {text}")
+                lines.append(f"{cid}: The live text is: {live}")
+            else:
                 lines.append(f"{cid}: He contested this text: {text}")
         words = entry["words"]
         if on_rows:

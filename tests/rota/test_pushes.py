@@ -222,6 +222,15 @@ OTHER148 = ("ver_opt_plain", "Without show_python the version message is unchang
 CONTESTS_KEY = "the principal contested these criteria"
 
 
+def _contested(cid: str, text: str, live: str) -> str:
+    """The block's lines for one contested text. Frame 328, item 5: a text
+    that the live row replaced says so, and the live text stands under it."""
+    if " ".join(text.split()) == " ".join(live.split()):
+        return f"{cid}: He contested this text: {text}\n"
+    return (f"{cid}: He contested this text, and it is replaced now: {text}\n"
+            f"{cid}: The live text is: {live}\n")
+
+
 def _seed148(tmp_path, contested: bool):
     """Night 148's bg_3 with its two criteria, and r_4c8fd5d3ad when
     `contested`."""
@@ -276,7 +285,7 @@ def test_night148_the_builders_wake_carries_his_contest_words(tmp_path, role, mo
     assert pushed[CONTESTS_KEY] == (
         f"ruling r_4c8fd5d3ad:\n"
         f"He contested {CRIT148}.\n"
-        f"{CRIT148}: He contested this text: {contested}\n"
+        + _contested(CRIT148, contested, TEXT148) +
         f"He said: {RULING148['words']}")
     # The criteria keep their table: a contest adds no key to any row.
     assert _render(pushed["criteria.load"], PUSH_CHARS).startswith(
@@ -426,7 +435,7 @@ def test_night149_the_terminologists_relay_wake_carries_his_contest_words(tmp_pa
     for r in RULINGS149:
         assert (f"ruling {r['id']}:\n"
                 f"He contested {', '.join(CR149)}.\n"
-                + "".join(f"{c}: He contested this text: {r['texts'][c]}\n"
+                + "".join(_contested(c, r['texts'][c], TEXTS149[c])
                           for c in CR149)
                 + f"He said: {r['words']}") in user
     assert user.index(f"ruling {RULINGS149[0]['id']}:") < user.index(
@@ -494,7 +503,7 @@ def test_night149_the_block_says_each_ruling_once(tmp_path):
         assert block.count(f"ruling {r['id']}:") == 1
         assert block.count(r["words"]) == 1
         for c in CR149:
-            assert f"{c}: He contested this text: {r['texts'][c]}" in block
+            assert _contested(c, r['texts'][c], TEXTS149[c]) in block
 
 
 def test_night149_the_criterion_repair_wake_shows_the_block(tmp_path):
@@ -518,6 +527,6 @@ def test_night149_the_criterion_repair_wake_shows_the_block(tmp_path):
     old = RULINGS149[0]
     assert (f"ruling {old['id']}:\nHe contested {', '.join(CR149)}.\n") in block
     for c in CR149:
-        assert f"{c}: He contested this text: {old['texts'][c]}" in block
+        assert _contested(c, old['texts'][c], TEXTS149[c]) in block
 
 

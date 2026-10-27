@@ -461,8 +461,13 @@ def test_an_answer_to_a_challenge_quotes_the_criterion_or_is_the_fix(db):
     with pytest.raises(ValueError, match="carries the criterion's words"):
         sb.call("msg.answer_developer", refs=["c1", "ts1"], round_no=0,
                 quotes="the developer is right, the test asserts more than the criterion asks")
+    # Frame 333: each quote is a span of a row of refs, so prose around the
+    # span is refused too.
+    with pytest.raises(ValueError, match="carries the criterion's words"):
+        sb.call("msg.answer_developer", refs=["c1", "ts1"], round_no=0,
+                quotes="the assertion comes from: stores the email lowercased")
     out = sb.call("msg.answer_developer", refs=["c1", "ts1"], round_no=0,
-                  quotes="the assertion comes from: stores the email lowercased")
+                  quotes="stores the email lowercased")
     assert out["to"] == "developer"
 
 

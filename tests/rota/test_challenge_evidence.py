@@ -108,16 +108,20 @@ def test_a_foreign_criterion_is_not_this_batchs_fight(db):
                        "assert invoices_for('a1') == []")
 
 
-def test_the_other_channels_hold_the_looser_form_of_the_rule(db):
-    """Terminologist -> vision_keeper: quote the disputed row, whichever
-    text-bearing row the refs name."""
+def test_the_other_channels_hold_the_strict_form_of_the_rule(db):
+    """Terminologist -> vision_keeper: each quote is a span of the disputed
+    row, verbatim. Frame 333: the ruling of 2026-08-26 holds on all five
+    channels, so prose around the span is refused here too."""
     sb = build("terminologist", db, mode="criterion_repair")
-    with pytest.raises(ValueError, match="verbatim, not a paraphrase"):
+    with pytest.raises(ValueError, match="not a span of the live text of c1"):
         sb.call("msg.challenge_vision_keeper", refs=["c1"],
                 quotes="the account-closing rule cannot be machine-checked")
+    with pytest.raises(ValueError, match="not a span of the live text of c1"):
+        sb.call("msg.challenge_vision_keeper", refs=["c1"],
+                quotes="'leaves its invoices in place for seven years' names "
+                       "no observable store")
     sb.call("msg.challenge_vision_keeper", refs=["c1"],
-            quotes="'leaves its invoices in place for seven years' names no "
-                   "observable store")
+            quotes="'leaves its invoices in place for seven years'")
     assert sb.ctx.outbound
 
 

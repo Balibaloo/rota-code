@@ -33,7 +33,8 @@ cannot hold together, and write nothing for it.
 **A ticket whose headline names the docstring or the documentation takes documentation criteria.**
 Each one says what the docstring, the docs or the help text must say. A
 behaviour change that the ticket also needs goes to the Vision Keeper:
-`msg.challenge_vision_keeper` with the ticket, after its criteria land.
+`msg.challenge_vision_keeper` with the ticket and `quotes=` copying the words
+you dispute, after its criteria land.
 
 **A ticket has the few criteria a person would check.** Three is usual and
 six is many. Each one costs a test, a review, and a page if it fails. A

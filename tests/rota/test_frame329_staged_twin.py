@@ -191,8 +191,9 @@ def _s194(db):
 
 
 def _challenge(sb, refs):
+    # Frame 333: each row of refs has a quote, and each quote is a span.
     sb.call("msg.challenge_vision_keeper", refs=refs,
-            quotes=f"{BEFORE[C2]!r} holds the fact that c_1 now holds")
+            quotes=[BEFORE[r] for r in refs])
 
 
 def _answer_refused(sb) -> str:

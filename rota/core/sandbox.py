@@ -17,6 +17,7 @@ Consequences worth stating:
 """
 from __future__ import annotations
 
+import functools
 import inspect
 import json
 import re
@@ -931,9 +932,11 @@ def _owner_of_ref(conn, ref: str) -> str | None:
 
 
 # The rows a challenge can quote, and the column that holds their words.
+# Frame 333, item 2: the Architect's brief asks for "the exact span of each"
+# statement, so a statement is a row the door checks.
 _QUOTABLE = (("criteria", "text"), ("tests", "body"), ("items", "text"),
              ("tickets", "text"), ("glossary_terms", "sense_short"),
-             ("constraints", "text"))
+             ("constraints", "text"), ("statements", "text"))
 
 
 def _code_only(source: str) -> str:
@@ -948,27 +951,105 @@ def _code_only(source: str) -> str:
     return chr(10).join(out)
 
 
-def _quotes_span(source: str, text: str, n: int = 12) -> bool:
-    """A contiguous span of the source appears verbatim in the message.
+@functools.lru_cache(maxsize=512)
+def _shown_views(source: str) -> tuple[str, ...]:
+    """Each view of a row that a seat was shown, and the values that the
+    call stores when the seat copies a view into it.
 
-    Whitespace-normalised on both sides, because a quote copied across a line
-    wrap is still a quote. Twelve characters is enough that matching by
-    accident stops happening and short enough that any honest quote clears it.
+    Frame 328, item 2: one reader of the views replaces one decoder per
+    night. A prompt shows the raw row and its JSON form. A refusal shows
+    each control byte as `\\xNN`. The seat copies a view inside the quote
+    marks of its call, and `api._call_values` gives what each parse path
+    stores from it.
     """
-    src = " ".join((source or "").split())
-    msg = " ".join((text or "").split())
-    if len(src) <= n:
-        return bool(src) and src in msg
-    return any(src[i:i + n] in msg for i in range(len(src) - n + 1))
+    shown = [source, json.dumps(source)[1:-1],
+             json.dumps(source, ensure_ascii=False)[1:-1],
+             _escaped_view(source)]
+    views: list[str] = []
+    for v in shown:
+        for f in (v, *api._call_values(v)):
+            if isinstance(f, str) and f.strip() and f not in views:
+                views.append(f)
+    return tuple(views)
 
 
-def _answer_evidence(ctx: api.Ctx, refs, text: str) -> None:
+def _quote_reads(quote: str, source: str) -> bool:
+    """The quote is a `_span_of` one view of the source that the seat was
+    shown (ruled: Roman, 2026-08-26, a contiguous span of the disputed
+    row, verbatim, on all five channels)."""
+    # Frame 328, pass 3: an escape and its control byte are one character,
+    # on both sides.
+    return any(_span_of(quote, v) or _span_of(_unescaped(quote), _unescaped(v))
+               for v in _shown_views(source or ""))
+
+
+def _quote_holds(quote: str, line: str) -> bool:
+    """One view of the whole line is inside the quote, whitespace
+    normalised. Frame 333, item 3: a quote of part of the line names a
+    part of the conflict, as night 142's m83 did."""
+    for q in {quote or "", _unescaped(quote or "")}:
+        q = " ".join(q.split())
+        swap = q.replace("'", '"')
+        for v in _shown_views(line or ""):
+            for n in {" ".join(v.split()), " ".join(_unescaped(v).split())}:
+                if n and (n in q or n.replace("'", '"') in swap):
+                    return True
+    return False
+
+
+def _quoted_rows(ctx: api.Ctx, refs) -> dict[str, tuple[str, str]]:
+    """The quotable rows that refs name, as {id: (table, words)}."""
+    rows: dict[str, tuple[str, str]] = {}
+    for r in refs or []:
+        if not isinstance(r, str):
+            continue
+        for table, col in _QUOTABLE:
+            hit = ctx.conn.execute(
+                f"SELECT {col} AS words FROM {table} WHERE id = ?",
+                (r,)).fetchone()
+            if hit:
+                rows[r] = (table, hit["words"] or "")
+                break
+    return rows
+
+
+def _rows_quote_refusal(rows: dict, quotes: list) -> str | None:
+    """The refusal of quotes that are not each a span of one row of rows,
+    or of a row with no quote, or None.
+
+    Frame 333, item 1: the window of 2026-08-27 passed any 12 characters
+    of a row in the joined text, so prose around a span went through."""
+    def _shown(q: str) -> str:
+        return q if len(q) <= 80 else q[:77] + "..."
+
+    tail = (" Quote, not paraphrase: send quotes= as a list of strings, and "
+            "each string copies the words you dispute from one row, "
+            "verbatim.")
+    for q in quotes:
+        if not any(_quote_reads(q, words) for _, words in rows.values()):
+            short = len(" ".join(q.split())) < QUOTE_MIN
+            said = (f"quotes= holds `{_shown(q)}`, and it is shorter than "
+                    f"{QUOTE_MIN} characters. Copy {QUOTE_MIN} characters or "
+                    f"more, or the whole row." if short else
+                    f"quotes= holds `{_shown(q)}`, and it is not a span of "
+                    f"the live text of {' or of '.join(rows)}.")
+            return said + tail
+    for r, (_, words) in rows.items():
+        if not any(_quote_reads(q, words) for q in quotes):
+            return (f"quotes= holds no span of the live text of {r}, and "
+                    f"refs names {r}. Each row of refs needs a quote of its "
+                    f"own." + tail)
+    return None
+
+
+def _answer_evidence(ctx: api.Ctx, refs, text: str, quotes=None) -> None:
     """The Tester's answer to a challenge quotes the criterion it stands on.
 
     Only when the wake was a challenge: the trigger message's verb says so.
-    The answer's `text` must hold a verbatim span of a criterion named in
-    refs; the exit for a test that asserts more than its criterion is
-    `tests.encode`, and this door names it."""
+    Each quote is a span of one quotable row of refs, and one quote is a
+    span of a criterion of refs (frame 333, item 3). The exit for a test
+    that asserts more than its criterion is `tests.encode`, and this door
+    names it."""
     trig = ctx.conn.execute(
         "SELECT verb FROM messages WHERE id = ?", (getattr(ctx, "trigger", None),)).fetchone()
     if not trig or trig["verb"] != "challenge":
@@ -980,9 +1061,19 @@ def _answer_evidence(ctx: api.Ctx, refs, text: str) -> None:
         raise ValueError(
             "an answer to a challenge names the criterion the test stands on "
             "in refs, beside the test, and yours names no criterion")
-    if not any(_quotes_span(words or "", text) for _, words in crit):
+    quotes = _quote_list(text, quotes)
+    rows = _quoted_rows(ctx, refs)
+    loose = next((q for q in quotes if not any(
+        _quote_reads(q, words) for _, words in rows.values())), None)
+    if loose is not None or not any(
+            _quote_reads(q, words or "") for q in quotes for _, words in crit):
+        held = loose if loose is None or len(loose) <= 80 else loose[:77] + "..."
+        said = ("" if held is None else
+                f"quotes= holds `{held}`, and it is not a span of the live "
+                f"text of {' or of '.join(rows)}. Each quote is one span, "
+                f"and ")
         raise ValueError(
-            f"an answer that keeps the test carries the criterion's words: "
+            f"{said}an answer that keeps the test carries the criterion's words: "
             f"quotes= copying the span of {crit[0][0]} your assertion comes "
             f"from, verbatim. If the test asserts more than the criterion "
             f"asks, the exit is tests.encode, not an answer")
@@ -1175,7 +1266,8 @@ def _arrange_fault_of(ctx: api.Ctx, ref: str, output: str) -> dict | None:
                          surface, row["text"] or "", row["worktree"] or "")
 
 
-def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
+def _red_line_refusal(ctx: api.Ctx, refs, text: str,
+                      quotes=None) -> str | None:
     """The refusal of a challenge whose quote misses the line a red test
     fails at, or None when the quote holds that line or no run names one.
 
@@ -1186,7 +1278,10 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
     false decision from the quote (frame 213). A run that fails in the
     test's own arrange step also admits a quote of the raising line, the
     stub's line or its error, whatever the refs count (frame 304).
+    Frame 333, item 3: one quote holds the whole line. The window of 12
+    characters passed a quote of part of the line.
     """
+    quoted = _quote_list(text, quotes)
     for ref in refs or []:
         if not isinstance(ref, str):
             continue
@@ -1206,6 +1301,13 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
                 if ln.strip()}
         marked = next((ln[1:].strip() for ln in out
                        if ln.startswith(">") and ln[1:].strip() in body), None)
+        # The short form puts the line under `path:N: in name`, with no
+        # `>`. Night 167's tr110 failed at collection that way, and the
+        # window matched the line's words in the `E` line by chance.
+        marked = marked or next(
+            (nxt.strip() for ln, nxt in zip(out, out[1:])
+             if re.match(r"\S.*?\.py:\d+: in \S", ln) and nxt.strip() in body),
+            None)
         first = next((ln.strip() for ln in _code_only(test["body"] or "").splitlines()
                       if ln.strip().startswith("assert")), None)
         line = marked or first
@@ -1213,13 +1315,13 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str) -> str | None:
                      if re.match(r"E\s{2,}\S", ln)), None)
         if not line and not said:
             continue
-        if any(_quotes_span(s, text) for s in (line, said) if s):
+        if any(_quote_holds(q, s) for q in quoted for s in (line, said) if s):
             continue
         # Frame 304, night 159: s185 quoted the `FakeStdin` stub and the
         # call that read it, and this door wanted the assert line. A run
         # that fails in the test's own arrange step fails at that line.
         fault = _arrange_fault_of(ctx, ref, run["output"] or "")
-        if fault and any(_quotes_span(s, text) for s in
+        if fault and any(_quote_holds(q, s) for q in quoted for s in
                          (fault["quote"], fault["error"]) if s):
             continue
         # Frame 328, review of pass 3, finding 3: tst_tk3's line holds raw
@@ -1487,15 +1589,7 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
     holds the same line one loop earlier -- either verdict carries the line
     it stands on.
     """
-    rows: dict[str, tuple[str, str]] = {}
-    for r in refs or []:
-        for table, col in _QUOTABLE:
-            hit = ctx.conn.execute(
-                f"SELECT {col} AS words FROM {table} WHERE id = ?",
-                (r,)).fetchone()
-            if hit:
-                rows[r] = (table, hit["words"] or "")
-                break
+    rows = _quoted_rows(ctx, refs)
 
     if recipient == "tester":
         crit = [r for r, (t, _) in rows.items() if t == "criteria"]
@@ -1704,16 +1798,15 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
     # at review the tests are green by construction, so nothing mechanical
     # separates "the test is vacuous" from "the diff is wrong", and the
     # desk is the Critic's judgement to make.
-    # Every other channel: whatever text-bearing rows the refs name, at least
-    # one must actually be quoted. Vacuously legal when the refs carry no
-    # quotable row, because bounded strictness beats a guard with no exit.
-    if rows and not any(_quotes_span(words, text)
-                        for _, words in rows.values()):
-        some = next(iter(rows))
-        raise ValueError(
-            f"quotes= must contain the disputed row's own words and what you "
-            f"sent quotes none of your refs. Copy the span you dispute from "
-            f"{some} verbatim, not a paraphrase")
+    # Every other channel: each quote is a span of one quotable row of refs,
+    # and each such row has a quote (ruled: Roman, 2026-08-26, "on all five
+    # of its channels", DECISIONS.md 1294). Vacuously legal when the refs
+    # carry no quotable row, because bounded strictness beats a guard with
+    # no exit.
+    if rows:
+        said = _rows_quote_refusal(rows, _quote_list(text, quotes))
+        if said is not None:
+            raise ValueError(said)
 
 
 def _escalation_over_removed_grain(ctx, refs) -> None:
@@ -2401,10 +2494,10 @@ def _quoted_body_gone(conn: sqlite3.Connection, msg_id: str, tests) -> bool:
     - no test of `tests` holds that line now.
 
     The challenge door joins the quotes with " ... " into `body_text`. A
-    line is an exact substring with whitespace normalised. `_quotes_span`
-    is not used, because its 12-character window matches `result.output`
-    across any two versions of night 142's test. A quote that matched only
-    by that window is not exact, so it keeps counting (the review of
+    line is an exact substring with whitespace normalised. A 12-character
+    window is not used, because it matches `result.output` across any two
+    versions of night 142's test. A quote that matched only by such a
+    window is not exact, so it keeps counting (the review of
     bef80289, finding 4). A line under QUOTED_LINE_MIN or a line of the
     criterion's words ties the prior to no body. When no line is tied, the
     prior keeps counting.
@@ -3750,7 +3843,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # An answer that keeps the test carries the criterion's words the
         # assertion comes from; a concession is tests.encode (Roman).
         if verb == "answer" and ctx.role == "tester":
-            _answer_evidence(ctx, refs, text or "")
+            _answer_evidence(ctx, refs, text or "", quotes=spans)
         if verb in ("challenge", "escalate"):
             # And the same challenge twice is the same argument twice. S0
             # walk eight: nine rounds of challenge, answer, harness, with
@@ -3769,7 +3862,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # After the same-refs door, so a repeat still meets the refusal
         # that ends the session (frame 165's end form).
         if verb == "challenge":
-            red = _red_line_refusal(ctx, refs, text or "")
+            red = _red_line_refusal(ctx, refs, text or "", quotes=spans)
             if red:
                 raise ValueError(red)
         # After the same-refs door too, for the same end form.

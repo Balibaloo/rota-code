@@ -179,3 +179,33 @@ def test_two_red_tests_in_one_body_each_name_their_own_line(db):
     assert first in note and second in note
     assert note.index(first) < note.index(second)
     assert "test_shortens" not in note
+
+
+def test_a_raise_inside_the_code_after_the_commit_gets_a_note(db):
+    """Frame 328, item 4: `arrange_fault` admits a raise inside the
+    project's code, and on d495db74 the note read an `AssertionError` of
+    the test's file only. Nights 163 to 168 held 3 such reds of 17."""
+    body = ("from click.utils import format_filename\n\n"
+            "def test_an_int_is_shown_as_text():\n"
+            "    assert format_filename(123) == \"123\"\n")
+    note = _encode(db, body)["note"]
+    # The docstring of format_filename pushes the test's own frame out of
+    # the run's tail, so the note names the place that raised.
+    assert ("The run of `test_an_int_is_shown_as_text` on the batch's head "
+            "raises `TypeError: expected str, bytes or os.PathLike object, "
+            "not int` at src/click/utils.py line ") in note
+    assert "Encode it again with the same id." in note
+
+
+def test_a_raise_in_a_short_function_names_the_tests_line(db):
+    root = db.execute("SELECT worktree FROM batches WHERE id = 'bg_3'"
+                      ).fetchone()["worktree"]
+    with open(f"{root}/src/click/utils.py", "ab") as fh:
+        fh.write(b"\n\ndef double(x):\n    return x * 2 + None\n")
+    body = ("from click.utils import double, format_filename\n\n"
+            "def test_double():\n"
+            "    assert format_filename(str(double(2))) == \"4\"\n")
+    note = _encode(db, body)["note"]
+    assert ("The run of `test_double` on the batch's head fails at line 4, "
+            "`assert format_filename(str(double(2))) == \"4\"`: `TypeError: "
+            "unsupported operand") in note
