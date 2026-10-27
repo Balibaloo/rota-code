@@ -30,7 +30,8 @@ Otherwise the reply is a ruling. Read each numbered line against it:
 - The reply agrees with the line, or with the page as a whole: `approve`. "ok",
   "yes", "looks right", "fine, go ahead", "approved" approve every line.
 - The reply names the line, or corrects the thing the line says: `contest`.
-  A reply that says line 3 is wrong contests line 3 and approves the others.
+  A reply that says line 3 is wrong contests line 3 and approves the others,
+  except the read-back line.
   A reply that corrects what the software prints contests the line about
   printing.
 - The reply says the line is right in substance and asks for other words:
@@ -46,7 +47,14 @@ Otherwise the reply is a ruling. Read each numbered line against it:
 A correction counts against the line it is about, and only that line. A
 correction of a criterion, a check or the files contests that line, not line 1.
 The line under a request is the code it touches. Words about files, tests or paths go on that line, never on the request.
-Every line gets a ruling.
+Every line gets a ruling, except the read-back line.
+
+The read-back line starts "Your answer". It shows the principal how the
+team read an earlier answer, and it is the principal's alone. Rule it only
+from the principal's words: approve it when the words name it or approve
+the whole page, and contest it when the words correct it. Otherwise leave it
+out. When the words correct a row of that earlier answer, rule that row by
+its row id beside the contest of the read-back line.
 
 Call `rulings.rule` once, with `rulings` for every line and the whole reply as
 `words`. Then stop. The ruling lands after this session, and the owner of a

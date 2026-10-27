@@ -225,3 +225,55 @@ def test_the_send_door_writes_the_reading_ref_into_the_page(db, verb, refs):
     sb.call(f"msg.{verb}_principal", refs=refs)
     sent = sb.ctx.outbound[-1]["body_refs"]
     assert sent[-1] == READING_REF + reply, sent
+
+
+def test_a_contest_of_the_line_rules_a_row_the_new_page_does_not_hold(db):
+    """The review of pass 5, finding 1: page 2 holds s1 and the line only."""
+    reply, _ = _first_reply(db)
+    ref = READING_REF + reply
+    ask = _present(db, "m_p2", ["s1", ref], 5)
+    assert ask.order == ["s1", ref]
+    words = "2 is wrong: it was not a remove. Keep how_it_works."
+    again, out = _answer(db, ask, words, {
+        "1": "approve", "2": "contest",
+        "l_1": {"verdict": "approve", "act": "keep", "target": "how_it_works"}})
+    assert out["per_item"]["l_1"] == "approve", out
+    old = db.execute("SELECT status FROM ruled_refs_live WHERE reply_id = ? "
+                     "AND ref = 'l_1'", (reply,)).fetchone()
+    assert old["status"] == "superseded"
+    # The next page reads the corrected row back once.
+    owed = readings_owed(db)
+    assert owed == [READING_REF + again]
+    page, _ = _page_body(db, "present", ["calculate_tip"] + owed, ask_id="m_p3")
+    assert "keep how_it_works" in page.splitlines()[-1]
+
+
+def test_a_row_of_the_earlier_answer_needs_his_contest_of_the_line(db):
+    reply, _ = _first_reply(db)
+    ask = _present(db, "m_p2", ["s1", READING_REF + reply], 5)
+    with pytest.raises(ValueError, match="read-back line 2"):
+        _answer(db, ask, "1 is fine. Keep how_it_works.",
+                {"1": "approve", "2": "approve", "l_1": "approve"})
+
+
+def test_only_his_words_confirm_the_line(db):
+    """The review of pass 5, finding 2: words that skip line 3 approve
+    lines 1 and 2, and the door refuses the approve of line 3."""
+    reply, _ = _first_reply(db)
+    ref = READING_REF + reply
+    ask = _present(db, "m_p2", ["calculate_tip", "s1", ref], 5)
+    with pytest.raises(ValueError, match="only his words confirm it"):
+        _answer(db, ask, "2 is fine, and 1 is fine as well.",
+                {"1": "approve", "2": "approve", "3": "approve"})
+    assert set(_confirmed(db, reply).values()) == {None}
+
+
+def test_a_page_that_holds_a_confirmed_ref_shows_no_line(db):
+    """The review of pass 5, finding 4."""
+    reply, _ = _first_reply(db)
+    ref = READING_REF + reply
+    _present(db, "m_p4", ["calculate_tip", ref], 4)
+    ask = _present(db, "m_p2", ["calculate_tip", "s1", ref], 5)
+    _answer(db, ask, "ok", {str(i + 1): "approve" for i in range(len(ask.order))})
+    page, order = _page_body(db, "present", ["calculate_tip", ref], ask_id="m_p4")
+    assert ref not in order and "as the team read it" not in page

@@ -2144,8 +2144,11 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         out += [f"  {t}" for _, t in said + account + described + does_today
                 + does + does_not + assumed
                 + terms + touches + other]
+    # A reading he ruled on another page is no line here any more (the
+    # review of pass 5, finding 4).
+    owed = set(readings_owed(conn)) if readings else set()
     for ref in readings:
-        line = reading_line(conn, ref)
+        line = reading_line(conn, ref) if ref in owed else None
         if line:
             order.append(ref)
             out.append(f"  {len(order)}. {line}")

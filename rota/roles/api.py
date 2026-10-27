@@ -12742,6 +12742,16 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
 
     shift = ask["id"].startswith(SHIFT_ASK)
     off = set() if (shift or is_clarify) else off_page(ctx.conn, refs)
+    # His contest of a read-back line corrects the rows of that reply, and
+    # the new page need not hold them. Those refs are keys here, past the
+    # off-page rule (the review of pass 5, finding 1; the seam design, 2.3).
+    from .principal import ruled as _ruled_rows_of
+
+    read_back = {r[len(READING_REF):] for r in order or []
+                 if str(r).startswith(READING_REF)}
+    read_keys = {row["ref"]: reply for reply in read_back
+                 for row in _ruled_rows_of(ctx.conn, reply=reply)
+                 if not str(row["ref"]).startswith(READING_REF)}
     per_item: dict[str, str] = {}
     key_of: dict[str, str] = {}
     # The act, the target and the span of each ref, from the object form or
@@ -12762,6 +12772,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             ref = order[int(key) - 1]
         elif key in keys and not shift:
             ref = key
+        elif key in read_keys and not shift and not is_clarify:
+            ref = key
         # The code line of a request item on this page is admitted by its key
         # with no line, because a page can go out before the guess exists
         # (frame 298's design, 3.1, point 5).
@@ -12780,7 +12792,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                     f"you put aside.")
         # A row of another request is no line of this page, so words here
         # never change it (frame 193's design, 2.F.7).
-        if ref is not None and ref in off and ruling in ("contest", "revise"):
+        if (ref is not None and ref in off and ruling in ("contest", "revise")
+                and ref not in read_keys):
             items = _items_reached(ctx.conn, ref)
             raise ValueError(
                 f"{key} is your earlier request, {', '.join(items)}, and this "
@@ -12800,6 +12813,30 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             raise ValueError(
                 f"{key!r} is not a line of the page. The page numbers its "
                 f"rows 1 to {len(order)}; use those numbers")
+    # A row of an earlier reply takes a ruling only beside his contest of
+    # that reply's read-back line.
+    for ref in [r for r in per_item if r in read_keys and r not in (order or [])]:
+        line = READING_REF + read_keys[ref]
+        if per_item.get(line) not in ("contest", "revise"):
+            raise ValueError(
+                f"{key_of[ref]} is a row of his earlier answer, and this page "
+                f"does not number it. Rule it only when his words contest the "
+                f"read-back line {order.index(line) + 1}, and contest that line")
+    # The read-back line is his alone. An approve of it rests on his words:
+    # they name the line, or they approve the whole page and name no line.
+    # The Liaison approved it on words that skipped it (the review of pass
+    # 5, finding 2).
+    named = {n for m in _LINE_REF.finditer(words or "")
+             for n in _ref_lines(m, len(order or []))}
+    for i, r in enumerate(order or []):
+        if not str(r).startswith(READING_REF) or per_item.get(r) != "approve":
+            continue
+        whole = not named and all(v == "approve" for v in per_item.values())
+        if i + 1 not in named and not whole:
+            raise ValueError(
+                f"line {i + 1} is his read-back line, and only his words "
+                f"confirm it. His words do not name line {i + 1} and do not "
+                f"approve the whole page. Leave line {i + 1} out of the ruling")
     # The flat form of the act, the fallback of the seam design's doubt 1.
     # It names the keys of `rulings`, so it writes the rows the object form
     # writes.
