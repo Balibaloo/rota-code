@@ -18185,42 +18185,48 @@ def _call_keeps(form: str) -> bool:
 
 def _raw_advice(line: str, escape: str) -> str:
     """The sentence that names a form of the string that comes through the
-    call unchanged. A path takes forward slashes first, because that form
-    holds no escape on either parse path."""
+    call unchanged and keeps the value of the string.
+
+    W3 of night 171: s153 took the forward-slash form of `"AppData\\Local"`,
+    and the test can never pass against a Windows path. A form with forward
+    slashes changes the value, so it is never the first advice. It comes
+    last, for a path that a file function reads and no assert compares."""
     lit = _escape_literal(line, escape)
     if lit is None:
-        return ("Write the string with no backslash. A path takes forward "
-                "slashes.")
+        return ("Write each backslash as `chr(92)` outside the quote marks, "
+                "as in `\"C:\" + chr(92) + \"Users\"`. When a path is given "
+                "to a file function, not compared, forward slashes also "
+                "work.")
     prefix, mark, text = lit
     one = text.replace("\\\\", "\\")
-    slash = f"{prefix}{mark}{one.replace(chr(92), '/')}{mark}"
     # A raw string cannot end in one backslash or hold its own mark.
     raw = (None if one.endswith("\\") or "\\" + mark in one
            else f"r{prefix}{mark}{one}{mark}")
-    path = _PATH_TEXT.fullmatch(one) is not None
-    kept = [f for f in ([slash] if path else []) + ([raw] if raw else [])
-            if _call_keeps(f)]
-    if not kept:
-        # Review 2, point 4: a slash form of a value that is not a path
-        # gives a wrong value, so the advice names no form.
-        return ("No form of this string with a backslash comes through the "
-                "call unchanged. Write the value with no backslash.")
-    said = (f"Write the path with forward slashes: `{kept[0]}`."
-            if kept[0] == slash else
-            f"Write the string as a raw string with one backslash: "
-            f"`{kept[0]}`.")
-    if len(kept) > 1:
-        said += (f" The raw string `{kept[1]}`, with one backslash, also "
-                 f"comes through the call unchanged.")
-    elif kept[0] == slash and not prefix:
-        # Review 2, point 3: with no raw form, a criterion about a
-        # backslash needs a form that holds a real backslash on both paths.
-        joined = " + chr(92) + ".join(f"{mark}{p}{mark}"
-                                      for p in one.split("\\"))
+    if raw and _call_keeps(raw):
+        return (f"Write the string as a raw string with one backslash: "
+                f"`{raw}`.")
+    said = ""
+    if not prefix:
+        # Review 2, point 3: with no raw form, the value needs a form that
+        # holds a real backslash on both parse paths.
+        parts: list[str] = []
+        for i, p in enumerate(one.split("\\")):
+            parts += (["chr(92)"] if i else []) + ([f"{mark}{p}{mark}"]
+                                                   if p else [])
+        joined = " + ".join(parts)
         if _call_keeps(joined):
-            said += (f" For a criterion about a backslash, write `{joined}`. "
-                     f"That form keeps a real backslash on both parse "
-                     f"paths.")
+            said = (f"Write each backslash as `chr(92)`: `{joined}`. That "
+                    f"form keeps a real backslash on both parse paths.")
+    if not said:
+        # Review 2, point 4: no form with a backslash comes through, so the
+        # advice names no form that keeps the value.
+        said = ("No form of this string with a backslash comes through the "
+                "call unchanged. Write the value with no backslash.")
+    # Review 2, point 6: `_PATH_TEXT` reads `\R` alone as no path.
+    slash = f"{prefix}{mark}{one.replace(chr(92), '/')}{mark}"
+    if _PATH_TEXT.fullmatch(one) is not None and _call_keeps(slash):
+        said += (f" When the path is given to a file function, not "
+                 f"compared, `{slash}` also works.")
     return said
 
 

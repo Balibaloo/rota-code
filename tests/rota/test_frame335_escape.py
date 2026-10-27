@@ -65,13 +65,12 @@ def test_an_invalid_escape_is_refused_with_the_raw_string_form(
         _encode(db, _body(line))
     said = str(err.value)
     raw = "r" + line[len("path = "):]
-    slash = line[len("path = "):].replace(BS, "/")
     assert f"line 4 of the body, `{line}`, holds `{escape}`" in said
-    # Pass 2, review 1, finding 2: a path takes forward slashes first.
+    # W3 of night 171: the raw form keeps the value, so it goes first. The
+    # forward-slash form of pass 2 changed the value and is gone here.
     assert said.endswith(
-        f"Write the path with forward slashes: `{slash}`. The raw string "
-        f"`{raw}`, with one backslash, also comes through the call "
-        f"unchanged.")
+        f"Write the string as a raw string with one backslash: `{raw}`.")
+    assert "forward slash" not in said
     assert "not Python" not in said
     assert seen == []
     assert not db.execute("SELECT 1 FROM tests").fetchone()
@@ -122,9 +121,10 @@ def test_the_collection_note_gives_the_raw_string_form():
     assert ("The run of this body on the batch's head errors when pytest "
             "collects `tests/test_shorten.py`: `SyntaxError: \"\\R\" is an "
             "invalid escape sequence.`") in note
-    assert ("Write the path with forward slashes: `\"C:/AppData/Roaming\"`. "
-            "The raw string `r\"C:/AppData\\Roaming\"`, with one backslash, "
-            "also comes through the call unchanged.") in note
+    # W3 of night 171: the raw form only, because it keeps the value.
+    assert ("Write the string as a raw string with one backslash: "
+            "`r\"C:/AppData\\Roaming\"`.") in note
+    assert "forward slash" not in note
     assert "Did you mean" not in note
     assert "\\\\R" not in note
     assert note.endswith("Encode it again with the same id.")
@@ -151,31 +151,30 @@ def test_an_import_error_keeps_the_advice_of_pytest():
 # Pass 2, review 1, finding 2: probe `probe_p2.py` of the review. The raw
 # form of `\Users` with one backslash holds on both parse paths. In
 # `\Roaming\new` the strict path turns `\n` into a line break. In
-# `\Roaming\temp` it turns `\t` into a TAB. So those two get the forward
-# slashes only.
+# `\Roaming\temp` it turns `\t` into a TAB. W3 of night 171: those two get
+# the `chr(92)` form first, because it keeps the value. The forward-slash
+# form comes last, for a path that no assert compares.
 @pytest.mark.parametrize("text, advice", [
     ("C:" + BS + "Users" + BS + "x" + BS + "AppData" + BS + "Roaming",
-     'Write the path with forward slashes: `"C:/Users/x/AppData/Roaming"`. '
-     'The raw string `r"C:' + BS + 'Users' + BS + 'x' + BS + 'AppData' + BS
-     + 'Roaming"`, with one backslash, also comes through the call '
-     'unchanged.'),
+     'Write the string as a raw string with one backslash: `r"C:' + BS
+     + 'Users' + BS + 'x' + BS + 'AppData' + BS + 'Roaming"`.'),
     ("C:" + BS + "Roaming" + BS + "new",
-     'Write the path with forward slashes: `"C:/Roaming/new"`. For a '
-     'criterion about a backslash, write `"C:" + chr(92) + "Roaming" + '
+     'Write each backslash as `chr(92)`: `"C:" + chr(92) + "Roaming" + '
      'chr(92) + "new"`. That form keeps a real backslash on both parse '
-     'paths.'),
+     'paths. When the path is given to a file function, not compared, '
+     '`"C:/Roaming/new"` also works.'),
     ("C:" + BS + "Roaming" + BS + "temp",
-     'Write the path with forward slashes: `"C:/Roaming/temp"`. For a '
-     'criterion about a backslash, write `"C:" + chr(92) + "Roaming" + '
+     'Write each backslash as `chr(92)`: `"C:" + chr(92) + "Roaming" + '
      'chr(92) + "temp"`. That form keeps a real backslash on both parse '
-     'paths.'),
+     'paths. When the path is given to a file function, not compared, '
+     '`"C:/Roaming/temp"` also works.'),
     # Pass 2b, review 2, point 3: `\U` fails the strict path and `\n` the
     # fallback, so no raw form of `C:\Users\new` comes through.
     ("C:" + BS + "Users" + BS + "new",
-     'Write the path with forward slashes: `"C:/Users/new"`. For a '
-     'criterion about a backslash, write `"C:" + chr(92) + "Users" + '
+     'Write each backslash as `chr(92)`: `"C:" + chr(92) + "Users" + '
      'chr(92) + "new"`. That form keeps a real backslash on both parse '
-     'paths.'),
+     'paths. When the path is given to a file function, not compared, '
+     '`"C:/Users/new"` also works.'),
 ], ids=["users", "roaming_new", "roaming_temp", "users_new"])
 def test_the_advice_gives_a_form_that_the_call_keeps(
         db, monkeypatch, text, advice):  # noqa: F811
@@ -196,11 +195,47 @@ def test_an_invalid_octal_escape_meets_the_escape_refusal(db, monkeypatch):  # n
     assert said.startswith(f"line 4 of the body, `{line}`, holds `{BS}777`")
     assert "not Python" not in said and "Did you mean" not in said
     # Pass 2b, review 2, point 4: `"\777"` is no path, and the strict path
-    # reads its raw form as one character. So the advice names no form.
+    # reads its raw form as one character. W3: the `chr(92)` form gives the
+    # value that the raw form gives, so the advice names it and no slash.
     assert said.endswith(
-        "No form of this string with a backslash comes through the call "
-        "unchanged. Write the value with no backslash.")
+        "Write each backslash as `chr(92)`: `chr(92) + \"777\"`. That form "
+        "keeps a real backslash on both parse paths.")
     assert seen == []
+
+
+def test_night171_body_gets_the_raw_form_first(db, monkeypatch):  # noqa: F811
+    """W3 of night 171, s153: the slash form of `"AppData\\Local"` gave a
+    test that fails against `C:\\Users\\roman\\AppData\\Local\\test`."""
+    seen = _no_run(monkeypatch)
+    line = 'assert "AppData' + BS + 'Local" in result'
+    with pytest.raises(Exception) as err:
+        _encode(db, _body(line))
+    said = str(err.value)
+    assert said.startswith(f"line 4 of the body, `{line}`, holds `{BS}L`")
+    assert said.endswith("Write the string as a raw string with one "
+                         "backslash: `r\"AppData" + BS + "Local\"`.")
+    assert "AppData/Local" not in said
+    assert seen == []
+
+
+def test_a_value_with_no_kept_raw_form_gets_a_value_keeping_form():
+    """W3: no raw form of `C:\\Users\\new` comes through the call, so the
+    `chr(92)` form goes first and the slash form comes last."""
+    said = api._raw_advice('path = "C:' + BS + 'Users' + BS + 'new"',
+                           BS + "U")
+    first = said.split(". ")[0]
+    assert "chr(92)" in first and "/" not in first
+    value = eval(said.split("`")[3])  # noqa: S307 -- a literal of the test
+    assert value == "C:" + BS + "Users" + BS + "new"
+    assert said.endswith("When the path is given to a file function, not "
+                         "compared, `\"C:/Users/new\"` also works.")
+
+
+def test_a_line_with_no_literal_names_no_slash_form_first():
+    """W3: with no literal on the line, the advice names `chr(92)` first."""
+    said = api._raw_advice("", BS + "R")
+    assert said.startswith("Write each backslash as `chr(92)`")
+    assert "forward slashes also work" in said.split(". ")[-1]
 
 
 # The test row of night 168 as s146 stored it, one backslash. s147 quoted
