@@ -6444,8 +6444,8 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
 
     Every open add on the criterion and on its ticket is offered, so two
     adds in other words both stay until each is done. An add is done when
-    the ticket has a live criterion that the page of its ruling did not
-    show, or a live criterion that holds the add's words.
+    a `criteria.specify` call wrote a live criterion of the ticket in a
+    session after the ruling's, or when a live criterion holds its words.
     """
     from ..core.scheduler import live_criteria
     from .principal import last_ruling_on, open_adds
@@ -6481,35 +6481,52 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
             # done. No write ends the add, so the relay wake offered it
             # again, and the twin door of criteria.specify refused it (the
             # review of pass 4c, P4c-1).
-            # The record decides first: a live criterion of the ticket that
-            # the add's page did not show was written after the ruling. The
-            # Terminologist writes in glossary terms, so his exact words are
-            # the second test only (the review of pass 4d and 4e, P4de-1).
-            # Neither table stores a time, so the page is the record of what
-            # stood when he ruled.
-            shown = _page_refs(conn, add["ask_id"])
-            live = conn.execute(
-                "SELECT id, text FROM criteria WHERE ticket_id = ?"
-                + live_criteria(conn, "retired_by"), (ticket,)).fetchall()
-            # A page with no refs in the record proves nothing, so the
-            # words decide alone there.
-            if any((shown and c["id"] not in shown)
-                   or _holds_span(c["text"], said) for c in live):
+            # The record decides first: a criteria.specify write of a live
+            # criterion of the ticket, in a session after the one that wrote
+            # the ruling. The Terminologist writes in glossary terms, so his
+            # exact words are the second test only. What the page showed is
+            # no record of a write, and it ended adds that nobody wrote (the
+            # reviews of pass 4d and 4e, P4de-1, and of pass 4f, P4f-1).
+            if _written_after(conn, add["ruling_id"], ticket) or any(
+                    _holds_span(c["text"], said) for c in conn.execute(
+                        "SELECT text FROM criteria WHERE ticket_id = ?"
+                        + live_criteria(conn, "retired_by"), (ticket,))):
                 continue
             if (ticket, said) not in out["add"]:
                 out["add"].append((ticket, said))
     return out
 
 
-def _page_refs(conn: sqlite3.Connection, ask_id) -> set:
-    """The refs of the page that the ask message showed him."""
-    row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
-                       (ask_id,)).fetchone() if ask_id else None
-    try:
-        refs = json.loads(row["body_refs"]) if row else []
-    except (TypeError, ValueError):
-        refs = []
-    return {r for r in refs if isinstance(r, str)}
+def _written_after(conn: sqlite3.Connection, ruling_id: str,
+                   ticket: str) -> bool:
+    """Whether a session after the ruling's own wrote a live criterion of
+    `ticket` by `criteria.specify`.
+
+    `sessions.seq` orders the sessions. The ruling's session is the one
+    whose receipt holds the ruling row, else the Liaison session that its
+    reply or verdict message woke. With neither, nothing orders the write,
+    so the answer is False and his words decide alone."""
+    from ..core.scheduler import live_criteria
+
+    own = conn.execute(
+        "SELECT MAX(s.seq) AS n FROM receipts r JOIN sessions s "
+        "ON s.id = r.session_id WHERE r.table_name = 'rulings' "
+        "AND r.row_id = ?", (ruling_id,)).fetchone()
+    if own is None or own["n"] is None:
+        own = conn.execute(
+            "SELECT MAX(s.seq) AS n FROM sessions s JOIN rulings g "
+            "ON s.trigger_msg IN (g.reply_id, g.verdict_id) WHERE g.id = ?",
+            (ruling_id,)).fetchone()
+    if own is None or own["n"] is None:
+        return False
+    return conn.execute(
+        "SELECT 1 FROM receipts r JOIN sessions s ON s.id = r.session_id "
+        "JOIN criteria c ON c.id = r.row_id "
+        "WHERE r.table_name = 'criteria' AND c.ticket_id = ? AND s.seq > ?"
+        + live_criteria(conn, "c.retired_by") +
+        " AND EXISTS (SELECT 1 FROM tool_calls t WHERE t.session_id = s.id "
+        "AND t.fn = 'criteria.specify') LIMIT 1",
+        (ticket, own["n"])).fetchone() is not None
 
 
 @op("criteria", "retire")

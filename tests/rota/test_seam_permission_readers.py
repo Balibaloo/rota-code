@@ -158,16 +158,68 @@ def _write_criterion(conn, cid: str, text: str) -> None:
 
 # The review of pass 4d and 4e. Red on e4a06b38.
 
+def _session(conn, sid: str, seq: int, role: str, receipts, calls=()) -> None:
+    """A committed session with its receipts and its tool calls."""
+    conn.execute("INSERT INTO sessions (id, role, seq) VALUES (?, ?, ?)",
+                 (sid, role, seq))
+    for table, row_id in receipts:
+        conn.execute("INSERT INTO receipts (session_id, table_name, row_id, "
+                     "new_version) VALUES (?, ?, ?, 1)", (sid, table, row_id))
+    for n, fn in enumerate(calls, 1):
+        conn.execute("INSERT INTO tool_calls (session_id, fn, seq) VALUES "
+                     "(?, ?, ?)", (sid, fn, n))
+    conn.commit()
+
+
+PARAPHRASE = "The CLI output is unchanged from today."
+SAID = "the output stays exactly the same as today"
+
+
 def test_an_add_is_done_by_a_criterion_written_after_its_ruling(db):
-    """P4de-1: the Terminologist writes in glossary terms, so the record
-    decides, not his words. A criterion that stood before the ruling, as c2
-    did, does not count."""
-    said = "the output stays exactly the same as today"
+    """P4de-1 and P4f-1: the Terminologist writes in glossary terms, so the
+    record of the write decides, not his words. A criteria.specify write of
+    the ticket in a session after the ruling's marks the add done. The same
+    criterion with no recorded write does not."""
     _rule(db, "r1", {"c1": {"verdict": "approve", "act": "add",
-                            "words": said}})
-    assert api.criteria_page_acts(db, ["c1", "c2"])["add"] == [(TICKET, said)]
-    _write_criterion(db, "c4", "The CLI output is unchanged from today.")
+                            "words": SAID}})
+    _session(db, "s_liaison", 1, "liaison", [("rulings", "r1")])
+    assert api.criteria_page_acts(db, ["c1", "c2"])["add"] == [(TICKET, SAID)]
+    _write_criterion(db, "c4", PARAPHRASE)
+    assert api.criteria_page_acts(db, ["c1", "c4"])["add"] == [(TICKET, SAID)]
+    _session(db, "s_term", 2, "terminologist", [("criteria", "c4")],
+             ["criteria.specify"])
     assert api.criteria_page_acts(db, ["c1", "c4"])["add"] == []
+
+
+def test_a_write_before_the_ruling_does_not_end_the_add(db):
+    _write_criterion(db, "c4", PARAPHRASE)
+    _session(db, "s_term", 1, "terminologist", [("criteria", "c4")],
+             ["criteria.specify"])
+    _rule(db, "r1", {"c1": {"verdict": "approve", "act": "add",
+                            "words": SAID}})
+    _session(db, "s_liaison", 2, "liaison", [("rulings", "r1")])
+    assert api.criteria_page_acts(db, ["c1"])["add"] == [(TICKET, SAID)]
+
+
+@pytest.mark.parametrize("page, ref, target", [
+    ([ITEM, TICKET], TICKET, None),       # the page shows no criterion
+    ([ITEM, "c1"], "c1", None),           # the page shows some criteria
+    (PAGE, "c1", "tk2"),                  # the add targets a ticket not shown
+])
+def test_no_page_shape_ends_an_add_that_nobody_wrote(db, page, ref, target):
+    """P4f-1, the three failing cases of rv4f_add.py. Each page shape ended
+    the add on e1b62ab2 with no criterion written after the ruling."""
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk2', ?, "
+               "'t2')", (ITEM,))
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('d1', "
+               "'tk2', 'the text of d1')")
+    db.commit()
+    value = {"verdict": "approve", "act": "add", "words": SAID}
+    if target:
+        value["target"] = target
+    _rule_on(db, "r1", page, {ref: value}, seq=1)
+    assert api.criteria_page_acts(db, ["c1"])["add"] == [(target or TICKET,
+                                                        SAID)]
 
 
 def test_every_open_add_is_offered_until_each_is_done(db):
