@@ -1324,7 +1324,7 @@ a different question and the night is then opened once.
 - Pointer: `plans/night170-read.md`, sections 2 and 3; s196 to s230 in `.rota/clickI_night170.db`.
 - Status 2026-10-27 13:37 (rota-49): Pushed from night 170's read. Held by this session, peer name rota-49. The read of rule C76 runs next on Opus. Rota workflow.
 
-### 341. The wall guide prices a fix at one door as the norm, so a placed wall is fixed where the night showed it and not where its reach is (2026-10-26)
+### 341. The wall guide prices a fix at one door as the norm, so a placed wall is fixed where the night showed it and not where its reach is (2026-10-26) (c66eae69)
 
 - **Site: `plans/wall-guide.md`, section 4 and the price lines of each cause.** Meta workflow. Of 56 closed frames of the shape since 2026-10-12, 48 fixed one door of N at a median of 1 of 6 places, and 45 of them have a later frame at the same fact (observed: `plans/closed-reach-2026-10-26.md`). The guide, frame 251, prices the one-door fix as cheap and the norm (observed: `plans/closed-reach-b.md`).
 - Ends when: first, the mechanism: section 4 of the guide ends with the reach question of rule C76, and each cause's price line prices by the reach count, one reader for N places, with the fourteen agency reads as the cases; second, the count: frames closed at one door of N while a reach line said N above 1, from 48 of 56 toward 0 over the next two weeks; third, a frame that still closes at one door is read, and the frame closes when its cause is not this one.
@@ -1332,6 +1332,7 @@ a different question and the night is then opened once.
 - Reach: 1 of 1, the guide is the one page that prices a wall's fix (observed: rule C34).
 - Sprint: next sprint, rank 1 among the parked, before any wall of night 170 is placed (reasoned: every placement after night 170 reads the guide).
 - Pointer: `plans/closed-reach-2026-10-26.md`; `plans/agency-prevalence-2026-10-26.md`.
+- Status 2026-10-27 13:39 (rota-49): Claimed by c66eae69, peer name rota-49, as sprint 27 row 1 beside frame 343. Pass 1 runs on a fresh agent on Opus, cap 60k, from f341_pass1_brief.md in this session's scratchpad, at 13:39: section 4 ends with the reach question of rule C76, each cause prices its fix by the reach count, one case per cause from the fourteen agency reads. Meta workflow.
 
 ### 342. The close gate accepts a night count with a zero baseline, so a frame closes on three nights of zero at a door that never fired (2026-10-26)
 
