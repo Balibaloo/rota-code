@@ -16,7 +16,7 @@ Or keep each value as one word, and put the change in `acts`, a map from the sam
 Give `act` and `target` only when the reply asks for or permits that change, because a line with no act permits nothing.
 Copy into `words` the exact words of the reply that ask for the change, because other words are refused.
 Put the act on the line that the change is about, and give one act to a line.
-A later line with no act keeps an earlier act, and only a later act on the same target replaces it.
+A later line with no act ends an earlier act on the line or its check, and it keeps an earlier act on a named target such as `get_app_dir:518`.
 Each example below is a value of `rulings`. In `acts`, leave out its verdict and give the verdict in `rulings`.
 The acts:
 - `remove` takes code or a file away: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.

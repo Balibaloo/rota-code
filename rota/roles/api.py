@@ -6470,6 +6470,14 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
             ticket = add["target"] if add["target"] and conn.execute(
                 "SELECT 1 FROM tickets WHERE id = ?", (add["target"],)
             ).fetchone() else row["ticket_id"]
+            # A live criterion of the ticket that holds the words is the add
+            # done. No write ends the add, so the relay wake offered it
+            # again, and the twin door of criteria.specify refused it (the
+            # review of pass 4c, P4c-1).
+            if any(_holds_span(c["text"], said) for c in conn.execute(
+                    "SELECT text FROM criteria WHERE ticket_id = ?"
+                    + live_criteria(conn, "retired_by"), (ticket,))):
+                continue
             if (ticket, said) not in out["add"]:
                 out["add"].append((ticket, said))
     return out
@@ -12319,19 +12327,38 @@ def _note_words(words: str, n: int, page_text: str,
     otherwise. Night 161's s357 said "On line 11, use click directly in the
     test" (frame 305).
 
-    `within` is an act's span. When it is given, only a clause that holds
-    the span, or that the span holds, is read. A clause keeps the lines of
-    the clause before it, so the span needs no line of its own (the review
-    of pass 4b, P4b-3).
+    `within` is an act's span. When it is given, only a clause whose range
+    in the words meets the span's range is read. A clause keeps the lines
+    of the clause before it, so the span needs no line of its own (the
+    reviews of pass 4b, P4b-3, and of pass 4c, P4c-3).
     """
     # Whole words: "Remove line 11" on a note that holds "removed" is a drop
     # (frame 305, review 1, finding 5).
     body = " " + " ".join(re.findall(r"[\w']+", _line_body(page_text, n).lower())) + " "
     found: set[str] = set()
-    for cl, refs, question in _cue_clauses(words):
-        if not refs or n not in refs:
-            continue
-        if within and not (_holds_span(cl, within) or _holds_span(within, cl)):
+    clauses = _cue_clauses(words)
+    meets = [True] * len(clauses)
+    if within:
+        # Both sides fold alike, so a clause's folded text sits in the
+        # folded words, in order. A span that runs past a clause edge
+        # meets both clauses (the review of pass 4c, P4c-3).
+        def fold(s: str) -> str:
+            return " ".join((s or "").split()).casefold()
+
+        text, span = fold(words), fold(within)
+        start = text.find(span)
+        end = start + len(span)
+        at = 0
+        for i, (cl, _refs, _q) in enumerate(clauses):
+            c = fold(cl)
+            c_start = text.find(c, at) if c else -1
+            if c_start < 0:
+                meets[i] = False
+                continue
+            at = c_start + len(c)
+            meets[i] = start >= 0 and c_start < end and start < at
+    for (cl, refs, question), meet in zip(clauses, meets):
+        if not refs or n not in refs or not meet:
             continue
         drops = [m for m in _NOTE_DROP.finditer(cl)
                  if not _NEGATED.search(cl[:m.start()])

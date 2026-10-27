@@ -803,24 +803,46 @@ def grant(conn: sqlite3.Connection, ref: str, act: str,
     with no target (composition.md, Flows: "never ... treats silence as
     consent").
 
-    A row with no act changes nothing. The reader takes the newest landed
-    row on the ref that carries an act. When a target is given, it takes
-    the newest such row with a matching target. So a later plain approve
-    keeps night 169's m37 grant, and a later `keep` on the same target
-    takes it back (composition.md: "Only a ratified amendment to something
-    approved revokes work downstream"; the review of pass 4, P4-3).
+    A later row with no act takes back an act on the row itself: an act
+    with no target, or with the kind `row` or `check`. Every later verdict
+    on the ref names the row itself. A later row with no act keeps an act
+    with a named target of another kind, as night 169's m37 on
+    `get_app_dir:518`. When a target is given, the newest row with an act
+    on that target decides. With no target, the newest row whose act is
+    `act`, or whose act is on the row itself or on a target of `act`,
+    decides. An `add` never ends another act (composition.md: "Only a ratified amendment to something
+    approved revokes work downstream"; the reviews of pass 4, P4-3, and of
+    pass 4c, P4c-2 and P4c-4).
     """
     if not isinstance(ref, str) or not ref:
         return None
-    rows = [r for r in ruled(conn, [ref]) if r["act"] is not None]
+    rows = ruled(conn, [ref])
     if target is not None:
         wanted = {_target_key(t)
                   for t in ([target] if isinstance(target, str) else target) if t}
-        rows = [r for r in rows
-                if r["target"] is not None and _target_key(r["target"]) in wanted]
-    if not rows or rows[-1]["act"] != act:
+        found = [i for i, r in enumerate(rows) if r["act"] is not None
+                 and r["target"] is not None
+                 and _target_key(r["target"]) in wanted]
+    else:
+        # A later act on the same named target replaces the act on this
+        # ask too, so a keep on m37's line ends m37's remove.
+        named = {_target_key(r["target"]) for r in rows
+                 if r["act"] == act and not _on_the_row(r)}
+        found = [i for i, r in enumerate(rows) if r["act"] == act
+                 or (r["act"] not in (None, "add")
+                     and (_on_the_row(r) or _target_key(r["target"]) in named))]
+    if not found or rows[found[-1]]["act"] != act:
         return None
-    return rows[-1]
+    row = rows[found[-1]]
+    if _on_the_row(row) and any(r["act"] is None for r in rows[found[-1] + 1:]):
+        return None
+    return row
+
+
+def _on_the_row(row) -> bool:
+    """Whether an act is on the row itself: it has no target, or its target
+    is the row or its check. A later verdict on the ref speaks to it."""
+    return row["target"] is None or row["target_kind"] in ("row", "check")
 
 
 def granted(conn: sqlite3.Connection, ref: str, act: str,
@@ -831,10 +853,12 @@ def granted(conn: sqlite3.Connection, ref: str, act: str,
     reads his words by a phrase (the seam design, pass 4). `grant` gives the
     row itself, for a reader that needs its line or its words.
 
-    A row with no act changes nothing. The newest landed row on the ref that
-    carries an act decides, and the newest with a matching target when a
-    target is given. A plain approve after m37 keeps its grant, and a later
-    `keep` on the same target takes it back (the review of pass 4, P4-3)."""
+    A later row with no act takes back an act on the row itself, with no
+    target or with the kind `row` or `check`. It keeps an act with a named
+    target of another kind. So a plain approve after a drop ends the drop,
+    and a plain approve after m37 keeps its grant on `get_app_dir:518`. A
+    later act on the same target replaces an act, and an `add` never ends a
+    drop (the reviews of pass 4, P4-3, and of pass 4c, P4c-2 and P4c-4)."""
     return grant(conn, ref, act, target) is not None
 
 

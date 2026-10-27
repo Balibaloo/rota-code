@@ -82,10 +82,10 @@ def test_the_grant_names_its_target(db, target, asked, expected):
     assert not granted(db, "c1", "add", asked)
 
 
-def test_only_the_newest_landed_row_with_an_act_grants(db):
-    """A newer landed act takes the grant back. An open ruling grants
-    nothing yet, and it hides no landed grant. A row with no act changes
-    nothing (the review of pass 4, P4-3)."""
+def test_a_later_row_takes_back_an_act_on_the_row_itself(db):
+    """An open ruling grants nothing yet, and it hides no landed grant. A
+    later plain row takes back an act on the row itself, and a later act
+    replaces it (the reviews of pass 4, P4-3, and of pass 4c, P4c-2)."""
     _rule(db, "r1", {"c1": {"verdict": "contest", "act": "drop"}})
     assert granted(db, "c1", "drop")
     _rule(db, "r2", {"c1": {"verdict": "contest", "act": "keep"}},
@@ -93,10 +93,47 @@ def test_only_the_newest_landed_row_with_an_act_grants(db):
     assert granted(db, "c1", "drop")
     assert not granted(db, "c1", "keep")
     _rule(db, "r3", {"c1": "approve"}, seq=3)
-    assert granted(db, "c1", "drop")
+    assert not granted(db, "c1", "drop")
     _rule(db, "r4", {"c1": {"verdict": "contest", "act": "keep"}}, seq=4)
     assert not granted(db, "c1", "drop")
     assert granted(db, "c1", "keep")
+
+
+# The review of pass 4c. Red on c33c20eb.
+
+def test_a_plain_approve_ends_a_drop_and_a_later_contest_does_not_revive_it(db):
+    """P4c-2: a drop's target is the row, and a plain approve on the row
+    speaks to it. A later contest with no act retires nothing."""
+    _rule(db, "r1", {"c1": {"verdict": "contest", "act": "drop",
+                            "target_kind": "row"}})
+    _rule(db, "r2", {"c1": "approve"}, seq=2)
+    _rule(db, "r3", {"c1": {"verdict": "contest", "words": "line 2 is wrong"}},
+          seq=3)
+    assert api.criteria_page_acts(db, ["c1"])["retire"] == []
+    assert api.ruling_drops_line(_ctx(db), "c1") is None
+
+
+def test_an_add_on_the_line_does_not_end_its_drop(db):
+    """P4c-4: an add rides on any line of the item, and it says nothing
+    about the line it rides on."""
+    _rule(db, "r1", {"c1": {"verdict": "contest", "act": "drop"}})
+    _rule(db, "r2", {"c1": {"verdict": "contest", "act": "add",
+                            "words": "a new line"}}, seq=2)
+    assert granted(db, "c1", "drop")
+    assert api.criteria_page_acts(db, ["c1"])["retire"] == ["c1"]
+
+
+def test_an_add_that_a_live_criterion_holds_is_not_offered_again(db):
+    """P4c-1: m112's add, then the criterion that criteria.specify wrote.
+    The add is done, so the relay wake offers it no more."""
+    said = "the output stays exactly the same as today"
+    _rule(db, "r1", {"c1": {"verdict": "approve", "act": "add",
+                            "words": said}})
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c4', ?, 'The output stays exactly the same as today.')",
+               (TICKET,))
+    db.commit()
+    assert api.criteria_page_acts(db, ["c1", "c4"])["add"] == []
 
 
 # One test per reader, on its own target kind. Each case is the reading

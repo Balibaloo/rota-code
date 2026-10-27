@@ -237,3 +237,25 @@ def test_a_span_with_no_line_in_a_clause_that_asks_no_change_is_refused(
     with pytest.raises(ValueError) as refused:
         _rule(db, words, _act("rewrite", span))
     assert str(refused.value).startswith("line 11 is the team's note")
+
+
+# Pass 4d: the review of pass 4c, P4c-3. A span that runs past a clause edge
+# meets both clauses, and the door reads both. Red on c33c20eb.
+
+S357 = ("Lines 10, 13 and 14 are about the echo json change, not this one, "
+        "so please take them off this page. On line 11, use click directly "
+        "in the test instead of installing a separate package. The rest is "
+        "fine.")
+SO = ("On line 11, the separate package is wrong, so use click directly in "
+      "the test instead. The rest is fine.")
+
+
+@pytest.mark.parametrize("words, span, more", [
+    (S357, "use click directly in the test instead of installing a separate "
+           "package. The rest is fine", {"10": "contest"}),          # J1
+    (SO, "package is wrong, so use click directly", {}),             # J3
+], ids=["J1", "J3"])
+def test_a_span_across_a_clause_edge_reads_every_clause_it_meets(
+        db, words, span, more):
+    out = _rule(db, words, _act("rewrite", span), **more)
+    assert out["per_item"]["l_9"] == "revise"
