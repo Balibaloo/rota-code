@@ -124,3 +124,24 @@ The door does not refuse an approve whose words are not his reply, CONFIRMED by 
 7. Outside, low, PLAUSIBLE. The implementer reports an unchanged casestatus line after the `landing.md` edit, which changes the landing prompt. The register may not key those cases on that prompt. Fix: re-check one L1-LI case against the register before night 170.
 
 Usage of the re-check: about 12k input tokens and 4k output tokens, an estimate.
+
+## Pass 5c, the re-check of 44bae1ce
+
+Pass 5c stands. Both high findings of pass 5b are fixed, CONFIRMED by probe E. Two low points stay open, and the landing cases need new recordings before night 170.
+
+The tree is a `git archive` of 44bae1ce in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e03f97fc-cdd4-4daa-864c-2ca4d7ef42a5/scratchpad/p5c_tree`. The probe is `p5rev/probe_e_5c.py`. It is probe D with the new tree plus a wake check, and it ran from the tree root.
+
+### Finding 6, the landing wake
+
+Fixed, CONFIRMED. The landing wake of a page with the line now carries `read_back`, for example `{'2': [{'ref': 's1', 'line': 1, 'verdict': 'approve'}, {'ref': 'calculate_tip', 'line': 2, 'verdict': 'approve'}, {'ref': 'l_1', 'line': 3, 'verdict': 'contest', 'act': 'remove', 'target': 'how_it_works'}]}`. So the Liaison now sees `l_1` beside the target that the line names. With the key `l_1`, the old row becomes `superseded`, and the new `l_1` approve lands. On the night, a contest can land with the corrected rows, if the Liaison follows the brief.
+
+### Finding 5, the approve guard
+
+Fixed, CONFIRMED. The guard reads the body of `ctx.trigger`. His reply "2 is fine, and 1 is fine as well." with `words="ok"` is refused, and no row gets a `confirmed_by`. His reply "3 is right." confirms the reading. His reply "ok" confirms it with `words="ok"` and also with `words="2 is fine."`, because his reply approves the whole page.
+
+### Open, low
+
+8. `rota/roles/api.py`, `rulings_rule`, the contest branch. Low. CONFIRMED by probe P3b. A contest of the line that rules no row of the earlier reply still lands. The reply then leaves `readings_owed`, and its rows stay unconfirmed and are never shown again. The wake now lists the rows, so this path needs a choice of the model, which lowers the rating. Fix: refuse a contest of a `reading:` line that rules none of the refs in `read_back`.
+9. `rota/core/runner.py`, the `read_back` key. Low. PLAUSIBLE. Each row carries `line`, which is the line number of the old page. A Liaison that keys the row by that number rules the line of the same number on the new page, which is another ref, and no door refuses it. Fix: drop `line` from the `read_back` rows, or name it `old_line`.
+
+Usage of the re-check: about 8k input tokens and 3k output tokens, an estimate.
