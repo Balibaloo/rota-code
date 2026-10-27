@@ -2624,6 +2624,20 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 line_rows = _resolve_refs(conn, order)
                 for ref, resolved_row in line_rows.items():
                     resolved_row["table"] = _table_of(conn, ref)
+                # A read-back line names the rows of an earlier reply by
+                # their ids here, so the seat can rule a row his words
+                # correct. The page he reads shows no id (the review of pass
+                # 5b, finding 6). Only a page with the line gets the key.
+                from ..roles.principal import READING_REF, ruled as _ruled
+
+                back = {str(i + 1): [
+                    {k: r[k] for k in ("ref", "line", "verdict", "act", "target")}
+                    for r in _ruled(conn, reply=ref[len(READING_REF):])
+                    if not str(r["ref"]).startswith(READING_REF)]
+                    for i, ref in enumerate(order)
+                    if str(ref).startswith(READING_REF)}
+                if back:
+                    landing["read_back"] = back
                 # Both copies, measured together. The gate read `line_rows`
                 # alone, which is built from the page's rendered order, while
                 # `resolved_refs` is built from the wake's refs -- always the

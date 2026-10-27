@@ -12826,17 +12826,25 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # they name the line, or they approve the whole page and name no line.
     # The Liaison approved it on words that skipped it (the review of pass
     # 5, finding 2).
-    named = {n for m in _LINE_REF.finditer(words or "")
+    # The guard reads his message, never the `words` argument: one
+    # paraphrase confirmed a reading that his reply skipped (the review of
+    # pass 5b, finding 5).
+    said = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                            (ctx.trigger,)).fetchone()
+    his = (said["body_text"] if said else "") or ""
+    named = {n for m in _LINE_REF.finditer(his)
              for n in _ref_lines(m, len(order or []))}
+    his_matched = _line_reading(his, len(order or []))[1]
     for i, r in enumerate(order or []):
         if not str(r).startswith(READING_REF) or per_item.get(r) != "approve":
             continue
         whole = not named and all(v == "approve" for v in per_item.values())
-        if i + 1 not in named and not whole:
+        if i + 1 not in his_matched and not whole:
             raise ValueError(
                 f"line {i + 1} is his read-back line, and only his words "
-                f"confirm it. His words do not name line {i + 1} and do not "
-                f"approve the whole page. Leave line {i + 1} out of the ruling")
+                f"confirm it. His reply does not say that line {i + 1} is right, "
+                f"and it does not approve the whole page. Leave line {i + 1} "
+                f"out of the ruling")
     # The flat form of the act, the fallback of the seam design's doubt 1.
     # It names the keys of `rulings`, so it writes the rows the object form
     # writes.

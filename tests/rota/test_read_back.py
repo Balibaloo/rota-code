@@ -277,3 +277,41 @@ def test_a_page_that_holds_a_confirmed_ref_shows_no_line(db):
     _answer(db, ask, "ok", {str(i + 1): "approve" for i in range(len(ask.order))})
     page, order = _page_body(db, "present", ["calculate_tip", ref], ask_id="m_p4")
     assert ref not in order and "as the team read it" not in page
+
+
+def test_his_reply_alone_confirms_a_reading(db):
+    """The review of pass 5b, finding 5, probe P2d: his reply skips line 3,
+    and the Liaison passes the words "ok"."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    reply, _ = _first_reply(db)
+    ask = _present(db, "m_p2", ["calculate_tip", "s1", READING_REF + reply], 5)
+    his = land(db, ask, parse_reply(ask, "2 is fine, and 1 is fine as well."))
+    db.commit()
+    sb = build("liaison", db, mode="normal", session_id="s_p2d",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = his
+    with pytest.raises(ValueError, match="only his words confirm it"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
+                                         "3": "approve"}, words="ok")
+
+
+def test_the_landing_wake_lists_the_rows_of_the_read_back_line(db):
+    """The review of pass 5b, finding 6: the seat needs the ids of the rows
+    that the line reads back."""
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    reply, _ = _first_reply(db)
+    ask = _present(db, "m_p2", ["s1", READING_REF + reply], 5)
+    his = land(db, ask, parse_reply(ask, "2 is wrong: keep how_it_works."))
+    db.commit()
+    wake = Wake(role="liaison", kind="message", detail="converse",
+                message_id=his, refs=ask.refs)
+    landing = resolve_inbound(db, wake)["landing"]
+    rows = landing["read_back"]["2"]
+    assert [(r["ref"], r["line"], r["verdict"]) for r in rows] == [
+        ("s1", 1, "approve"), ("calculate_tip", 2, "approve"),
+        ("l_1", 3, "contest")], rows
+    assert rows[2]["act"] == "remove" and rows[2]["target"] == "how_it_works"
