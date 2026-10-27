@@ -2039,6 +2039,19 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             "SELECT i.text FROM items i JOIN item_provenance p ON p.id = i.id "
             "WHERE i.id = ? AND p.provenance = 'observed'",
             (id,)).fetchone()
+        # An observed description says what the code does today. Only a
+        # wake that reads the code changes its words. Night 171: s152, woken
+        # by a deliver that named a ledger row, rewrote the approved account,
+        # and the word doors below let it pass. The route is the deliver
+        # brief's own (plans/night171-how-it-works-read.md, section 6).
+        from ..core.runner import _is_description
+        if observed and _is_description(ctx.conn, id):
+            raise ValueError(
+                f"{id} is a description read from the code, and only an "
+                f"onboarding wake changes its words. Leave it as it is. What "
+                f"the principal asked for is its own item. The deliver brief "
+                f"says: \"Assert it as its own item, with an id that names "
+                f"the behaviour, one `problem.assert` per distinct thing.\"")
         if observed and observed["text"]:
             old_words = set(_prose_words(observed["text"]))
             new_words = set(_prose_words(text))
@@ -2120,8 +2133,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
                 f"how_it_works is the account of the whole program, and this "
                 f"text keeps almost none of its words ({cur_acc['text']!r}). A "
                 f"behaviour the principal asked for is its own item: assert it "
-                f"under its own name, kind in_scope. Amend the account only to "
-                f"add the new behaviour to what it already says")
+                f"under its own name, kind in_scope")
 
     if ctx.conn.execute(
             "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
