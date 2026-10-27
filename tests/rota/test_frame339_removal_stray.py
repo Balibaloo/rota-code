@@ -127,7 +127,12 @@ def test_night_169s_rewrite_lands_with_one_open_stray(db, tmp_path):
     assert (grain, status) == (GRAIN, "open")
     assert note.startswith(f"removal: `{GONE}` at line "), note
     assert out["removals"] == [f"{GRAIN}: {note}"]
-    assert "The Architect is asked" in out["removals note"]
+    assert out["removals note"] == (
+        "no criterion, request or ruling of the principal asks for this "
+        "removal. The commit stands, and it holds your fix. The Architect "
+        "judges the removal after this session. Your next step is to end the "
+        "session. Only if you know that the removal was a mistake, put the "
+        "lines back and commit")
 
 
 def test_his_m37_words_are_no_permission_form_and_the_stray_stands(db, tmp_path):

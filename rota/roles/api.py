@@ -20498,12 +20498,19 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             "leaves the line gone. Put the line back, then commit")
     if removals:
         out["removals"] = [f"{g}: {n}" for g, n in removals.items()]
+        # Frame 339, pass 1d: a question in this note made the Developer
+        # send msg.challenge_tester in 3 of 5 runs of
+        # ACT-DV-edit-inside-the-function. The note names one next step
+        # (frame 135: one fact, one step).
+        one = len(removals) == 1
         out["removals note"] = (
             f"no criterion, request or ruling of the principal asks for "
-            f"{'this removal' if len(removals) == 1 else 'these removals'}. "
-            f"The commit stands. The Architect is asked whether the removal "
-            f"was foreseen or a mistake before the batch merges; if you know "
-            f"it was a mistake, put the line back and commit")
+            f"{'this removal' if one else 'these removals'}. The commit "
+            f"stands, and it holds your fix. The Architect judges the "
+            f"{'removal' if one else 'removals'} after this session. Your "
+            f"next step is to end the session. Only if you know that the "
+            f"{'removal was a mistake' if one else 'removals were mistakes'}, "
+            f"put the lines back and commit")
     if def_strays:
         out["definitions outside the criteria"] = def_strays
         out["definitions note"] = (
