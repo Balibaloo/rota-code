@@ -5218,18 +5218,29 @@ def _named_callables(ctx: Ctx, text: str) -> list[str]:
     words = {w.strip(".,;:()'\"`").lower() for w in (text or "").split()} - {""}
     if not words:
         return []
-    out = []
+    # Frame 324, review of f57eb508, finding 2: the file name decided, so the
+    # demo's `clear` came first on night 167 and `src/click/testing.py` was
+    # dropped. The frame's kind decides now.
+    from ..onboarding.areas import is_test, kind_of
+
+    rows = []
     for row in ctx.conn.execute("SELECT grain FROM code_index WHERE "
                                 "grain_kind = 'symbol' ORDER BY grain"):
         path, sep, name = row["grain"].partition("::")
         if not sep or name.rsplit(".", 1)[-1].lower() not in words:
             continue
+        kind = kind_of(ctx.conn, path)
         # A test is not a surface.
-        if (path.replace("\\", "/").split("/")[-1].startswith("test")
-                or "/tests/" in f"/{path}"):
+        if kind in ("attached", "ignore") and is_test(path):
             continue
-        out.append(row["grain"])
-    return out
+        rows.append((row["grain"], name, kind))
+    program = {n for _, n, k in rows if k == "program"}
+    # An attached row with a program twin of the same name is the wrong one
+    # of the two, as at the surface door.
+    rows = [r for r in rows if r[2] in ("program", "surface")
+            or r[1] not in program]
+    return [g for g, _, k in sorted(rows,
+                                    key=lambda r: _KIND_RANK.get(r[2], 4))]
 
 
 def _raise_lines(first: int, lines: list[str]) -> list[str]:
@@ -7422,33 +7433,6 @@ def _test_dirs(indexed: set[str], conn=None) -> set[str]:
 
     return {g.rpartition("/")[0] for g in indexed
             if _test_shaped(g) and kind_of(conn, g) == "attached"}
-
-
-def _module_kind(conn: sqlite3.Connection, module: str) -> str:
-    """The frame's kind of the indexed files that a top-level import name
-    names, or "" when the index holds no such file.
-
-    The name matches a folder of a path or a file `<name>.py`. The
-    shallowest match wins, so `click` is `src/click` in a src layout. The
-    kind is `program` when one file of that match is program code."""
-    from ..onboarding.areas import kind_of
-
-    best: tuple[int, list[str]] | None = None
-    for r in conn.execute(
-            "SELECT grain FROM code_index WHERE grain_kind = 'path'"):
-        parts = r["grain"].replace("\\", "/").split("/")
-        depth = next((i for i, p in enumerate(parts[:-1]) if p == module),
-                     len(parts) - 1 if parts[-1] == f"{module}.py" else None)
-        if depth is None:
-            continue
-        if best is None or depth < best[0]:
-            best = (depth, [r["grain"]])
-        elif depth == best[0]:
-            best[1].append(r["grain"])
-    if best is None:
-        return ""
-    kinds = [kind_of(conn, g) for g in best[1]]
-    return "program" if "program" in kinds else kinds[0]
 
 
 def _program_modules(conn: sqlite3.Connection) -> set[str]:
@@ -9805,9 +9789,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # Frame 324 (ruled: Roman, 2026-10-26 20:37): a module that the
         # index places in program code is the program's name, never a
         # second program. A src layout of two packages, such as the sample
-        # project's `store` and `billing`, has neither at the root.
+        # project's `store` and `billing`, has neither at the root. The name
+        # is an import name of the program, so the folder `src` is not one
+        # (frame 324, review of f57eb508, finding 1).
+        program_mods = _program_modules(ctx.conn)
         odd = sorted(m for m in mine if m not in others
-                     and _module_kind(ctx.conn, m) != "program")
+                     and m not in program_mods)
         if odd and agreed not in mine and not exists:
             raise ValueError(
                 f"this test imports {odd[0]}, and the batch's other tests import "

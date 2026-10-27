@@ -604,7 +604,10 @@ def test_the_criterion_repair_brief_says_where_a_surface_lives():
     repair = prompts.compose("terminologist", "criterion_repair")
     head = repair.index("`[code.callables]` lists the candidates")
     sentence = " ".join(repair[head:head + 400].split())
-    assert ("The list ranks by fan-in, not by fit: the surface is a callable "
+    # Frame 324, pass 1b: the list ranks by the frame's kind first.
+    assert ("The list shows the program's rows first, and `kind` marks each "
+            "row. Inside one kind, a name the note says comes first, then "
+            "fan-in. The order is not fit: the surface is a callable "
             "in a file the batch expects to touch or the request names.") in sentence
 
 

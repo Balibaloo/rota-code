@@ -128,9 +128,8 @@ def test_the_probe_lists_the_programs_rows_first_with_their_kind(night167):
     assert {r["grain"]: r["kind"] for r in rows}[EXAMPLE] == "attached"
 
 
-def test_s280_full_example_path_is_refused_and_names_the_programs_clear(night167):
-    """s280 seq 9 wrote `surface_refs=['examples/termui/termui.py::clear']`
-    with a full path, and the door stored it."""
+def _tk3(night167):
+    """Night 167's item, ticket tk_3 and its criterion on the library."""
     night167.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                      "version, priority) VALUES ('clear_screen', ?, 'in_scope', "
                      "'approved', 1, 1, 1)",
@@ -142,6 +141,12 @@ def test_s280_full_example_path_is_refused_and_names_the_programs_clear(night167
                      "VALUES ('tk_3_c', 'tk_3', 'clear returns True.', ?)",
                      (f'["{LIBRARY}"]',))
     night167.commit()
+
+
+def test_s280_full_example_path_is_refused_and_names_the_programs_clear(night167):
+    """s280 seq 9 wrote `surface_refs=['examples/termui/termui.py::clear']`
+    with a full path, and the door stored it."""
+    _tk3(night167)
     with pytest.raises(ValueError) as refused:
         _seat(night167).call(
             "criteria.respecify", id="tk_3_c",
@@ -149,6 +154,46 @@ def test_s280_full_example_path_is_refused_and_names_the_programs_clear(night167
             surface_refs=[EXAMPLE])
     said = str(refused.value)
     assert "attached" in said and LIBRARY in said
+
+
+def test_a_demo_callable_with_no_program_twin_is_not_refused_as_attached(night167):
+    """The W5 read's negative: `read_config` lives in `examples/aliases`
+    only, so the twin rule has nothing to offer and stays out of the way.
+    Frame 215's wall decides it where a batch exists."""
+    _index(night167, [("examples/aliases/aliases.py::read_config", "function")])
+    _tk3(night167)
+    out = _seat(night167).call(
+        "criteria.respecify", id="tk_3_c",
+        # Frame 202's request rule wants the new callable in backticks.
+        text="When the file exists, `read_config` returns its values.",
+        surface_refs=["examples/aliases/aliases.py::read_config"])
+    assert out["respecified"]
+
+
+def test_the_criteria_wake_names_the_programs_clear_and_keeps_testing_py(night167):
+    """The review of f57eb508, finding 2: `_named_callables` decided by file
+    name. On night 167 it listed the demo's `clear` first, and it dropped
+    `src/click/testing.py`."""
+    ctx = types.SimpleNamespace(conn=night167)
+    assert api._named_callables(
+        ctx, "clear returns True if it cleared the screen") == [LIBRARY]
+    assert api._named_callables(ctx, "make_input_stream feeds stdin") == [
+        "src/click/testing.py::make_input_stream"]
+    assert api._named_callables(ctx, "test_nargs_star") == []
+
+
+def test_the_one_program_door_refuses_an_import_from_the_src_folder(tmp_path):
+    """The review of f57eb508, finding 1: `from src.click.termui import
+    clear` beside tests that import `click` is a second name for the
+    program, and d495db74 refused it. `src` is a folder, not a module."""
+    root = tmp_path / "wt"
+    _write(root, {"src/click/__init__.py": "", "src/click/termui.py": ""})
+    conn = _encode_db(tmp_path, ["src/click/__init__.py", "src/click/termui.py"],
+                      "from click.termui import clear\ndef test_c():\n"
+                      "    assert clear() is None\n", worktree=root)
+    said = _encode(conn, "from src.click.termui import clear\ndef test_s():\n"
+                         "    assert clear() is None\n")
+    assert "a second module is a second program" in said
 
 
 # -- one test per door where the pattern and the reader disagree --------------
