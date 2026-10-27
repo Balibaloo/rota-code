@@ -992,39 +992,10 @@ def _shown_views(source: str) -> tuple[str, ...]:
     """
     views: list[str] = []
     for v in _rendered_views(source):
-        for f in (v, *_view_values(v)):
+        for f in (v, *api._call_values(v)):
             if isinstance(f, str) and f.strip() and f not in views:
                 views.append(f)
     return tuple(views)
-
-
-#: A raw string literal of a row's text, where an escape is no character.
-_RAW_LITERAL = re.compile(
-    r"(?<![A-Za-z0-9_])(?:[rR][bB]?|[bB][rR])(\"|')(?:\\.|(?!\1).)*\1")
-
-
-def _view_values(view: str) -> tuple:
-    """`api._call_values` of the view, with each raw literal of the view
-    kept as written, or () when a part of the view fits no call.
-
-    The review of F19 pass 1, finding 3: the call read the `\\x1b` of a
-    row's `r"\\x1b[2J"` as ESC, so the ESC of a seat's `r"\\033[2J"` met
-    the row. A raw literal of the row holds four characters there."""
-    parts, at = [], 0
-    for m in _RAW_LITERAL.finditer(view):
-        parts += [(view[at:m.start()], False), (m.group(), True)]
-        at = m.end()
-    if not parts:
-        return api._call_values(view)
-    parts.append((view[at:], False))
-    strict, lenient = [], []
-    for text, raw in parts:
-        got = (text, text) if raw or not text else api._call_values(text)
-        if not got:
-            return ()
-        strict.append(got[0])
-        lenient.append(got[1])
-    return ("".join(strict), "".join(lenient))
 
 
 def _quote_forms(quote: str) -> tuple[list[str], list[str]]:

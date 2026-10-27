@@ -77,12 +77,14 @@ def test_an_escaped_line_break_meets_only_a_line_break():
     assert not sandbox._quote_reads(quote, row.replace("\n", " "), "criteria")
 
 
-def test_the_stored_byte_of_a_raw_escape_does_not_read_the_raw_row():
-    """Pass 1b, the review's finding 3: the strict path stores ESC from the
-    seat's `r"\\033[2J"`. The row's raw literal holds four characters."""
+def test_a_verbatim_copy_of_a_raw_escape_reads_the_raw_row():
+    """Pass 1c, the review's finding 3: a seat that copies `r"\\x1b[2J"`
+    verbatim into its call gets ESC on the strict path. The copy is a
+    verbatim span (ruled: Roman, 2026-08-26), so it reads the row. The
+    ESC of a seat's `r"\\033[2J"` reads too, as in the parent: both spell
+    the same escape, and the door sees only the stored value."""
     row = "def t():\n    assert r\"" + BS + "x1b[2J\" in out\n"
-    assert not sandbox._quote_reads("assert r\"\x1b[2J\" in out", row,
-                                    "tests")
+    assert sandbox._quote_reads("assert r\"\x1b[2J\" in out", row, "tests")
     # A row whose literal is not raw holds ESC through the call.
     plain = "def t():\n    assert \"" + BS + "x1b[2J\" in out\n"
     assert sandbox._quote_reads("assert \"\x1b[2J\" in out", plain, "tests")
