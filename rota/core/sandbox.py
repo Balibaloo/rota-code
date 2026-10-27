@@ -5377,9 +5377,10 @@ def held_calls(sb: Sandbox) -> tuple[str, set[str]]:
     narrowed by the wake's `.tools` file when the mode has one.
 
     A sandbox that a test builds with no wake holds the whole graph of its
-    role. The doors key the mode by the wake through `api._wake_mode_set`,
-    so the follower reads the mode the same way (the audit of 2026-10-27,
-    F25)."""
+    role. The doors read the runtime list through `api._wake_mode_set`, so
+    the follower reads the same list, the page acts of a criterion relay
+    included (the audit of 2026-10-27, F25; the review of f4951389,
+    finding 1)."""
     mode = api._wake_mode_key(sb.ctx)
     have = set(sb.functions())
     narrowed = api._wake_mode_set(sb.ctx)
@@ -5407,6 +5408,11 @@ def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
     """
     first = _raise_site(exc)
     mode, held = held_calls(sb)
+    # The runtime refuses an op outside the seat's list before any door. So
+    # a door that refuses the seat's op met a seat whose list holds it, and
+    # an offer of the same op is held. A test sandbox can key another mode
+    # than its seat's list (the review of f4951389, finding 2).
+    held = held | {dotted}
     out = []
     for o in offers:
         then = tuple((dotted, kwargs) if step == api.AGAIN else step
@@ -5422,7 +5428,7 @@ def follow(sb: Sandbox, dotted: str, kwargs: dict, exc: BaseException,
             if names is not None:
                 bad += [f"{op}: {a}" for a in args if a not in names]
         rec["bad_args"] = bad
-        # The step AGAIN is the seat's own call, so its mode held it.
+        # The step AGAIN is the seat's own op, which `held` holds above.
         rec["mode"] = mode
         rec["not_in_mode"] = [op for op in [o.op] + [s[0] for s in o.then
                                                     if s != api.AGAIN]

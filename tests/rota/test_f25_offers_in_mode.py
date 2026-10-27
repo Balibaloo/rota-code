@@ -120,6 +120,46 @@ def test_the_offer_of_stray_fields_carries_every_line_of_the_page(tmp_path):
     assert r.passed, r.problems
 
 
+def test_the_offer_gives_no_approve_to_a_line_his_words_fault(tmp_path):
+    """Law 6: only his words choose a verdict. His reply faults line 2, and
+    the seat left line 2 out. The refusal names line 2 and offers no call,
+    because no call the door can write is his ruling of line 2 (the review
+    of f4951389, finding 3)."""
+    words = "please drop line 3, and line 2 is wrong too"
+    case = _case("L1-LI-a-dropped-line-is-a-contest")
+    case["inbound"]["body_text"] = words
+    first = ('TOOL: rulings.rule(rulings={"3": "contest", "act": "drop", '
+             f'"target_kind": "row"}}, words="{words}")')
+    seen = []
+
+    def pick(found):
+        seen.append(found)
+        return "Done."
+
+    seat = _Follower(first, pick)
+    _run(case, seat, tmp_path)
+    error = _last_error(seat.users[1])
+    assert '"2": "approve"' not in error, error
+    assert '"1": "approve"' in error, error
+    assert "Line 2 also has no ruling, and his words fault it" in error, error
+
+
+def test_the_offer_of_stray_fields_records_no_call_for_a_faulted_line(db):
+    """The door records no offer when his words fault a line the map left
+    out, so the follower holds no call the next door refuses."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+               "verb, body_text, seq) VALUES ('m1', 'm1', 'principal', "
+               "'liaison', 'converse', 'please drop line 3, and line 2 is "
+               "wrong too', 1)")
+    sb = sandbox.build("liaison", db, mode="landing")
+    sb.ctx.trigger = "m1"
+    sb.ctx.offers = []
+    said = api._stray_act_fields(
+        sb.ctx, {"3": "contest", "act": "drop"}, "", ["a", "b", "c"])
+    assert "Line 2 also has no ruling" in said, said
+    assert sb.ctx.offers == [], sb.ctx.offers
+
+
 SEPARATE = ("They're independent. The confirm change is a separate request "
             "I'll take up on its own, so leave it out of this one. This change "
             "only adds an optional flag to the version option, off by default, "
@@ -167,6 +207,33 @@ def test_a_shift_word_beside_stray_fields_is_offered_alone(tmp_path):
     assert r.passed, r.problems
 
 
+def test_a_shift_word_is_read_by_the_word_door_match(tmp_path):
+    """"later please" is later by the first-word match of `_ruling_word`,
+    so the offer names later alone (the review of f4951389, finding 4)."""
+    calls = []
+
+    def pick(found):
+        calls.extend(found)
+        return found[0]
+
+    seat = _Follower(_shift_first("later please"), pick)
+    r = _run(_case("L1-LI-a-separate-request-is-later"), seat, tmp_path)
+    assert len(calls) == 1 and '{"1": "later"}' in calls[0], calls
+    assert r.passed, r.problems
+
+
+def test_a_question_back_beside_stray_fields_keeps_its_own_call(db):
+    """`ask` on the shift page is a question back. The refusal offers the
+    ask call and no verdict (the review of f4951389, finding 4)."""
+    sb = sandbox.build("liaison", db, mode="landing")
+    sb.ctx.offers = []
+    said = api._stray_act_fields(sb.ctx, {"1": "ask", "act": "drop"}, "",
+                                 ["a"], shift=True)
+    assert 'rulings.rule(ask="<one sentence about line 1>")' in said, said
+    assert [(o.op, o.args) for o in sb.ctx.offers] == [
+        ("rulings.rule", {"ask": "<one sentence about line 1>"})]
+
+
 # --- the follower checks the seat's mode -----------------------------------
 
 @pytest.fixture
@@ -203,6 +270,19 @@ def test_an_offer_inside_the_mode_passes_the_mode_check(db):
     assert rec["not_in_mode"] == []
 
 
+def test_an_offer_of_the_refused_op_is_held(db):
+    """The runtime refuses an op outside the seat's list before any door,
+    so an offer of the refused op is held. The sandbox here keys `deliver`,
+    which lacks `ledger.log` (the review of f4951389, finding 2)."""
+    sb = sandbox.build("terminologist", db, mode="deliver")
+    mode, held = sandbox.held_calls(sb)
+    assert "ledger.log" not in held, (mode, sorted(held))
+    said = "Send ledger.log with the row."
+    [rec] = sandbox.follow(sb, "ledger.log", {}, ValueError(said),
+                           [api.Offer("ledger.log", {}, (), (), said)])
+    assert rec["not_in_mode"] == []
+
+
 def test_a_skipped_offer_is_still_held_to_the_mode(db):
     """`code.commit` never reaches the doors of a dry run, so only the mode
     check reads it."""
@@ -222,8 +302,11 @@ from . import _refusal_calls as lint  # noqa: E402
 
 # The named calls that break frame 135's law today, by the static reading.
 # One line each: the door, the call, and the modes that meet the text and
-# do not hold the call. Not read: whether a runtime guard of the door keeps
-# the text from those modes. The two cases of `_stray_act_fields` name
+# do not hold the call. The lint reads the three guard forms of
+# `_refusal_calls`. Its limits: it does not read a guard inside a helper,
+# for example `_escalation_admitted`, or a flag that the code arms outside
+# `sandbox.build`. It reads `if "x.y" not in held:` around a text as a
+# guard, which is the wrong polarity. The two cases of `_stray_act_fields` name
 # `rulings.rule`, which their mode holds, so the lint passes them, and the
 # follower caught their arguments.
 KNOWN_UNHELD = {
@@ -231,19 +314,11 @@ KNOWN_UNHELD = {
         "terminologist/answer and deliver hold glossary.amend, not surveys.attest",
     "surveys_attest:problem.assert":
         "seven survey modes hold surveys.attest, not problem.assert",
-    "_contradiction_offer:tests.triage":
-        "tester/answer and challenge hold tests.encode, not tests.triage",
-    "tests_encode:tests.triage":
-        "tester/answer and challenge hold tests.encode, not tests.triage",
     "tests_encode:schedule.reask":
         "tester/challenge and tests_missing hold tests.encode, not schedule.reask",
     "tests_encode:ledger.log":
         "tester/challenge holds tests.encode, not ledger.log",
-    "_owner_call:msg.challenge_tester":
-        "21 modes hold ledger.log, not msg.challenge_tester",
     "ledger_log:surveys.attest":
-        "22 modes hold ledger.log, not surveys.attest",
-    "_misplaced_conflict:surveys.attest":
         "22 modes hold ledger.log, not surveys.attest",
     "_revert_refusal:msg.challenge_tester":
         "5 developer modes hold code.commit, not msg.challenge_tester",

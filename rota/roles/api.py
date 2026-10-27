@@ -6233,30 +6233,45 @@ def _wake_mode_key(ctx: Ctx) -> str:
     `session_sandbox` does (the review of 3de76eaf, finding 1).
     """
     from ..core.runner import _mode_key
+
+    wake = _ctx_wake(ctx)
+    # A sandbox built with no wake has only its own mode to go on.
+    return ctx.mode if wake is None else _mode_key(wake, ctx.conn)
+
+
+def _ctx_wake(ctx: Ctx):
+    """The wake of the session as the runner built it, or None when the
+    sandbox has no wake."""
     from ..core.scheduler import Wake
 
     kind = getattr(ctx, "wake_kind", "") or ""
     trigger = getattr(ctx, "trigger", None)
     if not kind:
-        # A sandbox built with no wake has only its own mode to go on.
-        return ctx.mode
+        return None
     verb = ""
     if kind == "message" and trigger:
         row = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
                                (trigger,)).fetchone()
         verb = row["verb"] if row else ""
-    wake = Wake(role=ctx.role, kind=kind,
+    return Wake(role=ctx.role, kind=kind,
                 message_id=trigger if kind == "message" else None,
                 refs=tuple(getattr(ctx, "wake_refs", ()) or ()), detail=verb)
-    return _mode_key(wake, ctx.conn)
 
 
 def _wake_mode_set(ctx: Ctx) -> list[str] | None:
-    """The ops that the wake's prompt mode narrows to, or None when the mode
-    has no `.tools` file and the role keeps every op of its graph."""
-    from . import prompts as _prompts
+    """The ops that the runtime gives the wake's seat, or None when the mode
+    has no `.tools` file and the role keeps every op of its graph.
 
-    return _prompts.mode_tools(ctx.role, _wake_mode_key(ctx))
+    The runtime list is `runner._wake_allow`: the mode's ops and the page
+    acts of a criterion relay. The doors and the follower read the same
+    list (the review of f4951389, finding 1)."""
+    from . import prompts as _prompts
+    from ..core.runner import _wake_allow
+
+    wake = _ctx_wake(ctx)
+    if wake is None:
+        return _prompts.mode_tools(ctx.role, ctx.mode)
+    return _wake_allow(wake, ctx.conn)
 
 
 def _wake_mode_tools(ctx: Ctx) -> list[str]:
@@ -11201,14 +11216,19 @@ SHIFT_WORDS: dict[str, str | None] = {
 }
 
 
+def _word_key(raw, words: dict) -> str:
+    """The key of `words` that a seat's word matches: the whole word, else
+    its first word. Else the whole word, lowered."""
+    word = str(raw).strip().lower()
+    first = word.split()[0] if word.split() else word
+    return first if word not in words and first in words else word
+
+
 def _ruling_word(key: str, raw, shift: bool = False) -> str:
     """The stored ruling for one line's word, or the refusal that names the
     map of the page it is on."""
     words = SHIFT_WORDS if shift else RULING_WORDS
-    word = str(raw).strip().lower()
-    first = word.split()[0] if word.split() else word
-    if word not in words and first in words:
-        word = first
+    word = _word_key(raw, words)
     if word in words and words[word] is not None:
         return words[word]
     if word in words:
@@ -11324,23 +11344,50 @@ def _stray_act_fields(ctx, rulings: dict, words: str, order: list | None = None,
              else {"verdict": str(given).strip().lower(), **fields})
     if said:
         value["words"] = said
-    # law 6: a line the reply does not contest is approve, by the rule of
-    # the door that names an unruled line. The offer writes that rule out.
+    # law 6: only his words choose a verdict. A line his words do not fault
+    # is approve, by the rule of the door that names an unruled line. A line
+    # his words fault takes no verdict from the door (the review of
+    # f4951389, finding 3).
     unruled = _unruled_lines(ctx, lines, order or [])
-    moved = {**{n: "approve" for n in unruled}, **lines, key: value}
-    if unruled:
+    faulted = _faulted_by_his_words(ctx, said, len(order or []))
+    open_ = [n for n in unruled if int(n) in faulted]
+    fine = [n for n in unruled if n not in open_]
+    moved = {**{n: "approve" for n in fine}, **lines, key: value}
+    if fine:
         moved = dict(sorted(moved.items(), key=lambda kv: (
             not kv[0].isdigit(), int(kv[0]) if kv[0].isdigit() else 0)))
     call, args = _rule_call(moved, said)
     rest = ""
-    if unruled:
-        rest = (f" Line{'s' if len(unruled) > 1 else ''} {', '.join(unruled)} "
+    if fine:
+        rest = (f" Line{'s' if len(fine) > 1 else ''} {', '.join(fine)} "
                 f"had no ruling, and a line the reply does not contest is "
                 f"approve.")
-    return _offer(ctx, (
-        f"rulings.rule: {names} are fields of line {key}'s object, not lines "
-        f"of the page.{rest} Put them inside line {key}: {call}"),
-        "rulings.rule", args)
+    head = (f"rulings.rule: {names} are fields of line {key}'s object, not "
+            f"lines of the page.{rest} Put them inside line {key}: {call}")
+    if open_:
+        # The shape is no offer: the door does not know his verdict on the
+        # faulted line, so no call it names is admitted (the review of
+        # 76521304, point 2).
+        one = len(open_) == 1
+        lines_ = ", ".join(open_)
+        return (f"{head}. Line{'' if one else 's'} {lines_} also "
+                f"{'has' if one else 'have'} no ruling, and his words fault "
+                f"{'it' if one else 'them'}. Add line{'' if one else 's'} "
+                f"{lines_} to the same call, with the verdict his words give.")
+    return _offer(ctx, head, "rulings.rule", args)
+
+
+def _faulted_by_his_words(ctx, said: str, size: int) -> set[int]:
+    """The page lines that his reply or the seat's words fault, by the fault
+    reader of the faulted-approve door (`_line_cues`)."""
+    row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                           (ctx.trigger,)).fetchone() if ctx.trigger else None
+    his = (row["body_text"] if row else "") or ""
+    out: set[int] = set()
+    for text in (his, said):
+        if text:
+            out |= set(_line_cues(text, size or None)[0])
+    return out
 
 
 def _stray_on_shift(ctx, names: str, lines: dict, key: str, given,
@@ -11351,15 +11398,25 @@ def _stray_on_shift(ctx, names: str, lines: dict, key: str, given,
     2.F.3). The gate of 9827e38a, L1-LI-a-separate-request-is-later: the
     offer kept contest, and the word door refused it. A word of the seat's
     that the page holds is offered alone. Otherwise each of the three words
-    is offered, because only his words choose one (law 6)."""
+    is offered, because only his words choose one (law 6). The word is read
+    by the match of `_ruling_word`, so "later please" is later. A question
+    back keeps its own call (the review of f4951389, finding 4)."""
     word = given.get("verdict") if isinstance(given, dict) else given
-    mapped = SHIFT_WORDS.get(str(word or "").strip().lower())
+    matched = _word_key(word or "", SHIFT_WORDS)
+    mapped = SHIFT_WORDS.get(matched)
     head = (f"rulings.rule: {names} are fields of an act, and line {key} of "
             f"this page takes no act.")
     if mapped:
-        call, args = _rule_call({**lines, key: str(word).strip().lower()}, said)
+        call, args = _rule_call({**lines, key: matched}, said)
         return _offer(ctx, f"{head} Give line {key} its word alone: {call}",
                       "rulings.rule", args)
+    if matched in SHIFT_WORDS:
+        ask = f"<one sentence about line {key}>"
+        call = f'rulings.rule(ask="{ask}")'
+        return (f"{head} {matched!r} is a question back, and a question is "
+                f"its own call: "
+                + _offer(ctx, call, "rulings.rule", {"ask": ask})
+                + " with no rulings.")
     parts = []
     for choice, meaning in (("later", "his words put the request after the "
                              "one in hand"),

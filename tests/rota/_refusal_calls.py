@@ -11,9 +11,13 @@ The reading is static. A text names a call when it holds `artefact.verb(`
 and the artefact is one of `api.REGISTRY` or `msg`. A text sits in one
 top-level function. The ops that reach that function, by the names that
 the functions of the two files call, are the ops that can meet the text.
-A mode meets the text when it holds one of those ops. A text inside an
-`if` whose test names the call as a string is guarded: the door asks the
-mode first, so the text reaches only a mode that holds the call. A text
+A mode meets the text when it holds one of those ops. A text is guarded
+when the door asks the mode for the call first, so the text reaches only
+a mode that holds the call. The lint reads three forms of the ask: an
+enclosing `if` whose test names the call as a string, an early return
+`if "x.y" not in held: return` before the text, and `hasattr(ctx,
+"flag")` of a flag that `sandbox.build` arms with the call. A call site
+under a guard passes the guard to the function it calls. A text
 that a shared door reaches, `_bind` or `_bind_send`, is checked for its
 name only, because the static reading cannot tell which op meets it.
 """
@@ -86,15 +90,20 @@ def _units(tree: ast.Module) -> dict[str, ast.AST]:
     return out
 
 
-def _callees(unit: ast.AST, names: set[str]) -> set[str]:
-    out = set()
-    for node in ast.walk(unit):
+def _callees(unit: ast.AST, names: set[str]) -> dict[str, list[frozenset]]:
+    """Each name that `unit` calls, to the guards of each call site."""
+    out: dict[str, list[frozenset]] = {}
+
+    def see(node, chain, guards):
         if isinstance(node, ast.Call):
             f = node.func
             name = (f.id if isinstance(f, ast.Name) else
                     f.attr if isinstance(f, ast.Attribute) else None)
             if name in names:
-                out.add(name)
+                out.setdefault(name, []).append(frozenset(guards))
+        return True
+
+    _visit(unit, [], frozenset(), see)
     return out
 
 
@@ -106,8 +115,9 @@ def _trees() -> dict[str, ast.Module]:
 
 @lru_cache(maxsize=1)
 def reach() -> dict[str, frozenset]:
-    """Each top-level function of the two files, to the ops that reach it.
-    `*` stands for every op and `msg.*` for every send."""
+    """Each top-level function of the two files, to the paths that reach
+    it: pairs of an op and the guards of the call sites on the way. `*`
+    stands for every op and `msg.*` for every send."""
     units: dict[str, ast.AST] = {}
     for tree in _trees().values():
         units.update(_units(tree))
@@ -120,14 +130,16 @@ def reach() -> dict[str, frozenset]:
         roots.setdefault(fn, set()).add("msg.*")
     out: dict[str, set] = {u: set() for u in units}
     for root, ops in roots.items():
-        seen, todo = set(), [root]
-        while todo:
-            u = todo.pop()
-            if u in seen:
-                continue
-            seen.add(u)
-            out[u] |= ops
-            todo.extend(calls.get(u, ()))
+        for op in ops:
+            seen, todo = set(), [(root, frozenset())]
+            while todo:
+                u, guards = todo.pop()
+                if (u, guards) in seen:
+                    continue
+                seen.add((u, guards))
+                out[u].add((op, guards))
+                for callee, sites in calls.get(u, {}).items():
+                    todo.extend((callee, guards | g) for g in sites)
     return {u: frozenset(v) for u, v in out.items()}
 
 
@@ -150,20 +162,90 @@ def _flat(node: ast.AST) -> str:
                    for v in node.values)
 
 
-def _guards(chain: list[ast.AST]) -> set[str]:
-    """The dotted names that an enclosing test holds as strings."""
-    out = set()
-    for node in chain:
-        tests = []
-        if isinstance(node, (ast.If, ast.IfExp, ast.While)):
-            tests.append(node.test)
-        elif isinstance(node, ast.comprehension):
-            tests.extend(node.ifs)
-        for test in tests:
-            out |= {c.value for c in ast.walk(test)
-                    if isinstance(c, ast.Constant) and isinstance(c.value, str)
-                    and DOTTED.match(c.value)}
+@lru_cache(maxsize=1)
+def _arms() -> dict[str, str]:
+    """Each context attribute that `sandbox.build` arms with the mode, to
+    the call that arms it. The one form: `if "verb" in (grouped.get("art")
+    ...): ctx.flag = ...`. `ctx.triaged` is armed by `tests.triage`."""
+    out = {}
+    for node in ast.walk(_trees()["rota/core/sandbox.py"]):
+        if not (isinstance(node, ast.If) and isinstance(node.test, ast.Compare)
+                and isinstance(node.test.left, ast.Constant)
+                and isinstance(node.test.left.value, str)
+                and len(node.test.ops) == 1
+                and isinstance(node.test.ops[0], ast.In)):
+            continue
+        art = next((c.args[0].value for c in ast.walk(node.test.comparators[0])
+                    if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+                    and c.func.attr == "get" and isinstance(c.func.value, ast.Name)
+                    and c.func.value.id == "grouped" and c.args
+                    and isinstance(c.args[0], ast.Constant)), None)
+        if art is None:
+            continue
+        for stmt in node.body:
+            for t in getattr(stmt, "targets", ()):
+                if (isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name)
+                        and t.value.id == "ctx"):
+                    out[t.attr] = f"{art}.{_attr(node.test.left.value)}"
     return out
+
+
+def _test_guards(test: ast.AST) -> set[str]:
+    """The calls that a test asks the mode about: a dotted name held as a
+    string, or `hasattr(ctx, "flag")` of a flag that the mode arms. A
+    `not hasattr(...)` asks the opposite, so it guards nothing."""
+    out = {c.value for c in ast.walk(test)
+           if isinstance(c, ast.Constant) and isinstance(c.value, str)
+           and DOTTED.match(c.value)}
+    negated = {id(n.operand) for n in ast.walk(test)
+               if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.Not)}
+    arms = _arms()
+    for c in ast.walk(test):
+        if (isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
+                and c.func.id == "hasattr" and id(c) not in negated
+                and len(c.args) == 2 and isinstance(c.args[1], ast.Constant)
+                and c.args[1].value in arms):
+            out.add(arms[c.args[1].value])
+    return out
+
+
+def _early_guards(stmt: ast.AST) -> set[str]:
+    """The calls that an early return asks the mode about: `if "x.y" not in
+    held: return`, alone or as one term of an `or`. The statements after it
+    reach only a mode that holds `x.y`."""
+    if not (isinstance(stmt, ast.If) and not stmt.orelse and stmt.body
+            and isinstance(stmt.body[-1], (ast.Return, ast.Raise))):
+        return set()
+    terms = (stmt.test.values if isinstance(stmt.test, ast.BoolOp)
+             and isinstance(stmt.test.op, ast.Or) else [stmt.test])
+    return {t.left.value for t in terms
+            if isinstance(t, ast.Compare) and len(t.ops) == 1
+            and isinstance(t.ops[0], ast.NotIn)
+            and isinstance(t.left, ast.Constant)
+            and isinstance(t.left.value, str) and DOTTED.match(t.left.value)}
+
+
+def _visit(node: ast.AST, chain: list, guards: frozenset, see) -> None:
+    """Walk `node` with the guards of each node: the tests of the enclosing
+    `if` nodes and the early returns before it in its block. `see(node,
+    chain, guards)` returns False to stop the walk below `node`."""
+    if not see(node, chain, guards):
+        return
+    inner = guards
+    if isinstance(node, (ast.If, ast.IfExp, ast.While)):
+        inner = guards | _test_guards(node.test)
+    elif isinstance(node, ast.comprehension):
+        for test in node.ifs:
+            inner = inner | _test_guards(test)
+    for _, value in ast.iter_fields(node):
+        if isinstance(value, list):
+            g = inner
+            for item in value:
+                if isinstance(item, ast.AST):
+                    _visit(item, chain + [node], g, see)
+                    g = g | _early_guards(item)
+        elif isinstance(value, ast.AST):
+            _visit(value, chain + [node], inner, see)
 
 
 def _table_op(chain: list[ast.AST], node: ast.AST) -> str | None:
@@ -188,13 +270,8 @@ def named_calls() -> list[Named]:
     for file, tree in _trees().items():
         docs = _docstrings(tree)
 
-        def walk(node, chain, unit):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not unit:
-                unit = node.name
-                cls = next((c for c in reversed(chain)
-                            if isinstance(c, ast.ClassDef)), None)
-                if cls is not None:
-                    unit = f"{cls.name}.{node.name}"
+        def see(node, chain, guards):
+            unit = _unit_of(chain + [node])
             if isinstance(node, ast.JoinedStr) or (
                     isinstance(node, ast.Constant) and isinstance(node.value, str)
                     and id(node) not in docs
@@ -203,23 +280,34 @@ def named_calls() -> list[Named]:
                 calls = sorted({f"{m.group(1)}.{m.group(2)}"
                                 for m in CALL.finditer(text)
                                 if m.group(1) in arts})
-                if calls:
-                    guards = _guards(chain)
+                for call in calls:
                     if unit:
-                        ops = hits.get(unit, frozenset())
+                        # A path whose call sites ask the mode for the
+                        # call reaches only a mode that holds it.
+                        ops = frozenset(op for op, g in hits.get(unit, ())
+                                        if call not in g)
                     else:
                         op = _table_op(chain, node)
                         ops = frozenset({op} if op else ())
-                    for call in calls:
-                        out.append(Named(file, node.lineno, unit, call, text,
-                                         call in guards, ops))
+                    out.append(Named(file, node.lineno, unit, call, text,
+                                     call in guards, ops))
                 if isinstance(node, ast.JoinedStr):
-                    return
-            for child in ast.iter_child_nodes(node):
-                walk(child, chain + [node], unit)
+                    return False
+            return True
 
-        walk(tree, [], "")
+        _visit(tree, [], frozenset(), see)
     return out
+
+
+def _unit_of(chain: list) -> str:
+    """The top-level function of the last node of `chain`, or ""."""
+    fn = next((n for n in chain
+               if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))), None)
+    if fn is None:
+        return ""
+    cls = next((c for c in chain[:chain.index(fn)]
+                if isinstance(c, ast.ClassDef)), None)
+    return f"{cls.name}.{fn.name}" if cls is not None else fn.name
 
 
 @lru_cache(maxsize=1)
