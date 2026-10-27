@@ -992,10 +992,39 @@ def _shown_views(source: str) -> tuple[str, ...]:
     """
     views: list[str] = []
     for v in _rendered_views(source):
-        for f in (v, *api._call_values(v)):
+        for f in (v, *_view_values(v)):
             if isinstance(f, str) and f.strip() and f not in views:
                 views.append(f)
     return tuple(views)
+
+
+#: A raw string literal of a row's text, where an escape is no character.
+_RAW_LITERAL = re.compile(
+    r"(?<![A-Za-z0-9_])(?:[rR][bB]?|[bB][rR])(\"|')(?:\\.|(?!\1).)*\1")
+
+
+def _view_values(view: str) -> tuple:
+    """`api._call_values` of the view, with each raw literal of the view
+    kept as written, or () when a part of the view fits no call.
+
+    The review of F19 pass 1, finding 3: the call read the `\\x1b` of a
+    row's `r"\\x1b[2J"` as ESC, so the ESC of a seat's `r"\\033[2J"` met
+    the row. A raw literal of the row holds four characters there."""
+    parts, at = [], 0
+    for m in _RAW_LITERAL.finditer(view):
+        parts += [(view[at:m.start()], False), (m.group(), True)]
+        at = m.end()
+    if not parts:
+        return api._call_values(view)
+    parts.append((view[at:], False))
+    strict, lenient = [], []
+    for text, raw in parts:
+        got = (text, text) if raw or not text else api._call_values(text)
+        if not got:
+            return ()
+        strict.append(got[0])
+        lenient.append(got[1])
+    return ("".join(strict), "".join(lenient))
 
 
 def _quote_forms(quote: str) -> tuple[list[str], list[str]]:
@@ -1006,11 +1035,15 @@ def _quote_forms(quote: str) -> tuple[list[str], list[str]]:
     rule of the call syntax of its own. Night 168 W2 sent `\\\\` for one
     backslash, and night 167 sent `\\'` and `\\x1b`. `_outer_marks` gives
     the forms with an outer quote mark dropped. Each form is still a
-    verbatim reading of the seat's text."""
+    verbatim reading of the seat's text.
+
+    The decoded form is the strict value only. The review of F19 pass 1,
+    finding 6: the lenient path stores `\\\\n` as a backslash and a line
+    break, a value that no seat meant."""
     quote = quote or ""
     stored = [quote, *_outer_marks(quote)]
     decoded: list[str] = []
-    for value in api._call_values(quote):
+    for value in api._call_values(quote)[:1]:
         for f in (value, *_outer_marks(value)):
             if isinstance(f, str) and f not in stored and f not in decoded:
                 decoded.append(f)
@@ -1045,7 +1078,10 @@ def _quote_reads(quote: str, source: str, table: str = "",
     sources = [source or ""] + ([run] if run else [])
     for s in sources:
         for f, views in _quote_pairs(quote, s):
-            if any(_span_of(f, v, floor) for v in views):
+            # A line break that the call decoded from the seat's `\n` must
+            # meet a line break (frame 328, review 1, finding 4).
+            lined = f.count("\n") > quote.count("\n")
+            if any(_span_of(f, v, floor, lined) for v in views):
                 return True
     return False
 
@@ -1433,16 +1469,21 @@ def _lined(s: str) -> str:
                   (s or "").strip())
 
 
-def _span_of(quote: str, source: str, floor: int = QUOTE_MIN) -> bool:
+def _span_of(quote: str, source: str, floor: int = QUOTE_MIN,
+             lined: bool = False) -> bool:
     """The quote is a contiguous span of the source, whitespace-normalised,
     of `floor` characters or the whole source.
 
-    Three forms of the same span count too, because each comes from the
+    Two forms of the same span count too, because each comes from the
     call's syntax, not from the seat's words. Night 119's s250 put the span
     inside quote marks. Night 126's s172 wrote a `"` of the row as `'` inside
-    its double-quoted string. Night 124's s144 copied a body from the
-    prompt's JSON, so a line break came as the two characters of `\\n`. That
-    form matches only where the row breaks the line (review 1, finding 4).
+    its double-quoted string.
+
+    `lined` says that the call decoded a line break of the quote from the
+    seat's `\\n`, as night 124's s144 copied a body from the prompt's JSON.
+    That line break matches only where the row breaks the line (review 1,
+    finding 4). F19 pass 1b: `api._call_values` decodes the quote, so this
+    function keeps no decoder of its own.
     """
     src = " ".join((source or "").split())
     raw = (quote or "").strip()
@@ -1454,22 +1495,21 @@ def _span_of(quote: str, source: str, floor: int = QUOTE_MIN) -> bool:
         return s.replace("'", '"')
 
     for f in forms:
-        q = " ".join(f.split())
-        if (q and (len(q) >= floor or q == src)
-                and (q in src or _swap(q) in _swap(src))):
-            return True
-        decoded = (f.replace("\\n", "\n").replace("\\t", "\t")
-                   .replace('\\"', '"').replace("\\'", "'"))
-        if decoded == f:
+        if not lined:
+            q = " ".join(f.split())
+            if (q and (len(q) >= floor or q == src)
+                    and (q in src or _swap(q) in _swap(src))):
+                return True
             continue
-        lined = _lined(decoded)
-        if not lined or (len(lined) < floor and lined != _lined(source)):
+        lined_f = _lined(f)
+        if not lined_f or (len(lined_f) < floor
+                           and lined_f != _lined(source)):
             continue
         # A space of the quote may stand for a wrap of the row. A decoded
         # line break must meet a line break.
         pattern = "".join("[ \n]" if t == " " else "\n" if t == "\n"
                           else re.escape(t)
-                          for t in re.split(r"( |\n)", _swap(lined)) if t)
+                          for t in re.split(r"( |\n)", _swap(lined_f)) if t)
         if re.search(pattern, _swap(_lined(source))):
             return True
     return False

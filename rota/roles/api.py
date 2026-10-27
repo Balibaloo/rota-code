@@ -18092,23 +18092,32 @@ def _escape_literal(line: str, escape: str) -> tuple[str, str, str] | None:
     return None
 
 
-def _call_values(form: str) -> tuple:
+def _call_values(form: str, escape: bool = True) -> tuple:
     """The values that the strict and the lenient parse paths store when a
     seat writes the form inside the quote marks of a call, or () when the
     call cannot carry the form.
 
     F19: a form that holds both marks still fits a call whose mark it
-    holds only escaped. Night 167's s336 wrote `\\'` inside such a call."""
+    holds only escaped. Night 167's s336 wrote `\\'` inside such a call.
+    With `escape`, a form with both marks bare is read with each bare `'`
+    escaped, as a seat must write it (the review of F19 pass 1, finding
+    4)."""
     from ..llm import toolproto as _tp
     import warnings as _warnings
 
-    def _bare(mark: str) -> bool:
+    def _bare_at(i: int) -> bool:
         # A mark after an even run of backslashes closes the call's string.
-        return any(ch == mark and (i - len(form[:i].rstrip("\\"))) % 2 == 0
-                   for i, ch in enumerate(form))
+        return (i - len(form[:i].rstrip("\\"))) % 2 == 0
+
+    def _bare(mark: str) -> bool:
+        return any(ch == mark and _bare_at(i) for i, ch in enumerate(form))
 
     outer = ("'" if "'" not in form else '"' if '"' not in form else
              next((m for m in "'\"" if not _bare(m)), ""))
+    if not outer and escape:
+        outer = "'"
+        form = "".join("\\'" if ch == "'" and _bare_at(i) else ch
+                       for i, ch in enumerate(form))
     if not outer:
         return ()
     call = f"body={outer}{form}{outer}"
@@ -18129,7 +18138,7 @@ def _call_keeps(form: str) -> bool:
     Frame 335, review 1, finding 2: the call's value is a literal that is
     not raw. So `r"C:\\Users\\new"` lost `\\n` to a line break, and
     `\\temp` gave a TAB on the strict path only."""
-    values = _call_values(form)
+    values = _call_values(form, escape=False)
     return bool(values) and all(v == form for v in values)
 
 
@@ -23097,11 +23106,7 @@ def _escape_note(fragment: str, exc: SyntaxError | None) -> str:
         if exc is None:
             return ""
     note = ""
-    # F19: the parser says what the call stores, so the note reads
-    # `_call_values` and keeps no rule of the call syntax of its own.
-    if ((exc.msg or "").startswith(_BROKEN_STRING)
-            and "\n" in _call_values("\\n")
-            and "\\n" in _call_values("\\\\n")):
+    if (exc.msg or "").startswith(_BROKEN_STRING):
         # The seat wrote \n in its call already, and the tool decoded it.
         # The form that passes is the escaped backslash (the review of edd3638).
         note += (" In your call write the newline escape inside a string as a "

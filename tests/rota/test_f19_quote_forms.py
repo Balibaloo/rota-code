@@ -65,6 +65,45 @@ def test_an_escape_read_on_both_sides_is_no_span():
         "assert b\"" + BS + "x1b[2J\" in out", data, "tests")
 
 
+def test_an_escaped_line_break_meets_only_a_line_break():
+    """Pass 1b, the review's finding 1: the rule of frame 328 review 1,
+    finding 4, holds at the door, after `_call_values` decodes `\\n`."""
+    quote = "assert r == \"a" + BS + "nb is the text\""
+    assert not sandbox._quote_reads(quote, "assert r == \"a b is the text\"",
+                                    "tests")
+    row = "The first line\nthe second line holds the text."
+    quote = "The first line" + BS + "nthe second line holds"
+    assert sandbox._quote_reads(quote, row, "criteria")
+    assert not sandbox._quote_reads(quote, row.replace("\n", " "), "criteria")
+
+
+def test_the_stored_byte_of_a_raw_escape_does_not_read_the_raw_row():
+    """Pass 1b, the review's finding 3: the strict path stores ESC from the
+    seat's `r"\\033[2J"`. The row's raw literal holds four characters."""
+    row = "def t():\n    assert r\"" + BS + "x1b[2J\" in out\n"
+    assert not sandbox._quote_reads("assert r\"\x1b[2J\" in out", row,
+                                    "tests")
+    # A row whose literal is not raw holds ESC through the call.
+    plain = "def t():\n    assert \"" + BS + "x1b[2J\" in out\n"
+    assert sandbox._quote_reads("assert \"\x1b[2J\" in out", plain, "tests")
+
+
+def test_a_quote_with_both_marks_bare_reads_through_the_call():
+    """Pass 1b, the review's finding 4: only the decoder of `_span_of`
+    read this quote, and `_call_values` now carries it."""
+    row = "It's 'c.txt' for \"a/b\" now, as the criterion says."
+    quote = "It's " + BS + "'c.txt" + BS + "' for \"a/b\" now"
+    assert sandbox._quote_reads(quote, row, "criteria")
+
+
+def test_the_lenient_value_of_an_escaped_backslash_is_no_form():
+    """Pass 1b, the review's finding 6: the lenient path stores `\\\\n` as a
+    backslash and a line break, a value that no seat meant."""
+    row = "The path C:" + BS + "\new folder holds the file."
+    quote = "The path C:" + BS * 2 + "new folder holds the file"
+    assert not sandbox._quote_reads(quote, row, "criteria")
+
+
 def test_the_views_come_from_the_render():
     views = sandbox._shown_views("a" + BS + "b\nc | d")
     assert "a" + BS + "b\nc | d" in views
