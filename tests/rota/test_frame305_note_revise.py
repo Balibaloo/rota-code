@@ -298,3 +298,15 @@ def test_two_runs_of_one_seeded_call_give_one_ruling_id(tmp_path):
         words = "On line 11, use the normal test runner"
         ids.append(_rule(conn, words, _act("rewrite", words))["id"])
     assert ids[0] == ids[1], ids
+
+
+def test_a_ruling_id_derives_from_its_reply(db):
+    """Pass 4i, P4h-1: a record's identity derives from its content, so the
+    ruling id is `r_<reply id>`, the form of the keypress route."""
+    words = "On line 11, use the normal test runner"
+    ask = _page(db)
+    sb, mid = _landing(db, ask, words)
+    rulings = {str(n): "approve" for n in range(1, 12)}
+    rulings["11"] = _act("rewrite", words)
+    out = sb.call("rulings.rule", rulings=rulings, words=words)
+    assert out["id"] == f"r_{mid}"

@@ -11079,6 +11079,33 @@ _RULE_ARGS = ("rulings", "words", "ask", "acts")
 _ACT_FIELDS = ("act", "target", "target_kind")
 
 
+def _ruling_id(ctx: Ctx, ask_id: str) -> str:
+    """The id of the ruling that this session writes: `r_<reply id>`.
+
+    A record's identity derives from its content, not from when it was
+    made (composition.md, Records). The keypress route writes
+    `r_<verdict id>` in `principal._insert_keypress_ruling`, and this is
+    the same form. The reply names its ask, so the ask id is the fallback
+    only when the session has no reply. The id reaches the next turn's
+    prompt in the result of `rulings.rule`, so it must be the same on a
+    replay. A uuid made the second turn of the answering case unreplayable
+    on the gate of 0736f9dd (the reviews of pass 4h and P4h-1).
+
+    One session writes one ruling. A second ruling on the same reply is
+    possible when a stale ruling is read again, so the id then takes `_2`,
+    `_3` and on, counted from the rulings that hold the base id."""
+    base = f"r_{ctx.trigger or ask_id}"
+    taken = {r["id"] for r in ctx.conn.execute(
+        "SELECT id FROM rulings WHERE id = ? OR id GLOB ?",
+        (base, f"{base}_[0-9]*"))}
+    if base not in taken:
+        return base
+    n = 2
+    while f"{base}_{n}" in taken:
+        n += 1
+    return f"{base}_{n}"
+
+
 def _stray_act_fields(ctx, rulings: dict, words: str) -> str | None:
     """The refusal for object fields given as keys of `rulings`, or None.
 
@@ -12675,7 +12702,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             keys = answer_about(ctx.conn, ask["id"]) or refs
     if (isinstance(rulings, dict) and not rulings and not is_clarify
             and not acts and (not row_order or batches_only)):
-        rid = new_id("r", ctx.conn)
+        rid = _ruling_id(ctx, ask["id"])
         # The page numbers no line, so the Liaison cannot rule a row that is
         # gone. A ref that no table holds is a fault on file, and the page
         # is acknowledged as before the seam (the review of pass 1, finding
@@ -13170,7 +13197,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # ruling discharges it (`plans/composition.md`, Records).
     # The rows are built before any write is staged: the builder refuses a
     # ref that no table holds, and a refusal stages nothing.
-    rid = new_id("r", ctx.conn)
+    rid = _ruling_id(ctx, ask["id"])
     rows = _ruled_rows(ctx, rid, [] if is_clarify else order, per_item, words,
                        shape_of)
     parked = []
