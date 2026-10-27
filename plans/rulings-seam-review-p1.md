@@ -135,3 +135,52 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e03f97
 - Input tokens: about 38k, an estimate from the budget counter.
 - Output tokens: about 6k, an estimate.
 - Total: about 44k, against a cap of about 50k.
+
+## Pass 4
+
+Pass 4 at fbce68db does not stand. One high finding is a regression of frame 305 in both directions: the door now takes the act that the Liaison writes for a team note and never checks it against his words (P4-1). A second high finding is that no brief names the acts `keep`, `rewrite`, `add` and `drop`, or the target kind `check`. So P6 to P8, P11 and the Tester route of `criteria_respecify` grant nothing for a live Liaison (P4-2). The commit holds no hunk of pass 5. P1 works on m37 with an act and writes the stray with none. `_resolve_contest` reads the record. Counts: 2 high, 6 low.
+
+The tree is `p4_head` (fbce68db) in the scratchpad. `p4_mix` holds the tests of fbce68db over the `rota/` of c4a51c7d.
+
+### Pass 4, the points
+
+1. Contamination: CONFIRMED clean. The diff c4a51c7d..fbce68db does not touch `rota/core/sandbox.py`, `rota/core/schema.sql`, `rota/tools/nightreport.py` or `tests/rota/test_read_back.py`. The 282 long lines that 899879de adds share 2 lines with pass 4: a `from __future__` import and one SQL head in a test. The names that pass 5 defines are absent from `p4_head/rota`, for example `reading_line`, `readings_owed`, `_READ_BACK_VERDICT`, `_unconfirmed_line` and `_is_reading`.
+2. One helper: the deleted names are gone. `_words_remove_a_kind`, `_REMOVE_CUES`, `_removal_asks`, `_DROP_LINE`, `_faults_on`, `_keep_cancels`, `_ADD_LINE`, `_page_added_lines`, the 6 P10 patterns, `_note_words` and `_ruling_words_on` have no hit in `rota/`. `_asks_removal` and `_removal_spans` stay, and they read only the texts that are not his. `earlier_exchange` stays in the C5 reader and the landing push only. Three readers of his words for a permission remain (P4-6).
+3. m37: CONFIRMED by `rv_m37.py` and the new tests. Act `remove` with target `get_app_dir:518` on `batch_1` commits with no stray. The same act on the item ref also commits with no stray. A plain approve writes the stray `src/click/utils.py::get_app_dir`. The new tests fail on the old tree and pass on fbce68db. A later plain approve on the same ref takes the grant back (P4-3). The bare target `518` and an act with no target grant nothing (P4-4).
+4. The deviations: both are gaps. P11 reads the act of the call, and nothing compares that act with his words (P4-1). The night turns are m11 and m45 of night 160, and s357 of night 161. One target per ref cannot hold two paths on one key. m192 and m201 of night 156 name two test files on one key, and the tests that pinned them are deleted (P4-7).
+5. The landing sentence: qwen3.5:9b can fill `remove` from m37, but it cannot learn the other acts. PLAUSIBLE, because this review ran no model. The example in the brief shows `remove` with `app.py:518`, and the target form `utils.py:518` grants. But the sentence says "only when the reply asks for that change", and m37 permits a removal ("You can remove"). The sentence does not say which line carries the act, and m37 is an approve. It names no other act (P4-2, P4-5).
+6. `_resolve_contest`: CONFIRMED. It walks `ruled(conn, [item])` from the newest row, and it takes the first contest or revise. It reads no `verdict:` map. The words still come from `entry_for` of the verdict message, so it gives the whole reply and not the span of the row.
+7. Weakened assertions: the night turns below lost their pins with no granted test in their place. The new tests in `test_seam_permission_readers.py` test the mechanism of each P reader with an act and with none, and no night turn.
+   - `test_guess_route`: m192, m201, m110 and m68 (two files on one key), and m147 and m193 (a keep clause spares a file).
+   - `test_frame308_answer_after_respecify`: s370, s250 and s220 (a drop or a rewrite asks new words), and s274 (a fault of the check alone asks none).
+   - `test_frame308_ruling_answer`: a revert or a partial edit is no drop, a negated removal asks no new words, and a keep yields to a request for new words.
+   - `test_request_page`: 32 cases of the no-clause scope.
+
+   The negative pins kept a false drop or a false keep out. These pins now have no owner until the pass 3 checker exists (P4-8).
+
+### Pass 4, the findings
+
+- P4-1. `rota/roles/api.py`, the team-note block of `rulings_rule` (the diff hunk at 12492). High. CONFIRMED by `rv_p11.py` on `p4_mix` and `p4_head`. At fbce68db, a revise with act `rewrite` lands on the words of m11 and m45 of night 160 and on "Line 11 is wrong." At c4a51c7d, the same calls were refused. The s357 words "On line 11, use the normal test runner" as a plain revise landed at c4a51c7d and are refused at fbce68db. So the five refusals of night 161 return for each Liaison that writes no act. Fix: keep `_note_words` as the check until pass 3 reads the span, or refuse an act whose `words` span his reply does not hold.
+- P4-2. `rota/roles/prompts/liaison/landing.md` 14 to 16, `landing.base.md` and `answering.md`. High. CONFIRMED by grep. The briefs show the act `remove` in one example. No brief names `keep`, `rewrite`, `add` or `drop` as an act, or `check` as a target kind. Only the refusal text of `_ruling_shape` lists them. So P6, P7, P8, P11 and the Tester route grant nothing in a live night. Fix: name each act and the line it sits on in one sentence each, then measure the 3 contest cases and the m37 case on both forms.
+- P4-3. `rota/roles/principal.py` `grant`. Low. CONFIRMED by `rv_m37.py`. The newest landed row decides, so a later ruling that approves `batch_1` with no act takes back the removal of m37. Night 169 landed m41 on the same refs after m37. The failure writes a stray, so the Architect sees it. Fix: decide whether a null act revokes, and write the rule into the brief and the docstring.
+- P4-4. `rota/roles/api.py` `_gone_targets` against the brief. Low. CONFIRMED by `rv_m37.py`. `get_app_dir:518` and `utils.py:518` grant. `518`, a prose target and an act with no target grant nothing. The brief shows one example form only. Fix: name the form "function or file, a colon, the line number" in the brief.
+- P4-5. `rota/roles/prompts/liaison/landing.md` 16. Low. PLAUSIBLE. "Only when the reply asks for that change" excludes a permission such as m37 "You can remove". Fix: write "asks for or permits that change".
+- P4-6. `rota/roles/api.py` about 1906, 1427 to 1446 and 6794. Low. CONFIRMED by reading. Three readers of his words remain for a permission. The lost-name filter of P2 passes a drop when his words hold the name, even in a keep. `_item_sentences` reads `_PAGE_CUE` on his words to refuse an amend. P9 matches a contested name in his span by a word-bound pattern. Fix: move each one to `grant`, or record each one as a check of type C that pass 3 owns.
+- P4-7. `rota/core/runner.py` `disputed_paths`. Low. CONFIRMED by reading. It needs an exact target per path, and a row holds one target. So the second wrong file of m192 and m201 stays on the guess. Fix: let `target` hold a list for target kind `path`, or split the guess key per path.
+- P4-8. The order of the passes. Low. CONFIRMED by `git log c4a51c7d..fbce68db`. Pass 4 landed with no pass 3, so no checker compares an act with his span. Fix: keep the deleted negative pins as xfail tests of the pass 3 checker, so their night turns stay owed.
+
+### Pass 4, the probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e03f97fc-cdd4-4daa-864c-2ca4d7ef42a5/scratchpad/`.
+
+- `p4.diff` and `p5.diff` with an inline compare of the added lines, and a grep of the names that pass 5 defines in `p4_head`.
+- A grep of the old helper names and `earlier_exchange` in `p4_head/rota`.
+- `rv_m37.py` on `p4_head`: 8 placements and targets of the m37 act, and a later plain approve.
+- `rv_p11.py` on `p4_mix` and `p4_head`: 4 sets of his words, each as a plain revise and as a revise with act `rewrite`.
+- pytest on `p4_mix` and `p4_head`: `test_frame339_removal_stray`, `test_frame305_note_revise`, `test_frame283_removal_on_ruling` and `test_seam_permission_readers`. The result is 2 failed and 1 import error on the old tree, and 116 passed on fbce68db.
+
+### Pass 4, usage
+
+- Input tokens: about 46k, an estimate from the budget counter.
+- Output tokens: about 8k, an estimate.
+- Total: about 54k, against a cap of about 50k.
