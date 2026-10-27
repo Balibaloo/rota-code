@@ -270,6 +270,17 @@ def test_a_retired_criterion_says_so_in_the_contest_block(db):
                "status, texts) VALUES ('r1', 'm70', 'm71', ?, 'not this', "
                "'landed', ?)", (json.dumps({"c1": "contest"}),
                                 json.dumps({"c1": "an older text of c1"})))
+    # The contest block reads the rows of ruled_refs_live, so the ruling
+    # lands its rows through the one builder. The builder stores the text
+    # c1 held when he ruled, so c1 holds the older text for that moment
+    # (pass 4h; the seam design, 3.4).
+    from rota.roles.principal import insert_ruling_rows, ruling_rows
+
+    live = db.execute("SELECT text FROM criteria WHERE id = 'c1'").fetchone()["text"]
+    db.execute("UPDATE criteria SET text = 'an older text of c1' WHERE id = 'c1'")
+    insert_ruling_rows(db, ruling_rows(db, "r1", ["c1"], {"c1": "contest"},
+                                       words="not this"))
+    db.execute("UPDATE criteria SET text = ? WHERE id = 'c1'", (live,))
     db.execute("UPDATE criteria SET retired_by = 'r1' WHERE id = 'c1'")
     db.commit()
     block = _contest_block(db, [{"id": "c1"}], legend=False)

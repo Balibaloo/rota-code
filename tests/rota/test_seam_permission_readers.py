@@ -366,17 +366,20 @@ def test_every_example_of_the_brief_passes_the_door(name):
     door refuses an object value with no verdict. Each example passes
     `_ruling_shape` in the form its line names. A line that puts the
     change in `acts` names the flat form, where the verdict comes from
-    `rulings`. Every other example is a value of `rulings`."""
+    `rulings`. A `rulings=` example is the whole map, and each of its values
+    passes (pass 4h). Every other example is a value of `rulings`."""
     import re
 
     seen = 0
     for line in _brief(name).splitlines():
-        for found in re.findall(r"`(\{[^`]*\})`", line):
+        for whole, found in re.findall(r"`(rulings=)?(\{[^`]*\})`", line):
             value = json.loads(found)
             if "in `acts`" in line:
                 value = {"verdict": "contest", **value}
-            api._ruling_shape("3", value)
-            seen += 1
+            for key, one in (value.items() if whole else [("3", value)]):
+                assert key.isdigit(), found
+                api._ruling_shape(key, one)
+                seen += 1
     assert seen >= 8, seen
 
 
@@ -389,3 +392,55 @@ def test_m112s_add_on_an_approved_line_reaches_the_page_acts(db):
                             "words": said}})
     assert api.criteria_page_acts(db, ["c1"])["add"] == [(TICKET, said)]
     assert api.criteria_page_acts(db, ["c1"])["retire"] == []
+
+
+# Pass 4h. Red on 7efdee6a.
+
+def test_the_shift_page_reads_that_act_names_are_not_verdicts():
+    """L1-LI-a-separate-request-is-later, 0 of 5: the shift page reads the
+    landing piece, and the model wrote the act `drop` as its verdict. One
+    file serves both pages, so the act list opens with the sentence."""
+    from rota.roles import prompts
+
+    piece = prompts.piece("liaison", "landing")
+    sentence = ("The act names are not verdicts. On a page that asks which "
+                "request goes first, the verdicts stay `later`, `now` and "
+                "`drop`, as below.")
+    assert sentence in piece
+    assert piece.index(sentence) < piece.index("The acts:")
+
+
+def test_each_recorded_write_ends_one_add_the_oldest_first(db):
+    """P4g-1: one write on the ticket ended every open add. Now it ends the
+    oldest, and a second write ends the next."""
+    first, second = "the output stays the same", "the exit code is zero"
+    _rule(db, "r1", {"c1": {"verdict": "approve", "act": "add",
+                            "words": first}})
+    _session(db, "s_l1", 1, "liaison", [("rulings", "r1")])
+    _rule(db, "r2", {"c1": {"verdict": "approve", "act": "add",
+                            "words": second}}, seq=2)
+    _session(db, "s_l2", 2, "liaison", [("rulings", "r2")])
+    _write_criterion(db, "c4", "The program output is unchanged.")
+    _session(db, "s_t1", 3, "terminologist", [("criteria", "c4")],
+             ["criteria.specify"])
+    assert api.criteria_page_acts(db, ["c1"])["add"] == [(TICKET, second)]
+    _write_criterion(db, "c5", "The program exits with code 0.")
+    _session(db, "s_t2", 4, "terminologist", [("criteria", "c5")],
+             ["criteria.specify"])
+    assert api.criteria_page_acts(db, ["c1"])["add"] == []
+
+
+def test_a_criterion_in_his_words_counts_for_its_own_add_only(db):
+    """P4g-1: a write that holds the second add's words ends the second
+    add, and it does not count against the first."""
+    first, second = "the output stays the same", "the exit code is zero"
+    _rule(db, "r1", {"c1": {"verdict": "approve", "act": "add",
+                            "words": first}})
+    _session(db, "s_l1", 1, "liaison", [("rulings", "r1")])
+    _rule(db, "r2", {"c1": {"verdict": "approve", "act": "add",
+                            "words": second}}, seq=2)
+    _session(db, "s_l2", 2, "liaison", [("rulings", "r2")])
+    _write_criterion(db, "c4", "The exit code is zero.")
+    _session(db, "s_t1", 3, "terminologist", [("criteria", "c4")],
+             ["criteria.specify"])
+    assert api.criteria_page_acts(db, ["c1"])["add"] == [(TICKET, first)]

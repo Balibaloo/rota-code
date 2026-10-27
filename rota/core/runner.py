@@ -64,7 +64,11 @@ class RunOutcome:
     offered: list[str] = field(default_factory=list)
 
 
-_COUNTED = {"s": "sessions", "m": "messages", "tr": "test_runs"}
+# A ruling id reaches the prompt of the next turn in the result of
+# rulings.rule. A uuid there made the second turn of the answering case
+# unreplayable on the gate of 0736f9dd (pass 4h).
+_COUNTED = {"s": "sessions", "m": "messages", "tr": "test_runs",
+            "r": "rulings"}
 
 
 def new_id(prefix: str, conn: sqlite3.Connection | None = None,

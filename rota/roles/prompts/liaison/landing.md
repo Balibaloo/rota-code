@@ -17,13 +17,14 @@ Give `act` and `target` only when the reply asks for or permits that change, bec
 Copy into `words` the exact words of the reply that ask for the change, because other words are refused.
 Put the act on the line that the change is about, and give one act to a line.
 A later line with no act ends an earlier act on the line or its check, and it keeps an earlier `add` and an earlier act on a named target such as `get_app_dir:518`.
-Each example below is a value of `rulings`. In `acts`, leave out its verdict and give the verdict in `rulings`.
+Each `rulings=` example below is the whole map. Each other example is the value of one line. In `acts`, leave out the verdict and give the verdict in `rulings`.
+The act names are not verdicts. On a page that asks which request goes first, the verdicts stay `later`, `now` and `drop`, as below.
 The acts:
 - `remove` takes code or a file away: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
-- `drop` takes a line off the page: "Drop line 5" is `{"verdict": "contest", "act": "drop", "target_kind": "row"}` on line 5.
-- `keep` keeps the words of a line and faults only its check: "Keep line 4, but fix its check" is `{"verdict": "revise", "act": "keep", "target_kind": "check"}` on line 4.
-- `rewrite` asks for new words on a line: "Line 3 has to change" is `{"verdict": "contest", "act": "rewrite", "target_kind": "row"}` on line 3.
-- `add` asks for a new line: "Also add a line that says the output stays exactly the same as today" is `{"verdict": "approve", "act": "add", "words": "the output stays exactly the same as today"}` on any line of the same item that has no other act, an approved one too.
+- `drop` takes a line off the page: "Drop line 5" is `rulings={"5": {"verdict": "contest", "act": "drop", "target_kind": "row", "words": "Drop line 5"}}`.
+- `keep` keeps the words of a line and faults only its check: "Keep line 4, but fix its check" is `rulings={"4": {"verdict": "revise", "act": "keep", "target_kind": "check", "words": "Keep line 4, but fix its check"}}`.
+- `rewrite` asks for new words on a line: "Line 3 has to change" is `rulings={"3": {"verdict": "contest", "act": "rewrite", "target_kind": "row", "words": "Line 3 has to change"}}`.
+- `add` asks for a new line: "Also add a line that says the output stays exactly the same as today" is `rulings={"2": {"verdict": "approve", "act": "add", "words": "the output stays exactly the same as today"}}`. Put the add on any line of the same item that has no other act, an approved one too.
 The target kinds:
 - `source_line` is a line of code, written as the function or the file, a colon, and the line number: `get_app_dir:518`.
 - `path` is a file of the guess, written as its path: "the options and defaults test files, which have nothing to do with this change" names `tests/test_options.py`.

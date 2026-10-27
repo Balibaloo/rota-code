@@ -6443,14 +6443,16 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
     line counts. No phrase of his words decides it.
 
     Every open add on the criterion and on its ticket is offered, so two
-    adds in other words both stay until each is done. An add is done when
-    a `criteria.specify` call wrote a live criterion of the ticket in a
-    session after the ruling's, or when a live criterion holds its words.
+    adds in other words both stay until each is done. A live criterion that
+    holds an add's words ends that add, and each other `criteria.specify`
+    write of a live criterion of the ticket, in a session after the
+    ruling's, ends one add, the oldest first.
     """
     from ..core.scheduler import live_criteria
     from .principal import last_ruling_on, open_adds
 
     out: dict = {"retire": [], "add": []}
+    found: list = []
     for ref in refs or ():
         if not isinstance(ref, str):
             continue
@@ -6477,56 +6479,71 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
             ticket = add["target"] if add["target"] and conn.execute(
                 "SELECT 1 FROM tickets WHERE id = ?", (add["target"],)
             ).fetchone() else row["ticket_id"]
-            # A live criterion of the ticket that holds the words is the add
-            # done. No write ends the add, so the relay wake offered it
-            # again, and the twin door of criteria.specify refused it (the
-            # review of pass 4c, P4c-1).
-            # The record decides first: a criteria.specify write of a live
-            # criterion of the ticket, in a session after the one that wrote
-            # the ruling. The Terminologist writes in glossary terms, so his
-            # exact words are the second test only. What the page showed is
-            # no record of a write, and it ended adds that nobody wrote (the
-            # reviews of pass 4d and 4e, P4de-1, and of pass 4f, P4f-1).
-            if _written_after(conn, add["ruling_id"], ticket) or any(
-                    _holds_span(c["text"], said) for c in conn.execute(
-                        "SELECT text FROM criteria WHERE ticket_id = ?"
-                        + live_criteria(conn, "retired_by"), (ticket,))):
-                continue
-            if (ticket, said) not in out["add"]:
-                out["add"].append((ticket, said))
+            if all(a[2]["id"] != add["id"] for a in found):
+                found.append((ticket, said, add))
+    # The record decides an add done. A live criterion of the ticket that
+    # holds his exact words ends its add first, and that criterion counts
+    # for no other add. Each criteria.specify write of a live criterion, in
+    # a session after the ruling's own, then ends one add, the oldest first.
+    # What the page showed is no record of a write (the reviews of pass 4c,
+    # P4c-1, pass 4f, P4f-1, and pass 4g, P4g-1).
+    found.sort(key=lambda a: (a[2]["ruling_seq"], a[2]["row_seq"]))
+    used: set = set()
+    for ticket, said, add in found:
+        live = conn.execute(
+            "SELECT id, text FROM criteria WHERE ticket_id = ?"
+            + live_criteria(conn, "retired_by"), (ticket,)).fetchall()
+        held = [c["id"] for c in live if _holds_span(c["text"], said)]
+        if held:
+            used.update(held)
+            continue
+        if (ticket, said) not in out["add"]:
+            out["add"].append((ticket, said))
+    for ticket, said, add in found:
+        if (ticket, said) not in out["add"]:
+            continue
+        own = _ruling_session(conn, add["ruling_id"])
+        write = next((cid for seq, cid in _specify_writes(conn, ticket)
+                      if own is not None and seq > own and cid not in used),
+                     None)
+        if write is not None:
+            used.add(write)
+            out["add"].remove((ticket, said))
     return out
 
 
-def _written_after(conn: sqlite3.Connection, ruling_id: str,
-                   ticket: str) -> bool:
-    """Whether a session after the ruling's own wrote a live criterion of
-    `ticket` by `criteria.specify`.
+def _ruling_session(conn: sqlite3.Connection, ruling_id: str) -> int | None:
+    """The `sessions.seq` of the session that wrote the ruling, or None.
 
-    `sessions.seq` orders the sessions. The ruling's session is the one
-    whose receipt holds the ruling row, else the Liaison session that its
-    reply or verdict message woke. With neither, nothing orders the write,
-    so the answer is False and his words decide alone."""
+    It is the session whose receipt holds the ruling row, else the session
+    that the ruling's reply or verdict message woke. With neither, nothing
+    orders a write after the ruling, so his words decide alone."""
+    for sql in ("SELECT MAX(s.seq) AS n FROM receipts r JOIN sessions s "
+                "ON s.id = r.session_id WHERE r.table_name = 'rulings' "
+                "AND r.row_id = ?",
+                "SELECT MAX(s.seq) AS n FROM sessions s JOIN rulings g "
+                "ON s.trigger_msg IN (g.reply_id, g.verdict_id) WHERE g.id = ?"):
+        own = conn.execute(sql, (ruling_id,)).fetchone()
+        if own is not None and own["n"] is not None:
+            return own["n"]
+    return None
+
+
+def _specify_writes(conn: sqlite3.Connection, ticket: str) -> list[tuple]:
+    """Each live criterion of `ticket` that a session wrote with a
+    `criteria.specify` call, as `(sessions.seq, criterion id)`, oldest
+    first. The receipt names the row, because the call's summary cuts each
+    argument at 60 characters."""
     from ..core.scheduler import live_criteria
 
-    own = conn.execute(
-        "SELECT MAX(s.seq) AS n FROM receipts r JOIN sessions s "
-        "ON s.id = r.session_id WHERE r.table_name = 'rulings' "
-        "AND r.row_id = ?", (ruling_id,)).fetchone()
-    if own is None or own["n"] is None:
-        own = conn.execute(
-            "SELECT MAX(s.seq) AS n FROM sessions s JOIN rulings g "
-            "ON s.trigger_msg IN (g.reply_id, g.verdict_id) WHERE g.id = ?",
-            (ruling_id,)).fetchone()
-    if own is None or own["n"] is None:
-        return False
-    return conn.execute(
-        "SELECT 1 FROM receipts r JOIN sessions s ON s.id = r.session_id "
+    return [(r["seq"], r["id"]) for r in conn.execute(
+        "SELECT MIN(s.seq) AS seq, c.id AS id FROM receipts r "
+        "JOIN sessions s ON s.id = r.session_id "
         "JOIN criteria c ON c.id = r.row_id "
-        "WHERE r.table_name = 'criteria' AND c.ticket_id = ? AND s.seq > ?"
+        "WHERE r.table_name = 'criteria' AND c.ticket_id = ?"
         + live_criteria(conn, "c.retired_by") +
         " AND EXISTS (SELECT 1 FROM tool_calls t WHERE t.session_id = s.id "
-        "AND t.fn = 'criteria.specify') LIMIT 1",
-        (ticket, own["n"])).fetchone() is not None
+        "AND t.fn = 'criteria.specify') GROUP BY c.id ORDER BY seq", (ticket,))]
 
 
 @op("criteria", "retire")
@@ -11056,6 +11073,46 @@ def _ruling_word(key: str, raw, shift: bool = False) -> str:
 # map three times, and the word door told it only that the words were no
 # ruling (frame 197).
 _RULE_ARGS = ("rulings", "words", "ask", "acts")
+# The fields of a line's object. The Liaison put them beside the line keys
+# 5 of 5 on the gate of 0736f9dd, case L1-LI-a-dropped-line-is-a-contest,
+# and the door named `act` as a bad line number (pass 4h).
+_ACT_FIELDS = ("act", "target", "target_kind")
+
+
+def _stray_act_fields(ctx, rulings: dict, words: str) -> str | None:
+    """The refusal for object fields given as keys of `rulings`, or None.
+
+    The offer moves the fields into the object of the line they are about:
+    the one contested or revised line, else the one line of the map."""
+    fields = {str(k).strip().lower(): v for k, v in rulings.items()
+              if str(k).strip().lower() in _ACT_FIELDS + ("words",)}
+    if not any(f in fields for f in _ACT_FIELDS):
+        return None
+    lines = {str(k).strip(): v for k, v in rulings.items()
+             if str(k).strip().lower() not in _ACT_FIELDS + _RULE_ARGS}
+    named = [k for k, v in lines.items()
+             if isinstance(v, str) and v.strip().lower() in ("contest", "revise")]
+    key = (named[0] if len(named) == 1 else
+           next(iter(lines)) if len(lines) == 1 else None)
+    names = ", ".join(f"`{f}`" for f in fields)
+    if key is None:
+        return (f"rulings.rule: {names} are fields of one line's object, not "
+                f"lines of the page. Put them inside the line they are about: "
+                f"{{\"<line>\": {{\"verdict\": \"contest\", \"act\": ...}}}}")
+    said = str(fields.pop("words", "") or words or "").strip()
+    given = lines[key]
+    value = ({**given, **fields} if isinstance(given, dict)
+             else {"verdict": str(given).strip().lower(), **fields})
+    if said:
+        value["words"] = said
+    moved = {**lines, key: value}
+    call = (f"rulings.rule(rulings={json.dumps(moved, ensure_ascii=False)}"
+            + (f", words={json.dumps(said, ensure_ascii=False)}" if said else "")
+            + ")")
+    return _offer(ctx, (
+        f"rulings.rule: {names} are fields of line {key}'s object, not lines "
+        f"of the page. Put them inside line {key}: {call}"),
+        "rulings.rule", {"rulings": moved, **({"words": said} if said else {})})
 
 
 def _ruling_shape(key: str, value: dict) -> dict:
@@ -12663,6 +12720,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # from `acts`. `per_item` keeps the verdict word, so every door below
     # reads the same map as before (the seam design, 1.4).
     shape_of: dict[str, dict] = {}
+    stray = _stray_act_fields(ctx, rulings, words)
+    if stray:
+        raise ValueError(stray)
     for key, ruling in rulings.items():
         key = str(key).strip()
         if key.lower() in _RULE_ARGS:

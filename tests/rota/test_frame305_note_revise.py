@@ -259,3 +259,42 @@ def test_a_span_across_a_clause_edge_reads_every_clause_it_meets(
         db, words, span, more):
     out = _rule(db, words, _act("rewrite", span), **more)
     assert out["per_item"]["l_9"] == "revise"
+
+
+# Pass 4h: the gate of 0736f9dd on qwen3:8b. Red on 7efdee6a.
+
+def test_act_fields_beside_the_line_keys_get_the_object_form(db):
+    """L1-LI-a-dropped-line-is-a-contest, 0 of 5: the Liaison put the act's
+    fields beside the line keys, and the door named `act` as a bad line
+    number. The refusal now moves them into line 3's object, and the
+    offered call passes the shape door."""
+    import re
+
+    from rota.roles.api import _ruling_shape
+
+    words = "please drop line 3, the rest is fine"
+    ask = _page(db)
+    sb, _ = _landing(db, ask, words)
+    # Runs 3 to 5 of the case sent every line, as here.
+    lines = {str(n): "approve" for n in range(1, 12)}
+    with pytest.raises(ValueError) as refused:
+        sb.call("rulings.rule", rulings={**lines, "3": "contest", "act": "drop",
+                                         "target_kind": "row"}, words=words)
+    said = str(refused.value)
+    assert "are fields of line 3's object, not lines of the page" in said, said
+    offered = json.loads(re.search(r"rulings=(\{.*\}), words=", said).group(1))
+    assert offered == {**lines, "3": {"verdict": "contest", "act": "drop",
+                                      "target_kind": "row", "words": words}}
+    _ruling_shape("3", offered["3"])
+
+
+def test_two_runs_of_one_seeded_call_give_one_ruling_id(tmp_path):
+    """L1-LI-a-reply-reaches-the-desk-that-asked was STALE: the ruling id is
+    in the next turn's prompt, and a uuid id never replays."""
+    ids = []
+    for run in ("a", "b"):
+        (tmp_path / run).mkdir()
+        conn = init_db(tmp_path / run / "rota.db")
+        words = "On line 11, use the normal test runner"
+        ids.append(_rule(conn, words, _act("rewrite", words))["id"])
+    assert ids[0] == ids[1], ids
