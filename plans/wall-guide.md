@@ -123,7 +123,17 @@ entry has the same fields. The October frames under each cause are this
 pass's placement from the research's rows (reasoned:
 `plans/wall-research/frames.md`, columns 3 and 4, re-read against the
 structure, no turn read). Each "Cheap fix" gives one or two worked cases.
-The other closes are in `frames.md`. "Not now, when" is not a decision to
+The other closes are in `frames.md`. Each "Reach" prices the fix by the
+reach, the count of every place with the same gap (ruled: Roman,
+2026-10-26, rule C76, `plans/method/reference.md` section 10). A fix at
+one reader that covers all N places is the norm. A fix at one door of N
+is a residue, and its frame names the places it leaves and why (ruled:
+C76, step 6). The cycles in a "Cheap fix" line are the price of one
+place. Until 2026-10-26 this guide made that price the norm (observed:
+`plans/closed-reach-b.md`, frame 251). Of 56 closed frames of that shape,
+48 fixed one door of N at a median of 1 of 6 places. 45 of the 48 have a
+later frame at the same fact (observed: `plans/closed-reach-2026-10-26.md`).
+"Not now, when" is not a decision to
 leave a wall. It is the reason a session may write in the frame when the
 fix waits, and the frame stays open on the stack (ruled: Roman, 2026-10-15,
 "try to fix everything", "Reasonably"). Where this pass differs from the
@@ -162,6 +172,12 @@ research's placement, section 6 says so.
   ruling's words beside the criterion in the Developer and Tester wakes,
   reaching 559 of 2402 such wakes (observed: `plans/frame243-try.md`,
   2026-10-15). Its count is night 149's.
+- **Reach.** Count every place that decides or carries his words for the
+  same fact. A counted door at one hop of N is a residue. Frame 337 fixed
+  the naming door and the reversal guard, 2 of 14 places (observed:
+  `plans/frame337-agency-read.md`). Its read proposes one value, `words`,
+  built once from his converse answers, which every door reads, at 5
+  cycles (observed: `plans/agency-prevalence-2026-10-26.md`).
 - **Overfits.** A door that reads his words for a meaning. Frame 243's
   lexical door fired on 1 of 60 contested respecifies. Its presence rule
   would refuse about 59 of 60 right paraphrases. Frame 226's first token
@@ -202,6 +218,12 @@ research's placement, section 6 says so.
   7 wakes holding a `code.source` block against 0 of 3 (observed:
   `frames.md`, 2026-10-05). Frame 243's record shape, cause 1, is this fix
   one seat below a cause-1 wall.
+- **Reach.** Count every push and every listing that should carry the
+  fact to a seat. Frame 324's built fix covers 2 of 13 places, because
+  the seat never received the partition of program and example code
+  (observed: `plans/frame324-agency-read.md`). Its read proposes one
+  reader, `areas.kind_of`, behind every listing, at 3 cycles (observed:
+  `plans/agency-prevalence-2026-10-26.md`).
 - **Overfits.** A sentence that tells the seat what to do about the gap.
   Frame 119's eviction sentence, "ask once more and it is served again",
   made three seats repeat their calls at temperature 0, and the session
@@ -238,6 +260,10 @@ research's placement, section 6 says so.
   230 are the same door's residue, counted on 72 night databases at 67 of
   1,153 bodies flagged and 0 false refusals (observed: `plans/stack.md`,
   frame 230's status of 2026-10-15 02:11).
+- **Reach.** Count every door and every reader that re-derives the same
+  runtime fact, not the shapes one night shows. Frames 131, 176 and 230
+  are three doors at one fact, so one reader of that fact is the fix at
+  the reach (reasoned: the overfit line below; C76, step 3).
 - **Overfits.** One door per runtime shape. Frame 131's plain function came
   back as frame 176's local wrapper and frame 230's lambda, and
   `hello.main` and `self.runner.invoke` are still admitted (observed: frame
@@ -275,6 +301,12 @@ research's placement, section 6 says so.
   survey wakes quarantined (observed: `small-model.md` D3; `frames.md`,
   2026-10-15). A brief sentence closed 1 October wall, this one (observed:
   `frames.md` section 3).
+- **Reach.** Count every view, brief and door that shows or reads the
+  fact in the same shape. Frame 335's fix covers 4 of 10 places, because
+  the view shows a test body one escape level above the row (observed:
+  `plans/frame335-agency-read.md`). Its read proposes that `_render` shows
+  nested text plainly, with one escape helper beside `parse_args`, at 3
+  cycles (observed: `plans/agency-prevalence-2026-10-26.md`).
 - **Overfits.** A brief sentence measured on one case. Frame 234's sentence
   took a shift page from 15 of 15 to 9 of 15. Frame 82's headline took two
   cases from 2 of 5 and 5 of 5 to 0 of 5 and 3 of 5. One sentence in the
@@ -324,6 +356,9 @@ research's placement, section 6 says so.
   2026-08-26). Frame 200, the build loop, took 46 cycles against 8 to 10,
   closed at 5 of 8 against 3 of 12, and its residue became five frames
   (observed: `frames.md`, 2026-10-13).
+- **Reach.** Count every seat and every gate where the same wrong act can
+  land, because the fix moves the check and not the judgement (reasoned:
+  C76, step 3). No agency read of 2026-10-26 placed a wall here.
 - **Overfits.** A reminder: "I'm saying it's not as simple as adding a
   reminder" (ruled: Roman, 2026-10-15 00:51 UTC). A door on the judgement:
   "every judgement-shaped guard regressed a register case or gained nothing"
@@ -362,6 +397,11 @@ research's placement, section 6 says so.
   210, `tests.load` shows a red test as passing, closed at the right state in
   23 of 23 wakes, 2 cycles of 2 (observed: `frames.md`, 2026-10-12). Eight
   October closes were predicate changes (observed: `frames.md` section 3).
+- **Reach.** Count every rule that reads rows for the same fact. Frame
+  330's fix covers 1 of 10 seat wakes, and `given_up` already holds every
+  quarantined key (observed: `plans/frame330-agency-read.md`). Its read
+  proposes that `stopped_bouncing` reads `given_up`, at 4 cycles
+  (observed: `plans/agency-prevalence-2026-10-26.md`).
 - **Overfits.** A fold condition fitted to the night's rows: frame 225 took
   four reviews and 10 cycles of 2 before `is_default` left the fold
   (observed: `failed-fixes.md` row 10). A premise read from the status
@@ -393,6 +433,10 @@ research's placement, section 6 says so.
   13 of 56 October closes (observed: `frames.md` section 3). Frame 122, a
   Critic's quote that holds quotes never parses, closed at 0 of 249 sessions
   (observed: `frames.md`, 2026-10-05).
+- **Reach.** Count every parser and every escape rule that reads the same
+  reply form. A runner change is one place only when one parser reads
+  every reply (reasoned: "the parser is the only reader", above). No
+  agency read of 2026-10-26 placed a wall here.
 - **Overfits.** A sentence in the runner's format prose. The shared prose is
   every desk's prompt. One sentence changed the hash of every mode and took
   a case from 770 of 780 to 0 of 20, and "the parser's refusal is the place
@@ -433,6 +477,14 @@ research's placement, section 6 says so.
   219, the Vision Keeper reuses a decision id, closed at 0 principal
   `decisions` rows changed (observed: `frames.md`). 21 doors and 8 predicate
   changes are among the 56 October closes (observed: `frames.md` section 3).
+- **Reach.** Count every door that decides the same fact, not the cases
+  at one door. The door's count of section 3 measures one place, and the
+  reach measures the places (reasoned: C76, step 3). Frame 339's read
+  found 1 of 12 places and a wrong premise. The door asks for a permission
+  that law 12 does not ask for (observed: `plans/frame339-agency-read.md`).
+  Its read proposes that the door records the removal for the Architect
+  and refuses nothing, at 3 cycles (observed:
+  `plans/agency-prevalence-2026-10-26.md`).
 - **Overfits.** A predicate stated in words, cause 1's evidence. An optional
   argument: it is filled on every call, and a refusal of it loops the seat,
   `L1-TS-encode-a-criterion` green to 0 of 5 (observed:
@@ -481,6 +533,11 @@ research's placement, section 6 says so.
   `frames.md`, 2026-10-05). Name both arguments in one message, because one
   at a time flips the seat between two fixes (observed:
   `plans/operating-facts.md` line 306).
+- **Reach.** Count every refusal and every note that gives the seat the
+  same advice. Frame 333's quote check covers 3 of 13 places (observed:
+  `plans/frame333-agency-read.md`). Its read proposes to delete the
+  12-character window and to find each quote by `_span_of`, at 3 to 4
+  cycles (observed: `plans/agency-prevalence-2026-10-26.md`).
 - **Overfits.** A conditional invitation: the seat drops the condition
   (frame 119, reverted, then frame 169, then frame 208 open). A refusal that
   names a next call is a route the review must follow: frame 135's door took
@@ -517,6 +574,12 @@ research's placement, section 6 says so.
   `plans/operating-facts.md`, 2026-09-09). Frame 142, a park ask's answer
   names no option, closed at 0 of 569 sessions against 27 (observed:
   `frames.md`, 2026-10-09).
+- **Reach.** Count every mode whose brief or refusal names a call that its
+  `.tools` file lacks. Frame 334's mode covers 1 of 31 places, and its
+  premise waited on a question answered on 2026-09-12 (observed:
+  `plans/frame334-agency-read.md`). Its read proposes one lint per mode
+  against `mode_tools`, at 4 cycles (observed:
+  `plans/agency-prevalence-2026-10-26.md`).
 - **Overfits.** A tool added to a mode: "an 8B model reads the tool list as
   the list of what this session is for". `decisions.author` on the Vision
   Keeper relay wrote 14 decisions. Relay tools on the Liaison took G1 from
@@ -547,6 +610,10 @@ research's placement, section 6 says so.
   by line 1 against 12 of 30. They were one of the two closes that cut the
   open count (observed: `plans/wall-method-fit-review.md` section 2;
   `frames.md`).
+- **Reach.** Count every route and every word table that puts the same
+  row kind on his page. A design frame on the shared cause is the fix at
+  the reach, and a route change per row kind is the residue (reasoned:
+  C76, step 6; frame 190's residue, below).
 - **Overfits.** A route change per row kind. Frame 190's residue became
   193, then 198 and 185's path (observed: `frames.md`, column 9).
 - **Not now, when.** Never. A page costs the scarcest budget.
@@ -571,6 +638,11 @@ research's placement, section 6 says so.
   took passes 1, 1b, 1c and 2 and a cue door that held 1 of 1 on night 148
   (observed: `doors.md` row 3; `plans/stack.md`, frame 202). Frame 194 is
   open.
+- **Reach.** Count every reader that derives the fact from either record.
+  Frame 338's fix covers the verdict path only, 1 of 3 places (observed:
+  `plans/frame338-agency-read.md`). Its read proposes one `ruled_rows`
+  reader for the verdict map and the rulings row, at 2 cycles (observed:
+  `plans/agency-prevalence-2026-10-26.md`).
 - **Overfits.** A door on one record that reads the other's words: frame
   202's surface-move door is a phrase list, held on one case.
 - **Not now, when.** The cascade reaches the second record on the next
@@ -594,6 +666,13 @@ research's placement, section 6 says so.
 - **Cheap fix.** The instrument first, 1 to 3 cycles. Frame 207, an
   inherited test runs without its warning filter, closed at 0 of 4 on two
   nights against 1 of 1 (observed: `frames.md`, 2026-10-13).
+- **Reach.** Count every case and every kit place that builds the measured
+  world by its own rule. Frame 331's fix covers 10 of 33 places, because
+  the case kit builds a night's world only from the keys each case
+  declares (observed: `plans/frame331-agency-read.md`). Its read proposes
+  the night's world as the kit's default, at 4 cycles (observed:
+  `plans/agency-prevalence-2026-10-26.md`). The case kit builds the world
+  the register measures, so the case fits this cause (reasoned).
 - **Overfits.** A fix to the seat for an instrument's fault. Finding 79:
   "the instrument was the wall. The model was never the wall" (observed:
   `plans/operating-facts.md`, 2026-09-15).
@@ -617,6 +696,9 @@ research's placement, section 6 says so.
 - **Cheap fix.** None closed. The frame's own ends-when: the wake shows the
   tree the runs ran on, or says the tree holds an uncommitted write, with
   one test on that state (reasoned: frame 150's ends-when, 2026-10-05).
+- **Reach.** Count every path that ends a seat's session with a write and
+  no commit (reasoned: C76, step 3). No agency read of 2026-10-26 placed a
+  wall here.
 - **Overfits.** A door on the wake's text. The fault is the tree, not the
   wake.
 - **Not now, when.** Never. The composition's sentence is absolute.
@@ -641,6 +723,9 @@ research's placement, section 6 says so.
   sample is one prompt" (observed: `frames.md`, 2026-10-08; ruled: Roman,
   2026-10-07 07:56 UTC, "Pass names a line per requirement"). The door's
   residue is frames 180 and 201.
+- **Reach.** Count every verdict kind that crosses with no pointer. Frame
+  170's door and its residue, frames 180 and 201, are three places at one
+  gap (reasoned: the entry above; C76, step 3).
 - **Overfits.** A door on the lines' shape: frame 180's lines check admitted
   `import json`, and frame 201 loops a Critic case to no verdict (observed:
   `frames.md`; `failed-fixes.md` B.3).
@@ -675,6 +760,12 @@ instance, so its walls are the same walls one level up.
   2026-10-03). Two or more open frames under one cause become one design
   frame on that cause. The two closes that cut the open count, frames 131
   and 190, were that (observed: the fit review section 2).
+- **Reach.** The session priced a door by one place and the reach by
+  none. Of the 14 open frames read on 2026-10-26, 12 sat at one door of
+  N and 0 at the source (observed: `plans/agency-prevalence-2026-10-26.md`).
+  The fixes covered a median of 2 of their reach. Rule C76 is the fix: the
+  read writes the reach count on the frame before any pass (ruled: Roman,
+  2026-10-26).
 - **Overfits.** A sign table. One sign can come from five causes, and a
   session that enters by sign reaches for the cheapest cause's fix.
 - **Not now, when.** The session cannot name the wall after a scope read
@@ -690,7 +781,8 @@ Roman: "this is the kind of knowledge that we just have about the project"
 
 **The one gating test is the count.** A door or a predicate carries, before
 its pass, its count on every night's records: fires on a of n instances,
-refuses b of N right calls, with the reach as the denominator. The count
+refuses b of N right calls, with the instances on the night as the
+denominator. Rule C76 uses "reach" for every place with the same gap. The count
 found frame 243's lexical door at 1 of 60 before any night ran (observed:
 `plans/ladder-review-2026-10-15.md`, 2026-10-15). A door with no count is a
 prediction, and a prediction never gates.
@@ -792,6 +884,15 @@ interview. The interview is step 7's own step.
    what the records say, and whether the recommended answer holds against
    the frame's evidence (ruled: Roman, 2026-10-04 14:52).
 
+**The reach question, before any pass.** When step 8 takes a fix, ask the
+reach question of rule C76 (ruled: Roman, 2026-10-26,
+`plans/method/reference.md` section 10). Count every place with the same
+gap, not the cases at the place the night showed. Put the fix at the
+smallest place that covers all of them. Write the reach count on the frame
+before the pass, and the pass brief carries the count. A fix that covers
+fewer places names the places it leaves and why. C76 holds the steps of
+the read, and this guide does not copy them.
+
 ## 5. For Roman
 
 No question is open for Roman as of 2026-10-15. The four this guide
@@ -806,6 +907,10 @@ raised are rulings now, each cited where it applies:
   2026-10-15, "Yeah", on the recommended answer: a frame closes after three
   nights at 0 of 0 on the door's unit test, and the count line stays in the
   night read so a later fire reopens the frame by the residue rule).
+- Open, 2026-10-27: rule C76 step 7 closes a frame on two counts, and
+  this close rule closes a door at 0 of 0 on its unit test alone. Ask
+  Roman when a frame first reaches three nights at 0 of 0 under C76
+  (reasoned: frames 336 and 338 have no sample on night 170).
 - What a small inefficiency is: section 0 (ruled: Roman, 2026-10-15, "I
   guess if we don't detect it then it's not that big of a deal, but ignore
   this, try to fix everything", then "Reasonably"). There is no decision to
