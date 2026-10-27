@@ -398,3 +398,46 @@ def test_a_judged_removal_is_not_raised_again(db, tmp_path):
     out = _write_then_commit(sb)
     assert out["committed"] is True, out
     assert _strays(sb) == []
+
+
+# The review of pass 4, P4-3. Night 169 ruled batch_1 again by m41, m48 and
+# m55, all plain approves. A row with no act changes nothing, so m37's
+# grant stands until an act on the same target replaces it. Red on
+# 0736f9dd, where any later row took the grant back.
+
+def _later(db, rid: str, seq: int, batch_ruling) -> None:
+    """A later landed ruling on batch_1, as night 169's m41 was."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_text, seq) VALUES (?,'t1','principal','liaison','answer',"
+               "'Line 2 is fine.',?)", (f"m{seq}", seq))
+    db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
+               "(?,?,?,'Line 2 is fine.','landed')",
+               (rid, f"m{seq}", json.dumps({"batch_1": "approve"})))
+    insert_ruling_rows(db, ruling_rows(db, rid, ["batch_1"],
+                                       {"batch_1": batch_ruling},
+                                       words="Line 2 is fine."))
+    db.commit()
+
+
+def test_a_plain_approve_after_m37_keeps_its_grant(db, tmp_path):
+    from rota.roles.principal import granted
+
+    _m37(db, {"verdict": "approve", "act": "remove", "target": "get_app_dir:518",
+              "words": M37})
+    _later(db, "r_m41", 41, "approve")
+    assert granted(db, "batch_1", "remove", "get_app_dir:518")
+    sb, _root = _developer(db, tmp_path)
+    out = _write_then_commit(sb)
+    assert out["committed"] is True, out
+    assert _strays(sb) == []
+
+
+def test_a_later_keep_on_the_same_target_takes_m37s_grant_back(db):
+    from rota.roles.principal import granted
+
+    _m37(db, {"verdict": "approve", "act": "remove", "target": "get_app_dir:518",
+              "words": M37})
+    _later(db, "r_m41", 41, {"verdict": "approve", "act": "keep",
+                             "target": "get_app_dir:518"})
+    assert not granted(db, "batch_1", "remove", "get_app_dir:518")
+    assert not granted(db, "batch_1", "remove")

@@ -82,9 +82,10 @@ def test_the_grant_names_its_target(db, target, asked, expected):
     assert not granted(db, "c1", "add", asked)
 
 
-def test_only_the_newest_landed_row_grants(db):
-    """A newer landed ruling takes the grant back. An open ruling grants
-    nothing yet, and it hides no landed grant."""
+def test_only_the_newest_landed_row_with_an_act_grants(db):
+    """A newer landed act takes the grant back. An open ruling grants
+    nothing yet, and it hides no landed grant. A row with no act changes
+    nothing (the review of pass 4, P4-3)."""
     _rule(db, "r1", {"c1": {"verdict": "contest", "act": "drop"}})
     assert granted(db, "c1", "drop")
     _rule(db, "r2", {"c1": {"verdict": "contest", "act": "keep"}},
@@ -92,7 +93,10 @@ def test_only_the_newest_landed_row_grants(db):
     assert granted(db, "c1", "drop")
     assert not granted(db, "c1", "keep")
     _rule(db, "r3", {"c1": "approve"}, seq=3)
+    assert granted(db, "c1", "drop")
+    _rule(db, "r4", {"c1": {"verdict": "contest", "act": "keep"}}, seq=4)
     assert not granted(db, "c1", "drop")
+    assert granted(db, "c1", "keep")
 
 
 # One test per reader, on its own target kind. Each case is the reading
@@ -178,15 +182,56 @@ def test_the_contest_reader_reads_the_rows_and_not_the_verdict_map(db):
     assert _resolve_contest(db, ITEM)["principal_verdict"] == {ITEM: "contest"}
 
 
-def test_the_landing_brief_names_every_act_and_target_kind():
+def _brief(name: str) -> str:
+    from pathlib import Path
+
+    return (Path(api.__file__).parent / "prompts" / "liaison"
+            / name).read_text(encoding="utf-8")
+
+
+# The two briefs that offer `rulings.rule` with acts. The clarify brief
+# named `remove` only (the review of pass 4b, P4b-4).
+_RULE_BRIEFS = ["landing.md", "answering.md"]
+
+
+@pytest.mark.parametrize("name", _RULE_BRIEFS)
+def test_the_landing_brief_names_every_act_and_target_kind(name):
     """The review of pass 4, P4-2: an act no brief names is an act no live
     Liaison writes, so its reader grants nothing. Red on fbce68db, whose
     brief showed `remove` only."""
-    from pathlib import Path
-
     from rota.roles.principal import RULED_ACTS, TARGET_KINDS
 
-    brief = (Path(api.__file__).parent / "prompts" / "liaison"
-             / "landing.md").read_text(encoding="utf-8")
+    brief = _brief(name)
     for word in RULED_ACTS + TARGET_KINDS:
         assert f"- `{word}`" in brief or f"`{word}` is" in brief, word
+
+
+@pytest.mark.parametrize("name", _RULE_BRIEFS)
+def test_every_example_of_the_brief_passes_the_door(name):
+    """The review of pass 4b, P4b-2: four examples had no verdict, and the
+    door refuses an object value with no verdict. Each example passes
+    `_ruling_shape` in the form its line names. A line that puts the
+    change in `acts` names the flat form, where the verdict comes from
+    `rulings`. Every other example is a value of `rulings`."""
+    import re
+
+    seen = 0
+    for line in _brief(name).splitlines():
+        for found in re.findall(r"`(\{[^`]*\})`", line):
+            value = json.loads(found)
+            if "in `acts`" in line:
+                value = {"verdict": "contest", **value}
+            api._ruling_shape("3", value)
+            seen += 1
+    assert seen >= 8, seen
+
+
+def test_m112s_add_on_an_approved_line_reaches_the_page_acts(db):
+    """The review of pass 4b, P4b-5. Night 163's m112 held an act on every
+    contested line, so its add rode on an approved line. The reader read
+    the add only behind a contest or a revise. Red on 0736f9dd."""
+    said = "the output stays exactly the same as today"
+    _rule(db, "r1", {"c1": {"verdict": "approve", "act": "add",
+                            "words": said}})
+    assert api.criteria_page_acts(db, ["c1"])["add"] == [(TICKET, said)]
+    assert api.criteria_page_acts(db, ["c1"])["retire"] == []

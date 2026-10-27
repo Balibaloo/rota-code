@@ -6394,8 +6394,8 @@ def ruling_asks_no_new_words(ctx: Ctx, id: str) -> bool:
     rewrite there with "The criterion stands", so the answer door needs no
     call to know it (frame 308, review 2's fix).
 
-    The keep is the act `keep` of his newest landed row, with its target a
-    check or the row. A contest of the check alone keeps the words too. No
+    The keep is the act `keep` of his newest landed row with an act, with
+    its target a check or the row. A contest of the check alone keeps the words too. No
     phrase of his words decides it (the seam design, pass 4)."""
     from .principal import granted, last_ruling_on
 
@@ -6435,11 +6435,12 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
     `criterion_repair` offers `criteria.retire` and `criteria.specify` by
     this reading only, so other wakes keep their prompt (frame 306, pass 1b).
 
-    The reading is the act of his newest landed row on each criterion:
-    `drop` retires it, and `add` on the criterion or on its ticket adds the
-    row's words to the ticket that its target names, else to the
-    criterion's own ticket (the seam design, pass 4). No phrase of his
-    words decides it.
+    The reading is the act of his newest landed row with an act on each
+    criterion: `drop` retires it, and `add` on the criterion or on its
+    ticket adds the row's words to the ticket that its target names, else to
+    the criterion's own ticket (the seam design, pass 4). The retire needs a
+    contest or a revise. The add needs no verdict, so an add on an approved
+    line counts. No phrase of his words decides it.
     """
     from ..core.scheduler import live_criteria
     from .principal import grant, last_ruling_on
@@ -6451,13 +6452,17 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
         row = conn.execute("SELECT ticket_id FROM criteria WHERE id = ?"
                            + live_criteria(conn, "retired_by"),
                            (ref,)).fetchone()
-        ruled = last_ruling_on(conn, ref) if row else None
-        if not ruled or ruled["verdict"] not in ("contest", "revise"):
+        if row is None:
             continue
-        if _dropped_line(conn, ref) is not None:
+        ruled = last_ruling_on(conn, ref)
+        if (ruled and ruled["verdict"] in ("contest", "revise")
+                and _dropped_line(conn, ref) is not None):
             out["retire"].append(ref)
         # A row has one act, so a line he adds rides on the criterion or on
-        # its ticket, the row that a new criterion joins.
+        # its ticket, the row that a new criterion joins. The add is read on
+        # an approved line too. Night 163's m112 held an act on every
+        # contested line, so its add could ride only on an approved one (the
+        # review of pass 4b, P4b-5).
         for add in (grant(conn, ref, "add"), grant(conn, row["ticket_id"], "add")):
             said = (add["words"] or "").strip() if add is not None else ""
             if not said:
@@ -12304,7 +12309,8 @@ def _line_body(page_text: str, n: int) -> str:
     return found.group(1) if found else ""
 
 
-def _note_words(words: str, n: int, page_text: str) -> str | None:
+def _note_words(words: str, n: int, page_text: str,
+                within: str | None = None) -> str | None:
     """What the principal's words ask of team-note line `n`.
 
     "drop" when a clause about the line asks to take it off. "change" when a
@@ -12312,6 +12318,11 @@ def _note_words(words: str, n: int, page_text: str) -> str | None:
     clause reads as a drop only by a word the line's own text holds. None
     otherwise. Night 161's s357 said "On line 11, use click directly in the
     test" (frame 305).
+
+    `within` is an act's span. When it is given, only a clause that holds
+    the span, or that the span holds, is read. A clause keeps the lines of
+    the clause before it, so the span needs no line of its own (the review
+    of pass 4b, P4b-3).
     """
     # Whole words: "Remove line 11" on a note that holds "removed" is a drop
     # (frame 305, review 1, finding 5).
@@ -12319,6 +12330,8 @@ def _note_words(words: str, n: int, page_text: str) -> str | None:
     found: set[str] = set()
     for cl, refs, question in _cue_clauses(words):
         if not refs or n not in refs:
+            continue
+        if within and not (_holds_span(cl, within) or _holds_span(within, cl)):
             continue
         drops = [m for m in _NOTE_DROP.finditer(cl)
                  if not _NEGATED.search(cl[:m.start()])
@@ -12697,12 +12710,14 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # The seam design's checker, step 1: an act rests on a verbatim span of
     # his words, his reply or an earlier answer of the thread. An act the
     # Liaison writes on words he did not say grants nothing he said (law 6;
-    # the review of pass 4, P4-1).
+    # the review of pass 4, P4-1). The record alone decides. The `words`
+    # argument comes from the Liaison, so a span that it holds proves
+    # nothing (the review of pass 4b, P4b-1).
     for ref, shape in shape_of.items():
         if not shape.get("act"):
             continue
         span = shape.get("words") or words or ""
-        if not _holds_span(words, span) and _words_from(ctx, span) is None:
+        if _words_from(ctx, span) is None:
             line = (f"line {order.index(ref) + 1}" if order and ref in order
                     else ref)
             raise ValueError(
@@ -12731,8 +12746,19 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # 4, P4-1). The span check of pass 3 replaces this reader.
         shape = shape_of.get(ref) or {}
         act = shape.get("act")
-        said = (_note_words(shape.get("words") or words if act else words,
-                            order.index(ref) + 1, page_text)
+        span = shape.get("words") or words
+        within = None
+        if act and not _LINE_REF.search(span or ""):
+            # A span that names no line is read in the clause of his message
+            # that holds it. s357's "use click directly in the test" names
+            # no line, and its clause starts "On line 11" (the review of pass
+            # 4b, P4b-3). The span check above found the message.
+            held = ctx.conn.execute(
+                "SELECT body_text FROM messages WHERE id = ?",
+                (_words_from(ctx, span or ""),)).fetchone()
+            within, span = span or None, (held["body_text"] if held else "") or ""
+        said = (_note_words(span, order.index(ref) + 1, page_text,
+                            within=within)
                 if order and ref in order else None)
         if act == "drop":
             said = "drop"

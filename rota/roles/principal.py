@@ -794,31 +794,33 @@ def _target_key(said) -> str:
 
 def grant(conn: sqlite3.Connection, ref: str, act: str,
           target=None) -> sqlite3.Row | None:
-    """The newest landed row on `ref` when it grants `act` on `target`, or
-    None.
+    """The newest landed row on `ref` with an act, when it grants `act` on
+    `target`, or None.
 
     `target` None asks for the act on any target. A string or a list of
     strings asks for a row whose target is one of them. A row with a null
     act grants nothing, and a row with a null target grants only the call
     with no target (composition.md, Flows: "never ... treats silence as
-    consent"). Only the newest landed row counts, so a later ruling on the
-    ref takes the grant back (the seam design, 1.2).
+    consent").
+
+    A row with no act changes nothing. The reader takes the newest landed
+    row on the ref that carries an act. When a target is given, it takes
+    the newest such row with a matching target. So a later plain approve
+    keeps night 169's m37 grant, and a later `keep` on the same target
+    takes it back (composition.md: "Only a ratified amendment to something
+    approved revokes work downstream"; the review of pass 4, P4-3).
     """
     if not isinstance(ref, str) or not ref:
         return None
-    rows = ruled(conn, [ref], newest=True)
-    if not rows:
+    rows = [r for r in ruled(conn, [ref]) if r["act"] is not None]
+    if target is not None:
+        wanted = {_target_key(t)
+                  for t in ([target] if isinstance(target, str) else target) if t}
+        rows = [r for r in rows
+                if r["target"] is not None and _target_key(r["target"]) in wanted]
+    if not rows or rows[-1]["act"] != act:
         return None
-    row = rows[-1]
-    if row["act"] is None or row["act"] != act:
-        return None
-    if target is None:
-        return row
-    wanted = [target] if isinstance(target, str) else list(target)
-    if row["target"] is None:
-        return None
-    have = _target_key(row["target"])
-    return row if any(_target_key(t) == have for t in wanted if t) else None
+    return rows[-1]
 
 
 def granted(conn: sqlite3.Connection, ref: str, act: str,
@@ -827,7 +829,12 @@ def granted(conn: sqlite3.Connection, ref: str, act: str,
 
     Every reader of what his words permit reads this one function, and none
     reads his words by a phrase (the seam design, pass 4). `grant` gives the
-    row itself, for a reader that needs its line or its words."""
+    row itself, for a reader that needs its line or its words.
+
+    A row with no act changes nothing. The newest landed row on the ref that
+    carries an act decides, and the newest with a matching target when a
+    target is given. A plain approve after m37 keeps its grant, and a later
+    `keep` on the same target takes it back (the review of pass 4, P4-3)."""
     return grant(conn, ref, act, target) is not None
 
 

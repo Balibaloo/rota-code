@@ -20,6 +20,24 @@ reply that strikes or drops a row from the change is `contest`. The door reads
 keeps the line is `revise`.
 A value can also be an object with the verdict and the change the words ask for: `{"verdict": "contest", "act": "remove", "target": "app.py:518", "words": "remove the line at 518"}`.
 Or keep each value as one word, and put the change in `acts`, a map from the same row ids to `{"act": "remove", "target": "app.py:518", "words": "remove the line at 518"}`.
+Give `act` and `target` only when the reply asks for or permits that change, because a line with no act permits nothing.
+Copy into the act's `words` the exact words of the reply that ask for the change, because other words are refused.
+Put the act on the row that the change is about, and give one act to a row.
+A later line with no act keeps an earlier act, and only a later act on the same target replaces it.
+Each example below is a value of `rulings`. In `acts`, leave out its verdict and give the verdict in `rulings`.
+The acts:
+- `remove` takes code or a file away: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
+- `drop` takes a line off the page: "Drop line 5" is `{"verdict": "contest", "act": "drop", "target_kind": "row"}` on line 5.
+- `keep` keeps the words of a line and faults only its check: "Keep line 4, but fix its check" is `{"verdict": "revise", "act": "keep", "target_kind": "check"}` on line 4.
+- `rewrite` asks for new words on a line: "Line 3 has to change" is `{"verdict": "contest", "act": "rewrite", "target_kind": "row"}` on line 3.
+- `add` asks for a new line: "Also add a line that says the output stays exactly the same as today" is `{"verdict": "approve", "act": "add", "words": "the output stays exactly the same as today"}` on any line of the same item that has no other act, an approved one too.
+The target kinds:
+- `source_line` is a line of code, written as the function or the file, a colon, and the line number: `get_app_dir:518`.
+- `path` is a file of the guess, written as its path: "the options and defaults test files, which have nothing to do with this change" names `tests/test_options.py`.
+- `identifier` is a name in the item: "I don't want a flag" on the item is `{"verdict": "contest", "act": "remove", "target_kind": "identifier", "target": "show_python"}`.
+- `sentence` is a sentence of the item: "take it out and keep only what I asked for" is `{"verdict": "contest", "act": "remove", "target_kind": "sentence"}`.
+- `check` is the test of a line, and `row` is the line itself.
+- `request` is a line of his request.
 Put the principal's words whole in `words`. Send
 no `ask`: the principal has answered, and an `ask` here returns their own
 question to them.

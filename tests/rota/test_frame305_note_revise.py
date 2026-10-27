@@ -196,3 +196,44 @@ def test_an_act_on_words_he_did_not_say_is_refused(db):
     with pytest.raises(ValueError, match="his words do not hold it"):
         _rule(db, "Line 11 is fine.",
               _act("rewrite", "On line 11, use the normal test runner"))
+
+
+# Pass 4c: the review of pass 4b. Red on 0736f9dd.
+
+def test_an_act_rests_on_his_record_and_not_on_the_words_argument(db):
+    """P4b-1: the Liaison passes the invented span as `words` too. The
+    record alone decides, so the act is refused. Case B2 of rv4b_span.py."""
+    span = "On line 11, use the normal test runner"
+    ask = _page(db)
+    sb, _ = _landing(db, ask, "Line 11 is fine.")
+    rulings = {str(n): "approve" for n in range(1, 12)}
+    rulings["11"] = _act("rewrite", span)
+    with pytest.raises(ValueError, match="his words do not hold it"):
+        sb.call("rulings.rule", rulings=rulings, words=span)
+
+
+def test_an_act_span_that_names_no_line_is_read_in_its_clause(db):
+    """P4b-3: s357's span names no line, and its clause starts "On line 11".
+    The door reads the clause, so the rewrite lands. Case I of
+    rv4b_span2.py."""
+    words = ("Lines 10, 13 and 14 are about the echo json change, not this one, "
+             "so please take them off this page. On line 11, use click directly "
+             "in the test instead of installing a separate package. The rest is "
+             "fine.")
+    out = _rule(db, words, _act("rewrite", "use click directly in the test "
+                                "instead of installing a separate package"),
+                **{"10": "contest"})
+    assert out["per_item"]["l_9"] == "revise"
+
+
+@pytest.mark.parametrize("words, span", [
+    ("I don't understand line 11.", "I don't understand"),          # m11
+    ("Line 11 and its check now say what I want.", "now say what I want"),
+])
+def test_a_span_with_no_line_in_a_clause_that_asks_no_change_is_refused(
+        db, words, span):
+    """P4b-3: the clause is read, and a clause that asks no change still
+    refuses the rewrite."""
+    with pytest.raises(ValueError) as refused:
+        _rule(db, words, _act("rewrite", span))
+    assert str(refused.value).startswith("line 11 is the team's note")
