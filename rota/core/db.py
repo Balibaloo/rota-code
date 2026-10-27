@@ -672,6 +672,12 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                 | ({"tick:tests_failing"} if failing else set()))
         lift_keys(conn, [k for k in quarantined_keys(conn, w.row_id, pairs=True)
                          if key_parts(k)[1] not in kept])
+        # The touch set and the tickets of a batch are what its seats read
+        # for it. Night 170's s217 and s224 rewrote b_3's touch set, and
+        # `tester|tick:tests_missing|b_3` stayed (review of F20 pass 1,
+        # finding 1).
+        if w.table in BATCH_READS and (w.values or {}).get("batch_id"):
+            lift_batch_seats(conn, [str(w.values["batch_id"])])
     # Progress is the red moving, and the bound is on dispatch *without*
     # progress. Walk seventeen: four, three, two tests failing across three
     # commits, and the third session was the quarantine. So a moved red
@@ -693,8 +699,7 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
         # A parked batch gets no harness run until it resumes, so the commit
         # still lifts its key. The commit is the park's way out (frame 87).
         if not running:
-            conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
-                         (f"%|tick:tests_failing|{w.row_id}",))
+            forget_keys(conn, batch_keys(conn, w.row_id, {"tick:tests_failing"}))
         # The commit is the way out the park ask names, so the ask closes
         # with the keys it asked about (frame 87).
         from .scheduler import close_park_asks
@@ -733,6 +738,48 @@ def lift_keys(conn: sqlite3.Connection, keys: Iterable[str]) -> None:
     # (fact F20, the root-cause audit of 2026-10-27). Law 6.
     conn.executemany("DELETE FROM tick_attempts WHERE tick_key = ? "
                      "AND quarantined = 1", [(k,) for k in keys])
+
+
+def forget_keys(conn: sqlite3.Connection, keys: Iterable[str]) -> None:
+    """Lift each key's quarantine and forget its live count."""
+    keys = list(keys)
+    lift_keys(conn, keys)
+    conn.executemany("DELETE FROM tick_attempts WHERE tick_key = ? "
+                     "AND quarantined = 0", [(k,) for k in keys])
+
+
+def batch_keys(conn: sqlite3.Connection, batch_id: str,
+               kinds: set[str]) -> list[str]:
+    """The keys of these kinds about the batch alone, live or quarantined."""
+    # A LIKE pattern read `_` in the batch id as a wildcard (frame 242).
+    from .scheduler import key_parts
+
+    return [r["tick_key"] for r in conn.execute("SELECT tick_key FROM tick_attempts")
+            if key_parts(r["tick_key"])[1] in kinds
+            and key_parts(r["tick_key"])[2] == (batch_id,)]
+
+
+# The junction tables a batch's seats read for the batch: the touch set that
+# `batches.expect` shows, and the tickets whose criteria the seats read.
+BATCH_READS = ("batch_touch", "batch_tickets")
+
+
+def lift_batch_seats(conn: sqlite3.Connection, batch_ids: Iterable[str]) -> None:
+    """
+    Lift the seats' quarantined keys of each batch, after a move of what the
+    seats read for it: its touch set, its tickets, or a ruling on its rows.
+    """
+    # A scheduler key (`-|do:park|b`) is the park's own bound, and a commit
+    # is its only exit (frame 86). Frame 318 keeps the Developer's red keys
+    # until the red moves, so a move that reaches no red lifts none of them.
+    # A deferred batch's given-up key waits for the principal's page (frame
+    # 87, ruled 2026-09-27), so only a running batch's keys lift here.
+    from .scheduler import key_parts, quarantined_keys
+
+    running = [b for b in batch_ids if _running(conn, b)]
+    if running:
+        lift_keys(conn, [k for k in quarantined_keys(conn, running)
+                         if key_parts(k)[0] != "-" and _row_move_reaches(k, False)])
 
 
 def write_state(conn: sqlite3.Connection, table: str, row_id: str, sql: str,
@@ -909,15 +956,12 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
         # new red is the Tester's new test, so the Developer has a new cause.
         if not same_head:
             return False
-        conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ? "
-                     "OR tick_key LIKE ?",
-                     (f"%|tick:tests_failing|{batch_id}",
-                      f"%|tick:exhausted|{batch_id}"))
+        forget_keys(conn, batch_keys(conn, batch_id,
+                                     {"tick:tests_failing", "tick:exhausted"}))
         return True
     if before.items() <= now.items():
         return False
-    conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
-                 (f"%|tick:tests_failing|{batch_id}",))
+    forget_keys(conn, batch_keys(conn, batch_id, {"tick:tests_failing"}))
     return True
 
 

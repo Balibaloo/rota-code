@@ -103,7 +103,7 @@ def test_the_state_names_what_the_team_gave_up_on(db):
     db.commit()
     state = render_state(db)
     # Fact F21: the page says the kind in his words, never its name.
-    assert state.startswith("Stuck. The team gave up: the team could not group "
+    assert state.startswith("Stuck: the team could not group "
                             "the work into changes for tk_1, tk_2 after 3 "
                             "attempts."), state
     assert "grouping" not in state

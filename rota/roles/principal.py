@@ -418,8 +418,7 @@ def render_state(conn: sqlite3.Connection) -> str:
             return (f"Stuck: {b} stops here. You approved its checks as they "
                     f"stand, and {len(own)} of them still fail. A new commit "
                     "on the change starts it again.")
-        return (f"Stuck: {b} is parked. The team gave up: "
-                f"{_stalled_words(conn, keys)}."
+        return (f"Stuck: {b} is parked. {_capital(_stalled_words(conn, keys))}."
                 + (" The other changes go on." if running or pending else "")
                 + " A new commit on the change starts it again."
                 + (" I ask you about it next." if b in coming else ""))
@@ -442,8 +441,9 @@ def render_state(conn: sqlite3.Connection) -> str:
                                            first_come=True)
                if k not in parked_keys]
     if gave_up:
-        out.append(f"Stuck. The team gave up: "
-                   f"{'; '.join(_gave_up_words(conn, gave_up))}. "
+        # The words of a kind name who failed, so the line does not say the
+        # team twice (review of F20 pass 1, finding 4).
+        out.append(f"Stuck: {'; '.join(_gave_up_words(conn, gave_up))}. "
                    "Nothing waits on you, and nothing moves until that is "
                    "cleared. Tell me what to change.")
         out.extend(parked_lines)
@@ -1724,23 +1724,33 @@ def _gave_up_words(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
 
     out = []
     for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys)):
-        what = ", ".join(_ref_words(r) for r in key_parts(key)[2])
+        what = ", ".join(w for w in (_ref_words(conn, r) for r in key_parts(key)[2])
+                         if w)
         out.append(f"{_tick_words(kind)}{f' for {what}' if what else ''} "
                    f"after {_tries(n)}")
     return out
 
 
-def _ref_words(ref: str) -> str:
-    """A key's ref as a person knows it."""
+# The bare refs a scheduler wake names, in words. A bare ref with no entry
+# is rota's own name, so it shows nothing (review of F20 pass 1, finding 2).
+BARE_REF_WORDS = {"@prose": "the README", "@program": "the whole program"}
+
+
+def _ref_words(conn: sqlite3.Connection, ref: str) -> str:
+    """A key's ref as a person knows it, or '' for a ref he has no name for."""
     # A ref is `@area:name` or `@claim:table:id`. The name is the part a
     # person knows, so the prefix goes. The bare `@prose` is the README
     # (scheduler `_reconcile_wakes`), and a page never shows an `@` (review 1
     # of frame 246, finding 1).
-    if not ref.startswith("@"):
-        return ref
-    if ref == "@prose":
-        return "the README"
-    return ref.rsplit(":", 1)[-1] if ":" in ref else ref[1:]
+    if ref.startswith("@"):
+        if ":" not in ref:
+            return BARE_REF_WORDS.get(ref, "")
+        return ref.rsplit(":", 1)[-1]
+    # A ledger id is rota's key for a question. The words of the kind say
+    # the question already (review of F20 pass 1, finding 3).
+    if conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone():
+        return ""
+    return ref
 
 
 def _stuck_ticks(conn: sqlite3.Connection, batch: str,
@@ -1790,7 +1800,14 @@ TICK_WORDS = {
 
 
 def _tick_words(kind: str) -> str:
-    return TICK_WORDS.get(kind, "a step of the team")
+    # A kind with no entry still says what failed, with a verb (review of
+    # F20 pass 1, finding 2).
+    return TICK_WORDS.get(kind, "the team could not finish a step")
+
+
+def _capital(text: str) -> str:
+    """The text with its first letter in capitals, for a sentence start."""
+    return text[:1].upper() + text[1:]
 
 
 def _tries(n: int) -> str:
@@ -2869,6 +2886,18 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         if on_file is None:
             _insert_keypress_ruling(conn, ask, msg_id, {**per_item, **readings},
                                     (answer.text or "").strip())
+    # A landed ruling on a row of a running batch moves what its seats read.
+    # Night 170's m92, m98 and m103 ruled on b_3 and its criterion, and
+    # `tester|tick:tests_missing|b_3` stayed (review of F20 pass 1, finding 1).
+    from ..core.db import lift_batch_seats
+
+    # A batch's ref reaches its item, so the item's batches hold it.
+    ruled = sorted({i for r in (list(per_item) if answer.per_item else ask.refs)
+                    if not _is_reading(r) for i in _items_reached(conn, r)})
+    if ruled:
+        lift_batch_seats(conn, [r["id"] for r in conn.execute(
+            "SELECT id FROM batches WHERE item_id IN (%s) ORDER BY id"
+            % ",".join("?" * len(ruled)), ruled)])
     return msg_id
 
 

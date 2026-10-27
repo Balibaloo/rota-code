@@ -16503,12 +16503,12 @@ def code_gaps(ctx: Ctx) -> dict:
     # own bookkeeping, so it leaves the facts, as in `render_state`. The words
     # are the page's, from `TICK_WORDS` (fact F21).
     from ..core.scheduler import quarantined_keys
-    from .principal import _gave_up_words
+    from .principal import _capital, _gave_up_words
 
     # The order is first come, so the six-row cut favours no seat by its
     # name (review 1 of frame 246, finding 3).
     keys = quarantined_keys(ctx.conn, constraint_zero=False, first_come=True)[:6]
-    lines.extend(w[:1].upper() + w[1:] for w in _gave_up_words(ctx.conn, keys))
+    lines.extend(_capital(w) for w in _gave_up_words(ctx.conn, keys))
     checked = ctx.conn.execute(
         "SELECT COUNT(*) FROM survey_records WHERE area = '@prose'").fetchone()[0]
     if prose > 3 and checked:

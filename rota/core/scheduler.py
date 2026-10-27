@@ -420,8 +420,9 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
         seen = conn.execute("SELECT value FROM config WHERE key = ?",
                             (f"resliced:{r['id']}",)).fetchone()
         if seen is None or int(seen["value"]) != ver:
-            conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
-                         (f"vision_keeper|tick:slicing|{r['id']}",))
+            from .db import forget_keys
+
+            forget_keys(conn, [f"vision_keeper|tick:slicing|{r['id']}"])
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                          (f"resliced:{r['id']}", str(ver)))
     return [Wake("vision_keeper", "tick:slicing", refs=tuple(r["id"] for r in rows))]
