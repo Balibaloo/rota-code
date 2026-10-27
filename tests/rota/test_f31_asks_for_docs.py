@@ -45,9 +45,11 @@ def test_other_words_ask_for_no_documentation(text):
     assert not asks_for_docs(text)
 
 
-# Verbatim from the `criteria` tables of nights 142 and 157. Each mentions a
-# ruled word under a negation and asks for behaviour (F31 review, finding 1).
-_N142_C2 = ("The show_python argument passed to version_option is a boolean "
+# Verbatim from the `criteria` tables of nights 142 and 157. Night 142's c2
+# names a ruled word after a negation and asks for behaviour (F31 review,
+# finding 1). Night 157's text puts the negation after "help text", so by the
+# reading of pass 1c it is a rule on the help text and asks for it.
+_N142_C2 =("The show_python argument passed to version_option is a boolean "
             "flag that, when True, triggers the inclusion of the Python "
             "version string in the --version output; it does not affect help "
             "text or act as a user-facing command-line option.")
@@ -57,10 +59,10 @@ _N157 = ("The help text for the version_option must not describe a "
 
 
 @pytest.mark.parametrize("text", [
-    _N142_C2, _N157,
+    _N142_C2,
     "The loader has no document cache.",
     "The command never prints the docstring.",
-], ids=["night142_c2", "night157", "no", "never"])
+], ids=["night142_c2", "no", "never"])
 def test_a_negated_mention_asks_for_no_documentation(text):
     from rota.roles.api import asks_for_docs
     assert not asks_for_docs(text)
@@ -70,11 +72,16 @@ def test_a_negated_mention_asks_for_no_documentation(text):
     "The function does not raise, and its docstring names the example.",
     "The docstring shows a/b/c.txt as c.txt.",
     "The loader reads all documents in the folder.",
-], ids=["other_clause", "dotted_path", "noun_documents"])
+    "The docstring must not mention X.",
+    "The help text must never show Y.",
+    _N157,
+], ids=["other_clause", "dotted_path", "noun_documents", "docstring_not",
+        "help_text_never", "night157"])
 def test_an_ask_beside_a_negation_or_a_dot_still_counts(text):
-    """A negation counts in its own clause only. The noun "documents"
-    counts, because the ruled word is "document" and no word class is
-    ruled."""
+    """A negation counts in its own clause and before the word only. A
+    negation after the word is a rule on the documentation. The noun
+    "documents" counts, because the ruled word is "document" and no word
+    class is ruled."""
     from rota.roles.api import asks_for_docs
     assert asks_for_docs(text)
 

@@ -1565,9 +1565,10 @@ The rule: one reader, `asks_for_docs` in `rota/roles/api.py`, decides
 whether a criterion's own words ask for documentation. Every door that
 asks the question reads it. The words match as whole words, and
 "documentation" is a form of "document" (reasoned: the brief of sprint 28,
-F31). A ruled word under a negation in its own clause is a mention and
-not an ask, as in night 142's "it does not affect help text" (reasoned:
-the F31 review, finding 1). Frame 311's pass 1b had dropped "document"
+F31). A ruled word after a negation in its own clause is a mention and
+not an ask, as in night 142's "it does not affect help text". A negation
+after the word is a rule on the documentation, as in "The docstring must
+not mention X" (reasoned: the F31 review, finding 1, and pass 1c). Frame 311's pass 1b had dropped "document"
 and "help text" for night 160's `ver_opt_show_py_help`. A help string on
 an option is a code line, so it meets that criterion anyway (reasoned).
 The fix is F31 of

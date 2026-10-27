@@ -14476,11 +14476,12 @@ _NO_BEHAVIOUR_PLURAL = {
 # ruled. None of 573 night criteria uses the noun (F31 review, finding 1).
 _DOCS_WORDS = re.compile(
     r"\bdocstrings?\b|\bdocument(?:s|ed|ing|ations?)?\b|\bhelp[ -]texts?\b")
-# A ruled word under a negation in its own clause is a mention, not an ask.
-# Night 142's c2 says "it does not affect help text", and night 157's
-# crit_show_python_help says the help text "must not describe" a flag. Both
-# ask for behaviour (F31 review, finding 1). A clause ends at a stop mark
-# before a space, so "c.txt" ends no clause. The negation words are the
+# A ruled word after a negation in its own clause is a mention, not an ask.
+# Night 142's c2 says "it does not affect help text", and it asks for
+# behaviour (F31 review, finding 1). A negation after the word is a rule on
+# the documentation, as in "The docstring must not mention X", so it still
+# asks (the coordinator's reading, F31 pass 1c). A clause ends at a stop
+# mark before a space, so "c.txt" ends no clause. The negation words are the
 # module's `_NEGATION`.
 _DOCS_CLAUSE_END = re.compile(r"[.,;:!?](?:\s|$)")
 # The kinds that document the code. The refusals treat the two as one, so
@@ -14496,10 +14497,12 @@ _CHANGELOG = re.compile(r"\bchangelogs?\b")
 
 
 def _asked(text: str | None, words: re.Pattern) -> bool:
-    """True when a clause of `text` holds one of `words` and no negation."""
+    """True when a clause of `text` holds one of `words` with no negation
+    before it in that clause."""
     folded = " ".join((text or "").split()).casefold()
-    return any(words.search(c) and not _NEGATION.search(c)
-               for c in _DOCS_CLAUSE_END.split(folded))
+    return any(not _NEGATION.search(c[:m.start()])
+               for c in _DOCS_CLAUSE_END.split(folded)
+               for m in words.finditer(c))
 
 
 def asks_for_docs(text: str | None) -> bool:
