@@ -15,7 +15,7 @@ import re
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.predicates import Wake
 from rota.core.sandbox import build
 from rota.roles import prompts
@@ -150,6 +150,7 @@ def test_a_ruling_row_carries_the_words_too(db):
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
                "VALUES ('r_1', 'm249', ?, ?, 'landed')",
                (json.dumps({"version_option_show_python": "contest"}), VOPT_SAID))
+    backfill_ruled_refs(db)
     db.commit()
     sb = _contested(db, "version_option_show_python")
     out = sb.call("problem.assert", id="version_option_show_python",
@@ -184,6 +185,7 @@ def _ruling(conn, rid, per_item, said):
     conn.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
                  "VALUES (?, 'm249', ?, ?, 'landed')",
                  (rid, json.dumps(per_item), said))
+    backfill_ruled_refs(conn)
     conn.commit()
 
 
@@ -253,6 +255,7 @@ def test_an_open_ruling_does_not_hide_a_landed_contest(db):
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
                "VALUES ('r_open', 'm249', ?, 'Ok', 'open')",
                (json.dumps({"version_option_show_python": "approve"}),))
+    backfill_ruled_refs(db)
     db.commit()
     sb = _contested(db, "version_option_show_python")
     out = sb.call("problem.assert", id="version_option_show_python",

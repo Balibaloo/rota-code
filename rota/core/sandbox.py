@@ -4284,20 +4284,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # A clarify ruling can rule a row the reply does not carry, one
             # the asker named. Its contest or revise travels too (frame 306,
             # review 1, finding 4).
+            # The staged `ruled_refs` rows are the record of that ruling.
+            clarify = set()
             for w in ctx.writes or []:
                 if w[0] != "rulings":
                     continue
                 ask = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
                                        (w[2].get("ask_id"),)).fetchone()
-                if ask is None or ask["verb"] != "clarify":
-                    continue
-                import json as _json
-                try:
-                    ruled = _json.loads(w[2].get("per_item") or "{}")
-                except (TypeError, ValueError):
-                    ruled = {}
-                refs += [r for r, v in ruled.items()
-                         if v in ("contest", "revise") and r not in refs]
+                if ask is not None and ask["verb"] == "clarify":
+                    clarify.add(w[1])
+            refs += [w[2]["ref"] for w in ctx.writes or []
+                     if w[0] == "ruled_refs" and w[2].get("ruling_id") in clarify
+                     and w[2].get("verdict") in ("contest", "revise")
+                     and w[2]["ref"] not in refs]
         # The reading comes before the relay. The answering mode asks for two
         # calls in one turn, the relay second, and the runner ends the session
         # on the first outbound message. A session that relayed first ended
@@ -4598,7 +4597,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # with rows, point 2). A criterion that reached a ruling another
             # way, through a ledger row's `about_ref`, keeps the old route
             # (the diff review of b0a2086e, finding 1).
-            from .scheduler import park_verdict_page, park_verdict_rows, verdict_rows
+            from .scheduler import park_verdict_page, park_verdict_rows, ruled_rows
 
             on_park = park_verdict_page(ctx.conn, ctx.trigger) is not None
             # law 2: judgement crosses a role boundary only as ids and states
@@ -4619,9 +4618,12 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # Every page now carries the request's criteria, so the filter of
             # the park page holds for a criterion on every page: an approved
             # criterion reaches no relay (frame 190's design, 2.F,
-            # amendment 1).
-            elif verdict_rows(ctx.conn, ctx.trigger) is not None:
-                ruled = verdict_rows(ctx.conn, ctx.trigger) or []
+            # amendment 1). His ruling is the verdict's map or the `rulings`
+            # record of a converse reply, so the filter runs on both. Night
+            # 164's m94 kept four approved criteria on a converse reply
+            # (frame 338).
+            elif ruled_rows(ctx.conn, ctx.trigger, ctx.writes) is not None:
+                ruled = ruled_rows(ctx.conn, ctx.trigger, ctx.writes) or []
                 given = list(refs)
                 refs = [r for r in refs if r in ruled or not ctx.conn.execute(
                     "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]

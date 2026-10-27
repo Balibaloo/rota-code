@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.roles.principal import render_page
 from rota.testkit.fixtures import seed_provenance, seed_ref
 
@@ -257,6 +257,7 @@ def test_the_next_start_window_holds_his_answer(bg1):
     bg1.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
                 "('r_m115', 'm115', '{\"echo_json_helper\": \"approve\"}', ?, "
                 "'open')", (words,))
+    backfill_ruled_refs(bg1)
     apply_rulings(bg1)
     assert not bg1.execute("SELECT 1 FROM tick_attempts WHERE tick_key = ?",
                            (START,)).fetchone()

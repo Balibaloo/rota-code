@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.predicates import (UNADDRESSED_ANSWER, Wake, outstanding,
                                   term_collision)
 from rota.core.runner import _mode_key, resolve_inbound
@@ -87,6 +87,7 @@ def _land_writes(db, ctx):
                 "status) VALUES (?,?,?,?,?,?)",
                 (row["id"], row["ask_id"], row["reply_id"], row["per_item"],
                  row["words"], row["status"]))
+            backfill_ruled_refs(db)
         elif table == "ledger":
             db.execute(
                 "INSERT OR REPLACE INTO ledger (id, about_ref, about_table, "
@@ -213,6 +214,7 @@ def test_an_adopted_sense_is_a_ruled_sense(db):
     # Decided, and about nothing: the shape a fixture seeds for provenance.
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
                "VALUES ('r0','m2','{}','seeded as decided','landed')")
+    backfill_ruled_refs(db)
     seed_ref(db, "glossary_terms", "g1", "ruling", "r0")
     seed_ref(db, "glossary_terms", "g2", "ruling", "r0")
     db.commit()
@@ -225,6 +227,7 @@ def test_an_adopted_sense_is_a_ruled_sense(db):
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
                "VALUES ('r1','m2','{\"g1\": \"approve\"}','the options one',"
                "'landed')")
+    backfill_ruled_refs(db)
     seed_ref(db, "glossary_terms", "g1", "ruling", "r1")
     db.commit()
     assert term_collision(db), "one ruled sense beside one live sense collides"
@@ -233,6 +236,7 @@ def test_an_adopted_sense_is_a_ruled_sense(db):
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
                "VALUES ('r2','m2','{\"g1\": \"approve\", \"g2\": \"contest\"}',"
                "'the options one, not the command','landed')")
+    backfill_ruled_refs(db)
     db.commit()
 
     assert db.execute("SELECT count(*) FROM decisions").fetchone()[0] == 0

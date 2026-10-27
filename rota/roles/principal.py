@@ -725,26 +725,23 @@ def contested_statement(conn: sqlite3.Connection, sid: str, *,
     ruling whose reply came at or after that point (frame 193's design, 2.G.3
     and 2.G.4).
     """
-    sql = ("SELECT r.id, r.per_item FROM rulings r "
+    # The rows on `sid` in `ruled_refs_live`, newest first (the seam
+    # design, 3.1).
+    sql = ("SELECT r.ruling_id, r.verdict FROM ruled_refs_live r "
            "JOIN messages a ON a.id = r.ask_id "
            "LEFT JOIN messages p ON p.id = r.reply_id "
-           "WHERE r.status != 'stale' AND r.per_item LIKE ?")
-    args: list = [f'%"{sid}"%']
+           "WHERE r.ruling_status != 'stale' AND r.ref = ?")
+    args: list = [sid]
     if confirm_only:
-        sql += " AND r.status = 'landed' AND a.verb = 'confirm' AND a.body_refs LIKE ?"
+        sql += (" AND r.ruling_status = 'landed' AND a.verb = 'confirm' "
+                "AND a.body_refs LIKE ?")
         args.append(f'%"{sid}"%')
     if before_seq is not None:
         sql += " AND COALESCE(p.seq, a.seq) < ?"
         args.append(before_seq)
-    for r in conn.execute(sql + " ORDER BY r.rowid DESC", tuple(args)):
-        try:
-            word = json.loads(r["per_item"] or "{}").get(sid)
-        except (TypeError, ValueError, AttributeError):
-            continue
-        if word is None:
-            continue
-        return r["id"] if word == "contest" else None
-    return None
+    r = conn.execute(sql + " ORDER BY r.ruling_seq DESC LIMIT 1",
+                     tuple(args)).fetchone()
+    return r["ruling_id"] if r is not None and r["verdict"] == "contest" else None
 
 
 def contested_texts(conn: sqlite3.Connection, per_item: dict) -> dict[str, str]:
@@ -787,6 +784,74 @@ def last_ruling_on(conn: sqlite3.Connection, ref: str) -> dict | None:
         return None
     return {"id": r["ruling_id"], "verdict": r["verdict"],
             "words": r["reply_words"] or "", "text": r["old_text"]}
+
+
+def ruled(conn: sqlite3.Connection, refs=None, *, reply: str | None = None,
+          ruling: str | None = None, ask: str | None = None,
+          landed: bool = True, newest: bool = False,
+          item: str | None = None) -> list[sqlite3.Row]:
+    """The rows of `ruled_refs_live` that a reader asks for, oldest first.
+
+    `refs` keeps the rows on those refs. `item` adds a page key that names
+    the item after a colon, as `guess:<item>`. `reply` keeps the rows of
+    the newest landed ruling of that reply or verdict message. `ruling`
+    and `ask` keep the rows of one ruling or of the rulings on one ask.
+    `landed` keeps landed rulings only, else every ruling that is not
+    stale. `newest` keeps the newest row on each ref.
+
+    One query serves every reader of his ruling, so no reader re-derives it
+    from `per_item` (the seam design, 3; composition.md, Records).
+    """
+    sql = ["SELECT * FROM ruled_refs_live WHERE "
+           + ("ruling_status = 'landed'" if landed else "ruling_status != 'stale'")]
+    args: list = []
+    if refs is not None or item is not None:
+        refs = [r for r in (refs or []) if isinstance(r, str)]
+        alt = [f"ref IN ({','.join('?' * len(refs))})"] if refs else []
+        args += refs
+        if item is not None:
+            key = f":{item}"
+            alt.append("substr(ref, -?) = ?")
+            args += [len(key), key]
+        sql.append(f"({' OR '.join(alt)})" if alt else "0")
+    if reply is not None:
+        sql.append("ruling_id = (SELECT id FROM rulings WHERE status = 'landed' "
+                   "AND (reply_id = ? OR verdict_id = ?) ORDER BY rowid DESC LIMIT 1)")
+        args += [reply, reply]
+    if ruling is not None:
+        sql.append("ruling_id = ?")
+        args.append(ruling)
+    if ask is not None:
+        sql.append("ask_id = ?")
+        args.append(ask)
+    rows = conn.execute(" AND ".join(sql) + " ORDER BY ruling_seq, row_seq",
+                        tuple(args)).fetchall()
+    if newest:
+        last = {r["ref"]: r for r in rows}
+        rows = [r for r in rows if last[r["ref"]] is r]
+    return rows
+
+
+def ruled_words(conn: sqlite3.Connection, refs, *, item: str | None = None,
+                skip=frozenset()) -> list[str]:
+    """His landed words on any of `refs`, one text per ruling, oldest first.
+
+    The words are the rows' own. A ruling that also rules a ref of `skip`
+    gives none. One reader serves the criteria push, the slicing push, the
+    Developer's start window and the removal door (frame 322, proposal
+    lines 1 and 3).
+    """
+    rows = ruled(conn, refs, item=item)
+    skipped = {r["ruling_id"] for r in ruled(conn, list(skip))} if skip else set()
+    out: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for r in rows:
+        said = (r["words"] or "").strip()
+        if not said or r["ruling_id"] in skipped or (r["ruling_id"], said) in seen:
+            continue
+        seen.add((r["ruling_id"], said))
+        out.append(said)
+    return out
 
 
 # The words a `ruled_refs` row stores. The verdicts are the stored words of
@@ -2770,14 +2835,15 @@ def chain_verdict(
                 "ORDER BY rowid DESC LIMIT 1", (mid,)).fetchone()
             return mid, verdict, (row["id"] if row else None)
         row = conn.execute(
-            "SELECT id, per_item, reply_id, verdict_id FROM rulings "
+            "SELECT id, reply_id, verdict_id FROM rulings "
             "WHERE status = 'landed' AND (ask_id = ? OR reply_id = ?) "
             "ORDER BY rowid DESC LIMIT 1", (mid, mid)).fetchone()
-        if row:
-            per_item = json.loads(row["per_item"] or "{}")
-            if per_item:
-                said = row["reply_id"] or row["verdict_id"] or mid
-                return said, per_item, row["id"]
+        # The per-row ruling is the record per ref (the seam design, 3.1).
+        per_item = ({r["ref"]: r["verdict"] for r in ruled(conn, ruling=row["id"])}
+                    if row else {})
+        if per_item:
+            said = row["reply_id"] or row["verdict_id"] or mid
+            return said, per_item, row["id"]
         nxt = conn.execute(
             "SELECT cause_id FROM messages WHERE id = ?", (mid,)).fetchone()
         mid = nxt["cause_id"] if nxt else None

@@ -1874,12 +1874,13 @@ def park_ruling(conn: sqlite3.Connection, message_id: str) -> dict | None:
     # An empty map names no row. Night 132's three `{}` rulings closed three
     # asks, and each must count as a past park (frame 142's design, 2.F,
     # amendment 2).
-    for r in conn.execute("SELECT per_item FROM rulings WHERE ask_id = ? "
-                          "AND status = 'landed'", (message_id,)):
-        try:
-            per_item = json.loads(r["per_item"] or "{}")
-        except (TypeError, ValueError):
-            continue
+    from ..roles.principal import ruled
+
+    # The rows of each landed ruling on the ask (the seam design, 3.1).
+    rulings: dict[str, dict] = {}
+    for r in ruled(conn, ask=message_id):
+        rulings.setdefault(r["ruling_id"], {})[r["ref"]] = r["verdict"]
+    for per_item in rulings.values():
         if refs and all(per_item.get(ref) in ("approve", "contest", "revise")
                         for ref in refs):
             return per_item
@@ -1977,6 +1978,55 @@ def verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[str] 
             and per_item.get(r) in ("contest", "revise")]
 
 
+def ruled_rows(conn: sqlite3.Connection, message_id: str | None,
+               writes: list | None = None) -> list[str] | None:
+    """The rows that his ruling on `message_id` contests or revises, or None
+    when no ruling on it is on file or staged.
+
+    The ruling is the verdict's own map, else the newest landed `rulings`
+    row of the reply or the verdict, else the `ruled_refs` rows that this
+    session stages. The relay split and the mode key read this one record,
+    so a converse reply filters as a verdict does. Night 164's m94 carried
+    cr_1 to cr_6, the ruling contested cr_2 and cr_6, and the relay keyed
+    `relay`, where no call acts (frame 338; composition.md, Records).
+    """
+    from ..roles.principal import ruled
+
+    found = verdict_rows(conn, message_id)
+    if found is not None or not message_id:
+        return found
+    rows = ruled(conn, reply=message_id)
+    if rows:
+        return [r["ref"] for r in rows if r["verdict"] in ("contest", "revise")]
+    staged = {w[1] for w in writes or [] if w[0] == "rulings"
+              and w[2].get("reply_id") in (None, message_id)}
+    rows = [w[2] for w in writes or [] if w[0] == "ruled_refs"
+            and w[2].get("ruling_id") in staged]
+    if not rows:
+        return None
+    return [r["ref"] for r in rows if r["verdict"] in ("contest", "revise")]
+
+
+def ruled_criteria(conn: sqlite3.Connection, message_id: str | None) -> list[str]:
+    """The criteria that the ruling on `message_id` contests or revises: a
+    criterion row itself, or the criterion of a test row.
+
+    The relay split sends a ruled test row as its criterion (frame 213,
+    route B), because the principal never rules on a test (ruled: Roman,
+    2026-10-08, the park ask is a page with rows, point 2). One hop only: a
+    ruling further up rules no row of this relay (the delta review of
+    172b373b, finding 3).
+    """
+    out: list[str] = []
+    for r in ruled_rows(conn, message_id) or []:
+        if conn.execute("SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone():
+            out.append(r)
+        out += [t["criterion_id"] for t in conn.execute(
+            "SELECT criterion_id FROM tests WHERE id = ? "
+            "AND criterion_id IS NOT NULL", (r,))]
+    return out
+
+
 def guess_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
     """A relay whose every ref is a code line's key and whose cause is a
     verdict: the principal's correction of the Architect's guess (frame
@@ -2043,68 +2093,7 @@ def park_criterion_relay(conn: sqlite3.Connection, message_id: str | None) -> bo
             "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone() for r in refs
     ) and (park_verdict_page(conn, row["cause_id"]) is not None
            or set(refs) <= set(park_verdict_criteria(conn, row["cause_id"]))
-           | set(ruled_test_criteria(conn, row["cause_id"]))
-           | set(ruled_clarify_criteria(conn, row["cause_id"])))
-
-
-def ruled_clarify_criteria(conn: sqlite3.Connection, message_id: str | None) -> list[str]:
-    """The criteria that the landed ruling of the clarify reply `message_id`
-    contests or revises as rows of their own.
-
-    A criterion the asker named is a key of the clarify door (frame 306).
-    A contest or a revise of it is a ruling on its words, as a ruled test
-    row is (frame 213, route B). Night 158's m146 reached `relay` mode,
-    which cannot respecify. A clarify that only names a criterion, or a
-    ruling that approves it, keeps `relay`.
-    """
-    import json
-
-    if not message_id:
-        return []
-    found = conn.execute(
-        "SELECT r.per_item FROM rulings r JOIN messages a ON a.id = r.ask_id "
-        "WHERE r.status = 'landed' AND r.reply_id = ? AND a.verb = 'clarify' "
-        "ORDER BY r.rowid DESC LIMIT 1", (message_id,)).fetchone()
-    try:
-        per_item = json.loads(found["per_item"] or "{}") if found else {}
-    except (TypeError, ValueError):
-        return []
-    return [r for r, v in per_item.items() if v in ("contest", "revise")
-            and conn.execute("SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone()]
-
-
-def ruled_test_criteria(conn: sqlite3.Connection, message_id: str | None) -> list[str]:
-    """The criteria of the test rows that the ruling on `message_id` contests
-    or revises. The ruling is a verdict's own, or the landed `rulings` row
-    of a reply the Liaison read.
-
-    The relay split sends a ruled test row as its criterion (frame 213,
-    route B), because the principal never rules on a test (ruled: Roman,
-    2026-10-08, the park ask is a page with rows, point 2). A clarify's
-    relay has the `converse` reply as its cause, and no verdict. Night
-    144's m400 reached `relay` mode, which cannot respecify (frame 213,
-    pass 1b). One hop only: a ruling further up rules no row of this relay
-    (the delta review of 172b373b, finding 3).
-    """
-    import json
-
-    if not message_id:
-        return []
-    found = conn.execute("SELECT value FROM config WHERE key = ?",
-                         (f"verdict:{message_id}",)).fetchone()
-    if found is None:
-        found = conn.execute(
-            "SELECT per_item AS value FROM rulings WHERE status = 'landed' "
-            "AND (reply_id = ? OR verdict_id = ?) ORDER BY rowid DESC LIMIT 1",
-            (message_id, message_id)).fetchone()
-    try:
-        per_item = json.loads(found["value"] or "{}") if found else {}
-    except (TypeError, ValueError):
-        return []
-    ruled = [r for r, v in per_item.items() if v in ("contest", "revise")]
-    return [t["criterion_id"] for r in ruled for t in conn.execute(
-        "SELECT criterion_id FROM tests WHERE id = ? AND criterion_id IS NOT NULL",
-        (r,))]
+           | set(ruled_criteria(conn, row["cause_id"])))
 
 
 def _park_versions(conn: sqlite3.Connection, batch_id: str) -> str:

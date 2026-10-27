@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.runner import CURRENT_REQUEST_RELATION, resolve_inbound
 from rota.core.scheduler import Wake
 from rota.roles.principal import contested_statement, ratified_request
@@ -59,6 +59,7 @@ def _night138(db, *, upto: str) -> None:
     db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status, "
                "verdict_id) VALUES ('r_9cb52c76c6', 'm14', 'm15', '{\"s1\": "
                "\"approve\"}', 'ok', 'landed', 'm17')")
+    backfill_ruled_refs(db)
     _entry(db, "e_p2", P2, 38)
     _msg(db, "m_p2", 136, "principal", "liaison", "converse", ["e_p2"],
          status="open" if upto == "m_p2" else "answered")
@@ -75,6 +76,7 @@ def _night138(db, *, upto: str) -> None:
     db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status, "
                "verdict_id) VALUES (?, 'm135', 'm138', '{\"s1\": \"contest\"}', ?, "
                "'landed', 'm139')", (CONTEST, M138))
+    backfill_ruled_refs(db)
     if upto == "m139":
         db.commit()
         return
@@ -254,6 +256,7 @@ def test_a_newer_approve_lifts_the_contest(db):
     db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status, "
                "verdict_id) VALUES ('r_ok', 'm300', 'm301', '{\"s1\": \"approve\"}', "
                "'ok', 'landed', 'm302')")
+    backfill_ruled_refs(db)
     db.commit()
     assert ratified_request(db, before_seq=301) is None
     assert ratified_request(db, before_seq=400)["statements"] == ["s1"]
@@ -272,6 +275,7 @@ def test_an_approve_off_a_confirm_page_lifts_nothing(db):
     _msg(db, "m401", 401, "principal", "liaison", "converse", ["s1"], cause="m400")
     db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status) "
                "VALUES ('r_cl', 'm400', 'm401', '{\"s1\": \"approve\"}', 'no', 'landed')")
+    backfill_ruled_refs(db)
     db.commit()
     assert ratified_request(db, before_seq=500) is None
     sb = _sandbox(db, "verdict", "m139", None)
@@ -416,6 +420,7 @@ def test_an_accepted_statement_is_delivered(db):
     _night138(db, upto="m139")
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
                "('r_later', 'm135', '{\"s1\": \"approve\"}', 'ok', 'landed')")
+    backfill_ruled_refs(db)
     db.commit()
     sb = _sandbox(db, "verdict", "m139", None)
     sb.call("msg.deliver_vision_keeper", refs=["s1"])

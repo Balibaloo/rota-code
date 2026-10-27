@@ -124,3 +124,76 @@ def test_a_relay_of_a_term_and_no_ruled_criterion_keys_relay(db):
     db.commit()
     assert not park_criterion_relay(db, "m50")
     assert _terminologist_mode(db, "m50") == "relay"
+
+
+# The seam design, pass 2: the split reads his ruling from one record, the
+# verdict's map or the `rulings` rows of a converse reply. Night 164's m94
+# carried cr_1 to cr_6, the ruling r_35e06b1383 contested cr_2 and cr_6 and
+# approved four, and s195 woke in `relay` (`plans/frame338-agency-read.md`,
+# section 3, instance 2).
+SIX = tuple(f"cr_{n}" for n in range(1, 7))
+
+
+def _night164(db, tests=False) -> None:
+    """A Critic's challenge on the six criteria, the Liaison's clarify of
+    them, and his converse reply, open."""
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version, "
+               "priority, is_description) VALUES (?, 'the request', 'in_scope', "
+               "'approved', 1, 1, 1, 0)", (ITEM,))
+    seed_provenance(db, "items", ITEM, "decided")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1', ?, 'the ticket')",
+               (ITEM,))
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES "
+               "('bg_1', ?, 'running', 'aa28d1d')", (ITEM,))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('bg_1', 'tk_1')")
+    for cid in SIX:
+        db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES (?, 'tk_1', ?)",
+                   (cid, f"the words of {cid}"))
+        if tests:
+            db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body, "
+                       "version) VALUES (?, 'bg_1', ?, 'tests/test_x.py', "
+                       "'def test_x(): pass', 1)", (f"tst_{cid}", cid))
+    refs = list(SIX) + ([f"tst_{c}" for c in SIX] if tests else [])
+    _message(db, "m92", "critic", "terminologist", "challenge", refs)
+    _message(db, "m93", "liaison", "principal", "clarify", refs, cause="m92")
+    _message(db, "m94r", "principal", "liaison", "converse", refs, cause="m93",
+             status="open")
+    n = db.execute("SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM entries").fetchone()["n"]
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m94r', 'principal', 'Criteria 2 and 6 are wrong.', ?)", (n,))
+    db.commit()
+
+
+def _answer(db, ruling: dict, relayed: list[str]) -> list[tuple[str, str, list[str]]]:
+    (wake,) = [w for w in open_tips(db) if w.message_id == "m94r"]
+    calls = [f"TOOL: rulings.rule(rulings={json.dumps(ruling)}, "
+             f"words='Criteria 2 and 6 are wrong.')",
+             f"TOOL: msg.relay_terminologist(refs={json.dumps(relayed)})", "done"]
+    out = run_session(db, wake, backend=ScriptedBackend(calls), pins=PINS,
+                      instructions="answering")
+    assert out.committed, out.errors
+    return [(r["id"], r["to_role"], json.loads(r["body_refs"])) for r in db.execute(
+        "SELECT id, to_role, body_refs FROM messages WHERE cause_id = 'm94r' "
+        "AND verb = 'relay' ORDER BY seq")]
+
+
+def test_night164_m94_carries_the_contested_criteria_only(db):
+    """Red on 624621eb: the relay carried cr_1 to cr_6 and keyed `relay`."""
+    _night164(db)
+    ruling = {c: ("contest" if c in ("cr_2", "cr_6") else "approve") for c in SIX}
+    relays = _answer(db, ruling, list(SIX))
+    assert [(to, refs) for _, to, refs in relays] == [
+        ("terminologist", ["cr_2", "cr_6"])]
+    assert park_criterion_relay(db, relays[0][0])
+    assert _terminologist_mode(db, relays[0][0]) == "criterion_repair"
+
+
+def test_an_approved_test_row_on_a_converse_reply_adds_no_criterion(db):
+    """Instance 3 of the read: on a converse reply the guard of frame 338
+    did not run, so an approved test row added its criterion."""
+    _night164(db, tests=True)
+    ruling = {**{c: "approve" for c in SIX}, "tst_cr_2": "revise",
+              **{f"tst_{c}": "approve" for c in SIX if c != "cr_2"}}
+    relays = _answer(db, ruling, ["tst_cr_2", "tst_cr_3"])
+    assert [(to, refs) for _, to, refs in relays] == [("terminologist", ["cr_2"])]
+    assert _terminologist_mode(db, relays[0][0]) == "criterion_repair"

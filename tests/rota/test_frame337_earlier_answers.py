@@ -125,3 +125,16 @@ def test_a_later_fault_after_an_earlier_match_lands_the_contest(db):
     out = _rule6(db, ["Line 5 is fine. What is the ticket on line 6?",
                       "Line 5 is wrong after all."])
     assert out["per_item"]["challenge_items_clear_returns_status"] == "contest"
+
+
+def test_s193s_row_on_line_5_takes_its_words_from_m76(db):
+    """The seam design, pass 2: the row on line 5 records m76 as the source
+    of its words, and the row on line 6 keeps the reply m78."""
+    ask = _page6(db, [M76])
+    sb, _ = _landing(db, ask, M78)
+    sb.call("rulings.rule", rulings=S193, words=M78)
+    rows = {w[2]["ref"]: w[2] for w in sb.ctx.writes if w[0] == "ruled_refs"}
+    five = rows["challenge_items_clear_returns_status"]
+    assert (five["line"], five["words_from"]) == (5, "m76")
+    assert five["words"] == "Line 5 is wrong: ..."
+    assert rows["l_c5331791cf"]["words_from"] == sb.ctx.trigger

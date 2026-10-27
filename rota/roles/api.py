@@ -655,9 +655,10 @@ def _said(text: str) -> str:
 
 def _confirm_landed(conn: sqlite3.Connection, m) -> bool:
     """True when a Liaison confirm has a landed verdict on its request."""
-    return m["verb"] == "confirm" and conn.execute(
-        "SELECT 1 FROM rulings WHERE ask_id = ? AND status = 'landed'",
-        (m["id"],)).fetchone() is not None
+    from .principal import ruled
+
+    # The view carries the ruling's status, so the reader reads one record.
+    return m["verb"] == "confirm" and bool(ruled(conn, ask=m["id"]))
 
 
 def repeated_sentence(conn: sqlite3.Connection, trigger: str | None) -> str | None:
@@ -1658,12 +1659,11 @@ def _reply_sentence_fault(ctx: Ctx, id: str, text: str, row,
                 carried.append(hit["text"])
     from ..core.runner import _resolve_contest
 
+    from .principal import ruled
+
     for ref in wake_refs:
-        for r in ctx.conn.execute(
-                "SELECT words FROM rulings WHERE status = 'landed' "
-                "AND per_item LIKE ?", (f'%"{ref}"%',)):
-            if r["words"]:
-                carried.append(r["words"])
+        # The words of his rows on the ref, from the record per ref.
+        carried += [r["words"] for r in ruled(ctx.conn, [ref]) if r["words"]]
         said = _resolve_contest(ctx.conn, ref).get("principal_said")
         if said:
             carried.append(said)
@@ -1830,17 +1830,12 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # Only a landed ruling counts. An `open` row exists between
     # `rulings.rule` and `principal.land`, and it hid a landed contest (the
     # review of 5e2f0e57, finding 3).
+    from .principal import ruled as ruled_rows_on
+
     ruled = None
-    for r in ctx.conn.execute(
-            "SELECT id, per_item, words FROM rulings WHERE status = 'landed' "
-            "AND per_item LIKE ? ORDER BY rowid DESC", (f'%"{id}"%',)):
-        try:
-            ruled_on = json.loads(r["per_item"] or "{}").get(id)
-        except (TypeError, ValueError, AttributeError):
-            continue
-        if ruled_on is not None:
-            ruled = {"id": r["id"], "verdict": ruled_on, "words": r["words"]}
-            break
+    for r in ruled_rows_on(ctx.conn, [id], newest=True):
+        ruled = {"id": r["ruling_id"], "verdict": r["verdict"],
+                 "words": r["words"], "act": r["act"]}
     found: dict = {}
     if ruled is not None:
         verdict = ruled["verdict"]
@@ -2307,27 +2302,18 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
 def _landed_approval(ctx: Ctx, id: str) -> tuple[str, str] | None:
     """(ruling id, ask id) when the newest landed ruling on `id` approves it.
 
-    The door reads each `rulings` row's own `per_item`. The `config` verdict
+    The door reads the newest landed row on `id` in `ruled_refs_live`. The
+    view orders by `rulings.rowid`. The `config` verdict
     holds only the rows the relay carries (frame 238). The newest landed row
     in rowid order is the principal's latest word. The relay's chain ruling
     is one of these rows, so a newer ruling wins over it (the review of
     252feb0e, finding 2).
     """
-    # The LIKE only narrows the scan. The parse decides, because `_` and a
-    # value word can widen the match.
-    for row in ctx.conn.execute(
-            "SELECT id, ask_id, per_item FROM rulings WHERE status = 'landed' "
-            "AND per_item LIKE ? ORDER BY rowid DESC", (f"%{json.dumps(id)}%",)):
-        try:
-            per_item = json.loads(row["per_item"] or "{}")
-        except (TypeError, ValueError):
-            continue
-        word = per_item.get(id) if isinstance(per_item, dict) else None
-        if word is None:
-            continue
-        if word in ("approve", "approved", "confirm", "confirmed"):
-            return row["id"], row["ask_id"]
-        return None
+    from .principal import ruled
+
+    rows = ruled(ctx.conn, [id], newest=True)
+    if rows and rows[-1]["verdict"] == "approve":
+        return rows[-1]["ruling_id"], rows[-1]["ask_id"]
     return None
 
 
@@ -11189,7 +11175,7 @@ def _ruled_rows(ctx: Ctx, ruling_id: str, order: list | None, per_item: dict,
     reading = {}
     for ref, verdict in per_item.items():
         shape = dict((shapes or {}).get(ref) or {})
-        if shape.get("words"):
+        if shape.get("words") and not shape.get("words_from"):
             shape["words_from"] = _words_from(ctx, shape["words"])
         reading[ref] = {**shape, "verdict": verdict}
     return ruling_rows(ctx.conn, ruling_id, order, reading, words=words,
@@ -12244,8 +12230,9 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     several lines of text, and night 136's m85 said "Line 2" for one of them
     (`test_request_page.py`). `item_lines` are the lines of the request
     items and the criteria. `request_lines` are the request items alone.
-    `earlier_lines` are the lines that his earlier answers to the same page
-    name. It is None when the reply is his only answer to the page.
+    `earlier_lines` are the lines whose rows take their words from his
+    earlier answer to the same page, by `words_from`. It is None when the
+    reply is his only answer to the page.
 
     law 6: nothing is ruled on the principal's behalf
     """
@@ -12309,6 +12296,29 @@ def _earlier_reading(conn, ask_id: str, reply_id: str, size: int
     return (frozenset(n for t in texts for ref in _LINE_REF.finditer(t)
                       for n in _ref_lines(ref, size) if 1 <= n <= size),
             frozenset(n for n, fine in said.items() if fine and 1 <= n <= size))
+
+
+def _earlier_sources(conn, ask_id: str, reply_id: str, size: int
+                     ) -> dict[int, tuple[str, str]]:
+    """Each page line that his earlier answers to the page name, with the
+    latest answer that names it and the sentence that names it.
+
+    The rows are the principal rows of `earlier_exchange`, as in
+    `_earlier_reading`. A row on such a line records that answer as its
+    source, so the record says which of his words the contest rests on
+    (frame 337; the seam design, 1.1, `words_from`).
+    """
+    out: dict[int, tuple[str, str]] = {}
+    for m in conn.execute(
+            "SELECT id, body_text FROM messages WHERE cause_id = ? AND "
+            "verb = 'converse' AND id != ? AND from_role = 'principal' AND "
+            "body_text IS NOT NULL ORDER BY seq", (ask_id, reply_id)):
+        for sentence in _RULING_SENTENCE.split(m["body_text"]):
+            for ref in _LINE_REF.finditer(sentence):
+                for n in _ref_lines(ref, size):
+                    if 1 <= n <= size:
+                        out[n] = (m["id"], sentence.strip())
+    return out
 
 
 def _agreed_contest(sentences: list[str], contested: set[int], size: int,
@@ -12903,6 +12913,26 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"lines {', '.join(unnamed)} have no ruling. Every line of the "
                 f"page takes one: the ask closes when the ruling lands. A line "
                 f"the reply does not contest is approve")
+    # ruling: DECISIONS 1473, every word of the principal is a ruling on a row
+    # His earlier answer to the page can rule a line that the reply does not
+    # name. Night 168's m76 said "Line 5 is wrong", and m78 named line 6
+    # only. The row records m76 as the source of its words, and the naming
+    # door reads the earlier lines from the rows (frame 337).
+    earlier = ({} if is_clarify or not order else
+               _earlier_sources(ctx.conn, ask["id"], ctx.trigger, len(order)))
+    if earlier:
+        here = {n for ref in _LINE_REF.finditer(words or "")
+                for n in _ref_lines(ref, len(order))}
+        for i, r in enumerate(order):
+            if (per_item.get(r) in ("contest", "revise") and i + 1 in earlier
+                    and i + 1 not in here
+                    and not (shape_of.get(r) or {}).get("words")):
+                source, said = earlier[i + 1]
+                shape_of[r] = {**(shape_of.get(r) or {}), "words": said,
+                               "words_from": source}
+    from_earlier = frozenset(
+        i + 1 for i, r in enumerate(order or [])
+        if (shape_of.get(r) or {}).get("words_from") not in (None, ctx.trigger))
     # law 6: nothing is ruled on the principal's behalf
     # A contest must rest on the words. Night 146 (frame 234): s427 contested
     # four lines the words said match, and s122 contested line 1, the
@@ -12953,6 +12983,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         item_lines = request_lines | frozenset(
             i + 1 for i, r in enumerate(order) if ctx.conn.execute(
                 "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone())
+        earlier_read, earlier_fine = _earlier_reading(
+            ctx.conn, ask["id"], ctx.trigger, len(order))
         refusal = _line_refusal(
             words, contested, faulted, matched, len(order), request_first,
             request_first and _quotes_line(words, page_text, 1), batch_lines,
@@ -12970,7 +13002,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 "SELECT text FROM criteria WHERE id = ?",
                 (order[n - 1], order[n - 1])).fetchone() or [""])[0] or ""
                 for n in sorted(faulted) if 1 <= n <= len(order)),
-            *_earlier_reading(ctx.conn, ask["id"], ctx.trigger, len(order)))
+            # None says that the reply is his only answer to the page.
+            None if earlier_read is None else from_earlier, earlier_fine)
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():
@@ -21087,8 +21120,12 @@ def _unruled_gone(text: str, e: dict, texts: list) -> list[dict]:
 def _ruling_texts(ctx: Ctx) -> list[tuple[str, bool]]:
     """The batch's own words that can rule a removal, each with True for
     the principal's: the criteria of the batch, the request item's text,
-    and the landed rulings on the item's pages (review 1, finding 1)."""
-    import json as _json
+    and the landed rulings on the item's pages (review 1, finding 1).
+
+    His words come from `ruled_words`, the reader that the criteria push
+    and the slicing push share (frame 322, proposal line 3)."""
+    from .principal import ruled_words
+
     bid = ctx.batch_id
     crit = list(ctx.conn.execute(
         "SELECT c.id, c.ticket_id, c.text FROM criteria c JOIN batch_tickets bt "
@@ -21100,16 +21137,9 @@ def _ruling_texts(ctx: Ctx) -> list[tuple[str, bool]]:
     if item is not None:
         out.append((item["text"] or "", False))
         refs.add(item["id"])
-    for r in ctx.conn.execute(
-            "SELECT per_item, words FROM rulings WHERE status = 'landed'"):
-        try:
-            keys = set(_json.loads(r["per_item"] or "{}"))
-        except (TypeError, ValueError):
-            continue
-        # A page key names the item after a colon, as `guess:<item>`.
-        if keys & refs or (item is not None and any(
-                k.endswith(f":{item['id']}") for k in keys)):
-            out.append((r["words"] or "", True))
+    # A page key names the item after a colon, as `guess:<item>`.
+    out += [(said, True) for said in ruled_words(
+        ctx.conn, sorted(refs), item=item["id"] if item is not None else None)]
     return out
 
 

@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.sandbox import build
 from rota.roles import api, prompts
 
@@ -238,6 +238,7 @@ def _ruling(db, per_item: dict, words: str) -> None:
                "'x',1)")
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
                "('r1','m1',?,?,'landed')", (json.dumps(per_item), words))
+    backfill_ruled_refs(db)
     db.commit()
 
 

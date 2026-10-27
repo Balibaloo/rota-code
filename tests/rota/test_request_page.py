@@ -14,7 +14,7 @@ import json
 import pytest
 
 from rota.core import predicates as P
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.runner import run_session
 from rota.core.scheduler import open_tips, tick_agenda, verdict_rows
 from rota.llm.llm import Pins, ScriptedBackend
@@ -1037,6 +1037,7 @@ def _night147_relay(db, relay_verdict: dict, relay_refs) -> None:
                    ITEM_133: "approve",
                    "challenge_constraints_click_context": "contest",
                    "challenge_constraints_click_log": "contest"}),))
+    backfill_ruled_refs(db)
     _message(db, "m136", "liaison", "vision_keeper", "relay", relay_refs,
              cause="m133", status="open")
     db.commit()
@@ -1081,6 +1082,7 @@ def _ruling(db, rid: str, ask: str, per_item: dict, rowid: int | None = None) ->
     _message(db, ask, "liaison", "principal", "present", list(per_item))
     db.execute("INSERT INTO rulings (rowid, id, ask_id, per_item, status) "
                "VALUES (?, ?, ?, ?, 'landed')", (rowid, rid, ask, json.dumps(per_item)))
+    backfill_ruled_refs(db)
     db.commit()
 
 
@@ -1196,6 +1198,7 @@ def test_a_relay_of_a_ruling_logs_no_row_about_the_ruled_row(m399, word):
     m399.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, verdict_id) "
                  "VALUES ('r_a9da44d357', 'm419', ?, ?, 'landed', 'm421')",
                  (json.dumps({"l_d24f6997d1": "revise"}), M421_WORDS))
+    backfill_ruled_refs(m399)
     _message(m399, "m422", "liaison", "architect", "relay",
              ["parametersource_commandline"], cause="m421", status="open")
     m399.commit()

@@ -646,7 +646,9 @@ def _line_legend(conn, rid: str, words: str,
     """
     from ..roles.principal import door_rows
 
-    row = conn.execute("SELECT reply_id, texts FROM rulings WHERE id = ?",
+    from ..roles.principal import ruled
+
+    row = conn.execute("SELECT reply_id FROM rulings WHERE id = ?",
                        (rid,)).fetchone()
     # Only the order `principal.land` recorded at his reply (frame 272).
     # Today's render can put another row on his line, as night 158's did.
@@ -658,12 +660,8 @@ def _line_legend(conn, rid: str, words: str,
         if ref.group(0).lower().startswith("note"):
             continue
         named |= api._ref_lines(ref, len(order))
-    try:
-        texts = json.loads(row["texts"] or "{}")
-    except (TypeError, ValueError):
-        texts = {}
-    if not isinstance(texts, dict):
-        texts = {}
+    # The text he read first is `old_text` of the ruling's rows.
+    texts = {r["ref"]: r["old_text"] for r in ruled(conn, ruling=rid, landed=False)}
     out: list[str] = []
     for n in sorted(x for x in named if 1 <= x <= len(order)):
         rid_n = order[n - 1]
@@ -713,25 +711,13 @@ def contests_on(conn, ref: str) -> list[dict]:
     for a ruling older than `rulings.texts`. A stale ruling does not count,
     as in `last_ruling_on` (frame 243).
     """
-    out: list[dict] = []
-    for r in conn.execute(
-            "SELECT rowid, id, per_item, words, texts FROM rulings "
-            "WHERE status != 'stale' AND per_item LIKE ? ORDER BY rowid",
-            (f'%"{ref}"%',)):
-        try:
-            verdict = json.loads(r["per_item"] or "{}").get(ref)
-        except (TypeError, ValueError, AttributeError):
-            continue
-        if verdict != "contest" or not r["words"]:
-            continue
-        try:
-            texts = json.loads(r["texts"] or "{}")
-        except (TypeError, ValueError):
-            texts = {}
-        text = texts.get(ref) if isinstance(texts, dict) else None
-        out.append({"id": r["id"], "text": text if isinstance(text, str) else None,
-                    "words": r["words"], "seq": r["rowid"]})
-    return out
+    from ..roles.principal import ruled
+
+    # The rows on `ref` in `ruled_refs_live` (the seam design, 3.1).
+    return [{"id": r["ruling_id"], "text": r["old_text"], "words": r["words"],
+             "seq": r["ruling_seq"]}
+            for r in ruled(conn, [ref], landed=False)
+            if r["verdict"] == "contest" and r["words"]]
 
 
 def _contest_block(conn, rows: list, on_rows: bool = False,
@@ -4266,20 +4252,12 @@ RULED_CAP = 3
 START_RULED_KEY = "the principal's words on this change, newest last"
 
 
-def _retired_carry(conn, item_id: str, *, before_slice: bool = False) -> dict[str, Any]:
-    """The principal's landed words and an old ticket's criteria, for an
-    item that has an old ticket. Empty for every other item.
-
-    Night 161: his correction landed on tk_1's criteria at version 4. The
-    item was amended, tk_2 was sliced, and the criteria wake of s282 showed
-    only the statement s3. Every word of the principal is a ruling on a row
-    (ruling of 2026-10-08, point 4), so the row's words follow the item
-    (frame 315's provenance, repair 1).
-    """
+def _old_tickets(conn, item_id: str, before_slice: bool) -> list:
+    """The item's tickets below the newest generation, oldest first."""
     from .db import _has_column
 
     if not _has_column(conn, "tickets", "item_ver"):
-        return {}
+        return []
     # In the criteria wake, a live ticket is never old: an amend raises
     # the item's version above every ticket (review 1, finding 4). The
     # slicing wake runs before the new ticket exists, so there a ticket
@@ -4287,47 +4265,64 @@ def _retired_carry(conn, item_id: str, *, before_slice: bool = False) -> dict[st
     newer = "(SELECT MAX(n.item_ver) FROM tickets n WHERE n.item_id = t.item_id)"
     if before_slice:
         newer = f"MAX({newer}, (SELECT i.version FROM items i WHERE i.id = t.item_id))"
-    rows = conn.execute(
+    return conn.execute(
         f"SELECT t.id, t.item_ver FROM tickets t WHERE t.item_id = ? "
         f"AND t.item_ver < {newer} ORDER BY t.rowid", (item_id,)).fetchall()
-    if not rows:
-        return {}
-    old = [r["id"] for r in rows]
+
+
+def _old_criteria(conn, old: list[str]) -> list:
     marks = ",".join("?" * len(old))
-    old_criteria = conn.execute(
+    return conn.execute(
         f"SELECT c.id, c.ticket_id, c.version, c.text, t.item_ver FROM criteria c "
         f"JOIN tickets t ON t.id = c.ticket_id WHERE c.ticket_id IN ({marks}) "
-        f"ORDER BY c.rowid", old).fetchall()
+        f"ORDER BY c.rowid", old).fetchall() if old else []
+
+
+def _item_ruled(conn, item_id: str, *, before_slice: bool = False) -> dict[str, Any]:
+    """The principal's landed words on the item, on every generation.
+
+    The key set is frame 322's: the item, `guess:<item>`, the old tickets
+    and their criteria. Night 166's m69, "only the docstring changes while
+    the code stays the same", landed on the item and its guess line, and
+    s185's criteria prompt did not carry it on the first generation (frame
+    322, proposal line 2). Every word of the principal is a ruling on a row
+    (ruling of 2026-10-08, point 4).
+    """
+    from ..roles.principal import ruled_words
+
+    old = [r["id"] for r in _old_tickets(conn, item_id, before_slice)]
+    names = {item_id} | set(old) | {r["id"] for r in _old_criteria(conn, old)}
     # A ruling on a live ticket's criteria is that ticket's business, and
     # the seat reads those rows already. Counted here, three such rulings
-    # pushed m131 and m137 out of the cap (review 1, finding 1). A ruling
-    # that names only an old ticket is carried (finding 5).
-    names = {item_id} | set(old) | {r["id"] for r in old_criteria}
+    # pushed m131 and m137 out of the cap (frame 315, review 1, finding 1).
+    # A ruling that names only an old ticket is carried (finding 5).
+    marks = ",".join("?" * len(old))
     live = {r["id"] for r in conn.execute(
-        f"SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
-        f"WHERE t.item_id = ? AND t.id NOT IN ({marks})", (item_id, *old))}
-    words: list[str] = []
-    for r in conn.execute("SELECT per_item, words FROM rulings "
-                          "WHERE status = 'landed' ORDER BY rowid"):
-        try:
-            ruled = json.loads(r["per_item"] or "{}")
-        except (TypeError, ValueError):
-            continue
-        if (isinstance(ruled, dict) and names & set(ruled) and not live & set(ruled)
-                and (r["words"] or "").strip()):
-            words.append(r["words"])
+        "SELECT c.id FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+        "WHERE t.item_id = ?" + (f" AND t.id NOT IN ({marks})" if old else ""),
+        (item_id, *old))}
+    words = ruled_words(conn, sorted(names), item=item_id, skip=live)
+    return {RULED_KEY: words[-RULED_CAP:]} if words else {}
+
+
+def _retired_carry(conn, item_id: str, *, before_slice: bool = False) -> dict[str, Any]:
+    """An old ticket's criteria, for an item that has an old ticket. Empty
+    for every other item.
+
+    Night 161: his correction landed on tk_1's criteria at version 4. The
+    item was amended, tk_2 was sliced, and the criteria wake of s282 showed
+    only the statement s3 (frame 315's provenance, repair 1). His words on
+    the item come from `_item_ruled` on every generation (frame 322).
+    """
+    old_criteria = _old_criteria(
+        conn, [r["id"] for r in _old_tickets(conn, item_id, before_slice)])
     # One slicing wake holds every item due a slice, so the list keeps the
     # newest old generation only (review 1, finding 6).
     last = max((r["item_ver"] for r in old_criteria), default=None)
     criteria = [{"old ticket": r["ticket_id"], "id": r["id"],
                  "version": r["version"], "text": r["text"]}
                 for r in old_criteria if r["item_ver"] == last]
-    carry: dict[str, Any] = {}
-    if words:
-        carry[RULED_KEY] = words[-RULED_CAP:]
-    if criteria:
-        carry[RETIRED_KEY] = criteria
-    return carry
+    return {RETIRED_KEY: criteria} if criteria else {}
 
 
 RAISE_LINES_KEY = "the raise lines of each surface this wake names"
@@ -4504,6 +4499,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 "ORDER BY s.id", (wake.refs[0], wake.refs[0], wake.refs[0]))]
             if item:
                 pushed["the item"] = {"text": item["text"], "the principal said": said,
+                                      **_item_ruled(conn, wake.refs[0]),
                                       **_retired_carry(conn, wake.refs[0])}
             # Frame 319, review 1, finding 1: the lookup reads the whole
             # index. The pushed list held 20 of clickI's 897 symbols, and
@@ -4590,7 +4586,8 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         if mine:
             # Night 161's s281 sliced from the headline alone. The item's
             # old ticket held his corrected criteria (frame 315).
-            mine = [{**r, **_retired_carry(sb.ctx.conn, r["id"], before_slice=True)}
+            mine = [{**r, **_item_ruled(sb.ctx.conn, r["id"], before_slice=True),
+                     **_retired_carry(sb.ctx.conn, r["id"], before_slice=True)}
                     for r in mine]
             pushed["problem.consult"] = {
                 "to slice, this wake": mine,

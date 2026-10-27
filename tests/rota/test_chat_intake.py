@@ -14,7 +14,7 @@ import json
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.runner import _mode_key, _recent_chat
 from rota.core.sandbox import ArgumentError, build
 from rota.core.scheduler import Wake
@@ -118,6 +118,7 @@ def test_a_repeat_after_the_confirm_landed_is_a_new_request_and_gets_its_confirm
     _msg(s220, "m_v1", "m119", "principal", "liaison", "verdict", ["s4"], 7)
     s220.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, verdict_id) "
                  "VALUES ('r_v1', 'm119', '{\"s4\": \"approve\"}', 'ok', 'landed', 'm_v1')")
+    backfill_ruled_refs(s220)
     assert repeated_sentence(s220, "m_p5") is None
     _, confirm = _segment_and_confirm(s220)
     assert confirm()["to"] == "principal"

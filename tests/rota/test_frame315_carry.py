@@ -8,7 +8,7 @@ statement s3 only. The rows below are night 161's, copied from
 """
 import json
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.runner import push_working_set
 from rota.core.sandbox import build
 from rota.core.scheduler import Wake
@@ -87,6 +87,7 @@ def _night161(tmp_path, *, sliced: bool):
                "VALUES ('m900', 't1', 'liaison', 'principal', 'ask', 900)")
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
                "('r_other', 'm900', '{\"other_item\": \"approve\"}', 'not about show_python', 'landed')")
+    backfill_ruled_refs(db)
     db.commit()
     return db
 
@@ -124,14 +125,18 @@ def test_the_slicing_wake_carries_the_same_keys(tmp_path):
         _assert_carry(row)
 
 
-def test_an_item_with_no_old_ticket_wakes_unchanged(tmp_path):
+def test_an_item_with_no_old_ticket_carries_his_words_and_no_old_criteria(tmp_path):
+    """Frame 322, proposal line 2: his words on the item travel on every
+    generation. A ruling on the live criteria stays out (review 1,
+    finding 1), so r_83a0b075a0 and r_5346319ecc give none."""
     db = _night161(tmp_path, sliced=True)
     db.execute("UPDATE tickets SET item_ver = 4")
     db.commit()
     sb = build("terminologist", db, mode="criteria",
                allow=prompts.mode_tools("terminologist", "criteria"))
     pushed = push_working_set("terminologist", sb, Wake("terminologist", "tick:criteria", refs=(ITEM,)))
-    assert set(pushed["the item"]) == {"text", "the principal said"}
+    assert set(pushed["the item"]) == {"text", "the principal said", RULED_KEY}
+    assert pushed["the item"][RULED_KEY] == [M118, M137]
 
 
 def _ruling(db, rid: str, seq: int, per_item: dict, words: str) -> None:
@@ -139,6 +144,7 @@ def _ruling(db, rid: str, seq: int, per_item: dict, words: str) -> None:
                "VALUES (?, 't1', 'liaison', 'principal', 'ask', ?)", (f"m{seq}", seq))
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
                "VALUES (?, ?, ?, ?, 'landed')", (rid, f"m{seq}", json.dumps(per_item), words))
+    backfill_ruled_refs(db)
 
 
 def _criteria_wake(db) -> dict:
@@ -189,3 +195,36 @@ def test_the_old_criteria_keep_the_newest_old_generation(tmp_path):
     db.commit()
     shown = [c["id"] for c in _criteria_wake(db)[RETIRED_KEY]]
     assert shown == [f"c_{n}_{ITEM}" for n in (1, 2, 3)]
+
+
+# Night 166's m69 on the guess page m68, landed as r_1ec1beb146 at 19:32:27.
+# s185's criteria prompt at 19:36 did not carry it, because the item had no
+# old ticket (`plans/frame322-we-read.md`, section 1).
+M69 = "only the docstring changes while the code stays the same"
+DOC_ITEM = "format_filename_example"
+
+
+def test_s185s_first_criteria_wake_carries_r_1ec1beb146(tmp_path):
+    """Frame 322, proposal line 5. Red on 624621eb: the window held the
+    statement and no word of his ruling."""
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES (?, 'Add an example to the docstring of format_filename', "
+               "'in_scope', 'approved', 1, 1)", (DOC_ITEM,))
+    seed_provenance(db, "items", DOC_ITEM, "decided")
+    db.execute("INSERT INTO tickets (id, item_id, text, item_ver) VALUES "
+               "('tk_1_doc', ?, 'the docstring example', 1)", (DOC_ITEM,))
+    for mid, seq in (("m68", 68), ("m69", 69)):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+                   "VALUES (?, 't1', 'liaison', 'principal', 'ask', ?)", (mid, seq))
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status) "
+               "VALUES ('r_1ec1beb146', 'm68', 'm69', ?, ?, 'landed')",
+               (json.dumps({DOC_ITEM: "approve", f"guess:{DOC_ITEM}": "contest"}), M69))
+    backfill_ruled_refs(db)
+    db.commit()
+    sb = build("terminologist", db, mode="criteria",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    pushed = push_working_set("terminologist", sb,
+                              Wake("terminologist", "tick:criteria", refs=(DOC_ITEM,)))
+    assert pushed["the item"][RULED_KEY] == [M69]
+    assert RETIRED_KEY not in pushed["the item"]

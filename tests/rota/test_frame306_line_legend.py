@@ -267,6 +267,9 @@ def _seed_words(tmp_path, words: str):
     db = _seed_m37(tmp_path)
     db.execute("UPDATE rulings SET words = ? WHERE id = 'r_ee6e30a55d'",
                (words,))
+    # A ruled row never changes, so the rows are built again from the words.
+    db.execute("DELETE FROM ruled_refs WHERE ruling_id = 'r_ee6e30a55d'")
+    backfill_ruled_refs(db)
     db.commit()
     return db
 

@@ -488,14 +488,9 @@ def term_collision(conn) -> list[Wake]:
     # settled for this cycle. Reading approvals only, through `glossary.adopt`
     # alone, sent a contest-only ruling round the loop again with no ledger
     # row and no ruling ref to stop it (the diff review of 6895000).
-    for u in conn.execute(
-            "SELECT per_item FROM rulings WHERE status = 'landed'"):
-        try:
-            named = json.loads(u["per_item"] or "{}")
-        except (ValueError, TypeError):
-            continue
-        if isinstance(named, dict):
-            ruled.update(k for k in named if isinstance(k, str))
+    from ..roles.principal import ruled as ruled_rows
+
+    ruled.update(r["ref"] for r in ruled_rows(conn))
 
     # An adopted sense is ruled by the same query: `glossary.adopt` writes a
     # `refs` row of kind `ruling` and no decision (`api._adopt_rows`), and the
