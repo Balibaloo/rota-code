@@ -9173,7 +9173,10 @@ def _beside_project_test(ctx: Ctx, path: str, criterion_id: str,
     stem = name[:-3] if name.endswith(".py") else name
     if not stem.startswith("test_"):
         stem = "test_" + stem
-    stem = f"{stem}_{re.sub(r'[^0-9A-Za-z_]+', '_', criterion_id).strip('_')}"
+    # The review of pass 1b, finding 5: a long criterion id in a deep folder
+    # can pass the Windows path limit of 260 characters at `materialise`.
+    part = re.sub(r'[^0-9A-Za-z_]+', '_', criterion_id).strip('_')[:40].rstrip('_')
+    stem = f"{stem}_{part}"
     taken = {r["path"] for r in ctx.conn.execute(
         "SELECT id, path FROM tests WHERE batch_id = ?", (batch_id,))
         if r["id"] != id}
@@ -9216,6 +9219,24 @@ def _wake_challenges(ctx: Ctx, test_id: Any) -> bool:
         (ctx.trigger,)).fetchone()
     return (msg is not None and msg["verb"] == "challenge"
             and test_id in refs_of(msg["body_refs"]))
+
+
+def _project_id_refused(ctx: Ctx, id: Any, path: str) -> bool:
+    """True when `id` is a project test's id and the project-id door of
+    `tests.encode` refuses it at `path`. The door admits a project id only
+    at its own file, in a wake that challenges it (frame 135)."""
+    from ..core.harness import inherited_id
+
+    if id is INVENT:
+        return False
+    prior = ctx.conn.execute(
+        "SELECT path, criterion_id FROM tests WHERE id = ?", (id,)).fetchone()
+    if prior is None:
+        return False
+    own = prior["path"].replace("\\", "/")
+    if not (prior["criterion_id"] is None or id == inherited_id(own)):
+        return False
+    return own != path or not _wake_challenges(ctx, id)
 
 
 def _offered_path(ctx: Ctx, path: str, id: Any, criterion_id: str,
@@ -9478,15 +9499,23 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         if is_module:
             _to = _offered_path(ctx, path, id, criterion_id,
                                 batch_id or ctx.batch_id)
+            # The review of pass 1b, finding 4: this door runs before the
+            # project-id door. A project id kept here met that door on the
+            # next call, so the offer names a new id in one hop.
+            _id = INVENT if _project_id_refused(ctx, id, path) else id
             raise Wall(_offer(
                 ctx,
                 f"the test uses {unbound[0]} and never imports it: a NameError "
                 f"against any code. Add the line `import {unbound[0]}` at the "
                 f"top of the body and send the encode again"
+                + ("" if _id is not INVENT else
+                   f" with a new id that you invent, because {id} is the id "
+                   f"of a project test")
                 + ("" if _to == path else
-                   f" with path={_to!r}, because {path} holds the project's "
-                   f"own tests"),
-                "tests.encode", {"id": id, "criterion_id": criterion_id,
+                   (", and" if _id is INVENT else "")
+                   + f" with path={_to!r}, because {path} holds the "
+                     f"project's own tests"),
+                "tests.encode", {"id": _id, "criterion_id": criterion_id,
                                  "path": _to, "body": f"import {unbound[0]}\n{body}",
                                  "batch_id": batch_id}))
         # A Tester told to "import the function the surface names" invented
@@ -10853,8 +10882,32 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # challenges the project test may send that test's own id to its file.
     clash_project = clash is not None and (
         clash["criterion_id"] is None or clash["id"] == inherited_id(path))
-    if clash_project and not (clash["criterion_id"] == criterion_id
-                              and _wake_challenges(ctx, clash["id"])):
+    clash_challenged = clash_project and _wake_challenges(ctx, clash["id"])
+    # The review of pass 1b, finding 1: a new test beside a challenged
+    # project test leaves the old test running, as in frame 123. The fix
+    # goes under the project id at its own file. The same criterion keeps
+    # frame 123's text below.
+    if clash_challenged and clash["criterion_id"] != criterion_id:
+        raise ValueError(_offer(
+            ctx,
+            f"{_fact(ctx, 'test_path', path, id=clash['id'])} is {clash['id']}'s file, "
+            f"and this wake challenges {clash['id']}. To fix that test, send "
+            f"this encode again with id={clash['id']!r}. The same id replaces it.",
+            "tests.encode", {"id": clash["id"], "criterion_id": criterion_id,
+                             "path": path, "body": body, "batch_id": batch_id}))
+    # Finding 2: a landed challenge fix gave the project row this criterion.
+    # A second test of the criterion is the one-test guard's case above.
+    if (clash_project and not clash_challenged
+            and clash["criterion_id"] == criterion_id):
+        return {"id": clash["id"], "unchanged": True,
+                "note": f"{criterion_id} already has a test, {clash['id']}, "
+                        f"the project's test at {path}, and one criterion "
+                        f"takes one. Nothing was written."}
+    # Finding 3: the seat's own stored row at this file sends a replace here.
+    # A path beside it meets the stored-path door, which sends the call back.
+    own_here = (prior is not None and prior["batch_id"] == batch_id
+                and prior["path"] == path)
+    if clash_project and not clash_challenged and not own_here:
         beside = _beside_project_test(ctx, path, criterion_id, batch_id, id)
         raise ValueError(_offer(
             ctx,

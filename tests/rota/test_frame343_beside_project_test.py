@@ -14,7 +14,10 @@ import pytest
 
 from rota.core.harness import inherited_id
 from rota.core.sandbox import build
-from tests.rota.test_t0_sandbox import _PRORATE, db  # noqa: F401
+from rota.core import sandbox
+from rota.roles.api import INVENT, _beside_project_test
+from tests.rota.test_t0_sandbox import (  # noqa: F401
+    _PRORATE, _challenge_wake, db)
 
 _CRIT = "c_1_format_filename_example"
 _PROJECT = "tests/test_formatting.py"
@@ -102,6 +105,85 @@ def test_the_seats_own_row_does_not_take_the_path_beside(db):
     assert _beside_project_test(sb.ctx, _PROJECT, _CRIT, "b1", "t_c1") == beside
     assert _beside_project_test(sb.ctx, _PROJECT, _CRIT, "b1", "t_other") == (
         "tests/test_formatting_c_1_format_filename_example_2.py")
+
+
+_PID = inherited_id(_PROJECT)
+
+
+def _fix_project_row(db, criterion_id=_CRIT):
+    """A landed challenge fix gives the project row a criterion."""
+    db.execute("UPDATE tests SET criterion_id = ? WHERE id = ?",
+               (criterion_id, _PID))
+    db.commit()
+
+
+def test_a_challenge_of_a_project_row_offers_its_own_id_at_its_file(db):
+    """Review of pass 1b, finding 1: a wake that challenges the project row
+    sent a new id beside it, so the challenged test stayed and ran beside the
+    fix, as in frame 123. The offer is the project id at its own file."""
+    _batch_with_a_project_test(db)
+    sb = _challenge_wake(db, [_PID])
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="t_fix", criterion_id=_CRIT, path=_PROJECT,
+                body=_PRORATE, batch_id="b1")
+    assert f"this wake challenges {_PID}" in str(exc.value), exc.value
+    [offer] = [o for o in sb.ctx.offers if o.op == "tests.encode"]
+    assert (offer.args["id"], offer.args["path"]) == (_PID, _PROJECT)
+    assert sb.call("tests.encode", **offer.args) == {"id": _PID}
+
+
+def test_a_new_id_for_the_criterion_of_a_fixed_project_row_is_the_one_test_note(db):
+    """Finding 2: outside a challenge, the project row holds the criterion
+    after a fix. A second test of that criterion gets the one-test note."""
+    _batch_with_a_project_test(db)
+    _fix_project_row(db)
+    sb = _tester(db)
+    out = sb.call("tests.encode", id="t_new", criterion_id=_CRIT,
+                  path=_PROJECT, body=_PRORATE, batch_id="b1")
+    assert out.get("unchanged") and out["id"] == _PID, out
+    assert "one criterion takes one" in out["note"]
+    assert not [w for w in sb.ctx.writes if w[0] == "tests"]
+
+
+def test_a_replace_at_a_file_shared_with_a_project_row_is_not_sent_beside(db):
+    """Finding 3: a Tester row and a project row at one file. The beside
+    offer met the stored-path door, which sent the call back, for good."""
+    _batch_with_a_project_test(db)
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('t1', 'b1', ?, ?, ?)", (_CRIT, _PROJECT, _PRORATE))
+    db.commit()
+    sb = _tester(db)
+    with pytest.raises(ValueError) as exc:
+        sb.call("tests.encode", id="t1", criterion_id=_CRIT, path=_PROJECT,
+                body=_PRORATE + " # fixed", batch_id="b1")
+    assert "two tests in one file overwrite each other" in str(exc.value), exc.value
+    assert not [o for o in sb.ctx.offers if o.op == "tests.encode"]
+
+
+def test_the_missing_import_offer_for_a_project_id_lands_in_one_hop(db):
+    """Finding 4: the missing-import door runs before the project-id door.
+    It kept the project id, and the next call met that door."""
+    _batch_with_a_project_test(db)
+    sb = _tester(db)
+    body = "def test_it():\n    assert json.loads('[1]') == [1]\n"
+    with pytest.raises(ValueError):
+        sb.call("tests.encode", id=_PID, criterion_id=_CRIT, path=_PROJECT,
+                body=body, batch_id="b1")
+    [offer] = [o for o in sb.ctx.offers if o.op == "tests.encode"]
+    assert offer.args["id"] is INVENT
+    assert offer.args["path"] == "tests/test_formatting_c_1_format_filename_example.py"
+    assert offer.args["body"] == "import json\n" + body
+    res = sandbox.dry_run(sb, offer.op, offer.args, offer.then)
+    assert (res.admitted, res.refusal) == (True, None)
+
+
+def test_the_criterion_part_of_the_beside_name_is_at_most_40_characters(db):
+    """Finding 5: a long criterion id in a deep folder can pass the Windows
+    path limit of 260 characters."""
+    _batch_with_a_project_test(db)
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    got = _beside_project_test(sb.ctx, _PROJECT, "c_1_" + "x" * 100, "b1")
+    assert got == "tests/test_formatting_c_1_" + "x" * 36 + ".py", got
 
 
 def test_the_tests_missing_brief_sends_a_project_file_beside_it():
