@@ -9156,6 +9156,32 @@ def _refuse_retired(ctx: Ctx, criterion_id: str) -> None:
             f"criteria of the batch")
 
 
+def _beside_project_test(ctx: Ctx, path: str, criterion_id: str,
+                         batch_id: str) -> str:
+    """A free path in the folder of the project test file `path`, named for
+    the criterion.
+
+    Frame 343: the clash door offers this path when a project test holds
+    `path`. A name that pytest collects keeps the `test_` prefix. A number
+    follows the name when a row or a staged write holds the path already.
+    """
+    import posixpath as _posixpath
+
+    folder, name = _posixpath.split(path)
+    stem = name[:-3] if name.endswith(".py") else name
+    if not stem.startswith("test_"):
+        stem = "test_" + stem
+    stem = f"{stem}_{re.sub(r'[^0-9A-Za-z_]+', '_', criterion_id).strip('_')}"
+    taken = {r["path"] for r in ctx.conn.execute(
+        "SELECT path FROM tests WHERE batch_id = ?", (batch_id,))}
+    taken |= {w[2].get("path") for w in ctx.writes if w[0] == "tests"}
+    n, candidate = 1, _posixpath.join(folder, stem + ".py")
+    while candidate in taken:
+        n += 1
+        candidate = _posixpath.join(folder, f"{stem}_{n}.py")
+    return candidate
+
+
 @op("tests", "encode")
 def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                  batch_id: str | None = None) -> dict:
@@ -10774,6 +10800,22 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"again with id={clash['id']!r}. The same id replaces it.",
             "tests.encode", {"id": clash["id"], "criterion_id": criterion_id,
                              "path": path, "body": body, "batch_id": batch_id}))
+    # Frame 343, night 170 s196: `inherit` makes every project test file a
+    # row of the batch, and the brief's `touch` names such files. Sixteen
+    # encodes met the bare text below, and the walk stopped. A project row
+    # carries the same two signs as frame 135's door above.
+    if clash is not None and (
+            clash["criterion_id"] is None
+            or clash["id"] == inherited_id(path)):
+        beside = _beside_project_test(ctx, path, criterion_id, batch_id)
+        raise ValueError(_offer(
+            ctx,
+            f"{_fact(ctx, 'test_path', path, id=clash['id'])} is already "
+            f"{clash['id']}'s file, and that file holds the project's own "
+            f"tests. Put the new test in a new file beside it: send this "
+            f"encode again with path={beside!r}.",
+            "tests.encode", {"id": id, "criterion_id": criterion_id,
+                             "path": beside, "body": body, "batch_id": batch_id}))
     if clash is None:
         clash = next((w for w in ctx.writes if w[0] == "tests" and w[1] != id
                       and w[2].get("path") == path), None)
