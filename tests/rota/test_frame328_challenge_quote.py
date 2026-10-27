@@ -123,11 +123,12 @@ def test_the_register_quotes_under_the_floor_are_refused(db, text):
 
 def test_a_decoded_line_break_meets_only_a_line_break():
     """Frame 328, review 1, finding 4: the JSON escape stands for a line
-    break of the row, never for a plain space."""
+    break of the row, never for a plain space. F19 pass 1b: the call
+    decodes the escape, so the rule is read through `_quote_reads`."""
     two_lines = 'assert r.exit_code != 0\n    assert "a" in r.output'
-    assert sandbox._span_of('assert r.exit_code != 0\\n    assert "a" in r.output',
-                            two_lines)
-    assert not sandbox._span_of('assert r == "a\\nb is the text"',
+    assert sandbox._quote_reads(
+        'assert r.exit_code != 0\\n    assert "a" in r.output', two_lines)
+    assert not sandbox._quote_reads('assert r == "a\\nb is the text"',
+                                    'assert r == "a b is the text"')
+    assert sandbox._quote_reads('assert r == "a b is the text"',
                                 'assert r == "a b is the text"')
-    assert sandbox._span_of('assert r == "a b is the text"',
-                            'assert r == "a b is the text"')

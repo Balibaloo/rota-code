@@ -222,8 +222,8 @@ def test_a_wrong_test_line_names_the_form_the_door_compared(db):
         sb.call("msg.challenge_tester", refs=[CRIT, TEST],
                 quotes=[TK3_LIVE, wrong], reason=REASON)
     assert (
-        "The door reads `\\xNN`, `\\uNNNN` and `\\NNN` as one character and "
-        "each whitespace run as one space, on both sides. Read that way, the "
+        "The door also reads the quote as the call stores it from your text, "
+        "with each escape read as Python reads it. Read that way, the "
         "quote is `assert \"\\x1b[2J\\x1b[1;1H\" in sys.stdout.getvalue()`, "
         "and the code of tst_tk3 holds no such span.") in str(exc.value)
 
@@ -247,12 +247,16 @@ def test_a_raw_literal_quote_with_another_escape_is_refused(db):
                                     f"{TK3_LIVE} ... {RAW_QUOTE}")
 
 
-def test_only_an_escape_of_a_control_character_is_read_as_one():
-    assert sandbox._unescaped('"\\x1b[2J\\u001b[H\\033"') == '"\x1b[2J\x1b[H\x1b"'
-    assert sandbox._unescaped('"\\x41BCDEF"') == '"\\x41BCDEF"'
-    assert sandbox._unescaped('b"\\u001b[2J"') == 'b"\\u001b[2J"'
-    assert not sandbox._span_of(sandbox._unescaped('x = "\\x41BCDEF"'),
-                                sandbox._unescaped('x = "ABCDEF"'))
+def test_a_quote_is_read_through_the_call_once():
+    """F19: `api._call_values` reads the quote, so each escape is read as
+    the call reads it. A bytes quote with another escape is no span."""
+    assert sandbox._quote_reads('x = "\\x1b[2J\\u001b[H\\033"',
+                                'x = "\x1b[2J\x1b[H\x1b"', "tests")
+    assert not sandbox._quote_reads('x = b"\\x1b[2J" + y',
+                                    'x = b"\\u001b[2J" + y', "tests")
+    # The strict path stores `A` from the seat's `\x41`, so the door reads
+    # the kept text the same way. Pass 3's review had refused this form.
+    assert sandbox._quote_reads('x = "\\x41BCDEF"', 'x = "ABCDEF"', "tests")
 
 
 def test_the_failing_line_shows_the_escape_and_not_the_raw_byte(db):
