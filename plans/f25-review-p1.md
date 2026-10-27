@@ -75,3 +75,53 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/6d9cf7
 - Input tokens: about 55k, an estimate. The harness gives no exact split.
 - Output tokens: about 9k, an estimate.
 - Total: about 64k, against a cap of 60k.
+
+## Review p2
+
+Scope: pass 1b (fbf9bbc4) and pass 1c (f0ef3086) on f25root, in C:/Users/roman/rota_f25.
+Verdict: 4 findings closed, 1 partly closed, 1 open. Pass 1c adds 1 new high finding. Point (a) shows no live leak.
+
+### The six findings
+
+1. Closed. `_wake_mode_set` now returns `runner._wake_allow` for a sandbox with a wake. The doors and the follower read one list.
+   The new test `test_the_follower_and_the_doors_hold_the_page_acts_of_the_wake` passes.
+   Side effect: `_wake_mode_tools` now also gives the 9 door callers the page acts. A door text can change on a criterion relay wake.
+2. Closed. The two tests pass. Run: the touched files and the two tests gave `72 passed, 7 xfailed`.
+3. Partly closed. Probe p3b ran again. When his reply faults line 2, the offer gives line 2 no approve, and the door records no offer for line 2. When his reply faults no other line, lines 1 and 2 get approve.
+   The refusal text still holds the full call `rulings.rule(rulings={"1": "approve", "3": {...}})` before "Add line 2 to the same call". The scripted seat sent that call, and the door refused it with "lines 2 have no ruling".
+   So the text names a call that the doors refuse, which is against frame 135's law. The follower and the lint do not see it, because the call is not an `_offer`.
+   Fix: when a line is open, leave the call out of the text, and name only the lines and their fields.
+4. Closed. Probe p4 ran again. `ask` now gets one offer, `rulings.rule(ask="<one sentence about line 1>")`, and no verdict. `_word_key` gives "later please" the word door's match.
+5. Closed by the read. 4 entries left `KNOWN_UNHELD`, and 7 strict xfails stay. The lint now reads an early return and a flag that `sandbox.build` arms. The test comment names the forms that the lint does not read.
+6. Open. No model run of the two L1 cases happened. The pass 1b report agrees that the recordings claim was false.
+
+### (a) An offer of the refused op counts as held
+
+The exemption lets no live offer outside the mode through. CONFIRMED by the read.
+`Sandbox.call` resolves the op through `self[artefact]`, and that raises `NotInWorkingSet` for an op that the built list does not hold. The built list is `_wake_allow` with the situational narrowing.
+So a live door that refuses op X met a seat whose list holds X, and an offer of X is in the mode. The other ops of each offer and of each `then` step stay checked.
+The cost is only in tests. A test sandbox that holds the whole graph gets no mode check on an offer of its own op. The 2 tests of finding 2 still build sandboxes that do not match their wakes.
+
+### (b) Pass 1c, his reply whole as `words`
+
+The offer picks a verdict for him. Severity high. CONFIRMED by probe p8.
+`_shift_acts_conflict` at `api.py`, about line 11377, keeps the seat's word in `rulings`. It checks only that the word is a shift word. It does not check that the word agrees with the shift word that his reply holds.
+Probe p8 used night 171's reply, which starts "Later for line 1: put the screen-clearing change aside".
+- The seat sent `{"1": "now"}`. The refusal said "his words say 'Later'", and it then offered `rulings.rule(rulings={"1": "now"}, words="Later for line 1: ...")`. That call landed `{"i_ecb6a9": "now"}`.
+- The seat sent `{"1": "drop"}`. `heard` picked 'drop' from his reply, because it takes the shift word that matches the seat's verdict. The offer landed `{"i_ecb6a9": "drop"}`.
+So the door names a ready call with a verdict that his words contradict. His whole reply in `words` then stamps that verdict as his. The words field only carries text. The verdict comes from the seat, and the door confirms the seat's verdict where it should check it.
+Fix: offer the call only when the seat's verdict maps to the same shift meaning as every shift word of his reply. Otherwise name the conflict and record no offer.
+
+### Probes of p2
+
+All are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/6d9cf7e1-0faa-4156-bacb-f95ee6e7ec4f/scratchpad/f25p/`.
+- `p3b.py` ran again with two replies: one that faults line 2, and the case's own reply.
+- `p4.py` ran again.
+- `p8.py` is new. It sends night 171's reply with the seat's verdicts now and drop and an approve and keep in `acts`, then reads the rulings rows.
+- pytest: `test_f25_offers_in_mode.py`, `test_frame306_page_acts.py` and the two tests of finding 2 gave `72 passed, 7 xfailed`.
+
+### Usage of p2
+
+- Input tokens: about 30k, an estimate.
+- Output tokens: about 5k, an estimate.
+- Total: about 35k, against a cap of 35k.
