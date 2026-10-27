@@ -139,9 +139,11 @@ def test_the_offer_gives_no_approve_to_a_line_his_words_fault(tmp_path):
     seat = _Follower(first, pick)
     _run(case, seat, tmp_path)
     error = _last_error(seat.users[1])
-    assert '"2": "approve"' not in error, error
-    assert '"1": "approve"' in error, error
     assert "Line 2 also has no ruling, and his words fault it" in error, error
+    # Frame 135's law: the text shows no call, because each call it could
+    # show is refused with "lines 2 have no ruling" (review p2, finding 3).
+    assert _offered_calls(error) == [], error
+    assert seen == [[]], seen
 
 
 def test_the_offer_of_stray_fields_records_no_call_for_a_faulted_line(db):
@@ -258,6 +260,33 @@ def test_a_keep_in_acts_on_the_shift_page_is_named_and_left_out(tmp_path):
     conn = sqlite3.connect(tmp_path / "c.db")
     rows = conn.execute("SELECT per_item FROM rulings").fetchall()
     assert [r for r in rows if "park" in r[0]], rows
+
+
+@pytest.mark.parametrize("sent", ["now", "drop"])
+def test_a_seat_verdict_against_his_shift_word_gets_no_call(tmp_path, sent):
+    """Law 6: his reply says "Later for line 1", and the seat sent another
+    word. The refusal names both and offers no call, so no ruling comes from
+    the offer (the review p2 of F25, (b), probe p8)."""
+    case = _case("L1-LI-a-separate-request-is-later")
+    case["inbound"]["body_text"] = NIGHT171
+    case["expect"], case["forbidden"] = {}, {}
+    first = ('TOOL: rulings.rule(rulings={"1": "' + sent + '"}, acts={"1": '
+             '{"verdict": "approve", "act": "keep", "target_kind": "request"}})')
+    calls = []
+
+    def pick(found):
+        calls.extend(found)
+        return found[0] if found else "Done."
+
+    seat = _Follower(first, pick)
+    _run(case, seat, tmp_path)
+    error = _last_error(seat.users[1])
+    assert f"You sent '{sent}', and his words say 'Later'" in error, error
+    assert calls == [], calls
+    import sqlite3
+    rows = sqlite3.connect(tmp_path / "c.db").execute(
+        "SELECT per_item FROM rulings").fetchall()
+    assert not [r for r in rows if sent in r[0]], rows
 
 
 def test_a_question_back_beside_stray_fields_keeps_its_own_call(db):

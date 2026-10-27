@@ -11362,18 +11362,20 @@ def _stray_act_fields(ctx, rulings: dict, words: str, order: list | None = None,
         rest = (f" Line{'s' if len(fine) > 1 else ''} {', '.join(fine)} "
                 f"had no ruling, and a line the reply does not contest is "
                 f"approve.")
-    head = (f"rulings.rule: {names} are fields of line {key}'s object, not "
-            f"lines of the page.{rest} Put them inside line {key}: {call}")
     if open_:
-        # The shape is no offer: the door does not know his verdict on the
-        # faulted line, so no call it names is admitted (the review of
-        # 76521304, point 2).
+        # A refusal shows no call that the doors refuse, and a call with no
+        # ruling for the faulted line is refused (frame 135's law; the
+        # review p2 of F25, finding 3). So the text names the lines only.
         one = len(open_) == 1
         lines_ = ", ".join(open_)
-        return (f"{head}. Line{'' if one else 's'} {lines_} also "
+        return (f"rulings.rule: {names} are fields of line {key}'s object, "
+                f"not lines of the page. Put them inside line {key}.{rest} "
+                f"Line{'' if one else 's'} {lines_} also "
                 f"{'has' if one else 'have'} no ruling, and his words fault "
-                f"{'it' if one else 'them'}. Add line{'' if one else 's'} "
-                f"{lines_} to the same call, with the verdict his words give.")
+                f"{'it' if one else 'them'}. Give line{'' if one else 's'} "
+                f"{lines_} the verdict his words give, in the same call.")
+    head = (f"rulings.rule: {names} are fields of line {key}'s object, not "
+            f"lines of the page.{rest} Put them inside line {key}: {call}")
     return _offer(ctx, head, "rulings.rule", args)
 
 
@@ -11387,8 +11389,10 @@ def _shift_acts_conflict(ctx, his: str, rulings: dict, acts: dict,
     and no ruling landed (ruled: the coordinator, 2026-10-27, pass 1c). The
     offer drops the entry and keeps the seat's verdict. Law 6: the door
     offers a call only when that verdict is a word of the shift page."""
-    found = [m.group(0) for m in re.finditer(
-        r"\b(" + "|".join(k for k, v in SHIFT_WORDS.items() if v) + r")\b",
+    # A negated word is no ruling: night 171's "please do not drop it".
+    found = [m.group(1) for m in re.finditer(
+        r"(?<!\bnot )(?<!\bnever )(?<!\bdon't )\b("
+        + "|".join(k for k, v in SHIFT_WORDS.items() if v) + r")\b",
         his or "", re.I)]
     if not found:
         return None
@@ -11399,18 +11403,24 @@ def _shift_acts_conflict(ctx, his: str, rulings: dict, acts: dict,
         return None
     rest = {k: v for k, v in acts.items() if k not in bad}
     lines = {str(k).strip(): v for k, v in rulings.items()}
-    heard = next((w for w in found if any(
-        SHIFT_WORDS.get(_word_key(v, SHIFT_WORDS)) == SHIFT_WORDS[w.lower()]
-        for v in lines.values() if isinstance(v, str))), found[0])
+    # Law 6: the door never picks a word of his to match the seat's. It
+    # names his first shift word (the review p2 of F25, (b)).
+    heard = found[0]
+    his_meanings = {SHIFT_WORDS[w.lower()] for w in found}
+    sent = [str(v).strip() for v in lines.values()]
     entries = ", ".join(f"acts[{k!r}]" for k in bad)
     one = len(bad) == 1
     head = (f"{entries} {'gives' if one else 'give'} approve "
             f"or keep, and his words say {heard!r}. This page takes later, now "
             f"or drop, and no act. Leave {'that entry' if one else 'those entries'} "
             f"out of acts")
-    if not lines or not all(isinstance(v, str) and SHIFT_WORDS.get(
-            _word_key(v, SHIFT_WORDS)) for v in lines.values()):
-        return f"{head}, and give each line the word his reply gives it."
+    seat_meanings = {SHIFT_WORDS.get(_word_key(v, SHIFT_WORDS))
+                     if isinstance(v, str) else None for v in lines.values()}
+    if not lines or len(his_meanings) != 1 or seat_meanings != his_meanings:
+        # The seat chooses the verdict from his words, so no call is offered.
+        theirs = ", ".join(repr(s) for s in sent) or "no verdict"
+        return (f"{head}. You sent {theirs}, and his words say {heard!r}. "
+                f"Give each line the word his reply gives it.")
     # A park carries his reply whole to the row's owner, so the offer
     # passes his words when the seat gave none.
     said = str(words or his or "").strip()

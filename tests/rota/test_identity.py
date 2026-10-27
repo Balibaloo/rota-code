@@ -259,7 +259,12 @@ def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
                "status, author) VALUES ('l_1','g1','glossary_terms','x','open','terminologist')")
     db.commit()
-    sb = build("terminologist", db, mode="deliver")
+    # The `answer` mode holds ledger.log, so the sandbox matches a seat
+    # that can send it (the review of f4951389, finding 2).
+    from rota.roles import prompts
+
+    sb = build("terminologist", db, mode="answer",
+               allow=prompts.mode_tools("terminologist", "answer"))
     with _pytest.raises(ValueError, match="is a ledger row"):
         sb.call("ledger.log", about_ref="l_1", about_table="glossary_terms",
                 assumption="The id 'l_1' is not a row in the glossary_terms table.", kind="default")
