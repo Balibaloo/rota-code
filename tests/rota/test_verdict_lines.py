@@ -294,6 +294,19 @@ def _s279_sent(*held) -> str:
             f"one that does what the criterion says. ")
 
 
+def _block_head(cid, n) -> str:
+    """The opening of the block refusal: the statement form first, then both
+    shapes of a value, then the one line (F37, review 1, low 6)."""
+    return (
+        f"the value for {cid} holds {n} lines, and they are not one statement "
+        f"that a pass can name. A value of several lines lands as one `if`, "
+        f"`try`, `match` or conditional expression of added lines, with at "
+        f"most 2 simple statements in each branch, named for one criterion "
+        f"only. Send it whole, as one text with line breaks or as a list of "
+        f"lines. Otherwise copy the one line of the [diff] block that meets "
+        f"{cid}, without the +, and send the pass again. ")
+
+
 def test_a_block_for_every_criterion_is_refused(s279):
     """Frame 170's review of 845e0b80: a 4-line dump given for all three
     criteria landed, so the lines named nothing."""
@@ -302,10 +315,7 @@ def test_a_block_for_every_criterion_is_refused(s279):
                     lines={cid: block for cid in S279_IDS})
     # Frame 201: the refusal names the added code lines, then the fail route.
     assert said == (
-        "the value for cr_1_version_option_show_python_flag holds 4 lines, and "
-        "a pass names one added line per criterion. Copy the one line of the "
-        "[diff] block that meets cr_1_version_option_show_python_flag, without "
-        "the +, and send the pass again. " + _s279_sent(L_FLAG, L_VERSION,
+        _block_head(CR1, 4) + _s279_sent(L_FLAG, L_VERSION,
                                                         L_MESSAGE)
         + _S279_CODE + "If no added line "
         "meets cr_1_version_option_show_python_flag, that is a fail on it: "
@@ -328,9 +338,7 @@ def test_a_value_of_three_lines_is_refused(s279):
                     lines={**S279_LINES, CR3: three})
     # Frame 201: a comment among code lines keeps the block sentence.
     assert said == (
-        f"the value for {CR3} holds 3 lines, and a pass names one added line "
-        f"per criterion. Copy the one line of the [diff] block that meets "
-        f"{CR3}, without the +, and send the pass again. "
+        _block_head(CR3, 3) +
         f"{_s279_sent(L_VERSION, L_FLAG)}{_S279_CODE}If no "
         f"added line meets {CR3}, that is a fail on it: "
         f"`verdicts.claim_encodes({CR3!r}, encodes=...)` first, as for any "
@@ -1171,9 +1179,7 @@ def test_the_block_text_names_the_held_code_lines_first(tmp_path):
                     lines={"cr_1": block})
     shown = ", ".join(repr(f"value_{i} = compute({i})") for i in range(8))
     assert said == (
-        "the value for cr_1 holds 3 lines, and a pass names one added line "
-        "per criterion. Copy the one line of the [diff] block that meets "
-        "cr_1, without the +, and send the pass again. The lines you sent "
+        _block_head("cr_1", 3) + "The lines you sent "
         "hold these added lines: 'value_10 = compute(10)', 'value_20 = "
         "compute(20)', 'value_30 = compute(30)'. Copy the one that does what "
         "the criterion says. The added "
@@ -1382,9 +1388,7 @@ def test_s205_docstring_block_meets_the_cap_and_no_kind_words(n160):
         N160_DOC.splitlines()[0:2] + N160_DOC.splitlines()[3:5]))
     assert "does nothing that a criterion asks for" not in said
     assert said == (
-        f"the value for {cid} holds 5 lines, and a pass names one added line "
-        f"per criterion. Copy the one line of the [diff] block that meets "
-        f"{cid}, without the +, and send the pass again. The lines you sent "
+        _block_head(cid, 5) + f"The lines you sent "
         f"hold these lines of the docstring: {held}. Copy the one that does "
         f"what the criterion says. " + N160_LISTED + _bg2_fail_route(cid))
 
@@ -1555,16 +1559,51 @@ def n171(tmp_path):
     return conn
 
 
-def test_n171_the_criteria_count_their_cases():
-    """c_1 names a Roaming case and a Local case. c_3 names one case."""
-    from rota.roles.api import _names_cases
-    assert _names_cases(N171_C1)
-    assert not _names_cases(N171_C3)
+# F37, review 1 of cb5d8dc1, probe `p1_cases.py`: 12 criteria of two cases
+# and 6 of one case. The door decides from the diff, so the criterion's
+# wording moves nothing, and the block lands under each text (high 1).
+TWO_CASE_TEXTS = [
+    "parse_size returns the byte count for a valid string, else it returns None.",
+    "lookup raises KeyError when the key is missing; it returns None otherwise.",
+    "For an empty list, total returns 0, and for a full list it returns the sum.",
+    "Both the Roaming path and the Local path sit under AppData.",
+    "get_app_dir returns the Roaming folder for roaming=True and the Local "
+    "folder for roaming=False.",
+    "The function handles a missing file and a file with no read permission.",
+    "Either a str or a bytes argument is accepted and decoded to str.",
+    "On Windows the path uses backslashes; on POSIX it uses slashes.",
+    "A negative count raises ValueError, a zero count returns an empty list.",
+    "In the Roaming case and in the Local case the path ends in the app name.",
+    "Returns X if A, else Y.",
+    "Raises E when A; returns None otherwise.",
+]
+ONE_CASE_TEXTS = [
+    "parse_size returns None when the string is empty.",
+    "The function returns the byte count of a valid size string.",
+    "If the cache is warm, get returns the cached value even when the TTL is "
+    "near.",
+    "The command exits with code 2 when the option is unknown, as if the user "
+    "typed --help.",
+    "The output must not change if the user passes --quiet, when the quiet "
+    "flag is on.",
+    "clear() writes nothing when stdout is not a terminal.",
+]
 
 
-def test_n171_the_if_block_lands_for_a_criterion_of_two_cases(n171):
+@pytest.mark.parametrize("text", TWO_CASE_TEXTS + ONE_CASE_TEXTS,
+                         ids=[f"two_{i}" for i in range(12)]
+                         + [f"one_{i}" for i in range(6)])
+def test_n171_the_block_lands_whatever_the_criterion_says(n171, text):
+    _seed_texts(n171, {"c_1": text})
     out = _land(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
                 lines={"c_1": N171_BLOCK, "c_3": N171_ADDED[3].strip()})
+    assert out["result"] == "pass"
+
+
+def test_n171_the_if_block_lands_as_a_list_of_lines(n171):
+    out = _land(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
+                lines={"c_1": N171_BLOCK.splitlines(),
+                       "c_3": N171_ADDED[3].strip()})
     assert out["result"] == "pass"
 
 
@@ -1580,47 +1619,64 @@ def test_n171_the_hold_quotes_every_line_of_the_block(n171):
             "what the criterion says, or the opposite?") in str(exc.value)
 
 
+def _named_twice(cid, n, kind, other) -> str:
+    return (f"the value for {cid} holds {n} lines, and the {kind} they are is "
+            f"named for {other} too, whole or in part. One statement of "
+            f"several lines is the line of one criterion only, because a "
+            f"statement named for every criterion names nothing. Copy for "
+            f"{cid} the one added line that meets it, without the +, and send "
+            f"the pass again. ")
+
+
+def test_n171_one_block_named_for_two_criteria_is_refused(n171):
+    """Frame 170's fault, review 1's probe `test_p2_n171.py`: one block for
+    c_1 and c_3 names nothing for either."""
+    said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"c_1": N171_BLOCK, "c_3": N171_BLOCK})
+    assert said.startswith(_named_twice("c_3", 4, "`if` statement", "c_1"))
+
+
+def test_n171_a_part_of_the_block_for_a_second_criterion_is_refused(n171):
+    """An `if` inside the block overlaps it, so it is the same evidence."""
+    part = "\n".join(N171_ADDED[4:7])
+    sb = _critic(n171, "bg_1")
+    said = _refused(sb, batch_id="bg_1", result="pass",
+                    lines={"c_1": N171_BLOCK, "c_3": part + "\n" + N171_ADDED[7]})
+    assert said.startswith(_named_twice("c_3", 4, "`if` statement", "c_1"))
+
+
+def test_n171_a_block_named_by_a_landed_pass_is_refused(n171):
+    """An earlier landed pass of the batch named the block for c_3."""
+    n171.execute(
+        "INSERT INTO verdicts (id, batch_id, commit_sha, result, lines) "
+        "VALUES ('critic:bg_1:old', 'bg_1', 'old', 'pass', ?)",
+        (json.dumps({"c_1": N171_ADDED[2].strip(), "c_3": N171_BLOCK}),))
+    n171.commit()
+    said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"c_1": N171_BLOCK, "c_3": N171_ADDED[3].strip()})
+    assert said.startswith(_named_twice("c_1", 4, "`if` statement", "c_3"))
+
+
 def test_n171_the_eight_lines_are_refused_and_the_block_is_named(n171):
     """s129's value for c_1: two comments, two assignments and the block. It
     is four statements, so frame 170's rule still refuses it."""
     said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
                     lines={"c_1": N171_EIGHT, "c_3": N171_ADDED[3].strip()})
     assert said.startswith(
-        "the value for c_1 holds 8 lines, and a pass names one added line per "
-        "criterion. Copy the one line of the [diff] block that meets c_1, "
-        "without the +, and send the pass again. c_1 names more than one "
-        "case, so one `if`, `try`, `match` or conditional expression of "
-        "added lines that covers every case also counts as one line. Copy "
-        "that one statement whole, with no other line. Lines 5 to 8 of your "
-        "value are one `if` statement: 'if roaming:', 'folder = "
-        "appdata_roaming', 'else:', 'folder = appdata_local'. Send those 4 "
-        "lines alone for c_1. The added lines of code are ")
+        _block_head("c_1", 8) + "Lines 5 to 8 of your value are one `if` "
+        "statement: 'if roaming:', 'folder = appdata_roaming', 'else:', "
+        "'folder = appdata_local'. Send those 4 lines alone for c_1. The "
+        "added lines of code are ")
     assert "Copy the one that does what the criterion says" not in said
     assert said.endswith("`verdicts.claim_encodes('c_1', encodes=...)` "
                          "first, as for any fail")
 
 
-def test_n171_s128_call_is_refused_on_the_one_case_criterion(n171):
-    """s128's third value: the block for c_1 and the eight lines for c_3. c_1
-    now lands, and c_3 names one case, so its words do not change."""
+def test_n171_s128_call_is_refused_on_the_eight_lines(n171):
+    """s128's third value: the block for c_1 and the eight lines for c_3."""
     said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
                     lines={"c_1": N171_BLOCK, "c_3": N171_EIGHT})
-    assert said.startswith(
-        "the value for c_3 holds 8 lines, and a pass names one added line per "
-        "criterion. Copy the one line of the [diff] block that meets c_3, "
-        "without the +, and send the pass again. The lines you sent hold "
-        "these added lines: ")
-    assert "more than one case" not in said
-
-
-def test_n171_the_block_is_refused_for_a_criterion_of_one_case(n171):
-    """The rule is the criterion's: one case is met by one line."""
-    _seed_texts(n171, {"c_1": "The returned path is under AppData Roaming "
-                              "when roaming is True."})
-    said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
-                    lines={"c_1": N171_BLOCK, "c_3": N171_ADDED[3].strip()})
-    assert said.startswith("the value for c_1 holds 4 lines")
-    assert "more than one case" not in said
+    assert said.startswith(_block_head("c_3", 8))
 
 
 def test_n171_lines_that_are_not_one_run_are_refused(n171):
@@ -1628,12 +1684,64 @@ def test_n171_lines_that_are_not_one_run_are_refused(n171):
     swapped = "\n".join(N171_ADDED[i] for i in (4, 7, 6, 5))
     said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
                     lines={"c_1": swapped, "c_3": N171_ADDED[3].strip()})
-    assert said.startswith("the value for c_1 holds 4 lines")
+    assert said.startswith(_block_head("c_1", 4))
 
 
-# Frame 170's fault under a criterion of two cases: a whole added function
-# is one statement, and it lands on any batch, so it names nothing.
-TWO_CASES = "If a is set, work returns a + 1. Otherwise work returns 0."
+# Review 1's probe `test_p2_wrap.py`: one 8-line `if` wraps the change.
+WRAP_BEFORE = "def load(key):\n    return None\n"
+WRAP = (
+    "def load(key):\n"
+    "    if key is not None:\n"
+    "        path = find(key)\n"
+    "        if not path.exists():\n"
+    "            log.warning('missing')\n"
+    "            return None\n"
+    "        value = path.read_text()\n"
+    "        cache[key] = value\n"
+    "        return value\n"
+    "    return None\n"
+)
+WRAP_BLOCK = "\n".join(WRAP.splitlines()[1:9])
+
+
+@pytest.fixture
+def wrap(tmp_path):
+    repo, head = _repo_of(tmp_path, "m.py", WRAP_BEFORE, WRAP)
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "bg_1", ["c_1", "c_2", "c_3"], worktree=repo, head=head)
+    _seed_texts(conn, {
+        "c_1": "If the key is set, load returns its value. Otherwise load "
+               "returns None.",
+        "c_2": "When the file is missing, load logs a warning. If it exists, "
+               "load reads it.",
+        "c_3": "load writes the cache when the value is new, and skips it "
+               "otherwise."})
+    return conn
+
+
+@pytest.mark.parametrize("shape", ["text", "list"])
+def test_a_wrapping_if_for_every_criterion_is_refused(wrap, shape):
+    value = WRAP_BLOCK if shape == "text" else WRAP_BLOCK.splitlines()
+    said = _refused(_critic(wrap, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"c_1": value, "c_2": value, "c_3": value})
+    assert said.startswith(_block_head("c_1", 8))
+
+
+def test_a_wrapping_if_for_one_criterion_is_refused_and_names_a_branch(wrap):
+    """The outer branch holds five statements, so it wraps the change. The
+    inner `if` has branches of two simple statements, so the refusal names
+    it."""
+    said = _refused(_critic(wrap, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"c_1": WRAP_BLOCK, "c_2": "log.warning('missing')",
+                           "c_3": "cache[key] = value"})
+    assert said.startswith(
+        _block_head("c_1", 8) + "Lines 3 to 5 of your value are one `if` "
+        "statement: 'if not path.exists():', \"log.warning('missing')\", "
+        "'return None'. Send those 3 lines alone for c_1. ")
+
+
+# Frame 170's fault: a whole added function is one statement, and it lands
+# on any batch, so it names nothing.
 FN_ADDED = (
     "def work(a):\n"
     "    total = a + 1\n"
@@ -1644,29 +1752,76 @@ FN_ADDED = (
 )
 
 
-def test_a_whole_function_stays_refused_for_a_criterion_of_two_cases(tmp_path):
+def test_a_whole_function_stays_refused(tmp_path):
     conn = _one_criterion(tmp_path, "work.py", "", FN_ADDED)
-    _seed_texts(conn, {"cr_1": TWO_CASES})
     said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
                     lines={"cr_1": FN_ADDED})
-    assert said.startswith("the value for cr_1 holds 6 lines")
-    assert ("Lines 3 to 6 of your value are one `if` statement: 'if a:', "
-            "'return total', 'else:', 'return 0'.") in said
+    assert said.startswith(
+        _block_head("cr_1", 6) + "Lines 3 to 6 of your value are one `if` "
+        "statement: 'if a:', 'return total', 'else:', 'return 0'.")
 
 
-def test_the_if_inside_the_function_lands_for_two_cases(tmp_path):
+def test_the_if_inside_the_function_lands(tmp_path):
     conn = _one_criterion(tmp_path, "work.py", "", FN_ADDED)
-    _seed_texts(conn, {"cr_1": TWO_CASES})
     block = "\n".join(FN_ADDED.splitlines()[2:])
     assert _pass(conn, block)["result"] == "pass"
 
 
-def test_a_wrapped_conditional_expression_lands_for_two_cases(tmp_path):
+def test_a_wrapped_conditional_expression_lands(tmp_path):
     after = ("def work(a):\n"
              "    return (\n"
              "        a + 1\n"
              "        if a else 0)\n")
     conn = _one_criterion(tmp_path, "work.py", "", after)
-    _seed_texts(conn, {"cr_1": TWO_CASES})
     block = "\n".join(after.splitlines()[1:])
     assert _pass(conn, block)["result"] == "pass"
+
+
+def test_an_added_elif_arm_lands(tmp_path):
+    """Review 1, low 3: an arm added to a chain does not parse alone, so the
+    parse puts a stub header above it."""
+    before = ("def pick(mode):\n"
+              "    if mode == 'a':\n"
+              "        x = 1\n"
+              "    else:\n"
+              "        x = 3\n"
+              "    return x\n")
+    arm = "    elif mode == 'b':\n        x = 2\n        log(x)\n"
+    after = before.replace("    else:\n", arm + "    else:\n")
+    conn = _one_criterion(tmp_path, "pick.py", before, after)
+    block = "\n".join(ln.strip() for ln in arm.splitlines())
+    assert _pass(conn, block)["result"] == "pass"
+
+
+@pytest.mark.parametrize("block", [
+    ["if sys.version_info >= (3, 8):", "    def work(a):",
+     "        total = a + 1", "        return total", "    class B:",
+     "        x = 1"],
+    ["CONFIG = {", "    'a': 1,", "    'b': 2,", "    'c': 3 if FAST else 4,",
+     "    'd': 5,", "}"],
+    ["try:", "    import fast", "    def work(a):",
+     "        return fast.go(a)", "except ImportError:", "    pass"],
+], ids=["version_guard", "dict_literal", "try_wraps_def"])
+def test_review_1_wrappers_are_no_statement_a_pass_names(block):
+    """Review 1's probe `p2_kinds.py`: a branch that holds a `def` or a
+    `class`, and a literal with a conditional expression inside it."""
+    from rota.roles.api import _statement_spans
+    assert not [s for s in _statement_spans(block)
+                if s[0] == 0 and s[1] == len(block) - 1]
+
+
+def test_a_long_pasted_value_parses_each_run_once():
+    """Review 1, low 4: 300 parts with 60 `if` starts took 7.71 seconds."""
+    import time
+    from rota.roles.api import _added_walk, _block_inside
+    body = []
+    for k in range(60):
+        body += [f"    if a{k}:", f"        x = {k}", "    else:",
+                 f"        y = {k}", "    z = x + y"]
+    diff = ("--- a/m.py\n+++ b/m.py\n@@ -1,1 +1,301 @@\n def f():\n"
+            + "".join("+" + ln + "\n" for ln in body))
+    _, runs = _added_walk(diff)
+    start = time.perf_counter()
+    found = _block_inside([p.strip() for p in body], runs)
+    assert time.perf_counter() - start < 1.0
+    assert found == (0, 3, "`if` statement")

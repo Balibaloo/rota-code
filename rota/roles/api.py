@@ -14397,109 +14397,160 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
 _LINE_PART_MIN = 12
 # A value with line breaks holds at most this many lines (frame 170's review).
 _LINE_PARTS_MAX = 2
-# The words that open a case in a criterion's text. Two or more name more
-# than one case, and then one branching statement counts as one line. Night
-# 171's c_1 asked for a Roaming case and a Local case, and no one added line
-# meets both (F37, `plans/night171-critic-read.md`).
-_CASE_WORDS = re.compile(r"\b(?:if|when|whenever|unless|otherwise)\b",
-                         re.IGNORECASE)
-# The first words of a line that opens a branching statement.
-_BRANCH_STARTS = ("if ", "if(", "try:", "match ")
+# A branch of a statement that a pass names holds at most this many simple
+# statements. A larger branch wraps the change, and a wrapper lands on any
+# batch, which is frame 170's fault (F37, review 1 of cb5d8dc1, high 2).
+_BRANCH_BODY_MAX = 2
+# The stub that a parse puts above a run that opens on an arm, because the
+# run of added lines does not hold the arm's header (F37, review 1, low 3).
+_ARM_STUBS = ((("elif ", "elif(", "else:"), "if _:\n    pass\n"),
+              (("except", "finally:"), "try:\n    pass\n"))
 
 
-def _names_cases(text: str) -> bool:
-    """True when a criterion's own words name more than one case."""
-    return len(_CASE_WORDS.findall(text or "")) >= 2
+def _simple(stmt) -> bool:
+    """True when a statement holds no other statement."""
+    return not any(hasattr(stmt, f) for f in ("body", "cases"))
 
 
-def _added_runs(diff_text: str) -> list[list[str]]:
-    """Each run of added lines with no line of context between them, as the
-    new side holds them: indented, without the +. A removed line is not on
-    the new side, so it does not end a run. A blank line does not end one."""
-    runs: list[list[str]] = []
-    run: list[str] = []
-    for ln in diff_text.splitlines():
-        if ln.startswith(("+++", "---", "@@", "diff ")):
-            pass
-        elif ln.startswith("+"):
-            run.append(ln[1:])
-            continue
-        elif ln.startswith("-"):
-            continue
-        elif run and not ln.strip():
-            run.append("")
-            continue
-        if run:
-            runs.append(run)
-        run = []
-    if run:
-        runs.append(run)
-    return runs
+def _branch_kind(node) -> str | None:
+    """The words for a branching statement that a pass may name as one line,
+    or None.
 
-
-def _branch_kind(block: list[str]) -> str | None:
-    """The words for the one branching statement that `block` is, or None.
-
-    A whole function is one statement too, and frame 170's review refused it
-    for every criterion. So only an `if`, a `try`, a `match` or a simple
-    statement with a conditional expression counts. A `def`, a `class` or a
-    loop does not.
+    Night 171's c_1 asked for a Roaming case and a Local case, and no one
+    added line meets both (F37, `plans/night171-critic-read.md`). So one
+    `if`, `try`, `match` or conditional expression counts as one line. Each
+    branch holds at most `_BRANCH_BODY_MAX` simple statements. A branch that
+    holds a `def`, a `class` or a nested block is no branch of one case.
     """
-    import textwrap as _tw
-    try:
-        tree = _ast.parse(_tw.dedent("\n".join(block)))
-    except (SyntaxError, ValueError):
-        return None
-    if len(tree.body) != 1:
-        return None
-    node = tree.body[0]
     if isinstance(node, _ast.If):
-        return "`if` statement"
-    if isinstance(node, (_ast.Try, getattr(_ast, "TryStar", _ast.Try))):
-        return "`try` statement"
-    if isinstance(node, _ast.Match):
-        return "`match` statement"
-    if not hasattr(node, "body") and any(
-            isinstance(x, _ast.IfExp) for x in _ast.walk(node)):
-        return "statement with a conditional expression"
-    return None
+        arms, kind, at = [], "`if` statement", node
+        while True:
+            arms.append(at.body)
+            if len(at.orelse) == 1 and isinstance(at.orelse[0], _ast.If):
+                at = at.orelse[0]
+                continue
+            arms.append(at.orelse)
+            break
+    elif isinstance(node, (_ast.Try, getattr(_ast, "TryStar", _ast.Try))):
+        kind = "`try` statement"
+        arms = ([node.body] + [h.body for h in node.handlers]
+                + [node.orelse, node.finalbody])
+    elif isinstance(node, _ast.Match):
+        kind = "`match` statement"
+        arms = [c.body for c in node.cases]
+    elif _simple(node) and isinstance(getattr(node, "value", None),
+                                      _ast.IfExp):
+        return "conditional expression"
+    else:
+        return None
+    for arm in arms:
+        if len(arm) > _BRANCH_BODY_MAX or not all(_simple(s) for s in arm):
+            return None
+    return kind
 
 
-def _branch_block(parts: list[str], runs: list[list[str]]) -> str | None:
-    """The kind of the one branching statement that `parts` are, when they
-    are a run of added lines in the diff's order, or None."""
-    want = [p[1:].strip() if p.startswith("+") else p for p in parts]
+def _statement_spans(block: list[str]) -> list[tuple[int, int, str]]:
+    """Each branching statement of `block` that a pass may name, as its
+    first and last index in `block` and its kind. One parse reads the whole
+    block, and `end_lineno` gives each span (F37, review 1, low 4)."""
+    import textwrap as _tw
+    first = next((ln.strip() for ln in block if ln.strip()), "")
+    stub = next((s for starts, s in _ARM_STUBS if first.startswith(starts)),
+                "")
+    text = _tw.dedent("\n".join(block))
+    if first.startswith("case "):
+        stub, text = "match _:\n", _tw.indent(text, "    ")
+    try:
+        tree = _ast.parse(stub + text)
+    except (SyntaxError, ValueError):
+        return []
+    shift = stub.count("\n")
+    out = []
+    for node in _ast.walk(tree):
+        kind = isinstance(node, _ast.stmt) and _branch_kind(node)
+        if kind:
+            out.append((max(node.lineno - 1 - shift, 0),
+                        node.end_lineno - 1 - shift, kind))
+    return out
+
+
+def _stripped(part: str) -> str:
+    text = part.strip()
+    return text[1:].strip() if text.startswith("+") else text
+
+
+def _block_of(parts: list[str], runs: list[list[str]]
+              ) -> tuple[int, int, int, str] | None:
+    """The run, the span and the kind of the one branching statement that
+    `parts` are, as added lines in the diff's order, or None."""
+    want = [_stripped(p) for p in parts]
     n = len(want)
-    for run in runs:
-        idx = [i for i, r in enumerate(run) if r.strip()]
+    for r, run in enumerate(runs):
+        idx = [i for i, ln in enumerate(run) if ln.strip()]
         texts = [run[i].strip() for i in idx]
         for s in range(len(texts) - n + 1):
-            if texts[s] == want[0] and texts[s:s + n] == want:
-                kind = _branch_kind(run[idx[s]:idx[s + n - 1] + 1])
-                if kind:
-                    return kind
+            if texts[s] != want[0] or texts[s:s + n] != want:
+                continue
+            lo, hi = idx[s], idx[s + n - 1]
+            whole = [k for a, b, k in _statement_spans(run[lo:hi + 1])
+                     if a == 0 and b == hi - lo]
+            if whole:
+                return r, lo, hi, whole[0]
     return None
 
 
-def _branch_inside(parts: list[str], runs: list[list[str]]
-                   ) -> tuple[int, int, str] | None:
-    """The longest run of three or more of `parts` that is one branching
-    statement, as its first and last index and its kind, or None."""
+def _block_inside(parts: list[str], runs: list[list[str]]
+                  ) -> tuple[int, int, str] | None:
+    """The longest branching statement of the diff that `parts` hold as
+    three lines or more in a row, as its first and last index in `parts`
+    and its kind, or None. Each run that shares a line with `parts` is
+    parsed once (F37, review 1, low 4)."""
+    want = [_stripped(p) for p in parts]
+    have = set(want)
     best = None
-    # Only a line that opens a branch starts the search, so a pasted diff
-    # costs a few parses, not one for each pair of lines.
-    starts = [i for i, p in enumerate(parts)
-              if p.lstrip("+").strip().startswith(_BRANCH_STARTS)
-              or (" if " in p and " else " in p)]
-    for i in starts:
-        for j in range(len(parts), i + _LINE_PARTS_MAX, -1):
-            if best and j - i <= best[1] - best[0] + 1:
-                break
-            kind = _branch_block(parts[i:j], runs)
-            if kind:
-                best = (i, j - 1, kind)
-                break
+    for run in runs:
+        if not have & {ln.strip() for ln in run}:
+            continue
+        for lo, hi, kind in _statement_spans(run):
+            texts = [ln.strip() for ln in run[lo:hi + 1] if ln.strip()]
+            n = len(texts)
+            if n <= _LINE_PARTS_MAX or (best and n <= best[1] - best[0] + 1):
+                continue
+            at = next((s for s in range(len(want) - n + 1)
+                       if want[s] == texts[0] and want[s:s + n] == texts),
+                      None)
+            if at is not None:
+                best = (at, at + n - 1, kind)
     return best
+
+
+def _blocks_overlap(a: list[str], b: list[str]) -> bool:
+    """True when two values of several lines share a line long enough to
+    name something. `else:` and `try:` are shorter than `_LINE_PART_MIN`."""
+    return any(len(t) >= _LINE_PART_MIN
+               for t in {_stripped(p) for p in a} & {_stripped(p) for p in b})
+
+
+def _landed_blocks(ctx, batch_id: str) -> list[tuple[str, list[str]]]:
+    """The values of several lines that earlier landed passes of the batch
+    named, each with its criterion."""
+    out = []
+    try:
+        rows = ctx.conn.execute(
+            "SELECT lines FROM verdicts WHERE batch_id = ? AND result = 'pass' "
+            "AND lines IS NOT NULL", (batch_id,)).fetchall()
+    except sqlite3.Error:
+        return out
+    for row in rows:
+        try:
+            got = _json.loads(row["lines"])
+        except (TypeError, ValueError):
+            continue
+        for cid, value in (got.items() if isinstance(got, dict) else ()):
+            parts = _line_parts(value)
+            if parts and len(parts) > _LINE_PARTS_MAX:
+                out.append((cid, parts))
+    return out
 
 
 def _line_parts(value) -> list[str] | None:
@@ -14643,7 +14694,18 @@ def _code_part(text: str) -> str:
 
 def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
     """Each added line of a unified diff, stripped, with the kind of line
-    with no behaviour it is, or None.
+    with no behaviour it is, or None. `_added_walk` holds the walk."""
+    return _added_walk(diff_text)[0]
+
+
+def _added_walk(diff_text: str
+                ) -> tuple[list[tuple[str, str | None]], list[list[str]]]:
+    """Each added line of a unified diff, stripped, with the kind of line
+    with no behaviour it is, or None. Then each run of added lines with no
+    line of context between them, as the new side holds them: indented,
+    without the +. One walk reads the diff for both (F37, review 1, low 5).
+    A removed line is not on the new side, so it does not end a run, and a
+    blank line of context does not end one.
 
     A docstring line is a line inside a triple-quoted string that opens as
     the first line of a `def` or `class` body. The walk reads the new side
@@ -14663,12 +14725,24 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
     in_header = expect_doc = False
     header = ""
     init_file = False
+    runs: list[list[str]] = []
+    run: list[str] = []
     for ln in diff_text.splitlines():
         if ln.startswith(("+++", "---", "@@", "diff ")):
             in_str, in_header, expect_doc = None, False, False
             if ln.startswith("+++ "):
                 init_file = ln.rstrip().endswith("__init__.py")
+            if run:
+                runs.append(run)
+            run = []
             continue
+        if ln.startswith("+"):
+            run.append(ln[1:])
+        elif run and not ln.strip():
+            run.append("")
+        elif ln.startswith(" ") and run:
+            runs.append(run)
+            run = []
         if not ln or ln[0] not in "+ ":
             continue
         text = ln[1:].strip()
@@ -14719,7 +14793,9 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
                     break
         if ln[0] == "+":
             out.append((text, kind))
-    return out
+    if run:
+        runs.append(run)
+    return out, runs
 
 
 # A part of a criterion's text with this many words or more is a quote of it.
@@ -14920,7 +14996,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     # fence. Then the walk reads docstring prose as code (frame 201's review
     # 1, finding 1: night 157's bg_2, hunk `@@ -461,6 +462,9 @@`).
     diff_text = _batch_diff(ctx, batch_id, function_context=True)
-    kinds = _added_kinds(diff_text)
+    kinds, runs = _added_walk(diff_text)
     # Frame 306's case, night 162: s247 passed b_2 on six lines of a file
     # of criteria rows. A line of a file with no code is no evidence.
     notes, code_added = _note_files(ctx, batch_id, diff_text)
@@ -14961,35 +15037,53 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     # night 157's W3, cause 9 of `plans/wall-guide.md`). Three Critics sent
     # bg_2's three docstring lines again and again, because the refusal
     # named no line of code and did not say that a docstring meets nothing.
-    # A criterion of several cases admits one branching statement of added
-    # lines as one line (F37, night 171: c_1 asked for a Roaming and a Local
-    # case, and the door refused the 4-line `if roaming:` block in 3
-    # sessions). A pasted diff is several statements, and a whole function
-    # is no branch, so frame 170's fault stays refused.
-    runs = _added_runs(diff_text)
+    # One branching statement of added lines counts as one line, because a
+    # criterion of several cases has no one line that meets it (F37, night
+    # 171: the door refused c_1's 4-line `if roaming:` block in 3 sessions).
+    # The diff decides, not the criterion's words, because a word list fit
+    # one wording (F37, review 1 of cb5d8dc1, high 1). The statement is
+    # the line of one criterion only. One statement given for every
+    # criterion is frame 170's fault again (review 1, high 2).
+    admitted: dict[str, tuple[int, int, int, str]] = {}
+    landed = None
     for cid in ids:
         if len(parts[cid]) <= _LINE_PARTS_MAX:
             continue
-        cases = _names_cases(texts_of[cid])
-        if cases and _branch_block(parts[cid], runs):
-            continue
         n = len(parts[cid])
-        # The refusal names the form that lands for a criterion of several
-        # cases, because "the one line" names no pass for it (cause 9 of
-        # `plans/wall-guide.md`).
-        form, inner = "", None
-        if cases:
-            form = (f"{cid} names more than one case, so one `if`, `try`, "
-                    f"`match` or conditional expression of added lines that "
-                    f"covers every case also counts as one line. Copy that "
-                    f"one statement whole, with no other line. ")
-            inner = _branch_inside(parts[cid], runs)
-            if inner:
-                lo, hi, what = inner
-                block = ", ".join(repr(p) for p in parts[cid][lo:hi + 1])
-                form += (f"Lines {lo + 1} to {hi + 1} of your value are one "
-                         f"{what}: {block}. Send those {hi - lo + 1} lines "
-                         f"alone for {cid}. ")
+        block = _block_of(parts[cid], runs)
+        if block:
+            if landed is None:
+                landed = _landed_blocks(ctx, batch_id)
+            other = next(
+                (o for o, (r, lo, hi, _k) in admitted.items()
+                 if r == block[0] and lo <= block[2] and block[1] <= hi),
+                None) or next(
+                (o for o, got in landed
+                 if o != cid and _blocks_overlap(got, parts[cid])), None)
+            if other is None:
+                admitted[cid] = block
+                continue
+            raise LinesRefusal(
+                f"the value for {cid} holds {n} lines, and the {block[3]} "
+                f"they are is named for {other} too, whole or in part. One "
+                f"statement of several lines is the line of one criterion "
+                f"only, because a statement named for every criterion names "
+                f"nothing. Copy for {cid} the one added line that meets it, "
+                f"without the +, and send the pass again. {listed}If no "
+                f"added line meets {cid}, that is a fail on it: "
+                f"{claim_for(cid)}")
+        # The refusal names the statement form first, and both shapes of a
+        # value of several lines (review 1, low 6). The one line comes
+        # after it, because no one line meets a criterion of several cases.
+        inner = _block_inside(parts[cid], runs)
+        form = ""
+        if inner:
+            lo, hi, what = inner
+            shown_block = ", ".join(repr(_stripped(p))
+                                    for p in parts[cid][lo:hi + 1])
+            form = (f"Lines {lo + 1} to {hi + 1} of your value are one "
+                    f"{what}: {shown_block}. Send those {hi - lo + 1} lines "
+                    f"alone for {cid}. ")
         # A part that the diff does not hold is a re-wrapped line, so only
         # the held parts give the kind (s324 cut "to the message." apart).
         held = [f for f in (_held_kinds(q, kinds_of[cid])
@@ -15003,8 +15097,8 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                 f"{_why_refused(cid, kind)} A pass names one added line per "
                 f"criterion. Copy "
                 f"the one added line of code that does what {cid} says, "
-                f"without the +, and send the pass again. {form}{listed}If "
-                f"no added line meets {cid}, that is a fail on it: "
+                f"without the +, and send the pass again. {listed}If no "
+                f"added line meets {cid}, that is a fail on it: "
                 f"{claim_for(cid)}")
         # The seat's own code lines come first, because the right line is
         # among them, and the capped list of the diff can omit all of them
@@ -15032,9 +15126,14 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             sent = (f"The lines you sent hold these {noun}: {shown}. "
                     f"Copy the one that does what the criterion says. ")
         raise LinesRefusal(
-            f"the value for {cid} holds {n} lines, and a pass names one added "
-            f"line per criterion. Copy the one line of the [diff] block that "
-            f"meets {cid}, without the +, and send the pass again. "
+            f"the value for {cid} holds {n} lines, and they are not one "
+            f"statement that a pass can name. A value of several lines lands "
+            f"as one `if`, `try`, `match` or conditional expression of added "
+            f"lines, with at most {_BRANCH_BODY_MAX} simple statements in "
+            f"each branch, named for one criterion only. Send it whole, as "
+            f"one text with line breaks or as a list of lines. Otherwise "
+            f"copy the one line of the [diff] block that meets {cid}, "
+            f"without the +, and send the pass again. "
             f"{form}{sent}{listed}If no added line meets {cid}, that is a "
             f"fail on it: {claim_for(cid)}")
     texts = list(texts_of.values())
