@@ -6224,9 +6224,9 @@ def _request_callables(item_text: str | None, item_id: str | None) -> set[str]:
     return found | ({item_id} if item_id else set())
 
 
-def _wake_mode_tools(ctx: Ctx) -> list[str]:
+def _wake_mode_key(ctx: Ctx) -> str:
     """
-    The ops that the wake's prompt mode offers, as the runner reads them.
+    The prompt mode of the wake, as the runner keys it.
 
     `ctx.mode` is the sandbox mode, `normal` on every mover session of
     nights 145 and 146. So the door keys the mode by the wake, as
@@ -6234,13 +6234,12 @@ def _wake_mode_tools(ctx: Ctx) -> list[str]:
     """
     from ..core.runner import _mode_key
     from ..core.scheduler import Wake
-    from . import prompts as _prompts
 
     kind = getattr(ctx, "wake_kind", "") or ""
     trigger = getattr(ctx, "trigger", None)
     if not kind:
         # A sandbox built with no wake has only its own mode to go on.
-        return _prompts.mode_tools(ctx.role, ctx.mode) or []
+        return ctx.mode
     verb = ""
     if kind == "message" and trigger:
         row = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
@@ -6249,7 +6248,20 @@ def _wake_mode_tools(ctx: Ctx) -> list[str]:
     wake = Wake(role=ctx.role, kind=kind,
                 message_id=trigger if kind == "message" else None,
                 refs=tuple(getattr(ctx, "wake_refs", ()) or ()), detail=verb)
-    return _prompts.mode_tools(ctx.role, _mode_key(wake, ctx.conn)) or []
+    return _mode_key(wake, ctx.conn)
+
+
+def _wake_mode_set(ctx: Ctx) -> list[str] | None:
+    """The ops that the wake's prompt mode narrows to, or None when the mode
+    has no `.tools` file and the role keeps every op of its graph."""
+    from . import prompts as _prompts
+
+    return _prompts.mode_tools(ctx.role, _wake_mode_key(ctx))
+
+
+def _wake_mode_tools(ctx: Ctx) -> list[str]:
+    """The ops that the wake's prompt mode offers, as the runner reads them."""
+    return _wake_mode_set(ctx) or []
 
 
 def _cue_hit(cues: tuple, name: str, said: str, *, request: bool = False):
@@ -11261,11 +11273,34 @@ def _ruling_id(ctx: Ctx, ask_id: str) -> str:
     return f"{base}_{n}"
 
 
-def _stray_act_fields(ctx, rulings: dict, words: str) -> str | None:
+def _rule_call(moved: dict, said: str) -> tuple[str, dict]:
+    """The text of one `rulings.rule` call and its arguments."""
+    args = {"rulings": moved, **({"words": said} if said else {})}
+    text = (f"rulings.rule(rulings={json.dumps(moved, ensure_ascii=False)}"
+            + (f", words={json.dumps(said, ensure_ascii=False)}" if said else "")
+            + ")")
+    return text, args
+
+
+def _unruled_lines(ctx, lines: dict, order: list) -> list[str]:
+    """The numbers of the page lines that `lines` leaves out, by the rule of
+    the door that refuses them: a check line and a read-back line take none."""
+    from .principal import READING_REF, is_test_row
+
+    return [str(i + 1) for i, r in enumerate(order or [])
+            if str(i + 1) not in lines and r not in lines
+            and not is_test_row(ctx.conn, r)
+            and not str(r).startswith(READING_REF)]
+
+
+def _stray_act_fields(ctx, rulings: dict, words: str, order: list | None = None,
+                      shift: bool = False) -> str | None:
     """The refusal for object fields given as keys of `rulings`, or None.
 
     The offer moves the fields into the object of the line they are about:
-    the one contested or revised line, else the one line of the map."""
+    the one contested or revised line, else the one line of the map. The
+    offer carries every line of the page, so the next door admits it (the
+    gate of 9827e38a, L1-LI-a-dropped-line-is-a-contest)."""
     fields = {str(k).strip().lower(): v for k, v in rulings.items()
               if str(k).strip().lower() in _ACT_FIELDS + ("words",)}
     if not any(f in fields for f in _ACT_FIELDS):
@@ -11283,18 +11318,58 @@ def _stray_act_fields(ctx, rulings: dict, words: str) -> str | None:
                 f"{{\"<line>\": {{\"verdict\": \"contest\", \"act\": ...}}}}")
     said = str(fields.pop("words", "") or words or "").strip()
     given = lines[key]
+    if shift:
+        return _stray_on_shift(ctx, names, lines, key, given, said)
     value = ({**given, **fields} if isinstance(given, dict)
              else {"verdict": str(given).strip().lower(), **fields})
     if said:
         value["words"] = said
-    moved = {**lines, key: value}
-    call = (f"rulings.rule(rulings={json.dumps(moved, ensure_ascii=False)}"
-            + (f", words={json.dumps(said, ensure_ascii=False)}" if said else "")
-            + ")")
+    # law 6: a line the reply does not contest is approve, by the rule of
+    # the door that names an unruled line. The offer writes that rule out.
+    unruled = _unruled_lines(ctx, lines, order or [])
+    moved = {**{n: "approve" for n in unruled}, **lines, key: value}
+    if unruled:
+        moved = dict(sorted(moved.items(), key=lambda kv: (
+            not kv[0].isdigit(), int(kv[0]) if kv[0].isdigit() else 0)))
+    call, args = _rule_call(moved, said)
+    rest = ""
+    if unruled:
+        rest = (f" Line{'s' if len(unruled) > 1 else ''} {', '.join(unruled)} "
+                f"had no ruling, and a line the reply does not contest is "
+                f"approve.")
     return _offer(ctx, (
         f"rulings.rule: {names} are fields of line {key}'s object, not lines "
-        f"of the page. Put them inside line {key}: {call}"),
-        "rulings.rule", {"rulings": moved, **({"words": said} if said else {})})
+        f"of the page.{rest} Put them inside line {key}: {call}"),
+        "rulings.rule", args)
+
+
+def _stray_on_shift(ctx, names: str, lines: dict, key: str, given,
+                    said: str) -> str:
+    """The refusal of act fields on the page that orders two requests.
+
+    That page takes later, now or drop, and no act (frame 193's design,
+    2.F.3). The gate of 9827e38a, L1-LI-a-separate-request-is-later: the
+    offer kept contest, and the word door refused it. A word of the seat's
+    that the page holds is offered alone. Otherwise each of the three words
+    is offered, because only his words choose one (law 6)."""
+    word = given.get("verdict") if isinstance(given, dict) else given
+    mapped = SHIFT_WORDS.get(str(word or "").strip().lower())
+    head = (f"rulings.rule: {names} are fields of an act, and line {key} of "
+            f"this page takes no act.")
+    if mapped:
+        call, args = _rule_call({**lines, key: str(word).strip().lower()}, said)
+        return _offer(ctx, f"{head} Give line {key} its word alone: {call}",
+                      "rulings.rule", args)
+    parts = []
+    for choice, meaning in (("later", "his words put the request after the "
+                             "one in hand"),
+                            ("now", "his words take it first"),
+                            ("drop", "his words stop it")):
+        call, args = _rule_call({**lines, key: choice}, said)
+        parts.append(_offer(ctx, f"{call} when {meaning}", "rulings.rule",
+                            args))
+    return (f"{head} Line {key} takes later, now or drop: "
+            + "; ".join(parts) + ".")
 
 
 def _ruling_shape(key: str, value: dict) -> dict:
@@ -12902,7 +12977,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # from `acts`. `per_item` keeps the verdict word, so every door below
     # reads the same map as before (the seam design, 1.4).
     shape_of: dict[str, dict] = {}
-    stray = _stray_act_fields(ctx, rulings, words)
+    stray = _stray_act_fields(ctx, rulings, words,
+                              [] if is_clarify else order, shift)
     if stray:
         raise ValueError(stray)
     for key, ruling in rulings.items():
