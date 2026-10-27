@@ -672,12 +672,6 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                 | ({"tick:tests_failing"} if failing else set()))
         lift_keys(conn, [k for k in quarantined_keys(conn, w.row_id, pairs=True)
                          if key_parts(k)[1] not in kept])
-        # The touch set and the tickets of a batch are what its seats read
-        # for it. Night 170's s217 and s224 rewrote b_3's touch set, and
-        # `tester|tick:tests_missing|b_3` stayed (review of F20 pass 1,
-        # finding 1).
-        if w.table in BATCH_READS and (w.values or {}).get("batch_id"):
-            lift_batch_seats(conn, [str(w.values["batch_id"])])
     # Progress is the red moving, and the bound is on dispatch *without*
     # progress. Walk seventeen: four, three, two tests failing across three
     # commits, and the third session was the quarantine. So a moved red
@@ -780,6 +774,27 @@ def lift_batch_seats(conn: sqlite3.Connection, batch_ids: Iterable[str]) -> None
     if running:
         lift_keys(conn, [k for k in quarantined_keys(conn, running)
                          if key_parts(k)[0] != "-" and _row_move_reaches(k, False)])
+
+
+def batch_reads(conn: sqlite3.Connection, writes) -> dict[str, tuple]:
+    """The stored touch set and tickets of each batch these writes name."""
+    batches = {str(w.values["batch_id"]) for w in writes
+               if w.table in BATCH_READS and (w.values or {}).get("batch_id")}
+    return {b: tuple(tuple(r) for t in BATCH_READS for r in conn.execute(
+        f"SELECT * FROM {t} WHERE batch_id = ? ORDER BY 1, 2", (b,)))
+        for b in sorted(batches)}
+
+
+def lift_moved_reads(conn: sqlite3.Connection, before: dict[str, tuple]) -> None:
+    """Lift the seat keys of each batch whose stored touch set or tickets moved."""
+    # The touch set and the tickets are what a batch's seats read for it.
+    # Night 170's s217 and s224 rewrote b_3's touch set, and the Tester's key
+    # stayed (review of F20 pass 1, finding 1). The compare is on the stored
+    # rows after the whole commit, so a clear and a rewrite of the same rows
+    # lift nothing, as frame 318 rules for a commit (F20 pass 1c).
+    after = batch_reads(conn, [Write(BATCH_READS[0], b, {"batch_id": b})
+                               for b in before])
+    lift_batch_seats(conn, [b for b in before if after[b] != before[b]])
 
 
 def write_state(conn: sqlite3.Connection, table: str, row_id: str, sql: str,
@@ -1316,6 +1331,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
             ),
         )
 
+        reads_before = batch_reads(conn, result.writes)
         for w in result.writes:
             before = _subject_state(conn, w)
             changed = _apply_write(conn, w)
@@ -1340,6 +1356,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 )
             if w.table != REFS_TABLE:
                 _lift_quarantines(conn, w, _subject_moved(conn, w, before))
+        lift_moved_reads(conn, reads_before)
 
         for m in result.messages:
             conn.execute(

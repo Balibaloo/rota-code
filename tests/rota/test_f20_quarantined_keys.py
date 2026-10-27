@@ -109,10 +109,16 @@ def _night_170_batch(db, status: str = "running") -> None:
 
 
 def _touch(db) -> None:
-    # s217's write: the Architect's touch set of b_3.
-    _lift_quarantines(db, Write("batch_touch", "b_3:src/click/utils.py",
-                                {"batch_id": "b_3", "grain": "src/click/utils.py",
-                                 "grain_kind": "path", "confidence": "expected"}), True)
+    # s217's write: the Architect's touch set of b_3, as `session_commit`
+    # applies it.
+    from rota.core.db import _apply_write, batch_reads, lift_moved_reads
+
+    w = Write("batch_touch", "b_3:src/click/utils.py",
+              {"batch_id": "b_3", "grain": "src/click/utils.py",
+               "grain_kind": "path", "confidence": "expected"})
+    before = batch_reads(db, [w])
+    _apply_write(db, w)
+    lift_moved_reads(db, before)
 
 
 def test_s217s_touch_write_lifts_the_testers_key_of_b_3(db):
@@ -122,6 +128,16 @@ def test_s217s_touch_write_lifts_the_testers_key_of_b_3(db):
     _night_170_batch(db)
     _touch(db)
     assert _keys(db) == {"developer|tick:tests_failing|b_3", "-|do:park|b_3"}
+
+
+def test_two_identical_touch_writes_lift_once(db):
+    """A rewrite of the same row changes nothing stored, so it lifts
+    nothing, as frame 318 rules for a commit (F20 pass 1c)."""
+    _night_170_batch(db)
+    _touch(db)
+    _quarantine(db, "tester|tick:tests_missing|b_3")
+    _touch(db)
+    assert "tester|tick:tests_missing|b_3" in _keys(db)
 
 
 def test_a_touch_write_on_a_deferred_batch_lifts_nothing(db):

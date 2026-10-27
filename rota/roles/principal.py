@@ -2877,6 +2877,11 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # ask. `apply_rulings` then finds no open row and marks no second one.
     # When no row exists for the ask, the door writes one here, landed,
     # keyed by the verdict message so a replay lands the same id.
+    # The verdicts landed before this one, read before this one lands.
+    prior: dict = {}
+    for r in conn.execute("SELECT per_item FROM rulings WHERE status = 'landed' "
+                          "ORDER BY rowid"):
+        prior.update(json.loads(r["per_item"] or "{}"))
     if ruling_id is None:
         conn.execute(
             "UPDATE rulings SET status = 'landed', verdict_id = ? "
@@ -2891,9 +2896,12 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # `tester|tick:tests_missing|b_3` stayed (review of F20 pass 1, finding 1).
     from ..core.db import lift_batch_seats
 
-    # A batch's ref reaches its item, so the item's batches hold it.
-    ruled = sorted({i for r in (list(per_item) if answer.per_item else ask.refs)
-                    if not _is_reading(r) for i in _items_reached(conn, r)})
+    # A verdict the row already holds is no new act, so it lifts nothing,
+    # as a commit that changes no behaviour lifts nothing (frame 318; F20
+    # pass 1c). A batch's ref reaches its item, so the item's batches hold it.
+    ruled = sorted({i for r, v in per_item.items()
+                    if not _is_reading(r) and prior.get(r) != v
+                    for i in _items_reached(conn, r)})
     if ruled:
         lift_batch_seats(conn, [r["id"] for r in conn.execute(
             "SELECT id FROM batches WHERE item_id IN (%s) ORDER BY id"
