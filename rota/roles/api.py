@@ -6441,9 +6441,14 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
     the criterion's own ticket (the seam design, pass 4). The retire needs a
     contest or a revise. The add needs no verdict, so an add on an approved
     line counts. No phrase of his words decides it.
+
+    Every open add on the criterion and on its ticket is offered, so two
+    adds in other words both stay until each is done. An add is done when
+    the ticket has a live criterion that the page of its ruling did not
+    show, or a live criterion that holds the add's words.
     """
     from ..core.scheduler import live_criteria
-    from .principal import grant, last_ruling_on
+    from .principal import last_ruling_on, open_adds
 
     out: dict = {"retire": [], "add": []}
     for ref in refs or ():
@@ -6463,8 +6468,10 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
         # an approved line too. Night 163's m112 held an act on every
         # contested line, so its add could ride only on an approved one (the
         # review of pass 4b, P4b-5).
-        for add in (grant(conn, ref, "add"), grant(conn, row["ticket_id"], "add")):
-            said = (add["words"] or "").strip() if add is not None else ""
+        # Every open add counts, not the newest alone. An older add in other
+        # words was offered to nobody (the review of pass 4d and 4e, P4de-2).
+        for add in open_adds(conn, ref) + open_adds(conn, row["ticket_id"]):
+            said = (add["words"] or "").strip()
             if not said:
                 continue
             ticket = add["target"] if add["target"] and conn.execute(
@@ -6474,13 +6481,35 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
             # done. No write ends the add, so the relay wake offered it
             # again, and the twin door of criteria.specify refused it (the
             # review of pass 4c, P4c-1).
-            if any(_holds_span(c["text"], said) for c in conn.execute(
-                    "SELECT text FROM criteria WHERE ticket_id = ?"
-                    + live_criteria(conn, "retired_by"), (ticket,))):
+            # The record decides first: a live criterion of the ticket that
+            # the add's page did not show was written after the ruling. The
+            # Terminologist writes in glossary terms, so his exact words are
+            # the second test only (the review of pass 4d and 4e, P4de-1).
+            # Neither table stores a time, so the page is the record of what
+            # stood when he ruled.
+            shown = _page_refs(conn, add["ask_id"])
+            live = conn.execute(
+                "SELECT id, text FROM criteria WHERE ticket_id = ?"
+                + live_criteria(conn, "retired_by"), (ticket,)).fetchall()
+            # A page with no refs in the record proves nothing, so the
+            # words decide alone there.
+            if any((shown and c["id"] not in shown)
+                   or _holds_span(c["text"], said) for c in live):
                 continue
             if (ticket, said) not in out["add"]:
                 out["add"].append((ticket, said))
     return out
+
+
+def _page_refs(conn: sqlite3.Connection, ask_id) -> set:
+    """The refs of the page that the ask message showed him."""
+    row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                       (ask_id,)).fetchone() if ask_id else None
+    try:
+        refs = json.loads(row["body_refs"]) if row else []
+    except (TypeError, ValueError):
+        refs = []
+    return {r for r in refs if isinstance(r, str)}
 
 
 @op("criteria", "retire")

@@ -829,18 +829,10 @@ def grant(conn: sqlite3.Connection, ref: str, act: str,
                for t in ([target] if isinstance(target, str) else target) if t}
               if target is not None else None)
     if act == "add":
-        adds = [i for i, r in enumerate(rows) if r["act"] == "add"
-                and (wanted is None or (r["target"] is not None
-                                        and _target_key(r["target"]) in wanted))]
-        if not adds:
-            return None
-        row = rows[adds[-1]]
-        said = _fold(row["words"])
-        for later in rows[adds[-1] + 1:]:
-            if later["act"] == "keep" or (later["act"] is not None and said
-                                          and said in _fold(later["words"])):
-                return None
-        return row
+        adds = [r for r in open_adds(conn, ref)
+                if wanted is None or (r["target"] is not None
+                                      and _target_key(r["target"]) in wanted)]
+        return adds[-1] if adds else None
     if wanted is not None:
         found = [i for i, r in enumerate(rows) if r["act"] is not None
                  and r["target"] is not None
@@ -859,6 +851,29 @@ def grant(conn: sqlite3.Connection, ref: str, act: str,
     if _on_the_row(row) and any(r["act"] is None for r in rows[found[-1] + 1:]):
         return None
     return row
+
+
+def open_adds(conn: sqlite3.Connection, ref: str) -> list[sqlite3.Row]:
+    """Every landed `add` row on `ref` that no later row ended, oldest
+    first.
+
+    A later `keep` on the row ends an add, and so does a later act whose
+    words hold the add's words. A later row with no act ends none. Two adds
+    in other words both stay open, because the composition says nothing
+    stops quietly (the review of pass 4d and 4e, P4de-2)."""
+    if not isinstance(ref, str) or not ref:
+        return []
+    rows = ruled(conn, [ref])
+    out = []
+    for i, row in enumerate(rows):
+        if row["act"] != "add":
+            continue
+        said = _fold(row["words"])
+        if not any(later["act"] == "keep" or (later["act"] is not None and said
+                                              and said in _fold(later["words"]))
+                   for later in rows[i + 1:]):
+            out.append(row)
+    return out
 
 
 def _fold(text) -> str:

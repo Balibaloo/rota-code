@@ -137,6 +137,57 @@ def test_a_plain_approve_of_its_line_does_not_end_an_add(db):
     assert api.criteria_page_acts(db, ["c1"])["add"] == []
 
 
+def _rule_on(conn, rid: str, page: list, reading: dict, seq: int) -> None:
+    """One landed ruling on `page`, for a page that shows a newer row."""
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, seq) VALUES (?, 'th', 'liaison', 'principal', "
+                 "'present', ?, ?)", (f"ask_{rid}", json.dumps(page), seq))
+    flat = {r: v if isinstance(v, str) else v["verdict"] for r, v in reading.items()}
+    conn.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
+                 "VALUES (?, ?, ?, ?, 'landed')",
+                 (rid, f"ask_{rid}", json.dumps(flat), WORDS))
+    insert_ruling_rows(conn, ruling_rows(conn, rid, page, reading, words=WORDS))
+    conn.commit()
+
+
+def _write_criterion(conn, cid: str, text: str) -> None:
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES (?, ?, ?)",
+                 (cid, TICKET, text))
+    conn.commit()
+
+
+# The review of pass 4d and 4e. Red on e4a06b38.
+
+def test_an_add_is_done_by_a_criterion_written_after_its_ruling(db):
+    """P4de-1: the Terminologist writes in glossary terms, so the record
+    decides, not his words. A criterion that stood before the ruling, as c2
+    did, does not count."""
+    said = "the output stays exactly the same as today"
+    _rule(db, "r1", {"c1": {"verdict": "approve", "act": "add",
+                            "words": said}})
+    assert api.criteria_page_acts(db, ["c1", "c2"])["add"] == [(TICKET, said)]
+    _write_criterion(db, "c4", "The CLI output is unchanged from today.")
+    assert api.criteria_page_acts(db, ["c1", "c4"])["add"] == []
+
+
+def test_every_open_add_is_offered_until_each_is_done(db):
+    """P4de-2: two adds in other words on c1 from two rulings both stay.
+    The first is done by c4, which the page of the second ruling shows, so
+    the second stays alone."""
+    first, second = "the output stays the same", "the exit code is zero"
+    _rule(db, "r1", {"c1": {"verdict": "approve", "act": "add",
+                            "words": first}})
+    _write_criterion(db, "c4", "The output stays the same.")
+    _rule_on(db, "r2", PAGE + ["c4"],
+             {"c1": {"verdict": "approve", "act": "add", "words": second}},
+             seq=2)
+    assert api.criteria_page_acts(db, ["c1"])["add"] == [(TICKET, second)]
+    db.execute("DELETE FROM criteria WHERE id = 'c4'")
+    db.commit()
+    assert api.criteria_page_acts(db, ["c1"])["add"] == [(TICKET, first),
+                                                        (TICKET, second)]
+
+
 def test_an_add_that_a_live_criterion_holds_is_not_offered_again(db):
     """P4c-1: m112's add, then the criterion that criteria.specify wrote.
     The add is done, so the relay wake offers it no more."""
