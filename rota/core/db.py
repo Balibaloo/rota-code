@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import paths
-from typing import Any, Iterator
+from typing import Any, Iterable, Iterator
 
 SCHEMA_PATH = paths.SCHEMA
 
@@ -664,14 +664,14 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
         # Frame 318: on a running batch the harness run at the new head
         # judges the `tests_failing` key, in `lift_on_red_move`.
         failing = commit and _running(conn, w.row_id)
-        conn.execute(
-            "DELETE FROM tick_attempts WHERE quarantined = 1 AND (tick_key LIKE ? "
-            "OR tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?) "
-            "AND tick_key NOT LIKE ? AND tick_key NOT LIKE ?",
-            (f"%|{w.row_id}", f"%|{w.row_id},%",
-             f"%,{w.row_id}", f"%,{w.row_id},%",
-             "%|do:park|%" if commit else "\x00",
-             "%|tick:tests_failing|%" if failing else "\x00"))
+        # The keys come from the one reader, so a ref matches as a whole.
+        # A LIKE read `_` as a wildcard and ignored case (frame 242).
+        from .scheduler import key_parts, quarantined_keys
+
+        kept = (({"do:park"} if commit else set())
+                | ({"tick:tests_failing"} if failing else set()))
+        lift_keys(conn, [k for k in quarantined_keys(conn, w.row_id, pairs=True)
+                         if key_parts(k)[1] not in kept])
     # Progress is the red moving, and the bound is on dispatch *without*
     # progress. Walk seventeen: four, three, two tests failing across three
     # commits, and the third session was the quarantine. So a moved red
@@ -712,13 +712,10 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
     if moved and w.table in ("criteria", "tests"):
         for b, red_moved in reaches.items():
             if b:
-                held = [r["tick_key"] for r in conn.execute(
-                    "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
-                    "AND tick_key LIKE ?", (f"%|{b}",))]
-                for key in held:
-                    if _row_move_reaches(key, red_moved):
-                        conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
-                                     (key,))
+                from .scheduler import quarantined_keys
+
+                lift_keys(conn, [k for k in quarantined_keys(conn, b)
+                                 if _row_move_reaches(k, red_moved)])
                 # Review 2, finding 2: a reset count below the cap bought the
                 # same refusal more ticks, so the refused keys keep it too.
                 spared = tuple(r["tick_key"] for r in conn.execute(
@@ -728,6 +725,34 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                     (f"%|{b}", f"%|{b},%", f"%,{b}", f"%,{b},%"))
                     if not _row_move_reaches(r["tick_key"], red_moved))
                 _forget_batch_counts(conn, b, keep=spared)
+
+
+def lift_keys(conn: sqlite3.Connection, keys: Iterable[str]) -> None:
+    """Lift the quarantine of each key. A key that is not quarantined stays."""
+    # The one delete of a quarantined key. `land` deleted one by hand before
+    # (fact F20, the root-cause audit of 2026-10-27). Law 6.
+    conn.executemany("DELETE FROM tick_attempts WHERE tick_key = ? "
+                     "AND quarantined = 1", [(k,) for k in keys])
+
+
+def write_state(conn: sqlite3.Connection, table: str, row_id: str, sql: str,
+                params: tuple = (), fields: dict | None = None) -> int:
+    """
+    Run one raw UPDATE of a subject's row, and lift its quarantines when the
+    row moved. Returns the rowcount.
+
+    `fields` names the columns the UPDATE sets when the lift reads them, as
+    `head_commit` for a commit.
+    """
+    # A raw write of a ledger status skipped the lift, so a quarantined key
+    # could outlive its closed entry (frame 242). A write that sets the value
+    # the row holds moves nothing and lifts nothing (frame 80). Law 6.
+    w = Write(table, row_id, dict(fields or {}), op="update", amends=False)
+    before = _subject_state(conn, w)
+    n = conn.execute(sql, params).rowcount
+    if n:
+        _lift_quarantines(conn, w, _subject_moved(conn, w, before))
+    return n
 
 
 def _moves_red(conn: sqlite3.Connection, w) -> dict[str, bool]:
@@ -778,10 +803,11 @@ def _row_move_reaches(key: str, red_moved: bool) -> bool:
     # Frame 318, night 163: each respecify of a bg_2 criterion lifted
     # `developer|tick:batch_start|bg_2`. Three more Developers met the same
     # note refusal at termui.py line 609, five rounds.
-    role, _, rest = key.partition("|")
+    from .scheduler import key_parts
+
+    role, tick, _ = key_parts(key)
     if role != "developer":
         return True
-    tick = rest.split("|", 1)[0]
     # Night 164: a new passing test is not progress on the red (W-B).
     if tick in _RED_TICKS[:2]:
         return red_moved

@@ -2013,8 +2013,9 @@ def test_the_gaps_name_a_quarantine_in_words_and_never_the_key(tmp_path):
     assert not [f for f in facts if "constraint_zero" in f
                 or "constraint zero" in f], facts
     boundary = [f for f in facts if ".readthedocs.yaml" in f]
-    assert boundary == ["The Architect could not finish settling the boundary "
-                        "of .readthedocs.yaml after 3 tries"], facts
+    # Fact F21: the words come from the page's one table, `TICK_WORDS`.
+    assert boundary == ["The team could not settle a boundary for "
+                        ".readthedocs.yaml after 3 attempts"], facts
 
 
 def test_the_gaps_name_the_readme_reconcile_in_words(tmp_path):
@@ -2031,8 +2032,8 @@ def test_the_gaps_name_the_readme_reconcile_in_words(tmp_path):
     facts = code_gaps(Ctx(conn=db, role="liaison"))["facts"]
     assert not [f for f in facts if "@" in f], facts
     assert [f for f in facts if "the README" in f] == [
-        "The Vision Keeper could not finish comparing the account with "
-        "the README after 3 tries"], facts
+        "The team could not compare the account with the code for "
+        "the README after 3 attempts"], facts
 
 
 def test_the_gaps_keep_the_first_quarantines_whatever_the_seat(tmp_path):
@@ -2052,11 +2053,11 @@ def test_the_gaps_keep_the_first_quarantines_whatever_the_seat(tmp_path):
                    "reported) VALUES (?, 3, 1, 0)", (key,))
 
     facts = code_gaps(Ctx(conn=db, role="liaison"))["facts"]
-    tries = [f for f in facts if f.endswith("after 3 tries")]
+    tries = [f for f in facts if f.endswith("after 3 attempts")]
     assert len(tries) == 6, facts
     assert any("docs/usage.md" in f for f in tries), facts
     assert any("docs/api.md" in f for f in tries), facts
-    assert not any("claim c1 " in f or "claim c2 " in f for f in tries), facts
+    assert not any("for c1 " in f or "for c2 " in f for f in tries), facts
 
 
 def test_vacuity_is_a_readings_verdict_for_empty_claims(tmp_path):

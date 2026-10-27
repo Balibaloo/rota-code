@@ -672,12 +672,8 @@ def onboarding_phases(conn: sqlite3.Connection) -> tuple[str, ...]:
 
 def _abandoned(conn: sqlite3.Connection, kind: str) -> set[str]:
     """Subjects of quarantined ticks of this kind, by `refs[0]`."""
-    return {
-        r["tick_key"].split("|", 2)[2].split(",")[0]
-        for r in conn.execute(
-            "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
-            "AND tick_key LIKE ?", (f"%|{kind}|%",))
-    }
+    return {key_parts(k)[2][0]
+            for k in quarantined_keys(conn, kind=kind) if key_parts(k)[2]}
 
 
 def _frame_wakes(conn: sqlite3.Connection) -> list[Wake]:
@@ -1069,12 +1065,10 @@ def _survey_wakes(conn: sqlite3.Connection) -> list[Wake]:
     # Abandonment being a *terminal* state rather than an invisible hole is the
     # point. It is recorded, it is reported to the principal, and the work behind
     # it carries on — which is what distinguishes a bound from a stall.
-    abandoned = {
-        r["tick_key"].split("|", 2)[2]: r["tick_key"].split("|", 2)[0]
-        for r in conn.execute(
-            "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
-            "AND tick_key LIKE '%|tick:survey|%'")
-    }
+    # A pair of role and area. A map of area to role kept one role when both
+    # roles gave up on one area, so the other role never finished (fact F20).
+    abandoned = {(role, ",".join(refs)) for role, _, refs in
+                 map(key_parts, quarantined_keys(conn, kind="tick:survey"))}
 
     # A record of a tree that is gone is not a record. The survey stamped the
     # area's aggregate content at attest time; when the index no longer
@@ -1099,7 +1093,7 @@ def _survey_wakes(conn: sqlite3.Connection) -> list[Wake]:
     for role in survey_order():
         outstanding = [
             area for area in areas
-            if abandoned.get(area) != role and not surveyed(area, role)
+            if (role, area) not in abandoned and not surveyed(area, role)
         ]
         if outstanding:
             # One role at a time, still: Terminologist finishes every area before
@@ -1709,14 +1703,63 @@ def failing_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
     return int(row["att"] or 0)
 
 
+def key_parts(key: str) -> tuple[str, str, tuple[str, ...]]:
+    """A tick key `role|tick:kind|ref,ref` as its role, its kind and its refs."""
+    # `tick_key` writes the key and this function reads it. Ten readers kept
+    # their own split before (fact F20, the root-cause audit of 2026-10-27).
+    role, kind, refs = ((key or "").split("|", 2) + ["", ""])[:3]
+    return role, kind, tuple(r for r in refs.split(",") if r)
+
+
+CONSTRAINT_ZERO = "tick:constraint_zero"
+
+
+def quarantined_keys(conn: sqlite3.Connection,
+                     subject: str | Iterable[str] | None = None, *,
+                     pairs: bool = False, kind: str | None = None,
+                     unreported: bool = False, constraint_zero: bool = True,
+                     first_come: bool = False) -> list[str]:
+    """
+    The quarantined tick keys, by key or in the order they came.
+
+    `subject` keeps a key about that subject, or about one of a list. A key is
+    about a subject when its refs are that subject alone. With `pairs`, a key
+    whose refs hold the subject beside another ref is about it too. `kind`
+    keeps one kind. `constraint_zero=False` drops the scheduler's own
+    onboarding key, which no page shows.
+    """
+    # One reader of `tick_attempts.quarantined`, so "the keys of a batch" has
+    # one rule. A key with two refs is about a pair, such as a touch note and
+    # its item. The ladder reads the one-ref keys, and a page reads both
+    # (fact F20, the root-cause audit of 2026-10-27). One rule for both turns
+    # a test red either way. Pairs on the ladder add a key to the parked line
+    # of `test_next_batch`. One ref on a page drops the shift row's key in
+    # `test_frame312_stuck_review`.
+    subjects = ({subject} if isinstance(subject, str)
+                else None if subject is None else set(subject))
+    out = []
+    for r in conn.execute(
+            "SELECT tick_key FROM tick_attempts WHERE quarantined = 1"
+            + (" AND reported = 0" if unreported else "")
+            + (" ORDER BY rowid" if first_come else " ORDER BY tick_key")):
+        _, k, refs = key_parts(r["tick_key"])
+        if kind is not None and k != kind:
+            continue
+        if not constraint_zero and k == CONSTRAINT_ZERO:
+            continue
+        if subjects is not None and not (
+                set(refs) & subjects if pairs
+                else len(refs) == 1 and refs[0] in subjects):
+            continue
+        out.append(r["tick_key"])
+    return out
+
+
 def given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
     """The quarantined keys of the seats' wakes that name this batch alone."""
-    # A key with two refs is about a pair, such as a touch note and its item.
     # A scheduler key (`-|do:park|b`) is the scheduler's own bound, not a seat.
-    return [r["tick_key"] for r in conn.execute(
-        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 ORDER BY tick_key")
-        if not r["tick_key"].startswith("-|")
-        and r["tick_key"].split("|", 2)[-1] == batch_id]
+    return [k for k in quarantined_keys(conn, batch_id)
+            if key_parts(k)[0] != "-"]
 
 
 def stopped_bouncing(conn: sqlite3.Connection, batch_id: str) -> bool:
@@ -2547,7 +2590,7 @@ def quarantine_stalled(conn: sqlite3.Connection, ready: list[Wake]) -> list[Wake
             # preempt's step deleted it, nineteen times on night 92 (observed:
             # night 92, 2026-09-24). A move of the batch resets it instead, in
             # `db._lift_quarantines`.
-            named = [b for b in row["tick_key"].split("|", 2)[-1].split(",") if b in status]
+            named = [b for b in key_parts(row["tick_key"])[2] if b in status]
             if named and not any(status[b] in ("merged", "abandoned") for b in named):
                 continue
             # Except an abandoned one, which is absent *because* it was

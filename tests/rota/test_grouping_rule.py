@@ -102,8 +102,11 @@ def test_the_state_names_what_the_team_gave_up_on(db):
                "('architect|tick:grouping|tk_1,tk_2', 3, 1)")
     db.commit()
     state = render_state(db)
-    assert state.startswith("Stuck. The team gave up on:"), state
-    assert "grouping for tk_1,tk_2" in state
+    # Fact F21: the page says the kind in his words, never its name.
+    assert state.startswith("Stuck. The team gave up: the team could not group "
+                            "the work into changes for tk_1, tk_2 after 3 "
+                            "attempts."), state
+    assert "grouping" not in state
     assert "Tell me what to change." in state
 
 
