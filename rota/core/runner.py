@@ -35,7 +35,7 @@ from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
 from .db import (OutboundMessage, REPEAT_END, SessionResult, Turn, Write,
-                 session_commit, session_fail, session_note)
+                 session_commit, session_fail, session_note, table_of)
 from .scheduler import Wake, claim, not_retired, release
 
 _log = logging.getLogger(__name__)
@@ -2354,7 +2354,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # their table, and the brief keys the owner on it.
                 about_rows = _resolve_refs(conn, answering["about"])
                 for ref, resolved_row in about_rows.items():
-                    resolved_row["table"] = _table_of(conn, ref)
+                    resolved_row["table"] = table_of(conn, ref)
                 answering["about_rows"] = about_rows
                 out["answering"] = answering
             # A reply to a page. The Liaison reads the words against the
@@ -2407,7 +2407,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # 5,593 tokens this way, against 17,220.
                 line_rows = _resolve_refs(conn, order)
                 for ref, resolved_row in line_rows.items():
-                    resolved_row["table"] = _table_of(conn, ref)
+                    resolved_row["table"] = table_of(conn, ref)
                 # A read-back line names the rows of an earlier reply by
                 # their ids here, so the seat can rule a row his words
                 # correct. The page he reads shows no id (the review of pass
@@ -2438,7 +2438,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 else:
                     fits = False
                     landing["lines"] = {
-                        str(i + 1): f"{ref} ({_table_of(conn, ref) or 'row'})"
+                        str(i + 1): f"{ref} ({table_of(conn, ref) or 'row'})"
                         for i, ref in enumerate(order)}
                     dropped = len(set(order) | set(out.get("resolved_refs") or {}))
                     # Not `cut_note` yet. This string is inside a recorded
@@ -3702,18 +3702,6 @@ def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
     row = conn.execute("SELECT is_description FROM items WHERE id = ?",
                        (item_id,)).fetchone()
     return bool(row and row["is_description"])
-
-
-_REF_TABLES = ("statements", "items", "criteria", "tests", "tickets",
-               "constraints", "glossary_terms", "ledger", "entries")
-
-
-def _table_of(conn: sqlite3.Connection, ref: str) -> str | None:
-    """The table a ref resolves in, or None. Same tables as `_resolve_refs`."""
-    for table in _REF_TABLES:
-        if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
-            return table
-    return None
 
 
 def _group_by_shared_refs(reports: list[dict]) -> list[list[str]]:

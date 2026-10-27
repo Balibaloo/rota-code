@@ -26,6 +26,7 @@ from pathlib import PurePath
 from types import SimpleNamespace
 from typing import Any, Callable, NamedTuple
 
+from .db import GUESS_REF, table_of
 from ..roles import api
 from ..design import graph as graph_mod
 
@@ -912,22 +913,24 @@ RULED_TABLES = {
 def _owner_of_ref(conn, ref: str) -> str | None:
     """The role that writes the table holding `ref`, or None if no table does."""
     # A code line's key names the Architect's guess (frame 298's design, 3.4).
-    if isinstance(ref, str) and ref.startswith("guess:"):
+    if isinstance(ref, str) and ref.startswith(GUESS_REF):
         return "architect"
-    for table, owner in RULED_TABLES.items():
-        if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
-            return owner
+    # `db.table_of` finds the row, and this map names its writer (F22).
+    table = table_of(conn, ref)
+    if table in RULED_TABLES:
+        return RULED_TABLES[table]
     # A batch line is the Architect's prediction of what the change touches.
     # The relay split looks a ref up by table, and a batch is no ruled table,
     # so the rule stands here (frame 190's design, 2.2).
-    if conn.execute("SELECT 1 FROM batches WHERE id = ?", (ref,)).fetchone():
+    if table == "batches":
         return "architect"
     # A ledger row is a journal entry -- one author per entry (law 1) -- and
     # the author is who acts on a ruling about it: an overruled assumption
     # goes back to the desk that assumed it.
-    row = conn.execute("SELECT author FROM ledger WHERE id = ?", (ref,)).fetchone()
-    if row and row["author"]:
-        return row["author"]
+    if table == "ledger":
+        row = conn.execute("SELECT author FROM ledger WHERE id = ?",
+                           (ref,)).fetchone()
+        return row["author"] or None
     return None
 
 

@@ -222,6 +222,72 @@ def ruled_ref_id(ruling_id: str, ref: str) -> str:
     return "rr_" + hashlib.sha256(f"{ruling_id}|{ref}".encode()).hexdigest()[:12]
 
 
+# The key of a request item's code line (frame 298's design, 2.1). It
+# derives from the item id, so law 14 holds.
+GUESS_REF = "guess:"
+# The ref of the read-back line of one reply (the seam design, 2.3).
+READING_REF = "reading:"
+# The journal keeps the id of a run that `test_runs` deleted. A ref to that
+# id names no live row, and no gate or guard reads the journal (frame 309,
+# review 1, finding 2).
+_NOT_REFFABLE = frozenset({"test_run_journal"})
+_ID_TABLES_CACHE: dict[int, list[str]] = {}
+
+
+def id_tables(conn: sqlite3.Connection) -> list[str]:
+    """The register of the tables a ref can name, in the order `table_of`
+    reads them.
+
+    The register derives from `identity.NATURAL_KEYS` and the schema, so no
+    second list of tables exists (F22). A table is in it when the schema gives
+    it an `id` column. The order is the order of `NATURAL_KEYS`. Law 14 keeps
+    an artefact id unique across the artefact tables, so the order decides
+    nothing there."""
+    from .identity import NATURAL_KEYS
+
+    key = id(conn)
+    if key not in _ID_TABLES_CACHE:
+        out = []
+        for table in NATURAL_KEYS:
+            if table in _NOT_REFFABLE:
+                continue
+            cols = {c[1] for c in conn.execute(f"PRAGMA table_info({table})")}
+            if "id" in cols:
+                out.append(table)
+        _ID_TABLES_CACHE[key] = out
+    return _ID_TABLES_CACHE[key]
+
+
+def table_of(conn: sqlite3.Connection, ref) -> str | None:
+    """The table that holds `ref`, or None. This is the one reader of the
+    fact (F22). A caller that accepts only some tables tests the result.
+
+    A `reading:<reply>` ref names the reply in `messages`. A `guess:<item>`
+    ref names the item in `items`. Any other ref is an id of a table in
+    `id_tables`."""
+    if not isinstance(ref, str) or not ref:
+        return None
+    for prefix, table in ((READING_REF, "messages"), (GUESS_REF, "items")):
+        if ref.startswith(prefix) and len(ref) > len(prefix):
+            return table if conn.execute(
+                f"SELECT 1 FROM {table} WHERE id = ?",
+                (ref[len(prefix):],)).fetchone() else None
+    return next((t for t in id_tables(conn) if conn.execute(
+        f"SELECT 1 FROM {t} WHERE id = ?", (ref,)).fetchone()), None)
+
+
+def elsewhere(conn: sqlite3.Connection, ref, wanted: str) -> str:
+    """The words that name the table holding `ref`, when the caller wanted
+    `wanted`. Empty when no table or `wanted` holds it.
+
+    Night 170's s209 sent the batch b_3 to `model.adopt` three times, and the
+    refusal never said that b_3 is a batch (W13)."""
+    home = table_of(conn, ref)
+    if home is None or home == wanted:
+        return ""
+    return f"; {ref!r} is a row of {home}"
+
+
 # The verdicts a `ruled_refs` row stores. `principal.RULED_VERDICTS` holds
 # the same list, and this module cannot import the roles.
 _RULED_VERDICTS = frozenset(("approve", "contest", "revise", "resume", "park",

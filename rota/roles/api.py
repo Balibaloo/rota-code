@@ -19,6 +19,7 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 """
 from __future__ import annotations
 
+from ..core.db import GUESS_REF, READING_REF, elsewhere, id_tables, table_of
 from ..core.worktrees import GIT
 
 import ast as _ast
@@ -534,6 +535,9 @@ def _must_exist(ctx: "Ctx", table: str, id: str) -> None:
                      f"them are {hits}" if hits else
                      f"; the relay names {relayed}, and they are not {table} "
                      f"rows. Answer what the relay names, or end the session")
+        # Name the table that holds the id. Night 170's s200 sent a batch's
+        # id to `tests.encode` and was told only what the id was not (W13).
+        known = elsewhere(ctx.conn, id, table) + known
         raise ValueError(
             f"no {table} row with id={id!r}; this changes an existing row, so "
             f"the id has to be one you were given{known}")
@@ -2596,7 +2600,8 @@ def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
         row = ctx.conn.execute(
             f"SELECT provenance FROM {view} WHERE id = ?", (rid,)).fetchone()
         if row is None:
-            raise ValueError(f"{rid!r} is not a row of {table}; adopt what "
+            raise ValueError(f"{rid!r} is not a row of {table}"
+                             f"{elsewhere(ctx.conn, rid, table)}; adopt what "
                              f"the ruling names, from the refs you were given")
         if ruled is not None and rid not in ruled:
             # The ruling is on file and does not approve this row. Skipped
@@ -2636,9 +2641,8 @@ def model_adopt(ctx: Ctx, ids: list[str]) -> dict:
         ids = [ids]
     both = {"constraints": [], "model_areas": []}
     for rid in ids:
-        table = ("constraints" if ctx.conn.execute(
-            "SELECT 1 FROM constraints WHERE id = ?", (rid,)).fetchone()
-            else "model_areas")
+        table = ("constraints" if table_of(ctx.conn, rid) == "constraints"
+                 else "model_areas")
         both[table].append(rid)
     merged: dict = {"adopted": [], "skipped": []}
     for table, tids in both.items():
@@ -5074,26 +5078,6 @@ def tickets_consult(ctx: Ctx) -> list[dict]:
     return tickets_scan(ctx)
 
 
-_REFFABLE_CACHE: dict[int, list] = {}
-# The journal keeps the id of a run that `test_runs` deleted. A ref to that
-# id names no live row, and no gate or guard reads the journal (frame 309,
-# review 1, finding 2).
-_NOT_REFFABLE = frozenset({"test_run_journal"})
-
-
-def _id_tables(conn) -> list[str]:
-    """Every table with an id column, computed once per connection."""
-    key = id(conn)
-    if key not in _REFFABLE_CACHE:
-        out = []
-        for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'"):
-            if r["name"] in _NOT_REFFABLE:
-                continue
-            cols = {c["name"] for c in conn.execute(f"PRAGMA table_info({r['name']})")}
-            if "id" in cols:
-                out.append(r["name"])
-        _REFFABLE_CACHE[key] = out
-    return _REFFABLE_CACHE[key]
 
 
 def _area_resolves(ctx: Ctx, ref: str) -> bool:
@@ -5149,10 +5133,9 @@ def ref_resolves(ctx: Ctx, ref: str) -> bool:
     for m in getattr(ctx, "outbound", None) or []:
         if isinstance(m, dict) and m.get("id") == ref:
             return True
-    for table in _id_tables(ctx.conn):
-        if ctx.conn.execute(f"SELECT 1 FROM {table} WHERE id = ?",
-                            (ref,)).fetchone():
-            return True
+    # A read-back line is no row a message can carry, as before F22.
+    if not ref.startswith(READING_REF) and table_of(ctx.conn, ref):
+        return True
     if ctx.conn.execute("SELECT 1 FROM glossary_terms WHERE term = ?",
                         (ref,)).fetchone():
         return True
@@ -12248,10 +12231,6 @@ def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
     return files and not content
 
 
-# The key of a request item's code line (frame 298's design, 2.1). It
-# derives from the item id, so law 14 holds.
-GUESS_REF = "guess:"
-
 
 def guess_item(ref) -> str | None:
     """The item id a `guess:<item>` key names, or None."""
@@ -13430,7 +13409,7 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
     `line` takes no default, so the wake never pushes this read. A row arrives
     when the seat asks for it, which is the whole point of the change.
     """
-    from ..core.runner import _resolve_refs, _table_of
+    from ..core.runner import _resolve_refs
     from .principal import render_page
 
     page = _ask_of(ctx)
@@ -13457,7 +13436,7 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
     if not row:
         return {"line": key, "ref": ref, "row": None,
                 "note": "the line names a row that no table holds"}
-    row["table"] = _table_of(ctx.conn, ref) or row.get("table")
+    row["table"] = table_of(ctx.conn, ref) or row.get("table")
     return {"line": key, "ref": ref, "row": row}
 
 
@@ -13776,7 +13755,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
               or _is_prose_ref(about_ref)):
             whole = ("the account declares no area, so a row about a README or "
                      "docs claim takes about_ref='@prose'")
-        elif about_table in _id_tables(ctx.conn):
+        elif about_table in id_tables(ctx.conn):
             whole = (f"the account declares no area, so send the id of a row "
                      f"of {about_table} that the assumption is about")
         else:
@@ -13993,9 +13972,11 @@ def _refuse_an_echo(ctx, about_ref: str) -> None:
             f"words. Adopt what they approved, and stop.")
 
 
-# The tables a ledger row can be about, in the order `ledger.log` checks them.
-LEDGER_HOMES = ("items", "statements", "criteria", "tickets", "tests",
-                "constraints", "glossary_terms", "model_areas", "frame_rulings")
+# The tables a ledger row can be about. This is a rule of the ledger, and no
+# reader finds a row through it: `db.table_of` finds the row (F22).
+LEDGER_HOMES = frozenset(("items", "statements", "criteria", "tickets", "tests",
+                          "constraints", "glossary_terms", "model_areas",
+                          "frame_rulings"))
 # The class of a parking row: the principal answered, and the answer said
 # nothing about this row. The door stamps the class; no model writes it.
 UNADDRESSED_KIND = "unaddressed_answer"
@@ -14005,16 +13986,14 @@ def _table_of_ref(conn, ref: str) -> str | None:
     """The table the row lives in, or None.
 
     A read-back line's ref, `reading:<reply id>`, lives in `messages`: it
-    names his reply (the seam design, 2.3)."""
-    from .principal import READING_REF
-
-    if isinstance(ref, str) and ref.startswith(READING_REF):
-        return "messages" if conn.execute(
-            "SELECT 1 FROM messages WHERE id = ?",
-            (ref[len(READING_REF):],)).fetchone() else None
-    return next((t for t in LEDGER_HOMES
-                 if conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
-                                 (ref,)).fetchone()), None)
+    names his reply (the seam design, 2.3). A code line's key is no ledger
+    home, so a `guess:` ref gives None."""
+    if guess_item(ref) is not None:
+        return None
+    table = table_of(conn, ref)
+    if table == "messages":
+        return table if ref.startswith(READING_REF) else None
+    return table if table in LEDGER_HOMES else None
 
 
 def _stage_ledger(ctx: Ctx, about_ref: str, about_table: str, assumption: str,
