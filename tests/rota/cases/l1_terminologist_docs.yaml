@@ -32,8 +32,10 @@
   expect:
     writes:
       # The ticket asks for a change to the docstring, and the code stays
-      # the same. So each landed criterion text names the documentation, in
-      # the five words of `criteria.specify` (frame 322, review 2).
+      # the same. So each landed criterion text names the documentation in
+      # the words that `criteria.specify` reads through one reader,
+      # `_names_docs`: `asks_for_docs` and "docs" (frame 322, review 2; F31).
+      # The case matches substrings, and the door matches whole words.
       criteria: {count: "1..6",
                  each_text_includes_any: ["docstring", "documentation",
                                           "document", "docs", "help text"]}

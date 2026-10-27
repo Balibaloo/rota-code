@@ -195,6 +195,14 @@ def test_a_criterion_in_the_ruled_words_lands_on_a_docstring_ticket(db, text):
     assert _landed(sb) == ["c_9"]
 
 
+def test_a_changelog_criterion_is_refused_on_a_docstring_ticket(db):
+    """F31 review, finding 2: the changelog is a notes file and not the
+    documentation, so the door admits no wider set than `_NAMES_DOCS` did."""
+    with pytest.raises(ValueError) as exc:
+        _specify(_seat(db), "c_9", "The changelog names the shorten fix.")
+    assert _MARK in str(exc.value)
+
+
 # Pass 3b: the gate at 1277b6b4 recorded the docstring case green 5 of 5 on
 # qwen3.5:9b. The follow check still read it red: the criteria mode sent
 # msg.answer_tester(refs=['tk_c4d9c0']), and the door offered

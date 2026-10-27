@@ -5857,9 +5857,10 @@ def _docs_ticket_refusal(ctx: Ctx, ticket_id: str | None,
     # 2026-10-24 01:05, frame 311). Frame 322's W-E read counted 13 landed
     # behaviour criteria on the docstring item over nights 163 to 166. He
     # called each one wrong (`plans/frame322-we-read.md`, section 3). The
-    # door admits what the pass door can meet with a docstring line or a
-    # notes line, so it reads `_asks_for_notes` (F31).
-    if ticket_id is None or _asks_for_notes(text):
+    # door reads the ruled words and "docs", which its refusal names. The
+    # changelog is a notes file and not the documentation (F31 review,
+    # finding 2).
+    if ticket_id is None or _names_docs(text):
         return None
     row = ctx.conn.execute("SELECT text FROM tickets WHERE id = ?",
                            (ticket_id,)).fetchone()
@@ -14470,21 +14471,35 @@ _NO_BEHAVIOUR_PLURAL = {
 # Frame 311's pass 1b had dropped "document" and "help text" for night 160's
 # ver_opt_show_py_help. A help string on an option is a code line, so it
 # meets that criterion anyway. The words match as words, so `load_document`
-# asks for nothing (frame 322, review 2, finding 1).
+# asks for nothing (frame 322, review 2, finding 1). The noun "documents"
+# counts too, because the ruled word is "document" and no word class is
+# ruled. None of 573 night criteria uses the noun (F31 review, finding 1).
 _DOCS_WORDS = re.compile(
     r"\bdocstrings?\b|\bdocument(?:s|ed|ing|ations?)?\b|\bhelp[ -]texts?\b")
+# A ruled word under a negation in its own clause is a mention, not an ask.
+# Night 142's c2 says "it does not affect help text", and night 157's
+# crit_show_python_help says the help text "must not describe" a flag. Both
+# ask for behaviour (F31 review, finding 1). A clause ends at a stop mark
+# before a space, so "c.txt" ends no clause. The negation words are the
+# module's `_NEGATION`.
+_DOCS_CLAUSE_END = re.compile(r"[.,;:!?](?:\s|$)")
 # The kinds that document the code. The refusals treat the two as one, so
 # the ruling applies to both.
 _DOC_KINDS = ("a docstring line", "a comment")
-# The words of a criterion that asks for a file of prose, past the ruled
-# words: the changelog and the docs (frame 306, pass 1b). A line of a notes
-# file meets such a criterion. A docstring line does not, so the two
-# questions stay apart.
-_NOTES_WORDS = re.compile(r"\bchangelogs?\b|\bdocs\b")
+# "docs" is a short form of the documentation. The specify door's refusal
+# tells the seat to name "the docs", so that door admits the word.
+_DOCS_SHORT = re.compile(r"\bdocs\b")
+# The changelog is a file of prose (frame 306, pass 1b). A line of a notes
+# file meets a criterion that asks for one. A docstring line does not, so
+# the specify door does not admit the word.
+_CHANGELOG = re.compile(r"\bchangelogs?\b")
 
 
-def _folded(text: str | None) -> str:
-    return " ".join((text or "").split()).casefold()
+def _asked(text: str | None, words: re.Pattern) -> bool:
+    """True when a clause of `text` holds one of `words` and no negation."""
+    folded = " ".join((text or "").split()).casefold()
+    return any(words.search(c) and not _NEGATION.search(c)
+               for c in _DOCS_CLAUSE_END.split(folded))
 
 
 def asks_for_docs(text: str | None) -> bool:
@@ -14493,13 +14508,19 @@ def asks_for_docs(text: str | None) -> bool:
     F31: every door that asks this question reads this one function. Five
     word lists answered it before, and they disagreed.
     """
-    return bool(_DOCS_WORDS.search(_folded(text)))
+    return _asked(text, _DOCS_WORDS)
+
+
+def _names_docs(text: str | None) -> bool:
+    """True when a criterion asks for the documentation in the ruled words
+    or in the word "docs". The specify and respecify doors read it."""
+    return asks_for_docs(text) or _asked(text, _DOCS_SHORT)
 
 
 def _asks_for_notes(text: str | None) -> bool:
     """True when a criterion's own words ask for the documentation or for a
     file of prose."""
-    return asks_for_docs(text) or bool(_NOTES_WORDS.search(_folded(text)))
+    return _names_docs(text) or _asked(text, _CHANGELOG)
 
 
 def _why_refused(cid: str, kind: str | None) -> str:
