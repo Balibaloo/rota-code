@@ -710,8 +710,9 @@ def test_a_ledger_note_closes_no_restored_note_early(db, tmp_path):
     """Frame 297's review 2, finding 3, probe Q2b. A write puts the lines
     back, and a ledger note on another path lands. A silent whole-file write
     then takes `ctx.exit()` out. The note stays open, so the commit lands
-    with the removal as a stray (frame 339). The other path's `x = 1` is
-    gone too, so it is a second stray."""
+    with the removal as a stray (frame 339). The base never held the other
+    path's `x = 1`, so the compare of F7 writes no stray for it. The stray
+    numbers `ctx.exit()` in the base."""
     other = "src/click/other.py"
     sb, root = _developer(db, tmp_path)
     _index_path(db)
@@ -744,8 +745,7 @@ def test_a_ledger_note_closes_no_restored_note_early(db, tmp_path):
             for w in sb.ctx.writes if w[0] == "touch_strays"]
     assert rows == [
         ("src/click/decorators.py::version_option.callback", "open",
-         "removal: `ctx.exit()` at line 556"),
-        ("src/click/other.py", "open", "removal: `x = 1` at line 1")], rows
+         "removal: `ctx.exit()` at line 555")], rows
 
 
 def test_an_architects_note_on_the_noted_path_lands_and_closes_nothing(db, tmp_path):

@@ -70,9 +70,10 @@ ROUTE = ("A note does not close a removal. To undo the change, put "
          "removal before the batch merges.")
 LEDGER = ("src/click/decorators.py holds an uncommitted write that removes "
           "`ctx.exit()` at line 550, so this note closes nothing. " + ROUTE)
-# The stray of night 158's removal (frame 339).
+# The stray of night 158's removal (frame 339). F7 numbers the line in the
+# batch's base, 75cf8ed, where the write's note numbers the file it wrote.
 STRAY = ("src/click/decorators.py::version_option.callback", "open",
-         "removal: `ctx.exit()` at line 550")
+         "removal: `ctx.exit()` at line 547")
 
 
 @pytest.fixture
@@ -368,7 +369,9 @@ def test_a_removal_of_an_earlier_commit_is_raised_on_the_new_head(db, tmp_path):
                        "hold: `ctx.exit()` at line 550.")
     out = sb.call("code.commit", message="micro")
     assert out["committed"] is True
-    assert _strays(sb) == [STRAY]
+    # F7 numbers the line in the base. Here the base is HEAD~1, the text
+    # before the removal commit.
+    assert _strays(sb) == [STRAY[:2] + ("removal: `ctx.exit()` at line 550",)]
 
 
 @pytest.mark.parametrize("words,lands", [
