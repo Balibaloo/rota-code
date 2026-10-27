@@ -16500,37 +16500,15 @@ def code_gaps(ctx: Ctx) -> dict:
     # prints the note. So a fact holds words and never the tick key: night
     # 148's page showed the key, and the principal asked at m12 what it
     # meant (frame 246). The constraint-zero quarantine is the scheduler's
-    # own bookkeeping, so it leaves the facts, as in `render_state`.
-    kind_words = {"boundary": "settling the boundary of",
-                  "challenge": "checking the claim",
-                  "reconcile": "comparing the account with"}
-    quarantined = [(r["tick_key"], r["attempts"]) for r in ctx.conn.execute(
-        "SELECT tick_key, attempts FROM tick_attempts WHERE quarantined = 1 "
-        "AND tick_key NOT LIKE '%tick:constraint_zero%' ORDER BY rowid")]
+    # own bookkeeping, so it leaves the facts, as in `render_state`. The words
+    # are the page's, from `TICK_WORDS` (fact F21).
+    from ..core.scheduler import quarantined_keys
+    from .principal import _capital, _gave_up_words
+
     # The order is first come, so the six-row cut favours no seat by its
     # name (review 1 of frame 246, finding 3).
-    for key, attempts in quarantined[:6]:
-        parts = key.split("|")
-        role = parts[0] if parts[0] not in ("", "-") else ""
-        seat = ("The " + role.replace("_", " ").title()) if role else "The team"
-        kind = parts[1].replace("tick:", "") if len(parts) > 1 else ""
-
-        def _ref_words(r: str) -> str:
-            # A ref is `@area:name` or `@claim:table:id`. The name is the
-            # part a person knows, so the prefix goes. The bare `@prose` is
-            # the README (scheduler `_reconcile_wakes`), and a page never
-            # shows an `@` (review 1 of frame 246, finding 1).
-            if not r.startswith("@"):
-                return r
-            if r == "@prose":
-                return "the README"
-            return r.rsplit(":", 1)[-1] if ":" in r else r[1:]
-
-        refs = [_ref_words(r)
-                for r in (parts[2] if len(parts) > 2 else "").split(",") if r]
-        what = ", ".join(refs) or "the whole project"
-        lines.append(f"{seat} could not finish {kind_words.get(kind, 'work on')} "
-                     f"{what} after {attempts} tries")
+    keys = quarantined_keys(ctx.conn, constraint_zero=False, first_come=True)[:6]
+    lines.extend(_capital(w) for w in _gave_up_words(ctx.conn, keys))
     checked = ctx.conn.execute(
         "SELECT COUNT(*) FROM survey_records WHERE area = '@prose'").fetchone()[0]
     if prose > 3 and checked:

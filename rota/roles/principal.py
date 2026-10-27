@@ -364,11 +364,6 @@ def render_state(conn: sqlite3.Connection) -> str:
     except Exception:                   # noqa: BLE001 -- a state page never fails on an alert
         looping = None
 
-    def gave_up_on(keys):
-        return ", ".join(
-            f"{k.split('|')[1].replace('tick:', '')} for "
-            f"{k.split('|')[2] or 'the whole project'}" for k in keys)
-
     # A parked batch is an open obligation, so the page counts it until a
     # commit discharges it. After night 93's park the page read "Done: 3"
     # only (observed: frame 86's pass 3 review, 2026-09-25).
@@ -423,7 +418,7 @@ def render_state(conn: sqlite3.Connection) -> str:
             return (f"Stuck: {b} stops here. You approved its checks as they "
                     f"stand, and {len(own)} of them still fail. A new commit "
                     "on the change starts it again.")
-        return (f"Stuck: {b} is parked. The team gave up on: {gave_up_on(keys)}."
+        return (f"Stuck: {b} is parked. {_capital(_stalled_words(conn, keys))}."
                 + (" The other changes go on." if running or pending else "")
                 + " A new commit on the change starts it again."
                 + (" I ask you about it next." if b in coming else ""))
@@ -440,12 +435,15 @@ def render_state(conn: sqlite3.Connection) -> str:
     # outranks "building": on tipsH (2026-09-09) the Critic reviewed six times
     # without a verdict, was quarantined, the batch stayed running, and the
     # seat said "Building" because nothing else was pending.
-    gave_up = [r["tick_key"] for r in conn.execute(
-        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
-        "AND tick_key NOT LIKE '%tick:constraint_zero%'")
-        if r["tick_key"] not in parked_keys]
+    from ..core.scheduler import quarantined_keys
+
+    gave_up = [k for k in quarantined_keys(conn, constraint_zero=False,
+                                           first_come=True)
+               if k not in parked_keys]
     if gave_up:
-        out.append(f"Stuck. The team gave up on: {gave_up_on(gave_up)}. "
+        # The words of a kind name who failed, so the line does not say the
+        # team twice (review of F20 pass 1, finding 4).
+        out.append(f"Stuck: {'; '.join(_gave_up_words(conn, gave_up))}. "
                    "Nothing waits on you, and nothing moves until that is "
                    "cleared. Tell me what to change.")
         out.extend(parked_lines)
@@ -1475,11 +1473,11 @@ def _gave_up_tries(conn: sqlite3.Connection, criterion: str,
             "JOIN criteria c ON c.ticket_id = bt.ticket_id "
             "JOIN batches b ON b.id = bt.batch_id "
             "WHERE c.id = ? AND b.status NOT IN ('merged', 'abandoned')", (criterion,))]
+    from ..core.scheduler import key_parts
+
     for key in sorted(keys or []):
-        if "|tick:tests_missing|" not in key:
-            continue
-        keyed = (key.split("|", 2) + [""])[2].split(",")
-        if set(keyed) & set(batches):
+        _, kind, keyed = key_parts(key)
+        if kind == "tick:tests_missing" and set(keyed) & set(batches):
             row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
                                (key,)).fetchone()
             return row["attempts"] if row else 0
@@ -1704,14 +1702,9 @@ def _name_guess(lines: list[int]) -> str:
 
 def _stalled_keys(conn: sqlite3.Connection, batches: list[str]) -> list[str]:
     """The quarantined tick keys that name a batch of the page."""
-    keys: list[str] = []
-    for r in conn.execute(
-            "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
-            "AND tick_key NOT LIKE '%tick:constraint_zero%' ORDER BY tick_key"):
-        keyed = (r["tick_key"].split("|", 2) + ["", ""])[2].split(",")
-        if set(keyed) & set(batches):
-            keys.append(r["tick_key"])
-    return keys
+    from ..core.scheduler import quarantined_keys
+
+    return quarantined_keys(conn, batches, pairs=True, constraint_zero=False)
 
 
 def _stalled_words(conn: sqlite3.Connection, keys: list[str]) -> str:
@@ -1719,6 +1712,45 @@ def _stalled_words(conn: sqlite3.Connection, keys: list[str]) -> str:
     key, in the words of TICK_WORDS and never the tick's name."""
     return "; ".join(f"{_tick_words(kind)} after {_tries(n)}"
                      for kind, n in _stuck_ticks(conn, "", keys))
+
+
+def _gave_up_words(conn: sqlite3.Connection, keys: list[str]) -> list[str]:
+    """'the team could not write the tests for b_3 after 3 attempts', one
+    part per key, with what the key is about."""
+    # The page printed the kind's name, "tests_missing for b_3", at the end
+    # of night 170. The page contract shows his words, never rota's names
+    # (fact F21, frame 312, review 1, finding 1).
+    from ..core.scheduler import key_parts
+
+    out = []
+    for key, (kind, n) in zip(keys, _stuck_ticks(conn, "", keys)):
+        what = ", ".join(w for w in (_ref_words(conn, r) for r in key_parts(key)[2])
+                         if w)
+        out.append(f"{_tick_words(kind)}{f' for {what}' if what else ''} "
+                   f"after {_tries(n)}")
+    return out
+
+
+# The bare refs a scheduler wake names, in words. A bare ref with no entry
+# is rota's own name, so it shows nothing (review of F20 pass 1, finding 2).
+BARE_REF_WORDS = {"@prose": "the README", "@program": "the whole program"}
+
+
+def _ref_words(conn: sqlite3.Connection, ref: str) -> str:
+    """A key's ref as a person knows it, or '' for a ref he has no name for."""
+    # A ref is `@area:name` or `@claim:table:id`. The name is the part a
+    # person knows, so the prefix goes. The bare `@prose` is the README
+    # (scheduler `_reconcile_wakes`), and a page never shows an `@` (review 1
+    # of frame 246, finding 1).
+    if ref.startswith("@"):
+        if ":" not in ref:
+            return BARE_REF_WORDS.get(ref, "")
+        return ref.rsplit(":", 1)[-1]
+    # A ledger id is rota's key for a question. The words of the kind say
+    # the question already (review of F20 pass 1, finding 3).
+    if conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone():
+        return ""
+    return ref
 
 
 def _stuck_ticks(conn: sqlite3.Connection, batch: str,
@@ -1731,11 +1763,13 @@ def _stuck_ticks(conn: sqlite3.Connection, batch: str,
     pages cannot disagree. Night 160's m45 said "stopped work" on a green
     change, and m53 then said "nothing from you" (frame 312's provenance).
     """
+    from ..core.scheduler import key_parts
+
     out = []
     for key in (_stalled_keys(conn, [batch]) if keys is None else keys):
         row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
                            (key,)).fetchone()
-        kind = (key.split("|", 2) + ["", ""])[1].replace("tick:", "")
+        kind = key_parts(key)[1].replace("tick:", "")
         out.append((kind, row["attempts"] if row else 0))
     return out
 
@@ -1749,7 +1783,13 @@ TICK_WORDS = {
     "verdict_failed": "the review failed the change",
     "do:preempt": "the change was set aside",
     "do:park": "the change was stopped",
-    "challenge": "a challenge got no answer",
+    # The Critic's `tick:challenge` checks a claim. `code_gaps` kept these
+    # words in a second table before (fact F21).
+    "challenge": "the team could not check a claim",
+    "boundary": "the team could not settle a boundary",
+    "reconcile": "the team could not compare the account with the code",
+    "survey": "the team could not read a part of the code",
+    "grouping": "the team could not group the work into changes",
     "contested": "a contested line got no answer",
     "quarantined": "the team could not report a stopped step",
     "agenda": "a question to you got no answer",
@@ -1760,7 +1800,14 @@ TICK_WORDS = {
 
 
 def _tick_words(kind: str) -> str:
-    return TICK_WORDS.get(kind, "a step of the team")
+    # A kind with no entry still says what failed, with a verb (review of
+    # F20 pass 1, finding 2).
+    return TICK_WORDS.get(kind, "the team could not finish a step")
+
+
+def _capital(text: str) -> str:
+    """The text with its first letter in capitals, for a sentence start."""
+    return text[:1].upper() + text[1:]
 
 
 def _tries(n: int) -> str:
@@ -2491,10 +2538,11 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # key it shows, once, because the page closes here. The next Developer
     # reads his ruling. Night 163's m115 to m139 restarted the team only
     # through corrections he did not mean (frame 312, review w5, finding 2).
-    for key in door_rows(conn, ask.message_id, "stalled"):
-        if key.startswith("developer|tick:batch_start|"):
-            conn.execute("DELETE FROM tick_attempts WHERE tick_key = ? "
-                         "AND quarantined = 1", (key,))
+    from ..core.db import lift_keys
+    from ..core.scheduler import key_parts
+
+    lift_keys(conn, [k for k in door_rows(conn, ask.message_id, "stalled")
+                     if key_parts(k)[:2] == ("developer", "tick:batch_start")])
     # The shift question changes no item. Its answer is one `item_parks` row,
     # and a drop closes the earlier request's open asks and notes (frame
     # 193's design, 2.F.3).
@@ -2733,7 +2781,11 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             "INSERT INTO decisions (id, author, text, refs, resolves_ledger) "
             "VALUES (?, 'principal', ?, ?, ?)",
             (new_id("d", conn), text, json.dumps([row["about_ref"]]), ref))
-        conn.execute("UPDATE ledger SET status = 'resolved' WHERE id = ?", (ref,))
+        # A closed entry lifts the keys about it (frame 242).
+        from ..core.db import write_state
+
+        write_state(conn, "ledger", ref,
+                    "UPDATE ledger SET status = 'resolved' WHERE id = ?", (ref,))
         closed_here.append(ref)
 
     # The ruling lands on the rows it names, here, at the keypress.
@@ -2758,19 +2810,16 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                  "revise": "contested"}.get(ruling)
         if state is None:
             continue
-        moved = conn.execute(
-            "UPDATE items SET approval = ?, approval_ver = version "
-            "WHERE id = ? AND approval IS NOT ?", (state, ref, state)).rowcount
         # An approval change is an exit from a quarantine. This raw write
         # skipped the lift, so night 147's approve left the contested tick
         # quarantined, and the walk's end said the team gave up (frame 240).
-        # Frame 87 fixed the same shape in `boot.py`. The rowcount keeps frame
-        # 80's rule: a same-value write revives nothing. Law 6.
-        if moved:
-            from ..core.db import Write, _lift_quarantines
+        # The guard on the old value keeps frame 80's rule: a same-value write
+        # revives nothing. Law 6.
+        from ..core.db import write_state
 
-            _lift_quarantines(conn, Write("items", ref, {"approval": state},
-                                          op="update", amends=False), True)
+        write_state(conn, "items", ref,
+                    "UPDATE items SET approval = ?, approval_ver = version "
+                    "WHERE id = ? AND approval IS NOT ?", (state, ref, state))
 
     refs = [r for r in (list(per_item) if answer.per_item else ask.refs)
             if r not in closed_here and not _is_reading(r)]
@@ -2828,6 +2877,11 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # ask. `apply_rulings` then finds no open row and marks no second one.
     # When no row exists for the ask, the door writes one here, landed,
     # keyed by the verdict message so a replay lands the same id.
+    # The verdicts landed before this one, read before this one lands.
+    prior: dict = {}
+    for r in conn.execute("SELECT per_item FROM rulings WHERE status = 'landed' "
+                          "ORDER BY rowid"):
+        prior.update(json.loads(r["per_item"] or "{}"))
     if ruling_id is None:
         conn.execute(
             "UPDATE rulings SET status = 'landed', verdict_id = ? "
@@ -2837,6 +2891,21 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         if on_file is None:
             _insert_keypress_ruling(conn, ask, msg_id, {**per_item, **readings},
                                     (answer.text or "").strip())
+    # A landed ruling on a row of a running batch moves what its seats read.
+    # Night 170's m92, m98 and m103 ruled on b_3 and its criterion, and
+    # `tester|tick:tests_missing|b_3` stayed (review of F20 pass 1, finding 1).
+    from ..core.db import lift_batch_seats
+
+    # A verdict the row already holds is no new act, so it lifts nothing,
+    # as a commit that changes no behaviour lifts nothing (frame 318; F20
+    # pass 1c). A batch's ref reaches its item, so the item's batches hold it.
+    ruled = sorted({i for r, v in per_item.items()
+                    if not _is_reading(r) and prior.get(r) != v
+                    for i in _items_reached(conn, r)})
+    if ruled:
+        lift_batch_seats(conn, [r["id"] for r in conn.execute(
+            "SELECT id FROM batches WHERE item_id IN (%s) ORDER BY id"
+            % ",".join("?" * len(ruled)), ruled)])
     return msg_id
 
 
@@ -2951,8 +3020,12 @@ def _land_shift(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                 "INSERT INTO decisions (id, author, text, refs, resolves_ledger) "
                 "VALUES (?, 'principal', ?, ?, ?)",
                 (new_id("d", conn), text, json.dumps([r["about_ref"]]), r["id"]))
-            conn.execute("UPDATE ledger SET status = 'resolved' WHERE id = ?",
-                         (r["id"],))
+            # A closed entry lifts the keys about it (frame 242).
+            from ..core.db import write_state
+
+            write_state(conn, "ledger", r["id"],
+                        "UPDATE ledger SET status = 'resolved' WHERE id = ?",
+                        (r["id"],))
     if said:
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                      (f"entry:{msg_id}", json.dumps(said)))

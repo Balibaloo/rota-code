@@ -195,11 +195,16 @@ def i5(conn) -> list[Finding]:
 def i6(conn) -> list[Finding]:
     gone = {r[0]: r[1] for r in _rows(conn, "SELECT id, status FROM batches "
                                             "WHERE status IN ('merged', 'abandoned')")}
+    from ..core.scheduler import key_parts, quarantined_keys
+
+    try:
+        keys = quarantined_keys(conn)
+    except sqlite3.OperationalError:
+        keys = []          # a database from before the table existed
     out = []
-    for (key,) in _rows(conn, "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
-                              "ORDER BY tick_key"):
-        refs = key.split("|", 2)[-1].split(",")
-        for ref in refs:
+    for key in keys:
+        # The one parse of a tick key (fact F20, review of pass 1, finding 6).
+        for ref in key_parts(key)[2]:
             if ref in gone:
                 out.append(Finding("I6", f"quarantined {key} names {gone[ref]} {ref}"))
     return out

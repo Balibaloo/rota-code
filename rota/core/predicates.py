@@ -1142,11 +1142,10 @@ def _next_rung(conn, batch_id: str) -> str:
     # A rung whose own key the tick quarantine took was asked too. It
     # committed no session, so the ladder asked it for ever and `preempt`
     # never parked (frame 330, the agency read, instance 10).
-    asked |= {r["tick_key"].split("|", 1)[0] for r in conn.execute(
-        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
-        "AND tick_key IN (" + ",".join("?" * (2 * len(LADDER))) + ")",
-        [f"{role}|{kind}|{batch_id}" for role in LADDER
-         for kind in ("tick:exhausted", "tick:findings_exhausted")])}
+    from .scheduler import key_parts, quarantined_keys
+    asked |= {role for role, kind, _ in map(key_parts, quarantined_keys(conn, batch_id))
+              if role in LADDER
+              and kind in ("tick:exhausted", "tick:findings_exhausted")}
     for role in LADDER:
         if role not in asked:
             return role
@@ -1753,37 +1752,35 @@ def quarantined(conn) -> list[Wake]:
     # `refs=["tick:quarantined"]` three times to a door that refused it.
     stalled: list[str] = []
     from ..roles.principal import _items_reached
-    from .scheduler import aside_items, given_up, park_owns
+    from .scheduler import (aside_items, given_up, key_parts, park_owns,
+                            quarantined_keys)
 
     aside = aside_items(conn)
 
     try:
-        for row in conn.execute(
-                "SELECT tick_key, attempts FROM tick_attempts "
-                "WHERE quarantined = 1 AND reported = 0 ORDER BY tick_key"):
+        for key in quarantined_keys(conn, unreported=True):
             # law 6: a wake past its cap is quarantined and said out loud
             # A key that a park owns is said by the park page or the note.
             # Night 133's s319 and s325 presented the batch alone, and the
             # rulings on it moved nothing (frame 142's design, 2.D). A key
             # of a running batch stays, because a running batch has no park.
-            subject = (row["tick_key"] or "").split("|", 2)[-1]
-            if (subject and row["tick_key"] in given_up(conn, subject)
-                    and park_owns(conn, subject)):
+            role, kind, keyed = key_parts(key)
+            if (len(keyed) == 1 and key in given_up(conn, keyed[0])
+                    and park_owns(conn, keyed[0])):
                 continue
             # A key whose refs reach only items set aside waits with them.
             # Night 137's m186 put the confirm item to the principal after
             # the version option request (frame 193's design, 2.F.4).
             keyed_items = set()
-            for ref in subject.split(","):
-                if ref:
-                    keyed_items.update(_items_reached(conn, ref))
+            for ref in keyed:
+                keyed_items.update(_items_reached(conn, ref))
             if keyed_items and keyed_items <= aside:
                 continue
             n += 1
-            parts = (row["tick_key"] or "").split("|")
-            role = parts[0] if parts else ""
-            kind = parts[1].replace("tick:", "") if len(parts) > 1 else ""
-            keyed = [r for r in (parts[2] if len(parts) > 2 else "").split(",") if r]
+            kind = kind.replace("tick:", "")
+            attempts = conn.execute(
+                "SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+                (key,)).fetchone()["attempts"]
             for ref in keyed:
                 if ref not in refs and conn.execute(
                         "SELECT 1 FROM batches WHERE id = ? UNION SELECT 1 FROM items WHERE id = ? "
@@ -1791,7 +1788,7 @@ def quarantined(conn) -> list[Wake]:
                     refs.append(ref)
             stalled.append(f"{kind} for {', '.join(keyed) or 'the run'}"
                            f"{f' ({role})' if role and role != '-' else ''}, "
-                           f"{row['attempts']} attempts")
+                           f"{attempts} attempts")
     except Exception:                 # a database older than the table
         pass
     detail = f"{n} abandoned" + (": " + "; ".join(stalled) if stalled else "")
@@ -1814,8 +1811,8 @@ def park_ask(conn) -> list[Wake]:
     whole rests, so nothing more is asked until something moves. The refs
     are the item and the batch. The door writes the page's own refs.
     """
-    from .scheduler import (given_up, open_park_ask, park_ask_id, park_owns,
-                            park_reds)
+    from .scheduler import (given_up, key_parts, open_park_ask, park_ask_id,
+                            park_owns, park_reds)
 
     from .scheduler import not_parked
 
@@ -1834,7 +1831,9 @@ def park_ask(conn) -> list[Wake]:
                 (park_ask_id(conn, b["id"]),)).fetchone():
             continue
         keys = given_up(conn, b["id"])
-        what = ", ".join(f"{k.split('|')[1].replace('tick:', '')} for {b['id']}"
+        # The Liaison reads this detail, and the door writes the page from
+        # the records. So the detail keeps the kind's name (fact F21).
+        what = ", ".join(f"{key_parts(k)[1].replace('tick:', '')} for {b['id']}"
                          for k in keys)
         kind = "page" if park_reds(conn, b["id"])[0] else "note"
         out.append(Wake("liaison", "tick:park_ask", refs=(b["item_id"], b["id"]),
