@@ -398,7 +398,7 @@ def test_the_parked_line_names_only_what_the_principal_can_do():
 
     conn = _night_94_parked()
     page = render_state(conn)
-    assert ("Stuck: b_1 is parked. The team gave up on: tests_failing for b_1. "
+    assert ("Stuck: b_1 is parked. The tests still fail after 3 attempts. "
             "The other changes go on. A new commit on the change starts it "
             "again. I ask you about it next.") in page
     assert "contest" not in page
@@ -409,7 +409,7 @@ def test_the_parked_line_names_only_what_the_principal_can_do():
     conn.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
                  "reported) VALUES (?, 3, 1, 1)", (tick_key(wake),))
     page = render_state(conn)
-    assert ("Stuck: b_1 is parked. The team gave up on: tests_failing for b_1. "
+    assert ("Stuck: b_1 is parked. The tests still fail after 3 attempts. "
             "The other changes go on. A new commit on the change starts it "
             "again.") in page
     assert "I ask you" not in page and "contest" not in page
@@ -745,10 +745,10 @@ def test_the_park_count_survives_a_commit_and_quarantines():
                  (config.get(conn, "tick_attempt_cap"), park))
     assert quarantine_overrun(conn) == 1
     page = render_state(conn)
-    assert "Stuck. The team gave up on: do:park for b_1." in page
+    assert "Stuck: the change was stopped for b_1 after" in page
 
     # A commit after the quarantine is the park's exit again, not its lift.
     _commit_head(conn, "b_1", "f2x")
     assert conn.execute("SELECT quarantined FROM tick_attempts WHERE tick_key = ?",
                         (park,)).fetchone()["quarantined"] == 1
-    assert "Stuck. The team gave up on: do:park for b_1." in render_state(conn)
+    assert "Stuck: the change was stopped for b_1 after" in render_state(conn)

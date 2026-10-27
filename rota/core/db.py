@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import paths
-from typing import Any, Iterator
+from typing import Any, Iterable, Iterator
 
 SCHEMA_PATH = paths.SCHEMA
 
@@ -664,14 +664,14 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
         # Frame 318: on a running batch the harness run at the new head
         # judges the `tests_failing` key, in `lift_on_red_move`.
         failing = commit and _running(conn, w.row_id)
-        conn.execute(
-            "DELETE FROM tick_attempts WHERE quarantined = 1 AND (tick_key LIKE ? "
-            "OR tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?) "
-            "AND tick_key NOT LIKE ? AND tick_key NOT LIKE ?",
-            (f"%|{w.row_id}", f"%|{w.row_id},%",
-             f"%,{w.row_id}", f"%,{w.row_id},%",
-             "%|do:park|%" if commit else "\x00",
-             "%|tick:tests_failing|%" if failing else "\x00"))
+        # The keys come from the one reader, so a ref matches as a whole.
+        # A LIKE read `_` as a wildcard and ignored case (frame 242).
+        from .scheduler import key_parts, quarantined_keys
+
+        kept = (({"do:park"} if commit else set())
+                | ({"tick:tests_failing"} if failing else set()))
+        lift_keys(conn, [k for k in quarantined_keys(conn, w.row_id, pairs=True)
+                         if key_parts(k)[1] not in kept])
     # Progress is the red moving, and the bound is on dispatch *without*
     # progress. Walk seventeen: four, three, two tests failing across three
     # commits, and the third session was the quarantine. So a moved red
@@ -693,8 +693,7 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
         # A parked batch gets no harness run until it resumes, so the commit
         # still lifts its key. The commit is the park's way out (frame 87).
         if not running:
-            conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
-                         (f"%|tick:tests_failing|{w.row_id}",))
+            forget_keys(conn, batch_keys(conn, w.row_id, {"tick:tests_failing"}))
         # The commit is the way out the park ask names, so the ask closes
         # with the keys it asked about (frame 87).
         from .scheduler import close_park_asks
@@ -712,13 +711,10 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
     if moved and w.table in ("criteria", "tests"):
         for b, red_moved in reaches.items():
             if b:
-                held = [r["tick_key"] for r in conn.execute(
-                    "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
-                    "AND tick_key LIKE ?", (f"%|{b}",))]
-                for key in held:
-                    if _row_move_reaches(key, red_moved):
-                        conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
-                                     (key,))
+                from .scheduler import quarantined_keys
+
+                lift_keys(conn, [k for k in quarantined_keys(conn, b)
+                                 if _row_move_reaches(k, red_moved)])
                 # Review 2, finding 2: a reset count below the cap bought the
                 # same refusal more ticks, so the refused keys keep it too.
                 spared = tuple(r["tick_key"] for r in conn.execute(
@@ -728,6 +724,97 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                     (f"%|{b}", f"%|{b},%", f"%,{b}", f"%,{b},%"))
                     if not _row_move_reaches(r["tick_key"], red_moved))
                 _forget_batch_counts(conn, b, keep=spared)
+
+
+def lift_keys(conn: sqlite3.Connection, keys: Iterable[str]) -> None:
+    """Lift the quarantine of each key. A key that is not quarantined stays."""
+    # The one delete of a quarantined key. `land` deleted one by hand before
+    # (fact F20, the root-cause audit of 2026-10-27). Law 6.
+    conn.executemany("DELETE FROM tick_attempts WHERE tick_key = ? "
+                     "AND quarantined = 1", [(k,) for k in keys])
+
+
+def forget_keys(conn: sqlite3.Connection, keys: Iterable[str]) -> None:
+    """Lift each key's quarantine and forget its live count."""
+    keys = list(keys)
+    lift_keys(conn, keys)
+    conn.executemany("DELETE FROM tick_attempts WHERE tick_key = ? "
+                     "AND quarantined = 0", [(k,) for k in keys])
+
+
+def batch_keys(conn: sqlite3.Connection, batch_id: str,
+               kinds: set[str]) -> list[str]:
+    """The keys of these kinds about the batch alone, live or quarantined."""
+    # A LIKE pattern read `_` in the batch id as a wildcard (frame 242).
+    from .scheduler import key_parts
+
+    return [r["tick_key"] for r in conn.execute("SELECT tick_key FROM tick_attempts")
+            if key_parts(r["tick_key"])[1] in kinds
+            and key_parts(r["tick_key"])[2] == (batch_id,)]
+
+
+# The junction tables a batch's seats read for the batch: the touch set that
+# `batches.expect` shows, and the tickets whose criteria the seats read.
+BATCH_READS = ("batch_touch", "batch_tickets")
+
+
+def lift_batch_seats(conn: sqlite3.Connection, batch_ids: Iterable[str]) -> None:
+    """
+    Lift the seats' quarantined keys of each batch, after a move of what the
+    seats read for it: its touch set, its tickets, or a ruling on its rows.
+    """
+    # A scheduler key (`-|do:park|b`) is the park's own bound, and a commit
+    # is its only exit (frame 86). Frame 318 keeps the Developer's red keys
+    # until the red moves, so a move that reaches no red lifts none of them.
+    # A deferred batch's given-up key waits for the principal's page (frame
+    # 87, ruled 2026-09-27), so only a running batch's keys lift here.
+    from .scheduler import key_parts, quarantined_keys
+
+    running = [b for b in batch_ids if _running(conn, b)]
+    if running:
+        lift_keys(conn, [k for k in quarantined_keys(conn, running)
+                         if key_parts(k)[0] != "-" and _row_move_reaches(k, False)])
+
+
+def batch_reads(conn: sqlite3.Connection, writes) -> dict[str, tuple]:
+    """The stored touch set and tickets of each batch these writes name."""
+    batches = {str(w.values["batch_id"]) for w in writes
+               if w.table in BATCH_READS and (w.values or {}).get("batch_id")}
+    return {b: tuple(tuple(r) for t in BATCH_READS for r in conn.execute(
+        f"SELECT * FROM {t} WHERE batch_id = ? ORDER BY 1, 2", (b,)))
+        for b in sorted(batches)}
+
+
+def lift_moved_reads(conn: sqlite3.Connection, before: dict[str, tuple]) -> None:
+    """Lift the seat keys of each batch whose stored touch set or tickets moved."""
+    # The touch set and the tickets are what a batch's seats read for it.
+    # Night 170's s217 and s224 rewrote b_3's touch set, and the Tester's key
+    # stayed (review of F20 pass 1, finding 1). The compare is on the stored
+    # rows after the whole commit, so a clear and a rewrite of the same rows
+    # lift nothing, as frame 318 rules for a commit (F20 pass 1c).
+    after = batch_reads(conn, [Write(BATCH_READS[0], b, {"batch_id": b})
+                               for b in before])
+    lift_batch_seats(conn, [b for b in before if after[b] != before[b]])
+
+
+def write_state(conn: sqlite3.Connection, table: str, row_id: str, sql: str,
+                params: tuple = (), fields: dict | None = None) -> int:
+    """
+    Run one raw UPDATE of a subject's row, and lift its quarantines when the
+    row moved. Returns the rowcount.
+
+    `fields` names the columns the UPDATE sets when the lift reads them, as
+    `head_commit` for a commit.
+    """
+    # A raw write of a ledger status skipped the lift, so a quarantined key
+    # could outlive its closed entry (frame 242). A write that sets the value
+    # the row holds moves nothing and lifts nothing (frame 80). Law 6.
+    w = Write(table, row_id, dict(fields or {}), op="update", amends=False)
+    before = _subject_state(conn, w)
+    n = conn.execute(sql, params).rowcount
+    if n:
+        _lift_quarantines(conn, w, _subject_moved(conn, w, before))
+    return n
 
 
 def _moves_red(conn: sqlite3.Connection, w) -> dict[str, bool]:
@@ -778,10 +865,11 @@ def _row_move_reaches(key: str, red_moved: bool) -> bool:
     # Frame 318, night 163: each respecify of a bg_2 criterion lifted
     # `developer|tick:batch_start|bg_2`. Three more Developers met the same
     # note refusal at termui.py line 609, five rounds.
-    role, _, rest = key.partition("|")
+    from .scheduler import key_parts
+
+    role, tick, _ = key_parts(key)
     if role != "developer":
         return True
-    tick = rest.split("|", 1)[0]
     # Night 164: a new passing test is not progress on the red (W-B).
     if tick in _RED_TICKS[:2]:
         return red_moved
@@ -883,15 +971,12 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
         # new red is the Tester's new test, so the Developer has a new cause.
         if not same_head:
             return False
-        conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ? "
-                     "OR tick_key LIKE ?",
-                     (f"%|tick:tests_failing|{batch_id}",
-                      f"%|tick:exhausted|{batch_id}"))
+        forget_keys(conn, batch_keys(conn, batch_id,
+                                     {"tick:tests_failing", "tick:exhausted"}))
         return True
     if before.items() <= now.items():
         return False
-    conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
-                 (f"%|tick:tests_failing|{batch_id}",))
+    forget_keys(conn, batch_keys(conn, batch_id, {"tick:tests_failing"}))
     return True
 
 
@@ -1246,6 +1331,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
             ),
         )
 
+        reads_before = batch_reads(conn, result.writes)
         for w in result.writes:
             before = _subject_state(conn, w)
             changed = _apply_write(conn, w)
@@ -1270,6 +1356,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 )
             if w.table != REFS_TABLE:
                 _lift_quarantines(conn, w, _subject_moved(conn, w, before))
+        lift_moved_reads(conn, reads_before)
 
         for m in result.messages:
             conn.execute(

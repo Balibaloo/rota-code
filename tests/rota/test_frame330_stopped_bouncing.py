@@ -208,7 +208,8 @@ def test_a_quarantined_rung_counts_as_asked(night_168):
                       "reported) VALUES ('developer|tick:exhausted|batch_1', 3, 1, 1)")
     assert _ladder(night_168) == [("architect", "tick:exhausted", ("batch_1",))]
     assert [w.detail for w in P.exhausted(night_168)] == [
-        "a step of the team after 3 attempts; the tests still fail after 3 attempts"]
+        "the team could not finish a step after 3 attempts; the tests still fail "
+        "after 3 attempts"]
 
 
 def test_a_stuck_liaison_note_does_not_stop_the_batch(night_168):

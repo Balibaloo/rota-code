@@ -693,8 +693,12 @@ def park_merged(conn: sqlite3.Connection, batch_id: str) -> list[str]:
         items = ledger_items(conn, r["id"])
         if items and items <= {item}:
             parked.append(r["id"])
+    # A parked entry leaves every page, so the keys about it lift (frame 242).
+    from .db import write_state
+
     for ledger_id in parked:
-        conn.execute("UPDATE ledger SET status = 'parked' WHERE id = ?", (ledger_id,))
+        write_state(conn, "ledger", ledger_id,
+                    "UPDATE ledger SET status = 'parked' WHERE id = ?", (ledger_id,))
     return parked
 
 
