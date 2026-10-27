@@ -2216,11 +2216,16 @@ def open_park_ask(conn: sqlite3.Connection, batch_id: str) -> str | None:
 
 
 def close_park_asks(conn: sqlite3.Connection, batch_id: str) -> int:
-    """Close the open park ask of a batch. Returns how many closed."""
-    return conn.execute(
-        "UPDATE messages SET status = 'answered' WHERE status = 'open' "
+    """Close the open park ask of a batch. Returns how many closed.
+
+    The batch's commit is the landed row, so the ask owes no answer. The
+    mark goes through `db.mark_answered`, its one writer (fact F16).
+    """
+    from .db import mark_answered
+    return sum(mark_answered(conn, r["id"]) for r in conn.execute(
+        "SELECT id FROM messages WHERE status = 'open' "
         "AND substr(id, 1, ?) = ? AND substr(id, ?) = ?",
-        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).rowcount or 0
+        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchall())
 
 
 def dropped_items(conn: sqlite3.Connection) -> set[str]:
@@ -2309,6 +2314,7 @@ def close_stale_park_asks(conn: sqlite3.Connection) -> int:
     closes it in `principal.land`. An abandonment by another gate closes
     neither, and an ask about a batch that is gone owes no answer.
     """
+    from .db import mark_answered
     n = 0
     for r in conn.execute(
             "SELECT id FROM messages WHERE status = 'open' AND substr(id, 1, ?) = ?",
@@ -2317,8 +2323,7 @@ def close_stale_park_asks(conn: sqlite3.Connection) -> int:
         row = conn.execute("SELECT status FROM batches WHERE id = ?",
                            (batch,)).fetchone()
         if row is None or row["status"] != "deferred" or not given_up(conn, batch):
-            n += conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
-                              (r["id"],)).rowcount or 0
+            n += mark_answered(conn, r["id"])
     return n
 
 
