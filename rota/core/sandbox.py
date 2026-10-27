@@ -4706,6 +4706,17 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             if rid not in (refs or []):
                 refs = list(refs or []) + [rid]
 
+        # Each reply of his that the team read and he has not confirmed rides
+        # the page as its read-back line. The refs hold the line, so a later
+        # render numbers the same lines (the seam design, 2.3, and its
+        # review, finding 3). A shift page and a park page take no approve,
+        # so they carry none (finding 2).
+        if (recipient == "principal" and verb in ("present", "confirm")
+                and not park and not shift):
+            from ..roles.principal import readings_owed
+
+            refs = list(refs or [])
+            refs += [r for r in readings_owed(ctx.conn) if r not in refs]
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
         if shift:
             msg_id = shift_id

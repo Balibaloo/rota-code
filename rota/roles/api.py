@@ -12670,16 +12670,23 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # A park page is a present with rows, so this door applies to it as to
     # every page (ruled: Roman, 2026-10-08, the park ask is a page with rows).
     ask = page
+    from .principal import READING_REF
+
+    # A read-back line is no row of the page's request. An empty ruling
+    # acknowledges the rows and confirms no reading (the seam design's
+    # review, finding 1).
     refs = json.loads(ask["body_refs"] or "[]")
     page_text, order = render_page(ctx.conn, ask["verb"], refs, ask["body_text"],
                                    ask_id=ask["id"])
     order = order or []
+    row_refs = [r for r in refs if not str(r).startswith(READING_REF)]
+    row_order = [r for r in order if not str(r).startswith(READING_REF)]
     # A page with no numbered line, the touch note, takes an empty ruling:
     # the reply acknowledged it. tipsAS (2026-09-11): the Liaison sent
     # rulings={} for the touch note and was refused, the only right
     # answer, and the page stayed open under "Waiting on you".
-    batches_only = bool(refs) and all(ctx.conn.execute(
-        "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone() for r in refs)
+    batches_only = bool(row_refs) and all(ctx.conn.execute(
+        "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone() for r in row_refs)
     # A clarify numbers no line, so `order` is empty for every clarify. The
     # door above would then read an empty ruling as "approve all", which is
     # the reading this fix exists to stop: silence is not consent
@@ -12705,7 +12712,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if not park_ask_batch(ask["id"]):
             keys = answer_about(ctx.conn, ask["id"]) or refs
     if (isinstance(rulings, dict) and not rulings and not is_clarify
-            and not acts and (not order or batches_only)):
+            and not acts and (not row_order or batches_only)):
         rid = new_id("r", ctx.conn)
         # The page numbers no line, so the Liaison cannot rule a row that is
         # gone. A ref that no table holds is a fault on file, and the page
@@ -12713,15 +12720,15 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # 1).
         from .principal import unheld_text
 
-        rows = _ruled_rows(ctx, rid, order, {r: "approve" for r in refs}, words,
-                           unheld="skip")
-        for ref in [r for r in refs if r not in {row["ref"] for row in rows}]:
+        rows = _ruled_rows(ctx, rid, order, {r: "approve" for r in row_refs},
+                           words, unheld="skip")
+        for ref in [r for r in row_refs if r not in {row["ref"] for row in rows}]:
             _stage_fault(ctx, "rulings.rule", unheld_text(rid, ref), "fault")
         _stage_ruling(ctx, {
             "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
-            "per_item": json.dumps({r: "approve" for r in refs}),
+            "per_item": json.dumps({r: "approve" for r in row_refs}),
             "words": (words or "").strip(), "status": "open"}, rows)
-        return {"id": rid, "per_item": {r: "approve" for r in refs},
+        return {"id": rid, "per_item": {r: "approve" for r in row_refs},
                 "note": "the page had no line to rule on; acknowledged"}
     if not isinstance(rulings, dict) or not rulings:
         raise ValueError(
@@ -12994,10 +13001,14 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     if not is_clarify:
         # A check line carries a number so that his words can name a test
         # (frame 306, W-A). A check line the reply leaves out keeps its test.
-        from .principal import is_test_row
+        from .principal import READING_REF, is_test_row
 
+        # A read-back line the reply leaves out stays unconfirmed. The rule's
+        # "a line the reply does not contest is approve" would read his
+        # silence as consent there (the seam design's review, finding 1).
         unnamed = [str(i + 1) for i, r in enumerate(order)
-                   if r not in per_item and not is_test_row(ctx.conn, r)]
+                   if r not in per_item and not is_test_row(ctx.conn, r)
+                   and not str(r).startswith(READING_REF)]
         if unnamed:
             raise ValueError(
                 f"lines {', '.join(unnamed)} have no ruling. Every line of the "
@@ -13734,7 +13745,16 @@ UNADDRESSED_KIND = "unaddressed_answer"
 
 
 def _table_of_ref(conn, ref: str) -> str | None:
-    """The table the row lives in, or None."""
+    """The table the row lives in, or None.
+
+    A read-back line's ref, `reading:<reply id>`, lives in `messages`: it
+    names his reply (the seam design, 2.3)."""
+    from .principal import READING_REF
+
+    if isinstance(ref, str) and ref.startswith(READING_REF):
+        return "messages" if conn.execute(
+            "SELECT 1 FROM messages WHERE id = ?",
+            (ref[len(READING_REF):],)).fetchone() else None
     return next((t for t in LEDGER_HOMES
                  if conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
                                  (ref,)).fetchone()), None)

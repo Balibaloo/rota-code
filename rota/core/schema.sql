@@ -113,6 +113,13 @@ CREATE INDEX IF NOT EXISTS ix_refs_target ON refs(kind, target);
 --
 -- The walk follows `term` refs: a criterion rests on a term, and the term
 -- rests on a statement. The cap at 8 guards a cycle written by hand.
+-- A landed ruling counts as `ruled` when it came from his keypress, with no
+-- reply, or when he approved the read-back line of its reply. An unchecked
+-- inference is never a record (`composition.md`, Records; the seam design,
+-- 2.4). `ruled_refs_live.confirmed_by` reads the same approve.
+-- The view holds no data, so `init_db` drops it and makes it again: a run
+-- database then reads the count of this schema.
+DROP VIEW IF EXISTS provenance;
 CREATE VIEW IF NOT EXISTS provenance AS
 WITH RECURSIVE reach(src_table, src_id, kind, target, resolves, depth) AS (
     SELECT src_table, src_id, kind, target, resolves, 1 FROM refs
@@ -126,7 +133,11 @@ WITH RECURSIVE reach(src_table, src_id, kind, target, resolves, depth) AS (
 basis AS (
     SELECT src_table, src_id,
         MAX(kind = 'ruling' AND EXISTS (
-            SELECT 1 FROM rulings u WHERE u.id = reach.target AND u.status = 'landed'))
+            SELECT 1 FROM rulings u WHERE u.id = reach.target AND u.status = 'landed'
+              AND (u.reply_id IS NULL OR EXISTS (
+                  SELECT 1 FROM ruled_refs c JOIN rulings cr ON cr.id = c.ruling_id
+                  WHERE c.ref = 'reading:' || u.reply_id AND c.verdict = 'approve'
+                    AND cr.status = 'landed'))))
           AS ruled,
         MAX(kind = 'statement' AND EXISTS (
             SELECT 1 FROM statements s WHERE s.id = reach.target AND s.status = 'ratified'))

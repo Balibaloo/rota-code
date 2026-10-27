@@ -980,6 +980,79 @@ def insert_ruling_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
             f"VALUES ({', '.join('?' for _ in cols)})", [row[c] for c in cols])
 
 
+# The words of a verdict on the read-back line. An approve with no act
+# goes into the count clause (the seam design, 2.3).
+_READ_BACK_VERDICT = {"approve": "is approved", "contest": "is wrong",
+                      "revise": "is to change", "park": "waits",
+                      "now": "comes first", "drop": "is dropped",
+                      "resume": "resumes"}
+# The read-back line quotes the start of his answer. A clock time in the
+# page changes the prompt of every recorded case on each run.
+READ_BACK_WORDS = 8
+
+
+def _is_reading(ref) -> bool:
+    return isinstance(ref, str) and ref.startswith(READING_REF)
+
+
+def readings_owed(conn: sqlite3.Connection) -> list[str]:
+    """The `reading:<reply id>` refs that the next page reads back, oldest
+    first.
+
+    A reply is owed while the Liaison's landed reading of it has rows and no
+    landed row rules its read-back line. His approve confirms the rows. His
+    contest makes new rows, and the next page reads those back once. A
+    keypress row and a back-filled row are no reading, so they owe nothing
+    (the seam design, 2.3; ruled: Roman, 2026-10-26 22:5x, "every time").
+    """
+    out: list[str] = []
+    for r in conn.execute(
+            "SELECT reply_id FROM ruled_refs_live WHERE source = 'reading' "
+            "AND reply_id IS NOT NULL AND ruling_status = 'landed' "
+            "AND status != 'superseded' AND confirmed_by IS NULL "
+            "AND substr(ref, 1, ?) != ? GROUP BY reply_id "
+            "ORDER BY MIN(ruling_seq)",
+            (len(READING_REF), READING_REF)).fetchall():
+        ref = READING_REF + r["reply_id"]
+        if not conn.execute(
+                "SELECT 1 FROM ruled_refs_live WHERE ref = ? "
+                "AND ruling_status = 'landed'", (ref,)).fetchone():
+            out.append(ref)
+    return out
+
+
+def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
+    """The read-back line of `reading:<reply id>`, written from the columns,
+    or None when the reply has no row.
+
+    No model writes the line. A row on a `reading:` ref is never read back,
+    so the chain ends at his approve (the seam design, 2.3)."""
+    reply = ref[len(READING_REF):]
+    rows = [r for r in ruled(conn, reply=reply) if not _is_reading(r["ref"])]
+    if not rows:
+        return None
+    said = conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                        (reply,)).fetchone()
+    words = ((said["body_text"] if said else "") or "").split()
+    quote = " ".join(words[:READ_BACK_WORDS]) + (
+        " ..." if len(words) > READ_BACK_WORDS else "")
+    clauses: list[str] = []
+    approves = 0
+    for r in rows:
+        if r["verdict"] == "approve" and not r["act"]:
+            approves += 1
+            continue
+        where = f"line {r['line']}" if r["line"] else "a row"
+        clause = f"{where} {_READ_BACK_VERDICT.get(r['verdict'], r['verdict'])}"
+        if r["act"]:
+            clause += f": {r['act']} {r['target'] or ''}".rstrip()
+        clauses.append(clause)
+    if approves:
+        clauses.append(f"{approves} line{'s' if approves != 1 else ''} approved")
+    return (f'Your answer "{quote}", as the team read it: '
+            f"{'; '.join(clauses)}. Say ok, or say what we misread.")
+
+
 def ratified_request(conn: sqlite3.Connection, *,
                      before_seq: int | None = None) -> dict | None:
     """
@@ -1843,7 +1916,14 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     if (ask_id or "").startswith(SHIFT_ASK) and verb == "present":
         return _shift_page(conn, list(refs or []))
 
-    refs = list(refs or [])
+    # The read-back lines go last on a present or a confirm page, so no
+    # other line number moves. A shift page and a park page returned above,
+    # because their maps take no approve (the seam design's review,
+    # finding 2). The send door wrote the refs, so a later render shows
+    # the same lines (finding 3).
+    readings = ([r for r in refs or [] if _is_reading(r)]
+                if verb in ("present", "confirm") else [])
+    refs = [r for r in refs or [] if not _is_reading(r)]
     # A page is about one request. A row of an item set aside, or of another
     # request than the page's, is no line here (frame 193's design, 2.F.7).
     if verb == "present":
@@ -2064,6 +2144,11 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
         out += [f"  {t}" for _, t in said + account + described + does_today
                 + does + does_not + assumed
                 + terms + touches + other]
+    for ref in readings:
+        line = reading_line(conn, ref)
+        if line:
+            order.append(ref)
+            out.append(f"  {len(order)}. {line}")
     return chr(10).join(out), order
 
 
@@ -2312,6 +2397,11 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     # alive, and the item's approve then set a draft item approved off the
     # sign-off page (the diff review of 2dace61b, finding 4).
     per_item = dict(answer.per_item or {})
+    # A read-back line rules his own answer and no row of an owner, so it
+    # leaves the relay. Its `ruled_refs` row is the record (the seam
+    # design, 2.3).
+    readings = {k: v for k, v in per_item.items() if _is_reading(k)}
+    per_item = {k: v for k, v in per_item.items() if not _is_reading(k)}
     # The answer as given names the item, whatever a filter or a resume drops.
     ruled = set(answer.per_item or {})
     if ask.verb == "present" and answer.verb == "verdict":
@@ -2561,7 +2651,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                                           op="update", amends=False), True)
 
     refs = [r for r in (list(per_item) if answer.per_item else ask.refs)
-            if r not in closed_here]
+            if r not in closed_here and not _is_reading(r)]
     # A page whose every row closed at the keypress leaves nothing for an
     # owner to do. The verdict is the record and lands answered. Relayed,
     # it woke the Terminologist with a ruling on a done row; it adopted the
@@ -2623,7 +2713,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         on_file = conn.execute(
             "SELECT 1 FROM rulings WHERE ask_id = ?", (ask.message_id,)).fetchone()
         if on_file is None:
-            _insert_keypress_ruling(conn, ask, msg_id, per_item,
+            _insert_keypress_ruling(conn, ask, msg_id, {**per_item, **readings},
                                     (answer.text or "").strip())
     return msg_id
 

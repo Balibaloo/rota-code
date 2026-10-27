@@ -487,7 +487,26 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
         out.extend(listed[:HAND_CAP])
         if len(listed) > HAND_CAP:
             w(f"{len(listed) - HAND_CAP} more unread")
+        w(_unconfirmed_line(n))
     return out
+
+
+def _unconfirmed_line(n: Night) -> str:
+    """The rows of the Liaison's reading that he had not confirmed at the
+    night's end, one line. A reading he never confirmed is no record of his
+    (the seam design, 2.4)."""
+    if not n.has("ruled_refs"):
+        return f"read-back: {ABSENT}"
+    try:
+        row = n.conn.execute(
+            "SELECT COUNT(*) AS rows, COUNT(DISTINCT reply_id) AS replies "
+            "FROM ruled_refs_live WHERE source = 'reading' "
+            "AND ruling_status = 'landed' AND confirmed_by IS NULL "
+            "AND substr(ref, 1, 8) != 'reading:'").fetchone()
+    except sqlite3.OperationalError:
+        return f"read-back: {ABSENT}"
+    return (f"read-back: {row['rows']} rows of {row['replies']} replies "
+            f"unconfirmed at the night's end")
 
 
 def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False,
