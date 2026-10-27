@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.sandbox import build
 from rota.roles import prompts
 
@@ -90,7 +90,7 @@ def _message(conn, mid, cause, sender, to, verb, refs, seq, text=None):
                  (mid, cause, sender, to, verb, json.dumps(refs), text, seq))
 
 
-def _night159_relay(conn, verdict=VERDICT) -> None:
+def _night159_relay(conn, verdict=VERDICT, text=V6) -> None:
     """The page m223, the reply m224, the verdict m225, the ruling, the relay
     m226 that woke s382."""
     _message(conn, "m223", None, "liaison", "principal", "present",
@@ -109,7 +109,8 @@ def _night159_relay(conn, verdict=VERDICT) -> None:
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
                  "status, verdict_id, texts) VALUES ('r_03b3346468', 'm223', "
                  "'m224', ?, ?, 'landed', 'm225', ?)",
-                 (json.dumps(PER_ITEM), WORDS, json.dumps({CR: V6})))
+                 (json.dumps(PER_ITEM), WORDS, json.dumps({CR: text})))
+    backfill_ruled_refs(conn)
     conn.commit()
 
 
@@ -216,10 +217,9 @@ def test_an_argument_refusal_then_the_answer_is_refused(db):
 def test_an_unchanged_return_then_the_answer_is_refused(db):
     """Review 2, F3: the ruling's contested text differs from the row, so the
     row's own words return `unchanged` and write nothing."""
-    _night159_relay(db)
-    db.execute("UPDATE rulings SET texts = ? WHERE id = 'r_03b3346468'",
-               (json.dumps({CR: "An older text of line 3."}),))
-    db.commit()
+    # A ruled row never changes, so the older text is seeded with the
+    # ruling (the seam design, 1.1).
+    _night159_relay(db, text="An older text of line 3.")
     sb = _seat(db)
     out = sb.call("criteria.respecify", id=CR, text=V6,
                   term_refs=["command", "option"], surface_refs=[SURFACE])

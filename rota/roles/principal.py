@@ -768,30 +768,151 @@ def contested_texts(conn: sqlite3.Connection, per_item: dict) -> dict[str, str]:
 
 def last_ruling_on(conn: sqlite3.Connection, ref: str) -> dict | None:
     """
-    The newest ruling whose per_item names `ref`, or None.
+    The newest ruling on `ref`, or None.
 
     The dict holds the ruling's id, the verdict on `ref`, the principal's
     words, and the text `ref` held when he ruled, or None for an older
     ruling. A stale ruling does not count, as in `contested_statement`. The
     repair wake and the respecify door read this one function (frame 226).
+
+    The rows come from `ruled_refs_live`, one row per ruling and ref (the
+    seam design, pass 1). `words` stays the whole reply in this pass, so
+    each reader gets the answer it got from `per_item`.
     """
-    for r in conn.execute(
-            "SELECT * FROM rulings WHERE status != 'stale' AND per_item LIKE ? "
-            "ORDER BY rowid DESC", (f'%"{ref}"%',)):
-        try:
-            verdict = json.loads(r["per_item"] or "{}").get(ref)
-        except (TypeError, ValueError, AttributeError):
+    r = conn.execute(
+        "SELECT ruling_id, verdict, reply_words, old_text FROM ruled_refs_live "
+        "WHERE ref = ? AND ruling_status != 'stale' "
+        "ORDER BY ruling_seq DESC LIMIT 1", (ref,)).fetchone()
+    if r is None:
+        return None
+    return {"id": r["ruling_id"], "verdict": r["verdict"],
+            "words": r["reply_words"] or "", "text": r["old_text"]}
+
+
+# The words a `ruled_refs` row stores. The verdicts are the stored words of
+# `RULING_WORDS` and `SHIFT_WORDS` (the seam design's review, finding 6).
+RULED_VERDICTS = ("approve", "contest", "revise", "resume", "park", "now",
+                  "drop")
+RULED_ACTS = ("drop", "keep", "rewrite", "add", "remove")
+TARGET_KINDS = ("row", "check", "sentence", "identifier", "source_line",
+                "path", "request")
+# The ref of the read-back line of one reply (the seam design, 2.3).
+READING_REF = "reading:"
+
+
+def ruled_ref_home(conn: sqlite3.Connection, ref: str) -> str | None:
+    """The table that holds `ref`, or None.
+
+    `_table_of_ref` knows the ledger's homes. A page also numbers a batch, a
+    ledger row and a code line, and the read-back line names a reply."""
+    from .api import _table_of_ref, guess_item
+
+    if not isinstance(ref, str) or not ref:
+        return None
+    if ref.startswith(READING_REF):
+        return "messages" if conn.execute(
+            "SELECT 1 FROM messages WHERE id = ?",
+            (ref[len(READING_REF):],)).fetchone() else None
+    item = guess_item(ref)
+    if item is not None:
+        return "items" if conn.execute(
+            "SELECT 1 FROM items WHERE id = ?", (item,)).fetchone() else None
+    table = _table_of_ref(conn, ref)
+    if table is not None:
+        return table
+    return next((t for t in RULED_HOMES if conn.execute(
+        f"SELECT 1 FROM {t} WHERE id = ?", (ref,)).fetchone()), None)
+
+
+# The tables beside `LEDGER_HOMES` that a page or a question names. A ledger
+# note can be about a ruling, and a question can be about a decision (frame
+# 316's m191, frame 306's clarify about).
+RULED_HOMES = ("batches", "ledger", "entries", "decisions", "rulings",
+               "findings", "verdicts", "references_")
+
+
+def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
+                reading: dict, *, words: str = "", source: str = "reading",
+                words_from: str | None = None,
+                unheld: str = "refuse") -> list[dict]:
+    """
+    The `ruled_refs` rows of one ruling: one row per ref of `reading`.
+
+    `reading` maps each ref to a verdict word, or to an object with
+    `verdict` and, optionally, `act`, `target`, `target_kind`, `words` and
+    `words_from`. `page` is the order of the page as the door read it, so a
+    ref on the page keeps its line number. `words` is the whole reply, and a
+    row with no words of its own carries it. The caller stages or inserts
+    the rows: `rulings.rule` stages them, `land` inserts them.
+
+    law 6: nothing is ruled on the principal's behalf. So the writer refuses
+    a ref that no table holds, a verdict that is not stored, and an act that
+    is not one of the acts (frame 300's red test). `unheld="skip"` builds no
+    row for a ref that no table holds, and refuses nothing for it.
+    """
+    from ..core.db import ruled_ref_id
+    from .api import guess_item
+
+    if source not in ("reading", "keypress", "backfill"):
+        raise ValueError(f"{source!r} is not a source of a ruled row")
+    order = list(page or [])
+    rows: list[dict] = []
+    for ref, value in (reading or {}).items():
+        value = {"verdict": value} if isinstance(value, str) else dict(value or {})
+        verdict = value.get("verdict")
+        if verdict not in RULED_VERDICTS:
+            raise ValueError(
+                f"{ref}: {verdict!r} is not a stored verdict. A row takes "
+                f"{', '.join(RULED_VERDICTS)}")
+        table = ruled_ref_home(conn, ref)
+        if table is None and unheld == "skip":
             continue
-        if verdict is None:
-            continue
-        try:
-            texts = json.loads(r["texts"] or "{}") if "texts" in r.keys() else {}
-        except (TypeError, ValueError):
-            texts = {}
-        text = texts.get(ref) if isinstance(texts, dict) else None
-        return {"id": r["id"], "verdict": verdict, "words": r["words"] or "",
-                "text": text if isinstance(text, str) else None}
-    return None
+        if table is None:
+            raise ValueError(
+                f"{ref!r} is a row that no table holds, so a ruling on it rules "
+                f"nothing. Rule the rows of the page")
+        act = value.get("act") or None
+        if act is not None and act not in RULED_ACTS:
+            raise ValueError(
+                f"{ref}: {act!r} is not an act. An act is "
+                f"{', '.join(RULED_ACTS)}, or none")
+        kind = value.get("target_kind") or None
+        if kind is not None and kind not in TARGET_KINDS:
+            raise ValueError(
+                f"{ref}: {kind!r} is not a target kind. A target kind is "
+                f"{', '.join(TARGET_KINDS)}, or none")
+        # A code line and a read-back line are no row with a version: the
+        # home is the item or the reply, and their versions are not his.
+        version = None
+        if table != "messages" and guess_item(ref) is None and any(
+                c[1] == "version"
+                for c in conn.execute(f"PRAGMA table_info({table})")):
+            got = conn.execute(f"SELECT version FROM {table} WHERE id = ?",
+                               (ref,)).fetchone()
+            version = got["version"] if got else None
+        rows.append({
+            "id": ruled_ref_id(ruling_id, ref), "ruling_id": ruling_id,
+            "ref": ref, "line": order.index(ref) + 1 if ref in order else None,
+            "verdict": verdict, "act": act, "target_kind": kind,
+            "target": (str(value["target"]).strip() or None)
+            if value.get("target") is not None else None,
+            "words": (str(value.get("words") or "").strip()
+                      or (words or "").strip()),
+            "words_from": (value["words_from"] if "words_from" in value
+                           else words_from),
+            "old_text": contested_texts(conn, {ref: verdict}).get(ref),
+            "ref_version": version, "source": source})
+    return rows
+
+
+def insert_ruling_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
+    """Insert the rows `ruling_rows` built. A replay of the same ruling
+    builds the same ids, so the insert ignores a row on file."""
+    for row in rows:
+        cols = list(row)
+        conn.execute(
+            f"INSERT OR IGNORE INTO ruled_refs ({', '.join(cols)}) "
+            f"VALUES ({', '.join('?' for _ in cols)})", [row[c] for c in cols])
 
 
 def ratified_request(conn: sqlite3.Connection, *,
@@ -2437,13 +2558,30 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         on_file = conn.execute(
             "SELECT 1 FROM rulings WHERE ask_id = ?", (ask.message_id,)).fetchone()
         if on_file is None:
-            conn.execute(
-                "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
-                "status, verdict_id, texts) VALUES (?, ?, ?, ?, 'landed', ?, ?)",
-                (f"r_{msg_id}", ask.message_id, json.dumps(per_item),
-                 (answer.text or "").strip(), msg_id,
-                 json.dumps(contested_texts(conn, per_item))))
+            _insert_keypress_ruling(conn, ask, msg_id, per_item,
+                                    (answer.text or "").strip())
     return msg_id
+
+
+def _insert_keypress_ruling(conn: sqlite3.Connection, ask: Ask, msg_id: str,
+                            per_item: dict, said: str) -> None:
+    """The landed `rulings` row of a verdict from the seat, and its
+    `ruled_refs` rows. The verdict is his own act and not a reading, so the
+    rows carry the source `keypress` (the seam design, 1.3, caller 2).
+
+    A ref that no table holds gets no row here, and the verdict lands. A
+    refusal at this door would lose his answer. A ledger note can name a
+    ruling that is gone, and `land` adds that ref (frame 316's m191)."""
+    rid = f"r_{msg_id}"
+    rows = ruling_rows(conn, rid, getattr(ask, "order", None), per_item,
+                       words=said, source="keypress",
+                       words_from=msg_id if said else None, unheld="skip")
+    conn.execute(
+        "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
+        "status, verdict_id, texts) VALUES (?, ?, ?, ?, 'landed', ?, ?)",
+        (rid, ask.message_id, json.dumps(per_item), said, msg_id,
+         json.dumps(contested_texts(conn, per_item))))
+    insert_ruling_rows(conn, rows)
 
 
 def _write_park(conn: sqlite3.Connection, item: str, kind: str, by: str,
@@ -2516,14 +2654,12 @@ def _land_shift(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         conn.execute(
             "UPDATE rulings SET status = 'landed', verdict_id = ? "
             "WHERE ask_id = ? AND status = 'open'", (msg_id, ask.message_id))
+        # The same door as `land`, so the shift page's rows are written too
+        # (the seam design's review, finding 6).
         if conn.execute("SELECT 1 FROM rulings WHERE ask_id = ?",
                         (ask.message_id,)).fetchone() is None:
-            conn.execute(
-                "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
-                "status, verdict_id, texts) VALUES (?, ?, ?, ?, 'landed', ?, ?)",
-                (f"r_{msg_id}", ask.message_id,
-                 json.dumps(answer.per_item or {}), said, msg_id,
-                 json.dumps(contested_texts(conn, answer.per_item or {}))))
+            _insert_keypress_ruling(conn, ask, msg_id,
+                                    dict(answer.per_item or {}), said)
     return msg_id
 
 

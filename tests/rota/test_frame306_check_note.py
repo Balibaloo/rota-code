@@ -16,7 +16,7 @@ import json
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.sandbox import build
 from rota.roles import api, prompts
 
@@ -138,6 +138,7 @@ def _ruled(conn, rid, page, reply, verdict, relay, words, texts, seq):
                  "status, verdict_id, texts) VALUES (?, ?, ?, ?, ?, 'landed', "
                  "?, ?)", (rid, page, reply, json.dumps(PER_ITEM), words,
                            verdict, json.dumps(texts)))
+    backfill_ruled_refs(conn)
     conn.commit()
 
 

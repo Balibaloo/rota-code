@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from rota.core.db import SessionResult, init_db, session_commit
+from rota.core.db import SessionResult, backfill_ruled_refs, init_db, session_commit
 from rota.core.runner import _as_write, _page_act_lines, _wake_allow
 from rota.core.sandbox import build
 from rota.core.scheduler import Wake
@@ -87,6 +87,7 @@ def db(tmp_path):
                  "'m112', ?, ?, 'landed', 'm113', ?)",
                  (json.dumps(per_item), WORDS,
                   json.dumps({c: CRITERIA[c] for c in CONTESTED})))
+    backfill_ruled_refs(conn)
     conn.commit()
     return conn
 

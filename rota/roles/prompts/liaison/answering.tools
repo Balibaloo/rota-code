@@ -3,3 +3,5 @@ ledger.unaddressed
 msg.relay_vision_keeper
 msg.relay_terminologist
 msg.relay_architect
+# rulings.rule takes each value as a verdict word, or as an object with verdict, act, target and words.
+# rulings.rule also takes acts, a map from the keys of rulings to act, target and words.

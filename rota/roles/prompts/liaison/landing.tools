@@ -1,3 +1,5 @@
 # ordered
 rulings.rule
 rulings.line
+# rulings.rule takes each value as a verdict word, or as an object with verdict, act, target and words.
+# rulings.rule also takes acts, a map from the keys of rulings to act, target and words.

@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.runner import _mode_key, answer_about, resolve_inbound, run_session
 from rota.core.scheduler import Wake, open_tips, park_criterion_relay
 from rota.llm.llm import Pins, ScriptedBackend
@@ -205,6 +205,7 @@ def test_an_approved_criterion_on_a_clarify_keeps_relay_mode(n158):
     n158.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status) "
                  "VALUES ('r_x', 'm145', 'm146', ?, 'ok', 'landed')",
                  (json.dumps({CR_2: "approve", TST_02: "approve"}),))
+    backfill_ruled_refs(n158)
     _message(n158, "m147", "liaison", "terminologist", "relay", [CR_2], cause="m146",
              status="open")
     assert not park_criterion_relay(n158, "m147")

@@ -17,7 +17,10 @@ Then call `rulings.rule` once. `rulings` is a map. Each key is a row id from
 `contest` where the words reject it, `revise` where the words change it. A
 reply that strikes or drops a row from the change is `contest`. The door reads
 `drop`, `remove` and `strike` as `contest`. A reply that drops a word and
-keeps the line is `revise`. Put the principal's words whole in `words`. Send
+keeps the line is `revise`.
+A value can also be an object with the verdict and the change the words ask for: `{"verdict": "contest", "act": "remove", "target": "app.py:518", "words": "remove the line at 518"}`.
+Or keep each value as one word, and put the change in `acts`, a map from the same row ids to `{"act": "remove", "target": "app.py:518", "words": "remove the line at 518"}`.
+Put the principal's words whole in `words`. Send
 no `ask`: the principal has answered, and an `ask` here returns their own
 question to them.
 

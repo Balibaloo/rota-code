@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.predicates import Wake
 from rota.core.runner import (CONTESTS_KEY, _contest_block, _line_legend,
                               _words_on_rows, build_prompt,
@@ -71,6 +71,7 @@ def _seed_m37(tmp_path):
                "status, texts) VALUES ('r_ee6e30a55d', 'm35', 'm37', ?, ?, "
                "'landed', ?)", (json.dumps(per_item), WORDS_M37,
                                 json.dumps(TEXTS_M37)))
+    backfill_ruled_refs(db)
     db.execute("INSERT INTO config (key, value) VALUES ('order:m37', ?)",
                (json.dumps(ORDER_M37),))
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
@@ -153,6 +154,7 @@ def _seed_m201(tmp_path, words: str = WORDS_M201, order: bool = True):
                "status, texts) VALUES ('r_39fbc7b24e', 'm200', 'm201', ?, ?, "
                "'landed', ?)", (json.dumps(per_item), words,
                                 json.dumps(TEXTS_M201)))
+    backfill_ruled_refs(db)
     if order:
         db.execute("INSERT INTO config (key, value) VALUES ('order:m201', ?)",
                    (json.dumps(ORDER_M201),))

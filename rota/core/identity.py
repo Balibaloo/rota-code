@@ -121,6 +121,9 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "batch_dep_facts": ("relation", "the (batch, grain) pair"),
     "findings": ("journal", "what the challenge pass found"),
     "rulings": ("journal", "the Liaison's reading of one principal reply"),
+    "ruled_refs": ("relation", "the (ruling, ref) pair; the id hashes it in "
+                               "`principal.ruling_rows`, and a trigger "
+                               "refuses an update"),
     "item_parks": ("journal", "one answer to the shift question, or one "
                               "automatic resume; the id hashes the item and "
                               "the cause, so a replay writes the same row"),

@@ -11,6 +11,8 @@ A long page carries `rows_not_shown` instead of `line_rows`, and then
 One function, `rulings.rule`. It takes either `rulings`, a map from each line
 number of the page to `approve`, `contest` or `revise`, with the reply as
 `words`, or `ask`, one sentence to the principal.
+A value can also be an object with the verdict and the change the reply asks for: `{"verdict": "contest", "act": "remove", "target": "app.py:518", "words": "remove the line at 518"}`.
+Or keep each value as one word, and put the change in `acts`, a map from the same line numbers to `{"act": "remove", "target": "app.py:518", "words": "remove the line at 518"}`.
 
 **A reply that asks about the page is `rulings.rule(ask="...")` with no `rulings`.**
 

@@ -11118,7 +11118,90 @@ def _ruling_word(key: str, raw, shift: bool = False) -> str:
 # a misplaced argument and not a line: night 138's s94 put `words` inside the
 # map three times, and the word door told it only that the words were no
 # ruling (frame 197).
-_RULE_ARGS = ("rulings", "words", "ask")
+_RULE_ARGS = ("rulings", "words", "ask", "acts")
+
+
+def _ruling_shape(key: str, value: dict) -> dict:
+    """The fields of one object value of `rulings`: the verdict as given,
+    and the act, the target kind, the target and the words it carries. A
+    field the object leaves out is absent, and an absent act grants
+    nothing. Other keys are not read."""
+    from .principal import RULED_ACTS, TARGET_KINDS
+
+    if value.get("verdict") in (None, ""):
+        raise ValueError(
+            f"line {key}: the object has no verdict. Write it as "
+            f"{{\"verdict\": \"contest\", \"act\": \"remove\", \"target\": "
+            f"\"app.py:518\", \"words\": \"remove the line at 518\"}}, or as "
+            f"the verdict word alone")
+    shape: dict = {"verdict": value["verdict"]}
+    act = str(value.get("act") or "").strip().lower()
+    if act:
+        if act not in RULED_ACTS:
+            raise ValueError(
+                f"line {key}: {act!r} is not an act. An act is "
+                f"{', '.join(RULED_ACTS)}. Leave act out when the words grant "
+                f"none")
+        shape["act"] = act
+    kind = str(value.get("target_kind") or "").strip().lower()
+    if kind:
+        if kind not in TARGET_KINDS:
+            raise ValueError(
+                f"line {key}: {kind!r} is not a target kind. A target kind is "
+                f"{', '.join(TARGET_KINDS)}")
+        shape["target_kind"] = kind
+    for field in ("target", "words"):
+        said = str(value.get(field) or "").strip()
+        if said:
+            shape[field] = said
+    return shape
+
+
+def _words_from(ctx: Ctx, span: str) -> str | None:
+    """The message that holds `span`: the reply first, then the principal's
+    earlier messages of the thread, newest first. None when no message holds
+    it. The writer records the fact and refuses nothing here, because the
+    span check is pass 3 of the seam design."""
+    reply = ctx.conn.execute(
+        "SELECT body_text, thread_id FROM messages WHERE id = ?",
+        (ctx.trigger,)).fetchone() if ctx.trigger else None
+    if reply is None:
+        return None
+    folded = " ".join(span.split()).casefold()
+    if not folded or folded in " ".join((reply["body_text"] or "").split()).casefold():
+        return ctx.trigger
+    for m in ctx.conn.execute(
+            "SELECT id, body_text FROM messages WHERE thread_id = ? AND "
+            "from_role = 'principal' AND id != ? ORDER BY seq DESC",
+            (reply["thread_id"], ctx.trigger)):
+        if folded in " ".join((m["body_text"] or "").split()).casefold():
+            return m["id"]
+    return None
+
+
+def _ruled_rows(ctx: Ctx, ruling_id: str, order: list | None, per_item: dict,
+                words: str, shapes: dict | None = None) -> list[dict]:
+    """The `ruled_refs` rows of the reading, built by the one builder,
+    `principal.ruling_rows`. It refuses a ref that no table holds, so the
+    door builds the rows before it stages any write."""
+    from .principal import ruling_rows
+
+    reading = {}
+    for ref, verdict in per_item.items():
+        shape = dict((shapes or {}).get(ref) or {})
+        if shape.get("words"):
+            shape["words_from"] = _words_from(ctx, shape["words"])
+        reading[ref] = {**shape, "verdict": verdict}
+    return ruling_rows(ctx.conn, ruling_id, order, reading, words=words,
+                       words_from=ctx.trigger)
+
+
+def _stage_ruling(ctx: Ctx, row: dict, rows: list[dict]) -> None:
+    """Stage one `rulings` row and its `ruled_refs` rows, in that order,
+    because a `ruled_refs` row names its ruling."""
+    ctx.writes.append(("rulings", row["id"], row))
+    for r in rows:
+        ctx.writes.append(("ruled_refs", r["id"], r))
 
 # A line reference in the principal's words: "line 3", "lines 1 to 4",
 # "lines 2, 4 and 5", or a bare "4 is wrong" at the start of a sentence.
@@ -12435,7 +12518,7 @@ def _argument_key(ctx: "Ctx", key: str, rulings: dict, words: str = "",
 
 @op("rulings", "rule")
 def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
-                 ask: str = "") -> dict:
+                 ask: str = "", acts: dict | None = None) -> dict:
     """
     The principal's reply, read as a ruling on the page it answers.
 
@@ -12458,6 +12541,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     Every line of the page needs a ruling, because the ask closes when the
     ruling lands and an unnamed line would close unruled. One ruling per
     session: a second is a second reading of the same words.
+
+    A value of `rulings` is a verdict word, or an object with `verdict` and,
+    optionally, `act`, `target` and `words`. `acts` maps the same keys to
+    `act`, `target` and `words` beside a map of words. Both forms write the
+    same `ruled_refs` rows (the seam design, 2.1, and its doubt 1).
     """
     from ..core.runner import new_id
     from .principal import render_page
@@ -12526,12 +12614,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if not park_ask_batch(ask["id"]):
             keys = answer_about(ctx.conn, ask["id"]) or refs
     if (isinstance(rulings, dict) and not rulings and not is_clarify
-            and (not order or batches_only)):
+            and not acts and (not order or batches_only)):
         rid = new_id("r", ctx.conn)
-        ctx.writes.append(("rulings", rid, {
+        _stage_ruling(ctx, {
             "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
             "per_item": json.dumps({r: "approve" for r in refs}),
-            "words": (words or "").strip(), "status": "open"}))
+            "words": (words or "").strip(), "status": "open"},
+            _ruled_rows(ctx, rid, order, {r: "approve" for r in refs}, words))
         return {"id": rid, "per_item": {r: "approve" for r in refs},
                 "note": "the page had no line to rule on; acknowledged"}
     if not isinstance(rulings, dict) or not rulings:
@@ -12548,11 +12637,19 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     off = set() if (shift or is_clarify) else off_page(ctx.conn, refs)
     per_item: dict[str, str] = {}
     key_of: dict[str, str] = {}
+    # The act, the target and the span of each ref, from the object form or
+    # from `acts`. `per_item` keeps the verdict word, so every door below
+    # reads the same map as before (the seam design, 1.4).
+    shape_of: dict[str, dict] = {}
     for key, ruling in rulings.items():
         key = str(key).strip()
         if key.lower() in _RULE_ARGS:
             raise ValueError(_argument_key(ctx, key.lower(), rulings, words,
                                            [] if is_clarify else order, shift))
+        shape = None
+        if isinstance(ruling, dict):
+            shape = _ruling_shape(key, ruling)
+            ruling = shape.pop("verdict")
         ruling = _ruling_word(key, ruling, shift=shift)
         if order and key.isdigit() and 1 <= int(key) <= len(order):
             ref = order[int(key) - 1]
@@ -12585,6 +12682,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if ref is not None:
             per_item[ref] = ruling
             key_of[ref] = key
+            if shape:
+                shape_of[ref] = shape
         elif is_clarify:
             raise ValueError(
                 f"{key!r} is not a row of this question. A clarify numbers no "
@@ -12594,6 +12693,36 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             raise ValueError(
                 f"{key!r} is not a line of the page. The page numbers its "
                 f"rows 1 to {len(order)}; use those numbers")
+    # The flat form of the act, the fallback of the seam design's doubt 1.
+    # It names the keys of `rulings`, so it writes the rows the object form
+    # writes.
+    if acts is not None:
+        if not isinstance(acts, dict):
+            raise ValueError(
+                "acts is a map of the keys of rulings to an act, for example "
+                "{\"2\": {\"act\": \"remove\", \"target\": \"app.py:518\", "
+                "\"words\": \"remove the line at 518\"}}")
+        for key, given in acts.items():
+            key = str(key).strip()
+            ref = next((r for r, k in key_of.items() if k == key), None)
+            if ref is None:
+                raise ValueError(
+                    f"acts has the key {key!r}, and rulings has no such key. "
+                    f"Each key of acts is a key of rulings")
+            if not isinstance(given, dict):
+                raise ValueError(
+                    f"acts[{key!r}] is an object with act, target and words")
+            shape = _ruling_shape(key, {"verdict": per_item[ref], **given})
+            if _ruling_word(key, shape.pop("verdict"), shift=shift) != per_item[ref]:
+                raise ValueError(
+                    f"line {key}: acts and rulings give two verdicts. Give the "
+                    f"verdict in rulings only")
+            if shape and shape_of.get(ref):
+                raise ValueError(
+                    f"line {key} has its act in rulings and in acts. Give it "
+                    f"once")
+            if shape:
+                shape_of[ref] = shape
     # ruling: DECISIONS 1445, the principal's words land on the row they name
     # A team's note takes no revise. Revise rewrites a line of the request,
     # and the request has its own lines on the page. Night 136's s557 revised
@@ -12858,6 +12987,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # Each row the answer left out is parked, one ledger row each, with the
     # class on the row. The obligation stays visible and countable until a
     # ruling discharges it (`plans/composition.md`, Records).
+    # The rows are built before any write is staged: the builder refuses a
+    # ref that no table holds, and a refusal stages nothing.
+    rid = new_id("r", ctx.conn)
+    rows = _ruled_rows(ctx, rid, [] if is_clarify else order, per_item, words,
+                       shape_of)
     parked = []
     if is_clarify:
         from ..core.predicates import UNADDRESSED_ANSWER
@@ -12877,11 +13011,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     from .principal import contested_texts
 
     texts = contested_texts(ctx.conn, per_item)
-    rid = new_id("r", ctx.conn)
-    ctx.writes.append(("rulings", rid, {
+    _stage_ruling(ctx, {
         "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
         "per_item": json.dumps(per_item), "words": (words or "").strip(),
-        "status": "open", "texts": json.dumps(texts)}))
+        "status": "open", "texts": json.dumps(texts)}, rows)
     out = {"id": rid, "per_item": per_item}
     if parked:
         out["parked"] = parked
@@ -12940,11 +13073,26 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
 @op("rulings", "load")
 def rulings_load(ctx: Ctx, ask_id: str | None = None) -> list[dict]:
     """The readings on record, for one page or all. Read by the door, not
-    offered to a session: the edge is `actor: system`."""
+    offered to a session: the edge is `actor: system`.
+
+    Each reading carries its rows of `ruled_refs_live` as `refs`, and its
+    `per_item` is the map of those rows. A reading with no row keeps the
+    map on file (the seam design, pass 1)."""
     if ask_id:
-        return _rows(ctx.conn.execute(
+        out = _rows(ctx.conn.execute(
             "SELECT * FROM rulings WHERE ask_id = ? ORDER BY rowid", (ask_id,)))
-    return _rows(ctx.conn.execute("SELECT * FROM rulings ORDER BY rowid"))
+    else:
+        out = _rows(ctx.conn.execute("SELECT * FROM rulings ORDER BY rowid"))
+    for reading in out:
+        rows = _rows(ctx.conn.execute(
+            "SELECT ref, line, verdict, act, target_kind, target, words, "
+            "words_from, old_text, ref_version, source, status, confirmed_by, "
+            "provenance FROM ruled_refs_live WHERE ruling_id = ? "
+            "ORDER BY row_seq", (reading["id"],)))
+        reading["refs"] = rows
+        if rows:
+            reading["per_item"] = json.dumps({r["ref"]: r["verdict"] for r in rows})
+    return out
 
 
 # The words of frame 204's grid, in the order of its tie-break (design,

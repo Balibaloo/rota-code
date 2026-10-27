@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.sandbox import build
 from rota.roles import prompts
 
@@ -78,6 +78,7 @@ def _ruling(conn, rid: str, ask: str, per_item: dict, words: str) -> None:
     conn.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, "
                  "texts) VALUES (?, ?, ?, ?, 'landed', '{}')",
                  (rid, ask, json.dumps(per_item), words))
+    backfill_ruled_refs(conn)
     conn.commit()
 
 

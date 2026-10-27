@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from rota.core.db import SessionResult, init_db, session_commit
+from rota.core.db import SessionResult, backfill_ruled_refs, init_db, session_commit
 from rota.core.predicates import tests_failing as failing_wakes
 from rota.core.runner import _as_write
 from rota.core.sandbox import build
@@ -37,6 +37,7 @@ def _ruling(conn, per_item, words):
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
                  "status) VALUES ('r_m121', 'm120', 'm121', ?, ?, 'landed')",
                  (json.dumps(per_item), words))
+    backfill_ruled_refs(conn)
 
 
 @pytest.fixture

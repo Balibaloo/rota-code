@@ -214,6 +214,58 @@ def open_for_viewing(path: str | Path) -> tuple[sqlite3.Connection, str | None]:
     return init_db(path), None
 
 
+def ruled_ref_id(ruling_id: str, ref: str) -> str:
+    """The id of the `ruled_refs` row of one ruling and ref. It hashes the
+    pair, so the identity derives from the content (law 14)."""
+    import hashlib
+
+    return "rr_" + hashlib.sha256(f"{ruling_id}|{ref}".encode()).hexdigest()[:12]
+
+
+# The verdicts a `ruled_refs` row stores. `principal.RULED_VERDICTS` holds
+# the same list, and this module cannot import the roles.
+_RULED_VERDICTS = frozenset(("approve", "contest", "revise", "resume", "park",
+                             "now", "drop"))
+
+
+def backfill_ruled_refs(conn: sqlite3.Connection) -> int:
+    """
+    Give each older `rulings` row its `ruled_refs` rows, from `per_item`.
+
+    A database from before the table holds rulings with no rows, and the
+    readers of the table would read no ruling on them. The rows carry no
+    act and no target, because `per_item` holds none, and the whole reply as
+    the words (the seam design, 1.4). A value that is not a stored verdict
+    has no row, as `principal.ruling_rows` refuses it. Returns the count of
+    rows.
+    """
+    count = 0
+    for r in conn.execute(
+            "SELECT id, per_item, words, texts FROM rulings u "
+            "WHERE per_item NOT IN ('', '{}') AND NOT EXISTS ("
+            "SELECT 1 FROM ruled_refs t WHERE t.ruling_id = u.id)").fetchall():
+        try:
+            ruled = json.loads(r["per_item"] or "{}")
+            texts = json.loads(r["texts"] or "{}")
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(ruled, dict):
+            continue
+        texts = texts if isinstance(texts, dict) else {}
+        for ref, verdict in ruled.items():
+            if not (isinstance(ref, str) and isinstance(verdict, str)
+                    and verdict in _RULED_VERDICTS):
+                continue
+            text = texts.get(ref)
+            count += conn.execute(
+                "INSERT OR IGNORE INTO ruled_refs (id, ruling_id, ref, verdict, "
+                "words, old_text, source) VALUES (?, ?, ?, ?, ?, ?, 'backfill')",
+                (ruled_ref_id(r["id"], ref), r["id"], ref, verdict,
+                 r["words"] or "", text if isinstance(text, str) else None)
+            ).rowcount
+    return count
+
+
 def init_db(path: str | Path) -> sqlite3.Connection:
     conn = connect(path)
     # A failure part way closes the file. An open connection that lives on in
@@ -260,6 +312,7 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         # test's truth, since no ruling retired a test before the column.
         if not _has_column(conn, "tests", "retired_by"):
             conn.execute("ALTER TABLE tests ADD COLUMN retired_by TEXT")
+        backfill_ruled_refs(conn)
         conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                      (SCHEMA_KEY, SCHEMA_MARK))
     except BaseException:

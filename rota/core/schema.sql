@@ -685,6 +685,97 @@ CREATE TABLE IF NOT EXISTS rulings (
     texts       TEXT NOT NULL DEFAULT '{}'
 );
 
+-- One row per ruling and ref: what the principal's reply ruled on one row.
+--
+-- `principal.ruling_rows` is the one builder. The Liaison's `rulings.rule`
+-- stages its rows, and `land` and `_land_shift` insert the rows of a verdict
+-- that came straight from the seat. So every path that writes a `rulings`
+-- row writes its rows here (the seam design, 1.3, and its review, finding 6).
+-- A row never changes after its insert, and the trigger below refuses an
+-- update: a later write cannot overwrite a reading (`composition.md`,
+-- Records). The id hashes `ruling_id` and `ref`. `act` null grants nothing,
+-- because silence is not consent. `init_db` back-fills the rows of an older
+-- `rulings` row from its `per_item`, with `source` 'backfill'.
+CREATE TABLE IF NOT EXISTS ruled_refs (
+    id          TEXT PRIMARY KEY,
+    ruling_id   TEXT NOT NULL REFERENCES rulings(id),
+    ref         TEXT NOT NULL,
+    line        INTEGER,
+    -- The stored words of `RULING_WORDS` and `SHIFT_WORDS` (the review,
+    -- finding 6). `ruling_rows` holds the list, not a CHECK: a CHECK word
+    -- is a state, and `contest` and `revise` are graph nouns, so the
+    -- vocabulary lint refuses the CHECK.
+    verdict     TEXT NOT NULL,
+    act         TEXT CHECK (act IS NULL OR act IN
+                            ('drop','keep','rewrite','add','remove')),
+    target_kind TEXT CHECK (target_kind IS NULL OR target_kind IN
+                            ('row','check','sentence','identifier',
+                             'source_line','path','request')),
+    target      TEXT,
+    words       TEXT NOT NULL DEFAULT '',
+    words_from  TEXT REFERENCES messages(id),
+    old_text    TEXT,
+    ref_version INTEGER,
+    -- The source of the row: the Liaison's reading, the seat's keypress, or
+    -- the back-fill of an older row (the review, finding 7).
+    source      TEXT NOT NULL DEFAULT 'reading'
+                CHECK (source IN ('reading','keypress','backfill'))
+);
+CREATE INDEX IF NOT EXISTS ruled_refs_by_ref ON ruled_refs (ref, ruling_id);
+CREATE TRIGGER IF NOT EXISTS ruled_refs_never_change
+BEFORE UPDATE ON ruled_refs
+BEGIN
+    SELECT RAISE(ABORT, 'a ruled_refs row never changes after its insert');
+END;
+
+-- The rows of `ruled_refs` with what is derived and not stored.
+--
+-- `status` is `open` while the ruling is open and `stale` when its ask
+-- closed before it landed, as `rulings.status` says. A landed row is
+-- `superseded` when a newer landed ruling rules the same ref. It is
+-- `outdated` when the ref now has a higher version than `ref_version`.
+-- Else it is `landed`. The order is `rulings.rowid`, because the hash id
+-- gives none (the review, finding 8). `confirmed_by` names the reply of a
+-- landed approve of `reading:<this row's reply id>`. `provenance` is
+-- `decided` for a keypress row or a confirmed row, else `reasoned`.
+CREATE VIEW IF NOT EXISTS ruled_refs_live AS
+SELECT b.*,
+       CASE WHEN b.source = 'keypress' OR b.confirmed_by IS NOT NULL
+            THEN 'decided' ELSE 'reasoned' END AS provenance
+FROM (
+    SELECT rr.*, rr.rowid AS row_seq, r.ask_id AS ask_id, r.reply_id AS reply_id,
+           r.verdict_id AS verdict_id, r.status AS ruling_status,
+           r.rowid AS ruling_seq, r.words AS reply_words,
+           CASE
+               WHEN r.status = 'stale' THEN 'stale'
+               WHEN r.status = 'open' THEN 'open'
+               WHEN EXISTS (
+                   SELECT 1 FROM ruled_refs n JOIN rulings nr ON nr.id = n.ruling_id
+                   WHERE n.ref = rr.ref AND nr.status = 'landed'
+                     AND nr.rowid > r.rowid) THEN 'superseded'
+               WHEN rr.ref_version IS NOT NULL AND COALESCE(
+                   (SELECT version FROM items WHERE id = rr.ref),
+                   (SELECT version FROM criteria WHERE id = rr.ref),
+                   (SELECT version FROM statements WHERE id = rr.ref),
+                   (SELECT version FROM tickets WHERE id = rr.ref),
+                   (SELECT version FROM tests WHERE id = rr.ref),
+                   (SELECT version FROM batches WHERE id = rr.ref),
+                   (SELECT version FROM ledger WHERE id = rr.ref),
+                   (SELECT version FROM constraints WHERE id = rr.ref),
+                   (SELECT version FROM glossary_terms WHERE id = rr.ref),
+                   (SELECT version FROM model_areas WHERE id = rr.ref),
+                   (SELECT version FROM frame_rulings WHERE id = rr.ref),
+                   rr.ref_version) > rr.ref_version THEN 'outdated'
+               ELSE 'landed'
+           END AS status,
+           (SELECT COALESCE(cr.reply_id, cr.verdict_id)
+            FROM ruled_refs c JOIN rulings cr ON cr.id = c.ruling_id
+            WHERE c.ref = 'reading:' || r.reply_id AND c.verdict = 'approve'
+              AND cr.status = 'landed'
+            ORDER BY cr.rowid DESC LIMIT 1) AS confirmed_by
+    FROM ruled_refs rr JOIN rulings r ON r.id = rr.ruling_id
+) b;
+
 -- The principal's answer to the shift question, one row per answer, and the
 -- automatic resume when the request the park waited behind is delivered or
 -- dropped. An item is set aside while its newest row is `park` or `drop`.

@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.sandbox import build
 from rota.roles import prompts
 
@@ -111,6 +111,7 @@ def _night158_relay(conn) -> None:
                  "'m98', ?, ?, 'landed', 'm99', ?)",
                  (json.dumps(PER_ITEM), WORDS,
                   json.dumps({CR2: CR2_TEXT, CR3: CR3_TEXT})))
+    backfill_ruled_refs(conn)
     conn.commit()
 
 
@@ -407,6 +408,7 @@ def _ruled_page(conn, rid, ask, reply, words, page) -> dict:
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
                  "status) VALUES (?, ?, ?, '{}', ?, 'landed')",
                  (rid, ask, reply, words))
+    backfill_ruled_refs(conn)
     conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
                  (f"order:{reply}", json.dumps(page)))
     conn.commit()

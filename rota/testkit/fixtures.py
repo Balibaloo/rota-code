@@ -116,6 +116,11 @@ def _seed_verdict_rulings(conn: sqlite3.Connection,
             "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
             "status, verdict_id) VALUES (?, ?, ?, 'seeded verdict', 'landed', ?)",
             (f"r_{mid}", cause["cause_id"], ruled, mid))
+    # A seeded verdict names rows the case may not seed, so its rows come
+    # from the back-fill, which refuses no ref (the seam design, 1.4).
+    from ..core.db import backfill_ruled_refs
+
+    backfill_ruled_refs(conn)
 
 
 def _encode(value: Any) -> Any:

@@ -3,7 +3,7 @@ audit, plans/wake-audit.md)."""
 import json
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.runner import push_working_set
 from rota.core.sandbox import build
 from rota.core.scheduler import Wake
@@ -256,6 +256,7 @@ def _seed148(tmp_path, contested: bool):
                    "status, texts) VALUES (?, ?, ?, ?, ?, 'landed', ?)",
                    (r["id"], r["ask_id"], r["reply_id"], r["per_item"], r["words"],
                     r["texts"]))
+        backfill_ruled_refs(db)
     db.commit()
     return db
 
@@ -392,6 +393,7 @@ def _seed149(tmp_path, contested: bool):
                        "status, texts) VALUES (?, ?, ?, ?, ?, 'landed', ?)",
                        (r["id"], r["ask_id"], r["reply_id"], json.dumps(r["per_item"]),
                         r["words"], json.dumps(r["texts"])))
+            backfill_ruled_refs(db)
     else:
         db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                    "body_refs, seq) VALUES ('m85', 'm85', 'liaison', 'principal', "
@@ -482,6 +484,7 @@ def test_night149_a_relay_of_his_approve_shows_no_old_contest(tmp_path):
                "VALUES (?, ?, ?, ?, ?, 'landed')",
                (r["id"], r["ask_id"], r["reply_id"], json.dumps(r["per_item"]),
                 r["words"]))
+    backfill_ruled_refs(db)
     db.commit()
     wake = Wake("terminologist", "message", message_id="m133", detail="relay")
     sb = build("terminologist", db, mode="relay",
