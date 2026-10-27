@@ -18095,11 +18095,20 @@ def _escape_literal(line: str, escape: str) -> tuple[str, str, str] | None:
 def _call_values(form: str) -> tuple:
     """The values that the strict and the lenient parse paths store when a
     seat writes the form inside the quote marks of a call, or () when the
-    call cannot carry the form."""
+    call cannot carry the form.
+
+    F19: a form that holds both marks still fits a call whose mark it
+    holds only escaped. Night 167's s336 wrote `\\'` inside such a call."""
     from ..llm import toolproto as _tp
     import warnings as _warnings
 
-    outer = "'" if "'" not in form else '"' if '"' not in form else ""
+    def _bare(mark: str) -> bool:
+        # A mark after an even run of backslashes closes the call's string.
+        return any(ch == mark and (i - len(form[:i].rstrip("\\"))) % 2 == 0
+                   for i, ch in enumerate(form))
+
+    outer = ("'" if "'" not in form else '"' if '"' not in form else
+             next((m for m in "'\"" if not _bare(m)), ""))
     if not outer:
         return ()
     call = f"body={outer}{form}{outer}"
@@ -23088,7 +23097,11 @@ def _escape_note(fragment: str, exc: SyntaxError | None) -> str:
         if exc is None:
             return ""
     note = ""
-    if (exc.msg or "").startswith(_BROKEN_STRING):
+    # F19: the parser says what the call stores, so the note reads
+    # `_call_values` and keeps no rule of the call syntax of its own.
+    if ((exc.msg or "").startswith(_BROKEN_STRING)
+            and "\n" in _call_values("\\n")
+            and "\\n" in _call_values("\\\\n")):
         # The seat wrote \n in its call already, and the tool decoded it.
         # The form that passes is the escaped backslash (the review of edd3638).
         note += (" In your call write the newline escape inside a string as a "
@@ -23100,7 +23113,9 @@ def _escape_note(fragment: str, exc: SyntaxError | None) -> str:
     triple = None
     for k, line in enumerate(fragment.splitlines(), 1):
         head = line.strip()[:6]
-        if triple is None and head in ('\\"\\"\\"', "\\'\\'\\'"):
+        stored = _call_values(head)[:1]
+        if (triple is None and stored and stored[0] != head
+                and stored[0] in ('"""', "'''")):
             note += (f" Line {k} of your text starts with {head}; write the "
                      f"docstring quotes as three plain quotes.")
             break

@@ -951,41 +951,82 @@ def _code_only(source: str) -> str:
     return chr(10).join(out)
 
 
+#: Two words that frame a value inside a render, so that each view can be
+#: cut back out. Letters pass JSON and a table cell unchanged.
+_VIEW_OPEN, _VIEW_SHUT = "QvwOpenQ", "QvwShutQ"
+#: A render limit that cuts no view.
+_NO_CUT = 1 << 62
+
+
+@functools.lru_cache(maxsize=512)
+def _rendered_views(source: str) -> tuple[str, ...]:
+    """Each view of a row that `runner._render` shows a seat.
+
+    F19: the views come from the render, so a new form of a result is a
+    new view here with no second list. A result shows a value as itself,
+    as a field of a block or of JSON, inside a JSON list, or as a cell of
+    a table.
+    """
+    from .runner import _render
+    v = f"{_VIEW_OPEN}{source}{_VIEW_SHUT}"
+    views: list[str] = []
+    for shape in (v, {"text": v}, {"rows": [v]}, [{"text": v}, {"text": v}]):
+        text = _render(shape, _NO_CUT)
+        start = text.find(_VIEW_OPEN) + len(_VIEW_OPEN)
+        end = text.find(_VIEW_SHUT, start)
+        if start >= len(_VIEW_OPEN) and end >= 0:
+            view = text[start:end]
+            if view not in views:
+                views.append(view)
+    return tuple(views)
+
+
 @functools.lru_cache(maxsize=512)
 def _shown_views(source: str) -> tuple[str, ...]:
     """Each view of a row that a seat was shown, and the values that the
     call stores when the seat copies a view into it.
 
     Frame 328, item 2: one reader of the views replaces one decoder per
-    night. A prompt shows the raw row and its JSON form. A refusal shows
-    each control byte as `\\xNN`. The seat copies a view inside the quote
-    marks of its call, and `api._call_values` gives what each parse path
-    stores from it.
+    night. F19: `runner._render` gives each view, and `api._call_values`
+    gives what each parse path stores from it.
     """
-    shown = [source, json.dumps(source)[1:-1],
-             json.dumps(source, ensure_ascii=False)[1:-1],
-             _escaped_view(source)]
     views: list[str] = []
-    for v in shown:
+    for v in _rendered_views(source):
         for f in (v, *api._call_values(v)):
             if isinstance(f, str) and f.strip() and f not in views:
                 views.append(f)
     return tuple(views)
 
 
-def _quote_forms(quote: str) -> list[str]:
-    """The quote as written and as the seat's call syntax gives it.
+def _quote_forms(quote: str) -> tuple[list[str], list[str]]:
+    """The quote's forms at the escape level of the seat's text, and the
+    values that the call stores from that text.
 
-    Night 167 walk 3: one outer mark and `\\'` (`_seat_forms`). Frame 335:
-    `\\\\` for one backslash (`_one_backslash`). Frame 328, pass 3: an
-    escape for its control byte (`_unescaped`). Each form is still a
+    F19: `api._call_values` gives each stored value, so the door keeps no
+    rule of the call syntax of its own. Night 168 W2 sent `\\\\` for one
+    backslash, and night 167 sent `\\'` and `\\x1b`. `_outer_marks` gives
+    the forms with an outer quote mark dropped. Each form is still a
     verbatim reading of the seat's text."""
-    forms = [quote or ""] + _seat_forms(quote or "")
-    forms += [g for f in forms
-              if (g := _one_backslash(f)) != f and g not in forms]
-    forms += [g for f in forms
-              if (g := _unescaped(f)) != f and g not in forms]
-    return forms
+    quote = quote or ""
+    stored = [quote, *_outer_marks(quote)]
+    decoded: list[str] = []
+    for value in api._call_values(quote):
+        for f in (value, *_outer_marks(value)):
+            if isinstance(f, str) and f not in stored and f not in decoded:
+                decoded.append(f)
+    return stored, decoded
+
+
+def _quote_pairs(quote: str, source: str) -> list[tuple[str, tuple[str, ...]]]:
+    """Each form of the quote with the views of the source that it meets.
+
+    A value that the call stores meets the rendered views only. The review
+    of frame 328 pass 3, finding 1: read through the call on both sides,
+    a quote of `\\033` met a row that holds `\\x1b`, and neither is a span
+    of the other."""
+    stored, decoded = _quote_forms(quote)
+    every, rendered = _shown_views(source), _rendered_views(source)
+    return [(f, every) for f in stored] + [(f, rendered) for f in decoded]
 
 
 def _quote_reads(quote: str, source: str, table: str = "",
@@ -1002,12 +1043,10 @@ def _quote_reads(quote: str, source: str, table: str = "",
     if table == "tests":
         quote, source = _code_only(quote), _code_only(source)
     sources = [source or ""] + ([run] if run else [])
-    for f in _quote_forms(quote):
-        for s in sources:
-            for v in _shown_views(s):
-                if (_span_of(f, v, floor)
-                        or _span_of(_unescaped(f), _unescaped(v), floor)):
-                    return True
+    for s in sources:
+        for f, views in _quote_pairs(quote, s):
+            if any(_span_of(f, v, floor) for v in views):
+                return True
     return False
 
 
@@ -1036,13 +1075,13 @@ def _quote_holds(quote: str, line: str) -> bool:
     normalised. Frame 333, item 3: a quote of part of the line names a
     part of the conflict, as night 142's m83 did. The quote is read in
     each form of `_quote_forms`, as the evidence door reads it."""
-    for q in _quote_forms(quote or ""):
+    for q, views in _quote_pairs(quote or "", line or ""):
         q = " ".join(q.split())
         swap = q.replace("'", '"')
-        for v in _shown_views(line or ""):
-            for n in {" ".join(v.split()), " ".join(_unescaped(v).split())}:
-                if n and (n in q or n.replace("'", '"') in swap):
-                    return True
+        for v in views:
+            n = " ".join(v.split())
+            if n and (n in q or n.replace("'", '"') in swap):
+                return True
     return False
 
 
@@ -1436,9 +1475,9 @@ def _span_of(quote: str, source: str, floor: int = QUOTE_MIN) -> bool:
     return False
 
 
-def _seat_forms(quote: str) -> list[str]:
-    """The criterion quote read through the seat's call syntax, the form
-    the refusal shows first.
+def _outer_marks(text: str) -> list[str]:
+    """The text with one outer quote mark dropped, the likelier reading
+    first.
 
     Frame 328, the residue, night 167 walk 3: s327 and s336 to s338 sent
     `'When ... returns \\'c.txt\\'.` and `... \\'c.txt\\''.`. One mark
@@ -1447,8 +1486,11 @@ def _seat_forms(quote: str) -> list[str]:
     cannot type that pair. Each form only drops one mark at the start and
     one mark, or a mark and a `.`, at the end. So a form is still a
     verbatim span of the seat's text, and the floor still holds.
+
+    F19: this rule stays beside `api._call_values`, because no parse path
+    reads a value with one unpaired mark.
     """
-    d = (quote or "").strip().replace("\\'", "'").replace('\\"', '"')
+    d = (text or "").strip()
     mark = d[:1] if d[:1] in "'\"" else ""
     # A form whose inner marks pair up is the likelier reading, so the
     # refusal shows that form.
@@ -1466,47 +1508,11 @@ def _seat_forms(quote: str) -> list[str]:
         cut = d[:-1] if d.endswith(end_mark) else d[:-2]
         if cut.count(end_mark) % 2 == 0:
             rest.append(cut)
-    forms = []
-    for f in first + rest + [d]:
-        if f.strip() and f not in forms:
+    forms: list[str] = []
+    for f in first + rest:
+        if f.strip() and f != d and f not in forms:
             forms.append(f)
-    return forms or [d]
-
-
-def _one_backslash(quote: str) -> str:
-    """The quote with each `\\\\` read as one backslash.
-
-    Frame 335, night 168: s147 quoted tst_crit_1 as the JSON of
-    `tests.load` shows it, with `\\\\` for the one backslash of the row."""
-    return (quote or "").replace("\\\\", "\\")
-
-
-_ESCAPE = re.compile(r"\\(?:x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4})|([0-7]{3}))")
-# A raw or bytes literal, where an escape is not one text character.
-_RAW_OR_BYTES = re.compile(
-    r"(?<![A-Za-z0-9_])(?:[rR][bB]?|[bB][rR]?)(\"|')(?:\\.|(?!\1).)*\1")
-
-
-def _unescaped(s: str) -> str:
-    """The text with each `\\xNN`, `\\uNNNN` and `\\NNN` that gives a
-    control character read as that one character. Frame 328, night 167:
-    tst_tk3 holds the raw ESC byte, and a seat can only type its escape
-    form.
-
-    Review of pass 3, finding 1: a printable escape and a raw or bytes
-    literal stay as written. Otherwise `\\x41` matched a letter, and
-    `r"\\033[2J"` matched a test that holds `r"\\x1b[2J"`."""
-    def _one(m: re.Match) -> str:
-        hexa, uni, octal = m.groups()
-        ch = chr(int(hexa or uni, 16) if (hexa or uni) else int(octal, 8))
-        return ch if ord(ch) < 32 or ord(ch) == 127 else m.group()
-
-    s = s or ""
-    out, at = [], 0
-    for lit in _RAW_OR_BYTES.finditer(s):
-        out += [_ESCAPE.sub(_one, s[at:lit.start()]), lit.group()]
-        at = lit.end()
-    return "".join(out + [_ESCAPE.sub(_one, s[at:])])
+    return forms
 
 
 def _escaped_view(s: str) -> str:
@@ -1549,34 +1555,26 @@ def _quote_refusal(row: str, table: str, quote: str, crit: str,
                 f"of {row}.")
     else:
         said = f"quotes= holds no span of the live text of {row}."
-    if table == "criteria" and quote:
-        # The residue of frame 328: the seat sees the form the door
-        # compared, so a refusal of the old text is not read as a syntax one.
-        read = _seat_forms(quote)[0]
-        if " ".join(read.split()) != " ".join(quote.split()):
-            read = read if len(read) <= 80 else read[:77] + "..."
-            said += (f" The door reads `\\'` as `'` and `\\\"` as `\"`. It "
-                     f"drops one outer quote mark at each end, and a `.` "
-                     f"after the closing quote mark. Read that way, the "
-                     f"quote is `{read}`, and the live text of {row} holds "
-                     f"no such span.")
     if table == "tests":
         said += " A comment of the test does not count."
-        # Frame 328, pass 3: the refusal names the form the door compared,
-        # so a seat sees that an escape and its raw byte are one character.
-        read = " ".join(_unescaped(quote).split())
-        if quote and read != " ".join(quote.split()):
-            said += (f" The door reads `\\xNN`, `\\uNNNN` and `\\NNN` as one "
-                     f"character and each whitespace run as one space, on "
-                     f"both sides. Read that way, the quote is "
-                     f"`{_escaped_view(read)}`, and the code of {row} holds "
-                     f"no such span.")
-        one = _one_backslash(quote)
-        if quote and one != quote:
-            one = one if len(one) <= 80 else one[:77] + "..."
-            said += (f" The door also reads each `\\\\` as one backslash. "
-                     f"Read that way, the quote is `{_escaped_view(one)}`, "
-                     f"and the code of {row} holds no such span.")
+    if quote:
+        # The residue of frame 328: the seat sees the form the door
+        # compared, so a refusal of the old text is not read as a syntax
+        # one. F19: the form is the value that the call stores.
+        value = (api._call_values(quote) or (quote,))[0]
+        dropped = _outer_marks(value)
+        read = " ".join((dropped or [value])[0].split())
+        if read != " ".join(quote.split()):
+            read = _escaped_view(read if len(read) <= 80 else read[:77] + "...")
+            said += (" The door also reads the quote as the call stores it "
+                     "from your text, with each escape read as Python reads "
+                     "it.")
+            if dropped:
+                said += (" It drops one outer quote mark at each end, and a "
+                         "`.` after the closing quote mark.")
+            said += (f" Read that way, the quote is `{read}`, and the "
+                     f"{'code' if table == 'tests' else 'live text'} of "
+                     f"{row} holds no such span.")
     return (f"{said} Quote, not paraphrase: copy a contiguous span of each "
             f"row, verbatim, from the rows in front of you. Send quotes as a "
             f"list of two strings: one copied from {crit}, one copied from "
