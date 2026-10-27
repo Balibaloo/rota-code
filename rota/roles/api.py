@@ -11377,6 +11377,50 @@ def _stray_act_fields(ctx, rulings: dict, words: str, order: list | None = None,
     return _offer(ctx, head, "rulings.rule", args)
 
 
+def _shift_acts_conflict(ctx, his: str, rulings: dict, acts: dict,
+                         words: str) -> str | None:
+    """The refusal of an approve or a keep in `acts` on the shift page,
+    when his reply holds a shift word, or None.
+
+    Night 171's s200 kept `{"verdict": "approve", "act": "keep"}` in `acts`
+    beside `"1": "later"`. The door named only the shift rule, four times,
+    and no ruling landed (ruled: the coordinator, 2026-10-27, pass 1c). The
+    offer drops the entry and keeps the seat's verdict. Law 6: the door
+    offers a call only when that verdict is a word of the shift page."""
+    found = [m.group(0) for m in re.finditer(
+        r"\b(" + "|".join(k for k, v in SHIFT_WORDS.items() if v) + r")\b",
+        his or "", re.I)]
+    if not found:
+        return None
+    bad = [k for k, v in acts.items() if isinstance(v, dict) and (
+        str(v.get("verdict", "")).strip().lower() == "approve"
+        or str(v.get("act", "")).strip().lower() == "keep")]
+    if not bad:
+        return None
+    rest = {k: v for k, v in acts.items() if k not in bad}
+    lines = {str(k).strip(): v for k, v in rulings.items()}
+    heard = next((w for w in found if any(
+        SHIFT_WORDS.get(_word_key(v, SHIFT_WORDS)) == SHIFT_WORDS[w.lower()]
+        for v in lines.values() if isinstance(v, str))), found[0])
+    entries = ", ".join(f"acts[{k!r}]" for k in bad)
+    one = len(bad) == 1
+    head = (f"{entries} {'gives' if one else 'give'} approve "
+            f"or keep, and his words say {heard!r}. This page takes later, now "
+            f"or drop, and no act. Leave {'that entry' if one else 'those entries'} "
+            f"out of acts")
+    if not lines or not all(isinstance(v, str) and SHIFT_WORDS.get(
+            _word_key(v, SHIFT_WORDS)) for v in lines.values()):
+        return f"{head}, and give each line the word his reply gives it."
+    # A park carries his reply whole to the row's owner, so the offer
+    # passes his words when the seat gave none.
+    said = str(words or his or "").strip()
+    call, args = _rule_call(lines, said)
+    if rest:
+        call = call[:-1] + f", acts={json.dumps(rest, ensure_ascii=False)})"
+        args["acts"] = rest
+    return _offer(ctx, f"{head}: {call}", "rulings.rule", args)
+
+
 def _faulted_by_his_words(ctx, said: str, size: int) -> set[int]:
     """The page lines that his reply or the seat's words fault, by the fault
     reader of the faulted-approve door (`_line_cues`)."""
@@ -13134,6 +13178,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 "acts is a map of the keys of rulings to an act, for example "
                 "{\"2\": {\"act\": \"remove\", \"target\": \"app.py:518\", "
                 "\"words\": \"remove the line at 518\"}}")
+        if shift:
+            kept = _shift_acts_conflict(ctx, his, rulings, acts, words)
+            if kept:
+                raise ValueError(kept)
         for key, given in acts.items():
             key = str(key).strip()
             ref = next((r for r, k in key_of.items() if k == key), None)
@@ -13145,7 +13193,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 raise ValueError(
                     f"acts[{key!r}] is an object with act, target and words")
             shape = _ruling_shape(key, {"verdict": per_item[ref], **given})
-            if _ruling_word(key, shape.pop("verdict"), shift=shift) != per_item[ref]:
+            try:
+                verdict = _ruling_word(key, shape.pop("verdict"), shift=shift)
+            except ValueError as e:
+                # The word sits in acts, so the refusal names acts (pass 1c).
+                raise ValueError(f"acts[{key!r}] gives the verdict. {e}") from None
+            if verdict != per_item[ref]:
                 raise ValueError(
                     f"line {key}: acts and rulings give two verdicts. Give the "
                     f"verdict in rulings only")

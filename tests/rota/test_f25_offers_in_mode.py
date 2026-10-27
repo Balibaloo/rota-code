@@ -222,6 +222,44 @@ def test_a_shift_word_is_read_by_the_word_door_match(tmp_path):
     assert r.passed, r.problems
 
 
+NIGHT171 = ("Later for line 1: put the screen-clearing change aside until the "
+            "docstring example is merged, then pick it up again. I still want "
+            "it, so please do not drop it.")
+
+
+def test_a_keep_in_acts_on_the_shift_page_is_named_and_left_out(tmp_path):
+    """Night 171's s200, after m88: the call kept approve and keep in
+    `acts`, and the door named only the shift rule. The refusal names the
+    entry and his word, and the offer leaves the entry out (ruled: the
+    coordinator, 2026-10-27, pass 1c)."""
+    case = _case("L1-LI-a-separate-request-is-later")
+    case["inbound"]["body_text"] = NIGHT171
+    # The case's own expectations read its own words, not his.
+    case["expect"], case["forbidden"] = {}, {}
+    first = ('TOOL: rulings.rule(rulings={"1": "later"}, acts={"1": '
+             '{"verdict": "approve", "act": "keep", "target_kind": "request", '
+             '"words": "Make clear() return True when it cleared the screen '
+             'and False when stdout is not a terminal."}})')
+    calls = []
+
+    def pick(found):
+        calls.extend(found)
+        return found[0]
+
+    seat = _Follower(first, pick)
+    r = _run(case, seat, tmp_path)
+    error = _last_error(seat.users[1])
+    assert "acts['1'] gives approve or keep, and his words say 'Later'" in error, error
+    assert calls == ['rulings.rule(rulings={"1": "later"}, words='
+                     + json.dumps(NIGHT171) + ')'], calls
+    assert r.passed, r.problems
+    # The offered call lands, and the session ends with its ruling.
+    import sqlite3
+    conn = sqlite3.connect(tmp_path / "c.db")
+    rows = conn.execute("SELECT per_item FROM rulings").fetchall()
+    assert [r for r in rows if "park" in r[0]], rows
+
+
 def test_a_question_back_beside_stray_fields_keeps_its_own_call(db):
     """`ask` on the shift page is a question back. The refusal offers the
     ask call and no verdict (the review of f4951389, finding 4)."""
