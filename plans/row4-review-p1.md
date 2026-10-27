@@ -112,3 +112,42 @@ All probes are under `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e03
 - Input tokens: about 100k, estimated from the session budget. The harness gives no exact count.
 - Output tokens: about 20k, estimated.
 - Total: about 120k. The brief capped the review at about 60k. The scratch copies and the both-ways runs used the extra.
+
+## Pass 1b: re-check of d1965457
+
+**The pass stands.** All three high findings are fixed. Two new low findings are left, and low 4 stays low. The re-check is read-only. It ran on a scratch copy, `r4p/p1b/`, made by `git archive d1965457`.
+
+### Point 1: the three high findings
+
+- High 1 is FIXED. probe_doors D1 passes, because the whole line with escaped marks now reads as the line. `_quote_holds` reads each form of `_quote_forms`.
+- High 2 is FIXED. probe_doors B1, B2, B3 and C1 pass, so the one-mark and escaped-mark forms read the same on three doors.
+- High 3 is FIXED. probe_doors A2 passes, so the `E` line that the refusal offers is now a call the doors admit. A1 is still refused for a part of the line, which is right. C3 is still refused for prose, which is right.
+- probe_edges gives the same result as at 9a068333. probe_offer passes for both offered calls.
+
+### Point 2: one reader
+
+- CONFIRMED by reading. `_cites` (sandbox.py 1798 to 1801) calls `_quote_reads` for both halves. `_rows_quote_refusal` (1078, 1087) and `_answer_evidence` (1116, 1118) call `_quote_reads` through `_reads_row`. `_in_code` and the inline forms are gone.
+- The red-line door (1367, 1373) still calls `_quote_holds`, a whole-line predicate. It reads the same `_quote_forms` and `_shown_views`. That difference is right, because its rule is the whole line.
+- The Tester channel keeps two rules of its own beside the call: `crit_words` includes the siblings (1791), and the per-side checks follow it. Those two rules are low 4.
+- The run view admits more than the `E` line. `_run_view` (1014 to 1022) returns every `>` line of the latest run, and that includes a `>` line of library code. CONFIRMED by probe_1b: the Critic's evidence door admits a library `>` line as a quote of ts1. The red-line door refused that call only because the quote missed the failing line. The summary line, the `FAILED` line and the location line are refused.
+
+### Point 3: low 4
+
+- Low 4 is a hole that a night can hit, and it stays low.
+- The sibling quote is a measured night path (walks 23 to 27). The door still requires a quote of the test, and the sibling words are verbatim words of a criterion of the batch. So the Tester reads real evidence under the wrong id.
+- A third quotable row with no quote seldom comes from a hint. The hints send `[criterion, test]` and add decision rows, and a decision row is not quotable. A seat can add a ticket or an item by itself. The challenge still carries both quoted sides, so the harm is that one row of refs is not disputed.
+
+### New findings
+
+1. **Low.** sandbox.py 1003 to 1004, `_quote_reads`. For a `tests` row the reader applies `_code_only` to the quote too. So prose after a `#` in the quote is dropped before the compare. CONFIRMED by probe_1b: on the Critic channel, the failing line followed by `# the test is wrong, the store keeps every invoice forever` passes. The Tester channel had this at d495db74. Pass 1b gives it to every channel. Fix: apply `_code_only` to the source only, or refuse a quote whose code form is shorter than the quote.
+2. **Low.** sandbox.py 1014 to 1022, `_run_view`. The view holds every `>` line, and a `>` line of library code is no line of the test. CONFIRMED by probe_1b, as point 2 says. Fix: keep only the `E` lines and the `>` lines that are in the test's body, as `_red_line_refusal` does.
+
+### Probes of pass 1b
+
+- `r4p/p1b/`: `git archive d1965457`.
+- probe_doors.py, probe_edges.py and probe_offer.py ran again on `p1b/`.
+- `r4p/probe_1b.py` sends six test-side quotes on the Critic channel against a red run. The six quotes are the `E` line, a library `>` line, the summary line, the `FAILED` line, the location line, and the failing line with prose after `#`.
+
+### Usage of pass 1b
+
+- About 9k input and 4k output, estimated. The total is about 13k, against a cap of about 12k.
