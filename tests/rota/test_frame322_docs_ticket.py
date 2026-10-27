@@ -169,11 +169,38 @@ def test_a_headline_with_load_document_takes_a_behaviour_criterion(db):
 def test_a_headline_with_the_docstring_of_refuses_a_behaviour_criterion(db):
     _ticket(db, "tk_2", "fix the example in The Docstring of load_document")
     with pytest.raises(ValueError) as exc:
-        # The criterion list matches substrings, so the text does not say
-        # load_document: "document" in it would admit the criterion.
         _specify(_seat(db), "c_9", "The loader raises ValueError when the "
                  "file is empty.", ticket_id="tk_2", surface="load_document")
     assert "The headline names the documentation" in str(exc.value)
+
+
+def test_an_identifier_with_document_admits_no_behaviour_criterion(db):
+    """F31: the ruled words match as words, so `load_document` in a
+    criterion names no documentation."""
+    _ticket(db, "tk_2", "fix the example in The Docstring of load_document")
+    with pytest.raises(ValueError) as exc:
+        _specify(_seat(db), "c_9", "load_document raises ValueError when the "
+                 "file is empty.", ticket_id="tk_2", surface="load_document")
+    assert "The headline names the documentation" in str(exc.value)
+
+
+@pytest.mark.parametrize("text", [
+    "The help text of format_filename names the shorten flag.",
+    "format_filename is documented with one example.",
+    "The docs of format_filename show one example.",
+])
+def test_a_criterion_in_the_ruled_words_lands_on_a_docstring_ticket(db, text):
+    sb = _seat(db)
+    _specify(sb, "c_9", text)
+    assert _landed(sb) == ["c_9"]
+
+
+def test_a_changelog_criterion_is_refused_on_a_docstring_ticket(db):
+    """F31 review, finding 2: the changelog is a notes file and not the
+    documentation, so the door admits no wider set than `_NAMES_DOCS` did."""
+    with pytest.raises(ValueError) as exc:
+        _specify(_seat(db), "c_9", "The changelog names the shorten fix.")
+    assert _MARK in str(exc.value)
 
 
 # Pass 3b: the gate at 1277b6b4 recorded the docstring case green 5 of 5 on
