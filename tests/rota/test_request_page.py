@@ -19,7 +19,7 @@ from rota.core.runner import run_session
 from rota.core.scheduler import open_tips, tick_agenda, verdict_rows
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.roles.principal import (
-    TEAM_NOTES, parse_reply, land, pending_asks, render_page,
+    ACCOUNT_TODAY, TEAM_NOTES, parse_reply, land, pending_asks, render_page,
     request_rows,
 )
 from rota.testkit.fixtures import seed_provenance, seed_ref
@@ -228,10 +228,28 @@ def test_the_account_has_its_own_heading_and_no_request_heading(db):
     refs = ["how_it_works", "l_d9ab308557"]
     assert request_rows(db, refs) == ["how_it_works"]
     page, order = render_page(db, "present", refs)
-    assert "What we are building:" in page and "You asked:" not in page
+    assert ACCOUNT_TODAY in page and "You asked:" not in page
     assert order == refs
-    assert page.index("What we are building:") < page.index(TEAM_NOTES)
+    assert page.index(ACCOUNT_TODAY) < page.index(TEAM_NOTES)
     assert "To change what you asked for" not in page
+
+
+def test_m354_the_observed_account_is_the_project_today(db):
+    """Night 150's m354: he contested the account row as the work, "Line 3
+    describes Click in general and should instead say what we build". The
+    summary stays on the page under a heading that says it is the project
+    today (ruled: Roman, 2026-10-17 04:33, frame 264)."""
+    _statement(db, "s1", "Add a show_python flag to version_option.")
+    _item(db, "show_python", "version_option takes a show_python flag.",
+          version=1, approval="draft", statement="s1")
+    _item(db, "how_it_works", "Click is a toolkit for command-line "
+          "interfaces in Python.", version=2, described=1,
+          provenance="observed")
+    db.commit()
+    page, _ = render_page(db, "present", ["show_python", "how_it_works"])
+    assert "What we are building:" not in page, page
+    head = page.index(ACCOUNT_TODAY)
+    assert page.index("You asked:") < head < page.index("Click is a toolkit")
 
 
 # ---------------------------------------------------------------------------

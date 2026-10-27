@@ -1822,6 +1822,9 @@ def _review_only(ticks: list[tuple[str, int]]) -> bool:
 
 TEAM_NOTES =("The team's notes. A seat wrote each of these where your words "
               "were silent. They are not your request.")
+# The heading of an account read from the code (ruled: Roman, 2026-10-17
+# 04:33, frame 264: the summary stays, presented as the project today).
+ACCOUNT_TODAY = "What the project does today. This is not your request:"
 
 
 def _park_page(conn: sqlite3.Connection, batch: str,
@@ -2263,7 +2266,13 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                               code=code_stamp(conn, ask_id), stalled=keys)
         guessed = [n for n, r in enumerate(order, 1) if r.startswith("guess:")]
         if account:
-            out.append("What we are building:")
+            # An account read from the code is the project today, not his
+            # request. Night 150: he contested it six times as the work.
+            # Ruled: Roman, 2026-10-17 04:33, frame 264. An account from his
+            # statement on a new program stays the plan.
+            today = any((resolved.get(ref) or {}).get("provenance") == "observed"
+                        for ref, _ in account)
+            out.append(ACCOUNT_TODAY if today else "What we are building:")
             numbered(account)
         if described:
             out.append("How it is described:")
