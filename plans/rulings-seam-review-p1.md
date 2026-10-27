@@ -184,3 +184,227 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/e03f97
 - Input tokens: about 46k, an estimate from the budget counter.
 - Output tokens: about 8k, an estimate.
 - Total: about 54k, against a cap of about 50k.
+
+## Pass 4b
+
+Pass 4b at e20c7d9d does not stand. P4-1 is fixed: the eight cases of `rv_p11.py` give the same result as c4a51c7d. The span check has one hole, and it is high. The check compares the act words with the Liaison `words` argument first, and the reply in the record second. A Liaison that passes the same invented text in both lands the act, with `words_from` NULL (P4b-1). P4-2 is half fixed. Four of the seven examples of `landing.md` have no `verdict`, so the door refuses them in the object form (P4b-2). The act span must name the line, or the team-note door refuses it, and the brief does not say so (P4b-3). The 6 new tests are red on fbce68db and green on e20c7d9d. Counts: 3 high, 3 low.
+
+The tree is `C:/Users/roman/rota_r4b` at e20c7d9d. The parent archive with the two new test files is `p4b_base` in the scratchpad of 0f8527d4.
+
+### Pass 4b, the points
+
+1. P4-1: CONFIRMED by `rv_p11.py` on the worktree and on `p4_mix`, whose `rota/roles/api.py` is byte-equal to c4a51c7d. The three refusals, m11, m45 and "Line 11 is wrong.", hold in the plain form and with the act `rewrite`. The s357 words land in both forms. None of the eight cases differs from c4a51c7d. The refusal text is the same, "line 11 is the team's note, not your request".
+2. The span check: CONFIRMED with a hole, by `rv4b_span.py` and `rv4b_span2.py`. An act whose `words` are not a span of the reply is refused when the `words` argument is the reply (B, E). An act whose `words` are a span of an earlier principal message of the thread lands, with `words_from` the earlier message (C2). An act with no `words` falls to the whole reply and lands, in both forms (D, E3). The check reaches the object value and the flat `acts` map (B and E refused alike). `land` and `_land_shift` write rows through `_insert_keypress_ruling` with his verdict words only, so they write no act and bypass nothing. The hole: when the Liaison passes the invented span as the `words` argument too, `_holds_span(words, span)` is true and `_words_from` is never asked. The act lands with `words_from` NULL (B2). Nothing checks the `words` argument against his reply. See P4b-1.
+3. P4-2: CONFIRMED in part, by `rv4b_span.py`, section point 3. `_ruling_shape` refuses the `remove`, `add`, `identifier` and `sentence` examples in the object form: "the object has no verdict". The `drop`, `keep` and `rewrite` examples carry a verdict and pass. All seven pass in the `acts` form, where the verdict comes from `rulings`. The `path` example gives no JSON. `landing.md` reaches the landing prompt: `prompts.piece("liaison", "landing")` reads it, and `prompts.base` reads `landing.base.md`. `landing.base.md` needs no act list, because it names the two forms only. `answering.md` lines 21 and 22 offer the object form with `remove` only, and `answering.tools` offers `rulings.rule`, so a clarify reply has no act list. See P4b-2 and P4b-4.
+4. Deviation 4: CONFIRMED by reading and by probe G. m112 has three acts on lines 5, 6 and 7, and the brief gives one act per line, so no line of m112 can carry the add. The door accepts an `add` on an approved line (G lands and writes the row). `criteria_page_acts` skips a ref whose verdict is not `contest` or `revise` before it reads `grant(ref, "add")`, so the row is never read. The ticket is no key: the `body_refs` of m111 hold the nine criteria and no ticket. One branch fixes it: in `criteria_page_acts`, read the add on every criterion of the page before the verdict gate. One brief line then says "on any line of the same item, an approved one too". See P4b-5.
+5. The tests: CONFIRMED. The five files give 142 passed on the worktree. The `git archive` of fbce68db with the two test files copied in gives 6 failed and 42 passed. The six reds are the five of `test_frame305_note_revise.py` and `test_the_landing_brief_names_every_act_and_target_kind`.
+6. The lows on night 170: P4-3 bites first. Night 169, an agent principal on Opus, ruled `batch_1` five times, by m33, m37, m41, m48 and m55, all approve, and `crit_1` to `crit_3` four times. Under e20c7d9d an act of m37 is gone at m41, four replies later. P4-7 did not arise on night 169: no principal reply named two `.py` files. It bites on night 170 only when the guess holds two wrong files. P4-6: no reply of night 169 held a keep clause, so the lost-name filter did not fire. `_item_sentences` reads `_PAGE_CUE` on his words, and an agent principal writes "line 5" in every reply, so it can refuse an amend. P4-8 bites no night. It bites the next review, because no pin holds s370, s250, s220 and s274.
+
+### Pass 4b, the findings
+
+- P4b-1. `rota/roles/api.py` 12569 to 12570, the span check. High. CONFIRMED by `rv4b_span.py` case B2: reply "Line 11 is fine.", act `rewrite` with `words` "On line 11, use the normal test runner", and the `words` argument the same text. The act landed, `words_from` NULL. The check reads the Liaison `words` first, and that text comes from the Liaison. Fix: drop `_holds_span(words, span)` and refuse when `_words_from(ctx, span)` is None, so the record alone decides.
+- P4b-2. `rota/roles/prompts/liaison/landing.md` 20, 24, 29 and 30. High. CONFIRMED by `_ruling_shape` on each example. The `remove`, `add`, `identifier` and `sentence` examples have no `verdict`, so a Liaison that writes one as a value is refused. The `drop`, `keep` and `rewrite` examples pass. Fix: give every example a `verdict`, or say above the list that each example is the `acts` value and the verdict stays in `rulings`.
+- P4b-3. `rota/roles/api.py` about 12597, `_note_words` on the act span. High. CONFIRMED by `rv4b_span2.py` case I: the full s357 reply, act `rewrite` with `words` "use click directly in the test instead of installing a separate package", a span of the reply. Refused: "line 11 is the team's note". `_note_words` reads `_cue_clauses` of the span, and the span names no line, so it finds no clause. The same act with "On line 11, " in front lands (I2). The brief says "copy the exact words that ask for the change" and never says the span must name the line. Fix: when the act span names no line, read the clause of the whole reply that holds the span, or say in the brief that the span starts at the line reference.
+- P4b-4. `rota/roles/prompts/liaison/answering.md` 21 and 22. Low. CONFIRMED by reading. The clarify brief names `remove` only, and the new test pins `landing.md` alone. Fix: move the act list to a shared piece both briefs include, or pin `answering.md` in the same test.
+- P4b-5. `rota/roles/api.py` 6427 to 6433, `criteria_page_acts`. Low. CONFIRMED by probe G and by reading. An `add` on an approved line is written and never read. The add of m112 has no line under the rule of the brief. Fix: read `grant(ref, "add")` on every criterion of the page before the `continue` on the verdict.
+- P4b-6. `rota/roles/api.py` 12599, the `_note_words` call. Low. CONFIRMED by reading. The expression `shape.get("words") or words if act else words` parses as `shape.get("words") or (words if act else words)`, so the branch on `act` does nothing. The result is the intended one by accident. Fix: write `shape.get("words") or words`.
+
+### Pass 4b, the probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/0f8527d4-11a5-4167-bee3-acad34ef22d3/scratchpad/`.
+
+- `rv_p11.py` of the e03f97fc scratchpad, run on `C:/Users/roman/rota_r4b` and on `p4_mix`. Eight cases, all equal.
+- `rv4b_span.py` on the worktree: cases A to H of the span check on both call forms, and the seven brief examples through `_ruling_shape` with and without a verdict.
+- `rv4b_span2.py` on the worktree: the earlier-answer span on a request line, and the s357 reply with the act span with and without the line number.
+- pytest on the worktree, five files, 142 passed in 74 s. pytest on `p4b_base`, the archive of fbce68db with the two test files, 6 failed and 42 passed.
+- Read-only queries with `immutable=1` on `.rota/clickI_night163.db` for m111 and m112, and on `.rota/clickI_night169.db` for the refs ruled twice and the principal replies.
+
+### Pass 4b, usage
+
+- Input tokens: about 72k, an estimate from the budget counter.
+- Output tokens: about 10k, an estimate.
+- Total: about 82k, against a cap of about 40k.
+
+## Pass 4c
+
+Pass 4c at c33c20eb fixes P4b-1 to P4b-6, and the P4-3 rule has two holes. Both are high. An add that `criteria.specify` wrote is offered again on every later relay wake, and the twin door of `criteria.specify` then refuses the write (P4c-1). A drop lives through a later plain approve, and a later contest with no act on the same line revives the retire (P4c-2). The probes of pass 4b give the results the report names. All 18 brief examples pass the door. The 8 new tests are red on 0736f9dd and green on c33c20eb. Counts: 2 high, 2 low.
+
+The tree is `C:/Users/roman/rota_r4c` at c33c20eb. The parent archive with the three test files is `r4c_base` in the scratchpad of 0f8527d4.
+
+### Pass 4c, the points
+
+1. The repeat add: CONFIRMED by `rv4c_acts.py`, section point 1. m112's add on `c1` gives `add: [('tk', 'the output stays exactly the same as today')]`. A live criterion `c4` under `tk` with the text "The output stays exactly the same as today." changes nothing: the same add comes back, with `c4` in `refs` too, and after a later plain approve. `criteria_page_acts` reads `ruled_refs_live` only, and no write consumes an add. The one check that marks it done is a live criterion of the ticket whose text holds the add's words, by `_holds_span` or `_same_words`. The readers that loop are `_wake_allow` and `_page_act_lines` of `rota/core/runner.py` 279 to 303, through `_page_acts`, on every relay wake of the Terminologist that `park_criterion_relay` keys to `criterion_repair`. The prompt line says "He asks for a new line ... Write it with criteria.specify", and the twin door of `criteria.specify` at 6035 to 6055 refuses the same words on the same ticket. See P4c-1.
+2. The repeat drop: CONFIRMED by `rv4c_acts.py`, section point 2. After a drop on `c1`, a retire and a plain approve: `ruling_drops_line` gives 2, `criteria_page_acts` gives no retire, because `live_criteria` hides the retired row, and `ruling_asks_no_new_words` gives False. The same without the retire gives the same three answers, and the retire is gone by the verdict gate alone. A later contest on `c1` with no act gives `retire: ['c1']` again, from the drop of r1. A later `rewrite` act ends the drop. None of the three asks for new words on a gone line. The answer door of `rota/core/sandbox.py` 2055 to 2066 reads `ruling_drops_line` and tells the Terminologist "Do not rewrite c1" on that revived drop. The reading: a retired line is off the page, so he cannot approve it. A line that is not yet retired is on the page, and he rules on the row itself. The drop's target is the row, and a plain approve on the same row speaks to the same target. m37's target is a source line inside the batch, and a plain approve of the batch does not speak to it. So the composition's rule holds for a named target, and a plain row takes back an act on the row itself. See P4c-2.
+3. P4b-1 and P4b-3: CONFIRMED by `rv4b_span.py` and `rv4b_span2.py` on the worktree. B, B2, E and H are refused with "his words do not hold it". A, D, E2, E3, G, C2, I, I2 and I3 land. C is refused by the agreement door, as the report's question 3 says. The eight cases of `rv_p11.py` equal c4a51c7d: six refusals with "line 11 is the team's note", and the two s357 cases land as revise. No case differs from the report.
+4. P4b-2 and P4b-4: CONFIRMED by `rv4c_acts.py`, section point 4. Nine objects in each brief, 18 in all, pass `_ruling_shape` in the form their line names. The seven lines "The acts:" to "`request` is a line of his request" are byte-equal in `landing.md` and `answering.md`. The lines above the list differ in two places on purpose: `answering.md` says "the act's `words`", because the clarify brief puts his words whole in the call's `words`, and it says "row" for "line", because the clarify keys are row ids. The P4-3 sentence and the "Each example below" sentence are the same in both.
+5. The tests: CONFIRMED. The four files give 92 passed on the worktree in 30 s. The archive `r4c_base` of 0736f9dd with the three test files gives 8 failed and 64 passed. The eight reds are the eight the report names. `test_only_the_newest_landed_row_with_an_act_grants` asserts `granted(db, "c1", "drop")` after the plain approve r3, and the take-back by the keep r4. It fails on the parent at line 96, the drop assertion, so it asserts the new rule.
+6. The clause filter: CONFIRMED by `rv4c_acts.py`, section point 6. On s357's reply the span "use click directly in the test instead of installing a separate package. The rest is fine" is refused. The filter skips the ask clause, which holds the span in part, and reads "The rest is fine.", which the span holds whole, and that clause asks no change. A span partial on both sides of a ", so" split is refused too (J3). A span that holds the ask clause whole lands (J4, J5), and a span that names the line takes the plain route (J2). A live Liaison copies "the exact words that ask for the change", so it hits this only when it trims the ask clause at both ends, or runs past the full stop into an agreement. Low. See P4c-3.
+
+### Pass 4c, the findings
+
+- P4c-1. `rota/roles/api.py` 6466 to 6474, the add loop of `criteria_page_acts`, and `rota/core/runner.py` 295 to 303. High. CONFIRMED by `rv4c_acts.py`: the add is offered after the criterion is written, and after a later plain approve. Under P4-3 nothing ends it but a later act on the same line. Each relay wake tells the Terminologist to write the line again, and `criteria.specify` refuses the twin at 6047. Night 170's agent rules the page many times, so this is the first loop to expect. Fix: in `criteria_page_acts`, skip an add when a live criterion of the ticket holds `said`, by `_holds_span(text, said)`.
+- P4c-2. `rota/roles/principal.py` 815 to 823, `grant`, and `rota/roles/api.py` 6457 to 6460. High. CONFIRMED by `rv4c_acts.py`: a drop on `c1`, then a plain approve, then a contest with no act gives `retire: ['c1']` from the old drop, and the answer door forbids the rewrite. On 0736f9dd the plain approve ended the drop. The P4-3 rule reads "the same target", and the target of a drop, a keep or a rewrite is the row itself, which every later verdict on the ref names. Fix: in `grant`, let a later row with no act take back an act whose target is None or whose kind is `row` or `check`, and keep an act with a named target, as m37's.
+- P4c-3. `rota/roles/api.py` 12334 to 12335, the `within` filter of `_note_words`. Low. CONFIRMED by cases J1 and J3. A clause that overlaps the span in part is skipped, and a clause the span holds whole is read in its place. Fix: find the span's position in the message with `str.find` on the folded text, and read every clause whose range intersects it.
+- P4c-4. `rota/roles/principal.py` 815 to 823, `grant` with no target. Low. PLAUSIBLE by reading: `_dropped_line`, `criteria_page_acts` and `ruling_asks_no_new_words` call `grant` with no target, so the newest row with any act decides. An add rides on any line of the item, so an add placed on `c1` in a later ruling ends a drop on `c1` that no Terminologist carried out yet. The add says nothing about `c1`. Fix: with no target, read the newest row whose act is the one asked, or whose act names the row itself, and skip an `add`.
+
+### Pass 4c, outside
+
+- The gate has not run on c33c20eb. The implementer ran 56 files, and the two brief edits stale the `landing` and `answering` cases of the register. The stale count is unknown until the gate runs on the merge.
+- `grant` filters by target before it takes the newest row, so a later `keep` with no target does not end m37's grant on `get_app_dir:518`. The brief says "only a later act on the same target replaces it", so the code and the brief agree. A principal who says "keep line 2 as it is" after m37 then keeps the remove. This follows from the rule, and the record of the next night shows whether he means it.
+
+### Pass 4c, the probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/0f8527d4-11a5-4167-bee3-acad34ef22d3/scratchpad/`.
+
+- `rv4b_span.py` and `rv4b_span2.py` on `C:/Users/roman/rota_r4c`: 13 span cases and the seven old examples. `rv_p11.py` of the e03f97fc scratchpad on the same tree: eight cases.
+- `rv4c_acts.py` on the worktree: the repeat add with a written criterion and a later approve; the drop through retire, plain approve, a contest with no act and a rewrite act; the 18 brief objects through `_ruling_shape` and the diff of the two lists; five clause-overlap spans J1 to J5.
+- pytest on the worktree, four files, 92 passed in 30 s. pytest on `r4c_base`, the archive of 0736f9dd with the three test files, 8 failed and 64 passed in 29 s.
+
+### Pass 4c, usage
+
+- Input tokens: about 95k, an estimate from the context counter.
+- Output tokens: about 9k, an estimate.
+- Total: about 104k, against a cap of about 40k.
+
+## Pass 4d and 4e
+
+Passes 4d and 4e at e4a06b38 fix P4c-1 to P4c-4. The add rules of 4e do not loop on a plain approve. Two holes stay, one high and one low. The done check reads his exact words, so an add that the Terminologist writes in other words is offered on every later relay wake, and the small model is told to write in glossary terms (P4de-1, high, plausible). A later add with other words on the same line replaces the older add, and the older ask stops quietly (P4de-2, low). The two briefs carry the same P4-3 sentence, and all 18 examples pass the door. The six new tests of 4d are red on c33c20eb, and the one test of 4e is green there, as its report says. Counts: 1 high, 1 low, and 1 low outside.
+
+The tree is `C:/Users/roman/rota_r4c` at e4a06b38. The archive of c33c20eb with the two changed test files is `r4de_base` in the scratchpad of 0f8527d4.
+
+### Pass 4d and 4e, the points
+
+1. P4c-1 to P4c-4: CONFIRMED by `rv4c_acts.py` and `rv4e_add.py` on the tree. P4c-1: the add is gone after the criterion with his words is live, and after a later plain approve. P4c-2: after a drop, a plain approve and a contest with no act, `ruling_drops_line` is None, `criteria_page_acts` gives no retire, and `grant(c1, drop)` is None. P4c-3: J1 and J3 land as revise, and J2, J4 and J5 still land. P4c-4: a drop on `c1`, then an add on `c1` with other words, keeps the drop granted and the retire offered. m37 then a plain approve on the line still grants, with and without the target. A later `keep` on `get_app_dir:518` takes it back in both forms.
+2. The add rules: CONFIRMED by `rv4e_add.py`. Three plain approves keep the add. A later `keep` ends it. A later `rewrite` whose words hold the add's words ends it. A later `drop` or `rewrite` with other words leaves it, and the drop is granted beside it. None of these loops on night 170 by itself: the add is offered on each relay wake until a live criterion of the ticket holds his words, and then it stops. The loop is in the done check. The Terminologist's brief says "Write acceptance criteria ... using criteria.specify" in glossary terms, and `criteria.specify` takes `term_refs`. A criterion written as "The CLI output is unchanged from today." leaves the add offered (`written in other words`), and the twin door catches a near twin only. Each later relay wake then asks for the line again, and each wake can write one more paraphrase. See P4de-1. The open question: a later add with other words on the same line gives `add: [('tk', 'the exit code is zero')]` alone. The first ask is gone from the prompt, and no door or line tells anyone. The composition says nothing stops quietly, so both adds stay offered until each is done or ended. The Terminologist sees one "He asks for a new line" line per add. With the replacement he sees the newer line only, and he never writes the older one. See P4de-2.
+3. The two briefs: CONFIRMED by `rv4c_acts.py`, section point 4. The P4-3 sentence is byte-equal in `landing.md` 19 and `answering.md` 26: "A later line with no act ends an earlier act on the line or its check, and it keeps an earlier `add` and an earlier act on a named target such as `get_app_dir:518`." The seven act and target lines are byte-equal. All 18 JSON objects pass `_ruling_shape` in the form their line names.
+4. The tests: CONFIRMED with one count to correct. The four files give 98 passed on the tree in 36 s. The archive `r4de_base` of c33c20eb with the two changed test files gives 6 failed and 56 passed. The six reds are the four new readers tests of 4d and J1 and J3. The 4e test `test_a_plain_approve_of_its_line_does_not_end_an_add` is green on c33c20eb, because a plain row ended nothing there. It is red on c5b149cc only, as the 4e report says. So the brief's count of 7 reds on c33c20eb is 6.
+
+### Pass 4d and 4e, the findings
+
+- P4de-1. `rota/roles/api.py` 6473 to 6480, the done check of `criteria_page_acts`. High. PLAUSIBLE: `rv4e_add.py` shows that a live criterion "The CLI output is unchanged from today." leaves the add offered, and `_holds_span` alone decides done. No door forces his exact words, and the Terminologist's brief asks for glossary terms. On night 170 the agent rules the page many times, so one reword makes a paraphrase loop, one new criterion per relay wake, as the open question 2 of the 4d report says. Fix: count the add done when a live criterion of the ticket holds the words or is a `_near_duplicate` of them by `_prose_words`, and else when the relay wake of that ruling wrote any criterion of the ticket.
+- P4de-2. `rota/roles/principal.py` 831 to 842, the `add` branch of `grant`, and `rota/roles/api.py` 6466. Low. CONFIRMED by `rv4e_add.py`, `later add, other words`: the newest add alone is read, and the older add is offered to nobody. Fix: let `criteria_page_acts` read every add on the ref that no later keep, holding act or live criterion ended, through a list reader beside `grant`.
+
+### Pass 4d and 4e, outside
+
+- `rota/roles/principal.py` 843 to 860, `grant` with and without a target. Low. CONFIRMED by `rv4e_add.py`, section point 1: after m37, a later `keep` or `drop` on the row itself ends the remove when no target is asked, and keeps it when `get_app_dir:518` is asked. The two forms read one record and disagree. Both forms are live: `api.py` 1867 asks with no target, and `api.py` 1913, 21229 and `runner.py` 1973 ask with a target. Fix: with no target, read an act on the row itself as a take-back only when its kind is the asked act's kind, or make the no-target form the union of the named-target answers.
+- The gate has not run on e4a06b38. The stale set of the `landing` and `answering` cases is still unknown.
+
+### Pass 4d and 4e, the probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/0f8527d4-11a5-4167-bee3-acad34ef22d3/scratchpad/`.
+
+- `rv4c_acts.py` on `C:/Users/roman/rota_r4c` at e4a06b38: the four pass 4c findings, the 18 brief objects, the two brief lists and J1 to J5.
+- `rv4e_add.py` on the same tree: the add after three plain approves, a keep, a holding rewrite, a drop and a rewrite with other words, a second add, and a criterion in other words and in his words; m37 with a plain approve, a keep on the target, a keep on the row and a drop of the row, in both reader forms.
+- pytest on the tree, four files, 98 passed in 36 s. pytest on `r4de_base`, the archive of c33c20eb with the two changed test files, 6 failed and 56 passed in 7 s.
+
+### Pass 4d and 4e, usage
+
+- Input tokens: about 45k for this re-check, an estimate from the context counter.
+- Output tokens: about 6k, an estimate.
+- Total: about 51k, against a cap of about 30k.
+
+## Pass 4f
+
+Pass 4f at e1b62ab2 fixes P4de-2 and fixes P4de-1 on a park page only. The page-shown test ends an add quietly in three cases that the record allows: a page that lists no criteria of the ticket, a page that lists some of them, and an add that targets a ticket the page did not show. In each case a criterion that stood before the ruling counts as new, and the add is gone with no write (P4f-1, high). A page with empty refs falls back to his words, so the paraphrase loop of P4de-1 stays there. One new criterion after two open adds ends both (P4f-2, low). The 2 new tests are red on e4a06b38 and green on e1b62ab2. Counts: 1 high, 1 low.
+
+The tree is `C:/Users/roman/rota_r4c` at e1b62ab2. The archive of e4a06b38 with the changed test file is `r4f_base` in the scratchpad of 0f8527d4.
+
+### Pass 4f, the points
+
+1. P4de-1: CONFIRMED in part, by `rv4e_add.py` and `rv4f_add.py` on the tree. On the park page `[it, c1, c2, c3]` the add stays offered until a write, and "The CLI output is unchanged from today." then ends it. The page-shown test misfires in the record's other shapes. A page `[it, tk]` with the add on the ticket: the add is gone at once, because `c1` to `c3` are not on the page. A page `[it, c1]`: the add on `c1` is gone at once, because `c2` and `c3` stood before and are not on the page. An add with target `tk2` whose criterion `d1` the page did not show: gone at once. A ruling with no ask message cannot exist, because `rulings.ask_id` is a foreign key. An ask with `body_refs` `[]` skips the page test, and a criterion in other words leaves the add offered, so the paraphrase loop of P4de-1 stays in that shape. The reader has no record of when a criterion was written, so it reads the page as that record, and the page is a view, not the record. See P4f-1.
+2. P4de-2: CONFIRMED by `rv4e_add.py`, `later add, other words`: both adds are offered. `rv4f_add.py`, section point 2: two adds on `c1` from two rulings, then one criterion "The program exits with code zero.", gives no add, and the first ask ends with no write and no word. A plain approve after the two adds keeps both, and a keep ends both. On night 170 an agent principal rules the same page many times. It needs two adds in other words on one ticket before the Terminologist writes the first. Night 169 held no add, and night 163 held one, so the case is rare. Low. A stored time on `criteria` and `rulings` is not owed as a frame now. The record already orders the write: the relay wake of a ruling is a `sessions` row with `wake_refs`, and `tool_calls` logs the `criteria.specify` call of that session. The done check can read that order today, and a `created_seq` column is the cheap general form when a second reader needs it. See P4f-2.
+3. The tests: CONFIRMED. The archive `r4f_base` of e4a06b38 with `test_seam_permission_readers.py` gives 2 failed and 32 passed. The two reds are `test_an_add_is_done_by_a_criterion_written_after_its_ruling` and `test_every_open_add_is_offered_until_each_is_done`. The three seam test files give 80 passed on the tree in 35 s.
+
+### Pass 4f, the findings
+
+- P4f-1. `rota/roles/api.py` 6490 to 6498, the page-shown test of `criteria_page_acts`. High. CONFIRMED by `rv4f_add.py`: three page shapes end an add with no criterion written. Each ends his ask quietly, against the composition. The park page of night 163 showed every criterion of the item, so the park shape holds, and no test pins the other shapes. Fix: read "written after the ruling" from the record, a `criteria.specify` call in `tool_calls` of a session that the relay of this ruling or a later ruling woke, and keep his words as the second test.
+- P4f-2. `rota/roles/api.py` 6490 to 6498, the same test with two open adds. Low. CONFIRMED by `rv4f_add.py`: one new criterion ends every open add of the ticket. Fix: count the new criteria against the open adds, oldest first, and let a criterion whose text holds an add's words end that add first.
+
+### Pass 4f, outside
+
+- The two reader forms of `grant` still disagree after m37 on a `keep` or a `drop` of the row itself, as the outside note of pass 4d and 4e says. `rv4e_add.py` on e1b62ab2 gives the same four lines.
+- The gate has not run on e1b62ab2. The stale set of the `landing` and `answering` cases is still unknown.
+
+### Pass 4f, the probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/0f8527d4-11a5-4167-bee3-acad34ef22d3/scratchpad/`.
+
+- `rv4e_add.py` on `C:/Users/roman/rota_r4c` at e1b62ab2: the add rules and the m37 cases of pass 4e.
+- `rv4f_add.py` on the same tree: the park page, a page with no criteria, a page with one criterion, an ask with empty refs, an add that targets another ticket, and two adds with one new criterion, a plain approve and a keep.
+- pytest on `r4f_base`, the archive of e4a06b38 with the changed test file, 2 failed and 32 passed. pytest on the tree, three seam files, 80 passed.
+
+### Pass 4f, usage
+
+- Input tokens: about 25k for this re-check, an estimate from the context counter.
+- Output tokens: about 4k, an estimate.
+- Total: about 29k, against a cap of about 15k.
+
+## Pass 4g
+
+Pass 4g at 7efdee6a fixes P4f-1. The three page shapes keep the add offered with no write, and only a recorded `criteria.specify` write in a later session or his exact words end it. The session order holds on the night's path: night 163's m112 ruling has its receipt in the Liaison landing session s217, and every Terminologist session after it has a greater `seq`. One quiet stop stays, low: one recorded write on a ticket ends every open add of that ticket (P4f-2, open). The 5 new tests are red on e1b62ab2 and green on 7efdee6a. Counts: 0 high, 1 low.
+
+The tree is `C:/Users/roman/rota_r4c` at 7efdee6a. The archive of e1b62ab2 with the changed test file is `r4g_base` in the scratchpad of 0f8527d4.
+
+### Pass 4g, the points
+
+1. P4f-1: CONFIRMED by `rv4f_add.py` on the tree. The park page, the page with no criteria, the page with `c1` alone, the empty refs and the add that targets `tk2` all keep the add offered with no write. A criterion in other words with no receipt keeps it too. The new tests `test_an_add_is_done_by_a_criterion_written_after_its_ruling` and `test_a_write_before_the_ruling_does_not_end_the_add` pin the recorded write and its order. The order on the night: a read-only query of `.rota/clickI_night163.db` gives the ruling `r_fae8c0a559` of m112 one `receipts` row of table `rulings` in session s217, the Liaison session that landed it, and 26 ruling receipts in all. `sessions.seq` grows with each session, so the Terminologist's relay session has a greater `seq`. The criteria receipts after s217, in s226 to s265, sit in sessions with no `criteria.specify` call, so they are rewrites and count for nothing. The fallback with no receipt reads the session that the reply or verdict woke, s217 and s218, which gives the same order.
+2. Loops and quiet stops on night 170: no loop. An add stays offered until a recorded write or his words end it, and the twin door's refusal leaves a live criterion with his words, which ends it. One quiet stop: one `criteria.specify` write on the ticket after the ruling ends every open add of the ticket, a second add included, and a new criterion that the Terminologist writes for another reason ends them too. See P4g-1.
+3. The tests: CONFIRMED. The archive `r4g_base` of e1b62ab2 with the changed test file gives 5 failed and 33 passed. The five reds are the two named tests and the three page shapes of `test_no_page_shape_ends_an_add_that_nobody_wrote`. The three seam files give 84 passed on the tree in 33 s.
+
+### Pass 4g, the findings
+
+- P4g-1. `rota/roles/api.py` 6490 to 6494, the done check with two open adds. Low. CONFIRMED by `rv4f_add.py`, section point 2, on e1b62ab2, and the code of 7efdee6a reads one write for the ticket. It is P4f-2 and the open question 1 of the 4g report. Fix: count the `criteria.specify` receipts after the ruling against the open adds of the ticket, oldest add first, and end an add whose words a written criterion holds before the count.
+
+### Pass 4g, outside
+
+- `_written_after` counts a session that rewrote an old criterion of the ticket by `criteria.respecify` and also called `criteria.specify` once, as the 4g report's open question 2 says. A receipt of a criterion with no earlier receipt is the exact record of a new row. Low, and no night shows the pair.
+- The gate has not run on 7efdee6a. The stale set of the `landing` and `answering` cases is still unknown.
+
+### Pass 4g, the probes
+
+- `rv4f_add.py` on `C:/Users/roman/rota_r4c` at 7efdee6a: the five page shapes and the two adds.
+- A read-only query with `immutable=1` on `D:/repos/rota/.rota/clickI_night163.db`: the receipt session of m112's ruling, the sessions its reply and verdict woke, the criteria receipts by session and the `criteria.specify` calls by session.
+- pytest on `r4g_base`, the archive of e1b62ab2 with the changed test file, 5 failed and 33 passed. pytest on the tree, three seam files, 84 passed.
+
+### Pass 4g, usage
+
+- Input tokens: about 14k for this re-check, an estimate from the context counter.
+- Output tokens: about 3k, an estimate.
+- Total: about 17k, against a cap of about 10k.
+
+## Pass 4h
+
+Pass 4h at 2ba61771 stands. The stray-key door refuses the three recorded call shapes of L1-LI-a-dropped-line-is-a-contest with the object form, the offered call passes `_ruling_shape`, and it lands with the act `drop` on line 3 when the map holds every line. The shift sentence sits above the act list, and the sentence and the examples are under 25 words with a code span or a quote as one token. The ruling counter collides with no writer more than a message id does, no reader keys on the `r_` prefix, and old `r_<hex>` rows mix with `r<n>` rows. The counter departs from the composition's rule that a record's identity derives from its content, and a ruling is the record the composition names, so the departure is a question for Roman, not a fix (P4h-1, low). The 5 new tests are red on 7efdee6a, and the seed fix of `test_frame333` is green on both. Counts: 0 high, 1 low, 1 low outside.
+
+The tree is `C:/Users/roman/rota_r4c` at 2ba61771. The archive of 7efdee6a with the three changed test files is `r4h_base` in the scratchpad of 0f8527d4.
+
+### Pass 4h, the points
+
+1. The ruling id: CONFIRMED by reading `rota/core/runner.py` 77 to 103 and `rota/core/schema.sql` 682. `new_id` reads `MAX` of the numeric suffix over `id GLOB 'r[0-9]*'` and adds one. Two writers on one database collide only when both read before either commits, and the primary key then refuses the second insert. The `s`, `m` and `tr` ids carry the same exposure, and the runner runs one session at a time, so the ruling id adds no new risk. No reader or test keys on the `r_` prefix or on the hex length: a grep of every `.py` file for `startswith("r_")`, `r_[0-9a-f]`, `"r_"` and `LIKE 'r` finds none. The keypress route writes `r_<msg_id>` at `principal.py` 2852 and the kit writes `r_<mid>` at `testkit/fixtures.py` 118, and the glob skips both, so they never feed the count. An old database holds `r_<hex>` rows, the glob skips them, the count starts at `r1`, and no `r<n>` can equal an `r_` id. The composition, line 60: "A record's identity derives from its content, not from when it was made." A counter is the order of making. Sessions and messages already count, so the ruling id follows that precedent, but line 62 says "A ruling is a record", and the keypress route already names a ruling by its content, the reply message. Fix: name a landed ruling `r_<reply_id>`, with the ask id behind it when one reply lands two rulings, which replays under the kit and mixes with old rows. Or put the departure to Roman first, with the ruling's date and the precedent of `m<n>`. See P4h-1.
+2. The stray-key refusal: CONFIRMED by `rv4h_stray.py` on the tree. The three recorded shapes are refused with "`act`, `target_kind` are fields of line 3's object, not lines of the page", and the second try names `target` too. The offered line 3 is `{"verdict": "contest", "act": "drop", "target_kind": "row", "words": "please drop line 3, the rest is fine"}`, and `_ruling_shape("3", ...)` returns it unchanged. The offer of runs 3 to 5 and of the second try lands: id `r1`, verdicts approve and contest, one act row `drop` of kind `row` on `l_1` with `words_from` m10. The offer of runs 1 and 2, line 3 alone, is refused by the next door: "lines 1, 2, 4, ... have no ruling", as the report's deviation 3 says. That door names the lines, so the model gets the second repair from it.
+3. The shift sentence: CONFIRMED. `landing.md` line 21 holds "The act names are not verdicts. On a page that asks which request goes first, the verdicts stay `later`, `now` and `drop`, as below." It sits above "The acts:" at line 22. Its sentences are 6 and 18 words. The act examples at lines 23 to 27 are 10, 10, 15, 11 and 9 then 19 words, and the target kinds at 30 to 32 are 14, 13 and 10, with a code span or a quoted text as one token. `answering.md` has no shift page and no sentence, by the report's deviation 2.
+4. The tests: CONFIRMED. The archive `r4h_base` of 7efdee6a with the three changed test files gives 5 failed and 97 passed, the five new tests, and `test_frame333_quote_reader.py` is green there with the new seed. The four files give 118 passed on the tree in 33 s.
+
+### Pass 4h, the findings
+
+- P4h-1. `rota/core/runner.py` 70 to 71, `_COUNTED` with `"r": "rulings"`. Low. PLAUSIBLE: the counter works and replays, and it departs from the composition's line 60 for the one record the composition names. The departure needs his word (the memory rule of 2026-10-25: a departure from his own ruling is asked, and the question opens with the ruling and its date). Fix: `r_<reply_id>` as the keypress route does, or the question to Roman before the merge.
+
+### Pass 4h, outside
+
+- `rota/roles/prompts/liaison/landing.md` 19 and `answering.md` 26, the P4-3 sentence, 33 words with a code span as one token, and `landing.md` 15, 31 words. Low. Both exceed the 25-word rule for a brief. Fix: split the P4-3 sentence at "and it keeps".
+- The gate has not run on 2ba61771. The three seam cases of the gate read are not re-recorded, so the stale set is unknown until the gate runs on the merge.
+
+### Pass 4h, the probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/0f8527d4-11a5-4167-bee3-acad34ef22d3/scratchpad/`.
+
+- `rv4h_stray.py` on `C:/Users/roman/rota_r4c` at 2ba61771: the three recorded call shapes, the parsed offer through `_ruling_shape`, and the offer landed.
+- A word count of `landing.md` 15 to 34 by sentence, plain and with a code span or a quote as one token.
+- A grep of every `.py` file of the tree for the `r_` prefix and the hex length, and a read of `new_id`, `schema.sql` 682 and `composition.md` 58 to 62.
+- pytest on `r4h_base`, the archive of 7efdee6a with the three changed test files, 5 failed and 97 passed. pytest on the tree, four files, 118 passed.
+
+### Pass 4h, usage
+
+- Input tokens: about 24k for this re-check, an estimate from the context counter.
+- Output tokens: about 5k, an estimate.
+- Total: about 29k, against a cap of about 15k.
