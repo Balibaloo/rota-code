@@ -1,6 +1,8 @@
 MODE: exhausted — you have spent the loop on this batch.
 
-The tests have bounced against the code up to the cap and are still red. The
+The batch stopped moving after a budget ran out. The line after Refs names the
+cause, for example "attempt 10 of 10", "the tests still fail after 3 attempts"
+or "the review gave no verdict after 3 attempts". Act on that cause. The
 budget existed to stop exactly this from continuing quietly, so treat the cap as
 information rather than as bad luck: **when a fix loop runs out, the block is
 usually not in the code.**

@@ -1741,14 +1741,20 @@ def stopped_bouncing(conn: sqlite3.Connection, batch_id: str) -> bool:
 
 
 def _running_given_up(conn: sqlite3.Connection, batch_id: str) -> list[str]:
-    """`given_up` for a running batch, or [] for a batch of any other status."""
+    """
+    `given_up` for a running batch, less the Liaison's keys, or [] for a
+    batch of any other status.
+    """
     # A deferred batch's given-up key waits for the principal, and the
     # ladder does not wake on it (frame 87, ruled 2026-09-27).
     row = conn.execute("SELECT status FROM batches WHERE id = ?",
                        (batch_id,)).fetchone()
     if row is None or row["status"] != "running":
         return []
-    return given_up(conn, batch_id)
+    # A Liaison key is a report about a stopped step, not a step of the
+    # batch. A failed report does not stop the batch (frame 330, review of
+    # pass 5, finding 3).
+    return [k for k in given_up(conn, batch_id) if not k.startswith("liaison|")]
 
 
 def stop_detail(conn: sqlite3.Connection, batch_id: str) -> str:
@@ -1757,7 +1763,10 @@ def stop_detail(conn: sqlite3.Connection, batch_id: str) -> str:
 
     `exhausted` and `preempt`'s park both say it. A batch at the cap keeps
     their old text. Below the cap "attempt 6 of 10" and "past its cap" are
-    both false, and the detail reaches a prompt (frame 330, pass 2).
+    both false (frame 330, pass 2). The rung reads the detail in its user
+    prompt, because `tick:exhausted` is in `runner.DETAIL_SHOWN`. A green
+    batch wakes the rung too, so the detail is the one place that names
+    the cause (frame 330, review of pass 5, finding 1).
     """
     from . import config
     # The page's words for a quarantined key, so the detail and the page

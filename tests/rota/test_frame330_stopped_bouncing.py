@@ -211,6 +211,31 @@ def test_a_quarantined_rung_counts_as_asked(night_168):
         "a step of the team after 3 attempts; the tests still fail after 3 attempts"]
 
 
+def test_a_stuck_liaison_note_does_not_stop_the_batch(night_168):
+    """Review of pass 5, finding 3: the Liaison's note about a pair key
+    names the batch alone. A failed report is not a step of the batch."""
+    _only_key(night_168, "liaison|tick:quarantined|batch_1")
+    assert _ladder(night_168) == []
+    assert not parked(night_168, "batch_1")
+
+
+def test_the_rung_reads_the_cause_in_its_prompt(night_168):
+    """Review of pass 5, finding 1: a green batch woke the Developer rung,
+    and its prompt said the tests are still red and named no cause."""
+    from rota.core.runner import build_prompt
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    _only_key(night_168, "critic|tick:review|batch_1")
+    (wake,) = P.exhausted(night_168)
+    sb = build("developer", night_168, mode="exhausted",
+               allow=prompts.mode_tools("developer", "exhausted"))
+    system, user = build_prompt("developer", sb, wake, {},
+                                prompts.compose("developer", "exhausted"))
+    assert "the review gave no verdict after 3 attempts" in user
+    assert "still red" not in system
+
+
 def test_a_deferred_batch_s_given_up_key_still_parks_it(night_168):
     """Frame 87 (ruled 2026-09-27): a given-up deferred batch waits for the
     principal. The ladder does not wake on it."""

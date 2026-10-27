@@ -436,6 +436,9 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 "tick:finding_violated",
                 # Which upheld finding exhausted the loop (frame 88).
                 "tick:findings_exhausted",
+                # Which budget stopped the batch. A batch with no red test
+                # wakes this rung too (frame 330, review of pass 5, finding 1).
+                "tick:exhausted",
                 # Which batch is parked and on which key (frame 87).
                 "tick:park_ask",
                 # Which earlier item the shift question is about, and where
