@@ -2025,7 +2025,7 @@ def _parts(grain: str) -> set[str]:
 
 
 def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
-                   item: str | None = None) -> list[str]:
+                   item: str | None = None, conn=None) -> list[str]:
     """
     The paths of a prediction that the principal's words call wrong.
 
@@ -2055,7 +2055,11 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
     cover: then the main clause's files are disputed. A file name matches
     only where no letter, digit or "_" stands before it. A "no" before "changes", "edits" or "need" with "beyond", "except" or
     "other than" disputes nothing. Words that name no path dispute nothing.
+    The window rules for a test file hold for each file that `kind_of`
+    marks attached, with `conn`'s frame rulings when `conn` is given.
     """
+    from ..onboarding.areas import kind_of
+
     item_words = (None if item is None else
                   set(re.findall(r"[a-z0-9]+", item.lower()))
                   | set(re.findall(r"[a-z0-9_]+", item.lower())))
@@ -2084,8 +2088,9 @@ def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
         # The window holds for a test file alone. "termui is wrong" names
         # the source by its bare word (the delta review of afecf14a,
         # finding 2).
-        under_tests = path.replace("\\", "/").lower().startswith("tests/") or (
-            "/tests/" in path.replace("\\", "/").lower())
+        # An attached file, a test file first, by the frame's kind (frame
+        # 324, ruled: Roman, 2026-10-26 20:37).
+        under_tests = kind_of(conn, path) == "attached"
         if under_tests and parts and any(parts == s for s in _listed(text)):
             return True
         if len(parts) == 1 and under_tests:
@@ -2365,7 +2370,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             disputed = disputed_paths(
                 said, touch.get("expected", []) + touch.get("possible", []),
                 possible=touch.get("possible", []),
-                item=" ".join(filter(None, (item.get("id"), item.get("text")))) or None)
+                item=" ".join(filter(None, (item.get("id"), item.get("text")))) or None,
+                conn=conn)
             touch["disputed"] = disputed
             for key in ("expected", "possible"):
                 touch[key] = [p for p in touch.get(key, []) if p not in disputed]
@@ -2401,7 +2407,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         if out.get("principal_verdict", {}).get(key) in ("contest", "revise"):
             disputed = disputed_paths(
                 out.get("principal_said") or "", paths + symbols, possible=symbols,
-                item=" ".join(filter(None, (item_id, item["text"] if item else None))))
+                item=" ".join(filter(None, (item_id, item["text"] if item else None))),
+                conn=conn)
         out["guess"] = [p for p in paths + symbols if p not in disputed]
         out["disputed"] = disputed
     # One name for one thing. Intake already calls the principal's words

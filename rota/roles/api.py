@@ -5358,21 +5358,14 @@ def _program_rank(conn, name: str, grains: list[str],
     """
     # Frame 324, candidate R (ruled: Roman, 2026-10-25). The index proves
     # existence only. The frame's rulings say which row is the program's.
-    from ..onboarding.areas import is_attached, ruling_for
+    from ..onboarding.areas import kind_of
 
     if len(grains) == 1:
         return grains[0], ""
     own = [g for g in grains if g.partition("::")[0] in set(prefer)]
     if len(own) == 1:
         return own[0], ""
-
-    def kind(g: str) -> str:
-        path = g.partition("::")[0]
-        # With no frame ruling the heuristics decide, as areas.propose does.
-        return ruling_for(conn, path) or (
-            "attached" if is_attached(path) else "program")
-
-    program = sorted(g for g in grains if kind(g) == "program")
+    program = sorted(g for g in grains if kind_of(conn, g) == "program")
     if len(program) == 1:
         return program[0], ""
     rest = sorted(g for g in grains if g not in program)
@@ -5437,14 +5430,36 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
             # and the Tester tested the split through the tip.
             g = hit["grain"]
             gpath, _, gname = g.partition("::")
-            if ("tests" in gpath.replace("\\", "/").split("/")[:-1]
-                    or gpath.rsplit("/", 1)[-1].startswith("test_")
-                    or gname.startswith("test_")):
+            # Frame 324 (ruled: Roman, 2026-10-26 20:37): the frame's kind
+            # decides, not a folder name. Night 167's s280 respecified tk_3
+            # to `examples/termui/termui.py::clear`, an attached demo file,
+            # and the door stored it.
+            from ..onboarding.areas import is_test, kind_of
+
+            kind = kind_of(ctx.conn, gpath)
+            if gname.startswith("test_") or (
+                    kind in ("attached", "ignore") and is_test(gpath)):
                 raise ValueError(
                     f"{ref!r} is a test ({g}), and a test is not a surface. "
                     f"The surface is the program callable a test would "
                     f"exercise. Name that callable; if the behaviour is new, "
                     f"name the callable that will implement it")
+            # An attached callable with a program twin of the same name is
+            # the wrong one of the two. An attached callable with no twin
+            # stays frame 215's question, which reads the principal's words.
+            same = sorted(
+                r["grain"] for r in ctx.conn.execute(
+                    "SELECT grain FROM code_index WHERE grain_kind = "
+                    "'symbol' AND grain LIKE ?", (f"%::{gname}",))
+                if r["grain"].endswith(f"::{gname}")
+                and kind_of(ctx.conn, r["grain"]) == "program"
+            ) if kind in ("attached", "ignore") else []
+            if same:
+                raise ValueError(
+                    f"{ref!r} is in {gpath}, and the frame marks that file "
+                    f"{kind}, not program code. The program defines "
+                    f"{gname} too: {', '.join(same[:5])}. Name the "
+                    f"program's callable as the surface")
             vetted.append(g)
             continue
         # Fuzzy, not substring: 'regster' is one dropped letter from a real
@@ -7397,9 +7412,65 @@ def _test_shaped(f: str) -> bool:
                              f.rpartition("/")[2]))
 
 
-def _test_dirs(indexed: set[str]) -> set[str]:
-    """The folders of the indexed paths that hold a test-shaped file."""
-    return {g.rpartition("/")[0] for g in indexed if _test_shaped(g)}
+def _test_dirs(indexed: set[str], conn=None) -> set[str]:
+    """The folders of the indexed paths that hold a test-shaped file that
+    the frame marks attached."""
+    # Frame 324 (ruled: Roman, 2026-10-26 20:37): the basename gives the
+    # shape of a test file, and the frame's kind says whether the file is
+    # part of the program. A test-shaped program file makes no test folder.
+    from ..onboarding.areas import kind_of
+
+    return {g.rpartition("/")[0] for g in indexed
+            if _test_shaped(g) and kind_of(conn, g) == "attached"}
+
+
+def _module_kind(conn: sqlite3.Connection, module: str) -> str:
+    """The frame's kind of the indexed files that a top-level import name
+    names, or "" when the index holds no such file.
+
+    The name matches a folder of a path or a file `<name>.py`. The
+    shallowest match wins, so `click` is `src/click` in a src layout. The
+    kind is `program` when one file of that match is program code."""
+    from ..onboarding.areas import kind_of
+
+    best: tuple[int, list[str]] | None = None
+    for r in conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path'"):
+        parts = r["grain"].replace("\\", "/").split("/")
+        depth = next((i for i, p in enumerate(parts[:-1]) if p == module),
+                     len(parts) - 1 if parts[-1] == f"{module}.py" else None)
+        if depth is None:
+            continue
+        if best is None or depth < best[0]:
+            best = (depth, [r["grain"]])
+        elif depth == best[0]:
+            best[1].append(r["grain"])
+    if best is None:
+        return ""
+    kinds = [kind_of(conn, g) for g in best[1]]
+    return "program" if "program" in kinds else kinds[0]
+
+
+def _program_modules(conn: sqlite3.Connection) -> set[str]:
+    """The top-level import names of the indexed `.py` files that the frame
+    marks program: the top package of a file, or the file's stem when its
+    folder holds no `__init__.py`."""
+    from ..onboarding.areas import kind_of
+
+    paths = {r["grain"].replace("\\", "/") for r in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
+    out: set[str] = set()
+    for p in paths:
+        if not p.endswith(".py") or kind_of(conn, p) != "program":
+            continue
+        parts = p.split("/")
+        top = len(parts) - 1
+        while top > 0 and "/".join(parts[:top] + ["__init__.py"]) in paths:
+            top -= 1
+        name = parts[top] if top < len(parts) - 1 else parts[-1][:-3]
+        if name.isidentifier():
+            out.add(name)
+    return out
 
 
 def _refuse_program_path(conn: sqlite3.Connection, path: str) -> None:
@@ -7416,9 +7487,14 @@ def _refuse_program_path(conn: sqlite3.Connection, path: str) -> None:
         "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
     if path not in indexed:
         return
-    dirs = _test_dirs(indexed)
+    from ..onboarding.areas import kind_of
+
+    dirs = _test_dirs(indexed, conn)
     folder = path.rpartition("/")[0]
-    if folder in dirs or any(d and folder.startswith(f"{d}/") for d in dirs):
+    # A file the frame marks program is refused in any folder (frame 324).
+    if kind_of(conn, path) != "program" and (
+            folder in dirs
+            or any(d and folder.startswith(f"{d}/") for d in dirs)):
         return
     named = sorted(dirs, key=lambda d: (d.count("/"), d)) or ["tests"]
     stem = path.rpartition("/")[2][:-3].lstrip("_") or "thing"
@@ -7470,7 +7546,7 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
         return p
 
     test_shaped = _test_shaped
-    test_dirs = _test_dirs(indexed)
+    test_dirs = _test_dirs(indexed, conn)
 
     def new_test_file(f: str) -> bool:
         # Frame 302, pass 2: 7 of 15 refusals on nights 150 to 158 were right
@@ -9638,9 +9714,14 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         if root:
             called_bare = {n.func.id for n in free_calls
                            if isinstance(n.func, _ast.Name) and n.func.id != "input"}
+            from ..onboarding.areas import kind_of as _kind_of
+
             for pyfile in root.rglob("*.py"):
                 rel = pyfile.relative_to(root).as_posix()
-                if rel.startswith("tests/") or pyfile.stem.startswith("test_"):
+                # The program's own code reads stdin here, so the frame's
+                # kind skips the files it marks attached or ignore (frame
+                # 324, ruled: Roman, 2026-10-26 20:37).
+                if _kind_of(ctx.conn, rel) in ("attached", "ignore"):
                     continue
                 try:
                     fn_tree = _ast.parse(pyfile.read_text(encoding="utf-8"))
@@ -9721,7 +9802,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         except Exception:               # noqa: BLE001 -- no worktree yet is "does not exist"
             root = None
         exists = bool(root) and ((root / f"{agreed}.py").exists() or (root / agreed).is_dir())
-        odd = sorted(m for m in mine if m not in others)
+        # Frame 324 (ruled: Roman, 2026-10-26 20:37): a module that the
+        # index places in program code is the program's name, never a
+        # second program. A src layout of two packages, such as the sample
+        # project's `store` and `billing`, has neither at the root.
+        odd = sorted(m for m in mine if m not in others
+                     and _module_kind(ctx.conn, m) != "program")
         if odd and agreed not in mine and not exists:
             raise ValueError(
                 f"this test imports {odd[0]}, and the batch's other tests import "
@@ -10119,9 +10205,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             _known |= {m.split(".")[0] for m in imported_from}
         else:
             _known |= {p.stem for p in _root.glob("*.py")} | {p.name for p in _root.iterdir() if p.is_dir()}
-            for base in (_root / "src", _root / "lib"):
-                if base.is_dir():
-                    _known |= {p.stem for p in base.glob("*.py")} | {p.name for p in base.iterdir() if p.is_dir()}
+            # Frame 324 (ruled: Roman, 2026-10-26 20:37): the program's
+            # modules come from the frame's program files, not from the
+            # folder names `src` and `lib`. An index with no file has no
+            # frame to read, and the two folders stay the guess.
+            _program_mods = _program_modules(ctx.conn)
+            _known |= _program_mods
+            if not _program_mods:
+                for base in (_root / "src", _root / "lib"):
+                    if base.is_dir():
+                        _known |= {p.stem for p in base.glob("*.py")} | {p.name for p in base.iterdir() if p.is_dir()}
         try:
             import tomllib as _toml
             if _root is not None and (_root / "pyproject.toml").is_file():
@@ -14905,6 +14998,29 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
 # floor under it in `rota/core/runner.py`.
 PROBE_ROWS = 60
 
+# The order of the frame's kinds in a listing: the program's rows first and
+# the attached rows after them.
+_KIND_RANK = {"program": 0, "surface": 1, "attached": 2, "ignore": 3}
+
+
+def _frame_ranked(conn, rows: list[dict]) -> list[dict]:
+    """The rows with a `kind` column after `grain`, from `kind_of`, in a
+    stable sort by that kind. The order inside one kind stays."""
+    # Frame 324 (ruled: Roman, 2026-10-26 20:21 and 20:37): the fix is where
+    # the seat gets its information. Night 167's s280 read a listing with
+    # `examples/termui/termui.py::clear` first, no kind and no mark.
+    from ..onboarding.areas import kind_of
+
+    seen: dict[str, str] = {}
+    out = []
+    for r in rows:
+        path = str(r.get("grain", "")).partition("::")[0]
+        if path not in seen:
+            seen[path] = kind_of(conn, path)
+        out.append({"grain": r["grain"], "kind": seen[path],
+                    **{k: v for k, v in r.items() if k != "grain"}})
+    return sorted(out, key=lambda r: _KIND_RANK.get(r["kind"], 4))
+
 
 @op("code", "probe")
 def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
@@ -14930,11 +15046,13 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
     # spend the whole cap on paths and return no span at all. Fan-in still
     # ranks inside each kind, and the grain breaks the tie so the rows are the
     # same rows on every run.
-    hits = _rows(ctx.conn.execute(
+    # The frame's kind ranks before the grain kind, so the program's rows
+    # come first and the cut drops attached rows first (frame 324).
+    hits = _frame_ranked(ctx.conn, _rows(ctx.conn.execute(
         "SELECT grain, grain_kind, area, fan_in, line_start, line_end "
         "FROM code_index WHERE grain LIKE ? "
         "ORDER BY CASE grain_kind WHEN 'symbol' THEN 0 ELSE 1 END, "
-        "fan_in DESC, grain LIMIT ?", (f"%{pattern}%", PROBE_ROWS)))
+        "fan_in DESC, grain", (f"%{pattern}%",))))[:PROBE_ROWS]
     if hits:
         for row in hits:
             if row["grain_kind"] != "symbol":
@@ -14950,12 +15068,14 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
             # 0, so the definitions come back in name order and the files after
             # them by fan-in (the diff review of 34c3e72, F7).
             hits.insert(0, {"grain": f"{total} grains match '{pattern}'. The "
-                                     f"{len(hits)} below are the definitions in "
-                                     f"name order, then the files by fan-in. "
+                                     f"{len(hits)} below are the program's "
+                                     f"rows, then the attached rows. Each "
+                                     f"kind lists the definitions in name "
+                                     f"order, then the files by fan-in. "
                                      f"The pattern is too broad. Probe a longer "
                                      f"name to reach the rest.",
-                            "grain_kind": "", "area": "", "fan_in": "",
-                            "line_start": "", "line_end": ""})
+                            "kind": "", "grain_kind": "", "area": "",
+                            "fan_in": "", "line_start": "", "line_end": ""})
         return hits
     # Nothing matched, and the index of this batch may be the reason. The
     # lifecycle and the runner record a failed refresh under `index:<batch>`,
@@ -16776,6 +16896,7 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
         return [{"note": "the index holds no symbols, so there is nothing to "
                          "match; name the surface as you intend it and it is "
                          "the design"}]
+    rows = _frame_ranked(ctx.conn, rows)
     words = set()
     for w in (hint or "").split():
         w = w.strip("`'\".,?:;()[]").lower()
@@ -16797,6 +16918,11 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
         tokens |= {t.rstrip("s") for t in tokens}
         if tokens & words:
             hits.append(r)
+    # Inside one kind, a symbol whose whole name is a word of the hint comes
+    # first. Night 167's s280 had 40 rows at fan-in 0, and `clear`, the name
+    # the principal wrote, was the ninth (frame 324).
+    hits.sort(key=lambda r: (_KIND_RANK.get(r["kind"], 4),
+                             r["grain"].split("::")[-1].lower() not in words))
     _cut(ctx, "the symbols matching the hint", 40, len(hits), "rows", stored=False)
     if not hits:
         _cut(ctx, "the candidate symbols", 20, len(rows), "rows", stored=False)
@@ -23386,7 +23512,7 @@ def _kind_shortfall(old_lines: list[str], text: str):
 
 
 def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
-    """The non-test modules of the batch's worktree that define `name` at
+    """The program modules of the batch's worktree that define `name` at
     top level, other than `path`. A regex over the files, not a parse: the
     question is one name, and the tree is small enough to read."""
     import re as _re
@@ -23394,10 +23520,16 @@ def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
     if root is None or not root.is_dir():
         return set()
     pat = _re.compile(rf"^(?:async\s+def|def|class)\s+{_re.escape(name)}\b", _re.M)
+    from ..onboarding.areas import kind_of
+
     found: set[str] = set()
     for f in root.rglob("*.py"):
         rel = f.relative_to(root).as_posix()
-        if rel == path.replace("\\", "/") or _is_test_path(rel) or rel.startswith((".venv/", ".rota/", "venv/")):
+        # Only program files define a name the test can reach, so the
+        # frame's kind decides (frame 324, ruled: Roman, 2026-10-26 20:37).
+        # `venv/` is an installed environment and no part of the frame.
+        if (rel == path.replace("\\", "/") or rel.startswith("venv/")
+                or kind_of(ctx.conn, rel) in ("attached", "ignore")):
             continue
         try:
             if pat.search(f.read_text(encoding="utf-8", errors="replace")):

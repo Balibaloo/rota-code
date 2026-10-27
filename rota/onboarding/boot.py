@@ -178,10 +178,12 @@ def stresses(conn: sqlite3.Connection, report: OnboardReport) -> list[str]:
                    f"each against the account, one session per file, and a "
                    f"disagreement is a page for you")
 
-    from .areas import is_attached
+    # The frame's kind decides what counts as source, so a ruling outranks
+    # the name heuristic (frame 324, ruled: Roman, 2026-10-26 20:37).
+    from .areas import kind_of
     root_src = [r["grain"] for r in conn.execute(
         "SELECT grain FROM code_index WHERE grain_kind = 'path' AND area = '.'")
-        if not is_attached(r["grain"])]
+        if kind_of(conn, r["grain"]) == "program"]
     if len(root_src) > 20:
         out.append(f"the root catch-all holds {len(root_src)} source files: "
                    f"whatever did not fold anywhere else is what one survey "

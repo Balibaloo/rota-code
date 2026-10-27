@@ -98,8 +98,12 @@ def test_two_program_rows_are_refused_with_the_program_first(db):
     assert str(g.value).endswith("Or leave symbols out")
 
 
-def test_a_qualified_example_from_the_seat_is_kept(db):
-    assert _specify(db, EXAMPLE) == [EXAMPLE]
+def test_a_qualified_example_with_a_program_twin_is_refused_at_the_surface(db):
+    """The general build of 2026-10-26 20:37: the surface door reads the
+    frame's kind, so an attached `clear` with a program twin is refused.
+    The guess keeps a qualified path as written."""
+    with pytest.raises(ValueError, match=LIBRARY):
+        _specify(db, EXAMPLE)
     assert _guess(db, ["src/click/termui.py"], [EXAMPLE]) == [
         "src/click/termui.py", EXAMPLE]
 

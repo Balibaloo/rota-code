@@ -73,6 +73,29 @@ def ruling_for(conn, grain: str) -> str | None:
     return best[1] if best else None
 
 
+# The values `kind_of` returns. They are the stored values of
+# `frame_rulings.kind`. The model-facing word `boundary` files as `surface`
+# (`_FRAME_KINDS` in rota/roles/api.py).
+KINDS = ("program", "attached", "ignore", "surface")
+
+
+def kind_of(conn, path: str) -> str:
+    """The frame's kind of a path: `program`, `attached`, `ignore` or
+    `surface`.
+
+    The judge's partition in `frame_rulings` decides through `ruling_for`.
+    Where no ruling covers the path, `is_attached` decides between
+    `attached` and `program`. A symbol grain `path::name` reads its path.
+    With `conn` None, the heuristic decides alone."""
+    # Frame 324 (ruled: Roman, 2026-10-26 20:37): every door reads the ruled
+    # partition through this one reader, and no door re-derives it.
+    path = (path or "").replace("\\", "/").partition("::")[0]
+    ruled = ruling_for(conn, path) if conn is not None else None
+    if ruled in KINDS:
+        return ruled
+    return "attached" if is_attached(path) else "program"
+
+
 def is_attached(grain: str) -> bool:
     """Tests, examples and dot-directories: indexed and attached, never
     counted when the partition decides what deserves a survey.
@@ -162,13 +185,13 @@ def propose(conn: sqlite3.Connection) -> Proposal:
     # The frame's rulings outrank the name heuristics, path by path. A grain
     # ruled `ignore` leaves the partition entirely; `attached` joins the
     # tests; `program` is surveyed even where a heuristic would attach it
-    # (docs that are the product); `boundary` files stay indexed and are the
-    # boundary phase's business, not an area's.
-    ruled = {p: ruling_for(conn, p) for p in every}
+    # (docs that are the product); `surface` files, the brief's `boundary`,
+    # stay indexed and are the boundary phase's business, not an area's.
+    # The stored value is `surface`, and this check read `boundary` until
+    # frame 324, so a judged surface fell through to the heuristic.
+    ruled = {p: kind_of(conn, p) for p in every}
     every = [p for p in every if ruled[p] != "ignore"]
-    paths = [p for p in every
-             if ruled[p] == "program"
-             or (ruled[p] not in ("attached", "boundary") and not is_attached(p))]
+    paths = [p for p in every if ruled[p] == "program"]
     tests = [p for p in every if p not in set(paths)]
     if not paths:                      # a repository of nothing but tests
         return Proposal()
