@@ -810,16 +810,38 @@ def grant(conn: sqlite3.Connection, ref: str, act: str,
     `get_app_dir:518`. When a target is given, the newest row with an act
     on that target decides. With no target, the newest row whose act is
     `act`, or whose act is on the row itself or on a target of `act`,
-    decides. An `add` never ends another act (composition.md: "Only a ratified amendment to something
-    approved revokes work downstream"; the reviews of pass 4, P4-3, and of
-    pass 4c, P4c-2 and P4c-4).
+    decides. An `add` never ends another act (composition.md: "Only a
+    ratified amendment to something approved revokes work downstream"; the
+    reviews of pass 4, P4-3, and of pass 4c, P4c-2 and P4c-4).
+
+    A later row with no act never ends an `add`. The add's target is a new
+    line that is not on the page, so a plain verdict on the row it rides on
+    says nothing about it. An add ends only by a later `keep` on the row,
+    or by a later act on the row whose words hold the add's words.
+    `criteria_page_acts` also ends it when a live criterion of the ticket
+    holds its words (composition.md: nothing stops quietly; the review of
+    pass 4d).
     """
     if not isinstance(ref, str) or not ref:
         return None
     rows = ruled(conn, [ref])
-    if target is not None:
-        wanted = {_target_key(t)
-                  for t in ([target] if isinstance(target, str) else target) if t}
+    wanted = ({_target_key(t)
+               for t in ([target] if isinstance(target, str) else target) if t}
+              if target is not None else None)
+    if act == "add":
+        adds = [i for i, r in enumerate(rows) if r["act"] == "add"
+                and (wanted is None or (r["target"] is not None
+                                        and _target_key(r["target"]) in wanted))]
+        if not adds:
+            return None
+        row = rows[adds[-1]]
+        said = _fold(row["words"])
+        for later in rows[adds[-1] + 1:]:
+            if later["act"] == "keep" or (later["act"] is not None and said
+                                          and said in _fold(later["words"])):
+                return None
+        return row
+    if wanted is not None:
         found = [i for i, r in enumerate(rows) if r["act"] is not None
                  and r["target"] is not None
                  and _target_key(r["target"]) in wanted]
@@ -837,6 +859,12 @@ def grant(conn: sqlite3.Connection, ref: str, act: str,
     if _on_the_row(row) and any(r["act"] is None for r in rows[found[-1] + 1:]):
         return None
     return row
+
+
+def _fold(text) -> str:
+    """Words as a span check compares them: case-folded, with each run of
+    white space read as one space."""
+    return " ".join(str(text or "").split()).casefold()
 
 
 def _on_the_row(row) -> bool:

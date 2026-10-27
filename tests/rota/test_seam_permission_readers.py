@@ -123,6 +123,20 @@ def test_an_add_on_the_line_does_not_end_its_drop(db):
     assert api.criteria_page_acts(db, ["c1"])["retire"] == ["c1"]
 
 
+def test_a_plain_approve_of_its_line_does_not_end_an_add(db):
+    """The review of pass 4d: the add's target is a new line that is not on
+    the page, so a plain approve of the row it rides on says nothing about
+    it. A later keep on the row ends it. Red on c5b149cc."""
+    said = "the output stays exactly the same as today"
+    _rule(db, "r1", {"c1": {"verdict": "approve", "act": "add",
+                            "words": said}})
+    _rule(db, "r2", {"c1": "approve"}, seq=2)
+    assert api.criteria_page_acts(db, ["c1"])["add"] == [(TICKET, said)]
+    _rule(db, "r3", {"c1": {"verdict": "contest", "act": "keep",
+                            "target_kind": "check"}}, seq=3)
+    assert api.criteria_page_acts(db, ["c1"])["add"] == []
+
+
 def test_an_add_that_a_live_criterion_holds_is_not_offered_again(db):
     """P4c-1: m112's add, then the criterion that criteria.specify wrote.
     The add is done, so the relay wake offers it no more."""
