@@ -771,10 +771,14 @@ def _contest_block(conn, rows: list, on_rows: bool = False,
             # Frame 328, item 5: night 168's sessions read the old text here,
             # and 18 of 65 challenge turns quoted it. So a replaced text says
             # so first, and the live text stands under it.
-            live = conn.execute("SELECT text FROM criteria WHERE id = ?",
-                                (cid,)).fetchone()
-            live = live["text"] if live else None
-            if live and " ".join(live.split()) != " ".join(text.split()):
+            row = conn.execute("SELECT text, retired_by FROM criteria "
+                               "WHERE id = ?", (cid,)).fetchone()
+            live = row["text"] if row else None
+            if row and row["retired_by"]:
+                # Review of pass 1, finding 8: a retired row has no live text.
+                lines.append(f"{cid}: He contested this text, and the "
+                             f"criterion is retired now: {text}")
+            elif live and " ".join(live.split()) != " ".join(text.split()):
                 lines.append(f"{cid}: He contested this text, and it is "
                              f"replaced now: {text}")
                 lines.append(f"{cid}: The live text is: {live}")

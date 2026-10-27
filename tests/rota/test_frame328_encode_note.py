@@ -194,7 +194,10 @@ def test_a_raise_inside_the_code_after_the_commit_gets_a_note(db):
     assert ("The run of `test_an_int_is_shown_as_text` on the batch's head "
             "raises `TypeError: expected str, bytes or os.PathLike object, "
             "not int` at src/click/utils.py line ") in note
-    assert "Encode it again with the same id." in note
+    # Review of pass 1, finding 6: a raise names both causes.
+    assert ("A raise can come from the Developer's code or from the test's "
+            "own call.") in note
+    assert "encode it again with the same id." in note
 
 
 def test_a_raise_in_a_short_function_names_the_tests_line(db):

@@ -17760,11 +17760,20 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
                    f"`{h['quote']}`: `{h['error']}`." if h["line"] else
                    f" on the batch's head raises `{h['error']}` at "
                    f"{h['raised']}.") for h in held)
+            # Review of pass 1, finding 6: a raise shows no value, and the
+            # Developer's code can cause it. So that tail names both causes.
+            raises = any(not h["error"].startswith(("AssertionError", "assert"))
+                         for h in held)
+            tail = ("A raise can come from the Developer's code or from the "
+                    "test's own call. If the criterion's words give the call "
+                    "that the test makes, the test stands. Otherwise, encode "
+                    "it again with the same id." if raises else
+                    "If the criterion's words give the value that the run "
+                    "shows, the test is wrong. Encode it again with the same "
+                    "id.")
             notes.append(
                 f"{runs} The test is stored. The batch's head holds the "
-                f"Developer's commit. If the criterion's words give the value "
-                f"that the run shows, the test is wrong. Encode it again with "
-                f"the same id.")
+                f"Developer's commit. {tail}")
         return None
 
     def _short(s: str) -> str:

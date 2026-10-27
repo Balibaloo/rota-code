@@ -973,21 +973,70 @@ def _shown_views(source: str) -> tuple[str, ...]:
     return tuple(views)
 
 
-def _quote_reads(quote: str, source: str) -> bool:
+def _quote_forms(quote: str) -> list[str]:
+    """The quote as written and as the seat's call syntax gives it.
+
+    Night 167 walk 3: one outer mark and `\\'` (`_seat_forms`). Frame 335:
+    `\\\\` for one backslash (`_one_backslash`). Frame 328, pass 3: an
+    escape for its control byte (`_unescaped`). Each form is still a
+    verbatim reading of the seat's text."""
+    forms = [quote or ""] + _seat_forms(quote or "")
+    forms += [g for f in forms
+              if (g := _one_backslash(f)) != f and g not in forms]
+    forms += [g for f in forms
+              if (g := _unescaped(f)) != f and g not in forms]
+    return forms
+
+
+def _quote_reads(quote: str, source: str, table: str = "",
+                 floor: int | None = None, run: str = "") -> bool:
     """The quote is a `_span_of` one view of the source that the seat was
     shown (ruled: Roman, 2026-08-26, a contiguous span of the disputed
-    row, verbatim, on all five channels)."""
-    # Frame 328, pass 3: an escape and its control byte are one character,
-    # on both sides.
-    return any(_span_of(quote, v) or _span_of(_unescaped(quote), _unescaped(v))
-               for v in _shown_views(source or ""))
+    row, verbatim, on all five channels).
+
+    Frame 333, pass 1b: this one function decides on every channel. A
+    test row is its code, because a comment pays no reading (click night
+    58). `run` is the latest run of the test, which the seat was shown as
+    a view of the test, so a quote of its `E` line reads that test."""
+    floor = QUOTE_MIN if floor is None else floor
+    if table == "tests":
+        quote, source = _code_only(quote), _code_only(source)
+    sources = [source or ""] + ([run] if run else [])
+    for f in _quote_forms(quote):
+        for s in sources:
+            for v in _shown_views(s):
+                if (_span_of(f, v, floor)
+                        or _span_of(_unescaped(f), _unescaped(v), floor)):
+                    return True
+    return False
+
+
+def _run_view(ctx: api.Ctx, test_id: str) -> str:
+    """The lines that the latest run of the test names: its `>` lines and
+    its `E` lines, without the mark. Empty when the test has no run."""
+    run = ctx.conn.execute(
+        "SELECT output FROM test_runs WHERE test_id = ? "
+        "ORDER BY rowid DESC LIMIT 1", (test_id,)).fetchone()
+    lines = ((run["output"] or "") if run else "").splitlines()
+    return chr(10).join(ln[1:].strip() for ln in lines
+                        if ln.startswith(">") or re.match(r"E\s", ln))
+
+
+def _reads_row(ctx: api.Ctx, quote: str, rid: str, rows: dict,
+               floor: int | None = None) -> bool:
+    """`_quote_reads` on the row `rid` of rows, with its run when the row
+    is a test."""
+    table, words = rows[rid]
+    return _quote_reads(quote, words, table, floor,
+                        _run_view(ctx, rid) if table == "tests" else "")
 
 
 def _quote_holds(quote: str, line: str) -> bool:
     """One view of the whole line is inside the quote, whitespace
     normalised. Frame 333, item 3: a quote of part of the line names a
-    part of the conflict, as night 142's m83 did."""
-    for q in {quote or "", _unescaped(quote or "")}:
+    part of the conflict, as night 142's m83 did. The quote is read in
+    each form of `_quote_forms`, as the evidence door reads it."""
+    for q in _quote_forms(quote or ""):
         q = " ".join(q.split())
         swap = q.replace("'", '"')
         for v in _shown_views(line or ""):
@@ -1013,7 +1062,7 @@ def _quoted_rows(ctx: api.Ctx, refs) -> dict[str, tuple[str, str]]:
     return rows
 
 
-def _rows_quote_refusal(rows: dict, quotes: list) -> str | None:
+def _rows_quote_refusal(ctx: api.Ctx, rows: dict, quotes: list) -> str | None:
     """The refusal of quotes that are not each a span of one row of rows,
     or of a row with no quote, or None.
 
@@ -1026,7 +1075,7 @@ def _rows_quote_refusal(rows: dict, quotes: list) -> str | None:
             "each string copies the words you dispute from one row, "
             "verbatim.")
     for q in quotes:
-        if not any(_quote_reads(q, words) for _, words in rows.values()):
+        if not any(_reads_row(ctx, q, r, rows) for r in rows):
             short = len(" ".join(q.split())) < QUOTE_MIN
             said = (f"quotes= holds `{_shown(q)}`, and it is shorter than "
                     f"{QUOTE_MIN} characters. Copy {QUOTE_MIN} characters or "
@@ -1034,8 +1083,8 @@ def _rows_quote_refusal(rows: dict, quotes: list) -> str | None:
                     f"quotes= holds `{_shown(q)}`, and it is not a span of "
                     f"the live text of {' or of '.join(rows)}.")
             return said + tail
-    for r, (_, words) in rows.items():
-        if not any(_quote_reads(q, words) for q in quotes):
+    for r in rows:
+        if not any(_reads_row(ctx, q, r, rows) for q in quotes):
             return (f"quotes= holds no span of the live text of {r}, and "
                     f"refs names {r}. Each row of refs needs a quote of its "
                     f"own." + tail)
@@ -1064,9 +1113,9 @@ def _answer_evidence(ctx: api.Ctx, refs, text: str, quotes=None) -> None:
     quotes = _quote_list(text, quotes)
     rows = _quoted_rows(ctx, refs)
     loose = next((q for q in quotes if not any(
-        _quote_reads(q, words) for _, words in rows.values())), None)
+        _reads_row(ctx, q, r, rows) for r in rows)), None)
     if loose is not None or not any(
-            _quote_reads(q, words or "") for q in quotes for _, words in crit):
+            _reads_row(ctx, q, r, rows) for q in quotes for r, _ in crit):
         held = loose if loose is None or len(loose) <= 80 else loose[:77] + "..."
         said = ("" if held is None else
                 f"quotes= holds `{held}`, and it is not a span of the live "
@@ -1740,31 +1789,16 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
         # empty test-side quote went through; the Tester woken by it had
         # nothing to defend.
         crit_words = [rows[crit[0]][1]] + siblings
-        code = _code_only(rows[test[0]][1])
+        test_words = rows[test[0]][1]
+        run = _run_view(ctx, test[0])
 
-        # Frame 328, night 167: s284 and s286 quoted tst_tk3's line with
-        # `\x1b` and `\u001b`, and the row holds the raw ESC byte. The test
-        # half reads each escape as its one character on both sides.
-        # The residue of frame 328, night 167 walk 3: the criterion half
-        # also reads the seat's call syntax, one outer mark and `\'`
-        # (`_seat_forms`). The span stays verbatim at the same floor.
-        # Frame 335: the test half also reads each `\\` of the quote as one
-        # backslash when the quote as written misses.
-        def _in_code(c: str, floor: int) -> bool:
-            return (_span_of(c, code, floor)
-                    or _span_of(_unescaped(c), _unescaped(code), floor))
-
+        # Frame 333, pass 1b: each half reads through `_quote_reads`, the
+        # one reader of every channel. The seat forms of night 167 and
+        # frame 335 live there.
         def _cites(q: str, floor: int = QUOTE_MIN) -> tuple[bool, bool]:
-            c = _code_only(q)
-            one = _one_backslash(c)
-            forms = [q] + _seat_forms(q)
-            # Frame 335, pass 2: the criterion half reads `\\` by the same
-            # rule as the test half.
-            forms += [g for f in forms
-                      if (g := _one_backslash(f)) != f and g not in forms]
-            return (any(_span_of(f, s, floor) for f in forms
+            return (any(_quote_reads(q, s, "criteria", floor)
                         for s in crit_words),
-                    _in_code(c, floor) or (one != c and _in_code(one, floor)))
+                    _quote_reads(q, test_words, "tests", floor, run))
 
         # Review 1, finding 2: a quote of a few characters pays no reading.
         short = next((q for q in quotes
@@ -1804,7 +1838,7 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str,
     # carry no quotable row, because bounded strictness beats a guard with
     # no exit.
     if rows:
-        said = _rows_quote_refusal(rows, _quote_list(text, quotes))
+        said = _rows_quote_refusal(ctx, rows, _quote_list(text, quotes))
         if said is not None:
             raise ValueError(said)
 

@@ -180,3 +180,99 @@ def test_the_red_line_door_wants_the_whole_line(db):
 
 def test_the_window_is_gone():
     assert not hasattr(sandbox, "_quotes_span")
+
+
+# --- pass 1b: one reader decides on every channel ---------------------------
+
+#: The five channels of `challenge`, as (role, mode, tool, extra arguments).
+CHANNELS = [
+    ("developer", "tests_failing", "msg.challenge_tester", {"reason": REASON}),
+    ("critic", "review", "msg.challenge_tester", {}),
+    ("terminologist", "criterion_repair", "msg.challenge_vision_keeper", {}),
+    ("architect", "deliver", "msg.challenge_vision_keeper", {}),
+    ("critic", "review", "msg.challenge_developer", {}),
+]
+CHANNEL_IDS = ["dev-tester", "critic-tester", "term-vk", "arch-vk",
+               "critic-dev"]
+RED_RUN = (">       assert invoices_for('a1') == []\n"
+           "E       assert ['inv1'] == []")
+
+
+def _send(db, channel, quotes):
+    role, mode, tool, extra = channel
+    sb = build(role, db, batch_id="b1", mode=mode,
+               allow=prompts.mode_tools(role, mode))
+    sb.call(tool, refs=["c1", "ts1"], quotes=quotes, **extra)
+    return sb
+
+
+def _red(db):
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r1','b1','ts1','abc123',"
+               "'fail',1,?)", (RED_RUN,))
+    db.commit()
+
+
+# Review of pass 1, findings 1 and 2: night 167 walk 3 sent one opening
+# mark, and the seat's call syntax sends `\'` for each mark of the row.
+SEAT_FORMS = ["'leaves its invoices in place",
+              "assert invoices_for(\\'a1\\') == []"]
+# Review of pass 1, finding 3: the run's `E` line is a view of the test.
+E_LINE = ["leaves its invoices in place", "assert ['inv1'] == []"]
+
+
+@pytest.mark.parametrize("channel", CHANNELS, ids=CHANNEL_IDS)
+@pytest.mark.parametrize("quotes", [SEAT_FORMS, E_LINE],
+                         ids=["seat-forms", "e-line"])
+def test_one_quote_gets_one_answer_on_every_channel(db, channel, quotes):
+    _red(db)
+    assert _send(db, channel, quotes).ctx.outbound
+
+
+@pytest.mark.parametrize("channel", CHANNELS, ids=CHANNEL_IDS)
+def test_prose_around_a_span_is_refused_on_every_channel(db, channel):
+    with pytest.raises(ValueError, match="not"):
+        _send(db, channel, [OFF_CRIT, "assert invoices_for('a1') == []"])
+
+
+def test_the_red_line_door_reads_the_escaped_marks(db):
+    """Review of pass 1, finding 1: the evidence door admitted
+    `assert invoices_for(\\'a1\\') == []`, and the red-line door then
+    refused it with the same line."""
+    _red(db)
+    line = "assert invoices_for(\\'a1\\') == []"
+    assert sandbox._quote_holds(line, "assert invoices_for('a1') == []")
+    assert _send(db, CHANNELS[0], ["leaves its invoices in place", line]
+                 ).ctx.outbound
+
+
+def test_a_comment_of_the_test_is_no_quote_on_any_channel(db):
+    """Review of pass 1, finding 7: a test row is its code."""
+    db.execute("UPDATE tests SET body = ? WHERE id = 'ts1'",
+               (TEST + "  # the account keeps nothing at all",))
+    db.commit()
+    with pytest.raises(ValueError):
+        _send(db, CHANNELS[4], ["leaves its invoices in place",
+                                "the account keeps nothing at all"])
+
+
+def test_a_retired_criterion_says_so_in_the_contest_block(db):
+    """Review of pass 1, finding 8: a retired row has no live text."""
+    import json
+
+    from rota.core.runner import _contest_block
+
+    for mid, verb in (("m70", "present"), ("m71", "reply")):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, body_refs, seq) VALUES (?, 'm70', 'liaison', "
+                   "'principal', ?, ?, 1)", (mid, verb, json.dumps(["c1"])))
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+               "status, texts) VALUES ('r1', 'm70', 'm71', ?, 'not this', "
+               "'landed', ?)", (json.dumps({"c1": "contest"}),
+                                json.dumps({"c1": "an older text of c1"})))
+    db.execute("UPDATE criteria SET retired_by = 'r1' WHERE id = 'c1'")
+    db.commit()
+    block = _contest_block(db, [{"id": "c1"}], legend=False)
+    assert ("c1: He contested this text, and the criterion is retired now: "
+            "an older text of c1") in block
+    assert "The live text is" not in block
