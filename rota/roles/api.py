@@ -11035,6 +11035,13 @@ def _ruling_shape(key: str, value: dict) -> dict:
     return shape
 
 
+def _holds_span(text: str, span: str) -> bool:
+    """True when `span` is a contiguous span of `text`, case-folded, with
+    each run of white space read as one space."""
+    folded = " ".join((span or "").split()).casefold()
+    return bool(folded) and folded in " ".join((text or "").split()).casefold()
+
+
 def _words_from(ctx: Ctx, span: str) -> str | None:
     """The message that holds `span`: the reply first, then the principal's
     earlier messages of the thread, newest first. None when no message holds
@@ -12267,6 +12274,79 @@ def _lines(ns: list[int]) -> str:
     return f"line{'' if len(ns) == 1 else 's'} {_line_set(ns)}"
 
 
+# The words that ask to take a team's note off the page. Night 161's s357
+# read "take them off this page" for lines 10, 13 and 14 (frame 305).
+_NOTE_DROP = re.compile(
+    r"\b(?:drop(?:s|ped|ping)?|remov(?:e|es|ed|ing)|delet(?:e|es|ed|ing)|"
+    r"strike|struck|get rid of)\b|\btake\b[^.?!]{0,40}?\boff\b", re.I)
+# The words that ask a note for new words. A fault alone names no change, so
+# "Line 11 is wrong" stays no revise (frame 305, review 1, finding 2).
+_NOTE_CHANGE = re.compile(
+    r"\b(?:use|change|make|replace|rewrite|reword|say|switch|rename|move|add|"
+    r"update|set|fix|put|correct|call|run|mention|include|cover|instead|"
+    r"rather|should|must|needs? to|has to|have to)\b", re.I)
+# A clause that keeps the note, or that does not follow it, asks no change.
+# Night 160's m11 said "I don't understand line 2", and m45 said "Line 2 and
+# its check now say what I want" (frame 305, review 1, findings 1 and 2).
+_NOTE_NO_CHANGE = re.compile(
+    r"\bas (?:it is|they are|written|it stands)\b|\bunchanged\b|\bstays?\b|"
+    r"\bunderstand\b|\bunclear\b|\bconfus\w*|\bwhat I (?:want|wanted|asked|meant)\b",
+    re.I)
+# The words before a drop word that make it part of the note's new text:
+# "Line 11 should say the escaping is removed" (review 1, finding 4).
+_NOTE_SAYS = re.compile(r"\b(?:say|says|read|reads)\b", re.I)
+
+
+def _line_body(page_text: str, n: int) -> str:
+    """The text of line `n` of the rendered page, with its sub-lines."""
+    found = re.search(rf"^\s*{n}\.\s+(.*(?:\n(?!\s*\d+\.\s|\s*$)[ \t]+.*)*)",
+                      page_text or "", re.M)
+    return found.group(1) if found else ""
+
+
+def _note_words(words: str, n: int, page_text: str) -> str | None:
+    """What the principal's words ask of team-note line `n`.
+
+    "drop" when a clause about the line asks to take it off. "change" when a
+    clause about the line asks for new words by a change verb. "own" when a
+    clause reads as a drop only by a word the line's own text holds. None
+    otherwise. Night 161's s357 said "On line 11, use click directly in the
+    test" (frame 305).
+    """
+    # Whole words: "Remove line 11" on a note that holds "removed" is a drop
+    # (frame 305, review 1, finding 5).
+    body = " " + " ".join(re.findall(r"[\w']+", _line_body(page_text, n).lower())) + " "
+    found: set[str] = set()
+    for cl, refs, question in _cue_clauses(words):
+        if not refs or n not in refs:
+            continue
+        drops = [m for m in _NOTE_DROP.finditer(cl)
+                 if not _NEGATED.search(cl[:m.start()])
+                 and not _NOTE_SAYS.search(cl[:m.start()])]
+        if drops and not _KEEP_CHANGE.search(cl):
+            if all(" " + " ".join(re.findall(r"[\w']+", m.group(0).lower())) + " "
+                   in body for m in drops):
+                found.add("own")
+            else:
+                found.add("drop")
+            continue
+        if question or _CUE_KEEP.search(cl) or _NOTE_NO_CHANGE.search(cl):
+            continue
+        rest = _LINE_REF.sub(" ", cl)
+        # "Line 11 is about the echo json change" describes the line. Its
+        # "change" is a noun, and only a modal makes it a request.
+        if (re.match(r"\W*(?:on\s+)?(?:is|are|was|were)\b", rest, re.I)
+                and not re.search(r"\b(?:should|must|needs? to|has to|have to|"
+                                  r"instead|rather)\b", rest, re.I)):
+            continue
+        if _NOTE_CHANGE.search(rest):
+            found.add("change")
+    for kind in ("drop", "change", "own"):
+        if kind in found:
+            return kind
+    return None
+
+
 def _quotes_line(words: str, page_text: str, n: int) -> bool:
     """Whether the words quote line `n` of the rendered page: a run of five
     or more of the line's words, case-folded. The capture takes the line's
@@ -12614,6 +12694,21 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                     f"once")
             if shape:
                 shape_of[ref] = shape
+    # The seam design's checker, step 1: an act rests on a verbatim span of
+    # his words, his reply or an earlier answer of the thread. An act the
+    # Liaison writes on words he did not say grants nothing he said (law 6;
+    # the review of pass 4, P4-1).
+    for ref, shape in shape_of.items():
+        if not shape.get("act"):
+            continue
+        span = shape.get("words") or words or ""
+        if not _holds_span(words, span) and _words_from(ctx, span) is None:
+            line = (f"line {order.index(ref) + 1}" if order and ref in order
+                    else ref)
+            raise ValueError(
+                f"{line}: the act {shape['act']} rests on {span!r}, and his "
+                f"words do not hold it. Copy the words of his reply that ask "
+                f"for the change, or leave the act out")
     # ruling: DECISIONS 1445, the principal's words land on the row they name
     # A team's note takes no revise. Revise rewrites a line of the request,
     # and the request has its own lines on the page. Night 136's s557 revised
@@ -12627,15 +12722,21 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     for ref, ruling in per_item.items():
         if ruling != "revise" or not asked or not _is_team_note(ctx.conn, ref):
             continue
-        # A revise that rewrites the note is a revise of the note. Night
-        # 161's s357 heard "On line 11, use click directly in the test", and
-        # the old door refused it five times (frame 305). The act of the
-        # call says it, `rewrite` or `drop`, and no phrase of his words does
-        # (the seam design, 3.3, P11). The row is not landed yet, so the
-        # door reads the act that this call writes.
-        said = {"rewrite": "change", "drop": "drop"}.get(
-            (shape_of.get(ref) or {}).get("act"))
-        if said == "change":
+        # A sentence that asks to change the note is a revise of the note.
+        # Night 161's s357 heard "On line 11, use click directly in the
+        # test", and the old door refused it five times (frame 305). An act
+        # of the call is checked against the span it rests on, so a rewrite
+        # on "I don't understand line 11" is refused as before. A revise with
+        # no act reads his whole reply, as c4a51c7d did (the review of pass
+        # 4, P4-1). The span check of pass 3 replaces this reader.
+        shape = shape_of.get(ref) or {}
+        act = shape.get("act")
+        said = (_note_words(shape.get("words") or words if act else words,
+                            order.index(ref) + 1, page_text)
+                if order and ref in order else None)
+        if act == "drop":
+            said = "drop"
+        if said == "change" and act in (None, "rewrite"):
             continue
         line = (f"line {order.index(ref) + 1}" if order and ref in order else ref)
         # law 6: nothing is ruled on the principal's behalf
@@ -12654,6 +12755,15 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                  if named else
                  "The words name no line of the request, and a revise of the "
                  "request needs the principal's words on the request.")
+        if said == "own":
+            # The drop word is the note's own word, so the words can mean
+            # either route. law 6: the Liaison picks none for the principal.
+            raise ValueError(
+                f"{line} is the team's note, not your request. The words use a "
+                f"word the note itself holds, so they do not say which route. "
+                f"To change the note, revise it on words that say the change. "
+                f"To drop the note, contest it. If neither fits, ask the "
+                f"principal: rulings.rule(ask=...) with no rulings.")
         # A revise of a note now lands on words that say the change, so the
         # old "revise rewrites a line of what the principal asked for" is
         # gone. The drop route stays first (frame 296).

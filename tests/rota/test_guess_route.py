@@ -348,7 +348,8 @@ def test_the_guess_relay_passes_the_send_door_and_keys_the_guess_mode(db):
 
 @pytest.mark.parametrize("key_ruling, disputed", [
     ({"verdict": "contest", "act": "remove", "target": "tests/test_options.py",
-      "words": "the options test file is not part of this change"},
+      "words": "the options and defaults test files, which have nothing to do "
+               "with this change"},
      ["tests/test_options.py"]),
     ("contest", []),
 ])

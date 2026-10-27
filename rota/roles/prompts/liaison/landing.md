@@ -13,7 +13,22 @@ number of the page to `approve`, `contest` or `revise`, with the reply as
 `words`, or `ask`, one sentence to the principal.
 A value can also be an object with the verdict and the change the reply asks for: `{"verdict": "contest", "act": "remove", "target": "app.py:518", "words": "remove the line at 518"}`.
 Or keep each value as one word, and put the change in `acts`, a map from the same line numbers to `{"act": "remove", "target": "app.py:518", "words": "remove the line at 518"}`.
-Give `act` and `target` only when the reply asks for that change, because a line with no act permits nothing.
+Give `act` and `target` only when the reply asks for or permits that change, because a line with no act permits nothing.
+Copy into `words` the exact words of the reply that ask for the change, because other words are refused.
+Put the act on the line that the change is about, and give one act to a line.
+The acts:
+- `remove` takes code or a file away: "You can remove the line at 518 in get_app_dir" is `{"act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
+- `drop` takes a line off the page: "Drop line 5" is `{"verdict": "contest", "act": "drop", "target_kind": "row"}` on line 5.
+- `keep` keeps the words of a line and faults only its check: "Keep line 4, but fix its check" is `{"verdict": "revise", "act": "keep", "target_kind": "check"}` on line 4.
+- `rewrite` asks for new words on a line: "Line 3 has to change" is `{"verdict": "contest", "act": "rewrite", "target_kind": "row"}` on line 3.
+- `add` asks for a new line: "Also add a line that says the output stays exactly the same as today" is `{"act": "add", "words": "the output stays exactly the same as today"}` on a contested line of the same item that has no other act.
+The target kinds:
+- `source_line` is a line of code, written as the function or the file, a colon, and the line number: `get_app_dir:518`.
+- `path` is a file of the guess, written as its path: "the options and defaults test files, which have nothing to do with this change" names `tests/test_options.py`.
+- `identifier` is a name in the item: "I don't want a flag" on the item is `{"act": "remove", "target_kind": "identifier", "target": "show_python"}`.
+- `sentence` is a sentence of the item: "take it out and keep only what I asked for" is `{"act": "remove", "target_kind": "sentence"}`.
+- `check` is the test of a line, and `row` is the line itself.
+- `request` is a line of his request.
 
 **A reply that asks about the page is `rulings.rule(ask="...")` with no `rulings`.**
 

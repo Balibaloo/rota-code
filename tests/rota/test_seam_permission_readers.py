@@ -176,3 +176,17 @@ def test_the_contest_reader_reads_the_rows_and_not_the_verdict_map(db):
     assert _resolve_contest(db, ITEM) == {}
     _rule(db, "r1", {ITEM: "contest"})
     assert _resolve_contest(db, ITEM)["principal_verdict"] == {ITEM: "contest"}
+
+
+def test_the_landing_brief_names_every_act_and_target_kind():
+    """The review of pass 4, P4-2: an act no brief names is an act no live
+    Liaison writes, so its reader grants nothing. Red on fbce68db, whose
+    brief showed `remove` only."""
+    from pathlib import Path
+
+    from rota.roles.principal import RULED_ACTS, TARGET_KINDS
+
+    brief = (Path(api.__file__).parent / "prompts" / "liaison"
+             / "landing.md").read_text(encoding="utf-8")
+    for word in RULED_ACTS + TARGET_KINDS:
+        assert f"- `{word}`" in brief or f"`{word}` is" in brief, word

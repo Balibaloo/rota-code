@@ -171,3 +171,28 @@ def test_the_refusal_says_the_words_must_name_the_line(db):
     with pytest.raises(ValueError) as refused:
         _rule(db, "Use click directly in the test.", "revise")
     assert "words that name line 11 by number" in str(refused.value)
+
+
+# Pass 4b: the review of pass 4, P4-1. The door checks an act against his
+# words. Red on fbce68db, where a rewrite act landed on any words.
+
+@pytest.mark.parametrize("words", [
+    "I don't understand line 11.",                    # night 160, m11
+    "Line 11 and its check now say what I want.",     # night 160, m45
+    "Line 11 is wrong.",
+])
+def test_a_rewrite_act_on_words_that_ask_no_change_is_refused(db, words):
+    with pytest.raises(ValueError) as refused:
+        _rule(db, words, _act("rewrite", words))
+    assert str(refused.value).startswith("line 11 is the team's note")
+
+
+def test_s357s_plain_revise_with_no_act_lands_as_on_the_parent(db):
+    out = _rule(db, "On line 11, use the normal test runner", "revise")
+    assert out["per_item"]["l_9"] == "revise"
+
+
+def test_an_act_on_words_he_did_not_say_is_refused(db):
+    with pytest.raises(ValueError, match="his words do not hold it"):
+        _rule(db, "Line 11 is fine.",
+              _act("rewrite", "On line 11, use the normal test runner"))
