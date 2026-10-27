@@ -18,8 +18,8 @@ Copy into `words` the exact words of the reply that ask for the change, because 
 Put the act on the line that the change is about, and give one act to a line.
 A later line with no act ends an earlier act on the line or its check, and it keeps an earlier `add` and an earlier act on a named target such as `get_app_dir:518`.
 Each `rulings=` example below is the whole map. Each other example is the value of one line. In `acts`, leave out the verdict and give the verdict in `rulings`.
-The act names are not verdicts. On a page that asks which request goes first, the verdicts stay `later`, `now` and `drop`, as below.
 Most lines take no act. A line he approves as it stands takes the word alone: "yes, go ahead" is `rulings={"1": "approve", "2": "approve"}`.
+The act names are not verdicts. A page that asks which request goes first takes no act and no `acts`: "it is a separate request" is `rulings={"1": "later"}`.
 The acts:
 - `remove` takes code or a file away: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
 - `drop` takes a line off the page: "Drop line 5" is `rulings={"5": {"verdict": "contest", "act": "drop", "target_kind": "row", "words": "Drop line 5"}}`.
@@ -62,7 +62,7 @@ Otherwise the reply is a ruling. Read each numbered line against it:
 - The page asks which request goes first. A reply that says the earlier one is
   separate or for later is `later`, even when it also says drop it from this
   change. On that page, line 1 is a request to order, not to judge: `later`,
-  `now` or `drop` only.
+  `now` or `drop` only, with no act.
 
 A correction counts against the line it is about, and only that line. A
 correction of a criterion, a check or the files contests that line, not line 1.
