@@ -175,23 +175,71 @@ def _shift_first(verdict: str) -> str:
             f'words={json.dumps(SEPARATE)})')
 
 
-def test_the_offer_of_stray_fields_on_the_shift_page_takes_its_verdicts(tmp_path):
-    """L1-LI-a-separate-request-is-later: the page orders two requests, and
-    the seat sent contest with the act drop. The offer kept contest, and the
-    shift page takes later, now or drop. The offer now names each verdict
-    of that page with no act, and the seat's pick of later lands as park."""
+def test_stray_fields_against_his_shift_word_get_no_call(tmp_path):
+    """L1-LI-a-separate-request-is-later: the seat sent contest with the act
+    drop, and his words say "a separate request". The land gate of
+    2bbace14, run 5: the seat took the drop offer of three. The refusal now
+    names his word and the page's map, and shows no call (law 6)."""
     calls = []
 
     def pick(found):
         calls.extend(found)
-        return next(c for c in found if '"later"' in c)
+        return "Done."
 
     seat = _Follower(_shift_first("contest"), pick)
+    _run(_case("L1-LI-a-separate-request-is-later"), seat, tmp_path)
+    error = _last_error(seat.users[1])
+    assert "His words say 'separate'" in error, error
+    assert calls == [], calls
+
+
+def test_stray_fields_with_no_shift_word_in_his_reply_get_three_calls(db):
+    """A reply with no shift word leaves the choice open: the refusal shows
+    later, now and drop, each with its meaning, and picks none."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+               "verb, body_text, seq) VALUES ('m1', 'm1', 'principal', "
+               "'liaison', 'converse', 'They are independent.', 1)")
+    sb = sandbox.build("liaison", db, mode="landing")
+    sb.ctx.trigger, sb.ctx.offers = "m1", []
+    api._stray_act_fields(sb.ctx, {"1": "contest", "act": "drop"}, "w",
+                          ["a"], shift=True)
+    assert [o.args["rulings"] for o in sb.ctx.offers] == [
+        {"1": "later"}, {"1": "now"}, {"1": "drop"}]
+
+
+def test_a_later_with_his_words_in_acts_gets_the_call_with_his_reply(tmp_path):
+    """The land gate of 2bbace14, runs 1, 2 and 4: the seat sent later with
+    his words in acts and no words, and the bare words door moved it off
+    later. The seat's later means what "separate" means, so the refusal
+    offers the same call with his reply whole, and it lands as park."""
+    first = ('TOOL: rulings.rule(rulings={"1": "later"}, acts={"1": '
+             '{"verdict": "later", "target_kind": "request", "words": '
+             '"They\'re independent. The confirm change is a separate request '
+             'I\'ll take up on its own, so leave it out of this one."}})')
+    calls = []
+
+    def pick(found):
+        calls.extend(found)
+        return found[0]
+
+    seat = _Follower(first, pick)
     r = _run(_case("L1-LI-a-separate-request-is-later"), seat, tmp_path)
-    maps = [json.loads(re.search(r"rulings=(\{.*?\})(, words=|\))", c).group(1))
-            for c in calls]
-    assert maps == [{"1": "later"}, {"1": "now"}, {"1": "drop"}], calls
+    assert len(calls) == 1 and json.dumps(SEPARATE) in calls[0], calls
     assert r.passed, r.problems
+
+
+def test_a_now_with_no_words_gets_no_call_against_separate(tmp_path):
+    """The seat's now does not mean what "separate" means, so the words
+    door shows no call (law 6)."""
+    calls = []
+
+    def pick(found):
+        calls.extend(found)
+        return "Done."
+
+    seat = _Follower('TOOL: rulings.rule(rulings={"1": "now"})', pick)
+    _run(_case("L1-LI-a-separate-request-is-later"), seat, tmp_path)
+    assert calls == [], calls
 
 
 def test_a_shift_word_beside_stray_fields_is_offered_alone(tmp_path):

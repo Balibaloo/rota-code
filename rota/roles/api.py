@@ -11389,11 +11389,7 @@ def _shift_acts_conflict(ctx, his: str, rulings: dict, acts: dict,
     and no ruling landed (ruled: the coordinator, 2026-10-27, pass 1c). The
     offer drops the entry and keeps the seat's verdict. Law 6: the door
     offers a call only when that verdict is a word of the shift page."""
-    # A negated word is no ruling: night 171's "please do not drop it".
-    found = [m.group(1) for m in re.finditer(
-        r"(?<!\bnot )(?<!\bnever )(?<!\bdon't )\b("
-        + "|".join(k for k, v in SHIFT_WORDS.items() if v) + r")\b",
-        his or "", re.I)]
+    found = _his_shift_words(his)
     if not found:
         return None
     bad = [k for k, v in acts.items() if isinstance(v, dict) and (
@@ -11431,6 +11427,31 @@ def _shift_acts_conflict(ctx, his: str, rulings: dict, acts: dict,
     return _offer(ctx, f"{head}: {call}", "rulings.rule", args)
 
 
+def _his_shift_words(his: str) -> list[str]:
+    """The shift words of his reply, in order. A negated word is no
+    ruling: night 171's "please do not drop it"."""
+    return [m.group(1) for m in re.finditer(
+        r"(?<!\bnot )(?<!\bnever )(?<!\bdon't )\b("
+        + "|".join(k for k, v in SHIFT_WORDS.items() if v) + r")\b",
+        his or "", re.I)]
+
+
+def _shift_agrees(found: list[str], lines: dict) -> bool:
+    """True when every verdict of the seat means the same as every shift
+    word of his reply. Law 6: only then does a door complete a call."""
+    his = {SHIFT_WORDS[w.lower()] for w in found}
+    seat = {SHIFT_WORDS.get(_word_key(v, SHIFT_WORDS)) if isinstance(v, str)
+            else None for v in lines.values()}
+    return bool(lines) and len(his) == 1 and seat == his
+
+
+def _his_reply(ctx) -> str:
+    """The words of the message that woke the session."""
+    row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                           (ctx.trigger,)).fetchone() if ctx.trigger else None
+    return (row["body_text"] if row else "") or ""
+
+
 def _faulted_by_his_words(ctx, said: str, size: int) -> set[int]:
     """The page lines that his reply or the seat's words fault, by the fault
     reader of the faulted-approve door (`_line_cues`)."""
@@ -11460,6 +11481,18 @@ def _stray_on_shift(ctx, names: str, lines: dict, key: str, given,
     mapped = SHIFT_WORDS.get(matched)
     head = (f"rulings.rule: {names} are fields of an act, and line {key} of "
             f"this page takes no act.")
+    # Law 6: a completed call carries a verdict that means what his shift
+    # words mean, or no call is shown (pass 1d's ruling; the land gate of
+    # 2bbace14, run 5 took the drop offer against "a separate request").
+    found = _his_shift_words(_his_reply(ctx))
+    if found and not (mapped and _shift_agrees(found, {key: matched})):
+        sent = (f"You sent {matched!r}, and his words say {found[0]!r}."
+                if mapped else f"His words say {found[0]!r}.")
+        return (f"{head} {sent} Line {key} takes "
+                f"later, now or drop. later, separate, park, aside and behind "
+                f"are later. now, answer and first are now. drop, remove and "
+                f"stop are drop. Give line {key} the word his reply gives it, "
+                f"with no act.")
     if mapped:
         call, args = _rule_call({**lines, key: matched}, said)
         return _offer(ctx, f"{head} Give line {key} its word alone: {call}",
@@ -13540,6 +13573,23 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "a reading carries the principal's words, and words is empty. "
             "Pass the reply, whole")
     if any(v != "approve" for v in per_item.values()) and not (words or "").strip():
+        # On the shift page, a verdict that means what his shift words mean
+        # gets the call with his reply whole. The land gate of 2bbace14,
+        # runs 1, 2 and 4: the seat put his words in acts, and this bare
+        # text moved it off "later" (law 6: the verdict stays the seat's).
+        his_all = _his_reply(ctx)
+        found = _his_shift_words(his_all) if shift else []
+        if found and _shift_agrees(found, {str(k).strip(): v for k, v
+                                           in rulings.items()}):
+            call, args = _rule_call(dict(rulings), his_all.strip())
+            if acts:
+                call = (call[:-1] + ", acts="
+                        + json.dumps(acts, ensure_ascii=False) + ")")
+                args["acts"] = acts
+            raise ValueError(_offer(ctx, (
+                f"a contest carries the principal's words to the row's owner, "
+                f"and words is empty. Pass the reply, whole: {call}"),
+                "rulings.rule", args))
         raise ValueError(
             "a contest carries the principal's words to the row's owner, and "
             "words is empty. Pass the reply, whole")
