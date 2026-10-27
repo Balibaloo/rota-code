@@ -5834,14 +5834,6 @@ def _staged_retired(ctx: Ctx) -> set[str]:
             and w[2].get("retired_by")}
 
 
-# The words of a criterion that names documentation. Roman ruled at
-# 2026-10-24 01:05 that a criterion asks for documentation by its own words
-# (frame 311). Frame 322's W-E read counted 13 landed behaviour criteria on
-# the docstring item over nights 163 to 166. He called each one wrong, and
-# the door refuses no right one (`plans/frame322-we-read.md`, section 3).
-# The list is wider than `_ASKS_FOR_DOCS`. That list judges a diff line, and
-# this list admits the words of a criterion.
-_NAMES_DOCS = ("docstring", "documentation", "document", "docs", "help text")
 # The words of a headline that starts the refusal, as whole words. A word
 # that starts a refusal is narrow, and a word that admits a criterion can be
 # wide (frame 322, review 2, finding 1). As substrings, "load_document" and
@@ -5861,7 +5853,14 @@ def _docs_ticket_refusal(ctx: Ctx, ticket_id: str | None,
     `format_filename`, and his m77 said "only the docstring changes and the
     code stays the same" (frame 322, the W-E read).
     """
-    if ticket_id is None or _asks_for(text or "", _NAMES_DOCS):
+    # A criterion names documentation by its own words (ruled: Roman,
+    # 2026-10-24 01:05, frame 311). Frame 322's W-E read counted 13 landed
+    # behaviour criteria on the docstring item over nights 163 to 166. He
+    # called each one wrong (`plans/frame322-we-read.md`, section 3). The
+    # door reads the ruled words and "docs", which its refusal names. The
+    # changelog is a notes file and not the documentation (F31 review,
+    # finding 2).
+    if ticket_id is None or _names_docs(text):
         return None
     row = ctx.conn.execute("SELECT text FROM tickets WHERE id = ?",
                            (ticket_id,)).fetchone()
@@ -7808,7 +7807,9 @@ def _code_names(ctx: Ctx, criterion_id: str) -> frozenset[str]:
 # does (frame 321, night 164's cr_1: "shows as c.txt" in a docstring). The
 # words name text that lives in the source. A help text or a message text
 # is what a command prints, so "prints the help text" still counts
-# (frame 321, review 1, finding 1).
+# (frame 321, review 1, finding 1). So this list asks whether a sentence
+# names source text, and `asks_for_docs` asks whether a criterion asks for
+# documentation. The help text divides the two questions (F31).
 _ABOUT_TEXT = re.compile(r"\bdocstrings?\b|\bdocumentation\b|\bcomments?\b",
                          re.I)
 
@@ -9154,6 +9155,31 @@ def _refuse_retired(ctx: Ctx, criterion_id: str) -> None:
             f"{criterion_id} is retired: the principal's ruling "
             f"{row['retired_by']} dropped its line. Encode only the live "
             f"criteria of the batch")
+
+
+def _docs_test_note(ctx: Ctx, criterion_id: str) -> str:
+    """The sentence that says what a test of a documentation criterion
+    reads, or nothing.
+
+    Night 170 W1: twelve encodes for c_1, "The docstring for format_filename
+    must include an example", met the test-file door. Each body asserted on
+    what the code returns, so it tested the code and not the docstring
+    (`plans/frame343-read.md`, 66). The sentence names no call, so the door
+    still offers only the calls it admits (F31).
+    """
+    row = ctx.conn.execute("SELECT text, surface_refs FROM criteria "
+                           "WHERE id = ?", (criterion_id,)).fetchone()
+    if row is None or not asks_for_docs(row["text"]):
+        return ""
+    try:
+        refs = json.loads(row["surface_refs"] or "[]")
+    except (TypeError, ValueError):
+        refs = []
+    names = [str(r).rsplit("::", 1)[-1] for r in refs or []
+             if "::" in str(r) or str(r).isidentifier()]
+    example = f", such as `{names[0]}.__doc__`," if names else ""
+    return (f" {criterion_id} asks for documentation, so its test asserts on "
+            f"the documentation{example} and not on what the code does.")
 
 
 def _beside_project_test(ctx: Ctx, path: str, criterion_id: str,
@@ -10913,7 +10939,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             ctx,
             f"{_fact(ctx, 'test_path', path, id=clash['id'])} is already "
             f"{clash['id']}'s file, and that file holds the project's own "
-            f"tests. Put the new test in a new file beside it: send this "
+            f"tests.{_docs_test_note(ctx, criterion_id)} Put the new test in "
+            f"a new file beside it: send this "
             f"encode again with path={beside!r}.",
             "tests.encode", {"id": id, "criterion_id": criterion_id,
                              "path": beside, "body": body, "batch_id": batch_id}))
@@ -10937,7 +10964,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         raise ValueError(
             f"{_fact(ctx, 'test_path', path, id=clash['id'])} is already "
             f"{clash['id']}'s file; two tests in one file "
-            f"overwrite each other on disk. Name this one for its own "
+            f"overwrite each other on disk."
+            f"{_docs_test_note(ctx, criterion_id)} Name this one for its own "
             f"criterion -- tests/test_<what it checks>.py")
     # law 14: some keys are cardinality, not content
     # A replace supersedes every test this session staged on the criterion.
@@ -14434,33 +14462,68 @@ _NO_BEHAVIOUR_PLURAL = {
     "`...`": "`...` lines", "a comment": "comments",
     "a plain import": "plain imports", "a docstring line": "docstring lines",
 }
-# A criterion that holds one of these words asks for the code's
-# documentation. Then a docstring line or a comment meets it (ruled: Roman,
-# 2026-10-24 01:05, frame 311). Night 160 refused 40 correct docstring lines
-# under such a criterion. "explain" and "describe" stay out, because
-# criteria that ask for behaviour use them too. "document" and "help text"
-# stay out, because a help string is code the user sees (frame 311, pass
-# 1b: night 160's ver_opt_show_py_help).
-_ASKS_FOR_DOCS = ("docstring", "documentation")
+# A criterion asks for the code's documentation with the words "docstring",
+# "document" or "help text". Then a docstring line or a comment meets it
+# (ruled: Roman, 2026-10-24 01:05, frame 311). He ruled the same words again
+# on 2026-10-27 (F31). "documentation" is a form of "document". Night 160
+# refused 40 correct docstring lines under such a criterion. "explain" and
+# "describe" stay out, because criteria that ask for behaviour use them too.
+# Frame 311's pass 1b had dropped "document" and "help text" for night 160's
+# ver_opt_show_py_help. A help string on an option is a code line, so it
+# meets that criterion anyway. The words match as words, so `load_document`
+# asks for nothing (frame 322, review 2, finding 1). The noun "documents"
+# counts too, because the ruled word is "document" and no word class is
+# ruled. None of 573 night criteria uses the noun (F31 review, finding 1).
+_DOCS_WORDS = re.compile(
+    r"\bdocstrings?\b|\bdocument(?:s|ed|ing|ations?)?\b|\bhelp[ -]texts?\b")
+# A ruled word after a negation in its own clause is a mention, not an ask.
+# Night 142's c2 says "it does not affect help text", and it asks for
+# behaviour (F31 review, finding 1). A negation after the word is a rule on
+# the documentation, as in "The docstring must not mention X", so it still
+# asks (the coordinator's reading, F31 pass 1c). A clause ends at a stop
+# mark before a space, so "c.txt" ends no clause. The negation words are the
+# module's `_NEGATION`.
+_DOCS_CLAUSE_END = re.compile(r"[.,;:!?](?:\s|$)")
 # The kinds that document the code. The refusals treat the two as one, so
 # the ruling applies to both.
 _DOC_KINDS = ("a docstring line", "a comment")
+# "docs" is a short form of the documentation. The specify door's refusal
+# tells the seat to name "the docs", so that door admits the word.
+_DOCS_SHORT = re.compile(r"\bdocs\b")
+# The changelog is a file of prose (frame 306, pass 1b). A line of a notes
+# file meets a criterion that asks for one. A docstring line does not, so
+# the specify door does not admit the word.
+_CHANGELOG = re.compile(r"\bchangelogs?\b")
 
 
-# The words of a criterion that asks for a file of prose: frame 311's list,
-# and the changelog, the docs and the help text (frame 306, pass 1b). The
-# docstring door keeps its own list, so its rulings do not move.
-_ASKS_FOR_NOTES = _ASKS_FOR_DOCS + ("changelog", "docs", "help text")
+def _asked(text: str | None, words: re.Pattern) -> bool:
+    """True when a clause of `text` holds one of `words` with no negation
+    before it in that clause."""
+    folded = " ".join((text or "").split()).casefold()
+    return any(not _NEGATION.search(c[:m.start()])
+               for c in _DOCS_CLAUSE_END.split(folded)
+               for m in words.finditer(c))
 
 
-def _asks_for(text: str, words: tuple[str, ...]) -> bool:
-    t = " ".join(text.split()).casefold()
-    return any(w in t for w in words)
+def asks_for_docs(text: str | None) -> bool:
+    """True when a criterion's own words ask for the code's documentation.
+
+    F31: every door that asks this question reads this one function. Five
+    word lists answered it before, and they disagreed.
+    """
+    return _asked(text, _DOCS_WORDS)
 
 
-def _asks_for_docs(text: str) -> bool:
-    """True when a criterion's own words ask for the code's documentation."""
-    return _asks_for(text, _ASKS_FOR_DOCS)
+def _names_docs(text: str | None) -> bool:
+    """True when a criterion asks for the documentation in the ruled words
+    or in the word "docs". The specify and respecify doors read it."""
+    return asks_for_docs(text) or _asked(text, _DOCS_SHORT)
+
+
+def _asks_for_notes(text: str | None) -> bool:
+    """True when a criterion's own words ask for the documentation or for a
+    file of prose."""
+    return _names_docs(text) or _asked(text, _CHANGELOG)
 
 
 def _why_refused(cid: str, kind: str | None) -> str:
@@ -14838,7 +14901,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     # diff's code lines, because it is one list for every criterion.
     kinds_of = {
         cid: ([(a, None if k in _DOC_KINDS else k) for a, k in kinds]
-              if _asks_for_docs(texts_of[cid]) else kinds)
+              if asks_for_docs(texts_of[cid]) else kinds)
         for cid in ids}
     kind_of = {a: k for a, k in kinds}
 
@@ -14911,9 +14974,9 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         for quote in parts[cid]:
             if _line_held(quote, added):
                 # A criterion that asks for the docs reads a docs line as
-                # work (frame 306, pass 1b: frame 311's words and three more).
+                # work (frame 306, pass 1b: the ruled words and two more).
                 if (notes and not _line_held(quote, code_added)
-                        and not _asks_for(texts_of[cid], _ASKS_FOR_NOTES)):
+                        and not _asks_for_notes(texts_of[cid])):
                     where = next(p for p, got in notes.items()
                                  if _line_held(quote, got))
                     raise LinesRefusal(
