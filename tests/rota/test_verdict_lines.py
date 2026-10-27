@@ -1498,3 +1498,175 @@ def test_s146_calls_stay_refused(s146, call, quote, kind):
     (c,) = toolproto.extract(call)
     said = _refused(_critic(s146, "bg_1"), **c.args)
     assert said == _no_behaviour("echo_json_helper", quote, kind, S146_CODE)
+
+
+# F37, night 171: the Critic gave no verdict in s128 to s130, because the door
+# refused the 4-line `if roaming:` block for c_1, a criterion of two cases.
+# The texts and the added lines are verbatim from s128's first prompt.
+N171_C1 = (r"When get_app_dir is invoked on Windows with APPDATA or "
+           r"LOCALAPPDATA unset:   - If roaming=True, the returned path must "
+           r"be under C:\Users\<user>\AppData\Roaming.   - If roaming=False, "
+           r"the returned path must be under C:\Users\<user>\AppData\Local.")
+N171_C3 = ("The get_app_dir function must not raise an exception when APPDATA "
+           "or LOCALAPPDATA environment variables are unset on Windows; it "
+           "must fall back to the appropriate AppData subfolder.")
+N171_BEFORE = (
+    "import os\n"
+    "\n"
+    "\n"
+    "def get_app_dir(app_name: str, roaming: bool = True) -> str:\n"
+    "    if WIN:\n"
+    '        key = "APPDATA" if roaming else "LOCALAPPDATA"\n'
+    "        folder = os.environ.get(key)\n"
+    "        if folder is None:\n"
+    "{body}"
+    "        return os.path.join(folder, app_name)\n"
+    "    return app_name\n"
+)
+N171_OLD = '            folder = os.path.expanduser("~")\n'
+N171_ADDED = [
+    "            # If APPDATA/LOCALAPPDATA is unset, fall back to the appropriate",
+    "            # AppData subfolder under the user profile instead of the bare "
+    "home folder.",
+    '            appdata_roaming = os.path.join(os.path.expanduser("~"), '
+    '"AppData", "Roaming")',
+    '            appdata_local = os.path.join(os.path.expanduser("~"), '
+    '"AppData", "Local")',
+    "            if roaming:",
+    "                folder = appdata_roaming",
+    "            else:",
+    "                folder = appdata_local",
+]
+N171_BLOCK = "\n".join(N171_ADDED[4:])
+N171_EIGHT = "\n".join(N171_ADDED)
+
+
+@pytest.fixture
+def n171(tmp_path):
+    """Night 171's bg_1: the batch replaces the bare home folder with the
+    AppData folder of the roaming flag in `src/click/utils.py`."""
+    repo, head = _repo_of(tmp_path, "src/click/utils.py",
+                          N171_BEFORE.format(body=N171_OLD),
+                          N171_BEFORE.format(body="".join(
+                              ln + "\n" for ln in N171_ADDED)))
+    conn = init_db(tmp_path / "rota.db")
+    _seed(conn, "bg_1", ["c_1", "c_3"], worktree=repo, head=head)
+    _seed_texts(conn, {"c_1": N171_C1, "c_3": N171_C3})
+    return conn
+
+
+def test_n171_the_criteria_count_their_cases():
+    """c_1 names a Roaming case and a Local case. c_3 names one case."""
+    from rota.roles.api import _names_cases
+    assert _names_cases(N171_C1)
+    assert not _names_cases(N171_C3)
+
+
+def test_n171_the_if_block_lands_for_a_criterion_of_two_cases(n171):
+    out = _land(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
+                lines={"c_1": N171_BLOCK, "c_3": N171_ADDED[3].strip()})
+    assert out["result"] == "pass"
+
+
+def test_n171_the_hold_quotes_every_line_of_the_block(n171):
+    """The hold reads the same parts as the door, so it asks about the whole
+    `if` statement and not only its first line (frame 201, pass 3)."""
+    sb = _critic(n171, "bg_1")
+    with pytest.raises(ValueError) as exc:
+        sb.call("verdicts.emit", batch_id="bg_1", result="pass",
+                lines={"c_1": N171_BLOCK, "c_3": N171_ADDED[3].strip()})
+    assert ("Your lines hold 'if roaming:', then 'folder = appdata_roaming', "
+            "then 'else:', then 'folder = appdata_local'. Do those lines do "
+            "what the criterion says, or the opposite?") in str(exc.value)
+
+
+def test_n171_the_eight_lines_are_refused_and_the_block_is_named(n171):
+    """s129's value for c_1: two comments, two assignments and the block. It
+    is four statements, so frame 170's rule still refuses it."""
+    said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"c_1": N171_EIGHT, "c_3": N171_ADDED[3].strip()})
+    assert said.startswith(
+        "the value for c_1 holds 8 lines, and a pass names one added line per "
+        "criterion. Copy the one line of the [diff] block that meets c_1, "
+        "without the +, and send the pass again. c_1 names more than one "
+        "case, so one `if`, `try`, `match` or conditional expression of "
+        "added lines that covers every case also counts as one line. Copy "
+        "that one statement whole, with no other line. Lines 5 to 8 of your "
+        "value are one `if` statement: 'if roaming:', 'folder = "
+        "appdata_roaming', 'else:', 'folder = appdata_local'. Send those 4 "
+        "lines alone for c_1. The added lines of code are ")
+    assert "Copy the one that does what the criterion says" not in said
+    assert said.endswith("`verdicts.claim_encodes('c_1', encodes=...)` "
+                         "first, as for any fail")
+
+
+def test_n171_s128_call_is_refused_on_the_one_case_criterion(n171):
+    """s128's third value: the block for c_1 and the eight lines for c_3. c_1
+    now lands, and c_3 names one case, so its words do not change."""
+    said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"c_1": N171_BLOCK, "c_3": N171_EIGHT})
+    assert said.startswith(
+        "the value for c_3 holds 8 lines, and a pass names one added line per "
+        "criterion. Copy the one line of the [diff] block that meets c_3, "
+        "without the +, and send the pass again. The lines you sent hold "
+        "these added lines: ")
+    assert "more than one case" not in said
+
+
+def test_n171_the_block_is_refused_for_a_criterion_of_one_case(n171):
+    """The rule is the criterion's: one case is met by one line."""
+    _seed_texts(n171, {"c_1": "The returned path is under AppData Roaming "
+                              "when roaming is True."})
+    said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"c_1": N171_BLOCK, "c_3": N171_ADDED[3].strip()})
+    assert said.startswith("the value for c_1 holds 4 lines")
+    assert "more than one case" not in said
+
+
+def test_n171_lines_that_are_not_one_run_are_refused(n171):
+    """The block lines out of their order are no statement of the diff."""
+    swapped = "\n".join(N171_ADDED[i] for i in (4, 7, 6, 5))
+    said = _refused(_critic(n171, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"c_1": swapped, "c_3": N171_ADDED[3].strip()})
+    assert said.startswith("the value for c_1 holds 4 lines")
+
+
+# Frame 170's fault under a criterion of two cases: a whole added function
+# is one statement, and it lands on any batch, so it names nothing.
+TWO_CASES = "If a is set, work returns a + 1. Otherwise work returns 0."
+FN_ADDED = (
+    "def work(a):\n"
+    "    total = a + 1\n"
+    "    if a:\n"
+    "        return total\n"
+    "    else:\n"
+    "        return 0\n"
+)
+
+
+def test_a_whole_function_stays_refused_for_a_criterion_of_two_cases(tmp_path):
+    conn = _one_criterion(tmp_path, "work.py", "", FN_ADDED)
+    _seed_texts(conn, {"cr_1": TWO_CASES})
+    said = _refused(_critic(conn, "bg_1"), batch_id="bg_1", result="pass",
+                    lines={"cr_1": FN_ADDED})
+    assert said.startswith("the value for cr_1 holds 6 lines")
+    assert ("Lines 3 to 6 of your value are one `if` statement: 'if a:', "
+            "'return total', 'else:', 'return 0'.") in said
+
+
+def test_the_if_inside_the_function_lands_for_two_cases(tmp_path):
+    conn = _one_criterion(tmp_path, "work.py", "", FN_ADDED)
+    _seed_texts(conn, {"cr_1": TWO_CASES})
+    block = "\n".join(FN_ADDED.splitlines()[2:])
+    assert _pass(conn, block)["result"] == "pass"
+
+
+def test_a_wrapped_conditional_expression_lands_for_two_cases(tmp_path):
+    after = ("def work(a):\n"
+             "    return (\n"
+             "        a + 1\n"
+             "        if a else 0)\n")
+    conn = _one_criterion(tmp_path, "work.py", "", after)
+    _seed_texts(conn, {"cr_1": TWO_CASES})
+    block = "\n".join(after.splitlines()[1:])
+    assert _pass(conn, block)["result"] == "pass"
