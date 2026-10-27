@@ -131,7 +131,7 @@ REVIEW_1 = {
 @pytest.mark.parametrize("case", sorted(REVIEW_1))
 def test_review_1_shapes(tmp_path, case):
     """Finding 1: "prints the help text" counts. Findings 2 and 5: the door
-    splits sentences as `_ADD_LINE` guards "e.g." and "i.e.", and a stop
+    splits no sentence at "e.g." or "i.e.", and a stop
     before a capital ends a sentence with or without a space."""
     text, want = REVIEW_1[case]
     conn = _db(tmp_path, "a compact mode for the JSON helper",

@@ -23,9 +23,10 @@ from pathlib import Path
 
 import pytest
 
-from rota.core.db import backfill_ruled_refs, init_db
+from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.roles import api, prompts
+from rota.roles.principal import insert_ruling_rows, ruling_rows
 
 PATH = "src/click/decorators.py"
 
@@ -233,23 +234,40 @@ def test_the_removal_lands_when_a_criterion_asks_for_it(db, tmp_path):
 
 
 def _ruling(db, per_item: dict, words: str) -> None:
+    """One landed ruling. A value is a verdict word or the object form of
+    `rulings.rule`, with its act and target (the seam design, 2.1)."""
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_text, seq) VALUES ('m1','t1','principal','liaison','answer',"
                "'x',1)")
+    flat = {r: v if isinstance(v, str) else v["verdict"] for r, v in per_item.items()}
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
-               "('r1','m1',?,?,'landed')", (json.dumps(per_item), words))
-    backfill_ruled_refs(db)
+               "('r1','m1',?,?,'landed')", (json.dumps(flat), words))
+    insert_ruling_rows(db, ruling_rows(db, "r1", None, per_item, words=words))
     db.commit()
 
 
+REMOVE_EXIT = {"verdict": "approve", "act": "remove", "target": "ctx.exit()",
+               "words": "Take ctx.exit() out of the version callback."}
+
+
 def test_the_removal_lands_when_the_principal_asks_for_it_on_the_items_page(db, tmp_path):
-    """A landed ruling on the item's page names the line and asks for its
-    removal: his words are a ruling, so the commit lands."""
-    _ruling(db, {"version_option_show_python": "approve"},
+    """A landed ruling on the item's page removes the line by its act and
+    target: his ruling grants the removal, so the commit lands."""
+    _ruling(db, {"version_option_show_python": REMOVE_EXIT},
             "Take ctx.exit() out of the version callback.")
     sb, _root = _developer(db, tmp_path)
     assert _replay(sb)[16]["committed"] is True
     assert _strays(sb) == []
+
+
+def test_his_words_with_no_act_grant_no_removal(db, tmp_path):
+    """The seam design, pass 4: the words alone grant nothing. A ruling with
+    no act leaves the removal a stray for the Architect."""
+    _ruling(db, {"version_option_show_python": "approve"},
+            "Take ctx.exit() out of the version callback.")
+    sb, _root = _developer(db, tmp_path)
+    assert _replay(sb)[16]["committed"] is True
+    assert _strays(sb) == [STRAY]
 
 
 @pytest.mark.parametrize("words", [
@@ -300,7 +318,9 @@ def test_a_ruled_removal_commits_in_the_same_reply(db, tmp_path):
 
 def test_a_ruling_of_another_item_admits_nothing(db, tmp_path):
     """Review 1's probe P2b: only the rulings of the batch's own item count."""
-    _ruling(db, {"echo_json": "approve"}, "Take ctx.exit() out of the version callback.")
+    db.execute("INSERT INTO items (id, text, kind) VALUES "
+               "('echo_json', 'Add echo_json.', 'in_scope')")
+    _ruling(db, {"echo_json": REMOVE_EXIT}, "Take ctx.exit() out of the version callback.")
     sb, _root = _developer(db, tmp_path)
     assert _replay(sb)[16]["committed"] is True
     assert _strays(sb) == [STRAY]

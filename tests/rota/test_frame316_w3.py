@@ -18,7 +18,7 @@ import json
 
 import pytest
 
-from rota.core.db import init_db
+from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.predicates import Wake
 from rota.core.sandbox import build
 from rota.testkit.fixtures import seed_provenance, seed_ref
@@ -185,6 +185,15 @@ def _contested_wake(db):
                    "(?, 'principal', ?, ?)", (f"e_{mid}", seq, text))
     db.execute("INSERT INTO config (key, value) VALUES ('verdict:m49', ?)",
                (json.dumps({ITEM1: "contest"}),))
+    # The verdict lands as a ruling with its rows, the record that the
+    # contest reader reads (the seam design, 3.4).
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('ask_m49', 'th', 'liaison', 'principal', "
+               "'present', '[]', 9)")
+    db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, "
+               "verdict_id) VALUES ('r_m49', 'ask_m49', ?, ?, 'landed', 'm49')",
+               (json.dumps({ITEM1: "contest"}), M49))
+    backfill_ruled_refs(db)
     db.execute("UPDATE items SET approval = 'contested' WHERE id = ?", (ITEM1,))
     db.commit()
     return build("vision_keeper", db, mode="normal",

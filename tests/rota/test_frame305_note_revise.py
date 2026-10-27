@@ -63,8 +63,15 @@ def _rule(db, words, line_11: str, last: str = NOTE_11, **more):
     return sb.call("rulings.rule", rulings=rulings, words=words)
 
 
+def _act(act: str, words: str) -> dict:
+    """The object form of a revise of line 11 with its act (pass 4, P11)."""
+    return {"verdict": "revise", "act": act, "target_kind": "row",
+            "words": words}
+
+
 def test_s357s_words_revise_the_note_and_land(db):
-    out = _rule(db, "On line 11, use the normal test runner", "revise")
+    words = "On line 11, use the normal test runner"
+    out = _rule(db, words, _act("rewrite", words))
     assert out["per_item"]["l_9"] == "revise"
 
 
@@ -74,7 +81,9 @@ def test_s357s_whole_reply_revises_line_11(db):
              "in the test instead of installing a separate package. The rest is "
              "fine.")
     # The page has 11 lines, so line 10 is the one note of the three on it.
-    out = _rule(db, words, "revise", **{"10": "contest"})
+    out = _rule(db, words, _act("rewrite", "On line 11, use click directly in "
+                                "the test instead of installing a separate "
+                                "package."), **{"10": "contest"})
     assert out["per_item"]["l_9"] == "revise"
     assert out["per_item"]["l_8"] == "contest"
 
@@ -82,7 +91,7 @@ def test_s357s_whole_reply_revises_line_11(db):
 @pytest.mark.parametrize("words", ["Drop line 11", "take line 11 off"])
 def test_a_drop_of_the_note_is_still_told_to_contest(db, words):
     with pytest.raises(ValueError) as refused:
-        _rule(db, words, "revise")
+        _rule(db, words, _act("drop", words))
     text = str(refused.value)
     assert text.startswith("line 11 is the team's note, not your request. "
                            "To drop the note, contest it.")
@@ -95,7 +104,9 @@ def test_the_contest_of_a_dropped_note_lands(db, words):
     assert out["per_item"]["l_9"] == "contest"
 
 
-def test_a_drop_word_the_note_holds_names_both_routes(db):
+def test_a_revise_with_no_act_names_both_routes(db):
+    """Pass 4: the door reads the act, not a drop word. A revise with no
+    act says no route, so the refusal names both."""
     with pytest.raises(ValueError) as refused:
         _rule(db, "Line 11: keep it removed", "revise", last=NOTE_OWN)
     text = str(refused.value)
@@ -141,15 +152,17 @@ def test_words_with_no_change_are_no_revise(db, words):
     "Line 11 should say the escaping is not needed.",
 ])
 def test_a_change_that_holds_a_need_word_is_a_revise(db, words):
-    # Finding 4: "don't need" and "not needed" are no drop words.
-    out = _rule(db, words, "revise")
+    # Finding 4: "don't need" and "not needed" are no drop words. The act
+    # `rewrite` says the change (pass 4).
+    out = _rule(db, words, _act("rewrite", words))
     assert out["per_item"]["l_9"] == "revise"
 
 
 def test_a_plain_drop_of_a_note_that_holds_the_word_is_a_drop(db):
     # Finding 5: the note holds "removed", and "Remove" is another word.
     with pytest.raises(ValueError) as refused:
-        _rule(db, "Remove line 11.", "revise", last=NOTE_OWN)
+        _rule(db, "Remove line 11.", _act("drop", "Remove line 11."),
+              last=NOTE_OWN)
     assert "To change the note" not in str(refused.value)
 
 

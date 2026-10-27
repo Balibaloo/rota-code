@@ -12,6 +12,7 @@ import json
 import pytest
 
 from rota.core.db import SessionResult, backfill_ruled_refs, init_db, session_commit
+from rota.testkit.fixtures import seed_acts
 from rota.core.runner import _as_write, _page_act_lines, _wake_allow
 from rota.core.sandbox import build
 from rota.core.scheduler import Wake
@@ -88,7 +89,15 @@ def db(tmp_path):
                  (json.dumps(per_item), WORDS,
                   json.dumps({c: CRITERIA[c] for c in CONTESTED})))
     backfill_ruled_refs(conn)
-    conn.commit()
+    # The Liaison's reading of m112 as the object form writes it: lines 5
+    # and 7 drop, line 6 is rewritten, and the ticket gets the added line
+    # (the seam design, pass 4).
+    seed_acts(conn, "r_fae8c0a559", {
+        "c3_no_terminal_true": {"act": "drop", "target_kind": "row"},
+        "c3_terminal_check": {"act": "rewrite", "target_kind": "row"},
+        "c3_terminal_failure_true": {"act": "drop", "target_kind": "row"},
+        TICKET: {"verdict": "revise", "act": "add", "target": TICKET,
+                 "words": ADDED}})
     return conn
 
 
@@ -159,9 +168,12 @@ def test_the_relay_wake_offers_specify_and_names_the_added_sentence(db):
 
 
 def test_a_relay_with_no_drop_and_no_added_line_keeps_the_mode_tools(db):
-    words = "Change line 6 to say that clear() checks the current stdout."
-    db.execute("UPDATE rulings SET words = ?", (words,))
-    db.commit()
+    """A ruling whose only act is a rewrite drops and adds nothing, so the
+    wake keeps the mode's tools (pass 4: the act decides, not the words)."""
+    db.execute("DELETE FROM ruled_refs WHERE ref = ?", (TICKET,))
+    seed_acts(db, "r_fae8c0a559", {
+        "c3_no_terminal_true": {"act": None},
+        "c3_terminal_failure_true": {"act": None}})
     assert _wake_allow(_wake(), db) == prompts.mode_tools(
         "terminologist", "criterion_repair")
     assert _page_act_lines(_wake(), db) == []
@@ -266,27 +278,24 @@ def test_a_red_test_of_a_retired_criterion_holds_no_merge_and_no_park(db):
     assert db.execute("SELECT 1 FROM tests WHERE id = 'tst_old'").fetchone()
 
 
-@pytest.mark.parametrize("words, texts", [
-    ("Add a check that the output stays the same.",
-     ["the output stays the same"]),
-    ("Please add a line: the output stays the same.",
-     ["the output stays the same"]),
-    ("Also add a line that says X stays, and also add a line that says Y "
-     "holds.", ["X stays", "Y holds"]),
-    ("Add a line that says clear() returns True, e.g. on a tty.",
-     ["clear() returns True, e.g. on a tty"]),
-    ("Add a line that says item two keeps its colour.", []),
-    (WORDS, [ADDED]),
+@pytest.mark.parametrize("acts, texts", [
+    ({TICKET: {"verdict": "revise", "act": "add", "words": "X stays"}},
+     ["X stays"]),
+    ({"c3_no_terminal_true": {"act": "add", "words": "Y holds"}}, ["Y holds"]),
+    ({TICKET: {"verdict": "revise", "act": "add"}}, [WORDS]),
+    ({TICKET: {"verdict": "revise", "words": "X stays"}}, []),
 ])
-def test_the_added_lines_he_writes(db, words, texts):
-    """Finding 4: each added sentence is one line, under its own item only."""
+def test_the_added_lines_are_the_add_rows(db, acts, texts):
+    """Pass 4, P8: a line he adds is the act `add` of a row on the criterion
+    or its ticket, with the row's words as the line. A row with no act adds
+    nothing, whatever its words say."""
     from rota.roles.api import criteria_page_acts
 
-    db.execute("UPDATE rulings SET words = ?", (words,))
-    db.commit()
-    acts = criteria_page_acts(db, CONTESTED)
-    assert [s for _, s in acts["add"]] == texts
-    assert all(t == TICKET for t, _ in acts["add"])
+    db.execute("DELETE FROM ruled_refs WHERE ref = ?", (TICKET,))
+    seed_acts(db, "r_fae8c0a559", acts)
+    out = criteria_page_acts(db, CONTESTED)
+    assert [s for _, s in out["add"]] == texts
+    assert all(t == TICKET for t, _ in out["add"])
 
 
 def test_a_retire_needs_the_relay_wake(db):

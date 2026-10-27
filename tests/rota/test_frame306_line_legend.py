@@ -195,10 +195,6 @@ def test_a_check_line_is_named_as_the_check_of_its_criterion(tmp_path):
     # sentence leaves. The words are not the whole-words fallback.
     narrowed = _contest_block(db, [{"id": CRIT_2}], on_rows=True)
     assert "He said: Line 4 is wrong. Drop it.\n" in narrowed
-    ruled = {"id": "r_39fbc7b24e",
-             "words": "Line 2 is fine. Line 4 is wrong. Drop it."}
-    assert api._ruling_words_on(db, ruled, CRIT_2) == \
-        "Line 4 is wrong. Drop it."
     # Neither sentence reaches crit_1, the row of line 2, which he approved.
     assert _contest_block(db, [{"id": CRIT_1}], on_rows=True) == ""
 
@@ -216,12 +212,11 @@ def _seed_check_line(tmp_path, words: str):
 
 def test_the_check_line_of_crit_2_stays_on_its_wake(tmp_path):
     """The re-check's probe2 shape. The crit_2 wake kept "Line 3 is fine."
-    alone, and `api._ruling_words_on` kept "Line 3 is fine. Drop it."."""
+    alone. Pass 4 of the seam design deleted `api._ruling_words_on`, the
+    reader that kept "Line 3 is fine. Drop it."."""
     words = "Line 3 is fine. Line 4 is wrong. Drop it."
     db = _seed_check_line(tmp_path, words)
     assert _words_on_rows(db, "r_39fbc7b24e", words, [CRIT_2]) == words
-    assert api._ruling_words_on(
-        db, {"id": "r_39fbc7b24e", "words": words}, CRIT_2) == words
     # On crit_3's repair, the check of crit_2 is another criterion's row.
     assert _line_legend(db, "r_39fbc7b24e", words, woken=CRIT_3)[1] == (
         f"On his page, line 4 was the check of {CRIT_2} (another criterion, "

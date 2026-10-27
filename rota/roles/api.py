@@ -1359,25 +1359,15 @@ for _artefact, _tables in _CITE_TABLES.items():
 # problem statement
 # ---------------------------------------------------------------------------
 
-_KIND_WORDS = ("flag", "option", "switch", "argument", "parameter", "helper",
-               "function", "check", "test")
-_REMOVE_CUES = ("no", "not", "without", "drop", "remove", "never", "instead")
+def _his_rows(conn: sqlite3.Connection, id: str) -> list:
+    """The rows of his newest landed ruling on `id`, one per ref it rules.
 
+    The item doors read what his reply permits from these rows, never from
+    a phrase of his words (the seam design, pass 4)."""
+    from .principal import ruled
 
-def _words_remove_a_kind(said: str) -> bool:
-    """
-    True when a sentence of `said` puts a removal cue at most four words
-    before a kind word: "I don't want a flag", "drop the switch".
-    """
-    for sentence in re.split(r"[.!?;]+", said.lower()):
-        words = [w.strip(",:'\"()`") for w in sentence.split()]
-        for i, w in enumerate(words):
-            if w.rstrip("s") not in _KIND_WORDS and w not in _KIND_WORDS:
-                continue
-            for cue in words[max(0, i - 4):i]:
-                if cue in _REMOVE_CUES or cue.endswith(("n't", "n’t")):
-                    return True
-    return False
+    own = ruled(conn, [id], newest=True)
+    return ruled(conn, ruling=own[-1]["ruling_id"]) if own else []
 
 
 # A sentence about the page names the page or a numbered line of it. "On
@@ -1390,7 +1380,8 @@ def _sentences(said: str) -> list[str]:
     return [s for s in re.split(r"(?<=[.!?])\s+", (said or "").strip()) if s]
 
 
-def _page_reply_fault(text: str, said: str) -> str | None:
+def _page_reply_fault(conn: sqlite3.Connection, id: str, text: str,
+                      said: str) -> str | None:
     """
     Why `text` is the principal's reply about the page and not his words
     about the item, or None.
@@ -1416,13 +1407,20 @@ def _page_reply_fault(text: str, said: str) -> str | None:
     if cue:
         return (f"the new text names {cue.group(0)!r}, a part of the page, "
                 f"so it is about the page")
-    joined = " ".join(new)
-    for sent in sents:
-        for m in _PAGE_CUE.finditer(sent):
-            after = norm(re.split(r"[,:;]", sent[m.end():])[0])
-            if len(after) >= 4 and f" {' '.join(after[:4])} " in f" {joined} ":
-                return (f"the new text copies his sentence {sent!r}, which "
-                        f"is about the page")
+    # His words about another line of the page are the span of his row on
+    # that line. A row with no span of its own carries the whole reply and
+    # names no line, so it gives no sentence here (the seam design, 3.3, P5).
+    joined = f" {' '.join(new)} "
+    for r in _his_rows(conn, id):
+        span = (r["words"] or "").strip()
+        if r["ref"] == id or r["line"] is None or not span or span == (
+                r["reply_words"] or "").strip():
+            continue
+        got = norm(span)
+        if any(f" {' '.join(got[i:i + 4])} " in joined
+               for i in range(len(got) - 3)):
+            return (f"the new text copies his words {span!r}, which are "
+                    f"about line {r['line']} of the page")
     return None
 
 
@@ -1449,27 +1447,14 @@ def _item_sentences(said: str) -> tuple[list, list]:
     return rest, page_sents
 
 
-def _other_line(said: str) -> str | None:
-    """The first page line other than line 1 that his words name, or None."""
-    return next((m.group(1) for m in re.finditer(r"(?i)\bline\s+(\d+)", said)
-                 if m.group(1) != "1"), None)
-
-
-# His request to take a sentence out of the item text. Night 167's replies
-# to m66 to m118 said "take it out and keep only what I asked for"
-# (plans/stack.md, frame 315), and each became another appended sentence.
-_REMOVAL_ASK = re.compile(
-    r"\btake (?:it|that|this|them) (?:out|off)\b|\bremove\b"
-    r"|\bis not part of what i asked\b|\bkeep only what i asked for\b"
-    r"|\bnot what i asked\b", re.I)
-
-
-def _removal_asks(said: str) -> list[str]:
-    """His sentences that ask for a removal. "Do not remove" asks for none."""
-    return [s for s in _sentences(said) if any(
-        not re.search(r"(?i)\b(?:not|never|don't|do not)\s+(?:\w+\s+)?$",
-                      s[:m.start()])
-        for m in _REMOVAL_ASK.finditer(s))]
+def _other_line(conn: sqlite3.Connection, id: str) -> str | None:
+    """The first page line other than line 1 that a contest or a revise of
+    his newest ruling on `id` rules on another ref, or None. The row's
+    `line` is the record, so no "line N" phrase is read (the seam design,
+    3.3, P4)."""
+    return next((str(r["line"]) for r in _his_rows(conn, id)
+                 if r["ref"] != id and r["line"] not in (None, 1)
+                 and r["verdict"] in ("contest", "revise")), None)
 
 
 def _added_sentences(ctx: Ctx, id: str, item_text: str) -> list[str]:
@@ -1529,11 +1514,17 @@ def _amend_step(ctx: Ctx, id: str, cur_text: str, said: str) -> str:
     """The words door's step: what an item's text is, and the amend."""
     head = (f"Write his words about {id}, never his instruction about the "
             f"page or the team")
-    asks = _removal_asks(said)
+    # His removal is the act `remove` of his ruling on the item, with the
+    # sentence as its target (the seam design, 3.3, P3).
+    from .principal import grant
+
+    removal = grant(ctx.conn, id, "remove")
+    asks = removal is not None
     rest, _ = _item_sentences(said)
     # A removal request is never the sentence to amend with. s187 and s199
     # appended his requests to take the test sentence out (night 167).
-    rest = [s for s in rest if s not in asks]
+    span = (removal["words"] or "").strip() if asks else ""
+    rest = [s for s in rest if not (span and _same_words(s, span))]
     sent = max(rest, key=len) if rest else None
     his = (f"his sentence {sent!r}" if sent
            else f"what he said about {id}")
@@ -1551,7 +1542,7 @@ def _amend_step(ctx: Ctx, id: str, cur_text: str, said: str) -> str:
         return (f"{head}: he asks to remove a sentence, and no earlier amend "
                 f"added one to {id}, so nothing was added. {amend[0].upper()}"
                 f"{amend[1:]}")
-    line = _other_line(said)
+    line = _other_line(ctx.conn, id)
     if not rest and line:
         return (f"His words contest line {line} of the page, which is not "
                 f"the item {id}. Do not amend {cur_text!r} with them. Keep "
@@ -1830,7 +1821,7 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # Only a landed ruling counts. An `open` row exists between
     # `rulings.rule` and `principal.land`, and it hid a landed contest (the
     # review of 5e2f0e57, finding 3).
-    from .principal import ruled as ruled_rows_on
+    from .principal import granted, ruled as ruled_rows_on
 
     ruled = None
     for r in ruled_rows_on(ctx.conn, [id], newest=True):
@@ -1873,7 +1864,7 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     dropped = _dropped_sentences(cur["text"], text)
     if dropped:
         added = (_added_sentences(ctx, id, cur["text"])
-                 if _removal_asks(said) else [])
+                 if granted(ctx.conn, id, "remove") else [])
         if all(d in added for d in dropped):
             return None
         return (f"{id} is the principal's own words. The new text drops "
@@ -1882,7 +1873,7 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # An item's text is his words about the item. His reply about the page
     # is not, and the old step "Write what the principal said" sent s205
     # and s404 to write it into json_only (frame 263).
-    page = _page_reply_fault(text, " ".join(words))
+    page = _page_reply_fault(ctx.conn, id, text, " ".join(words))
     if page:
         return (f"{id} is the principal's own words, and {page}. "
                 f"{_amend_step(ctx, id, cur['text'], ' '.join(words))}")
@@ -1916,9 +1907,10 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
             if not re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", said_low)]
     # The principal removes a name in plain words: "I don't want a flag".
     # The words never hold the identifier, and the drop check refused the
-    # contest it exists to admit (the review of 5e2f0e57, finding 1).
-    if lost and _words_remove_a_kind(said_low):
-        lost = []
+    # contest it exists to admit (the review of 5e2f0e57, finding 1). The
+    # act `remove` of his ruling on the item names the identifier, so the
+    # drop passes on the record and not on a cue word (the seam design, P2).
+    lost = [t for t in lost if not granted(ctx.conn, id, "remove", t)]
     if lost:
         return (f"{id} is the principal's own words. The new text drops "
                 f"{', '.join(f'`{t}`' for t in lost)}, and the principal said "
@@ -6117,112 +6109,13 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
 # rewording, so only these can show that a contested name came back.
 _QUOTED_SPAN = re.compile(r"`([^`]+)`")
 _NAMED_TOKEN = re.compile(r"(?<![\w-])(--[A-Za-z][\w-]*)|\b([A-Za-z]\w*_\w*)\b")
-# The principal's words fault a check when they name one as a noun. Night
-# 145's relays said "Line 3's check is wrong" and "The tests in lines 2 to 4
-# are wrong" (frame 226, candidate E). The verb in "then check the printed
-# output" is not a fault (the review of 84a06216, finding 1).
-_CHECK_FAULT = re.compile(
-    r"(?:'s|\btheir|\bits|\bthe|\bevery|\bone|\banother|\bsimple|\btwo)"
-    r"\s+checks?\b|\btests? in lines?\b|\bline \d+'s tests?\b", re.IGNORECASE)
-# The principal's words fault a line's words: "Line 2 is wrong because it
-# says", "Line 2 should say", "Line 2 also needs to say" (night 145).
-# "through" and "-" are range words as "to" is, as in `_LINE_REF` (frame
-# 256, review 1).
-# A line the words tell to go, or to say something else, asks for new words
-# too: "Drop line 5", "line 7 should go", "please rewrite line 3", "change it
-# to say" (frame 308, review 3, point 2: nights 158 and 159). Night 159's
-# m224 said "Line 3 has to change" (frame 308, pass 3).
-_LINES = r"lines? \d+(?:(?:(?:,| and| to| through) |\s*-\s*)\d+)*"
-_WORDS_FAULT = re.compile(
-    rf"\b{_LINES} (?:is|are) (?:also |still )*wrong\b"
-    r"|\bshould (?:also )?say\b|\bneeds? to say\b"
-    rf"|\b(?:drop|remove|delete|rewrite|replace|change)\s+(?:the\s+)?{_LINES}\b"
-    rf"|\b{_LINES} (?:should|must|can|has to|have to|needs? to) (?:also )?"
-    r"(?:go|change|be (?:dropped|removed|deleted|rewritten|replaced|changed))\b"
-    r"|\b(?:change|rewrite) (?:it|this|that|the line) to say\b"
-    r"|\bsay something else\b", re.IGNORECASE)
-# The words that drop a line. A drop is not a rewrite: frame 192 owns the
-# drop route, and no op of the Terminologist retires a criterion.
-_DROP_LINE = re.compile(
-    rf"\b(?:drop|remove|delete)\s+(?:the\s+)?{_LINES}\b"
-    rf"|\b{_LINES} (?:should|must|can|has to|have to|needs? to) (?:also )?"
-    r"(?:go|be (?:dropped|removed|deleted))\b", re.IGNORECASE)
-# The verbs of a request. Only a request can be negated in its own clause.
-_FAULT_VERB = re.compile(r"(?:drop|remove|delete|rewrite|replace|change)\b",
-                         re.IGNORECASE)
+# His words no longer gate the criteria doors by a phrase. The act of his
+# ruling says it: `keep` keeps a line's words, `rewrite` asks for new words,
+# `drop` drops the line and `add` adds one (the seam design, pass 4).
 # The words of one ruling split at sentence ends only. A colon keeps a line's
 # body with its line: night 157's r_4a62d8a771 wrote "Line 3: ... Line 5: ..."
-# (frame 308, review 4, finding 1).
+# (frame 308, review 4, finding 1). `_words_on_rows` reads it.
 _RULING_SENTENCE = re.compile(r"(?<=[.!?])\s+")
-# The words that approve a line's words as they stand. Night 157's
-# r_4a62d8a771 said of line 5 "keep it as written, but fix the code"
-# (frame 308, pass 3c, point 2). A bare "keep line 4" does not approve.
-_KEEP_WORDS = re.compile(
-    rf"\bkeep (?:it|this|that|the (?:line|requirement|words|criterion|text)|"
-    rf"{_LINES}) (?:as (?:written|it is|it stands|they are)|unchanged)\b"
-    r"|\bkeep the requirement\b", re.IGNORECASE)
-
-
-def _faults_on(rx: re.Pattern, text: str, line: int | None) -> list[re.Match]:
-    """The matches of `rx` in `text` that bear on page line `line`.
-
-    A request with a negation in its own clause asks for nothing. Night
-    142's r_m144 said "Don't remove lines 8 to 14 as a block" (frame 308,
-    review 4, finding 3). The clause cut is frame 283's, as in
-    `_removal_spans`. A match that names lines bears on those lines only.
-    """
-    return [m for _, m in _sentence_hits(rx, text, line)]
-
-
-# The words after a removed line that narrow the removal to a part: "Remove
-# line 5's last clause" (frame 308, review 5, finding 2). Other words keep
-# the whole line: night 144's "Please drop lines 2 to 5 again".
-_NARROW_TAIL = re.compile(
-    r"\s*(?:['’]s\b|(?:except|but|other than|apart from|save)\b)",
-    re.IGNORECASE)
-# The words after "should go" that make it a move, not a removal: "Line 3
-# should go back to how you had it" (night 140, r_4dfcbd586b).
-_GO_ON = re.compile(
-    r"\s+(?:back|further|on|beyond|to|into|up|down|with|deeper|past)\b",
-    re.IGNORECASE)
-# The break between a keep and a request for new words in one sentence:
-# "Keep line 4 as it is, but change it to say X" (review 5, finding 1).
-_KEEP_BREAK = re.compile(r",|\b(?:but|and)\b", re.IGNORECASE)
-
-
-def _drops_whole_line(s: str, m: re.Match) -> bool:
-    """True when the `_DROP_LINE` match `m` in sentence `s` removes the
-    whole line. A verb form must be a request clause of frame 283's
-    `_removal_spans`. The words right after the match must not narrow the
-    removal to a part of the line. "Line 3 should go back to how you had
-    it" asks the old words back (night 140, r_4dfcbd586b)."""
-    if _FAULT_VERB.match(m.group(0)):
-        spans = [(s.find(c), c) for c in _removal_spans(s)]
-        if not any(0 <= st <= m.start() < st + len(c) for st, c in spans):
-            return False
-    rest = s[m.end():]
-    if _NARROW_TAIL.match(rest):
-        return False
-    return not (m.group(0).lower().endswith("go") and _GO_ON.match(rest))
-
-
-def _sentence_hits(rx: re.Pattern, text: str,
-                   line: int | None) -> list[tuple[str, re.Match]]:
-    """The matches of `_faults_on`, each with its sentence."""
-    out = []
-    for s in _RULING_SENTENCE.split(text or ""):
-        for m in rx.finditer(s):
-            if _FAULT_VERB.match(m.group(0)):
-                breaks = _breaks(_CLAUSE_BREAK, s[:m.start()])
-                lead = s[breaks[-1].end() if breaks else 0:m.start()]
-                if _NEGATION_WORDS.search(lead):
-                    continue
-            refs = list(_LINE_REF.finditer(m.group(0)))
-            if line is not None and refs and not any(
-                    line in _ref_lines(r) for r in refs):
-                continue
-            out.append((s, m))
-    return out
 
 
 def _named_tokens(text: str) -> set[str]:
@@ -6496,75 +6389,42 @@ def _stands(said: str) -> ValueError:
 
 
 def ruling_asks_no_new_words(ctx: Ctx, id: str) -> bool:
-    """True when the last ruling on criterion `id` faulted its check and not
-    its words, on the row's own text. `criteria_respecify` refuses a rewrite
-    there with "The criterion stands", so the answer door needs no call to
-    know it (frame 308, review 2's fix)."""
-    from .principal import last_ruling_on
+    """True when the last ruling on criterion `id` contests the row and
+    keeps its words, on the row's own text. `criteria_respecify` refuses a
+    rewrite there with "The criterion stands", so the answer door needs no
+    call to know it (frame 308, review 2's fix).
+
+    The keep is the act `keep` of his newest landed row, with its target a
+    check or the row. A contest of the check alone keeps the words too. No
+    phrase of his words decides it (the seam design, pass 4)."""
+    from .principal import granted, last_ruling_on
 
     ruled = last_ruling_on(ctx.conn, id)
-    if not ruled or ruled["verdict"] not in ("contest", "revise") \
-            or ruled["text"] is None:
+    if not ruled or ruled["verdict"] not in ("contest", "revise")             or ruled["text"] is None:
         return False
     cur = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
                            (id,)).fetchone()
-    mine = _ruling_words_on(ctx.conn, ruled, id)
     return bool(cur and _same_words(ruled["text"], cur["text"])
-                and (_CHECK_FAULT.search(mine)
-                     or _keeps_words_on(ctx.conn, ruled, id))
-                and not _words_fault_on(ctx.conn, ruled, id))
+                and granted(ctx.conn, id, "keep"))
 
 
 def ruling_drops_line(ctx: Ctx, id: str) -> int | None:
-    """The page line of criterion `id` when the last ruling on it drops that
-    line, or None. The answer door names the drop and asks no rewrite
-    (frame 308, review 4, point 2)."""
-    from .principal import last_ruling_on
+    """The page line of criterion `id` when his newest landed ruling on it
+    has the act `drop`, or None. The answer door names the drop and asks no
+    rewrite (frame 308, review 4, point 2). The line is the row's own line,
+    or the line of `id` on the page of the ruling."""
+    return _dropped_line(ctx.conn, id)
 
-    ruled = last_ruling_on(ctx.conn, id)
-    if not ruled or ruled["verdict"] not in ("contest", "revise"):
+
+def _dropped_line(conn: sqlite3.Connection, id: str) -> int | None:
+    """The page line that the act `drop` of his newest landed ruling on `id`
+    drops, or None (the seam design, pass 4)."""
+    from .principal import grant
+
+    row = grant(conn, id, "drop")
+    if row is None:
         return None
-    return _line_dropped_on(ctx.conn, ruled, id)
-
-
-# His words that add a line to the page. Night 163's m112: "Also add a line
-# that says the output stays exactly the same as today, and the rest is
-# fine." No route took that sentence to a criterion (frame 306, pass 1b).
-# The review of 1464cfb7 found four more forms: "add a check that X", "add a
-# line: X", two adds in one sentence, and "e.g." inside the text (frame 306,
-# pass 2, finding 4). A full stop ends the text only before a space or the
-# end, and never after "e.g" or "i.e".
-_ADD_LINE = re.compile(
-    r"\badd\s+(?:a|one|another)\s+(?:new\s+)?"
-    r"(?:line|criterion|requirement|check)\s*"
-    r"(?::\s*|(?:that\s+says?|saying|to\s+say|that)\s+(?:that\s+)?)"
-    r"(?P<text>(?:[^.;!?]|\.(?!\s|$)|(?<=\be\.g)\.|(?<=\bi\.e)\.)+?)"
-    r"(?=,?\s+(?:and\s+)?(?:also\s+)?add\s+(?:a|one|another)\b"
-    r"|,\s*(?:and|but)\s+the\s+rest\b|\s*[;!?]"
-    r"|(?<!\be\.g)(?<!\bi\.e)\s*\.(?:\s|$)|\s*$)", re.I)
-
-# A sentence that names an item by its place ("item two") or by another
-# item's id is about that item. It is not filed under the contested ticket.
-_NAMES_AN_ITEM = re.compile(
-    r"\bitem\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b",
-    re.I)
-
-
-def _page_added_lines(conn: sqlite3.Connection, words: str, ticket_id: str) -> list:
-    """The (ticket, sentence) pairs of the lines his words add to this
-    ticket. A sentence about another item is left out."""
-    own = conn.execute("SELECT item_id FROM tickets WHERE id = ?",
-                       (ticket_id,)).fetchone()
-    others = [r["id"] for r in conn.execute(
-        "SELECT id FROM items WHERE id != ?", (own["item_id"] if own else "",))]
-    out = []
-    for m in _ADD_LINE.finditer(words or ""):
-        text = m.group("text").strip()
-        if _NAMES_AN_ITEM.search(text) or any(
-                re.search(rf"\b{re.escape(i)}\b", text) for i in others):
-            continue
-        out.append((ticket_id, text))
-    return out
+    return row["line"] or _ruling_line(conn, {"id": row["ruling_id"]}, id)
 
 
 def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
@@ -6574,9 +6434,15 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
     ticket and the sentence of each line he adds. The relay wake of
     `criterion_repair` offers `criteria.retire` and `criteria.specify` by
     this reading only, so other wakes keep their prompt (frame 306, pass 1b).
+
+    The reading is the act of his newest landed row on each criterion:
+    `drop` retires it, and `add` on the criterion or on its ticket adds the
+    row's words to the ticket that its target names, else to the
+    criterion's own ticket (the seam design, pass 4). No phrase of his
+    words decides it.
     """
     from ..core.scheduler import live_criteria
-    from .principal import last_ruling_on
+    from .principal import grant, last_ruling_on
 
     out: dict = {"retire": [], "add": []}
     for ref in refs or ():
@@ -6588,11 +6454,19 @@ def criteria_page_acts(conn: sqlite3.Connection, refs) -> dict:
         ruled = last_ruling_on(conn, ref) if row else None
         if not ruled or ruled["verdict"] not in ("contest", "revise"):
             continue
-        if _line_dropped_on(conn, ruled, ref) is not None:
+        if _dropped_line(conn, ref) is not None:
             out["retire"].append(ref)
-        # One ruling covers every contested row, so its words add once.
-        if not out["add"]:
-            out["add"] = _page_added_lines(conn, ruled["words"], row["ticket_id"])
+        # A row has one act, so a line he adds rides on the criterion or on
+        # its ticket, the row that a new criterion joins.
+        for add in (grant(conn, ref, "add"), grant(conn, row["ticket_id"], "add")):
+            said = (add["words"] or "").strip() if add is not None else ""
+            if not said:
+                continue
+            ticket = add["target"] if add["target"] and conn.execute(
+                "SELECT 1 FROM tickets WHERE id = ?", (add["target"],)
+            ).fetchone() else row["ticket_id"]
+            if (ticket, said) not in out["add"]:
+                out["add"].append((ticket, said))
     return out
 
 
@@ -6745,73 +6619,6 @@ def _ruling_order(conn: sqlite3.Connection, ruled: dict) -> list | None:
         except Exception:  # noqa: BLE001 - an unreadable page gives no line
             return None
     return order
-
-
-def _keeps_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> bool:
-    """True when the ruling's words keep the words of criterion `cid` as
-    they stand. A keep that names lines bears on those lines only."""
-    return bool(_faults_on(_KEEP_WORDS, _ruling_words_on(conn, ruled, cid),
-                           _ruling_line(conn, ruled, cid)))
-
-
-def _words_fault_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> bool:
-    """True when the ruling's words ask new words of criterion `cid`. The
-    fault yields to a keep of the same line, as the faulted-check branch
-    does (frame 308, pass 3c, point 2).
-
-    A keep yields to a request for new words in its own sentence after a
-    comma, "but" or "and". A keep in a sentence that names no line yields
-    to every fault of another sentence (frame 308, review 5, finding 1)."""
-    words = _ruling_words_on(conn, ruled, cid)
-    line = _ruling_line(conn, ruled, cid)
-    keeps = _sentence_hits(_KEEP_WORDS, words, line)
-    for s, f in _sentence_hits(_WORDS_FAULT, words, line):
-        if not any(_keep_cancels(sk, k, s, f) for sk, k in keeps):
-            return True
-    return False
-
-
-def _keep_cancels(sk: str, k: re.Match, sf: str, f: re.Match) -> bool:
-    """True when the keep `k` in sentence `sk` cancels the words fault `f`
-    in sentence `sf`. Only a keep that names its line cancels a fault of
-    another sentence. In one sentence a break between the two lets the
-    request win."""
-    if sk != sf:
-        return bool(_LINE_REF.search(sk))
-    lo, hi = sorted((k, f), key=lambda m: m.start())
-    return not _KEEP_BREAK.search(sk[lo.end():hi.start()])
-
-
-def _line_dropped_on(conn: sqlite3.Connection, ruled: dict,
-                     cid: str) -> int | None:
-    """The line of `cid` when the ruling's words drop it, or None."""
-    line = _ruling_line(conn, ruled, cid)
-    if line is None:
-        return None
-    hits = _sentence_hits(_DROP_LINE, _ruling_words_on(conn, ruled, cid), line)
-    return line if any(_LINE_REF.search(m.group(0)) and _drops_whole_line(s, m)
-                       for s, m in hits) else None
-
-
-def _ruling_words_on(conn: sqlite3.Connection, ruled: dict, cid: str) -> str:
-    """The sentences of a ruling's words that bear on criterion `cid`: each
-    sentence that names its page line or the line of one of its checks, and
-    each sentence that names no line.
-    The whole words when the line of `cid` is not known.
-
-    One ruling can rule several lines. Night 158's m98 said "Keep line 4, but
-    fix its check" for cr_2 and "Drop line 5" for cr_3 (frame 308, pass 3).
-    """
-    words = ruled.get("words") or ""
-    rows = _ruling_rows(conn, ruled, cid)
-    if rows is None:
-        return words
-    keep = []
-    for sentence in _RULING_SENTENCE.split(words):
-        refs = list(_LINE_REF.finditer(sentence))
-        if not refs or any(rows & _ref_lines(r) for r in refs):
-            keep.append(sentence)
-    return " ".join(keep)
 
 
 def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
@@ -7007,7 +6814,12 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         # A name matches his words on word bounds. A substring test let a
         # contested `--show` back when he named `--show-python` (the review
         # of frame 226, finding 1).
-        his = contested["words"].lower()
+        # The words of the contest row on this criterion, the span that
+        # rules it, and not the whole reply (the seam design, 3.3, P9).
+        span = ctx.conn.execute(
+            "SELECT words FROM ruled_refs WHERE ruling_id = ? AND ref = ?",
+            (contested["id"], id)).fetchone()
+        his = ((span["words"] if span else "") or contested["words"]).lower()
         back = sorted(t for t in (_named_tokens(contested["text"])
                                   - _named_tokens(cur["text"]))
                       & _named_tokens(text)
@@ -7038,13 +6850,12 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
         closed = not _tester_answer_open(ctx)
         if closed:
             route = _closed_answer_note(ctx, id).rstrip(".")
-        # The sentences on this criterion's line decide, as in
-        # `ruling_asks_no_new_words` (frame 308, pass 3).
-        mine = _ruling_words_on(ctx.conn, contested, id)
-        # A kept line stands too, as in `ruling_asks_no_new_words` (pass 3c).
-        if ((_CHECK_FAULT.search(mine)
-             or _keeps_words_on(ctx.conn, contested, id))
-                and not _words_fault_on(ctx.conn, contested, id)):
+        # The act of his ruling decides, as in `ruling_asks_no_new_words`.
+        # A keep of the words stands, and a rewrite of the check sends his
+        # words to the Tester (the seam design, pass 4).
+        from .principal import grant, granted
+
+        if granted(ctx.conn, id, "keep"):
             # No "rewrite the text" follows: the check at the top of this
             # door refuses a new text under this ruling (frame 306).
             if closed:
@@ -7055,7 +6866,8 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
             raise _stands(
                 f"the principal faulted the check and not these words: "
                 f"{contested['words']!r}. The criterion stands. {route}")
-        if _CHECK_FAULT.search(contested["words"]):
+        rewrite = grant(ctx.conn, id, "rewrite")
+        if rewrite is not None and rewrite["target_kind"] == "check":
             raise ValueError(
                 f"the principal contested these words: {contested['words']!r}. "
                 f"Write what he asked for. {route}")
@@ -7925,8 +7737,8 @@ _ABOUT_TEXT = re.compile(r"\bdocstrings?\b|\bdocumentation\b|\bcomments?\b",
                          re.I)
 
 # A sentence ends at a full stop before a space, or before a capital with
-# no space. "e.g." and "i.e." end no sentence, as in `_ADD_LINE` (frame
-# 321, review 1, findings 2 and 5).
+# no space. "e.g." and "i.e." end no sentence (frame 321, review 1,
+# findings 2 and 5).
 _DOOR_SENTENCE = re.compile(
     r"(?<!\be\.g\.)(?<!\bi\.e\.)(?<=\.)\s+|(?<=[a-z]\.)(?=[A-Z])")
 
@@ -12455,79 +12267,6 @@ def _lines(ns: list[int]) -> str:
     return f"line{'' if len(ns) == 1 else 's'} {_line_set(ns)}"
 
 
-# The words that ask to take a team's note off the page. Night 161's s357
-# read "take them off this page" for lines 10, 13 and 14 (frame 305).
-_NOTE_DROP = re.compile(
-    r"\b(?:drop(?:s|ped|ping)?|remov(?:e|es|ed|ing)|delet(?:e|es|ed|ing)|"
-    r"strike|struck|get rid of)\b|\btake\b[^.?!]{0,40}?\boff\b", re.I)
-# The words that ask a note for new words. A fault alone names no change, so
-# "Line 11 is wrong" stays no revise (frame 305, review 1, finding 2).
-_NOTE_CHANGE = re.compile(
-    r"\b(?:use|change|make|replace|rewrite|reword|say|switch|rename|move|add|"
-    r"update|set|fix|put|correct|call|run|mention|include|cover|instead|"
-    r"rather|should|must|needs? to|has to|have to)\b", re.I)
-# A clause that keeps the note, or that does not follow it, asks no change.
-# Night 160's m11 said "I don't understand line 2", and m45 said "Line 2 and
-# its check now say what I want" (frame 305, review 1, findings 1 and 2).
-_NOTE_NO_CHANGE = re.compile(
-    r"\bas (?:it is|they are|written|it stands)\b|\bunchanged\b|\bstays?\b|"
-    r"\bunderstand\b|\bunclear\b|\bconfus\w*|\bwhat I (?:want|wanted|asked|meant)\b",
-    re.I)
-# The words before a drop word that make it part of the note's new text:
-# "Line 11 should say the escaping is removed" (review 1, finding 4).
-_NOTE_SAYS = re.compile(r"\b(?:say|says|read|reads)\b", re.I)
-
-
-def _line_body(page_text: str, n: int) -> str:
-    """The text of line `n` of the rendered page, with its sub-lines."""
-    found = re.search(rf"^\s*{n}\.\s+(.*(?:\n(?!\s*\d+\.\s|\s*$)[ \t]+.*)*)",
-                      page_text or "", re.M)
-    return found.group(1) if found else ""
-
-
-def _note_words(words: str, n: int, page_text: str) -> str | None:
-    """What the principal's words ask of team-note line `n`.
-
-    "drop" when a clause about the line asks to take it off. "change" when a
-    clause about the line asks for new words by a change verb. "own" when a
-    clause reads as a drop only by a word the line's own text holds. None
-    otherwise. Night 161's s357 said "On line 11, use click directly in the
-    test" (frame 305).
-    """
-    # Whole words: "Remove line 11" on a note that holds "removed" is a drop
-    # (frame 305, review 1, finding 5).
-    body = " " + " ".join(re.findall(r"[\w']+", _line_body(page_text, n).lower())) + " "
-    found: set[str] = set()
-    for cl, refs, question in _cue_clauses(words):
-        if not refs or n not in refs:
-            continue
-        drops = [m for m in _NOTE_DROP.finditer(cl)
-                 if not _NEGATED.search(cl[:m.start()])
-                 and not _NOTE_SAYS.search(cl[:m.start()])]
-        if drops and not _KEEP_CHANGE.search(cl):
-            if all(" " + " ".join(re.findall(r"[\w']+", m.group(0).lower())) + " "
-                   in body for m in drops):
-                found.add("own")
-            else:
-                found.add("drop")
-            continue
-        if question or _CUE_KEEP.search(cl) or _NOTE_NO_CHANGE.search(cl):
-            continue
-        rest = _LINE_REF.sub(" ", cl)
-        # "Line 11 is about the echo json change" describes the line. Its
-        # "change" is a noun, and only a modal makes it a request.
-        if (re.match(r"\W*(?:on\s+)?(?:is|are|was|were)\b", rest, re.I)
-                and not re.search(r"\b(?:should|must|needs? to|has to|have to|"
-                                  r"instead|rather)\b", rest, re.I)):
-            continue
-        if _NOTE_CHANGE.search(rest):
-            found.add("change")
-    for kind in ("drop", "change", "own"):
-        if kind in found:
-            return kind
-    return None
-
-
 def _quotes_line(words: str, page_text: str, n: int) -> bool:
     """Whether the words quote line `n` of the rendered page: a run of five
     or more of the line's words, case-folded. The capture takes the line's
@@ -12888,11 +12627,14 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     for ref, ruling in per_item.items():
         if ruling != "revise" or not asked or not _is_team_note(ctx.conn, ref):
             continue
-        # A sentence that asks to change the note is a revise of the note.
-        # Night 161's s357 heard "On line 11, use click directly in the
-        # test", and the old door refused it five times (frame 305).
-        said = (_note_words(words, order.index(ref) + 1, page_text)
-                if order and ref in order else None)
+        # A revise that rewrites the note is a revise of the note. Night
+        # 161's s357 heard "On line 11, use click directly in the test", and
+        # the old door refused it five times (frame 305). The act of the
+        # call says it, `rewrite` or `drop`, and no phrase of his words does
+        # (the seam design, 3.3, P11). The row is not landed yet, so the
+        # door reads the act that this call writes.
+        said = {"rewrite": "change", "drop": "drop"}.get(
+            (shape_of.get(ref) or {}).get("act"))
         if said == "change":
             continue
         line = (f"line {order.index(ref) + 1}" if order and ref in order else ref)
@@ -12912,15 +12654,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                  if named else
                  "The words name no line of the request, and a revise of the "
                  "request needs the principal's words on the request.")
-        if said == "own":
-            # The drop word is the note's own word, so the words can mean
-            # either route. law 6: the Liaison picks none for the principal.
-            raise ValueError(
-                f"{line} is the team's note, not your request. The words use a "
-                f"word the note itself holds, so they do not say which route. "
-                f"To change the note, revise it on words that say the change. "
-                f"To drop the note, contest it. If neither fits, ask the "
-                f"principal: rulings.rule(ask=...) with no rulings.")
         # A revise of a note now lands on words that say the change, so the
         # old "revise rewrites a line of what the principal asked for" is
         # gone. The drop route stays first (frame 296).
@@ -20984,7 +20717,7 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
             continue
         if texts is None:
             texts = _ruling_texts(ctx)
-        if not _unruled_gone(_tree_text(tree, p), e, texts):
+        if not _unruled_gone(ctx, p, _tree_text(tree, p), e, texts):
             held.remove((p, _n))
     if not held and not later:
         return None
@@ -21047,7 +20780,7 @@ def _removal_strays(ctx: Ctx, tree) -> tuple[dict[str, str], dict[str, str]]:
             continue
         if texts is None:
             texts = _ruling_texts(ctx)
-        for g in _unruled_gone(now, e, texts):
+        for g in _unruled_gone(ctx, p, now, e, texts):
             owner = g["line"] if g["def"] else g["owner"]
             grain = f"{_grain_path(p)}::{owner}" if owner else _grain_path(p)
             out.setdefault(grain, []).append(g["shown"])
@@ -21277,7 +21010,11 @@ def _asks_removal(text: str, g: dict) -> bool:
 
     Frame 339: a miss records a stray for the Architect and refuses
     nothing, so no seat needs his words in a fixed form. The `line N`
-    match of 2acc7b5c is gone."""
+    match of 2acc7b5c is gone.
+
+    The door reads a criterion's text and the request's text here. His
+    ruling is no input: its act and target say what it removes, because a
+    criterion is not his ruling (the seam design, pass 4)."""
     head = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", g["line"])
     names = (g["line"], head.group(1) + "(" if head and not g["def"] else "")
     for s in re.split(r"(?<=[.!?])\s+|\n+", text or ""):
@@ -21297,20 +21034,63 @@ def _asks_removal(text: str, g: dict) -> bool:
     return False
 
 
-def _unruled_gone(text: str, e: dict, texts: list) -> list[dict]:
-    """The statements of `e` that `text` lacks and that no ruling text
-    asks to remove."""
+def _gone_targets(path: str, g: dict) -> list[str]:
+    """The targets by which a ruling names the gone statement `g` of
+    `path`: `owner:line` or `path:line` for a line, as in "get_app_dir:518",
+    the line itself, and the name of a definition."""
+    if g["def"]:
+        return [g["line"], f"{path}::{g['line']}", f"{path}:{g['line']}"]
+    out = [g["line"]]
+    if g["no"]:
+        owner = g["owner"] or ""
+        homes = (owner, owner.rsplit(".", 1)[-1], path, path.rsplit("/", 1)[-1])
+        out += [f"{h}:{g['no']}" for h in dict.fromkeys(filter(None, homes))]
+    return out
+
+
+def _unruled_gone(ctx: Ctx, path: str, text: str, e: dict,
+                  texts: list) -> list[dict]:
+    """The statements of `e` that `text` lacks, that no criterion or request
+    text of `texts` asks to remove, and that no ruling of his grants as a
+    removal.
+
+    His permission is the act and the target of his ruling, never a phrase
+    of his words. A ruling with no act grants nothing, so its removal is a
+    stray for the Architect (the seam design, pass 4; law 12)."""
+    from .principal import granted
+
+    refs = _batch_ruled_refs(ctx)
     return [g for g in _gone_statements(text, e)
-            if not any(_asks_removal(t, g) for t, _principal in texts)]
+            if not any(_asks_removal(t, g) for t, principal in texts
+                       if not principal)
+            and not any(granted(ctx.conn, r, "remove", _gone_targets(path, g))
+                        for r in refs)]
+
+
+def _batch_ruled_refs(ctx: Ctx) -> list[str]:
+    """The refs on which his ruling can rule the batch's work: the batch,
+    its criteria and tickets, its item, and the item's guess key."""
+    bid = ctx.batch_id
+    refs = {bid} | {k for r in ctx.conn.execute(
+        "SELECT c.id, c.ticket_id FROM criteria c JOIN batch_tickets bt "
+        "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (bid,))
+        for k in (r["id"], r["ticket_id"])}
+    item = ctx.conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                            (bid,)).fetchone()
+    if item is not None and item["item_id"]:
+        refs |= {item["item_id"], f"guess:{item['item_id']}"}
+    return sorted(r for r in refs if r)
 
 
 def _ruling_texts(ctx: Ctx) -> list[tuple[str, bool]]:
-    """The batch's own words that can rule a removal, each with True for
-    the principal's: the criteria of the batch, the request item's text,
-    and the landed rulings on the item's pages (review 1, finding 1).
+    """The batch's own words, each with True for the principal's: the
+    criteria of the batch, the request item's text, and the landed rulings
+    on the item's pages (review 1, finding 1).
 
     His words come from `ruled_words`, the reader that the criteria push
-    and the slicing push share (frame 322, proposal line 3)."""
+    and the slicing push share (frame 322, proposal line 3). The removal
+    door reads only the texts that are not his. His removal is the act of
+    his ruling (`_unruled_gone`)."""
     from .principal import ruled_words
 
     bid = ctx.batch_id
@@ -21723,7 +21503,7 @@ def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | Non
         # false note. A removal a ruling asks for needs no note.
         if texts is None:
             texts = _ruling_texts(ctx)
-        gone = _unruled_gone(_tree_text(tree, p), e, texts)
+        gone = _unruled_gone(ctx, p, _tree_text(tree, p), e, texts)
         if gone:
             return (f"{p} holds an uncommitted write that removes "
                     f"{', '.join(g['shown'] for g in gone)}, so this note "

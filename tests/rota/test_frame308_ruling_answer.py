@@ -15,9 +15,10 @@ import json
 
 import pytest
 
-from rota.core.db import backfill_ruled_refs, init_db
+from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.roles import prompts
+from rota.roles.principal import insert_ruling_rows, ruling_rows
 
 ITEM = "confirm_default_on_eof"
 TICKET = "tk_1_confirm_default_on_eof"
@@ -48,6 +49,12 @@ VERDICT = {CR2: "revise", CR3: "contest", "command#root": "approve",
 PER_ITEM = {ITEM: "approve", f"guess:{ITEM}": "approve", CR1: "approve",
             CR2: "revise", CR3: "contest", "command#root": "approve",
             "option#root": "approve", "parameter#root": "approve"}
+READING = {**PER_ITEM,
+           CR2: {"verdict": "revise", "act": "keep", "target_kind": "check",
+                 "words": "Keep line 4, but fix its check so it fakes a "
+                          "closed input properly"},
+           CR3: {"verdict": "contest", "act": "drop", "target_kind": "row",
+                 "words": "Drop line 5"}}
 # The lines of the page m89 in the order m98 names them: 1 to 3 and 6 to 8
 # are fine, line 4 is cr_2 and line 5 is cr_3.
 PAGE = [ITEM, f"guess:{ITEM}", CR1, CR2, CR3, "command#root", "option#root",
@@ -111,7 +118,11 @@ def _night158_relay(conn) -> None:
                  "'m98', ?, ?, 'landed', 'm99', ?)",
                  (json.dumps(PER_ITEM), WORDS,
                   json.dumps({CR2: CR2_TEXT, CR3: CR3_TEXT})))
-    backfill_ruled_refs(conn)
+    # The Liaison's reading of m98 as the object form writes it: line 4
+    # keeps its words and faults the check, and line 5 is dropped (the
+    # seam design, pass 4).
+    insert_ruling_rows(conn, ruling_rows(conn, "r_ce163d8060", PAGE, READING,
+                                         words=WORDS, unheld="skip"))
     conn.commit()
 
 
@@ -367,82 +378,6 @@ def test_m98_reads_cr_2_as_standing_and_cr_3_as_asking_new_words(db):
     assert not api.ruling_asks_no_new_words(sb.ctx, CR3)
 
 
-def test_a_reply_with_no_order_record_reads_todays_render(db):
-    """A database from before frame 272 holds no `order:` record. Today's
-    render of m89 puts cr_2 on line 3, so line 4's check is not cr_2's."""
-    from rota.roles import api
-
-    _night158_relay(db)
-    db.execute("DELETE FROM config WHERE key = 'order:m98'")
-    sb = _s220(db)
-    assert not api.ruling_asks_no_new_words(sb.ctx, CR2)
-
-
-# --- pass 3b, review 4: a colon keeps a line's body with its line -----------
-
-# r_4a62d8a771 of night 157, at the reply m212 to the page m210.
-N157_WORDS = ("Line 3: keep the requirement, but change its check so it asks "
-              "for the version with the setting left off and confirms the "
-              "Python version is not in that message, rather than looking at "
-              "the help output. Line 5: keep it as written, but fix the code so "
-              "that asking for the version with the setting on prints the exact "
-              "major.minor.micro from sys.version_info, because the output is "
-              "empty right now. Lines 1, 2, 4 and 6 to 8 are fine as they are.")
-N157_PAGE = ["show_python", "guess:show_python", "crit_show_python_default",
-             "crit_show_python_help", "crit_show_python_version",
-             "l_a479b2bd45", "l_25d965403f", "l_b86fa66c6d"]
-# r_m144 of night 142, at the reply m144: a negated removal of a range.
-N142_WORDS = ("Yes, put the echo_json tests next to the existing echo tests in "
-              "the utils tests. Fix line 7 so it compares the whole output with "
-              "the compact JSON plus one newline, and strip nothing first. Don't "
-              "remove lines 8 to 14 as a block: remove only line 8, which "
-              "repeats line 1, cut lines 10 and 11 back to their first sentence, "
-              "and drop line 13.")
-
-
-def _ruled_page(conn, rid, ask, reply, words, page) -> dict:
-    """A ruling on the page `ask`, with his reply `reply` and its record."""
-    _message(conn, ask, None, "liaison", "principal", "present", page, 1)
-    _message(conn, reply, ask, "principal", "liaison", "converse", page, 2,
-             words)
-    conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
-                 "status) VALUES (?, ?, ?, '{}', ?, 'landed')",
-                 (rid, ask, reply, words))
-    backfill_ruled_refs(conn)
-    conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
-                 (f"order:{reply}", json.dumps(page)))
-    conn.commit()
-    return {"id": rid, "words": words}
-
-
-def test_a_line_label_before_a_colon_keeps_its_body_on_its_line(db):
-    """Review 4, finding 1: the split on ":" sent line 3's "change its check"
-    to crit_show_python_version on line 5."""
-    from rota.roles import api
-
-    ruled = _ruled_page(db, "r_4a62d8a771", "m210", "m212", N157_WORDS,
-                        N157_PAGE)
-    five = api._ruling_words_on(db, ruled, "crit_show_python_version")
-    assert "change its check" not in five, five
-    assert "fix the code" in five, five
-    three = api._ruling_words_on(db, ruled, "crit_show_python_default")
-    assert "change its check" in three, three
-    assert "fix the code" not in three, three
-
-
-def test_a_negated_removal_asks_no_new_words_of_its_lines(db):
-    """Review 4, finding 3: "Don't remove lines 8 to 14 as a block" asks
-    nothing of line 9. "drop line 13" asks new words of line 13 alone."""
-    from rota.roles import api
-
-    page = [f"row_{n}" for n in range(1, 15)]
-    ruled = _ruled_page(db, "r_m144", "m142", "m144", N142_WORDS, page)
-    assert not api._words_fault_on(db, ruled, "row_9")
-    assert api._words_fault_on(db, ruled, "row_13")
-    assert api._line_dropped_on(db, ruled, "row_13") == 13
-    assert api._line_dropped_on(db, ruled, "row_9") is None
-
-
 # --- pass 3c: a dropped line needs no answer, and a kept line stands ---------
 
 def test_an_answer_with_cr_2_and_no_cr_3_is_admitted(db):
@@ -454,84 +389,3 @@ def test_an_answer_with_cr_2_and_no_cr_3_is_admitted(db):
     assert out["to"] == "tester" and out["verb"] == "answer", out
     [sent] = _answers(sb)
     assert sent["body_refs"] == [CR2]
-
-
-def test_a_kept_line_with_a_code_fault_asks_no_new_words(db):
-    """r_4a62d8a771, line 5: "keep it as written, but fix the code". The
-    words are approved, so the criterion stands (pass 3c, point 2)."""
-    from rota.roles import api
-
-    ruled = _ruled_page(db, "r_4a62d8a771", "m210", "m212", N157_WORDS,
-                        N157_PAGE)
-    assert api._keeps_words_on(db, ruled, "crit_show_python_version")
-    assert not api._words_fault_on(db, ruled, "crit_show_python_version")
-
-
-# --- pass 3d: a drop is the whole line, and a keep yields to new words -------
-
-PAGE5 = [f"row_{n}" for n in range(1, 6)]
-
-
-@pytest.mark.parametrize("line, words", [
-    (3, "Line 3 should go back to how you had it."),
-    (5, "Remove line 5's last clause about the prompt."),
-    (5, "Line 5 should go further and name the default."),
-])
-def test_a_revert_or_a_partial_edit_is_no_drop(db, line, words):
-    """Review 5, finding 2: night 140's r_4dfcbd586b said "Line 3 should go
-    back to how you had it". A drop removes the whole line, so these words
-    ask new words of the line and drop nothing."""
-    from rota.roles import api
-
-    ruled = _ruled_page(db, "r_p3d", "m300", "m301", words, PAGE5)
-    assert api._line_dropped_on(db, ruled, f"row_{line}") is None
-    assert api._words_fault_on(db, ruled, f"row_{line}")
-
-
-@pytest.mark.parametrize("words", [
-    "Drop line 5.",
-    "Please delete line 5 because it repeats line 4.",
-    "Line 5 should go, and line 4 should say that confirm returns the default.",
-    # Nights 143 and 144: words after the line that keep the whole line.
-    "Line 8 asks again, so please remove lines 2 to 5 as I asked before.",
-    "Please drop lines 2 to 5 again.",
-])
-def test_a_removal_of_the_whole_line_is_a_drop(db, words):
-    """The removal verb's object is the line itself, and nothing after it
-    narrows the removal (frame 283's clause reading)."""
-    from rota.roles import api
-
-    ruled = _ruled_page(db, "r_p3d", "m300", "m301", words, PAGE5)
-    assert api._line_dropped_on(db, ruled, "row_5") == 5
-
-
-@pytest.mark.parametrize("words", [
-    "Line 4: keep the requirement, but it should say that confirm returns "
-    "the default.",
-    "Keep line 4 as it is, but change it to say that confirm returns the "
-    "default.",
-    "Line 4 should say that confirm returns the default, and keep it as "
-    "written otherwise.",
-    "Line 4 should say that confirm returns the default. Keep it as it is "
-    "for the rest.",
-])
-def test_a_keep_yields_to_a_request_for_new_words(db, words):
-    """Review 5, finding 1: a keep in the same sentence as a request for new
-    words, or a keep that names no line, cancels no request."""
-    from rota.roles import api
-
-    ruled = _ruled_page(db, "r_p3d", "m300", "m301", words, PAGE5)
-    assert api._words_fault_on(db, ruled, "row_4")
-
-
-def test_a_keep_of_one_line_stands_beside_new_words_on_another(db):
-    """A keep that names line 3 still keeps line 3, and the words request on
-    line 4 bears on line 4 only."""
-    from rota.roles import api
-
-    words = ("Keep line 3 as it is. Line 4 should say that confirm returns "
-             "the default.")
-    ruled = _ruled_page(db, "r_p3d", "m300", "m301", words, PAGE5)
-    assert not api._words_fault_on(db, ruled, "row_3")
-    assert api._keeps_words_on(db, ruled, "row_3")
-    assert api._words_fault_on(db, ruled, "row_4")

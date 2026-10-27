@@ -17,6 +17,7 @@ import json
 import pytest
 
 from rota.core.db import backfill_ruled_refs, init_db
+from rota.testkit.fixtures import seed_acts
 from rota.core.sandbox import build
 from rota.roles import api, prompts
 
@@ -114,7 +115,7 @@ def _message(conn, mid, cause, thread, sender, to, verb, refs, seq, text=None):
                   seq))
 
 
-def _ruled(conn, rid, page, reply, verdict, relay, words, texts, seq):
+def _ruled(conn, rid, page, reply, verdict, relay, words, texts, seq, acts):
     """A page, his reply, the verdict, the ruling and the relay, with the
     criteria as they stood when he ruled."""
     for cid, text in ((CR1, "confirm() takes a default_on_eof flag."),
@@ -139,18 +140,24 @@ def _ruled(conn, rid, page, reply, verdict, relay, words, texts, seq):
                  "?, ?)", (rid, page, reply, json.dumps(PER_ITEM), words,
                            verdict, json.dumps(texts)))
     backfill_ruled_refs(conn)
-    conn.commit()
+    # The Liaison's reading of his reply as the object form writes it: a
+    # fault of the check alone keeps the words (the seam design, pass 4).
+    seed_acts(conn, rid, acts)
+
+
+KEEP = {"act": "keep", "target_kind": "check"}
 
 
 def _s195(conn):
     _ruled(conn, "r_42118c7554", "m75", "m76", "m77", "m78", M76, M76_TEXTS,
-           78)
+           78, {CR2: KEEP, CR3: KEEP})
     return _seat(conn, "s195", "m78")
 
 
 def _s255(conn):
     _ruled(conn, "r_44b442e2a3", "m114", "m115", "m116", "m117", M115,
-           M115_TEXTS, 117)
+           M115_TEXTS, 117, {CR2: {"act": "rewrite", "target_kind": "row"},
+                             CR3: KEEP})
     return _seat(conn, "s255", "m117")
 
 

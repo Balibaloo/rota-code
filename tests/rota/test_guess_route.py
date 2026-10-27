@@ -22,8 +22,7 @@ import pytest
 
 from rota.core.db import SessionResult, init_db, session_commit
 from rota.core.predicates import cancel
-from rota.core.runner import (_as_write, _mode_key, disputed_paths,
-                              resolve_inbound, run_session)
+from rota.core.runner import _as_write, _mode_key, resolve_inbound, run_session
 from rota.core.sandbox import build
 from rota.core.scheduler import Wake, open_tips
 from rota.llm.llm import Pins, ScriptedBackend
@@ -347,122 +346,27 @@ def test_the_guess_relay_passes_the_send_door_and_keys_the_guess_mode(db):
     assert _mode_key(wake, db) == "guess"
 
 
-def test_the_guess_relay_carries_the_item_the_set_and_the_disputed_paths(db):
-    rid = _relay(db, _guess_verdict(db))
+@pytest.mark.parametrize("key_ruling, disputed", [
+    ({"verdict": "contest", "act": "remove", "target": "tests/test_options.py",
+      "words": "the options test file is not part of this change"},
+     ["tests/test_options.py"]),
+    ("contest", []),
+])
+def test_the_guess_relay_carries_the_item_the_set_and_the_disputed_paths(
+        db, key_ruling, disputed):
+    """Pass 4, P10: the path his ruling removes leaves the guess. The act
+    `remove` and its target say it. A contest with no act disputes no path,
+    and the Architect reads his words."""
+    _page(db, batch=None, guess=True, stamp={KEY: {"guess": [1, ""]}})
+    vid = _land_ruling(db, M192, dict(S322_MOVED, **{KEY: key_ruling}))
+    rid = _relay(db, vid)
     wake = Wake("architect", "message", message_id=rid, detail="relay")
     inbound = resolve_inbound(db, wake)
     assert inbound["item"]["id"] == ITEM
     shown = ["src/click/decorators.py", "tests/test_options.py",
              "tests/test_defaults.py"]
-    # The wiring is the point. The paths are pinned in the tests below.
-    disputed = disputed_paths(M192, shown, possible=[],
-                              item=f"{ITEM} " + inbound["item"]["text"])
     assert inbound["disputed"] == disputed
     assert inbound["guess"] == [p for p in shown if p not in disputed]
-    words = "Line 1 is wrong: the options test file is not part of this change."
-    assert disputed_paths(words, shown) == ["tests/test_options.py"]
-
-
-# The paths of night 156's bg_3 guess (review 4 of frame 298, finding 3).
-# Page m191 listed `tests/test_basic.py` beside the options and defaults
-# files, so the pin holds the kept file too (review 5 of frame 298, finding 1).
-BG3_GUESS = ["tests/test_options.py", "tests/test_basic.py", "tests/test_defaults.py",
-             "tests/test_termui.py", "tests/test_shell_completion.py",
-             "src/click/decorators.py"]
-
-# Night 156's m147, and part of the set that relay s262 recorded for bg_3.
-M147 = ("Line 5 lists far too much. Apart from version option and the version "
-        "tests in the basic tests file, the files it names are tests for boolean "
-        "flags, flag values, defaults and deprecated help, and they have nothing "
-        "to do with this change, so please keep the work to version option and "
-        "its own tests.")
-S262_SET = ["src/click/decorators.py::version_option",
-            "tests/test_basic.py::test_boolean_flag",
-            "tests/test_basic.py::test_custom_version_option",
-            "tests/test_basic.py::test_flag_value_dual_options",
-            "tests/test_basic.py::test_option_reusing_help_flag",
-            "tests/test_basic.py::test_version_option_ambiguous_import_name_errors",
-            "tests/test_basic.py::test_version_option_resolves_import_name_to_distribution",
-            "tests/test_basic.py::test_version_option_unknown_package_errors",
-            "tests/test_commands.py::test_deprecated_in_help_messages",
-            "tests/test_defaults.py::test_flag_default_map",
-            "tests/test_defaults.py::test_multiple_flag_default",
-            "tests/test_options.py::test_bool_flag_pair_default",
-            "tests/test_options.py::test_flag_auto_detection"]
-
-# Night 155's m110 on page m108's code line.
-M110 = ("Line 1 should list only the echo test file and the place next to echo in "
-        "utils.py. The termui and context test files have nothing to do with this "
-        "change. Lines 2, 3 and 4 are fine.")
-M108_LINE = ["tests/test_termui.py", "tests/test_utils/test_echo.py",
-             "tests/test_context.py"]
-
-M201 = ("Line 1 still names the options and shell completion test files, which "
-        "have nothing to do with this change, and it mixes in my notes about "
-        "the tests. Line 1 should only say to add the show_python flag.")
-
-
-def test_m192_calls_the_options_and_defaults_test_files_wrong():
-    assert disputed_paths(M192, BG3_GUESS) == [
-        "tests/test_options.py", "tests/test_defaults.py"]
-
-
-def test_m201_calls_the_options_and_shell_completion_test_files_wrong():
-    assert disputed_paths(M201, BG3_GUESS) == [
-        "tests/test_options.py", "tests/test_shell_completion.py"]
-
-
-def test_m147_keeps_the_basic_tests_its_apart_from_clause_names():
-    item = ("version_option_show_python Give version_option a show_python flag "
-            "that appends the running Python version to the message.")
-    disputed = disputed_paths(M147, S262_SET, possible=[], item=item)
-    assert not [p for p in disputed if p.startswith("tests/test_basic.py")]
-
-
-def test_m193_keeps_the_basic_tests_file_its_keep_clause_names():
-    page_m191 = ["tests/test_options.py", "tests/test_basic.py",
-                 "tests/test_defaults.py"]
-    assert disputed_paths(M192, page_m191) == [
-        "tests/test_options.py", "tests/test_defaults.py"]
-
-
-def test_m110_calls_the_termui_and_context_test_files_wrong():
-    assert disputed_paths(M110, M108_LINE) == [
-        "tests/test_termui.py", "tests/test_context.py"]
-
-
-def test_m68_calls_the_defaults_tests_wrong_and_keeps_termui():
-    said = ("Line 7 is wrong: the default_map tests in the defaults test file have "
-            "nothing to do with confirm, that file already exists, and the confirm "
-            "tests belong in the terminal UI tests. Line 6 is also wrong, because "
-            "confirm should still read stdin as it does today and return the "
-            "default only when that read hits the end of input.")
-    s159 = ["src/click/termui.py", "src/click/termui.py::confirm",
-            "tests/test_defaults.py::test_basic_defaults",
-            "tests/test_defaults.py::test_default_map"]
-    item = ("confirm_default_on_eof Let confirm() take a default_on_eof flag: when "
-            "stdin is closed it returns the default instead of aborting.")
-    assert disputed_paths(said, s159, possible=[], item=item) == [
-        "tests/test_defaults.py::test_basic_defaults",
-        "tests/test_defaults.py::test_default_map"]
-
-
-def test_a_list_joined_by_or_names_each_member():
-    words = "Drop the options, termui or basic test files."
-    assert disputed_paths(words, BG3_GUESS) == [
-        "tests/test_options.py", "tests/test_basic.py", "tests/test_termui.py"]
-
-
-def test_a_list_of_three_names_one_test_file_per_member():
-    words = "The options, defaults and termui test files are not part of this."
-    assert disputed_paths(words, BG3_GUESS) == [
-        "tests/test_options.py", "tests/test_defaults.py",
-        "tests/test_termui.py"]
-
-
-def test_a_list_names_no_file_the_paths_lack():
-    words = "The core and main test files are wrong."
-    assert disputed_paths(words, BG3_GUESS) == []
 
 
 def test_the_rewrite_rests_on_the_ruling_and_clears_its_set_first(db):

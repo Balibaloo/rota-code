@@ -123,6 +123,45 @@ def _seed_verdict_rulings(conn: sqlite3.Connection,
     backfill_ruled_refs(conn)
 
 
+def seed_acts(conn: sqlite3.Connection, ruling_id: str, acts: dict) -> None:
+    """Give the rows of a seeded ruling the act, the target kind, the target
+    and the words of the object form of `rulings.rule`.
+
+    A seeded ruling gets its rows from the back-fill, and a back-filled row
+    has no act. A test of what his ruling permits seeds the act the Liaison
+    writes. A row never changes after its insert, so the helper deletes the
+    back-filled row and inserts the row again through the one builder (the
+    seam design, 1.3 and pass 4). The row keeps its page line, its old text,
+    its version and its source. A value can give the page line as `line`."""
+    from ..roles.principal import insert_ruling_rows, ruling_rows
+
+    ruling = conn.execute("SELECT per_item, words FROM rulings WHERE id = ?",
+                          (ruling_id,)).fetchone()
+    per_item = json.loads(ruling["per_item"] or "{}") if ruling else {}
+    for ref, value in acts.items():
+        old = conn.execute(
+            "SELECT verdict, line, old_text, ref_version, source FROM ruled_refs "
+            "WHERE ruling_id = ? AND ref = ?",
+            (ruling_id, ref)).fetchone()
+        value = dict(value)
+        line = value.pop("line", None)
+        value.setdefault("verdict", old["verdict"] if old else per_item.get(ref))
+        conn.execute("DELETE FROM ruled_refs WHERE ruling_id = ? AND ref = ?",
+                     (ruling_id, ref))
+        rows = ruling_rows(conn, ruling_id, None, {ref: value},
+                           words=ruling["words"] if ruling else "")
+        for row in rows:
+            if line is not None:
+                row["line"] = line
+            if old is not None:
+                row["line"] = row["line"] if row["line"] is not None else old["line"]
+                row["old_text"] = old["old_text"]
+                row["ref_version"] = old["ref_version"]
+                row["source"] = old["source"]
+        insert_ruling_rows(conn, rows)
+    conn.commit()
+
+
 def _encode(value: Any) -> Any:
     return json.dumps(value) if isinstance(value, (list, dict)) else value
 

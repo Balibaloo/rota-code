@@ -1956,229 +1956,21 @@ def trigger_message(conn: sqlite3.Connection, wake: Wake) -> str | None:
     return None
 
 
-# The words that mark a clause as a "no". Lower case, matched as whole words.
-_DISPUTE_WORDS = {"not", "wrong", "unrelated", "no", "never", "isn't", "aren't",
-                  "doesn't", "shouldn't", "drop", "remove", "can't", "cannot",
-                  "won't", "don't", "wasn't"}
-
-# "No changes to termui needed beyond the flag" says the file does change.
-# That "no" counts a limit, so it disputes nothing (the delta review of
-# af535499, finding 3).
-_NO_BEYOND = re.compile(r"\bno\s+(?=(?:changes?|edits?|needs?|needed)\b)")
-_BEYOND = re.compile(r"\b(?:beyond|except|other\s+than)\b")
-
-# The words that place a single word part of a file name as a file. "option
-# defaults" named `tests/test_options.py` on night 133's bg_6 without them
-# (the delta review of af535499, finding 5).
-_FILE_WORDS = {"test", "file"}
-
-# The verbs by which a main clause says what a file covers, m198's "cover
-# option defaults and default maps, not confirm". "test" is left out: the
-# noun "tests" stands in "The new tests go in tests/test_termui.py, not
-# confirm", which disputes nothing (the delta review of 5ffa1244, finding 1).
-_COVERS = re.compile(r"\b(?:covers?|checks?|(?:is|are|was|were)\s+about)\b")
-
-# Night 156's m192 and m201 call two test files wrong with "have nothing to
-# do with this change" and no "no" word (review 4 of frame 298, finding 3).
-_NOTHING_TO_DO = re.compile(r"\bnothing\s+to\s+do\s+with\b")
-
-# A comma part that keeps what it names. m147's "Apart from version option
-# and the version tests in the basic tests file" keeps the basic tests
-# beside its "nothing to do with" (review 5 of frame 298, finding 1).
-_KEEP_LED = re.compile(
-    r"\s*(?:(?:and|so)\s+)?(?:please\s+)?(?:apart\s+from|except|keep|still\s+want)\b")
-
-# "the options and shell completion test files" names one test file per
-# list member. The window of three words misses a first member that stands
-# far from "test" (review 4 of frame 298, finding 3, m201 of night 156).
-_LIST_MEMBER = r"[a-z0-9_]+(?:\s+[a-z0-9_]+)?"
-_TEST_FILE_LIST = re.compile(
-    r"(" + _LIST_MEMBER + r"(?:\s*,\s*" + _LIST_MEMBER + r")*,?\s+(?:and|or)\s+"
-    + _LIST_MEMBER + r")\s+tests?\s+files\b")
-
-
-def _listed(text: str) -> list[set[str]]:
-    """The word sets that a list before "test files" can name a file by.
-
-    Each member gives its last two words and its last word, so "the
-    options" gives {"the", "option"} and {"option"}.
+def disputed_paths(conn: sqlite3.Connection, ref: str,
+                   paths: list[str]) -> list[str]:
     """
-    out: list[set[str]] = []
-    for match in _TEST_FILE_LIST.finditer(text):
-        for member in re.split(r",|\b(?:and|or)\b", match.group(1)):
-            words = [_word(w) for w in re.findall(r"[a-z0-9_]+", member)]
-            if words:
-                out += [set(words[-2:]), {words[-1]}]
-    return out
+    The paths of a prediction that his ruling on `ref` takes off.
 
-
-def _word(w: str) -> str:
-    """A word with one trailing "s" removed, so "defaults" names `default`."""
-    return w[:-1] if len(w) > 3 and w.endswith("s") else w
-
-
-def _parts(grain: str) -> set[str]:
-    """The word parts of a grain's file name or symbol, less "test"."""
-    name = grain.replace("\\", "/").rsplit("/", 1)[-1].lower()
-    stem = name.rsplit(".", 1)[0]
-    return {_word(w) for w in re.split(r"[_\-]+", stem) if w} - {"test", "tests"}
-
-
-def disputed_paths(said: str, paths: list[str], possible: list[str] = (),
-                   item: str | None = None, conn=None) -> list[str]:
+    A path is disputed when his newest landed ruling on `ref` has the act
+    `remove` with that path as its target. A ruling with no act disputes
+    nothing, so the guess stays whole and the seat reads his words. Night
+    133 to 156 read the "no" words of his reply by twelve patterns, and
+    each review found a form they missed (frame 298). The record replaces
+    them (the seam design, 3.3, P10).
     """
-    The paths of a prediction that the principal's words call wrong.
+    from ..roles.principal import granted
 
-    A sentence of the words disputes a path when it names the path and holds
-    a "no" word. A sentence ends at punctuation that a space or the end
-    follows, so a file name keeps its dot, and at "but". A sentence names a
-    path by the whole path, by its file name, or by every word of the file
-    name less "test", with a trailing "s" removed. "Nothing to do with"
-    disputes the paths of its own clause: the comma parts before it, less
-    a part led by "apart from", "except", "keep" or "still want", and its
-    part up to the phrase. A list "the A, B and C test files" names each
-    test file whose word parts are a member's last word or last two words,
-    so "the options and shell completion test files" names
-    `test_options.py` and `test_shell_completion.py`. A test file name of one
-    word part names a path by that word only when "test" or "file" stands
-    within three words of it. When a part of the sentence after a comma
-    starts with a "no" word and names a path, those paths are disputed, and
-    the rest of the sentence disputes its own paths only when it holds a
-    "no" word: "the termui file, not the defaults test file" disputes the
-    second file alone. A part "not B" that follows a part with a "no" word
-    about A calls B right: "the defaults test file is wrong, not the termui
-    test file" disputes the first file alone. A part that starts with a
-    "no" word never disputes a grain of `possible` whose bare name is a
-    word of the item, or any grain of `possible` when `item` is None. When
-    the "no" parts name only such grains, the sentence disputes nothing,
-    unless its one "no" part follows a main clause that says what files
-    cover: then the main clause's files are disputed. A file name matches
-    only where no letter, digit or "_" stands before it. A "no" before "changes", "edits" or "need" with "beyond", "except" or
-    "other than" disputes nothing. Words that name no path dispute nothing.
-    The window rules for a test file hold for each file that `kind_of`
-    marks attached, with `conn`'s frame rulings when `conn` is given.
-    """
-    from ..onboarding.areas import kind_of
-
-    item_words = (None if item is None else
-                  set(re.findall(r"[a-z0-9]+", item.lower()))
-                  | set(re.findall(r"[a-z0-9_]+", item.lower())))
-
-    def kept(path: str) -> bool:
-        # "cover option defaults, not confirm" says what the tests are
-        # about, and `confirm` is the item's own symbol (the delta review
-        # of afecf14a, finding 1, m198 of night 133). The bare name counts,
-        # so a `test_` symbol whose parts the item holds stays disputable
-        # (the delta review of 5ffa1244, finding 3).
-        if path not in possible:
-            return False
-        return item_words is None or path.lower() in item_words
-
-    def mentions(text: str, name: str) -> bool:
-        # A word boundary before the name: "test_termui.py" does not name
-        # `termui.py` (the delta review of 5ffa1244, finding 4).
-        return re.search(r"(?<![a-z0-9_])" + re.escape(name), text) is not None
-
-    def named(text: str, path: str) -> bool:
-        tokens = [_word(w) for w in re.findall(r"[a-z0-9_']+", text)]
-        name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
-        parts = _parts(path)
-        if mentions(text, path.lower()) or mentions(text, name):
-            return True
-        # The window holds for a test file alone. "termui is wrong" names
-        # the source by its bare word (the delta review of afecf14a,
-        # finding 2).
-        # An attached file, a test file first, by the frame's kind (frame
-        # 324, ruled: Roman, 2026-10-26 20:37).
-        under_tests = kind_of(conn, path) == "attached"
-        if under_tests and parts and any(parts == s for s in _listed(text)):
-            return True
-        if len(parts) == 1 and under_tests:
-            (part,) = parts
-            return any(t == part and _FILE_WORDS & set(tokens[max(0, i - 3):i + 4])
-                       for i, t in enumerate(tokens))
-        return bool(parts and parts <= set(tokens))
-
-    def says_no(text: str) -> bool:
-        return bool(set(re.findall(r"[a-z']+", text)) & _DISPUTE_WORDS)
-
-    def nothing_to_do(sentence: str) -> list[str]:
-        # The phrase disputes its own clause alone: the comma parts before
-        # it and its part up to the phrase. The words after it name what
-        # the item is about, and a part led by "keep" or "apart from" keeps
-        # its paths (review 5 of frame 298, finding 1, m147 and m193).
-        clause: list[str] = []
-        found: list[str] = []
-        for part in sentence.split(","):
-            if _KEEP_LED.match(part):
-                continue
-            m = _NOTHING_TO_DO.search(part)
-            if m is None:
-                clause.append(part)
-                continue
-            text = ",".join(clause + [part[:m.start()]])
-            found += [p for p in paths if named(text, p) and p not in found]
-            clause = []
-        return found
-
-    no_led = re.compile(
-        r"\s*(" + "|".join(map(re.escape, sorted(_DISPUTE_WORDS))) + r")\b")
-    out: list[str] = []
-    text = (said or "").lower().replace("’", "'")
-    for sentence in re.split(r"[.;:!?]+(?=\s|$)|\n+|\bbut\b", text):
-        if _BEYOND.search(sentence):
-            sentence = _NO_BEYOND.sub("", sentence)
-        for path in (nothing_to_do(sentence) if _NOTHING_TO_DO.search(sentence)
-                     else []):
-            if path not in out:
-                out.append(path)
-        if not says_no(sentence):
-            continue
-        hits = [p for p in paths if named(sentence, p)]
-        # "A, not B": the "no" part holds the dispute, and A is what the
-        # words want (the diff review of 0ffc97b7, finding 3).
-        parts = sentence.split(",")
-        led: list[str] = []
-        right: list[str] = []
-        spared: list[str] = []
-        for i, part in enumerate(parts):
-            if not no_led.match(part):
-                continue
-            names = [p for p in paths if named(part, p)]
-            spared += [p for p in names if kept(p)]
-            names = [p for p in names if not kept(p)]
-            # "A is wrong, not B": a "not" part after a part that says no
-            # about a path calls B right (the delta review of af535499,
-            # finding 2). Before it, "Not A, B is wrong" disputes both (the
-            # delta review of afecf14a, finding 3).
-            if re.match(r"\s*not\b", part) and any(
-                    not no_led.match(q) and says_no(q)
-                    and any(named(q, p) for p in paths) for q in parts[:i]):
-                right += names
-            else:
-                led += names
-        rest = ",".join(part for part in parts if not no_led.match(part))
-        other = ([p for p in paths if named(rest, p)
-                  and p not in led and p not in right]
-                 if says_no(rest) else [])
-        if led or right:
-            chosen = led + other
-        elif spared:
-            # A "no" part that names only the item's own symbol disputes
-            # nothing through the fallback: "Keep termui.py, not confirm"
-            # keeps the file (the delta review of 5ffa1244, finding 1). A
-            # main clause that says what files cover, "the default tests
-            # cover option defaults, not confirm", disputes those files.
-            covers = _COVERS.search(rest) and len(
-                [part for part in parts if no_led.match(part)]) == 1
-            chosen = other or ([p for p in paths if named(rest, p)
-                                and p not in spared] if covers else [])
-        else:
-            chosen = hits
-        for path in chosen:
-            if path not in out and path not in spared:
-                out.append(path)
-    return out
+    return [p for p in paths if granted(conn, ref, "remove", p)]
 
 
 def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
@@ -2354,11 +2146,10 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         from .lifecycle import touch_set
 
         out["touch"] = {b: touch_set(conn, b) for b in out["refs"]}
-        # The path the words call wrong leaves `expected`. In the interview
+        # The path his ruling removes leaves `expected`. In the interview
         # of the red re-annotate case, the seat kept `tests/test_defaults.py`
         # because `expected` listed it, and it said that list outweighed
         # `principal_said` (plans/frame190-interview.md, 2026-10-09).
-        said = out.get("principal_said") or ""
         for b, touch in out["touch"].items():
             if not touch or out.get("principal_verdict", {}).get(b) not in (
                     "contest", "revise"):
@@ -2366,12 +2157,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             # `possible` too: after m85 the symbol the words called unrelated
             # stayed there, and run 4 wrote it back (the diff review of
             # 0ffc97b7, finding 5).
-            item = touch.get("item") or {}
             disputed = disputed_paths(
-                said, touch.get("expected", []) + touch.get("possible", []),
-                possible=touch.get("possible", []),
-                item=" ".join(filter(None, (item.get("id"), item.get("text")))) or None,
-                conn=conn)
+                conn, b, touch.get("expected", []) + touch.get("possible", []))
             touch["disputed"] = disputed
             for key in ("expected", "possible"):
                 touch[key] = [p for p in touch.get(key, []) if p not in disputed]
@@ -2405,10 +2192,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         symbols = [r["grain"] for r in rows if r["grain_kind"] == "symbol"]
         disputed: list[str] = []
         if out.get("principal_verdict", {}).get(key) in ("contest", "revise"):
-            disputed = disputed_paths(
-                out.get("principal_said") or "", paths + symbols, possible=symbols,
-                item=" ".join(filter(None, (item_id, item["text"] if item else None))),
-                conn=conn)
+            disputed = disputed_paths(conn, key, paths + symbols)
         out["guess"] = [p for p in paths + symbols if p not in disputed]
         out["disputed"] = disputed
     # One name for one thing. Intake already calls the principal's words
@@ -2723,32 +2507,27 @@ def _resolve_contest(conn: sqlite3.Connection, item: str) -> dict[str, Any]:
     """
     The ruling that contested `item`, and the principal's reason for it.
 
-    A verdict is a config row `verdict:<message id>` holding a map of row id
-    to approve, contest or revise, keyed to the principal's message. An item
-    can be contested more than once -- amended, re-presented, contested again
-    -- so the latest by that message's seq is the one that stands. Nothing
+    The ruling is a landed row of `ruled_refs_live` on `item`. An item can
+    be contested more than once -- amended, re-presented, contested again
+    -- so the latest landed ruling is the one that stands. Nothing
     contested it: nothing to say, and the owner is woken with the item alone,
-    as before.
+    as before. The row is the record, so the `verdict:` map in config is not
+    read (the seam design, 3.4; the review of pass 2).
     """
-    from ..roles.principal import entry_for
+    from ..roles.principal import entry_for, ruled
 
-    rows = conn.execute(
-        "SELECT c.key, c.value FROM config c JOIN messages m "
-        "ON m.id = substr(c.key, 9) WHERE c.key LIKE 'verdict:%' "
-        "ORDER BY m.seq DESC").fetchall()
-    for r in rows:
-        ruling = json.loads(r["value"] or "{}")
-        # law 9: a revise is an amendment, so it wakes the owner with the words
-        # A revise carries the principal's replacement words, so it wakes the
-        # owner as a contest does. Read for `contest` only, night 136's revise
-        # of the confirm item reached the Vision Keeper with the item alone
-        # (frame 190's design, 2.2.2).
-        if ruling.get(item) not in ("contest", "revise"):
+    # law 9: a revise is an amendment, so it wakes the owner with the words
+    # A revise carries the principal's replacement words, so it wakes the
+    # owner as a contest does. Read for `contest` only, night 136's revise
+    # of the confirm item reached the Vision Keeper with the item alone
+    # (frame 190's design, 2.2.2).
+    for r in reversed(ruled(conn, [item])):
+        if r["verdict"] not in ("contest", "revise"):
             continue
-        mid = r["key"][len("verdict:"):]
+        mid = r["verdict_id"] or r["reply_id"]
         out: dict[str, Any] = {"refs": [item],
-                               "principal_verdict": {item: ruling[item]}}
-        reason = entry_for(conn, mid)
+                               "principal_verdict": {item: r["verdict"]}}
+        reason = entry_for(conn, mid) if mid else ""
         if reason:
             out["principal_said"] = reason
             recorded = conn.execute(

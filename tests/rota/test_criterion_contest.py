@@ -15,6 +15,7 @@ import json
 import pytest
 
 from rota.core.db import backfill_ruled_refs, init_db
+from rota.testkit.fixtures import seed_acts
 from rota.core.predicates import Wake
 from rota.core.runner import build_prompt
 from rota.core.sandbox import build
@@ -134,6 +135,22 @@ def test_a_name_the_principal_asked_for_is_admitted(db):
         _respecify(db, V16)
 
 
+def test_the_name_must_sit_in_the_contest_rows_own_words(db):
+    """Pass 4, P9: the door reads the words of the contest row, the span
+    that rules this criterion, and not the whole reply. The reply names
+    `version_option`, and the row's span does not, so V15 is refused."""
+    _criterion(db, "The decorator appends the running Python version "
+                   "(major.minor.micro) when the `show_python` parameter is "
+                   "True.")
+    _ruling(db, "r_c4bf70291d", "m374", "contest", WORDS_374, V14)
+    seed_acts(db, "r_c4bf70291d", {CID: {
+        "act": "rewrite", "words": "Line 2 is wrong because it treats "
+                                   "show_python as a new command-line option "
+                                   "that users type."}})
+    with pytest.raises(ValueError, match="version_option"):
+        _respecify(db, V15)
+
+
 def test_a_contest_that_land_writes_keeps_the_text_it_contested(db):
     """The review of 33cd99b2, finding 3: a verdict straight from the seat
     lands through `land`, whose raw INSERT wrote no texts."""
@@ -235,6 +252,9 @@ def test_a_contest_of_the_check_names_the_answer_route(db):
     line 3's check and not the criterion's words."""
     _criterion(db, CR1)
     _ruling(db, "r_b33e2979e0", "m170", "contest", WORDS_170, CR1)
+    # The Liaison reads a fault of the check alone as a keep of the words
+    # (the seam design, pass 4).
+    seed_acts(db, "r_b33e2979e0", {CID: {"act": "keep", "target_kind": "check"}})
     # The door reads his words per line of the page he saw (frame 308, pass
     # 3). His "Line 3" is this criterion, so the record puts it on line 3.
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "

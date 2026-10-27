@@ -786,6 +786,51 @@ def last_ruling_on(conn: sqlite3.Connection, ref: str) -> dict | None:
             "words": r["reply_words"] or "", "text": r["old_text"]}
 
 
+def _target_key(said) -> str:
+    """A target as the readers compare it: case-folded, with no quote marks,
+    no backticks and no leading dashes around it."""
+    return str(said or "").strip().strip("`'\"").lstrip("-").strip().casefold()
+
+
+def grant(conn: sqlite3.Connection, ref: str, act: str,
+          target=None) -> sqlite3.Row | None:
+    """The newest landed row on `ref` when it grants `act` on `target`, or
+    None.
+
+    `target` None asks for the act on any target. A string or a list of
+    strings asks for a row whose target is one of them. A row with a null
+    act grants nothing, and a row with a null target grants only the call
+    with no target (composition.md, Flows: "never ... treats silence as
+    consent"). Only the newest landed row counts, so a later ruling on the
+    ref takes the grant back (the seam design, 1.2).
+    """
+    if not isinstance(ref, str) or not ref:
+        return None
+    rows = ruled(conn, [ref], newest=True)
+    if not rows:
+        return None
+    row = rows[-1]
+    if row["act"] is None or row["act"] != act:
+        return None
+    if target is None:
+        return row
+    wanted = [target] if isinstance(target, str) else list(target)
+    if row["target"] is None:
+        return None
+    have = _target_key(row["target"])
+    return row if any(_target_key(t) == have for t in wanted if t) else None
+
+
+def granted(conn: sqlite3.Connection, ref: str, act: str,
+            target=None) -> bool:
+    """True when his newest landed ruling on `ref` grants `act` on `target`.
+
+    Every reader of what his words permit reads this one function, and none
+    reads his words by a phrase (the seam design, pass 4). `grant` gives the
+    row itself, for a reader that needs its line or its words."""
+    return grant(conn, ref, act, target) is not None
+
+
 def ruled(conn: sqlite3.Connection, refs=None, *, reply: str | None = None,
           ruling: str | None = None, ask: str | None = None,
           landed: bool = True, newest: bool = False,

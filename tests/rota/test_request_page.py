@@ -714,8 +714,13 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     (wake,) = P.REGISTRY["touch_note"].fn(bg2)
     mid = _dispatch(bg2, wake, f'TOOL: msg.present_principal(refs=["bg_2", "{ITEM_136}"])')
     reply = _reply(bg2, mid, M85)
+    # The Liaison's object form names the file his words call wrong (the
+    # seam design, pass 4, P10).
     _landing(bg2, reply, {"1": "approve", "2": "approve", "3": "approve",
-                          "4": "approve", "5": "contest"}, M85)
+                          "4": "approve", "5": {
+                              "verdict": "contest", "act": "remove",
+                              "target": "tests/test_defaults.py",
+                              "words": "Line 2 names the wrong tests"}}, M85)
     verdict, ruled = _verdict(bg2, mid)
     # An approve of the item leaves a touch note's verdict, so the contest
     # of the prediction cannot carry it (the diff review of 2dace61b,
@@ -735,7 +740,7 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     assert _mode_key(wake, bg2) == "annotate"
     shown = resolve_inbound(bg2, wake)
     assert shown["principal_verdict"] == {"bg_2": "contest"}
-    # The path the words call wrong leaves `expected`, and the test files of
+    # The path his ruling removes leaves `expected`, and the test files of
     # the index are in front of the seat (plans/frame190-interview.md).
     assert shown["touch"]["bg_2"]["expected"] == ["src/click/termui.py"]
     assert shown["touch"]["bg_2"]["disputed"] == ["tests/test_defaults.py"]
@@ -762,189 +767,6 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     sb = build("tester", bg2, mode="tests_missing", batch_id="bg_2",
                allow=prompts.mode_tools("tester", "tests_missing"))
     assert push_working_set("tester", sb, wake)["touch"] == ["tests/test_termui.py"]
-
-
-# The principal's eight answers to a touch note: m85, m97, m228, m237 and
-# m247 of night 136, and m198, m200 and m202 of night 133, read with
-# `mode=ro&immutable=1` on 2026-10-09.
-M97 = ("That line still names the wrong tests. The confirm prompt's tests live in the "
-       "terminal UI test file, not the defaults test file. The \"might touch\" item is "
-       "an unrelated test about default lookup overrides, so please drop it.")
-M228 = ("I approve line one as it stands. Line two names the wrong tests. The defaults "
-        "test file and the default map and parameter source tests cover option defaults "
-        "and not confirm, so the new confirm tests belong with the other prompt tests.")
-M237 = ("Both lines of this page describe the confirm flag, which is my second change, "
-        "but the change I'm on now is the third one: a show_python flag on "
-        "version_option that adds the Python version to the message. Please send a "
-        "page for that change instead.")
-M247 = ("Both lines on that page were about the confirm flag. None of them were about "
-        "the version option change. Please send a page for that change only: a new flag "
-        "that adds the running Python version, as major.minor.micro, to the end of the "
-        "version message.")
-M198 = ("I can't approve this yet, because line 2 names the wrong tests: the file of "
-        "default tests and the four tests in it cover option defaults and default maps, "
-        "not confirm. The new confirm tests belong with the other prompt tests in the "
-        "terminal UI test file. Those tests should check that confirm returns its "
-        "default on closed stdin when the flag is on, and still aborts when the flag is "
-        "off, which is the default.")
-M200 = ("I can't approve this yet, because the line still names the default tests file "
-        "and its four tests, which are about option defaults and default maps, not "
-        "confirm. Please put the new confirm tests with the other prompt tests in the "
-        "terminal UI test file. They should check that confirm returns its default when "
-        "stdin is closed and the flag is on, and that it still aborts when the flag is "
-        "off, which is the default.")
-M202 = ("I still can't approve this, because the line names the default tests file and "
-        "its four tests again, and those cover option defaults and default maps, not "
-        "confirm. Please put the new confirm tests with the other prompt tests in the "
-        "terminal UI test file instead. The tests should check that confirm returns its "
-        "default when stdin is closed and the flag is on, and that it still aborts when "
-        "the flag is off.")
-
-
-# The batches the eight answers rule on, as `touch_set` reads them: the
-# `expected` grains, the `possible` grains, and the item's id and text.
-# `batch_touch`, `batches` and `items` of nights 133 and 136, read with
-# `mode=ro&immutable=1` on 2026-10-09.
-CONFIRM_133 = ("confirm_default_on_eof Let confirm() take a default_on_eof flag: when "
-               "stdin is closed it returns the default instead of aborting. The flag is "
-               "optional and defaults to False.")
-CONFIRM_136 = ("confirm_with_default_on_eof Let confirm() take a default_on_eof flag: "
-               "when stdin is closed it returns the default instead of aborting. The new "
-               "flag is off by default, so nothing changes for people who already call "
-               "confirm.")
-N133_BG2 = (["src/click/termui.py", "tests/test_defaults.py"],
-            ["confirm", "test_basic_defaults", "test_default_map_source",
-             "test_flag_default_map", "test_multiple_defaults"], CONFIRM_133)
-N136_BG2 = (["src/click/termui.py", "tests/test_defaults.py"],
-            ["test_lookup_default_override_respected"], CONFIRM_136)
-N136_BG3 = (["src/click/termui.py", "tests/test_defaults.py"],
-            ["test_default_map_source", "test_lookup_default_override_respected",
-             "test_parameter_source_on_parse_result_bypass"], CONFIRM_136)
-
-
-@pytest.mark.parametrize("words, batch, moved", [
-    (M85, N136_BG2, ["tests/test_defaults.py"]),
-    (M97, N136_BG2, ["tests/test_defaults.py"]),
-    (M228, N136_BG3, ["tests/test_defaults.py", "test_default_map_source"]),
-    (M237, N136_BG2, []),
-    (M247, N136_BG3, []),
-    (M198, N133_BG2, ["tests/test_defaults.py"]),
-    (M200, N133_BG2, ["tests/test_defaults.py"]),
-    (M202, N133_BG2, ["tests/test_defaults.py"]),
-    pytest.param(M85, N136_BG2, ["tests/test_defaults.py",
-                                 "test_lookup_default_override_respected"],
-                 marks=pytest.mark.xfail(strict=True, reason=(
-                     '"an unrelated test about default lookup overrides" names the '
-                     'symbol, and "respected" is not in the words'))),
-    pytest.param(M97, N136_BG2, ["tests/test_defaults.py",
-                                 "test_lookup_default_override_respected"],
-                 marks=pytest.mark.xfail(strict=True, reason=(
-                     '"an unrelated test about default lookup overrides, so please '
-                     'drop it" names the symbol, and "respected" is not in the words'))),
-])
-def test_the_real_answers_dispute_on_their_batches_real_rows(words, batch, moved):
-    """The eight real answers against the real touch rows of the batch they
-    rule on, the way `resolve_inbound` calls the rule. On four made-up
-    paths m198 looked right and on bg_2's rows it disputed `confirm` (the
-    delta review of afecf14a, finding 1)."""
-    from rota.core.runner import disputed_paths
-
-    expected, possible, item = batch
-    assert disputed_paths(words, expected + possible, possible=possible,
-                          item=item) == moved
-
-
-@pytest.mark.parametrize("words, moved", [
-    (M85, ["tests/test_defaults.py"]),
-    (M97, ["tests/test_defaults.py"]),
-    (M228, ["tests/test_defaults.py"]),
-    (M237, []),
-    (M247, []),
-    (M198, ["tests/test_defaults.py"]),
-    (M200, ["tests/test_defaults.py"]),
-    (M202, ["tests/test_defaults.py"]),
-    ("tests/test_defaults.py is wrong.", ["tests/test_defaults.py"]),
-    ("test_defaults.py is wrong.", ["tests/test_defaults.py"]),
-    ("The termui source is right but the defaults test file is not.",
-     ["tests/test_defaults.py"]),
-    ("The tests go in the termui test file, not the defaults test file.",
-     ["tests/test_defaults.py"]),
-    ("Everything else looks right.", []),
-    ("Keep the defaults test file.", []),
-    ("The defaults test file is wrong, not the termui test file.",
-     ["tests/test_defaults.py"]),
-    ("No changes to termui needed beyond the flag.", []),
-    ("No changes to termui.py needed beyond the flag.", []),
-    ("Don't touch test_defaults.py.", ["tests/test_defaults.py"]),
-    ("Don’t touch test_defaults.py.", ["tests/test_defaults.py"]),
-    ("The defaults test file wasn't the place.", ["tests/test_defaults.py"]),
-    ("termui is wrong.", ["src/click/termui.py"]),
-    ("The termui module should not change.", ["src/click/termui.py"]),
-    ("Not termui.py, the decorators file is wrong, not that one.",
-     ["src/click/termui.py", "src/click/decorators.py"]),
-    ("test_termui.py is wrong.", ["tests/test_termui.py"]),
-    pytest.param("The tests go in test_termui.py, not test_confirm.", [],
-                 marks=pytest.mark.xfail(strict=True, reason=(
-                     "a no part that names no path falls back to every path the "
-                     "sentence names, and no real answer has this form"))),
-])
-def test_the_words_dispute_only_the_paths_a_no_clause_names(words, moved):
-    """The principal's real answers to a touch note, and literal forms. A
-    sentence disputes the paths it names when it holds a "no" word (the
-    diff review of 0ffc97b7, findings 1 and 3, the delta review of
-    af535499, findings 2 to 4, and the delta review of afecf14a, findings
-    2 and 3)."""
-    from rota.core.runner import disputed_paths
-
-    paths = ["src/click/termui.py", "tests/test_defaults.py", "tests/test_termui.py",
-             "src/click/decorators.py"]
-    assert disputed_paths(words, paths) == moved
-
-
-# Night 133's bg_6: its touch rows and the principal's m431, read with
-# `mode=ro&immutable=1` on 2026-10-09.
-BG6 = ["src/click/decorators.py", "tests/test_basic.py", "tests/test_defaults.py",
-       "tests/test_options.py"]
-M431 = ("Line 2 lists tests/test_defaults.py, but this change has nothing to do with "
-        "option defaults, so please leave that file out unless a version test really "
-        "lives there. Everything else looks right. The flag is off by default and adds "
-        "the running Python version as major.minor.micro to the end of the version "
-        "message.")
-
-
-@pytest.mark.parametrize("words, moved", [
-    pytest.param(M431, ["tests/test_defaults.py"], marks=pytest.mark.xfail(
-        strict=True, reason='"leave that file out" asks to drop the file, and '
-                            '"leave out" is not a no-word yet')),
-    ("This change does not touch option defaults or the defaults test file.",
-     ["tests/test_defaults.py"]),
-    ("The option defaults are not part of this change.", []),
-])
-def test_one_common_word_of_a_file_name_needs_a_file_word_beside_it(words, moved):
-    """The delta review of af535499, finding 5: "option defaults" named
-    `tests/test_options.py`, because "option" is the file name's one word
-    part. A single word part names its path only beside "test" or "file"."""
-    from rota.core.runner import disputed_paths
-
-    assert disputed_paths(words, BG6) == moved
-
-
-@pytest.mark.parametrize("words, moved", [
-    ("Keep src/click/termui.py, not confirm.", []),
-    ("The new tests go in tests/test_termui.py, not confirm.", []),
-    ("Not test_default_on_eof, that test is about the old flag.",
-     ["test_default_on_eof"]),
-])
-def test_a_no_part_spares_only_the_items_own_symbol(words, moved):
-    """The delta review of 5ffa1244, findings 1 and 3. A "no" part that
-    names only the item's own symbol disputes nothing, and a `test_` symbol
-    is not the item's own even when the item holds its word parts."""
-    from rota.core.runner import disputed_paths
-
-    possible = ["confirm", "test_default_on_eof"]
-    paths = ["src/click/termui.py", "tests/test_defaults.py", "tests/test_termui.py"]
-    assert disputed_paths(words, paths + possible, possible=possible,
-                          item=CONFIRM_133) == moved
 
 
 def test_a_touch_note_approves_no_item_and_a_closed_batch_line_is_refused(bg2):

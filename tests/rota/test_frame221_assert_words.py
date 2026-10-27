@@ -16,6 +16,7 @@ import re
 import pytest
 
 from rota.core.db import backfill_ruled_refs, init_db
+from rota.testkit.fixtures import seed_acts
 from rota.core.predicates import Wake
 from rota.core.sandbox import build
 from rota.roles import prompts
@@ -57,8 +58,9 @@ def db(tmp_path):
     return conn
 
 
-def _contest(conn, item, said, mid):
-    """The shape the contested tick reads: a verdict and its entry."""
+def _contest(conn, item, said, mid, acts=None):
+    """The shape the contested tick reads: a verdict and its entry. `acts`
+    gives rows the act the Liaison's object form writes (pass 4)."""
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                  "body_refs, seq) VALUES (?, 'th', 'principal', 'liaison', "
                  "'verdict', ?, 5)", (mid, json.dumps([item])))
@@ -66,6 +68,18 @@ def _contest(conn, item, said, mid):
                  (f"verdict:{mid}", json.dumps({item: "contest"})))
     conn.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                  "(?, 'principal', ?, 1)", (f"e_{mid}", said))
+    # The verdict lands as a ruling, as `principal.land` writes it, so the
+    # contest reader finds the record (the seam design, 3.4).
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, seq) VALUES (?, 'th', 'liaison', 'principal', "
+                 "'present', ?, 4)", (f"ask_{mid}", json.dumps([item])))
+    conn.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, "
+                 "verdict_id) VALUES (?, ?, ?, ?, 'landed', ?)",
+                 (f"r_{mid}", f"ask_{mid}", json.dumps({item: "contest"}), said,
+                  mid))
+    backfill_ruled_refs(conn)
+    if acts:
+        seed_acts(conn, f"r_{mid}", acts)
     conn.commit()
 
 
@@ -241,6 +255,10 @@ def test_a_removal_in_plain_words_admits_the_drop(db):
     _ruling(db, "r_p3", {"version_option_show_python": "contest"},
             "I don't want a flag. Always append the running Python version, "
             "shown as major.minor.micro.")
+    # The Liaison reads "I don't want a flag" as the removal of the flag
+    # (the seam design, pass 4, P2).
+    seed_acts(db, "r_p3", {"version_option_show_python": {
+        "act": "remove", "target_kind": "identifier", "target": "show_python"}})
     sb = _contested(db, "version_option_show_python")
     out = sb.call("problem.assert", id="version_option_show_python",
                   kind="in_scope",
@@ -428,6 +446,9 @@ def test_s205_his_instruction_about_the_page_is_refused(db):
     _night150_item(db, "json_only", JSON_ONLY)
     _ruling(db, "r_c38db1262c", {"json_only": "contest",
                                  "confirm_default_on_eof": "approve"}, M91)
+    # His sentence about the page is the span of his row on another line.
+    seed_acts(db, "r_c38db1262c", {"confirm_default_on_eof": {
+        "line": 1, "words": "The page should cover only the confirm flag."}})
     sb = _contested(db, "json_only")
     with pytest.raises(ValueError) as err:
         sb.call("problem.assert", id="json_only", kind="in_scope",
@@ -529,7 +550,10 @@ APPDIR_PARA = ("In get_app_dir on Windows, use the AppData folders when the "
 
 def test_s161_his_sentence_about_the_test_is_not_the_items(db):
     _night150_item(db, "get_app_dir_windows", APPDIR)
-    _contest(db, "get_app_dir_windows", M57, "m58")
+    # m57's sentence about the check is his contest of line 10, another row.
+    _contest(db, "get_app_dir_windows", M57, "m58", {
+        "confirm_default_on_eof": {"verdict": "contest", "line": 10,
+                                   "words": APPDIR_CHECK}})
     sb = _contested(db, "get_app_dir_windows")
     with pytest.raises(ValueError) as err:
         sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
@@ -544,6 +568,10 @@ def test_s161_his_sentence_about_the_test_is_not_the_items(db):
     assert "line 10" in msg and "not the item" in msg
     assert f"with his sentence {APPDIR_CHECK!r}" not in msg
     assert not _item_writes(sb)
+
+
+# The Liaison's reading of a request to take a sentence out (pass 4, P3).
+REMOVE_SENTENCE = {"act": "remove", "target_kind": "sentence"}
 
 
 def _amended_on_contest(conn, item):
@@ -568,7 +596,8 @@ def _amended_on_contest(conn, item):
 def test_his_recorded_removal_drops_what_a_contested_amend_added(db):
     _night150_item(db, "get_app_dir_windows", APPDIR)
     _amended_on_contest(db, "get_app_dir_windows")
-    _contest(db, "get_app_dir_windows", TAKE_OUT, "m67")
+    _contest(db, "get_app_dir_windows", TAKE_OUT, "m67",
+             {"get_app_dir_windows": REMOVE_SENTENCE})
     sb = _contested(db, "get_app_dir_windows")
     with pytest.raises(ValueError) as err:
         sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",
@@ -612,7 +641,8 @@ def test_a_removal_with_nothing_added_offers_the_plain_amend(db):
     # No receipt of a contested amend on the item: the second sentence is
     # his, and it stays.
     _night150_item(db, "get_app_dir_windows", f"{APPDIR} {APPDIR_RULE}")
-    _contest(db, "get_app_dir_windows", TAKE_OUT, "m67")
+    _contest(db, "get_app_dir_windows", TAKE_OUT, "m67",
+             {"get_app_dir_windows": REMOVE_SENTENCE})
     sb = _contested(db, "get_app_dir_windows")
     with pytest.raises(ValueError) as err:
         sb.call("problem.assert", id="get_app_dir_windows", kind="in_scope",

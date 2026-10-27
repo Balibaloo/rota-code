@@ -430,6 +430,24 @@ def test_a_relay_carries_the_principal_ruling_from_its_cause(tmp_path):
     assert "principal_said" not in other
 
 
+def _land_verdicts(db, verdicts: dict) -> None:
+    """A landed ruling per verdict message, with its ask and its rows, as
+    `principal.land` writes them."""
+    import json
+
+    from rota.core.db import backfill_ruled_refs
+
+    for mid, per_item in verdicts.items():
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, body_refs, seq) VALUES (?, 'th', 'liaison', "
+                   "'principal', 'present', '[]', 0)", (f"ask_{mid}",))
+        db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, "
+                   "verdict_id) VALUES (?, ?, ?, '', 'landed', ?)",
+                   (f"r_{mid}", f"ask_{mid}", json.dumps(per_item), mid))
+    backfill_ruled_refs(db)
+    db.commit()
+
+
 def test_a_contested_tick_carries_the_reason_it_was_contested_for(tmp_path):
     """
     A contested item wakes its owner by tick, and the tick carried the item id
@@ -474,7 +492,9 @@ def test_a_contested_tick_carries_the_reason_it_was_contested_for(tmp_path):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m20','th','principal','liaison',"
                "'verdict',?,2)", (json.dumps(["t1", "s1"]),))
-    db.commit()
+    # Each verdict lands as a ruling with its rows, and the contest reader
+    # reads the rows, not the `verdict:` map (the seam design, 3.4).
+    _land_verdicts(db, {"m10": {"t1": "contest"}, "m20": {"t1": "contest"}})
 
     out = resolve_inbound(db, Wake("vision_keeper", "tick:contested",
                                    refs=("t1",)))

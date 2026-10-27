@@ -318,12 +318,11 @@ def place_defined_in_tree(tmp_path):
 
 
 def place_disputed(tmp_path):
-    """`disputed_paths`: the window rules of a test file hold for each
-    attached file, so a bare word names the program's file only."""
+    """`disputed_paths`: the record decides, and a batch with no landed
+    ruling that removes a path disputes none, whatever a bare word says."""
     conn = init_db(tmp_path / "rota.db")
     _rule(conn, *NIGHT167_RULINGS)
-    return disputed_paths("termui is wrong.", ["examples/termui/termui.py"],
-                          conn=conn) == []
+    return disputed_paths(conn, "b1", ["examples/termui/termui.py"]) == []
 
 
 def place_root_source(tmp_path):

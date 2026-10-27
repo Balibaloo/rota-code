@@ -16,6 +16,7 @@ from rota.core.runner import _as_write
 from rota.core.sandbox import build
 from rota.roles import prompts
 from rota.roles.principal import request_block
+from rota.testkit.fixtures import seed_acts
 
 ITEM = "format_filename_doc"
 TICKET = "tk_1_format_filename_doc"
@@ -33,11 +34,18 @@ def _message(conn, mid, cause, sender, to, verb, refs, seq, text=None):
                  (mid, cause, sender, to, verb, json.dumps(refs), text, seq))
 
 
-def _ruling(conn, per_item, words):
+# The Liaison's reading of WORDS: the act `drop` on the red check's row
+# (the seam design, pass 4, P6).
+DROP_RED = {"act": "drop", "target_kind": "check"}
+
+
+def _ruling(conn, per_item, words, acts=None):
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
                  "status) VALUES ('r_m121', 'm120', 'm121', ?, ?, 'landed')",
                  (json.dumps(per_item), words))
     backfill_ruled_refs(conn)
+    if acts:
+        seed_acts(conn, "r_m121", acts)
 
 
 @pytest.fixture
@@ -106,7 +114,7 @@ def _reds(conn):
 
 def test_his_remove_of_the_red_check_retires_that_test(db):
     _ruling(db, {ITEM: "approve", CRIT: "approve", GREEN: "approve",
-                 RED: "contest"}, WORDS)
+                 RED: "contest"}, WORDS, {RED: DROP_RED})
     db.commit()
     before = _checks(db)
     assert [c.split(".")[0].strip() for c in before] == ["3", "4"]
@@ -142,7 +150,7 @@ def test_a_ruling_with_no_drop_retires_nothing_and_names_the_ruling(db):
 
 def test_a_retire_needs_the_wake_that_carries_the_ruling(db):
     _ruling(db, {ITEM: "approve", CRIT: "approve", GREEN: "approve",
-                 RED: "contest"}, WORDS)
+                 RED: "contest"}, WORDS, {RED: DROP_RED})
     _message(db, "m130", None, "terminologist", "tester", "answer", [CRIT], 130)
     db.commit()
     sb = _tester(db, trigger="m130")
@@ -152,7 +160,7 @@ def test_a_retire_needs_the_wake_that_carries_the_ruling(db):
 
 def test_only_the_tester_retires_a_test(db):
     _ruling(db, {ITEM: "approve", CRIT: "approve", GREEN: "approve",
-                 RED: "contest"}, WORDS)
+                 RED: "contest"}, WORDS, {RED: DROP_RED})
     db.commit()
     sb = build("terminologist", db, mode="criterion_repair", session_id="s243")
     sb.ctx.trigger = "m122"

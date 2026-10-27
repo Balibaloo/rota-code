@@ -100,16 +100,6 @@ def test_a_range_word_in_any_case_reads_as_a_range():
         set(range(2, 8)), set())
 
 
-@pytest.mark.parametrize("words", [
-    "Lines 2 through 4 are wrong, because their checks call plain echo.",
-    "Lines 2-4 are also wrong.",
-])
-def test_the_words_fault_a_range_of_checks(words):
-    from rota.roles.api import _WORDS_FAULT
-
-    assert _WORDS_FAULT.search(words)
-
-
 # Night 148's m81, verbatim from the `rulings` table of
 # `.rota/clickI_night148.db`, row r_3340e1e9d9. The night's rows were
 # d_f422882cbd, d_74_challenge_ver_opt_show_py, ver_opt_show_py and

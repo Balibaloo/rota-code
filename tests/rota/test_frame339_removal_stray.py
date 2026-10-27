@@ -24,6 +24,7 @@ from rota.core import predicates as P
 from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.roles import prompts
+from rota.roles.principal import insert_ruling_rows, ruling_rows
 
 PATH = "src/click/utils.py"
 GRAIN = f"{PATH}::get_app_dir"
@@ -148,6 +149,56 @@ def test_his_m37_words_are_no_permission_form_and_the_stray_stands(db, tmp_path)
     sb, _root = _developer(db, tmp_path)
     out = _write_then_commit(sb)
     assert out["committed"] is True, out
+    assert [r[0] for r in _strays(sb)] == [GRAIN]
+
+
+def _m37(db, batch_ruling) -> None:
+    """m37 lands as ruling r_58bf1e8c70 through the one builder, as the
+    Liaison's `rulings.rule` stages it (the seam design, 1.3)."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_text, seq) VALUES ('m37','t1','principal','liaison','answer',"
+               "?,37)", (M37,))
+    db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
+               "('r_58bf1e8c70','m37',?,?,'landed')",
+               (json.dumps({"batch_1": "approve", "get_app_dir_windows": "approve"}), M37))
+    insert_ruling_rows(db, ruling_rows(
+        db, "r_58bf1e8c70", ["get_app_dir_windows", "batch_1"],
+        {"get_app_dir_windows": "approve", "batch_1": batch_ruling}, words=M37))
+    db.commit()
+
+
+def test_m37_lands_as_a_removal_of_get_app_dir_518_and_writes_no_stray(db, tmp_path):
+    """The seam design's red test of pass 4. m37 lands as act `remove` and
+    target `get_app_dir:518`. The Developer's commit removes that line, and
+    his ruling grants it, so no stray is written."""
+    _m37(db, {"verdict": "approve", "act": "remove", "target": "get_app_dir:518",
+              "words": M37})
+    row = db.execute("SELECT act, target FROM ruled_refs_live WHERE ref = 'batch_1'"
+                     ).fetchone()
+    assert (row["act"], row["target"]) == ("remove", "get_app_dir:518")
+    sb, _root = _developer(db, tmp_path)
+    out = _write_then_commit(sb)
+    assert out["committed"] is True, out
+    assert _strays(sb) == []
+    assert not out.get("removals")
+
+
+def test_m37_with_no_act_grants_nothing_and_the_stray_is_written(db, tmp_path):
+    """The same words with no act grant nothing. The record holds no
+    permission, so the removal is a stray for the Architect."""
+    _m37(db, "approve")
+    sb, _root = _developer(db, tmp_path)
+    out = _write_then_commit(sb)
+    assert out["committed"] is True, out
+    assert [r[0] for r in _strays(sb)] == [GRAIN]
+
+
+def test_a_removal_of_another_line_is_no_grant_for_this_one(db, tmp_path):
+    """The grant names its target. A removal of line 600 grants nothing on
+    line 518."""
+    _m37(db, {"verdict": "approve", "act": "remove", "target": "get_app_dir:600"})
+    sb, _root = _developer(db, tmp_path)
+    assert _write_then_commit(sb)["committed"] is True
     assert [r[0] for r in _strays(sb)] == [GRAIN]
 
 
