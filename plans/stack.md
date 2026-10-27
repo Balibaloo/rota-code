@@ -2326,6 +2326,7 @@ e criteria drop "compact" from the item, and the Developer removes the compact s
 - Sprint: sprint 11, row 13 (reasoned: the read, section 11.2; 1 case, no ask).
 - Pointer: `plans/night153-read.md`, sections 9a and 10, W12.
 - Status 2026-10-17 04:31 (rota-68): pushed from night 153's read as candidate N1. Cause 6 by `plans/wall-guide.md` section 4. Meta workflow.
+- Status 2026-10-27 19:43 (rota-ea): Under Roman's ruling of 2026-10-27 14:47, the author of a journal entry is the role, so the premise of this frame, a role is not a session's record, is overruled and its ends-when measure, decisions overwritten across sessions, counts no fault. The cross-request overwrite of l_1f70108d3c is fact F15 and rides on its row of sprint 30. This frame closes on that ruling. Meta workflow.
 
 ### 284. The raised-signature push reads only native traceback frames, so a raise that pytest reports is never pushed (2026-10-17)
 
