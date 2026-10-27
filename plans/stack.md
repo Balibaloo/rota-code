@@ -41,6 +41,34 @@ section 4). No frame closes on this night. Order:
    F4 (W3), F21 (W14, W15), F22 and F19 (W13). W10 to W12, the onboarding
    repeats, are under no fact and slow a walk without a stop.
 
+## Sprints 28 to 31, the root fixes of frame 344's audit, 2026-10-27
+
+Of the 37 facts at head, 4 read one reader, 19 are partial, 13 are open
+with the cause known and 1 is open with the cause unknown (observed:
+`plans/rootfix-audit-2026-10-27-a.md` and `-b.md`, section 2 of each).
+The proposals price about 120 cycles. The order is the score, the
+readers on their own rule times the nights walled since night 160
+(reasoned: rule C76, Roman's ask of 2026-10-27 on frame 344). Each row
+builds at its reach, and the pass brief carries the count. A row that
+touches `api.py` waits on the commit before it.
+
+- Sprint 28, about 22 cycles: F20, `quarantined_keys` and the lift on a
+  state write, score 152, a seam, frame 330's fact; F19, the quote forms
+  and views from the parser, 126, 3; F25, the follower checks the mode
+  and a lint over refusal texts, 105, 6; F31, one `asks_for_docs`, 30, 5,
+  after Roman's ruling on the words.
+- Sprint 29, about 20 cycles: F2 with F3, one `_line_reading`, 135, a
+  seam; F4, one `latest_runs` view, 96, a seam.
+- Sprint 30, about 20 cycles: F7, the commit-time base compare, 78, a
+  seam, after the rewrite-or-removal question of frame 339's s128 read;
+  F6, a probe then `criterion_of`, 46 by an upper bound, 4; F15,
+  `request_of`, 36, a seam.
+- Sprint 31, about 40 cycles of 2 to 3 each: F16, F22, F17, F35, F21,
+  F1, F5, F13, F14, F9 (the head departs from Roman's ruling of
+  2026-10-26 20:37 on frame 324), F10, F18, F8, F11, F12, F24, F26 to
+  F29, F32, F33, and frame 233's residue, `done_reason` in the
+  cassettes. F23 after Roman's ruling on the author.
+
 ## Sprint 26, by fact, re-cut 2026-10-26 23:06 from `plans/facts-2026-10-27.md`
 
 The unit of this sprint is the fact and its one reader, not the frame
@@ -1325,6 +1353,7 @@ a different question and the night is then opened once.
 - Status 2026-10-27 14:09 (rota-49): **ruled. Roman, 2026-10-27 14:09, in the terminal: "Ok, while we are doing fixes, a few sessions ago we analyzed the completed frames and found that many did not fix the root cause. Go back and review them to make sure that we have applied area root cause fix that we could possibly know about"** (ruled: Roman, in his words). Meta workflow.
 - Status 2026-10-27 14:09 (rota-49): Pushed on Roman's ask, held by this session, peer name rota-49. His claim checks out: 48 of 56 closed frames fixed one door of N (observed: plans/closed-reach-2026-10-26.md). Two audit agents on Opus, cap 180k each, from f344_audit_brief.md in this session's scratchpad, since 14:09: F1 to F18 to plans/rootfix-audit-2026-10-27-a.md, F19 to F37 and the closed frames under no fact to -b.md. Read only; each fix then takes a row by its reach. Meta workflow.
 - Status 2026-10-27 14:24 (rota-49): **Audit half A, plans/rootfix-audit-2026-10-27-a.md, 193k on the harness line against 180k: of F1 to F18, FIXED 0, PARTIAL 10, OPEN with the cause known 7, OPEN with the cause unknown 1 (F6); of 48 closed-frame entries, 8 fixes sit under one reader, 7 partly, 32 alone; the top gaps by reach and nights are F2 with F3, about 10 cycles, F4, 8 to 10, and F7, 8; the code at head departs from Roman's ruling of 2026-10-26 20:37 on frame 324, _is_test_path reads a path pattern** (observed: the audit, sections 0 and 2, read at 14:24). The proposals of half A price about 75 cycles. Half B runs. Meta workflow.
+- Status 2026-10-27 14:26 (rota-49): **Audit half B, plans/rootfix-audit-2026-10-27-b.md, 206k on the harness line against 180k: of F19 to F37, FIXED 4, PARTIAL 9, OPEN with the cause known 6; of 7 closed frames under no fact, 3 FIXED, 233 leaves a residue, done_reason dropped by the cassettes, 3 have no fact** (observed: the audit, read at 14:26). Across both halves: 4 FIXED, 19 PARTIAL, 13 OPEN known, 1 OPEN unknown, about 120 cycles. Sprints 28 to 31 at the stack's head order them by score. Two rulings asked of Roman: F31, the code departs from his ruling of 2026-10-24 01:05 on the documentation words; F23, the author of a journal entry, session or role. Ends-when part 1 holds; part 2 by the sprint rows. Meta workflow.
 
 ### 343. The Tester's brief sends a test to a touch path that the test-file door refuses, and his "no new test is needed" reaches no row, so a docstring criterion stops the walk (2026-10-27) (c66eae69)
 
