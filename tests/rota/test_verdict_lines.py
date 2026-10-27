@@ -1418,16 +1418,29 @@ def test_the_words_that_ask_for_documentation(kinds, words):
         assert out["result"] == "pass"
 
 
-# Night 160's ver_opt_show_py_help, verbatim from the `criteria` table. A
-# help string is code the user sees, so a docstring line does not meet it
-# (frame 311, pass 1b).
+# Night 160's ver_opt_show_py_help, verbatim from the `criteria` table.
+# Frame 311's pass 1b refused a docstring line for it. Roman ruled the words
+# "document" and "help text" again on 2026-10-27, as on 2026-10-24 01:05
+# (F31). A help string on an option is a code line, so it counts anyway.
 HELP_TEXT = ("The --version flag help text must document the new show_python "
              "flag and describe its effect on the output message.")
 
 
 @pytest.mark.parametrize("words", [HELP_TEXT, "work is documented."],
                          ids=["help_text", "documented"])
-def test_a_help_text_criterion_refuses_a_docstring_line(kinds, words):
+def test_a_help_text_criterion_takes_a_docstring_line(kinds, words):
+    _seed_texts(kinds, {"cr_1": words})
+    out = _land(_critic(kinds, "bg_1"), batch_id="bg_1", result="pass",
+                lines={"cr_1": "The prose line of the docstring."})
+    assert out["result"] == "pass"
+
+
+@pytest.mark.parametrize("words", [
+    "load_document returns the total.",
+    "The work explains and describes the total.",
+])
+def test_a_criterion_with_no_ruled_word_refuses_a_docstring_line(kinds, words):
+    """The ruled words match as words, so an identifier asks for nothing."""
     _seed_texts(kinds, {"cr_1": words})
     value = "The prose line of the docstring."
     said = _refused(_critic(kinds, "bg_1"), batch_id="bg_1", result="pass",
