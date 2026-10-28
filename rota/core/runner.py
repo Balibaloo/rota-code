@@ -2910,22 +2910,19 @@ def _batch_row(conn: sqlite3.Connection, ref: str) -> dict[str, Any] | None:
 def _raising_line_head(output: str) -> str:
     """The raising line and its two neighbours, when the 700 tail lacks it.
 
-    Frame 317, pass 1c: the raising line is the first line that starts with
-    "E ", else the first that holds "Traceback". A word search for "Error"
-    picked a source line on night 160, seq 243 (review 1, F3). A line
-    inside the tail gives "".
+    The raising line is the line that `harness.error_at` names (fact F5).
+    A word search for "Error" picked a source line on night 160, seq 243
+    (review 1 of frame 317, F3). A line inside the tail gives "".
     """
+    from .harness import error_at
+
     tail_from = len(output) - 700
     lines = output.splitlines(keepends=True)
     starts, at = [], 0
     for line in lines:
         starts.append(at)
         at += len(line)
-    i = next((n for n, line in enumerate(lines) if line.startswith("E ")),
-             None)
-    if i is None:
-        i = next((n for n, line in enumerate(lines) if "Traceback" in line),
-                 None)
+    i = error_at([line.rstrip("\r\n") for line in lines])
     if i is None or starts[i] >= tail_from:
         return ""
     lo, hi = max(i - 1, 0), min(i + 2, len(lines))
@@ -3129,7 +3126,9 @@ def arrange_fault(body: str, path: str, output: str, surface: set[str],
     kind = kind.group(1) if kind else ""
     if not kind or kind.endswith("AssertionError"):
         return None
-    shown = next((ln[1:].strip() for ln in lines if ln.startswith("E ")), kind)
+    from .harness import error_line
+
+    shown = error_line(output) or kind
     at, _, lineno = own[0]
 
     def _callee(n: ast.Call) -> str:
@@ -3215,7 +3214,7 @@ def _failed_before_assertion(body: str, output: str) -> bool:
     """Whether a failed run stopped before any assertion of the test ran.
 
     The rule: the run failed before any assertion when the body has no
-    `assert` line that the output names, or when the output's first `E ` line
+    `assert` line that the output names, or when the output's error line
     comes before the first line that names a body `assert` line. A traceback
     shows the test's own lines down to the failing one, so an assertion that
     ran and failed shows its line before the error.
@@ -3238,8 +3237,9 @@ def _failed_before_assertion(body: str, output: str) -> bool:
                   if any(a in line for a in asserts)), None)
     if named is None:
         return True
-    first_error = next((i for i, line in enumerate(lines)
-                        if line.startswith("E ")), None)
+    from .harness import error_at
+
+    first_error = error_at(lines)
     return first_error is not None and first_error < named
 
 

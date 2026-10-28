@@ -12,6 +12,7 @@ model would introduce a paraphrase risk over a boolean.
 """
 from __future__ import annotations
 
+import re
 import shlex
 import sqlite3
 import subprocess
@@ -186,19 +187,74 @@ def run(conn: sqlite3.Connection, batch_id: str,
     return results
 
 
+_E_LINE = re.compile(r"E\s+\S")
+_E_FRAME = re.compile(r'E\s+File ".*", line \d+')
+_NATIVE_FRAME = re.compile(r'\s+File ".*", line \d+')
+
+
+def error_at(lines: list[str]) -> int | None:
+    """The index in `lines` of the line of a red run that says what raised,
+    or None when no line says it.
+
+    1. pytest's form. The first `E` line, or the last line of its block of
+       `E` lines when the run has an `ERROR collecting` line or the block
+       starts with a traceback frame.
+    2. The native form, when no `E` line exists. The first line that is
+       not indented after the first `File "...", line N` frame.
+
+    A chained raise gives the cause, the first raise. Frame 317's night 160
+    run hid its `KeyError` under a later `AttributeError`. A caller that
+    wants one test's own section passes that section.
+    """
+    # Fact F5: this is the one reader of the error line. Rule C76 puts
+    # every reader at one rule. Fourteen readers used four rules before.
+    first = next((i for i, ln in enumerate(lines) if _E_LINE.match(ln)), None)
+    if first is not None:
+        # Frame 336: a collection error puts the frame first and the
+        # error last. Night 168's m53 showed only the file and the line.
+        if (_E_FRAME.match(lines[first])
+                or any("ERROR collecting" in ln for ln in lines)):
+            while first + 1 < len(lines) and _E_LINE.match(lines[first + 1]):
+                first += 1
+        return first
+    frame = next((i for i, ln in enumerate(lines) if _NATIVE_FRAME.match(ln)), None)
+    if frame is None:
+        return None
+    return next((i for i in range(frame + 1, len(lines))
+                 if lines[i].strip() and not lines[i][0].isspace()), None)
+
+
+def error_line(output: str | None) -> str:
+    """The line of a red run that says what raised, without pytest's `E`
+    marker, or "" when no line says it. `error_at` holds the rule."""
+    lines = (output or "").splitlines()
+    at = error_at(lines)
+    if at is None:
+        return ""
+    line = lines[at]
+    return (line[1:] if _E_LINE.match(line) else line).strip()
+
+
 def _tail(text: str, size: int = 2000) -> str:
     """
-    The last `size` characters from a line start, led by the run's first
-    `E ` line when the cut drops it.
+    The last `size` characters from a line start, led by the run's error
+    line when the cut changes what `error_line` reads.
     """
-    # Frame 318, review 1 finding 2: the red's identity is the first `E `
-    # line. A cut mid-output gave a later line or half a line instead.
+    # Frame 318, review 1 finding 2: the red's identity is the error line.
+    # A cut mid-output gave a later line or half a line instead.
     if len(text) <= size:
         return text.strip()
     cut = text.rfind("\n", 0, len(text) - size) + 1
     tail = text[cut:]
-    first = next((ln for ln in text[:cut].splitlines() if ln.startswith("E ")), None)
-    return (f"{first}\n{tail}" if first else tail).strip()
+    lines = text.splitlines()
+    at = error_at(lines)
+    if at is not None and error_line(tail) != error_line(text):
+        # The native form needs its last frame above the error line.
+        start = at if _E_LINE.match(lines[at]) else next(
+            (i for i in range(at, -1, -1) if _NATIVE_FRAME.match(lines[i])), at)
+        # A strip of the whole would take the frame's indent.
+        return "\n".join(lines[start:at + 1] + [tail.strip()])
+    return tail.strip()
 
 
 def _run_one(root: Path, path: str, timeout: int,

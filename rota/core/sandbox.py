@@ -1367,7 +1367,7 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str,
     fails at, or None when the quote holds that line or no run names one.
 
     The failing line is the run's first `>` line that is in the test's
-    body, else the test's first `assert` line. The run's first `E` line counts as the same line.
+    body, else the test's first `assert` line. The run's error line counts as the same line.
     Night 142's m83 quoted the `expected` line of inh_echo_04 and left out
     the `.strip()` that made it red. The Vision Keeper s185 then wrote a
     false decision from the quote (frame 213). A run that fails in the
@@ -1376,6 +1376,8 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str,
     Frame 333, item 3: one quote holds the whole line. The window of 12
     characters passed a quote of part of the line.
     """
+    from . import harness
+
     quoted = _quote_list(text, quotes)
     for ref in refs or []:
         if not isinstance(ref, str):
@@ -1406,8 +1408,8 @@ def _red_line_refusal(ctx: api.Ctx, refs, text: str,
         first = next((ln.strip() for ln in _code_only(test["body"] or "").splitlines()
                       if ln.strip().startswith("assert")), None)
         line = marked or first
-        said = next((ln[1:].strip() for ln in out
-                     if re.match(r"E\s{2,}\S", ln)), None)
+        # Fact F5: `harness.error_line` is the one reader of the line.
+        said = harness.error_line(run["output"]) or None
         if not line and not said:
             continue
         if any(_quote_holds(q, s) for q in quoted for s in (line, said) if s):
@@ -2196,10 +2198,12 @@ def _escalation_admitted(ctx: api.Ctx, refs) -> bool:
 
 
 def _base_quote(output: str) -> str:
-    """The line of a red base run that says why: the first `E ` line."""
+    """The line of a red base run that says why: its error line (fact F5),
+    else its last line."""
+    from .harness import error_line
+
     lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
-    said = next((ln[1:].strip() for ln in lines if ln.startswith("E ")),
-                lines[-1] if lines else "no output")
+    said = error_line(output) or (lines[-1] if lines else "no output")
     return said[:200].rstrip(".")
 
 
