@@ -1779,10 +1779,12 @@ def quarantined(conn) -> list[Wake]:
             attempts = conn.execute(
                 "SELECT attempts FROM tick_attempts WHERE tick_key = ?",
                 (key,)).fetchone()["attempts"]
+            from .db import table_of
+
             for ref in keyed:
-                if ref not in refs and conn.execute(
-                        "SELECT 1 FROM batches WHERE id = ? UNION SELECT 1 FROM items WHERE id = ? "
-                        "UNION SELECT 1 FROM tickets WHERE id = ?", (ref, ref, ref)).fetchone():
+                # `db.table_of` finds the row. The scope is the rows a page names (F22).
+                if ref not in refs and table_of(
+                        conn, ref, among=("batches", "items", "tickets")):
                     refs.append(ref)
             stalled.append(f"{kind} for {', '.join(keyed) or 'the run'}"
                            f"{f' ({role})' if role and role != '-' else ''}, "

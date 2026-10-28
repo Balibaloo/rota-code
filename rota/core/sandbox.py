@@ -851,9 +851,9 @@ def _names_no_source(conn, refs) -> bool:
     for ref in refs or ():
         if not isinstance(ref, str) or ref == ZERO:
             continue
-        if conn.execute("SELECT 1 FROM messages WHERE id = ?", (ref,)).fetchone():
-            continue
-        if conn.execute("SELECT 1 FROM entries WHERE id = ?", (ref,)).fetchone():
+        # `db.tables_of` finds the row. A `reading:` ref names a reply, so it
+        # is the conversation too (F22).
+        if tables_of(conn, ref, among=("messages", "entries")):
             continue
         return False
     return True
@@ -1106,13 +1106,14 @@ def _quoted_rows(ctx: api.Ctx, refs) -> dict[str, tuple[str, str]]:
     for r in refs or []:
         if not isinstance(r, str):
             continue
-        for table, col in _QUOTABLE:
-            hit = ctx.conn.execute(
-                f"SELECT {col} AS words FROM {table} WHERE id = ?",
-                (r,)).fetchone()
-            if hit:
-                rows[r] = (table, hit["words"] or "")
-                break
+        # `db.table_of` finds the row, and `_QUOTABLE` names its words (F22).
+        table = table_of(ctx.conn, r, among=tuple(dict(_QUOTABLE)))
+        hit = table and ctx.conn.execute(
+            f"SELECT {dict(_QUOTABLE)[table]} AS words FROM {table} "
+            f"WHERE id = ?", (r,)).fetchone()
+        # A `guess:` ref names its item, and its own id holds no row.
+        if hit:
+            rows[r] = (table, hit["words"] or "")
     return rows
 
 
@@ -1216,11 +1217,11 @@ def _challenge_sides(ctx: api.Ctx, refs) -> list:
     for r in refs or []:
         if not isinstance(r, str):
             continue
-        if crit is None and ctx.conn.execute(
-                "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone():
+        # `db.tables_of` finds the row, and the side is the table (F22).
+        held = tables_of(ctx.conn, r, among=("criteria", "tests"))
+        if crit is None and "criteria" in held:
             crit = r
-        elif test is None and ctx.conn.execute(
-                "SELECT 1 FROM tests WHERE id = ?", (r,)).fetchone():
+        elif test is None and "tests" in held:
             test = r
     if test and not crit:
         row = ctx.conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
@@ -4437,9 +4438,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # A criterion counts as well: the criterion_repair mode answers with
         # the criterion it rewrote, and that row is the Terminologist's own.
         if verb == "answer" and ctx.role == "terminologist":
-            cited = [r for r in (refs or []) if ctx.conn.execute(
-                "SELECT 1 FROM glossary_terms WHERE id = ? UNION ALL "
-                "SELECT 1 FROM criteria WHERE id = ?", (r, r)).fetchone()
+            cited = [r for r in (refs or []) if tables_of(
+                ctx.conn, r, among=("glossary_terms", "criteria"))
                 or any(w[0] == "criteria" and w[1] == r for w in ctx.writes)]
             # A criterion that this session specified counts too. The
             # criteria mode sends a note about a check to the Tester after

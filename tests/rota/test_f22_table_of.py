@@ -309,33 +309,107 @@ ALLOWED = {
     ("rota/roles/api.py", "_id_taken"),
     # A row's columns per table, once the table is known.
     ("rota/core/runner.py", "_resolve_refs"),
-    # Pass 1b stopped at its cap here. The wider pin scores these 22 sites at
-    # 2 or more, and nobody has read them yet. Some test two different ids,
-    # and some are second readers. Pass 2 reads each one and moves it or
-    # gives it a reason.
-    ("rota/core/lifecycle.py", "_batch_notes"),
+    # Pass 2 read each site below. Each calls an F22 reader for the table,
+    # then reads the words column of that table. The pin scores the column
+    # read as a probe, because its table is a variable.
     ("rota/core/loop.py", "_perform"),
-    ("rota/core/predicates.py", "observed_entries"),
-    ("rota/core/predicates.py", "quarantined"),
-    ("rota/core/sandbox.py", "_challenge_sides"),
-    ("rota/core/sandbox.py", "_names_no_source"),
     ("rota/core/sandbox.py", "_quoted_rows"),
-    ("rota/core/sandbox.py", "stage"),
-    ("rota/roles/api.py", "_adopt_rows"),
-    ("rota/roles/api.py", "_assert_words_fault"),
-    ("rota/roles/api.py", "_contested_elsewhere"),
-    ("rota/roles/api.py", "_is_team_note"),
     ("rota/roles/api.py", "_misplaced_conflict"),
-    ("rota/roles/api.py", "_owner_call"),
-    ("rota/roles/api.py", "_reply_sentence_fault"),
+    # Calls `tables_of` for the target. The last probe tests a different id,
+    # the statement that the segment writes.
     ("rota/roles/api.py", "brief_segment"),
+    # The send door. Each verb branch tests its own refs against one table.
+    # The relay split and the Terminologist's answer call the F22 readers.
+    ("rota/core/sandbox.py", "stage"),
+    # Reads the `basis` column of four provenance views, not the table of an id.
+    ("rota/core/predicates.py", "observed_entries"),
+    # Reads the provenance view of the one table that the ruling names.
+    ("rota/roles/api.py", "_adopt_rows"),
+    # Reads one item and its provenance. The table is `items` by the door.
+    ("rota/roles/api.py", "_assert_words_fault"),
+    # Tests the wake's refs and the asserted id, two different ids, against
+    # `items` and its provenance.
+    ("rota/roles/api.py", "_contested_elsewhere"),
+    # Reads the `text` of a quoted sentence, and finds no table (review 1, 3).
+    ("rota/roles/api.py", "_reply_sentence_fault"),
+    # Reads the session's staged writes, which `tables_of` cannot see. A refs
+    # row needs the raw id, and `tables_of` reads a `guess:` ref as its item.
     ("rota/roles/api.py", "cite"),
+    # Tests the ticket id and the item refs, two different ids, one table each.
     ("rota/roles/api.py", "criteria_specify"),
+    # Tests the resolved refs and `supersedes`, two different ids.
     ("rota/roles/api.py", "decisions_author"),
+    # Each refusal tests `about_ref` against the one table it names, then
+    # `_homes_of_ref` finds the home.
     ("rota/roles/api.py", "ledger_log"),
+    # Tests the batch refs, the criteria of the page lines and the text of a
+    # faulted line. Each is one table, or the words of a known line.
     ("rota/roles/api.py", "rulings_rule"),
+    # Reads the version column once `ruled_ref_home` names the table.
     ("rota/roles/principal.py", "ruling_rows"),
 }
+
+# The sites that pass 2 moved to an F22 reader, each with the tables of the
+# probe it had. `{}` is a probe whose table is a variable. Each site calls a
+# reader and keeps no `SELECT 1` probe over those tables.
+MOVED = {
+    ("rota/core/lifecycle.py", "_batch_notes"): ("{}", "items", "tickets",
+                                                 "criteria", "tests"),
+    ("rota/core/loop.py", "_perform"): ("{}",),
+    ("rota/core/predicates.py", "quarantined"): ("batches", "items", "tickets"),
+    ("rota/core/sandbox.py", "_challenge_sides"): ("criteria", "tests"),
+    ("rota/core/sandbox.py", "_names_no_source"): ("messages", "entries"),
+    ("rota/core/sandbox.py", "_quoted_rows"): ("{}",),
+    ("rota/core/sandbox.py", "stage"): ("glossary_terms",),
+    ("rota/roles/api.py", "_is_team_note"): ("{}",),
+    ("rota/roles/api.py", "_misplaced_conflict"): ("{}", "decisions"),
+    ("rota/roles/api.py", "_owner_call"): ("{}",),
+    ("rota/roles/api.py", "brief_segment"): ("entries",),
+}
+
+
+def _function(rel: str, name: str):
+    path = Path(rota.__file__).parent / rel.removeprefix("rota/")
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return next(n for n in ast.walk(tree)
+                if isinstance(n, ast.FunctionDef) and n.name == name)
+
+
+@pytest.mark.parametrize("rel, name", sorted(MOVED))
+def test_a_moved_site_calls_the_one_reader(rel, name):
+    fn = _function(rel, name)
+    calls = {getattr(n.func, "attr", getattr(n.func, "id", ""))
+             for n in ast.walk(fn) if isinstance(n, ast.Call)}
+    assert calls & READERS, f"{rel} {name} calls no F22 reader"
+    probes = {m.group(1) for n in ast.walk(fn)
+              if isinstance(n, (ast.Constant, ast.JoinedStr))
+              for m in PROBE.finditer(_text(n) or "")}
+    assert not probes & set(MOVED[rel, name]), probes
+
+
+def test_a_moved_site_keeps_no_probe_of_its_own():
+    """The sites that score below 2 now leave the pin's allowed set."""
+    sites = _lookup_sites()
+    gone = {s for s in MOVED if s not in ALLOWED}
+    assert not gone & sites, sorted(gone & sites)
+
+
+def test_a_reading_ref_is_no_source(conn):
+    """A `reading:` ref names a reply, so it is the conversation (F22)."""
+    from rota.core.sandbox import _names_no_source
+
+    assert _names_no_source(conn, ["reading:m97"])
+    assert not _names_no_source(conn, ["k_one"])
+
+
+def test_a_note_on_the_code_line_of_the_batch_item_is_the_batch(conn):
+    """A conflict about `guess:i1` belongs to the batch of item i1 (F22)."""
+    from rota.core.lifecycle import _batch_notes
+
+    conn.execute("INSERT INTO ledger (id, about_ref, about_table, kind, "
+                 "default_taken, author) VALUES ('l_g', 'guess:i1', 'items', "
+                 "'conflict', 'x', 'architect')")
+    assert [r["id"] for r in _batch_notes(conn, "b_1", {"i1"})] == ["l_g"]
 
 
 def test_one_reader_finds_the_table_of_an_id():

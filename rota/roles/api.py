@@ -955,9 +955,11 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     # and the whole session died at commit. Night 135's s247, s248 and s249
     # sent span_entry="s1", a statement id (frame 142, night 135's read,
     # fix 6).
-    if not ctx.conn.execute("SELECT 1 FROM entries WHERE id = ?", (target,)).fetchone():
+    # `db.tables_of` finds the row, and a statement gets its own refusal (F22).
+    held = tables_of(ctx.conn, target, among=("entries", "statements"))
+    if "entries" not in held:
         own = getattr(ctx, "entry_id", None)
-        if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?", (target,)).fetchone():
+        if "statements" in held:
             where = (f"The entry this session can segment is {own}" if own else
                      "This session has no entry to segment against")
             raise ValueError(f"{target} is a statement, and a statement is not an "
@@ -11271,8 +11273,9 @@ def _ask_of(ctx: Ctx):
 def _is_team_note(conn, ref: str) -> bool:
     """Whether a page line is a team's note: a ledger row, a constraint, a
     glossary term or a model area."""
-    return any(conn.execute(f"SELECT 1 FROM {t} WHERE id = ?", (ref,)).fetchone()
-               for t in ("ledger", "constraints", "glossary_terms", "model_areas"))
+    # `db.table_of` finds the row, and the scope is the team's tables (F22).
+    return table_of(conn, ref, among=("ledger", "constraints", "glossary_terms",
+                                      "model_areas")) is not None
 
 
 # law 6: nothing is ruled on the principal's behalf
@@ -13936,11 +13939,10 @@ def _owner_call(ctx, about_ref: str, assumption: str) -> tuple[str, dict, str] |
                 f"copied from {refs[0]} and from {refs[1]}")
     # A criterion is the Terminologist's and a ticket the Vision Keeper's
     # (design, section 3.1). `_owner_of_ref` reads the ruled tables only.
-    owner = next((o for t, o in (("criteria", "terminologist"),
-                                 ("tickets", "vision_keeper"))
-                  if ctx.conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
-                                      (about_ref,)).fetchone()),
-                 None) or _sandbox._owner_of_ref(ctx.conn, about_ref)
+    # `db.table_of` finds the row, and this map names its owner (F22).
+    owner = {"criteria": "terminologist", "tickets": "vision_keeper"}.get(
+        table_of(ctx.conn, about_ref, among=("criteria", "tickets"))
+    ) or _sandbox._owner_of_ref(ctx.conn, about_ref)
     call = f"msg.question_{owner}"
     if owner is None or owner == ctx.role or call not in working:
         return None
@@ -14226,20 +14228,24 @@ def _misplaced_conflict(ctx, about_ref: str, assumption: str) -> str | None:
     """
     echo = ("goes back on the principal's page as your reading of their "
             "words")
-    if ctx.conn.execute("SELECT 1 FROM decisions WHERE id = ?",
-                        (about_ref,)).fetchone():
+    # `db.table_of` finds the row. A decision comes first, as before F22, and
+    # `_ROW_WORDS` names the words of the other rows.
+    home = table_of(ctx.conn, about_ref,
+                    among=("decisions", *(t for t, _ in _ROW_WORDS)))
+    if home == "decisions":
         return (f"{about_ref} is a decision, and the principal's words are on "
                 f"file in it. A note about a ruling {echo}. A conflict names a "
                 f"row that disagrees with another row. If a row disagrees with "
                 f"the ruling, send about_ref=<that row's id>. Otherwise adopt "
                 f"what they ruled, and stop.")
-    home = next((t for t, col in _ROW_WORDS if ctx.conn.execute(
-        f"SELECT 1 FROM {t} WHERE id = ?", (about_ref,)).fetchone()), None)
     if home is None:
         return None
     col = dict(_ROW_WORDS)[home]
     texts = [r[0] for r in ctx.conn.execute(
         f"SELECT {col} FROM {home} WHERE id = ?", (about_ref,))]
+    # A `guess:` ref names its item, and its own id holds no row.
+    if not texts:
+        return None
     if home == "items":
         # The account is every item, and a side can quote the item beside.
         texts += [r[0] for r in ctx.conn.execute("SELECT text FROM items")]
