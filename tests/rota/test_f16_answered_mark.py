@@ -6,9 +6,9 @@ s202, Architect, met three refusals and wrote only fault rows. The old rule
 in `session_commit` marked each trigger answered, because a fault row read
 as a write and a barren session on an open trigger read as an answer.
 
-The rule goes by the kind of the trigger. A trigger that asks for a reply,
-a `question` or an `ask` (`api.ASKING_VERBS`), is answered only by a landed
-row or a message. A trigger that asks for nothing, as an `answer`, a
+The rule goes by the kind of the trigger. A trigger whose verb is in
+`db.OWED_A_REPLY`, as a `question` or an `ask`, is answered only by a reply
+or a receipt. A session that landed nothing gives neither. A trigger that asks for nothing, as an `answer`, a
 `deliver` or a `relay`, is answered by its wake, as before. His request
 keeps frame 320's retry.
 
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import re
 
 import pytest
 
@@ -71,7 +72,7 @@ def test_a_question_with_no_call_stays_unresolved(db):
     session_commit(db, _barren("s204", "terminologist", "m90"))
     row = _status(db, "m90")
     assert row["status"] == "unresolved"
-    assert "landed no row" in row["unresolved_note"]
+    assert "sent nothing" in row["unresolved_note"]
 
 
 def test_fault_rows_alone_do_not_answer_an_ask(db):
@@ -90,14 +91,31 @@ def test_fault_rows_alone_do_not_answer_an_ask(db):
     assert db.execute("SELECT 1 FROM faults WHERE id = 'f_s202'").fetchone()
 
 
-def test_a_landed_row_answers_a_question(db):
-    """A session that lands a row answers its trigger, as before."""
+def test_a_reply_answers_a_question(db):
+    """A session that replies answers its trigger, as before."""
+    from rota.core.db import OutboundMessage
+
     session_commit(db, _barren(
         "s205", "terminologist", "m90",
-        writes=[_fault("s205", "terminologist"),
-                Write("glossary_terms", "g_1", {"term": "shorten",
-                                                "sense_short": "cut the path"})]))
+        writes=[_fault("s205", "terminologist")],
+        messages=[OutboundMessage(id="m94", to_role="developer",
+                                  verb="answer", body_refs=["c_1"],
+                                  cause_id="m90")]))
     assert _status(db, "m90")["status"] == "answered"
+
+
+def test_a_row_that_cites_nothing_does_not_answer_a_question(db):
+    """A question owes a reply or a receipt, as a challenge does (frame 174).
+
+    A glossary row on another term is neither, so the question climbs.
+    """
+    session_commit(db, _barren(
+        "s207", "terminologist", "m90",
+        writes=[Write("glossary_terms", "g_1", {"term": "shorten",
+                                                "sense_short": "cut the path"})]))
+    row = _status(db, "m90")
+    assert row["status"] == "unresolved"
+    assert "no row that cites this message" in row["unresolved_note"]
 
 
 @pytest.mark.parametrize("mid,role", [("m82", "developer"),
@@ -150,3 +168,61 @@ def test_the_mark_has_one_writer():
             writers.setdefault(f"{rel}:{name}", 0)
             writers[f"{rel}:{name}"] += 1
     assert set(writers) == {"core/db.py:mark_answered"}, writers
+
+
+# A Developer disputes a test with a challenge or an escalation. The answer
+# cause line, the same-refs door and its reader name that pair. The pair is
+# a different fact from the verbs that owe a reply, so the pin skips it.
+_DISPUTE = {"challenge", "escalate"}
+
+
+def _owed_lists(tree: ast.AST) -> list[int]:
+    """The lines of verb lists and SQL lists that name two owed verbs or more."""
+    from rota.core.db import OWED_A_REPLY
+    from rota.design import graph as graph_mod
+
+    owed = set(OWED_A_REPLY)
+    verbs = {e.v for e in graph_mod.load().of_type("messages")}
+
+    def is_owed_list(words: set[str]) -> bool:
+        # A list with a word that is no message verb, as the register's
+        # entry names, is a list of something else.
+        return (words <= verbs and len(words & owed) >= 2
+                and words & owed != _DISPUTE)
+
+    sql_list = re.compile(r"IN\s*\(([^)]*)\)", re.IGNORECASE)
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+            words = {e.value for e in node.elts
+                     if isinstance(e, ast.Constant) and isinstance(e.value, str)}
+            if is_owed_list(words):
+                found.append(node.lineno)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            for m in sql_list.finditer(node.value):
+                if is_owed_list(set(re.findall(r"'(\w+)'", m.group(1)))):
+                    found.append(node.lineno)
+    return found
+
+
+def test_the_owed_verbs_have_one_list():
+    """Only `db.OWED_A_REPLY` names the verbs that owe a reply.
+
+    Pass 1c of F16 found three lists of this fact, and they disagreed:
+    `OWED_A_REPLY`, `lifecycle.OWED_VERBS` and `api.ASKING_VERBS`. The
+    Developer's wait in `scheduler.waiting_on` and a SQL string in
+    `session_commit` named the verbs inline too. A second list goes red here.
+    """
+    import rota.core.db as db_mod
+
+    own = ast.parse(pathlib.Path(db_mod.__file__).read_text(encoding="utf-8"))
+    allowed = {f"core/db.py:{n.value.lineno}" for n in ast.walk(own)
+               if isinstance(n, ast.Assign)
+               and any(getattr(t, "id", "") == "OWED_A_REPLY" for t in n.targets)}
+    found = set()
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        found |= {f"{rel}:{line}" for line in _owed_lists(tree)}
+    assert len(allowed) == 1
+    assert found == allowed, found - allowed

@@ -980,13 +980,34 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
     return True
 
 
-# The verbs whose addressee owes a reply. A woken session that sends nothing
-# caused by one of these and writes no receipt for it leaves it unresolved
-# (frame 174, design 200 change 5).
-OWED_A_REPLY = ("challenge", "propose", "escalate")
+# The verbs whose addressee owes a reply or work. This is the one list of
+# that fact (fact F16, rule C76). `session_commit`, `waiting_on`,
+# `waiting_on_a_seat` and `schedule_reask` read it. A woken session that
+# sends nothing caused by one of these and writes no receipt for it leaves
+# it unresolved (frame 174, design 200 change 5).
+OWED_A_REPLY = (
+    # `scheduler.waiting_on`: an open `question` is what waiting is.
+    "question",
+    # `schedule_reask`: Liaison's read-only inquiry leaves the asker blocked.
+    "ask",
+    # Frame 174 and frame 204's design, section 3.2: the challenger waits.
+    "challenge",
+    # `vision_keeper/propose.md` answers with msg.report_liaison (frame 303).
+    "propose",
+    # The escalate brief: "model.amend, and say so with msg.answer_developer".
+    "escalate",
+    # `liaison/submit.md`: "Send one `msg.present_principal`".
+    "submit",
+    # `developer/reopen.md`: "You elect, with `msg.elect_vision_keeper`".
+    "reopen",
+    # `vision_keeper/elect.md`: "Record it and unblock them" with a reopen.
+    "elect",
+)
+# `verdict` owes nothing: `liaison/verdict.md` ends the session with no call
+# when every statement is contested. A deliver, a relay, a report and an
+# answer carry information, so the wake answers them.
 UNRECEIVED_NOTE = ("unresolved: the woken session sent nothing and wrote no "
                    "row that cites this message")
-UNLANDED_NOTE = "unresolved: the woken session landed no row and sent nothing"
 
 # The receipt rule of an edge whose brief names a reply other than a message
 # or a row of the trigger's refs. "none" owes no reply. "message" counts only
@@ -1249,8 +1270,8 @@ def _receipt_rule(trig: sqlite3.Row) -> str | None:
 
 def _owes_a_reply(trig: sqlite3.Row) -> bool:
     """
-    Whether `trig` is a challenge, a proposal or an escalation on a channel
-    the graph declares. A test can seed a carrier on no channel, as the
+    Whether `trig` has a verb of `OWED_A_REPLY` on a channel the graph
+    declares. A test can seed a carrier on no channel, as the
     synthetic arc's Liaison challenge to the Critic. No session can send one.
 
     An edge whose rule in `RECEIPT_RULES` is "none" owes no reply.
@@ -1477,8 +1498,6 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         # open trigger that asks either. The trigger goes unresolved and
         # climbs (fact F16, night 170's W17).
         if result.trigger_msg:
-            from ..roles.api import ASKING_VERBS
-
             barren = not landed(result)
             trig = conn.execute(
                 "SELECT status, verb, body_refs, from_role, to_role, "
@@ -1501,11 +1520,14 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 # and wrote no receipt for it did not answer it. Night 127's
                 # m72 and m112 were escalations, and the Architect wrote
                 # nothing and sent nothing. Invariant I9 found such rows that
-                # read answered.
+                # read answered. Fact F16: the note names the refusal when a
+                # call was refused, as night 170's s202.
+                note = ": ".join(filter(None, (UNRECEIVED_NOTE,
+                                               _why_no_ruling(result, ""))))
                 conn.execute(
                     "UPDATE messages SET status = 'unresolved', "
                     "unresolved_note = COALESCE(unresolved_note, ?) WHERE id = ?",
-                    (UNRECEIVED_NOTE, result.trigger_msg))
+                    (note, result.trigger_msg))
             elif barren and trig and trig["verb"] == "challenge" and trig["status"] == "open":
                 # A barren session on a challenge is not an answer to it.
                 # clickI night 33 (2026-09-13): the Tester's every answer was
@@ -1550,25 +1572,10 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 mark_answered(conn, result.trigger_msg, why)
                 if not _answers_unread(conn, trig):
                     _tell_unread(conn, trig, result.trigger_msg, why)
-            elif (barren and page is None and result.checkpoint is None
-                  and trig and trig["status"] == "open"
-                  and trig["verb"] in ASKING_VERBS):
-                # Fact F16: a session that landed no row and sent nothing
-                # did not answer a trigger that asks. Night 170's s202 met
-                # only refusals, and its fault rows read as an answer. The
-                # kind comes from `ASKING_VERBS`, the reader of `reask`.
-                # A deliver, a relay or an answer asks for nothing, so its
-                # wake answers it, as before. The challenge, the proposal
-                # and the escalation take `_owes_a_reply` above. His request
-                # takes frame 320's path above, and a page reply frame 267's.
-                conn.execute(
-                    "UPDATE messages SET status = 'unresolved', "
-                    "unresolved_note = COALESCE(unresolved_note, ?) "
-                    "WHERE id = ?",
-                    (": ".join(filter(None, (UNLANDED_NOTE,
-                                             _why_no_ruling(result, "")))),
-                     result.trigger_msg))
             elif not (barren and was_unresolved):
+                # A verb outside `OWED_A_REPLY` asks for nothing, so its wake
+                # answers it (fact F16). His request takes frame 320's path
+                # above, and a page reply takes frame 267's.
                 mark_answered(conn, result.trigger_msg)
                 # A request that lands after a first miss drops its note, so
                 # `closed_requests` lists only the requests that closed
@@ -1660,9 +1667,9 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     "SELECT q.id AS qid, q.body_refs AS refs FROM messages a "
                     "JOIN messages q ON q.id = a.cause_id "
                     "WHERE a.id = ? AND a.verb = 'answer' "
-                    "  AND q.verb IN ('question', 'ask') "
+                    f"  AND q.verb IN ({','.join('?' * len(OWED_A_REPLY))}) "
                     "  AND q.from_role = ?",
-                    (result.trigger_msg, result.role)).fetchone()
+                    (result.trigger_msg, *OWED_A_REPLY, result.role)).fetchone()
                 if q and any(
                         conn.execute("SELECT 1 FROM criteria WHERE id = ?",
                                      (ref,)).fetchone()

@@ -1525,13 +1525,14 @@ def waiting_on(conn: sqlite3.Connection, role: str) -> list[str]:
     Derived, like everything else in the register: an open outbound message
     with verb `question` is what waiting *is*, and no role has to declare it.
 
-    A `challenge` and an `escalate` wait the same way for the Developer
+    Every verb of `db.OWED_A_REPLY` waits the same way for the Developer
     alone. A Developer that challenged a test is not woken to build again
     before the Tester answers (frame 204's design, section 3.2).
     """
+    from .db import OWED_A_REPLY
+
     # Frame 204, pass 2c: a wait for every role skips 15 of 23 Architect ticks of night 143.
-    verbs = (("question", "challenge", "escalate") if role == "developer"
-             else ("question",))
+    verbs = OWED_A_REPLY if role == "developer" else ("question",)
     return [r["id"] for r in conn.execute(
         "SELECT id FROM messages WHERE from_role = ? "
         f"AND verb IN ({','.join('?' * len(verbs))}) "
