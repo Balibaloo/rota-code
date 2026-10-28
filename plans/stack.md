@@ -27,7 +27,7 @@ landed act reversed his words again, r_m43, remove on `clear`. The seam
 branch at 22f98cf2 answers the 4, the 7 and r_m43 under review p5. Order,
 the biggest issue first:
 
-1. The rulings seam lands from seamroot after review p5 READY: merge
+1. The rulings seam landed at dfcffd40 on Roman's word of 14:45; frame 345, the deep Liaison cases, comes next, then night 175. The old row 1 text: the rulings seam lands from seamroot after review p5 READY: merge
    `rota/foundation`, a touched-file run, one full gate with re-records.
    Then the m53 loop, 11 refusals on three answers, and the team's-note
    revise are its night 175 count.
@@ -1469,6 +1469,16 @@ a different question and the night is then opened once.
 **Roman ruled the order on 2026-10-07 00:55** (ruled: Roman, "Ok" to this session's recommendation after the five-day read, `plans/stack.md` of this minute). After night 127's read: 1. **Frame 131, a test calls a plain function as a Click command**, first, ahead of every unclaimed stall frame, because every night since 120 ends on its shape. 2. **Frame 170, a merge's review leaves no trace a person can read**, pushed on the same word. 3. **Frame 144, the night databases as a test tier**, runs to its close after pass 10 and takes no new item. 4. The rest of batch C stays unclaimed until a night shows one of its frames stopping a batch that frames 131 and 152 no longer stop. The reasoning: 24 frames closed in five days against 32 pushed in two, merges per night flat at 0 or 1 from night 116 to 126, and about 3M agent tokens on batch C's doors and nudges while frame 131 stood unclaimed since 2026-10-05 (observed: the five-day read of this session, 2026-10-07 00:40).
 
 **Roman ruled the order on 2026-10-09 10:31** (ruled: Roman, chose "Re-batch around what the principal sees" from three options, the recommended one, asked by `AskUserQuestion` at 10:31 after the two momentum notes of 2026-10-09 put it as the next question). The next frame is one design frame on the present page, frame 190, what the principal sees. Frame 45, frames 184 to 189, night 133's wall 2 and night 136's walls 3, 4 and 12 are its walls. Frame 189's correction lands inside it. Frames 185 and 189 alone were the other two options and were declined. The reasoning: night 136's walk 3 showed 11 one-line pages whose one line was a seat's ledger row, and no ruling could carry the principal's exact line to the item, 1.35 dollars and 42 sessions; night 133 showed 16 whole-page contests, 11 in walk 2, each "none of these lines is about my request"; and the frames pushed since 2026-10-08 are each one symptom of that fact (observed: `plans/night136-read.md`, sections 2 and 8, and `plans/night133-read.md`, section 8, 2026-10-09). Meta workflow.
+
+### 345. The Liaison's loss has no test at its scale, so a door or prompt change is measured by a night or not at all (2026-10-28) (Roman)
+
+- **Site: a new case file `tests/rota/cases/l3_rulings.yaml`, about 20 L3 cases, each a real page and his real reply from nights 170 to 174 with the rows his words ask for; the runner that drives a Liaison session through its turns against the doors and records every refusal and the seat's next move.** Meta workflow. Ruled: Roman, 2026-10-28, "the night is the wrong scale of test. If we want to make door changes then test the liaison itself", "what about the multi step tests?", "Sounds like we need less doors and more in depth test cases to highlight weak points in the system prompts", "And you can make the cases with your judgement" (ruled: frame 344's status lines of 2026-10-28).
+- Ends when: first, the 20 cases exist with their expected rows judged once by the Fable session and read by Roman; second, each runs as an L3 case on the head and the register holds its result, right or wrong, turns, refusals; third, one meaning door has been taken out with every case still right, or the cases show why it stays.
+- Waits on: a session with a clean context; this one is past 300k. Priced 1 judge cycle on Fable, about 40k, 2 build on Opus for the case runner, about 60k each, and a review (reasoned: six L3 cases exist in `l3_handoffs.yaml`, the runner's shape is theirs).
+- Reach: every reading door of `rulings_rule` in `rota/roles/api.py`, the Liaison prompts `landing.md` and `answering.md`, and the facts F2 and F3.
+- Sprint: sprint 34, before row 2 (reasoned: Roman's direction of 2026-10-28 puts it first after the seam land).
+- Pointer: `plans/paths-nights170-173.md` section 5.2, the 24 wrong refusals; `plans/seam-night173-read.md` section 1, the 15 calls of m90; `plans/night174-read.md` section 4, the m53 loop; `plans/method/handoff-2ebac251.md`, the direction and the correction.
+- Status 2026-10-28 14:45 (rota-27): Pushed on Roman's go of 14:45, held by no session; this session is past 300k and takes it no further than this block. The next session judges the 20 cases first, and asks him to read the 20 lines. Meta workflow.
 
 ### 344. Closed frames fixed one door of N, so a root cause that the records can name may still stand unfixed at head (2026-10-27) (Roman) (c66eae69) (6d9cf7e1) (b3bc8a66) (2911045b) (2568e043) (77c8dc39) (2ebac251)
 
