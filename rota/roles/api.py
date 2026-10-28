@@ -12182,18 +12182,85 @@ class LineRef(NamedTuple):
     text: str
 
 
+# His report of an earlier answer: "I approved", "I said", "I also said",
+# "I never said", "my last answer ... did not say". A line number in its
+# object is a line of the page that answer replied to. Night 173's m35, "I
+# approved two lines, lines 1 and 4, not one", faulted lines 1 and 4 of the
+# page, and r_m35 landed a revise on c_3 (the seam read of night 173, W9).
+# A present verb is his answer to this page, so "I approve line 4" and "I
+# mean line 4" stay. "what I asked" and "as I said" quote no number.
+# "answered" is no report verb: in frame 305's "I already answered line 14
+# earlier", line 14 is the question line of this page.
+_REPORT_SUBJECT = (r"(?:(?<!\bwhat\s)(?<!\bas\s)\bI"
+                   r"|\b(?:my|that|the|this)\s+(?:\w+\s+)?answers?)")
+_REPORT_ADVERB = r"(?:\s+(?:also|only|just|already|never|then|first|clearly))*"
+_REPORT = re.compile(
+    rf"{_REPORT_SUBJECT}{_REPORT_ADVERB}"
+    rf"(?:\s+(?:said|approved|asked|wrote|meant|called)"
+    rf"|\s+(?:have|has|had)(?:\s+not|n['’]t)?{_REPORT_ADVERB}"
+    rf"\s+(?:said|approved|asked|written|meant|called)"
+    rf"|\s+(?:did\s+not|didn['’]t|never\s+did){_REPORT_ADVERB}"
+    rf"\s+(?:say|approve|ask|write|mean|call))\b", re.I)
+# The report ends at the next clause join. A joined clause in the past
+# tense goes on with the report: m17's "I said line 1 is fine, and only
+# lines 18 to 28 were wrong". "and line 9 quotes an empty answer" is a line
+# of this page (night 170's m36).
+_REPORT_END = re.compile(
+    r";|,\s*(?:and|but|so|or|then)\b"
+    r"|\b(?:but|so|because|since|although|though|however)\b", re.I)
+_REPORT_PAST = re.compile(r"\b(?:was|were)\b", re.I)
+
+
+def _reported(sentence: str) -> list[tuple[int, int]]:
+    """The spans of `sentence` that report his earlier answer.
+
+    A line reference that starts in a span names the earlier page, so it
+    names and faults no line of this page. The rule sits here, in the one
+    parser, so every door reads it (fact F2, rule C76)."""
+    spans: list[tuple[int, int]] = []
+    for m in _REPORT.finditer(sentence):
+        if spans and m.start() < spans[-1][1]:
+            continue
+        end = len(sentence)
+        pos = m.end()
+        while True:
+            stop = _REPORT_END.search(sentence, pos)
+            if stop is None:
+                break
+            nxt = _REPORT_END.search(sentence, stop.end())
+            clause = sentence[stop.end():nxt.start() if nxt else len(sentence)]
+            if stop.group(0).lstrip(",").strip().lower() == "and" and (
+                    _REPORT_PAST.search(clause)
+                    and not _REPORT.search(clause)):
+                pos = stop.end()
+                continue
+            end = stop.start()
+            break
+        spans.append((m.start(), end))
+    return spans
+
+
+def _in_report(spans: list[tuple[int, int]], at: int) -> bool:
+    """True when the position `at` lies in a span of `_reported`."""
+    return any(a <= at < b for a, b in spans)
+
+
 def _line_refs(words: str, size: int | None = None) -> list[LineRef]:
     """The line references of `words`, sentence by sentence.
 
     A bare "3 is wrong" counts at a sentence start only (frame 305, review
-    1, finding 1). So the parser cuts the sentences before it reads.
+    1, finding 1). So the parser cuts the sentences before it reads. A
+    reference in his report of an earlier answer is not a reference here.
     """
     text = words or ""
     out: list[LineRef] = []
     start = 0
     for cut in [*_SENTENCE.finditer(text), None]:
         end = cut.start() if cut else len(text)
+        spans = _reported(text[start:end])
         for m in _LINE_REF.finditer(text[start:end]):
+            if _in_report(spans, m.start()):
+                continue
             word = ("" if m.group(1) is None else
                     "note" if m.group(0).lower().startswith("note") else "line")
             out.append(LineRef(start + m.start(), start + m.end(),
@@ -12803,7 +12870,12 @@ def _line_cues(words: str, size: int | None = None
     approves = False
     for sentence in _SENTENCE.split(words or ""):
         approves = approves or bool(_APPROVES.search(sentence))
-        refs = list(_LINE_REF.finditer(sentence))
+        # A reference in his report of an earlier answer is a line of the
+        # earlier page (W9 of night 173). The report stays in the clause of
+        # the line before it: "On line 6, I meant that ..." faults line 6.
+        spans = _reported(sentence)
+        refs = [r for r in _LINE_REF.finditer(sentence)
+                if not _in_report(spans, r.start())]
         # The cue binds to the reference it governs. In "Line 7 repeats line
         # 3, so drop it", "it" is line 7, the subject (frame 305).
         subject: dict[int, int] = {}
@@ -12813,8 +12885,10 @@ def _line_cues(words: str, size: int | None = None
                 subject[i + 1] = subject.get(i, i)
         for i, ref in enumerate(refs):
             end = refs[i + 1].start() if i + 1 < len(refs) else len(sentence)
+            begin = max([refs[i - 1].end() if i else 0,
+                         *(b for _, b in spans if b <= ref.start())])
             window = sentence[ref.end():end]
-            if i + 1 in subject:
+            if i + 1 in subject and _RELATES_NEXT.search(window):
                 # The relating verb asks nothing of either line. "Line 7
                 # repeats line 3, but do not drop it" faults nothing.
                 window = window[:_RELATES_NEXT.search(window).start()]
@@ -12822,7 +12896,7 @@ def _line_cues(words: str, size: int | None = None
             # 7", "Drop line 3, because it repeats line 7" (frame 305). The
             # object of a relating verb has the relating verb there.
             head_verb, head = (None, "") if i in subject else _head_verb(
-                sentence[refs[i - 1].end() if i else 0:ref.start()])
+                sentence[begin:ref.start()])
             if head == "none":
                 continue
             if head == "own":
@@ -12843,7 +12917,7 @@ def _line_cues(words: str, size: int | None = None
                 matched |= _ref_lines(ref, size)
                 continue
             if cue is None:
-                before = sentence[refs[i - 1].end() if i else 0:ref.start()]
+                before = sentence[begin:ref.start()]
                 verb, lead = ((None, False) if head == "reason"
                               else _clause_verb(window, bool(re.search(
                                   r"\b(?:the|a|an|its|this|that)\s*$",
@@ -14008,6 +14082,20 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"{line}: the act {shape['act']} rests on {span!r}, and his "
                 f"words do not hold it. Copy the words of his reply that ask "
                 f"for the change, or leave the act out")
+        # W16 of night 173: the span check proves the words are his, and
+        # nothing read the verb. s179 put `remove` on the clear function
+        # where m62 asked to name it, and `granted` read the row as his
+        # permission. A removal of code rests on his removal request, read
+        # by the removal door's own reader (law 6, law 12).
+        if (shape["act"] in ("remove", "drop")
+                and shape.get("target_kind") in _CODE_TARGETS
+                and not _asks_removal_of(span, shape.get("target") or "")):
+            line = (f"line {order.index(ref) + 1}" if order and ref in order
+                    else ref)
+            raise ValueError(
+                f"{line}: his words {span!r} ask no removal of "
+                f"{shape.get('target') or shape['target_kind']}, so leave the "
+                f"act out or copy his words that ask for it")
     # ruling: DECISIONS 1445, the principal's words land on the row they name
     # A team's note takes no revise. Revise rewrites a line of the request,
     # and the request has its own lines on the page. Night 136's s557 revised
@@ -23638,6 +23726,28 @@ def _asks_removal(text: str, g: dict) -> bool:
                 continue
             call = re.match(r"(?:(?:return|await|yield|raise)\s+)?([A-Za-z_][\w.]*)\(", line)
             if not g["def"] and call and _says(c, call.group(1) + "("):
+                return True
+    return False
+
+
+# The target kinds of an act that name code. A `row` or a `check` removal
+# drops a page line and grants no code (the seam read of night 173, W16).
+_CODE_TARGETS = frozenset({"source_line", "path", "identifier", "sentence"})
+
+
+def _asks_removal_of(span: str, target: str) -> bool:
+    """True when a sentence of `span` holds a removal request for `target`.
+
+    The request clause comes from `_removal_spans`, the removal door's
+    reader. His words name code in plain words, as "the five formatting
+    tests", so a clause that names no code token asks for the seat's
+    target. A clause that names code tokens asks for `target` only when one
+    token is a whole token of it, so "remove make_str" grants no `clear`."""
+    low = (target or "").lower()
+    for s in re.split(r"(?<=[.!?])\s+|\n+", span or ""):
+        for c in _removal_spans(s):
+            names = _named_tokens(c)
+            if not names or any(_says(low, n) for n in names):
                 return True
     return False
 
