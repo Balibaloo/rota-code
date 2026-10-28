@@ -142,6 +142,21 @@ def parse_file(path: str, source: bytes, lang: Language) -> FileFacts:
             # and indexing every nested closure turns the index into the parse
             # tree with extra steps.
             continue
+        if lang.name == "python" and node.type in ("assignment", "augmented_assignment"):
+            # F13 (rule C76): a top-level assignment and an `__all__` entry
+            # bind a name a test imports, so each is a definer row. The walk
+            # never enters a def or a class, so each binding is at module level.
+            left, right = node.child_by_field_name("left"), node.child_by_field_name("right")
+            if left is not None and left.type == "identifier":
+                bound = _text(left, source)
+                span = (node.start_point[0], node.end_point[0] + 1)
+                facts.symbols.append((bound, "variable", *span))
+                if bound == "__all__" and right is not None and right.type in ("list", "tuple"):
+                    for item in right.named_children:
+                        if item.type == "string":
+                            entry = _text(item, source).strip("\"'")
+                            if entry.isidentifier():
+                                facts.symbols.append((entry, "export", *span))
         if node.type in lang.imports:
             # Ruby has no import node and CommonJS has no import statement —
             # `require` is an ordinary call in both, so the language table

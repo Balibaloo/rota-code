@@ -3505,6 +3505,9 @@ def test_an_escalation_over_a_removed_name_is_the_finding_restated(db, tmp_path)
         sb.call("msg.escalate_architect", refs=["f1", "k1"])
     (root / "main.py").write_text("def calculate_tip(t, p):\n    return t * p\n",
                                   encoding="utf-8")
+    # F13: the door reads the session's staged writes, which a code.write
+    # fills. The test stands in for the write.
+    sb.ctx.code_writes = {"main.py": (root / "main.py").read_text(encoding="utf-8")}
     assert sb.call("msg.escalate_architect", refs=["f1", "k1"])["id"]
 
 
@@ -3520,7 +3523,7 @@ def test_an_escalation_reads_a_worktree_that_lives_under_dot_rota(db, tmp_path):
     seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
                "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
-    db.commit()
+    _index_defs(db, root)
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="normal",
                allow=prompts.mode_tools("developer", "finding_violated"))
@@ -3648,6 +3651,9 @@ def test_a_bare_surface_must_be_defined_somewhere_in_the_tree(db, tmp_path):
     with pytest.raises(ValueError, match="does not define echo_json"):
         sb.call("code.commit", message="helper")
     (root / "script.py").write_text("def echo_json(obj):\n    return obj\n", encoding="utf-8")
+    # F13: the commit door reads the session's staged writes, which a
+    # code.write fills. The test stands in for the write.
+    sb.ctx.code_writes = {"script.py": (root / "script.py").read_text(encoding="utf-8")}
     assert sb.call("code.commit", message="helper")["committed"]
 
 

@@ -73,6 +73,10 @@ class Ctx:
     wake_kind: str = ""
     entry_id: str | None = None
     writes: list = None          # populated by the sandbox; committed atomically
+    # The files this session wrote by `code.write`, path to text, and None for
+    # a file it removed. The runner refreshes the code index after a session
+    # commits, so the index lacks these files (F13, rule C76).
+    code_writes: dict = None
     outbound: list = None        # messages staged this session
     trigger: str | None = None
     # Files this session actually opened, by `code.source`. Law 12 says a
@@ -18231,44 +18235,102 @@ def _dotted_module(path: str, keep_root: bool = False) -> str:
     return dotted.removesuffix(".__init__")
 
 
-def definers_of(conn, name: str) -> list[str]:
-    """
-    The program files that define `name` at top level, sorted.
+def _stage_code_write(ctx, path: str, text) -> None:
+    """Record a landed `code.write` for `staged_writes`."""
+    if getattr(ctx, "code_writes", None) is None:
+        ctx.code_writes = {}
+    ctx.code_writes[_grain_path(path)] = text
 
-    The code index holds a symbol row `path::name` for each top-level
-    `def` and `class`. The frame's kind keeps the program files only, so a
-    test, an example or an ignored file defines no name a test reaches.
+
+def staged_writes(ctx) -> tuple:
+    """The session's `code.write` files as (path, text) pairs, sorted. The
+    text is None for a file the session removed."""
+    return tuple(sorted((getattr(ctx, "code_writes", None) or {}).items()))
+
+
+# The index's `sym_kind` of a binding that is not a definition: an
+# assignment and an `__all__` entry (the indexer's `parse_file`).
+_BINDING_KINDS = ("variable", "export")
+
+
+def _binds_in(text: str, defs_only: bool) -> set[str]:
+    """The names a module's text binds at module level, as the indexer
+    reads them: a def and a class, and without `defs_only` an assignment
+    and an `__all__` entry. A text that does not parse binds nothing."""
+    import ast as _ast
+    try:
+        body = list(_ast.parse(text).body)
+    except (SyntaxError, ValueError):
+        return set()
+    out: set[str] = set()
+    while body:
+        n = body.pop()
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+            out.add(n.name)
+            continue
+        if not defs_only and isinstance(n, (_ast.Assign, _ast.AnnAssign, _ast.AugAssign)):
+            targets = n.targets if isinstance(n, _ast.Assign) else [n.target]
+            for t in targets:
+                if isinstance(t, _ast.Name):
+                    out.add(t.id)
+                    if t.id == "__all__" and isinstance(n.value, (_ast.List, _ast.Tuple)):
+                        out |= {e.value for e in n.value.elts
+                                if isinstance(e, _ast.Constant) and isinstance(e.value, str)}
+        # The indexer enters a module-level `if`, `try`, `with` or loop.
+        for field in ("body", "orelse", "finalbody", "handlers"):
+            body.extend(x for x in getattr(n, field, []) if isinstance(x, _ast.stmt)
+                        or isinstance(x, _ast.excepthandler))
+    return out
+
+
+def definers_of(conn, name: str, staged=(), defs_only: bool = False) -> list[str]:
+    """
+    The program files that define `name` at module level, sorted.
+
+    The code index holds a symbol row `path::name` for each module-level
+    `def`, `class`, assignment and `__all__` entry. `staged` holds the
+    session's own writes, (path, text), and a staged Python file replaces
+    its index rows. With `defs_only`, a def and a class count alone. The
+    frame's kind keeps the program files only, so a test, an example or an
+    ignored file defines no name a test reaches.
     """
     # F13 (rootfix audit 2026-10-27-a, rule C76): the index is the one place
     # that holds every symbol's file. A door that walks the tree with its own
     # rule disagrees with the frame (frame 324, ruled: Roman, 2026-10-26 20:37).
+    # The staged texts cover the index's lag: the runner refreshes the index
+    # only after a session commits.
     from ..onboarding.areas import kind_of
 
     if conn is None or not name:
         return []
+    mine = {_grain_path(p): t for p, t in staged if _grain_path(p).endswith(".py")}
     tail = "::" + name
     rows = conn.execute(
-        "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
+        "SELECT grain, sym_kind FROM code_index WHERE grain_kind = 'symbol' "
         "AND substr(grain, -?) = ?", (len(tail), tail)).fetchall()
-    return sorted({p for p in (r["grain"][:-len(tail)].replace("\\", "/") for r in rows)
-                   if kind_of(conn, p) == "program"})
+    found = {p for p, k in ((r["grain"][:-len(tail)].replace("\\", "/"), r["sym_kind"])
+                            for r in rows)
+             if p not in mine and not (defs_only and k in _BINDING_KINDS)}
+    found |= {p for p, t in mine.items() if t is not None and name in _binds_in(t, defs_only)}
+    return sorted(p for p in found if kind_of(conn, p) == "program")
 
 
-def module_of(conn, name: str, keep_root: bool = False) -> tuple[str, str] | None:
+def module_of(conn, name: str, keep_root: bool = False,
+              staged=()) -> tuple[str, str] | None:
     """
     The module that defines `name`, and the module's path, or None.
 
     A grain `path::name` or a `.py` path names its own file. A bare name
-    reads `definers_of`. When two modules define the name, the shortest
-    dotted name wins. With `keep_root`, `src/` and `lib/` stay in the
-    dotted name, as `_dotted_module` says.
+    reads `definers_of` with the session's `staged` writes. When two modules
+    define the name, the shortest dotted name wins. With `keep_root`, `src/`
+    and `lib/` stay in the dotted name, as `_dotted_module` says.
     """
     text = (name or "").replace("\\", "/")
     path, sep, _ = text.partition("::")
     if sep or path.endswith(".py"):
         dotted = _dotted_module(_grain_path(path), keep_root=keep_root)
         return (dotted, path) if dotted else None
-    found = [(d, p) for p in definers_of(conn, text)
+    found = [(d, p) for p in definers_of(conn, text, staged)
              if (d := _dotted_module(p, keep_root=keep_root))]
     return min(found, key=lambda f: (f[0].count("."), len(f[0]), f[0])) if found else None
 
@@ -19747,6 +19809,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             if dry:
                 return {}       # admitted; a dry run removes nothing
             target.unlink()
+            _stage_code_write(ctx, path, None)
             return {"removed": path, "note": "the file this batch added is gone; "
                                              "commit to record it"}
         raise ValueError(
@@ -20657,22 +20720,15 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     continue
                 if node.name.startswith("_") or node.name.startswith("test") or node.name in had_before:
                     continue
-                elsewhere = {
-                    r["grain"].split("::", 1)[0] for r in ctx.conn.execute(
-                        "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
-                        "AND grain LIKE ?", (f"%::{node.name}",))
-                    if r["grain"].endswith(f"::{node.name}")
-                    # The index holds every language, and a Python caller
-                    # cannot reach `web/format.js::truncate` (frame 326).
-                    and _splitext(r["grain"].split("::", 1)[0])[1] == _splitext(path)[1]
-                    and r["grain"].split("::", 1)[0].replace("\\", "/") != path.replace("\\", "/")
-                    and not _is_test_path(r["grain"].split("::", 1)[0])}
-                # The index is the tree at onboarding; the batch's own commits
-                # are not in it. clickI night 42 (2026-09-13): `echo_json`
-                # landed in utils.py, then a second `echo_json` in a new
-                # module the index could not see. The worktree is the fact.
-                elsewhere |= _defined_in_tree(ctx, node.name, path)
-                elsewhere = sorted(elsewhere)
+                # The index lacks this session's own writes. clickI night 42
+                # (2026-09-13): `echo_json` landed in utils.py, then a second
+                # `echo_json` in a new module the index could not see. The
+                # staged writes cover that lag (F13, rule C76). A Python
+                # caller cannot reach `web/format.js::truncate` (frame 326).
+                elsewhere = [p for p in definers_of(ctx.conn, node.name,
+                                                    staged_writes(ctx), defs_only=True)
+                             if _splitext(p)[1] == _splitext(path)[1]
+                             and p != _grain_path(path)]
                 # A criterion that names this file asked for the definition
                 # here. L1-DV-build-a-clear-criterion (2026-09-14): "money(1999)
                 # returns '$19.99' from src/notify/formatting.py", templates.py
@@ -21127,7 +21183,16 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 type_ignores=[]))
             fixes: list[str] = []
             for one in name.split(", "):
-                owners = _package_definers(root, init_rel, path, one)
+                # The module stems beside the package's __init__ that define
+                # the name. An import binds a name and defines none: click's
+                # utils.py imports Command, and only core.py defines it
+                # (frame 229). F13 (rule C76): `definers_of` decides.
+                pkg_dir = _grain_path(init_rel).rpartition("/")[0]
+                owners = sorted(
+                    f[:-3] for d, _, f in (p.rpartition("/") for p in definers_of(
+                        ctx.conn, one, staged_writes(ctx)))
+                    if d == pkg_dir and f != "__init__.py"
+                    and f"{d}/{f}".lstrip("/") != _grain_path(path))
                 if one == pkg:
                     fixes.append(
                         f"Import each name you need from the module that defines "
@@ -21243,6 +21308,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     eol = _line_ending(target, root)
     with open(target, "w", encoding="utf-8", newline="") as fh:
         fh.write(text.replace("\r\n", "\n").replace("\n", eol))
+    _stage_code_write(ctx, path, text)
     out = {"path": path, "bytes": len(text.encode("utf-8")),
            "created": not existed}
     # A fact, not an order: the seat decides whether the tail goes.
@@ -21586,17 +21652,11 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                 import re as _re
                 if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", ref):
                     continue
-                pat = _re.compile(rf"^\s*(?:def|class)\s+{_re.escape(ref)}(?!\w)", _re.M)
-                # The parts below the tree, not the whole path: a worktree
-                # lives under `.rota/worktrees/<batch>`, and the old test
-                # on `py.parts` dropped every file in it. clickI night 22
+                # F13 (rule C76): `definers_of` decides, with the session's
+                # staged writes for the index's lag. clickI night 22
                 # (2026-09-12): echo_json defined in src/click/echo_json.py,
                 # and the commit refused for a tree that did not define it.
-                if not any(pat.search(py.read_text(encoding="utf-8", errors="replace"))
-                           for py in tree.rglob("*.py")
-                           if ".venv" not in py.relative_to(tree).parts
-                           and ".rota" not in py.relative_to(tree).parts
-                           and "tests" not in py.relative_to(tree).parts):
+                if not definers_of(ctx.conn, ref, staged_writes(ctx)):
                     undefined.append(f"{ref} (the surface criterion {crit['id']} names)")
                 continue
             if not ref.split("::", 1)[0].endswith(".py"):
@@ -23860,35 +23920,6 @@ def _own_package_import(root, path: str, tree) -> tuple[str, str, str] | None:
     return None
 
 
-def _package_definers(root, init_rel: str, path: str, name: str) -> list[str]:
-    """
-    The module stems beside `init_rel` that define `name` at top level,
-    sorted. The file under write and the package's __init__ do not count.
-
-    An import binds a name and does not define it: click's utils.py binds
-    Command by `from .core import Command`, and only core.py defines it
-    (frame 229). A file that does not parse defines nothing.
-    """
-    # F13 residue (rule C76): this write door reads the files on disk for
-    # the reason `_defined_in_tree` gives.
-    import ast as _ast
-    from pathlib import Path as _Path
-    pkg_dir = root / _Path(init_rel).parent
-    me = _Path(path.replace("\\", "/")).name
-    out: list[str] = []
-    for f in sorted(pkg_dir.glob("*.py")):
-        if f.name in ("__init__.py", me):
-            continue
-        try:
-            tree = _ast.parse(f.read_text(encoding="utf-8", errors="replace"))
-        except (SyntaxError, ValueError):
-            continue
-        tree.body = [n for n in tree.body
-                     if not isinstance(n, (_ast.Import, _ast.ImportFrom))]
-        if name in _top_binds(tree):
-            out.append(f.stem)
-    return out
-
 
 def _criteria_surface_names(ctx: Ctx) -> set[str]:
     """The names the batch's criteria name as surfaces, bare."""
@@ -25136,36 +25167,6 @@ def _kind_shortfall(old_lines: list[str], text: str):
     keys = shortfall(lambda s: (s[0], s[1]))
     return olds, kinds, keys
 
-
-def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
-    """The program modules of the batch's worktree that define `name` at
-    top level, other than `path`. A regex over the files, not a parse: the
-    question is one name, and the tree is small enough to read."""
-    # F13 residue (rule C76): the write door reads the files on disk, and
-    # not `definers_of`. The runner refreshes the index after a session
-    # commits, so the index lacks a file that this session wrote.
-    import re as _re
-    root = _batch_worktree(ctx)
-    if root is None or not root.is_dir():
-        return set()
-    pat = _re.compile(rf"^(?:async\s+def|def|class)\s+{_re.escape(name)}\b", _re.M)
-    from ..onboarding.areas import kind_of
-
-    found: set[str] = set()
-    for f in root.rglob("*.py"):
-        rel = f.relative_to(root).as_posix()
-        # Only program files define a name the test can reach, so the
-        # frame's kind decides (frame 324, ruled: Roman, 2026-10-26 20:37).
-        # `venv/` is an installed environment and no part of the frame.
-        if (rel == path.replace("\\", "/") or rel.startswith("venv/")
-                or kind_of(ctx.conn, rel) in ("attached", "ignore")):
-            continue
-        try:
-            if pat.search(f.read_text(encoding="utf-8", errors="replace")):
-                found.add(rel)
-        except OSError:
-            continue
-    return found
 
 def _is_test_path(path: str) -> bool:
     """A test file by pytest's own rule, or anything under a tests directory."""

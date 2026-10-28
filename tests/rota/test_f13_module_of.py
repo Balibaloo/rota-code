@@ -124,8 +124,6 @@ _ROOT = pathlib.Path(api.__file__).resolve().parents[1]
 # index lags the session's own writes (the report of F13 names them).
 _ALLOWED = {
     ("rota/roles/api.py", "module_of"),
-    ("rota/roles/api.py", "_defined_in_tree"),
-    ("rota/roles/api.py", "_package_definers"),
 }
 
 
@@ -154,5 +152,85 @@ def test_one_reader_answers_which_module_defines_a_name():
             for n, line in enumerate(py.read_text(encoding="utf-8").splitlines(), 1)
             if regex.search(line) and "rf\"" in line]
     assert not offenders, offenders
-    assert len(hits) == 3, hits
-    assert not hasattr(api, "_project_module_of")
+    # Pass 1b: the staged writes cover the index's lag, so no door greps.
+    assert not hits, hits
+    for gone in ("_project_module_of", "_defined_in_tree", "_package_definers"):
+        assert not hasattr(api, gone), gone
+
+
+# Pass 1b: the four disk readers call `definers_of` with the session's
+# staged writes. Each case is a staged file where the old disk rule and the
+# reader disagree.
+
+def _staged_db(tmp_path):
+    return _db(tmp_path, {}, [], "[]")
+
+
+def test_the_copy_door_reads_no_definition_in_a_docstring(tmp_path):
+    """`_defined_in_tree` matched `def money` at column 0 in a string. A
+    docstring defines nothing, so the copy door names no first definition."""
+    conn = _staged_db(tmp_path)
+    staged = (("src/shop/notes.py", '"""\ndef money(x):\n    pass\n"""\n'),)
+    assert api.definers_of(conn, "money", staged, defs_only=True) == []
+
+
+def test_the_cycle_hint_reads_the_session_s_new_module(tmp_path):
+    """`_package_definers` read the disk beside the package's `__init__`.
+    The index lacks the session's new module, and the staged text holds it."""
+    conn = _staged_db(tmp_path)
+    staged = (("src/click/shell.py", "class Command:\n    pass\n"),)
+    assert api.definers_of(conn, "Command", staged) == ["src/click/shell.py"]
+
+
+def test_the_commit_door_counts_a_top_level_assignment(tmp_path):
+    """The commit door's regex counted a def or a class. A surface bound by
+    an assignment imports, so the commit door finds its definer."""
+    conn = _staged_db(tmp_path)
+    staged = (("src/app/cli.py", "echo_json = _make_echo()\n"),)
+    assert api.definers_of(conn, "echo_json", staged) == ["src/app/cli.py"]
+
+
+def test_the_finding_door_counts_an_all_entry_and_no_method(tmp_path):
+    """The sandbox's regex allowed an indent, so a method kept a removed
+    grain defined. An `__all__` entry binds the name, and a method does not."""
+    conn = _staged_db(tmp_path)
+    method = (("src/app/a.py", "class A:\n    def total(self):\n        pass\n"),)
+    assert api.definers_of(conn, "total", method) == []
+    exported = (("src/app/b.py", "__all__ = ['total']\nfrom .c import total\n"),)
+    assert api.definers_of(conn, "total", exported) == ["src/app/b.py"]
+
+
+def test_a_staged_file_replaces_its_index_rows(tmp_path):
+    """A staged file is the session's text. Its stale index rows and a
+    removed file define nothing."""
+    conn = _db(tmp_path, {}, ["src/app/a.py::total", "src/app/b.py::total"], "[]")
+    staged = (("src/app/a.py", "x = 1\n"), ("src/app/b.py", None))
+    assert api.definers_of(conn, "total", staged) == []
+
+
+def test_the_indexer_writes_an_assignment_and_an_all_entry():
+    """The index's definer rows take an assignment and an `__all__` entry."""
+    from rota.onboarding import indexer, languages
+    src = b"VERSION = '1'\n__all__ = ['run']\nfrom .core import run\n"
+    facts = indexer.parse_file("pkg/__init__.py", src, languages.for_path("x.py"))
+    kinds = {(n, k) for n, k, *_ in facts.symbols}
+    assert {("VERSION", "variable"), ("run", "export")} <= kinds
+
+
+def test_no_door_walks_the_tree_for_a_definer():
+    """A function that globs the tree's `.py` files and reads a definition
+    is a second reader of the definer. The staged writes replace it."""
+    import ast
+
+    offenders = []
+    for py in sorted(_ROOT.rglob("*.py")):
+        rel = py.relative_to(_ROOT.parent).as_posix()
+        text = py.read_text(encoding="utf-8")
+        for fn in ast.walk(ast.parse(text)):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            src = ast.get_source_segment(text, fn) or ""
+            walks = 'glob("*.py")' in src
+            if walks and ("(?:def|class)" in src or "(def|class)" in src):
+                offenders.append(f"{rel}:{fn.lineno} {fn.name}")
+    assert not offenders, offenders
