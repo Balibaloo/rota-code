@@ -1302,9 +1302,11 @@ def requests_of(conn: sqlite3.Connection, ref: str | None) -> set[str | None]:
 def request_of(conn: sqlite3.Connection, ref: str | None) -> str | None:
     """The entry of the one request that owns a row, or None.
 
-    This is the one reader of the fact (F15). A row of no item, of no
-    request or of two requests has no single owner."""
-    owners = requests_of(conn, ref)
+    This is the one reader of the fact (F15). An item of no request shares
+    any row, so a row of one request and the account is that request's.
+    Night 161's s1 reaches `echo_json` and `how_it_works` (F15 review 1,
+    finding 2). A row of no request or of two requests has no owner."""
+    owners = requests_of(conn, ref) - {None}
     return next(iter(owners)) if len(owners) == 1 else None
 
 
@@ -1428,7 +1430,11 @@ def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
 
     aside = aside_items(conn)
     best = None
-    for item in _reached(conn, refs):
+    # The page reads the row walk of `request_of`, so a test reaches its
+    # criterion's item here as in `land` (F15 review 1, finding 1).
+    reached = {i for ref in refs or [] if isinstance(ref, str)
+               for i in row_items(conn, ref) or []}
+    for item in reached:
         # `request_of` gives a description no request. A description citing
         # s3 put the confirm item off its own page (the review of e406e976,
         # finding 1).
@@ -1462,7 +1468,10 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
     for ref in refs or []:
         if not isinstance(ref, str):
             continue
-        items = _items_reached(conn, ref)
+        # One row walk with `land`: a note about a test of another
+        # request's item leaves the page, and his answer on it contests
+        # nothing (F15 review 1, finding 1).
+        items = row_items(conn, ref) or []
         if not items:
             continue
         if all(i in aside for i in items):
@@ -1505,7 +1514,7 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     for ref in refs or []:
         if not isinstance(ref, str) or ref in off:
             continue
-        for item in _items_reached(conn, ref):
+        for item in row_items(conn, ref) or []:
             if item not in items and item not in held and _is_request_item(conn, item):
                 items.append(item)
     if not items:
