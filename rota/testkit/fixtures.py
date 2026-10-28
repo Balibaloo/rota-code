@@ -1544,6 +1544,8 @@ def _write_includes(case: dict, conn: sqlite3.Connection,
         return []
     import subprocess
 
+    from ..core.worktrees import grain_path
+
     row = conn.execute("SELECT worktree FROM batches WHERE id = ?",
                        (batch_id,)).fetchone() if batch_id else None
     if not row or not row["worktree"]:
@@ -1556,7 +1558,9 @@ def _write_includes(case: dict, conn: sqlite3.Connection,
     want = [_normal_code(line) for line in lines]
     seen: list[str] = []
     for grain in grains:
-        path, _, name = grain.partition("::")
+        # F11: the path half goes through the one reader.
+        path = grain_path(grain)
+        _, _, name = grain.partition("::")
         shown = subprocess.run(["git", "-C", row["worktree"], "show",
                                 f"HEAD:{path}"], capture_output=True)
         body = (_body_code(shown.stdout.decode("utf-8", "replace"), name)
