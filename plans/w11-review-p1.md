@@ -49,3 +49,33 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac2
 ## (d) Usage
 
 Input tokens: about 75k in context. Output tokens: about 9k. Total: about 84k. The work went past the 40k cap because of the parent replay and the night report probe.
+
+## p2
+
+Verdict: READY. Commit f47bd1e0 closes the p1 high and p1 findings 2 to 5. Two lows stay, and neither stops the merge.
+
+### (a) The verdict on each point
+
+1. The high: CLOSED. The night print now shows the s130 shape in the failures section. The probe quotes the line under finding p2-1. On the real night 173, the line counts 155 sessions, so it cannot find the W11 ending by kind (p2-1).
+2. One reader: CONFIRMED. `_parse_refusal` at `rota/core/runner.py:6485` answers the parse errors of the turn loop (5534) and of the hold step (5644). The hold step holds real calls only. With the real s130 turn 5, the turn 6 NOT RUN line lists the five held calls and `artefact.verb(key='value')`, and no parse error. The parse error comes in its own ERROR line on that turn.
+3. The lost error: CONFIRMED. When a parse error in turn 1 is followed by a real call in turn 2, the error goes in `outcome.errors` and in the SESSION ENDED account as "- no function name after TOOL:".
+4. The toolcheck guard: LIVE, so it is not a finding. The runner does not call `toolcheck.check`. The `rota cli toolcheck` command at `rota/cli.py:620` calls it on a reply from a live model. The guard protects that path, and `test_toolcheck_reads_past_a_tool_error` tests it.
+5. Tests: CONFIRMED. `test_runner_toolerror.py` gives 7 passed. The 58 files that name `_parse_refusal`, `run_session` or `nightreport` give 1679 passed and 1 failed. The failure is the known red `test_pins`, which also fails at the parent.
+
+### (b) Findings
+
+p2-1. LOW. `rota/tools/nightreport.py:931-948`. CONFIRMED. Probe A printed "committed sessions that ended with refusals in the runner's account: 1, 7 lines, the most common 1x: artefact.verb (held): ...". Probe C, on `clickI_night173.db`, printed "155, 897 lines, the most common 71x: repeat refused: code.source asked three times ...". The line includes nearly every committed session, so a W11 ending stays hidden in a real night. Fix: count the account lines by mechanism with `rota/tools/triage.py` `mechanism()`, and print the count for "parse".
+
+p2-2. LOW, outside the points. `rota/core/runner.py`, the `invented_tail` list in the turn loop (about line 5525). PLAUSIBLE. That list copies `c.raw` for each item in `calls[i:]`, and parse errors are included. The seat then reads a parse error as a call under "NOT RUN, because you wrote a tool result", and no reason goes to `outcome.errors`. This is the same defect as p1 finding 2, on the path for an invented result. Fix: answer each ToolError in that tail with `_parse_refusal`, as the hold step does.
+
+### (c) Probes
+
+- `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad/w11_p2_probe.py`. It has three parts:
+  - A: the test fixture with the real s130 turn 5 from `clickI_night173.db` (`mode=ro`), then prose turns. A prints the turn 2 NOT RUN line, the ERROR lines and the night print line. No session failed.
+  - B: the parse error of `TURN_5`, then `TOOL: criteria.load(batch_id='bg_1')`. B prints `outcome.errors` and the account turn.
+  - C: `nightreport.build` on `clickI_night173.db`, opened with `open_ro`.
+- The pytest runs at f47bd1e0 are in (a) point 5.
+
+### (d) Usage
+
+Input tokens: about 20k in context for p2. Output tokens: about 4k. Total: about 24k.
