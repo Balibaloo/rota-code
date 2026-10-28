@@ -3978,7 +3978,10 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     for r in ctx.conn.execute("SELECT grain, grain_kind FROM code_index"):
         # Both from the same row, so a fold collision of two seeded rows
         # pairs one row's grain with that row's kind (the review of pass 3).
-        kinds.setdefault(_fold(r["grain"]), r["grain_kind"])
+        # A binding row is a symbol to `constraint_bindings`, whose CHECK
+        # holds the four grain kinds alone (F13 pass 1c).
+        kinds.setdefault(_fold(r["grain"]), "symbol"
+                         if r["grain_kind"] in _BINDING_KINDS else r["grain_kind"])
         raw.setdefault(_fold(r["grain"]), r["grain"])
     for grain in map(_fold, bindings or []):
         # A symbol the indexer never emitted still passed the read check on
@@ -18298,9 +18301,15 @@ def staged_writes(ctx) -> tuple:
     return tuple(sorted((getattr(ctx, "code_writes", None) or {}).items()))
 
 
-# The index's `sym_kind` of a binding that is not a definition: an
-# assignment and an `__all__` entry (the indexer's `parse_file`).
-_BINDING_KINDS = ("variable", "export")
+# The index's `grain_kind` of a binding that is not a definition: an
+# assignment and an `__all__` entry. The indexer holds the one list.
+from ..onboarding.indexer import BINDING_KINDS as _BINDING_KINDS  # noqa: E402
+
+# The old commit rule of a bare surface (clickI, 2026-09-11): a line that
+# opens a def or a class, at any indent. The commit door keeps it, because
+# the ruling of 2026-10-17 forbids a new commit refusal (F13 pass 1c).
+_LENIENT_DEFINER = r"^\s*(?:def|class)\s+{}(?!\w)"
+_LENIENT_SKIP = (".venv", ".rota", "tests")
 
 
 def _binds_in(text: str, defs_only: bool) -> set[str]:
@@ -18333,16 +18342,23 @@ def _binds_in(text: str, defs_only: bool) -> set[str]:
     return out
 
 
-def definers_of(conn, name: str, staged=(), defs_only: bool = False) -> list[str]:
+def definers_of(conn, name: str, staged=(), defs_only: bool = False,
+                lenient_root=None) -> list[str]:
     """
     The program files that define `name` at module level, sorted.
 
-    The code index holds a symbol row `path::name` for each module-level
-    `def`, `class`, assignment and `__all__` entry. `staged` holds the
-    session's own writes, (path, text), and a staged Python file replaces
-    its index rows. With `defs_only`, a def and a class count alone. The
-    frame's kind keeps the program files only, so a test, an example or an
-    ignored file defines no name a test reaches.
+    The code index holds a `symbol` row `path::name` for each module-level
+    `def` and `class`, and a `variable` or `export` row for an assignment
+    and an `__all__` entry. `staged` holds the session's own writes, (path,
+    text), and a staged Python file replaces its index rows. With
+    `defs_only`, a def and a class count alone. The frame's kind keeps the
+    program files only, so a test, an example or an ignored file defines
+    no name a test reaches.
+
+    `lenient_root` is the worktree of the commit door. With it, the old
+    commit rule also counts: a line that opens a def or a class at any
+    indent, in an indexed or staged Python file outside `tests`. So a
+    method, a docstring and a file of any kind count there.
     """
     # F13 (rootfix audit 2026-10-27-a, rule C76): the index is the one place
     # that holds every symbol's file. A door that walks the tree with its own
@@ -18356,13 +18372,42 @@ def definers_of(conn, name: str, staged=(), defs_only: bool = False) -> list[str
     mine = {_grain_path(p): t for p, t in staged if _grain_path(p).endswith(".py")}
     tail = "::" + name
     rows = conn.execute(
-        "SELECT grain, sym_kind FROM code_index WHERE grain_kind = 'symbol' "
-        "AND substr(grain, -?) = ?", (len(tail), tail)).fetchall()
-    found = {p for p, k in ((r["grain"][:-len(tail)].replace("\\", "/"), r["sym_kind"])
+        "SELECT grain, grain_kind FROM code_index WHERE grain_kind IN "
+        "('symbol', 'variable', 'export') AND substr(grain, -?) = ?",
+        (len(tail), tail)).fetchall()
+    found = {p for p, k in ((r["grain"][:-len(tail)].replace("\\", "/"), r["grain_kind"])
                             for r in rows)
              if p not in mine and not (defs_only and k in _BINDING_KINDS)}
     found |= {p for p, t in mine.items() if t is not None and name in _binds_in(t, defs_only)}
-    return sorted(p for p in found if kind_of(conn, p) == "program")
+    out = {p for p in found if kind_of(conn, p) == "program"}
+    if lenient_root is not None:
+        out |= _lenient_definers(conn, name, mine, lenient_root)
+    return sorted(out)
+
+
+def _lenient_definers(conn, name: str, mine: dict, root) -> set[str]:
+    # The files are the index's paths and the staged writes, so no door
+    # walks the disk for a definer (F13 pass 1b).
+    from pathlib import Path
+
+    pat = re.compile(_LENIENT_DEFINER.format(re.escape(name)), re.M)
+    paths = {r["grain"].replace("\\", "/") for r in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+        "AND grain LIKE '%.py'")} | set(mine)
+    out: set[str] = set()
+    for p in paths:
+        if any(part in _LENIENT_SKIP for part in p.split("/")):
+            continue
+        if p in mine:
+            text = mine[p]
+        else:
+            try:
+                text = (Path(root) / p).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                text = None
+        if text is not None and pat.search(text):
+            out.add(p)
+    return out
 
 
 def module_of(conn, name: str, keep_root: bool = False,
@@ -21706,7 +21751,10 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                 # staged writes for the index's lag. clickI night 22
                 # (2026-09-12): echo_json defined in src/click/echo_json.py,
                 # and the commit refused for a tree that did not define it.
-                if not definers_of(ctx.conn, ref, staged_writes(ctx)):
+                # Decision a of pass 1c: the commit door keeps its old
+                # acceptance, so a method or a docstring still passes here.
+                if not definers_of(ctx.conn, ref, staged_writes(ctx),
+                                   lenient_root=tree):
                     undefined.append(f"{ref} (the surface criterion {crit['id']} names)")
                 continue
             if not ref.split("::", 1)[0].endswith(".py"):

@@ -308,13 +308,16 @@ def place_known_modules(tmp_path):
 
 
 def place_defined_in_tree(tmp_path):
-    """`_defined_in_tree`: a demo's definition is no name the test reaches."""
+    """`_defined_in_tree`: a demo's definition is no name the test reaches.
+    F13 pass 1b deleted the helper, and the copy door reads `definers_of`
+    with the session's staged writes."""
+    files = {"examples/demo/app.py": "def charge():\n    pass\n",
+             "src/bank/core.py": "def other():\n    pass\n"}
     root = tmp_path / "wt"
-    _write(root, {"examples/demo/app.py": "def charge():\n    pass\n",
-                  "src/bank/core.py": "def other():\n    pass\n"})
+    _write(root, files)
     conn = _encode_db(tmp_path, [], "", worktree=root)
-    ctx = types.SimpleNamespace(conn=conn, batch_id="b1")
-    return api._defined_in_tree(ctx, "charge", "") == set()
+    return api.definers_of(conn, "charge", tuple(files.items()),
+                           defs_only=True) == []
 
 
 def place_disputed(tmp_path):

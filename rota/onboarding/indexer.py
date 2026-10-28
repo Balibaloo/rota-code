@@ -31,6 +31,12 @@ from .languages import Language, for_path
 SKIP_DIRS = {".git", ".rota", "node_modules", "__pycache__", ".venv", "venv",
              "dist", "build", ".mypy_cache", ".pytest_cache", "target"}
 
+# The kinds of a binding that is not a definition: a module-level assignment
+# and an `__all__` entry. Each row takes its kind as its `grain_kind`, not
+# `symbol`. So a reader of `grain_kind = 'symbol'` keeps its answer, and no
+# prompt that lists symbols shows a variable (F13 pass 1c, decision b).
+BINDING_KINDS = ("variable", "export")
+
 MAX_BYTES = 1_000_000            # a file larger than this is generated or data
 
 # Tracked, text, under the size cap -- and still nobody's work. A lockfile is a
@@ -467,13 +473,20 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
                 "INSERT INTO code_index (grain, grain_kind, fan_in, content_hash) "
                 "VALUES (?, 'path', ?, ?)",
                 (f.path, fan_in.get(f.path, 0), f.content_hash))
-            for symbol, kind, line_start, line_end in f.symbols:
+            # A binding shares the grain `path::name` with a def of the same
+            # name, and the first insert keeps the grain. So the definitions
+            # go first, and `__all__ = ['run']` above `def run` keeps the def.
+            for symbol, kind, line_start, line_end in sorted(
+                    f.symbols, key=lambda s: s[1] in BINDING_KINDS):
+                binding = kind in BINDING_KINDS
                 conn.execute(
                     "INSERT OR IGNORE INTO code_index "
                     "(grain, grain_kind, fan_in, sym_kind, line_start, line_end) "
-                    "VALUES (?, 'symbol', 0, ?, ?, ?)",
-                    (f"{f.path}::{symbol}", kind, line_start, line_end))
-                report.symbols += 1
+                    "VALUES (?, ?, 0, ?, ?, ?)",
+                    (f"{f.path}::{symbol}", kind if binding else "symbol",
+                     kind, line_start, line_end))
+                if not binding:
+                    report.symbols += 1
         conn.executemany("INSERT INTO code_edges (src, dst) VALUES (?, ?)",
                          sorted(edges))
         conn.execute("COMMIT")

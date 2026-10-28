@@ -234,3 +234,94 @@ def test_no_door_walks_the_tree_for_a_definer():
             if walks and ("(?:def|class)" in src or "(def|class)" in src):
                 offenders.append(f"{rel}:{fn.lineno} {fn.name}")
     assert not offenders, offenders
+
+
+# Pass 1c, decision b: a binding row has its own grain kind, so a reader of
+# `symbol` rows keeps its answer, and decision a: the commit door keeps its
+# old acceptance (its door test is in test_desk_guards.py).
+
+def _indexed(tmp_path, files):
+    from rota.onboarding import indexer
+    root = tmp_path / "tree"
+    for rel, text in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes(text.encode())
+    conn = init_db(tmp_path / "idx.db")
+    indexer.build(conn, root)
+    return conn, root
+
+
+def test_a_symbol_listing_shows_no_variable(tmp_path):
+    """At bfcd31af the indexer wrote `VERSION_NAME` as a `symbol` row, so
+    `code.callables` listed a variable. A binding row is a `variable` now."""
+    from types import SimpleNamespace
+    conn, _ = _indexed(tmp_path, {"pkg/core.py":
+                                  "VERSION_NAME = '1'\n__all__ = ['version_text']\n"
+                                  "def version_text():\n    return VERSION_NAME\n"})
+    listed = [r["grain"] for r in api.code_callables(SimpleNamespace(conn=conn),
+                                                     hint="version name text")]
+    assert listed == ["pkg/core.py::version_text"], listed
+    kinds = dict(conn.execute("SELECT grain, grain_kind FROM code_index "
+                              "WHERE grain LIKE '%::%'").fetchall())
+    # The def comes after its `__all__` entry, and the def keeps the grain.
+    assert kinds == {"pkg/core.py::VERSION_NAME": "variable",
+                     "pkg/core.py::__all__": "variable",
+                     "pkg/core.py::version_text": "symbol"}, kinds
+
+
+def test_the_definer_reader_reads_the_binding_kinds(tmp_path):
+    conn, _ = _indexed(tmp_path, {"pkg/__init__.py": "__all__ = ['run']\n",
+                                  "pkg/cli.py": "echo = make()\n"})
+    assert api.definers_of(conn, "echo") == ["pkg/cli.py"]
+    assert api.definers_of(conn, "run") == ["pkg/__init__.py"]
+    assert api.definers_of(conn, "echo", defs_only=True) == []
+
+
+def test_the_commit_reader_keeps_the_old_leniency(tmp_path):
+    """The old commit regex read a def or a class at any indent, in any file
+    outside `tests`. The strict reader reads neither a method nor a test."""
+    conn, root = _indexed(tmp_path, {
+        "pkg/core.py": "class A:\n    def total(self):\n        pass\n",
+        "tests/test_a.py": "def charge():\n    pass\n"})
+    assert api.definers_of(conn, "total") == []
+    assert api.definers_of(conn, "total", lenient_root=root) == ["pkg/core.py"]
+    assert api.definers_of(conn, "charge", lenient_root=root) == []
+
+
+def test_an_older_index_takes_the_binding_kinds(tmp_path):
+    """A run database from before pass 1c holds the four grain kinds in the
+    CHECK of `code_index`. `init_db` builds the table again, and a pass 1b
+    binding row takes its kind."""
+    import sqlite3
+    path = tmp_path / "old.db"
+    init_db(path).close()
+    raw = sqlite3.connect(path)
+    sql = raw.execute("SELECT sql FROM sqlite_master WHERE name = 'code_index'").fetchone()[0]
+    old = sql.replace(",\n                                                    'variable','export')", ")")
+    assert "'variable'" not in old
+    raw.execute("DROP TABLE code_index")
+    raw.execute(old)
+    raw.execute("INSERT INTO code_index (grain, grain_kind, sym_kind, area) VALUES "
+                "('a.py', 'path', '', 'a'), ('a.py::X', 'symbol', 'variable', 'a'), "
+                "('a.py::f', 'symbol', 'function', 'a')")
+    raw.commit()
+    raw.close()
+    conn = init_db(path)
+    rows = dict(conn.execute("SELECT grain, grain_kind FROM code_index").fetchall())
+    assert rows == {"a.py": "path", "a.py::X": "variable", "a.py::f": "symbol"}
+    conn.execute("INSERT INTO code_index (grain, grain_kind) VALUES ('a.py::Y', 'export')")
+    assert init_db(path).execute("SELECT count(*) FROM code_index").fetchone()[0] == 4
+
+
+def test_one_lenient_definer_regex():
+    """The old commit rule lives in one constant. Each line of the package
+    that holds a def-or-class regex is a named site."""
+    # The second site reads the names a written text defines, for the
+    # removed-statement check. It reads no surface's definer.
+    hits = sorted(f"{py.relative_to(_ROOT.parent).as_posix()}:"
+                  f"{line.strip().split(' ', 1)[0]}"
+                  for py in _ROOT.rglob("*.py")
+                  for line in py.read_text(encoding="utf-8").splitlines()
+                  if "(?:def|class)" in line or "(def|class)" in line)
+    assert hits == ["rota/roles/api.py:_LENIENT_DEFINER",
+                    "rota/roles/api.py:m"], hits

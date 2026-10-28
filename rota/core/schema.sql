@@ -423,7 +423,11 @@ CREATE TABLE IF NOT EXISTS findings (
 -- role writes: it is rebuilt, never decided.
 CREATE TABLE IF NOT EXISTS code_index (
     grain       TEXT PRIMARY KEY,
-    grain_kind  TEXT NOT NULL CHECK (grain_kind IN ('path','symbol','table','route')),
+    -- `variable` and `export` are bindings that are not definitions: a
+    -- module-level assignment and an `__all__` entry (F13 pass 1c). A
+    -- reader of `symbol` rows reads the definitions alone.
+    grain_kind  TEXT NOT NULL CHECK (grain_kind IN ('path','symbol','table','route',
+                                                    'variable','export')),
     area        TEXT,                        -- partition assignment, pinned by decision
     fan_in      INTEGER NOT NULL DEFAULT 0,
     sym_kind    TEXT NOT NULL DEFAULT '',    -- for symbols: function|class|interface|type|enum|struct|trait|module
