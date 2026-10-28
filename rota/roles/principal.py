@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from ..core.runner import new_id
+from ..core.db import journal_author
 
 
 @dataclass
@@ -2167,9 +2168,8 @@ def _quiet_line(conn: sqlite3.Connection, refs: list[str]) -> str:
     """
     seats: list[str] = []
     for ref in refs:
-        row = conn.execute("SELECT author FROM ledger WHERE id = ?",
-                           (ref,)).fetchone()
-        seat = "the " + str(row[0] if row else "team").replace("_", " ").title()
+        author = journal_author(conn, "ledger", ref) or "team"
+        seat = "the " + author.replace("_", " ").title()
         if seat not in seats:
             seats.append(seat)
     n = len(refs)

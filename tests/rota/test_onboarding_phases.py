@@ -1762,7 +1762,7 @@ def test_frame_assign_writes_the_ruling_and_ledgers_the_diff(tmp_path):
     from rota.core.db import _apply_write
     from rota.core.runner import _as_write
     for w in sb.ctx.writes:
-        _apply_write(db, _as_write(w))
+        _apply_write(db, _as_write(w), sb.ctx.role)
     row = db.execute("SELECT f.kind, p.provenance FROM frame_rulings f "
                      "JOIN frame_provenance p ON p.id = f.id "
                      "WHERE f.id = 'docs'").fetchone()

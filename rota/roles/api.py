@@ -20,6 +20,7 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 from __future__ import annotations
 
 from ..core.worktrees import GIT
+from ..core.db import author_refusal, journal_author
 
 import ast as _ast
 import difflib
@@ -14431,19 +14432,17 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
         tools = _wake_mode_tools(ctx)
         close = (", and close with `msg.report_liaison`"
                  if not tools or "msg.report_liaison" in tools else "")
-        # s288 sent the principal's d_26efd6365c as the id. The author check
-        # below refuses that id, so the text asks for an id of its own.
-        owner = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                                 (id,)).fetchone()
-        taken = bool(owner is not None and owner["author"]
-                     and owner["author"] != ctx.role)
+        # s288 sent the principal's d_26efd6365c as the id. The author rule
+        # refuses that id, so the text asks for an id of its own.
+        taken = author_refusal(ctx.conn, "decisions", id, ctx.role,
+                               {"author": ctx.role, "text": text})
         args = {"id": INVENT if taken else id, "text": text,
                 "refs": refs or []}
         if resolves_ledger:
             args["resolves_ledger"] = resolves_ledger
-        again = (f"{id} is a decision by {owner['author']}, so send the call "
-                 f"again without supersedes, under an id of its own"
-                 if taken else "Send the same call without supersedes")
+        again = (f"{taken} Send the call again without supersedes, under an "
+                 f"id of its own" if taken
+                 else "Send the same call without supersedes")
         raise ValueError(_offer(
             ctx,
             f"A decision has no supersedes for an item. `{supersedes}` is an "
@@ -14456,9 +14455,7 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
     # Night 148's s189 superseded his signoff decision d_565d2845d4.
     if (supersedes and isinstance(supersedes, str) and ctx.role != "principal"
             and supersedes not in staged):
-        over = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                                (supersedes,)).fetchone()
-        if over is not None and over["author"] == "principal":
+        if journal_author(ctx.conn, "decisions", supersedes) == "principal":
             args = {"id": id, "text": text, "refs": refs or []}
             if resolves_ledger:
                 args["resolves_ledger"] = resolves_ledger
@@ -14469,19 +14466,16 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
                 f"without supersedes.",
                 "decisions.author", args))
     # law 1: one writing role per row; a journal entry has one author
-    # Frame 200, pass 5, fix 7, which frame 219 inherits: a write under an
-    # existing id overwrites the row and its author. Night 143's s443 wrote
-    # over the principal's own decision that way.
-    owner = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                             (id,)).fetchone()
-    if owner is not None and owner["author"] and owner["author"] != ctx.role:
-        raise ValueError(
-            f"{id} is a decision by {owner['author']}. A decision is its "
-            f"author's record, so write yours under a new id.")
+    # Frame 200, pass 5, fix 7, which frame 219 inherits: night 143's s443
+    # wrote over the principal's own decision. The commit refuses that write
+    # too (fact F23). The door refuses first, so the session keeps its turn.
+    row = {"author": ctx.role, "text": text, "refs": json.dumps(refs or []),
+           "supersedes": supersedes, "resolves_ledger": resolves_ledger}
+    refused = author_refusal(ctx.conn, "decisions", id, ctx.role, row)
+    if refused:
+        raise ValueError(f"{refused} Write yours under a new id.")
 
-    ctx.writes.append(("decisions", id, {
-        "author": ctx.role, "text": text, "refs": json.dumps(refs or []),
-        "supersedes": supersedes, "resolves_ledger": resolves_ledger}))
+    ctx.writes.append(("decisions", id, row))
     if resolves_ledger:
         ctx.writes.append(("ledger", resolves_ledger, {"status": "resolved"}, False))
     return {"id": id, "resolves_ledger": resolves_ledger}
@@ -15730,7 +15724,7 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
             "and nothing woke you with an answer")
 
     row = ctx.conn.execute(
-        "SELECT q.id AS qid, q.from_role AS asker, q.verb AS verb, q.status AS status "
+        "SELECT q.id AS qid, q.verb AS verb, q.status AS status "
         "FROM messages a JOIN messages q ON q.id = a.cause_id WHERE a.id = ?",
         (ctx.trigger,)).fetchone()
 
@@ -15744,13 +15738,15 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
     if row is None or row["verb"] not in ASKING_VERBS:
         raise ValueError(
             "the message that woke you is not a reply to a question you asked")
-    if row["asker"] != ctx.role:
-        raise ValueError(
-            f"that question was {row['asker']}'s, not yours; only the role that "
-            f"asked can say the answer did not land")
+    # Fact F23: the asker is the author of the question row, and the commit
+    # refuses another role's write over it. The door reads the same rule.
+    move = {"status": "unresolved", "unresolved_note": what_is_missing}
+    refused = author_refusal(ctx.conn, "messages", row["qid"], ctx.role, move)
+    if refused:
+        raise ValueError(f"{refused} Only the role that asked can say that "
+                         f"the answer did not land.")
 
-    ctx.writes.append(("messages", row["qid"], {
-        "status": "unresolved", "unresolved_note": what_is_missing}, False))
+    ctx.writes.append(("messages", row["qid"], move, False))
     return {"id": row["qid"], "status": "unresolved"}
 
 
@@ -17527,7 +17523,10 @@ def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
                               f"({reason or 'no reason given'}); the "
                               f"heuristics said {heuristic}; the judge's "
                               f"answer is taken"),
-            "author": "frame"}))
+            # Fact F23: the author is the writing role, as for every journal
+            # row. `about_table` marks a frame row, and no reader keys on
+            # an author "frame".
+            "author": ctx.role}))
     return {"id": path, "kind": k,
             "note": ("differs from the heuristic prior; a ledger row "
                      "records it" if k != heuristic else "agrees with the "
