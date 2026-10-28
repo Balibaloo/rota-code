@@ -9158,6 +9158,248 @@ _EXAMPLE_SPAN = re.compile(
     re.I)
 
 
+# law 8: gates are predicates; a test that cannot fail is no gate
+# Fact F14: one reader answers whether an assert can fail. The encode door
+# reads it, and no other door holds a copy of its rules. Frame 147 found
+# the door refuses too much, so each kind keeps the narrow shape its frame
+# measured, and a shape in doubt admits.
+
+# The `sys` attributes that the call under test cannot change. A read
+# of `sys.stdout` or `sys.argv` can carry the call's effect.
+_INTERP_SYS = frozenset({"version_info", "version", "hexversion", "platform",
+                         "implementation", "maxsize", "byteorder",
+                         "api_version"})
+# The `platform` functions that read the host and run no command.
+# `platform.os` would reach the whole `os` module, and `uname()` and
+# `platform()` can start a subprocess on some hosts, so a door never
+# calls them.
+# Review 2 of frame 277, finding 3: `release()` and `system()` call
+# `uname()`, and `architecture()` runs `file -b` on Linux.
+_INTERP_PLATFORM = frozenset({"python_version", "python_version_tuple",
+                              "python_implementation"})
+# The door reads the interpreter. It does not compute, so an operand
+# with arithmetic, a comprehension or a lambda is never evaluated.
+# Review 2 of frame 277, finding 1: `sys.hexversion ** sys.hexversion`
+# ran 40 seconds in the door.
+_INTERP_NODES = (_ast.Compare, _ast.Attribute, _ast.Name, _ast.Constant,
+                 _ast.Subscript, _ast.Tuple, _ast.UnaryOp, _ast.BoolOp,
+                 _ast.Call, _ast.Load, _ast.Not, _ast.And, _ast.Or,
+                 _ast.Eq, _ast.NotEq, _ast.Lt, _ast.LtE, _ast.Gt,
+                 _ast.GtE, _ast.Is, _ast.IsNot, _ast.In, _ast.NotIn)
+_OPPOSITE_OPS = frozenset({(_ast.Is, _ast.IsNot), (_ast.IsNot, _ast.Is),
+                           (_ast.Eq, _ast.NotEq), (_ast.NotEq, _ast.Eq),
+                           (_ast.In, _ast.NotIn), (_ast.NotIn, _ast.In)})
+_REAL_MOCK_METHODS = frozenset({
+    "assert_called", "assert_called_once", "assert_called_with",
+    "assert_called_once_with", "assert_any_call", "assert_has_calls",
+    "assert_not_called", "reset_mock", "configure_mock", "attach_mock"})
+
+
+def body_checks_by_raise(tree) -> bool:
+    """
+    Whether the body checks by a raise as well as by an assert.
+
+    Night 63 (2026-09-14): a signature test called confirm() with the new
+    argument, re-raised a TypeError as AssertionError, ended on `assert
+    True`, and was refused as checking nothing. `raise AssertionError`,
+    `pytest.raises` and `pytest.fail` are checks.
+    """
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Raise) and n.exc is not None:
+            target = n.exc.func if isinstance(n.exc, _ast.Call) else n.exc
+            if getattr(target, "id", None) == "AssertionError":
+                return True
+        elif isinstance(n, _ast.Call):
+            f = n.func
+            if (isinstance(f, _ast.Attribute) and f.attr in ("raises", "fail")
+                    and getattr(f.value, "id", None) == "pytest"):
+                return True
+    return False
+
+
+def _operand_only_reads(v) -> bool:
+    for n in _ast.walk(v):
+        if not isinstance(n, _INTERP_NODES):
+            return False
+        if isinstance(n, _ast.UnaryOp) and not isinstance(n.op, _ast.Not):
+            return False
+        if (isinstance(n, _ast.Subscript)
+                and not isinstance(n.slice, _ast.Constant)):
+            return False
+        if (isinstance(n, _ast.Tuple)
+                and not all(isinstance(e, _ast.Constant) for e in n.elts)):
+            return False
+        # Review 2, finding 2: a `str.format` field reaches attributes
+        # as text, so the only call is a fixed `platform` function.
+        if isinstance(n, _ast.Call) and not (
+                not n.args and not n.keywords
+                and isinstance(n.func, _ast.Attribute)
+                and isinstance(n.func.value, _ast.Name)
+                and n.func.value.id == "platform"
+                and n.func.attr in _INTERP_PLATFORM):
+            return False
+    return True
+
+
+def _names_off_the_interpreter(tree) -> set[str]:
+    bound = {n.id for n in _ast.walk(tree)
+             if isinstance(n, _ast.Name) and not isinstance(n.ctx, _ast.Load)}
+    bound |= {n.arg for n in _ast.walk(tree) if isinstance(n, _ast.arg)}
+    bound |= {n.name for n in _ast.walk(tree)
+              if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                _ast.ClassDef))}
+    # Review 1 of frame 277, finding 3: an import can bind `sys` or
+    # `platform` to another module. Only `import sys` and `import
+    # platform` keep the name on the interpreter.
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.Import, _ast.ImportFrom)):
+            for al in n.names:
+                name = al.asname or al.name.split(".")[0]
+                if not (isinstance(n, _ast.Import) and al.asname is None
+                        and al.name in ("sys", "platform")):
+                    bound.add(name)
+    return bound
+
+
+def _operand_reads_interpreter_alone(v, bound: set[str]) -> bool:
+    names = [n for n in _ast.walk(v) if isinstance(n, _ast.Name)]
+    if not names or any(n.id not in ("sys", "platform") or n.id in bound
+                        or not isinstance(n.ctx, _ast.Load)
+                        for n in names):
+        return False
+    attrs = [p for p in _ast.walk(v) if isinstance(p, _ast.Attribute)]
+    if any(p.attr.startswith("_") for p in attrs):
+        return False
+    # The check uses identity, because two equal nodes are two reads.
+    fixed = [p.value for p in attrs
+             if isinstance(p.value, _ast.Name)
+             and p.attr in (_INTERP_SYS if p.value.id == "sys"
+                            else _INTERP_PLATFORM)]
+    if not all(any(f is n for f in fixed) for n in names):
+        return False
+    if not _operand_only_reads(v):
+        return False
+    # Review 1 of frame 277, finding 1: a refusal must be certain, so
+    # the operand fires only when its value is true. The harness runs
+    # the tests in a venv made from this interpreter on this host
+    # (`rota/core/provision.py`), so the value here is the value the
+    # test sees. An operand that raises is admitted.
+    import platform as _platform
+    import sys as _sys
+    try:
+        return bool(eval(compile(_ast.Expression(v), "<operand>", "eval"),
+                         {"__builtins__": {}, "sys": _sys,
+                          "platform": _platform}))
+    except Exception:
+        return False
+
+
+def _operands_opposite(a, b) -> bool:
+    if isinstance(b, _ast.UnaryOp) and isinstance(b.op, _ast.Not):
+        return _ast.dump(b.operand) == _ast.dump(a)
+    if isinstance(a, _ast.UnaryOp) and isinstance(a.op, _ast.Not):
+        return _ast.dump(a.operand) == _ast.dump(b)
+    return (isinstance(a, _ast.Compare) and isinstance(b, _ast.Compare)
+            and len(a.ops) == 1 and len(b.ops) == 1
+            and (type(a.ops[0]), type(b.ops[0])) in _OPPOSITE_OPS
+            and _ast.dump(a.left) == _ast.dump(b.left)
+            and _ast.dump(a.comparators[0]) == _ast.dump(b.comparators[0]))
+
+
+def _mock_names(tree) -> set[str]:
+    # Names bound to a Mock: `X = mock.Mock(...)` or `MagicMock(...)`, or
+    # `with mock.patch(...) as X:`. The same walk measured both spellings.
+    # `_MOCK_CTORS` is the module's one list of the Mock constructors.
+    out: set[str] = set()
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Assign) and isinstance(n.value, _ast.Call):
+            callee = n.value.func
+            ctor = callee.attr if isinstance(callee, _ast.Attribute) else (
+                callee.id if isinstance(callee, _ast.Name) else None)
+            if ctor in _MOCK_CTORS:
+                out |= {t.id for t in n.targets if isinstance(t, _ast.Name)}
+        elif isinstance(n, _ast.With):
+            for item in n.items:
+                fn = item.context_expr.func if isinstance(
+                    item.context_expr, _ast.Call) else None
+                fn_name = (fn.attr if isinstance(fn, _ast.Attribute) else
+                           fn.id if isinstance(fn, _ast.Name) else "")
+                if fn_name == "patch" and isinstance(item.optional_vars,
+                                                     _ast.Name):
+                    out.add(item.optional_vars.id)
+    return out
+
+
+def assert_cannot_fail(test, tree, body: str) -> list[tuple[str, str]]:
+    """
+    Each reason that an assert's test cannot fail, as (kind, why).
+
+    The kinds are `constant`, `or_constant`, `interpreter`, `opposites`
+    and `mock_method`. An empty list means the test can fail. `tree` is
+    the parsed body. `body` is its text, so a why quotes the seat's own
+    source. The encode door decides which kinds refuse alone.
+    """
+    out: list[tuple[str, str]] = []
+
+    def _src(node) -> str:
+        return _ast.get_source_segment(body, node) or _ast.unparse(node)
+
+    # Frame 273, night 152: `assert hasattr(cmd, 'x') or True` cannot fail.
+    # The batch merged a parameter with none of its behaviour. Only a
+    # truthy constant inside an `or` counts.
+    if isinstance(test, _ast.Constant):
+        out.append(("constant", "the assertion is on a constant"))
+    is_or = isinstance(test, _ast.BoolOp) and isinstance(test.op, _ast.Or)
+    if is_or and any(isinstance(v, _ast.Constant) and v.value
+                     for v in test.values):
+        out.append(("or_constant", "an operand is a true constant"))
+    # Frame 277, night 153: s256's `... or sys.version_info[0] == 3` hid a
+    # red test through the review. s198's `result is not None or result is
+    # None` merged.
+    if is_or:
+        bound = None
+        for v in test.values:
+            if bound is None:
+                bound = _names_off_the_interpreter(tree)
+            if _operand_reads_interpreter_alone(v, bound):
+                out.append(("interpreter",
+                            f"the operand `{_src(v)}` reads only the "
+                            f"Python interpreter, so its value is the same "
+                            f"whatever the call did"))
+                break
+        vs = test.values
+        pair = next(((a, b) for i, a in enumerate(vs) for b in vs[i + 1:]
+                     if _operands_opposite(a, b)), None)
+        if pair is not None:
+            out.append(("opposites",
+                        f"`{_src(pair[0])}` and `{_src(pair[1])}` "
+                        f"are opposites, so one of them is true whatever "
+                        f"the call did"))
+    # `mock_x.called_with(...)` is not a real Mock method. Mock invents
+    # an attribute for any name asked of it, so the call returns a new
+    # mock, which is true. Measured (empty-project walk, 2026-09-03):
+    # `assert mock_print.called_with("Hello User!")` could not fail.
+    mocks = None
+    for n in _ast.walk(test):
+        if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                and isinstance(n.func.value, _ast.Name)):
+            if mocks is None:
+                mocks = _mock_names(tree)
+            if (n.func.value.id in mocks
+                    and n.func.attr not in _REAL_MOCK_METHODS):
+                m, attr = n.func.value.id, n.func.attr
+                out.append(("mock_method",
+                            f"{m}.{attr}(...) is not a real Mock "
+                            f"method -- Mock invents one for any name you ask "
+                            f"it for, so this always returns a truthy mock "
+                            f"instead of raising AttributeError, and the "
+                            f"assertion cannot fail. The real check is "
+                            f"{m}.assert_called_with(...) (or "
+                            f"assert_any_call, assert_called_once_with)"))
+                break
+    return out
+
+
 def _literal_python_version(tree, body: str, criterion_text: str
                             ) -> tuple[list[str], list[str], str, bool] | None:
     """The assertions that compare against a literal Python version, when
@@ -9961,36 +10203,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"define the fixture in the file")
     asserts = [n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)]
     # law 8: gates are predicates; a test that cannot fail is no gate
-    # A check can be a raise as well as an assert: `raise AssertionError`
-    # in an except branch, `pytest.raises`, `pytest.fail`. Night 63
-    # (2026-09-14): a signature test called confirm() with the new argument,
-    # re-raised a TypeError as AssertionError, ended on `assert True`, and
-    # was refused as checking nothing.
-    def _raises_a_check(n) -> bool:
-        if isinstance(n, _ast.Raise) and n.exc is not None:
-            target = n.exc.func if isinstance(n.exc, _ast.Call) else n.exc
-            return getattr(target, "id", None) == "AssertionError"
-        if isinstance(n, _ast.Call):
-            f = n.func
-            return (isinstance(f, _ast.Attribute) and f.attr in ("raises", "fail")
-                    and getattr(f.value, "id", None) == "pytest")
-        return False
-    checks_by_raise = any(_raises_a_check(n) for n in _ast.walk(tree))
-    # law 8: gates are predicates; a test that cannot fail is no gate
-    # Frame 273, night 152: `assert hasattr(cmd, 'x') or True` cannot fail.
-    # The batch merged a parameter with none of its behaviour. Only a
-    # truthy constant inside an `or` counts. Frame 147 found this door
-    # refuses too much already, so the shape stays narrow.
-    def _vacuous(test) -> bool:
-        if isinstance(test, _ast.Constant):
-            return True
-        return (isinstance(test, _ast.BoolOp) and isinstance(test.op, _ast.Or)
-                and any(isinstance(v, _ast.Constant) and v.value
-                        for v in test.values))
+    # Fact F14: `assert_cannot_fail` holds every rule. The door decides
+    # which kind refuses alone, and in which order the walls fire.
+    checks_by_raise = body_checks_by_raise(tree)
+    reasons = {a: assert_cannot_fail(a.test, tree, body)
+               for a in asserts}
+    # `id` is the test id parameter here, so the maps key on the node.
+    kinds = {k: {kind for kind, _ in v} for k, v in reasons.items()}
     if (asserts and not checks_by_raise
-            and all(_vacuous(a.test) for a in asserts)):
-        or_true = next((a for a in asserts if isinstance(a.test, _ast.BoolOp)),
-                       None)
+            and all(kinds[a] & {"constant", "or_constant"}
+                    for a in asserts)):
+        or_true = next((a for a in asserts
+                        if "or_constant" in kinds[a]), None)
         if or_true is not None:
             line = _ast.get_source_segment(body, or_true) or _ast.unparse(or_true)
             raise Wall(
@@ -10008,145 +10232,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "nothing and would report as coverage. If the criterion names "
             "no behaviour a call could exercise, that is tests.triage "
             "verdict='cannot' -- say what stops you and route it")
-    # law 8: gates are predicates; a test that cannot fail is no gate
-    # Frame 277, night 153: two admitted asserts could never fail and held
-    # no constant. s256's `... or sys.version_info[0] == 3` hid a red test
-    # through the review. s198's `result is not None or result is None`
-    # merged. One such assert is refused even beside a real one, because
-    # s256 had a second assert. Frame 147 found this door refuses too much,
-    # so each shape stays narrow, and a shape in doubt admits.
-    # The `sys` attributes that the call under test cannot change. A read
-    # of `sys.stdout` or `sys.argv` can carry the call's effect.
-    _interp_sys = {"version_info", "version", "hexversion", "platform",
-                   "implementation", "maxsize", "byteorder", "api_version"}
-    # The `platform` functions that read the host and run no command.
-    # `platform.os` would reach the whole `os` module, and `uname()` and
-    # `platform()` can start a subprocess on some hosts, so a door never
-    # calls them.
-    # Review 2 of frame 277, finding 3: `release()` and `system()` call
-    # `uname()`, and `architecture()` runs `file -b` on Linux.
-    _interp_platform = {"python_version", "python_version_tuple",
-                        "python_implementation"}
-    # The door reads the interpreter. It does not compute, so an operand
-    # with arithmetic, a comprehension or a lambda is never evaluated.
-    # Review 2 of frame 277, finding 1: `sys.hexversion ** sys.hexversion`
-    # ran 40 seconds in the door.
-    _interp_nodes = (_ast.Compare, _ast.Attribute, _ast.Name, _ast.Constant,
-                     _ast.Subscript, _ast.Tuple, _ast.UnaryOp, _ast.BoolOp,
-                     _ast.Call, _ast.Load, _ast.Not, _ast.And, _ast.Or,
-                     _ast.Eq, _ast.NotEq, _ast.Lt, _ast.LtE, _ast.Gt,
-                     _ast.GtE, _ast.Is, _ast.IsNot, _ast.In, _ast.NotIn)
-
-    def _only_reads(v) -> bool:
-        for n in _ast.walk(v):
-            if not isinstance(n, _interp_nodes):
-                return False
-            if isinstance(n, _ast.UnaryOp) and not isinstance(n.op, _ast.Not):
-                return False
-            if (isinstance(n, _ast.Subscript)
-                    and not isinstance(n.slice, _ast.Constant)):
-                return False
-            if (isinstance(n, _ast.Tuple)
-                    and not all(isinstance(e, _ast.Constant) for e in n.elts)):
-                return False
-            # Review 2, finding 2: a `str.format` field reaches attributes
-            # as text, so the only call is a fixed `platform` function.
-            if isinstance(n, _ast.Call) and not (
-                    not n.args and not n.keywords
-                    and isinstance(n.func, _ast.Attribute)
-                    and isinstance(n.func.value, _ast.Name)
-                    and n.func.value.id == "platform"
-                    and n.func.attr in _interp_platform):
-                return False
-        return True
-    _bound = {n.id for n in _ast.walk(tree)
-              if isinstance(n, _ast.Name) and not isinstance(n.ctx, _ast.Load)}
-    _bound |= {n.arg for n in _ast.walk(tree) if isinstance(n, _ast.arg)}
-    _bound |= {n.name for n in _ast.walk(tree)
-               if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
-                                 _ast.ClassDef))}
-    # Review 1 of frame 277, finding 3: an import can bind `sys` or
-    # `platform` to another module. Only `import sys` and `import
-    # platform` keep the name on the interpreter.
-    for n in _ast.walk(tree):
-        if isinstance(n, (_ast.Import, _ast.ImportFrom)):
-            for al in n.names:
-                name = al.asname or al.name.split(".")[0]
-                if not (isinstance(n, _ast.Import) and al.asname is None
-                        and al.name in ("sys", "platform")):
-                    _bound.add(name)
-
-    def _reads_interpreter_alone(v) -> bool:
-        names = [n for n in _ast.walk(v) if isinstance(n, _ast.Name)]
-        if not names or any(n.id not in ("sys", "platform") or n.id in _bound
-                            or not isinstance(n.ctx, _ast.Load)
-                            for n in names):
-            return False
-        attrs = [p for p in _ast.walk(v) if isinstance(p, _ast.Attribute)]
-        if any(p.attr.startswith("_") for p in attrs):
-            return False
-        # `id` is the test id parameter here, so the check uses identity.
-        fixed = [p.value for p in attrs
-                 if isinstance(p.value, _ast.Name)
-                 and p.attr in (_interp_sys if p.value.id == "sys"
-                                else _interp_platform)]
-        if not all(any(f is n for f in fixed) for n in names):
-            return False
-        if not _only_reads(v):
-            return False
-        # Review 1 of frame 277, finding 1: a refusal must be certain, so
-        # the operand fires only when its value is true. The harness runs
-        # the tests in a venv made from this interpreter on this host
-        # (`rota/core/provision.py`), so the value here is the value the
-        # test sees. An operand that raises is admitted.
-        import platform as _platform
-        import sys as _sys
-        try:
-            return bool(eval(compile(_ast.Expression(v), "<operand>", "eval"),
-                             {"__builtins__": {}, "sys": _sys,
-                              "platform": _platform}))
-        except Exception:
-            return False
-
-    _opposite = {(_ast.Is, _ast.IsNot), (_ast.IsNot, _ast.Is),
-                 (_ast.Eq, _ast.NotEq), (_ast.NotEq, _ast.Eq),
-                 (_ast.In, _ast.NotIn), (_ast.NotIn, _ast.In)}
-
-    def _complementary(a, b) -> bool:
-        if isinstance(b, _ast.UnaryOp) and isinstance(b.op, _ast.Not):
-            return _ast.dump(b.operand) == _ast.dump(a)
-        if isinstance(a, _ast.UnaryOp) and isinstance(a.op, _ast.Not):
-            return _ast.dump(a.operand) == _ast.dump(b)
-        return (isinstance(a, _ast.Compare) and isinstance(b, _ast.Compare)
-                and len(a.ops) == 1 and len(b.ops) == 1
-                and (type(a.ops[0]), type(b.ops[0])) in _opposite
-                and _ast.dump(a.left) == _ast.dump(b.left)
-                and _ast.dump(a.comparators[0]) == _ast.dump(b.comparators[0]))
-
-    def _cannot_fail_because(test) -> str | None:
-        if not (isinstance(test, _ast.BoolOp) and isinstance(test.op, _ast.Or)):
-            return None
-        # The seat's own text, so it finds the operand in its body.
-        def _src(node) -> str:
-            return _ast.get_source_segment(body, node) or _ast.unparse(node)
-
-        for v in test.values:
-            if _reads_interpreter_alone(v):
-                return (f"the operand `{_src(v)}` reads only the "
-                        f"Python interpreter, so its value is the same "
-                        f"whatever the call did")
-        vs = test.values
-        for i, a in enumerate(vs):
-            for b in vs[i + 1:]:
-                if _complementary(a, b):
-                    return (f"`{_src(a)}` and `{_src(b)}` "
-                            f"are opposites, so one of them is true whatever "
-                            f"the call did")
-        return None
-
+    # Frame 277: one such assert is refused even beside a real one,
+    # because s256 had a second assert.
     if not checks_by_raise:
         for a in asserts:
-            why = _cannot_fail_because(a.test)
+            why = next((w for kind, w in reasons[a]
+                        if kind in ("interpreter", "opposites")), None)
             if why is None:
                 continue
             line = _ast.get_source_segment(body, a) or _ast.unparse(a)
@@ -10183,31 +10274,6 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"{', '.join(repr(x) for x in literals[:3])}. The criterion says: "
             f"\"{words}\" The harness may run another version. "
             f"{step}")
-    # Names bound to a Mock -- `X = mock.Mock(...)`/`MagicMock(...)`, or
-    # `with mock.patch(...) as X:` -- both spellings measured in the same
-    # walk that found the guard below is needed.
-    _mock_ctor = {"Mock", "MagicMock", "AsyncMock", "NonCallableMock"}
-    mock_vars: set[str] = set()
-    for n in _ast.walk(tree):
-        if isinstance(n, _ast.Assign) and isinstance(n.value, _ast.Call):
-            callee = n.value.func
-            ctor = callee.attr if isinstance(callee, _ast.Attribute) else (
-                callee.id if isinstance(callee, _ast.Name) else None)
-            if ctor in _mock_ctor:
-                mock_vars |= {t.id for t in n.targets if isinstance(t, _ast.Name)}
-        elif isinstance(n, _ast.With):
-            for item in n.items:
-                fn = item.context_expr.func if isinstance(
-                    item.context_expr, _ast.Call) else None
-                fn_name = (fn.attr if isinstance(fn, _ast.Attribute) else
-                          fn.id if isinstance(fn, _ast.Name) else "")
-                if fn_name == "patch" and isinstance(item.optional_vars, _ast.Name):
-                    mock_vars.add(item.optional_vars.id)
-    _real_mock_methods = {
-        "assert_called", "assert_called_once", "assert_called_with",
-        "assert_called_once_with", "assert_any_call", "assert_has_calls",
-        "assert_not_called", "reset_mock", "configure_mock", "attach_mock"}
-
     for a in asserts:
         # Walk thirteen: `assert print(...) == "Hello Alice!"` -- the print
         # moved inside a comparison and the guard on the bare call missed it.
@@ -10219,26 +10285,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             raise Wall(
                 "`assert print(...)` is always False: print returns None, so "
                 "the assertion compares None")
-        # `mock_x.called_with(...)` -- not a real Mock method. Mock invents
-        # an attribute for any name asked of it, so this silently returns a
-        # new mock (always true) instead of raising AttributeError; the
-        # assertion passes no matter what the mock saw. Measured (empty-
-        # project walk, 2026-09-03): `assert mock_print.called_with("Hello
-        # User!")` after the surface-call guard forced a real call to
-        # `greet_user` -- the test finally exercised the function and still
-        # could not fail, on this second, narrower wall.
-        for n in _ast.walk(a.test):
-            if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
-                    and isinstance(n.func.value, _ast.Name)
-                    and n.func.value.id in mock_vars
-                    and n.func.attr not in _real_mock_methods):
-                raise Wall(
-                    f"{n.func.value.id}.{n.func.attr}(...) is not a real Mock "
-                    f"method -- Mock invents one for any name you ask it for, "
-                    f"so this always returns a truthy mock instead of raising "
-                    f"AttributeError, and the assertion cannot fail. The real "
-                    f"check is {n.func.value.id}.assert_called_with(...) (or "
-                    f"assert_any_call, assert_called_once_with)")
+        mock = next((w for kind, w in reasons[a]
+                     if kind == "mock_method"), None)
+        if mock is not None:
+            raise Wall(mock)
 
     # Frame 304, night 158's s187: a `mock_open` stub read `.read`, which its
     # spec lacks, and the test raised before `confirm()` ran. The helper
