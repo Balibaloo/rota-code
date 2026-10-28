@@ -79,3 +79,28 @@ p2-2. LOW, outside the points. `rota/core/runner.py`, the `invented_tail` list i
 ### (d) Usage
 
 Input tokens: about 20k in context for p2. Output tokens: about 4k. Total: about 24k.
+
+## p3
+
+Verdict: READY. Commit b6625bb8 closes p2-1 and p2-2. One low remains outside the points. The parser causes it, and the commit did not add it.
+
+### (a) The verdict on each point
+
+1. p2-1: CLOSED. On `clickI_night173.db`, the failures line reads "committed sessions that ended with refusals in the runner's account: 155, 897 lines, parse errors 18 lines in 14 sessions". So the print now shows the parse endings beside the total of 155.
+2. p2-2: CLOSED. A reply had a real call, an invented `OK` result, a parse error and a real call. The parse error got its ERROR line, and the reason went to `outcome.errors`. The NOT RUN note named only `tests.consult()`.
+3. Tests: CONFIRMED. `test_runner_toolerror.py` gives 8 passed. The 10 files that name `_parse_refusal` or `nightreport` give 240 passed and 1 skipped.
+
+### (b) Findings
+
+p3-1. LOW, outside the points. `rota/llm/toolproto.py`, the parser's ToolError for a line with no function name. CONFIRMED. The probe line "TOOL: `x`" gave a ToolError with the raw text "TOOL: `x`" + newline + "TOOL: tests.consult()". So the seat's ERROR line also quotes the next real call. The turn loop has the same behaviour, so W11 did not add it. Fix: cut the raw text of a ToolError at its first newline.
+
+### (c) Probes
+
+- `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad/w11_p3_probe.py` has two parts:
+  - A run of the test fixture with an invented-result reply. The probe prints the ERROR line, the NOT RUN note and `outcome.errors`.
+  - `nightreport.build` on `clickI_night173.db`, opened with `open_ro`.
+- The pytest runs at b6625bb8 are in (a) point 3.
+
+### (d) Usage
+
+Input tokens: about 10k in context for p3. Output tokens: about 3k. Total: about 13k.
