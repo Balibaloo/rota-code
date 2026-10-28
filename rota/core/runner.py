@@ -5186,7 +5186,7 @@ def run_session(
                     f"NOTE You wrote `{name}` as a heading over a list. A list "
                     f"runs nothing, so no `{name}` ran. Write each call on its "
                     f"own line: `{toolproto.MARKER} {name}(...)`.")
-            if (completion.raw or {}).get("done_reason") == "length":
+            if completion.done_reason == "length":
                 # clickI night 16 (2026-09-12): a 688-line whole-file write
                 # stopped at the output cap mid-string, the parser called it
                 # an unbalanced quote, and the Developer then read the file
@@ -5461,7 +5461,7 @@ def run_session(
                 # The line above stays word for word, because nightcount
                 # compares the sign across nights. The stream stop gets its
                 # own line (frame 232).
-                if (completion.raw or {}).get("done_reason") == "invented_result":
+                if completion.done_reason == "invented_result":
                     found = fabricated.group(0)
                     at = fabricated.start() + len(found) - len(found.lstrip())
                     outcome.errors.append(

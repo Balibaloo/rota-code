@@ -108,7 +108,7 @@ def run(label: str, system: str, user: str, pins: llm.Pins, tools, backend) -> N
     print(f"  payload options: {body.get('options')}")
     raw = completion.raw or {}
     print(f"  reply chars: {len(completion.text)}  elapsed: {elapsed:.1f}s")
-    print(f"  done_reason: {raw.get('done_reason')!r}  done: {raw.get('done')!r}")
+    print(f"  done_reason: {completion.done_reason!r}  done: {raw.get('done')!r}")
     print(f"  eval_count: {raw.get('eval_count')}  "
           f"prompt_eval_count: {raw.get('prompt_eval_count')}  "
           f"truncated: {completion.truncated}  "

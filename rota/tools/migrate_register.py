@@ -273,17 +273,20 @@ def migrate(src: sqlite3.Connection, target: Path, *, dry_run: bool = False,
         # Verbatim. Every cassette is evidence about exactly one input.
         # `INSERT OR REPLACE` on the primary key is what makes a second run of
         # this tool a no-op rather than a failure.
+        # The insert names the source's columns. A source from before frame
+        # 233 holds no `done_reason`, and the target's default fills it.
+        cols = [r[1] for r in src.execute("PRAGMA table_info(cassettes)")]
+        insert = (f"INSERT OR REPLACE INTO cassettes ({', '.join(cols)}) "
+                  f"VALUES ({', '.join('?' * len(cols))})")
         dst.execute("BEGIN")
         rows = []
-        for row in src.execute("SELECT * FROM cassettes"):
+        for row in src.execute(f"SELECT {', '.join(cols)} FROM cassettes"):
             rows.append(tuple(row))
             if len(rows) >= batch:
-                dst.executemany("INSERT OR REPLACE INTO cassettes VALUES "
-                                "(?,?,?,?,?,?,?,?,?,?,?)", rows)
+                dst.executemany(insert, rows)
                 rows = []
         if rows:
-            dst.executemany("INSERT OR REPLACE INTO cassettes VALUES "
-                            "(?,?,?,?,?,?,?,?,?,?,?)", rows)
+            dst.executemany(insert, rows)
         dst.execute("COMMIT")
         for carried in CARRIED:
             copy_table(src, dst, carried)
