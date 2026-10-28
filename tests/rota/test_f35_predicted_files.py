@@ -60,12 +60,13 @@ def db(tmp_path):
 
 
 def _decline(db, target: str = DECLINED) -> None:
-    """One landed ruling on the batch whose act removes `target`."""
+    """One landed ruling on the batch whose act excludes `target` (seam
+    pass 3b: a touch-list correction is the act `exclude`)."""
     words = "The defaults tests have nothing to do with confirm."
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_text, seq) VALUES ('m1','t1','principal','liaison','answer',"
                "?,1)", (words,))
-    per_item = {"b1": {"verdict": "revise", "act": "remove", "target": target,
+    per_item = {"b1": {"verdict": "revise", "act": "exclude", "target": target,
                        "words": words}}
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) VALUES "
                "('r1','m1',?,?,'landed')", (json.dumps({"b1": "revise"}), words))

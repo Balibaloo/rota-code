@@ -26,9 +26,10 @@ The acts:
 - `keep` keeps the words of a line and faults only its check: "Keep line 4, but fix its check" is `rulings={"4": {"verdict": "revise", "act": "keep", "target_kind": "check", "words": "Keep line 4, but fix its check"}}`.
 - `rewrite` asks for new words on a line: "Line 3 has to change" is `rulings={"3": {"verdict": "contest", "act": "rewrite", "target_kind": "row", "words": "Line 3 has to change"}}`.
 - `add` asks for a new line: "Also add a line that says the output stays exactly the same as today" is `rulings={"2": {"verdict": "approve", "act": "add", "words": "the output stays exactly the same as today"}}`. Put the add on any line of the same item that has no other act, an approved one too.
+- `exclude` takes a file out of what the change is expected to touch, and it deletes no code. The `path` kind below shows it.
 The target kinds:
 - `source_line` is a line of code, written as the function or the file, a colon, and the line number: `get_app_dir:518`.
-- `path` is a file of the guess, written as its path: "the options and defaults test files, which have nothing to do with this change" names `tests/test_options.py`.
+- `path` is a file of the guess, written as its path: "the options and defaults test files, which have nothing to do with this change" names `tests/test_options.py`, and the line takes `{"verdict": "contest", "act": "exclude", "target_kind": "path", "target": "tests/test_options.py"}`.
 - `identifier` is a name in the item: "I don't want a flag" on the item is `{"verdict": "contest", "act": "remove", "target_kind": "identifier", "target": "show_python"}`.
 - `sentence` is a sentence of the item: "take it out and keep only what I asked for" is `{"verdict": "contest", "act": "remove", "target_kind": "sentence"}`.
 - `check` is the test of a line, and `row` is the line itself.

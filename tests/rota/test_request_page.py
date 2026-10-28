@@ -735,7 +735,7 @@ def test_a_contest_of_the_prediction_reaches_the_architects_annotate(bg2):
     # seam design, pass 4, P10).
     _landing(bg2, reply, {"1": "approve", "2": "approve", "3": "approve",
                           "4": "approve", "5": {
-                              "verdict": "contest", "act": "remove",
+                              "verdict": "contest", "act": "exclude",
                               "target": "tests/test_defaults.py",
                               "words": "Line 2 names the wrong tests"}}, M85)
     verdict, ruled = _verdict(bg2, mid)

@@ -404,6 +404,7 @@ def init_db(path: str | Path) -> sqlite3.Connection:
                 conn.execute(f"ALTER TABLE code_index ADD COLUMN {column} "
                              f"INTEGER NOT NULL DEFAULT 0")
         _widen_code_index_kinds(conn)
+        _widen_ruled_ref_acts(conn)
         # The same for the description flag: 0 is every older item's truth, since
         # no seat could describe an item before the column existed.
         if not _has_column(conn, "items", "is_description"):
@@ -806,6 +807,49 @@ def _widen_code_index_kinds(conn: sqlite3.Connection) -> None:
     except BaseException:
         conn.execute("ROLLBACK")
         raise
+
+
+def _widen_ruled_ref_acts(conn: sqlite3.Connection) -> None:
+    """
+    Give an older `ruled_refs` the CHECK that holds the act `exclude`.
+
+    Seam pass 3b gives a touch-list correction its own act. SQLite cannot
+    change a CHECK in place, so the table is built again from the schema
+    file, as `_widen_code_index_kinds` does. The rows copy as they are. The
+    legacy rename keeps the views that read the table, and the drop takes
+    the index and the trigger, so both are built again.
+    """
+    import re as _re
+
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' "
+                       "AND name = 'ruled_refs'").fetchone()
+    if row is None or "'exclude'" in (row[0] or ""):
+        return
+    schema = SCHEMA_PATH.read_text(encoding="utf-8")
+    create = _re.search(r"CREATE TABLE IF NOT EXISTS ruled_refs \(.*?\n\);",
+                        schema, _re.S).group(0)
+    after = [_re.search(r"CREATE INDEX IF NOT EXISTS ruled_refs_by_ref .*?;",
+                        schema).group(0),
+             _re.search(r"CREATE TRIGGER IF NOT EXISTS ruled_refs_never_change"
+                        r".*?\nEND;", schema, _re.S).group(0)]
+    names = ", ".join(r[1] for r in conn.execute("PRAGMA table_info(ruled_refs)"))
+    conn.execute("PRAGMA legacy_alter_table = ON")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute(create.replace("IF NOT EXISTS ruled_refs",
+                                    "ruled_refs_widened", 1))
+        conn.execute(f"INSERT INTO ruled_refs_widened ({names}) "
+                     f"SELECT {names} FROM ruled_refs")
+        conn.execute("DROP TABLE ruled_refs")
+        conn.execute("ALTER TABLE ruled_refs_widened RENAME TO ruled_refs")
+        for sql in after:
+            conn.execute(sql)
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.execute("PRAGMA legacy_alter_table = OFF")
 
 
 def _thread_of(conn: sqlite3.Connection, m) -> str:

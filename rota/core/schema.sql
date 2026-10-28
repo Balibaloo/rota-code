@@ -743,7 +743,8 @@ CREATE TABLE IF NOT EXISTS ruled_refs (
     -- vocabulary lint refuses the CHECK.
     verdict     TEXT NOT NULL,
     act         TEXT CHECK (act IS NULL OR act IN
-                            ('drop','keep','rewrite','add','remove')),
+                            ('drop','keep','rewrite','add','remove',
+                             'exclude')),
     target_kind TEXT CHECK (target_kind IS NULL OR target_kind IN
                             ('row','check','sentence','identifier',
                              'source_line','path','request')),

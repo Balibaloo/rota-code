@@ -1980,7 +1980,8 @@ def disputed_paths(conn: sqlite3.Connection, ref: str,
     The paths of a prediction that his ruling on `ref` takes off.
 
     A path is disputed when his newest landed ruling on `ref` has the act
-    `remove` with that path as its target. A ruling with no act disputes
+    `exclude` with that path as its target. The act `remove` deletes code,
+    so a touch-list correction has its own act (seam pass 3b). A ruling with no act disputes
     nothing, so the guess stays whole and the seat reads his words. Night
     133 to 156 read the "no" words of his reply by twelve patterns, and
     each review found a form they missed (frame 298). The record replaces
@@ -1988,7 +1989,7 @@ def disputed_paths(conn: sqlite3.Connection, ref: str,
     """
     from ..roles.principal import granted
 
-    return [p for p in paths if granted(conn, ref, "remove", p)]
+    return [p for p in paths if granted(conn, ref, "exclude", p)]
 
 
 def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:

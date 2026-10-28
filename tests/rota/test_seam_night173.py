@@ -357,3 +357,72 @@ def test_a_line_after_his_report_keeps_its_agreement():
         "my answer asked for that fix and did not call line 4 wrong, so keep "
         "line 4 as it is.", 11)
     assert reading.matched == {4}
+
+
+# Seam pass 3b: a touch-list correction is its own act, `exclude`.
+
+def _landed(conn, ref, acts):
+    from rota.core.db import backfill_ruled_refs
+    from rota.testkit.fixtures import seed_acts
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                 "verb, body_refs, seq) VALUES ('ask_x', 'th', 'liaison', "
+                 "'principal', 'present', ?, 1)", (f'["{ref}"]',))
+    conn.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
+                 "VALUES ('r_x', 'ask_x', ?, 'Line 2 names the wrong tests', "
+                 "'landed')", (f'{{"{ref}": "contest"}}',))
+    backfill_ruled_refs(conn)
+    seed_acts(conn, "r_x", acts)
+    conn.commit()
+
+
+def test_an_exclude_row_grants_no_removal_of_the_path(tmp_path):
+    from rota.core.db import init_db
+    from rota.core.runner import disputed_paths
+    from rota.roles.principal import granted
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO items (id, text, kind) VALUES ('it_1', "
+                 "'confirm reads its default', 'in_scope')")
+    conn.execute("INSERT INTO batches (id, item_id) VALUES ('bg_2', 'it_1')")
+    path = "tests/test_defaults.py"
+    _landed(conn, "bg_2", {"bg_2": {"act": "exclude", "target_kind": "path",
+                                    "target": path,
+                                    "words": "Line 2 names the wrong tests"}})
+    assert granted(conn, "bg_2", "exclude", path)
+    assert not granted(conn, "bg_2", "remove", path)
+    assert disputed_paths(conn, "bg_2", [path, "src/click/termui.py"]) == [path]
+
+
+def test_an_older_register_takes_the_act_exclude(night):
+    """`init_db` widens the CHECK of a register built before the act."""
+    from rota.core.db import _widen_ruled_ref_acts
+    conn = night(173, "m62").conn
+    before = conn.execute("SELECT COUNT(*) FROM ruled_refs").fetchone()[0]
+    _widen_ruled_ref_acts(conn)
+    sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = "
+                       "'ruled_refs'").fetchone()[0]
+    assert "'exclude'" in sql
+    assert conn.execute("SELECT COUNT(*) FROM ruled_refs").fetchone()[0] == before
+    assert {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE tbl_name = 'ruled_refs'")} >= {
+        "ruled_refs", "ruled_refs_by_ref", "ruled_refs_never_change"}
+    conn.execute("SELECT COUNT(*) FROM ruled_refs_live").fetchone()
+
+
+# The criterion of night 156's version_option_show_python, as the page shows it.
+SHOW_PY = ("When the show_python flag is turned on, the --version output must "
+           "end with the running Python version.")
+
+
+@pytest.mark.parametrize("span, target, page, asks", [
+    # The prompt's identifier example: his words ask that the flag go.
+    ("I don't want a flag", "show_python", SHOW_PY, True),
+    ("I do not want the flag.", "show_python", SHOW_PY, True),
+    ("We no longer want show_python.", "show_python", "", True),
+    ("Build it without show_python.", "show_python", "", True),
+    # The page writes no noun after the name, so "a flag" names nothing.
+    ("I don't want a flag", "show_python", "", False),
+    ("I don't want to drop show_python.", "show_python", SHOW_PY, False),
+    ("I don't want a test", "show_python", SHOW_PY, False),
+])
+def test_i_dont_want_asks_a_removal(span, target, page, asks):
+    assert api._asks_removal_of(span, target, page) is asks
