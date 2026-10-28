@@ -499,13 +499,72 @@ def test_a_ref_on_two_lines_takes_either_key_in_acts(night):
     assert str(e.value).startswith("line 8: the act drop rests on")
 
 
-def test_a_clause_starts_after_should_say(night):
+# Night 174's m55, his reply on page m53, and s175 call 3's span, copied
+# here so the test reads no register (the seam review, p4-3).
+M55 = ("Line 9 misreads me: I asked to remove the string helper in the utils "
+       "file and keep the clear function, and I asked to add to line 3, not "
+       "to remove it. Line 7 should say the change touches the clear function "
+       "in the terminal UI file for certain, not only that it might. Lines 2 "
+       "to 6 and line 8 are fine.")
+S175_3 = ("the change touches the clear function in the terminal UI file for "
+          "certain, not only that it might")
+
+
+def test_a_clause_starts_after_should_say():
     """s175 call 3 copied his words after "Line 7 should say" to the
     clause end, and the door refused them."""
-    trigger, args = _recorded_call(174, "s175", 3)
-    ctx = night(174, trigger)
-    api.rulings_rule(ctx, **args)
-    assert _rows(ctx)["bg_2"]["act"] == "rewrite"
+    assert api._holds_clauses(M55, S175_3)
+
+
+L23 = ("Lines 2 and 3 are wrong: with the roaming flag on, only the roaming "
+       "app data variable being unset should matter, and with it off, only "
+       "the local app data variable being unset should matter. ")
+L8 = (" Line 8 is a misread, since I never sent an empty answer, so please "
+      "drop it.")
+
+
+@pytest.mark.parametrize("middle, lands", [
+    ("Line 7 is slightly off. Line 4 should say the local variable matters.",
+     True),
+    ("Line 7 is slightly off. I never said line 4 should say the local "
+     "variable matters.", False),
+    ("Line 7 is slightly off. Line 4 is fine, and it is wrong to say the "
+     "local variable matters.", False),
+])
+def test_a_say_clause_follows_a_line_reference(night, monkeypatch, middle,
+                                               lands):
+    """The review's probe 6 on m35: a cut after "say" needs a named line
+    and no negation or fault before it (p4-1)."""
+    from rota.roles import principal
+
+    said = L23 + middle + L8
+    orig = principal.said
+    monkeypatch.setattr(principal, "said", lambda conn, mid, *a, **k: (
+        said if mid == "m35" else orig(conn, mid, *a, **k)))
+    ctx = night(173, "m35")
+    call = dict(rulings={"1": A, "2": "contest", "3": "contest",
+                         "4": "revise", "5": A, "6": A, "7": "contest",
+                         "8": "drop"}, words=said,
+                acts={"4": {"verdict": "revise", "act": "rewrite",
+                            "target_kind": "row",
+                            "words": "the local variable matters"}})
+    if lands:
+        api.rulings_rule(ctx, **call)
+        assert _rows(ctx)["c_3"]["act"] == "rewrite"
+    else:
+        with pytest.raises(ValueError):
+            api.rulings_rule(ctx, **call)
+
+
+@pytest.mark.parametrize("target, span, stems", [
+    ("tests/test_options.py", "the options and defaults test files", True),
+    ("tests/test_defaults.py", "Lines 2 to 4 are still wrong", False),
+    ("clear", "the clear function", False),
+])
+def test_an_exclude_needs_the_path_in_his_words(target, span, stems):
+    """p4-2 and p4-4: the span names the file, and the target is a path."""
+    names = api._path_stems(target)
+    assert any(api._says(span.lower(), n) for n in names) is stems
 
 
 @pytest.mark.parametrize("text, span, holds", [

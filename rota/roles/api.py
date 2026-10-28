@@ -11873,8 +11873,11 @@ _CLAUSE_LEAD = frozenset({"please", "also", "then", "now", "and", "so"})
 # A report-of-words verb and the word before it that makes it a request:
 # "should say", "to say", "must read" (night 174, walk 2).
 _REPORT_VERBS = frozenset({"say", "read", "state"})
-_REPORT_LEADS = frozenset({"should", "must", "to", "would", "could", "shall",
-                           "will", "can"})
+_REPORT_LEADS = frozenset({"should", "must", "to"})
+# The words that deny or fault the report: the module's negation words and
+# "wrong". The tokens split "don't" into "don" and "t".
+_REPORT_DENIALS = frozenset({"not", "never", "no", "nobody", "nothing",
+                             "wrong"})
 
 
 def _clause_start_near(text: str, span: str) -> str | None:
@@ -11909,9 +11912,18 @@ def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
             cuts.add(len(tokens) + 1)
         # "Line 7 should say X" and "Change line 7 to say X": the quoted
         # words start after the report verb, and the cut drops no "not" or
-        # hedge (night 174, s175 and s177).
+        # hedge (night 174, s175 and s177). The clause before the verb names
+        # a line and holds no negation or fault: "it is wrong to say X" and
+        # "I never said line 7 should say X" start no clause (review p4-1).
         if s in _REPORT_VERBS and tokens and tokens[-1] in _REPORT_LEADS:
-            cuts.add(len(tokens) + 1)
+            lead = tokens[max(c for c in cuts if c <= len(tokens)):]
+            names_line = any(w in ("line", "lines") and nxt.isdigit()
+                             for w, nxt in zip(lead, lead[1:]))
+            denied = any(w in _REPORT_DENIALS or (w == "t" and k and
+                                                  lead[k - 1].endswith("n"))
+                         for k, w in enumerate(lead))
+            if names_line and not denied:
+                cuts.add(len(tokens) + 1)
         tokens.append(s)
     cuts.add(len(tokens))
     return tokens, cuts
@@ -11998,20 +12010,24 @@ def _backed(conn, ref: str, verdict: str, said: str, order: list,
     if not (said or "").strip():
         return False
     reading = _line_reading(said, len(order) if order else None)
-    line = order.index(ref) + 1 if ref in (order or []) else None
+    # Every line that shows the ref counts (the seam review, p4-6).
+    lines = _lines_of(order, ref)
+    line = lines[0] if lines else None
     if verdict == "approve" and (
             _APPROVES.search(said) or _AGREES.match(said)
-            or _AGREEMENT_ALONE.fullmatch(said) or line in reading.matched
+            or _AGREEMENT_ALONE.fullmatch(said)
+            or any(k in reading.matched for k in lines)
             or (reading.matched and not reading.faulted)):
         return True
     # A contest or a revise is backed by words that fault, by the parser's
     # fault words: "Criteria 2 and 6 are wrong." on night 164's m94.
-    if verdict != "approve" and (reading.faults or line in reading.faulted):
+    if verdict != "approve" and (reading.faults
+                                 or any(k in reading.faulted for k in lines)):
         return True
     ident = re.search(r"[\d_#]", str(ref)) and re.search(
         rf"(?<![\w#]){re.escape(str(ref))}(?![\w#])", said, re.I)
     shown = _shown_text(conn, ref, line, page_text)
-    return bool(line in reading.named or ident
+    return bool(any(k in reading.named for k in lines) or ident
                 or reading.names & _line_reading(shown).names
                 or _names_shown(said, shown))
 
@@ -13246,7 +13262,8 @@ def code_line_faulted(words: str, order: list[str] | None, key: str,
         return False
     code_lines = frozenset(i + 1 for i, r in enumerate(order)
                            if r == key or guess_item(r) == item)
-    return pointer_fault(words, order.index(item) + 1, code_lines)
+    return any(pointer_fault(words, n, code_lines)
+               for n in _lines_of(order, item))
 
 # A sentence that opens with one of these verbs says what to build. Night
 # 143's m263: "Also, take the version from the running interpreter's
@@ -13701,6 +13718,20 @@ def _note_words(words: str, n: int, page_text: str,
         if kind in found:
             return kind
     return None
+
+
+def _path_stems(target: str) -> set[str]:
+    """The names that his words can give the file path `target`, in lower
+    case: the path, the file name, the name without `.py`, and the stem
+    without a `test_` or `_test` mark. A target with no path shape gives
+    none: `tests/test_options.py` gives "options", and `clear` gives none."""
+    t = (target or "").strip().strip("`").lower()
+    if "/" not in t and not t.endswith(".py"):
+        return set()
+    base = t.rsplit("/", 1)[-1]
+    stem = base.rsplit(".", 1)[0]
+    bare = re.sub(r"^test_|_test$", "", stem)
+    return {n for n in (t, base, stem, bare) if n}
 
 
 def _shown_prediction(conn, ref: str, order: list, page_text: str) -> str:
@@ -14189,6 +14220,16 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                     f"{line}: an exclude takes a path off the prediction, and "
                     f"{line} shows no path {target or '(none)'}. Leave the "
                     f"act out")
+            # His span names the path, its file or its stem: "the options
+            # and defaults test files" names tests/test_options.py. A path
+            # shape keeps an identifier such as `clear` out (law 6, the
+            # seam review, p4-2 and p4-4).
+            stems = _path_stems(target)
+            if not stems or not any(_says(span.lower(), s) for s in stems):
+                raise ValueError(
+                    f"{line}: an exclude needs his words to name the file "
+                    f"{target}, by its path, file name or stem. Leave the act "
+                    f"out")
         if (shape["act"] in ("remove", "drop")
                 and _code_target(ctx.conn, shape.get("target") or "")
                 and not _asks_removal_of(span, shape.get("target") or "")):
