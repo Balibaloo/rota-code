@@ -43,7 +43,8 @@ WORDS = ("Lines 1, 2, 3 and 6 to 8 are fine as written. Keep line 4, but fix "
          "comes from a broken test stub and not from the behaviour. Drop line "
          "5, because I never asked for the prompt to be hidden, so the prompt "
          "can show as usual before it falls back to the default.")
-# `config` key `verdict:m99`.
+# The `config` key `verdict:m99` before fact F1. The ruling came from his
+# words, so the reading's rows are the verdict now.
 VERDICT = {CR2: "revise", CR3: "contest", "command#root": "approve",
            "option#root": "approve", "parameter#root": "approve"}
 PER_ITEM = {ITEM: "approve", f"guess:{ITEM}": "approve", CR1: "approve",
@@ -107,8 +108,6 @@ def _night158_relay(conn) -> None:
              [CR2, CR3, "command#root", "option#root", "parameter#root"], 103)
     _message(conn, "m101", "m99", "liaison", "terminologist", "relay",
              [CR2, CR3], 105)
-    conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m99', ?)",
-                 (json.dumps(VERDICT),))
     # The page m89 as he saw it at m98, as `principal.land` records it since
     # frame 272. His words put cr_2 on line 4 and cr_3 on line 5.
     conn.execute("INSERT INTO config (key, value) VALUES ('order:m98', ?)",
@@ -151,8 +150,6 @@ def _cr3_out_of_the_relay(conn) -> None:
     that lands, while frame 192 has no route for cr_3."""
     conn.execute("UPDATE messages SET body_refs = ? WHERE id = 'm101'",
                  (json.dumps([CR2]),))
-    conn.execute("UPDATE config SET value = ? WHERE key = 'verdict:m99'",
-                 (json.dumps({CR2: "revise"}),))
     conn.commit()
 
 
@@ -290,8 +287,6 @@ def test_a_faulted_check_refusal_then_the_answer_is_admitted(db):
     _night158_relay(db)
     db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm101'",
                (json.dumps([CR2]),))
-    db.execute("UPDATE config SET value = ? WHERE key = 'verdict:m99'",
-               (json.dumps({CR2: "revise"}),))
     db.commit()
     sb = _s220(db)
     said = _respecify_cr2(sb)
@@ -338,11 +333,13 @@ def test_an_approved_criterion_with_a_ruled_test_counts_among_the_ruled(db):
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
                "VALUES ('tst_confirm_eof_01', 'bg_2', ?, 'tests/t.py', 'x')",
                (CR1,))
-    db.execute("UPDATE messages SET body_refs = ? WHERE id = 'm101'",
+    db.execute("UPDATE messages SET body_refs = ? WHERE id IN ('m99', 'm101')",
                (json.dumps([CR1, CR2, "tst_confirm_eof_01"]),))
-    db.execute("UPDATE config SET value = ? WHERE key = 'verdict:m99'",
-               (json.dumps({CR1: "approve", CR2: "revise",
-                            "tst_confirm_eof_01": "contest"}),))
+    # The reading of the night's ruling contests the test too. The ruling
+    # came from his words, so it has no keypress rows (fact F1, law 11).
+    insert_ruling_rows(db, ruling_rows(db, "r_ce163d8060", PAGE,
+                                       {"tst_confirm_eof_01": "contest"},
+                                       words=WORDS, unheld="skip"))
     db.commit()
     sb = _s220(db)
     with pytest.raises(ValueError) as refused:

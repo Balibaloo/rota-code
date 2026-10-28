@@ -18,6 +18,7 @@ from rota.core.sandbox import build
 from rota.core.scheduler import Wake
 from rota.roles import prompts
 from rota.roles.principal import request_rows
+from rota.testkit.fixtures import seed_verdict
 
 ITEM = "clear_returns_bool"
 TICKET = "tk_1_clear_returns_bool"
@@ -78,8 +79,7 @@ def db(tmp_path):
              CONTESTED, 113)
     _message(conn, "m114", "m113", "liaison", "terminologist", "relay",
              CONTESTED, 114)
-    conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m113', ?)",
-                 (json.dumps(VERDICT),))
+    seed_verdict(conn, "m113", json.dumps(VERDICT))
     conn.execute("INSERT INTO config (key, value) VALUES ('order:m112', ?)",
                  (json.dumps(PAGE),))
     per_item = {r: VERDICT.get(r, "approve") for r in PAGE}

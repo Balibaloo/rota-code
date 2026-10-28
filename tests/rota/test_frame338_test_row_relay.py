@@ -19,6 +19,7 @@ from rota.core.runner import _mode_key, run_session
 from rota.core.scheduler import Wake, open_tips, park_criterion_relay
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.testkit.fixtures import seed_provenance
+from rota.testkit.fixtures import seed_verdict
 
 PINS = Pins(model="stub", temperature=0.0)
 
@@ -43,7 +44,7 @@ def _message(db, mid: str, sender: str, to: str, verb: str, refs, cause=None,
 
 def _night168(db, ruling: dict, extra=()) -> None:
     """The request, its three criteria and their tests, the page m47 and
-    his verdict m49 with `ruling` as `config` `verdict:m49`."""
+    his verdict m49 with `ruling` as its keypress rows (fact F1)."""
     db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version, "
                "priority, is_description) VALUES (?, 'the request', 'in_scope', "
                "'approved', 1, 1, 1, 0)", (ITEM,))
@@ -64,8 +65,7 @@ def _night168(db, ruling: dict, extra=()) -> None:
     _message(db, "m47", "liaison", "principal", "present", lines)
     _message(db, "m49", "principal", "liaison", "verdict", lines, cause="m47",
              status="open")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m49', ?)",
-               (json.dumps(ruling),))
+    seed_verdict(db, "m49", json.dumps(ruling))
     db.commit()
 
 

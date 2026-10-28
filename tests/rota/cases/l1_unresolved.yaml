@@ -224,8 +224,8 @@
   inbound: {id: <m_relay>, from: liaison, to: terminologist, verb: relay,
             body_refs: [<g1>, <g2>], cause: <m_rule>}
   fixture:
-    config:
-      - {key: "verdict:<m_rule>", value: '{"<g1>": "approve", "<g2>": "contest"}'}
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"<g1>": "approve", "<g2>": "contest"}'}
     glossary_terms:
       - {id: <g1>, term: recipe, provenance: observed,
          sense_short: "a note whose contents seed a new note"}
@@ -257,8 +257,8 @@
   inbound: {id: <m_relay>, from: liaison, to: architect, verb: relay,
             body_refs: [<k1>, <a1>], cause: <m_rule>}
   fixture:
-    config:
-      - {key: "verdict:<m_rule>", value: '{"<k1>": "approve", "<a1>": "contest"}'}
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"<k1>": "approve", "<a1>": "contest"}'}
     constraints:
       - {id: <k1>, headline: "frontmatter must match the schema",
          text: "validateFmSchema warns in console", provenance: observed}

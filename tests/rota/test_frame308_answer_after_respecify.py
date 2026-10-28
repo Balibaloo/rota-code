@@ -93,7 +93,8 @@ def _message(conn, mid, cause, sender, to, verb, refs, seq, text=None):
 
 def _night159_relay(conn, verdict=VERDICT, text=V6) -> None:
     """The page m223, the reply m224, the verdict m225, the ruling, the relay
-    m226 that woke s382."""
+    m226 that woke s382. The ruling came from his words, so its rows are
+    the verdict, and `verdict` overrides them (fact F1, law 11)."""
     _message(conn, "m223", None, "liaison", "principal", "present",
              [ITEM, CR], 226)
     _message(conn, "m224", "m223", "principal", "liaison", "converse",
@@ -101,8 +102,6 @@ def _night159_relay(conn, verdict=VERDICT, text=V6) -> None:
     _message(conn, "m225", "m223", "principal", "liaison", "verdict", [CR], 229)
     _message(conn, "m226", "m225", "liaison", "terminologist", "relay", [CR],
              230)
-    conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m225', ?)",
-                 (json.dumps(verdict),))
     # The page m223 as he saw it at m224, as `principal.land` records it
     # since frame 272. His "Line 3 has to change" names ver_opt_show_py.
     conn.execute("INSERT INTO config (key, value) VALUES ('order:m224', ?)",
@@ -110,7 +109,8 @@ def _night159_relay(conn, verdict=VERDICT, text=V6) -> None:
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
                  "status, verdict_id, texts) VALUES ('r_03b3346468', 'm223', "
                  "'m224', ?, ?, 'landed', 'm225', ?)",
-                 (json.dumps(PER_ITEM), WORDS, json.dumps({CR: text})))
+                 (json.dumps({**PER_ITEM, **verdict}), WORDS,
+                  json.dumps({CR: text})))
     backfill_ruled_refs(conn)
     # m224 asks new words of line 3 and a new check: the act `rewrite` on
     # the check, as the Liaison's object form writes it (the seam design,

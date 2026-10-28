@@ -131,8 +131,9 @@
   inbound: {id: <m_relay>, from: liaison, to: architect, verb: relay,
             body_refs: ["guess:<i1>"], cause: <m_rule>}
   fixture:
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"guess:<i1>": "contest"}'}
     config:
-      - {key: "verdict:<m_rule>", value: '{"guess:<i1>": "contest"}'}
       - {key: "guess_target:<m_rule>", value: '{"guess:<i1>": [1, ""]}'}
       - {key: "entry:<m_rule>", value: '"Lines 2 to 4 are still wrong: each check runs with the flag off and looks for a hard-coded 3.10.0, but each one should turn the flag on and check that the message ends with \"Python\" and major.minor.micro taken from the running interpreter''s version info. Lines 9 and 11 are wrong too, because version option already builds its own callback, so show_python only needs to be a normal keyword argument with no callback from the caller. Line 1 also names the options and defaults test files, which have nothing to do with this change, so keep the work to version option and its tests in the basic tests file."'}
     items:
@@ -446,8 +447,9 @@
   inbound: {id: <m_relay>, from: liaison, to: architect, verb: relay,
             body_refs: [<k1>], cause: <m_rule>}
   fixture:
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"<k1>": "contest"}'}
     config:
-      - {key: "verdict:<m_rule>", value: '{"<k1>": "contest"}'}
       - {key: "entry:<m_rule>", value: '"I can''t approve this page. Line one is still about my complaint and says nothing about what to build. Please replace line one with exactly this: a new show python flag on the version option adds the running Python version to the end of the version message, as major.minor.micro from the interpreter''s version info."'}
     constraints:
       - {id: <k1>, headline: "ParameterSource.COMMANDLINE",
@@ -477,8 +479,9 @@
   inbound: {id: <m_relay>, from: liaison, to: architect, verb: relay,
             body_refs: [<b1>], cause: <m_rule>}
   fixture:
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"<b1>": "contest"}'}
     config:
-      - {key: "verdict:<m_rule>", value: '{"<b1>": "contest"}'}
       - {key: "entry:<m_rule>", value: '"Line 2 names the wrong tests: the confirm prompt''s tests live in the terminal UI test file, not the defaults test file, and that \"might touch\" item is an unrelated test about default lookup overrides. Everything else looks right."'}
     items:
       - {id: <i1>, text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting. The new flag is off by default, so nothing changes for people who already call confirm.",

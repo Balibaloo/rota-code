@@ -64,8 +64,8 @@
     messages:
       - {id: <m1>, thread_id: <th>, from_role: principal, to_role: liaison,
          verb: verdict, body_refs: '["<i1>"]', seq: 1}
-    config:
-      - {key: "verdict:<m1>", value: '{"<i1>": "contest"}'}
+    keypress_verdicts:
+      - {id: "<m1>", per_item: '{"<i1>": "contest"}'}
     items:
       - {id: <i1>, kind: in_scope, provenance: decided, approval: contested,
          approval_ver: 1, version: 1,

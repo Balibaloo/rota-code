@@ -1809,7 +1809,7 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # A contest on the item is a verdict on the item's own id. Night 146's
     # m250 approved the item and contested a criterion, and s399 rewrote the
     # item anyway (the review of 81f27127, finding 2). A ruling row is the
-    # record. A database with no ruling row keeps the verdict in config.
+    # record. Fact F1 removed the verdict map of config.
     keep = (f"Keep the item. Send msg.report_liaison with what the contest "
             f"needs, or answer with decisions.author")
     # The wake names the contested item. An assert on another item reads a
@@ -2343,7 +2343,7 @@ def _landed_approval(ctx: Ctx, id: str) -> tuple[str, str] | None:
     """(ruling id, ask id) when the newest landed ruling on `id` approves it.
 
     The door reads the newest landed row on `id` in `ruled_refs_live`. The
-    view orders by `rulings.rowid`. The `config` verdict
+    view orders by `rulings.rowid`. The verdict that `verdict_for` reads
     holds only the rows the relay carries (frame 238). The newest landed row
     in rowid order is the principal's latest word. The relay's chain ruling
     is one of these rows, so a newer ruling wins over it (the review of
@@ -2589,13 +2589,9 @@ def _principal_relay(ctx: Ctx) -> tuple[list[str], dict[str, str]] | None:
         refs = [r for r in json.loads(row["refs"] or "[]") if isinstance(r, str)]
     except (TypeError, ValueError):
         refs = []
-    ruled = ctx.conn.execute("SELECT value FROM config WHERE key = ?",
-                             (f"verdict:{row['cid']}",)).fetchone()
-    try:
-        verdict = json.loads(ruled["value"]) if ruled else {}
-    except (TypeError, ValueError):
-        verdict = {}
-    return refs, verdict if isinstance(verdict, dict) else {}
+    from .principal import verdict_for
+
+    return refs, verdict_for(ctx.conn, row["cid"])
 
 
 def _wake_refs(ctx: Ctx) -> set[str]:
@@ -13796,13 +13792,16 @@ def rulings_load(ctx: Ctx, ask_id: str | None = None) -> list[dict]:
             "SELECT * FROM rulings WHERE ask_id = ? ORDER BY rowid", (ask_id,)))
     else:
         out = _rows(ctx.conn.execute("SELECT * FROM rulings ORDER BY rowid"))
+    from .principal import one_row_per_ref
+
     for reading in out:
         rows = _rows(ctx.conn.execute(
-            "SELECT ref, line, verdict, act, target_kind, target, words, "
-            "words_from, old_text, ref_version, source, status, confirmed_by, "
-            "provenance FROM ruled_refs_live WHERE ruling_id = ? "
+            "SELECT ruling_id, ref, line, verdict, act, target_kind, target, "
+            "words, words_from, old_text, ref_version, source, status, "
+            "confirmed_by, provenance FROM ruled_refs_live WHERE ruling_id = ? "
             "ORDER BY row_seq", (reading["id"],)))
-        reading["refs"] = rows
+        reading["refs"] = [{k: v for k, v in r.items() if k != "ruling_id"}
+                           for r in one_row_per_ref(rows)]
     return out
 
 

@@ -2008,11 +2008,11 @@ def verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[str] 
                        (message_id,)).fetchone() if message_id else None
     if row is None or row["verb"] != "verdict":
         return None
-    ruled = conn.execute("SELECT value FROM config WHERE key = ?",
-                         (f"verdict:{message_id}",)).fetchone()
+    from ..roles.principal import verdict_for
+
+    per_item = verdict_for(conn, message_id)
     try:
         refs = json.loads(row["body_refs"] or "[]")
-        per_item = json.loads(ruled["value"]) if ruled else {}
     except (TypeError, ValueError):
         return []
     return [r for r in refs if isinstance(r, str)
@@ -2348,7 +2348,7 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     # deferred branch. A green batch has no failing run at head (frame 330,
     # pass 5). The harness judges the `tests_failing` key at a new head
     # instead (frame 318), so that key keeps the exit below.
-    if any(k.split("|", 2)[1] != "tick:tests_failing"
+    if any(key_parts(k)[1] != "tick:tests_failing"
            for k in _running_given_up(conn, batch_id)):
         return True
     # A head commit newer than the failing runs is a fix nobody has tested.

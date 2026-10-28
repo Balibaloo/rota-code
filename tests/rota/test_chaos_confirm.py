@@ -22,6 +22,8 @@ from rota.core.predicates import Wake
 from rota.core.runner import resolve_inbound, run_session
 from rota.core.scheduler import frontier_readonly
 from rota.llm.llm import Pins, ScriptedBackend
+from rota.roles.principal import verdict_for
+from rota.testkit.fixtures import seed_verdict
 
 PINS = Pins(model="stub", temperature=0.0)
 
@@ -60,8 +62,7 @@ def _a_relayed_ruling(db):
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                "verb, body_refs, seq, status) VALUES ('m10','m9','th','principal',"
                "'liaison','verdict',?,2,'answered')", (json.dumps(["t1"]),))
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m10', ?)",
-               (json.dumps({"t1": "approve"}),))
+    seed_verdict(db, "m10", json.dumps({"t1": "approve"}))
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                "verb, body_refs, seq, status) VALUES ('m11','m10','th','liaison',"
                "'vision_keeper','relay',?,3,'open')", (json.dumps(["t1"]),))
@@ -95,8 +96,7 @@ def test_the_adopt_session_killed_after_the_relay_never_happened(db):
                      ).fetchone()
     assert row["status"] == "open", "the relay survives the death"
     assert row["attempts"] == 1, "and the death was counted"
-    assert db.execute("SELECT 1 FROM config WHERE key='verdict:m10'"
-                      ).fetchone(), "the ruling is still on file"
+    assert verdict_for(db, "m10"), "the ruling is still on file"
     assert [str(w) for w in frontier_readonly(db)] == before, (
         "the frontier re-derives the same world")
 
@@ -155,7 +155,7 @@ def test_two_principals_ruling_at_once_land_one_ruling(db, tmp_path):
     assert verdict_for(a, first) == {"t1": "approve"}
     assert a.execute("SELECT COUNT(*) n FROM messages WHERE verb = 'verdict'"
                      ).fetchone()["n"] == 1
-    assert a.execute("SELECT COUNT(*) n FROM config WHERE key LIKE 'verdict:%'"
+    assert a.execute("SELECT COUNT(DISTINCT ruling_id) n FROM ruled_refs WHERE source = 'keypress'"
                      ).fetchone()["n"] == 1
     assert pending_asks(a) == [], "nothing is left to answer"
 

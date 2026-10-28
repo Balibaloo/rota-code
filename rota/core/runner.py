@@ -2006,7 +2006,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # what they objected to. Liaison asked the principal what they had
     # already said; the principal said it again; the tick fired again; the
     # same question came back verbatim. The ruling that contested the item
-    # is the config verdict naming it, the latest wins, and its entry is the
+    # is the landed verdict naming it, the latest wins, and its entry is the
     # reason. Surfaced the way a relay surfaces it, so the brief's two cases
     # -- "they said what they meant instead" and "they said no" -- can be
     # told apart by reading `principal_said`.
@@ -2413,12 +2413,11 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # their ids here, so the seat can rule a row his words
                 # correct. The page he reads shows no id (the review of pass
                 # 5b, finding 6). Only a page with the line gets the key.
-                from ..roles.principal import READING_REF, ruled as _ruled
+                from ..roles.principal import READING_REF, read_back_rows
 
                 back = {str(i + 1): [
                     {k: r[k] for k in ("ref", "line", "verdict", "act", "target")}
-                    for r in _ruled(conn, reply=ref[len(READING_REF):])
-                    if not str(r["ref"]).startswith(READING_REF)]
+                    for r in read_back_rows(conn, ref[len(READING_REF):])]
                     for i, ref in enumerate(order)
                     if str(ref).startswith(READING_REF)}
                 if back:
