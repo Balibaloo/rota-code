@@ -485,3 +485,30 @@ def test_s263s_contest_of_the_change_line_names_line_5(db):
     assert out["per_item"]["c3_version_option_show_python"] == "approve"
     assert out["per_item"]["bg_3"] == "approve"
     assert out["per_item"]["c1_version_option_show_python"] == "contest"
+
+
+# The F2 review of pass 2, findings 1 and 2: a sentence with no number
+# spares a criterion line only when it names the line and faults it. No
+# recorded reply of nights 170 to 172 has this shape, so the reply below is
+# M142 with one sentence added. Line 4 is c3, whose text names `show_python`.
+def _s263_with(db, added):
+    sb = _m141(db)
+    reply = M142 + " " + added
+    sb.ctx.conn.execute("UPDATE messages SET body_text = ? WHERE id = 'm142'",
+                        (reply,))
+    rulings = {"1": "approve", "2": "contest", "3": "revise", "4": "contest",
+               "5": "approve"}
+    return sb.call("rulings.rule", rulings=rulings, words=reply)
+
+
+def test_a_sentence_that_names_and_faults_a_criterion_spares_its_contest(db):
+    out = _s263_with(db, "The `show_python` default must also hold when the "
+                         "flag is passed as None.")
+    assert out["per_item"]["c3_version_option_show_python"] == "contest"
+
+
+def test_a_sentence_that_names_and_agrees_spares_no_contest(db):
+    with pytest.raises(ValueError) as e:
+        _s263_with(db, "The `show_python` default is fine as it is.")
+    assert str(e.value).startswith(
+        "The words name lines 2 and 3 and do not name line 4.")

@@ -12124,6 +12124,11 @@ class LineReading:
     # lists sit in the parser's helpers below, and no door reads them.
 
     @property
+    def faults(self) -> bool:
+        """True when the words hold a fault word, a line number or none."""
+        return bool(_LINE_FAULT.search(self.words))
+
+    @property
     def names(self) -> set[str]:
         """The quoted spans, flags and identifiers that the words name, in
         lower case. A grant on a name has the name as its target."""
@@ -13158,7 +13163,11 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     # criterion that no number reaches (pass 2b).
     loose = _unnumbered(sentences)
     if loose:
-        said = set().union(*(_line_reading(s).names for s in loose))
+        # A sentence that agrees spares nothing. "The `format_filename`
+        # docstring is fine as it is." spared line 4 (the F2 review, pass 2,
+        # finding 1). So the sentence must hold a fault word.
+        said = set().union(*(_line_reading(s).names for s in loose
+                             if _line_reading(s).faults))
         unnamed = [n for n in unnamed if n not in request_lines and not (
             n in item_lines and said
             & _line_reading((item_texts or {}).get(n, "")).names)]
@@ -13564,6 +13573,16 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
 
         if not park_ask_batch(ask["id"]):
             keys = answer_about(ctx.conn, ask["id"]) or refs
+    said = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                            (ctx.trigger,)).fetchone()
+    his = (said["body_text"] if said else "") or ""
+    # A call with no `words` rests on his reply, whole, from the record. The
+    # landing brief's own examples carry `words` inside a line's object, and
+    # on nights 170 to 172, 19 of 20 "words is empty" refusals held his words
+    # there (F2 pass 2, `plans/f2-night172-read.md`, W6). A row keeps the
+    # span of its own object or act. Law 6 holds: the verdicts stay the seat's.
+    if not (words or "").strip():
+        words = his
     if (isinstance(rulings, dict) and not rulings and not is_clarify
             and not acts and (not row_order or batches_only)):
         rid = _ruling_id(ctx, ask["id"])
@@ -13693,16 +13712,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # The guard reads his message, never the `words` argument: one
     # paraphrase confirmed a reading that his reply skipped (the review of
     # pass 5b, finding 5).
-    said = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
-                            (ctx.trigger,)).fetchone()
-    his = (said["body_text"] if said else "") or ""
-    # A call with no `words` rests on his reply, whole, from the record. The
-    # landing brief's own examples carry `words` inside a line's object, and
-    # on nights 170 to 172, 19 of 20 "words is empty" refusals held his words
-    # there (F2 pass 2, `plans/f2-night172-read.md`, W6). A row keeps the
-    # span of its own object or act. Law 6 holds: the verdicts stay the seat's.
-    if not (words or "").strip():
-        words = his
     his_reading = _line_reading(his, len(order or []))
     named = set(his_reading.named)
     his_matched = his_reading.matched
@@ -13925,7 +13934,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # the words fault, and `land` keeps it on the same predicate. A line the
     # words do not fault is refused: 9 of 9 such contests on nights 136 to
     # 149 were the seat's error (`built_line_faulted`).
-    words_reading = _line_reading(words, len(order) if order else None)
+    # law 6: nothing is ruled on the principal's behalf
+    # The doors read his reply, never the seat's `words`. A seat that added
+    # "Line 4 is wrong too." to m121 landed a contest of line 4 (the F2
+    # review of pass 2, finding 8).
+    words_reading = _line_reading(his, len(order) if order else None)
     read_cues, read_matched = words_reading.cues, words_reading.matched
     read_faulted = set(read_cues)
     for ref, ruling in per_item.items():
@@ -14056,8 +14069,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         earlier_read, earlier_fine = _earlier_reading(
             ctx.conn, ask["id"], ctx.trigger, len(order))
         refusal = _line_refusal(
-            words, contested, faulted, matched, len(order), request_first,
-            request_first and _quotes_line(words, page_text, 1), batch_lines,
+            his, contested, faulted, matched, len(order), request_first,
+            request_first and _quotes_line(his, page_text, 1), batch_lines,
             # A request line whose files fault the code line carries is no
             # faulted approve (frame 298's design, 3.3).
             item_lines, frozenset(i + 1 for i, r in enumerate(order)
@@ -14087,23 +14100,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "a reading carries the principal's words, and words is empty. "
             "Pass the reply, whole")
     if any(v != "approve" for v in per_item.values()) and not (words or "").strip():
-        # On the shift page, a verdict that means what his shift words mean
-        # gets the call with his reply whole. The land gate of 2bbace14,
-        # runs 1, 2 and 4: the seat put his words in acts, and this bare
-        # text moved it off "later" (law 6: the verdict stays the seat's).
-        his_all = _his_reply(ctx)
-        found = _his_shift_words(his_all) if shift else []
-        if found and _shift_agrees(found, {str(k).strip(): v for k, v
-                                           in rulings.items()}):
-            call, args = _rule_call(dict(rulings), his_all.strip())
-            if acts:
-                call = (call[:-1] + ", acts="
-                        + json.dumps(acts, ensure_ascii=False) + ")")
-                args["acts"] = acts
-            raise ValueError(_offer(ctx, (
-                f"a contest carries the principal's words to the row's owner, "
-                f"and words is empty. Pass the reply, whole: {call}"),
-                "rulings.rule", args))
+        # Only a reply with no text reaches here, because the door reads his
+        # reply when the call passes no words. The shift-page offer of
+        # 6a5d0850 went with F2 pass 2d: his empty reply holds no shift word.
         raise ValueError(
             "a contest carries the principal's words to the row's owner, and "
             "words is empty. Pass the reply, whole")

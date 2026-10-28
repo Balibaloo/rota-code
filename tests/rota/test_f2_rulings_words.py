@@ -5,7 +5,8 @@ words in `acts` and passed no top-level `words`, and the door refused the
 contest with "words is empty". s258's landed call contested line 4 on a
 reply that names line 12 only, and its act on line 12 rested on the whole
 reply. Each case replays one call of the night on a copy of the night's
-register, in the state of that call.
+register, in the state of that call. The register is not tracked, so a
+clone without `.rota/clickI_night172.db` skips every test here.
 """
 from __future__ import annotations
 
@@ -132,6 +133,18 @@ def test_s258s_call_without_the_act_is_refused_on_line_4(night):
         "The words name line 12 and do not name line 4. A contest rests on "
         "the principal's words. Approve the lines the words do not name, or "
         "rule them as the words say.")
+
+
+def test_words_the_seat_adds_to_his_reply_are_refused(night):
+    """The F2 review of pass 2, finding 8: the seat's words with "Line 4 is
+    wrong too." landed a contest of line 4 that m121 never makes. The
+    naming door reads m121, so the contest has no words of his."""
+    ctx = night("m121", LATE)
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={**R8, "4": "contest", "12": "contest"},
+                         words=W121 + " Line 4 is wrong too.")
+    assert str(e.value).startswith(
+        "The words name line 12 and do not name line 4.")
 
 
 def test_s258s_call_with_line_4_approved_lands(night):
