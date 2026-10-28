@@ -598,9 +598,11 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
 -- delete. `run_seq` gives the order to a reader that sorts the rows. A test
 -- counts for its own batch only, because an inherited test keeps its id
 -- across batches (frames 210 and 239). Night 170: a door told s201 to
--- restore inh_fe7f4bfc, and that test passed 7 of 7 runs of b_3. The view
--- holds no data, so `init_db` drops it and makes it again.
-DROP VIEW IF EXISTS latest_runs;
+-- restore inh_fe7f4bfc, and that test passed 7 of 7 runs of b_3.
+-- `init_db` does not drop this view. Every tick reads it, and a drop outside
+-- a transaction fails a reader on a second connection (the F4 review, high
+-- 1: 18,589 failed reads in 11 calls). To change the text of the view, put
+-- the drop and the create in one BEGIN and COMMIT.
 CREATE VIEW IF NOT EXISTS latest_runs AS
 SELECT r.*, r.rowid AS run_seq FROM test_runs r
 WHERE r.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY batch_id, test_id);

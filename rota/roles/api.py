@@ -20828,11 +20828,13 @@ def _runs_at(ctx: Ctx, sha: str | None) -> dict:
     if not sha:
         return {}
     # Fact F4 leaves this read on `test_runs`. The revert door reads HEAD~1,
-    # a past commit, and a later run supersedes the runs of that commit.
+    # a past commit, and a later run supersedes the runs of that commit. The
+    # order is the view's own, `rowid`, scoped to the commit (the F4 review,
+    # low 4).
     out = {}
     for r in ctx.conn.execute(
             "SELECT test_id, result FROM test_runs WHERE batch_id = ? AND commit_sha = ? "
-            "ORDER BY attempt, rowid", (ctx.batch_id, sha)):
+            "ORDER BY rowid", (ctx.batch_id, sha)):
         out[r["test_id"]] = r["result"]
     return out
 

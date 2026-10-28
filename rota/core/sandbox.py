@@ -2226,10 +2226,13 @@ def project_tests_fact(ctx: api.Ctx, ids: list[str], *,
     ids = list(dict.fromkeys(ids))
     # Fact F4, night 170: this text told s201 to restore inh_fe7f4bfc, and
     # that test passed 7 of 7 runs of b_3. A test green on its newest run
-    # in this batch is broken by no change, so the text says so.
+    # in this batch is broken by no change, so the text says so. The run
+    # must be at the batch's head. A head that no harness ran is not known
+    # to be green (the F4 review, low 2).
     green = [i for i in ids if ctx.batch_id and ctx.conn.execute(
-        "SELECT 1 FROM latest_runs WHERE batch_id = ? AND test_id = ? "
-        "AND result = 'pass'", (ctx.batch_id, i)).fetchone()]
+        "SELECT 1 FROM latest_runs r JOIN batches b ON b.id = r.batch_id "
+        "WHERE r.batch_id = ? AND r.test_id = ? AND r.result = 'pass' "
+        "AND r.commit_sha = b.head_commit", (ctx.batch_id, i)).fetchone()]
     ids = [i for i in ids if i not in green]
     red = [i for i in ids if isinstance(rows.get(i), dict)
            and rows[i].get("result") in ("fail", "error")]
@@ -5603,14 +5606,17 @@ def _stored_runs(ctx: api.Ctx, sha: str) -> dict:
     """The latest stored result of each test of the batch at `sha`. The
     fact checks read the rows here, and not through the door's reader."""
     # Fact F4 leaves this read on `test_runs`. It reads the runs of a past
-    # commit, HEAD~1 too, and a later run can supersede those runs.
+    # commit, HEAD~1 too, and a later run can supersede those runs. The
+    # order is the view's own, `rowid`, scoped to the commit (the F4
+    # review, low 4). The query is its own, so the check stays apart from
+    # the door's reader (frame 149).
     latest: dict = {}
     for r in ctx.conn.execute(
-            "SELECT test_id, result, attempt, rowid AS k FROM test_runs "
-            "WHERE batch_id = ? AND commit_sha = ?", (ctx.batch_id, sha)):
-        if r["test_id"] not in latest or (r["attempt"], r["k"]) > latest[r["test_id"]][0]:
-            latest[r["test_id"]] = ((r["attempt"], r["k"]), r["result"])
-    return {t: v[1] for t, v in latest.items()}
+            "SELECT test_id, result FROM test_runs "
+            "WHERE batch_id = ? AND commit_sha = ? ORDER BY rowid",
+            (ctx.batch_id, sha)):
+        latest[r["test_id"]] = r["result"]
+    return latest
 
 
 def _runs_hold(ctx: api.Ctx, runs: dict, where: dict) -> tuple[bool, str]:

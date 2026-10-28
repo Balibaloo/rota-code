@@ -162,10 +162,14 @@ def connect_readonly(path: str | Path) -> sqlite3.Connection:
 
 
 def latest_runs_view(conn: sqlite3.Connection) -> None:
-    """Give a read-only connection the `latest_runs` view when its file has
-    none. A night's file from before fact F4 holds no such view, and every
-    reader of the newest run reads the view. A temp view writes nothing to
-    the file. The body is the schema's own, so the order rule stays one."""
+    """Give a connection the `latest_runs` view when its file has none.
+
+    A night's file from before fact F4 holds no such view, and every reader
+    of the newest run reads the view. A temp view writes nothing to the
+    file. The body is the schema's own, so the order rule stays one. Every
+    opener of a rota file calls this helper: `connect`, `connect_readonly`,
+    `invariants.open_readonly` and `nightreport.open_ro`. A read script
+    opens a night through one of them (the F4 review, low 5)."""
     have = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE name IN ('latest_runs', 'test_runs')")}
     if have != {"test_runs"}:
@@ -294,6 +298,9 @@ def init_db(path: str | Path) -> sqlite3.Connection:
             conn.close()
             raise RuntimeError(stale)
         conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        # The file holds the view now. The temp view of `connect` is no
+        # longer needed, and only this connection sees it.
+        conn.execute("DROP VIEW IF EXISTS temp.latest_runs")
         # `executescript` adds a table, never a column, and a run database under
         # `.rota/` outlives the schema. The symbol spans are added in place rather
         # than behind `SCHEMA_MARK`, because the mark refuses a database outright

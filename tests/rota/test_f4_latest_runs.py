@@ -122,24 +122,75 @@ def test_a_read_only_file_without_the_view_gets_a_temp_view(tmp_path):
         ro.execute("CREATE TEMP TABLE x (a)")
 
 
-# The reads of `test_runs` that do not ask for the newest run. Each site
-# carries a comment that names its reason. A new site goes red here.
+def test_a_green_run_at_an_old_commit_says_nothing_of_the_head(db):
+    # The F4 review, low 2: the newest pass is at c1, and no harness ran
+    # the head abc. The door does not call the head green.
+    _test(db, "inh_1", "b1")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, output, attempt) VALUES ('tr1','b1','inh_1','c1',"
+               "'pass','',1)")
+    db.commit()
+    said = sandbox.project_tests_fact(_ctx(db), ["inh_1"]) or ""
+    assert "broke nothing" not in said
+
+
+def test_the_runs_of_one_commit_follow_the_insert_order(db):
+    # The F4 review, low 4: `_runs_at` and `_stored_runs` sorted by attempt
+    # first. The newest insert at the commit is the run they read now.
+    _test(db, "t1", "b1")
+    _run(db, "tr1", "b1", "t1", "fail", attempt=3)
+    _run(db, "tr2", "b1", "t1", "pass", attempt=1)
+    db.commit()
+    ctx = _ctx(db)
+    assert api._runs_at(ctx, "abc") == {"t1": "pass"}
+    assert sandbox._stored_runs(ctx, "abc") == {"t1": "pass"}
+
+
+def test_a_night_tool_reads_a_file_from_before_the_view(tmp_path):
+    # The F4 review, low 5: a plain opener of a night met "no such table".
+    from rota.tools import invariants, nightreport
+    path = tmp_path / "old.db"
+    conn = init_db(path)
+    conn.execute("DROP VIEW latest_runs")
+    conn.commit()
+    conn.close()
+    for opener in (nightreport.open_ro, invariants.open_readonly):
+        ro = opener(path)
+        assert predicates.tests_failing(ro) == []
+        ro.close()
+
+
+def test_init_db_never_drops_the_view_outside_a_transaction():
+    # The F4 review, high 1: a drop outside a transaction failed 18,589
+    # reads of a second connection in 11 calls of `init_db`.
+    schema = (ROOT / "rota/core/schema.sql").read_text(encoding="utf-8")
+    code = "\n".join(ln.split("--")[0] for ln in schema.splitlines())
+    for m in re.finditer(r"DROP VIEW IF EXISTS latest_runs", code):
+        before = code[:m.start()]
+        assert before.rfind("BEGIN") > before.rfind("COMMIT"), (
+            "drop latest_runs only inside BEGIN and COMMIT")
+
+
+# The reads of `test_runs` that the view does not serve, with the count of
+# read sites in each. Each function carries a comment that names its
+# reason. A new read, in a new function or in one of these, goes red here.
 ALLOWED = {
-    ("rota/core/db.py", "red_before"),           # the newest run that ran code
-    ("rota/core/harness.py", "run"),             # any run at the head
-    ("rota/core/lifecycle.py", "next_attempt"),  # the attempt counter
-    ("rota/core/sandbox.py", "_stored_runs"),    # a past commit, HEAD~1
-    ("rota/roles/api.py", "_runs_at"),           # a past commit, HEAD~1
-    ("rota/tools/invariants.py", "i4"),          # every run, counted
-    ("rota/testkit/scenes.py", "ran"),           # the test kit
+    ("rota/core/db.py", "red_before"): 2,          # the newest run that ran code
+    ("rota/core/harness.py", "run"): 1,            # any run at the head
+    ("rota/core/lifecycle.py", "next_attempt"): 1,  # the attempt counter
+    ("rota/core/sandbox.py", "_stored_runs"): 1,   # a past commit, HEAD~1
+    ("rota/roles/api.py", "_runs_at"): 1,          # a past commit, HEAD~1
+    ("rota/tools/invariants.py", "i4"): 1,         # every run, counted
+    ("rota/testkit/scenes.py", "ran"): 1,          # the test kit
 }
-READ = re.compile(r"(?<!DELETE )\b(?:FROM|JOIN)\s+test_runs\b", re.I)
+READ = re.compile(r"(?<!DELETE )\b(?:FROM|JOIN)\s+[\"'`\[]?test_runs\b", re.I)
 
 
-def _sites() -> set:
-    found = set()
-    for path in sorted((ROOT / "rota").rglob("*.py")):
-        rel = path.relative_to(ROOT).as_posix()
+def _sites(root: Path = ROOT) -> dict:
+    from collections import Counter
+    found: Counter = Counter()
+    for path in sorted((root / "rota").rglob("*.py")):
+        rel = path.relative_to(root).as_posix()
         src = path.read_text(encoding="utf-8")
         if not READ.search(src):
             continue
@@ -153,8 +204,22 @@ def _sites() -> set:
             owner = min((f for f in funcs
                          if f.lineno <= node.lineno <= f.end_lineno),
                         key=lambda f: f.end_lineno - f.lineno, default=None)
-            found.add((rel, owner.name if owner else "<module>"))
-    return found
+            found[(rel, owner.name if owner else "<module>")] += len(
+                READ.findall(node.value))
+    return dict(found)
+
+
+def test_the_pin_counts_a_second_read_in_an_allowed_function(tmp_path):
+    # The F4 review, low 3: a second read inside `red_before` kept the old
+    # pin green. The quoted table name escaped the scan too.
+    root = tmp_path / "rota"
+    root.mkdir()
+    (root / "m.py").write_text(
+        "def red_before(c):\n"
+        "    c.execute('SELECT 1 FROM test_runs')\n"
+        "    c.execute('SELECT 1 FROM \"test_runs\" ORDER BY attempt DESC')\n",
+        encoding="utf-8")
+    assert _sites(tmp_path) == {("rota/m.py", "red_before"): 2}
 
 
 def test_latest_runs_is_the_one_reader_of_the_newest_run():
