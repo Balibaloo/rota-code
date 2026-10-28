@@ -210,8 +210,8 @@ def test_stray_fields_with_no_shift_word_in_his_reply_get_three_calls(db):
 def test_a_later_with_his_words_in_acts_gets_the_call_with_his_reply(tmp_path):
     """The land gate of 2bbace14, runs 1, 2 and 4: the seat sent later with
     his words in acts and no words, and the bare words door moved it off
-    later. The seat's later means what "separate" means, so the refusal
-    offers the same call with his reply whole, and it lands as park."""
+    later. Since F2 pass 2 the door reads his reply, whole, when the call
+    passes no words, so the first call lands as park with no offer."""
     first = ('TOOL: rulings.rule(rulings={"1": "later"}, acts={"1": '
              '{"verdict": "later", "target_kind": "request", "words": '
              '"They\'re independent. The confirm change is a separate request '
@@ -224,7 +224,7 @@ def test_a_later_with_his_words_in_acts_gets_the_call_with_his_reply(tmp_path):
 
     seat = _Follower(first, pick)
     r = _run(_case("L1-LI-a-separate-request-is-later"), seat, tmp_path)
-    assert len(calls) == 1 and json.dumps(SEPARATE) in calls[0], calls
+    assert calls == [], calls
     assert r.passed, r.problems
 
 

@@ -236,7 +236,8 @@ def test_a_contest_of_the_line_rules_a_row_the_new_page_does_not_hold(db):
     words = "2 is wrong: it was not a remove. Keep how_it_works."
     again, out = _answer(db, ask, words, {
         "1": "approve", "2": "contest",
-        "l_1": {"verdict": "approve", "act": "keep", "target": "how_it_works"}})
+        "l_1": {"verdict": "approve", "act": "keep", "target": "how_it_works",
+                "words": "Keep how_it_works."}})
     assert out["per_item"]["l_1"] == "approve", out
     old = db.execute("SELECT status FROM ruled_refs_live WHERE reply_id = ? "
                      "AND ref = 'l_1'", (reply,)).fetchone()

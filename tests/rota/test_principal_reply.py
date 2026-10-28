@@ -360,7 +360,9 @@ def test_the_ruling_door_holds_the_page(db):
     with pytest.raises(ValueError, match="not a ruling"):
         sb.call("rulings.rule", rulings={"1": "yes", "2": "approve",
                                          "3": "approve", "4": "approve"})
-    with pytest.raises(ValueError, match="words is empty"):
+    # A call with no words reads his reply, whole (F2 pass 2). "fine"
+    # names no line, so the contest of line 2 has nothing behind it.
+    with pytest.raises(ValueError, match="The words agree with the page"):
         sb.call("rulings.rule", rulings={"1": "approve", "2": "contest",
                                          "3": "approve", "4": "approve"})
     # A row id names a line as well as its number does.
