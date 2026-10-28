@@ -320,7 +320,73 @@ KEPT_SHAPES = {
                     'def f():\n    """New words."""\n    go()\n'),
     "8 return in a new with": ("def f():\n    x = load()\n    return x\n",
                                "def f():\n    with lock:\n        x = load()\n        return x\n"),
+    # Review 2, finding 4: a move into a new block that runs on every path.
+    "2a under if True": ("def f(x):\n    go(x)\n    stop()\n",
+                         "def f(x):\n    if True:\n        go(x)\n    stop()\n"),
+    "2b under a local set True": ("def f(x):\n    debug = True\n    go(x)\n",
+                                  "def f(x):\n    debug = True\n    if debug:\n        go(x)\n"),
+    "2c under a guard true by its own code": (
+        "def f(items=None):\n    items = items or []\n    run(items)\n",
+        "def f(items=None):\n    items = items or []\n    if items is not None:\n"
+        "        run(items)\n"),
+    "2e in a loop over one item": ("def f(p):\n    go(p)\n",
+                                   "def f(p):\n    for q in [p]:\n        go(q)\n"),
+    "2f in both arms of a new if and else": (
+        "def f(c):\n    go()\n",
+        "def f(c):\n    if c:\n        log()\n        go()\n    else:\n        go()\n"),
+    # Review 2, finding 3: a renamed local that is used, and a bound result.
+    "5a2 call result now bound": ("def f(a):\n    go(a)\n    stop()\n",
+                                  "def f(a):\n    res = go(a)\n    stop()\n"),
+    "5c renamed local, method call": ("def f(p):\n    tmp = open(p)\n    tmp.close()\n",
+                                      "def f(p):\n    fh = open(p)\n    fh.close()\n"),
+    "5c2 renamed loop target": (
+        "def f(xs):\n    total = 0\n    for x in xs:\n        total += x\n    return total\n",
+        "def f(xs):\n    total = 0\n    for item in xs:\n        total += item\n"
+        "    return total\n"),
+    "5c3 renamed local in a test": (
+        "def f(p):\n    tmp = load(p)\n    if tmp:\n        go()\n",
+        "def f(p):\n    data = load(p)\n    if data:\n        go()\n"),
+    "5c4 renamed accumulator": (
+        "def f(xs):\n    acc = 0\n    for x in xs:\n        acc += x\n    return acc\n",
+        "def f(xs):\n    total = 0\n    for x in xs:\n        total += x\n    return total\n"),
 }
+
+
+# Review 2, finding 1: a removed definition whose name stays in the file.
+# Each is lost by its `def` line, and its row is the definition's own.
+DEF_SHAPES = {
+    "o1 property setter gone": (
+        "class C:\n    @property\n    def x(self):\n        return self._x\n\n"
+        "    @x.setter\n    def x(self, v):\n        self._x = v\n",
+        "class C:\n    @property\n    def x(self):\n        return self._x\n",
+        ("C.x", "`def x(self, v):` at line 6")),
+    "o2 property getter gone, setter kept": (
+        "class C:\n    @property\n    def x(self):\n        return self._x\n\n"
+        "    @x.setter\n    def x(self, v):\n        self._x = v\n",
+        "class C:\n    @x.setter\n    def x(self, v):\n        self._x = v\n",
+        ("C.x", "`def x(self):` at line 2")),
+    "o3 platform def in an else arm gone": (
+        'if sys.platform == "darwin":\n    def home():\n        return mac_home()\n'
+        "else:\n    def home():\n        return xdg_home()\n",
+        'if sys.platform == "darwin":\n    def home():\n        return mac_home()\n',
+        ("home", "`def home():` at line 4")),
+}
+
+
+@pytest.mark.parametrize("name", sorted(DEF_SHAPES))
+def test_a_removed_definition_whose_name_stays_gets_its_own_row(name):
+    base, now, (owner, shown) = DEF_SHAPES[name]
+    e = api._removal_entry(base, now)
+    assert e, name
+    assert [(g["owner"], g["shown"]) for g in api._gone_statements(now, e)] == [
+        (owner, shown)]
+
+
+def test_a_move_into_a_loop_that_can_skip_it_stays_a_removal():
+    """Review 2, shape 2g: a loop over many items can run zero times."""
+    base, now = "def f(ps):\n    go(ps[0])\n", "def f(ps):\n    for p in ps:\n        go(p)\n"
+    e = api._removal_entry(base, now)
+    assert [g["shown"] for g in api._gone_statements(now, e)] == ["`go(ps[0])` at line 1"]
 
 
 @pytest.mark.parametrize("name", sorted(KEPT_SHAPES))

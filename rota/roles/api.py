@@ -21378,8 +21378,7 @@ def _removal_entry(base: str, now: str) -> dict | None | bool:
     ol, nl = base.splitlines(), now.splitlines()
     lost: list[tuple[str, int]] = []
     defs: list[str] = []
-    newdefs = _qual_defs(new)
-    _lost_in_block(old.body, new.body, ol, nl, "", newdefs, lost, defs)
+    _lost_in_block(old.body, new.body, ol, nl, "", _pair_defs(old, new), lost, defs)
     if not lost and not defs:
         return None
     spans = _def_spans(base)
@@ -21398,7 +21397,8 @@ def _removal_entry(base: str, now: str) -> dict | None | bool:
 def _qual_defs(tree) -> dict:
     """Each definition of `tree` by its qualified name, as `_def_spans`
     names it: the enclosing definitions only, never a compound statement.
-    A name holds a list, because `@overload` defines one name many times."""
+    A name holds a list in text order, because a property setter, an
+    `@overload` or a platform branch defines one name many times."""
     import ast as _ast
     out: dict = {}
 
@@ -21410,6 +21410,42 @@ def _qual_defs(tree) -> dict:
             else:
                 walk(ch, prefix)
     walk(tree, "")
+    return out
+
+
+def _pair_defs(old, new) -> dict:
+    """id of each old definition -> its new definition, "gone" when the new
+    text lacks the name, or "surplus" when the new text holds fewer
+    definitions of the name.
+
+    F7 review 2, finding 1: a pairing by order alone skipped a removed
+    property setter and a removed platform `def` in an `else` arm. So an
+    equal definition pairs first, then one with equal decorators and
+    arguments, then the rest in text order."""
+    import ast as _ast
+    d = _ast.dump
+
+    def sig(n) -> tuple:
+        args = n.args if hasattr(n, "args") else n.bases
+        return (type(n).__name__, tuple(d(x) for x in n.decorator_list),
+                d(args) if not isinstance(args, list) else tuple(d(x) for x in args))
+    olds, news = _qual_defs(old), _qual_defs(new)
+    out: dict = {}
+    for name, os_ in olds.items():
+        ns = list(news.get(name, []))
+        if not ns:
+            out.update({id(o): "gone" for o in os_})
+            continue
+        left = list(os_)
+        for same in (d, sig):
+            for o in list(left):
+                n = next((n for n in ns if same(n) == same(o)), None)
+                if n is not None:
+                    out[id(o)] = n
+                    ns.remove(n)
+                    left.remove(o)
+        for o in left:
+            out[id(o)] = ns.pop(0) if ns else "surplus"
     return out
 
 
@@ -21474,8 +21510,9 @@ def _operands(test, ops: tuple) -> set:
 
 
 def _callee(n) -> str | None:
-    """The AST dump of the function that the expression statement `n`
-    calls, or the kind of a bare `yield`, else None."""
+    """The AST dump of the function that the statement `n` calls, as an
+    expression or as the value of an assignment, or the kind of a bare
+    `yield`, else None."""
     import ast as _ast
     v = getattr(n, "value", None)
     if isinstance(v, _ast.Await):
@@ -21487,26 +21524,95 @@ def _callee(n) -> str | None:
     return None
 
 
+def _renamed(n, ren: dict):
+    """The new statement `n` with each name of `ren` put back: a renamed
+    local by its old name, and the target of a loop over one item by that
+    item. `n` itself when no name of `ren` occurs in it."""
+    import ast as _ast
+    import copy as _copy
+    if not ren or not any(isinstance(x, _ast.Name) and x.id in ren
+                          for x in _ast.walk(n)):
+        return n
+
+    class _Back(_ast.NodeTransformer):
+        def visit_Name(self, node):
+            r = ren.get(node.id)
+            if r is None:
+                return node
+            if isinstance(r, str):
+                return _ast.Name(id=r, ctx=node.ctx)
+            return _copy.deepcopy(r) if isinstance(node.ctx, _ast.Load) else node
+    return _Back().visit(_copy.deepcopy(n))
+
+
+def _always_true(test, before: list) -> bool:
+    """True when the branch test `test` holds on every path, by a constant
+    or by the statements `before` it in its block: `if True:`, `if debug:`
+    after `debug = True`, or `if items is not None:` after
+    `items = items or []` (F7 review 2, finding 4)."""
+    import ast as _ast
+
+    def value(name: str):
+        v = None
+        for s in before:
+            if (isinstance(s, _ast.Assign) and len(s.targets) == 1
+                    and isinstance(s.targets[0], _ast.Name) and s.targets[0].id == name):
+                v = s.value
+            elif any(isinstance(x, _ast.Name) and x.id == name
+                     and isinstance(x.ctx, _ast.Store) for x in _ast.walk(s)):
+                v = None
+        return v
+
+    def never_none(v) -> bool:
+        if isinstance(v, (_ast.List, _ast.Tuple, _ast.Set, _ast.Dict, _ast.JoinedStr,
+                          _ast.ListComp, _ast.SetComp, _ast.DictComp)):
+            return True
+        if isinstance(v, _ast.Constant):
+            return v.value is not None
+        if isinstance(v, _ast.BoolOp) and isinstance(v.op, _ast.Or):
+            return never_none(v.values[-1])
+        return False
+    if isinstance(test, _ast.Constant):
+        return bool(test.value)
+    if isinstance(test, _ast.Name):
+        v = value(test.id)
+        return isinstance(v, _ast.Constant) and bool(v.value)
+    if (isinstance(test, _ast.Compare) and len(test.ops) == 1
+            and isinstance(test.ops[0], _ast.IsNot) and isinstance(test.left, _ast.Name)
+            and isinstance(test.comparators[0], _ast.Constant)
+            and test.comparators[0].value is None):
+        return never_none(value(test.left.id))
+    return False
+
+
 def _kin(o, n) -> bool:
-    """True when the new statement `n`, of the type of the old statement
-    `o`, keeps the behaviour of `o` with other words: a rewrite, not a
-    removal. An assignment is not read here.
+    """True when the new statement `n` keeps the behaviour of the old
+    statement `o` with other words: a rewrite, not a removal. An
+    assignment is not read here.
 
     - A branch keeps its condition as an operand of `and` or `or`. So
       `if x is None:` to `if x is None or x == "":` is kept.
-    - A loop keeps its target, and its iterable shows in the new one.
+    - A loop keeps its iterable. A renamed loop target is a rename.
     - A `with` keeps each context expression. A `try` has no header.
     - A `return`, `raise`, `break` or `continue` is kept by an exit of the
       same kind in the same block, whatever it returns or raises.
-    - A call is kept by a call of the same function.
+    - A call is kept by a call of the same function, also when the new
+      call binds its result (F7 review 2, finding 3).
     - An `assert`, `import`, `del` or `global` is kept only by an equal
       statement (F7 review 1, finding 4)."""
     import ast as _ast
     d = _ast.dump
+    if isinstance(o, _ast.Expr) and isinstance(n, (_ast.Assign, _ast.AnnAssign)):
+        return _callee(o) is not None and _callee(o) == _callee(n)
+    if type(n) is not type(o):
+        return False
     if isinstance(o, (_ast.If, _ast.While)):
         return d(o.test) in _operands(n.test, (_ast.And, _ast.Or))
     if isinstance(o, (_ast.For, _ast.AsyncFor)):
-        return d(o.target) == d(n.target) and d(o.iter) in {d(x) for x in _ast.walk(n.iter)}
+        if d(o.target) == d(n.target) or (isinstance(o.target, _ast.Name)
+                                          and isinstance(n.target, _ast.Name)):
+            return d(o.iter) in {d(x) for x in _ast.walk(n.iter)}
+        return False
     if isinstance(o, (_ast.With, _ast.AsyncWith)):
         new = {d(x) for i in n.items for x in _ast.walk(i.context_expr)}
         return all(d(i.context_expr) in new for i in o.items)
@@ -21529,11 +21635,14 @@ def _kin(o, n) -> bool:
 
 
 def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
-                   owner: str, newdefs: dict, lost: list, defs: list) -> None:
+                   owner: str, defpairs: dict, lost: list, defs: list,
+                   ren: dict | None = None) -> None:
     """Append to `lost` each statement of the old block `olds` that the new
     block `news` does not keep, as (owner, first line), and to `defs` each
-    definition that the new text lacks. A lost compound statement is named
-    by its first line, and its own statements are not named again.
+    definition name that the new text lacks. A lost compound statement is
+    named by its first line, and its own statements are not named again.
+    `defpairs` is the result of `_pair_defs`. `ren` maps a new name to its
+    old name or value, for the definition that `owner` names.
 
     F7 tells a rewrite from a removal by the syntax trees, with no order
     and no line text (F7 review 1, findings 1, 2 and 5). Each old
@@ -21541,42 +21650,60 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
 
     1. An equal statement, so a removed copy of a repeated statement is
        lost. A compound statement is equal when its header is equal.
-    2. A rewrite of the same kind, as `_kin` reads it. An assignment is
-       kept when every path through the new block binds its targets before
-       it reads them, or when a new assignment has the same value. Night
-       170's s128 gave `folder` a new value in place, and a renamed local
-       keeps its value (review 1, findings 3 and 4).
-    3. An equal statement or a rewrite in the body of a new `with` or
-       `try`, because such a body runs on every path. A statement that
-       moves under a new branch or loop runs on fewer paths, so it is lost.
+    2. A rewrite. An assignment is kept when every path through the new
+       block binds its targets before it reads them, or when a new
+       assignment has the same value. A new name with the same value is
+       a rename, and later statements compare under the old name (review
+       2, finding 3). Another statement is kept by an equal statement
+       after the rename, or by a rewrite of the same kind, as `_kin` reads it.
+    3. An equal statement or a rewrite in a new block that runs on every
+       path: a `with` or `try` body, a branch that is always true, a loop
+       over one literal item, or both arms of a new `if` and `else` (review
+       2, finding 4). A statement that moves under a new branch or loop
+       that can skip it runs on fewer paths, so it is lost.
+
+    A definition pairs as `_pair_defs` gives it. A definition with no new
+    one of its name is lost by its `def` line, owned by its own name.
 
     Night 171's s164 removed the darwin branch and the XDG return of
     `get_app_dir`. The new block held no branch on the platform and no
-    return at that level, so both are lost. A pairing by order is gone,
-    because it paired the darwin branch with any new branch (review 1,
-    finding 2). Recall comes before precision here: a row that the
-    Architect judges foreseen costs one judgement, and a missed removal is
-    work that stays invisible."""
+    return at that level, so both are lost. Recall comes before precision
+    here: a row that the Architect judges foreseen costs one judgement,
+    and a missed removal is work that stays invisible."""
     import ast as _ast
     defkinds = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
     wrappers = (_ast.With, _ast.AsyncWith, _ast.Try, getattr(_ast, "TryStar", _ast.Try))
     used: set[int] = set()
+    later_pairs: list = []
+    if ren is None:
+        ren = {}
 
     def find(o, cands: list, kin: bool):
         for n in cands:
-            if id(n) in used or type(n) is not type(o):
+            if id(n) in used:
                 continue
-            if (_kin(o, n) if kin else _stmt_key(n) == _stmt_key(o)):
+            m = _renamed(n, ren)
+            if kin:
+                if _kin(o, m):
+                    return n
+            elif type(n) is type(o) and _stmt_key(m) == _stmt_key(o):
                 return n
         return None
 
     def sub(a: list, b: list) -> None:
-        _lost_in_block(a, b, ol, nl, owner, newdefs, lost, defs)
+        _lost_in_block(a, b, ol, nl, owner, defpairs, lost, defs, ren)
 
     def pair(o, n) -> None:
+        # The blocks of a pair compare after the passes, so a rename found
+        # in this block reaches them.
         used.add(id(n))
-        if not _is_compound(o):
-            return
+        if _is_compound(o):
+            later_pairs.append((o, n))
+
+    def walk_pair(o, n) -> None:
+        if (isinstance(o, (_ast.For, _ast.AsyncFor)) and isinstance(o.target, _ast.Name)
+                and isinstance(n.target, _ast.Name) and o.target.id != n.target.id):
+            ren[n.target.id] = o.target.id
         alt = getattr(o, "orelse", None) or []
         if (isinstance(o, _ast.If) and len(alt) == 1 and isinstance(alt[0], _ast.If)
                 and _ast.dump(alt[0].test) != _ast.dump(o.test)
@@ -21590,31 +21717,53 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
         for f in _BLOCK_FIELDS:
             sub(getattr(o, f, None) or [], getattr(n, f, None) or [])
 
-    def wrapped(block: list) -> list:
+    def every_path(block: list) -> list:
+        """The statements of the new blocks in `block` that run on every
+        path through it, at any depth."""
         out: list = []
-        for n in block:
-            if isinstance(n, wrappers) and id(n) not in used:
-                out += n.body + wrapped(n.body)
+        for i, n in enumerate(block):
+            if id(n) in used:
+                continue
+            kids: list = []
+            if isinstance(n, wrappers):
+                kids = n.body
+            elif isinstance(n, _ast.If) and not n.orelse and _always_true(n.test, block[:i]):
+                kids = n.body
+            elif (isinstance(n, _ast.For) and not n.orelse
+                  and isinstance(n.iter, (_ast.List, _ast.Tuple, _ast.Set))
+                  and len(n.iter.elts) == 1 and isinstance(n.target, _ast.Name)):
+                ren.setdefault(n.target.id, n.iter.elts[0])
+                kids = n.body
+            out += kids + every_path(kids)
         return out
 
-    def binds(o) -> bool:
-        ts = o.targets if isinstance(o, _ast.Assign) else [o.target]
-        return all(_binds_first(news, _ast.dump(t), getattr(t, "id", None)) == "bind"
-                   for t in ts)
+    def both_arms(o) -> bool:
+        """True when each arm of one new `if` and `else` keeps `o`."""
+        for n in news:
+            if id(n) in used or not isinstance(n, _ast.If) or not n.orelse:
+                continue
+            a = find(o, n.body, False) or find(o, n.body, True)
+            b = find(o, n.orelse, False) or find(o, n.orelse, True)
+            if a is not None and b is not None:
+                pair(o, a)
+                used.add(id(b))
+                return True
+        return False
 
     todo: list = []
     for o in olds:
         if isinstance(o, defkinds):
             name = f"{owner}.{o.name}" if owner else o.name
-            # The k-th old definition of a name pairs with the k-th new one.
-            n = newdefs[name].pop(0) if newdefs.get(name) else None
-            if n is None and name in newdefs:
-                continue
-            if n is None:
+            n = defpairs.get(id(o), "gone")
+            if n == "gone":
                 defs.append(name)
-                continue
-            _lost_signature_parts(o, n, name, ol, nl, lost)
-            _lost_in_block(o.body, n.body, ol, nl, name, newdefs, lost, defs)
+            elif n == "surplus":
+                # F7 review 2, finding 1: a removed property setter or a
+                # removed platform `def` shares its name with a kept one.
+                lost.append((name, _stmt_head(o)))
+            else:
+                _lost_signature_parts(o, n, name, ol, nl, lost)
+                _lost_in_block(o.body, n.body, ol, nl, name, defpairs, lost, defs)
             continue
         if _stmt_key(o) is None:
             continue
@@ -21628,31 +21777,40 @@ def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
             todo.append(o)
         else:
             pair(o, n)
+    binds_ = (_ast.Assign, _ast.AnnAssign)
     later: list = []
-    for o in todo:
-        if isinstance(o, (_ast.Assign, _ast.AnnAssign)):
-            if binds(o):
+    for o in [o for o in todo if isinstance(o, binds_)] + \
+             [o for o in todo if not isinstance(o, binds_)]:
+        if isinstance(o, binds_):
+            ts = o.targets if isinstance(o, _ast.Assign) else [o.target]
+            if all(_binds_first(news, _ast.dump(t), getattr(t, "id", None)) == "bind"
+                   for t in ts):
                 continue
-            n = next((n for n in news if id(n) not in used
-                      and isinstance(n, (_ast.Assign, _ast.AnnAssign))
+            n = next((n for n in news if id(n) not in used and isinstance(n, binds_)
                       and _ast.dump(n.value) == _ast.dump(o.value)), None)
             if n is None:
-                lost.append((owner, _stmt_head(o)))
-            else:
-                used.add(id(n))
+                later.append(o)
+                continue
+            used.add(id(n))
+            nts = n.targets if isinstance(n, _ast.Assign) else [n.target]
+            if (len(ts) == len(nts) == 1 and isinstance(ts[0], _ast.Name)
+                    and isinstance(nts[0], _ast.Name) and ts[0].id != nts[0].id):
+                ren.setdefault(nts[0].id, ts[0].id)
             continue
-        n = find(o, news, True)
+        n = find(o, news, False) or find(o, news, True)
         if n is None:
             later.append(o)
         else:
             pair(o, n)
     for o in later:
-        inner = wrapped(news)
+        inner = every_path(news)
         n = find(o, inner, False) or find(o, inner, True)
-        if n is None:
-            lost.append((owner, _stmt_head(o)))
-        else:
+        if n is not None:
             pair(o, n)
+        elif not both_arms(o):
+            lost.append((owner, _stmt_head(o)))
+    for o, n in later_pairs:
+        walk_pair(o, n)
 
 
 def _reads(node, name: str | None) -> bool:
