@@ -448,9 +448,11 @@ def predicted_rows(conn: sqlite3.Connection, batch_id: str,
     F35: the doors and the seat's working view read the prediction here.
     No other function reads `batch_touch` for them. A grain is declined when
     his newest landed ruling on the batch grants `remove` on the grain. A
-    file-qualified symbol is declined also when its file is declined. On
-    night 170 the Tester was shown the test paths his words declined, and
-    the test-file door refused 12 sends (plans/night170-read.md, W1).
+    grain is declined also when its file is declined. The drop covers one
+    window: his ruling has landed, and the Architect has not re-annotated
+    the batch yet. On night 170 that window is s215 to s217. A grain his
+    words name and his act does not stays here, because the reader reads
+    acts. Fact F3 lands those acts (the review of pass 1, finding 1).
 
     `staged` is the session's own writes. A door reads them so that it sees
     the rows the session is about to land. The rows come in grain order,
@@ -470,37 +472,51 @@ def predicted_rows(conn: sqlite3.Connection, batch_id: str,
              if w[0] == "batch_touch" and isinstance(w[2], dict)
              and w[2].get("batch_id") == batch_id and w[2].get("grain")]
 
-    def file_of(row: dict) -> str | None:
-        grain = row["grain"]
-        if row["grain_kind"] == "path":
-            return grain
-        if row["grain_kind"] == "symbol" and "::" in grain:
-            return grain.split("::", 1)[0]
-        return None
-
     asked = list(dict.fromkeys(
-        [r["grain"] for r in rows] + [f for f in map(file_of, rows) if f]))
+        [r["grain"] for r in rows] + [f for f in map(grain_file, rows) if f]))
     gone = set(disputed_paths(conn, batch_id, asked)) if asked else set()
     return [r for r in rows
-            if r["grain"] not in gone and file_of(r) not in gone]
+            if r["grain"] not in gone and grain_file(r) not in gone]
+
+
+def grain_file(row: dict) -> str | None:
+    """
+    The file of a touch row, or None for a bare symbol.
+
+    A grain that holds `::` gives its file half, whatever its kind. The
+    night 170 Architect sent `tests/test_formatting.py::test_x` in `paths=`,
+    and the row landed with the kind `path` (the review of pass 1,
+    finding 2).
+    """
+    grain = row["grain"]
+    if "::" in grain:
+        return grain.split("::", 1)[0]
+    return grain if row["grain_kind"] == "path" else None
+
+
+def grain_name(row: dict) -> str | None:
+    """
+    The symbol name of a touch row, or None for a path with no `::`.
+
+    A grain that holds `::` gives its name half, whatever its kind.
+    """
+    grain = row["grain"]
+    if "::" in grain:
+        return grain.rsplit("::", 1)[-1]
+    return grain if row["grain_kind"] == "symbol" else None
 
 
 def predicted_files(conn: sqlite3.Connection, batch_id: str,
                     staged=()) -> list[str]:
     """
     The files the batch is predicted to touch, less the files his words
-    decline: the path grains and the file of each file-qualified symbol.
+    decline: the file of each path grain and of each file-qualified symbol.
 
     A bare symbol names no file, so it gives none. The doors compare a
     diff with this list (F35).
     """
-    files = []
-    for r in predicted_rows(conn, batch_id, staged):
-        if r["grain_kind"] == "path":
-            files.append(r["grain"])
-        elif r["grain_kind"] == "symbol" and "::" in r["grain"]:
-            files.append(r["grain"].split("::", 1)[0])
-    return list(dict.fromkeys(files))
+    return list(dict.fromkeys(
+        f for f in map(grain_file, predicted_rows(conn, batch_id, staged)) if f))
 
 
 def needs_structural_review(conn: sqlite3.Connection, batch_id: str) -> bool:

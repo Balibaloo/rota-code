@@ -194,6 +194,44 @@ def test_a_declined_file_is_no_prediction_for_the_definition_door(db, tmp_path, 
     assert api._unnamed_def_strays(sb.ctx, tree, ["src/a.py"], []) == []
 
 
+# Night 170's b_3 rows: the Architect sent `file::name` grains in `paths=`,
+# and they landed with the kind `path` (the review of pass 1, finding 2).
+NIGHT170 = ["tests/test_formatting.py::test_global_show_default",
+            "tests/test_formatting.py::test_formatting_with_options_metavar_empty"]
+
+
+def _night170(db):
+    db.execute("DELETE FROM batch_touch WHERE batch_id = 'b1'")
+    db.executemany("INSERT INTO batch_touch (batch_id, grain, grain_kind, confidence) "
+                   "VALUES ('b1', ?, 'path', 'expected')", [(g,) for g in NIGHT170])
+    db.commit()
+
+
+def test_a_path_grain_with_a_name_gives_its_file(db):
+    _night170(db)
+    assert predicted_files(db, "b1") == ["tests/test_formatting.py"]
+
+
+def test_a_removed_file_drops_its_path_grains_with_a_name(db):
+    _night170(db)
+    _decline(db, "tests/test_formatting.py")
+    assert predicted_rows(db, "b1") == []
+
+
+def test_the_tests_missing_push_shows_the_file_of_a_path_grain_with_a_name(db):
+    _night170(db)
+    sb = _sb(db, "tester", "tests_missing")
+    pushed = push_working_set("tester", sb, Wake("tester", "tick:tests_missing",
+                                                 refs=("b1",)))
+    assert pushed.get("touch") == ["tests/test_formatting.py"]
+
+
+def test_the_surface_pick_reads_the_name_of_a_path_grain(db):
+    _night170(db)
+    refs = ["tests/test_formatting.py::test_global_show_default", "src/a.py::other"]
+    assert api._surface_pick(_sb(db).ctx, "b1", "c1", refs) == refs[:1]
+
+
 # The pin. A read of `batch_touch` or `touch_guesses` names its function
 # here, with the reason it does not read `predicted_rows`.
 ALLOWED = {
@@ -206,9 +244,17 @@ ALLOWED = {
     # Whether the Architect wrote a prediction at all, not what it holds.
     ("rota/core/predicates.py", "annotate"),
     ("rota/core/predicates.py", "guess"),
-    # The writers check their own staged rows.
+    # The writers check or write their own rows.
     ("rota/roles/api.py", "batches_guess"),
     ("rota/roles/api.py", "batches_annotate"),
+    ("rota/roles/api.py", "batches_judge_touch"),
+    # Declarations at module level. `db.BATCH_READS` is read by `batch_reads`,
+    # which compares the raw rows before and after a write to lift a
+    # quarantine. A dropped row there would hide a move.
+    ("rota/core/db.py", "<module>"),
+    ("rota/core/identity.py", "<module>"),
+    ("rota/cockpit/inspect_api.py", "<module>"),
+    ("rota/testkit/fixtures.py", "<module>"),
     # The item's guess before a batch exists. Its key is `guess:<item>`, and
     # each ruling on it writes a new set.
     ("rota/core/runner.py", "resolve_inbound"),
@@ -221,34 +267,39 @@ ALLOWED = {
     ("rota/tools/nightreport.py", "_seen"),
 }
 
-_TABLES = ("batch_touch", "touch_guesses")
-_SQL = re.compile(r"(?i:FROM|JOIN)\s+(?:batch_touch|touch_guesses)\b")
+# Any string constant that names a table counts, docstrings aside. A read
+# can hold the name in a variable or an f-string, and SQL text alone misses
+# it (the review of pass 1, finding 3).
+_NAME = re.compile(r"\b(?:batch_touch|touch_guesses)\b")
 
 
-def _reads(node: ast.AST) -> bool:
-    """True when a string in `node` reads one of the tables: SQL that selects
-    from it or joins it, or a compare with its name, as a staged-row read."""
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return _SQL.search(node.value) is not None
-    if isinstance(node, ast.Compare):
-        return any(isinstance(c, ast.Constant) and c.value in _TABLES
-                   for c in [node.left, *node.comparators])
-    return False
+def _docstrings(tree: ast.AST) -> set[int]:
+    out = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                             ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)):
+                out.add(id(first.value))
+    return out
 
 
-def _sites() -> set[tuple[str, str]]:
-    root = Path(__file__).resolve().parents[2]
+def _sites(root: Path | None = None) -> set[tuple[str, str]]:
+    root = root or Path(__file__).resolve().parents[2]
     out: set[tuple[str, str]] = set()
     for path in sorted((root / "rota").rglob("*.py")):
         rel = path.relative_to(root).as_posix()
         tree = ast.parse(path.read_bytes())
+        docs = _docstrings(tree)
 
         def walk(node, fn):
             for child in ast.iter_child_nodes(node):
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     walk(child, child.name)
                     continue
-                if _reads(child):
+                if (isinstance(child, ast.Constant) and isinstance(child.value, str)
+                        and id(child) not in docs and _NAME.search(child.value)):
                     out.add((rel, fn))
                 walk(child, fn)
 
@@ -265,3 +316,38 @@ def test_no_second_reader_of_the_prediction_exists():
 def test_every_allowed_site_still_reads_the_tables():
     """A stale entry hides a moved reader, so the list shrinks with the code."""
     assert ALLOWED - _sites() == set()
+
+
+# The review's planted reads (f35rev/pintree, rota/core/divergence.py). The
+# third one held the name in a variable and passed the pass 1 pin.
+PLANTED = '''
+def _planted_raw_read(conn, batch_id):
+    """Review probe: a second raw reader."""
+    return [r["grain"] for r in conn.execute(
+        "SELECT grain FROM batch_touch WHERE batch_id = ?", (batch_id,))]
+
+
+def _planted_staged_read(ctx, batch_id):
+    """Review probe: a staged-row reader by compare."""
+    return [w for w in ctx.writes if w[0] == "batch_touch"]
+
+
+def _planted_lower(conn):
+    """Review probe: a lowercase from, and a f-string."""
+    t = "batch_touch"
+    return conn.execute(f"select grain from {t}").fetchall()
+
+
+def _docstring_only():
+    """Mentions batch_touch in prose and reads nothing."""
+    return None
+'''
+
+
+def test_the_pin_finds_each_planted_read(tmp_path):
+    (tmp_path / "rota" / "core").mkdir(parents=True)
+    (tmp_path / "rota" / "core" / "divergence.py").write_bytes(PLANTED.encode())
+    assert _sites(tmp_path) == {
+        ("rota/core/divergence.py", "_planted_raw_read"),
+        ("rota/core/divergence.py", "_planted_staged_read"),
+        ("rota/core/divergence.py", "_planted_lower")}

@@ -5583,7 +5583,7 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     ticket = ctx.conn.execute(
         "SELECT text FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
     words_from = [ticket["text"] if ticket else ""]
-    from ..core.lifecycle import predicted_rows
+    from ..core.lifecycle import grain_name, predicted_rows
 
     for b in batches:
         # The same reader and order as `batches_expect`, so the door and the
@@ -5599,7 +5599,8 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     paths = [_grain_path(t["grain"]) for t in touch if t["grain_kind"] == "path"]
     if not paths:
         return                    # no file predicted: no file to hold it to
-    symbols = {t["grain"].split("::")[-1] for t in touch if t["grain_kind"] == "symbol"}
+    # A path row that holds `::` names a symbol too (F35, review 1, finding 2).
+    symbols = {n for n in map(grain_name, touch) if n}
     expected = list(dict.fromkeys(
         _grain_path(t["grain"]) for t in touch
         if t["grain_kind"] == "path" and t["confidence"] == "expected"))
@@ -18573,11 +18574,11 @@ def _surface_pick(ctx, batch_id, criterion_id, refs: list) -> list:
     if len(refs) <= 1:
         return refs
     bid = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
-    from ..core.lifecycle import predicted_rows
+    from ..core.lifecycle import grain_name, predicted_rows
 
-    # A symbol his words decline is not touched (F35).
-    touched = {str(t["grain"]).rsplit("::", 1)[-1]
-               for t in predicted_rows(ctx.conn, bid) if t["grain_kind"] == "symbol"}
+    # A symbol his ruling removes is not touched. A path row that holds
+    # `::` names its symbol too (F35, review 1, finding 2).
+    touched = {n for n in map(grain_name, predicted_rows(ctx.conn, bid)) if n}
     hit = [r for r in refs if r.rsplit("::", 1)[-1] in touched]
     return hit if len(hit) == 1 else []
 

@@ -4519,14 +4519,17 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # the tests of bg_2 and bg_3 went to `tests/test_utils/`, and the touch
     # set and the principal named other files (frame 190's design, question
     # 5.2, ruled on the records by the holding session, 2026-10-09).
-    # A test path his words decline is not shown. Night 170's Tester sent
-    # such paths 12 times to the test-file door (F35, W1).
+    # A test path his ruling removes is not shown while the Architect has not
+    # re-annotated yet (F35). A path row that holds `::` shows its file:
+    # the door refused one such path on night 170 (the review of pass 1,
+    # finding 2).
     if wake is not None and wake.kind == "tick:tests_missing" and wake.refs:
-        from .lifecycle import predicted_rows
+        from .lifecycle import grain_file, predicted_rows
 
-        paths = [r["grain"] for r in predicted_rows(sb.ctx.conn, wake.refs[0])
-                 if r["grain_kind"] == "path" and r["confidence"] == "expected"
-                 and r["grain"].replace("\\", "/").startswith("tests/")]
+        paths = list(dict.fromkeys(
+            grain_file(r) for r in predicted_rows(sb.ctx.conn, wake.refs[0])
+            if r["grain_kind"] == "path" and r["confidence"] == "expected"
+            and grain_file(r).replace("\\", "/").startswith("tests/")))
         if paths:
             pushed["touch"] = paths
     # The Architect that corrects a prediction sees the test files that
