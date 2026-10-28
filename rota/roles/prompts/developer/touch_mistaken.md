@@ -11,7 +11,7 @@ For a mistaken definition, `path::name`, write the base source of that
 definition back over its span with `code.write`. Keep the rest of the file.
 Then run `code.commit`.
 
-For the `removal:` row in your wake, put back only its lines from
+For the `removal:` row in your wake, put back all of its lines from
 `[removed lines]`. For a quoted `def` or `class` line, put back the whole
 definition from the base.
 

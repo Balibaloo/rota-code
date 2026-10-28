@@ -450,11 +450,19 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 "tick:criteria",
                 # Which grains strayed, and the removed line of a removal
                 # (frame 339). No case carries this detail yet.
-                "tick:touch_strayed",
-                # Which grains the Architect judged a mistake, with each
-                # row's `removal:` note (F7 pass 3b, night 172's s263).
-                # `L1-DV-put-back-a-removed-block` carries it.
-                "tick:touch_mistaken"}
+                "tick:touch_strayed"}
+
+
+def _mistake_rows(conn: sqlite3.Connection, batch_id: str) -> list[str]:
+    """Each `mistake` row at the batch's head, as `path (note)`, the form
+    `touch_strayed` shows the Architect."""
+    rows = conn.execute(
+        "SELECT s.path, s.note FROM touch_strays s JOIN batches b "
+        "ON b.id = s.batch_id AND s.commit_sha = b.head_commit "
+        "WHERE s.batch_id = ? AND s.status = 'mistake' ORDER BY s.path",
+        (batch_id,)).fetchall()
+    return [f"{r['path']} ({r['note']})" if r["note"] else r["path"]
+            for r in rows]
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
@@ -921,6 +929,12 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         # the tick's own name (a case wake's default detail) and not the
         # word already said above.
         body.append(wake.detail)
+    if wake.kind == "tick:touch_mistaken" and wake.refs:
+        # Each judged row with its note, read here and not put in the
+        # detail. `cycles._key` holds the detail, and the Architect writes a
+        # new note on each head, so a bounce would get a new key each round
+        # (F7 review p3b, finding 8). Night 172's s263 read "Refs: bg_3" only.
+        body.extend(_mistake_rows(sb.ctx.conn, wake.refs[0]))
     if wake.kind == "tick:criterion_repair":
         body.extend(_last_word_lines(sb.ctx.conn, wake))
     # Frame 317: a Tester woken by an answer reads the same failed runs as a

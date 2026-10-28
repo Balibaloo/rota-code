@@ -105,8 +105,8 @@
   # Developers s263, s264 and s267 woke on `tick:touch_mistaken` with no
   # base text, and each wrote the head's own body back
   # (`plans/f7-night172-read.md`, sections 1 and 3). The wake now pushes
-  # `code.diff`, so `[removed lines]` shows the base body, and the wake's
-  # detail shows the `mistake` row with its note. The file here holds
+  # `code.diff`, so `[removed lines]` shows the base body, and the wake
+  # shows the `mistake` row with its note. The file here holds
   # `format_filename` alone, so the note's line numbers are those of this
   # file, in `code.source` numbering. The grader reads the head commit
   # after the run. Both base lines must be code in the body of

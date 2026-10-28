@@ -2421,14 +2421,9 @@ def touch_mistaken(conn) -> list[Wake]:
     The Architect judged a stray path a mistake, and the head commit still
     carries it. The Developer takes it out; the next commit is a new head
     and the mistake rows stay behind on the old one.
-
-    F7 pass 3b: each row's note goes in the detail, as in `touch_strayed`.
-    Night 172's s263, s264 and s267 read "Refs: bg_3" alone, so no seat
-    saw which `removal:` statements the Architect judged.
     """
     rows = conn.execute(
-        "SELECT b.id AS bid, GROUP_CONCAT(s.path || COALESCE(' (' || s.note || ')', ''), "
-        "  ', ') AS paths "
+        "SELECT b.id AS bid, GROUP_CONCAT(s.path, ', ') AS paths "
         "FROM batches b JOIN touch_strays s ON s.batch_id = b.id "
         "  AND s.commit_sha = b.head_commit AND s.status = 'mistake' "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "

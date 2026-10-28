@@ -172,6 +172,27 @@ def test_the_restore_wake_shows_the_row_it_acts_on(tmp_path):
     assert user.index(NOTE) < user.index("[removed lines]")
 
 
+def test_two_rounds_with_new_notes_share_one_cycle_key(tmp_path):
+    """F7 review p3b, finding 8: `cycles._key` holds the wake's detail. The
+    Architect writes a new note on each head, so the note stays out of the
+    detail, and three bounces on one grain still repeat one key."""
+    from rota.core import cycles
+    conn = _night172(tmp_path)
+
+    def key() -> str:
+        [w] = P.touch_mistaken(conn)
+        return cycles._key({"role": w.role, "wake_kind": w.kind,
+                            "wake_detail": w.detail,
+                            "wake_refs": ",".join(w.refs),
+                            "trigger_msg": None}, {})
+
+    first = key()
+    conn.execute("UPDATE touch_strays SET note = 'removal: `return filename` "
+                 "at line 480 a second reason' WHERE batch_id = 'bg_3'")
+    assert key() == first
+    assert GRAIN in first and NOTE not in first
+
+
 # The two lines of `L1-DV-put-back-a-removed-block`'s `write_includes:`.
 KEYED = ['filename.encode("utf-8", "surrogateescape")',
          "filename = os.path.basename(filename)"]

@@ -1266,20 +1266,10 @@ def live_detail(conn, wake: Wake) -> Wake:
     (frame 322). A case wake built from the case file carried the tick's
     name, which `build_prompt` drops. So the register never measured the
     line a live seat reads (frame 322, review 1, finding 1).
-
-    A `touch_mistaken` wake carries each `mistake` row with its note, as
-    the predicate builds it (F7 pass 3b).
     """
-    from dataclasses import replace
-
-    if wake.kind == "tick:touch_mistaken" and wake.refs:
-        from ..core import predicates
-
-        live = [w.detail for w in predicates.touch_mistaken(conn)
-                if w.refs == wake.refs]
-        return replace(wake, detail=live[0]) if live else wake
     if wake.kind != "tick:criteria" or not wake.refs:
         return wake
+    from dataclasses import replace
 
     from ..core.scheduler import criteria_detail
 
