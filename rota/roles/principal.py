@@ -362,6 +362,14 @@ def render_state(conn: sqlite3.Connection) -> str:
     gone = merged_removal_line(conn) if merged else ""
     if gone:
         out.append(gone)
+    # A reading of a delivered request rides no page, so the state view
+    # shows it, in the words the page uses (ruled: Roman, 2026-10-28 09:10,
+    # frame 344; every answer is read back, ruled 2026-10-26 22:5x).
+    late = [line for line in (reading_line(conn, r) for r in readings_owed(conn)
+                              if reading_delivered(conn, r)) if line]
+    if late:
+        out.append("Your answers about delivered work, as the team read them:")
+        out += [f"  - {line}" for line in late]
     # A cold cockpit sees the cycle the walk printed, read from the rows
     # (ruled: Roman, 2026-09-24, an alert first). The line goes under what
     # is stuck.
@@ -1153,9 +1161,11 @@ def _is_reading(ref) -> bool:
     return isinstance(ref, str) and ref.startswith(READING_REF)
 
 
-def readings_owed(conn: sqlite3.Connection) -> list[str]:
+def readings_owed(conn: sqlite3.Connection,
+                  page: list | None = None) -> list[str]:
     """The `reading:<reply id>` refs that the next page reads back, oldest
-    first.
+    first. `page` names the refs of a present or a confirm page, and then
+    only the readings that ride that page come back (`page_readings`).
 
     A reply is owed while the Liaison's landed reading of it has rows and no
     landed row rules its read-back line. His approve confirms the rows. His
@@ -1176,7 +1186,32 @@ def readings_owed(conn: sqlite3.Connection) -> list[str]:
                 "SELECT 1 FROM ruled_refs_live WHERE ref = ? "
                 "AND ruling_status = 'landed'", (ref,)).fetchone():
             out.append(ref)
-    return out
+    return out if page is None else page_readings(conn, page, out)
+
+
+def page_readings(conn: sqlite3.Connection, refs: list,
+                  readings: list[str]) -> list[str]:
+    """The readings of `readings` that ride the page of `refs`.
+
+    A page is about one request, so a reading rides the page of its own
+    request. A page of no request takes the account's readings. A reading
+    of a delivered request rides no page, and the state view shows it
+    (ruled: Roman, 2026-10-28 09:10, frame 344). A run with no request
+    message has one request, so every reading of it rides.
+    """
+    live = [r for r in readings if not reading_delivered(conn, r)]
+    if not current_request(conn, unread=False):
+        return live
+    req = page_owner(conn, [r for r in refs or [] if not _is_reading(r)])
+    return [r for r in live if request_of(conn, r) == req]
+
+
+def reading_delivered(conn: sqlite3.Connection, ref: str) -> bool:
+    """True when the request of a reading is delivered or dropped."""
+    from ..core.predicates import _request_finished
+
+    req = request_of(conn, ref)
+    return req is not None and _request_finished(conn, {"entries": [req]})
 
 
 def read_back_rows(conn: sqlite3.Connection, reply: str) -> list:
@@ -1284,10 +1319,18 @@ def uncovered_statements(conn: sqlite3.Connection) -> list[dict]:
 
 def row_items(conn: sqlite3.Connection, ref: str | None) -> list[str] | None:
     """The items one row is about: an item, a criterion, a ticket, a batch,
-    a test, a ledger row or a page ref. None when the row is an inherited
-    test, which reaches no item and no writer's batch."""
+    a test, a ledger row, a read-back line or a page ref. None when the row
+    is an inherited test, which reaches no item and no writer's batch."""
     if not ref:
         return []
+    # A read-back line is about the rows it reads back, so it rides the
+    # page of their request. Night 172's m47 read back e_p1's answers on
+    # e_p2's confirm page (P8; ruled: Roman, 2026-10-28 09:10, frame 344).
+    if _is_reading(ref):
+        out: list[str] = []
+        for r in read_back_rows(conn, ref[len(READING_REF):]):
+            out += [i for i in row_items(conn, r["ref"]) or [] if i not in out]
+        return out
     # `_items_reached` has no `tests` lookup. Night 162's l_71e52c9d0a on
     # `tst_c2_version_on` reached no item (frame 316, pass 2).
     row = conn.execute("SELECT about_ref FROM ledger WHERE id = ?", (ref,)).fetchone()
@@ -1317,8 +1360,49 @@ def request_of(conn: sqlite3.Connection, ref: str | None) -> str | None:
     any row, so a row of one request and the account is that request's.
     Night 161's s1 reaches `echo_json` and `how_it_works` (F15 review 1,
     finding 2). A row of no request or of two requests has no owner."""
-    owners = requests_of(conn, ref) - {None}
+    owners = _owners(conn, ref)
     return next(iter(owners)) if len(owners) == 1 else None
+
+
+def _owners(conn: sqlite3.Connection, ref: str | None) -> set[str]:
+    """The requests that own a row. A row that reaches no item is owned
+    through the statements it names, so a confirm page's statement has its
+    request before any item cites it."""
+    items = row_items(conn, ref)
+    if items:
+        return {_item_request(conn, i) for i in items} - {None}
+    # Night 172's m17 confirmed e_p1 before any item cited s1, and it read
+    # back the onboarding answer m14 (P8, the night 172 read, W8).
+    if not ref or items is None:
+        return set()
+    names = ([r["ref"] for r in read_back_rows(conn, ref[len(READING_REF):])]
+             if _is_reading(ref) else [ref])
+    out: set[str] = set()
+    for sid in names:
+        row = _statement_request(conn, sid) if isinstance(sid, str) else None
+        if row is not None:
+            out.add(row[0])
+    return out
+
+
+def page_owner(conn: sqlite3.Connection, refs: list) -> str | None:
+    """The request a page is about, or None for a page of no request.
+
+    The newest request its rows reach, as `page_request` reads it. A page
+    whose rows reach no item takes the request of the statement it names,
+    so a confirm page of a new request is that request's page."""
+    req = page_request(conn, refs)
+    if req is not None:
+        return req
+    best = None
+    for ref in refs or []:
+        if not isinstance(ref, str) or _is_reading(ref) or row_items(conn, ref):
+            continue
+        for entry in _owners(conn, ref):
+            order = _entry_order(conn, entry)
+            if best is None or order > best[1]:
+                best = (entry, order)
+    return best[0] if best else None
 
 
 def _item_request(conn: sqlite3.Connection, item: str) -> str | None:
@@ -1337,13 +1421,22 @@ def _item_request(conn: sqlite3.Connection, item: str) -> str | None:
     for r in conn.execute(
             "SELECT r.target FROM refs r WHERE r.src_table = 'items' "
             "AND r.src_id = ? AND r.kind = 'statement'", (item,)):
-        root = _root_statement(conn, r["target"])
-        row = conn.execute(
-            "SELECT e.id, e.ts_order FROM statements s JOIN entries e "
-            "ON e.id = s.span_entry WHERE s.id = ?", (root,)).fetchone()
-        if row is not None and (best is None or row["ts_order"] < best[1]):
-            best = (row["id"], row["ts_order"])
+        row = _statement_request(conn, r["target"])
+        if row is not None and (best is None or row[1] < best[1]):
+            best = row
     return best[0] if best else None
+
+
+def _statement_request(conn: sqlite3.Connection,
+                       sid: str) -> tuple[str, int] | None:
+    """The entry of a statement's request and its order, or None. The one
+    walk from a statement to its request: a follow-up is the request of
+    the statement it says again (F15)."""
+    row = conn.execute(
+        "SELECT e.id, e.ts_order FROM statements s JOIN entries e "
+        "ON e.id = s.span_entry WHERE s.id = ?",
+        (_root_statement(conn, sid),)).fetchone()
+    return (row["id"], row["ts_order"]) if row is not None else None
 
 
 def _entry_order(conn: sqlite3.Connection, entry: str) -> int:
@@ -1443,8 +1536,10 @@ def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
     best = None
     # The page reads the row walk of `request_of`, so a test reaches its
     # criterion's item here as in `land` (F15 review 1, finding 1).
+    # A read-back line rides the page of its request and never decides it
+    # (P8).
     reached = {i for ref in refs or [] if isinstance(ref, str)
-               for i in row_items(conn, ref) or []}
+               and not _is_reading(ref) for i in row_items(conn, ref) or []}
     for item in reached:
         # `request_of` gives a description no request. A description citing
         # s3 put the confirm item off its own page (the review of e406e976,
@@ -2321,7 +2416,9 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     refs = [r for r in refs or [] if not _is_reading(r)]
     # A page is about one request. A row of an item set aside, or of another
     # request than the page's, is no line here (frame 193's design, 2.F.7).
-    if verb == "present":
+    # A confirm page is about one request too. Night 172's confirm pages
+    # ran no filter (P8; ruled: Roman, 2026-10-28 09:10, frame 344).
+    if verb in ("present", "confirm"):
         off = off_page(conn, refs)
         refs = [r for r in refs if r not in off]
     resolved = _resolve_refs(conn, refs)
@@ -2554,8 +2651,9 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                 + does + does_not + assumed
                 + terms + touches + other]
     # A reading he ruled on another page is no line here any more (the
-    # review of pass 5, finding 4).
-    owed = set(readings_owed(conn)) if readings else set()
+    # review of pass 5, finding 4). A reading of another request is no line
+    # either, as at the send door (P8).
+    owed = set(readings_owed(conn, refs)) if readings else set()
     for ref in readings:
         line = reading_line(conn, ref) if ref in owed else None
         if line:

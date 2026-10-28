@@ -4300,6 +4300,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                         notes["code"] = _json.dumps(code)
                     else:
                         notes.pop("code", None)
+        # A confirm page is about one request too, and its refs and its
+        # numbered rows are one set, as on a present (P8; ruled: Roman,
+        # 2026-10-28 09:10, frame 344).
+        if verb == "confirm" and recipient == "principal" and not park and not shift:
+            from ..roles.principal import off_page
+
+            off = off_page(ctx.conn, refs)
+            if off:
+                refs = [r for r in refs if r not in off]
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,
@@ -4745,13 +4754,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # the page as its read-back line. The refs hold the line, so a later
         # render numbers the same lines (the seam design, 2.3, and its
         # review, finding 3). A shift page and a park page take no approve,
-        # so they carry none (finding 2).
+        # so they carry none (finding 2). A reading rides the page of its own
+        # request only. Night 172's m47 read back e_p1's answers on e_p2's
+        # confirm page (P8; ruled: Roman, 2026-10-28 09:10, frame 344).
         if (recipient == "principal" and verb in ("present", "confirm")
                 and not park and not shift):
             from ..roles.principal import readings_owed
 
             refs = list(refs or [])
-            refs += [r for r in readings_owed(ctx.conn) if r not in refs]
+            refs += [r for r in readings_owed(ctx.conn, refs) if r not in refs]
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
         if shift:
             msg_id = shift_id
