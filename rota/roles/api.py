@@ -8537,10 +8537,33 @@ def _runner_receivers(tree) -> tuple[set[str], Callable[[Any], bool]]:
     """
     import ast as _ast
 
+    # F12's pass 1b (ruled): the command library is what the body imports.
+    # A runner is a class from the library's `testing` module, as click's
+    # and typer's are. The name "CliRunner" is the library's choice, so the
+    # rule reads the import and never the name.
+    makers = {k for k, (module, level, _) in _imported_names(tree).items()
+              if not level and module.split(".")[-1] == "testing"}
+    modules = {(a.asname or a.name).split(".")[0] for n in _ast.walk(tree)
+               if isinstance(n, _ast.Import) for a in n.names}
+    # `from click import testing`, or `import typer.testing as t`.
+    testing = {k for k, (module, level, orig) in _imported_names(tree).items()
+               if not level and module and orig == "testing"}
+    testing |= {a.asname for n in _ast.walk(tree) if isinstance(n, _ast.Import)
+                for a in n.names
+                if a.asname and a.name.split(".")[-1] == "testing"}
+
     def is_runner_call(node) -> bool:
         f = node.func if isinstance(node, _ast.Call) else None
-        return ((isinstance(f, _ast.Name) and f.id == "CliRunner")
-                or (isinstance(f, _ast.Attribute) and f.attr == "CliRunner"))
+        if isinstance(f, _ast.Name):
+            return f.id in makers
+        if not isinstance(f, _ast.Attribute):
+            return False
+        if isinstance(f.value, _ast.Name):
+            return f.value.id in testing
+        # `click.testing.CliRunner()` after `import click.testing`.
+        return (isinstance(f.value, _ast.Attribute) and f.value.attr == "testing"
+                and isinstance(f.value.value, _ast.Name)
+                and f.value.value.id in modules)
 
     runners = {"runner"}
     for n in _ast.walk(tree):

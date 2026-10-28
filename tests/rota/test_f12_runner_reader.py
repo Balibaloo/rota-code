@@ -106,6 +106,38 @@ def test_runner_receivers_is_the_one_runner_rule_of_the_moved_readers():
     assert "_is_runner_call" not in holders
     for moved in ("_plain_invoked", "_callable_invoked", "_plain_decorated"):
         assert moved not in holders, moved
-    # `is_runner_call` is the nested predicate inside `_runner_receivers`.
-    assert holders - RESIDUE <= {"_runner_receivers", "is_runner_call"}, (
-        holders - RESIDUE)
+    # Pass 1b: the one reader reads the body's imports, so it holds no
+    # runner literal. Only the named residue still holds one.
+    assert holders - RESIDUE == set(), holders - RESIDUE
+
+
+def test_a_typer_runner_is_a_runner():
+    """Pass 1b's ruling: the library is what the body imports. The old rule
+    read the literal "CliRunner" by name, so it found typer's by luck and
+    missed a runner imported under another name."""
+    from rota.roles.api import runner_invokes
+
+    body = textwrap.dedent('''
+        from typer.testing import CliRunner as TyperRunner
+        from app.main import app
+
+        def test_x():
+            r = TyperRunner()
+            r.invoke(app, ["hello"])
+    ''')
+    assert len(runner_invokes(ast.parse(body))) == 1
+
+
+def test_a_class_named_like_a_runner_outside_a_testing_module_is_no_runner():
+    """The other side of the ruling: a project class named `CliRunner` that
+    no `testing` module gives is not the library's runner."""
+    from rota.roles.api import runner_invokes
+
+    body = textwrap.dedent('''
+        from app.jobs import CliRunner
+
+        def test_x():
+            job = CliRunner()
+            job.invoke(lambda: None)
+    ''')
+    assert runner_invokes(ast.parse(body)) == []
