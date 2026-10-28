@@ -281,8 +281,9 @@ def test_a_page_that_holds_a_confirmed_ref_shows_no_line(db):
 
 
 def test_his_reply_alone_confirms_a_reading(db):
-    """The review of pass 5b, finding 5, probe P2d: his reply skips line 3,
-    and the Liaison passes the words "ok"."""
+    """The review of pass 5b, finding 5, probe P2d: his reply skips line 3.
+    The Liaison passed the words "ok", and the door now refuses words outside
+    his reply, so the call passes his words."""
     from rota.core.sandbox import build
     from rota.roles import prompts
 
@@ -295,7 +296,8 @@ def test_his_reply_alone_confirms_a_reading(db):
     sb.ctx.trigger = his
     with pytest.raises(ValueError, match="only his words confirm it"):
         sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
-                                         "3": "approve"}, words="ok")
+                                         "3": "approve"},
+                words="2 is fine, and 1 is fine as well.")
 
 
 def test_the_landing_wake_lists_the_rows_of_the_read_back_line(db):

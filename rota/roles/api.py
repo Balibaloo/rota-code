@@ -11864,6 +11864,24 @@ def _holds_span(text: str, span: str) -> bool:
     return bool(folded) and folded in " ".join((text or "").split()).casefold()
 
 
+def _words_outside(words: str, his: str) -> str | None:
+    """The refusal for `words` that are not a part of his reply, or None.
+
+    Each sentence of `words` must be a span of his reply, by
+    `_holds_span`. The end mark of a sentence is not compared, because a
+    seat that copies a clause ends it with a full stop."""
+    for sentence in _sentences(words):
+        # An ellipsis alone is a sentence of end marks, and it holds no word.
+        bare = sentence.rstrip(".!?")
+        if bare.strip() and not _holds_span(his, bare):
+            first = (_sentences(his) or [""])[0]
+            if not first:
+                return "words must be his own words, and his reply holds no words"
+            return (f"words must be his own words, copied from his reply, "
+                    f"and his reply starts {first!r}")
+    return None
+
+
 def _words_from(ctx: Ctx, span: str) -> str | None:
     """The message that holds `span`: the reply first, then the principal's
     earlier messages of the thread, newest first. None when no message holds
@@ -13583,6 +13601,16 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # span of its own object or act. Law 6 holds: the verdicts stay the seat's.
     if not (words or "").strip():
         words = his
+    # law 6: the tool never rules for the Principal. The landed row carries
+    # `words` to the row's owner, so `words` must be a part of his reply.
+    # A seat that added "Line 4 is wrong too." to m121 sent words he never
+    # said (the F2 review of pass 2, finding 8). `land` puts the words of a
+    # clarify's answer in the transcript only, so the check reads it there.
+    from .principal import entry_for
+
+    outside = _words_outside(words, his or entry_for(ctx.conn, ctx.trigger))
+    if outside:
+        raise ValueError(outside)
     if (isinstance(rulings, dict) and not rulings and not is_clarify
             and not acts and (not row_order or batches_only)):
         rid = _ruling_id(ctx, ask["id"])

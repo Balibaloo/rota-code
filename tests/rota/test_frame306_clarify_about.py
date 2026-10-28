@@ -253,6 +253,7 @@ def test_a_clarify_with_no_asker_refs_keys_on_its_own_refs(db):
     _message(db, "m11", "liaison", "principal", "clarify", [TST_02], cause="m10")
     _message(db, "m12", "principal", "liaison", "converse", [TST_02], cause="m11",
              status="open")
+    _entry(db, "m12", "Fix it.")
     db.commit()
     assert answer_about(db, "m11") == [TST_02]
     sb = _sandbox(db, "m12")
@@ -268,6 +269,7 @@ def test_a_clarify_with_no_asker_keys_on_its_own_refs(db):
     _message(db, "m11", "liaison", "principal", "clarify", [TST_02])
     _message(db, "m12", "principal", "liaison", "converse", [TST_02], cause="m11",
              status="open")
+    _entry(db, "m12", "Fix it. That is fine.")
     db.commit()
     assert answer_about(db, "m11") is None
     assert _prompt_about(db, "m12") == [TST_02]
@@ -286,6 +288,7 @@ def test_a_message_id_in_the_askers_refs_is_not_a_key(n158):
     _message(n158, "m21", "liaison", "principal", "clarify", [TST_02], cause="m20")
     _message(n158, "m22", "principal", "liaison", "converse", [TST_02], cause="m21",
              status="open")
+    _entry(n158, "m22", "Fix it.")
     n158.commit()
     assert answer_about(n158, "m21") == [CR_2, TST_02]
     sb = _sandbox(n158, "m22")
