@@ -2570,15 +2570,20 @@ def _quoted_body_gone(conn: sqlite3.Connection, msg_id: str, tests) -> bool:
     crit = " ".join(_flat(r["text"]) for r in conn.execute(
         "SELECT c.text FROM criteria c JOIN tests t ON t.criterion_id = c.id "
         f"WHERE t.id IN ({','.join('?' * len(tests))})", tuple(tests)))
-    lines = [_flat(part).strip("'\"` ")
+    # Each part keeps its line breaks for the body compare. `_quote_reads`
+    # cuts a comment per line, and a flat part is one line, so the cut
+    # dropped the code after the first `#` (review of F18 pass 1, finding 1,
+    # nights 161 m100 and 168 m38).
+    parts = [(_flat(part).strip("'\"` "), part.strip("'\"` "))
              for part in ((row["body_text"] if row else None) or "").split(" ... ")]
-    lines = [line for line in lines
+    parts = [(line, part) for line, part in parts
              if len(line) >= QUOTED_LINE_MIN and line not in crit]
-    if not lines:
+    if not parts:
         return False
     seen = _sender_prompt(conn, msg_id)
-    lines = [line for line in lines if seen is not None and line in seen]
-    if not lines:
+    parts = [(line, part) for line, part in parts
+             if seen is not None and line in seen]
+    if not parts:
         return False
     # F18: the live body holds a line when `_quote_reads` says so, the one
     # reader of a quote against a row (ruled: Roman, 2026-08-26).
@@ -2586,8 +2591,8 @@ def _quoted_body_gone(conn: sqlite3.Connection, msg_id: str, tests) -> bool:
         got = conn.execute("SELECT body FROM tests WHERE id = ?",
                            (test,)).fetchone()
         body = (got["body"] if got else None) or ""
-        if any(_quote_reads(line, body, "tests", floor=QUOTED_LINE_MIN)
-               for line in lines):
+        if any(_quote_reads(part, body, "tests", floor=QUOTED_LINE_MIN)
+               for _line, part in parts):
             return False
     return True
 

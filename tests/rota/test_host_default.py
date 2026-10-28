@@ -24,6 +24,9 @@ DEFAULTS = {
 }
 IPV4_URL = re.compile(r'"http://\d{1,3}(?:\.\d{1,3}){3}:\d+"')
 ELSEWHERE = "http://elsewhere:9"
+#: A read of the host from the environment in any form: `environ.get`,
+#: `environ[...]` or `getenv` (review of F29 pass 1, finding 3).
+ENV_READ = re.compile(r"""(?:environ\s*(?:\.get\s*\(|\[)|getenv\s*\()\s*['"]OLLAMA_HOST['"]""")
 
 
 def _default_line(path, name):
@@ -76,6 +79,6 @@ def test_the_model_host_has_one_literal():
         if path.suffix not in (".py", ".toml") or path in allowed:
             continue
         text = path.read_text(encoding="utf-8")
-        if "11434" in text or 'environ.get("OLLAMA_HOST"' in text:
+        if "11434" in text or ENV_READ.search(text):
             found.append(str(path.relative_to(ROOT)))
     assert found == []
