@@ -51,3 +51,48 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac2
 ## (d) Usage
 
 The harness reports no token counts to this agent. The figures are estimates: input about 85k tokens, output about 9k tokens, total about 94k. The run went past the 40k cap.
+
+## p2
+
+This section reviews commit f0642982 on top of fe1d300c. Verdict: READY. Findings: 0 high, 4 low. The commit closes the p1 high and the p1 two-batch finding.
+
+### (a) Verdicts on the points
+
+1. The p1 high: FIXED. A Tester on a message wake with no batch can no longer ask. The answer to a question that is already open still lands, and only a question that passed the door can be open.
+2. One check: PARTLY. `api.built_batch` carries the two-batch rule, and on the s315 shape both doors give bg_3. `_ruling_answer_refusal._parked` keeps its own commit query (finding p2-1).
+3. The steering fixture: NO HIGH. The tipsAT run database was not found. The record says the Vision Keeper woke on a challenge and wrote "the item was already built". A Developer challenge follows a test run on a commit, so a commit fits the night (PLAUSIBLE).
+4. test_invoke_door: the test went green for a new reason (finding p2-2). The door now refuses a call that it let through before. It does not let through a call that the test expects to be refused. No high.
+5. A ticket that never exists: NO. `criteria.specify` refuses an unknown ticket, and a staged ticket that does not exist has no batch, so the door refuses. A staged criterion under a real ticket with a built batch lands before its write commits (finding p2-4).
+6. The tests: 51 files, the new file, `test_steering`, `test_request_page` and `test_invoke_door` included: 1652 passed, 2 skipped, 10 xfailed. My file list has 51 files, not the builder's 55.
+
+### (b) Findings
+
+p2-1. LOW. PLAUSIBLE. `rota/core/sandbox.py` lines 2124 to 2132, `_ruling_answer_refusal._parked`. This function keeps its own query: a batch that is not merged or abandoned and has a commit. `built_batch` counts a merged batch as built. On a park relay where the only batch is merged, `_parked` says the send door refuses. The send door now lets the answer through. The ruling door then stays silent, so its check is lost. The pin test `test_one_reader_holds_the_criterion_to_batch_query` scans only `_unbuilt_refusal` and `_batch_of_criterion`, so it does not see this query. The probe did not run a park relay.
+   Fix: make `_parked` call `api.built_batch`, and make the pin scan every function in `sandbox.py` and `api.py` for `head_commit` next to `batch_tickets`.
+
+p2-2. LOW. CONFIRMED. `tests/rota/test_invoke_door.py` lines 378 to 386 and `rota/roles/api.py` line 460. Probe `rv2_p4.py` ran the test body at both commits. At fe1d300c the first encode landed, because `_batch_of_criterion` gave b1 (running, no commit). At f0642982 the first encode is refused with "c1 exists and belongs to no batch". The test's first `pytest.raises(ValueError)` accepts that refusal, so the test is green for a reason it does not name. `tests.encode` changed for every Tester with no `ctx.batch_id`: a batch with no commit is no longer a home for its test. In nights 172 and 173, every Tester encode on a message wake came after a Developer commit (s123, s227, s229).
+   Fix: give the first `pytest.raises` of the test a `match`, and say in the commit body that `tests.encode` now needs a commit.
+
+p2-3. LOW. CONFIRMED. `rota/core/sandbox.py` lines 1945 to 1950. The refusal to the asker has 25 words when it carries three refs, and each extra ref adds a word. Both refusals copy the refs, so they carry rota identifiers such as `c_1`.
+   Fix: drop `{ids}`: "No change from these criteria has a commit yet, and you hold no batch. Stop here."
+
+p2-4. LOW. PLAUSIBLE. `rota/core/sandbox.py` lines 1906 to 1916, the `staged` branch. Probe `rv2_p5.py` staged `c_ghost` under tk_1, which has a built batch, and the answer landed before any row for `c_ghost` existed. If the commit later refuses the staged criterion, the Tester wakes on a criterion with no row. The ticket exists in this case, so the door sends no message for a ticket that never exists.
+   Fix: let the staged branch count only a criterion whose write passed its door in this session, and drop the outbound message when the commit drops that write.
+
+### (c) Probes
+
+The probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad`. `p1/` holds `git archive fe1d300c rota`. Night 169 and night 147 are behind the current schema, so `init_db` refuses them. The shapes were rebuilt on the night-173 replay copy `n173_new.db`.
+
+- `rv2_p1b.py`: the m30 shape. The Tester woke on an answer m29 and has no batch. The ask is refused at f0642982, and it lands at fe1d300c. The open-question answer lands at both. The s315 shape: tk_1 in bg_2 (abandoned) and bg_3 (merged), both with commits. At f0642982, `built_batch` and `_batch_of_criterion` both give bg_3, and the door lands. At fe1d300c, both give None, and the door refuses.
+- `rv2_p4.py`: the body of `test_a_session_with_no_batch_reads_the_root` at both commits, with each exception printed.
+- `rv2_p5.py`: `criteria.specify` on `tk_nope` is refused. An answer on a criterion staged under tk_1 lands. An answer on a criterion staged under `tk_never` is refused.
+- `rv2_p1.py`: the first attempt on the night 169 and night 147 copies. `init_db` refused it because the schema is stale.
+- Inline reads of nights 172 and 173: the `code.commit` sessions and the Tester encodes on message wakes.
+
+The texts at f0642982:
+- "No change built from c_1, c_2, c_3 has a commit yet, and you hold no batch, so there is nothing to ask about. Stop here." (25 words)
+- "No change built from c_ghost2 has a commit yet, so the Tester has nothing to work on. Stop here." (18 words)
+
+### (d) Usage
+
+The harness reports no token counts to this agent. The figures are estimates for p2: input about 60k tokens, output about 7k tokens, total about 67k. The run went past the 30k cap.
