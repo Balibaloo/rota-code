@@ -43,17 +43,17 @@ def test_a_helper_under_tests_is_not_a_test_file(tmp_path):
     # no test shape.
     conn = _conn(tmp_path)
     assert not api._is_test_file(conn, "tests/helpers.py")
-    assert not api._is_test_file(conn, "tests/conftest.py")
+    assert not api._is_test_file(conn, "tests/__init__.py")
 
 
 def test_the_pushed_test_files_follow_the_partition(tmp_path):
     conn = _conn(tmp_path, ("tests", "attached"), ("testing", "attached"))
-    for g in ("tests/conftest.py", "tests/test_a.py", "testing/test_b.py",
+    for g in ("tests/helpers.py", "tests/test_a.py", "testing/test_b.py",
               "src/pkg/core.py"):
         conn.execute("INSERT INTO code_index (grain, grain_kind) "
                      "VALUES (?, 'path')", (g,))
     conn.commit()
-    # The old `LIKE 'tests/%'` gave the conftest and missed `testing/`.
+    # The old `LIKE 'tests/%'` gave the helper and missed `testing/`.
     assert _index_test_files(conn) == ["testing/test_b.py", "tests/test_a.py"]
 
 
@@ -81,6 +81,34 @@ OLD_RULES = (
 )
 SCOPE = ("core", "roles", "onboarding")
 ALLOWED = {"onboarding/areas.py"}
+
+
+def test_a_conftest_is_a_test_file_and_is_not_inherited(tmp_path):
+    # Review pass 1, finding 2: pytest defines the conftest basename.
+    conn = _conn(tmp_path)
+    assert api._is_test_file(conn, "tests/conftest.py")
+    tree = tmp_path / "tree"
+    (tree / "tests").mkdir(parents=True)
+    for name in ("conftest.py", "test_a.py"):
+        (tree / "tests" / name).write_text("x = 1\n", encoding="utf-8")
+    assert harness.project_tests(conn, tree) == ["tests/test_a.py"]
+
+
+# `areas.is_test` reads test code, a test folder's helpers included. Only the
+# two surface doors ask it, and each says why in a comment (finding 5).
+IS_TEST_DOORS = {"_named_callables", "_vet_surface"}
+
+
+def test_only_the_surface_doors_ask_is_test():
+    import ast
+
+    tree = ast.parse((PACKAGE / "roles" / "api.py").read_text(encoding="utf-8"))
+    askers = {fn.name for fn in ast.walk(tree)
+              if isinstance(fn, ast.FunctionDef)
+              for n in ast.walk(fn)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+              and n.func.id == "is_test"}
+    assert askers == IS_TEST_DOORS
 
 
 def test_no_door_reads_the_test_partition_by_a_path_rule():

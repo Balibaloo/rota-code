@@ -33,12 +33,9 @@ ALLOWED = {
     ("roles/principal.py", "_removal_words"),
     # The head half goes through the reader on the next line.
     ("roles/api.py", "_fold"),
-    # Residue: `rpartition` keeps the last `::`, so its left half is not the
-    # file of a nested grain.
-    ("roles/api.py", "_definition_of"),
 }
 
-_SPLITS = ("split", "partition", "rpartition")
+_SPLITS = ("split", "rsplit", "partition", "rpartition")
 
 
 def _is_grain_split(node) -> bool:
@@ -86,6 +83,48 @@ def _path_half_sites():
 def test_no_path_half_split_outside_the_reader():
     stray = sorted(s for s in _path_half_sites() if s[:2] not in ALLOWED)
     assert stray == [], stray
+
+
+def test_frame_assign_of_a_dot_directory_finds_its_rows(tmp_path):
+    # Review pass 1, finding 1: `lstrip("./")` folded `.github` into
+    # `github`, and the door said the path covers nothing in the index.
+    from rota.core import sandbox as sandbox_mod
+
+    db = tmp_path / "rota.db"
+    conn = init_db(db)
+    for g in (".github/workflows/ci.yml", "src/app.py"):
+        conn.execute("INSERT INTO code_index (grain, grain_kind) "
+                     "VALUES (?, 'path')", (g,))
+    conn.commit()
+    sb = sandbox_mod.build("architect", conn, session_id="s1", mode="frame",
+                           area="@frame")
+    got = sb.call("frame.assign", path=".github", kind="ignore",
+                  reason="the CI tool's own files")
+    assert got["kind"] == "ignore"
+
+
+# `_indexed_like` matches the dot-stripped spelling that old hints printed.
+# Its strip is a match rule, not a fold, and a test in
+# test_onboarding_phases.py holds it.
+LSTRIP_ALLOWED = {("roles/api.py", "_indexed_like")}
+
+
+def test_no_character_set_fold_of_a_path_in_roles():
+    found = []
+    for f in sorted((PACKAGE / "roles").rglob("*.py")):
+        rel = f.relative_to(PACKAGE).as_posix()
+        tree = ast.parse(f.read_text(encoding="utf-8"))
+        for fn in ast.walk(tree):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for n in _own_nodes(fn):
+                if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                        and n.func.attr == "lstrip" and n.args
+                        and isinstance(n.args[0], ast.Constant)
+                        and n.args[0].value in ("./", "/.")
+                        and (rel, fn.name) not in LSTRIP_ALLOWED):
+                    found.append((rel, fn.name, n.lineno))
+    assert found == [], found
 
 
 def test_kind_of_reads_a_dot_slash_path_under_its_ruling(tmp_path):

@@ -5266,7 +5266,10 @@ def _named_callables(ctx: Ctx, text: str) -> list[str]:
         if not sep or name.rsplit(".", 1)[-1].lower() not in words:
             continue
         kind = kind_of(ctx.conn, path)
-        # A test is not a surface.
+        # A test is not a surface. `is_test` reads another fact than
+        # `_is_test_file`: test code, a test folder's helpers and fixtures
+        # included. A test helper is no program surface either (F9, review
+        # pass 1, finding 5).
         if kind in ("attached", "ignore") and is_test(path):
             continue
         rows.append((row["grain"], name, kind))
@@ -5484,6 +5487,8 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
             from ..onboarding.areas import is_test, kind_of
 
             kind = kind_of(ctx.conn, gpath)
+            # `is_test` reads test code, not a test file of the Tester, as
+            # in `_named_callables` (F9, review pass 1, finding 5).
             if gname.startswith("test_") or (
                     kind in ("attached", "ignore") and is_test(gpath)):
                 raise ValueError(
@@ -7405,8 +7410,12 @@ def _with_new_files(paths: list[str] | None,
 
 
 def _test_shaped(f: str) -> bool:
-    """The basename is pytest's default test file form."""
-    return bool(re.fullmatch(r"test_\w+\.py|\w+_test\.py",
+    """The basename is pytest's default test file form, or pytest's own
+    `conftest.py`."""
+    # F9, review pass 1, finding 2: pytest defines `conftest.py` as test
+    # infrastructure, and the basename gives the shape (ruled: Roman,
+    # 2026-10-26 20:37). So the conftest is the Tester's.
+    return bool(re.fullmatch(r"test_\w+\.py|\w+_test\.py|conftest\.py",
                              f.rpartition("/")[2]))
 
 
@@ -9104,7 +9113,7 @@ def _definition_of(tree, test_path: str, name: str, refs: list[str],
                 found[1], (type(None), _ast.Import, _ast.ImportFrom)):
             return (orig, *found)
     for ref in refs:
-        where, _, tail = ref.rpartition("::")
+        where, tail = _grain_path(ref), ref.partition("::")[2]
         if tail != name or not where.endswith(".py"):
             continue
         src = read(where)
@@ -16342,7 +16351,7 @@ def code_prose(ctx: Ctx, limit: int = 6000, path: str | None = None) -> dict:
         # Asked by path: the file the session wants beside its own. clickI
         # night 38 (2026-09-13): `code.prose(path=...)` refused as an
         # unexpected argument in a wake that is about one file.
-        readme = path.replace("\\", "/").lstrip("./")
+        readme = _grain_path(path)
     elif ctx.area and ctx.area.startswith(_PROSE + ":"):
         # A prose file under docs/, the wake's own subject (one file a
         # session, `prose_areas`). The README is the bare `@prose`.
@@ -17569,7 +17578,9 @@ def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
         raise ValueError(f"kind must be one of program/attached/ignore/"
                          f"boundary, not {kind!r}")
     path = (path or "").strip().strip("`").rstrip("/")
-    path = path.lstrip("./")
+    # F11, review pass 1, finding 1: a character-set strip made `.github`
+    # into `github`, and the door refused a path the index holds.
+    path = _grain_path(path)
     covered = [r["grain"] for r in ctx.conn.execute(
         "SELECT grain FROM code_index WHERE grain_kind = 'path' AND "
         "(grain = ? OR grain LIKE ?)", (path, path + "/%"))]
@@ -19579,6 +19590,10 @@ def _indexed_like(ctx, path: str) -> str | None:
     for r in ctx.conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'path'"):
         g = r["grain"]
+        # The seat may type the dot-stripped spelling that old hints printed,
+        # `editorconfig` for `.editorconfig`. The strip is a match rule here,
+        # not a fold (F11, review pass 1, finding 1, and
+        # test_a_dotted_path_is_cited_by_its_stripped_spelling).
         bare = g.lstrip("./")
         if want in (g, bare) or g.endswith("/" + want) or bare.endswith("/" + want):
             hits.append(g)

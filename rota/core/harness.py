@@ -419,7 +419,10 @@ def project_tests(conn: sqlite3.Connection, worktree: Path) -> list[str]:
         dirs[:] = [d for d in dirs if d not in (".rota", ".venv", ".git")]
         for name in files:
             rel = Path(top, name).relative_to(worktree).as_posix()
-            if _is_test_file(conn, rel):
+            # A conftest is a test file, but pytest collects no test from
+            # it. The harness runs each inherited file, and a run with no
+            # test is an error.
+            if _is_test_file(conn, rel) and name != "conftest.py":
                 out.append(rel)
     return sorted(out)
 
