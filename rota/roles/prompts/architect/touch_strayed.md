@@ -25,4 +25,15 @@ the file and no criterion names the definition. Judge it with
 A `removal:` note quotes each base line that the commit removed. A quoted
 `def` or `class` line stands for the whole definition.
 
+**Judge a removal by the request.** For a row with a `removal:` note, do
+not ask whether your prediction was short. Ask whether the request or an
+approved criterion asks for that behaviour to go. If one does, the removal
+is foreseen. If none does, the removal is a mistake. Name the row by its
+full name, `path::name`. A file path alone does not judge a removal.
+
+Example: the request says "round the invoice total to two decimals". The
+note quotes `if customer.is_exempt:`. The request names rounding only, and
+no criterion names the tax exemption. So the removal is a mistake:
+`mistakes=["shop/billing.py::invoice_total"]`.
+
 The prediction never blocked the commit. Only your silence holds the merge.

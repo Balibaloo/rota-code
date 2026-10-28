@@ -355,6 +355,11 @@ def render_state(conn: sqlite3.Connection) -> str:
                   else ", ".join(words[:-1]) + " and " + words[-1])
         carry = "They carry" if merged > 1 else "It carries"
         out[-1] += f" {carry} {listed}. Ask me to show them."
+    # F7, pass 1b: the summary after the merge names each removal that no
+    # grant of his allows. It is information, and it holds nothing.
+    gone = merged_removal_line(conn) if merged else ""
+    if gone:
+        out.append(gone)
     # A cold cockpit sees the cycle the walk printed, read from the rows
     # (ruled: Roman, 2026-09-24, an alert first). The line goes under what
     # is stuck.
@@ -2021,7 +2026,135 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     page, order = _page_body(conn, verb, refs, question, ask_id=ask_id,
                              stalled=stalled)
     back = returned_line(conn, ask_id) if returned else ""
-    return (f"{back}\n{page}" if back else page), order
+    # F7: every page to him goes through here, so a removal reaches the next
+    # page about its item, whatever kind of page that is. The line is not
+    # numbered, so `parse_reply` reads the same order.
+    gone = removal_line(conn, refs) if returned else ""
+    top = "\n".join(x for x in (back, gone) if x)
+    return (f"{top}\n{page}" if top else page), order
+
+
+# The removals that one page names. The rest are counted, so ten removals
+# take one line (F7).
+_REMOVALS_NAMED = 3
+_PIECE = re.compile(r"(`+) ?(.+?) ?\1(?: at line (\d+))?")
+
+
+def _removal_pieces(note: str, owner: str) -> list[dict]:
+    """The gone statements of a `removal: ` note, as `_gone_statements`
+    shows them: line, owner, line number and whether it is a definition.
+    The Architect's reason after the list is not read."""
+    out: list[dict] = []
+    pos = note.find("removal: ")
+    if pos < 0:
+        return out
+    pos += len("removal: ")
+    while True:
+        m = _PIECE.match(note, pos)
+        if m is None:
+            break
+        line, no = m.group(2), m.group(3)
+        # A removed definition's row is named by the definition itself.
+        whole = no is None and line == owner
+        out.append({"line": line, "owner": "" if whole else owner, "no": no,
+                    "def": whole})
+        pos = m.end()
+        if not note.startswith(", ", pos):
+            break
+        pos += 2
+    return out
+
+
+def _behaviour_words(path: str, g: dict) -> str:
+    """The plain words for one gone statement: what kind of code it was
+    and its first line."""
+    line = g["line"]
+    if g["def"]:
+        return f"the definition `{line}`"
+    head = line.split(None, 1)[0].rstrip(":") if line.split() else ""
+    kind = {"if": "the branch", "elif": "the branch", "else": "the branch",
+            "case": "the branch", "match": "the branch", "for": "the loop",
+            "while": "the loop", "return": "the return", "raise": "the error",
+            "break": "the loop exit", "continue": "the loop step",
+            "try": "the block", "except": "the error handler",
+            "with": "the block", "async": "the block"}.get(head)
+    if kind is None and line.startswith("@"):
+        kind = "the decorator"
+    elif kind is None and re.match(r"[\w.\[\]'\", ]+\s*(?:[-+*/|&]?=|:[^=]*=)[^=]", line):
+        kind = "the assignment"
+    elif kind is None:
+        kind = "the call" if "(" in line else "the line"
+    return f"{kind} `{line}`"
+
+
+def removal_line(conn: sqlite3.Connection, refs: list[str]) -> str:
+    """One line about the code that the live change of a page's item
+    removes and that no grant of his allows, or "".
+
+    F7. Night 171's s164 removed the macOS branch and the XDG return of
+    `get_app_dir`, the Architect judged them foreseen, and no page showed
+    them to him. The composition: "no work stays invisible". The line is
+    information, not a gate: a sign-off by him stays opt-in. It shows
+    whatever the Architect judged, and it names no row and no key."""
+    batches = [b for b in (_live_batch(conn, item)
+                           for item in sorted(_reached(conn, refs))) if b is not None]
+    said = _removal_words(conn, batches)
+    return f"The change removes code that no answer of yours allowed: {said}." if said else ""
+
+
+def merged_removal_line(conn: sqlite3.Connection) -> str:
+    """One line for the end-of-run summary about the code that the merged
+    changes removed and that no grant of his allows, or "".
+
+    F7, pass 1b (ruled: Roman, 2026-10-27, through the coordinator): under
+    `merge_gate=auto` nothing holds the merge, so the summary he reads
+    after it names each ungranted removal once. A removal that a page
+    showed before the merge is named here again. No hold and no gate."""
+    batches = list(conn.execute(
+        "SELECT id, head_commit FROM batches WHERE status = 'merged' ORDER BY id"))
+    said = _removal_words(conn, batches)
+    return (f"The merged changes removed code that no answer of yours allowed: "
+            f"{said}." if said else "")
+
+
+def _removal_words(conn: sqlite3.Connection, batches: list) -> str:
+    """The removals of the head commits of `batches` that no grant of his
+    allows, in plain words: at most three named by kind, function and first
+    line, and a count of the rest. "" when there is none."""
+    from .api import _gone_targets, batch_ruled_refs
+
+    places: dict[str, list[str]] = {}
+    for batch in batches:
+        if not batch["head_commit"]:
+            continue
+        ruled = None
+        for r in conn.execute(
+                "SELECT path, note FROM touch_strays WHERE batch_id = ? AND "
+                "commit_sha = ? AND note LIKE 'removal: %' ORDER BY path",
+                (batch["id"], batch["head_commit"])):
+            path, _sep, owner = r["path"].partition("::")
+            for g in _removal_pieces(r["note"], owner):
+                if ruled is None:
+                    ruled = batch_ruled_refs(conn, batch["id"])
+                if any(granted(conn, x, "remove", _gone_targets(path, g))
+                       for x in ruled):
+                    continue
+                where = (g["owner"] or path.rsplit("/", 1)[-1])
+                places.setdefault(where, []).append(_behaviour_words(path, g))
+    count = sum(len(v) for v in places.values())
+    if not count:
+        return ""
+    parts: list[str] = []
+    left = _REMOVALS_NAMED
+    for where, said in places.items():
+        if left <= 0:
+            break
+        shown = said[:left]
+        left -= len(shown)
+        parts.append(f"in {where}, " + " and ".join(shown))
+    more = count - _REMOVALS_NAMED
+    tail = f", and {more} more" if more > 0 else ""
+    return "; ".join(parts) + tail
 
 
 def _quiet_line(conn: sqlite3.Connection, refs: list[str]) -> str:

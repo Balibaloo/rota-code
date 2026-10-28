@@ -36,15 +36,19 @@ GONE = 'folder = os.path.expanduser("~")'
 # `if folder is None:` block: lines 518 and 519 of the base, which
 # code.source numbers 517 and 518. On the night it returned the note
 # "This write removes or rewrites 1 statement ... at line 518".
-FIX = ('        if folder is None:\n'
-       '            appdata_roaming = os.path.join(os.path.expanduser("~"), '
-       '"AppData", "Roaming")\n'
-       '            appdata_local = os.path.join(os.path.expanduser("~"), '
-       '"AppData", "Local")\n'
-       '            if roaming:\n'
-       '                folder = appdata_roaming\n'
-       '            else:\n'
-       '                folder = appdata_local')
+S122 = ('        if folder is None:\n'
+        '            appdata_roaming = os.path.join(os.path.expanduser("~"), '
+        '"AppData", "Roaming")\n'
+        '            appdata_local = os.path.join(os.path.expanduser("~"), '
+        '"AppData", "Local")\n'
+        '            if roaming:\n'
+        '                folder = appdata_roaming\n'
+        '            else:\n'
+        '                folder = appdata_local')
+# F7: s122's write binds `folder` on every path, so it is a rewrite and no
+# removal. The write under test drops the `else` arm, so `folder` keeps no
+# value when `roaming` is false: a removal of the statement's behaviour.
+FIX = S122.rsplit("\n", 2)[0]
 MESSAGE = "Fix Windows get_app_dir to use AppData Roaming/Local"
 # His m37, ruling r_58bf1e8c70 of night 169.
 M37 = ("You can remove the line at 518 in get_app_dir that sets the folder to "
@@ -91,10 +95,16 @@ def _developer(db, tmp_path):
     (root / PATH).write_bytes(BASE)
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "base")
+    # F7: the project root stays at the base, so the commit compares each
+    # later commit with the base and not with HEAD~1.
+    proj = tmp_path / "proj"
+    subprocess.run(["git", "clone", "-q", str(root), str(proj)], check=True)
     (root / "NOTES.md").write_text("batch_1\n", encoding="utf-8")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "batch")
     db.execute("UPDATE batches SET worktree = ? WHERE id = 'batch_1'", (str(root),))
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)",
+               (str(proj),))
     db.commit()
     sb = build("developer", db, batch_id="batch_1", mode="batch_start",
                allow=prompts.mode_tools("developer", "batch_start"))
@@ -113,11 +123,25 @@ def _write_then_commit(sb) -> dict:
     return sb.call("code.commit", message=MESSAGE)
 
 
-def test_night_169s_rewrite_lands_with_one_open_stray(db, tmp_path):
-    """The red case. On b889c93d the open-note door refused this commit:
-    "a code.write in an earlier reply returned a note, and the tree still
-    does not hold those lines". Now it lands, and one row asks the
-    Architect, with the removed line in its note."""
+def test_night_169s_rewrite_binds_folder_on_every_path_and_writes_no_stray(db, tmp_path):
+    """F7: s122's write gives `folder` a value in both arms of a new `if`.
+    The write's note still names the line for the seat, and the compare of
+    the base with the tree finds no removal, so no row is written."""
+    sb, _root = _developer(db, tmp_path)
+    out = sb.call("code.write", path=PATH, start=517, end=519, text=S122)
+    assert GONE in out["dropped"], out
+    sb.begin_reply()
+    out = sb.call("code.commit", message=MESSAGE)
+    assert out["committed"] is True, out
+    assert _strays(sb) == []
+    assert "removals" not in out
+
+
+def test_a_write_that_drops_an_arm_lands_with_one_open_stray(db, tmp_path):
+    """The red case of frame 339. On b889c93d the open-note door refused
+    this commit: "a code.write in an earlier reply returned a note, and the
+    tree still does not hold those lines". Now it lands, and one row asks
+    the Architect, with the removed line in its note."""
     sb, root = _developer(db, tmp_path)
     out = _write_then_commit(sb)
     assert out["committed"] is True, out
@@ -390,14 +414,30 @@ def test_a_change_outside_the_removed_grain_keeps_its_path_row(db, tmp_path):
 
 def test_a_judged_removal_is_not_raised_again(db, tmp_path):
     """Frame 286's rule: a grain judged foreseen is not raised again on a
-    later commit of the batch."""
+    later commit of the batch. F7: the judgement covers the removals that
+    its note names, and its row moves to the new head as foreseen."""
+    sb, _root = _developer(db, tmp_path)
+    note = f"removal: `{GONE}` at line 518 the fallback changes"
+    db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status, note) "
+               "VALUES ('batch_1', 'old', ?, 'foreseen', ?)", (GRAIN, note))
+    db.commit()
+    out = _write_then_commit(sb)
+    assert out["committed"] is True, out
+    assert _strays(sb) == [(GRAIN, "foreseen", note)]
+    assert "removals" not in out
+
+
+def test_a_foreseen_grain_is_raised_again_for_a_removal_its_note_lacks(db, tmp_path):
+    """Night 171's read, section 5, the judged grain path: a foreseen
+    judgement on the definition named no removal, so a later removal in it
+    is a new open row."""
     sb, _root = _developer(db, tmp_path)
     db.execute("INSERT INTO touch_strays (batch_id, commit_sha, path, status) "
                "VALUES ('batch_1', 'old', ?, 'foreseen')", (GRAIN,))
     db.commit()
     out = _write_then_commit(sb)
     assert out["committed"] is True, out
-    assert _strays(sb) == []
+    assert [(g, s) for g, s, _n in _strays(sb)] == [(GRAIN, "open")]
 
 
 # The review of pass 4, P4-3. Night 169 ruled batch_1 again by m41, m48 and
