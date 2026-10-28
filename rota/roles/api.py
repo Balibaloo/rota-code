@@ -457,11 +457,12 @@ def _batch_of_criterion(ctx: "Ctx", criterion_id: str) -> str | None:
     Ambiguity is left alone. A ticket in two batches has no single answer here,
     and inventing one would file a test against the wrong delivery.
     """
-    batch = built_batch(ctx.conn, criterion_id)
+    batch = built_batch(ctx.conn, criterion_id, need_commit=False)
     return batch["id"] if batch else None
 
 
-def built_batch(conn, criterion_id: str | None, ticket_id: str | None = None):
+def built_batch(conn, criterion_id: str | None, ticket_id: str | None = None, *,
+                need_commit: bool):
     """
     The one batch with a commit that a test of the criterion attaches to, or
     None.
@@ -487,9 +488,17 @@ def built_batch(conn, criterion_id: str | None, ticket_id: str | None = None):
         "FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
         "WHERE bt.ticket_id = COALESCE(?, (SELECT ticket_id FROM criteria WHERE id = ?)) "
         "ORDER BY b.id", (ticket_id, criterion_id)).fetchall()
-    built = [b for b in rows if b["status"] != "abandoned" and b["head_commit"]]
+    # `need_commit` names the fact. `tests.encode` asks for a batch only: the
+    # Tester writes the first test of a running batch before any commit, and
+    # L1-TS-apply-a-term-and-write-the-test stalled at 0 of 5 when it asked
+    # for a commit (the gate at dfcffd40). The send door asks for the commit.
+    built = [b for b in rows if b["status"] != "abandoned"
+             and (b["head_commit"] or not need_commit)]
     live = [b for b in built if b["status"] != "merged"]
     pick = live or built
+    if not pick and not need_commit:
+        # A ticket whose one batch stopped keeps that batch, as before fe1d300c.
+        pick = rows
     return pick[0] if len(pick) == 1 else None
 
 

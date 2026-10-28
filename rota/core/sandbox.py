@@ -1917,7 +1917,7 @@ def _unbuilt_refusal(ctx, recipient: str, verb: str, refs) -> None:
         "(SELECT ticket_id FROM criteria WHERE id = ?) OR t.id IN "
         "(SELECT ticket_id FROM batch_tickets WHERE batch_id = ?)", (r, r, r, r))}
     tickets |= {staged[r] for r in refs if staged.get(r)}
-    built = [b for b in (api.built_batch(ctx.conn, None, t) for t in sorted(tickets))
+    built = [b for b in (api.built_batch(ctx.conn, None, t, need_commit=True) for t in sorted(tickets))
              if b]
     if any(b["status"] != "merged" for b in built):
         return
@@ -2126,7 +2126,7 @@ def _ruling_answer_refusal(ctx: api.Ctx, refs) -> str | None:
         # The batch fact is `api.built_batch`, the one predicate (W10, the
         # review's low p2-1). A retired criterion holds no live change.
         def _live_built(r) -> bool:
-            b = api.built_batch(ctx.conn, r)
+            b = api.built_batch(ctx.conn, r, need_commit=True)
             return bool(b and b["status"] != "merged" and ctx.conn.execute(
                 "SELECT 1 FROM criteria c WHERE c.id = ?"
                 + api._live_rows(ctx.conn, "c.retired_by"), (r,)).fetchone())
