@@ -5531,7 +5531,7 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
         # a library function the program does not have, and every test of
         # the criterion was refused for never calling it.
         bare = ref.split("::")[-1].rsplit(".", 1)[-1]
-        given = set(_named_new_callables(ctx, ticket_id)) if ticket_id else set()
+        given = set(item_callables(ctx, ticket_id).new)
         in_tree = bool(definers_of(ctx.conn, bare))
         # At the repair only: a first criterion may name the entry point a
         # new feature will have (test_a_name_with_no_neighbour_is_a_design
@@ -5571,14 +5571,10 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     # An abandoned batch's prediction is no longer the work's (frame 215's
     # review 1, finding 6): its files neither admit nor name a surface.
     batches = ctx.conn.execute(
-        "SELECT b.id AS id, b.item_id AS item_id, i.text AS item_text "
-        "FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
-        "LEFT JOIN items i ON i.id = b.item_id WHERE bt.ticket_id = ? "
-        "AND b.status != 'abandoned' ORDER BY b.id", (ticket_id,)).fetchall()
+        "SELECT b.id AS id FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
+        "WHERE bt.ticket_id = ? AND b.status != 'abandoned' ORDER BY b.id",
+        (ticket_id,)).fetchall()
     touch: list = []
-    ticket = ctx.conn.execute(
-        "SELECT text FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
-    words_from = [ticket["text"] if ticket else ""]
     from ..core.lifecycle import grain_name, predicted_rows
 
     for b in batches:
@@ -5586,12 +5582,6 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
         # read agree. A file his words decline holds no surface (F35).
         touch += sorted(predicted_rows(ctx.conn, b["id"]), key=lambda t: (
             t["confidence"] or "", t["grain_kind"] or "", t["grain"]))
-        words_from.append(b["item_text"] or "")
-        words_from += [r["text"] for r in ctx.conn.execute(
-            "SELECT s.text AS text FROM refs x "
-            "JOIN statements s ON s.id = x.target "
-            "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
-            "AND s.status != 'superseded' ORDER BY s.id", (b["item_id"] or "",))]
     paths = [_grain_path(t["grain"]) for t in touch if t["grain_kind"] == "path"]
     if not paths:
         return                    # no file predicted: no file to hold it to
@@ -5600,7 +5590,10 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     expected = list(dict.fromkeys(
         _grain_path(t["grain"]) for t in touch
         if t["grain_kind"] == "path" and t["confidence"] == "expected"))
-    words = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", " ".join(w or "" for w in words_from)))
+    # F10: a name the request gives is one in a callable's form, as at the
+    # specify door. An English word such as "message" names no callable.
+    given = item_callables(ctx, ticket_id)
+    names = set(given.known) | set(given.new)
     for ref in surface:
         if "::" not in ref:
             continue              # a bare name names no file to judge
@@ -5608,10 +5601,10 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
         name = ref.split("::", 1)[1]
         if any(path == p or path.startswith(p.rstrip("/") + "/") for p in paths):
             continue
-        if set(name.split(".")) & (words | symbols):
+        if set(name.split(".")) & (names | symbols):
             continue
         # A file the request names by its stem is a file the request names.
-        if path.rsplit("/", 1)[-1][:-3] in words and path.endswith(".py"):
+        if path.rsplit("/", 1)[-1][:-3] in given.words and path.endswith(".py"):
             continue
         raise Wall(
             f"{ref!r} lives in {path}, and the batch expects to touch "
@@ -5697,28 +5690,89 @@ def _holds_tester_route(ctx: Ctx) -> bool:
     return "msg.answer_tester" in _wake_mode_tools(ctx)
 
 
-def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
+def _item_words(ctx: Ctx, ticket_id: str | None) -> tuple[str, str | None, str]:
     """
-    Callable names the item or its ticket give in words that the index does
-    not hold: snake_case identifiers, and a name after "function named" or
-    "function called". A4 (2026-09-10): "the share lives in a new function
-    named split_bill" beside an index holding calculate_tip, and llama3.1:8b
-    and qwen3.5:9b both named calculate_tip as the surface, 0/5 each.
-    """
-    import re as _re
+    The words of the request behind a ticket: the ticket, its item, the
+    items of its live batches, and their live statements.
 
-    row = ctx.conn.execute(
-        "SELECT t.text AS ticket, i.text AS item FROM tickets t "
-        "JOIN items i ON i.id = t.item_id WHERE t.id = ?", (ticket_id,)).fetchone()
-    if not row:
-        return []
-    text = f"{row['item'] or ''} {row['ticket'] or ''}"
+    Frame 215's review 1, finding 1: the criterion's text is the seat's own,
+    so it is never a source. Finding 6: an abandoned batch is no longer the
+    work's, so its item is not read. The result is the words, the ticket's
+    item id, and that item's own text, the request.
+    """
+    if not ticket_id:
+        return "", None, ""
+    ticket = ctx.conn.execute(
+        "SELECT text, item_id FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    if not ticket:
+        return "", None, ""
+    items = [ticket["item_id"]] + [r["item_id"] for r in ctx.conn.execute(
+        "SELECT b.item_id AS item_id FROM batch_tickets bt "
+        "JOIN batches b ON b.id = bt.batch_id WHERE bt.ticket_id = ? "
+        "AND b.status != 'abandoned' ORDER BY b.id", (ticket_id,))]
+    words = [ticket["text"] or ""]
+    request = ""
+    for item_id in dict.fromkeys(i for i in items if i):
+        row = ctx.conn.execute("SELECT text FROM items WHERE id = ?",
+                               (item_id,)).fetchone()
+        words.append(row["text"] or "" if row else "")
+        if item_id == ticket["item_id"]:
+            request = words[-1]
+        words += [r["text"] or "" for r in ctx.conn.execute(
+            "SELECT s.text AS text FROM refs x "
+            "JOIN statements s ON s.id = x.target "
+            "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
+            "AND s.status != 'superseded' ORDER BY s.id", (item_id,))]
+    return " ".join(words), ticket["item_id"], request
+
+
+@dataclass(frozen=True)
+class ItemCallables:
+    """The callables a request gives: the names the index holds, the new
+    names, and every identifier of its words."""
+    known: list[str]
+    new: list[str]
+    words: set[str]
+    # The callables the request's first verb phrase asks for, and the
+    # item's id (frame 202's request rule).
+    asked: frozenset = frozenset()
+
+
+def _held_names(ctx: Ctx) -> set[str]:
+    """The last part of each symbol the index holds. A method's grain is
+    `path::Class.name`, so `name` is the name the index holds."""
+    return {r["grain"].split("::", 1)[-1].rsplit(".", 1)[-1]
+            for r in ctx.conn.execute("SELECT grain FROM code_index "
+                                      "WHERE grain_kind = 'symbol'")}
+
+
+def item_callables(ctx: Ctx, ticket_id: str | None) -> ItemCallables:
+    """
+    The one reader of the callables the item behind a ticket gives (F10 of
+    the root-fix audit of 2026-10-27). Both criteria doors read it.
+    """
+    text, item_id, request = _item_words(ctx, ticket_id)
+    return callables_in(text, _held_names(ctx), item_id=item_id, request=request)
+
+
+def callables_in(text: str, held: set[str], *, item_id: str | None = None,
+                 request: str = "") -> ItemCallables:
+    """
+    The callables that `text` gives, split by the names in `held`. `request`
+    is the item's own text, whose first verb phrase gives `asked`.
+
+    A name is given in a callable's form. A4 (2026-09-10): "the share lives
+    in a new function named split_bill" beside an index holding
+    calculate_tip, and llama3.1:8b and qwen3.5:9b both named calculate_tip
+    as the surface, 0/5 each.
+    """
+    words = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", text or ""))
+    text = text or ""
     # law 11: a row rests on what it cites
     # Only names the words call a callable: "a function named X", "X()".
-    # A bare snake_case word is not enough. clickI night 8 (2026-09-11):
-    # "give version_option a show_python flag" made `show_python`, a flag,
-    # a callable the criteria had to name, and the Terminologist named
-    # the item's own id instead.
+    # A bare snake_case word is not enough for a new name. clickI night 8
+    # (2026-09-11): "give version_option a show_python flag" made
+    # `show_python`, a flag, a callable the criteria had to name.
     # The word after "function" is a name only in a callable's form. Night
     # 116 (2026-10-04): "The confirm() function already takes" made
     # `already` a callable, and the criteria door refused three
@@ -5729,57 +5783,38 @@ def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
     kind = r"(?:function|callable|method|helper|decorator)\s+"
     ident = r"[A-Za-z_][A-Za-z0-9_]*"
     # "named" or "called" says the next word is a name, whatever its form.
-    names = set(_re.findall(kind + r"(?:named|called)\s+`?(" + ident + r")`?", text))
-    names |= set(_re.findall(kind + r"`(" + ident + r")`", text))
+    given = set(re.findall(kind + r"(?:named|called)\s+`?(" + ident + r")`?", text))
+    given |= set(re.findall(kind + r"`(" + ident + r")`", text))
     # A snake_case or camelCase word is an identifier, and English has none.
     # A leading underscore counts, so `_private` and `__init__` stay names.
-    names |= set(_re.findall(
-        kind + r"(_+[A-Za-z][A-Za-z0-9_]*|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]*"
-        r"|[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*)\b",
-        text))
+    shaped = (r"(_+[A-Za-z][A-Za-z0-9_]*|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]*"
+              r"|[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*)\b")
+    given |= set(re.findall(kind + shaped, text))
     # A dotted path names its last part, the callable a surface ends in.
-    names |= set(_re.findall(kind + r"`?(?:" + ident + r"\.)+(" + ident + r")\b", text))
-    names |= set(_re.findall(r"`?([A-Za-z_][A-Za-z0-9_]*)\(", text))
+    given |= set(re.findall(kind + r"`?(?:" + ident + r"\.)+(" + ident + r")\b", text))
+    given |= set(re.findall(r"`?([A-Za-z_][A-Za-z0-9_]*)\(", text))
     # "function(s)" matches the call form, and a kind word is never a name.
-    names -= {"a", "the", "named", "called", "new", "that", "which", "in", "to",
+    given -= {"a", "the", "named", "called", "new", "that", "which", "in", "to",
               "function", "callable", "method", "helper", "decorator"}
-    out = []
-    for name in sorted(names):
-        known = ctx.conn.execute(
-            "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
-            (name, f"%::{name}")).fetchone()
-        if not known:
-            out.append(name)
-    return out
-
-
-def _named_existing_callables(ctx: Ctx, ticket_id: str) -> list[str]:
-    """Callable names the item or its ticket give in words that the index
-    holds: a snake_case word that is a definition. Night 70 (2026-09-15),
-    click sentence three: "give version_option a show_python flag" names
-    version_option, a definition; show_python is not one and drops out.
-
-    law 11: a row rests on what it cites
-    """
-    import re as _re
-
-    row = ctx.conn.execute(
-        "SELECT t.text AS ticket, i.text AS item FROM tickets t "
-        "JOIN items i ON i.id = t.item_id WHERE t.id = ?", (ticket_id,)).fetchone()
-    if not row:
-        return []
-    text = f"{row['item'] or ''} {row['ticket'] or ''}"
-    words = set(_re.findall(r"[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+", text))
-    return sorted(w for w in words if ctx.conn.execute(
-        "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
-        (w, f"%::{w}")).fetchone())
+    # A name the index holds needs no kind word. Night 70 (2026-09-15),
+    # click sentence three: "give version_option a show_python flag" names
+    # version_option, a definition. show_python is not one and drops out.
+    shaped_words = set(re.findall(r"(?<![\w.])" + shaped, text))
+    # A backticked word is a name he typed as code (ruled for F10's pass 1b).
+    # It is a candidate only: night 145's backticked flag `show_python` is
+    # no callable, so a name the index lacks gives nothing.
+    typed = set(_backticked_callables(text))
+    return ItemCallables(known=sorted((given | shaped_words | typed) & held),
+                         new=sorted(given - held), words=words,
+                         asked=frozenset(_request_names(request, item_id)))
 
 
 def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -> None:
     """A fact about three texts: the item names a callable the index does not
     hold, and the surface names only callables it does. Or the item names a
     callable the index holds, and the surface names another one."""
-    new = _named_new_callables(ctx, ticket_id)
+    given = item_callables(ctx, ticket_id)
+    new = given.new
     if not new:
         # law 11: a row rests on what it cites
         # Night 70 (2026-09-15), click sentence three: the item said "give
@@ -5788,9 +5823,10 @@ def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -
         # docstring offers itself for the Python version. The Developer
         # changed version_option and the duplicate-name door refused it:
         # no criterion named it. Three sessions, stuck.
-        named = _named_existing_callables(ctx, ticket_id)
+        named = given.known
         refs = [str(r) for r in (surface_refs or [])]
-        tails = {r.split("::")[-1] for r in refs}
+        # A method's ref ends in `Class.name`, and the item names `name`.
+        tails = {r.split("::")[-1].rsplit(".", 1)[-1] for r in refs}
         if named and refs and not (tails & set(named)):
             raise ValueError(
                 f"the item names {', '.join(named)}, a callable the index holds, "
@@ -6240,14 +6276,6 @@ def _item_callables(item_id: str | None, old: set[str]) -> set[str]:
 _CALL_FORM = re.compile(r"(?<![\w.`])([A-Za-z_]\w*)\(")
 
 
-def _item_names(item_id: str | None, item_text: str | None) -> set[str]:
-    """The callables the item names: its id, its backticked callables and
-    its call forms. A move to one of them goes toward the item."""
-    found = set(_backticked_callables(item_text or ""))
-    found |= set(_CALL_FORM.findall(item_text or ""))
-    return found | ({item_id} if item_id else set())
-
-
 # A location or a comparison ends the request's verb phrase. In "Add an
 # echo_json(obj) helper next to echo", `echo` is where the helper goes, not
 # the callable the item asks for (frame 202, night 147, s130).
@@ -6263,10 +6291,11 @@ _NOT_A_NAME = {"a", "an", "the", "it", "its", "this", "that", "each", "every",
                "all", "our", "my"}
 
 
-def _request_callables(item_text: str | None, item_id: str | None) -> set[str]:
+def _request_names(item_text: str | None, item_id: str | None) -> set[str]:
     """
     The callables the item asks for: its id, and the names in the request's
-    first verb phrase, cut before a location cue.
+    first verb phrase, cut before a location cue. Only `callables_in` reads
+    it, so `ItemCallables.asked` is the one source (F10).
 
     A name counts when it is a call form, a backticked callable, a name with
     an underscore, or the object of a request verb.
@@ -6356,7 +6385,7 @@ def _cue_hit(cues: tuple, name: str, said: str, *, request: bool = False):
 
 
 def _surface_move_fault(text: str, was: list, surface: list,
-                        item_id: str | None, item_text: str | None,
+                        item_id: str | None, given: "ItemCallables",
                         words: list[str], ask: str = "") -> str | None:
     """
     The refusal for a surface move away from the callable the item asks for,
@@ -6397,7 +6426,8 @@ def _surface_move_fault(text: str, was: list, surface: list,
     # A move to a callable the item names goes toward the item, so the text
     # rule lets it pass. Probe H1 of the review of 3de76eaf: a restore to
     # `echo_json` whose text names only the `echo` helper.
-    toward = new & _item_names(item_id, item_text)
+    toward = new & (set(given.known) | set(given.new)
+                    | ({item_id} if item_id else set()))
     if mine and not new & set(named) and not toward:
         return (f"The criterion says `{mine[0]}`, and the surface moves to "
                 f"{to}. The surface is what the test calls. {route(mine[0])}")
@@ -6428,7 +6458,7 @@ def _surface_move_fault(text: str, was: list, surface: list,
     # `echo` only as a location, "next to echo", and bg_1 then changed
     # click's own `echo`. A move that drops every callable of the request
     # is refused, unless the text or a request cue names the new callable.
-    items = _request_callables(item_text, item_id)
+    items = set(given.asked)
     held = sorted(old & items)
     if not held or new & items or new & set(named):
         return None
@@ -6948,8 +6978,8 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                else "")
         fault = _surface_move_fault(text, was, surface,
                                     item["id"] if item else None,
-                                    item["text"] if item else None, words,
-                                    ask)
+                                    item_callables(ctx, cur["ticket_id"]),
+                                    words, ask)
         if fault:
             raise ValueError(fault)
 
@@ -8360,33 +8390,41 @@ def _invoked_commands(tree) -> list:
     still refuses the other 106, and each refusal names the invoke route."""
     import ast as _ast
 
-    if not any((isinstance(n, _ast.Name) and n.id == "CliRunner")
-               or (isinstance(n, _ast.Attribute) and n.attr == "CliRunner")
-               or (isinstance(n, _ast.alias) and n.name == "CliRunner")
-               for n in _ast.walk(tree)):
+    # F12's pass 1c (ruled): the library is the one whose `testing` module
+    # gives the body its runner. No runner, no command that a runner runs.
+    libs = command_libraries(tree)
+    if not libs:
         return []
-    click_mods = {a.asname or a.name for n in _ast.walk(tree)
-                  if isinstance(n, _ast.Import) for a in n.names if a.name == "click"}
-    click_verbs = {a.asname or a.name: a.name for n in _ast.walk(tree)
-                   if isinstance(n, _ast.ImportFrom)
-                   and (n.module or "").split(".")[0] == "click"
+    lib_mods = {a.asname or a.name for n in _ast.walk(tree)
+                  if isinstance(n, _ast.Import) for a in n.names if a.name in libs}
+    lib_verbs = {a.asname or a.name: a.name for n in _ast.walk(tree)
+                   if isinstance(n, _ast.ImportFrom) and not n.level
+                   and (n.module or "").split(".")[0] in libs
                    for a in n.names if a.name in ("command", "group")}
     funcs = [n for n in _ast.walk(tree)
              if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))]
+    # A name bound to an object of the library, as `app = typer.Typer()`,
+    # decorates its commands with `@app.command()`, as a group does.
+    apps = {t.id for n in _ast.walk(tree)
+            if isinstance(n, _ast.Assign) and isinstance(n.value, _ast.Call)
+            and isinstance(n.value.func, _ast.Attribute)
+            and isinstance(n.value.func.value, _ast.Name)
+            and n.value.func.value.id in lib_mods
+            for t in n.targets if isinstance(t, _ast.Name)}
 
     def verb(dec, groups):
         head = dec.func if isinstance(dec, _ast.Call) else dec
         if isinstance(head, _ast.Name):
-            return click_verbs.get(head.id)
+            return lib_verbs.get(head.id)
         if (isinstance(head, _ast.Attribute) and head.attr in ("command", "group")
                 and isinstance(head.value, _ast.Name)
-                and (head.value.id in click_mods or head.value.id in groups)):
+                and (head.value.id in lib_mods or head.value.id in groups)):
             return head.attr
         return None
 
     # A group's subcommands are decorated with the group's own name, so the
     # groups are found first.
-    groups: set[str] = set()
+    groups: set[str] = set(apps)
     for _ in range(3):
         groups |= {f.name for f in funcs
                    if any(verb(d, groups) == "group" for d in f.decorator_list)}
@@ -8424,6 +8462,8 @@ def _invoked_commands(tree) -> list:
             out = list(commands.get(expr.id, []))
             for f in list(out):
                 out += subs.get(f.name, [])
+            if expr.id in apps:
+                out += subs.get(expr.id, [])
             if not out:
                 for v in bound.get(expr.id, []):
                     out += resolve(v, depth + 1)
@@ -8449,11 +8489,9 @@ def _invoked_commands(tree) -> list:
 
 
 # The route the principal gave for a prompt under test (frame 254): a
-# command run by CliRunner with its own input stream.
-_INVOKE_ROUTE = (
-    "Or call it inside a @click.command() and run that command with "
-    "CliRunner().invoke(cmd, input='y'): the runner gives the command its "
-    "own input stream")
+# command run by the library's runner with its own input stream.
+# `_invoke_route` names the body's library and runner.
+_INVOKE_ROUTE_TAIL = "the runner gives the command its own input stream"
 
 
 def _outside_commands_step(tree, free_calls, called: str, run_cmds) -> str:
@@ -8504,6 +8542,79 @@ def _imported_names(tree) -> dict[str, tuple[str, int, str]]:
     return imported
 
 
+def _runner_receivers(tree) -> tuple[set[str], Callable[[Any], bool]]:
+    """
+    The names a test body binds to a runner, and the test for a runner call.
+
+    F12 of the root-fix audit of 2026-10-27: three copies of the runner rule
+    read the body by their own binding rule. One missed `r: CliRunner =
+    CliRunner()`, and all three missed `with CliRunner() as r`.
+    """
+    import ast as _ast
+
+    # F12's pass 1b (ruled): the command library is what the body imports.
+    # A runner is a class from the library's `testing` module, as click's
+    # and typer's are. The name "CliRunner" is the library's choice, so the
+    # rule reads the import and never the name.
+    # `command_libraries` reads the same imports for the library's name.
+    makers = {k for k, (module, level, _) in _imported_names(tree).items()
+              if not level and module.split(".")[-1] == "testing"}
+    modules = {(a.asname or a.name).split(".")[0] for n in _ast.walk(tree)
+               if isinstance(n, _ast.Import) for a in n.names}
+    # `from click import testing`, or `import typer.testing as t`.
+    testing = {k for k, (module, level, orig) in _imported_names(tree).items()
+               if not level and module and orig == "testing"}
+    testing |= {a.asname for n in _ast.walk(tree) if isinstance(n, _ast.Import)
+                for a in n.names
+                if a.asname and a.name.split(".")[-1] == "testing"}
+
+    def is_runner_call(node) -> bool:
+        f = node.func if isinstance(node, _ast.Call) else None
+        if isinstance(f, _ast.Name):
+            return f.id in makers
+        if not isinstance(f, _ast.Attribute):
+            return False
+        if isinstance(f.value, _ast.Name):
+            return f.value.id in testing
+        # `click.testing.CliRunner()` after `import click.testing`.
+        return (isinstance(f.value, _ast.Attribute) and f.value.attr == "testing"
+                and isinstance(f.value.value, _ast.Name)
+                and f.value.value.id in modules)
+
+    runners = {"runner"}
+    for n in _ast.walk(tree):
+        bound = []
+        if isinstance(n, _ast.Assign) and is_runner_call(n.value):
+            bound = n.targets
+        elif (isinstance(n, _ast.AnnAssign) and n.value is not None
+              and is_runner_call(n.value)):
+            bound = [n.target]
+        elif isinstance(n, (_ast.With, _ast.AsyncWith)):
+            bound = [i.optional_vars for i in n.items
+                     if i.optional_vars is not None
+                     and is_runner_call(i.context_expr)]
+        runners |= {t.id for t in bound if isinstance(t, _ast.Name)}
+    return runners, is_runner_call
+
+
+def runner_invokes(tree) -> list:
+    """Each `.invoke` call of a test body whose receiver is a runner, in
+    walk order. Click's `Context.invoke` takes a plain callback, so
+    `ctx.invoke(f)` is not a runner call (frame 131's review of af9db8a0)."""
+    import ast as _ast
+
+    runners, is_runner_call = _runner_receivers(tree)
+    out = []
+    for call in _ast.walk(tree):
+        if not (isinstance(call, _ast.Call) and isinstance(call.func, _ast.Attribute)
+                and call.func.attr == "invoke"):
+            continue
+        recv = call.func.value
+        if (isinstance(recv, _ast.Name) and recv.id in runners) or is_runner_call(recv):
+            out.append(call)
+    return out
+
+
 def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
     """The first name that the test passes to a runner's `.invoke` and that
     the tree the test runs against defines as a plain function, or None.
@@ -8523,31 +8634,15 @@ def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
     """
     import ast as _ast
 
-    def _is_runner_call(node) -> bool:
-        f = node.func if isinstance(node, _ast.Call) else None
-        return ((isinstance(f, _ast.Name) and f.id == "CliRunner")
-                or (isinstance(f, _ast.Attribute) and f.attr == "CliRunner"))
-
     imported = _imported_names(tree)
     local: set[str] = set()
-    runners = {"runner"}
     for n in _ast.walk(tree):
         if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
             local.add(n.name)
         elif isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store):
             local.add(n.id)
-        if isinstance(n, (_ast.Assign, _ast.AnnAssign)) and _is_runner_call(n.value):
-            for t in (n.targets if isinstance(n, _ast.Assign) else [n.target]):
-                if isinstance(t, _ast.Name):
-                    runners.add(t.id)
-    for call in _ast.walk(tree):
-        if not (isinstance(call, _ast.Call) and isinstance(call.func, _ast.Attribute)
-                and call.func.attr == "invoke" and call.args
-                and isinstance(call.args[0], _ast.Name)):
-            continue
-        recv = call.func.value
-        if not ((isinstance(recv, _ast.Name) and recv.id in runners)
-                or _is_runner_call(recv)):
+    for call in runner_invokes(tree):
+        if not (call.args and isinstance(call.args[0], _ast.Name)):
             continue
         name = call.args[0].id
         if name in local or name not in imported:
@@ -8579,16 +8674,10 @@ def _callable_invoked(tree):
     """
     import ast as _ast
 
-    def _is_runner_call(node) -> bool:
-        f = node.func if isinstance(node, _ast.Call) else None
-        return ((isinstance(f, _ast.Name) and f.id == "CliRunner")
-                or (isinstance(f, _ast.Attribute) and f.attr == "CliRunner"))
-
     # Each name the test binds, with a `def` where one binds it. A name in
     # `lambdas` is bound to a lambda by one of its bindings.
     binds: dict[str, list] = {}
     lambdas: set[str] = set()
-    runners = {"runner"}
     for n in _ast.walk(tree):
         if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
             binds.setdefault(n.name, []).append(n)
@@ -8601,11 +8690,8 @@ def _callable_invoked(tree):
         if isinstance(n, (_ast.Assign, _ast.AnnAssign)) and n.value is not None:
             targets = n.targets if isinstance(n, _ast.Assign) else [n.target]
             for t in targets:
-                if isinstance(t, _ast.Name):
-                    if _is_runner_call(n.value):
-                        runners.add(t.id)
-                    if isinstance(n.value, _ast.Lambda):
-                        lambdas.add(t.id)
+                if isinstance(t, _ast.Name) and isinstance(n.value, _ast.Lambda):
+                    lambdas.add(t.id)
 
     def plain(arg) -> bool:
         if isinstance(arg, _ast.Lambda):
@@ -8617,14 +8703,7 @@ def _callable_invoked(tree):
                 or (isinstance(v, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                     and not v.decorator_list))
 
-    for call in _ast.walk(tree):
-        if not (isinstance(call, _ast.Call) and isinstance(call.func, _ast.Attribute)
-                and call.func.attr == "invoke"):
-            continue
-        recv = call.func.value
-        if not ((isinstance(recv, _ast.Name) and recv.id in runners)
-                or _is_runner_call(recv)):
-            continue
+    for call in runner_invokes(tree):
         first = (call.args[0] if call.args
                  else next((k.value for k in call.keywords if k.arg == "cli"), None))
         if first is not None and plain(first):
@@ -8705,21 +8784,120 @@ _FACTORY_CALLS = frozenset({"option", "argument", "command", "group",
                             "Command", "Group"})
 
 
-def _click_names(nodes) -> set[str]:
-    """`click` and each name that the import statements in `nodes` bind to
-    click or to a name from click. The attribute form `x.group(...)` reads
-    as click's only on such an `x` (frame 177's review of 09e60cf6)."""
-    import ast as _ast
+def _import_bound(nodes) -> set[str]:
+    """Each name that the import statements in `nodes` bind.
 
-    clicks = {"click"}
+    The attribute form `x.group(...)` reads as a library's only on such an
+    `x`, so `m.group(1)` on a regex match is no factory call (frame 177's
+    review of 09e60cf6). F12's pass 1c (ruled): the command library is what
+    the code imports, so no library name is read here. A standard module
+    such as `re` is no command library, and a relative import is the
+    project's own code."""
+    import ast as _ast
+    import sys as _sys
+
+    def _lib(module: str) -> bool:
+        return module.split(".")[0] not in _sys.stdlib_module_names
+
+    bound: set[str] = set()
     for n in nodes:
         if isinstance(n, _ast.Import):
-            clicks |= {a.asname or a.name for a in n.names
-                       if a.name == "click" or a.name.startswith("click.")}
-        elif (isinstance(n, _ast.ImportFrom) and not n.level
-              and (n.module or "").split(".")[0] == "click"):
-            clicks |= {a.asname or a.name for a in n.names}
-    return clicks
+            bound |= {a.asname or a.name.split(".")[0] for a in n.names if _lib(a.name)}
+        elif isinstance(n, _ast.ImportFrom) and not n.level and _lib(n.module or ""):
+            bound |= {a.asname or a.name for a in n.names if a.name != "*"}
+    return bound
+
+
+def command_libraries(tree, packages: frozenset[str] | set[str] = frozenset()) -> set[str]:
+    """The top packages whose `testing` module gives a test body its runner.
+
+    F12's pass 1b (ruled): the command library is what the body imports, and
+    a runner is a class from the library's `testing` module. The companion of
+    `_runner_receivers`, which reads the same imports.
+
+    F12's pass 1d: a library that the body takes `command` or `group` from
+    is a command library too, by name or by `<module>.command`. A bare
+    import that the body never uses gives no library. Frame 301's literal
+    "click" departed from the rule against over fitting (Roman, 2026-10-15).
+
+    F12's pass 1e (review finding 1): a library whose callable the body
+    calls or decorates with is a command library too, as `from click.termui
+    import confirm` then `confirm()`. 140 recorded bodies had that shape.
+    `packages` holds the project's own import names from the index, so
+    `src.<package>` reads as `<package>`. The standard library and pytest,
+    the harness's own runner, give no library."""
+    import ast as _ast
+    import sys as _sys
+
+    def top(module: str) -> str | None:
+        parts = module.split(".")
+        if parts[0] == "src" and len(parts) > 1 and parts[1] in packages:
+            return parts[1]
+        if parts[0] in _sys.stdlib_module_names or parts[0] in _HARNESS_RUNNER:
+            return None
+        return parts[0]
+
+    libs: set[str] = set()
+    bound: dict[str, str] = {}
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.ImportFrom) and not n.level and n.module:
+            lib = top(n.module)
+            for a in n.names:
+                if lib and (n.module.split(".")[-1] == "testing" or a.name == "testing"):
+                    libs.add(lib)
+                if lib and a.name != "*":
+                    bound[a.asname or a.name] = lib
+        elif isinstance(n, _ast.Import):
+            for a in n.names:
+                lib = top(a.name)
+                if lib and a.name.split(".")[-1] == "testing" and "." in a.name:
+                    libs.add(lib)
+                if lib:
+                    bound[a.asname or a.name.split(".")[0]] = lib
+    used = [n.func if isinstance(n, _ast.Call) else n for n in _ast.walk(tree)
+            if isinstance(n, _ast.Call)]
+    used += [d for n in _ast.walk(tree)
+             if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))
+             for d in n.decorator_list]
+    for f in used:
+        while isinstance(f, (_ast.Attribute, _ast.Call)):
+            f = f.value if isinstance(f, _ast.Attribute) else f.func
+        if isinstance(f, _ast.Name) and f.id in bound:
+            libs.add(bound[f.id])
+    return libs
+
+
+# The harness runs each test under pytest, so pytest's callables are the
+# test's own tools and never a command library (F12 pass 1e).
+_HARNESS_RUNNER = frozenset({"pytest", "_pytest"})
+
+
+def _route_parts(tree, libs: set[str], sample: str) -> tuple[str, str]:
+    """The library and the runner call that the stdin route names.
+
+    Review finding 5 of F12: the text named click's decorator and runner for
+    every library. A runner that the body imports keeps its own name."""
+    imported = _imported_names(tree)
+    makers = sorted(k for k, (module, level, _) in imported.items()
+                    if not level and module.split(".")[-1] == "testing"
+                    and module.split(".")[0] in libs)
+    lib = imported[makers[0]][0].split(".")[0] if makers else sorted(libs)[0]
+    run = (f"{makers[0]}().invoke(cmd, input={sample!r})" if makers
+           else f"the runner of {lib}.testing, runner.invoke(cmd, input={sample!r})")
+    return lib, run
+
+
+def _invoke_route(tree, libs: set[str]) -> str:
+    """The route of frame 254 for a prompt under test."""
+    lib, run = _route_parts(tree, libs, "y")
+    return (f"Or call it inside a command of {lib} and run that command with "
+            f"{run}: {_INVOKE_ROUTE_TAIL}")
+
+
+def _empty_stdin_route(tree, libs: set[str]) -> str:
+    """The route of frame 254 for a body that stubs an empty stdin."""
+    lib, run = _route_parts(tree, libs, "")
+    return f"For an empty stdin, call the surface inside a command of {lib} and run {run}."
 
 
 def _returns_factory(node, src: str | None = None) -> bool:
@@ -8739,9 +8917,9 @@ def _returns_factory(node, src: str | None = None) -> bool:
     if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
         return False
     try:
-        clicks = _click_names(_ast.parse(src).body if src else [])
+        imported = _import_bound(_ast.walk(_ast.parse(src)) if src else [])
     except SyntaxError:
-        clicks = {"click"}
+        imported = set()
     inner: set[str] = set()
     returned = []
     todo = list(node.body)
@@ -8763,7 +8941,7 @@ def _returns_factory(node, src: str | None = None) -> bool:
             if isinstance(f, _ast.Name) and f.id in _FACTORY_CALLS:
                 return True
             if (isinstance(f, _ast.Attribute) and f.attr in _FACTORY_CALLS
-                    and isinstance(f.value, _ast.Name) and f.value.id in clicks):
+                    and isinstance(f.value, _ast.Name) and f.value.id in imported):
                 return True
     return False
 
@@ -8792,7 +8970,7 @@ def _factory_misuse(tree, name: str) -> str | None:
     # The attribute form only on a click name, as `_returns_factory` reads
     # it: `m.group(1)` on a regex match is no call to `group` (frame 177's
     # review of 5336f2a6).
-    clicks = _click_names(_ast.walk(tree))
+    imported = _import_bound(_ast.walk(tree))
 
     def is_call(n) -> bool:
         if not isinstance(n, _ast.Call):
@@ -8800,7 +8978,7 @@ def _factory_misuse(tree, name: str) -> str | None:
         f = n.func
         return ((isinstance(f, _ast.Name) and f.id == name)
                 or (isinstance(f, _ast.Attribute) and f.attr == name
-                    and isinstance(f.value, _ast.Name) and f.value.id in clicks))
+                    and isinstance(f.value, _ast.Name) and f.value.id in imported))
 
     # A name counts as the factory's return only when every binding of it
     # is a call to the factory.
@@ -8864,14 +9042,14 @@ def _adds_option(node, src: str | None = None) -> bool:
     import ast as _ast
 
     try:
-        clicks = _click_names(_ast.parse(src).body if src else [])
+        imported = _import_bound(_ast.walk(_ast.parse(src)) if src else [])
     except SyntaxError:
-        clicks = {"click"}
+        imported = set()
 
     def _named(f, names) -> bool:
         return ((isinstance(f, _ast.Name) and f.id in names)
                 or (isinstance(f, _ast.Attribute) and f.attr in names
-                    and isinstance(f.value, _ast.Name) and f.value.id in clicks))
+                    and isinstance(f.value, _ast.Name) and f.value.id in imported))
 
     for n in _ast.walk(node):
         # The chain too: night 139's commit 5b04c4a gave
@@ -8915,7 +9093,7 @@ def _plain_decorated(tree, name: str):
     """
     import ast as _ast
 
-    clicks = _click_names(_ast.walk(tree))
+    imported = _import_bound(_ast.walk(tree))
     # `from click.decorators import command as make_command` makes
     # `@make_command()` a command (frame 200's review of 2e6afd1c, 5).
     aliases = {a.asname: a.name for n in _ast.walk(tree)
@@ -8932,10 +9110,7 @@ def _plain_decorated(tree, name: str):
         f = n.func
         return ((isinstance(f, _ast.Name) and f.id == name)
                 or (isinstance(f, _ast.Attribute) and f.attr == name
-                    and isinstance(f.value, _ast.Name) and f.value.id in clicks))
-
-    def is_runner_call(n) -> bool:
-        return isinstance(n, _ast.Call) and _called(n.func) == "CliRunner"
+                    and isinstance(f.value, _ast.Name) and f.value.id in imported))
 
     # Each name the test binds, with the values bound to it. A name bound
     # twice reads as the test's own, as in `_factory_misuse`.
@@ -8978,8 +9153,7 @@ def _plain_decorated(tree, name: str):
                         *([n.vararg] if n.vararg else []),
                         *([n.kwarg] if n.kwarg else [])]}
 
-    runners = {"runner"} | {k for k, vs in binds.items()
-                            if any(is_runner_call(v) for v in vs)}
+    invokes = {id(c) for c in runner_invokes(tree)}
     # `plain` names a plain function the factory decorated. `bare` names a
     # factory's return that the test has not applied to a function.
     plain: dict[str, int] = {}
@@ -9031,9 +9205,7 @@ def _plain_decorated(tree, name: str):
             return f.args[0].id, c.lineno, "plain"
         if (isinstance(f, _ast.Attribute) and f.attr == "invoke" and c.args
                 and isinstance(c.args[0], _ast.Name) and c.args[0].id in plain):
-            recv = f.value
-            if ((isinstance(recv, _ast.Name) and recv.id in runners)
-                    or is_runner_call(recv)):
+            if id(c) in invokes:
                 return c.args[0].id, plain[c.args[0].id], "plain"
     # Night 140's s325 read `option.callback` on the factory's return. A
     # decorator holds no option until a command takes it, so any attribute
@@ -9055,8 +9227,7 @@ def _plain_decorated(tree, name: str):
             return False
         f = n.func
         if isinstance(f, _ast.Attribute) and f.attr == "invoke" and n.args:
-            return ((isinstance(f.value, _ast.Name) and f.value.id in runners)
-                    or is_runner_call(f.value))
+            return id(n) in invokes
         # A call of a local `def` that carries `command` or `group`.
         return (isinstance(f, _ast.Name) and f.id in defs
                 and len(binds.get(f.id, [])) == 1 and not plain_def(f))
@@ -9998,18 +10169,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     free_calls = [n for n in calls if n not in invoked]
     names = {n.func.id for n in free_calls if isinstance(n.func, _ast.Name)}
     shields = _stdin_shields(tree)
-    uses_click = any(
-        (isinstance(n, _ast.Import) and any(a.name.split(".")[0] == "click" for a in n.names))
-        or (isinstance(n, _ast.ImportFrom) and (n.module or "").split(".")[0] == "click")
-        for n in _ast.walk(tree))
+    # F12's pass 1d and 1e: the route fits a body that uses a command
+    # library. The project's own package counts when the index holds it.
+    packages = _program_modules(ctx.conn)
+    libs = command_libraries(tree, packages)
     # Frame 301: a body that runs a command with input= has the route. Night
     # 157's s258 had it and was offered it again, so it gets the call's place.
     run_cmds = _invoked_commands(tree)
 
-    def _stdin_step(called: str, click_route: bool) -> str:
+    def _stdin_step(called: str, route_libs: set) -> str:
         if run_cmds:
             return ". " + _outside_commands_step(tree, free_calls, called, run_cmds)
-        return ". " + _INVOKE_ROUTE if click_route else ""
+        return ". " + _invoke_route(tree, route_libs) if route_libs else ""
 
     if "input" in names and not _shields_input(shields):
         raise Wall(
@@ -10017,7 +10188,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "raises OSError before any assertion runs, against any code. "
             "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
             "lambda _='': 'Alice') -- or test the function that takes the "
-            "name as an argument" + _stdin_step("input", uses_click))
+            "name as an argument" + _stdin_step("input", libs))
     # Closing the process's stdin is the same trap from the other side.
     # Click night 50, walk 2 (2026-09-14): two EOF tests did
     # `sys.stdin.close()`, the pytest process lost its stdin, both failed
@@ -10108,10 +10279,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     module = rel[:-3].replace("/", ".")
                     if module.startswith("src."):
                         module = module[4:]
-                    # The route is click's, so it is named for a click
-                    # project only (frame 254).
+                    # The route is a command library's, so it is named for a
+                    # project of that library only (frame 254, F12 pass 1d).
                     route = _stdin_step(
-                        node.name, uses_click or module.split(".")[0] == "click")
+                        node.name,
+                        libs or ({module.split(".")[0]} & packages))
                     if aliases:
                         raise Wall(
                             f"{node.name}() reads input() through {aliases[0]}, a name "
@@ -19443,16 +19615,9 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
     except SyntaxError:
         tree = _ast.Module(body=[], type_ignores=[])
     stubs_stdin = "sys.stdin" in body
-    uses_click = any(
-        (isinstance(n, _ast.Import)
-         and any(a.name.split(".")[0] == "click" for a in n.names))
-        or (isinstance(n, _ast.ImportFrom)
-            and (n.module or "").split(".")[0] == "click")
-        for n in _ast.walk(tree))
-    if stubs_stdin and uses_click:
-        route = ("For an empty stdin, call the surface inside a "
-                 "@click.command() and run CliRunner().invoke(cmd, "
-                 "input='').")
+    libs = command_libraries(tree, _program_modules(ctx.conn) if ctx is not None else set())
+    if stubs_stdin and libs:
+        route = _empty_stdin_route(tree, libs)
     else:
         route = ("If the criterion needs a name that no stub can hold, "
                  "send msg.question_terminologist with the criterion.")
@@ -19505,12 +19670,9 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
     stdin_route = any(
         isinstance(n, _ast.Call) and _callee(n) == "patch" and n.args
         and isinstance(n.args[0], _ast.Constant) and n.args[0].value == "sys.stdin"
-        for n in _ast.walk(tree)) and any(
-        (isinstance(n, _ast.Import)
-         and any(a.name.split(".")[0] == "click" for a in n.names))
-        or (isinstance(n, _ast.ImportFrom)
-            and (n.module or "").split(".")[0] == "click")
         for n in _ast.walk(tree))
+    libs = command_libraries(tree, _program_modules(ctx.conn) if ctx is not None else set())
+    stdin_route = stdin_route and bool(libs)
 
     def _allowed(source, ctor):
         # The mock module answers, so the rule is the module's own.
@@ -19545,9 +19707,7 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
             step += (f" Use mock_open(read_data=...) and read through "
                      f"`{var}.return_value`, or patch with a plain MagicMock.")
         if stdin_route:
-            route = ("For an empty stdin, call the surface inside a "
-                     "@click.command() and run CliRunner().invoke(cmd, "
-                     "input='').")
+            route = _empty_stdin_route(tree, libs)
         else:
             route = ("If the criterion needs a name that no stub can hold, "
                      "send msg.question_terminologist with the criterion.")

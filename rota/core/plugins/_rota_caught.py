@@ -20,6 +20,7 @@ import functools
 import os
 import sys
 import traceback
+import types
 import warnings
 
 import pytest
@@ -119,30 +120,62 @@ def _wrapped(orig):
     return invoke
 
 
-def _patch(mod):
+def _is_testing(name):
+    # F12's pass 1d: a runner is a class of a library's `testing` module, as
+    # rota's `command_libraries` reads it. The plugin runs in the project's
+    # interpreter and imports nothing from rota, so it holds the same rule.
+    return isinstance(name, str) and "." in name and name.split(".")[-1] == "testing"
+
+
+def _imported_packages(path):
+    # The top packages that the test file imports, in the body too. F12's
+    # review finding 2: the plugin touches only a library the test uses.
+    import ast
+
     try:
-        runner = getattr(mod, "CliRunner", None)
-        orig = runner.__dict__.get("invoke") if runner is not None else None
-        if orig is None or not callable(orig) or getattr(orig, _MARK, False):
+        with open(path, encoding="utf-8") as handle:
+            tree = ast.parse(handle.read())
+    except Exception:
+        return set()
+    out = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            out |= {a.name.split(".")[0] for a in n.names}
+        elif isinstance(n, ast.ImportFrom) and not n.level and n.module:
+            out.add(n.module.split(".")[0])
+    return out
+
+
+def _patch(mod):
+    # Each class that the module defines and that has its own plain `invoke`
+    # is a runner. The library names its runner, so the plugin reads no name.
+    # A staticmethod or a classmethod is no runner method: a plain function
+    # in its place changes the call (F12's review finding 2, probe 3).
+    try:
+        if mod.__name__.split(".")[0] not in _state.get("packages", ()):
             return
-        setattr(runner, "invoke", _wrapped(orig))
+        for runner in list(vars(mod).values()):
+            if not isinstance(runner, type):
+                continue
+            if getattr(runner, "__module__", None) != mod.__name__:
+                continue
+            orig = runner.__dict__.get("invoke")
+            if type(orig) is not types.FunctionType or getattr(orig, _MARK, False):
+                continue
+            setattr(runner, "invoke", _wrapped(orig))
     except Exception:
         return
 
 
 def _wrap():
-    # The second route, for a `click.testing` imported before the finder
-    # was installed. Import only when the test process already holds
-    # click. An import of a broken `click.testing` turned a pass into a
-    # fail, and so did a warning under `filterwarnings = error` (frame 195,
-    # review point 2).
-    if "click" not in sys.modules:
-        return
+    # The second route, for a `testing` module imported before the finder
+    # was installed. The plugin imports no module itself. An import of a
+    # broken `click.testing` turned a pass into a fail, and so did a warning
+    # under `filterwarnings = error` (frame 195, review point 2).
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            import click.testing  # noqa: F401
-        _patch(sys.modules.get("click.testing"))
+        for name, module in list(sys.modules.items()):
+            if _is_testing(name) and module is not None:
+                _patch(module)
     except Exception:
         return
 
@@ -154,7 +187,7 @@ def _exec_wrapped(orig):
         # the importer as it is.
         orig(module)
         try:
-            if getattr(module, "__name__", None) == "click.testing":
+            if _is_testing(getattr(module, "__name__", None)):
                 _patch(module)
         except Exception:
             pass
@@ -174,7 +207,7 @@ class _Finder(object):
     """
 
     def find_spec(self, name, path=None, target=None):
-        if name != "click.testing":
+        if not _is_testing(name):
             return None
         try:
             spec = None
@@ -268,6 +301,8 @@ def pytest_runtest_call(item):
             config = item.config
             root = getattr(config, "rootpath", None) or getattr(config, "rootdir", None)
             _state["root"] = str(root) if root is not None else ""
+        _state["packages"] = _imported_packages(
+            str(getattr(item, "path", None) or getattr(item, "fspath", "")))
         _wrap()
     except Exception:
         pass

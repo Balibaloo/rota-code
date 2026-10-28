@@ -5,7 +5,7 @@ already had."""
 import pytest
 
 from rota.core.sandbox import build
-from rota.roles.api import _INVOKE_ROUTE
+from rota.roles.api import _INVOKE_ROUTE_TAIL
 from tests.rota.test_night46_context import _encode, _termui_alias_batch, db  # noqa: F401
 
 STDIN = "where stdin is captured"
@@ -68,7 +68,7 @@ def test_a_body_that_never_imports_click_is_told_so_before_the_stdin_text(db, tm
     msg = _refusal(db, S266_TURN4)
     assert "click" in msg and "never imports" in msg, msg
     assert STDIN not in msg, msg
-    assert _INVOKE_ROUTE not in msg, msg
+    assert _INVOKE_ROUTE_TAIL not in msg, msg
 
 
 def test_the_same_body_with_import_click_is_admitted(db, tmp_path):
@@ -103,7 +103,7 @@ def test_a_prompt_in_a_helper_the_command_does_not_call_names_the_helper(db, tmp
     msg = _refusal(db, body)
     assert STDIN in msg, msg
     assert "no command that CliRunner().invoke runs calls confirm_cmd()" in msg, msg
-    assert _INVOKE_ROUTE not in msg, msg
+    assert _INVOKE_ROUTE_TAIL not in msg, msg
 
 
 def test_a_prompt_two_hops_from_the_command_stays_refused(db, tmp_path):
@@ -116,15 +116,38 @@ def test_a_prompt_two_hops_from_the_command_stays_refused(db, tmp_path):
     msg = _refusal(db, body)
     assert STDIN in msg, msg
     assert "no command that CliRunner().invoke runs calls confirm_cmd()" in msg, msg
-    assert _INVOKE_ROUTE not in msg, msg
+    assert _INVOKE_ROUTE_TAIL not in msg, msg
 
 
 def test_a_bare_prompt_with_no_cliRunner_keeps_the_route(db, tmp_path):
+    # F12's pass 1d: the body takes `command` from click, so click is its
+    # command library. The literal "click" of frame 301 is gone.
     _termui_alias_batch(db, tmp_path)
-    msg = _refusal(db, "from click.termui import confirm\nimport click\n\n"
+    msg = _refusal(db, "from click.termui import confirm\nfrom click import command\n\n"
                        "def test_x():\n    assert confirm('ok?', default=True) is True")
     assert STDIN in msg, msg
-    assert _INVOKE_ROUTE in msg, msg
+    assert _INVOKE_ROUTE_TAIL in msg, msg
+
+
+def test_a_bare_unused_import_gives_no_route(db, tmp_path):
+    # F12's pass 1d and 1e: a bare import that the body never uses names no
+    # command library, so the route is not offered. The body calls no
+    # callable of click.
+    _termui_alias_batch(db, tmp_path)
+    msg = _refusal(db, "import click\n\n"
+                       "def test_x():\n    assert input('name? ') == 'Alice'")
+    assert "pytest captures stdin" in msg, msg
+    assert _INVOKE_ROUTE_TAIL not in msg, msg
+
+
+def test_a_typer_runner_import_gives_the_route(db, tmp_path):
+    # F12's pass 1d: the old rule read the literal "click", so a typer body
+    # got no route.
+    _termui_alias_batch(db, tmp_path)
+    msg = _refusal(db, "from typer import confirm\nfrom typer.testing import CliRunner\n\n"
+                       "def test_x():\n    assert confirm('ok?', default=True) is True")
+    assert STDIN in msg, msg
+    assert _INVOKE_ROUTE_TAIL in msg, msg
 
 
 def test_a_body_that_reads_module_dunders_is_not_refused_by_the_name_guard(db, tmp_path):

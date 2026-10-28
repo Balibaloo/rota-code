@@ -145,10 +145,14 @@ def test_an_exception_his_statement_names_lands(db):
 
 
 def test_a_surface_the_index_does_not_hold_leaves_the_door_silent(db):
+    # F10: the item gives `confirm()`, so the surface door refuses the
+    # invented name first. The exception door stays silent on it.
     sb = _seat(db)
-    out = _specify(sb, "c2", C2, ["option", "usageerror"],
-                   surface_refs=("confirm_with_default_on_eof_flag",))
-    assert out["id"] == "c2"
+    with pytest.raises(ValueError) as refused:
+        _specify(sb, "c2", C2, ["option", "usageerror"],
+                 surface_refs=("confirm_with_default_on_eof_flag",))
+    assert "the item names confirm" in str(refused.value)
+    assert "is in none of his words" not in str(refused.value)
 
 
 def test_the_criteria_wake_shows_the_raise_line_of_confirm(db):

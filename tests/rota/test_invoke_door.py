@@ -592,7 +592,10 @@ def test_a_command_the_test_defines_or_the_surface_holds_is_admitted(db):
 
 @pytest.mark.parametrize("body,want", [
     ("f = lambda: 1\n\ndef test_x():\n    runner.invoke(f)\n", ("f", 4)),
-    ("def test_x():\n    CliRunner().invoke(cli=lambda: 1)\n", (None, 2)),
+    # F12's pass 1b: a runner is a class the body imports from a library's
+    # `testing` module, so the body imports it.
+    ("from click.testing import CliRunner\n\n"
+     "def test_x():\n    CliRunner().invoke(cli=lambda: 1)\n", (None, 4)),
     ("def f():\n    pass\n\nf = command()(f)\n\n"
      "def test_x():\n    runner.invoke(f)\n", None),
     ("def test_x(f):\n    runner.invoke(f)\n", None),

@@ -17,6 +17,16 @@ from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.sandbox import build
 from rota.roles import prompts
 
+
+def _given(item_text, item_id):
+    """The reader's split of an item text over the index these tests hold
+    (F10's pass 1b: `_surface_move_fault` reads `item_callables`)."""
+    from rota.roles.api import callables_in
+
+    held = {"echo", "secho", "echo_json", "version_option",
+            "custom_version_option", "parse_version"}
+    return callables_in(item_text, held, item_id=item_id, request=item_text)
+
 ECHO = "src/click/utils.py::echo"
 ECHO_JSON = "src/click/utils.py::echo_json"
 ITEM_ECHO_JSON = ("Add an echo_json(obj) helper next to echo that prints an "
@@ -211,7 +221,7 @@ def test_a_negated_request_is_no_request():
     from rota.roles.api import _surface_move_fault
 
     said = _surface_move_fault(
-        S160, [ECHO_JSON], [ECHO], "echo_json", ITEM_ECHO_JSON,
+        S160, [ECHO_JSON], [ECHO], "echo_json", _given(ITEM_ECHO_JSON, "echo_json"),
         ["Make it a separate function next to echo. Don't change echo "
          "itself."])
     assert said and "as a comparison" in said and "next to echo" in said
@@ -225,7 +235,8 @@ def test_a_move_away_from_a_second_callable_lands():
     assert _surface_move_fault(
         "`parse_version` returns a tuple that `version_option` prints.",
         ["decorators::version_option"], ["utils::parse_version"],
-        "parse_ver", "Add a `parse_version()` helper.", []) is None
+        "parse_ver", _given("Add a `parse_version()` helper.", "parse_ver"),
+        []) is None
 
 
 def test_a_text_rule_on_a_callable_off_the_old_surface_names_it():
@@ -235,7 +246,7 @@ def test_a_text_rule_on_a_callable_off_the_old_surface_names_it():
 
     said = _surface_move_fault(
         S248, ["src/click/utils.py::secho"], [ECHO], "echo_json",
-        ITEM_ECHO_JSON, [])
+        _given(ITEM_ECHO_JSON, "echo_json"), [])
     assert "Name `echo_json` in surface_refs" in said
 
 
@@ -248,7 +259,8 @@ def test_a_flag_the_item_puts_in_backticks_is_no_callable():
         "When `show_python` is True, the message ends with the version.",
         ["decorators::custom_version_option"], ["decorators::version_option"],
         "cr_3_show_python_append",
-        "The `version_option` decorator must support a `show_python` flag.",
+        _given("The `version_option` decorator must support a `show_python` flag.",
+               "cr_3_show_python_append"),
         []) is None
 
 
@@ -259,7 +271,8 @@ def test_a_restore_whose_text_names_only_the_echo_helper_lands():
 
     assert _surface_move_fault(
         "Output uses the `echo` helper and is compact JSON.", [ECHO],
-        [ECHO_JSON], "echo_json_support", ITEM_SUPPORT,
+        [ECHO_JSON], "echo_json_support",
+        _given(ITEM_SUPPORT, "echo_json_support"),
         ["Keep it compact."]) is None
 
 
@@ -271,7 +284,8 @@ def test_a_call_form_in_the_item_is_not_the_item_callable():
     assert _surface_move_fault(
         "Output goes through the `echo` helper.", [ECHO], [ECHO_JSON],
         "echo_json_support",
-        "Add an echo_json(obj) helper that works like echo(msg).",
+        _given("Add an echo_json(obj) helper that works like echo(msg).",
+               "echo_json_support"),
         ["Keep it compact."]) is None
 
 
@@ -385,7 +399,5 @@ def test_a_location_move_whose_text_names_the_new_callable_lands(db):
 def test_the_request_callables_stop_at_a_location_cue():
     """The item's callables come from the request's first verb phrase, cut
     before a location cue."""
-    from rota.roles.api import _request_callables
-
-    assert _request_callables(ITEM_ECHO_JSON, None) == {"echo_json"}
-    assert _request_callables("give echo a json parameter", None) == {"echo"}
+    assert _given(ITEM_ECHO_JSON, None).asked == {"echo_json"}
+    assert _given("give echo a json parameter", None).asked == {"echo"}

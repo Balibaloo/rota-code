@@ -78,7 +78,7 @@ def test_s187_tst02_is_refused_with_its_raising_line_named(db, tmp_path):
     # Review 1, F5: one step and the route. `mock_open` has no spec to drop.
     assert "drop the spec" not in msg, msg
     assert "read_data" in msg and "plain MagicMock" in msg, msg
-    assert "CliRunner().invoke" in msg, msg
+    assert "command of click and run the runner of click.testing" in msg, msg
 
 
 def test_the_same_body_with_a_stub_that_holds_read_is_admitted(db, tmp_path):
@@ -100,7 +100,7 @@ def test_a_spec_resolved_in_the_sandbox_is_read_by_dir(db, tmp_path):
     msg = _refusal(db, body.replace("mock_stdin.read.", "mock_stdin.fetch."))
     assert "mock_stdin.fetch" in msg, msg
     assert "Build the stub so that `fetch` exists" in msg, msg
-    assert "CliRunner().invoke" in msg and "drop the spec" not in msg, msg
+    assert "command of click and run the runner of click.testing" in msg and "drop the spec" not in msg, msg
     # Off stdin, the route is the one the other encode refusals name.
     import ast
 
