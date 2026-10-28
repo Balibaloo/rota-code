@@ -8508,6 +8508,55 @@ def _imported_names(tree) -> dict[str, tuple[str, int, str]]:
     return imported
 
 
+def _runner_receivers(tree) -> tuple[set[str], Callable[[Any], bool]]:
+    """
+    The names a test body binds to a runner, and the test for a runner call.
+
+    F12 of the root-fix audit of 2026-10-27: three copies of the runner rule
+    read the body by their own binding rule. One missed `r: CliRunner =
+    CliRunner()`, and all three missed `with CliRunner() as r`.
+    """
+    import ast as _ast
+
+    def is_runner_call(node) -> bool:
+        f = node.func if isinstance(node, _ast.Call) else None
+        return ((isinstance(f, _ast.Name) and f.id == "CliRunner")
+                or (isinstance(f, _ast.Attribute) and f.attr == "CliRunner"))
+
+    runners = {"runner"}
+    for n in _ast.walk(tree):
+        bound = []
+        if isinstance(n, _ast.Assign) and is_runner_call(n.value):
+            bound = n.targets
+        elif (isinstance(n, _ast.AnnAssign) and n.value is not None
+              and is_runner_call(n.value)):
+            bound = [n.target]
+        elif isinstance(n, (_ast.With, _ast.AsyncWith)):
+            bound = [i.optional_vars for i in n.items
+                     if i.optional_vars is not None
+                     and is_runner_call(i.context_expr)]
+        runners |= {t.id for t in bound if isinstance(t, _ast.Name)}
+    return runners, is_runner_call
+
+
+def runner_invokes(tree) -> list:
+    """Each `.invoke` call of a test body whose receiver is a runner, in
+    walk order. Click's `Context.invoke` takes a plain callback, so
+    `ctx.invoke(f)` is not a runner call (frame 131's review of af9db8a0)."""
+    import ast as _ast
+
+    runners, is_runner_call = _runner_receivers(tree)
+    out = []
+    for call in _ast.walk(tree):
+        if not (isinstance(call, _ast.Call) and isinstance(call.func, _ast.Attribute)
+                and call.func.attr == "invoke"):
+            continue
+        recv = call.func.value
+        if (isinstance(recv, _ast.Name) and recv.id in runners) or is_runner_call(recv):
+            out.append(call)
+    return out
+
+
 def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
     """The first name that the test passes to a runner's `.invoke` and that
     the tree the test runs against defines as a plain function, or None.
@@ -8527,31 +8576,15 @@ def _plain_invoked(tree, test_path: str, read: Callable[[str], str | None]):
     """
     import ast as _ast
 
-    def _is_runner_call(node) -> bool:
-        f = node.func if isinstance(node, _ast.Call) else None
-        return ((isinstance(f, _ast.Name) and f.id == "CliRunner")
-                or (isinstance(f, _ast.Attribute) and f.attr == "CliRunner"))
-
     imported = _imported_names(tree)
     local: set[str] = set()
-    runners = {"runner"}
     for n in _ast.walk(tree):
         if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
             local.add(n.name)
         elif isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store):
             local.add(n.id)
-        if isinstance(n, (_ast.Assign, _ast.AnnAssign)) and _is_runner_call(n.value):
-            for t in (n.targets if isinstance(n, _ast.Assign) else [n.target]):
-                if isinstance(t, _ast.Name):
-                    runners.add(t.id)
-    for call in _ast.walk(tree):
-        if not (isinstance(call, _ast.Call) and isinstance(call.func, _ast.Attribute)
-                and call.func.attr == "invoke" and call.args
-                and isinstance(call.args[0], _ast.Name)):
-            continue
-        recv = call.func.value
-        if not ((isinstance(recv, _ast.Name) and recv.id in runners)
-                or _is_runner_call(recv)):
+    for call in runner_invokes(tree):
+        if not (call.args and isinstance(call.args[0], _ast.Name)):
             continue
         name = call.args[0].id
         if name in local or name not in imported:
@@ -8583,16 +8616,10 @@ def _callable_invoked(tree):
     """
     import ast as _ast
 
-    def _is_runner_call(node) -> bool:
-        f = node.func if isinstance(node, _ast.Call) else None
-        return ((isinstance(f, _ast.Name) and f.id == "CliRunner")
-                or (isinstance(f, _ast.Attribute) and f.attr == "CliRunner"))
-
     # Each name the test binds, with a `def` where one binds it. A name in
     # `lambdas` is bound to a lambda by one of its bindings.
     binds: dict[str, list] = {}
     lambdas: set[str] = set()
-    runners = {"runner"}
     for n in _ast.walk(tree):
         if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
             binds.setdefault(n.name, []).append(n)
@@ -8605,11 +8632,8 @@ def _callable_invoked(tree):
         if isinstance(n, (_ast.Assign, _ast.AnnAssign)) and n.value is not None:
             targets = n.targets if isinstance(n, _ast.Assign) else [n.target]
             for t in targets:
-                if isinstance(t, _ast.Name):
-                    if _is_runner_call(n.value):
-                        runners.add(t.id)
-                    if isinstance(n.value, _ast.Lambda):
-                        lambdas.add(t.id)
+                if isinstance(t, _ast.Name) and isinstance(n.value, _ast.Lambda):
+                    lambdas.add(t.id)
 
     def plain(arg) -> bool:
         if isinstance(arg, _ast.Lambda):
@@ -8621,14 +8645,7 @@ def _callable_invoked(tree):
                 or (isinstance(v, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                     and not v.decorator_list))
 
-    for call in _ast.walk(tree):
-        if not (isinstance(call, _ast.Call) and isinstance(call.func, _ast.Attribute)
-                and call.func.attr == "invoke"):
-            continue
-        recv = call.func.value
-        if not ((isinstance(recv, _ast.Name) and recv.id in runners)
-                or _is_runner_call(recv)):
-            continue
+    for call in runner_invokes(tree):
         first = (call.args[0] if call.args
                  else next((k.value for k in call.keywords if k.arg == "cli"), None))
         if first is not None and plain(first):
@@ -8938,9 +8955,6 @@ def _plain_decorated(tree, name: str):
                 or (isinstance(f, _ast.Attribute) and f.attr == name
                     and isinstance(f.value, _ast.Name) and f.value.id in clicks))
 
-    def is_runner_call(n) -> bool:
-        return isinstance(n, _ast.Call) and _called(n.func) == "CliRunner"
-
     # Each name the test binds, with the values bound to it. A name bound
     # twice reads as the test's own, as in `_factory_misuse`.
     binds: dict[str, list] = {}
@@ -8982,8 +8996,7 @@ def _plain_decorated(tree, name: str):
                         *([n.vararg] if n.vararg else []),
                         *([n.kwarg] if n.kwarg else [])]}
 
-    runners = {"runner"} | {k for k, vs in binds.items()
-                            if any(is_runner_call(v) for v in vs)}
+    invokes = {id(c) for c in runner_invokes(tree)}
     # `plain` names a plain function the factory decorated. `bare` names a
     # factory's return that the test has not applied to a function.
     plain: dict[str, int] = {}
@@ -9035,9 +9048,7 @@ def _plain_decorated(tree, name: str):
             return f.args[0].id, c.lineno, "plain"
         if (isinstance(f, _ast.Attribute) and f.attr == "invoke" and c.args
                 and isinstance(c.args[0], _ast.Name) and c.args[0].id in plain):
-            recv = f.value
-            if ((isinstance(recv, _ast.Name) and recv.id in runners)
-                    or is_runner_call(recv)):
+            if id(c) in invokes:
                 return c.args[0].id, plain[c.args[0].id], "plain"
     # Night 140's s325 read `option.callback` on the factory's return. A
     # decorator holds no option until a command takes it, so any attribute
@@ -9059,8 +9070,7 @@ def _plain_decorated(tree, name: str):
             return False
         f = n.func
         if isinstance(f, _ast.Attribute) and f.attr == "invoke" and n.args:
-            return ((isinstance(f.value, _ast.Name) and f.value.id in runners)
-                    or is_runner_call(f.value))
+            return id(n) in invokes
         # A call of a local `def` that carries `command` or `group`.
         return (isinstance(f, _ast.Name) and f.id in defs
                 and len(binds.get(f.id, [])) == 1 and not plain_def(f))
