@@ -15882,10 +15882,11 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
             raise LinesRefusal(
                 f"the value for {cid} holds {n} lines, and the {block[3]} "
                 f"they are is named for {other} too, whole or in part. One "
-                f"statement of several lines is the line of one criterion "
-                f"only, because a statement named for every criterion names "
-                f"nothing. Copy for {cid} the one added line that meets it, "
-                f"without the +, and send the pass again. {listed}If no "
+                f"unit, one statement or one docstring run, is the line of "
+                f"one criterion only, because a unit named for every "
+                f"criterion names nothing. Copy for {cid} the added line or "
+                f"the unit that meets it, without the +, and send the pass "
+                f"again. {listed}If no "
                 f"added line meets {cid}, that is a fail on it: "
                 f"{claim_for(cid)}")
         # The refusal names the statement form first, and both shapes of a
@@ -15942,16 +15943,20 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
                     f"Copy that one. ")
         elif own:
             sent = (f"The lines you sent hold these {noun}: {shown}. "
-                    f"Copy the one that does what the criterion says. ")
+                    f"Copy the line among them that does what the criterion "
+                    f"says. ")
+        # The refusal names both units, so a docs criterion is not told
+        # "one line" (F37 review 3, P3-1).
         raise LinesRefusal(
-            f"the value for {cid} holds {n} lines, and they are not one "
-            f"statement that a pass can name. A value of several lines lands "
-            f"as one `if`, `try`, `match` or conditional expression of added "
-            f"lines, with at most {_BRANCH_BODY_MAX} simple statements in "
-            f"each branch, named for one criterion only. Send it whole, as "
-            f"one text with line breaks or as a list of lines. Otherwise "
-            f"copy the one line of the [diff] block that meets {cid}, "
-            f"without the +, and send the pass again. "
+            f"the value for {cid} holds {n} lines, and they are not one unit "
+            f"that a pass can name. A unit is one `if`, `try`, `match` or "
+            f"conditional expression of added lines, with at most "
+            f"{_BRANCH_BODY_MAX} simple statements in each branch. For a "
+            f"criterion that asks for documentation, a run of adjacent "
+            f"docstring lines is a unit too. A unit is named for one "
+            f"criterion only. Send it whole, as one text with line breaks or "
+            f"as a list of lines. Otherwise copy a line of the [diff] block "
+            f"that meets {cid}, without the +, and send the pass again. "
             f"{form}{sent}{listed}If no added line meets {cid}, that is a "
             f"fail on it: {claim_for(cid)}")
     texts = list(texts_of.values())

@@ -266,8 +266,9 @@ def test_each_critic_prompt_names_the_list_form(piece):
     import rota.roles
     path = Path(rota.roles.__file__).parent / "prompts" / "critic" / piece
     text = " ".join(path.read_text(encoding="utf-8").split())
-    assert ("When several added lines meet it together, copy them as a list, "
-            "each without the `+`.") in text
+    assert ("When the lines of one statement, or of one docstring run for a "
+            "documentation criterion, meet it, copy them as a list, each "
+            "without the `+`.") in text
 
 
 def test_a_two_line_list_sent_again_lands(case):

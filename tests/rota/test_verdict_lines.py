@@ -291,20 +291,22 @@ def _s279_sent(*held) -> str:
     if len(held) == 1:
         return f"One of the lines you sent is the line: {shown}. Copy that one. "
     return (f"The lines you sent hold these added lines: {shown}. Copy the "
-            f"one that does what the criterion says. ")
+            f"line among them that does what the criterion says. ")
 
 
 def _block_head(cid, n) -> str:
     """The opening of the block refusal: the statement form first, then both
     shapes of a value, then the one line (F37, review 1, low 6)."""
     return (
-        f"the value for {cid} holds {n} lines, and they are not one statement "
-        f"that a pass can name. A value of several lines lands as one `if`, "
-        f"`try`, `match` or conditional expression of added lines, with at "
-        f"most 2 simple statements in each branch, named for one criterion "
-        f"only. Send it whole, as one text with line breaks or as a list of "
-        f"lines. Otherwise copy the one line of the [diff] block that meets "
-        f"{cid}, without the +, and send the pass again. ")
+        f"the value for {cid} holds {n} lines, and they are not one unit "
+        f"that a pass can name. A unit is one `if`, `try`, `match` or "
+        f"conditional expression of added lines, with at most 2 simple "
+        f"statements in each branch. For a criterion that asks for "
+        f"documentation, a run of adjacent docstring lines is a unit too. A "
+        f"unit is named for one criterion only. Send it whole, as one text "
+        f"with line breaks or as a list of lines. Otherwise copy a line of "
+        f"the [diff] block that meets {cid}, without the +, and send the "
+        f"pass again. ")
 
 
 def test_a_block_for_every_criterion_is_refused(s279):
@@ -1185,8 +1187,8 @@ def test_the_block_text_names_the_held_code_lines_first(tmp_path):
     assert said == (
         _block_head("cr_1", 3) + "The lines you sent "
         "hold these added lines: 'value_10 = compute(10)', 'value_20 = "
-        "compute(20)', 'value_30 = compute(30)'. Copy the one that does what "
-        "the criterion says. The added "
+        "compute(20)', 'value_30 = compute(30)'. Copy the line among them "
+        "that does what the criterion says. The added "
         f"lines of code are {shown}, and 32 more. If no added line meets "
         "cr_1, that is a fail on it: `verdicts.claim_encodes('cr_1', "
         "encodes=...)` first, as for any fail")
@@ -1393,8 +1395,8 @@ def test_s205_docstring_block_meets_the_cap_and_no_kind_words(n160):
     assert "does nothing that a criterion asks for" not in said
     assert said == (
         _block_head(cid, 5) + f"The lines you sent "
-        f"hold these lines of the docstring: {held}. Copy the one that does "
-        f"what the criterion says. " + N160_LISTED + _bg2_fail_route(cid))
+        f"hold these lines of the docstring: {held}. Copy the line among "
+        f"them that does what the criterion says. " + N160_LISTED + _bg2_fail_route(cid))
 
 
 def test_a_docstring_line_for_another_criterion_stays_refused(n160):
@@ -1638,11 +1640,11 @@ def test_n171_the_hold_quotes_every_line_of_the_block(n171):
 
 def _named_twice(cid, n, kind, other) -> str:
     return (f"the value for {cid} holds {n} lines, and the {kind} they are is "
-            f"named for {other} too, whole or in part. One statement of "
-            f"several lines is the line of one criterion only, because a "
-            f"statement named for every criterion names nothing. Copy for "
-            f"{cid} the one added line that meets it, without the +, and send "
-            f"the pass again. ")
+            f"named for {other} too, whole or in part. One unit, one "
+            f"statement or one docstring run, is the line of one criterion "
+            f"only, because a unit named for every criterion names nothing. "
+            f"Copy for {cid} the added line or the unit that meets it, "
+            f"without the +, and send the pass again. ")
 
 
 def test_n171_one_block_named_for_two_criteria_is_refused(n171):
