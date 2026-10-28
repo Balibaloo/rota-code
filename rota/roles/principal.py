@@ -1014,7 +1014,9 @@ def ruled_words(conn: sqlite3.Connection, refs, *, item: str | None = None,
 # `RULING_WORDS` and `SHIFT_WORDS` (the seam design's review, finding 6).
 RULED_VERDICTS = ("approve", "contest", "revise", "resume", "park", "now",
                   "drop")
-RULED_ACTS = ("drop", "keep", "rewrite", "add", "remove")
+# `exclude` takes a path off a prediction and deletes no code. No deletion
+# reader asks for it, so `granted` never reads it as a removal (seam pass 3b).
+RULED_ACTS = ("drop", "keep", "rewrite", "add", "remove", "exclude")
 TARGET_KINDS = ("row", "check", "sentence", "identifier", "source_line",
                 "path", "request")
 def ruled_ref_home(conn: sqlite3.Connection, ref: str) -> str | None:

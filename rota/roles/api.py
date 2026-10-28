@@ -11899,6 +11899,27 @@ _CLAUSE_JOIN = frozenset({"and", "but", "or", "so", "because"})
 # adverb that ends in -ly. The seat quotes "Drop line 2" from his "Please
 # drop line 2." (night 171's m70, P7 pass 1d).
 _CLAUSE_LEAD = frozenset({"please", "also", "then", "now", "and", "so"})
+# A report-of-words verb and the word before it that makes it a request:
+# "should say", "to say", "must read" (night 174, walk 2).
+_REPORT_VERBS = frozenset({"say", "read", "state"})
+_REPORT_LEADS = frozenset({"should", "must", "to"})
+
+
+def _clause_start_near(text: str, span: str) -> str | None:
+    """The run of `text` from the clause start nearest before `span`'s
+    words to their end, or None when `text` does not hold the words. The
+    refusal shows it, so the seat can find a span that the rule accepts."""
+    want = _clause_tokens(span)[0]
+    tokens, cuts = _clause_tokens(text)
+    n = len(want)
+    for i in range(len(tokens) - n + 1):
+        if want and tokens[i:i + n] == want:
+            start = max(c for c in cuts if c <= i)
+            end = min(c for c in cuts if c >= i + n)
+            return " ".join(tokens[start:end])
+    return None
+
+
 # An adverb that hedges or negates its clause is no lead word. "Hardly any
 # of line 3 is right." keeps its hedge (review p7 p2, finding p2-3).
 _HEDGES = frozenset({"hardly", "barely", "scarcely", "rarely", "seldom", "only"})
@@ -11920,6 +11941,21 @@ def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
         if len(tokens) in cuts and (s in _CLAUSE_LEAD or (
                 s.endswith("ly") and s not in _HEDGES)):
             cuts.add(len(tokens) + 1)
+        # "Line 7 should say X" and "Change line 7 to say X": the quoted
+        # words start after the report verb, and the cut drops no "not" or
+        # hedge (night 174, s175 and s177). The clause opens with "line N"
+        # or "change line N", so no outside frame such as "it is wrong to"
+        # or "though some say" stands before it (the seam review, p4-1 and
+        # p5-1). A negation right before the modal is the one negation
+        # reader's, `_NEGATED` (p5-3).
+        if s in _REPORT_VERBS and tokens and tokens[-1] in _REPORT_LEADS:
+            lead = tokens[max(c for c in cuts if c <= len(tokens)):]
+            head = lead[1:] if lead[:1] in (["and"], ["but"]) else lead
+            head = head[1:] if head[:1] == ["change"] else head
+            before = re.sub(r"n t$", "n't", " ".join(lead[:-1])) + " "
+            if (len(head) > 2 and head[0] == "line" and head[1].isdigit()
+                    and not _NEGATED.search(before)):
+                cuts.add(len(tokens) + 1)
         tokens.append(s)
     cuts.add(len(tokens))
     return tokens, cuts
@@ -12042,20 +12078,24 @@ def _backed(conn, ref: str, verdict: str, said: str, order: list,
     if not (said or "").strip():
         return False
     reading = _line_reading(said, len(order) if order else None)
-    line = order.index(ref) + 1 if ref in (order or []) else None
+    # Every line that shows the ref counts (the seam review, p4-6).
+    lines = _lines_of(order, ref)
+    line = lines[0] if lines else None
     if verdict == "approve" and (
             _APPROVES.search(said) or _AGREES.match(said)
-            or _AGREEMENT_ALONE.fullmatch(said) or line in reading.matched
+            or _AGREEMENT_ALONE.fullmatch(said)
+            or any(k in reading.matched for k in lines)
             or (reading.matched and not reading.faulted)):
         return True
     # A contest or a revise is backed by words that fault, by the parser's
     # fault words: "Criteria 2 and 6 are wrong." on night 164's m94.
-    if verdict != "approve" and (reading.faults or line in reading.faulted):
+    if verdict != "approve" and (reading.faults
+                                 or any(k in reading.faulted for k in lines)):
         return True
     ident = re.search(r"[\d_#]", str(ref)) and re.search(
         rf"(?<![\w#]){re.escape(str(ref))}(?![\w#])", said, re.I)
     shown = _shown_text(conn, ref, line, page_text)
-    return bool(line in reading.named or ident
+    return bool(any(k in reading.named for k in lines) or ident
                 or reading.names & _line_reading(shown).names
                 or _shown_mention(said, shown) == "named")
 
@@ -12293,18 +12333,97 @@ class LineRef(NamedTuple):
     text: str
 
 
+# His report of an earlier answer: "I approved", "I said", "I also said",
+# "I never said", "my last answer ... did not say". A line number in its
+# object is a line of the page that answer replied to. Night 173's m35, "I
+# approved two lines, lines 1 and 4, not one", faulted lines 1 and 4 of the
+# page, and r_m35 landed a revise on c_3 (the seam read of night 173, W9).
+# A present verb is his answer to this page, so "I approve line 4" and "I
+# mean line 4" stay. "what I asked" and "as I said" quote no number.
+# "answered" is no report verb: in frame 305's "I already answered line 14
+# earlier", line 14 is the question line of this page.
+_REPORT_SUBJECT = (r"(?:(?<!\bwhat\s)(?<!\bas\s)\bI"
+                   r"|\b(?:my|that|the|this)\s+(?:\w+\s+)?answers?)")
+_REPORT_ADVERB = r"(?:\s+(?:also|only|just|already|never|then|first|clearly))*"
+_REPORT = re.compile(
+    rf"{_REPORT_SUBJECT}{_REPORT_ADVERB}"
+    rf"(?:\s+(?:said|approved|asked|wrote|meant|called)"
+    rf"|\s+(?:have|has|had)(?:\s+not|n['’]t)?{_REPORT_ADVERB}"
+    rf"\s+(?:said|approved|asked|written|meant|called)"
+    rf"|\s+(?:did\s+not|didn['’]t|never\s+did){_REPORT_ADVERB}"
+    rf"\s+(?:say|approve|ask|write|mean|call))\b"
+    # The subject can stay out after "and": night 172's m128, "my last
+    # answer asked for that fix and did not say line 4 is wrong".
+    r"|(?<=\band\s)(?:did\s+not|didn['’]t)\s+(?:say|approve|ask|call)\b", re.I)
+# The report ends at its clause end: a comma, a semicolon, a colon or a
+# joining word. A number after that end is a line of this page, so "I asked
+# for two checks, line 4 adds a third" faults line 4 (the seam review of
+# pass 1, finding 1). Two forms go on: an apposition that restates the
+# object, as m35's "two lines, lines 1 and 4, not one", and a join between
+# two references, as m18's "line 3 or line 4".
+_REPORT_END = re.compile(
+    r"[,;:]|\b(?:and|but|or|so|then|because|since|while|although|though|"
+    r"however|yet)\b", re.I)
+_APPOSITION_END = re.compile(r"\s*(?:[,.;:!?)]|$)")
+
+
+def _reported(sentence: str) -> list[tuple[int, int]]:
+    """The spans of `sentence` that report his earlier answer.
+
+    A line reference that starts in a span names the earlier page, so it
+    names and faults no line of this page. The rule sits here, in the one
+    parser, so every door reads it (fact F2, rule C76)."""
+    spans: list[tuple[int, int]] = []
+    # The references come from `_LINE_REF`, the parser's one line regex.
+    refs = list(_LINE_REF.finditer(sentence))
+    starts = {r.start(): r for r in refs}
+    ends = {r.end() for r in refs}
+    for m in _REPORT.finditer(sentence):
+        if spans and m.start() < spans[-1][1]:
+            continue
+        end = len(sentence)
+        pos = m.end()
+        while True:
+            stop = _REPORT_END.search(sentence, pos)
+            if stop is None:
+                break
+            word = stop.group(0).lower()
+            rest = sentence[stop.end():]
+            ref = starts.get(stop.end() + len(rest) - len(rest.lstrip()))
+            if word == "," and ref and _APPOSITION_END.match(sentence, ref.end()):
+                pos = ref.end()
+                continue
+            if (word in ("and", "or") and ref
+                    and len(sentence[:stop.start()].rstrip()) in ends):
+                pos = stop.end()
+                continue
+            end = stop.start()
+            break
+        spans.append((m.start(), end))
+    return spans
+
+
+def _in_report(spans: list[tuple[int, int]], at: int) -> bool:
+    """True when the position `at` lies in a span of `_reported`."""
+    return any(a <= at < b for a, b in spans)
+
+
 def _line_refs(words: str, size: int | None = None) -> list[LineRef]:
     """The line references of `words`, sentence by sentence.
 
     A bare "3 is wrong" counts at a sentence start only (frame 305, review
-    1, finding 1). So the parser cuts the sentences before it reads.
+    1, finding 1). So the parser cuts the sentences before it reads. A
+    reference in his report of an earlier answer is not a reference here.
     """
     text = words or ""
     out: list[LineRef] = []
     start = 0
     for cut in [*_SENTENCE.finditer(text), None]:
         end = cut.start() if cut else len(text)
+        spans = _reported(text[start:end])
         for m in _LINE_REF.finditer(text[start:end]):
+            if _in_report(spans, m.start()):
+                continue
             word = ("" if m.group(1) is None else
                     "note" if m.group(0).lower().startswith("note") else "line")
             out.append(LineRef(start + m.start(), start + m.end(),
@@ -12478,7 +12597,8 @@ _SENTENCE = re.compile(r"(?<=[.!?])\s+|[:;]")
 # A negation directly before a strong cue. "but do not drop it" keeps the
 # line, so the cue and its negation fault nothing (frame 305, review 1,
 # finding 2).
-_NEGATED = re.compile(r"\b(?:do\s+not|don['’]t|not)\s+$", re.I)
+# "never" joined for the say clause of the seam review, p5-3.
+_NEGATED = re.compile(r"\b(?:do\s+not|don['’]t|not|never)\s+$", re.I)
 
 
 def _live_cues(text: str) -> list[re.Match]:
@@ -12914,7 +13034,12 @@ def _line_cues(words: str, size: int | None = None
     approves = False
     for sentence in _SENTENCE.split(words or ""):
         approves = approves or bool(_APPROVES.search(sentence))
-        refs = list(_LINE_REF.finditer(sentence))
+        # A reference in his report of an earlier answer is a line of the
+        # earlier page (W9 of night 173). The report stays in the clause of
+        # the line before it: "On line 6, I meant that ..." faults line 6.
+        spans = _reported(sentence)
+        refs = [r for r in _LINE_REF.finditer(sentence)
+                if not _in_report(spans, r.start())]
         # The cue binds to the reference it governs. In "Line 7 repeats line
         # 3, so drop it", "it" is line 7, the subject (frame 305).
         subject: dict[int, int] = {}
@@ -12924,8 +13049,10 @@ def _line_cues(words: str, size: int | None = None
                 subject[i + 1] = subject.get(i, i)
         for i, ref in enumerate(refs):
             end = refs[i + 1].start() if i + 1 < len(refs) else len(sentence)
+            begin = max([refs[i - 1].end() if i else 0,
+                         *(b for _, b in spans if b <= ref.start())])
             window = sentence[ref.end():end]
-            if i + 1 in subject:
+            if i + 1 in subject and _RELATES_NEXT.search(window):
                 # The relating verb asks nothing of either line. "Line 7
                 # repeats line 3, but do not drop it" faults nothing.
                 window = window[:_RELATES_NEXT.search(window).start()]
@@ -12933,7 +13060,7 @@ def _line_cues(words: str, size: int | None = None
             # 7", "Drop line 3, because it repeats line 7" (frame 305). The
             # object of a relating verb has the relating verb there.
             head_verb, head = (None, "") if i in subject else _head_verb(
-                sentence[refs[i - 1].end() if i else 0:ref.start()])
+                sentence[begin:ref.start()])
             if head == "none":
                 continue
             if head == "own":
@@ -12954,7 +13081,7 @@ def _line_cues(words: str, size: int | None = None
                 matched |= _ref_lines(ref, size)
                 continue
             if cue is None:
-                before = sentence[refs[i - 1].end() if i else 0:ref.start()]
+                before = sentence[begin:ref.start()]
                 verb, lead = ((None, False) if head == "reason"
                               else _clause_verb(window, bool(re.search(
                                   r"\b(?:the|a|an|its|this|that)\s*$",
@@ -13026,7 +13153,7 @@ def built_line_faulted(words: str, order: list[str] | None, ref: str,
         return False
     if faulted is None:
         faulted = _line_reading(words, len(order))[0]
-    return order.index(ref) + 1 in faulted
+    return any(n in faulted for n in _lines_of(order, ref))
 
 
 def _line_refusal(words: str, contested: set[int], faulted: set[int],
@@ -13246,7 +13373,8 @@ def code_line_faulted(words: str, order: list[str] | None, key: str,
         return False
     code_lines = frozenset(i + 1 for i, r in enumerate(order)
                            if r == key or guess_item(r) == item)
-    return pointer_fault(words, order.index(item) + 1, code_lines)
+    return any(pointer_fault(words, n, code_lines)
+               for n in _lines_of(order, item))
 
 # A sentence that opens with one of these verbs says what to build. Night
 # 143's m263: "Also, take the version from the running interpreter's
@@ -13651,6 +13779,22 @@ _NOTE_NO_CHANGE = re.compile(
 _NOTE_SAYS = re.compile(r"\b(?:say|says|read|reads)\b", re.I)
 
 
+def _lines_of(order: list | None, ref) -> list[int]:
+    """Every line number that page order `order` shows `ref` on. This is the
+    one reader of a ref's lines: night 174's m47 showed the ref `parameter`
+    on lines 8 and 47, and a reader of one line refused his key "8"."""
+    return [i + 1 for i, r in enumerate(order or []) if r == ref]
+
+
+def _ref_of_key(order: list | None, key_of: dict, key: str):
+    """The ref that the key `key` names: a key of rulings, or a line that
+    shows a ref that rulings holds by its other line, or None."""
+    ref = next((r for r, k in key_of.items() if k == key), None)
+    if ref is None and key.isdigit() and 1 <= int(key) <= len(order or []):
+        ref = order[int(key) - 1] if order[int(key) - 1] in key_of else None
+    return ref
+
+
 def _line_body(page_text: str, n: int) -> str:
     """The text of line `n` of the rendered page, with its sub-lines."""
     found = re.search(rf"^\s*{n}\.\s+(.*(?:\n(?!\s*\d+\.\s|\s*$)[ \t]+.*)*)",
@@ -13722,12 +13866,54 @@ def _note_words(words: str, n: int, page_text: str,
                 and not re.search(r"\b(?:should|must|needs? to|has to|have to|"
                                   r"instead|rather)\b", rest, re.I)):
             continue
-        if _NOTE_CHANGE.search(rest):
+        # A negated change verb asks to keep the line: "Do not change line
+        # 4." The drop verbs' guard serves (the seam review, p3-5).
+        if any(not _NEGATED.search(rest[:m.start()])
+               for m in _NOTE_CHANGE.finditer(rest)):
             found.add("change")
     for kind in ("drop", "change", "own"):
         if kind in found:
             return kind
     return None
+
+
+def _names_path(span: str, target: str) -> bool:
+    """True when the words `span` name the file path `target`. The path or
+    its file name counts alone. A stem counts only when a kind word follows
+    it within three words: "test" or "file" for a test path, and "file",
+    "module" or "source" for any other path. So "the options and defaults test
+    files" names tests/test_options.py, and "the core of the change" names
+    no src/click/core.py. A target with no path shape is named by nothing
+    (the seam review, p4-4 and p5-2)."""
+    t = (target or "").strip().strip("`").lower()
+    if "/" not in t and not t.endswith(".py"):
+        return False
+    text = (span or "").lower()
+    base = t.rsplit("/", 1)[-1]
+    if _says(text, t) or _says(text, base):
+        return True
+    stem = base.rsplit(".", 1)[0]
+    is_test = bool(re.search(r"(?:^|/)tests?/|^test_|_test$", t.rsplit(".", 1)[0]))
+    kinds = r"tests?|files?" if is_test else r"files?|modules?|sources?"
+    for name in {stem, re.sub(r"^test_|_test$", "", stem)}:
+        if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)(?:\s+\w+){{0,3}}?\s+(?:{kinds})\b", text):
+            return True
+    return False
+
+
+def _shown_prediction(conn, ref: str, order: list, page_text: str) -> str:
+    """The text that shows the prediction of `ref`: its page line with the
+    line's sub-lines, or, for a guess key off the page, the words of the
+    item's code line as the request page shows them (`code_line`)."""
+    from .principal import code_line, code_target
+
+    if order and ref in order:
+        return "\n".join(_line_body(page_text, n)
+                         for n in _lines_of(order, ref))
+    if not str(ref).startswith("guess:"):
+        return ""
+    item = str(ref).split(":", 1)[1]
+    return code_line(conn, item, code_target(conn, item))
 
 
 def _quotes_line(words: str, page_text: str, n: int) -> bool:
@@ -14132,7 +14318,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 raise ValueError(kept)
         for key, given in acts.items():
             key = str(key).strip()
-            ref = next((r for r, k in key_of.items() if k == key), None)
+            ref = _ref_of_key(order, key_of, key)
             if ref is None:
                 raise ValueError(
                     f"acts has the key {key!r}, and rulings has no such key. "
@@ -14172,10 +14358,64 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if not span.strip() or _words_from(ctx, span) is None:
             line = (f"line {order.index(ref) + 1}" if order and ref in order
                     else ref)
+            # Night 174: s175 copied his clause tail four times, and the text
+            # named no clause start. It now names the nearest whole clause.
+            near = _clause_start_near(_his_reply(ctx), span) if span.strip() else None
             raise ValueError(
                 f"{line}: the act {shape['act']} rests on {span!r}, and his "
                 f"words do not hold it. Copy the words of his reply that ask "
-                f"for the change, or leave the act out")
+                f"for the change, or leave the act out"
+                + (f". The nearest whole clause of his words is {near!r}"
+                   if near else ""))
+        # W16 of night 173: the span check proves the words are his, and
+        # nothing read the verb. s179 put `remove` on the clear function
+        # where m62 asked to name it, and `granted` read the row as his
+        # permission. A removal of code rests on his removal request, read
+        # by the removal door's own reader (law 6, law 12). The target's shape
+        # decides, never `target_kind`: `grant` matches a row by its target
+        # alone, and s179's call with no kind landed the same grant (the seam
+        # review, p2-2).
+        line = (f"line {order.index(ref) + 1}" if order and ref in order
+                else ref)
+        # A removal with no target skipped the rule above, and `grant` with
+        # no target read the row as his permission (the seam review, p3-1).
+        # A page line or its check is the act's own row, so it needs none.
+        if (shape["act"] in ("remove", "drop")
+                and not (shape.get("target") or "").strip()
+                and shape.get("target_kind") not in ("row", "check",
+                                                      "sentence")):
+            raise ValueError(
+                f"{line}: a {shape['act']} needs its target. Put in `target` "
+                f"the code or the line that his words ask to {shape['act']}")
+        # An `exclude` takes a path off the prediction that his page shows.
+        # The door checks a fact: the contested line names the path, or a
+        # guess key's current guess holds it (law 6, the seam review, p3-4).
+        if shape["act"] == "exclude":
+            target = (shape.get("target") or "").strip().strip("`")
+            if not target or not _says(_shown_prediction(
+                    ctx.conn, ref, order, page_text), target):
+                raise ValueError(
+                    f"{line}: an exclude takes a path off the prediction, and "
+                    f"{line} shows no path {target or '(none)'}. Leave the "
+                    f"act out")
+            # His span names the path, its file or its stem: "the options
+            # and defaults test files" names tests/test_options.py. A path
+            # shape keeps an identifier such as `clear` out (law 6, the
+            # seam review, p4-2 and p4-4).
+            if not _names_path(span, target):
+                raise ValueError(
+                    f"{line}: an exclude needs his words to name the file "
+                    f"{target}, by its path, file name or stem. Leave the act "
+                    f"out")
+        if (shape["act"] in ("remove", "drop")
+                and _code_target(ctx.conn, shape.get("target") or "")
+                and not _asks_removal_of(span, shape.get("target") or "")):
+            line = (f"line {order.index(ref) + 1}" if order and ref in order
+                    else ref)
+            raise ValueError(
+                f"{line}: his words {span!r} ask no removal of "
+                f"{shape['target']}, so leave the "
+                f"act out or copy his words that ask for it")
     # ruling: DECISIONS 1445, the principal's words land on the row they name
     # A team's note takes no revise. Revise rewrites a line of the request,
     # and the request has its own lines on the page. Night 136's s557 revised
@@ -14209,9 +14449,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
 
             within, span = span or None, his_words(ctx.conn,
                                                    _words_from(ctx, span or ""))
-        said = (_line_reading(span).note_act(order.index(ref) + 1, page_text,
-                                             within=within)
-                if order and ref in order else None)
+        said = next((a for a in (
+            _line_reading(span).note_act(n, page_text, within=within)
+            for n in _lines_of(order, ref)) if a), None)
         if act == "drop":
             said = "drop"
         if said == "change" and act in (None, "rewrite"):
@@ -14298,8 +14538,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         item = guess_item(ref)
         if item is None or ruling == "approve":
             continue
-        if item in order and order.index(item) + 1 in cue_lines:
-            guess_ruled.add(order.index(item) + 1)
+        guess_ruled |= set(_lines_of(order, item)) & set(cue_lines)
         target = stamp.get(ref) or {}
         batch_id = target.get("batch") if isinstance(target, dict) else None
         if not batch_id:
@@ -14333,6 +14572,26 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     words_reading = _line_reading(his, len(order) if order else None)
     read_cues, read_matched = words_reading.cues, words_reading.matched
     read_faulted = set(read_cues)
+    # A revise rewrites a line, so it rests on his fault of that line. On
+    # m35, s120 revised c_3, line 4, and his words fault no part of it (the
+    # seam review of pass 1, finding 7). A reply that numbers no line can
+    # still ask a rewrite by a quote, so the check reads numbered replies.
+    # A change request backs a revise too, read by the parser's change verbs:
+    # "Replace Roaming in line 4 with Local." faults no line (the seam
+    # review, p2-1). The refusal offers no approve, so it cannot turn his
+    # change request into a kept line.
+    if order and words_reading.refs:
+        for ref, ruling in per_item.items():
+            lines = _lines_of(order, ref)
+            n = lines[0] if lines else None
+            if (ruling == "revise" and n
+                    and not any(k in read_faulted
+                                or words_reading.note_act(k, page_text)
+                                == "change" for k in lines)):
+                raise ValueError(
+                    f"line {n}: a revise rewrites the line, and his words "
+                    f"neither fault line {n} nor ask to change it. Rule line "
+                    f"{n} as his words say")
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue
@@ -14444,7 +14703,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 (order[n - 1],)).fetchone()
             if batch is not None and batch["item_id"] in order and (
                     batch["status"] in ("merged", "abandoned")):
-                faulted.add(order.index(batch["item_id"]) + 1)
+                faulted |= set(_lines_of(order, batch["item_id"]))
         # A team's note lands a revise as a contest, so his keep refuses
         # both. "Leave line 11 as it is." admitted the revise (frame 305,
         # review 1, finding 1).
@@ -23824,6 +24083,76 @@ def _asks_removal(text: str, g: dict) -> bool:
             if not g["def"] and call and _says(c, call.group(1) + "("):
                 return True
     return False
+
+
+# A code target by its shape: a path, `path::name`, `owner:line` or a code
+# name. A page line, "line 5" or "9", and a row of a register table drop a
+# page line and grant no code (the seam read of night 173, W16).
+_PAGE_LINE_TARGET = re.compile(r"(?:line\s+)?\d+", re.I)
+_CODE_SHAPE = re.compile(
+    r"(?:[\w.-]+/)*[\w.-]+\.py(?:::?[\w.]+)?"
+    r"|[A-Za-z_][\w.]*(?:::?\w+)?(?:\(\))?")
+
+
+def _code_target(conn, target: str) -> bool:
+    """True when the act target `target` names code by its shape, and no
+    register table holds it as a ref."""
+    from .principal import ruled_ref_home
+
+    target = (target or "").strip().strip("`")
+    if not target or _PAGE_LINE_TARGET.fullmatch(target):
+        return False
+    if ruled_ref_home(conn, target) is not None:
+        return False
+    return all(_CODE_SHAPE.fullmatch(p.strip()) for p in target.split(",")
+               if p.strip())
+
+
+def _asks_removal_of(span: str, target: str) -> bool:
+    """True when a sentence of `span` holds a removal request for `target`.
+
+    The request clause comes from `_removal_spans`, the removal door's
+    reader. Its object must name the target's function or file, so
+    "remove the string helper, not the clear function" grants no `clear`.
+    A clause about the touch list or the scope removes no code: m75's
+    "remove the five formatting tests from what you expect to touch" asks
+    the plan to touch less (the seam review of pass 1, findings 2 to 4)."""
+    names = _target_names(target)
+    for s in re.split(r"(?<=[.!?])\s+|\n+", span or ""):
+        for c in _removal_spans(s):
+            verb = _REQUEST_VERBS.search(c)
+            obj = c[verb.end():] if verb else c
+            if _NO_OBJECT.match(obj) or _TOUCH_LIST.search(c):
+                continue
+            if any(_says(c.lower(), n) for n in names):
+                return True
+    return False
+
+
+# A removal clause with no object: "drop nothing" (review finding 4).
+_NO_OBJECT = re.compile(r"\s*(?:nothing|none)\b", re.I)
+# A removal from the touch list, the plan or the scope, not from the code.
+_TOUCH_LIST = re.compile(
+    r"\bfrom\s+(?:what|the\s+(?:page|plan|list|scope|prediction|guess))\b"
+    r"|\bexpect\w*\s+to\s+touch\b|\btouch\s+list\b|\bscope\b", re.I)
+
+
+def _target_names(target: str) -> set[str]:
+    """The function and file names of an act target, in lower case:
+    `src/click/utils.py::make_str` gives make_str, utils.py and utils. A
+    line number names nothing, so `keepopenfile:7` gives keepopenfile."""
+    out: set[str] = set()
+    for part in (target or "").lower().split(","):
+        for piece in re.split(r"::|:", part.strip()):
+            piece = piece.strip().strip("`()")
+            if not piece or piece.isdigit():
+                continue
+            if "/" in piece or piece.endswith(".py"):
+                base = piece.rsplit("/", 1)[-1]
+                out |= {base, base.rsplit(".", 1)[0]}
+            else:
+                out |= {piece, piece.rsplit(".", 1)[-1]}
+    return {n for n in out if n}
 
 
 def _gone_targets(path: str, g: dict) -> list[str]:

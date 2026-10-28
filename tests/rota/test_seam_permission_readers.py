@@ -286,8 +286,10 @@ def test_p8_an_add_on_the_ticket_adds_the_rows_words(db, act, expected):
     assert api.criteria_page_acts(db, ["c1"])["add"] == expected
 
 
-@pytest.mark.parametrize("act, expected", [("remove", ["tests/test_x.py"]),
-                                           (None, [])])
+# Seam pass 3b: the act `exclude` takes a path off the guess. A `remove`
+# deletes code and disputes no path.
+@pytest.mark.parametrize("act, expected", [("exclude", ["tests/test_x.py"]),
+                                           ("remove", []), (None, [])])
 def test_p10_a_removed_path_leaves_the_guess(db, act, expected):
     key = f"guess:{ITEM}"
     _rule(db, "r1", {key: {"verdict": "contest", "act": act,

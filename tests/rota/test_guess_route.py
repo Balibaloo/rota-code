@@ -346,7 +346,7 @@ def test_the_guess_relay_passes_the_send_door_and_keys_the_guess_mode(db):
 
 
 @pytest.mark.parametrize("key_ruling, disputed", [
-    ({"verdict": "contest", "act": "remove", "target": "tests/test_options.py",
+    ({"verdict": "contest", "act": "exclude", "target": "tests/test_options.py",
       # A span is a run of whole clauses of his reply (review p7 p1, 3).
       "words": "Line 1 also names the options and defaults test files, which "
                "have nothing to do with this change"},
@@ -356,7 +356,7 @@ def test_the_guess_relay_passes_the_send_door_and_keys_the_guess_mode(db):
 def test_the_guess_relay_carries_the_item_the_set_and_the_disputed_paths(
         db, key_ruling, disputed):
     """Pass 4, P10: the path his ruling removes leaves the guess. The act
-    `remove` and its target say it. A contest with no act disputes no path,
+    `exclude` and its target say it. A contest with no act disputes no path,
     and the Architect reads his words."""
     _page(db, batch=None, guess=True, stamp={KEY: {"guess": [1, ""]}})
     vid = _land_ruling(db, M192, dict(S322_MOVED, **{KEY: key_ruling}))

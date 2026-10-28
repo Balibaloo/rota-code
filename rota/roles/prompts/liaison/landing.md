@@ -21,15 +21,16 @@ Each `rulings=` example below is the whole map. Each other example is the value 
 Most lines take no act. A line he approves as it stands takes the word alone: "yes, go ahead" is `rulings={"1": "approve", "2": "approve"}`.
 The act names are not verdicts. A page that asks which request goes first takes no act and no `acts`: "it is a separate request" is `rulings={"1": "later"}`.
 The acts:
-- `remove` takes code or a file away: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
+- `remove` deletes the code that his words name, and never a file of the guess: "You can remove the line at 518 in get_app_dir" is `{"verdict": "approve", "act": "remove", "target_kind": "source_line", "target": "get_app_dir:518"}`.
 - `drop` takes a line off the page: "Drop line 5" is `rulings={"5": {"verdict": "contest", "act": "drop", "target_kind": "row", "words": "Drop line 5"}}`.
 - `keep` keeps the words of a line and faults only its check: "Keep line 4, but fix its check" is `rulings={"4": {"verdict": "revise", "act": "keep", "target_kind": "check", "words": "Keep line 4, but fix its check"}}`.
 - `rewrite` asks for new words on a line: "Line 3 has to change" is `rulings={"3": {"verdict": "contest", "act": "rewrite", "target_kind": "row", "words": "Line 3 has to change"}}`.
 - `add` asks for a new line: "Also add a line that says the output stays exactly the same as today" is `rulings={"2": {"verdict": "approve", "act": "add", "words": "the output stays exactly the same as today"}}`. Put the add on any line of the same item that has no other act, an approved one too.
+- `exclude` takes a file out of what the change is expected to touch, and it deletes no code. The `path` kind below shows it.
 The target kinds:
 - `source_line` is a line of code, written as the function or the file, a colon, and the line number: `get_app_dir:518`.
-- `path` is a file of the guess, written as its path: "the options and defaults test files, which have nothing to do with this change" names `tests/test_options.py`.
-- `identifier` is a name in the item: "I don't want a flag" on the item is `{"verdict": "contest", "act": "remove", "target_kind": "identifier", "target": "show_python"}`.
+- `path` is a file of the guess, written as its path: "the options and defaults test files, which have nothing to do with this change" names `tests/test_options.py`, and the line takes `{"verdict": "contest", "act": "exclude", "target_kind": "path", "target": "tests/test_options.py"}`.
+- `identifier` is a name in the item: "Remove the show_python flag, I don't want it." on the item is `{"verdict": "contest", "act": "remove", "target_kind": "identifier", "target": "show_python"}`.
 - `sentence` is a sentence of the item: "take it out and keep only what I asked for" is `{"verdict": "contest", "act": "remove", "target_kind": "sentence"}`.
 - `check` is the test of a line, and `row` is the line itself.
 - `request` is a line of his request.
