@@ -167,40 +167,55 @@ def test_r_m121s_call_is_refused_on_line_12s_act(night):
     assert str(e.value) == _no_removal(12, W121, "src/click/utils.py:12")
 
 
-def test_s192s_call_on_m75_lands_its_removal(night):
-    """m75 asks to remove the five formatting tests, so r_m75 lands."""
+def test_s192s_call_on_m75_is_refused_on_line_3s_act(night):
+    """m75 asks the plan to touch fewer tests. It asks to delete no test,
+    so r_m75 grants nothing (the seam review of pass 1, finding 2)."""
     ctx = night(170, "m75")
-    api.rulings_rule(ctx, rulings={"1": A, "2": A, "3": "contest"}, words=W75,
-                     acts={"3": {"verdict": "contest", "act": "remove",
-                                 "target_kind": "source_line",
-                                 "target": "tests/test_formatting.py::"
-                                           "test_formatting_with_options_metavar_empty",
-                                 "words": "remove the five formatting tests "
-                                          "from what you expect to touch"}})
-    assert _rows(ctx)["b_3"]["act"] == "remove"
+    span = "remove the five formatting tests from what you expect to touch"
+    target = ("tests/test_formatting.py::"
+              "test_formatting_with_options_metavar_empty")
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={"1": A, "2": A, "3": "contest"},
+                         words=W75,
+                         acts={"3": {"verdict": "contest", "act": "remove",
+                                     "target_kind": "source_line",
+                                     "target": target, "words": span}})
+    assert str(e.value) == _no_removal(3, span, target)
 
 
-def test_s222s_call_on_m97_lands_its_drop(night):
-    """m97 asks to drop all three formatting tests, so r_m97 lands."""
+def test_s222s_call_on_m97_is_refused_on_line_2s_act(night):
+    """m97 says only the docstring changes. "drop all three formatting
+    tests" names no test of the target, so r_m97 grants nothing."""
     ctx = night(170, "m97")
-    api.rulings_rule(ctx, rulings={
-        "1": A, "2": "contest", "3": "contest", "4": A, "5": "contest",
-        "6": A, "7": A, "9": "contest"}, words=W97,
-        acts={"2": {"verdict": "contest", "act": "drop", "target_kind": "path",
-                    "target": FORMATTING,
-                    "words": "please drop all three formatting tests"}})
-    row = _rows(ctx)["guess:format_filename_example"]
-    assert (row["act"], row["target"]) == ("drop", FORMATTING)
+    span = "please drop all three formatting tests"
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={
+            "1": A, "2": "contest", "3": "contest", "4": A, "5": "contest",
+            "6": A, "7": A, "9": "contest"}, words=W97,
+            acts={"2": {"verdict": "contest", "act": "drop",
+                        "target_kind": "path", "target": FORMATTING,
+                        "words": span}})
+    assert str(e.value) == _no_removal(2, span, FORMATTING)
 
 
 @pytest.mark.parametrize("span, target, asks", [
     ("please remove make_str", "src/click/utils.py::make_str", True),
     ("please remove make_str", "src/click/termui.py:clear", False),
     ("Remove `echo` from the loop.", "src/click/termui.py:echo", True),
+    ("Please remove the clear function.", "src/click/termui.py:clear", True),
     ("Please do not remove the clear function.", "src/click/termui.py:clear",
      False),
     ("only the docstring changes, so no new test is needed",
      "tests/test_formatting.py::test_global_show_default", False),
+    # The review's probes of pass 1, findings 2 to 4.
+    ("remove the five formatting tests from what you expect to touch",
+     "tests/test_formatting.py::test_formatting_with_options_metavar_empty",
+     False),
+    ("remove the string helper, not the clear function",
+     "src/click/termui.py::clear", False),
+    ("please delete it", "src/click/termui.py::clear", False),
+    ("keep the clear function, drop nothing", "src/click/termui.py::clear",
+     False),
 ])
 def test_a_removal_request_names_its_target(span, target, asks):
     assert api._asks_removal_of(span, target) is asks
@@ -220,13 +235,48 @@ def test_s120s_call_on_m35_lands_with_c_3_approved(night):
     assert all(r["verdict"] != "revise" for r in rows.values())
 
 
+def test_s120s_call_3_revise_of_c_3_is_refused(night):
+    """s120 call 3 revised c_3, line 4, and his words fault no part of it
+    (the seam review of pass 1, finding 7)."""
+    ctx = night(173, "m35")
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={"1": A, "2": "contest", "3": "contest",
+                                       "4": "revise", "5": A, "6": A,
+                                       "7": "contest", "8": "drop"}, words=W35)
+    assert str(e.value) == (
+        "line 4: a revise rewrites the line, and his words do not fault line "
+        "4. Approve line 4, or rule it as his words say")
+
+
+def test_a_fault_after_the_report_clause_stays_on_this_page(night,
+                                                            monkeypatch):
+    """The review's probe: "line 4 adds a third" is a clause of this page,
+    so the approve of line 4 is refused as at the parent. His reply comes
+    through `said`, the one reader, so the probe replaces it there."""
+    from rota.roles import principal
+
+    said = W35.replace("I approved two lines, lines 1 and 4, not one.",
+                       "I asked for two checks, line 4 adds a third.")
+    orig = principal.said
+    monkeypatch.setattr(principal, "said", lambda conn, mid, *a, **k: (
+        said if mid == "m35" else orig(conn, mid, *a, **k)))
+    ctx = night(173, "m35")
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={"1": A, "2": "contest", "3": "contest",
+                                       "4": A, "5": A, "6": A, "7": "contest",
+                                       "8": "drop"}, words=said)
+    assert str(e.value).startswith('The words fault line 4, "adds"')
+
+
 # The 10 sentences of the read's section 4, each with the page's line count
 # and the numbers of the earlier page (`plans/seam-night173-read.md`). Night
 # 171's m17 replays night 170's, and night 173's m12 replays night 172's, so
 # 8 texts remain.
 EARLIER = [
+    # Line 18 sits after the report's clause end, so it is a line of this
+    # page (the seam review of pass 1, finding 1).
     ("Line 6 is wrong because I said line 1 is fine, and only lines 18 to 28 "
-     "were wrong.", 7, {1, 18}),
+     "were wrong.", 7, {1}),
     ("I asked to fix the file list in the old line 4, not to drop it, and the "
      "other lines here are right.", 7, {4}),
     ("Line 7 misses that I also said line 8 was wrong, but the rest of it "
@@ -251,6 +301,10 @@ def test_an_earlier_pages_number_faults_no_line(sentence, size, earlier):
 
 @pytest.mark.parametrize("sentence, size, line", [
     ("Line 4 is wrong.", 8, 4),
+    # The review's probes of pass 1, finding 1.
+    ("I asked for two checks, line 4 adds a third.", 10, 4),
+    ("I asked for one test, line 3 adds five.", 10, 3),
+    ("I said line 1 is right and line 9 is a made-up answer.", 10, 9),
     ("As I said, line 4 is wrong.", 8, 4),
     ("I mean line 4 is wrong.", 8, 4),
     ("On line 6, I meant that all of lines 13 to 20 don't belong on that page.",

@@ -136,6 +136,8 @@ PARSER_SITES = {
     "<module>", "_ref_lines", "_line_refs", "_line_reading", "LineReading",
     "_line_cues", "_live_cues", "_agreement", "_instruction_cue",
     "_contrast_cue", "_names_request", "_note_words",
+    # The report span of W9 (the seam pass 2) is a part of the parser.
+    "_reported",
 }
 # A line-reference regex in a string literal: "lines?\s", "lines? \d" or
 # "(?:lines?|notes?)".

@@ -12200,15 +12200,20 @@ _REPORT = re.compile(
     rf"|\s+(?:have|has|had)(?:\s+not|n['’]t)?{_REPORT_ADVERB}"
     rf"\s+(?:said|approved|asked|written|meant|called)"
     rf"|\s+(?:did\s+not|didn['’]t|never\s+did){_REPORT_ADVERB}"
-    rf"\s+(?:say|approve|ask|write|mean|call))\b", re.I)
-# The report ends at the next clause join. A joined clause in the past
-# tense goes on with the report: m17's "I said line 1 is fine, and only
-# lines 18 to 28 were wrong". "and line 9 quotes an empty answer" is a line
-# of this page (night 170's m36).
+    rf"\s+(?:say|approve|ask|write|mean|call))\b"
+    # The subject can stay out after "and": night 172's m128, "my last
+    # answer asked for that fix and did not say line 4 is wrong".
+    r"|(?<=\band\s)(?:did\s+not|didn['’]t)\s+(?:say|approve|ask|call)\b", re.I)
+# The report ends at its clause end: a comma, a semicolon, a colon or a
+# joining word. A number after that end is a line of this page, so "I asked
+# for two checks, line 4 adds a third" faults line 4 (the seam review of
+# pass 1, finding 1). Two forms go on: an apposition that restates the
+# object, as m35's "two lines, lines 1 and 4, not one", and a join between
+# two references, as m18's "line 3 or line 4".
 _REPORT_END = re.compile(
-    r";|,\s*(?:and|but|so|or|then)\b"
-    r"|\b(?:but|so|because|since|although|though|however)\b", re.I)
-_REPORT_PAST = re.compile(r"\b(?:was|were)\b", re.I)
+    r"[,;:]|\b(?:and|but|or|so|then|because|since|while|although|though|"
+    r"however|yet)\b", re.I)
+_APPOSITION_END = re.compile(r"\s*(?:[,.;:!?)]|$)")
 
 
 def _reported(sentence: str) -> list[tuple[int, int]]:
@@ -12218,6 +12223,10 @@ def _reported(sentence: str) -> list[tuple[int, int]]:
     names and faults no line of this page. The rule sits here, in the one
     parser, so every door reads it (fact F2, rule C76)."""
     spans: list[tuple[int, int]] = []
+    # The references come from `_LINE_REF`, the parser's one line regex.
+    refs = list(_LINE_REF.finditer(sentence))
+    starts = {r.start(): r for r in refs}
+    ends = {r.end() for r in refs}
     for m in _REPORT.finditer(sentence):
         if spans and m.start() < spans[-1][1]:
             continue
@@ -12227,11 +12236,14 @@ def _reported(sentence: str) -> list[tuple[int, int]]:
             stop = _REPORT_END.search(sentence, pos)
             if stop is None:
                 break
-            nxt = _REPORT_END.search(sentence, stop.end())
-            clause = sentence[stop.end():nxt.start() if nxt else len(sentence)]
-            if stop.group(0).lstrip(",").strip().lower() == "and" and (
-                    _REPORT_PAST.search(clause)
-                    and not _REPORT.search(clause)):
+            word = stop.group(0).lower()
+            rest = sentence[stop.end():]
+            ref = starts.get(stop.end() + len(rest) - len(rest.lstrip()))
+            if word == "," and ref and _APPOSITION_END.match(sentence, ref.end()):
+                pos = ref.end()
+                continue
+            if (word in ("and", "or") and ref
+                    and len(sentence[:stop.start()].rstrip()) in ends):
                 pos = stop.end()
                 continue
             end = stop.start()
@@ -14253,6 +14265,18 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     words_reading = _line_reading(his, len(order) if order else None)
     read_cues, read_matched = words_reading.cues, words_reading.matched
     read_faulted = set(read_cues)
+    # A revise rewrites a line, so it rests on his fault of that line. On
+    # m35, s120 revised c_3, line 4, and his words fault no part of it (the
+    # seam review of pass 1, finding 7). A reply that numbers no line can
+    # still ask a rewrite by a quote, so the check reads numbered replies.
+    if order and words_reading.refs:
+        for ref, ruling in per_item.items():
+            n = order.index(ref) + 1 if ref in order else None
+            if ruling == "revise" and n and n not in read_faulted:
+                raise ValueError(
+                    f"line {n}: a revise rewrites the line, and his words do "
+                    f"not fault line {n}. Approve line {n}, or rule it as his "
+                    f"words say")
     for ref, ruling in per_item.items():
         if ruling == "approve":
             continue
@@ -23739,17 +23763,47 @@ def _asks_removal_of(span: str, target: str) -> bool:
     """True when a sentence of `span` holds a removal request for `target`.
 
     The request clause comes from `_removal_spans`, the removal door's
-    reader. His words name code in plain words, as "the five formatting
-    tests", so a clause that names no code token asks for the seat's
-    target. A clause that names code tokens asks for `target` only when one
-    token is a whole token of it, so "remove make_str" grants no `clear`."""
-    low = (target or "").lower()
+    reader. Its object must name the target's function or file, so
+    "remove the string helper, not the clear function" grants no `clear`.
+    A clause about the touch list or the scope removes no code: m75's
+    "remove the five formatting tests from what you expect to touch" asks
+    the plan to touch less (the seam review of pass 1, findings 2 to 4)."""
+    names = _target_names(target)
     for s in re.split(r"(?<=[.!?])\s+|\n+", span or ""):
         for c in _removal_spans(s):
-            names = _named_tokens(c)
-            if not names or any(_says(low, n) for n in names):
+            verb = _REQUEST_VERBS.search(c)
+            obj = c[verb.end():] if verb else c
+            if _NO_OBJECT.match(obj) or _TOUCH_LIST.search(c):
+                continue
+            if any(_says(c.lower(), n) for n in names):
                 return True
     return False
+
+
+# A removal clause with no object: "drop nothing" (review finding 4).
+_NO_OBJECT = re.compile(r"\s*(?:nothing|none)\b", re.I)
+# A removal from the touch list, the plan or the scope, not from the code.
+_TOUCH_LIST = re.compile(
+    r"\bfrom\s+(?:what|the\s+(?:page|plan|list|scope|prediction|guess))\b"
+    r"|\bexpect\w*\s+to\s+touch\b|\btouch\s+list\b|\bscope\b", re.I)
+
+
+def _target_names(target: str) -> set[str]:
+    """The function and file names of an act target, in lower case:
+    `src/click/utils.py::make_str` gives make_str, utils.py and utils. A
+    line number names nothing, so `keepopenfile:7` gives keepopenfile."""
+    out: set[str] = set()
+    for part in (target or "").lower().split(","):
+        for piece in re.split(r"::|:", part.strip()):
+            piece = piece.strip().strip("`()")
+            if not piece or piece.isdigit():
+                continue
+            if "/" in piece or piece.endswith(".py"):
+                base = piece.rsplit("/", 1)[-1]
+                out |= {base, base.rsplit(".", 1)[0]}
+            else:
+                out |= {piece, piece.rsplit(".", 1)[-1]}
+    return {n for n in out if n}
 
 
 def _gone_targets(path: str, g: dict) -> list[str]:
