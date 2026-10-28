@@ -28,7 +28,8 @@ from rota.core.scheduler import Wake, open_tips
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.roles import prompts
 from rota.roles.api import Ctx, pointer_fault, ref_resolves
-from rota.roles.principal import land, parse_reply, pending_asks, render_page
+from rota.roles.principal import (land, parse_reply, pending_asks, render_page,
+                                  verdict_for)
 from rota.testkit.fixtures import seed_provenance
 
 PINS = Pins(model="stub", temperature=0.0)
@@ -183,9 +184,7 @@ def _land_ruling(db, words: str, ruling: dict) -> str:
 
 
 def _verdict(db, vid: str) -> dict:
-    row = db.execute("SELECT value FROM config WHERE key = ?",
-                     (f"verdict:{vid}",)).fetchone()
-    return json.loads(row["value"]) if row else {}
+    return verdict_for(db, vid)
 
 
 # ---------------------------------------------------------------------------

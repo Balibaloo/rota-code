@@ -71,14 +71,16 @@ def _seat(db, ask, words=WORDS):
 
 def _commit(db, sb):
     for w in sb.ctx.writes:
-        _apply_write(db, _as_write(w))
+        _apply_write(db, _as_write(w), sb.ctx.role)
     db.commit()
 
 
-def _rows(db, ruling_id):
+def _rows(db, ruling_id, source="landed"):
+    """The rows of one ruling, less the `landed` rows of the verdict that
+    `land` computed (fact F1). `source=None` keeps every row."""
     return [dict(r) for r in db.execute(
-        "SELECT * FROM ruled_refs_live WHERE ruling_id = ? ORDER BY row_seq",
-        (ruling_id,))]
+        "SELECT * FROM ruled_refs_live WHERE ruling_id = ? "
+        "AND source IS NOT ? ORDER BY row_seq", (ruling_id, source))]
 
 
 OBJECT = {"1": "approve", "2": "approve",
@@ -92,7 +94,7 @@ def test_the_table_holds_one_row_per_ruling_and_ref_and_the_view_derives(db):
     cols = [r[1] for r in db.execute("PRAGMA table_info(ruled_refs)")]
     assert cols == ["id", "ruling_id", "ref", "line", "verdict", "act",
                     "target_kind", "target", "words", "words_from", "old_text",
-                    "ref_version", "source"], cols
+                    "ref_version", "source", "derived_from"], cols
     view = [r[1] for r in db.execute("PRAGMA table_info(ruled_refs_live)")]
     for derived in ("status", "confirmed_by", "provenance", "ruling_status",
                     "ruling_seq", "reply_words"):
@@ -260,7 +262,8 @@ def test_the_view_supersedes_outdates_and_confirms(db):
     for row in ruling_rows(db, "r_new", ["calculate_tip"],
                            {"calculate_tip": "approve",
                             f"reading:{reply}": "approve"}, words="ok"):
-        _apply_write(db, _as_write(("ruled_refs", row["id"], row)))
+        _apply_write(db, _as_write(("ruled_refs", row["id"], row)),
+                     "liaison")
     # An amended item moves its version past the version he ruled on.
     db.execute("UPDATE items SET version = 2 WHERE id = 'calculate_tip'")
     db.commit()
@@ -341,6 +344,10 @@ def test_a_keypress_on_a_gone_ref_keeps_his_verdict_and_leaves_a_fault(db):
         "r_gone": "approve"}))
     db.commit()
     assert [r["ref"] for r in _rows(db, f"r_{mid}")] == ["s1", "calculate_tip", "l_1"]
+    # The verdict that `land` computed keeps the gone ref, as the config map
+    # kept it before fact F1.
+    assert "r_gone" in {r["ref"] for r in _rows(db, f"r_{mid}", None)
+                        if r["source"] == "landed"}
     (fault,) = db.execute("SELECT call, text FROM faults").fetchall()
     assert fault["call"] == "principal.land"
     assert fault["text"].startswith(f"r_gone: no table holds this row, so ruling r_{mid}")

@@ -155,7 +155,8 @@ def test_next_batch_on_night_126_returns_bg_3_after_s249s_call(tmp_path):
         with pytest.raises(ArgumentError):
             sb.call("problem.prioritize", id=ITEM, priority="high")
         for t, rid, values, *rest in sb.ctx.writes:
-            _apply_write(conn, Write(t, rid, values, amends=rest[0] if rest else True))
+            _apply_write(conn, Write(t, rid, values, amends=rest[0] if rest else True),
+                         sb.ctx.role)
         assert [r["id"] for r in next_batch(conn)] == ["bg_3"]
     finally:
         conn.close()

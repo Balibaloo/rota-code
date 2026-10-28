@@ -104,6 +104,10 @@ def open_ro(path: str | Path) -> sqlite3.Connection:
         raise FileNotFoundError(f"no run database at {p}")
     conn = sqlite3.connect(f"file:{p.resolve().as_posix()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
+    # A night from before fact F4 has no `latest_runs` view. A read script
+    # that opens a night here and calls a rota reader then still reads.
+    from ..core.db import latest_runs_view
+    latest_runs_view(conn)
     return conn
 
 
@@ -187,6 +191,33 @@ def _newest_feedback(user: str, prev_completion: str | None) -> tuple[str, bool]
 
 def _is_runner(turn: dict) -> bool:
     return str(turn["completion"] or "").startswith(RUNNER_PREFIXES)
+
+
+def _ruled_rows(n: Night, ruling_id: str) -> dict:
+    """The verdict per ref of one ruling: its `landed` rows, else its
+    keypress rows, else all its rows, the order of `verdict_for`. Empty
+    when the night has no `ruled_refs` table.
+
+    The last two tiers take the filters of `verdict_for`: no `reading:`
+    ref, and no approve of a resolved ledger row (fact F1, review 1,
+    finding 6). A night opens without the schema mark, so this reader keeps
+    its own query and does not call `verdict_for`."""
+    if not n.has("ruled_refs", "source"):
+        return {}
+    rows = n.conn.execute(
+        "SELECT ref, verdict, source FROM ruled_refs WHERE ruling_id = ? "
+        "ORDER BY rowid", (ruling_id,)).fetchall()
+    landed = [x for x in rows if x["source"] == "landed"]
+    if landed:
+        return {x["ref"]: x["verdict"] for x in landed}
+    resolved = set()
+    if n.has("ledger", "status"):
+        resolved = {r["id"] for r in n.conn.execute(
+            "SELECT id FROM ledger WHERE status = 'resolved'")}
+    chosen = [x for x in rows if x["source"] == "keypress"] or rows
+    return {x["ref"]: x["verdict"] for x in chosen
+            if not str(x["ref"]).startswith("reading:")
+            and not (x["verdict"] == "approve" and x["ref"] in resolved)}
 
 
 def _config(n: Night, key: str):
@@ -456,8 +487,10 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
                                     "verdict_id")):
             if r["status"] != "landed":
                 continue
-            landed = _config(n, f"verdict:{r['verdict_id']}")
-            if not isinstance(landed, dict):
+            # His keypress rows are his verdict, else the reading's rows
+            # (fact F1). A night from before `ruled_refs` has `per_item` only.
+            landed = _ruled_rows(n, r["id"])
+            if not landed:
                 try:
                     landed = json.loads(r["per_item"] or "{}")
                 except (TypeError, ValueError):

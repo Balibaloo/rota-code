@@ -18,6 +18,7 @@ import pytest
 
 from rota.core.db import init_db
 from rota.tools import nightreport
+from rota.testkit.fixtures import seed_verdict
 
 OLD = "a" * 40
 HEAD = "b" * 40
@@ -357,8 +358,7 @@ def _guess_night(tmp_path, rulings: int = 0) -> tuple[Path, Path]:
         conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status, "
                      "verdict_id) VALUES (?, ?, ?, ?, ?, 'landed', ?)",
                      (rid, ask, reply, json.dumps(per_item), words, verdict))
-        conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
-                     (f"verdict:{verdict}", json.dumps(per_item)))
+        seed_verdict(conn, verdict, json.dumps(per_item), ruling=rid)
     conn.commit()
     conn.close()
     (tmp_path / "night200.log").write_text(
@@ -459,8 +459,7 @@ def test_the_cancel_scan_ends_at_the_next_reply_of_any_page(tmp_path):
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status, "
                  "verdict_id) VALUES ('r_4', 'm20', 'm23', ?, 'Still wrong.', 'landed', "
                  "'m24')", (json.dumps({"it_1": "revise"}),))
-    conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m24', ?)",
-                 (json.dumps({"it_1": "revise"}),))
+    seed_verdict(conn, "m24", ruling="r_4", per_item=json.dumps({"it_1": "revise"}))
     conn.commit()
     conn.close()
     log = tmp_path / "late.log"

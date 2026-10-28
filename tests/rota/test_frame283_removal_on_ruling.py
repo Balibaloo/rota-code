@@ -70,9 +70,10 @@ ROUTE = ("A note does not close a removal. To undo the change, put "
          "removal before the batch merges.")
 LEDGER = ("src/click/decorators.py holds an uncommitted write that removes "
           "`ctx.exit()` at line 550, so this note closes nothing. " + ROUTE)
-# The stray of night 158's removal (frame 339).
+# The stray of night 158's removal (frame 339). F7 numbers the line in the
+# batch's base, 75cf8ed, where the write's note numbers the file it wrote.
 STRAY = ("src/click/decorators.py::version_option.callback", "open",
-         "removal: `ctx.exit()` at line 550")
+         "removal: `ctx.exit()` at line 547")
 
 
 @pytest.fixture
@@ -316,6 +317,29 @@ def test_a_ruled_removal_commits_in_the_same_reply(db, tmp_path):
     assert sb.call("code.commit", message=MESSAGE)["committed"] is True
 
 
+def test_a_removal_outside_this_replys_note_does_not_hold_the_commit(db, tmp_path):
+    """F7 review 1, finding 6. The tree lost `f.params.append(param)`
+    before this reply, and no criterion asks for that. This reply's write
+    removes `ctx.exit()`, which a criterion asks for. The note of this
+    reply holds the commit only by its own lines, so the commit lands, and
+    the other removal reaches the Architect as an open row."""
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('cr_4','tk1',"
+               "'Remove the ctx.exit() call from the version callback.')")
+    db.commit()
+    sb, root = _developer(db, tmp_path)
+    text = (root / PATH).read_bytes()
+    other = text.replace(b"        f.params.append(param)\n", b"        pass\n", 1)
+    assert other != text
+    (root / PATH).write_bytes(other)
+    out = sb.call("code.write", path=PATH, start=540, end=555, text=ECHO)
+    assert "dropped" in out
+    assert sb.call("code.commit", message=MESSAGE)["committed"] is True
+    rows = [(g, s, n) for g, s, n in _strays(sb) if g.endswith("::_param_memo")]
+    assert [(g, s) for g, s, _n in rows] == [(f"{PATH}::_param_memo", "open")], _strays(sb)
+    assert "`f.params.append(param)`" in rows[0][2]
+    assert "ctx.exit()" not in str(_strays(sb))
+
+
 def test_a_ruling_of_another_item_admits_nothing(db, tmp_path):
     """Review 1's probe P2b: only the rulings of the batch's own item count."""
     db.execute("INSERT INTO items (id, text, kind) VALUES "
@@ -368,7 +392,9 @@ def test_a_removal_of_an_earlier_commit_is_raised_on_the_new_head(db, tmp_path):
                        "hold: `ctx.exit()` at line 550.")
     out = sb.call("code.commit", message="micro")
     assert out["committed"] is True
-    assert _strays(sb) == [STRAY]
+    # F7 numbers the line in the base. Here the base is HEAD~1, the text
+    # before the removal commit.
+    assert _strays(sb) == [STRAY[:2] + ("removal: `ctx.exit()` at line 550",)]
 
 
 @pytest.mark.parametrize("words,lands", [

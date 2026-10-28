@@ -1,0 +1,36 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+__________________________________ test_prog __________________________________
+
+cfg = {'name': 'x'}
+
+    def prog(cfg):
+        try:
+>           return cfg["prog_name"]
+                   ^^^^^^^^^^^^^^^^
+E           KeyError: 'prog_name'
+
+app.py:6: KeyError
+
+The above exception was the direct cause of the following exception:
+
+    def test_prog():
+>       assert prog({"name": "x"}) == "x"
+               ^^^^^^^^^^^^^^^^^^^
+
+test_c.py:4: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cfg = {'name': 'x'}
+
+    def prog(cfg):
+        try:
+            return cfg["prog_name"]
+        except KeyError as exc:
+>           raise ConfigError("the config is bad") from exc
+E           app.ConfigError: the config is bad
+
+app.py:8: ConfigError
+=========================== short test summary info ===========================
+FAILED test_c.py::test_prog - app.ConfigError: the config is bad
+1 failed in 0.14s

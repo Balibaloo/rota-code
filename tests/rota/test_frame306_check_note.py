@@ -20,6 +20,7 @@ from rota.core.db import backfill_ruled_refs, init_db
 from rota.testkit.fixtures import seed_acts
 from rota.core.sandbox import build
 from rota.roles import api, prompts
+from rota.testkit.fixtures import seed_verdict
 
 ITEM = "confirm_default_on_eof"
 TICKET = "tk_1_confirm_default_on_eof"
@@ -131,8 +132,7 @@ def _ruled(conn, rid, page, reply, verdict, relay, words, texts, seq, acts):
              [CR2, CR3], seq + 2)
     _message(conn, relay, verdict, page, "liaison", "terminologist", "relay",
              [CR2, CR3], seq + 3)
-    conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
-                 (f"verdict:{verdict}", json.dumps(VERDICT)))
+    seed_verdict(conn, verdict, json.dumps(VERDICT))
     conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
                  (f"order:{reply}", json.dumps(PAGE)))
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "

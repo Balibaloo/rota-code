@@ -41,11 +41,20 @@ INVARIANTS = {
     "I10": "an integer column holds integers",
 }
 
-# The verbs that carry material and ask for no reply. The session that reads
-# such a message answers it when it commits (`db.session_commit`), and no
-# reply row follows by design. On night 119, 68 of the audit's 72 findings
-# were rows of this kind (`plans/frame144-inventory.md`, section 2).
-CARRIES = frozenset({"deliver", "relay", "converse", "submit", "answer", "report", "verdict"})
+def _carries(verb: str) -> bool:
+    """
+    Whether the verb carries material and asks for no reply.
+
+    The session that reads such a message answers it when it commits
+    (`db.session_commit`), and no reply row follows by design. On night 119,
+    68 of the audit's 72 findings were rows of this kind
+    (`plans/frame144-inventory.md`, section 2). A carrier is a verb outside
+    `db.OWED_A_REPLY` and outside the pages, which his reply answers. This
+    is the one list of the owed verbs (fact F16, review 1, finding 6).
+    """
+    from ..core.db import OWED_A_REPLY, PAGE_VERBS
+
+    return verb not in OWED_A_REPLY and verb not in PAGE_VERBS
 
 
 @dataclass(frozen=True)
@@ -122,9 +131,8 @@ def i3(conn) -> list[Finding]:
     for b in _rows(conn, "SELECT id, head_commit FROM batches WHERE status = 'merged' "
                          "ORDER BY id"):
         for t in _rows(conn, "SELECT id FROM tests WHERE batch_id = ? ORDER BY id", (b[0],)):
-            run = _rows(conn, "SELECT result FROM test_runs WHERE batch_id = ? AND test_id = ? "
-                              "AND commit_sha = ? ORDER BY rowid DESC LIMIT 1",
-                        (b[0], t[0], b[1]))
+            run = _rows(conn, "SELECT result FROM latest_runs WHERE batch_id = ? AND test_id = ? "
+                              "AND commit_sha = ?", (b[0], t[0], b[1]))
             if not run:
                 out.append(Finding("I3", f"merged {b[0]}: {t[0]} has no run at its head "
                                          f"{str(b[1])[:10]}"))
@@ -135,6 +143,8 @@ def i3(conn) -> list[Finding]:
 
 
 def i4(conn) -> list[Finding]:
+    # Fact F4 leaves this read on `test_runs`: it counts every run that names
+    # a test of another batch, not the newest run.
     out = []
     for r in _rows(conn, "SELECT r.test_id, r.batch_id, t.batch_id, COUNT(*) FROM test_runs r "
                          "LEFT JOIN tests t ON t.id = r.test_id "
@@ -228,7 +238,7 @@ def i9(conn) -> list[Finding]:
     design:
 
     - A message whose verb carries material is answered by the session that
-      reads it (`CARRIES`).
+      reads it (`_carries`).
     - A present to the principal whose refs hold a batch, a touch note or a
       quarantine report, closes at the keypress when the principal approves
       it, and no verdict row follows (`principal.land`: "A touch note is
@@ -243,7 +253,7 @@ def i9(conn) -> list[Finding]:
     for r in _rows(conn, "SELECT m.id, m.from_role, m.to_role, m.verb, m.body_refs "
                          "FROM messages m WHERE m.status = 'answered' AND NOT EXISTS "
                          "(SELECT 1 FROM messages a WHERE a.cause_id = m.id) ORDER BY m.seq"):
-        if r[3] in CARRIES:
+        if _carries(r[3]):
             continue
         if r[3] == "present" and r[2] == "principal" and batches & set(_refs(r[4])):
             continue
@@ -328,6 +338,9 @@ def open_readonly(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(f"file:{p}?mode=ro&immutable=1", uri=True)
     # `scheduler.parked` reads its rows by name, as every rota connection does.
     conn.row_factory = sqlite3.Row
+    # A night's file from before fact F4 has no `latest_runs` view.
+    from ..core.db import latest_runs_view
+    latest_runs_view(conn)
     return conn
 
 

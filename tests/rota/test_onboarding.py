@@ -578,7 +578,7 @@ def test_the_same_constraint_written_twice_is_one_gate(project):
         sb = sandbox_mod.build("architect", db, session_id=f"s{i}", area=area)
         sb.call("model.amend", headline=headline, text=f"seen from {area}")
         for staged in sb.ctx.writes:
-            _apply_write(db, _as_write(staged))
+            _apply_write(db, _as_write(staged), sb.ctx.role)
 
     rows = db.execute("SELECT id, text FROM constraints WHERE headline=?",
                       (headline,)).fetchall()

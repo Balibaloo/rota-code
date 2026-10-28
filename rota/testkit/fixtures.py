@@ -73,8 +73,11 @@ def seed(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None:
         web.ensure_cache(conn)
 
     for table, rows in fixture.items():
-        if table == "item_statements":
+        if table in ("item_statements", "keypress_verdicts"):
             # A relation that folded into `refs`: `_seed_refs` translates it.
+            # His verdict is rows of `rulings` and `ruled_refs`:
+            # `_seed_verdict_rulings` writes them. The key is not `verdicts`,
+            # because `verdicts` is the Critic's table.
             continue
         dropped = _DROPPED_KEYS.get(table, ())
         for row in rows:
@@ -92,35 +95,108 @@ def seed(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None:
 def _seed_verdict_rulings(conn: sqlite3.Connection,
                           fixture: dict[str, list[dict]]) -> None:
     """A landed `rulings` row for each seeded verdict: a message with the
-    `verdict` verb, or a `verdict:<message>` config key whose message is
-    seeded. `principal.land` writes the row for a live verdict, and an
-    adopt needs it on the cause chain. The ask is the verdict's cause and
-    `rulings.ask_id` is a foreign key, so a verdict with no seeded cause
-    gets no row. No prompt, wake or predicate reads the row."""
-    per_item: dict[str, str] = {}
+    `verdict` verb, or a row of the fixture key `keypress_verdicts`. That row
+    is `{id: <verdict message>, per_item: {ref: verdict}}`, and it gets the
+    rows of `seed_verdict`. `principal.land` writes the same rows for a live
+    verdict, and `verdict_for` reads them (fact F1). The ask is the
+    verdict's cause and `rulings.ask_id` is a foreign key, so a verdict
+    with no seeded cause gets no row."""
     for row in fixture.get("messages") or []:
-        if row.get("verb") == "verdict" and row.get("id"):
-            per_item.setdefault(row["id"], "{}")
-    for row in fixture.get("config") or []:
-        key = str(row.get("key") or "")
-        if key.startswith("verdict:"):
-            value = row.get("value")
-            per_item[key[len("verdict:"):]] = (
-                value if isinstance(value, str) else json.dumps(value or {}))
-    for mid, ruled in per_item.items():
+        if not (row.get("verb") == "verdict" and row.get("id")):
+            continue
         cause = conn.execute("SELECT cause_id FROM messages WHERE id = ?",
-                             (mid,)).fetchone()
+                             (row["id"],)).fetchone()
         if not cause or not cause["cause_id"]:
             continue
         conn.execute(
             "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
-            "status, verdict_id) VALUES (?, ?, ?, 'seeded verdict', 'landed', ?)",
-            (f"r_{mid}", cause["cause_id"], ruled, mid))
-    # A seeded verdict names rows the case may not seed, so its rows come
-    # from the back-fill, which refuses no ref (the seam design, 1.4).
+            "status, verdict_id) VALUES (?, ?, '{}', 'seeded verdict', "
+            "'landed', ?)", (f"r_{row['id']}", cause["cause_id"], row["id"]))
+    # A seeded ruling of another shape names rows the case may not seed, so
+    # its rows come from the back-fill, which refuses no ref (the seam
+    # design, 1.4).
     from ..core.db import backfill_ruled_refs
 
     backfill_ruled_refs(conn)
+    # After the back-fill, because a verdict on a ruling from his words
+    # derives its rows from that ruling's rows.
+    for row in fixture.get("keypress_verdicts") or []:
+        # A verdict that is the case's inbound message has no row yet, and
+        # `rulings.ask_id` is a foreign key. `seed_inbound` seeds it.
+        if conn.execute("SELECT 1 FROM messages WHERE id = ?",
+                        (row["id"],)).fetchone():
+            seed_verdict(conn, row["id"], row.get("per_item") or {})
+
+
+def seed_verdict(conn: sqlite3.Connection, message_id: str,
+                 per_item: dict | str, *, ruling: str | None = None) -> str:
+    """Seed his verdict `per_item` in message `message_id` in the shapes
+    that `land` writes. A second call replaces the rows. Returns the ruling
+    id. Each shape ends with the `landed` rows of `per_item`.
+
+    - A ruling on the ask that his words landed and no verdict names: the
+      `apply_rulings` path. No key was pressed, so no keypress row (law 11).
+    - An open ruling on the ask, or the ruling `ruling` names: his key
+      lands it, with keypress rows beside the reading's rows.
+    - Else a landed ruling `r_<message_id>` with keypress rows.
+
+    The ask is the message's cause, or the message itself, because
+    `rulings.ask_id` is a foreign key. Like the back-fill, the keypress
+    rows refuse no ref, so a test can rule a row that no table holds."""
+    # The builders of `land` read rows by name. A test may open its
+    # connection with no row factory.
+    factory, conn.row_factory = conn.row_factory, sqlite3.Row
+    try:
+        return _seed_verdict(conn, message_id, per_item, ruling)
+    finally:
+        conn.row_factory = factory
+
+
+def _seed_verdict(conn: sqlite3.Connection, message_id: str,
+                  per_item: dict | str, ruling: str | None) -> str:
+    from types import SimpleNamespace
+
+    from ..core.db import ruled_ref_id
+    from ..roles.principal import _insert_landed_rows
+
+    ruled = json.loads(per_item) if isinstance(per_item, str) else dict(per_item)
+    rid, words = ruling, False
+    if ruling is None:
+        msg = conn.execute("SELECT cause_id FROM messages WHERE id = ?",
+                           (message_id,)).fetchone()
+        if msg is None:
+            raise ValueError(f"seed_verdict: seed message {message_id} first")
+        ask = msg[0] or message_id
+        found = conn.execute(
+            "SELECT id, status, reply_id FROM rulings WHERE verdict_id = ? "
+            "OR (ask_id = ? AND verdict_id IS NULL "
+            "AND status IN ('open', 'landed')) "
+            "ORDER BY verdict_id IS NULL, rowid DESC LIMIT 1",
+            (message_id, ask)).fetchone()
+        if found is not None:
+            rid = found["id"]
+            words = found["status"] == "landed" and found["reply_id"] is not None
+        else:
+            rid = f"r_{message_id}"
+            conn.execute(
+                "INSERT INTO rulings (id, ask_id, per_item, words, status, "
+                "verdict_id) VALUES (?, ?, ?, 'seeded verdict', 'landed', ?)",
+                (rid, ask, json.dumps(ruled), message_id))
+        conn.execute("UPDATE rulings SET status = 'landed', verdict_id = ? "
+                     "WHERE id = ?", (message_id, rid))
+        conn.execute("UPDATE rulings SET per_item = ? WHERE id = ? "
+                     "AND per_item IN ('{}', '')", (json.dumps(ruled), rid))
+    conn.execute("DELETE FROM ruled_refs WHERE ruling_id = ? "
+                 "AND source IN ('keypress', 'landed')", (rid,))
+    if not words:
+        for ref, verdict in ruled.items():
+            conn.execute(
+                "INSERT INTO ruled_refs (id, ruling_id, ref, verdict, words, "
+                "source) VALUES (?, ?, ?, ?, 'seeded verdict', 'keypress')",
+                (ruled_ref_id(rid, f"keypress:{ref}"), rid, ref, verdict))
+    _insert_landed_rows(conn, rid, SimpleNamespace(order=None), message_id,
+                        ruled, {}, "")
+    return rid
 
 
 def seed_acts(conn: sqlite3.Connection, ruling_id: str, acts: dict) -> None:
@@ -1174,6 +1250,11 @@ def seed_inbound(conn: sqlite3.Connection, case: dict) -> str | None:
          inbound["verb"], json.dumps(inbound.get("body_refs", [])),
          inbound.get("body_text"), inbound.get("cause")),
     )
+    # A verdict seeded on the inbound message gets its rows now that the
+    # message exists (fact F1).
+    for row in (case.get("fixture") or {}).get("keypress_verdicts") or []:
+        if row.get("id") == msg_id:
+            seed_verdict(conn, msg_id, row.get("per_item") or {})
     return msg_id
 
 

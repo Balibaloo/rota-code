@@ -24,6 +24,7 @@ from rota.roles.principal import (
     Answer, Ask, check_line, land, parse_reply, pending_asks, render_state,
 )
 from rota.tools import invariants
+from rota.roles.principal import verdict_for
 
 ITEM_132 = "confirm_with_default_on_eof"
 ITEM_TEXT = ("Let confirm() take a default_on_eof flag: when stdin is closed it "
@@ -319,8 +320,7 @@ def test_a_contest_of_a_criterion_line_lands_an_open_verdict_that_names_it(n132)
     (verdict,) = n132.execute("SELECT id, status FROM messages WHERE cause_id = ? "
                               "AND verb = 'verdict'", (mid,)).fetchall()
     assert verdict["status"] == "open"
-    held = json.loads(n132.execute("SELECT value FROM config WHERE key = ?",
-                                   (f"verdict:{verdict['id']}",)).fetchone()["value"])
+    held = verdict_for(n132, verdict['id'])
     assert held["cr_2_confirm_eof_behavior"] == "contest"
     # The contest rests the page: no second page on the same rows before
     # the respecify (the diff review of b0a2086e, finding 2).

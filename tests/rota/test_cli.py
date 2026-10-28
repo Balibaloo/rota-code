@@ -25,6 +25,7 @@ import pytest
 
 from rota import cli
 from rota.core.db import init_db
+from rota.roles.principal import verdict_for
 
 
 @pytest.fixture
@@ -431,7 +432,7 @@ def test_agenda_and_sign_are_the_principals_seat(tmp_path, monkeypatch, capsys):
     `sign` answers one gate through the same `pump` every principal backend
     goes through -- so the CLI cannot invent a second way of recording a
     ruling. What lands is exactly what the scripted arc and the live drive
-    consume: the verdict message, and `verdict:<id>` in config.
+    consume: the verdict message, and its keypress rows in `ruled_refs`.
     """
     import json
 
@@ -468,9 +469,7 @@ def test_agenda_and_sign_are_the_principals_seat(tmp_path, monkeypatch, capsys):
                         ).fetchone()["status"] == "answered"
     verdict = conn.execute("SELECT id FROM messages WHERE verb='verdict'"
                            ).fetchone()["id"]
-    ruling = json.loads(conn.execute(
-        "SELECT value FROM config WHERE key=?",
-        (f"verdict:{verdict}",)).fetchone()["value"])
+    ruling = verdict_for(conn, verdict)
     assert ruling == {"g1": "approve", "g2": "contest"}
 
     # A ruling on rows the gate does not ask about is refused before anything

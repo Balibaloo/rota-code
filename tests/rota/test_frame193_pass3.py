@@ -16,6 +16,7 @@ from rota.core.db import backfill_ruled_refs, init_db
 from rota.core.runner import CURRENT_REQUEST_RELATION, resolve_inbound
 from rota.core.scheduler import Wake
 from rota.roles.principal import contested_statement, ratified_request
+from rota.testkit.fixtures import seed_verdict
 
 S1 = ("Add an echo_json(obj) helper next to echo that prints an object as compact "
       "JSON on one line, followed by a newline.")
@@ -71,8 +72,7 @@ def _night138(db, *, upto: str) -> None:
     _msg(db, "m138", 140, "principal", "liaison", "converse", ["s1"], cause="m135")
     _msg(db, "m139", 141, "principal", "liaison", "verdict", ["s1"], cause="m135",
          status="open" if upto == "m139" else "answered")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m139', "
-               "'{\"s1\": \"contest\"}')")
+    seed_verdict(db, "m139", '{\"s1\": \"contest\"}')
     db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, status, "
                "verdict_id) VALUES (?, 'm135', 'm138', '{\"s1\": \"contest\"}', ?, "
                "'landed', 'm139')", (CONTEST, M138))

@@ -317,9 +317,11 @@ def test_6_a_derived_id_of_another_author_is_refused_and_the_row_stays(db, autho
     db.commit()
     sb = _dev(db)
     said = _refused_reason(sb, reason=REASON)
-    assert said == (f"the reason's id {rid} is a decision by {author}. A "
-                    f"decision is its author's record, so write the reason in "
-                    f"your own words.")
+    # Fact F23: the door reads the commit's rule, so the text names both roles.
+    assert said == (f"the reason's id {rid} is a decisions row by {author}, "
+                    f"and you write as "
+                    f"developer. A journal row is its author's record. Write "
+                    f"the reason in your own words.")
     assert not sb.ctx.writes and not sb.ctx.outbound
     row = db.execute("SELECT author, text FROM decisions WHERE id = ?", (rid,)).fetchone()
     assert tuple(row) == (author, "keep the invoices")

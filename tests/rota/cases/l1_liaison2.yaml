@@ -69,8 +69,8 @@
   inbound: {id: <m_rule>, from: principal, to: liaison, verb: verdict,
             body_refs: [<i1>, <i2>], cause: <m_present>}
   fixture:
-    config:
-      - {key: "verdict:<m_rule>", value: '{"<i1>": "approve", "<i2>": "contest"}'}
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"<i1>": "approve", "<i2>": "contest"}'}
     items:
       - {id: <i1>, text: "people can close their account", kind: in_scope,
          provenance: decided, approval: draft, version: 1}
@@ -317,8 +317,8 @@
   inbound: {id: <m_rule>, from: principal, to: liaison, verb: verdict,
             body_refs: [<g1>, <k1>], cause: <m_present>}
   fixture:
-    config:
-      - {key: "verdict:<m_rule>", value: '{"<g1>": "approve", "<k1>": "approve"}'}
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"<g1>": "approve", "<k1>": "approve"}'}
     glossary_terms:
       - {id: <g1>, term: recipe, provenance: observed,
          sense_short: "a note whose contents seed a new note"}
@@ -350,8 +350,9 @@
   inbound: {id: <m_rule>, from: principal, to: liaison, verb: verdict,
             body_refs: ["guess:<i1>"], cause: <m_present>}
   fixture:
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"guess:<i1>": "contest"}'}
     config:
-      - {key: "verdict:<m_rule>", value: '{"guess:<i1>": "contest"}'}
       - {key: "entry:<m_rule>", value: '"Line 1 also names the options and defaults test files, which have nothing to do with this change, so keep the work to version option and its tests in the basic tests file."'}
     items:
       - {id: <i1>, text: "Give version_option a show_python flag that appends the running Python version to the message.",
@@ -615,8 +616,8 @@
   inbound: {id: <m_rule>, from: principal, to: liaison, verb: verdict,
             body_refs: [<i1>, <c1>], cause: "m_park_0123456789_<b1>"}
   fixture:
-    config:
-      - {key: "verdict:<m_rule>", value: '{"<i1>": "approve", "<c1>": "contest"}'}
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"<i1>": "approve", "<c1>": "contest"}'}
     items:
       - {id: <i1>, text: "the tool prints its result as JSON", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
@@ -751,8 +752,8 @@
   inbound: {id: <m_rule>, from: principal, to: liaison, verb: verdict,
             body_refs: [<s1>], cause: <m5>}
   fixture:
-    config:
-      - {key: "verdict:<m_rule>", value: '{"<s1>": "contest"}'}
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"<s1>": "contest"}'}
     entries:
       - {id: e_<m1>, author: principal, ts_order: 1,
          text: "Add an echo_json(obj) helper next to echo that prints an object as compact JSON on one line, followed by a newline."}

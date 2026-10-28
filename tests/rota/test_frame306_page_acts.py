@@ -18,6 +18,7 @@ from rota.core.sandbox import build
 from rota.core.scheduler import Wake
 from rota.roles import prompts
 from rota.roles.principal import request_rows
+from rota.testkit.fixtures import seed_verdict
 
 ITEM = "clear_returns_bool"
 TICKET = "tk_1_clear_returns_bool"
@@ -78,8 +79,7 @@ def db(tmp_path):
              CONTESTED, 113)
     _message(conn, "m114", "m113", "liaison", "terminologist", "relay",
              CONTESTED, 114)
-    conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m113', ?)",
-                 (json.dumps(VERDICT),))
+    seed_verdict(conn, "m113", json.dumps(VERDICT))
     conn.execute("INSERT INTO config (key, value) VALUES ('order:m112', ?)",
                  (json.dumps(PAGE),))
     per_item = {r: VERDICT.get(r, "approve") for r in PAGE}
@@ -156,6 +156,21 @@ def test_six_criteria_with_one_retired_admit_a_seventh(db):
                allow=prompts.mode_tools("terminologist", "criteria"))
     sb.call("criteria.specify", id="c8_output_same", ticket_id=TICKET,
             text="The output of clear() stays exactly the same as today.")
+
+
+def test_the_follower_and_the_doors_hold_the_page_acts_of_the_wake(db):
+    """The follower and the doors read the runtime list of the wake, the
+    page acts included (the review of f4951389, finding 1)."""
+    from rota.core.sandbox import held_calls
+    from rota.roles import api
+
+    sb = _repair(db)
+    sb.ctx.wake_kind = "message"
+    mode, held = held_calls(sb)
+    assert mode == "criterion_repair"
+    assert {"criteria.specify", "criteria.retire"} <= held, sorted(held)
+    tools = set(api._wake_mode_tools(sb.ctx))
+    assert {"criteria.specify", "criteria.retire"} <= tools, sorted(tools)
 
 
 def test_the_relay_wake_offers_specify_and_names_the_added_sentence(db):

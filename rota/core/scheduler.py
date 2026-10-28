@@ -561,9 +561,8 @@ def _resume_detail(conn: sqlite3.Connection, batch_id: str) -> str:
     """The attempt a deferred batch left, and its tests that still fail."""
     # A test's latest run is its result, as `tests_failing` reads it.
     rows = conn.execute(
-        "SELECT test_id, result, attempt FROM test_runs WHERE batch_id = ? "
-        "AND rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id) ORDER BY test_id", (batch_id, batch_id)).fetchall()
+        "SELECT test_id, result, attempt FROM latest_runs WHERE batch_id = ? "
+        "ORDER BY test_id", (batch_id,)).fetchall()
     attempt = max((r["attempt"] or 1 for r in rows), default=0)
     failing = sorted((r["test_id"] for r in rows if r["result"] in ("fail", "error")),
                      key=_by_number)
@@ -1525,13 +1524,14 @@ def waiting_on(conn: sqlite3.Connection, role: str) -> list[str]:
     Derived, like everything else in the register: an open outbound message
     with verb `question` is what waiting *is*, and no role has to declare it.
 
-    A `challenge` and an `escalate` wait the same way for the Developer
+    Every verb of `db.OWED_A_REPLY` waits the same way for the Developer
     alone. A Developer that challenged a test is not woken to build again
     before the Tester answers (frame 204's design, section 3.2).
     """
+    from .db import OWED_A_REPLY
+
     # Frame 204, pass 2c: a wait for every role skips 15 of 23 Architect ticks of night 143.
-    verbs = (("question", "challenge", "escalate") if role == "developer"
-             else ("question",))
+    verbs = OWED_A_REPLY if role == "developer" else ("question",)
     return [r["id"] for r in conn.execute(
         "SELECT id FROM messages WHERE from_role = ? "
         f"AND verb IN ({','.join('?' * len(verbs))}) "
@@ -1696,11 +1696,9 @@ def failing_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
     # They skip a test of a retired criterion, so this count skips it too
     # (frame 306, pass 2b).
     row = conn.execute(
-        "SELECT MAX(COALESCE(attempt, 1)) AS att FROM test_runs "
-        "WHERE batch_id = ? AND result IN ('fail','error') "
-        "AND rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id)" + live_tests(conn, "test_id"),
-        (batch_id, batch_id)).fetchone()
+        "SELECT MAX(COALESCE(attempt, 1)) AS att FROM latest_runs "
+        "WHERE batch_id = ? AND result IN ('fail','error')"
+        + live_tests(conn, "test_id"), (batch_id,)).fetchone()
     return int(row["att"] or 0)
 
 
@@ -1839,12 +1837,11 @@ def park_reds(conn: sqlite3.Connection, batch_id: str) -> tuple[list[dict], list
     # test with a criterion: night 121's own test of cr_1 is an inherited
     # id, so the id's prefix does not decide (frame 142's design, 2.A).
     rows = conn.execute(
-        "SELECT r.test_id, r.output, r.commit_sha, t.path, t.criterion_id FROM test_runs r "
+        "SELECT r.test_id, r.output, r.commit_sha, t.path, t.criterion_id FROM latest_runs r "
         "LEFT JOIN tests t ON t.id = r.test_id "
-        "WHERE r.batch_id = ? AND r.result IN ('fail','error') "
-        "AND r.rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id)" + live_tests(conn, "r.test_id") +
-        " ORDER BY r.test_id", (batch_id, batch_id)).fetchall()
+        "WHERE r.batch_id = ? AND r.result IN ('fail','error')"
+        + live_tests(conn, "r.test_id") +
+        " ORDER BY r.test_id", (batch_id,)).fetchall()
     own =[dict(r) for r in rows if r["criterion_id"] is not None]
     project = [dict(r) for r in rows if r["criterion_id"] is None]
     return own, project
@@ -2011,11 +2008,11 @@ def verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[str] 
                        (message_id,)).fetchone() if message_id else None
     if row is None or row["verb"] != "verdict":
         return None
-    ruled = conn.execute("SELECT value FROM config WHERE key = ?",
-                         (f"verdict:{message_id}",)).fetchone()
+    from ..roles.principal import verdict_for
+
+    per_item = verdict_for(conn, message_id)
     try:
         refs = json.loads(row["body_refs"] or "[]")
-        per_item = json.loads(ruled["value"]) if ruled else {}
     except (TypeError, ValueError):
         return []
     return [r for r in refs if isinstance(r, str)
@@ -2217,11 +2214,16 @@ def open_park_ask(conn: sqlite3.Connection, batch_id: str) -> str | None:
 
 
 def close_park_asks(conn: sqlite3.Connection, batch_id: str) -> int:
-    """Close the open park ask of a batch. Returns how many closed."""
-    return conn.execute(
-        "UPDATE messages SET status = 'answered' WHERE status = 'open' "
+    """Close the open park ask of a batch. Returns how many closed.
+
+    The batch's commit is the landed row, so the ask owes no answer. The
+    mark goes through `db.mark_answered`, its one writer (fact F16).
+    """
+    from .db import mark_answered
+    return sum(mark_answered(conn, r["id"]) for r in conn.execute(
+        "SELECT id FROM messages WHERE status = 'open' "
         "AND substr(id, 1, ?) = ? AND substr(id, ?) = ?",
-        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).rowcount or 0
+        (len(PARK_ASK), PARK_ASK, _PARK_BATCH_AT + 1, batch_id)).fetchall())
 
 
 def dropped_items(conn: sqlite3.Connection) -> set[str]:
@@ -2310,6 +2312,7 @@ def close_stale_park_asks(conn: sqlite3.Connection) -> int:
     closes it in `principal.land`. An abandonment by another gate closes
     neither, and an ask about a batch that is gone owes no answer.
     """
+    from .db import mark_answered
     n = 0
     for r in conn.execute(
             "SELECT id FROM messages WHERE status = 'open' AND substr(id, 1, ?) = ?",
@@ -2318,8 +2321,7 @@ def close_stale_park_asks(conn: sqlite3.Connection) -> int:
         row = conn.execute("SELECT status FROM batches WHERE id = ?",
                            (batch,)).fetchone()
         if row is None or row["status"] != "deferred" or not given_up(conn, batch):
-            n += conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
-                              (r["id"],)).rowcount or 0
+            n += mark_answered(conn, r["id"])
     return n
 
 
@@ -2347,7 +2349,7 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     # deferred branch. A green batch has no failing run at head (frame 330,
     # pass 5). The harness judges the `tests_failing` key at a new head
     # instead (frame 318), so that key keeps the exit below.
-    if any(k.split("|", 2)[1] != "tick:tests_failing"
+    if any(key_parts(k)[1] != "tick:tests_failing"
            for k in _running_given_up(conn, batch_id)):
         return True
     # A head commit newer than the failing runs is a fix nobody has tested.
@@ -2355,11 +2357,10 @@ def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
     # Without this exit the park is for ever (observed: frame 86's pass 2
     # review, 2026-09-25). The ladder is not asked again for the new commit.
     return bool(conn.execute(
-        "SELECT 1 FROM test_runs r JOIN batches b ON b.id = r.batch_id "
+        "SELECT 1 FROM latest_runs r JOIN batches b ON b.id = r.batch_id "
         "WHERE r.batch_id = ? AND r.result IN ('fail','error') "
-        "AND (b.head_commit IS NULL OR r.commit_sha = b.head_commit) "
-        "AND r.rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        "GROUP BY test_id)", (batch_id, batch_id)).fetchone())
+        "AND (b.head_commit IS NULL OR r.commit_sha = b.head_commit)",
+        (batch_id,)).fetchone())
 
 
 def rebuild_schedule(conn: sqlite3.Connection) -> list[str]:

@@ -137,7 +137,11 @@ basis AS (
               AND (u.reply_id IS NULL OR EXISTS (
                   SELECT 1 FROM ruled_refs c JOIN rulings cr ON cr.id = c.ruling_id
                   WHERE c.ref = 'reading:' || u.reply_id AND c.verdict = 'approve'
-                    AND cr.status = 'landed'))))
+                    AND cr.status = 'landed')
+                -- His keypress under the ruling decides it, as in
+                -- `ruled_refs_live` (fact F1, review 1, finding 5).
+                OR EXISTS (SELECT 1 FROM ruled_refs k WHERE k.ruling_id = u.id
+                           AND k.source = 'keypress'))))
           AS ruled,
         MAX(kind = 'statement' AND EXISTS (
             SELECT 1 FROM statements s WHERE s.id = reach.target AND s.status = 'ratified'))
@@ -590,6 +594,23 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
     attempt     INTEGER NOT NULL DEFAULT 1
 );
 
+-- The newest run of each test in each batch. Every door, gate and page that
+-- asks "what did the harness last say about this test" reads this view, so
+-- one order rule answers it (fact F4, the root-cause audit of 2026-10-27).
+-- The order is `rowid`, the insert order. `attempt` is a counter of the
+-- batch's harness passes: two runs can share it, and it can fall after a
+-- delete. `run_seq` gives the order to a reader that sorts the rows. A test
+-- counts for its own batch only, because an inherited test keeps its id
+-- across batches (frames 210 and 239). Night 170: a door told s201 to
+-- restore inh_fe7f4bfc, and that test passed 7 of 7 runs of b_3.
+-- `init_db` does not drop this view. Every tick reads it, and a drop outside
+-- a transaction fails a reader on a second connection (the F4 review, high
+-- 1: 18,589 failed reads in 11 calls). To change the text of the view, put
+-- the drop and the create in one BEGIN and COMMIT.
+CREATE VIEW IF NOT EXISTS latest_runs AS
+SELECT r.*, r.rowid AS run_seq FROM test_runs r
+WHERE r.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY batch_id, test_id);
+
 -- Every run that `record_test_run` records, kept. `test_runs` holds the live
 -- run per test, because the review gate and the hold guard read it so. Two
 -- deletes keep it live, and night 159's table lost 663 results to them
@@ -727,10 +748,14 @@ CREATE TABLE IF NOT EXISTS ruled_refs (
     words_from  TEXT REFERENCES messages(id),
     old_text    TEXT,
     ref_version INTEGER,
-    -- The source of the row: the Liaison's reading, the seat's keypress, or
-    -- the back-fill of an older row (the review, finding 7).
+    -- The source of the row: the Liaison's reading, the seat's keypress,
+    -- the back-fill of an older row (the review, finding 7), or the verdict
+    -- that `land` computed and the relays read (fact F1).
     source      TEXT NOT NULL DEFAULT 'reading'
-                CHECK (source IN ('reading','keypress','backfill'))
+                CHECK (source IN ('reading','keypress','backfill','landed')),
+    -- A `landed` row names the keypress or reading row it derives from, so
+    -- its provenance is that row's provenance (law 11). Else null.
+    derived_from TEXT REFERENCES ruled_refs(id)
 );
 CREATE INDEX IF NOT EXISTS ruled_refs_by_ref ON ruled_refs (ref, ruling_id);
 CREATE TRIGGER IF NOT EXISTS ruled_refs_never_change
@@ -748,10 +773,14 @@ END;
 -- Else it is `landed`. The order is `rulings.rowid`, because the hash id
 -- gives none (the review, finding 8). `confirmed_by` names the reply of a
 -- landed approve of `reading:<this row's reply id>`. `provenance` is
--- `decided` for a keypress row or a confirmed row, else `reasoned`.
+-- `decided` for a keypress row, a confirmed row, or a landed row that
+-- derives from a keypress row, else `reasoned`.
 CREATE VIEW IF NOT EXISTS ruled_refs_live AS
 SELECT b.*,
        CASE WHEN b.source = 'keypress' OR b.confirmed_by IS NOT NULL
+                 OR EXISTS (SELECT 1 FROM ruled_refs d
+                            WHERE d.id = b.derived_from
+                              AND d.source = 'keypress')
             THEN 'decided' ELSE 'reasoned' END AS provenance
 FROM (
     SELECT rr.*, rr.rowid AS row_seq, r.ask_id AS ask_id, r.reply_id AS reply_id,

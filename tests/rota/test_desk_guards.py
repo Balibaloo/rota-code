@@ -1959,8 +1959,9 @@ def test_20_a_vision_keeper_cannot_write_under_the_developers_reason_id(db):
         vk.call("decisions.author", id=rid, text="the test should be adjusted",
                 refs=["tst1"])
     assert str(exc.value) == (
-        f"{rid} is a decision by developer. A decision is its author's record, "
-        f"so write yours under a new id.")
+        f"{rid} is a decisions row by developer, and you write as "
+        f"vision_keeper. A journal row is its author's record. Write yours "
+        f"under a new id.")
     assert not [w for w in vk.ctx.writes if w[0] == "decisions"]
     row = db.execute("SELECT author, text FROM decisions WHERE id = ?", (rid,)).fetchone()
     assert tuple(row) == ("developer", REASON)
@@ -1971,7 +1972,7 @@ def test_21_after_that_refusal_the_reasoned_priors_still_count(db):
     rid = json.loads(db.execute("SELECT body_refs FROM messages WHERE id = ?",
                                 (landed[0],)).fetchone()[0])[2]
     vk = build("vision_keeper", db, mode="normal")
-    with pytest.raises(ValueError, match="is a decision by developer"):
+    with pytest.raises(ValueError, match="is a decisions row by developer"):
         vk.call("decisions.author", id=rid, text="keep it", refs=["tst1"])
     with pytest.raises(ValueError) as exc:
         _developer(db).call("msg.challenge_tester", refs=["c1", "tst1"],
@@ -2024,8 +2025,10 @@ def test_night147_s288_supersedes_on_the_item_under_a_principal_id(db):
                 supersedes=ITEM147)
     assert str(exc.value) == (
         f"A decision has no supersedes for an item. `{ITEM147}` is an items "
-        f"row, not a decision. d_26efd6365c is a decision by principal, so "
-        f"send the call again without supersedes, under an id of its own, and "
+        f"row, not a decision. d_26efd6365c is a decisions row by principal, "
+        f"and you write as vision_keeper. A journal row is its author's "
+        f"record. Send the call again without supersedes, under an id of its "
+        f"own, and "
         f"close with `msg.report_liaison`.")
     assert not [w for w in vk.ctx.writes if w[0] == "decisions"]
     row = db.execute("SELECT author, text FROM decisions WHERE id = "
@@ -2050,8 +2053,9 @@ def test_night143_s443_cannot_write_under_a_principal_decision(db):
                      "argument for the `Context.__init__()` method in Click.",
                 refs=["tst_version_option_show_python"])
     assert str(exc.value) == (
-        "d_04589009a6 is a decision by principal. A decision is its author's "
-        "record, so write yours under a new id.")
+        "d_04589009a6 is a decisions row by principal, and you write as "
+        "vision_keeper. A journal row is its author's record. Write yours "
+        "under a new id.")
     assert not [w for w in vk.ctx.writes if w[0] == "decisions"]
     row = db.execute("SELECT author, text FROM decisions WHERE id = "
                      "'d_04589009a6'").fetchone()

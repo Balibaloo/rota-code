@@ -14,10 +14,10 @@ Roman ruled three times today. First, on the reviewer: "That workflow is fine, I
 
 ## In flight, by branch
 
-- F25, `f25root` at 1462f0c2 (passes 1b to 1d, reviews p1 and p2 in `plans/f25-review-p1.md`). The land gate on 2bbace14 found one regression: `L1-LI-a-separate-request-is-later` re-recorded from 4/5 to 1/5. Pass 1e runs now on my implementer, reading those recordings in `rota_g328`. Do not run a gate in `rota_g328` until pass 1e reports, because a re-record there overwrites what it reads.
+- F25, `f25root` at 6a5d0850 (passes 1b to 1e, reviews p1 and p2 in `plans/f25-review-p1.md`). The land gate on 2bbace14 found one regression, `L1-LI-a-separate-request-is-later` at 1/5. Pass 1e fixed it, and the case re-recorded green 5/5 on the merge 657c559c in `rota_g328`. The land gate on 657c559c runs to `gate_657c559c.txt` in my scratchpad. Land f25root when it shows the 11 known reds and no new red.
 - F37, `f37root` at ea00492f. Built and reviewed (`plans/f37-review-p1.md`), decides from the diff alone. Lands after F25, with a gate that re-records the Critic cases.
 - F7 with W4, `f7root` (11d04b18, f7fa55b8, cdd02498). Review p1 found 5 high (`plans/f7-review-p1.md`). Pass 2 runs now: a match on normalised ast nodes with no order, recall over precision, the frame 140 refusal restored to its old reach. It needs review p2 before the land.
-- W3, `w3root` at d6a9efe6: the raw form first, the slash form last. A short review runs now, to `plans/w3-review-p1.md`.
+- W3, `w3root` at d6a9efe6: the raw form first, the slash form last. Review p1 (`plans/w3-review-p1.md`) found 1 high, a form that is a SyntaxError for an escaped quote mark. Pass 1b runs now on my implementer.
 
 Reports are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/6d9cf7e1-0faa-4156-bacb-f95ee6e7ec4f/scratchpad/` as `F25_pass1b_report.md`, `F37_pass1_report.md`, `F7_pass1_report.md` and `W3_pass1_report.md`. A one-case re-record helper is there as `rerecord_one.py`; run it from the gate worktree with `PYTHONPATH` set to that worktree.
 

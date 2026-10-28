@@ -183,8 +183,6 @@ def _contested_wake(db):
                    "'liaison', 'converse', '[]', ?, ?, 'answered')", (mid, text, seq))
         db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
                    "(?, 'principal', ?, ?)", (f"e_{mid}", seq, text))
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m49', ?)",
-               (json.dumps({ITEM1: "contest"}),))
     # The verdict lands as a ruling with its rows, the record that the
     # contest reader reads (the seam design, 3.4).
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "

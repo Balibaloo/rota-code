@@ -28,6 +28,7 @@ from rota.core.scheduler import (
     Wake, cascade_wakes, frontier, is_quiescent, predicate_wakes, release,
 )
 from rota.testkit.fixtures import seed_provenance
+from rota.testkit.fixtures import seed_verdict
 
 
 PINS = Pins(model="scripted", temperature=0.0, num_ctx=4096)
@@ -364,20 +365,20 @@ def test_observed_becomes_decided_where_they_said_so(tmp_path):
     assert observed_entries(db) == [], "an open present suppresses the tick"
 
     # 2. The principal rules: two approved, one contested. Recorded the way
-    #    `principal.py` records it -- the verdict message plus the config row.
+    #    `principal.py` records it -- the verdict message plus the ruling rows.
     present = db.execute("SELECT id FROM messages WHERE verb='present'").fetchone()["id"]
     db.execute("INSERT INTO messages (id, cause_id, cause_kind, thread_id, "
                "from_role, to_role, verb, body_refs, seq, status) "
                "SELECT 'v1', ?, 'message', thread_id, 'principal', 'liaison', "
                "'verdict', body_refs, 90, 'open' FROM messages WHERE id = ?",
                (present, present))
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:v1', ?)",
-               (_json.dumps({"g1": "approve", "k1": "approve",
-                             "g2": "contest"}),))
     db.execute("UPDATE messages SET status='answered' WHERE id = ?", (present,))
     # `principal.land` writes the ruling row the adopted rows will rest on.
     db.execute("INSERT INTO rulings (id, ask_id, verdict_id, status) "
                "VALUES ('r1', ?, 'v1', 'landed')", (present,))
+    # His keypress rows under that ruling are the verdict (fact F1).
+    seed_verdict(db, "v1", _json.dumps({"g1": "approve", "k1": "approve",
+                                        "g2": "contest"}), ruling="r1")
     db.commit()
 
     # 3. Liaison relays the ruling, split by owner.

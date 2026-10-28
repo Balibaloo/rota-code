@@ -22,6 +22,7 @@ from __future__ import annotations
 from ..core.db import (GUESS_REF, READING_REF, elsewhere, guess_item,
                        id_tables, table_of, tables_of)
 from ..core.worktrees import GIT
+from ..core.db import author_refusal, journal_author
 
 import ast as _ast
 import difflib
@@ -1737,8 +1738,9 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # finding 2). The contested brief says "One call, on the item's own id".
     wake_refs = [r for r in (getattr(ctx, "wake_refs", ()) or ())
                  if isinstance(r, str)]
-    if wake == "tick:contested" and wake_refs and id not in wake_refs:
-        return _contested_elsewhere(ctx, id, cur is not None, wake_refs)
+    contested = _contested_rows(ctx)
+    if contested and id not in contested:
+        return _contested_elsewhere(ctx, id, cur is not None, contested)
     reply = _reply_sentence_fault(ctx, id, text, row, wake_refs)
     if reply:
         return reply
@@ -1812,7 +1814,7 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # A contest on the item is a verdict on the item's own id. Night 146's
     # m250 approved the item and contested a criterion, and s399 rewrote the
     # item anyway (the review of 81f27127, finding 2). A ruling row is the
-    # record. A database with no ruling row keeps the verdict in config.
+    # record. Fact F1 removed the verdict map of config.
     keep = (f"Keep the item. Send msg.report_liaison with what the contest "
             f"needs, or answer with decisions.author")
     # The wake names the contested item. An assert on another item reads a
@@ -1946,6 +1948,42 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
             f"{_amend_step(ctx, id, cur['text'], ' '.join(words))}")
 
 
+def _contested_rows(ctx: Ctx) -> list[str]:
+    """The rows a `tick:contested` wake contests, or an empty list on any
+    other wake. The one reader of which row a contest may amend."""
+    if (getattr(ctx, "wake_kind", "") or "") != "tick:contested":
+        return []
+    return [r for r in (getattr(ctx, "wake_refs", ()) or ())
+            if isinstance(r, str)]
+
+
+# The deliver brief's route for a request, `deliver.md` lines 37 and 38.
+DESCRIPTION_ROUTE = ("Assert it as its own item, with an id that names the "
+                     "behaviour, one `problem.assert` per distinct thing. Do "
+                     "not put the statement into the account.")
+
+
+def _description_kept(ctx: Ctx, id: str) -> str:
+    """
+    The refusal for a text on an observed description row.
+
+    The route goes only to a seat whose mode brief holds it. A seat on
+    another mode does not read the deliver brief, and a new item does not
+    end its wake, so the refusal names no call there (the review of hiwroot
+    pass 1, finding 2).
+    """
+    from . import prompts as _prompts
+
+    fact = (f"{id} is a description read from the code, and only an "
+            f"onboarding wake changes its words. The row keeps its words")
+    brief = " ".join(_prompts.piece(ctx.role, _wake_mode_key(ctx) or "").split())
+    if (DESCRIPTION_ROUTE in brief
+            and "problem.assert" in _wake_mode_tools(ctx)):
+        return (f"{fact}. What the principal asked for is its own item. Your "
+                f"brief says: \"{DESCRIPTION_ROUTE}\"")
+    return f"{fact}."
+
+
 def _contested_elsewhere(ctx: Ctx, id: str, exists: bool,
                          wake_refs: list[str]) -> str:
     """
@@ -2044,6 +2082,17 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             "SELECT i.text FROM items i JOIN item_provenance p ON p.id = i.id "
             "WHERE i.id = ? AND p.provenance = 'observed'",
             (id,)).fetchone()
+        # An observed description says what the code does today. Only a
+        # wake that reads the code changes its words. Night 171: s152, woken
+        # by a deliver that named a ledger row, rewrote the approved account,
+        # and the word doors below let it pass. A contest carries his words,
+        # and "an observed item stays observed until their words change it",
+        # so a contested wake amends the row it contests and no other (the
+        # review of hiwroot pass 1, finding 1).
+        from ..core.runner import _is_description
+        if (observed and _is_description(ctx.conn, id)
+                and id not in _contested_rows(ctx)):
+            raise ValueError(_description_kept(ctx, id))
         if observed and observed["text"]:
             old_words = set(_prose_words(observed["text"]))
             new_words = set(_prose_words(text))
@@ -2125,8 +2174,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
                 f"how_it_works is the account of the whole program, and this "
                 f"text keeps almost none of its words ({cur_acc['text']!r}). A "
                 f"behaviour the principal asked for is its own item: assert it "
-                f"under its own name, kind in_scope. Amend the account only to "
-                f"add the new behaviour to what it already says")
+                f"under its own name, kind in_scope")
 
     if ctx.conn.execute(
             "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
@@ -2300,7 +2348,7 @@ def _landed_approval(ctx: Ctx, id: str) -> tuple[str, str] | None:
     """(ruling id, ask id) when the newest landed ruling on `id` approves it.
 
     The door reads the newest landed row on `id` in `ruled_refs_live`. The
-    view orders by `rulings.rowid`. The `config` verdict
+    view orders by `rulings.rowid`. The verdict that `verdict_for` reads
     holds only the rows the relay carries (frame 238). The newest landed row
     in rowid order is the principal's latest word. The relay's chain ruling
     is one of these rows, so a newer ruling wins over it (the review of
@@ -2546,13 +2594,9 @@ def _principal_relay(ctx: Ctx) -> tuple[list[str], dict[str, str]] | None:
         refs = [r for r in json.loads(row["refs"] or "[]") if isinstance(r, str)]
     except (TypeError, ValueError):
         refs = []
-    ruled = ctx.conn.execute("SELECT value FROM config WHERE key = ?",
-                             (f"verdict:{row['cid']}",)).fetchone()
-    try:
-        verdict = json.loads(ruled["value"]) if ruled else {}
-    except (TypeError, ValueError):
-        verdict = {}
-    return refs, verdict if isinstance(verdict, dict) else {}
+    from .principal import verdict_for
+
+    return refs, verdict_for(ctx.conn, row["cid"])
 
 
 def _wake_refs(ctx: Ctx) -> set[str]:
@@ -5864,11 +5908,18 @@ def _docs_ticket_refusal(ctx: Ctx, ticket_id: str | None,
             f"documentation and send it again.")
 
 
+# The step for a seat's own work that landed in this session. The runner's
+# copy line, the criteria twin and the batch twin end with it, so one
+# situation gets one answer (night 170's W8, review finding 4).
+LANDED_STANDS = "nothing more is needed for it"
+
+
 def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     """
     The exact-twin refusal. It names each sibling ticket with no criterion
     in place of "a second sentence", and keeps the old text when every
-    ticket of the item has one.
+    ticket of the item has one. A twin that this session wrote is named as
+    the seat's own landed row, with no "second sentence".
 
     Night 163, item `clear()`: "it needs a second sentence" sent s199 to
     invent cases on tk_1 while tk_2 held nothing (frame 322, cause 9).
@@ -5882,6 +5933,18 @@ def _twin_refusal(ctx: Ctx, twin: str, ticket_id: str) -> str:
     written = {w[2].get("ticket_id") for w in ctx.writes
                if w[0] == "criteria" and isinstance(w[2], dict)}
     empty = criteria_tickets(ctx.conn, row["item_id"], written)[0] if row else []
+    # The twin is the seat's own row from this session. "A second sentence"
+    # sent seats to cut new words into the twin's words, or to log the row
+    # as lost: night 170's s118 and s187, night 171's s117 (night 170's W8).
+    # The row is one row for one set of words, and the text says it stands.
+    # The step is the runner's step for a copy, in the same words (the W8
+    # review, finding 4).
+    if any(w[0] == "criteria" and w[1] == twin for w in ctx.writes):
+        own = (f"those are {twin}'s words already, on the same ticket. {twin} "
+               f"is your criterion from this session. It landed and stands, "
+               f"and {LANDED_STANDS}.")
+        return " ".join([own] + [f"{tid}, {headline}, has no criterion yet."
+                                 for tid, headline in empty])
     if not empty:
         return (f"{head}; if the ticket needs a second criterion, it needs a "
                 f"second sentence")
@@ -6208,32 +6271,59 @@ def _request_callables(item_text: str | None, item_id: str | None) -> set[str]:
     return found | ({item_id} if item_id else set())
 
 
-def _wake_mode_tools(ctx: Ctx) -> list[str]:
+def _wake_mode_key(ctx: Ctx) -> str:
     """
-    The ops that the wake's prompt mode offers, as the runner reads them.
+    The prompt mode of the wake, as the runner keys it.
 
     `ctx.mode` is the sandbox mode, `normal` on every mover session of
     nights 145 and 146. So the door keys the mode by the wake, as
     `session_sandbox` does (the review of 3de76eaf, finding 1).
     """
     from ..core.runner import _mode_key
+
+    wake = _ctx_wake(ctx)
+    # A sandbox built with no wake has only its own mode to go on.
+    return ctx.mode if wake is None else _mode_key(wake, ctx.conn)
+
+
+def _ctx_wake(ctx: Ctx):
+    """The wake of the session as the runner built it, or None when the
+    sandbox has no wake."""
     from ..core.scheduler import Wake
-    from . import prompts as _prompts
 
     kind = getattr(ctx, "wake_kind", "") or ""
     trigger = getattr(ctx, "trigger", None)
     if not kind:
-        # A sandbox built with no wake has only its own mode to go on.
-        return _prompts.mode_tools(ctx.role, ctx.mode) or []
+        return None
     verb = ""
     if kind == "message" and trigger:
         row = ctx.conn.execute("SELECT verb FROM messages WHERE id = ?",
                                (trigger,)).fetchone()
         verb = row["verb"] if row else ""
-    wake = Wake(role=ctx.role, kind=kind,
+    return Wake(role=ctx.role, kind=kind,
                 message_id=trigger if kind == "message" else None,
                 refs=tuple(getattr(ctx, "wake_refs", ()) or ()), detail=verb)
-    return _prompts.mode_tools(ctx.role, _mode_key(wake, ctx.conn)) or []
+
+
+def _wake_mode_set(ctx: Ctx) -> list[str] | None:
+    """The ops that the runtime gives the wake's seat, or None when the mode
+    has no `.tools` file and the role keeps every op of its graph.
+
+    The runtime list is `runner._wake_allow`: the mode's ops and the page
+    acts of a criterion relay. The doors and the follower read the same
+    list (the review of f4951389, finding 1)."""
+    from . import prompts as _prompts
+    from ..core.runner import _wake_allow
+
+    wake = _ctx_wake(ctx)
+    if wake is None:
+        return _prompts.mode_tools(ctx.role, ctx.mode)
+    return _wake_allow(wake, ctx.conn)
+
+
+def _wake_mode_tools(ctx: Ctx) -> list[str]:
+    """The ops that the wake's prompt mode offers, as the runner reads them."""
+    return _wake_mode_set(ctx) or []
 
 
 def _cue_hit(cues: tuple, name: str, said: str, *, request: bool = False):
@@ -7232,7 +7322,17 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
     staged_twin = next((w[1] for w in ctx.writes if w[0] == "batches"
                         and isinstance(w[2], dict)
                         and w[2].get("item_id") == item_id), None)
-    twin = staged_twin or (open_twin and open_twin["id"])
+    # The seat's own batch from this session. A batch row is a staged
+    # relation and no journal, so a new id on it gets the copy answer and
+    # not the refusal. L1-AR-group-into-batches sent a second id at turn 4
+    # and read "reorder it with problem.prioritize" (the W8 review,
+    # finding 5).
+    if staged_twin:
+        return {"id": staged_twin, "unchanged": True,
+                "note": f"{item_id}'s work is your batch {staged_twin} from "
+                        f"this session. It landed and stands, and "
+                        f"{LANDED_STANDS}."}
+    twin = open_twin and open_twin["id"]
     if twin:
         raise ValueError(
             f"{item_id}'s work is already batched as {twin}. A batch "
@@ -11048,9 +11148,7 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
         "       CASE WHEN r.result = 'pass' THEN NULL ELSE r.output END AS said, "
         "       r.commit_sha AS run_sha "
         "FROM tests t "
-        "LEFT JOIN test_runs r ON r.id = ("
-        "    SELECT id FROM test_runs WHERE test_id = t.id AND batch_id = t.batch_id "
-        "    ORDER BY attempt DESC, rowid DESC LIMIT 1) "
+        "LEFT JOIN latest_runs r ON r.test_id = t.id AND r.batch_id = t.batch_id "
         "WHERE t.batch_id = ? "
         "ORDER BY t.criterion_id IS NULL, t.rowid", (bid,)))
     # A run is a statement about one commit. Finding 66 (2026-09-14): the
@@ -11202,14 +11300,19 @@ SHIFT_WORDS: dict[str, str | None] = {
 }
 
 
+def _word_key(raw, words: dict) -> str:
+    """The key of `words` that a seat's word matches: the whole word, else
+    its first word. Else the whole word, lowered."""
+    word = str(raw).strip().lower()
+    first = word.split()[0] if word.split() else word
+    return first if word not in words and first in words else word
+
+
 def _ruling_word(key: str, raw, shift: bool = False) -> str:
     """The stored ruling for one line's word, or the refusal that names the
     map of the page it is on."""
     words = SHIFT_WORDS if shift else RULING_WORDS
-    word = str(raw).strip().lower()
-    first = word.split()[0] if word.split() else word
-    if word not in words and first in words:
-        word = first
+    word = _word_key(raw, words)
     if word in words and words[word] is not None:
         return words[word]
     if word in words:
@@ -11274,11 +11377,34 @@ def _ruling_id(ctx: Ctx, ask_id: str) -> str:
     return f"{base}_{n}"
 
 
-def _stray_act_fields(ctx, rulings: dict, words: str) -> str | None:
+def _rule_call(moved: dict, said: str) -> tuple[str, dict]:
+    """The text of one `rulings.rule` call and its arguments."""
+    args = {"rulings": moved, **({"words": said} if said else {})}
+    text = (f"rulings.rule(rulings={json.dumps(moved, ensure_ascii=False)}"
+            + (f", words={json.dumps(said, ensure_ascii=False)}" if said else "")
+            + ")")
+    return text, args
+
+
+def _unruled_lines(ctx, lines: dict, order: list) -> list[str]:
+    """The numbers of the page lines that `lines` leaves out, by the rule of
+    the door that refuses them: a check line and a read-back line take none."""
+    from .principal import READING_REF, is_test_row
+
+    return [str(i + 1) for i, r in enumerate(order or [])
+            if str(i + 1) not in lines and r not in lines
+            and not is_test_row(ctx.conn, r)
+            and not str(r).startswith(READING_REF)]
+
+
+def _stray_act_fields(ctx, rulings: dict, words: str, order: list | None = None,
+                      shift: bool = False) -> str | None:
     """The refusal for object fields given as keys of `rulings`, or None.
 
     The offer moves the fields into the object of the line they are about:
-    the one contested or revised line, else the one line of the map."""
+    the one contested or revised line, else the one line of the map. The
+    offer carries every line of the page, so the next door admits it (the
+    gate of 9827e38a, L1-LI-a-dropped-line-is-a-contest)."""
     fields = {str(k).strip().lower(): v for k, v in rulings.items()
               if str(k).strip().lower() in _ACT_FIELDS + ("words",)}
     if not any(f in fields for f in _ACT_FIELDS):
@@ -11296,18 +11422,182 @@ def _stray_act_fields(ctx, rulings: dict, words: str) -> str | None:
                 f"{{\"<line>\": {{\"verdict\": \"contest\", \"act\": ...}}}}")
     said = str(fields.pop("words", "") or words or "").strip()
     given = lines[key]
+    if shift:
+        return _stray_on_shift(ctx, names, lines, key, given, said)
     value = ({**given, **fields} if isinstance(given, dict)
              else {"verdict": str(given).strip().lower(), **fields})
     if said:
         value["words"] = said
-    moved = {**lines, key: value}
-    call = (f"rulings.rule(rulings={json.dumps(moved, ensure_ascii=False)}"
-            + (f", words={json.dumps(said, ensure_ascii=False)}" if said else "")
-            + ")")
-    return _offer(ctx, (
-        f"rulings.rule: {names} are fields of line {key}'s object, not lines "
-        f"of the page. Put them inside line {key}: {call}"),
-        "rulings.rule", {"rulings": moved, **({"words": said} if said else {})})
+    # law 6: only his words choose a verdict. A line his words do not fault
+    # is approve, by the rule of the door that names an unruled line. A line
+    # his words fault takes no verdict from the door (the review of
+    # f4951389, finding 3).
+    unruled = _unruled_lines(ctx, lines, order or [])
+    faulted = _faulted_by_his_words(ctx, said, len(order or []))
+    open_ = [n for n in unruled if int(n) in faulted]
+    fine = [n for n in unruled if n not in open_]
+    moved = {**{n: "approve" for n in fine}, **lines, key: value}
+    if fine:
+        moved = dict(sorted(moved.items(), key=lambda kv: (
+            not kv[0].isdigit(), int(kv[0]) if kv[0].isdigit() else 0)))
+    call, args = _rule_call(moved, said)
+    rest = ""
+    if fine:
+        rest = (f" Line{'s' if len(fine) > 1 else ''} {', '.join(fine)} "
+                f"had no ruling, and a line the reply does not contest is "
+                f"approve.")
+    if open_:
+        # A refusal shows no call that the doors refuse, and a call with no
+        # ruling for the faulted line is refused (frame 135's law; the
+        # review p2 of F25, finding 3). So the text names the lines only.
+        one = len(open_) == 1
+        lines_ = ", ".join(open_)
+        return (f"rulings.rule: {names} are fields of line {key}'s object, "
+                f"not lines of the page. Put them inside line {key}.{rest} "
+                f"Line{'' if one else 's'} {lines_} also "
+                f"{'has' if one else 'have'} no ruling, and his words fault "
+                f"{'it' if one else 'them'}. Give line{'' if one else 's'} "
+                f"{lines_} the verdict his words give, in the same call.")
+    head = (f"rulings.rule: {names} are fields of line {key}'s object, not "
+            f"lines of the page.{rest} Put them inside line {key}: {call}")
+    return _offer(ctx, head, "rulings.rule", args)
+
+
+def _shift_acts_conflict(ctx, his: str, rulings: dict, acts: dict,
+                         words: str) -> str | None:
+    """The refusal of an approve or a keep in `acts` on the shift page,
+    when his reply holds a shift word, or None.
+
+    Night 171's s200 kept `{"verdict": "approve", "act": "keep"}` in `acts`
+    beside `"1": "later"`. The door named only the shift rule, four times,
+    and no ruling landed (ruled: the coordinator, 2026-10-27, pass 1c). The
+    offer drops the entry and keeps the seat's verdict. Law 6: the door
+    offers a call only when that verdict is a word of the shift page."""
+    found = _his_shift_words(his)
+    if not found:
+        return None
+    bad = [k for k, v in acts.items() if isinstance(v, dict) and (
+        str(v.get("verdict", "")).strip().lower() == "approve"
+        or str(v.get("act", "")).strip().lower() == "keep")]
+    if not bad:
+        return None
+    rest = {k: v for k, v in acts.items() if k not in bad}
+    lines = {str(k).strip(): v for k, v in rulings.items()}
+    # Law 6: the door never picks a word of his to match the seat's. It
+    # names his first shift word (the review p2 of F25, (b)).
+    heard = found[0]
+    his_meanings = {SHIFT_WORDS[w.lower()] for w in found}
+    sent = [str(v).strip() for v in lines.values()]
+    entries = ", ".join(f"acts[{k!r}]" for k in bad)
+    one = len(bad) == 1
+    head = (f"{entries} {'gives' if one else 'give'} approve "
+            f"or keep, and his words say {heard!r}. This page takes later, now "
+            f"or drop, and no act. Leave {'that entry' if one else 'those entries'} "
+            f"out of acts")
+    seat_meanings = {SHIFT_WORDS.get(_word_key(v, SHIFT_WORDS))
+                     if isinstance(v, str) else None for v in lines.values()}
+    if not lines or len(his_meanings) != 1 or seat_meanings != his_meanings:
+        # The seat chooses the verdict from his words, so no call is offered.
+        theirs = ", ".join(repr(s) for s in sent) or "no verdict"
+        return (f"{head}. You sent {theirs}, and his words say {heard!r}. "
+                f"Give each line the word his reply gives it.")
+    # A park carries his reply whole to the row's owner, so the offer
+    # passes his words when the seat gave none.
+    said = str(words or his or "").strip()
+    call, args = _rule_call(lines, said)
+    if rest:
+        call = call[:-1] + f", acts={json.dumps(rest, ensure_ascii=False)})"
+        args["acts"] = rest
+    return _offer(ctx, f"{head}: {call}", "rulings.rule", args)
+
+
+def _his_shift_words(his: str) -> list[str]:
+    """The shift words of his reply, in order. A negated word is no
+    ruling: night 171's "please do not drop it"."""
+    return [m.group(1) for m in re.finditer(
+        r"(?<!\bnot )(?<!\bnever )(?<!\bdon't )\b("
+        + "|".join(k for k, v in SHIFT_WORDS.items() if v) + r")\b",
+        his or "", re.I)]
+
+
+def _shift_agrees(found: list[str], lines: dict) -> bool:
+    """True when every verdict of the seat means the same as every shift
+    word of his reply. Law 6: only then does a door complete a call."""
+    his = {SHIFT_WORDS[w.lower()] for w in found}
+    seat = {SHIFT_WORDS.get(_word_key(v, SHIFT_WORDS)) if isinstance(v, str)
+            else None for v in lines.values()}
+    return bool(lines) and len(his) == 1 and seat == his
+
+
+def _his_reply(ctx) -> str:
+    """The words of the message that woke the session."""
+    row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                           (ctx.trigger,)).fetchone() if ctx.trigger else None
+    return (row["body_text"] if row else "") or ""
+
+
+def _faulted_by_his_words(ctx, said: str, size: int) -> set[int]:
+    """The page lines that his reply or the seat's words fault, by the fault
+    reader of the faulted-approve door (`_line_cues`)."""
+    row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                           (ctx.trigger,)).fetchone() if ctx.trigger else None
+    his = (row["body_text"] if row else "") or ""
+    out: set[int] = set()
+    for text in (his, said):
+        if text:
+            out |= set(_line_cues(text, size or None)[0])
+    return out
+
+
+def _stray_on_shift(ctx, names: str, lines: dict, key: str, given,
+                    said: str) -> str:
+    """The refusal of act fields on the page that orders two requests.
+
+    That page takes later, now or drop, and no act (frame 193's design,
+    2.F.3). The gate of 9827e38a, L1-LI-a-separate-request-is-later: the
+    offer kept contest, and the word door refused it. A word of the seat's
+    that the page holds is offered alone. Otherwise each of the three words
+    is offered, because only his words choose one (law 6). The word is read
+    by the match of `_ruling_word`, so "later please" is later. A question
+    back keeps its own call (the review of f4951389, finding 4)."""
+    word = given.get("verdict") if isinstance(given, dict) else given
+    matched = _word_key(word or "", SHIFT_WORDS)
+    mapped = SHIFT_WORDS.get(matched)
+    head = (f"rulings.rule: {names} are fields of an act, and line {key} of "
+            f"this page takes no act.")
+    # Law 6: a completed call carries a verdict that means what his shift
+    # words mean, or no call is shown (pass 1d's ruling; the land gate of
+    # 2bbace14, run 5 took the drop offer against "a separate request").
+    found = _his_shift_words(_his_reply(ctx))
+    if found and not (mapped and _shift_agrees(found, {key: matched})):
+        sent = (f"You sent {matched!r}, and his words say {found[0]!r}."
+                if mapped else f"His words say {found[0]!r}.")
+        return (f"{head} {sent} Line {key} takes "
+                f"later, now or drop. later, separate, park, aside and behind "
+                f"are later. now, answer and first are now. drop, remove and "
+                f"stop are drop. Give line {key} the word his reply gives it, "
+                f"with no act.")
+    if mapped:
+        call, args = _rule_call({**lines, key: matched}, said)
+        return _offer(ctx, f"{head} Give line {key} its word alone: {call}",
+                      "rulings.rule", args)
+    if matched in SHIFT_WORDS:
+        ask = f"<one sentence about line {key}>"
+        call = f'rulings.rule(ask="{ask}")'
+        return (f"{head} {matched!r} is a question back, and a question is "
+                f"its own call: "
+                + _offer(ctx, call, "rulings.rule", {"ask": ask})
+                + " with no rulings.")
+    parts = []
+    for choice, meaning in (("later", "his words put the request after the "
+                             "one in hand"),
+                            ("now", "his words take it first"),
+                            ("drop", "his words stop it")):
+        call, args = _rule_call({**lines, key: choice}, said)
+        parts.append(_offer(ctx, f"{call} when {meaning}", "rulings.rule",
+                            args))
+    return (f"{head} Line {key} takes later, now or drop: "
+            + "; ".join(parts) + ".")
 
 
 def _ruling_shape(key: str, value: dict) -> dict:
@@ -12903,7 +13193,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # from `acts`. `per_item` keeps the verdict word, so every door below
     # reads the same map as before (the seam design, 1.4).
     shape_of: dict[str, dict] = {}
-    stray = _stray_act_fields(ctx, rulings, words)
+    stray = _stray_act_fields(ctx, rulings, words,
+                              [] if is_clarify else order, shift)
     if stray:
         raise ValueError(stray)
     for key, ruling in rulings.items():
@@ -13002,6 +13293,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 "acts is a map of the keys of rulings to an act, for example "
                 "{\"2\": {\"act\": \"remove\", \"target\": \"app.py:518\", "
                 "\"words\": \"remove the line at 518\"}}")
+        if shift:
+            kept = _shift_acts_conflict(ctx, his, rulings, acts, words)
+            if kept:
+                raise ValueError(kept)
         for key, given in acts.items():
             key = str(key).strip()
             ref = next((r for r, k in key_of.items() if k == key), None)
@@ -13013,7 +13308,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 raise ValueError(
                     f"acts[{key!r}] is an object with act, target and words")
             shape = _ruling_shape(key, {"verdict": per_item[ref], **given})
-            if _ruling_word(key, shape.pop("verdict"), shift=shift) != per_item[ref]:
+            try:
+                verdict = _ruling_word(key, shape.pop("verdict"), shift=shift)
+            except ValueError as e:
+                # The word sits in acts, so the refusal names acts (pass 1c).
+                raise ValueError(f"acts[{key!r}] gives the verdict. {e}") from None
+            if verdict != per_item[ref]:
                 raise ValueError(
                     f"line {key}: acts and rulings give two verdicts. Give the "
                     f"verdict in rulings only")
@@ -13345,6 +13645,23 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "a reading carries the principal's words, and words is empty. "
             "Pass the reply, whole")
     if any(v != "approve" for v in per_item.values()) and not (words or "").strip():
+        # On the shift page, a verdict that means what his shift words mean
+        # gets the call with his reply whole. The land gate of 2bbace14,
+        # runs 1, 2 and 4: the seat put his words in acts, and this bare
+        # text moved it off "later" (law 6: the verdict stays the seat's).
+        his_all = _his_reply(ctx)
+        found = _his_shift_words(his_all) if shift else []
+        if found and _shift_agrees(found, {str(k).strip(): v for k, v
+                                           in rulings.items()}):
+            call, args = _rule_call(dict(rulings), his_all.strip())
+            if acts:
+                call = (call[:-1] + ", acts="
+                        + json.dumps(acts, ensure_ascii=False) + ")")
+                args["acts"] = acts
+            raise ValueError(_offer(ctx, (
+                f"a contest carries the principal's words to the row's owner, "
+                f"and words is empty. Pass the reply, whole: {call}"),
+                "rulings.rule", args))
         raise ValueError(
             "a contest carries the principal's words to the row's owner, and "
             "words is empty. Pass the reply, whole")
@@ -13449,13 +13766,16 @@ def rulings_load(ctx: Ctx, ask_id: str | None = None) -> list[dict]:
             "SELECT * FROM rulings WHERE ask_id = ? ORDER BY rowid", (ask_id,)))
     else:
         out = _rows(ctx.conn.execute("SELECT * FROM rulings ORDER BY rowid"))
+    from .principal import one_row_per_ref
+
     for reading in out:
         rows = _rows(ctx.conn.execute(
-            "SELECT ref, line, verdict, act, target_kind, target, words, "
-            "words_from, old_text, ref_version, source, status, confirmed_by, "
-            "provenance FROM ruled_refs_live WHERE ruling_id = ? "
+            "SELECT ruling_id, ref, line, verdict, act, target_kind, target, "
+            "words, words_from, old_text, ref_version, source, status, "
+            "confirmed_by, provenance FROM ruled_refs_live WHERE ruling_id = ? "
             "ORDER BY row_seq", (reading["id"],)))
-        reading["refs"] = rows
+        reading["refs"] = [{k: v for k, v in r.items() if k != "ruling_id"}
+                           for r in one_row_per_ref(rows)]
     return out
 
 
@@ -14168,19 +14488,17 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
         tools = _wake_mode_tools(ctx)
         close = (", and close with `msg.report_liaison`"
                  if not tools or "msg.report_liaison" in tools else "")
-        # s288 sent the principal's d_26efd6365c as the id. The author check
-        # below refuses that id, so the text asks for an id of its own.
-        owner = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                                 (id,)).fetchone()
-        taken = bool(owner is not None and owner["author"]
-                     and owner["author"] != ctx.role)
+        # s288 sent the principal's d_26efd6365c as the id. The author rule
+        # refuses that id, so the text asks for an id of its own.
+        taken = author_refusal(ctx.conn, "decisions", id, ctx.role,
+                               {"author": ctx.role, "text": text})
         args = {"id": INVENT if taken else id, "text": text,
                 "refs": refs or []}
         if resolves_ledger:
             args["resolves_ledger"] = resolves_ledger
-        again = (f"{id} is a decision by {owner['author']}, so send the call "
-                 f"again without supersedes, under an id of its own"
-                 if taken else "Send the same call without supersedes")
+        again = (f"{taken} Send the call again without supersedes, under an "
+                 f"id of its own" if taken
+                 else "Send the same call without supersedes")
         raise ValueError(_offer(
             ctx,
             f"A decision has no supersedes for an item. `{supersedes}` is an "
@@ -14193,9 +14511,7 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
     # Night 148's s189 superseded his signoff decision d_565d2845d4.
     if (supersedes and isinstance(supersedes, str) and ctx.role != "principal"
             and supersedes not in staged):
-        over = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                                (supersedes,)).fetchone()
-        if over is not None and over["author"] == "principal":
+        if journal_author(ctx.conn, "decisions", supersedes) == "principal":
             args = {"id": id, "text": text, "refs": refs or []}
             if resolves_ledger:
                 args["resolves_ledger"] = resolves_ledger
@@ -14206,19 +14522,16 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
                 f"without supersedes.",
                 "decisions.author", args))
     # law 1: one writing role per row; a journal entry has one author
-    # Frame 200, pass 5, fix 7, which frame 219 inherits: a write under an
-    # existing id overwrites the row and its author. Night 143's s443 wrote
-    # over the principal's own decision that way.
-    owner = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                             (id,)).fetchone()
-    if owner is not None and owner["author"] and owner["author"] != ctx.role:
-        raise ValueError(
-            f"{id} is a decision by {owner['author']}. A decision is its "
-            f"author's record, so write yours under a new id.")
+    # Frame 200, pass 5, fix 7, which frame 219 inherits: night 143's s443
+    # wrote over the principal's own decision. The commit refuses that write
+    # too (fact F23). The door refuses first, so the session keeps its turn.
+    row = {"author": ctx.role, "text": text, "refs": json.dumps(refs or []),
+           "supersedes": supersedes, "resolves_ledger": resolves_ledger}
+    refused = author_refusal(ctx.conn, "decisions", id, ctx.role, row)
+    if refused:
+        raise ValueError(f"{refused} Write yours under a new id.")
 
-    ctx.writes.append(("decisions", id, {
-        "author": ctx.role, "text": text, "refs": json.dumps(refs or []),
-        "supersedes": supersedes, "resolves_ledger": resolves_ledger}))
+    ctx.writes.append(("decisions", id, row))
     if resolves_ledger:
         ctx.writes.append(("ledger", resolves_ledger, {"status": "resolved"}, False))
     return {"id": id, "resolves_ledger": resolves_ledger}
@@ -14408,6 +14721,160 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
 _LINE_PART_MIN = 12
 # A value with line breaks holds at most this many lines (frame 170's review).
 _LINE_PARTS_MAX = 2
+# A branch of a statement that a pass names holds at most this many simple
+# statements. A larger branch wraps the change, and a wrapper lands on any
+# batch, which is frame 170's fault (F37, review 1 of cb5d8dc1, high 2).
+_BRANCH_BODY_MAX = 2
+# The stub that a parse puts above a run that opens on an arm, because the
+# run of added lines does not hold the arm's header (F37, review 1, low 3).
+_ARM_STUBS = ((("elif ", "elif(", "else:"), "if _:\n    pass\n"),
+              (("except", "finally:"), "try:\n    pass\n"))
+
+
+def _simple(stmt) -> bool:
+    """True when a statement holds no other statement."""
+    return not any(hasattr(stmt, f) for f in ("body", "cases"))
+
+
+def _branch_kind(node) -> str | None:
+    """The words for a branching statement that a pass may name as one line,
+    or None.
+
+    Night 171's c_1 asked for a Roaming case and a Local case, and no one
+    added line meets both (F37, `plans/night171-critic-read.md`). So one
+    `if`, `try`, `match` or conditional expression counts as one line. Each
+    branch holds at most `_BRANCH_BODY_MAX` simple statements. A branch that
+    holds a `def`, a `class` or a nested block is no branch of one case.
+    """
+    if isinstance(node, _ast.If):
+        arms, kind, at = [], "`if` statement", node
+        while True:
+            arms.append(at.body)
+            if len(at.orelse) == 1 and isinstance(at.orelse[0], _ast.If):
+                at = at.orelse[0]
+                continue
+            arms.append(at.orelse)
+            break
+    elif isinstance(node, (_ast.Try, getattr(_ast, "TryStar", _ast.Try))):
+        kind = "`try` statement"
+        arms = ([node.body] + [h.body for h in node.handlers]
+                + [node.orelse, node.finalbody])
+    elif isinstance(node, _ast.Match):
+        kind = "`match` statement"
+        arms = [c.body for c in node.cases]
+    elif _simple(node) and isinstance(getattr(node, "value", None),
+                                      _ast.IfExp):
+        return "conditional expression"
+    else:
+        return None
+    for arm in arms:
+        if len(arm) > _BRANCH_BODY_MAX or not all(_simple(s) for s in arm):
+            return None
+    return kind
+
+
+def _statement_spans(block: list[str]) -> list[tuple[int, int, str]]:
+    """Each branching statement of `block` that a pass may name, as its
+    first and last index in `block` and its kind. One parse reads the whole
+    block, and `end_lineno` gives each span (F37, review 1, low 4)."""
+    import textwrap as _tw
+    first = next((ln.strip() for ln in block if ln.strip()), "")
+    stub = next((s for starts, s in _ARM_STUBS if first.startswith(starts)),
+                "")
+    text = _tw.dedent("\n".join(block))
+    if first.startswith("case "):
+        stub, text = "match _:\n", _tw.indent(text, "    ")
+    try:
+        tree = _ast.parse(stub + text)
+    except (SyntaxError, ValueError):
+        return []
+    shift = stub.count("\n")
+    out = []
+    for node in _ast.walk(tree):
+        kind = isinstance(node, _ast.stmt) and _branch_kind(node)
+        if kind:
+            out.append((max(node.lineno - 1 - shift, 0),
+                        node.end_lineno - 1 - shift, kind))
+    return out
+
+
+def _stripped(part: str) -> str:
+    text = part.strip()
+    return text[1:].strip() if text.startswith("+") else text
+
+
+def _block_of(parts: list[str], runs: list[list[str]]
+              ) -> tuple[int, int, int, str] | None:
+    """The run, the span and the kind of the one branching statement that
+    `parts` are, as added lines in the diff's order, or None."""
+    want = [_stripped(p) for p in parts]
+    n = len(want)
+    for r, run in enumerate(runs):
+        idx = [i for i, ln in enumerate(run) if ln.strip()]
+        texts = [run[i].strip() for i in idx]
+        for s in range(len(texts) - n + 1):
+            if texts[s] != want[0] or texts[s:s + n] != want:
+                continue
+            lo, hi = idx[s], idx[s + n - 1]
+            whole = [k for a, b, k in _statement_spans(run[lo:hi + 1])
+                     if a == 0 and b == hi - lo]
+            if whole:
+                return r, lo, hi, whole[0]
+    return None
+
+
+def _block_inside(parts: list[str], runs: list[list[str]]
+                  ) -> tuple[int, int, str] | None:
+    """The longest branching statement of the diff that `parts` hold as
+    three lines or more in a row, as its first and last index in `parts`
+    and its kind, or None. Each run that shares a line with `parts` is
+    parsed once (F37, review 1, low 4)."""
+    want = [_stripped(p) for p in parts]
+    have = set(want)
+    best = None
+    for run in runs:
+        if not have & {ln.strip() for ln in run}:
+            continue
+        for lo, hi, kind in _statement_spans(run):
+            texts = [ln.strip() for ln in run[lo:hi + 1] if ln.strip()]
+            n = len(texts)
+            if n <= _LINE_PARTS_MAX or (best and n <= best[1] - best[0] + 1):
+                continue
+            at = next((s for s in range(len(want) - n + 1)
+                       if want[s] == texts[0] and want[s:s + n] == texts),
+                      None)
+            if at is not None:
+                best = (at, at + n - 1, kind)
+    return best
+
+
+def _blocks_overlap(a: list[str], b: list[str]) -> bool:
+    """True when two values of several lines share a line long enough to
+    name something. `else:` and `try:` are shorter than `_LINE_PART_MIN`."""
+    return any(len(t) >= _LINE_PART_MIN
+               for t in {_stripped(p) for p in a} & {_stripped(p) for p in b})
+
+
+def _landed_blocks(ctx, batch_id: str) -> list[tuple[str, list[str]]]:
+    """The values of several lines that earlier landed passes of the batch
+    named, each with its criterion."""
+    out = []
+    try:
+        rows = ctx.conn.execute(
+            "SELECT lines FROM verdicts WHERE batch_id = ? AND result = 'pass' "
+            "AND lines IS NOT NULL", (batch_id,)).fetchall()
+    except sqlite3.Error:
+        return out
+    for row in rows:
+        try:
+            got = _json.loads(row["lines"])
+        except (TypeError, ValueError):
+            continue
+        for cid, value in (got.items() if isinstance(got, dict) else ()):
+            parts = _line_parts(value)
+            if parts and len(parts) > _LINE_PARTS_MAX:
+                out.append((cid, parts))
+    return out
 
 
 def _line_parts(value) -> list[str] | None:
@@ -14586,7 +15053,18 @@ def _code_part(text: str) -> str:
 
 def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
     """Each added line of a unified diff, stripped, with the kind of line
-    with no behaviour it is, or None.
+    with no behaviour it is, or None. `_added_walk` holds the walk."""
+    return _added_walk(diff_text)[0]
+
+
+def _added_walk(diff_text: str
+                ) -> tuple[list[tuple[str, str | None]], list[list[str]]]:
+    """Each added line of a unified diff, stripped, with the kind of line
+    with no behaviour it is, or None. Then each run of added lines with no
+    line of context between them, as the new side holds them: indented,
+    without the +. One walk reads the diff for both (F37, review 1, low 5).
+    A removed line is not on the new side, so it does not end a run, and a
+    blank line of context does not end one.
 
     A docstring line is a line inside a triple-quoted string that opens as
     the first line of a `def` or `class` body. The walk reads the new side
@@ -14606,12 +15084,24 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
     in_header = expect_doc = False
     header = ""
     init_file = False
+    runs: list[list[str]] = []
+    run: list[str] = []
     for ln in diff_text.splitlines():
         if ln.startswith(("+++", "---", "@@", "diff ")):
             in_str, in_header, expect_doc = None, False, False
             if ln.startswith("+++ "):
                 init_file = ln.rstrip().endswith("__init__.py")
+            if run:
+                runs.append(run)
+            run = []
             continue
+        if ln.startswith("+"):
+            run.append(ln[1:])
+        elif run and not ln.strip():
+            run.append("")
+        elif ln.startswith(" ") and run:
+            runs.append(run)
+            run = []
         if not ln or ln[0] not in "+ ":
             continue
         text = ln[1:].strip()
@@ -14662,7 +15152,9 @@ def _added_kinds(diff_text: str) -> list[tuple[str, str | None]]:
                     break
         if ln[0] == "+":
             out.append((text, kind))
-    return out
+    if run:
+        runs.append(run)
+    return out, runs
 
 
 # A part of a criterion's text with this many words or more is a quote of it.
@@ -14863,7 +15355,7 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     # fence. Then the walk reads docstring prose as code (frame 201's review
     # 1, finding 1: night 157's bg_2, hunk `@@ -461,6 +462,9 @@`).
     diff_text = _batch_diff(ctx, batch_id, function_context=True)
-    kinds = _added_kinds(diff_text)
+    kinds, runs = _added_walk(diff_text)
     # Frame 306's case, night 162: s247 passed b_2 on six lines of a file
     # of criteria rows. A line of a file with no code is no evidence.
     notes, code_added = _note_files(ctx, batch_id, diff_text)
@@ -14904,10 +15396,53 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
     # night 157's W3, cause 9 of `plans/wall-guide.md`). Three Critics sent
     # bg_2's three docstring lines again and again, because the refusal
     # named no line of code and did not say that a docstring meets nothing.
+    # One branching statement of added lines counts as one line, because a
+    # criterion of several cases has no one line that meets it (F37, night
+    # 171: the door refused c_1's 4-line `if roaming:` block in 3 sessions).
+    # The diff decides, not the criterion's words, because a word list fit
+    # one wording (F37, review 1 of cb5d8dc1, high 1). The statement is
+    # the line of one criterion only. One statement given for every
+    # criterion is frame 170's fault again (review 1, high 2).
+    admitted: dict[str, tuple[int, int, int, str]] = {}
+    landed = None
     for cid in ids:
         if len(parts[cid]) <= _LINE_PARTS_MAX:
             continue
         n = len(parts[cid])
+        block = _block_of(parts[cid], runs)
+        if block:
+            if landed is None:
+                landed = _landed_blocks(ctx, batch_id)
+            other = next(
+                (o for o, (r, lo, hi, _k) in admitted.items()
+                 if r == block[0] and lo <= block[2] and block[1] <= hi),
+                None) or next(
+                (o for o, got in landed
+                 if o != cid and _blocks_overlap(got, parts[cid])), None)
+            if other is None:
+                admitted[cid] = block
+                continue
+            raise LinesRefusal(
+                f"the value for {cid} holds {n} lines, and the {block[3]} "
+                f"they are is named for {other} too, whole or in part. One "
+                f"statement of several lines is the line of one criterion "
+                f"only, because a statement named for every criterion names "
+                f"nothing. Copy for {cid} the one added line that meets it, "
+                f"without the +, and send the pass again. {listed}If no "
+                f"added line meets {cid}, that is a fail on it: "
+                f"{claim_for(cid)}")
+        # The refusal names the statement form first, and both shapes of a
+        # value of several lines (review 1, low 6). The one line comes
+        # after it, because no one line meets a criterion of several cases.
+        inner = _block_inside(parts[cid], runs)
+        form = ""
+        if inner:
+            lo, hi, what = inner
+            shown_block = ", ".join(repr(_stripped(p))
+                                    for p in parts[cid][lo:hi + 1])
+            form = (f"Lines {lo + 1} to {hi + 1} of your value are one "
+                    f"{what}: {shown_block}. Send those {hi - lo + 1} lines "
+                    f"alone for {cid}. ")
         # A part that the diff does not hold is a re-wrapped line, so only
         # the held parts give the kind (s324 cut "to the message." apart).
         held = [f for f in (_held_kinds(q, kinds_of[cid])
@@ -14938,19 +15473,28 @@ def _pass_lines_check(ctx, batch_id: str, lines) -> None:
         noun = ("lines of the docstring"
                 if own and all(kind_of.get(a) == "a docstring line"
                                for a in own) else "added lines")
+        # A statement inside the value is the pass, so the list of single
+        # lines would point the seat away from it.
         sent = ""
-        if len(own) == 1:
+        if inner:
+            sent = ""
+        elif len(own) == 1:
             sent = (f"One of the lines you sent is the line: {shown}. "
                     f"Copy that one. ")
         elif own:
             sent = (f"The lines you sent hold these {noun}: {shown}. "
                     f"Copy the one that does what the criterion says. ")
         raise LinesRefusal(
-            f"the value for {cid} holds {n} lines, and a pass names one added "
-            f"line per criterion. Copy the one line of the [diff] block that "
-            f"meets {cid}, without the +, and send the pass again. "
-            f"{sent}{listed}If no added line meets {cid}, that is a fail on "
-            f"it: {claim_for(cid)}")
+            f"the value for {cid} holds {n} lines, and they are not one "
+            f"statement that a pass can name. A value of several lines lands "
+            f"as one `if`, `try`, `match` or conditional expression of added "
+            f"lines, with at most {_BRANCH_BODY_MAX} simple statements in "
+            f"each branch, named for one criterion only. Send it whole, as "
+            f"one text with line breaks or as a list of lines. Otherwise "
+            f"copy the one line of the [diff] block that meets {cid}, "
+            f"without the +, and send the pass again. "
+            f"{form}{sent}{listed}If no added line meets {cid}, that is a "
+            f"fail on it: {claim_for(cid)}")
     texts = list(texts_of.values())
     added = [a for a, _ in kinds]
     for cid in ids:
@@ -15184,11 +15728,6 @@ def schedule_consult(ctx: Ctx) -> list[dict]:
         "SELECT before_batch, after_batch FROM schedule_deps ORDER BY before_batch"))
 
 
-# The verbs that open a question somebody is waiting on an answer to. `ask` is
-# the read-only inquiry route, `question` the escalation ladder; both leave the
-# asker blocked, which is the condition `reask` reports.
-ASKING_VERBS = ("question", "ask")
-
 
 @op("schedule", "reask")
 def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
@@ -15236,7 +15775,7 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
             "and nothing woke you with an answer")
 
     row = ctx.conn.execute(
-        "SELECT q.id AS qid, q.from_role AS asker, q.verb AS verb, q.status AS status "
+        "SELECT q.id AS qid, q.verb AS verb, q.status AS status "
         "FROM messages a JOIN messages q ON q.id = a.cause_id WHERE a.id = ?",
         (ctx.trigger,)).fetchone()
 
@@ -15246,17 +15785,23 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
     # inquiry route -- so the one role that talks to the principal could not
     # say an answer had not landed, which is the case where it matters most:
     # the alternative is spending the principal's attention on "we don't know"
-    # while two owners who might know have not been asked.
-    if row is None or row["verb"] not in ASKING_VERBS:
+    # while two owners who might know have not been asked. The verbs come
+    # from `db.OWED_A_REPLY`, the one list of the verbs that owe a reply
+    # (fact F16, rule C76).
+    from ..core.db import OWED_A_REPLY
+
+    if row is None or row["verb"] not in OWED_A_REPLY:
         raise ValueError(
             "the message that woke you is not a reply to a question you asked")
-    if row["asker"] != ctx.role:
-        raise ValueError(
-            f"that question was {row['asker']}'s, not yours; only the role that "
-            f"asked can say the answer did not land")
+    # Fact F23: the asker is the author of the question row, and the commit
+    # refuses another role's write over it. The door reads the same rule.
+    move = {"status": "unresolved", "unresolved_note": what_is_missing}
+    refused = author_refusal(ctx.conn, "messages", row["qid"], ctx.role, move)
+    if refused:
+        raise ValueError(f"{refused} Only the role that asked can say that "
+                         f"the answer did not land.")
 
-    ctx.writes.append(("messages", row["qid"], {
-        "status": "unresolved", "unresolved_note": what_is_missing}, False))
+    ctx.writes.append(("messages", row["qid"], move, False))
     return {"id": row["qid"], "status": "unresolved"}
 
 
@@ -17033,7 +17578,10 @@ def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
                               f"({reason or 'no reason given'}); the "
                               f"heuristics said {heuristic}; the judge's "
                               f"answer is taken"),
-            "author": "frame"}))
+            # Fact F23: the author is the writing role, as for every journal
+            # row. `about_table` marks a frame row, and no reader keys on
+            # an author "frame".
+            "author": ctx.role}))
     return {"id": path, "kind": k,
             "note": ("differs from the heuristic prior; a ledger row "
                      "records it" if k != heuristic else "agrees with the "
@@ -17594,34 +18142,38 @@ def _unchanged_note(ctx, root, path, dirty) -> str:
     if not sha:
         return said
     short = sha[:8]
-    # The latest attempt on this commit, in the order the harness ran it.
-    # Frame 93's review (2026-09-30): `rowid DESC` named the last test run.
+    # The newest run of each test on this commit, in the order the harness
+    # ran it. Frame 93's review (2026-09-30): `rowid DESC` named the last
+    # test run. The harness deletes a commit's runs before it runs that
+    # commit again, so the runs of one commit are of one attempt (fact F4).
     rows = ctx.conn.execute(
-        "SELECT test_id, commit_sha, output, attempt FROM test_runs "
+        "SELECT test_id, commit_sha, output, attempt FROM latest_runs "
         "WHERE batch_id = ? AND result != 'pass' "
-        "ORDER BY attempt DESC, rowid ASC", (ctx.batch_id,)).fetchall()
+        "ORDER BY run_seq", (ctx.batch_id,)).fetchall()
     # A run records the sha the harness read. Either form may be short.
     rows = [r for r in rows
             if r[1] and (sha.startswith(r[1]) or r[1].startswith(sha))]
-    rows = [r for r in rows if r[3] == rows[0][3]] if rows else []
     red = list(dict.fromkeys(r[0] for r in rows))
 
     def _cut(s):
         # A long assert made a sentence of 1915 characters (the same review).
         return s if len(s) <= 200 else s[:197] + "..."
 
+    from ..core.harness import error_at, error_line
+
     for test_id, _sha, output, _attempt in rows:
         lines = (output or "").splitlines()
-        # pytest marks the failing source line with `>` and its error with
-        # `E` below it. The last `>` is the frame that raised.
-        marks = [i for i, x in enumerate(lines) if x.startswith(">")]
-        err = [x[1:].strip() for x in lines[marks[-1]:] if x.startswith("E ")] if marks else []
+        # Fact F5: `error_at` names the line of the last raise. pytest marks
+        # the source line of that frame with the `>` above it.
+        at = error_at(lines).line
+        marks = [i for i in range(at or 0) if lines[i].startswith(">")]
+        err = error_line(output) if marks else ""
         if err:
             src = lines[marks[-1]][1:].strip()
             more = (f", and {len(red) - 1} more fail; tests.load lists them"
                     if len(red) > 1 else "")
             return (f"{said} Commit {short} holds it. {test_id} fails at {short} on "
-                    f"`{_cut(src)}`, and pytest said `{_cut(err[0])}`{more}. Read what "
+                    f"`{_cut(src)}`, and pytest said `{_cut(err)}`{more}. Read what "
                     f"this assertion needs before the next write.")
     return (f"{said} Commit {short} holds it. tests.load shows what the harness "
             f"said about each failing test.")
@@ -18035,6 +18587,7 @@ def _own_reds(body: str, path: str, said: str) -> list[dict]:
     with two red tests in one body, each test keeps its own name and its
     own line.
     """
+    from ..core.harness import error_line
     from ..core.runner import _LOCATION
 
     lines = (said or "").splitlines()
@@ -18065,10 +18618,8 @@ def _own_reds(body: str, path: str, said: str) -> list[dict]:
                   f"{found[-1][1].group(1).replace(chr(92), '/')} line "
                   f"{found[-1][1].group(2)}")
         kind = lines[at].split(": ", 1)[1].strip() if ": " in lines[at] else ""
-        arrow = max((i for i in range(start, at) if lines[i].startswith(">")),
-                    default=start - 1)
-        error = next((ln[1:].strip() for ln in lines[arrow + 1:at]
-                      if ln.startswith("E ")), kind or "an error")
+        # Fact F5: the error line of this test's own section, the last raise.
+        error = error_line("\n".join(lines[start:end])) or kind or "an error"
         out.append({"line": line, "name": name, "raised": raised,
                     "quote": (src[line - 1].strip()
                               if line and 0 < line <= len(src) else ""),
@@ -18161,50 +18712,128 @@ def _call_keeps(form: str) -> bool:
 
     Frame 335, review 1, finding 2: the call's value is a literal that is
     not raw. So `r"C:\\Users\\new"` lost `\\n` to a line break, and
-    `\\temp` gave a TAB on the strict path only."""
+    `\\temp` gave a TAB on the strict path only. W3 review, finding 1: the
+    call kept `"say " + chr(92) + ""hi"`, which is not Python. So the form
+    must also compile."""
+    if _form_value(form) is None:
+        return False
     values = _call_values(form, escape=False)
     return bool(values) and all(v == form for v in values)
 
 
 def _raw_advice(line: str, escape: str) -> str:
     """The sentence that names a form of the string that comes through the
-    call unchanged. A path takes forward slashes first, because that form
-    holds no escape on either parse path."""
+    call unchanged and keeps the value of the string.
+
+    W3 of night 171: s153 took the forward-slash form of `"AppData\\Local"`,
+    and the test can never pass against a Windows path. A form with forward
+    slashes changes the value, so it is never the first advice. It comes
+    last, for a path that a file function reads and no assert compares."""
+    # W3 review, finding 2: on a line that compares, the short slash form
+    # is the form a seat takes, and it changes the compared value.
+    compares = _COMPARES.search(line or "") is not None
     lit = _escape_literal(line, escape)
     if lit is None:
-        return ("Write the string with no backslash. A path takes forward "
-                "slashes.")
+        return ("Write each backslash as `chr(92)` outside the quote marks, "
+                "as in `\"C:\" + chr(92) + \"Users\"`." + (
+                    "" if compares else " When a path is given to a file "
+                    "function, not compared, forward slashes also work."))
     prefix, mark, text = lit
+    # The meant value reads each backslash as a backslash, except the
+    # backslash of `\\` and of an escaped quote mark.
+    fixed = re.sub(r"\\(.)", lambda m: m.group(0) if m.group(1) in "\\'\""
+                   else "\\\\" + m.group(1), text, flags=re.S)
+    meant = _form_value(f"{prefix}{mark}{fixed}{mark}")
+
+    def _keeps(form: str | None) -> bool:
+        # W3 review, finding 1: a form that compiles can still change the
+        # value, so the form must compile to the meant value.
+        return (form is not None and meant is not None
+                and _form_value(form) == meant and _call_keeps(form))
+
     one = text.replace("\\\\", "\\")
-    slash = f"{prefix}{mark}{one.replace(chr(92), '/')}{mark}"
     # A raw string cannot end in one backslash or hold its own mark.
     raw = (None if one.endswith("\\") or "\\" + mark in one
            else f"r{prefix}{mark}{one}{mark}")
-    path = _PATH_TEXT.fullmatch(one) is not None
-    kept = [f for f in ([slash] if path else []) + ([raw] if raw else [])
-            if _call_keeps(f)]
-    if not kept:
-        # Review 2, point 4: a slash form of a value that is not a path
-        # gives a wrong value, so the advice names no form.
-        return ("No form of this string with a backslash comes through the "
+    if _keeps(raw):
+        return (f"Write the string as a raw string with one backslash: "
+                f"`{raw}`.")
+    said = ""
+    if isinstance(meant, str) and "f" not in prefix.lower():
+        # Review 2, point 3: with no raw form, the value needs a form that
+        # holds each backslash. W3 review, finding 4: each quote mark goes
+        # through `chr` too, so the form holds no mark that the call needs.
+        parts: list[str] = []
+        for run in re.split(r"([\\'\"\x00-\x1f])", meant):
+            if len(run) == 1 and (run in "\\'\"" or ord(run) < 32):
+                parts.append(f"chr({ord(run)})")
+            elif run:
+                parts.append(f"{mark}{run}{mark}")
+        joined = " + ".join(parts)
+        if _keeps(joined):
+            marks = (" and each quote mark as `chr(39)` or `chr(34)`"
+                     if "chr(39)" in joined or "chr(34)" in joined else "")
+            said = (f"Write each backslash as `chr(92)`{marks}: `{joined}`. "
+                    f"That form keeps each backslash.")
+    if not said:
+        # Review 2, point 4: no form with a backslash comes through, so the
+        # advice names no form that keeps the value.
+        said = ("No form of this string with a backslash comes through the "
                 "call unchanged. Write the value with no backslash.")
-    said = (f"Write the path with forward slashes: `{kept[0]}`."
-            if kept[0] == slash else
-            f"Write the string as a raw string with one backslash: "
-            f"`{kept[0]}`.")
-    if len(kept) > 1:
-        said += (f" The raw string `{kept[1]}`, with one backslash, also "
-                 f"comes through the call unchanged.")
-    elif kept[0] == slash and not prefix:
-        # Review 2, point 3: with no raw form, a criterion about a
-        # backslash needs a form that holds a real backslash on both paths.
-        joined = " + chr(92) + ".join(f"{mark}{p}{mark}"
-                                      for p in one.split("\\"))
-        if _call_keeps(joined):
-            said += (f" For a criterion about a backslash, write `{joined}`. "
-                     f"That form keeps a real backslash on both parse "
-                     f"paths.")
+    # Review 2, point 6: `_PATH_TEXT` reads `\R` alone as no path.
+    slash = f"{prefix}{mark}{one.replace(chr(92), '/')}{mark}"
+    if (not compares and _PATH_TEXT.fullmatch(one) is not None
+            and isinstance(meant, str)
+            and _form_value(slash) == meant.replace("\\", "/")
+            and _call_keeps(slash)):
+        said += (f" When the path is given to a file function, not "
+                 f"compared, `{slash}` also works.")
     return said
+
+
+#: A line that compares a value. W3 review, finding 2.
+_COMPARES = re.compile(r"\bassert\b|==| in ")
+
+
+def _form_value(form: str):
+    """The value of a form that the advice names, or None when the form is
+    not Python or holds more than strings, `+` and `chr` of a number.
+
+    W3 review, finding 1: `ast.literal_eval` reads no `+` of two strings
+    and no `chr`. So this walk reads the same constants as `literal_eval`,
+    and those two forms, and nothing else. A field of an f-string reads as
+    its tree, so two forms with one field compare equal."""
+    import warnings as _warnings
+    try:
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error")
+            tree = _ast.parse(form, mode="eval")
+    except (SyntaxError, SyntaxWarning, ValueError):
+        return None
+
+    def walk(node):
+        if isinstance(node, _ast.Constant) and isinstance(
+                node.value, (str, bytes)):
+            return node.value
+        if isinstance(node, _ast.JoinedStr):
+            return tuple(v.value if isinstance(v, _ast.Constant)
+                         else _ast.dump(v) for v in node.values)
+        if isinstance(node, _ast.BinOp) and isinstance(node.op, _ast.Add):
+            left, right = walk(node.left), walk(node.right)
+            if isinstance(left, str) and isinstance(right, str):
+                return left + right
+        if (isinstance(node, _ast.Call) and isinstance(node.func, _ast.Name)
+                and node.func.id == "chr" and len(node.args) == 1
+                and not node.keywords
+                and isinstance(node.args[0], _ast.Constant)
+                and type(node.args[0].value) is int
+                and 0 <= node.args[0].value < 0x110000):
+            return chr(node.args[0].value)
+        raise ValueError(form)
+    try:
+        return walk(tree.body)
+    except ValueError:
+        return None
 
 
 def _escape_refusal(where: str, escape: str, line: str) -> str:
@@ -18221,7 +18850,9 @@ _COLLECT_HEADER = re.compile(r"^_{3,} ERROR collecting (\S.*?) _{3,}$")
 def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
                            notes: list) -> None:
     """Add the encode note for a run that errored at collection: the file
-    pytest collected and the run's last `E ` line."""
+    pytest collected and the run's error line (fact F5)."""
+    from ..core.harness import error_line
+
     lines = (said or "").splitlines()
     where = next((m.group(1) for ln in lines
                   if (m := _COLLECT_HEADER.match(ln))), "")
@@ -18229,8 +18860,7 @@ def _note_collection_error(ctx, batch_id, criterion_id, path: str, said: str,
         where = next((ln[len("ERROR "):].split(" - ", 1)[0].strip()
                       for ln in lines if ln.startswith("ERROR ")), "")
     where = where.replace("\\", "/") or path
-    error = next((ln[1:].strip() for ln in reversed(lines)
-                  if ln.startswith("E ") and ln[1:].strip()), "")
+    error = error_line(said)
     advice = ""
     escape = _invalid_escape(error)
     # Review 1, finding 1: an ImportError, a NameError and an
@@ -20811,10 +21441,14 @@ def _runs_at(ctx: Ctx, sha: str | None) -> dict:
     Empty when the harness ran no test at `sha`."""
     if not sha:
         return {}
+    # Fact F4 leaves this read on `test_runs`. The revert door reads HEAD~1,
+    # a past commit, and a later run supersedes the runs of that commit. The
+    # order is the view's own, `rowid`, scoped to the commit (the F4 review,
+    # low 4).
     out = {}
     for r in ctx.conn.execute(
             "SELECT test_id, result FROM test_runs WHERE batch_id = ? AND commit_sha = ? "
-            "ORDER BY attempt, rowid", (ctx.batch_id, sha)):
+            "ORDER BY rowid", (ctx.batch_id, sha)):
         out[r["test_id"]] = r["result"]
     return out
 
@@ -20947,13 +21581,17 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     if not ctx.batch_id:
         raise ValueError("no batch: a commit belongs to one")
     tree = _batch_worktree(ctx)
+    # F7 review 1, finding 6: this door reads the note's own lines, as
+    # before 11d04b18. The ruling of 2026-10-17 forbids a new refusal of a
+    # commit, so the compare below records and never refuses.
     noted = _unread_drop_refusal(ctx, tree)
     if noted:
         raise ValueError(noted)
+    gone = _unruled_removals(ctx, tree)
     # Frame 339: a removal that no criterion, request or ruling asks for
     # lands, and the Architect judges it as a stray (law 12; ruled: Roman,
     # 2026-10-17, an unexpected change goes to the Architect for sign-off).
-    removals, mistaken = _removal_strays(ctx, tree)
+    removals, mistaken, foreseen = _removal_strays(ctx, tree, gone)
     # A commit that leaves a criterion's surface undefined is a certain
     # ImportError for every test of it. tipsX (2026-09-09): the criterion
     # named `main.py::split_bill`, the Developer repurposed `calculate_tip`
@@ -21101,7 +21739,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     # One row per grain. A removal in an unnamed definition shares the
     # definition's row, and its note says the removal.
     for grain in def_strays:
-        if grain in removals:
+        if grain in removals or grain in mistaken or grain in foreseen:
             continue
         ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{grain}", {
             "batch_id": ctx.batch_id, "commit_sha": sha, "path": grain,
@@ -21117,6 +21755,13 @@ def code_commit(ctx: Ctx, message: str) -> dict:
         ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{grain}", {
             "batch_id": ctx.batch_id, "commit_sha": sha, "path": grain,
             "status": "mistake", "note": note}))
+    # F7: a foreseen removal that stays gone keeps its row at the new head.
+    # His page reads the head's rows, so the removal stays visible to him
+    # until the merge (the composition: no work stays invisible).
+    for grain, note in foreseen.items():
+        ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{grain}", {
+            "batch_id": ctx.batch_id, "commit_sha": sha, "path": grain,
+            "status": "foreseen", "note": note}))
     if mistaken:
         out["removals judged a mistake"] = [f"{g}: {n}" for g, n in mistaken.items()]
         out["mistakes note"] = (
@@ -21147,7 +21792,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             f"foreseen or a mistake before the batch merges; if you know it was "
             f"a mistake, put the base's source back and commit")
     if strays:
-        held = set(removals) | set(mistaken)
+        held = set(removals) | set(mistaken) | set(foreseen)
         for path in strays:
             # The removal's row holds the path with its note. A removal
             # inside a definition has the grain `path::owner`. Its row
@@ -21236,52 +21881,705 @@ def _unread_drop_refusal(ctx: Ctx, tree) -> str | None:
             f"still does not hold those lines. {said} {routes}")
 
 
-def _removal_strays(ctx: Ctx, tree) -> tuple[dict[str, str], dict[str, str]]:
+def _removal_strays(ctx: Ctx, tree, gone: dict | None = None
+                    ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
     """The removals of base statements that the tree holds at the commit and
-    that no criterion, request or ruling asks for: grain `path::owner` ->
-    the note, `removal: ` and the lines. The door reads the tree, not the
-    status of the `drop_notes` row, so an open and a closed note count.
-    The first dict holds the unjudged removals. The second holds the
-    removals that the Architect judged a mistake, with the note of that
-    judgement."""
+    that no criterion, request or ruling asks for: row key -> the note,
+    `removal: ` and the lines. The first dict holds the unjudged removals.
+    The second holds the rows that the Architect judged a mistake, and the
+    third the rows that he judged foreseen, each with its own note.
+    `gone` is the result of `_unruled_removals`."""
     # Frame 339. Frame 283's W1 a refused these commits, and night 169's
     # Developer was refused on a rewrite that every criterion's definition
     # held. Law 12: nothing rejects a diff for straying. The ruling of
-    # 2026-10-17 sends an unexpected change to the Architect. Night 158's
-    # `ctx.exit()` lands as an open stray, and the merge waits on it.
-    if tree is None or not getattr(ctx, "batch_id", None):
-        return {}, {}
-    notes = {**_closed_notes(ctx), **_open_notes(ctx)}
-    if not notes:
-        return {}, {}
-    # The last judgement of a grain decides. A foreseen grain is not raised
-    # again (frame 286). A mistake grain is raised again as a mistake while
-    # the line stays gone, so the merge holds and the Developer wakes
-    # (frame 339, review 1, finding 1). The Architect is not asked again.
+    # 2026-10-17 sends an unexpected change to the Architect.
+    # F7: the removals come from the compare of the base with the tree, not
+    # from a `drop_notes` row. Night 171's s164 left the XDG return out of
+    # its note, and the row named the darwin branch only.
+    if gone is None:
+        gone = _unruled_removals(ctx, tree)
+    if not gone:
+        return {}, {}, {}
     judged: dict[str, tuple[str, str | None]] = {}
     for r in ctx.conn.execute(
             "SELECT path, status, note FROM touch_strays WHERE batch_id = ? "
             "AND status != 'open' ORDER BY rowid", (ctx.batch_id,)):
         judged[r["path"]] = (r["status"], r["note"])
-    texts = None
-    out: dict[str, list[str]] = {}
-    for p, e in notes.items():
-        if not (e["lines"] or e["defs"]):
-            continue
-        now = _tree_text(tree, p)
-        if _restored(now, e):
-            continue
-        if texts is None:
-            texts = _ruling_texts(ctx)
-        for g in _unruled_gone(ctx, p, now, e, texts):
+    found: dict[str, list[str]] = {}
+    for p, gs in gone.items():
+        for g in gs:
             owner = g["line"] if g["def"] else g["owner"]
             grain = f"{_grain_path(p)}::{owner}" if owner else _grain_path(p)
-            out.setdefault(grain, []).append(g["shown"])
-    found = {grain: f"removal: {', '.join(shown)}" for grain, shown in out.items()}
-    unjudged = {g: n for g, n in found.items() if g not in judged}
-    mistaken = {g: judged[g][1] or n for g, n in found.items()
-                if g in judged and judged[g][0] == "mistake"}
-    return unjudged, mistaken
+            found.setdefault(grain, []).append(g["shown"])
+    unjudged: dict[str, str] = {}
+    mistaken: dict[str, str] = {}
+    foreseen: dict[str, str] = {}
+    for grain, shown in found.items():
+        note = f"removal: {', '.join(shown)}"
+        status, said = judged.get(grain, (None, None))
+        # The last judgement of a grain covers the removals that its note
+        # names, and no later one. A mistake that the note covers stays a
+        # mistake at the new head, so the merge holds and the Developer
+        # wakes (frame 339, review 1, finding 1). A removal that the note
+        # lacks opens the grain again with the new note, for a mistake as
+        # for a foreseen judgement (F7 review 1, finding 8).
+        named = _note_shown(said)
+        if status in ("mistake", "foreseen") and all(s in named for s in shown):
+            (mistaken if status == "mistake" else foreseen)[grain] = said
+        else:
+            unjudged[grain] = note
+    return unjudged, mistaken, foreseen
+
+
+_NOTE_PIECE = re.compile(r"(`+) ?(.+?) ?\1(?: at line \d+)?")
+
+
+def _note_shown(note: str | None) -> list[str]:
+    """The pieces of a `removal: ` note as `_gone_statements` shows them.
+    The Architect's reason after the list is not a piece."""
+    out: list[str] = []
+    pos = (note or "").find("removal: ")
+    if pos < 0:
+        return out
+    pos += len("removal: ")
+    while True:
+        m = _NOTE_PIECE.match(note, pos)
+        if m is None:
+            return out
+        out.append(m.group(0))
+        pos = m.end()
+        if not note.startswith(", ", pos):
+            return out
+        pos += 2
+
+
+def _unruled_removals(ctx: Ctx, tree) -> dict[str, list[dict]]:
+    """path -> the base statements that the tree lacks and that no criterion,
+    request text or grant of his asks to remove, as `_gone_statements`
+    gives them. The one source of the removal rows at the commit (F7)."""
+    if tree is None or not getattr(ctx, "batch_id", None):
+        return {}
+    notes = {p: e for p, e in {**_closed_notes(ctx), **_open_notes(ctx)}.items()
+             if e["lines"] or e["defs"]}
+    found, told = _base_removals(ctx, tree, list(notes))
+    # A path whose base git cannot name, or whose text does not parse,
+    # keeps the note's own lines, because the compare cannot tell (frame
+    # 283's review 3, findings 3 and 4).
+    for p, e in notes.items():
+        if p in found or p in told:
+            continue
+        if not _restored(_tree_text(tree, p), e):
+            found[p] = e
+    if not found:
+        return {}
+    texts = _ruling_texts(ctx)
+    out: dict[str, list[dict]] = {}
+    for p, e in found.items():
+        gs = _unruled_gone(ctx, p, _tree_text(tree, p), e, texts)
+        if gs:
+            out[p] = gs
+    return out
+
+
+def _base_removals(ctx: Ctx, tree, more: list[str] = ()) -> tuple[dict[str, dict], set]:
+    """(path -> a `dropped` entry, the paths the compare tells) for each
+    Python path that the batch changed since its base, and each path of
+    `more`. An entry holds the base statements that the tree no longer
+    holds. A path that git cannot name, or a text that does not parse, is
+    not told, because the compare records and never refuses."""
+    import subprocess as _sp
+    from ..core import worktrees as _wt
+    try:
+        fork = _batch_base(ctx, tree)
+        got = _sp.run([*_wt.GIT, "-C", str(tree), "diff", "--name-only", "-z", fork,
+                       "--", ".", ":(exclude).venv", ":(exclude).rota"],
+                      capture_output=True)
+    except (OSError, sqlite3.Error, _wt.WorktreeError):
+        return {}, set()
+    if got.returncode != 0:
+        return {}, set()
+    paths = [p for p in got.stdout.decode("utf-8", "replace").split("\0")
+             if p.endswith(".py")]
+    paths += [p for p in more if p not in paths]
+    bases = _base_texts(tree, fork, paths)
+    out: dict[str, dict] = {}
+    told: set = set()
+    for p in paths:
+        base = bases.get(p)
+        if base is None:
+            continue
+        e = _removal_entry(base, _tree_text(tree, p)) if base else None
+        if e is False:
+            continue
+        told.add(p)
+        if e:
+            out[p] = e
+    return out, told
+
+
+def _base_texts(tree, fork: str, paths: list[str]) -> dict[str, str | None]:
+    """path -> its text at `fork`, "" when the base lacks it, None when git
+    cannot tell. One `git cat-file --batch` reads every path (F7 review 1,
+    finding 10: four spawns for each path took about 0.45 s)."""
+    import os as _os
+    import subprocess as _sp
+    from pathlib import Path as _P
+    from ..core import worktrees as _wt
+    rels: dict[str, str] = {}
+    for p in paths:
+        rel = str(p).replace("\\", "/")
+        if _P(rel).is_absolute():
+            try:
+                rel = _P(rel).resolve().relative_to(_P(tree).resolve()).as_posix()
+            except (ValueError, OSError):
+                continue
+        rel = _os.path.normpath(rel).replace("\\", "/")
+        if not (rel.startswith("../") or rel == ".."):
+            rels[p] = rel
+    specs = [f"{fork}^{{commit}}"] + [f"{fork}:{r}" for r in rels.values()]
+    try:
+        got = _sp.run([*_wt.GIT, "-C", str(tree), "cat-file", "--batch"],
+                      input=("\n".join(specs) + "\n").encode("utf-8"),
+                      capture_output=True)
+    except OSError:
+        return {}
+    if got.returncode != 0:
+        return {}
+    data, pos, texts = got.stdout, 0, []
+    for _spec in specs:
+        end = data.find(b"\n", pos)
+        if end < 0:
+            return {}
+        head = data[pos:end].split()
+        pos = end + 1
+        if len(head) != 3 or not head[2].isdigit():
+            texts.append(None)
+            continue
+        size = int(head[2])
+        texts.append(data[pos:pos + size].decode("utf-8", "replace").replace("\r\n", "\n"))
+        pos += size + 1
+    if texts[0] is None:
+        return {}
+    return {p: ("" if t is None else t) for p, t in zip(rels, texts[1:])}
+
+
+def _removal_entry(base: str, now: str) -> dict | None | bool:
+    """The `dropped` entry of the base statements that `now` lacks, None
+    when nothing is lost, or False when a text does not parse. Each line is
+    numbered in code.source numbering of the base. The entry is marked
+    `compared`, so `_gone_statements` names each line it holds."""
+    import ast as _ast
+    try:
+        old, new = _ast.parse(base), _ast.parse(now)
+    except (SyntaxError, ValueError):
+        return False
+    ol, nl = base.splitlines(), now.splitlines()
+    lost: list[tuple[str, int]] = []
+    defs: list[str] = []
+    _lost_in_block(old.body, new.body, ol, nl, "", _pair_defs(old, new), lost, defs)
+    if not lost and not defs:
+        return None
+    spans = _def_spans(base)
+    lines: list = []
+    named: list[str] = []
+    for owner, i in sorted(set(lost), key=lambda x: x[1]):
+        line = ol[i].strip()
+        item = [owner, line, (_def_lines(base, spans, owner) or []).count(line)]
+        if item not in lines:
+            lines.append(item)
+            named.append(f"{_quote(line[:60])} at line {i}")
+    return {"note": ", ".join(named), "lines": lines, "defs": defs, "whole": [],
+            "noted": "", "compared": True}
+
+
+def _qual_defs(tree) -> dict:
+    """Each definition of `tree` by its qualified name, as `_def_spans`
+    names it: the enclosing definitions only, never a compound statement.
+    A name holds a list in text order, because a property setter, an
+    `@overload` or a platform branch defines one name many times."""
+    import ast as _ast
+    out: dict = {}
+
+    def walk(node, prefix):
+        for ch in _ast.iter_child_nodes(node):
+            if isinstance(ch, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+                out.setdefault(prefix + ch.name, []).append(ch)
+                walk(ch, prefix + ch.name + ".")
+            else:
+                walk(ch, prefix)
+    walk(tree, "")
+    return out
+
+
+def _pair_defs(old, new) -> dict:
+    """id of each old definition -> its new definition, "gone" when the new
+    text lacks the name, or "surplus" when the new text holds fewer
+    definitions of the name.
+
+    F7 review 2, finding 1: a pairing by order alone skipped a removed
+    property setter and a removed platform `def` in an `else` arm. So an
+    equal definition pairs first, then one with equal decorators and
+    arguments, then the rest in text order."""
+    import ast as _ast
+    d = _ast.dump
+
+    def sig(n) -> tuple:
+        args = n.args if hasattr(n, "args") else n.bases
+        return (type(n).__name__, tuple(d(x) for x in n.decorator_list),
+                d(args) if not isinstance(args, list) else tuple(d(x) for x in args))
+    olds, news = _qual_defs(old), _qual_defs(new)
+    out: dict = {}
+    for name, os_ in olds.items():
+        ns = list(news.get(name, []))
+        if not ns:
+            out.update({id(o): "gone" for o in os_})
+            continue
+        left = list(os_)
+        for same in (d, sig):
+            for o in list(left):
+                n = next((n for n in ns if same(n) == same(o)), None)
+                if n is not None:
+                    out[id(o)] = n
+                    ns.remove(n)
+                    left.remove(o)
+        for o in left:
+            out[id(o)] = ns.pop(0) if ns else "surplus"
+    return out
+
+
+_BLOCK_FIELDS = ("body", "handlers", "orelse", "finalbody", "cases")
+
+
+def _stmt_head(n) -> int:
+    """The 0-based first line of the statement `n`. A `case` has no line of
+    its own, so its pattern's line stands for it."""
+    return (n.pattern.lineno if not hasattr(n, "lineno") else n.lineno) - 1
+
+
+def _stmt_key(n):
+    """The key of an exact match of the statement `n` across the two texts,
+    with no line number, or None for a statement with no behaviour: `pass`,
+    a docstring, another bare constant, or a bare annotation.
+
+    A branch, a loop or another compound statement keys on its header
+    expressions. Each other statement keys on its whole syntax tree."""
+    import ast as _ast
+    d = _ast.dump
+    if isinstance(n, _ast.Pass) or (isinstance(n, _ast.Expr)
+                                    and isinstance(n.value, _ast.Constant)):
+        return None
+    if isinstance(n, _ast.AnnAssign) and n.value is None:
+        return None
+    if isinstance(n, (_ast.If, _ast.While)):
+        return (d(n.test),)
+    if isinstance(n, (_ast.For, _ast.AsyncFor)):
+        return (d(n.target), d(n.iter))
+    if isinstance(n, (_ast.With, _ast.AsyncWith)):
+        return tuple(d(i) for i in n.items)
+    if isinstance(n, _ast.Match):
+        return (d(n.subject),)
+    if isinstance(n, _ast.ExceptHandler):
+        return (d(n.type) if n.type else "", n.name or "")
+    if isinstance(n, _ast.match_case):
+        return (d(n.pattern), d(n.guard) if n.guard else "")
+    if _is_compound(n):
+        return ()
+    return (d(n),)
+
+
+def _is_compound(n) -> bool:
+    """True for a statement that holds a block, other than a definition."""
+    import ast as _ast
+    return ((hasattr(n, "body") or hasattr(n, "cases"))
+            and not isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                   _ast.ClassDef)))
+
+
+def _operands(test, ops: tuple) -> set:
+    """The AST dumps of `test` and of each operand of a boolean operator
+    of `ops` in it, at any depth of such operators. `if a:` widened to
+    `if a or b:` keeps `a` as an operand. `if not a:` does not."""
+    import ast as _ast
+    out = {_ast.dump(test)}
+    if isinstance(test, _ast.BoolOp) and isinstance(test.op, ops):
+        for v in test.values:
+            out |= _operands(v, ops)
+    return out
+
+
+def _callee(n) -> str | None:
+    """The AST dump of the function that the statement `n` calls, as an
+    expression or as the value of an assignment, or the kind of a bare
+    `yield`, else None."""
+    import ast as _ast
+    v = getattr(n, "value", None)
+    if isinstance(v, _ast.Await):
+        v = v.value
+    if isinstance(v, _ast.Call):
+        return _ast.dump(v.func)
+    if isinstance(v, (_ast.Yield, _ast.YieldFrom)):
+        return type(v).__name__
+    return None
+
+
+def _renamed(n, ren: dict):
+    """The new statement `n` with each name of `ren` put back: a renamed
+    local by its old name, and the target of a loop over one item by that
+    item. `n` itself when no name of `ren` occurs in it."""
+    import ast as _ast
+    import copy as _copy
+    if not ren or not any(isinstance(x, _ast.Name) and x.id in ren
+                          for x in _ast.walk(n)):
+        return n
+
+    class _Back(_ast.NodeTransformer):
+        def visit_Name(self, node):
+            r = ren.get(node.id)
+            if r is None:
+                return node
+            if isinstance(r, str):
+                return _ast.Name(id=r, ctx=node.ctx)
+            return _copy.deepcopy(r) if isinstance(node.ctx, _ast.Load) else node
+    return _Back().visit(_copy.deepcopy(n))
+
+
+def _always_true(test, before: list) -> bool:
+    """True when the branch test `test` holds on every path, by a constant
+    or by the statements `before` it in its block: `if True:`, `if debug:`
+    after `debug = True`, or `if items is not None:` after
+    `items = items or []` (F7 review 2, finding 4)."""
+    import ast as _ast
+
+    def value(name: str):
+        v = None
+        for s in before:
+            if (isinstance(s, _ast.Assign) and len(s.targets) == 1
+                    and isinstance(s.targets[0], _ast.Name) and s.targets[0].id == name):
+                v = s.value
+            elif any(isinstance(x, _ast.Name) and x.id == name
+                     and isinstance(x.ctx, _ast.Store) for x in _ast.walk(s)):
+                v = None
+        return v
+
+    def never_none(v) -> bool:
+        if isinstance(v, (_ast.List, _ast.Tuple, _ast.Set, _ast.Dict, _ast.JoinedStr,
+                          _ast.ListComp, _ast.SetComp, _ast.DictComp)):
+            return True
+        if isinstance(v, _ast.Constant):
+            return v.value is not None
+        if isinstance(v, _ast.BoolOp) and isinstance(v.op, _ast.Or):
+            return never_none(v.values[-1])
+        return False
+    if isinstance(test, _ast.Constant):
+        return bool(test.value)
+    if isinstance(test, _ast.Name):
+        v = value(test.id)
+        return isinstance(v, _ast.Constant) and bool(v.value)
+    if (isinstance(test, _ast.Compare) and len(test.ops) == 1
+            and isinstance(test.ops[0], _ast.IsNot) and isinstance(test.left, _ast.Name)
+            and isinstance(test.comparators[0], _ast.Constant)
+            and test.comparators[0].value is None):
+        return never_none(value(test.left.id))
+    return False
+
+
+def _kin(o, n) -> bool:
+    """True when the new statement `n` keeps the behaviour of the old
+    statement `o` with other words: a rewrite, not a removal. An
+    assignment is not read here.
+
+    - A branch keeps its condition as an operand of `and` or `or`. So
+      `if x is None:` to `if x is None or x == "":` is kept.
+    - A loop keeps its iterable. A renamed loop target is a rename.
+    - A `with` keeps each context expression. A `try` has no header.
+    - A `return`, `raise`, `break` or `continue` is kept by an exit of the
+      same kind in the same block, whatever it returns or raises.
+    - A call is kept by a call of the same function, also when the new
+      call binds its result (F7 review 2, finding 3).
+    - An `assert`, `import`, `del` or `global` is kept only by an equal
+      statement (F7 review 1, finding 4)."""
+    import ast as _ast
+    d = _ast.dump
+    if isinstance(o, _ast.Expr) and isinstance(n, (_ast.Assign, _ast.AnnAssign)):
+        return _callee(o) is not None and _callee(o) == _callee(n)
+    if type(n) is not type(o):
+        return False
+    if isinstance(o, (_ast.If, _ast.While)):
+        return d(o.test) in _operands(n.test, (_ast.And, _ast.Or))
+    if isinstance(o, (_ast.For, _ast.AsyncFor)):
+        if d(o.target) == d(n.target) or (isinstance(o.target, _ast.Name)
+                                          and isinstance(n.target, _ast.Name)):
+            return d(o.iter) in {d(x) for x in _ast.walk(n.iter)}
+        return False
+    if isinstance(o, (_ast.With, _ast.AsyncWith)):
+        new = {d(x) for i in n.items for x in _ast.walk(i.context_expr)}
+        return all(d(i.context_expr) in new for i in o.items)
+    if isinstance(o, _ast.Match):
+        return d(o.subject) in {d(x) for x in _ast.walk(n.subject)}
+    if isinstance(o, _ast.ExceptHandler):
+        if o.type is None or n.type is None:
+            return o.type is None and n.type is None
+        return d(o.type) in {d(x) for x in _ast.walk(n.type)}
+    if isinstance(o, _ast.match_case):
+        return False
+    if _is_compound(o) or isinstance(o, (_ast.Return, _ast.Raise, _ast.Break,
+                                         _ast.Continue)):
+        return True
+    if isinstance(o, _ast.AugAssign):
+        return d(o.target) == d(n.target) and d(o.op) == d(n.op)
+    if isinstance(o, _ast.Expr):
+        return _callee(o) is not None and _callee(o) == _callee(n)
+    return False
+
+
+def _lost_in_block(olds: list, news: list, ol: list[str], nl: list[str],
+                   owner: str, defpairs: dict, lost: list, defs: list,
+                   ren: dict | None = None) -> None:
+    """Append to `lost` each statement of the old block `olds` that the new
+    block `news` does not keep, as (owner, first line), and to `defs` each
+    definition name that the new text lacks. A lost compound statement is
+    named by its first line, and its own statements are not named again.
+    `defpairs` is the result of `_pair_defs`. `ren` maps a new name to its
+    old name or value, for the definition that `owner` names.
+
+    F7 tells a rewrite from a removal by the syntax trees, with no order
+    and no line text (F7 review 1, findings 1, 2 and 5). Each old
+    statement takes one new statement of its block in three passes:
+
+    1. An equal statement, so a removed copy of a repeated statement is
+       lost. A compound statement is equal when its header is equal.
+    2. A rewrite. An assignment is kept when every path through the new
+       block binds its targets before it reads them, or when a new
+       assignment has the same value. A new name with the same value is
+       a rename, and later statements compare under the old name (review
+       2, finding 3). Another statement is kept by an equal statement
+       after the rename, or by a rewrite of the same kind, as `_kin` reads it.
+    3. An equal statement or a rewrite in a new block that runs on every
+       path: a `with` or `try` body, a branch that is always true, a loop
+       over one literal item, or both arms of a new `if` and `else` (review
+       2, finding 4). A statement that moves under a new branch or loop
+       that can skip it runs on fewer paths, so it is lost.
+
+    A definition pairs as `_pair_defs` gives it. A definition with no new
+    one of its name is lost by its `def` line, owned by its own name.
+
+    Night 171's s164 removed the darwin branch and the XDG return of
+    `get_app_dir`. The new block held no branch on the platform and no
+    return at that level, so both are lost. Recall comes before precision
+    here: a row that the Architect judges foreseen costs one judgement,
+    and a missed removal is work that stays invisible."""
+    import ast as _ast
+    defkinds = (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)
+    wrappers = (_ast.With, _ast.AsyncWith, _ast.Try, getattr(_ast, "TryStar", _ast.Try))
+    used: set[int] = set()
+    later_pairs: list = []
+    if ren is None:
+        ren = {}
+
+    def find(o, cands: list, kin: bool):
+        for n in cands:
+            if id(n) in used:
+                continue
+            m = _renamed(n, ren)
+            if kin:
+                if _kin(o, m):
+                    return n
+            elif type(n) is type(o) and _stmt_key(m) == _stmt_key(o):
+                return n
+        return None
+
+    def sub(a: list, b: list) -> None:
+        _lost_in_block(a, b, ol, nl, owner, defpairs, lost, defs, ren)
+
+    def pair(o, n) -> None:
+        # The blocks of a pair compare after the passes, so a rename found
+        # in this block reaches them.
+        used.add(id(n))
+        if _is_compound(o):
+            later_pairs.append((o, n))
+
+    def walk_pair(o, n) -> None:
+        if (isinstance(o, (_ast.For, _ast.AsyncFor)) and isinstance(o.target, _ast.Name)
+                and isinstance(n.target, _ast.Name) and o.target.id != n.target.id):
+            ren[n.target.id] = o.target.id
+        alt = getattr(o, "orelse", None) or []
+        if (isinstance(o, _ast.If) and len(alt) == 1 and isinstance(alt[0], _ast.If)
+                and _ast.dump(alt[0].test) != _ast.dump(o.test)
+                and _ast.dump(alt[0].test) in _operands(n.test, (_ast.Or,))):
+            # Review 1's probe 4: `if a:` and `elif b:` with one body
+            # merged into `if a or b:`.
+            sub(o.body, n.body)
+            sub(alt[0].body, n.body)
+            sub(alt[0].orelse, n.orelse)
+            return
+        for f in _BLOCK_FIELDS:
+            sub(getattr(o, f, None) or [], getattr(n, f, None) or [])
+
+    def every_path(block: list) -> list:
+        """The statements of the new blocks in `block` that run on every
+        path through it, at any depth."""
+        out: list = []
+        for i, n in enumerate(block):
+            if id(n) in used:
+                continue
+            kids: list = []
+            if isinstance(n, wrappers):
+                kids = n.body
+            elif isinstance(n, _ast.If) and not n.orelse and _always_true(n.test, block[:i]):
+                kids = n.body
+            elif (isinstance(n, _ast.For) and not n.orelse
+                  and isinstance(n.iter, (_ast.List, _ast.Tuple, _ast.Set))
+                  and len(n.iter.elts) == 1 and isinstance(n.target, _ast.Name)):
+                ren.setdefault(n.target.id, n.iter.elts[0])
+                kids = n.body
+            out += kids + every_path(kids)
+        return out
+
+    def both_arms(o) -> bool:
+        """True when each arm of one new `if` and `else` keeps `o`."""
+        for n in news:
+            if id(n) in used or not isinstance(n, _ast.If) or not n.orelse:
+                continue
+            a = find(o, n.body, False) or find(o, n.body, True)
+            b = find(o, n.orelse, False) or find(o, n.orelse, True)
+            if a is not None and b is not None:
+                pair(o, a)
+                used.add(id(b))
+                return True
+        return False
+
+    todo: list = []
+    for o in olds:
+        if isinstance(o, defkinds):
+            name = f"{owner}.{o.name}" if owner else o.name
+            n = defpairs.get(id(o), "gone")
+            if n == "gone":
+                defs.append(name)
+            elif n == "surplus":
+                # F7 review 2, finding 1: a removed property setter or a
+                # removed platform `def` shares its name with a kept one.
+                lost.append((name, _stmt_head(o)))
+            else:
+                _lost_signature_parts(o, n, name, ol, nl, lost)
+                _lost_in_block(o.body, n.body, ol, nl, name, defpairs, lost, defs)
+            continue
+        if _stmt_key(o) is None:
+            continue
+        # A branch on a false constant with no `else` never runs (review 1,
+        # finding 3, probe 5).
+        if (isinstance(o, _ast.If) and isinstance(o.test, _ast.Constant)
+                and not o.test.value and not o.orelse):
+            continue
+        n = find(o, news, False)
+        if n is None:
+            todo.append(o)
+        else:
+            pair(o, n)
+    binds_ = (_ast.Assign, _ast.AnnAssign)
+    later: list = []
+    for o in [o for o in todo if isinstance(o, binds_)] + \
+             [o for o in todo if not isinstance(o, binds_)]:
+        if isinstance(o, binds_):
+            ts = o.targets if isinstance(o, _ast.Assign) else [o.target]
+            if all(_binds_first(news, _ast.dump(t), getattr(t, "id", None)) == "bind"
+                   for t in ts):
+                continue
+            n = next((n for n in news if id(n) not in used and isinstance(n, binds_)
+                      and _ast.dump(n.value) == _ast.dump(o.value)), None)
+            if n is None:
+                later.append(o)
+                continue
+            used.add(id(n))
+            nts = n.targets if isinstance(n, _ast.Assign) else [n.target]
+            if (len(ts) == len(nts) == 1 and isinstance(ts[0], _ast.Name)
+                    and isinstance(nts[0], _ast.Name) and ts[0].id != nts[0].id):
+                ren.setdefault(nts[0].id, ts[0].id)
+            continue
+        n = find(o, news, False) or find(o, news, True)
+        if n is None:
+            later.append(o)
+        else:
+            pair(o, n)
+    for o in later:
+        inner = every_path(news)
+        n = find(o, inner, False) or find(o, inner, True)
+        if n is not None:
+            pair(o, n)
+        elif not both_arms(o):
+            lost.append((owner, _stmt_head(o)))
+    for o, n in later_pairs:
+        walk_pair(o, n)
+
+
+def _reads(node, name: str | None) -> bool:
+    """True when `node` reads the plain name `name`. An augmented
+    assignment to the name reads it first."""
+    import ast as _ast
+    return bool(name) and any(
+        (isinstance(x, _ast.Name) and x.id == name and isinstance(x.ctx, _ast.Load))
+        or (isinstance(x, _ast.AugAssign) and getattr(x.target, "id", None) == name)
+        for x in _ast.walk(node))
+
+
+def _binds_first(block: list, target: str, name: str | None) -> str | None:
+    """"bind" when each path through `block` binds the target whose AST
+    dump is `target` before it reads the plain name `name`, "read" when a
+    path reads it first, else None. Both arms of an `if`, a `with` body,
+    and a `try` body with every handler count. A loop can run zero times,
+    so it binds nothing (F7 review 1, finding 4: `total = round(total)`
+    after the loop kept a removed `total = 0`)."""
+    import ast as _ast
+    for s in block:
+        if isinstance(s, _ast.If):
+            if _reads(s.test, name):
+                return "read"
+            a, b = _binds_first(s.body, target, name), _binds_first(s.orelse, target, name)
+            if "read" in (a, b):
+                return "read"
+            if a == b == "bind":
+                return "bind"
+            continue
+        if isinstance(s, (_ast.With, _ast.AsyncWith)):
+            if any(_reads(i, name) for i in s.items):
+                return "read"
+            got = _binds_first(s.body, target, name)
+            if got:
+                return got
+            continue
+        if isinstance(s, _ast.Try):
+            got = _binds_first(s.body, target, name)
+            hs = [_binds_first(h.body, target, name) for h in s.handlers]
+            if got == "read" or "read" in hs:
+                return "read"
+            if got == "bind" and all(h == "bind" for h in hs):
+                return "bind"
+            continue
+        if isinstance(s, (_ast.Assign, _ast.AnnAssign)):
+            # `x = f(x)` binds `x` on this path, so its own read is no
+            # read before the bind.
+            ts = s.targets if isinstance(s, _ast.Assign) else [s.target]
+            if target in {_ast.dump(t) for t in ts}:
+                return "bind"
+            if s.value is not None and _reads(s.value, name):
+                return "read"
+            continue
+        if _reads(s, name):
+            return "read"
+    return None
+
+
+def _lost_signature_parts(old, new, name: str, ol: list[str], nl: list[str],
+                          lost: list) -> None:
+    """Append to `lost` each decorator and parameter of the definition `old`
+    that `new` lacks, by the keys of `_signature_parts`. Frame 283's W-D:
+    s229 dropped `shorten: bool = False,` and kept the body."""
+    from collections import Counter
+    have = Counter(k for _o, k, _a, _b, _t in _signature_parts(new, name, nl))
+    for _o, k, a, _b, _t in _signature_parts(old, name, ol):
+        if have[k]:
+            have[k] -= 1
+        else:
+            lost.append((name, a))
 
 
 def _changed_outside(ctx: Ctx, tree, path: str, owners: list[str]) -> bool:
@@ -21349,7 +22647,11 @@ def _gone_statements(text: str, e: dict) -> list[dict]:
     out: list = []
     for owner, line, n in e["lines"]:
         here = _def_lines(text, spans, owner) if spans is not None else None
-        if here is not None and here.count(line) >= n:
+        # F7 review 1, finding 1: a compare entry names each statement that
+        # the syntax trees lost. A same first line elsewhere in the
+        # definition hid a lost XDG-like return, so the line count reads
+        # the note's entries only.
+        if not e.get("compared") and here is not None and here.count(line) >= n:
             continue
         m = re.search(re.escape(_quote(line[:60])) + r" at line (\d+)", e["note"])
         out.append({"shown": f"{_quote(line)} at line {m.group(1)}" if m else _quote(line),
@@ -21563,13 +22865,17 @@ def _unruled_gone(ctx: Ctx, path: str, text: str, e: dict,
 def _batch_ruled_refs(ctx: Ctx) -> list[str]:
     """The refs on which his ruling can rule the batch's work: the batch,
     its criteria and tickets, its item, and the item's guess key."""
-    bid = ctx.batch_id
-    refs = {bid} | {k for r in ctx.conn.execute(
+    return batch_ruled_refs(ctx.conn, ctx.batch_id)
+
+
+def batch_ruled_refs(conn, bid: str) -> list[str]:
+    """`_batch_ruled_refs` for a batch by its id. His page reads it too."""
+    refs = {bid} | {k for r in conn.execute(
         "SELECT c.id, c.ticket_id FROM criteria c JOIN batch_tickets bt "
         "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (bid,))
         for k in (r["id"], r["ticket_id"])}
-    item = ctx.conn.execute("SELECT item_id FROM batches WHERE id = ?",
-                            (bid,)).fetchone()
+    item = conn.execute("SELECT item_id FROM batches WHERE id = ?",
+                        (bid,)).fetchone()
     if item is not None and item["item_id"]:
         refs |= {item["item_id"], f"guess:{item['item_id']}"}
     return sorted(r for r in refs if r)
@@ -22120,7 +23426,11 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
             if sym in open_rows:
                 return [sym]
             return [g] if g in open_rows else []
-        return [r for r in open_rows if r == g or r.startswith(g + "::")]
+        # F7: a bare path never judges a removal row. Night 171's s172 sent
+        # `src/click/utils.py`, and the fold judged the macOS and XDG
+        # removals foreseen with a reason about the file.
+        return [r for r in open_rows
+                if r == g or (r.startswith(g + "::") and r not in removed)]
 
     unknown = [p for p in foreseen + mistakes if not _covers(p)]
     foreseen = list(dict.fromkeys(r for p in foreseen for r in _covers(p)))
@@ -22129,6 +23439,26 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
     if both:
         raise ValueError(f"{', '.join(both)} cannot be both foreseen and a mistake")
     left = [p for p in open_rows if p not in foreseen and p not in mistakes]
+    unnamed = [p for p in left if p in removed]
+    if unnamed:
+        # The refusal names each open removal row and two calls that judge
+        # every open row, so each lands as sent (frame 135: name a call the
+        # door admits; F7 review 1, finding 7).
+        one = len(unnamed) == 1
+        rest = [p for p in left if p not in removed]
+        said = " ".join(f"{p} ({removed[p]})." for p in unnamed)
+        keep = (f"batches.judge_touch(batch_id={batch_id!r}, "
+                f"foreseen={foreseen + left!r}, mistakes={mistakes!r})")
+        drop = (f"batches.judge_touch(batch_id={batch_id!r}, "
+                f"foreseen={foreseen + rest!r}, mistakes={mistakes + unnamed!r})")
+        raise ValueError(
+            f"{'this removal is' if one else 'these removals are'} still "
+            f"unjudged, because a file path does not judge a removal. Name "
+            f"{'it' if one else 'each one'} by its full name. {said} Send "
+            f"{keep} if the work needed {'it' if one else 'them'}, or {drop} "
+            f"if it did not."
+            + ("" if one else " Move a name to the other list when its "
+                              "answer differs."))
     if left:
         # The refusal is the only text the seat reads, so it says which
         # names it dropped. Night 145's three refusals said nothing of them.

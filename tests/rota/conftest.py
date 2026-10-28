@@ -198,6 +198,10 @@ def _problems(nodeid: str, found: list[dict]) -> list[str]:
         if r.get("bad_args"):
             out.append(f"door {r['door']}: the offer names no such argument: "
                        f"{r['bad_args']}")
+        if r.get("not_in_mode"):
+            out.append(f"door {r['door']}: the offer names "
+                       f"{', '.join(r['not_in_mode'])}, and the mode "
+                       f"{r.get('mode')!r} does not hold it")
     return out
 
 
