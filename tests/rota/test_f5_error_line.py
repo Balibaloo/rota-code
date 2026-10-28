@@ -77,22 +77,113 @@ def test_the_reader_takes_the_last_e_line_when_a_frame_comes_first():
     assert harness.error_line(FRAME_RUN) == FRAME_ERROR
 
 
-def test_the_reader_takes_the_cause_of_a_chained_raise():
-    # Frame 317: night 160's tst_v6 hid its KeyError under a later error.
-    assert harness.error_line(S189_CR1_RUN) == (
+def test_the_reader_takes_the_last_raise_and_carries_the_cause():
+    # Frame 328, item 4: the last raise names the seat's own mistake.
+    # Frame 317: the cause comes beside it.
+    assert harness.error_line(S189_CR1_RUN).startswith("assert 'UsageError' in")
+    assert harness.error_cause(S189_CR1_RUN) == (
         "AttributeError: 'FakeStdin' object has no attribute 'readline'")
+    assert harness.error_cause(FRAME_RUN) == ""
 
 
 def test_a_frame_first_block_ends_at_its_own_last_e_line():
-    run = FRAME_RUN + "\n\nDuring handling of the above exception, another " \
-        "exception occurred:\n>       assert x\nE       assert None"
-    assert harness.error_line(run) == FRAME_ERROR
+    run = FRAME_RUN.replace("\n\ntests/test_a.py:2: SyntaxError", "\n\ntests/test_a.py:2: "
+                            "SyntaxError\n\nDuring handling of the above exception, "
+                            "another exception occurred:\n>       assert x\n"
+                            "E       assert None")
+    assert harness.error_line(run) == "assert None"
+    assert harness.error_cause(run) == FRAME_ERROR
 
 
 def test_the_reader_takes_the_native_form():
     assert harness.error_line(NATIVE) == "ValueError: bad"
     assert harness.error_line("") == ""
     assert harness.error_line("1 passed in 0.01s") == ""
+
+
+def test_the_reader_takes_the_first_failed_test_of_two():
+    two = "\n".join(["____ test_a ____", ">       assert 1 == 2", "E       assert 1 == 2",
+                     "t.py:2: AssertionError", "____ test_b ____",
+                     ">       assert 3 == 4", "E       assert 3 == 4", "t.py:5: AssertionError"])
+    assert harness.error_line(two) == "assert 1 == 2"
+
+
+# --- the recorded runs of review 1 (pytest -q --no-header --tb=auto) ----------
+
+RUNS = Path(__file__).parent / "fixtures" / "f5_runs"
+
+
+def _run(name: str) -> str:
+    return (RUNS / name).read_bytes().decode("utf-8")
+
+
+def test_the_recorded_runs_give_their_error_lines():
+    expect = {
+        "assert.out": ("AssertionError: assert {'a': 1, 'b':... 'c': 'hello'} == "
+                       "{'a': 1, 'b':... 'c': 'hello'}", ""),
+        "chain.out": ("app.ConfigError: the config is bad", "KeyError: 'prog_name'"),
+        "chain2.out": ("AssertionError: the fallback must hold 5", "KeyError: 'missing'"),
+        "collect.out": ("ModuleNotFoundError: No module named 'nosuchmodule_xyz'", ""),
+        "syntax.out": ("SyntaxError: '(' was never closed", ""),
+        "fixture.out": ("KeyError: 'host'", ""),
+        "internal.out": ("RuntimeError: the hook broke", ""),
+        "conf.err": ("ModuleNotFoundError: No module named 'nosuch_conf_mod'", ""),
+    }
+    got = {n: (harness.error_line(_run(n)), harness.error_cause(_run(n))) for n in expect}
+    assert got == expect
+
+
+def test_a_fixture_error_never_gives_the_progress_line():
+    """Review 1, finding 1: a one-test file that errors in a fixture
+    prints `E` and `[100%]` first."""
+    run = _run("fixture.out")
+    assert db_mod._first_error(run) == "KeyError: 'host'"
+    assert _failure_line(run) == "KeyError: 'host'"
+    assert _base_quote(run) == "KeyError: 'host'"
+    long = run.replace("test_f.py:6: KeyError", "\n".join(
+        f"log line {n:04d}" for n in range(300)) + "\ntest_f.py:6: KeyError")
+    assert harness.error_line(harness._tail(long)) == "KeyError: 'host'"
+
+
+def test_a_caught_raise_then_a_failed_assert_gives_the_assert():
+    """Review 1, finding 2: every reader names the last raise."""
+    run = _run("chain2.out")
+    said = "AssertionError: the fallback must hold 5"
+    assert db_mod._first_error(run) == said
+    assert _failure_line(run) == said
+    assert _base_quote(run) == said
+    reds = api._own_reds("", "test_c2.py", run)
+    assert [r["error"] for r in reds] == [said]
+
+
+def test_the_raise_from_run_gives_one_line_to_every_reader():
+    """Review 1, finding 3: the check row and the encode note named two
+    errors for one run."""
+    run = _run("chain.out")
+    said = "app.ConfigError: the config is bad"
+    assert _failure_line(run) == said
+    assert [r["error"] for r in api._own_reds("", "test_c.py", run)] == [said]
+
+
+def test_the_head_shows_the_cause_and_the_last_raise_outside_the_tail():
+    run = _run("chain2.out").replace("test_c2.py:6: AssertionError", "\n".join(
+        f"log line {n:04d}" for n in range(80)) + "\ntest_c2.py:6: AssertionError")
+    head = _raising_line_head(run)
+    assert head.index("KeyError: 'missing'") < head.index("AssertionError: the fallback")
+
+
+def test_tail_keeps_the_cause_and_the_last_raise():
+    run = _run("chain.out").replace("test_c.py:4: ", "\n".join(
+        f"log line {n:04d}" for n in range(300)) + "\ntest_c.py:4: ")
+    cut = harness._tail(run)
+    assert harness.error_line(cut) == "app.ConfigError: the config is bad"
+    assert harness.error_cause(cut) == "KeyError: 'prog_name'"
+
+
+def test_an_internal_error_gives_its_raise():
+    """Review 1, finding 5: each frame carries the `INTERNALERROR>` mark."""
+    run = _run("internal.out")
+    assert "the hook broke" in _raising_line_head(run + "\n" + "x" * 800)
 
 
 # --- one test per moved reader, red on the parent ----------------------------
@@ -185,8 +276,13 @@ def test_the_unchanged_note_quotes_the_error_under_the_frame(db, tmp_path):
 
 # --- the one-reader property ---------------------------------------------------
 
-# A line that reads pytest's `E` marker. Only the sites below may hold one.
-_E_RULE = re.compile(r"""startswith\(\s*["']E[ "']|["']\^?E\\s|["']E   ["']""")
+# A string that a search for the error line holds: a traceback word, an
+# exception's `Error:`, or pytest's `E` marker as text or as a regex.
+_MARK = re.compile(r"Traceback|Error:|^\^?E(?:\s|\\s|\+| \+)")
+_STR_SEARCH = {"startswith", "endswith", "find", "rfind", "index", "rindex",
+               "count", "split", "rsplit", "partition", "rpartition"}
+_RE_CALL = {"match", "search", "fullmatch", "findall", "finditer", "compile",
+            "sub", "subn", "split"}
 
 # Each site names its file and its function or its module-level name.
 _ALLOWED = {
@@ -204,26 +300,65 @@ _ALLOWED = {
 }
 
 
+def _strings(node):
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        yield node.value
+    elif isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        for elt in node.elts:
+            yield from _strings(elt)
+
+
+def _searched(node):
+    """The strings that `node` searches a text for."""
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        name = node.func.attr
+        on_re = isinstance(node.func.value, ast.Name) and node.func.value.id == "re"
+        if name in _STR_SEARCH or (on_re and name in _RE_CALL):
+            for arg in node.args[:1]:
+                yield from _strings(arg)
+    elif isinstance(node, ast.Compare) and any(
+            isinstance(op, (ast.In, ast.NotIn, ast.Eq, ast.NotEq)) for op in node.ops):
+        for side in [node.left, *node.comparators]:
+            yield from _strings(side)
+
+
 def _sites(root: Path):
+    """Each search for the error line under root/rota: file, owner, line."""
     for path in sorted((root / "rota").rglob("*.py")):
-        text = path.read_text(encoding="utf-8")
-        tree = ast.parse(text)
-        spans = [(n.lineno, n.end_lineno, n.name) for n in ast.walk(tree)
-                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
-        spans += [(n.lineno, n.end_lineno, n.targets[0].id) for n in tree.body
-                  if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)]
-        for n, line in enumerate(text.splitlines(), 1):
-            if not _E_RULE.search(line) or line.lstrip().startswith("#"):
+        tree = ast.parse(path.read_bytes().decode("utf-8"))
+        owners = [(n, n.name) for n in ast.walk(tree)
+                  if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        owners += [(n, n.targets[0].id) for n in tree.body
+                   if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)]
+        for node in ast.walk(tree):
+            if not any(_MARK.search(s) for s in _searched(node)):
                 continue
-            inner = [s for s in spans if s[0] <= n <= s[1]]
-            name = min(inner, key=lambda s: s[1] - s[0])[2] if inner else ""
-            yield path.relative_to(root).as_posix(), name, n
+            inner = [(o, nm) for o, nm in owners if o.lineno <= node.lineno <= o.end_lineno]
+            name = min(inner, key=lambda x: x[0].end_lineno - x[0].lineno)[1] if inner else ""
+            yield path.relative_to(root).as_posix(), name, node.lineno
 
 
 def test_no_second_reader_of_the_error_line_exists():
     root = Path(__file__).resolve().parents[2]
     found = list(_sites(root))
-    assert found, "the scan finds no site, so the pattern is broken"
+    assert found, "the scan finds no site, so the scan is broken"
     extra = [f"{p}:{n} {name}" for p, name, n in found if (p, name) not in _ALLOWED]
     assert extra == [], ("a second reader of the error line: call "
                          "harness.error_line instead. " + "; ".join(extra))
+
+
+def test_the_scan_finds_the_six_shapes_of_review_1(tmp_path):
+    """Review 1, finding 4: the line scan found 1 of these 6 readers."""
+    (tmp_path / "rota").mkdir()
+    (tmp_path / "rota" / "fake.py").write_bytes("\n".join([
+        "import re",
+        "def a(lines): return [ln for ln in lines if 'Traceback' in ln]",
+        "def b(lines): return [ln for ln in lines if re.match(r'[A-Za-z.]+Error: ', ln)]",
+        "def c(lines): return [ln for ln in lines if ln[:2] == 'E ']",
+        "def d(lines): return [ln for ln in lines if ln.startswith(('E ', 'X'))]",
+        "def e(lines): return [ln for ln in lines if re.match('E +[^ ]', ln)]",
+        "def f(lines): return [ln for ln in lines if ln.startswith('E ')]",
+        ""]).encode("utf-8"))
+    assert sorted(name for _p, name, _n in _sites(tmp_path)) == list("abcdef")
+
+

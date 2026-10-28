@@ -1,0 +1,15 @@
+E                                                                        [100%]
+=================================== ERRORS ====================================
+_______________________ ERROR at setup of test_uses_cfg _______________________
+
+    @pytest.fixture
+    def cfg():
+        data = {"port": 1}
+>       return data["host"]
+               ^^^^^^^^^^^^
+E       KeyError: 'host'
+
+test_f.py:6: KeyError
+=========================== short test summary info ===========================
+ERROR test_f.py::test_uses_cfg - KeyError: 'host'
+1 error in 0.13s

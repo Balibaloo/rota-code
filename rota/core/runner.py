@@ -2908,11 +2908,13 @@ def _batch_row(conn: sqlite3.Connection, ref: str) -> dict[str, Any] | None:
 
 
 def _raising_line_head(output: str) -> str:
-    """The raising line and its two neighbours, when the 700 tail lacks it.
+    """Each raising line and its two neighbours, when the 700 tail lacks it.
 
-    The raising line is the line that `harness.error_at` names (fact F5).
-    A word search for "Error" picked a source line on night 160, seq 243
-    (review 1 of frame 317, F3). A line inside the tail gives "".
+    The raising lines are the cause and the last raise that
+    `harness.error_at` names (fact F5). Night 160's tst_v6 kept its
+    `KeyError` cause outside the tail (frame 317). A word search for "Error"
+    picked a source line on night 160, seq 243 (review 1 of frame 317, F3).
+    Lines inside the tail give "".
     """
     from .harness import error_at
 
@@ -2922,11 +2924,13 @@ def _raising_line_head(output: str) -> str:
     for line in lines:
         starts.append(at)
         at += len(line)
-    i = error_at([line.rstrip("\r\n") for line in lines])
-    if i is None or starts[i] >= tail_from:
-        return ""
-    lo, hi = max(i - 1, 0), min(i + 2, len(lines))
-    return "".join(lines[lo:hi]).rstrip("\n") + "\n...\n"
+    found = error_at([line.rstrip("\r\n") for line in lines])
+    out = ""
+    for i in dict.fromkeys(i for i in (found.cause, found.line) if i is not None):
+        if starts[i] < tail_from:
+            lo, hi = max(i - 1, 0), min(i + 2, len(lines))
+            out += "".join(lines[lo:hi]).rstrip("\n") + "\n...\n"
+    return out
 
 
 # Frame 110's label, given to every reader of a red row whose test raised in
@@ -3239,7 +3243,7 @@ def _failed_before_assertion(body: str, output: str) -> bool:
         return True
     from .harness import error_at
 
-    first_error = error_at(lines)
+    first_error = error_at(lines).line
     return first_error is not None and first_error < named
 
 

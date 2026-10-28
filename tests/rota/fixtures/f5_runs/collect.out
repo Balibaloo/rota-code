@@ -1,0 +1,16 @@
+
+=================================== ERRORS ====================================
+_________________________ ERROR collecting test_m.py __________________________
+ImportError while importing test module 'C:\Users\roman\AppData\Local\Temp\claude\d--repos-rota\b3bc8a66-bd69-4749-a050-07bdd1893c24\scratchpad\f5rev\collect\test_m.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\..\..\..\..\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_m.py:1: in <module>
+    import nosuchmodule_xyz
+E   ModuleNotFoundError: No module named 'nosuchmodule_xyz'
+=========================== short test summary info ===========================
+ERROR test_m.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.24s

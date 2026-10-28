@@ -17627,14 +17627,15 @@ def _unchanged_note(ctx, root, path, dirty) -> str:
         # A long assert made a sentence of 1915 characters (the same review).
         return s if len(s) <= 200 else s[:197] + "..."
 
-    from ..core.harness import error_line
+    from ..core.harness import error_at, error_line
 
     for test_id, _sha, output, _attempt in rows:
         lines = (output or "").splitlines()
-        # pytest marks the failing source line with `>`. The last `>` is the
-        # frame that raised. Fact F5: `error_line` reads what it raised.
-        marks = [i for i, x in enumerate(lines) if x.startswith(">")]
-        err = error_line("\n".join(lines[marks[-1]:])) if marks else ""
+        # Fact F5: `error_at` names the line of the last raise. pytest marks
+        # the source line of that frame with the `>` above it.
+        at = error_at(lines).line
+        marks = [i for i in range(at or 0) if lines[i].startswith(">")]
+        err = error_line(output) if marks else ""
         if err:
             src = lines[marks[-1]][1:].strip()
             more = (f", and {len(red) - 1} more fail; tests.load lists them"
@@ -18085,10 +18086,8 @@ def _own_reds(body: str, path: str, said: str) -> list[dict]:
                   f"{found[-1][1].group(1).replace(chr(92), '/')} line "
                   f"{found[-1][1].group(2)}")
         kind = lines[at].split(": ", 1)[1].strip() if ": " in lines[at] else ""
-        arrow = max((i for i in range(start, at) if lines[i].startswith(">")),
-                    default=start - 1)
-        # Fact F5: the error line under the last frame's `>` line.
-        error = error_line("\n".join(lines[arrow + 1:at])) or kind or "an error"
+        # Fact F5: the error line of this test's own section, the last raise.
+        error = error_line("\n".join(lines[start:end])) or kind or "an error"
         out.append({"line": line, "name": name, "raised": raised,
                     "quote": (src[line - 1].strip()
                               if line and 0 < line <= len(src) else ""),
