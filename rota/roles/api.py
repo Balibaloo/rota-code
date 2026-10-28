@@ -16351,7 +16351,7 @@ def code_prose(ctx: Ctx, limit: int = 6000, path: str | None = None) -> dict:
         # Asked by path: the file the session wants beside its own. clickI
         # night 38 (2026-09-13): `code.prose(path=...)` refused as an
         # unexpected argument in a wake that is about one file.
-        readme = _grain_path(path)
+        readme = _indexed_like(ctx, path) or _grain_path(path)
     elif ctx.area and ctx.area.startswith(_PROSE + ":"):
         # A prose file under docs/, the wake's own subject (one file a
         # session, `prose_areas`). The README is the bare `@prose`.
@@ -17579,8 +17579,9 @@ def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
                          f"boundary, not {kind!r}")
     path = (path or "").strip().strip("`").rstrip("/")
     # F11, review pass 1, finding 1: a character-set strip made `.github`
-    # into `github`, and the door refused a path the index holds.
-    path = _grain_path(path)
+    # into `github`, and the door refused a path the index holds. The night
+    # databases record `/github`. The one matcher resolves the typed form.
+    path = _indexed_like(ctx, path, folder=True) or _grain_path(path)
     covered = [r["grain"] for r in ctx.conn.execute(
         "SELECT grain FROM code_index WHERE grain_kind = 'path' AND "
         "(grain = ? OR grain LIKE ?)", (path, path + "/%"))]
@@ -19555,7 +19556,7 @@ def _unbound_name_hint(name: str, surface: str, module: str,
                   f"{name}, import it from that library.{where}")
 
 
-def _indexed_like(ctx, path: str) -> str | None:
+def _indexed_like(ctx, path: str, folder: bool = False) -> str | None:
     """
     The grain a mistyped path was reaching for, when exactly one fits.
 
@@ -19587,6 +19588,7 @@ def _indexed_like(ctx, path: str) -> str | None:
         return None
 
     hits = []
+    prefixes: set[str] = set()
     for r in ctx.conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'path'"):
         g = r["grain"]
@@ -19597,7 +19599,16 @@ def _indexed_like(ctx, path: str) -> str | None:
         bare = g.lstrip("./")
         if want in (g, bare) or g.endswith("/" + want) or bare.endswith("/" + want):
             hits.append(g)
-    return hits[0] if len(hits) == 1 else None
+        elif folder:
+            # A door that rules a folder asks for the folder's spelling in the
+            # index. The seat typed `/github` for `.github` (review pass 1,
+            # finding 1), and the one matcher answers for every door.
+            for s in (g, bare):
+                if s.startswith(want + "/"):
+                    prefixes.add(g[:len(g) - len(s)] + want)
+    if len(hits) == 1:
+        return hits[0]
+    return prefixes.pop() if not hits and len(prefixes) == 1 else None
 
 
 def _within(base, path: str):

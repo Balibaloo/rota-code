@@ -96,11 +96,13 @@ def test_frame_assign_of_a_dot_directory_finds_its_rows(tmp_path):
         conn.execute("INSERT INTO code_index (grain, grain_kind) "
                      "VALUES (?, 'path')", (g,))
     conn.commit()
-    sb = sandbox_mod.build("architect", conn, session_id="s1", mode="frame",
-                           area="@frame")
-    got = sb.call("frame.assign", path=".github", kind="ignore",
-                  reason="the CI tool's own files")
-    assert got["kind"] == "ignore"
+    # The night databases record `/github` (the reviewer's probe4, f8rev).
+    for typed in ("/github", "github", ".github"):
+        sb = sandbox_mod.build("architect", conn, session_id="s1",
+                               mode="frame", area="@frame")
+        got = sb.call("frame.assign", path=typed, kind="ignore",
+                      reason="the CI tool's own files")
+        assert (got["id"], got["kind"]) == (".github", "ignore"), typed
 
 
 # `_indexed_like` matches the dot-stripped spelling that old hints printed.
