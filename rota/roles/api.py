@@ -5694,36 +5694,40 @@ def _holds_tester_route(ctx: Ctx) -> bool:
     return "msg.answer_tester" in _wake_mode_tools(ctx)
 
 
-def _item_words(ctx: Ctx, ticket_id: str | None) -> str:
+def _item_words(ctx: Ctx, ticket_id: str | None) -> tuple[str, str | None, str]:
     """
     The words of the request behind a ticket: the ticket, its item, the
     items of its live batches, and their live statements.
 
     Frame 215's review 1, finding 1: the criterion's text is the seat's own,
     so it is never a source. Finding 6: an abandoned batch is no longer the
-    work's, so its item is not read.
+    work's, so its item is not read. The result is the words, the ticket's
+    item id, and that item's own text, the request.
     """
     if not ticket_id:
-        return ""
+        return "", None, ""
     ticket = ctx.conn.execute(
         "SELECT text, item_id FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
     if not ticket:
-        return ""
+        return "", None, ""
     items = [ticket["item_id"]] + [r["item_id"] for r in ctx.conn.execute(
         "SELECT b.item_id AS item_id FROM batch_tickets bt "
         "JOIN batches b ON b.id = bt.batch_id WHERE bt.ticket_id = ? "
         "AND b.status != 'abandoned' ORDER BY b.id", (ticket_id,))]
     words = [ticket["text"] or ""]
+    request = ""
     for item_id in dict.fromkeys(i for i in items if i):
         row = ctx.conn.execute("SELECT text FROM items WHERE id = ?",
                                (item_id,)).fetchone()
         words.append(row["text"] or "" if row else "")
+        if item_id == ticket["item_id"]:
+            request = words[-1]
         words += [r["text"] or "" for r in ctx.conn.execute(
             "SELECT s.text AS text FROM refs x "
             "JOIN statements s ON s.id = x.target "
             "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
             "AND s.status != 'superseded' ORDER BY s.id", (item_id,))]
-    return " ".join(words)
+    return " ".join(words), ticket["item_id"], request
 
 
 @dataclass(frozen=True)
@@ -5733,20 +5737,41 @@ class ItemCallables:
     known: list[str]
     new: list[str]
     words: set[str]
+    # The callables the request's first verb phrase asks for, and the
+    # item's id (frame 202's request rule).
+    asked: frozenset = frozenset()
+
+
+def _held_names(ctx: Ctx) -> set[str]:
+    """The last part of each symbol the index holds. A method's grain is
+    `path::Class.name`, so `name` is the name the index holds."""
+    return {r["grain"].split("::", 1)[-1].rsplit(".", 1)[-1]
+            for r in ctx.conn.execute("SELECT grain FROM code_index "
+                                      "WHERE grain_kind = 'symbol'")}
 
 
 def item_callables(ctx: Ctx, ticket_id: str | None) -> ItemCallables:
     """
     The one reader of the callables the item behind a ticket gives (F10 of
     the root-fix audit of 2026-10-27). Both criteria doors read it.
+    """
+    text, item_id, request = _item_words(ctx, ticket_id)
+    return callables_in(text, _held_names(ctx), item_id=item_id, request=request)
+
+
+def callables_in(text: str, held: set[str], *, item_id: str | None = None,
+                 request: str = "") -> ItemCallables:
+    """
+    The callables that `text` gives, split by the names in `held`. `request`
+    is the item's own text, whose first verb phrase gives `asked`.
 
     A name is given in a callable's form. A4 (2026-09-10): "the share lives
     in a new function named split_bill" beside an index holding
     calculate_tip, and llama3.1:8b and qwen3.5:9b both named calculate_tip
     as the surface, 0/5 each.
     """
-    text = _item_words(ctx, ticket_id)
-    words = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", text))
+    words = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", text or ""))
+    text = text or ""
     # law 11: a row rests on what it cites
     # Only names the words call a callable: "a function named X", "X()".
     # A bare snake_case word is not enough for a new name. clickI night 8
@@ -5779,13 +5804,13 @@ def item_callables(ctx: Ctx, ticket_id: str | None) -> ItemCallables:
     # click sentence three: "give version_option a show_python flag" names
     # version_option, a definition. show_python is not one and drops out.
     shaped_words = set(re.findall(r"(?<![\w.])" + shaped, text))
-    # A method's grain is `path::Class.name`, so the last part of the
-    # symbol is the name the index holds.
-    held = {r["grain"].split("::", 1)[-1].rsplit(".", 1)[-1]
-            for r in ctx.conn.execute("SELECT grain FROM code_index "
-                                      "WHERE grain_kind = 'symbol'")}
-    return ItemCallables(known=sorted((given | shaped_words) & held),
-                         new=sorted(given - held), words=words)
+    # A backticked word is a name he typed as code (ruled for F10's pass 1b).
+    # It is a candidate only: night 145's backticked flag `show_python` is
+    # no callable, so a name the index lacks gives nothing.
+    typed = set(_backticked_callables(text))
+    return ItemCallables(known=sorted((given | shaped_words | typed) & held),
+                         new=sorted(given - held), words=words,
+                         asked=frozenset(_request_names(request, item_id)))
 
 
 def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -> None:
@@ -6255,14 +6280,6 @@ def _item_callables(item_id: str | None, old: set[str]) -> set[str]:
 _CALL_FORM = re.compile(r"(?<![\w.`])([A-Za-z_]\w*)\(")
 
 
-def _item_names(item_id: str | None, item_text: str | None) -> set[str]:
-    """The callables the item names: its id, its backticked callables and
-    its call forms. A move to one of them goes toward the item."""
-    found = set(_backticked_callables(item_text or ""))
-    found |= set(_CALL_FORM.findall(item_text or ""))
-    return found | ({item_id} if item_id else set())
-
-
 # A location or a comparison ends the request's verb phrase. In "Add an
 # echo_json(obj) helper next to echo", `echo` is where the helper goes, not
 # the callable the item asks for (frame 202, night 147, s130).
@@ -6278,10 +6295,11 @@ _NOT_A_NAME = {"a", "an", "the", "it", "its", "this", "that", "each", "every",
                "all", "our", "my"}
 
 
-def _request_callables(item_text: str | None, item_id: str | None) -> set[str]:
+def _request_names(item_text: str | None, item_id: str | None) -> set[str]:
     """
     The callables the item asks for: its id, and the names in the request's
-    first verb phrase, cut before a location cue.
+    first verb phrase, cut before a location cue. Only `callables_in` reads
+    it, so `ItemCallables.asked` is the one source (F10).
 
     A name counts when it is a call form, a backticked callable, a name with
     an underscore, or the object of a request verb.
@@ -6371,7 +6389,7 @@ def _cue_hit(cues: tuple, name: str, said: str, *, request: bool = False):
 
 
 def _surface_move_fault(text: str, was: list, surface: list,
-                        item_id: str | None, item_text: str | None,
+                        item_id: str | None, given: "ItemCallables",
                         words: list[str], ask: str = "") -> str | None:
     """
     The refusal for a surface move away from the callable the item asks for,
@@ -6412,7 +6430,8 @@ def _surface_move_fault(text: str, was: list, surface: list,
     # A move to a callable the item names goes toward the item, so the text
     # rule lets it pass. Probe H1 of the review of 3de76eaf: a restore to
     # `echo_json` whose text names only the `echo` helper.
-    toward = new & _item_names(item_id, item_text)
+    toward = new & (set(given.known) | set(given.new)
+                    | ({item_id} if item_id else set()))
     if mine and not new & set(named) and not toward:
         return (f"The criterion says `{mine[0]}`, and the surface moves to "
                 f"{to}. The surface is what the test calls. {route(mine[0])}")
@@ -6443,7 +6462,7 @@ def _surface_move_fault(text: str, was: list, surface: list,
     # `echo` only as a location, "next to echo", and bg_1 then changed
     # click's own `echo`. A move that drops every callable of the request
     # is refused, unless the text or a request cue names the new callable.
-    items = _request_callables(item_text, item_id)
+    items = set(given.asked)
     held = sorted(old & items)
     if not held or new & items or new & set(named):
         return None
@@ -6970,8 +6989,8 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                else "")
         fault = _surface_move_fault(text, was, surface,
                                     item["id"] if item else None,
-                                    item["text"] if item else None, words,
-                                    ask)
+                                    item_callables(ctx, cur["ticket_id"]),
+                                    words, ask)
         if fault:
             raise ValueError(fault)
 

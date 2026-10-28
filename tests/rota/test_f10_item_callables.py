@@ -95,6 +95,27 @@ def test_a_plain_word_of_the_ticket_does_not_admit_a_surface_outside_the_batch(d
                            ["examples/imagepipe/imagepipe.py::version_option"])
 
 
+def test_a_backticked_word_the_index_holds_is_a_name_the_item_gives(db):
+    """Pass 1b's ruling: a backticked word is a name he typed as code. The
+    old known rule took snake_case words only, so "`confirm`" named no
+    callable, and a surface on `prompt` landed."""
+    _index(db, "src/click/termui.py::confirm", "src/click/termui.py::prompt")
+    _item(db, "Let `confirm` return the default when stdin is closed.")
+    with pytest.raises(ValueError, match="the item names confirm"):
+        _specify(db, ["prompt"])
+
+
+def test_a_backticked_word_the_index_lacks_admits_nothing(db):
+    """The same ruling: the door checks that the index holds the word. The
+    flag `show_python` of night 145 is no new callable."""
+    from rota.roles.api import item_callables
+
+    _index(db, "src/click/decorators.py::version_option")
+    _item(db, "Give version_option a `show_python` flag.")
+    got = item_callables(build("terminologist", db, mode="criteria").ctx, "tk9")
+    assert got.new == [] and got.known == ["version_option"]
+
+
 _API = pathlib.Path(__file__).resolve().parents[2] / "rota" / "roles" / "api.py"
 
 
@@ -106,8 +127,8 @@ def _functions(path):
 
 
 def test_item_callables_is_the_one_reader_of_the_names_an_item_gives():
-    """The pin of F10. The kind-word form rule lives in `item_callables`
-    alone, and the item's words come from `_item_words` alone. The three
+    """The pin of F10. The kind-word form rule lives in `callables_in`,
+    the text core of `item_callables`, alone, and the item's words come from `_item_words` alone. The three
     surface readers call `item_callables` and read no item row."""
     kind_rule = "(?:function|callable|method|helper|decorator)"
     pkg = pathlib.Path(__file__).resolve().parents[2] / "rota"
@@ -116,10 +137,15 @@ def test_item_callables_is_the_one_reader_of_the_names_an_item_gives():
         for name, src in _functions(path).items():
             if kind_rule in src:
                 holders.append(name)
-    assert holders == ["item_callables"]
+    # `item_callables` reads the item, and `callables_in` is its text core.
+    assert holders == ["callables_in"]
     fns = _functions(_API)
     assert "_named_new_callables" not in fns
     assert "_named_existing_callables" not in fns
+    # Frame 202's two readers are folded into the reader (pass 1b).
+    assert "_item_names" not in fns and "_request_callables" not in fns
+    assert "given.asked" in fns["_surface_move_fault"]
+    assert "item_text" not in fns["_surface_move_fault"].split('"""')[-1]
     for name in ("_vet_surface", "_surface_names_what_the_item_names",
                  "_surface_outside_batch"):
         assert "item_callables(" in fns[name], name
