@@ -1489,6 +1489,89 @@ def _first_call(case: dict, outcome: RunOutcome, scripted: int) -> list[str]:
             f"{ {k: want['args'][k] for k in wrong} }"] if wrong else []
 
 
+def _normal_code(text: str) -> str:
+    """One statement or expression as `ast.unparse` writes it, so the quote
+    style and the spacing do not decide a match. Text that does not parse
+    stays as it is."""
+    import ast
+
+    try:
+        return ast.unparse(ast.parse(text.strip()))
+    except SyntaxError:
+        return text.strip()
+
+
+def _body_code(source: str, name: str) -> str | None:
+    """The statements of definition `name` in `source`, or of the module
+    when `name` is empty, as `ast.unparse` writes them. A docstring and a
+    comment are not statements, so neither is in the text. None when the
+    source does not parse or holds no such definition."""
+    import ast
+
+    try:
+        node: ast.AST = ast.parse(source)
+    except SyntaxError:
+        return None
+    for part in [p for p in name.split(".") if p]:
+        node = next((n for n in ast.walk(node)
+                     if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                       ast.ClassDef)) and n.name == part), None)
+        if node is None:
+            return None
+    body = list(node.body)
+    if (body and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)):
+        body = body[1:]
+    return "\n".join(ast.unparse(s) for s in body)
+
+
+def _write_includes(case: dict, conn: sqlite3.Connection,
+                    batch_id: str | None) -> list[str]:
+    """
+    The case's `write_includes:` against the file at the batch head.
+
+    Each keyed line must be code in the body of a grain that a `mistake` row
+    of the batch names, in the commit the worktree's HEAD holds after the
+    run. A line in a docstring or a comment is no code. A write the door
+    refuses, an uncommitted write and a write to another path leave the
+    head without the line, so each fails. The text of a call proved
+    nothing: night 172's s264 and s267 sent `surrogateescape` in the
+    docstring and the head's body (F7 review p3, findings 1 and 2).
+    """
+    lines = (case.get("expect") or {}).get("write_includes")
+    if not lines:
+        return []
+    import subprocess
+
+    row = conn.execute("SELECT worktree FROM batches WHERE id = ?",
+                       (batch_id,)).fetchone() if batch_id else None
+    if not row or not row["worktree"]:
+        return ["write_includes: the batch has no worktree"]
+    grains = [r[0] for r in conn.execute(
+        "SELECT DISTINCT path FROM touch_strays WHERE batch_id = ? "
+        "AND status = 'mistake' ORDER BY path", (batch_id,))]
+    if not grains:
+        return ["write_includes: the batch has no mistake row"]
+    want = [_normal_code(line) for line in lines]
+    seen: list[str] = []
+    for grain in grains:
+        path, _, name = grain.partition("::")
+        shown = subprocess.run(["git", "-C", row["worktree"], "show",
+                                f"HEAD:{path}"], capture_output=True)
+        body = (_body_code(shown.stdout.decode("utf-8", "replace"), name)
+                if shown.returncode == 0 else None)
+        if body is None:
+            seen.append(f"{grain}: not in the head commit")
+            continue
+        missing = [w for w in want if w not in body]
+        if not missing:
+            return []
+        seen.append(f"{grain}: lacks {missing}")
+    return [f"expected the head commit to hold {lines} as code; "
+            + "; ".join(seen)]
+
+
 def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
              instructions: str = "", run_no: int = 1) -> CaseResult:
     conn = init_db(db_path)
@@ -1541,6 +1624,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
                         "replies, so the case judged nothing")
     problems += _first_call(case, outcome, scripted)
     problems += _no_call(case, outcome, scripted)
+    problems += _write_includes(case, conn, _batch_of(conn, wake))
 
     if repo is not None:
         from . import gitfixture

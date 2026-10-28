@@ -11,8 +11,8 @@ For a mistaken definition, `path::name`, write the base source of that
 definition back over its span with `code.write`. Keep the rest of the file.
 Then run `code.commit`.
 
-For a `removal:` row, put back each quoted base line only, and keep the
-rest of the file. For a quoted `def` or `class` line, put back the whole
+For the `removal:` row in your wake, put back all of its lines from
+`[removed lines]`. For a quoted `def` or `class` line, put back the whole
 definition from the base.
 
 If the criteria need that file, the judgement is wrong, and that is a question
