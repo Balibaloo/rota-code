@@ -135,16 +135,46 @@ def test_s258s_call_without_the_act_is_refused_on_line_4(night):
         "rule them as the words say.")
 
 
+# The refusal of `words` that are not a part of his reply (F2 pass 2f).
+NOT_HIS = ("words must be his own words, copied from his reply, and his reply "
+           "starts 'Please fix the change instead of giving up: put back the "
+           "two removed lines of code, because only the docstring changes and "
+           "the code stays the same.'")
+
+
 def test_words_the_seat_adds_to_his_reply_are_refused(night):
     """The F2 review of pass 2, finding 8: the seat's words with "Line 4 is
-    wrong too." landed a contest of line 4 that m121 never makes. The
-    naming door reads m121, so the contest has no words of his."""
+    wrong too." landed a contest of line 4 that m121 never makes. The door
+    now refuses the words before any door reads them."""
     ctx = night("m121", LATE)
     with pytest.raises(ValueError) as e:
         api.rulings_rule(ctx, rulings={**R8, "4": "contest", "12": "contest"},
                          words=W121 + " Line 4 is wrong too.")
-    assert str(e.value).startswith(
-        "The words name line 12 and do not name line 4.")
+    assert str(e.value) == NOT_HIS
+
+
+def test_the_probe_sentence_alone_is_refused(night):
+    """The review's probe as the whole of `words`: m121 never says it, so
+    the row's owner would get words he never said (law 6)."""
+    ctx = night("m121", LATE)
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={**R8, "4": "contest", "12": "contest"},
+                         words="Line 4 is wrong too.")
+    assert str(e.value) == NOT_HIS
+    assert not [w for w in ctx.writes if w[0] == "rulings"]
+
+
+def test_s271s_call_with_its_nested_words_as_words_lands(night):
+    """s271's span sat in `acts` only. It is m129's first sentence, so the
+    same call with that span as `words` is a part of his reply and lands."""
+    ctx = night("m129", LATE[2:])
+    api.rulings_rule(ctx, rulings={**R8, "9": A, "10": A, "11": "contest"},
+                     words=S271_SPAN,
+                     acts={"11": {"verdict": "contest", "act": "remove",
+                                  "target_kind": "row", "words": S271_SPAN}})
+    row = _rows(ctx)["reading:m121"]
+    assert (row["line"], row["verdict"], row["act"]) == (11, "contest", "remove")
+    assert row["words"] == S271_SPAN
 
 
 def test_s258s_call_with_line_4_approved_lands(night):

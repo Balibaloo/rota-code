@@ -1769,6 +1769,9 @@ S336_TURN_1 = (
     "interpreter's version info as major, minor and micro and not the full "
     "version string, and line 11 is about the JSON change, so it doesn't "
     'belong on this page.")')
+# Night 151's m178, his reply, from `.rota/clickI_night151.db` with `mode=ro`.
+# s336's words copy it whole, and the door refuses words outside his reply.
+S336_M178 = S336_TURN_1.split('words="', 1)[1][:-len('")')]
 
 
 def _page_and_reply(db, attempts):
@@ -1931,7 +1934,7 @@ def test_s336s_end_through_the_runner_keeps_then_returns_the_page(db):
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                "verb, body_text, seq, status) VALUES "
                "('m178','m177','t9','principal','liaison','converse',"
-               "'line 11 is about the JSON change',178,'open')")
+               "?,178,'open')", (S336_M178,))
     db.commit()
     call = S336_TURN_1
     wake = Wake(role="liaison", kind="message", message_id="m178", detail="converse")

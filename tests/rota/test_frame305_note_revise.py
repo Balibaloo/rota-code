@@ -202,14 +202,18 @@ def test_an_act_on_words_he_did_not_say_is_refused(db):
 
 def test_an_act_rests_on_his_record_and_not_on_the_words_argument(db):
     """P4b-1: the Liaison passes the invented span as `words` too. The
-    record alone decides, so the act is refused. Case B2 of rv4b_span.py."""
+    record alone decides, so the act is refused. Case B2 of rv4b_span.py.
+    The door now refuses `words` outside his reply first, so the act alone
+    carries the invented span."""
     span = "On line 11, use the normal test runner"
     ask = _page(db)
     sb, _ = _landing(db, ask, "Line 11 is fine.")
     rulings = {str(n): "approve" for n in range(1, 12)}
     rulings["11"] = _act("rewrite", span)
-    with pytest.raises(ValueError, match="his words do not hold it"):
+    with pytest.raises(ValueError, match="words must be his own words"):
         sb.call("rulings.rule", rulings=rulings, words=span)
+    with pytest.raises(ValueError, match="his words do not hold it"):
+        sb.call("rulings.rule", rulings=rulings, words="Line 11 is fine.")
 
 
 def test_an_act_span_that_names_no_line_is_read_in_its_clause(db):
