@@ -11870,6 +11870,9 @@ _CLAUSE_JOIN = frozenset({"and", "but", "or", "so", "because"})
 # adverb that ends in -ly. The seat quotes "Drop line 2" from his "Please
 # drop line 2." (night 171's m70, P7 pass 1d).
 _CLAUSE_LEAD = frozenset({"please", "also", "then", "now", "and", "so"})
+# An adverb that hedges or negates its clause is no lead word. "Hardly any
+# of line 3 is right." keeps its hedge (review p7 p2, finding p2-3).
+_HEDGES = frozenset({"hardly", "barely", "scarcely", "rarely", "seldom", "only"})
 
 
 def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
@@ -11885,7 +11888,8 @@ def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
             continue
         if s in _CLAUSE_JOIN:
             cuts.update((len(tokens), len(tokens) + 1))
-        if len(tokens) in cuts and (s in _CLAUSE_LEAD or s.endswith("ly")):
+        if len(tokens) in cuts and (s in _CLAUSE_LEAD or (
+                s.endswith("ly") and s not in _HEDGES)):
             cuts.add(len(tokens) + 1)
         tokens.append(s)
     cuts.add(len(tokens))
@@ -11953,16 +11957,52 @@ _PLAIN_WORDS = frozenset(
     "what which who how when why do does i you we they".split())
 
 
-def _names_shown(said: str, shown: str) -> bool:
-    """True when `said` holds a content word of `shown`, the text the page
-    showed him for a row. "the options one" names the sense "group: a set
-    of related options". A stated choice names the option it states
-    (night 172's m33, m55 and m86, review p7 p1, finding 1)."""
-    def words_of(text: str) -> set[str]:
-        return {w for w in re.findall(r"[a-z][a-z'-]+", (text or "").casefold())
-                if w not in _PLAIN_WORDS}
+# A sentence that asks: it ends with "?" or opens with a question word.
+_QUESTION_OPEN = re.compile(
+    r"\W*(?:what|which|how|why|is|are|do|does|can)\b", re.I)
+# The words that negate what follows them in a clause. The module's older
+# `_NEGATION` reads fewer words, and its readers keep it.
+_CLAUSE_NEGATION = re.compile(
+    r"\b(?:not|no|never|nor|rather\s+than|instead\s+of)\b|n't\b", re.I)
 
-    return bool(words_of(said) & words_of(shown))
+
+def _shown_words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z][a-z'-]+", (text or "").casefold())
+            if w not in _PLAIN_WORDS}
+
+
+def _shown_mention(said: str, shown: str, others: frozenset = frozenset()) -> str:
+    """How `said` mentions a content word of `shown`, the text the page
+    showed him for a row: "named", "negated" or "".
+
+    "the options one" names the sense "group: a set of related options". A
+    question names nothing: "what is a group anyway" chose no sense. A word
+    after a negation in its clause is "negated": "not the command one"
+    refuses the command sense (review p7 p2, finding p2-1). A row named
+    outside a negation too is "named": M400's "the normal version flag"
+    names the row that "not a new flag" describes. Only a word that no row in `others`
+    shows can be negated, because a long criterion shares its words with
+    its test, and "the test should not check the version" refuses neither."""
+    want = _shown_words(shown)
+    found = ""
+    for sentence in _sentences(said):
+        if sentence.rstrip().endswith("?") or _QUESTION_OPEN.match(sentence):
+            continue
+        for clause in re.split(
+                r"[,;:]|\b(?:and|but|or|so|because)\b", sentence, flags=re.I):
+            for m in re.finditer(r"[a-z][a-z'-]+", clause.casefold()):
+                if m.group() in want:
+                    # The negation governs the word when only plain words
+                    # stand between: "not the command one". Night 172's
+                    # m55 "do not touch commands" negates the verb, and
+                    # approves the sense (P7 pass 1e, the replay).
+                    neg = list(_CLAUSE_NEGATION.finditer(clause[:m.start()]))
+                    if not neg or _shown_words(
+                            clause[neg[-1].end():m.start()]):
+                        found = "named"
+                    elif m.group() not in others and not found:
+                        found = "negated?"
+    return "negated" if found == "negated?" else found
 
 
 def _backed(conn, ref: str, verdict: str, said: str, order: list,
@@ -11988,7 +12028,7 @@ def _backed(conn, ref: str, verdict: str, said: str, order: list,
     shown = _shown_text(conn, ref, line, page_text)
     return bool(line in reading.named or ident
                 or reading.names & _line_reading(shown).names
-                or _names_shown(said, shown))
+                or _shown_mention(said, shown) == "named")
 
 
 def _unbacked_approve(conn, words: str, per_item: dict, key_of: dict,
@@ -12008,23 +12048,65 @@ def _unbacked_approve(conn, words: str, per_item: dict, key_of: dict,
     with no backed verdict is refused whole, on its first row (review p7
     p1, finding 1)."""
     rows = list(per_item.items())
-    # A row's span can be the clause after his "replace it with this:", and
-    # the call's words name the line. Night 171's s193 contested line 1 of
-    # m80 so, and the span alone named no line (P7 pass 1d).
-    if not rows or any(
-            _backed(conn, ref, verdict, said, order, page_text)
-            for ref, verdict in rows
-            for said in {(shape_of.get(ref) or {}).get("words") or "",
-                         words or ""} if said):
+
+    def words_of(ref: str) -> list[str]:
+        # A row's span can be the clause after his "replace it with this:",
+        # and the call's words name the line. Night 171's s193 contested
+        # line 1 of m80 so, and the span alone named no line (P7 pass 1d).
+        return [w for w in dict.fromkeys(
+            [(shape_of.get(ref) or {}).get("words") or "", words or ""]) if w]
+
+    def backed(ref: str, verdict: str) -> bool:
+        return any(_backed(conn, ref, verdict, w, order, page_text)
+                   for w in words_of(ref))
+
+    def refusal(ref: str, verdict: str) -> str:
+        said = words_of(ref)[0] if words_of(ref) else ""
+        key = key_of.get(ref, ref)
+        row = f"line {key}" if str(key).isdigit() else str(key)
+        first = (_sentences(said) or [""])[0]
+        back = "approve" if verdict == "approve" else "fault"
+        return (f"His words neither {back} nor name {row}, so {row} takes "
+                f"no {verdict}: the words start {first!r}.")
+
+    # A contest, a revise or a fault needs its own backing. Only an approve
+    # rides beside a backed verdict: "fine" carried a contest of g1 beside
+    # its approve of g2 (review p7 p2, finding p2-2).
+    # A choice of one option backs the contest of the others: "the options
+    # one" contests the command sense. A numbered page keeps its own line
+    # doors for a contest (`_unnamed_contest`), so this reads a clarify.
+    def shown_of(ref: str) -> str:
+        line = order.index(ref) + 1 if ref in (order or []) else None
+        return _shown_text(conn, ref, line, page_text)
+
+    def chose_other(ref: str) -> bool:
+        return any(_shown_mention(w, shown_of(other)) == "named"
+                   and _shown_mention(w, shown_of(ref)) != "named"
+                   for other in per_item if other != ref
+                   for w in words_of(ref))
+
+    for ref, verdict in rows:
+        if (verdict != "approve" and not order and not backed(ref, verdict)
+                and not chose_other(ref)):
+            return refusal(ref, verdict)
+    # A negated mention of a row refuses its approve: "the options one, not
+    # the command one" (review p7 p2, finding p2-1).
+    for ref, verdict in rows:
+        line = order.index(ref) + 1 if ref in (order or []) else None
+        # A numbered page reads a negation by its line doors. Night 150's
+        # m37 approved its batch line beside words that negate a test word.
+        shown = (_shown_text(conn, ref, line, page_text)
+                 if verdict == "approve" and not order else "")
+        others = frozenset().union(*[_shown_words(shown_of(o))
+                                     for o in per_item if o != ref])
+        if shown and any(_shown_mention(w, shown, others) == "negated"
+                         for w in words_of(ref)):
+            return (f"His words refuse {key_of.get(ref, ref)}: they say "
+                    f"no to {shown!r}, so it takes no approve.")
+    if not rows or any(backed(ref, verdict) for ref, verdict in rows):
         return None
     ref, verdict = next(((r, v) for r, v in rows if v == "approve"), rows[0])
-    said = (shape_of.get(ref) or {}).get("words") or words or ""
-    key = key_of.get(ref, ref)
-    row = f"line {key}" if str(key).isdigit() else str(key)
-    first = (_sentences(said) or [""])[0]
-    back = "approve" if verdict == "approve" else "fault"
-    return (f"His words neither {back} nor name {row}, so {row} takes "
-            f"no {verdict}: the words start {first!r}.")
+    return refusal(ref, verdict)
 
 
 def _words_from(ctx: Ctx, span: str) -> str | None:
