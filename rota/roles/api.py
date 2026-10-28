@@ -11866,6 +11866,10 @@ _CLAUSE_MARK = frozenset(".!?,;:")
 # A clause can start at a joining word. "did not call line 4 wrong" is his
 # clause after "and" on night 172's m129, and the cut keeps his "not".
 _CLAUSE_JOIN = frozenset({"and", "but", "or", "so", "because"})
+# A clause also starts after a lead word at a clause start, or after a lead
+# adverb that ends in -ly. The seat quotes "Drop line 2" from his "Please
+# drop line 2." (night 171's m70, P7 pass 1d).
+_CLAUSE_LEAD = frozenset({"please", "also", "then", "now", "and", "so"})
 
 
 def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
@@ -11881,6 +11885,8 @@ def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
             continue
         if s in _CLAUSE_JOIN:
             cuts.update((len(tokens), len(tokens) + 1))
+        if len(tokens) in cuts and (s in _CLAUSE_LEAD or s.endswith("ly")):
+            cuts.add(len(tokens) + 1)
         tokens.append(s)
     cuts.add(len(tokens))
     return tokens, cuts
@@ -12002,19 +12008,23 @@ def _unbacked_approve(conn, words: str, per_item: dict, key_of: dict,
     with no backed verdict is refused whole, on its first row (review p7
     p1, finding 1)."""
     rows = list(per_item.items())
+    # A row's span can be the clause after his "replace it with this:", and
+    # the call's words name the line. Night 171's s193 contested line 1 of
+    # m80 so, and the span alone named no line (P7 pass 1d).
     if not rows or any(
-            _backed(conn, ref, verdict,
-                    (shape_of.get(ref) or {}).get("words") or words or "",
-                    order, page_text)
-            for ref, verdict in rows):
+            _backed(conn, ref, verdict, said, order, page_text)
+            for ref, verdict in rows
+            for said in {(shape_of.get(ref) or {}).get("words") or "",
+                         words or ""} if said):
         return None
-    ref, _verdict = rows[0]
+    ref, verdict = next(((r, v) for r, v in rows if v == "approve"), rows[0])
     said = (shape_of.get(ref) or {}).get("words") or words or ""
     key = key_of.get(ref, ref)
     row = f"line {key}" if str(key).isdigit() else str(key)
     first = (_sentences(said) or [""])[0]
-    return (f"His words neither approve nor name {row}, so {row} takes "
-            f"no approve: the words start {first!r}.")
+    back = "approve" if verdict == "approve" else "fault"
+    return (f"His words neither {back} nor name {row}, so {row} takes "
+            f"no {verdict}: the words start {first!r}.")
 
 
 def _words_from(ctx: Ctx, span: str) -> str | None:

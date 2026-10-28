@@ -162,3 +162,51 @@ def test_the_pins_catch_the_shapes_of_words_from_before_w7():
     assert _LEADS.search("SELECT body_text, thread_id FROM messages WHERE id = ?")
     assert _HIS.search("SELECT id, body_text FROM messages WHERE thread_id = ? "
                        "AND from_role = 'principal' AND id != ?")
+
+
+# P7 pass 1d: a clause starts after a lead word, so a seat's quote of his
+# clause without "please" matches (night 171's m70, "Drop line 2").
+@pytest.mark.parametrize("his, span", [
+    ("Please drop line 2.", "Drop line 2"),
+    ("Also drop line 2.", "drop line 2"),
+    ("Then drop line 2.", "drop line 2"),
+    ("Now drop line 2.", "drop line 2"),
+    ("And drop line 2.", "drop line 2"),
+    ("So drop line 2.", "drop line 2"),
+    ("Simply drop line 2.", "drop line 2"),
+    ("So please drop line 2.", "drop line 2"),
+], ids=["please", "also", "then", "now", "and", "so", "adverb-ly", "chain"])
+def test_a_clause_starts_after_a_lead_word(his, span):
+    from rota.roles.api import _holds_clauses
+
+    assert _holds_clauses(his, span)
+
+
+def test_a_lead_word_inside_a_clause_cuts_nothing():
+    from rota.roles.api import _holds_clauses
+
+    assert not _holds_clauses("Keep it as it is now please.", "please")
+    assert not _holds_clauses("Line 4 is wrong too.", "wrong too")
+
+
+_M80 = ("Line 1 describes Click as a whole and not my change, so replace it "
+        "with this: add one example to the docstring of the function that "
+        "formats a file name, showing that the path a/b/c.txt shows as c.txt "
+        "when shorten is set to True. Only the docstring changes, and the "
+        "code stays as it is.")
+
+
+def test_night_171s_m80_contest_rests_on_the_calls_words():
+    """P7 pass 1d: s193 contested line 1 with the span after "replace it
+    with this:". The span names no line, and his reply names line 1."""
+    from rota.roles.api import _unbacked_approve
+
+    span = _M80.split(": ", 1)[1].split(". ")[0]
+    shape = {"r1": {"verdict": "contest", "act": "rewrite", "words": span}}
+    page = "1. Click is a package for command line interfaces."
+    assert _unbacked_approve(None, _M80, {"r1": "contest"}, {"r1": "1"},
+                             shape, ["r1"], page) is None
+    assert _unbacked_approve(None, "", {"r1": "contest"}, {"r1": "1"},
+                             shape, ["r1"], page) == (
+        "His words neither fault nor name line 1, so line 1 takes no "
+        f"contest: the words start {span!r}.")
