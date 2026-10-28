@@ -10,26 +10,15 @@ Every fix of sprints 28 to 31, W3 and the `how_it_works` cause lands before nigh
 
 Partial gates on the touched test files per land, one full gate on the head before night 172 (ruled: Roman, in the terminal). The gate on 695e3beb is the last full gate until that one.
 
-## What is on the head
+## What is on the head, amended 2026-10-28 01:3x
 
-`rota/foundation` at 552490b1 and after holds F19, F20 with F21, F31 and F25. F6 closed by a probe, `plans/f6-probe-2026-10-27.md`. Frame 280 has a close line under the F23 ruling.
+`rota/foundation` at 475e083b holds F19, F20 with F21, F31, F25, F37, W3, F7 with W4, F23, F4, F5, F16, the `how_it_works` gate and heading, W8 and F1. 18 of 37 facts. The five pin files pass on the head, 71 of 71. F6 is closed by a probe. Frame 344's status lines from 2026-10-27 19:41 to 2026-10-28 01:3x hold each build, review and land.
 
-## Built, waiting for a land gate, by worktree and branch
+## Left in worktrees
 
-Each has a review or a pass in flight. The land order is the order below, one at a time in `C:/Users/roman/rota_g328` on branch `land28`, with `python -m rota.tools.gate --rerecord-now`. The gate on 7a6c5140 (land28 synced to 552490b1, plus f37root ea00492f and w3root 6a4a5396) runs from 00:33, output to `gate_7a6c5140.txt` in this session's scratchpad. Read it first. If clean, merge 7a6c5140 into rota/foundation with --no-ff. If red, bisect by branch.
-
-- F37 residue and W3: on the running gate.
-- F7 with W4, `f7root` at 30d0de73 (pass 2b, review p2 READY, `plans/f7-review-p2.md`). Ready for the gate. Stale: `L1-AR-judge-a-stray-foreseen-or-a-mistake`.
-- F23, `f23root` at ecb413d8 (pass 1b closed the review). Ready for the gate.
-- F22, `f22root` at 794c2b01 (pass 1b). PARTIAL: the ast pin lists 22 functions nobody has read, under a pass 2 note in `ALLOWED`. A pass 2 reads them before the land, or the land goes with the 22 named as residue.
-- F4, `f4root` at e1cee346 (pass 1b closed the review). Ready for the gate.
-- F5, `f5root` at e089d53a (pass 1b closed the review). Ready for the gate.
-- F16, `f16root` at 99964faa, pass 1d in flight on review p1's 2 high and 4 low (`plans/f16-review-p1.md`). Its night count is frame 320's, not W17's.
-- F1 with the F20 residue, `f1root`: c41cdffb (F20 residue, green) and 33e3ae49 (F1), pass 1c in flight: landed rows on every path under source `landed`. 9 reds to clear. Needs a review after.
-- `how_it_works`, `hiwroot` at 575e09b5, pass 1c in flight on review p1 (`plans/hiw-review-p1.md`): a contested wake on the row he contested is exempt from the gate.
-- W8, `w8root`, in build from `plans/night170-w8-read.md` section 6. Needs a review. F17 closes into it.
-
-Reports are in this session's scratchpad, `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/b3bc8a66-bd69-4749-a050-07bdd1893c24/scratchpad/`, as `F<n>_pass1_report.md` and the like. The common brief for every implementer is `common_brief.md` there. It forbids `git stash`: the stash is one list across worktrees, and three builders' pops crossed on 2026-10-27 night.
+- F22, `f22root` at 794c2b01, PARTIAL: the ast pin lists 22 functions nobody has read, under a pass 2 note in `ALLOWED` of `tests/rota/test_f22_table_of.py`. Pass 2 reads them, moves or justifies each, then F22 lands on touched files.
+- The land gate worktree `C:/Users/roman/rota_g328`, branch `land28` at 1fab56ca, is behind the head by F1. Sync it before the full gate.
+- Six recorded cases owe a re-record on their recorded model before the full gate: ACT-DV-edit-inside-the-function, L1-AR-judge-a-stray-foreseen-or-a-mistake, L1-CR-fail-names-its-criterion, L1-CR-finish-the-review-with-the-answer-in-hand, L1-DV-a-wordless-answer-on-a-right-red-test-is-carried-on, L1-DV-fix-the-code-not-the-test. The gate re-records on qwen3:8b, and the Critic and Developer cases are recorded on qwen3.5:9b, so run their re-record with `ROTA_MODEL=qwen3.5:9b`.
 
 ## Not started
 
