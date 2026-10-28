@@ -286,9 +286,8 @@ def discard_uncommitted(conn: sqlite3.Connection, batch_id: str,
                        (batch_id,)).fetchone()
     if not (row and row["worktree"]) or not Path(row["worktree"]).is_dir():
         return []
-    keep = {r[0].replace(chr(92), "/") for r in conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (batch_id,))}
-    gone = worktrees.discard(row["worktree"], keep, failed_out)
+    gone = worktrees.discard(row["worktree"],
+                             worktrees.batch_furniture(conn, batch_id), failed_out)
     if close_notes and gone:
         norm = {p.replace(chr(92), "/") for p in gone}
         for r in conn.execute("SELECT path FROM drop_notes WHERE batch_id = ? "

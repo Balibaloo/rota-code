@@ -20,6 +20,8 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 from __future__ import annotations
 
 from ..core.worktrees import GIT
+# The grain fold lives in core, beside the batch furniture it folds (F27).
+from ..core.worktrees import grain_path as _grain_path
 from ..core.db import author_refusal, journal_author
 
 import ast as _ast
@@ -18134,8 +18136,7 @@ def _uncommitted(ctx, root, batch_id=None) -> list[str]:
     and the Developer's commits leave them out, so they are furniture."""
     from ..core import worktrees as _wt
     bid = batch_id or ctx.batch_id
-    furniture = {_grain_path(r[0]) for r in ctx.conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (bid,))} if bid else set()
+    furniture = _wt.batch_furniture(ctx.conn, bid) if bid else set()
     return [f for f in _wt.changed_since(root, _wt.head(root))
             if _grain_path(f) not in furniture]
 
@@ -18216,23 +18217,6 @@ def _worktree_of(ctx, batch_id=None) -> "Path":
         if row and row["worktree"]:
             return _P(row["worktree"])
     return project_root(ctx.conn)
-
-
-def _grain_path(grain: str) -> str:
-    """
-    The file a grain lives in, normalised for comparison.
-
-    Grains come in two shapes — `oauth1/rfc5849/signature.py` and
-    `oauth1/rfc5849/signature.py::sign_hmac` — and a session that read the file
-    has read the symbol. Backslashes fold to forward, because the index is built
-    on one platform and read on another.
-    """
-    g = grain.split("::", 1)[0].replace("\\", "/").strip()
-    # Prefixes, not a character set: `lstrip("./")` made `.github/ci.py`
-    # into `github/ci.py`, which no index row holds (frame 91's diff review).
-    while g.startswith(("./", "/")):
-        g = g[2:] if g.startswith("./") else g[1:]
-    return g
 
 
 def _dotted_module(path: str, keep_root: bool = False) -> str:
@@ -21699,8 +21683,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     # reached only the database, and walk 2 inherited a test that could
     # never pass. The merge delivers the current bodies in a commit of
     # their own (lifecycle.merge).
-    test_paths = tuple(r["path"] for r in ctx.conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (ctx.batch_id,)) if r["path"])
+    test_paths = tuple(sorted(worktrees.batch_furniture(ctx.conn, ctx.batch_id)))
     sha = worktrees.commit(tree, message, exclude=test_paths)
     if sha is None and drift:
         raise ValueError(
