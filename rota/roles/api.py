@@ -11874,10 +11874,6 @@ _CLAUSE_LEAD = frozenset({"please", "also", "then", "now", "and", "so"})
 # "should say", "to say", "must read" (night 174, walk 2).
 _REPORT_VERBS = frozenset({"say", "read", "state"})
 _REPORT_LEADS = frozenset({"should", "must", "to"})
-# The words that deny or fault the report: the module's negation words and
-# "wrong". The tokens split "don't" into "don" and "t".
-_REPORT_DENIALS = frozenset({"not", "never", "no", "nobody", "nothing",
-                             "wrong"})
 
 
 def _clause_start_near(text: str, span: str) -> str | None:
@@ -11912,17 +11908,18 @@ def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
             cuts.add(len(tokens) + 1)
         # "Line 7 should say X" and "Change line 7 to say X": the quoted
         # words start after the report verb, and the cut drops no "not" or
-        # hedge (night 174, s175 and s177). The clause before the verb names
-        # a line and holds no negation or fault: "it is wrong to say X" and
-        # "I never said line 7 should say X" start no clause (review p4-1).
+        # hedge (night 174, s175 and s177). The clause opens with "line N"
+        # or "change line N", so no outside frame such as "it is wrong to"
+        # or "though some say" stands before it (the seam review, p4-1 and
+        # p5-1). A negation right before the modal is the one negation
+        # reader's, `_NEGATED` (p5-3).
         if s in _REPORT_VERBS and tokens and tokens[-1] in _REPORT_LEADS:
             lead = tokens[max(c for c in cuts if c <= len(tokens)):]
-            names_line = any(w in ("line", "lines") and nxt.isdigit()
-                             for w, nxt in zip(lead, lead[1:]))
-            denied = any(w in _REPORT_DENIALS or (w == "t" and k and
-                                                  lead[k - 1].endswith("n"))
-                         for k, w in enumerate(lead))
-            if names_line and not denied:
+            head = lead[1:] if lead[:1] in (["and"], ["but"]) else lead
+            head = head[1:] if head[:1] == ["change"] else head
+            before = re.sub(r"n t$", "n't", " ".join(lead[:-1])) + " "
+            if (len(head) > 2 and head[0] == "line" and head[1].isdigit()
+                    and not _NEGATED.search(before)):
                 cuts.add(len(tokens) + 1)
         tokens.append(s)
     cuts.add(len(tokens))
@@ -12487,7 +12484,8 @@ _SENTENCE = re.compile(r"(?<=[.!?])\s+|[:;]")
 # A negation directly before a strong cue. "but do not drop it" keeps the
 # line, so the cue and its negation fault nothing (frame 305, review 1,
 # finding 2).
-_NEGATED = re.compile(r"\b(?:do\s+not|don['’]t|not)\s+$", re.I)
+# "never" joined for the say clause of the seam review, p5-3.
+_NEGATED = re.compile(r"\b(?:do\s+not|don['’]t|not|never)\s+$", re.I)
 
 
 def _live_cues(text: str) -> list[re.Match]:
@@ -13720,18 +13718,28 @@ def _note_words(words: str, n: int, page_text: str,
     return None
 
 
-def _path_stems(target: str) -> set[str]:
-    """The names that his words can give the file path `target`, in lower
-    case: the path, the file name, the name without `.py`, and the stem
-    without a `test_` or `_test` mark. A target with no path shape gives
-    none: `tests/test_options.py` gives "options", and `clear` gives none."""
+def _names_path(span: str, target: str) -> bool:
+    """True when the words `span` name the file path `target`. The path or
+    its file name counts alone. A stem counts only when a kind word follows
+    it within three words: "test" or "file" for a test path, and "file",
+    "module" or "source" for any other path. So "the options and defaults test
+    files" names tests/test_options.py, and "the core of the change" names
+    no src/click/core.py. A target with no path shape is named by nothing
+    (the seam review, p4-4 and p5-2)."""
     t = (target or "").strip().strip("`").lower()
     if "/" not in t and not t.endswith(".py"):
-        return set()
+        return False
+    text = (span or "").lower()
     base = t.rsplit("/", 1)[-1]
+    if _says(text, t) or _says(text, base):
+        return True
     stem = base.rsplit(".", 1)[0]
-    bare = re.sub(r"^test_|_test$", "", stem)
-    return {n for n in (t, base, stem, bare) if n}
+    is_test = bool(re.search(r"(?:^|/)tests?/|^test_|_test$", t.rsplit(".", 1)[0]))
+    kinds = r"tests?|files?" if is_test else r"files?|modules?|sources?"
+    for name in {stem, re.sub(r"^test_|_test$", "", stem)}:
+        if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)(?:\s+\w+){{0,3}}?\s+(?:{kinds})\b", text):
+            return True
+    return False
 
 
 def _shown_prediction(conn, ref: str, order: list, page_text: str) -> str:
@@ -14224,8 +14232,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             # and defaults test files" names tests/test_options.py. A path
             # shape keeps an identifier such as `clear` out (law 6, the
             # seam review, p4-2 and p4-4).
-            stems = _path_stems(target)
-            if not stems or not any(_says(span.lower(), s) for s in stems):
+            if not _names_path(span, target):
                 raise ValueError(
                     f"{line}: an exclude needs his words to name the file "
                     f"{target}, by its path, file name or stem. Leave the act "

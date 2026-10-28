@@ -530,6 +530,9 @@ L8 = (" Line 8 is a misread, since I never sent an empty answer, so please "
      "variable matters.", False),
     ("Line 7 is slightly off. Line 4 is fine, and it is wrong to say the "
      "local variable matters.", False),
+    # The review's p5-1: the clause opens with "though some say".
+    ("Line 7 is slightly off. Line 4 is fine, though some say line 4 has to "
+     "say the local variable matters.", False),
 ])
 def test_a_say_clause_follows_a_line_reference(night, monkeypatch, middle,
                                                lands):
@@ -558,13 +561,20 @@ def test_a_say_clause_follows_a_line_reference(night, monkeypatch, middle,
 
 @pytest.mark.parametrize("target, span, stems", [
     ("tests/test_options.py", "the options and defaults test files", True),
+    ("tests/test_defaults.py", "not the defaults test file", True),
     ("tests/test_defaults.py", "Lines 2 to 4 are still wrong", False),
     ("clear", "the clear function", False),
+    # The review's p5-2: a stem names a path only beside a kind word.
+    ("src/click/termui.py", "the termui tests", False),
+    ("tests/test_termui.py", "the termui source must change", False),
+    ("src/click/core.py", "the core of the change is the flag", False),
+    ("src/click/utils.py", "put the new tests with the other utils tests",
+     False),
 ])
 def test_an_exclude_needs_the_path_in_his_words(target, span, stems):
-    """p4-2 and p4-4: the span names the file, and the target is a path."""
-    names = api._path_stems(target)
-    assert any(api._says(span.lower(), n) for n in names) is stems
+    """p4-2, p4-4 and p5-2: the span names the file, and the target is a
+    path."""
+    assert api._names_path(span, target) is stems
 
 
 @pytest.mark.parametrize("text, span, holds", [
