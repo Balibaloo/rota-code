@@ -378,3 +378,22 @@ def test_one_lenient_definer_regex():
                   if "(?:def|class)" in line or "(def|class)" in line)
     assert hits == ["rota/roles/api.py:_LENIENT_DEFINER",
                     "rota/roles/api.py:m"], hits
+
+
+def test_the_tree_beyond_the_index_is_what_the_next_build_reads(tmp_path):
+    """The F13 gate reds (2026-10-28): a batch commit defined `echo_json`
+    ahead of the index, and the definer reader read the index alone. The
+    texts beyond the index come from the refresh's own walk and hash."""
+    from rota.onboarding import indexer
+    conn, root = _indexed(tmp_path, {"pkg/core.py": "def run():\n    pass\n",
+                                     "pkg/old.py": "def gone():\n    pass\n"})
+    assert indexer.unindexed(conn, root) == {}
+    (root / "pkg" / "utils.py").write_bytes(b"def echo_json(o):\n    print(o)\n")
+    (root / "pkg" / "old.py").unlink()
+    beyond = indexer.unindexed(conn, root)
+    assert beyond == {"pkg/utils.py": "def echo_json(o):\n    print(o)\n",
+                      "pkg/old.py": None}, beyond
+    assert api.definers_of(conn, "echo_json", tuple(beyond.items())) == ["pkg/utils.py"]
+    assert api.definers_of(conn, "gone", tuple(beyond.items())) == []
+    indexer.build(conn, root)
+    assert indexer.unindexed(conn, root) == {}
