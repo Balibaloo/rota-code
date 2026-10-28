@@ -163,22 +163,76 @@ def test_the_restore_wake_shows_each_removed_base_line(tmp_path):
     assert "filename = os.path.basename(filename)" in user
 
 
-def _written(text: str):
-    from rota.core.runner import RunOutcome
-    from rota.llm import toolproto
-    call = toolproto.ToolCall("code.write", {"path": PATH, "start": 441,
-                                             "end": 487, "text": text})
-    return RunOutcome("s1", True, 1, completions=[""], system="",
-                      native=[[call]], offered=["code.write"])
+def test_the_restore_wake_shows_the_row_it_acts_on(tmp_path):
+    """F7 review p3, finding 3: the wake said "Refs: bg_3" and no row. The
+    mode text points the seat at the `removal:` row, so the wake prints
+    the row's note before the block."""
+    user = _first_prompt(_night172(tmp_path))
+    assert f"{GRAIN} ({NOTE})" in user
+    assert user.index(NOTE) < user.index("[removed lines]")
 
 
-def test_the_case_grader_reads_the_text_of_each_write():
-    """s264 and s267 sent the docstring, which holds `surrogateescape`, and
-    the head's body. `L1-DV-put-back-a-removed-block` asks for the base
-    body's `.encode(` too, so their writes stay red."""
+# The two lines of `L1-DV-put-back-a-removed-block`'s `write_includes:`.
+KEYED = ['filename.encode("utf-8", "surrogateescape")',
+         "filename = os.path.basename(filename)"]
+CASE = {"expect": {"write_includes": KEYED}}
+
+
+def _plant(conn, rel: str, text: str, commit: bool = True) -> list[str]:
+    """Write `text` to `rel` in bg_3's worktree, commit it unless told not
+    to, and grade the head with the case's key."""
     from rota.testkit import fixtures
-    case = {"expect": {"write_includes": [".encode(", "surrogateescape"]}}
-    docstring = '    """... with ``errors="surrogateescape"``.\n    """\n'
-    assert fixtures._write_includes(case, _written(docstring + HEAD_BODY), 0)
-    assert fixtures._write_includes(case, _written(docstring + BASE_BODY), 0) == []
-    assert fixtures._write_includes({"expect": {}}, _written(""), 0) == []
+
+    root = Path(conn.execute("SELECT worktree FROM batches WHERE id = 'bg_3'")
+                .fetchone()[0])
+    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+    (root / rel).write_bytes(text.encode("utf-8"))
+    if commit:
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", "plant")
+    return fixtures._write_includes(CASE, conn, "bg_3")
+
+
+def test_the_grader_passes_the_base_body_at_the_head(tmp_path):
+    conn = _night172(tmp_path)
+    assert _plant(conn, PATH, BASE) == []
+
+
+def test_the_grader_fails_the_head_as_it_stands(tmp_path):
+    conn = _night172(tmp_path)
+    [problem] = _plant(conn, "NOTES.md", "a commit that leaves utils.py\n")
+    assert "lacks" in problem, problem
+
+
+def test_the_grader_fails_the_lines_in_a_docstring_only(tmp_path):
+    """s264 and s267 sent `surrogateescape` in the docstring and the head's
+    body."""
+    conn = _night172(tmp_path)
+    planted = HEAD_BODY.replace("    Example:", "    " + "\n    ".join(KEYED)
+                                + "\n\n    Example:")
+    assert _plant(conn, PATH, BASE.replace(BASE_BODY, planted))
+
+
+def test_the_grader_fails_the_lines_in_a_comment_only(tmp_path):
+    conn = _night172(tmp_path)
+    planted = HEAD_BODY.replace("    return filename", "    # "
+                                + "\n    # ".join(KEYED) + "\n    return filename")
+    assert _plant(conn, PATH, BASE.replace(BASE_BODY, planted))
+
+
+def test_the_grader_fails_the_lines_at_a_wrong_path(tmp_path):
+    conn = _night172(tmp_path)
+    assert _plant(conn, "tests/x.py", BASE)
+
+
+def test_the_grader_fails_a_restore_that_no_commit_holds(tmp_path):
+    """A write the door refuses lands nothing, and an uncommitted write is
+    not in the head. The grader reads the head, so both fail."""
+    conn = _night172(tmp_path)
+    assert _plant(conn, PATH, BASE, commit=False)
+
+
+def test_the_grader_is_silent_with_no_key(tmp_path):
+    from rota.testkit import fixtures
+    conn = _night172(tmp_path)
+    assert fixtures._write_includes({"expect": {}}, conn, "bg_3") == []

@@ -450,7 +450,11 @@ DETAIL_SHOWN = {"tick:tests_missing",
                 "tick:criteria",
                 # Which grains strayed, and the removed line of a removal
                 # (frame 339). No case carries this detail yet.
-                "tick:touch_strayed"}
+                "tick:touch_strayed",
+                # Which grains the Architect judged a mistake, with each
+                # row's `removal:` note (F7 pass 3b, night 172's s263).
+                # `L1-DV-put-back-a-removed-block` carries it.
+                "tick:touch_mistaken"}
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,

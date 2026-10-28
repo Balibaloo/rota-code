@@ -105,12 +105,14 @@
   # Developers s263, s264 and s267 woke on `tick:touch_mistaken` with no
   # base text, and each wrote the head's own body back
   # (`plans/f7-night172-read.md`, sections 1 and 3). The wake now pushes
-  # `code.diff`, so `[removed lines]` shows the base body. The file here
-  # holds `format_filename` alone, so the note's line numbers are those of
-  # this file, in `code.source` numbering. The docstring holds the word
-  # `surrogateescape`, and s264's and s267's writes held it there and
-  # nowhere else. So the case asks for `.encode(` beside it: the head body
-  # holds no `.encode(`, and the base body does.
+  # `code.diff`, so `[removed lines]` shows the base body, and the wake's
+  # detail shows the `mistake` row with its note. The file here holds
+  # `format_filename` alone, so the note's line numbers are those of this
+  # file, in `code.source` numbering. The grader reads the head commit
+  # after the run. Both base lines must be code in the body of
+  # `format_filename`, so a word in the docstring does not pass. s264's and
+  # s267's writes held `surrogateescape` in the docstring only, and s243's
+  # restore held `basename` only (F7 review p3, findings 1 and 2).
   # The night's model. The case waits on the card for its recording.
   model: qwen3.5:9b
   tier: T1
@@ -274,7 +276,9 @@
            docstring, not a rewrite of the function. The removal touches a definition
            not named in the request or any criterion."}
   expect:
-    write_includes: [".encode(", "surrogateescape"]
+    write_includes:
+      - 'filename.encode("utf-8", "surrogateescape")'
+      - 'filename = os.path.basename(filename)'
   forbidden:
     writes: [tests, criteria]
     recipients: [tester, liaison, vision_keeper]
