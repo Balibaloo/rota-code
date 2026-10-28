@@ -11870,6 +11870,26 @@ _CLAUSE_JOIN = frozenset({"and", "but", "or", "so", "because"})
 # adverb that ends in -ly. The seat quotes "Drop line 2" from his "Please
 # drop line 2." (night 171's m70, P7 pass 1d).
 _CLAUSE_LEAD = frozenset({"please", "also", "then", "now", "and", "so"})
+# A report-of-words verb and the word before it that makes it a request:
+# "should say", "to say", "must read" (night 174, walk 2).
+_REPORT_VERBS = frozenset({"say", "read", "state"})
+_REPORT_LEADS = frozenset({"should", "must", "to", "would", "could", "shall",
+                           "will", "can"})
+
+
+def _clause_start_near(text: str, span: str) -> str | None:
+    """The run of `text` from the clause start nearest before `span`'s
+    words to their end, or None when `text` does not hold the words. The
+    refusal shows it, so the seat can find a span that the rule accepts."""
+    want = _clause_tokens(span)[0]
+    tokens, cuts = _clause_tokens(text)
+    n = len(want)
+    for i in range(len(tokens) - n + 1):
+        if want and tokens[i:i + n] == want:
+            start = max(c for c in cuts if c <= i)
+            end = min(c for c in cuts if c >= i + n)
+            return " ".join(tokens[start:end])
+    return None
 
 
 def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
@@ -11886,6 +11906,11 @@ def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
         if s in _CLAUSE_JOIN:
             cuts.update((len(tokens), len(tokens) + 1))
         if len(tokens) in cuts and (s in _CLAUSE_LEAD or s.endswith("ly")):
+            cuts.add(len(tokens) + 1)
+        # "Line 7 should say X" and "Change line 7 to say X": the quoted
+        # words start after the report verb, and the cut drops no "not" or
+        # hedge (night 174, s175 and s177).
+        if s in _REPORT_VERBS and tokens and tokens[-1] in _REPORT_LEADS:
             cuts.add(len(tokens) + 1)
         tokens.append(s)
     cuts.add(len(tokens))
@@ -13001,7 +13026,7 @@ def built_line_faulted(words: str, order: list[str] | None, ref: str,
         return False
     if faulted is None:
         faulted = _line_reading(words, len(order))[0]
-    return order.index(ref) + 1 in faulted
+    return any(n in faulted for n in _lines_of(order, ref))
 
 
 def _line_refusal(words: str, contested: set[int], faulted: set[int],
@@ -13580,6 +13605,22 @@ _NOTE_NO_CHANGE = re.compile(
 _NOTE_SAYS = re.compile(r"\b(?:say|says|read|reads)\b", re.I)
 
 
+def _lines_of(order: list | None, ref) -> list[int]:
+    """Every line number that page order `order` shows `ref` on. This is the
+    one reader of a ref's lines: night 174's m47 showed the ref `parameter`
+    on lines 8 and 47, and a reader of one line refused his key "8"."""
+    return [i + 1 for i, r in enumerate(order or []) if r == ref]
+
+
+def _ref_of_key(order: list | None, key_of: dict, key: str):
+    """The ref that the key `key` names: a key of rulings, or a line that
+    shows a ref that rulings holds by its other line, or None."""
+    ref = next((r for r, k in key_of.items() if k == key), None)
+    if ref is None and key.isdigit() and 1 <= int(key) <= len(order or []):
+        ref = order[int(key) - 1] if order[int(key) - 1] in key_of else None
+    return ref
+
+
 def _line_body(page_text: str, n: int) -> str:
     """The text of line `n` of the rendered page, with its sub-lines."""
     found = re.search(rf"^\s*{n}\.\s+(.*(?:\n(?!\s*\d+\.\s|\s*$)[ \t]+.*)*)",
@@ -13669,7 +13710,8 @@ def _shown_prediction(conn, ref: str, order: list, page_text: str) -> str:
     from .principal import code_line, code_target
 
     if order and ref in order:
-        return _line_body(page_text, order.index(ref) + 1)
+        return "\n".join(_line_body(page_text, n)
+                         for n in _lines_of(order, ref))
     if not str(ref).startswith("guess:"):
         return ""
     item = str(ref).split(":", 1)[1]
@@ -14067,7 +14109,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 raise ValueError(kept)
         for key, given in acts.items():
             key = str(key).strip()
-            ref = next((r for r, k in key_of.items() if k == key), None)
+            ref = _ref_of_key(order, key_of, key)
             if ref is None:
                 raise ValueError(
                     f"acts has the key {key!r}, and rulings has no such key. "
@@ -14107,10 +14149,15 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if not span.strip() or _words_from(ctx, span) is None:
             line = (f"line {order.index(ref) + 1}" if order and ref in order
                     else ref)
+            # Night 174: s175 copied his clause tail four times, and the text
+            # named no clause start. It now names the nearest whole clause.
+            near = _clause_start_near(_his_reply(ctx), span) if span.strip() else None
             raise ValueError(
                 f"{line}: the act {shape['act']} rests on {span!r}, and his "
                 f"words do not hold it. Copy the words of his reply that ask "
-                f"for the change, or leave the act out")
+                f"for the change, or leave the act out"
+                + (f". The nearest whole clause of his words is {near!r}"
+                   if near else ""))
         # W16 of night 173: the span check proves the words are his, and
         # nothing read the verb. s179 put `remove` on the clear function
         # where m62 asked to name it, and `granted` read the row as his
@@ -14184,9 +14231,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
 
             within, span = span or None, his_words(ctx.conn,
                                                    _words_from(ctx, span or ""))
-        said = (_line_reading(span).note_act(order.index(ref) + 1, page_text,
-                                             within=within)
-                if order and ref in order else None)
+        said = next((a for a in (
+            _line_reading(span).note_act(n, page_text, within=within)
+            for n in _lines_of(order, ref)) if a), None)
         if act == "drop":
             said = "drop"
         if said == "change" and act in (None, "rewrite"):
@@ -14273,8 +14320,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         item = guess_item(ref)
         if item is None or ruling == "approve":
             continue
-        if item in order and order.index(item) + 1 in cue_lines:
-            guess_ruled.add(order.index(item) + 1)
+        guess_ruled |= set(_lines_of(order, item)) & set(cue_lines)
         target = stamp.get(ref) or {}
         batch_id = target.get("batch") if isinstance(target, dict) else None
         if not batch_id:
@@ -14318,9 +14364,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # change request into a kept line.
     if order and words_reading.refs:
         for ref, ruling in per_item.items():
-            n = order.index(ref) + 1 if ref in order else None
-            if (ruling == "revise" and n and n not in read_faulted
-                    and words_reading.note_act(n, page_text) != "change"):
+            lines = _lines_of(order, ref)
+            n = lines[0] if lines else None
+            if (ruling == "revise" and n
+                    and not any(k in read_faulted
+                                or words_reading.note_act(k, page_text)
+                                == "change" for k in lines)):
                 raise ValueError(
                     f"line {n}: a revise rewrites the line, and his words "
                     f"neither fault line {n} nor ask to change it. Rule line "
@@ -14420,7 +14469,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 (order[n - 1],)).fetchone()
             if batch is not None and batch["item_id"] in order and (
                     batch["status"] in ("merged", "abandoned")):
-                faulted.add(order.index(batch["item_id"]) + 1)
+                faulted |= set(_lines_of(order, batch["item_id"]))
         # A team's note lands a revise as a contest, so his keep refuses
         # both. "Leave line 11 as it is." admitted the revise (frame 305,
         # review 1, finding 1).

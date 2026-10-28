@@ -24,6 +24,13 @@ from rota.roles import api
 HOME = Path(__file__).resolve().parents[2] / ".rota"
 if not (HOME / "clickI_night173.db").exists():
     HOME = Path("D:/repos/rota/.rota")
+WORKTREE = Path(__file__).resolve().parents[2] / ".rota"
+
+
+def _home(n):
+    """The store that holds night `n`'s register: the main one, or the
+    worktree's own, where a newer night's copy can sit."""
+    return HOME if (HOME / f"clickI_night{n}.db").exists() else WORKTREE
 
 A = "approve"
 
@@ -71,12 +78,12 @@ def night(tmp_path):
         """A copy of night `n`'s register at the call on `trigger`: his
         rulings from `trigger` on gone, the asked page open, and his later
         answers gone. `merged` False puts bg_2 back before its build."""
-        src = HOME / f"clickI_night{n}.db"
+        src = _home(n) / f"clickI_night{n}.db"
         if not src.exists():
             pytest.skip(f"the night {n} register is not on this machine")
         # The copy comes first, so the test never opens the night's file.
         for ext in ("db", "db-wal", "db-shm"):
-            part = HOME / f"clickI_night{n}.{ext}"
+            part = _home(n) / f"clickI_night{n}.{ext}"
             if part.exists():
                 shutil.copy(part, tmp_path / f"n{n}.{ext}")
         conn = sqlite3.connect(tmp_path / f"n{n}.db")
@@ -458,3 +465,60 @@ def test_a_negated_change_verb_backs_no_revise(night, monkeypatch):
                                        "4": "revise", "5": A, "6": A,
                                        "7": "contest", "8": "drop"}, words=said)
     assert str(e.value).startswith("line 4: a revise rewrites the line")
+
+
+# Seam pass 3d: night 174's walk 2, two fact checks of `rulings_rule`.
+
+def _recorded_call(n, sid, k):
+    """The trigger and the arguments of call `k` to rulings.rule in session
+    `sid` of night `n`, read from a read-only copy of the register."""
+    from rota.llm.toolproto import ToolCall, extract
+    src = _home(n) / f"clickI_night{n}.db"
+    if not src.exists():
+        pytest.skip(f"the night {n} register is not on this machine")
+    conn = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
+    trigger = conn.execute("SELECT trigger_msg FROM sessions WHERE id = ?",
+                           (sid,)).fetchone()[0]
+    calls = [f.args for (comp,) in conn.execute(
+        "SELECT completion FROM turns WHERE session_id = ? ORDER BY seq", (sid,))
+        for f in extract(comp or "")
+        if isinstance(f, ToolCall) and f.name == "rulings.rule"]
+    conn.close()
+    return trigger, calls[k - 1]
+
+
+def test_a_ref_on_two_lines_takes_either_key_in_acts(night):
+    """m47 shows `parameter` on lines 8 and 47. s168 call 3 keys its act
+    "8", and the door refused it as a key rulings did not hold."""
+    trigger, args = _recorded_call(174, "s168", 3)
+    ctx = night(174, trigger)
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, **args)
+    assert "acts has the key" not in str(e.value)
+    # The span check reads next, and "Drop lines 8 to 67" is not his.
+    assert str(e.value).startswith("line 8: the act drop rests on")
+
+
+def test_a_clause_starts_after_should_say(night):
+    """s175 call 3 copied his words after "Line 7 should say" to the
+    clause end, and the door refused them."""
+    trigger, args = _recorded_call(174, "s175", 3)
+    ctx = night(174, trigger)
+    api.rulings_rule(ctx, **args)
+    assert _rows(ctx)["bg_2"]["act"] == "rewrite"
+
+
+@pytest.mark.parametrize("text, span, holds", [
+    ("Line 7 should say the change is certain.", "the change is certain", True),
+    ("Change line 7 to say X runs.", "X runs", True),
+    ("I did not say the change is certain.", "the change is certain", False),
+    ("Line 7 should say the change is certain.", "change is certain", False),
+])
+def test_a_report_verb_starts_a_clause(text, span, holds):
+    assert api._holds_clauses(text, span) is holds
+
+
+def test_the_span_refusal_names_the_nearest_clause():
+    assert api._clause_start_near(
+        "Line 7 should say the change is certain, not only that it might.",
+        "the change is") == "the change is certain"
