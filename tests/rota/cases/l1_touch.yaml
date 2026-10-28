@@ -97,3 +97,184 @@
   forbidden:
     writes: [tests, criteria]
     recipients: [tester, liaison, vision_keeper]
+
+- id: L1-DV-put-back-a-removed-block
+  # F7 pass 3, night 172's bg_3 (2026-10-28). The batch asked for one
+  # docstring example in `format_filename`. The commit 128bec7e rewrote the
+  # body too, and the Architect s262 judged the removal a mistake. The
+  # Developers s263, s264 and s267 woke on `tick:touch_mistaken` with no
+  # base text, and each wrote the head's own body back
+  # (`plans/f7-night172-read.md`, sections 1 and 3). The wake now pushes
+  # `code.diff`, so `[removed lines]` shows the base body. The file here
+  # holds `format_filename` alone, so the note's line numbers are those of
+  # this file, in `code.source` numbering. The docstring holds the word
+  # `surrogateescape`, and s264's and s267's writes held it there and
+  # nowhere else. So the case asks for `.encode(` beside it: the head body
+  # holds no `.encode(`, and the base body does.
+  # The night's model. The case waits on the card for its recording.
+  model: qwen3.5:9b
+  tier: T1
+  role: developer
+  runs: 5
+  pass: 4
+  tick: touch_mistaken
+  refs: [<b1>]
+  repo:
+    onboard: true
+    change:
+      src/click/utils.py: |
+        import os
+        import sys
+
+
+        def format_filename(
+            filename: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            shorten: bool = False,
+        ) -> str:
+            """Format a filename as a string for display. Ensures the filename can be
+            displayed by replacing any invalid bytes or surrogate escapes in the name
+            with the replacement character ``�``.
+
+            Invalid bytes or surrogate escapes will raise an error when written to a
+            stream with ``errors="strict"``. This will typically happen with ``stdout``
+            when the locale is something like ``en_GB.UTF-8``.
+
+            Many scenarios *are* safe to write surrogates though, due to PEP 538 and
+            PEP 540, including:
+
+            -   Writing to ``stderr``, which uses ``errors="backslashreplace"``.
+            -   The system has ``LANG=C.UTF-8``, ``C``, or ``POSIX``. Python opens
+                stdout and stderr with ``errors="surrogateescape"``.
+            -   None of ``LANG/LC_*`` are set. Python assumes ``LANG=C.UTF-8``.
+            -   Python is started in UTF-8 mode  with  ``PYTHONUTF8=1`` or ``-X utf8``.
+                Python opens stdout and stderr with ``errors="surrogateescape"``.
+
+            :param filename: formats a filename for UI display.  This will also convert
+                             the filename into unicode without failing.
+            :param shorten: this optionally shortens the filename to strip of the
+                            path that leads up to it.
+            """
+            if shorten:
+                filename = os.path.basename(filename)
+            else:
+                filename = os.fspath(filename)
+
+            if isinstance(filename, bytes):
+                filename = filename.decode(sys.getfilesystemencoding(), "replace")
+            else:
+                filename = filename.encode("utf-8", "surrogateescape").decode(
+                    "utf-8", "replace"
+                )
+
+            return filename
+    batch: <b1>
+    index_batch: true
+    message: "Implement shorten=True logic in format_filename to return base filename"
+    edit:
+      src/click/utils.py: |
+        import os
+        import sys
+
+
+        def format_filename(
+            filename: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            shorten: bool = False,
+        ) -> str:
+            """Format a filename as a string for display. Ensures the filename can be
+            displayed by replacing any invalid bytes or surrogate escapes in the name
+            with the replacement character ``�``.
+
+            Invalid bytes or surrogate escapes will raise an error when written to a
+            stream with ``errors="strict"``. This will typically happen with ``stdout``
+            when the locale is something like ``en_GB.UTF-8``.
+
+            Many scenarios *are* safe to write surrogates though, due to PEP 538 and
+            PEP 540, including:
+
+            -   Writing to ``stderr``, which uses ``errors="backslashreplace"``.
+            -   The system has ``LANG=C.UTF-8``, ``C``, or ``POSIX``. Python opens
+                stdout and stderr with ``errors="surrogateescape"``.
+            -   None of ``LANG/LC_*`` are set. Python assumes ``LANG=C.UTF-8``.
+            -   Python is started in UTF-8 mode  with  ``PYTHONUTF8=1`` or ``-X utf8``.
+                Python opens stdout and stderr with ``errors="surrogateescape"``.
+
+            :param filename: formats a filename for UI display.  This will also convert
+                             the filename into unicode without failing.
+            :param shorten: this optionally shortens the filename to strip of the
+                            path that leads up to it.
+
+            Example:
+                >>> format_filename("a/b/c.txt", shorten=True)
+                'c.txt'
+
+            """
+            # Convert bytes or PathLike to string if necessary
+            if isinstance(filename, (bytes, bytearray)):
+                try:
+                    filename = filename.decode(sys.getfilesystemencoding())
+                except UnicodeError:
+                    filename = filename.decode("utf-8", "replace")
+            elif hasattr(filename, "__fspath__"):
+                filename = os.fspath(filename)
+
+            # Handle shorten parameter
+            if shorten and "/" in filename:
+                filename = filename.split("/")[-1]
+
+            return filename
+  fixture:
+    items:
+      - {id: <i1>, text: "With shorten set to True, the path a/b/c.txt is displayed
+           as c.txt in the docstring of format_filename.",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "with shorten set to true, the path a/b/c.txt
+           is displayed as c.txt in the docstring of format_filename"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "The docstring of format_filename must include
+           an example demonstrating that when shorten=True, a path like \"a/b/c.txt\"
+           is displayed as \"c.txt\".",
+         term_refs: '["format_filename"]', surface_refs: '["src/click/utils.py::format_filename"]'}
+      - {id: <c2>, ticket_id: <tk1>, text: "The docstring of format_filename must include
+           an example that explicitly shows both the input path and the resulting
+           shortened output to verify the behavior.",
+         term_refs: '["format_filename"]', surface_refs: '["src/click/utils.py::format_filename"]'}
+      - {id: <c3>, ticket_id: <tk1>, text: "The docstring must include an example showing
+           that when shorten=True, a path like \"a/b/c.txt\" is displayed as \"c.txt\".",
+         term_refs: '["format_filename"]', surface_refs: '["src/click/utils.py::format_filename"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: HEAD}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    batch_touch:
+      - {batch_id: <b1>, grain: "src/click/utils.py", grain_kind: path, confidence: expected}
+      - {batch_id: <b1>, grain: "src/click/utils.py::format_filename", grain_kind: symbol,
+         confidence: possible}
+    tests:
+      - id: <t1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_utils/test_format_filename_c_1.py
+        body: |
+          import pytest
+          from click.utils import format_filename
+
+          def test_format_filename_with_shorten_true():
+              """Test that shorten=True shortens the path as per c_1."""
+              result = format_filename("a/b/c.txt", shorten=True)
+              assert result == "c.txt"
+    touch_strays:
+      # s262's judgement. The night's note named lines 471 and 473 of
+      # clickI's utils.py. Here they are lines 34 and 36.
+      - {batch_id: <b1>, commit_sha: HEAD, path: "src/click/utils.py::format_filename",
+         status: mistake,
+         note: "removal: `filename = os.fspath(filename)` at line 34, `if isinstance(filename,
+           bytes):` at line 36 The removal of the old logic for handling bytes and
+           encoding is a mistake. The request only asked for an example in the
+           docstring, not a rewrite of the function. The removal touches a definition
+           not named in the request or any criterion."}
+  expect:
+    write_includes: [".encode(", "surrogateescape"]
+  forbidden:
+    writes: [tests, criteria]
+    recipients: [tester, liaison, vision_keeper]

@@ -1489,6 +1489,27 @@ def _first_call(case: dict, outcome: RunOutcome, scripted: int) -> list[str]:
             f"{ {k: want['args'][k] for k in wrong} }"] if wrong else []
 
 
+def _write_includes(case: dict, outcome: RunOutcome, scripted: int) -> list[str]:
+    """The case's `write_includes:` against each `code.write` the model sent
+    after the scripted replies. One text must hold every word. A restore
+    is judged by the text it sends, because the commit of a head's own text
+    lands as "nothing changed" (F7 pass 3, night 172's s263 to s267)."""
+    words = (case.get("expect") or {}).get("write_includes")
+    if not words:
+        return []
+    from ..llm import toolproto
+
+    texts = [str(call.args.get("text") or "")
+             for n in range(scripted, len(outcome.completions))
+             for call in _reply_calls(outcome, n, toolproto)
+             if not isinstance(call, toolproto.ToolError)
+             and call.name == "code.write"]
+    if any(all(w in t for w in words) for t in texts):
+        return []
+    return [f"expected a code.write whose text holds {words}; "
+            f"{len(texts)} code.write call(s) held not all of them"]
+
+
 def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
              instructions: str = "", run_no: int = 1) -> CaseResult:
     conn = init_db(db_path)
@@ -1541,6 +1562,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
                         "replies, so the case judged nothing")
     problems += _first_call(case, outcome, scripted)
     problems += _no_call(case, outcome, scripted)
+    problems += _write_includes(case, outcome, scripted)
 
     if repo is not None:
         from . import gitfixture
