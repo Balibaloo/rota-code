@@ -98,3 +98,43 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/77c8dc
 ### (d) Usage
 
 Input about 24k tokens, output about 7k tokens, about 31k in total. These are estimates. The cap was 30k.
+
+## p3
+
+**Verdict: NOT READY.** Pass 3 at cb7783db and 5cd73a2d closes both p2 highs on the probed forms. The new removal verbs, the page-noun rule and the unchecked `exclude` each land a row that his words do not ask for. A target-less `remove` now lands, and it was refused at d28e6e05. Findings: 4 high, 2 low.
+
+### (a) Verdicts on the points
+
+1. p2 highs: closed on the probed forms. "Replace Roaming in line 4 with Local." lands the revise, a plain fault lands it, and a reply that faults nothing is refused with no approve in the text. s179's call on m62 with no `target_kind` is refused, with the full target and with `clear`. A new hole opens beside p2-2 (finding p3-1).
+2. `exclude`: no `exclude` row reaches a removal reader. `grant` lets the newest act on the target decide and returns a row only when its act equals the asked act. Exclude then remove: `granted(remove)` True, `disputed_paths` empty. Remove then exclude: `granted(remove)` False, the path disputed. `_unruled_gone` and frame 339's `_asks_removal` read only `remove` and the criterion text, never `exclude`. Both orders are right on his words.
+3. Missing check: an `exclude` lands on any target, any kind, and on words that ask the opposite (finding p3-4). Law 6 is broken: the row is "a ledger row written on the principal's behalf". For a batch ref, `predicted_rows` in `rota/core/lifecycle.py` 442 to 478 (37 lines) gives the paths. For a guess key, no single function does. `code_target` in `rota/roles/principal.py` 1593 to 1607 gives the stamp, and a 4-line `touch_guesses` query gives the paths, as `resolve_inbound` does.
+4. Page-noun rule: a reading beyond his words, by law 6. High (finding p3-3). The prompt's example gives True. Two flags on one page: "I don't want a flag" names both `show_python` and `verbose`. No page noun: False. "I don't want a test" names `show_python` when the page writes "the show_python test".
+5. Prompts: the `path` example shows his words beside the act. The acts-list line has 18 words, and its second sentence has 6. The example has no `words` key, so a seat that copies it is refused once, as with the older examples (low). The `remove` line still says it takes "a file away" (finding p3-6). New stale cases: 0. `casestatus` gives 59 stale on both trees, 11 of them Liaison cases, the same set.
+6. Replay: 25 moves against 3b31077a, the builder's 25. 18 equal p2's moves and keep p2's reading. 7 change text only: 6 "is not an act" refusals now list `exclude`, and 173 s120 3 drops "Approve line 4". No wrong move. No decision changes.
+7. Tests: 39 files, 1 failed, 1084 passed, 13 xfailed. The red is `test_pins.py::test_with_prompt_keeps_every_pin`, a known red. The diff holds no CR byte. The worktree stays clean.
+
+### (b) Findings
+
+- p3-1. **rota/roles/api.py 14105 to 14114 and `_code_target`, high. CONFIRMED.** `_code_target("")` gives False, so a `remove` with no target skips the removal rule. s179's m62 words with `act` `remove`, kind `identifier` and no target land at 5cd73a2d and are refused at d28e6e05. `grant(ref, "remove")` with no target reads that row, so `_amend_step` at 1534 and `_assert_words_fault` at 1881 let an amend drop his sentences (PLAUSIBLE for that effect). Fix: run the removal rule on every `remove` or `drop` whose target is empty, or is not a page line or a register ref.
+- p3-2. **rota/roles/api.py `_REMOVAL_WORDS` 23603 and `_REQUEST_VERBS` 23627, high. CONFIRMED.** The "want" forms and "without" read the object as removed when the clause asks for no change. True at the W16 reader: "We do not want clear changed.", "I don't want any function renamed.", "Fix it without touching clear.", "Make it return True without changing the clear function." True at frame 339's `_asks_removal`: "We do not want ctx.exit() to change." and "Print the version without changing ctx.exit()." So the door can land a removal he forbids (law 6), and a stray removal hides as asked (law 12). Fix: count a "want" form or "without" only when the clause ends at its object, with no verb or participle after it.
+- p3-3. **rota/roles/api.py `_asks_removal_of` 23816 to 23821, high. CONFIRMED.** The page-noun rule gives a name to every code target that the page writes before a noun. "I don't want a flag" names both flags of a two-flag page. "I don't want a test" names the flag `show_python` on a page with "the show_python test". "I don't want the flag to default to on." names it too. Fix: remove the rule, or accept the noun only when one target on the page holds it and the clause ends at the noun.
+- p3-4. **rota/roles/api.py `rulings_rule`, the act check, high. CONFIRMED.** An `exclude` lands with only the span check. The words "the change has to touch the clear function in the terminal UI file" land `exclude` on `src/click/termui.py`. They also land it on `src/click/core.py`, which no prediction names, and on the identifier `clear`. `disputed_paths` then takes `src/click/termui.py` off `predicted_rows`. The prompts now send every path contest as `exclude`. Fix: refuse an `exclude` whose target is not a path of the ref's prediction (`predicted_rows`, or `touch_guesses` at the `code_target` stamp), or whose words do not name the target by `_target_names`.
+- p3-5. **rota/roles/api.py 14280 to 14288, low. CONFIRMED.** `note_act` reads "Do not change line 4." as a change request. The revise of line 4 lands on that reply. The check at d28e6e05 needed a fault, and this reply faults line 7 only, so the parent refused it (PLAUSIBLE, not probed at the door). He sees the rewrite on the next page. Fix: give `note_act` the negation guard that `_NEGATION_WORDS` gives the removal reader.
+- p3-6. **rota/roles/prompts/liaison/landing.md and answering.md, the `remove` line, low. PLAUSIBLE.** The line still says `remove` takes "code or a file away", beside the new `exclude` line. A seat can then send `remove` on a path for a touch-list correction. The W16 rule refuses it unless his words hold a removal verb. Then it lands as a code removal of the file. Fix: narrow the `remove` line to code at the next re-record, as the builder recommends.
+
+### (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad/p3rev/`.
+
+- `new4.json` and `diff4.py`: p2's `replay3.py` on `C:/Users/roman/rota_rseam`, against p2's `par3.json` and `new3.json`. `moves4.txt` holds the 25 moves.
+- `probe.py`: opens `D:/repos/rota/.rota/clickI_night173.db` with `mode=ro`. It runs five revise replies on m35 (1a to 1e) and s179's call on m62 with no kind (1f, 1g).
+- `probe2.py`: the same, with `bg_2` set `pending` in memory. It runs the target-less `remove` (1h), three `exclude` calls (3a to 3c) and `note_act` on "Do not change line 4.".
+- `d28/`: `git archive` of d28e6e05. `probe2.py` on it refuses 1h.
+- `probe3.py`: two seeded rulings in both orders on a fresh `init_db`, then `granted` and `disputed_paths`. Then 12 spans through `_asks_removal_of` and 3 criteria through `_asks_removal`.
+- `probe4.py`: the prompt's `path` example with no `words`. The door refuses it.
+- `t5cd73a2d/` and `td28e6e05/`: `git archive` of `rota` and `tests/rota`, with a hard link to a copy of the register. `cs_*.txt` hold the `casestatus` prints.
+- Tests: `pytest` on the 6 named files and the files that name `rulings.rule`, `rulings_rule`, `disputed_paths` or `_asks_removal`.
+
+### (d) Usage
+
+Input about 70k tokens, output about 13k tokens, about 83k in total. These are estimates. The cap was 40k, and the review went over it.
