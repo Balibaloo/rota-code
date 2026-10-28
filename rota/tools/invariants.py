@@ -41,11 +41,20 @@ INVARIANTS = {
     "I10": "an integer column holds integers",
 }
 
-# The verbs that carry material and ask for no reply. The session that reads
-# such a message answers it when it commits (`db.session_commit`), and no
-# reply row follows by design. On night 119, 68 of the audit's 72 findings
-# were rows of this kind (`plans/frame144-inventory.md`, section 2).
-CARRIES = frozenset({"deliver", "relay", "converse", "submit", "answer", "report", "verdict"})
+def _carries(verb: str) -> bool:
+    """
+    Whether the verb carries material and asks for no reply.
+
+    The session that reads such a message answers it when it commits
+    (`db.session_commit`), and no reply row follows by design. On night 119,
+    68 of the audit's 72 findings were rows of this kind
+    (`plans/frame144-inventory.md`, section 2). A carrier is a verb outside
+    `db.OWED_A_REPLY` and outside the pages, which his reply answers. This
+    is the one list of the owed verbs (fact F16, review 1, finding 6).
+    """
+    from ..core.db import OWED_A_REPLY, PAGE_VERBS
+
+    return verb not in OWED_A_REPLY and verb not in PAGE_VERBS
 
 
 @dataclass(frozen=True)
@@ -228,7 +237,7 @@ def i9(conn) -> list[Finding]:
     design:
 
     - A message whose verb carries material is answered by the session that
-      reads it (`CARRIES`).
+      reads it (`_carries`).
     - A present to the principal whose refs hold a batch, a touch note or a
       quarantine report, closes at the keypress when the principal approves
       it, and no verdict row follows (`principal.land`: "A touch note is
@@ -243,7 +252,7 @@ def i9(conn) -> list[Finding]:
     for r in _rows(conn, "SELECT m.id, m.from_role, m.to_role, m.verb, m.body_refs "
                          "FROM messages m WHERE m.status = 'answered' AND NOT EXISTS "
                          "(SELECT 1 FROM messages a WHERE a.cause_id = m.id) ORDER BY m.seq"):
-        if r[3] in CARRIES:
+        if _carries(r[3]):
             continue
         if r[3] == "present" and r[2] == "principal" and batches & set(_refs(r[4])):
             continue

@@ -999,6 +999,8 @@ OWED_A_REPLY = (
     # `liaison/submit.md`: "Send one `msg.present_principal`".
     "submit",
     # `developer/reopen.md`: "You elect, with `msg.elect_vision_keeper`".
+    # A reopen caused by an elect hands the batch back and owes nothing
+    # (`_owes_a_reply`).
     "reopen",
     # `vision_keeper/elect.md`: "Record it and unblock them" with a reopen.
     "elect",
@@ -1268,17 +1270,26 @@ def _receipt_rule(trig: sqlite3.Row) -> str | None:
     return RECEIPT_RULES.get((trig["from_role"], trig["to_role"], trig["verb"]))
 
 
-def _owes_a_reply(trig: sqlite3.Row) -> bool:
+def _owes_a_reply(conn: sqlite3.Connection, trig: sqlite3.Row) -> bool:
     """
     Whether `trig` has a verb of `OWED_A_REPLY` on a channel the graph
     declares. A test can seed a carrier on no channel, as the
     synthetic arc's Liaison challenge to the Critic. No session can send one.
 
     An edge whose rule in `RECEIPT_RULES` is "none" owes no reply.
+
+    A `reopen` caused by an `elect` hands the batch back, and it owes no
+    reply. `runner.py` reads the same key and gives it the `batch_start`
+    mode, which builds and sends nothing. tipsAL's s75 woke on m37, such a
+    reopen, and committed code (F16 review 1, finding 1).
     """
     if trig["verb"] not in OWED_A_REPLY:
         return False
     if _receipt_rule(trig) == "none":
+        return False
+    if trig["verb"] == "reopen" and trig["cause_id"] and conn.execute(
+            "SELECT 1 FROM messages WHERE id = ? AND verb = 'elect'",
+            (trig["cause_id"],)).fetchone():
         return False
     from ..design import graph as graph_mod
     return any(e.s == trig["from_role"] and e.t == trig["to_role"]
@@ -1512,7 +1523,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
             # A suspended session keeps its claim and can still reply.
             if (trig and trig["status"] == "open"
                     and result.checkpoint is None
-                    and _owes_a_reply(trig)
+                    and _owes_a_reply(conn, trig)
                     and not (barren and trig["verb"] == "challenge")
                     and not _received(conn, result, trig)):
                 # law 6: a question nobody answers climbs, so a barren session leaves it unresolved
