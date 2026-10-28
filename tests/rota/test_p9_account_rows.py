@@ -183,6 +183,33 @@ def test_words_that_name_no_line_land_on_nothing_on_the_account_page(night):
     assert str(refused.value) == ("The words name no line of this page, so "
                                   "they change no row on it.")
     assert not [w for w in door.ctx.writes if w[0] == "ruled_refs"]
+    # Seven approves land on nothing either, with his words or with none
+    # (the review of P9, p3, finding 1).
+    for given in (words, ""):
+        with pytest.raises(ValueError, match="name no line of this page"):
+            door.call("rulings.rule",
+                      rulings={str(i): "approve" for i in range(1, 8)},
+                      words=given)
+    assert not [w for w in door.ctx.writes if w[0] == "ruled_refs"]
+
+    # His next request page says so, once, in one sentence.
+    from rota.roles.api import ACCOUNT_NO_LINE
+    from rota.roles.principal import ACCOUNT_UNNAMED, render_page
+
+    night.execute("UPDATE messages SET unresolved_note = ? WHERE id = 'm900'",
+                  (f"{reply}: rulings.rule: {ACCOUNT_NO_LINE}",))
+    page = ["format_filename_example", "c_1_format_filename_example"]
+    for mid, n in (("m_req1", 2), ("m_req2", 3)):
+        night.execute("INSERT INTO messages (id, thread_id, from_role, "
+                      "to_role, verb, body_refs, seq, status) VALUES (?, ?, "
+                      "'liaison', 'principal', 'present', ?, ?, 'open')",
+                      (mid, mid, json.dumps(page), seq + n))
+    night.commit()
+    first = render_page(night, "present", page, ask_id="m_req1")[0]
+    assert first.splitlines()[0] == ACCOUNT_UNNAMED
+    assert len(ACCOUNT_UNNAMED.split()) < 25
+    assert ACCOUNT_UNNAMED not in render_page(night, "present", page,
+                                              ask_id="m_req2")[0]
 
 
 @pytest.mark.parametrize("session, kind, n", [

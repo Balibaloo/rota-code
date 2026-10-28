@@ -1640,6 +1640,28 @@ def off_page(conn: sqlite3.Connection, refs: list, *,
     return out
 
 
+def account_rows(conn: sqlite3.Connection, refs: list) -> list[str]:
+    """The refs that are the account's own rows: a row that no request
+    owns, a read-back line and an inherited test apart."""
+    return [r for r in refs or [] if isinstance(r, str) and not _is_reading(r)
+            and row_items(conn, r) is not None and not _owners(conn, r)]
+
+
+def account_page_refs(conn: sqlite3.Connection, rows: list[str]) -> list[str]:
+    """The refs of the account's page for `rows`, how_it_works first when
+    the row exists, or [] when an open page to him shows every row."""
+    shown = {r for m in conn.execute(
+        "SELECT body_refs FROM messages WHERE to_role = 'principal' "
+        "AND status = 'open'") for r in json.loads(m["body_refs"] or "[]")}
+    owed = [r for r in rows if r not in shown]
+    if not owed:
+        return []
+    account = conn.execute(
+        "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
+    head = ["how_it_works"] if account and "how_it_works" not in owed else []
+    return head + sorted(owed, key=lambda r: r != "how_it_works")
+
+
 def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     """
     The request's own rows for a page: each item, then its criteria by id.
@@ -2274,8 +2296,58 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     # page about its item, whatever kind of page that is. The line is not
     # numbered, so `parse_reply` reads the same order.
     gone = removal_line(conn, refs) if returned else ""
-    top = "\n".join(x for x in (back, gone) if x)
+    unnamed = account_unnamed_line(conn, ask_id) if returned else ""
+    top = "\n".join(x for x in (back, unnamed, gone) if x)
     return (f"{top}\n{page}" if top else page), order
+
+
+# The sentence on his next request page after an answer to the account's
+# page that named no line there (the review of P9, p3, finding 1).
+ACCOUNT_UNNAMED = ("Your last answer named no line of the page about the "
+                   "project today, and answers about your request land on "
+                   "this page.")
+
+
+def account_unnamed_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
+    """The sentence `ACCOUNT_UNNAMED` on his first request page after his
+    answer to the account's page named no line there, or "".
+
+    The rulings door refuses such words on the account's page, and
+    `session_commit` keeps the refusal as the page's note, "<reply>:
+    <refusal>". The refusal speaks to the seat, so his page holds this
+    sentence and no refusal text (frame 267)."""
+    from .api import ACCOUNT_NO_LINE
+
+    if not ask_id:
+        return ""
+    page = conn.execute(
+        "SELECT seq, body_refs FROM messages WHERE id = ? AND to_role = "
+        "'principal' AND verb IN ('present', 'confirm')", (ask_id,)).fetchone()
+    if page is None:
+        return ""
+    back = conn.execute(
+        "SELECT unresolved_note FROM messages WHERE to_role = 'principal' "
+        "AND verb = 'present' AND seq < ? AND unresolved_note LIKE ? "
+        "ORDER BY seq DESC LIMIT 1",
+        (page["seq"], f"%{ACCOUNT_NO_LINE}%")).fetchone()
+    reply = conn.execute(
+        "SELECT seq FROM messages WHERE id = ? AND from_role = 'principal'",
+        (back["unresolved_note"].split(":", 1)[0],)).fetchone() if back else None
+    if reply is None or not _request_page(conn, page["body_refs"]):
+        return ""
+    # His next request page only: a request page between them took it.
+    for r in conn.execute(
+            "SELECT body_refs FROM messages WHERE to_role = 'principal' "
+            "AND verb IN ('present', 'confirm') AND seq > ? AND seq < ?",
+            (reply["seq"], page["seq"])):
+        if _request_page(conn, r["body_refs"]):
+            return ""
+    return ACCOUNT_UNNAMED
+
+
+def _request_page(conn: sqlite3.Connection, body_refs: str | None) -> bool:
+    refs = [r for r in json.loads(body_refs or "[]") if not _is_reading(r)]
+    return page_owner(conn, refs) is not None
 
 
 # The removals that one page names. The rest are counted, so ten removals

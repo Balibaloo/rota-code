@@ -4253,6 +4253,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # 1). A quarantined wake records its keys, so a re-render of any
         # other page never reads a key that came later (finding 4).
         notes: dict[str, str] = {}
+        account_off: list[str] = []
         if verb == "present" and recipient == "principal" and not park and not shift:
             import json as _json
             from ..roles.principal import _stalled_keys, code_targets, request_rows
@@ -4293,6 +4294,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
 
             off = off_page(ctx.conn, refs)
             if off:
+                from ..roles.principal import account_rows
+
+                # The account's rows it drops go out on the account's own
+                # page, so no row waits unseen. Night 133's m283 sign-off
+                # dropped how_it_works and 3 descriptions (the review of P9,
+                # p3, finding 2).
+                account_off = account_rows(ctx.conn, [r for r in refs if r in off])
                 refs = [r for r in refs if r not in off]
                 if stamped:
                     kept = [r for r in stamped if r not in off]
@@ -4778,6 +4786,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             from .scheduler import park_ask_id
 
             msg_id = park_ask_id(ctx.conn, ctx.wake_refs[1])
+        if account_off:
+            from ..roles.principal import account_page_refs
+
+            # The account's page goes first, so the request's page stays
+            # the call's own message (ruled: Roman, 2026-10-28 09:10).
+            shown = account_page_refs(ctx.conn, account_off)
+            if shown:
+                ctx.outbound.append({
+                    "id": new_id("m", ctx.conn,
+                                 offset=len(ctx.outbound) + len(recipients)),
+                    "to_role": "principal", "verb": "present",
+                    "body_refs": shown, "body_text": None,
+                    "round_no": round_no, "cause_id": ctx.trigger})
         for n, to_role in enumerate(recipients):
             staged = {
                 "id": msg_id if n == 0
