@@ -14189,15 +14189,14 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
         # s288 sent the principal's d_26efd6365c as the id. The author rule
         # refuses that id, so the text asks for an id of its own.
         taken = author_refusal(ctx.conn, "decisions", id, ctx.role,
-                               ("author", "text")) is not None
+                               {"author": ctx.role, "text": text})
         args = {"id": INVENT if taken else id, "text": text,
                 "refs": refs or []}
         if resolves_ledger:
             args["resolves_ledger"] = resolves_ledger
-        again = (f"{id} is a decision by "
-                 f"{journal_author(ctx.conn, 'decisions', id)}, so send the "
-                 f"call again without supersedes, under an id of its own"
-                 if taken else "Send the same call without supersedes")
+        again = (f"{taken} Send the call again without supersedes, under an "
+                 f"id of its own" if taken
+                 else "Send the same call without supersedes")
         raise ValueError(_offer(
             ctx,
             f"A decision has no supersedes for an item. `{supersedes}` is an "
@@ -15248,7 +15247,7 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
             "and nothing woke you with an answer")
 
     row = ctx.conn.execute(
-        "SELECT q.id AS qid, q.from_role AS asker, q.verb AS verb, q.status AS status "
+        "SELECT q.id AS qid, q.verb AS verb, q.status AS status "
         "FROM messages a JOIN messages q ON q.id = a.cause_id WHERE a.id = ?",
         (ctx.trigger,)).fetchone()
 
@@ -15262,13 +15261,15 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
     if row is None or row["verb"] not in ASKING_VERBS:
         raise ValueError(
             "the message that woke you is not a reply to a question you asked")
-    if row["asker"] != ctx.role:
-        raise ValueError(
-            f"that question was {row['asker']}'s, not yours; only the role that "
-            f"asked can say the answer did not land")
+    # Fact F23: the asker is the author of the question row, and the commit
+    # refuses another role's write over it. The door reads the same rule.
+    move = {"status": "unresolved", "unresolved_note": what_is_missing}
+    refused = author_refusal(ctx.conn, "messages", row["qid"], ctx.role, move)
+    if refused:
+        raise ValueError(f"{refused} Only the role that asked can say that "
+                         f"the answer did not land.")
 
-    ctx.writes.append(("messages", row["qid"], {
-        "status": "unresolved", "unresolved_note": what_is_missing}, False))
+    ctx.writes.append(("messages", row["qid"], move, False))
     return {"id": row["qid"], "status": "unresolved"}
 
 
@@ -17045,7 +17046,10 @@ def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
                               f"({reason or 'no reason given'}); the "
                               f"heuristics said {heuristic}; the judge's "
                               f"answer is taken"),
-            "author": "frame"}))
+            # Fact F23: the author is the writing role, as for every journal
+            # row. `about_table` marks a frame row, and no reader keys on
+            # an author "frame".
+            "author": ctx.role}))
     return {"id": path, "kind": k,
             "note": ("differs from the heuristic prior; a ledger row "
                      "records it" if k != heuristic else "agrees with the "

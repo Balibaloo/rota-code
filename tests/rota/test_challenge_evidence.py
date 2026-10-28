@@ -318,7 +318,8 @@ def test_6_a_derived_id_of_another_author_is_refused_and_the_row_stays(db, autho
     sb = _dev(db)
     said = _refused_reason(sb, reason=REASON)
     # Fact F23: the door reads the commit's rule, so the text names both roles.
-    assert said == (f"{rid} is a decisions row by {author}, and you write as "
+    assert said == (f"the reason's id {rid} is a decisions row by {author}, "
+                    f"and you write as "
                     f"developer. A journal row is its author's record. Write "
                     f"the reason in your own words.")
     assert not sb.ctx.writes and not sb.ctx.outbound

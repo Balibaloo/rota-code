@@ -2573,9 +2573,10 @@ def _holds_decision(conn: sqlite3.Connection, refs,
                     exclude_author: str | None = None) -> bool:
     """True when `refs` name a `decisions` row. A row by `exclude_author`
     does not count."""
+    # Fact F23: the author comes from the one reader.
     return any(isinstance(r, str) and conn.execute(
-        "SELECT 1 FROM decisions WHERE id = ? AND author IS NOT ?",
-        (r, exclude_author)).fetchone()
+        "SELECT 1 FROM decisions WHERE id = ?", (r,)).fetchone()
+        and journal_author(conn, "decisions", r) != exclude_author
         for r in refs or [])
 
 
@@ -2587,9 +2588,8 @@ def _without_own_reasons(conn: sqlite3.Connection, refs, role: str) -> list:
     stored refs after the doors ran. The same-refs door compares the refs
     without that row, so a reasoned prior still matches the seat's refs.
     """
-    return [r for r in refs or [] if not (isinstance(r, str) and conn.execute(
-        "SELECT 1 FROM decisions WHERE id = ? AND author = ?",
-        (r, role)).fetchone())]
+    return [r for r in refs or [] if not (
+        isinstance(r, str) and journal_author(conn, "decisions", r) == role)]
 
 
 # law 2: the reasoning is reached by following a ref
@@ -2756,7 +2756,10 @@ def _stage_reason(ctx: api.Ctx, table: str, refs, quotes: str,
            "supersedes": None, "resolves_ledger": None}
     refused = author_refusal(ctx.conn, table, rid, ctx.role, row)
     if refused:
-        raise ValueError(f"{refused} Write the reason in your own words.")
+        # The id hashes the words, so the text names the reason's id. The
+        # remedy then reads as the way to a new id (review of pass 1, 8).
+        raise ValueError(f"the reason's id {refused} Write the reason in "
+                         f"your own words.")
     if not any(w[0] == table and w[1] == rid for w in ctx.writes):
         ctx.writes.append((table, rid, row))
     return rid, note

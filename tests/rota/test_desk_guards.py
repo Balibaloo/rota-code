@@ -2025,8 +2025,10 @@ def test_night147_s288_supersedes_on_the_item_under_a_principal_id(db):
                 supersedes=ITEM147)
     assert str(exc.value) == (
         f"A decision has no supersedes for an item. `{ITEM147}` is an items "
-        f"row, not a decision. d_26efd6365c is a decision by principal, so "
-        f"send the call again without supersedes, under an id of its own, and "
+        f"row, not a decision. d_26efd6365c is a decisions row by principal, "
+        f"and you write as vision_keeper. A journal row is its author's "
+        f"record. Send the call again without supersedes, under an id of its "
+        f"own, and "
         f"close with `msg.report_liaison`.")
     assert not [w for w in vk.ctx.writes if w[0] == "decisions"]
     row = db.execute("SELECT author, text FROM decisions WHERE id = "

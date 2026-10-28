@@ -10,6 +10,7 @@ the doors read.
 """
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -105,12 +106,62 @@ def test_the_rule_covers_every_journal_table_with_an_author_column(db):
     from rota.core.identity import NATURAL_KEYS
 
     journals = {t for t, (kind, _) in NATURAL_KEYS.items() if kind == "journal"}
-    authored = {t for t in journals
-                if any(r[1] == "author"
-                       for r in db.execute(f"PRAGMA table_info({t})"))}
+    authored = {t for t in journals if dbm.author_column(db, t)}
+    # Pass 1b: `messages` joins under `from_role`. `config_history` has no
+    # row key, so the rule leaves it out by name (review of pass 1, 1).
     assert authored == {"entries", "ledger", "faults", "decisions",
-                        "config_history"}
+                        "messages"}
+    for table in journals:
+        assert dbm.author_refusal(db, table, "x", "tester", {"text": "t"}) \
+            is None
     assert dbm.journal_author(db, "items", "i1") is None
+
+
+def test_a_write_that_names_another_author_is_refused(db):
+    """Review of pass 1, 3: a tester inserted a decision under the author
+    "principal". Law 6: nothing is written on the principal's behalf."""
+    with pytest.raises(JournalAuthorError, match="the write names principal "
+                       "as the author of decisions row d1, and you write as "
+                       "tester"):
+        _apply_write(db, Write("decisions", "d1", {"author": "principal",
+                                                   "text": "x"}), "tester")
+
+
+def test_a_frame_note_is_the_architects_row(db):
+    """Review of pass 1, 2: `frame.assign` stamped the author "frame", so a
+    second Architect session over the same row failed whole at commit."""
+    from rota.roles import api
+
+    src = Path(api.__file__).read_text(encoding="utf-8")
+    assert '"author": "frame"' not in src
+    _ledger(db, "frame_src", "architect")
+    _apply_write(db, Write("ledger", "frame_src",
+                           {"default_taken": "again", "author": "architect"}),
+                 "architect")
+
+
+def test_only_the_asker_says_the_answer_did_not_land(db):
+    """Review of pass 1, 5: `schedule_reask` read the asker by hand. It
+    reads the rule now, over the sender of the question."""
+    from rota.core.sandbox import build
+
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, seq, status) VALUES ('mq', NULL, "
+               "'mq', 'developer', 'architect', 'question', '[]', 1, "
+               "'answered')")
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, seq, status) VALUES ('ma', 'mq', "
+               "'mq', 'architect', 'tester', 'answer', '[]', 2, 'open')")
+    db.commit()
+    sb = build("tester", db, mode="normal")
+    sb.ctx.trigger = "ma"
+    with pytest.raises(ValueError) as exc:
+        api_reask = __import__("rota.roles.api", fromlist=["x"]).schedule_reask
+        api_reask(sb.ctx, "the step")
+    assert str(exc.value) == (
+        "mq is a messages row by developer, and you write as tester. A "
+        "journal row is its author's record. Only the role that asked can "
+        "say that the answer did not land.")
 
 
 def test_the_decision_door_names_both_roles(db):
@@ -129,23 +180,121 @@ def test_the_decision_door_names_both_roles(db):
     assert not vk.ctx.writes
 
 
-_ALLOWED = {Path("rota/core/db.py")}
-_SECOND_READER = re.compile(
-    r"SELECT\s+author\s+FROM|\[\s*['\"]author['\"]\s*\]\s*[!=]=\s*ctx\.role")
+# SQL that reads an `author` column: in a select list, or in a condition.
+# The SQL of the package is upper case, so prose in a docstring is no match.
+_SQL_AUTHOR = re.compile(r"(?s)\bSELECT\b[^;]*?\bauthor\b"
+                         r"|\bauthor\s+(?:IS|IN)\b|\bauthor\s*(?:=|!=|<>)")
+
+
+def _is_role(node) -> bool:
+    return ((isinstance(node, ast.Attribute) and node.attr == "role")
+            or (isinstance(node, ast.Name) and node.id == "role"))
+
+
+def _is_author_key(node) -> bool:
+    if isinstance(node, ast.Subscript):
+        return (isinstance(node.slice, ast.Constant)
+                and node.slice.value == "author")
+    return (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "get" and bool(node.args)
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value == "author")
+
+
+def _is_index(node) -> bool:
+    return (isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant)
+            and isinstance(node.slice.value, int))
+
+
+def author_reads(source: str) -> list[tuple[int, str]]:
+    """Each read of an author in `source`, as (line, enclosing function).
+    A read is SQL over an `author` column, a comparison of an `author` key,
+    or a comparison of a row index with a role."""
+    tree = ast.parse(source)
+    funcs = sorted(((n.lineno, n.end_lineno, n.name) for n in ast.walk(tree)
+                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))),
+                   key=lambda f: f[1] - f[0])
+
+    def owner(line):
+        return next((name for a, b, name in funcs if a <= line <= b),
+                    "<module>")
+
+    found = []
+    for node in ast.walk(tree):
+        hit = False
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            hit = bool(_SQL_AUTHOR.search(node.value))
+        elif isinstance(node, ast.Compare):
+            sides = [node.left, *node.comparators]
+            hit = (any(_is_author_key(s) for s in sides)
+                   or (any(_is_role(s) for s in sides)
+                       and any(_is_index(s) for s in sides)))
+        if hit:
+            found.append((node.lineno, owner(node.lineno)))
+    return found
+
+
+# The one reader, and every other read with its reason. A new read of an
+# author goes red until it reads `db.journal_author` or earns a line here.
+_ALLOWED = {
+    ("rota/core/db.py", "journal_author"): "the one reader",
+    # Each read below loads the author to show it, and decides nothing.
+    ("rota/cockpit/server.py", "snapshot"): "the operator's view",
+    ("rota/core/runner.py", "_decisions_in"): "a row shown to a seat",
+    ("rota/core/runner.py", "_resolve_refs"): "a row shown to a seat",
+    ("rota/core/runner.py", "resolve_inbound"): "his decision shown first",
+    ("rota/core/runner.py", "_thread_on_tests"): "the thread shows a row "
+                                                 "under the role that wrote it",
+    ("rota/roles/api.py", "decisions_search"): "a row shown to a seat",
+    ("rota/roles/api.py", "ledger_list"): "a row shown to a seat",
+    ("rota/roles/api.py", "transcript_quote"): "a row shown to a seat",
+    # `config_history` has no row key, and the rule leaves it out.
+    ("rota/core/config.py", "history"): "the history of a setting",
+    # The author of an entry is the speaker. These read his words.
+    ("rota/core/sandbox.py", "stage"): "his words",
+    ("rota/roles/api.py", "repeated_sentence"): "his words",
+    ("rota/roles/api.py", "_reply_sentence_fault"): "his words",
+    ("rota/roles/api.py", "_material_words"): "his words",
+    ("rota/roles/api.py", "_added_sentences"): "his words",
+    ("rota/roles/api.py", "_principal_cause"): "his words",
+    # Residue of pass 1b: a decision of one role, found by a filter on the
+    # author. The report names both.
+    ("rota/core/sandbox.py", "_carries_decision"): "residue",
+    ("rota/core/sandbox.py", "architect_decision_on"): "residue",
+}
+
+# The reviewer's nine shapes of a second reader (review of pass 1, 6).
+_PROBES = [
+    'conn.execute("SELECT author FROM ledger WHERE id = ?", (r,))',
+    'conn.execute("SELECT id, author FROM ledger WHERE id = ?", (r,))',
+    'conn.execute("SELECT 1 FROM decisions WHERE id = ? AND author IS NOT ?", (r, role))',
+    '"SELECT author "',
+    'if row["author"] != ctx.role:\n    pass',
+    'if row["author"] != role:\n    pass',
+    'if ctx.role != row["author"]:\n    pass',
+    'if row.get("author") != ctx.role:\n    pass',
+    'if row[0] != ctx.role:\n    pass',
+]
+
+
+@pytest.mark.parametrize("shape", _PROBES)
+def test_the_pin_sees_each_shape_of_a_second_reader(shape):
+    assert author_reads(shape), shape
+
+
+def test_the_pin_passes_a_read_that_is_no_author():
+    assert not author_reads('if m["to_role"] == ctx.role:\n    pass\n'
+                            '"INSERT INTO decisions (id, author) VALUES (?, ?)"')
 
 
 def test_no_second_reader_of_a_journal_author_exists():
     """One reader: `db.journal_author`, and the rule `db.author_refusal`
-    over it. A later reader that queries an author by hand goes red here.
-    Name it in `_ALLOWED` only with a reason in its comment."""
+    over it. The walk covers every module of the package."""
     root = Path(__file__).resolve().parents[2]
-    found = []
+    found = set()
     for path in sorted((root / "rota").rglob("*.py")):
-        rel = path.relative_to(root)
-        if rel in _ALLOWED:
-            continue
-        text = path.read_text(encoding="utf-8")
-        for n, line in enumerate(text.splitlines(), start=1):
-            if _SECOND_READER.search(line):
-                found.append(f"{rel.as_posix()}:{n}: {line.strip()}")
-    assert not found, found
+        rel = path.relative_to(root).as_posix()
+        for line, func in author_reads(path.read_text(encoding="utf-8")):
+            if (rel, func) not in _ALLOWED:
+                found.add(f"{rel}:{line} {func}")
+    assert not found, sorted(found)
