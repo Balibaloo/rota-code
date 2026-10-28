@@ -1886,16 +1886,9 @@ def _escalation_over_removed_grain(ctx, refs) -> None:
         grain = (f["grain"] or "").split("::")[-1]
         if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", grain):
             continue
-        pat = _re.compile(rf"^\s*(def|class)\s+{_re.escape(grain)}(?!\w)", _re.M)
-        defined = any(pat.search(py.read_text(encoding="utf-8", errors="replace"))
-                      for py in root.rglob("*.py")
-                      # Relative parts: the worktree itself lives under the
-                      # project's .rota, so on absolute parts every file was
-                      # excluded and no name was ever defined (found by the
-                      # 2026-09-16 review; code.commit fixed the same on night 22).
-                      if ".venv" not in py.relative_to(root).parts
-                      and ".rota" not in py.relative_to(root).parts)
-        if not defined:
+        # F13 (rule C76): `definers_of` decides, with the session's staged
+        # writes for the index's lag. No second rule walks the worktree.
+        if not api.definers_of(ctx.conn, grain, api.staged_writes(ctx)):
             raise ValueError(
                 f"the finding {ref} is about {grain!r}, which constraint "
                 f"{f['constraint_id']} binds, and no file in the worktree "

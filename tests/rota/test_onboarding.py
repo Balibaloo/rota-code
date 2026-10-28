@@ -236,8 +236,11 @@ def test_a_test_is_still_indexed_and_still_reachable(project):
         if areas.is_test(r["grain"])]
     assert tests, "the sample repo has tests; they should be indexed"
 
+    # F13 pass 1c: a `variable` or `export` row stays outside every area, so
+    # each area-scoped read keeps its answer.
     assert not db.execute(
-        "SELECT 1 FROM code_index WHERE area IS NULL").fetchone(), \
+        "SELECT 1 FROM code_index WHERE area IS NULL "
+        "AND grain_kind NOT IN ('variable', 'export')").fetchone(), \
         "an unattached test is a test no area-scoped read can reach"
 
 
@@ -272,7 +275,8 @@ def test_pinning_gives_every_symbol_its_file_s_area(project):
     assert row["area"] == "src/billing"
 
     assert not db.execute(
-        "SELECT 1 FROM code_index WHERE area IS NULL").fetchone()
+        "SELECT 1 FROM code_index WHERE area IS NULL "
+        "AND grain_kind NOT IN ('variable', 'export')").fetchone()
 
 
 # ---------------------------------------------------------------------------

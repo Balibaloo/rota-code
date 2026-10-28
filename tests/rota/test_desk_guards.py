@@ -109,6 +109,15 @@ def _unloadable_tree(db, tmp_path, module_text, surface):
     db.execute("UPDATE criteria SET surface_refs = ? WHERE id = 'c1'",
                (json.dumps([surface]),))
     db.execute("DELETE FROM tests")
+    # F13: the doors read the definer from the code index, and the frame
+    # rules the surface's folder program, as night 142's frame did.
+    for grain in (surface, "src/click/decorators.py::version_option"):
+        db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind) "
+                   "VALUES (?, 'path')", (grain.split("::", 1)[0],))
+        db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind, "
+                   "sym_kind) VALUES (?, 'symbol', 'function')", (grain,))
+    db.execute("INSERT INTO frame_rulings (id, kind) VALUES (?, 'program')",
+               (rel.rpartition("/")[0] or rel,))
     db.commit()
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     sb.call("tests.triage", criterion_id="c1", verdict="encodable")
@@ -251,10 +260,27 @@ def _click_tree(db, tmp_path, surface):
     db.execute("UPDATE criteria SET surface_refs = ? WHERE id = 'c1'",
                (json.dumps([surface]),))
     db.execute("DELETE FROM tests")
-    db.commit()
+    _index_defs(db, root)
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     return sb
+
+
+def _index_defs(db, root):
+    """The index rows the indexer writes for the tree: a path row per `.py`
+    file and a symbol row per top-level `def` and `class`. F13: the doors
+    read the definer of a name from the index."""
+    import ast
+    for py in root.rglob("*.py"):
+        rel = py.relative_to(root).as_posix()
+        db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind) "
+                   "VALUES (?, 'path')", (rel,))
+        for node in ast.parse(py.read_text(encoding="utf-8")).body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind, "
+                           "sym_kind) VALUES (?, 'symbol', 'function')",
+                           (f"{rel}::{node.name}",))
+    db.commit()
 
 
 def _refused(sb, body):
@@ -3503,6 +3529,9 @@ def test_an_escalation_over_a_removed_name_is_the_finding_restated(db, tmp_path)
         sb.call("msg.escalate_architect", refs=["f1", "k1"])
     (root / "main.py").write_text("def calculate_tip(t, p):\n    return t * p\n",
                                   encoding="utf-8")
+    # F13: the door reads the session's staged writes, which a code.write
+    # fills. The test stands in for the write.
+    sb.ctx.code_writes = {"main.py": (root / "main.py").read_text(encoding="utf-8")}
     assert sb.call("msg.escalate_architect", refs=["f1", "k1"])["id"]
 
 
@@ -3518,7 +3547,7 @@ def test_an_escalation_reads_a_worktree_that_lives_under_dot_rota(db, tmp_path):
     seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
                "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
-    db.commit()
+    _index_defs(db, root)
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="normal",
                allow=prompts.mode_tools("developer", "finding_violated"))
@@ -3646,7 +3675,35 @@ def test_a_bare_surface_must_be_defined_somewhere_in_the_tree(db, tmp_path):
     with pytest.raises(ValueError, match="does not define echo_json"):
         sb.call("code.commit", message="helper")
     (root / "script.py").write_text("def echo_json(obj):\n    return obj\n", encoding="utf-8")
+    # F13: the commit door reads the session's staged writes, which a
+    # code.write fills. The test stands in for the write.
+    sb.ctx.code_writes = {"script.py": (root / "script.py").read_text(encoding="utf-8")}
     assert sb.call("code.commit", message="helper")["committed"]
+
+
+@pytest.mark.parametrize("text", [
+    "class Echo:\n    def echo_json(self, obj):\n        return obj\n",
+    '"""\ndef echo_json(obj):\n"""\nX = 1\n',
+])
+def test_a_bare_surface_keeps_the_old_commit_acceptance(db, tmp_path, text):
+    """F13 pass 1c, decision a: bfcd31af refused a bare surface that only a
+    method or a docstring defines. The ruling of 2026-10-17 forbids a new
+    commit refusal, so the commit door accepts it again."""
+    import subprocess
+
+    root = tmp_path / "wt"; root.mkdir()
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    (root / "script.py").write_text(text, encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"echo_json\"]' WHERE id = 'c1'")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    sb.ctx.code_writes = {"script.py": text}
+    assert sb.call("code.commit", message="echo")["committed"]
 
 
 def test_a_new_module_goes_into_the_src_package(db, tmp_path):
@@ -3968,7 +4025,7 @@ def test_a_bare_surface_s_module_is_named_from_the_tree(db, tmp_path):
         "def calculate_tip(t, p):" + chr(10) + "    return t * p / 100" + chr(10), encoding="utf-8")
     db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
     db.execute("UPDATE criteria SET surface_refs = '[\"calculate_tip\"]' WHERE id = 'c1'")
-    db.commit()
+    _index_defs(db, root)
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     with pytest.raises(ValueError, match="from pkg.helper import calculate_tip") as exc:
@@ -4019,7 +4076,7 @@ def test_a_surface_imported_from_a_module_that_lacks_it_is_pointed_at_its_file(d
     (root / "main.py").write_text("def calculate_tip(t, p):" + chr(10) + "    return t * p / 100" + chr(10), encoding="utf-8")
     db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
     db.execute("UPDATE criteria SET surface_refs = '[\"calculate_tip\"]' WHERE id = 'c1'")
-    db.commit()
+    _index_defs(db, root)
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     with pytest.raises(ValueError, match="calc/__init__.py does not define calculate_tip.*from main import calculate_tip"):

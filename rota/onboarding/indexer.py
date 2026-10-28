@@ -31,6 +31,12 @@ from .languages import Language, for_path
 SKIP_DIRS = {".git", ".rota", "node_modules", "__pycache__", ".venv", "venv",
              "dist", "build", ".mypy_cache", ".pytest_cache", "target"}
 
+# The kinds of a binding that is not a definition: a module-level assignment
+# and an `__all__` entry. Each row takes its kind as its `grain_kind`, not
+# `symbol`. So a reader of `grain_kind = 'symbol'` keeps its answer, and no
+# prompt that lists symbols shows a variable (F13 pass 1c, decision b).
+BINDING_KINDS = ("variable", "export")
+
 MAX_BYTES = 1_000_000            # a file larger than this is generated or data
 
 # Tracked, text, under the size cap -- and still nobody's work. A lockfile is a
@@ -142,6 +148,21 @@ def parse_file(path: str, source: bytes, lang: Language) -> FileFacts:
             # and indexing every nested closure turns the index into the parse
             # tree with extra steps.
             continue
+        if lang.name == "python" and node.type in ("assignment", "augmented_assignment"):
+            # F13 (rule C76): a top-level assignment and an `__all__` entry
+            # bind a name a test imports, so each is a definer row. The walk
+            # never enters a def or a class, so each binding is at module level.
+            left, right = node.child_by_field_name("left"), node.child_by_field_name("right")
+            if left is not None and left.type == "identifier":
+                bound = _text(left, source)
+                span = (node.start_point[0], node.end_point[0] + 1)
+                facts.symbols.append((bound, "variable", *span))
+                if bound == "__all__" and right is not None and right.type in ("list", "tuple"):
+                    for item in right.named_children:
+                        if item.type == "string":
+                            entry = _text(item, source).strip("\"'")
+                            if entry.isidentifier():
+                                facts.symbols.append((entry, "export", *span))
         if node.type in lang.imports:
             # Ruby has no import node and CommonJS has no import statement —
             # `require` is an ordinary call in both, so the language table
@@ -452,13 +473,20 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
                 "INSERT INTO code_index (grain, grain_kind, fan_in, content_hash) "
                 "VALUES (?, 'path', ?, ?)",
                 (f.path, fan_in.get(f.path, 0), f.content_hash))
-            for symbol, kind, line_start, line_end in f.symbols:
+            # A binding shares the grain `path::name` with a def of the same
+            # name, and the first insert keeps the grain. So the definitions
+            # go first, and `__all__ = ['run']` above `def run` keeps the def.
+            for symbol, kind, line_start, line_end in sorted(
+                    f.symbols, key=lambda s: s[1] in BINDING_KINDS):
+                binding = kind in BINDING_KINDS
                 conn.execute(
                     "INSERT OR IGNORE INTO code_index "
                     "(grain, grain_kind, fan_in, sym_kind, line_start, line_end) "
-                    "VALUES (?, 'symbol', 0, ?, ?, ?)",
-                    (f"{f.path}::{symbol}", kind, line_start, line_end))
-                report.symbols += 1
+                    "VALUES (?, ?, 0, ?, ?, ?)",
+                    (f"{f.path}::{symbol}", kind if binding else "symbol",
+                     kind, line_start, line_end))
+                if not binding:
+                    report.symbols += 1
         conn.executemany("INSERT INTO code_edges (src, dst) VALUES (?, ?)",
                          sorted(edges))
         conn.execute("COMMIT")

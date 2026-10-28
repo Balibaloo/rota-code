@@ -403,6 +403,7 @@ def init_db(path: str | Path) -> sqlite3.Connection:
             if not _has_column(conn, "code_index", column):
                 conn.execute(f"ALTER TABLE code_index ADD COLUMN {column} "
                              f"INTEGER NOT NULL DEFAULT 0")
+        _widen_code_index_kinds(conn)
         # The same for the description flag: 0 is every older item's truth, since
         # no seat could describe an item before the column existed.
         if not _has_column(conn, "items", "is_description"):
@@ -767,6 +768,44 @@ def _apply_write(conn: sqlite3.Connection, w: Write, role: str) -> bool:
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
     return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table})"))
+
+
+def _widen_code_index_kinds(conn: sqlite3.Connection) -> None:
+    """
+    Give an older `code_index` the CHECK that holds `variable` and `export`.
+
+    F13 pass 1c gives a binding row its own grain kind. SQLite cannot change
+    a CHECK in place, so the table is built again from the schema file. The
+    index is mechanical and no role decides a row, so the move needs no
+    new mark. A row that pass 1b wrote as a `symbol` with a binding's
+    `sym_kind` takes that kind as its grain kind.
+    """
+    import re as _re
+
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' "
+                       "AND name = 'code_index'").fetchone()
+    if row is None or "'variable'" in (row[0] or ""):
+        return
+    create = _re.search(r"CREATE TABLE IF NOT EXISTS code_index \(.*?\n\);",
+                        SCHEMA_PATH.read_text(encoding="utf-8"), _re.S).group(0)
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(code_index)")]
+    names = ", ".join(cols)
+    picked = ", ".join(
+        "CASE WHEN grain_kind = 'symbol' AND sym_kind IN ('variable', 'export') "
+        "THEN sym_kind ELSE grain_kind END" if c == "grain_kind" else c
+        for c in cols)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute(create.replace("IF NOT EXISTS code_index",
+                                    "code_index_widened", 1))
+        conn.execute(f"INSERT INTO code_index_widened ({names}) "
+                     f"SELECT {picked} FROM code_index")
+        conn.execute("DROP TABLE code_index")
+        conn.execute("ALTER TABLE code_index_widened RENAME TO code_index")
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
 
 
 def _thread_of(conn: sqlite3.Connection, m) -> str:

@@ -78,6 +78,10 @@ class Ctx:
     wake_kind: str = ""
     entry_id: str | None = None
     writes: list = None          # populated by the sandbox; committed atomically
+    # The files this session wrote by `code.write`, path to text, and None for
+    # a file it removed. The runner refreshes the code index after a session
+    # commits, so the index lacks these files (F13, rule C76).
+    code_writes: dict = None
     outbound: list = None        # messages staged this session
     trigger: str | None = None
     # Files this session actually opened, by `code.source`. Law 12 says a
@@ -3981,7 +3985,10 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     for r in ctx.conn.execute("SELECT grain, grain_kind FROM code_index"):
         # Both from the same row, so a fold collision of two seeded rows
         # pairs one row's grain with that row's kind (the review of pass 3).
-        kinds.setdefault(_fold(r["grain"]), r["grain_kind"])
+        # A binding row is a symbol to `constraint_bindings`, whose CHECK
+        # holds the four grain kinds alone (F13 pass 1c).
+        kinds.setdefault(_fold(r["grain"]), "symbol"
+                         if r["grain_kind"] in _BINDING_KINDS else r["grain_kind"])
         raw.setdefault(_fold(r["grain"]), r["grain"])
     for grain in map(_fold, bindings or []):
         # A symbol the indexer never emitted still passed the read check on
@@ -5525,11 +5532,7 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
         # the criterion was refused for never calling it.
         bare = ref.split("::")[-1].rsplit(".", 1)[-1]
         given = set(_named_new_callables(ctx, ticket_id)) if ticket_id else set()
-        in_tree = False
-        try:
-            in_tree = bool(_defined_in_tree(ctx, bare, ""))
-        except Exception:                                  # noqa: BLE001
-            in_tree = False
+        in_tree = bool(definers_of(ctx.conn, bare))
         # At the repair only: a first criterion may name the entry point a
         # new feature will have (test_a_name_with_no_neighbour_is_a_design
         # _not_a_typo); a repair exists because a test could not be written,
@@ -7424,8 +7427,11 @@ def _test_dirs(indexed: set[str], conn=None) -> set[str]:
 
 def _program_modules(conn: sqlite3.Connection) -> set[str]:
     """The top-level import names of the indexed `.py` files that the frame
-    marks program: the top package of a file, or the file's stem when its
-    folder holds no `__init__.py`."""
+    marks program: the top package of a file. A file outside a package
+    takes the first part of its module by `module_of`."""
+    # F13 (rule C76): the stem of `src/pkg/helper.py` is `helper`, and
+    # `helper` does not import. The package walk stays, because
+    # `_dotted_module` knows `src/` and `lib/` only, and not `python/`.
     from ..onboarding.areas import kind_of
 
     paths = {r["grain"].replace("\\", "/") for r in conn.execute(
@@ -7438,7 +7444,8 @@ def _program_modules(conn: sqlite3.Connection) -> set[str]:
         top = len(parts) - 1
         while top > 0 and "/".join(parts[:top] + ["__init__.py"]) in paths:
             top -= 1
-        name = parts[top] if top < len(parts) - 1 else parts[-1][:-3]
+        name = (parts[top] if top < len(parts) - 1
+                else (module_of(conn, p + "::") or ("", ""))[0].split(".")[0])
         if name.isidentifier():
             out.add(name)
     return out
@@ -9154,6 +9161,248 @@ _EXAMPLE_SPAN = re.compile(
     re.I)
 
 
+# law 8: gates are predicates; a test that cannot fail is no gate
+# Fact F14: one reader answers whether an assert can fail. The encode door
+# reads it, and no other door holds a copy of its rules. Frame 147 found
+# the door refuses too much, so each kind keeps the narrow shape its frame
+# measured, and a shape in doubt admits.
+
+# The `sys` attributes that the call under test cannot change. A read
+# of `sys.stdout` or `sys.argv` can carry the call's effect.
+_INTERP_SYS = frozenset({"version_info", "version", "hexversion", "platform",
+                         "implementation", "maxsize", "byteorder",
+                         "api_version"})
+# The `platform` functions that read the host and run no command.
+# `platform.os` would reach the whole `os` module, and `uname()` and
+# `platform()` can start a subprocess on some hosts, so a door never
+# calls them.
+# Review 2 of frame 277, finding 3: `release()` and `system()` call
+# `uname()`, and `architecture()` runs `file -b` on Linux.
+_INTERP_PLATFORM = frozenset({"python_version", "python_version_tuple",
+                              "python_implementation"})
+# The door reads the interpreter. It does not compute, so an operand
+# with arithmetic, a comprehension or a lambda is never evaluated.
+# Review 2 of frame 277, finding 1: `sys.hexversion ** sys.hexversion`
+# ran 40 seconds in the door.
+_INTERP_NODES = (_ast.Compare, _ast.Attribute, _ast.Name, _ast.Constant,
+                 _ast.Subscript, _ast.Tuple, _ast.UnaryOp, _ast.BoolOp,
+                 _ast.Call, _ast.Load, _ast.Not, _ast.And, _ast.Or,
+                 _ast.Eq, _ast.NotEq, _ast.Lt, _ast.LtE, _ast.Gt,
+                 _ast.GtE, _ast.Is, _ast.IsNot, _ast.In, _ast.NotIn)
+_OPPOSITE_OPS = frozenset({(_ast.Is, _ast.IsNot), (_ast.IsNot, _ast.Is),
+                           (_ast.Eq, _ast.NotEq), (_ast.NotEq, _ast.Eq),
+                           (_ast.In, _ast.NotIn), (_ast.NotIn, _ast.In)})
+_REAL_MOCK_METHODS = frozenset({
+    "assert_called", "assert_called_once", "assert_called_with",
+    "assert_called_once_with", "assert_any_call", "assert_has_calls",
+    "assert_not_called", "reset_mock", "configure_mock", "attach_mock"})
+
+
+def body_checks_by_raise(tree) -> bool:
+    """
+    Whether the body checks by a raise as well as by an assert.
+
+    Night 63 (2026-09-14): a signature test called confirm() with the new
+    argument, re-raised a TypeError as AssertionError, ended on `assert
+    True`, and was refused as checking nothing. `raise AssertionError`,
+    `pytest.raises` and `pytest.fail` are checks.
+    """
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Raise) and n.exc is not None:
+            target = n.exc.func if isinstance(n.exc, _ast.Call) else n.exc
+            if getattr(target, "id", None) == "AssertionError":
+                return True
+        elif isinstance(n, _ast.Call):
+            f = n.func
+            if (isinstance(f, _ast.Attribute) and f.attr in ("raises", "fail")
+                    and getattr(f.value, "id", None) == "pytest"):
+                return True
+    return False
+
+
+def _operand_only_reads(v) -> bool:
+    for n in _ast.walk(v):
+        if not isinstance(n, _INTERP_NODES):
+            return False
+        if isinstance(n, _ast.UnaryOp) and not isinstance(n.op, _ast.Not):
+            return False
+        if (isinstance(n, _ast.Subscript)
+                and not isinstance(n.slice, _ast.Constant)):
+            return False
+        if (isinstance(n, _ast.Tuple)
+                and not all(isinstance(e, _ast.Constant) for e in n.elts)):
+            return False
+        # Review 2, finding 2: a `str.format` field reaches attributes
+        # as text, so the only call is a fixed `platform` function.
+        if isinstance(n, _ast.Call) and not (
+                not n.args and not n.keywords
+                and isinstance(n.func, _ast.Attribute)
+                and isinstance(n.func.value, _ast.Name)
+                and n.func.value.id == "platform"
+                and n.func.attr in _INTERP_PLATFORM):
+            return False
+    return True
+
+
+def _names_off_the_interpreter(tree) -> set[str]:
+    bound = {n.id for n in _ast.walk(tree)
+             if isinstance(n, _ast.Name) and not isinstance(n.ctx, _ast.Load)}
+    bound |= {n.arg for n in _ast.walk(tree) if isinstance(n, _ast.arg)}
+    bound |= {n.name for n in _ast.walk(tree)
+              if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                _ast.ClassDef))}
+    # Review 1 of frame 277, finding 3: an import can bind `sys` or
+    # `platform` to another module. Only `import sys` and `import
+    # platform` keep the name on the interpreter.
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.Import, _ast.ImportFrom)):
+            for al in n.names:
+                name = al.asname or al.name.split(".")[0]
+                if not (isinstance(n, _ast.Import) and al.asname is None
+                        and al.name in ("sys", "platform")):
+                    bound.add(name)
+    return bound
+
+
+def _operand_reads_interpreter_alone(v, bound: set[str]) -> bool:
+    names = [n for n in _ast.walk(v) if isinstance(n, _ast.Name)]
+    if not names or any(n.id not in ("sys", "platform") or n.id in bound
+                        or not isinstance(n.ctx, _ast.Load)
+                        for n in names):
+        return False
+    attrs = [p for p in _ast.walk(v) if isinstance(p, _ast.Attribute)]
+    if any(p.attr.startswith("_") for p in attrs):
+        return False
+    # The check uses identity, because two equal nodes are two reads.
+    fixed = [p.value for p in attrs
+             if isinstance(p.value, _ast.Name)
+             and p.attr in (_INTERP_SYS if p.value.id == "sys"
+                            else _INTERP_PLATFORM)]
+    if not all(any(f is n for f in fixed) for n in names):
+        return False
+    if not _operand_only_reads(v):
+        return False
+    # Review 1 of frame 277, finding 1: a refusal must be certain, so
+    # the operand fires only when its value is true. The harness runs
+    # the tests in a venv made from this interpreter on this host
+    # (`rota/core/provision.py`), so the value here is the value the
+    # test sees. An operand that raises is admitted.
+    import platform as _platform
+    import sys as _sys
+    try:
+        return bool(eval(compile(_ast.Expression(v), "<operand>", "eval"),
+                         {"__builtins__": {}, "sys": _sys,
+                          "platform": _platform}))
+    except Exception:
+        return False
+
+
+def _operands_opposite(a, b) -> bool:
+    if isinstance(b, _ast.UnaryOp) and isinstance(b.op, _ast.Not):
+        return _ast.dump(b.operand) == _ast.dump(a)
+    if isinstance(a, _ast.UnaryOp) and isinstance(a.op, _ast.Not):
+        return _ast.dump(a.operand) == _ast.dump(b)
+    return (isinstance(a, _ast.Compare) and isinstance(b, _ast.Compare)
+            and len(a.ops) == 1 and len(b.ops) == 1
+            and (type(a.ops[0]), type(b.ops[0])) in _OPPOSITE_OPS
+            and _ast.dump(a.left) == _ast.dump(b.left)
+            and _ast.dump(a.comparators[0]) == _ast.dump(b.comparators[0]))
+
+
+def _mock_names(tree) -> set[str]:
+    # Names bound to a Mock: `X = mock.Mock(...)` or `MagicMock(...)`, or
+    # `with mock.patch(...) as X:`. The same walk measured both spellings.
+    # `_MOCK_CTORS` is the module's one list of the Mock constructors.
+    out: set[str] = set()
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Assign) and isinstance(n.value, _ast.Call):
+            callee = n.value.func
+            ctor = callee.attr if isinstance(callee, _ast.Attribute) else (
+                callee.id if isinstance(callee, _ast.Name) else None)
+            if ctor in _MOCK_CTORS:
+                out |= {t.id for t in n.targets if isinstance(t, _ast.Name)}
+        elif isinstance(n, _ast.With):
+            for item in n.items:
+                fn = item.context_expr.func if isinstance(
+                    item.context_expr, _ast.Call) else None
+                fn_name = (fn.attr if isinstance(fn, _ast.Attribute) else
+                           fn.id if isinstance(fn, _ast.Name) else "")
+                if fn_name == "patch" and isinstance(item.optional_vars,
+                                                     _ast.Name):
+                    out.add(item.optional_vars.id)
+    return out
+
+
+def assert_cannot_fail(test, tree, body: str) -> list[tuple[str, str]]:
+    """
+    Each reason that an assert's test cannot fail, as (kind, why).
+
+    The kinds are `constant`, `or_constant`, `interpreter`, `opposites`
+    and `mock_method`. An empty list means the test can fail. `tree` is
+    the parsed body. `body` is its text, so a why quotes the seat's own
+    source. The encode door decides which kinds refuse alone.
+    """
+    out: list[tuple[str, str]] = []
+
+    def _src(node) -> str:
+        return _ast.get_source_segment(body, node) or _ast.unparse(node)
+
+    # Frame 273, night 152: `assert hasattr(cmd, 'x') or True` cannot fail.
+    # The batch merged a parameter with none of its behaviour. Only a
+    # truthy constant inside an `or` counts.
+    if isinstance(test, _ast.Constant):
+        out.append(("constant", "the assertion is on a constant"))
+    is_or = isinstance(test, _ast.BoolOp) and isinstance(test.op, _ast.Or)
+    if is_or and any(isinstance(v, _ast.Constant) and v.value
+                     for v in test.values):
+        out.append(("or_constant", "an operand is a true constant"))
+    # Frame 277, night 153: s256's `... or sys.version_info[0] == 3` hid a
+    # red test through the review. s198's `result is not None or result is
+    # None` merged.
+    if is_or:
+        bound = None
+        for v in test.values:
+            if bound is None:
+                bound = _names_off_the_interpreter(tree)
+            if _operand_reads_interpreter_alone(v, bound):
+                out.append(("interpreter",
+                            f"the operand `{_src(v)}` reads only the "
+                            f"Python interpreter, so its value is the same "
+                            f"whatever the call did"))
+                break
+        vs = test.values
+        pair = next(((a, b) for i, a in enumerate(vs) for b in vs[i + 1:]
+                     if _operands_opposite(a, b)), None)
+        if pair is not None:
+            out.append(("opposites",
+                        f"`{_src(pair[0])}` and `{_src(pair[1])}` "
+                        f"are opposites, so one of them is true whatever "
+                        f"the call did"))
+    # `mock_x.called_with(...)` is not a real Mock method. Mock invents
+    # an attribute for any name asked of it, so the call returns a new
+    # mock, which is true. Measured (empty-project walk, 2026-09-03):
+    # `assert mock_print.called_with("Hello User!")` could not fail.
+    mocks = None
+    for n in _ast.walk(test):
+        if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                and isinstance(n.func.value, _ast.Name)):
+            if mocks is None:
+                mocks = _mock_names(tree)
+            if (n.func.value.id in mocks
+                    and n.func.attr not in _REAL_MOCK_METHODS):
+                m, attr = n.func.value.id, n.func.attr
+                out.append(("mock_method",
+                            f"{m}.{attr}(...) is not a real Mock "
+                            f"method -- Mock invents one for any name you ask "
+                            f"it for, so this always returns a truthy mock "
+                            f"instead of raising AttributeError, and the "
+                            f"assertion cannot fail. The real check is "
+                            f"{m}.assert_called_with(...) (or "
+                            f"assert_any_call, assert_called_once_with)"))
+                break
+    return out
+
+
 def _literal_python_version(tree, body: str, criterion_text: str
                             ) -> tuple[list[str], list[str], str, bool] | None:
     """The assertions that compare against a literal Python version, when
@@ -9683,8 +9932,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             _installed = project_installable(_worktree_of(ctx))
         except Exception:  # noqa: BLE001 -- no worktree yet: import from the root
             _installed = False
-        module = (_dotted_module(_grain_path(named[0]),
-                                 keep_root=not _installed) if named else "")
+        module = ((module_of(ctx.conn, _grain_path(named[0]) + "::",
+                             keep_root=not _installed) or ("", ""))[0]
+                  if named else "")
         if module:
             # Frame 222: the surface import binds the surface's symbol and
             # its module only. Another name is a helper the test owes when
@@ -9701,11 +9951,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             if _dropped:
                 _called = set()
             elif unbound[0] not in _fixtures:
-                try:
-                    _found = _project_module_of(_worktree_of(ctx), unbound[0],
-                                                keep_root=not _installed)
-                except Exception:  # noqa: BLE001 -- no worktree yet: no shape 4
-                    _found = None
+                _found = module_of(ctx.conn, unbound[0], keep_root=not _installed)
                 if _found and not _module_load_error(ctx, *_found):
                     _defined_in = _found[0]
             # Frame 222's review 1, finding 1: a stand-in that a runner's
@@ -9960,36 +10206,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"define the fixture in the file")
     asserts = [n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)]
     # law 8: gates are predicates; a test that cannot fail is no gate
-    # A check can be a raise as well as an assert: `raise AssertionError`
-    # in an except branch, `pytest.raises`, `pytest.fail`. Night 63
-    # (2026-09-14): a signature test called confirm() with the new argument,
-    # re-raised a TypeError as AssertionError, ended on `assert True`, and
-    # was refused as checking nothing.
-    def _raises_a_check(n) -> bool:
-        if isinstance(n, _ast.Raise) and n.exc is not None:
-            target = n.exc.func if isinstance(n.exc, _ast.Call) else n.exc
-            return getattr(target, "id", None) == "AssertionError"
-        if isinstance(n, _ast.Call):
-            f = n.func
-            return (isinstance(f, _ast.Attribute) and f.attr in ("raises", "fail")
-                    and getattr(f.value, "id", None) == "pytest")
-        return False
-    checks_by_raise = any(_raises_a_check(n) for n in _ast.walk(tree))
-    # law 8: gates are predicates; a test that cannot fail is no gate
-    # Frame 273, night 152: `assert hasattr(cmd, 'x') or True` cannot fail.
-    # The batch merged a parameter with none of its behaviour. Only a
-    # truthy constant inside an `or` counts. Frame 147 found this door
-    # refuses too much already, so the shape stays narrow.
-    def _vacuous(test) -> bool:
-        if isinstance(test, _ast.Constant):
-            return True
-        return (isinstance(test, _ast.BoolOp) and isinstance(test.op, _ast.Or)
-                and any(isinstance(v, _ast.Constant) and v.value
-                        for v in test.values))
+    # Fact F14: `assert_cannot_fail` holds every rule. The door decides
+    # which kind refuses alone, and in which order the walls fire.
+    checks_by_raise = body_checks_by_raise(tree)
+    reasons = {a: assert_cannot_fail(a.test, tree, body)
+               for a in asserts}
+    # `id` is the test id parameter here, so the maps key on the node.
+    kinds = {k: {kind for kind, _ in v} for k, v in reasons.items()}
     if (asserts and not checks_by_raise
-            and all(_vacuous(a.test) for a in asserts)):
-        or_true = next((a for a in asserts if isinstance(a.test, _ast.BoolOp)),
-                       None)
+            and all(kinds[a] & {"constant", "or_constant"}
+                    for a in asserts)):
+        or_true = next((a for a in asserts
+                        if "or_constant" in kinds[a]), None)
         if or_true is not None:
             line = _ast.get_source_segment(body, or_true) or _ast.unparse(or_true)
             raise Wall(
@@ -10007,145 +10235,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "nothing and would report as coverage. If the criterion names "
             "no behaviour a call could exercise, that is tests.triage "
             "verdict='cannot' -- say what stops you and route it")
-    # law 8: gates are predicates; a test that cannot fail is no gate
-    # Frame 277, night 153: two admitted asserts could never fail and held
-    # no constant. s256's `... or sys.version_info[0] == 3` hid a red test
-    # through the review. s198's `result is not None or result is None`
-    # merged. One such assert is refused even beside a real one, because
-    # s256 had a second assert. Frame 147 found this door refuses too much,
-    # so each shape stays narrow, and a shape in doubt admits.
-    # The `sys` attributes that the call under test cannot change. A read
-    # of `sys.stdout` or `sys.argv` can carry the call's effect.
-    _interp_sys = {"version_info", "version", "hexversion", "platform",
-                   "implementation", "maxsize", "byteorder", "api_version"}
-    # The `platform` functions that read the host and run no command.
-    # `platform.os` would reach the whole `os` module, and `uname()` and
-    # `platform()` can start a subprocess on some hosts, so a door never
-    # calls them.
-    # Review 2 of frame 277, finding 3: `release()` and `system()` call
-    # `uname()`, and `architecture()` runs `file -b` on Linux.
-    _interp_platform = {"python_version", "python_version_tuple",
-                        "python_implementation"}
-    # The door reads the interpreter. It does not compute, so an operand
-    # with arithmetic, a comprehension or a lambda is never evaluated.
-    # Review 2 of frame 277, finding 1: `sys.hexversion ** sys.hexversion`
-    # ran 40 seconds in the door.
-    _interp_nodes = (_ast.Compare, _ast.Attribute, _ast.Name, _ast.Constant,
-                     _ast.Subscript, _ast.Tuple, _ast.UnaryOp, _ast.BoolOp,
-                     _ast.Call, _ast.Load, _ast.Not, _ast.And, _ast.Or,
-                     _ast.Eq, _ast.NotEq, _ast.Lt, _ast.LtE, _ast.Gt,
-                     _ast.GtE, _ast.Is, _ast.IsNot, _ast.In, _ast.NotIn)
-
-    def _only_reads(v) -> bool:
-        for n in _ast.walk(v):
-            if not isinstance(n, _interp_nodes):
-                return False
-            if isinstance(n, _ast.UnaryOp) and not isinstance(n.op, _ast.Not):
-                return False
-            if (isinstance(n, _ast.Subscript)
-                    and not isinstance(n.slice, _ast.Constant)):
-                return False
-            if (isinstance(n, _ast.Tuple)
-                    and not all(isinstance(e, _ast.Constant) for e in n.elts)):
-                return False
-            # Review 2, finding 2: a `str.format` field reaches attributes
-            # as text, so the only call is a fixed `platform` function.
-            if isinstance(n, _ast.Call) and not (
-                    not n.args and not n.keywords
-                    and isinstance(n.func, _ast.Attribute)
-                    and isinstance(n.func.value, _ast.Name)
-                    and n.func.value.id == "platform"
-                    and n.func.attr in _interp_platform):
-                return False
-        return True
-    _bound = {n.id for n in _ast.walk(tree)
-              if isinstance(n, _ast.Name) and not isinstance(n.ctx, _ast.Load)}
-    _bound |= {n.arg for n in _ast.walk(tree) if isinstance(n, _ast.arg)}
-    _bound |= {n.name for n in _ast.walk(tree)
-               if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
-                                 _ast.ClassDef))}
-    # Review 1 of frame 277, finding 3: an import can bind `sys` or
-    # `platform` to another module. Only `import sys` and `import
-    # platform` keep the name on the interpreter.
-    for n in _ast.walk(tree):
-        if isinstance(n, (_ast.Import, _ast.ImportFrom)):
-            for al in n.names:
-                name = al.asname or al.name.split(".")[0]
-                if not (isinstance(n, _ast.Import) and al.asname is None
-                        and al.name in ("sys", "platform")):
-                    _bound.add(name)
-
-    def _reads_interpreter_alone(v) -> bool:
-        names = [n for n in _ast.walk(v) if isinstance(n, _ast.Name)]
-        if not names or any(n.id not in ("sys", "platform") or n.id in _bound
-                            or not isinstance(n.ctx, _ast.Load)
-                            for n in names):
-            return False
-        attrs = [p for p in _ast.walk(v) if isinstance(p, _ast.Attribute)]
-        if any(p.attr.startswith("_") for p in attrs):
-            return False
-        # `id` is the test id parameter here, so the check uses identity.
-        fixed = [p.value for p in attrs
-                 if isinstance(p.value, _ast.Name)
-                 and p.attr in (_interp_sys if p.value.id == "sys"
-                                else _interp_platform)]
-        if not all(any(f is n for f in fixed) for n in names):
-            return False
-        if not _only_reads(v):
-            return False
-        # Review 1 of frame 277, finding 1: a refusal must be certain, so
-        # the operand fires only when its value is true. The harness runs
-        # the tests in a venv made from this interpreter on this host
-        # (`rota/core/provision.py`), so the value here is the value the
-        # test sees. An operand that raises is admitted.
-        import platform as _platform
-        import sys as _sys
-        try:
-            return bool(eval(compile(_ast.Expression(v), "<operand>", "eval"),
-                             {"__builtins__": {}, "sys": _sys,
-                              "platform": _platform}))
-        except Exception:
-            return False
-
-    _opposite = {(_ast.Is, _ast.IsNot), (_ast.IsNot, _ast.Is),
-                 (_ast.Eq, _ast.NotEq), (_ast.NotEq, _ast.Eq),
-                 (_ast.In, _ast.NotIn), (_ast.NotIn, _ast.In)}
-
-    def _complementary(a, b) -> bool:
-        if isinstance(b, _ast.UnaryOp) and isinstance(b.op, _ast.Not):
-            return _ast.dump(b.operand) == _ast.dump(a)
-        if isinstance(a, _ast.UnaryOp) and isinstance(a.op, _ast.Not):
-            return _ast.dump(a.operand) == _ast.dump(b)
-        return (isinstance(a, _ast.Compare) and isinstance(b, _ast.Compare)
-                and len(a.ops) == 1 and len(b.ops) == 1
-                and (type(a.ops[0]), type(b.ops[0])) in _opposite
-                and _ast.dump(a.left) == _ast.dump(b.left)
-                and _ast.dump(a.comparators[0]) == _ast.dump(b.comparators[0]))
-
-    def _cannot_fail_because(test) -> str | None:
-        if not (isinstance(test, _ast.BoolOp) and isinstance(test.op, _ast.Or)):
-            return None
-        # The seat's own text, so it finds the operand in its body.
-        def _src(node) -> str:
-            return _ast.get_source_segment(body, node) or _ast.unparse(node)
-
-        for v in test.values:
-            if _reads_interpreter_alone(v):
-                return (f"the operand `{_src(v)}` reads only the "
-                        f"Python interpreter, so its value is the same "
-                        f"whatever the call did")
-        vs = test.values
-        for i, a in enumerate(vs):
-            for b in vs[i + 1:]:
-                if _complementary(a, b):
-                    return (f"`{_src(a)}` and `{_src(b)}` "
-                            f"are opposites, so one of them is true whatever "
-                            f"the call did")
-        return None
-
+    # Frame 277: one such assert is refused even beside a real one,
+    # because s256 had a second assert.
     if not checks_by_raise:
         for a in asserts:
-            why = _cannot_fail_because(a.test)
+            why = next((w for kind, w in reasons[a]
+                        if kind in ("interpreter", "opposites")), None)
             if why is None:
                 continue
             line = _ast.get_source_segment(body, a) or _ast.unparse(a)
@@ -10182,31 +10277,6 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"{', '.join(repr(x) for x in literals[:3])}. The criterion says: "
             f"\"{words}\" The harness may run another version. "
             f"{step}")
-    # Names bound to a Mock -- `X = mock.Mock(...)`/`MagicMock(...)`, or
-    # `with mock.patch(...) as X:` -- both spellings measured in the same
-    # walk that found the guard below is needed.
-    _mock_ctor = {"Mock", "MagicMock", "AsyncMock", "NonCallableMock"}
-    mock_vars: set[str] = set()
-    for n in _ast.walk(tree):
-        if isinstance(n, _ast.Assign) and isinstance(n.value, _ast.Call):
-            callee = n.value.func
-            ctor = callee.attr if isinstance(callee, _ast.Attribute) else (
-                callee.id if isinstance(callee, _ast.Name) else None)
-            if ctor in _mock_ctor:
-                mock_vars |= {t.id for t in n.targets if isinstance(t, _ast.Name)}
-        elif isinstance(n, _ast.With):
-            for item in n.items:
-                fn = item.context_expr.func if isinstance(
-                    item.context_expr, _ast.Call) else None
-                fn_name = (fn.attr if isinstance(fn, _ast.Attribute) else
-                          fn.id if isinstance(fn, _ast.Name) else "")
-                if fn_name == "patch" and isinstance(item.optional_vars, _ast.Name):
-                    mock_vars.add(item.optional_vars.id)
-    _real_mock_methods = {
-        "assert_called", "assert_called_once", "assert_called_with",
-        "assert_called_once_with", "assert_any_call", "assert_has_calls",
-        "assert_not_called", "reset_mock", "configure_mock", "attach_mock"}
-
     for a in asserts:
         # Walk thirteen: `assert print(...) == "Hello Alice!"` -- the print
         # moved inside a comparison and the guard on the bare call missed it.
@@ -10218,26 +10288,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             raise Wall(
                 "`assert print(...)` is always False: print returns None, so "
                 "the assertion compares None")
-        # `mock_x.called_with(...)` -- not a real Mock method. Mock invents
-        # an attribute for any name asked of it, so this silently returns a
-        # new mock (always true) instead of raising AttributeError; the
-        # assertion passes no matter what the mock saw. Measured (empty-
-        # project walk, 2026-09-03): `assert mock_print.called_with("Hello
-        # User!")` after the surface-call guard forced a real call to
-        # `greet_user` -- the test finally exercised the function and still
-        # could not fail, on this second, narrower wall.
-        for n in _ast.walk(a.test):
-            if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
-                    and isinstance(n.func.value, _ast.Name)
-                    and n.func.value.id in mock_vars
-                    and n.func.attr not in _real_mock_methods):
-                raise Wall(
-                    f"{n.func.value.id}.{n.func.attr}(...) is not a real Mock "
-                    f"method -- Mock invents one for any name you ask it for, "
-                    f"so this always returns a truthy mock instead of raising "
-                    f"AttributeError, and the assertion cannot fail. The real "
-                    f"check is {n.func.value.id}.assert_called_with(...) (or "
-                    f"assert_any_call, assert_called_once_with)")
+        mock = next((w for kind, w in reasons[a]
+                     if kind == "mock_method"), None)
+        if mock is not None:
+            raise Wall(mock)
 
     # Frame 304, night 158's s187: a `mock_open` stub read `.read`, which its
     # spec lacks, and the test raised before `confirm()` ran. The helper
@@ -10297,7 +10351,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         import re as _re2
         surface_mods = {_grain_path(s).rsplit("/", 1)[-1][:-3]
                         for s in surface if "::" in s and _grain_path(s).endswith(".py")}
-        _dotted = _dotted_module
+
+        def _dotted(path: str) -> str:
+            return (module_of(ctx.conn, path + "::") or ("", ""))[0]
         imported_from = set(_re2.findall(r"^\s*from\s+([A-Za-z_][\w.]*)\s+import", body, _re2.M))
         imported_from |= set(_re2.findall(r"^\s*import\s+([A-Za-z_]\w*)", body, _re2.M))
         # Every module the test imports must exist where the harness will
@@ -10341,21 +10397,15 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # A bare surface names no file; the tree does. Night 25: the
             # hint listed .devcontainer, .github and .venv as "the modules
             # there" and never said `from click.echo_json import echo_json`.
+            _bare_found: dict[str, str] = {}
             if not dotted_surfaces and _root is not None:
                 for s in surface:
                     if "::" in s or not _re2.fullmatch(r"[A-Za-z_]\w*", s):
                         continue
-                    pat = _re2.compile(rf"^\s*(?:def|class)\s+{_re2.escape(s)}(?!\w)", _re2.M)
-                    for py in _root.rglob("*.py"):
-                        rel = py.relative_to(_root).parts
-                        if any(part.startswith(".") for part in rel) or "tests" in rel:
-                            continue
-                        try:
-                            if pat.search(py.read_text(encoding="utf-8", errors="replace")):
-                                dotted_surfaces.append(_dotted("/".join(rel)))
-                                break
-                        except OSError:
-                            continue
+                    _where = module_of(ctx.conn, s)
+                    if _where:
+                        dotted_surfaces.append(_where[0])
+                        _bare_found.setdefault(_where[0], _where[1])
             plain = sorted(m for m in _known - set(getattr(_sys2, "stdlib_module_names", ()))
                            if not m.startswith(".") and m not in ("tests", "docs", "pytest"))
             want = ", ".join(dotted_surfaces or plain[:6])
@@ -10367,11 +10417,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     (_grain_path(s) for s in surface if "::" in s
                      and _dotted(_grain_path(s)) == hinted), None)
                 if hinted_path is None:
-                    hinted_path = next(
-                        (p.relative_to(_root).as_posix() for p in _root.rglob("*.py")
-                         if not any(part.startswith(".")
-                                    for part in p.relative_to(_root).parts)
-                         and _dotted(p.relative_to(_root).as_posix()) == hinted), "")
+                    hinted_path = _bare_found.get(hinted, "")
                 broken = _module_load_error(ctx, hinted, hinted_path) if hinted_path else None
                 if broken:
                     raise Wall(_unloadable_surface(
@@ -10477,20 +10523,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                         f"imports a name the module does not have, and the "
                         f"harness dies at collection. Import only what the module "
                         f"defines, or the surface the criterion names")
-                where = None
-                where_path = ""
-                pat = _re2.compile(rf"^\s*(?:def|class)\s+{_re2.escape(misplaced[0])}(?!\w)", _re2.M)
-                for py in _root.rglob("*.py"):
-                    rel = py.relative_to(_root).parts
-                    if any(part.startswith(".") for part in rel) or "tests" in rel:
-                        continue
-                    try:
-                        if pat.search(py.read_text(encoding="utf-8", errors="replace")):
-                            where = _dotted("/".join(rel))
-                            where_path = "/".join(rel)
-                            break
-                    except OSError:
-                        continue
+                where, where_path = module_of(ctx.conn, misplaced[0]) or (None, "")
                 # Frame 215's review 1, finding 2: the line offered here must
                 # load in the sandbox.
                 broken = _module_load_error(ctx, where, where_path) if where else None
@@ -18443,6 +18476,152 @@ def _dotted_module(path: str, keep_root: bool = False) -> str:
     return dotted.removesuffix(".__init__")
 
 
+def _stage_code_write(ctx, path: str, text) -> None:
+    """Record a landed `code.write` for `staged_writes`."""
+    if getattr(ctx, "code_writes", None) is None:
+        ctx.code_writes = {}
+    ctx.code_writes[_grain_path(path)] = text
+
+
+def staged_writes(ctx) -> tuple:
+    """The session's `code.write` files as (path, text) pairs, sorted. The
+    text is None for a file the session removed."""
+    return tuple(sorted((getattr(ctx, "code_writes", None) or {}).items()))
+
+
+# The index's `grain_kind` of a binding that is not a definition: an
+# assignment and an `__all__` entry. The indexer holds the one list.
+from ..onboarding.indexer import BINDING_KINDS as _BINDING_KINDS  # noqa: E402
+
+# The old commit rule of a bare surface (clickI, 2026-09-11): a line that
+# opens a def or a class, at any indent. The commit door keeps it, because
+# the ruling of 2026-10-17 forbids a new commit refusal (F13 pass 1c).
+_LENIENT_DEFINER = r"^\s*(?:def|class)\s+{}(?!\w)"
+_LENIENT_SKIP = (".venv", ".rota", "tests")
+
+
+def _binds_in(text: str, defs_only: bool) -> set[str]:
+    """The names a module's text binds at module level, as the indexer
+    reads them: a def and a class, and without `defs_only` an assignment
+    and an `__all__` entry. A text that does not parse binds nothing."""
+    import ast as _ast
+    try:
+        body = list(_ast.parse(text).body)
+    except (SyntaxError, ValueError):
+        return set()
+    out: set[str] = set()
+    while body:
+        n = body.pop()
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+            out.add(n.name)
+            continue
+        if not defs_only and isinstance(n, (_ast.Assign, _ast.AnnAssign, _ast.AugAssign)):
+            targets = n.targets if isinstance(n, _ast.Assign) else [n.target]
+            for t in targets:
+                if isinstance(t, _ast.Name):
+                    out.add(t.id)
+                    if t.id == "__all__" and isinstance(n.value, (_ast.List, _ast.Tuple)):
+                        out |= {e.value for e in n.value.elts
+                                if isinstance(e, _ast.Constant) and isinstance(e.value, str)}
+        # The indexer enters a module-level `if`, `try`, `with` or loop.
+        for field in ("body", "orelse", "finalbody", "handlers"):
+            body.extend(x for x in getattr(n, field, []) if isinstance(x, _ast.stmt)
+                        or isinstance(x, _ast.excepthandler))
+    return out
+
+
+def definers_of(conn, name: str, staged=(), defs_only: bool = False,
+                lenient_root=None) -> list[str]:
+    """
+    The program files that define `name` at module level, sorted.
+
+    The code index holds a `symbol` row `path::name` for each module-level
+    `def` and `class`, and a `variable` or `export` row for an assignment
+    and an `__all__` entry. `staged` holds the session's own writes, (path,
+    text), and a staged Python file replaces its index rows. With
+    `defs_only`, a def and a class count alone. The frame's kind keeps the
+    program files only, so a test, an example or an ignored file defines
+    no name a test reaches.
+
+    `lenient_root` is the worktree of the commit door. With it, the old
+    commit rule also counts: a line that opens a def or a class at any
+    indent, in an indexed or staged Python file outside `tests`. So a
+    method, a docstring and a file of any kind count there.
+    """
+    # F13 (rootfix audit 2026-10-27-a, rule C76): the index is the one place
+    # that holds every symbol's file. A door that walks the tree with its own
+    # rule disagrees with the frame (frame 324, ruled: Roman, 2026-10-26 20:37).
+    # The staged texts cover the index's lag: the runner refreshes the index
+    # only after a session commits.
+    from ..onboarding.areas import kind_of
+
+    if conn is None or not name:
+        return []
+    mine = {_grain_path(p): t for p, t in staged if _grain_path(p).endswith(".py")}
+    tail = "::" + name
+    rows = conn.execute(
+        "SELECT grain, grain_kind FROM code_index WHERE grain_kind IN "
+        "('symbol', 'variable', 'export') AND substr(grain, -?) = ?",
+        (len(tail), tail)).fetchall()
+    found = {p for p, k in ((r["grain"][:-len(tail)].replace("\\", "/"), r["grain_kind"])
+                            for r in rows)
+             if p not in mine and not (defs_only and k in _BINDING_KINDS)}
+    found |= {p for p, t in mine.items() if t is not None and name in _binds_in(t, defs_only)}
+    out = {p for p in found if kind_of(conn, p) == "program"}
+    if lenient_root is not None:
+        out |= _lenient_definers(conn, name, mine, lenient_root)
+    return sorted(out)
+
+
+def _lenient_definers(conn, name: str, mine: dict, root) -> set[str]:
+    # The files are the index's paths and the staged writes, so no door
+    # walks the disk for a definer (F13 pass 1b). The two sets are the
+    # whole tree a session can define a name in. Law 4: an uncommitted
+    # change never existed, so a file that an earlier session wrote and
+    # did not commit is not in the worktree at the next session.
+    from pathlib import Path
+
+    pat = re.compile(_LENIENT_DEFINER.format(re.escape(name)), re.M)
+    paths = {r["grain"].replace("\\", "/") for r in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+        "AND grain LIKE '%.py'")} | set(mine)
+    out: set[str] = set()
+    for p in paths:
+        if any(part in _LENIENT_SKIP for part in p.split("/")):
+            continue
+        if p in mine:
+            text = mine[p]
+        else:
+            try:
+                text = (Path(root) / p).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                text = None
+        if text is not None and pat.search(text):
+            out.add(p)
+    return out
+
+
+def module_of(conn, name: str, keep_root: bool = False,
+              staged=()) -> tuple[str, str] | None:
+    """
+    The module that defines `name`, and the module's path, or None.
+
+    A grain `path::name` or a `.py` path names its own file. A bare name
+    reads `definers_of` with the session's `staged` writes. When two modules
+    define the name, the shortest dotted name wins. With `keep_root`, `src/`
+    and `lib/` stay in the dotted name, as `_dotted_module` says.
+    """
+    text = name or ""
+    # F11: `_grain_path` is the one reader of a grain's path half.
+    path = _grain_path(text)
+    if "::" in text or path.endswith(".py"):
+        dotted = _dotted_module(path, keep_root=keep_root)
+        return (dotted, path) if dotted else None
+    found = [(d, p) for p in definers_of(conn, text, staged)
+             if (d := _dotted_module(p, keep_root=keep_root))]
+    return min(found, key=lambda f: (f[0].count("."), len(f[0]), f[0])) if found else None
+
+
 # The probe prints one marked line, so a module that prints on import cannot
 # pass for the error. It catches BaseException, because a module that calls
 # `sys.exit` at import also fails a test at collection. The fields go through
@@ -19562,74 +19741,6 @@ def _conftest_fixtures(root) -> set[str]:
     return names
 
 
-def _project_module_of(root, name: str, keep_root: bool = False) -> tuple[str, str] | None:
-    """
-    The module of the project that defines `name` at module level, and its
-    path, or None.
-
-    A definition is a `class` or `def` at column 0, an assignment to the
-    name at column 0, or the name in a module's `__all__`. When two modules
-    define it, the shortest dotted path wins. The walk skips the tests and
-    the hidden and build directories, as `_conftest_fixtures` does.
-    """
-    import os as _os
-
-    found: list[tuple[str, str]] = []
-    try:
-        for here, dirs, files in _os.walk(root):
-            # A package directory holds `__init__.py`. Only the root's `src`
-            # and `lib` are entered without one. The replay of pass 1c found
-            # `cli` in clickI's `examples/repo/repo.py`, which no test imports.
-            top = _os.path.normpath(here) == _os.path.normpath(str(root))
-            dirs[:] = [d for d in dirs
-                       if not d.startswith(".") and d not in _FIXTURE_SKIP_DIRS
-                       and d not in ("tests", "test")
-                       and ((top and d in ("src", "lib"))
-                            or _os.path.isfile(_os.path.join(here, d, "__init__.py")))]
-            for fname in files:
-                if not fname.endswith(".py") or fname == "conftest.py":
-                    continue
-                full = _os.path.join(here, fname)
-                try:
-                    with open(full, encoding="utf-8") as fh:
-                        text = fh.read()
-                except (OSError, ValueError):
-                    continue
-                if name not in text:
-                    continue
-                try:
-                    tree = _ast.parse(text)
-                except (SyntaxError, ValueError):
-                    continue
-                if not any(_binds_at_module_level(node, name) for node in tree.body):
-                    continue
-                rel = _os.path.relpath(full, root).replace("\\", "/")
-                dotted = _dotted_module(rel, keep_root=keep_root)
-                if dotted:
-                    found.append((dotted, rel))
-    except OSError:
-        return None
-    return min(found, key=lambda f: (f[0].count("."), len(f[0]), f[0])) if found else None
-
-
-def _binds_at_module_level(node, name: str) -> bool:
-    """True when one statement at column 0 defines `name` or lists it in `__all__`."""
-    if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
-        return node.name == name
-    targets = (node.targets if isinstance(node, _ast.Assign)
-               else [node.target] if isinstance(node, (_ast.AnnAssign, _ast.AugAssign))
-               else [])
-    for t in targets:
-        if isinstance(t, _ast.Name) and t.id == name:
-            return True
-        if (isinstance(t, _ast.Name) and t.id == "__all__"
-                and isinstance(getattr(node, "value", None), (_ast.List, _ast.Tuple))):
-            if any(isinstance(e, _ast.Constant) and e.value == name
-                   for e in node.value.elts):
-                return True
-    return False
-
-
 def _unbound_name_hint(name: str, surface: str, module: str,
                        fixtures: set[str], owner: str = "test_x",
                        called: frozenset[str] | set[str] = frozenset(),
@@ -19652,7 +19763,7 @@ def _unbound_name_hint(name: str, surface: str, module: str,
     first, and the stand-in there is a click command the test owes. When
     `imported` holds the surface's symbol, 3a names no line for it.
     Shape 4, read before shape 3: `defined_in` is the module of the
-    project's package that defines the name, from `_project_module_of`, and
+    project's package that defines the name, from `module_of`, and
     the hint names its line. The caller checks that the module loads.
 
     Frame 222 counted the door's refusals on clickI nights 143 to 149, from
@@ -20002,6 +20113,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
             if dry:
                 return {}       # admitted; a dry run removes nothing
             target.unlink()
+            _stage_code_write(ctx, path, None)
             return {"removed": path, "note": "the file this batch added is gone; "
                                              "commit to record it"}
         raise ValueError(
@@ -20915,22 +21027,15 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                     continue
                 if node.name.startswith("_") or node.name.startswith("test") or node.name in had_before:
                     continue
-                elsewhere = {
-                    _grain_path(r["grain"]) for r in ctx.conn.execute(
-                        "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
-                        "AND grain LIKE ?", (f"%::{node.name}",))
-                    if r["grain"].endswith(f"::{node.name}")
-                    # The index holds every language, and a Python caller
-                    # cannot reach `web/format.js::truncate` (frame 326).
-                    and _splitext(_grain_path(r["grain"]))[1] == _splitext(path)[1]
-                    and _grain_path(r["grain"]) != path.replace("\\", "/")
-                    and kind_of(ctx.conn, _grain_path(r["grain"])) == "program"}
-                # The index is the tree at onboarding; the batch's own commits
-                # are not in it. clickI night 42 (2026-09-13): `echo_json`
-                # landed in utils.py, then a second `echo_json` in a new
-                # module the index could not see. The worktree is the fact.
-                elsewhere |= _defined_in_tree(ctx, node.name, path)
-                elsewhere = sorted(elsewhere)
+                # The index lacks this session's own writes. clickI night 42
+                # (2026-09-13): `echo_json` landed in utils.py, then a second
+                # `echo_json` in a new module the index could not see. The
+                # staged writes cover that lag (F13, rule C76). A Python
+                # caller cannot reach `web/format.js::truncate` (frame 326).
+                elsewhere = [p for p in definers_of(ctx.conn, node.name,
+                                                    staged_writes(ctx), defs_only=True)
+                             if _splitext(p)[1] == _splitext(path)[1]
+                             and p != _grain_path(path)]
                 # A criterion that names this file asked for the definition
                 # here. L1-DV-build-a-clear-criterion (2026-09-14): "money(1999)
                 # returns '$19.99' from src/notify/formatting.py", templates.py
@@ -21381,7 +21486,16 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 type_ignores=[]))
             fixes: list[str] = []
             for one in name.split(", "):
-                owners = _package_definers(root, init_rel, path, one)
+                # The module stems beside the package's __init__ that define
+                # the name. An import binds a name and defines none: click's
+                # utils.py imports Command, and only core.py defines it
+                # (frame 229). F13 (rule C76): `definers_of` decides.
+                pkg_dir = _grain_path(init_rel).rpartition("/")[0]
+                owners = sorted(
+                    f[:-3] for d, _, f in (p.rpartition("/") for p in definers_of(
+                        ctx.conn, one, staged_writes(ctx)))
+                    if d == pkg_dir and f != "__init__.py"
+                    and f"{d}/{f}".lstrip("/") != _grain_path(path))
                 if one == pkg:
                     fixes.append(
                         f"Import each name you need from the module that defines "
@@ -21497,6 +21611,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
     eol = _line_ending(target, root)
     with open(target, "w", encoding="utf-8", newline="") as fh:
         fh.write(text.replace("\r\n", "\n").replace("\n", eol))
+    _stage_code_write(ctx, path, text)
     out = {"path": path, "bytes": len(text.encode("utf-8")),
            "created": not existed}
     # A fact, not an order: the seat decides whether the tail goes.
@@ -21840,17 +21955,14 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                 import re as _re
                 if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", ref):
                     continue
-                pat = _re.compile(rf"^\s*(?:def|class)\s+{_re.escape(ref)}(?!\w)", _re.M)
-                # The parts below the tree, not the whole path: a worktree
-                # lives under `.rota/worktrees/<batch>`, and the old test
-                # on `py.parts` dropped every file in it. clickI night 22
+                # F13 (rule C76): `definers_of` decides, with the session's
+                # staged writes for the index's lag. clickI night 22
                 # (2026-09-12): echo_json defined in src/click/echo_json.py,
                 # and the commit refused for a tree that did not define it.
-                if not any(pat.search(py.read_text(encoding="utf-8", errors="replace"))
-                           for py in tree.rglob("*.py")
-                           if ".venv" not in py.relative_to(tree).parts
-                           and ".rota" not in py.relative_to(tree).parts
-                           and "tests" not in py.relative_to(tree).parts):
+                # Decision a of pass 1c: the commit door keeps its old
+                # acceptance, so a method or a docstring still passes here.
+                if not definers_of(ctx.conn, ref, staged_writes(ctx),
+                                   lenient_root=tree):
                     undefined.append(f"{ref} (the surface criterion {crit['id']} names)")
                 continue
             if not _grain_path(ref).endswith(".py"):
@@ -24106,33 +24218,6 @@ def _own_package_import(root, path: str, tree) -> tuple[str, str, str] | None:
     return None
 
 
-def _package_definers(root, init_rel: str, path: str, name: str) -> list[str]:
-    """
-    The module stems beside `init_rel` that define `name` at top level,
-    sorted. The file under write and the package's __init__ do not count.
-
-    An import binds a name and does not define it: click's utils.py binds
-    Command by `from .core import Command`, and only core.py defines it
-    (frame 229). A file that does not parse defines nothing.
-    """
-    import ast as _ast
-    from pathlib import Path as _Path
-    pkg_dir = root / _Path(init_rel).parent
-    me = _Path(path.replace("\\", "/")).name
-    out: list[str] = []
-    for f in sorted(pkg_dir.glob("*.py")):
-        if f.name in ("__init__.py", me):
-            continue
-        try:
-            tree = _ast.parse(f.read_text(encoding="utf-8", errors="replace"))
-        except (SyntaxError, ValueError):
-            continue
-        tree.body = [n for n in tree.body
-                     if not isinstance(n, (_ast.Import, _ast.ImportFrom))]
-        if name in _top_binds(tree):
-            out.append(f.stem)
-    return out
-
 
 def _criteria_surface_names(ctx: Ctx) -> set[str]:
     """The names the batch's criteria name as surfaces, bare."""
@@ -25381,29 +25466,3 @@ def _kind_shortfall(old_lines: list[str], text: str):
     return olds, kinds, keys
 
 
-def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
-    """The program modules of the batch's worktree that define `name` at
-    top level, other than `path`. A regex over the files, not a parse: the
-    question is one name, and the tree is small enough to read."""
-    import re as _re
-    root = _batch_worktree(ctx)
-    if root is None or not root.is_dir():
-        return set()
-    pat = _re.compile(rf"^(?:async\s+def|def|class)\s+{_re.escape(name)}\b", _re.M)
-    from ..onboarding.areas import kind_of
-
-    found: set[str] = set()
-    for f in root.rglob("*.py"):
-        rel = f.relative_to(root).as_posix()
-        # Only program files define a name the test can reach, so the
-        # frame's kind decides (frame 324, ruled: Roman, 2026-10-26 20:37).
-        # `venv/` is an installed environment and no part of the frame.
-        if (rel == path.replace("\\", "/") or rel.startswith("venv/")
-                or kind_of(ctx.conn, rel) in ("attached", "ignore")):
-            continue
-        try:
-            if pat.search(f.read_text(encoding="utf-8", errors="replace")):
-                found.add(rel)
-        except OSError:
-            continue
-    return found
