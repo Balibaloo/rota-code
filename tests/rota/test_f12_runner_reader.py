@@ -90,13 +90,24 @@ def _constants(path):
     return set(out)
 
 
-# The readers of a library literal that pass 1c leaves, by name. A new
-# function that compares a node to "CliRunner" or "click" makes the pin red.
-# The three hold the `uses_click` rule of the stdin route. A body there may
-# import click with no runner, so `command_libraries` cannot name the
-# library. The report of pass 1c asks for the ruling. Messages that name
-# click are text for the seat, not readers, and the pin does not count them.
-RESIDUE = {"_arrange_run_refusal", "_spec_mock_raise", "tests_encode"}
+# Pass 1d leaves no reader of a library literal. A function that compares a
+# node to "CliRunner" or "click" makes the pin red. Messages that name click
+# are text for the seat, not readers, and the pin does not count them.
+RESIDUE: set[str] = set()
+
+
+def test_the_plugin_holds_no_library_literal():
+    """The plugin's rule is `_is_testing`. Its `TITLE` and `FINAL` are the
+    text that `tests_load` parses, so the pin counts function bodies only."""
+    plugin = (pathlib.Path(__file__).resolve().parents[2] / "rota" / "core"
+              / "plugins" / "_rota_caught.py")
+    tree = ast.parse(plugin.read_text(encoding="utf-8"))
+    held = {fn.name for fn in ast.walk(tree)
+            if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef))
+            for n in ast.walk(fn)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            and (n.value in ("CliRunner", "click") or n.value.startswith("click."))}
+    assert held == set(), held
 
 
 def test_runner_receivers_is_the_one_runner_rule_of_the_moved_readers():
@@ -205,3 +216,46 @@ def test_adds_option_reads_a_typer_import():
 
     src = "import typer as t\n\ndef opt():\n    return t.option('--n')\n"
     assert _adds_option(ast.parse(src).body[1], src) is True
+
+
+# Pass 1d: the command library of a body, for the stdin route of
+# `tests_encode`, `_arrange_run_refusal` and `_spec_mock_raise`.
+
+def test_command_libraries_reads_a_typer_runner_and_a_typer_command():
+    from rota.roles.api import command_libraries
+
+    runner = "from typer.testing import CliRunner\n"
+    command = "import typer as t\n\n@t.command()\ndef f():\n    pass\n"
+    bare = "import typer\n"
+    assert command_libraries(ast.parse(runner)) == {"typer"}
+    assert command_libraries(ast.parse(command)) == {"typer"}
+    assert command_libraries(ast.parse(bare)) == set()
+
+
+def test_the_plugin_wraps_a_typer_runner(tmp_path):
+    """The plugin read `click.testing` by name. A typer runner caught the
+    error, and the plugin printed no section."""
+    import os
+    import subprocess
+    import sys
+
+    from rota.core import harness
+    from tests.rota.test_caught import TESTING
+
+    files = {"pytest.ini": "[pytest]\n", "typer/__init__.py": "",
+             "typer/testing.py": TESTING,
+             "tests/test_t.py": ("from typer.testing import CliRunner\n\n"
+                                 "def boom():\n    raise NameError('x')\n\n"
+                                 "def test_x():\n"
+                                 "    assert CliRunner().invoke(boom).exception is None\n")}
+    for rel, text in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("PYTEST_ADDOPTS", "PYTHONPATH")}
+    env["PYTHONPATH"] = str(harness.PLUGIN_DIR)
+    out = subprocess.run([sys.executable, "-m", "pytest", "tests/test_t.py", "-q",
+                          "-p", "no:cacheprovider", "-p", harness.PLUGIN],
+                         cwd=tmp_path, capture_output=True, text=True,
+                         timeout=120, env=env)
+    assert "CliRunner caught an exception" in out.stdout, out.stdout

@@ -8808,14 +8808,29 @@ def command_libraries(tree) -> set[str]:
 
     F12's pass 1b (ruled): the command library is what the body imports, and
     a runner is a class from the library's `testing` module. The companion of
-    `_runner_receivers`, which reads the same imports."""
+    `_runner_receivers`, which reads the same imports.
+
+    F12's pass 1d: a library that the body takes `command` or `group` from
+    is a command library too, by name or by `<module>.command`. A bare
+    import that the body never uses gives no library. Frame 301's literal
+    "click" departed from the rule against over fitting (Roman, 2026-10-15)."""
     import ast as _ast
 
+    verbs = ("command", "group")
     libs = {module.split(".")[0] for module, level, orig in _imported_names(tree).values()
             if not level and module
-            and (module.split(".")[-1] == "testing" or orig == "testing")}
-    libs |= {a.name.split(".")[0] for n in _ast.walk(tree) if isinstance(n, _ast.Import)
-             for a in n.names if a.name.split(".")[-1] == "testing" and "." in a.name}
+            and (module.split(".")[-1] == "testing" or orig == "testing"
+                 or orig in verbs)}
+    modules = {}
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Import):
+            for a in n.names:
+                if a.name.split(".")[-1] == "testing" and "." in a.name:
+                    libs.add(a.name.split(".")[0])
+                modules[a.asname or a.name.split(".")[0]] = a.name.split(".")[0]
+    libs |= {modules[n.value.id] for n in _ast.walk(tree)
+             if isinstance(n, _ast.Attribute) and n.attr in verbs
+             and isinstance(n.value, _ast.Name) and n.value.id in modules}
     return libs
 
 
@@ -9849,10 +9864,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     free_calls = [n for n in calls if n not in invoked]
     names = {n.func.id for n in free_calls if isinstance(n.func, _ast.Name)}
     shields = _stdin_shields(tree)
-    uses_click = any(
-        (isinstance(n, _ast.Import) and any(a.name.split(".")[0] == "click" for a in n.names))
-        or (isinstance(n, _ast.ImportFrom) and (n.module or "").split(".")[0] == "click")
-        for n in _ast.walk(tree))
+    # F12's pass 1d: the route fits a body that uses a command library.
+    uses_lib = bool(command_libraries(tree))
     # Frame 301: a body that runs a command with input= has the route. Night
     # 157's s258 had it and was offered it again, so it gets the call's place.
     run_cmds = _invoked_commands(tree)
@@ -9868,7 +9881,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "raises OSError before any assertion runs, against any code. "
             "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
             "lambda _='': 'Alice') -- or test the function that takes the "
-            "name as an argument" + _stdin_step("input", uses_click))
+            "name as an argument" + _stdin_step("input", uses_lib))
     # Closing the process's stdin is the same trap from the other side.
     # Click night 50, walk 2 (2026-09-14): two EOF tests did
     # `sys.stdin.close()`, the pytest process lost its stdin, both failed
@@ -9959,10 +9972,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     module = rel[:-3].replace("/", ".")
                     if module.startswith("src."):
                         module = module[4:]
-                    # The route is click's, so it is named for a click
-                    # project only (frame 254).
+                    # The route is a command library's, so it is named for a
+                    # project of that library only (frame 254, F12 pass 1d).
                     route = _stdin_step(
-                        node.name, uses_click or module.split(".")[0] == "click")
+                        node.name,
+                        uses_lib or module.split(".")[0] in command_libraries(tree))
                     if aliases:
                         raise Wall(
                             f"{node.name}() reads input() through {aliases[0]}, a name "
@@ -19168,13 +19182,8 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
     except SyntaxError:
         tree = _ast.Module(body=[], type_ignores=[])
     stubs_stdin = "sys.stdin" in body
-    uses_click = any(
-        (isinstance(n, _ast.Import)
-         and any(a.name.split(".")[0] == "click" for a in n.names))
-        or (isinstance(n, _ast.ImportFrom)
-            and (n.module or "").split(".")[0] == "click")
-        for n in _ast.walk(tree))
-    if stubs_stdin and uses_click:
+    uses_lib = bool(command_libraries(tree))
+    if stubs_stdin and uses_lib:
         route = ("For an empty stdin, call the surface inside a "
                  "@click.command() and run CliRunner().invoke(cmd, "
                  "input='').")
@@ -19230,12 +19239,7 @@ def _spec_mock_raise(ctx, batch_id, tree, body: str,
     stdin_route = any(
         isinstance(n, _ast.Call) and _callee(n) == "patch" and n.args
         and isinstance(n.args[0], _ast.Constant) and n.args[0].value == "sys.stdin"
-        for n in _ast.walk(tree)) and any(
-        (isinstance(n, _ast.Import)
-         and any(a.name.split(".")[0] == "click" for a in n.names))
-        or (isinstance(n, _ast.ImportFrom)
-            and (n.module or "").split(".")[0] == "click")
-        for n in _ast.walk(tree))
+        for n in _ast.walk(tree)) and bool(command_libraries(tree))
 
     def _allowed(source, ctor):
         # The mock module answers, so the rule is the module's own.
