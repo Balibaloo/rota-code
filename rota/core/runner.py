@@ -626,9 +626,9 @@ def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
     out: list[str] = []
     bound: set[int] | None = None
     for sentence in api._RULING_SENTENCE.split(words):
-        refs = list(api._LINE_REF.finditer(sentence))
+        refs = api._line_reading(sentence).named
         if refs:
-            bound = set().union(*(api._ref_lines(r) for r in refs))
+            bound = set(refs)
         if bound is None or bound & rows:
             out.append(sentence)
     return " ".join(out) if out else words
@@ -657,10 +657,10 @@ def _line_legend(conn, rid: str, words: str,
     if not order:
         return []
     named: set[int] = set()
-    for ref in api._LINE_REF.finditer(words):
-        if ref.group(0).lower().startswith("note"):
+    for ref in api._line_reading(words, len(order)).refs:
+        if ref.word == "note":
             continue
-        named |= api._ref_lines(ref, len(order))
+        named |= ref.lines
     # The text he read first is `old_text` of the ruling's rows.
     texts = {r["ref"]: r["old_text"] for r in ruled(conn, ruling=rid, landed=False)}
     out: list[str] = []
@@ -2547,26 +2547,23 @@ def _page_named_lines(text: str, page_id: str, order: list[str]) -> str:
     "Line 2" becomes "row <ref> of page <page_id>". A number past the page
     stays a line, as "line 9 of page <page_id>".
     """
-    from ..roles.api import _LINE_REF, _SENTENCE, _ref_lines
+    from ..roles.api import _line_reading
 
-    def named(ref: re.Match) -> str:
+    def named(ref) -> str:
         parts = [f"row {order[n - 1]}" if 1 <= n <= len(order) else f"line {n}"
-                 for n in sorted(_ref_lines(ref, len(order)))]
+                 for n in sorted(ref.lines)]
         said = (", ".join(parts[:-1]) + " and " + parts[-1]
                 if len(parts) > 1 else parts[0])
         said += f" of page {page_id}"
-        return said[0].upper() + said[1:] if ref.group(0)[0].isupper() else said
+        return said[0].upper() + said[1:] if ref.text[0].isupper() else said
 
-    # By sentence, as the line reader reads: a bare "3 is wrong" counts at a
+    # The line parser reads by sentence: a bare "3 is wrong" counts at a
     # sentence start only (frame 305, review 1, finding 1).
-    out, start = [], 0
-    for cut in [*_SENTENCE.finditer(text), None]:
-        end = cut.start() if cut else len(text)
-        out.append(_LINE_REF.sub(named, text[start:end]))
-        if cut:
-            out.append(cut.group(0))
-            start = cut.end()
-    return "".join(out)
+    out, at = [], 0
+    for ref in _line_reading(text, len(order)).refs:
+        out += [text[at:ref.start], named(ref)]
+        at = ref.end
+    return "".join(out) + text[at:]
 
 
 def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
