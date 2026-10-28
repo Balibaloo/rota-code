@@ -884,7 +884,7 @@ QUIET = ("quiet_flag", "Add a quiet flag so the command doesn't print "
     # The build-verb branch still spares line 1 there.
     pytest.param("Please make sure it works.", ECHO_JSON, 2,
                  marks=pytest.mark.xfail(strict=True, reason=(
-                     "residue: a build verb at the start of a sentence about "
+                     "held by frame 344: residue: a build verb at the start of a sentence about "
                      "the batch spares line 1 (review 2, finding 1; pass 3b "
                      "review, finding 3)")), id="build_verb"),
     # The sentence names the request's subject and asks to keep the change
@@ -897,7 +897,7 @@ QUIET = ("quiet_flag", "Add a quiet flag so the command doesn't print "
     # a files correction and the rule reads the whole reply.
     pytest.param("Don't change the echo_json helper.", ECHO_JSON, 2,
                  marks=pytest.mark.xfail(strict=True, reason=(
-                     "residue: \"don't change\" takes the object the sentence "
+                     "held by frame 344: residue: \"don't change\" takes the object the sentence "
                      "names, so the keep rule cannot read it (pass 3b review, "
                      "finding 1)")), id="dont_change"),
     # The token "don" from "don't" in the reply and the request text
@@ -938,13 +938,13 @@ def test_a_keep_sentence_anywhere_in_the_reply_refuses_line_1():
     pytest.param(
         "Line 3 is wrong. Also, add tests for echo_json with sorted keys.",
         marks=pytest.mark.xfail(strict=True, reason=(
-            "residue: the files rule swallows a sentence that names tests "
+            "held by frame 344: residue: the files rule swallows a sentence that names tests "
             "when the batch line is faulted (pass 3 review, finding 1)"))),
     pytest.param(
         "Line 3 is wrong. The helper should go in utils.py and print JSON "
         "with sorted keys.",
         marks=pytest.mark.xfail(strict=True, reason=(
-            "residue: the files rule swallows a sentence that names a .py "
+            "held by frame 344: residue: the files rule swallows a sentence that names a .py "
             "path when the batch line is faulted (pass 3 review, finding "
             "1)"))),
 ], ids=["sorted_keys", "write_to_a_file", "file_argument", "do_not_change",
