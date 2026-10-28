@@ -928,6 +928,24 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
             ts = turns_by.get(s["id"], [])
             last = (ts[-1]["completion"] if ts else "") if have_turns else ABSENT
             w(f"{s['id']} {s['role']} {s['wake_kind']}: {cut(last, 160)}")
+    # A committed session that ended on refusals is not a failure, but the
+    # runner's account turn is its only record. Night 173's s130 shape
+    # left no line here once it stopped failing (the W11 review, finding 1).
+    reasons: Counter = Counter()
+    ended = 0
+    for s in sessions:
+        if s["committed"] != 1:
+            continue
+        said = [ln[2:] for t in turns_by.get(s["id"], [])
+                if str(t["completion"] or "").startswith("SESSION ENDED")
+                for ln in str(t["completion"]).splitlines() if ln.startswith("- ")]
+        if said:
+            ended += 1
+            reasons.update(said)
+    if ended:
+        top, k = sorted(reasons.items(), key=lambda x: (-x[1], x[0]))[0]
+        w(f"committed sessions that ended with refusals in the runner's account: "
+          f"{ended}, {sum(reasons.values())} lines, the most common {k}x: {cut(top, 100)}")
 
     # 11. Open faults, per refused call (frame 204's design, section 7). A
     # seat's fault report reaches the build session here after a night.

@@ -5378,15 +5378,6 @@ def run_session(
                 # clean, and the work silently never happened.
                 refused = []
                 for hc in held_calls:
-                    # The hold keeps the turn's tail whole, so a parse error
-                    # behind the held write reaches here. It has no name and
-                    # runs nothing, so it gets the turn loop's answer to a
-                    # parse error. Night 173's s130 read `hc.name` on one
-                    # and failed (W11).
-                    if isinstance(hc, toolproto.ToolError):
-                        outcome.errors.append(hc.reason)
-                        refused.append(f"ERROR {hc.raw}: {hc.reason}")
-                        continue
                     # A held call can write the rows of a landed call, and
                     # the copy of that call must then go to its door. A held
                     # call that lands is a landed call too: the retry turn
@@ -5540,9 +5531,10 @@ def run_session(
                     # A whole call with an error before the cut keeps its
                     # own line (frame 121's second review, case A).
                     continue
-                if isinstance(call, toolproto.ToolError):
-                    outcome.errors.append(call.reason)
-                    feedback.append(f"ERROR {call.raw}: {call.reason}")
+                refusal = _parse_refusal(call)
+                if refusal:
+                    outcome.errors.append(refusal[0])
+                    feedback.append(refusal[1])
                     told_to_end = False
                     continue
                 err = toolproto.validate(call, allowed)
@@ -5641,8 +5633,22 @@ def run_session(
                 # behind them for twelve turns until the area was abandoned.
                 if (not oneshot and seen_read and call.name not in read_fns
                         and call.name != "surveys.attest"):
-                    held = [c.raw or getattr(c, "name", "?") for c in calls[i:]]
-                    held_calls = list(calls[i:])
+                    # The hold keeps real calls only. A parse error in the
+                    # tail is answered now, as the loop above answers one.
+                    # Held, it reached `hc.name` at the stand-by and failed
+                    # night 173's s130 (W11), and a later call cleared it
+                    # with no line. A cut that broke the last call keeps
+                    # its own note, as above.
+                    held_calls = []
+                    for j, c in enumerate(calls[i:], start=i):
+                        refusal = _parse_refusal(c)
+                        if refusal and not (cut_inside and j == len(calls) - 1):
+                            outcome.errors.append(refusal[0])
+                            feedback.append(refusal[1])
+                            told_to_end = False
+                        elif not refusal:
+                            held_calls.append(c)
+                    held = [c.raw or c.name for c in held_calls]
                     break
                 seen_read = seen_read or fresh_read
 
@@ -6474,6 +6480,19 @@ def _with_native_lines(text: str, calls: list) -> str:
         return text
     lines = "\n".join(c.raw for c in calls)
     return f"{text.rstrip()}\n{lines}" if text.strip() else lines
+
+
+def _parse_refusal(call) -> tuple[str, str] | None:
+    """
+    The reason and the seat's line for a parse error, or None for a call.
+
+    The turn loop and the hold step both answer a parse error, and this is
+    the one reader for both (the W11 review, finding 2). A parse error has
+    no name, so no path may hold it or run it.
+    """
+    if isinstance(call, toolproto.ToolError):
+        return call.reason, f"ERROR {call.raw}: {call.reason}"
+    return None
 
 
 def _cut_inside_last(calls: list, call_at: list, scanned: str,

@@ -82,16 +82,55 @@ def test_the_held_tail_of_s130_holds_a_tool_error():
 
 def test_s130_a_held_tool_error_does_not_fail_the_session(db):
     """Before the fix the stand-by path read `hc.name` and the session
-    failed. Now the held parse error is refused with its reason, once."""
+    failed. Now the hold step answers the parse error on the next turn, and
+    the stand-by path never meets it."""
     out, prompts = _tester(db, [TURN_5, NO_CALL, NO_CALL, NO_CALL, NO_CALL])
     failed = [e for e in out.errors if e.startswith("session failed:")]
     assert not failed, failed
+    assert out.errors.count("no function name after TOOL:") == 1
+    turn_2 = _results(prompts[1])
+    assert "ERROR TOOL:` is a literal marker" in turn_2
+    assert ": no function name after TOOL:" in turn_2
+    for p in prompts:
+        if "The calls you stood by ran" in p:
+            assert "literal marker" not in p.rsplit("The calls you stood by", 1)[1]
+
+
+def _results(prompt: str) -> str:
+    """The results of turn 1: the text after the last line of `TURN_5`."""
+    return prompt.rsplit("from the list above.", 1)[-1]
+
+
+def test_s130_the_hold_note_names_no_parse_error_to_resend(db):
+    """The W11 review, finding 2: the turn 2 note told the seat to send the
+    prompt line again. The note now names the held write alone."""
+    _, prompts = _tester(db, [TURN_5, NO_CALL, NO_CALL, NO_CALL, NO_CALL])
+    note = next(ln for ln in _results(prompts[1]).splitlines()
+                if ln.startswith("NOT RUN"))
+    assert "msg.answer_developer" in note
+    assert "literal marker" not in note
+    assert "TOOL:`" not in note
+
+
+def test_s130_a_later_call_keeps_the_parse_error(db):
+    """The W11 review, finding 3: a turn with a call cleared the held tail,
+    and the parse error went with no line. It is answered at the hold now."""
+    out, _ = _tester(db, [TURN_5, "TOOL: tests.consult()", NO_CALL, NO_CALL])
     assert "no function name after TOOL:" in out.errors
-    refused = [p for p in prompts
-               if "The calls you stood by ran, and these were refused" in p]
-    assert refused, out.errors
-    assert "ERROR TOOL:` is a literal marker" in refused[0]
-    assert ": no function name after TOOL:" in refused[0]
+
+
+def test_s130_the_night_print_counts_the_ending(db):
+    """The W11 review, finding 1: the night print showed only the wake line.
+    The failures section counts the session and names the reason."""
+    from rota.tools import nightreport
+
+    _tester(db, [TURN_5, NO_CALL, NO_CALL, NO_CALL, NO_CALL])
+    lines = nightreport.build(db)
+    at = lines.index("== failures")
+    section = lines[at + 1:lines.index("== open faults")]
+    counted = [ln for ln in section if ln.startswith(
+        "committed sessions that ended with refusals in the runner's account: 1,")]
+    assert counted, section
 
 
 def test_s130_the_account_turn_records_the_refusal(db):
