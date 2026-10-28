@@ -445,14 +445,16 @@ def _def(src: str):
 @pytest.mark.parametrize("src", [
     "def f():\n    def decorator(g):\n        return g\n    return decorator\n",
     "def f(*decls, **kw):\n    return option(*decls, **kw)\n",
-    "def f(*decls, **kw):\n    return click.argument(*decls, **kw)\n",
+    "import click\n\ndef f(*decls, **kw):\n    return click.argument(*decls, **kw)\n",
     "def f(name):\n    return command(name)\n",
     "def f(name):\n    return group(name)\n",
-    "def f(name):\n    return click.Command(name)\n",
+    "import click\n\ndef f(name):\n    return click.Command(name)\n",
     "def f(name):\n    return Group(name)\n",
 ], ids=["inner-def", "option", "argument", "command", "group", "Command", "Group"])
 def test_a_def_that_returns_a_decorator_or_a_command_is_a_factory(src):
-    assert _returns_factory(_def(src))
+    # F12's pass 1c: the attribute form reads the module's own imports, so
+    # the two `click.` cases carry the module's `import click`.
+    assert _returns_factory(ast.parse(src).body[-1], src)
 
 
 @pytest.mark.parametrize("src", [

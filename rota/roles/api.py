@@ -8383,33 +8383,41 @@ def _invoked_commands(tree) -> list:
     still refuses the other 106, and each refusal names the invoke route."""
     import ast as _ast
 
-    if not any((isinstance(n, _ast.Name) and n.id == "CliRunner")
-               or (isinstance(n, _ast.Attribute) and n.attr == "CliRunner")
-               or (isinstance(n, _ast.alias) and n.name == "CliRunner")
-               for n in _ast.walk(tree)):
+    # F12's pass 1c (ruled): the library is the one whose `testing` module
+    # gives the body its runner. No runner, no command that a runner runs.
+    libs = command_libraries(tree)
+    if not libs:
         return []
-    click_mods = {a.asname or a.name for n in _ast.walk(tree)
-                  if isinstance(n, _ast.Import) for a in n.names if a.name == "click"}
-    click_verbs = {a.asname or a.name: a.name for n in _ast.walk(tree)
-                   if isinstance(n, _ast.ImportFrom)
-                   and (n.module or "").split(".")[0] == "click"
+    lib_mods = {a.asname or a.name for n in _ast.walk(tree)
+                  if isinstance(n, _ast.Import) for a in n.names if a.name in libs}
+    lib_verbs = {a.asname or a.name: a.name for n in _ast.walk(tree)
+                   if isinstance(n, _ast.ImportFrom) and not n.level
+                   and (n.module or "").split(".")[0] in libs
                    for a in n.names if a.name in ("command", "group")}
     funcs = [n for n in _ast.walk(tree)
              if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))]
+    # A name bound to an object of the library, as `app = typer.Typer()`,
+    # decorates its commands with `@app.command()`, as a group does.
+    apps = {t.id for n in _ast.walk(tree)
+            if isinstance(n, _ast.Assign) and isinstance(n.value, _ast.Call)
+            and isinstance(n.value.func, _ast.Attribute)
+            and isinstance(n.value.func.value, _ast.Name)
+            and n.value.func.value.id in lib_mods
+            for t in n.targets if isinstance(t, _ast.Name)}
 
     def verb(dec, groups):
         head = dec.func if isinstance(dec, _ast.Call) else dec
         if isinstance(head, _ast.Name):
-            return click_verbs.get(head.id)
+            return lib_verbs.get(head.id)
         if (isinstance(head, _ast.Attribute) and head.attr in ("command", "group")
                 and isinstance(head.value, _ast.Name)
-                and (head.value.id in click_mods or head.value.id in groups)):
+                and (head.value.id in lib_mods or head.value.id in groups)):
             return head.attr
         return None
 
     # A group's subcommands are decorated with the group's own name, so the
     # groups are found first.
-    groups: set[str] = set()
+    groups: set[str] = set(apps)
     for _ in range(3):
         groups |= {f.name for f in funcs
                    if any(verb(d, groups) == "group" for d in f.decorator_list)}
@@ -8447,6 +8455,8 @@ def _invoked_commands(tree) -> list:
             out = list(commands.get(expr.id, []))
             for f in list(out):
                 out += subs.get(f.name, [])
+            if expr.id in apps:
+                out += subs.get(expr.id, [])
             if not out:
                 for v in bound.get(expr.id, []):
                     out += resolve(v, depth + 1)
@@ -8541,6 +8551,7 @@ def _runner_receivers(tree) -> tuple[set[str], Callable[[Any], bool]]:
     # A runner is a class from the library's `testing` module, as click's
     # and typer's are. The name "CliRunner" is the library's choice, so the
     # rule reads the import and never the name.
+    # `command_libraries` reads the same imports for the library's name.
     makers = {k for k, (module, level, _) in _imported_names(tree).items()
               if not level and module.split(".")[-1] == "testing"}
     modules = {(a.asname or a.name).split(".")[0] for n in _ast.walk(tree)
@@ -8768,21 +8779,44 @@ _FACTORY_CALLS = frozenset({"option", "argument", "command", "group",
                             "Command", "Group"})
 
 
-def _click_names(nodes) -> set[str]:
-    """`click` and each name that the import statements in `nodes` bind to
-    click or to a name from click. The attribute form `x.group(...)` reads
-    as click's only on such an `x` (frame 177's review of 09e60cf6)."""
-    import ast as _ast
+def _import_bound(nodes) -> set[str]:
+    """Each name that the import statements in `nodes` bind.
 
-    clicks = {"click"}
+    The attribute form `x.group(...)` reads as a library's only on such an
+    `x`, so `m.group(1)` on a regex match is no factory call (frame 177's
+    review of 09e60cf6). F12's pass 1c (ruled): the command library is what
+    the code imports, so no library name is read here. A standard module
+    such as `re` is no command library, and a relative import is the
+    project's own code."""
+    import ast as _ast
+    import sys as _sys
+
+    def _lib(module: str) -> bool:
+        return module.split(".")[0] not in _sys.stdlib_module_names
+
+    bound: set[str] = set()
     for n in nodes:
         if isinstance(n, _ast.Import):
-            clicks |= {a.asname or a.name for a in n.names
-                       if a.name == "click" or a.name.startswith("click.")}
-        elif (isinstance(n, _ast.ImportFrom) and not n.level
-              and (n.module or "").split(".")[0] == "click"):
-            clicks |= {a.asname or a.name for a in n.names}
-    return clicks
+            bound |= {a.asname or a.name.split(".")[0] for a in n.names if _lib(a.name)}
+        elif isinstance(n, _ast.ImportFrom) and not n.level and _lib(n.module or ""):
+            bound |= {a.asname or a.name for a in n.names if a.name != "*"}
+    return bound
+
+
+def command_libraries(tree) -> set[str]:
+    """The top packages whose `testing` module gives a test body its runner.
+
+    F12's pass 1b (ruled): the command library is what the body imports, and
+    a runner is a class from the library's `testing` module. The companion of
+    `_runner_receivers`, which reads the same imports."""
+    import ast as _ast
+
+    libs = {module.split(".")[0] for module, level, orig in _imported_names(tree).values()
+            if not level and module
+            and (module.split(".")[-1] == "testing" or orig == "testing")}
+    libs |= {a.name.split(".")[0] for n in _ast.walk(tree) if isinstance(n, _ast.Import)
+             for a in n.names if a.name.split(".")[-1] == "testing" and "." in a.name}
+    return libs
 
 
 def _returns_factory(node, src: str | None = None) -> bool:
@@ -8802,9 +8836,9 @@ def _returns_factory(node, src: str | None = None) -> bool:
     if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
         return False
     try:
-        clicks = _click_names(_ast.parse(src).body if src else [])
+        imported = _import_bound(_ast.walk(_ast.parse(src)) if src else [])
     except SyntaxError:
-        clicks = {"click"}
+        imported = set()
     inner: set[str] = set()
     returned = []
     todo = list(node.body)
@@ -8826,7 +8860,7 @@ def _returns_factory(node, src: str | None = None) -> bool:
             if isinstance(f, _ast.Name) and f.id in _FACTORY_CALLS:
                 return True
             if (isinstance(f, _ast.Attribute) and f.attr in _FACTORY_CALLS
-                    and isinstance(f.value, _ast.Name) and f.value.id in clicks):
+                    and isinstance(f.value, _ast.Name) and f.value.id in imported):
                 return True
     return False
 
@@ -8855,7 +8889,7 @@ def _factory_misuse(tree, name: str) -> str | None:
     # The attribute form only on a click name, as `_returns_factory` reads
     # it: `m.group(1)` on a regex match is no call to `group` (frame 177's
     # review of 5336f2a6).
-    clicks = _click_names(_ast.walk(tree))
+    imported = _import_bound(_ast.walk(tree))
 
     def is_call(n) -> bool:
         if not isinstance(n, _ast.Call):
@@ -8863,7 +8897,7 @@ def _factory_misuse(tree, name: str) -> str | None:
         f = n.func
         return ((isinstance(f, _ast.Name) and f.id == name)
                 or (isinstance(f, _ast.Attribute) and f.attr == name
-                    and isinstance(f.value, _ast.Name) and f.value.id in clicks))
+                    and isinstance(f.value, _ast.Name) and f.value.id in imported))
 
     # A name counts as the factory's return only when every binding of it
     # is a call to the factory.
@@ -8927,14 +8961,14 @@ def _adds_option(node, src: str | None = None) -> bool:
     import ast as _ast
 
     try:
-        clicks = _click_names(_ast.parse(src).body if src else [])
+        imported = _import_bound(_ast.walk(_ast.parse(src)) if src else [])
     except SyntaxError:
-        clicks = {"click"}
+        imported = set()
 
     def _named(f, names) -> bool:
         return ((isinstance(f, _ast.Name) and f.id in names)
                 or (isinstance(f, _ast.Attribute) and f.attr in names
-                    and isinstance(f.value, _ast.Name) and f.value.id in clicks))
+                    and isinstance(f.value, _ast.Name) and f.value.id in imported))
 
     for n in _ast.walk(node):
         # The chain too: night 139's commit 5b04c4a gave
@@ -8978,7 +9012,7 @@ def _plain_decorated(tree, name: str):
     """
     import ast as _ast
 
-    clicks = _click_names(_ast.walk(tree))
+    imported = _import_bound(_ast.walk(tree))
     # `from click.decorators import command as make_command` makes
     # `@make_command()` a command (frame 200's review of 2e6afd1c, 5).
     aliases = {a.asname: a.name for n in _ast.walk(tree)
@@ -8995,7 +9029,7 @@ def _plain_decorated(tree, name: str):
         f = n.func
         return ((isinstance(f, _ast.Name) and f.id == name)
                 or (isinstance(f, _ast.Attribute) and f.attr == name
-                    and isinstance(f.value, _ast.Name) and f.value.id in clicks))
+                    and isinstance(f.value, _ast.Name) and f.value.id in imported))
 
     # Each name the test binds, with the values bound to it. A name bound
     # twice reads as the test's own, as in `_factory_misuse`.
