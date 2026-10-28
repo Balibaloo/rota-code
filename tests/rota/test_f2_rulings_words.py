@@ -135,11 +135,19 @@ def test_s258s_call_without_the_act_is_refused_on_line_4(night):
         "rule them as the words say.")
 
 
-# The refusal of `words` that are not a part of his reply (F2 pass 2f).
-NOT_HIS = ("words must be his own words, copied from his reply, and his reply "
-           "starts 'Please fix the change instead of giving up: put back the "
-           "two removed lines of code, because only the docstring changes and "
-           "the code stays the same.'")
+# The refusal of `words` that are not a part of his reply (F2 passes 2f and
+# 2g). It quotes the sentence that failed and his nearest sentence.
+NOT_HIS = ("words must be his own words, and his reply does not hold 'Line 4 "
+           "is wrong too.', and his nearest sentence is 'Line 12 is wrong, "
+           "because my last answer was not empty: I said the example shows "
+           "both the input path and the short output, and the removed code "
+           "must go back.'")
+# Night 172's m129, word for word from the night's `messages`.
+W129 = ("Fix the change instead of giving up by putting back the two removed "
+        "lines of code, because only the docstring changes and the code stays "
+        "the same. Line 11 is wrong: my answer asked for that fix and did not "
+        "call line 4 wrong, so keep line 4 as it is. Lines 9 and 10 are read "
+        "right, and all the other lines are fine.")
 
 
 def test_words_the_seat_adds_to_his_reply_are_refused(night):
@@ -175,6 +183,82 @@ def test_s271s_call_with_its_nested_words_as_words_lands(night):
     row = _rows(ctx)["reading:m121"]
     assert (row["line"], row["verdict"], row["act"]) == (11, "contest", "remove")
     assert row["words"] == S271_SPAN
+
+
+# F2 pass 2g, the review of pass 2f, finding 1: a line object or an `acts`
+# entry with no act carried words he never said to the row.
+def test_a_line_objects_words_outside_his_reply_are_refused(night):
+    ctx = night("m129", LATE[2:])
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={
+            **R8, "9": A, "10": A,
+            "11": {"verdict": "contest", "words": "Line 4 is wrong too."}})
+    assert str(e.value).startswith(
+        "line 11 words must be his own words, and his reply does not hold "
+        "'Line 4 is wrong too.'")
+    assert not [w for w in ctx.writes if w[0] == "rulings"]
+
+
+def test_an_acts_entrys_words_outside_his_reply_are_refused(night):
+    ctx = night("m129", LATE[2:])
+    with pytest.raises(ValueError) as e:
+        api.rulings_rule(ctx, rulings={**R8, "9": A, "10": A, "11": "contest"},
+                         acts={"11": {"words": "Line 4 is wrong too."}})
+    assert str(e.value).startswith(
+        "acts['11'] words must be his own words, and his reply does not hold "
+        "'Line 4 is wrong too.'")
+
+
+def test_a_line_objects_words_from_his_reply_land_on_the_row(night):
+    ctx = night("m129", LATE[2:])
+    api.rulings_rule(ctx, rulings={
+        **R8, "9": A, "10": A,
+        "11": {"verdict": "contest", "words": "Line 11 is wrong"}})
+    assert _rows(ctx)["reading:m121"]["words"] == "Line 11 is wrong"
+
+
+# F2 pass 2g, findings 2 and 3: the words match at clause edges, not at
+# characters. One case per shape, on m129.
+@pytest.mark.parametrize("words", [
+    "No.",                                  # a word inside his sentence
+    "I.",                                   # letters inside his words
+    "call line 4 wrong.",                   # his "not" cut off
+    "ne 4 wr.",                             # letters across his words
+    "Put back the two removed lines.",      # a paraphrase
+])
+def test_a_cut_of_his_clause_is_refused(words):
+    assert api._words_outside(words, W129) is not None
+
+
+@pytest.mark.parametrize("words", [
+    "did not call line 4 wrong",                    # a clause after "and"
+    "Line 11 is wrong",                             # his full stop dropped
+    "the code stays the same Line 11 is wrong",     # his stop between dropped
+    "the code stays the same, Line 11 is wrong.",   # a comma for his stop
+    "Line 11 is wrong,",                            # a comma for his colon
+    "Lines 9 and 10 are read right;",               # a semicolon for his comma
+    '"keep line 4 as it is"',                       # the seat adds quotes
+])
+def test_his_clauses_with_other_marks_land(words):
+    assert api._words_outside(words, W129) is None
+
+
+def test_a_curly_apostrophe_for_his_straight_one_lands():
+    assert api._words_outside("I don’t understand line 11.",
+                              "I don't understand line 11.") is None
+
+
+def test_the_refusal_quotes_the_failed_sentence_and_his_nearest():
+    """Finding 4: s214 copied his first sentence and cut his second. The
+    refusal quotes the cut sentence, not his first."""
+    his = ("Please keep the change. Only the docstring changes and the code "
+           "stays the same.")
+    assert api._words_outside(
+        "Please keep the change. Only the doc, the code stays the same.",
+        his) == (
+        "words must be his own words, and his reply does not hold 'Only the "
+        "doc, the code stays the same.', and his nearest sentence is 'Only the "
+        "docstring changes and the code stays the same.'")
 
 
 def test_s258s_call_with_line_4_approved_lands(night):

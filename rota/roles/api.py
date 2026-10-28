@@ -11864,21 +11864,69 @@ def _holds_span(text: str, span: str) -> bool:
     return bool(folded) and folded in " ".join((text or "").split()).casefold()
 
 
-def _words_outside(words: str, his: str) -> str | None:
+_CLAUSE_MARK = frozenset(".!?,;:")
+# A clause can start at a joining word. "did not call line 4 wrong" is his
+# clause after "and" on night 172's m129, and the cut keeps his "not".
+_CLAUSE_JOIN = frozenset({"and", "but", "or", "so", "because"})
+
+
+def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
+    """The words of `text`, lower case, and the token positions where a
+    clause can start or end. Quote marks, apostrophes and other marks are
+    white space, so a seat's added quotes or a curly apostrophe match."""
+    tokens: list[str] = []
+    cuts = {0}
+    for m in re.finditer(r"\w+|[.!?,;:]", (text or "").casefold()):
+        s = m.group()
+        if s in _CLAUSE_MARK:
+            cuts.add(len(tokens))
+            continue
+        if s in _CLAUSE_JOIN:
+            cuts.update((len(tokens), len(tokens) + 1))
+        tokens.append(s)
+    cuts.add(len(tokens))
+    return tokens, cuts
+
+
+def _holds_clauses(text: str, sentence: str) -> bool:
+    """True when the words of `sentence` are a run of whole clauses of
+    `text`: the run starts and ends where a clause of `text` starts or ends.
+    "No." or "call line 4 wrong." cut his clause, so they do not match."""
+    want = _clause_tokens(sentence)[0]
+    if not want:
+        return True
+    tokens, cuts = _clause_tokens(text)
+    n = len(want)
+    return any(tokens[i:i + n] == want and i + n in cuts
+               for i in sorted(cuts) if i + n <= len(tokens))
+
+
+def _nearest_sentence(his: str, sentence: str) -> str:
+    """The sentence of his reply that shares the most words with `sentence`."""
+    want = set(_clause_tokens(sentence)[0])
+
+    def share(s: str) -> float:
+        have = set(_clause_tokens(s)[0])
+        return len(want & have) / (len(want | have) or 1)
+
+    return max(_sentences(his), key=share, default="")
+
+
+def _words_outside(words: str, his: str, field: str = "words",
+                   earlier: tuple[str, ...] = ()) -> str | None:
     """The refusal for `words` that are not a part of his reply, or None.
 
-    Each sentence of `words` must be a span of his reply, by
-    `_holds_span`. The end mark of a sentence is not compared, because a
-    seat that copies a clause ends it with a full stop."""
+    Each sentence of `words` must be a run of whole clauses of his reply,
+    or of one of his `earlier` answers, by `_holds_clauses`. The refusal
+    names `field`, the sentence that failed and his nearest sentence."""
     for sentence in _sentences(words):
-        # An ellipsis alone is a sentence of end marks, and it holds no word.
-        bare = sentence.rstrip(".!?")
-        if bare.strip() and not _holds_span(his, bare):
-            first = (_sentences(his) or [""])[0]
-            if not first:
-                return "words must be his own words, and his reply holds no words"
-            return (f"words must be his own words, copied from his reply, "
-                    f"and his reply starts {first!r}")
+        if any(_holds_clauses(t, sentence) for t in (his, *earlier)):
+            continue
+        if not (his or "").strip():
+            return f"{field} must be his own words, and his reply holds no words"
+        return (f"{field} must be his own words, and his reply does not hold "
+                f"{sentence!r}, and his nearest sentence is "
+                f"{_nearest_sentence(his, sentence)!r}")
     return None
 
 
@@ -13608,9 +13656,40 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # clarify's answer in the transcript only, so the check reads it there.
     from .principal import entry_for
 
-    outside = _words_outside(words, his or entry_for(ctx.conn, ctx.trigger))
+    his_said = his or entry_for(ctx.conn, ctx.trigger)
+    outside = _words_outside(words, his_said)
     if outside:
         raise ValueError(outside)
+    # A line object and an `acts` entry carry `words` to the row too, with
+    # or without an act. On m129, a line object with "Line 4 is wrong too."
+    # landed on the row (the F2 review of pass 2f, finding 1). A span there
+    # can come from his earlier answer of the thread, as `_words_from` reads.
+    # The words of a line with an act are the act's span. The span check
+    # below reads that span verbatim, and a span can be part of a clause
+    # (the seam design, pass 3; frame 305's s357).
+    objects = [(k, v) for k, v in (rulings or {}).items() if isinstance(v, dict)
+               ] if isinstance(rulings, dict) else []
+    entries = ([(k, v) for k, v in acts.items() if isinstance(v, dict)]
+               if isinstance(acts, dict) else [])
+    with_act = {str(k).strip() for k, v in [*objects, *entries]
+                if str(v.get("act") or "").strip()}
+    nested = [*[(f"line {k} words", v.get("words")) for k, v in objects
+                if str(k).strip() not in with_act],
+              *[(f"acts[{str(k)!r}] words", v.get("words")) for k, v in entries
+                if str(k).strip() not in with_act]]
+    nested = [(f, str(w)) for f, w in nested if str(w or "").strip()]
+    if nested:
+        thread = ctx.conn.execute(
+            "SELECT thread_id FROM messages WHERE id = ?", (ctx.trigger,)).fetchone()
+        earlier = tuple(
+            m["body_text"] or entry_for(ctx.conn, m["id"]) for m in ctx.conn.execute(
+                "SELECT id, body_text FROM messages WHERE thread_id = ? AND "
+                "from_role = 'principal' AND id != ? ORDER BY seq DESC",
+                (thread["thread_id"] if thread else None, ctx.trigger)))
+        for field, said_words in nested:
+            outside = _words_outside(said_words, his_said, field, earlier)
+            if outside:
+                raise ValueError(outside)
     if (isinstance(rulings, dict) and not rulings and not is_clarify
             and not acts and (not row_order or batches_only)):
         rid = _ruling_id(ctx, ask["id"])
