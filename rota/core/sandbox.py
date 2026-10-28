@@ -4306,7 +4306,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         if verb == "confirm" and recipient == "principal" and not park and not shift:
             from ..roles.principal import off_page
 
-            off = off_page(ctx.conn, refs)
+            off = off_page(ctx.conn, refs, confirm=True)
             if off:
                 refs = [r for r in refs if r not in off]
         # And the same for a ruling's relay, with a stronger warrant: the

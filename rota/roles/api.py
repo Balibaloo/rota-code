@@ -13620,7 +13620,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     from ..core.scheduler import aside_items
 
     shift = ask["id"].startswith(SHIFT_ASK)
-    off = set() if (shift or is_clarify) else off_page(ctx.conn, refs)
+    # The page's own filter, so the door keeps the rows the page numbers.
+    off = set() if (shift or is_clarify) else off_page(
+        ctx.conn, refs, confirm=ask["verb"] == "confirm")
     # His contest of a read-back line corrects the rows of that reply, and
     # the new page need not hold them. Those refs are keys here, past the
     # off-page rule (the review of pass 5, finding 1; the seam design, 2.3).
@@ -13678,10 +13680,14 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         if (ref is not None and ref in off and ruling in ("contest", "revise")
                 and ref not in read_keys):
             items = _items_reached(ctx.conn, ref)
-            raise ValueError(
-                f"{key} is your earlier request, {', '.join(items)}, and this "
-                f"page is about another request. Words on this page do not "
-                f"change it. Leave the row out of the ruling.")
+            # A row of no item is the account's, not an earlier request's.
+            # A page sent before P9 numbered such rows, and his words on
+            # them still land. Night 172's m131: "Drop lines 9 to 15".
+            if items:
+                raise ValueError(
+                    f"{key} is your earlier request, {', '.join(items)}, and "
+                    f"this page is about another request. Words on this page "
+                    f"do not change it. Leave the row out of the ruling.")
         if ref is not None:
             per_item[ref] = ruling
             key_of[ref] = key

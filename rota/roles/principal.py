@@ -23,7 +23,8 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from ..core.db import READING_REF, guess_item, mark_answered, table_of
+from ..core.db import (READING_REF, guess_item, mark_answered, table_of,
+                       tables_of)
 from ..core.runner import new_id
 from ..core.db import journal_author
 
@@ -1377,6 +1378,12 @@ def _owners(conn: sqlite3.Connection, ref: str | None) -> set[str]:
         return set()
     names = ([r["ref"] for r in read_back_rows(conn, ref[len(READING_REF):])]
              if _is_reading(ref) else [ref])
+    # A seat's note about a statement is the request's row, as the sign-off's
+    # lineage rows are (P9).
+    note = conn.execute("SELECT about_ref FROM ledger WHERE id = ?",
+                        (ref,)).fetchone()
+    if note is not None and note["about_ref"]:
+        names.append(note["about_ref"])
     out: set[str] = set()
     for sid in names:
         row = _statement_request(conn, sid) if isinstance(sid, str) else None
@@ -1555,13 +1562,18 @@ def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
     return best[0] if best else None
 
 
-def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
+def off_page(conn: sqlite3.Connection, refs: list, *,
+             confirm: bool = False) -> set[str]:
     """
     The refs that a page of one request does not number (2.F.7). A row
     whose items are all set aside, or all of another request than the page's,
     leaves the page. A note about a delivered item of an earlier request
-    stays, so a ruling closes it. The send door drops the same rows, so a
-    page's refs and its numbered rows are one set.
+    stays, so a ruling closes it. A row of no item, a glossary term, a
+    constraint or a claim about one, leaves a request's page and rides the
+    account's page. A read-back line leaves a page that `page_readings`
+    does not give it. The send door drops the same rows, so a page's refs
+    and its numbered rows are one set. `confirm` keeps every statement,
+    because a confirm page can take his words as separate requests.
     """
     from ..core.scheduler import aside_items
 
@@ -1569,16 +1581,36 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
     # Requests are told apart by their boundaries. A run with no request
     # message has one request, and every open item keeps its line (frame
     # 190's design, 2.F, amendment 2).
-    req = page_request(conn, refs) if current_request(conn, unread=False) else None
+    req = page_owner(conn, refs) if current_request(conn, unread=False) else None
     out: set[str] = set()
     for ref in refs or []:
         if not isinstance(ref, str):
             continue
+        # The rulings door reads this set, so a read-back line is off where
+        # the page leaves it out (P8).
+        if _is_reading(ref):
+            if ref not in page_readings(conn, refs, [ref]):
+                out.add(ref)
+            continue
+        # The intake door refuses a statement of another entry, so the
+        # Liaison learns to say it again (frame 193, pass 3, finding 4).
+        if confirm and tables_of(conn, ref, among=["statements"]):
+            continue
         # One row walk with `land`: a note about a test of another
         # request's item leaves the page, and his answer on it contests
         # nothing (F15 review 1, finding 1).
-        items = row_items(conn, ref) or []
+        items = row_items(conn, ref)
+        # An inherited test reaches no item and keeps its row (frame 209).
+        if items is None:
+            continue
+        # A page is about one request. The account's own rows go on their
+        # own page and never on a request's page. Night 172's m71 carried
+        # 19 glossary and constraint rows (P9; frame 241; ruled: Roman,
+        # 2026-10-28 09:10, frame 344). A statement of the page's request
+        # stays before any item cites it.
         if not items:
+            if req is not None and req not in _owners(conn, ref):
+                out.add(ref)
             continue
         if all(i in aside for i in items):
             out.add(ref)
@@ -1590,7 +1622,7 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
         others = requests_of(conn, ref)
         if not all(e is not None and e != req for e in others):
             continue
-        is_note = conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone()
+        is_note = tables_of(conn, ref, among=["ledger"])
         if is_note and all(_delivered(conn, i) for i in items):
             continue
         out.add(ref)
@@ -1601,9 +1633,10 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     """
     The request's own rows for a page: each item, then its criteria by id.
 
-    The items are the ones the refs reach. When the refs reach none, they
-    are every open request. When no request is open, the row is the account,
-    which renders under its own heading.
+    The items are the ones the refs reach. When the refs name a request and
+    reach none of its items, they are every open request. When the refs
+    name no request, or no request is open, the row is the account, which
+    renders under its own heading.
     """
     # Night 136's 49 agenda pages carried no line of the request, so the
     # principal's words had no row to land on (frame 190's design, 2.1).
@@ -1618,20 +1651,28 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     held = held_items(conn)
     items: list[str] = []
     for ref in refs or []:
-        if not isinstance(ref, str) or ref in off:
+        if not isinstance(ref, str) or ref in off or _is_reading(ref):
             continue
         for item in row_items(conn, ref) or []:
             if item not in items and item not in held and _is_request_item(conn, item):
                 items.append(item)
-    if not items:
+    # Rows of no request make the account's page, and the account row is
+    # the row his words land on, so law 8 holds. The open request on that
+    # page put night 172's m71 under clear() (P9; frame 241; ruled: Roman,
+    # 2026-10-28 09:10, frame 344). A run with no account row keeps the open
+    # request, so his words never land on a seat's row alone, night 136's
+    # shape.
+    account = conn.execute(
+        "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
+    if not items and (account is None or any(
+            _owners(conn, r) for r in refs or []
+            if isinstance(r, str) and not _is_reading(r))):
         aside = aside_items(conn) | held
         items = [i for i in open_requests(conn) if i not in aside]
         cur = current_request(conn, unread=False)
         mine = [i for i in items if cur and request_of(conn, i) in cur["entries"]]
         items = mine or items
     if not items:
-        account = conn.execute(
-            "SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
         return ["how_it_works"] if account else []
     # A retired ticket's criteria are no line. After a slice again, the page
     # listed the old criteria above the new one, and a contest went to
@@ -2419,7 +2460,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
     # A confirm page is about one request too. Night 172's confirm pages
     # ran no filter (P8; ruled: Roman, 2026-10-28 09:10, frame 344).
     if verb in ("present", "confirm"):
-        off = off_page(conn, refs)
+        off = off_page(conn, refs, confirm=verb == "confirm")
         refs = [r for r in refs if r not in off]
     resolved = _resolve_refs(conn, refs)
     # The block's rows leave every group, so no id is numbered twice. The

@@ -563,12 +563,14 @@ def test_the_account_page_approves_the_account_and_no_stamped_request(db):
     stamped = [ITEM_133] + [c for c, _ in CRIT_133]
     refs = json.loads(db.execute("SELECT body_refs FROM messages WHERE id = ?",
                                  (mid,)).fetchone()["body_refs"])
-    assert refs == ["how_it_works", "l_e7c6ed5501"] + stamped
-    assert json.loads(db.execute("SELECT value FROM config WHERE key = ?",
-                                 (f"stamped:{mid}",)).fetchone()["value"]) == stamped
+    # The account's page carries no request row, so the door stamps none
+    # (P9; ruled: Roman, 2026-10-28 09:10, frame 344).
+    assert refs == ["how_it_works", "l_e7c6ed5501"]
+    assert db.execute("SELECT 1 FROM config WHERE key = ?",
+                      (f"stamped:{mid}",)).fetchone() is None
 
     reply = _reply(db, mid, "ok")
-    _landing(db, reply, {str(n): "approve" for n in range(1, 7)}, "ok")
+    _landing(db, reply, {"1": "approve", "2": "approve"}, "ok")
     verdict, ruled = _verdict(db, mid)
     assert not set(ruled) & set(stamped), ruled
     row = db.execute("SELECT approval, version FROM items WHERE id = ?",
