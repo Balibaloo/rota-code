@@ -735,12 +735,17 @@ def observed_entries(conn) -> list[Wake]:
     if limbo:
         deferred = {r["about_ref"] for r in conn.execute(
             "SELECT about_ref FROM ledger")}
+        from .db import tables_of
+
+        # `db.tables_of` finds the tables that hold the id (F22). The basis
+        # is then read in the provenance view of each one.
         still = [i for i in dict.fromkeys(limbo)
                  if i in presented and i not in deferred and any(
                      conn.execute(f"SELECT 1 FROM {PROVENANCE_VIEW_OF_TABLE[t]} "
                                   f"WHERE id = ? AND basis = 'code'", (i,)).fetchone()
-                     for t in ("glossary_terms", "constraints",
-                               "model_areas", "items"))]
+                     for t in tables_of(conn, i, among=(
+                         "glossary_terms", "constraints", "model_areas",
+                         "items")))]
         if still:
             return [Wake(SCHEDULER, "do:defer_baseline", refs=tuple(still),
                          detail=f"deferred without ruling: {len(still)}")]
@@ -1780,10 +1785,12 @@ def quarantined(conn) -> list[Wake]:
             attempts = conn.execute(
                 "SELECT attempts FROM tick_attempts WHERE tick_key = ?",
                 (key,)).fetchone()["attempts"]
+            from .db import table_of
+
             for ref in keyed:
-                if ref not in refs and conn.execute(
-                        "SELECT 1 FROM batches WHERE id = ? UNION SELECT 1 FROM items WHERE id = ? "
-                        "UNION SELECT 1 FROM tickets WHERE id = ?", (ref, ref, ref)).fetchone():
+                # `db.table_of` finds the row. The scope is the rows a page names (F22).
+                if ref not in refs and table_of(
+                        conn, ref, among=("batches", "items", "tickets")):
                     refs.append(ref)
             stalled.append(f"{kind} for {', '.join(keyed) or 'the run'}"
                            f"{f' ({role})' if role and role != '-' else ''}, "

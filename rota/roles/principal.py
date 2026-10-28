@@ -23,7 +23,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from ..core.db import mark_answered
+from ..core.db import READING_REF, guess_item, mark_answered, table_of
 from ..core.runner import new_id
 from ..core.db import journal_author
 
@@ -1005,37 +1005,25 @@ RULED_VERDICTS = ("approve", "contest", "revise", "resume", "park", "now",
 RULED_ACTS = ("drop", "keep", "rewrite", "add", "remove")
 TARGET_KINDS = ("row", "check", "sentence", "identifier", "source_line",
                 "path", "request")
-# The ref of the read-back line of one reply (the seam design, 2.3).
-READING_REF = "reading:"
-
-
 def ruled_ref_home(conn: sqlite3.Connection, ref: str) -> str | None:
     """The table that holds `ref`, or None.
 
-    `_table_of_ref` knows the ledger's homes. A page also numbers a batch, a
-    ledger row and a code line, and the read-back line names a reply."""
-    from .api import _table_of_ref, guess_item
+    `db.table_of` finds the row (F22). A page numbers the ledger's homes, a
+    batch, a ledger row and a code line, and the read-back line names a
+    reply. A row of any other table is no line of a page."""
+    from .api import LEDGER_HOMES
 
-    if not isinstance(ref, str) or not ref:
+    if not isinstance(ref, str):
         return None
-    if ref.startswith(READING_REF):
-        return "messages" if conn.execute(
-            "SELECT 1 FROM messages WHERE id = ?",
-            (ref[len(READING_REF):],)).fetchone() else None
-    item = guess_item(ref)
-    if item is not None:
-        return "items" if conn.execute(
-            "SELECT 1 FROM items WHERE id = ?", (item,)).fetchone() else None
-    table = _table_of_ref(conn, ref)
-    if table is not None:
-        return table
-    return next((t for t in RULED_HOMES if conn.execute(
-        f"SELECT 1 FROM {t} WHERE id = ?", (ref,)).fetchone()), None)
+    if ref.startswith(READING_REF) or guess_item(ref) is not None:
+        return table_of(conn, ref)
+    return table_of(conn, ref, among=LEDGER_HOMES + RULED_HOMES)
 
 
 # The tables beside `LEDGER_HOMES` that a page or a question names. A ledger
 # note can be about a ruling, and a question can be about a decision (frame
-# 316's m191, frame 306's clarify about).
+# 316's m191, frame 306's clarify about). This is a scope rule, and the order
+# picks one table when an id lives in two (F22).
 RULED_HOMES = ("batches", "ledger", "entries", "decisions", "rulings",
                "findings", "verdicts", "references_")
 
@@ -2349,8 +2337,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                     and (r in crits or _is_request_item(conn, r))}
         # A code line renders under its item, in the block (frame 298's
         # design, 2.1, point 4).
-        in_block |= {r for r in refs if isinstance(r, str) and r.startswith("guess:")
-                     and r[len("guess:"):] in in_block}
+        in_block |= {r for r in refs if guess_item(r) in in_block}
     said: list[tuple[str, str]] = []
     account: list[tuple[str, str]] = []
     does: list[tuple[str, str]] = []
@@ -2519,7 +2506,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
 
         asked = request_block(conn, refs, order, out, said=said,
                               code=code_stamp(conn, ask_id), stalled=keys)
-        guessed = [n for n, r in enumerate(order, 1) if r.startswith("guess:")]
+        guessed = [n for n, r in enumerate(order, 1) if guess_item(r) is not None]
         account_lines(plan="What we are building:")
         if described:
             out.append("How it is described:")

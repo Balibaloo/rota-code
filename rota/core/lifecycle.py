@@ -779,17 +779,20 @@ def _batch_notes(conn: sqlite3.Connection, batch_id: str,
     an area or any row that reaches no item is the batch of the session that
     wrote it. Night 138's two rows under `tests/test_utils/` reach their
     batch only this way (frame 204's design review, finding 4)."""
+    from .db import guess_item, tables_of
+
     out = []
     marks = ",".join("?" * len(HOLDING_KINDS))
     for r in conn.execute(
             f"SELECT id, about_ref FROM ledger WHERE status = 'open' "
             f"AND kind IN ({marks}) ORDER BY id", HOLDING_KINDS):
-        if r["about_ref"] in rows:
+        # A note about the code line of the batch's item is the batch's.
+        # `tables_of` reads a `guess:` ref as its item (F22).
+        if r["about_ref"] in rows or guess_item(r["about_ref"]) in rows:
             out.append(r)
             continue
-        if any(conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
-                            (r["about_ref"],)).fetchone()
-               for t in _BATCH_TABLES):
+        # `db.tables_of` finds the row, and the scope is the batch's tables (F22).
+        if tables_of(conn, r["about_ref"], among=_BATCH_TABLES):
             continue                     # a row of another batch's item
         if batch_id in _writer_batches(conn, r["id"]):
             out.append(r)

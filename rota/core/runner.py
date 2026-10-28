@@ -35,7 +35,8 @@ from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
 from .db import (COPIES_END, OutboundMessage, REPEAT_END, SessionResult, Turn,
-                 Write, session_commit, session_fail, session_note)
+                 Write, session_commit, session_fail, session_note, table_of,
+                 tables_of)
 from .identity import NATURAL_KEYS
 from .scheduler import Wake, claim, not_retired, release
 
@@ -211,8 +212,8 @@ def answer_about(conn: sqlite3.Connection, clarify_id: str) -> list[str] | None:
     # night 144 the door admitted m385, a message id, and landed it in
     # `per_item` (frame 306, review 1, finding 2).
     about = [r for r in json.loads(asker["body_refs"] or "[]")
-             if isinstance(r, str) and (_table_of_ref(conn, r) or conn.execute(
-                 "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone())]
+             if isinstance(r, str) and (_table_of_ref(conn, r) or table_of(
+                 conn, r, among=("batches",)))]
     return about + [r for r in own if r not in about]
 
 
@@ -2355,7 +2356,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # their table, and the brief keys the owner on it.
                 about_rows = _resolve_refs(conn, answering["about"])
                 for ref, resolved_row in about_rows.items():
-                    resolved_row["table"] = _table_of(conn, ref)
+                    resolved_row["table"] = _label(conn, ref, resolved_row)
                 answering["about_rows"] = about_rows
                 out["answering"] = answering
             # A reply to a page. The Liaison reads the words against the
@@ -2408,7 +2409,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # 5,593 tokens this way, against 17,220.
                 line_rows = _resolve_refs(conn, order)
                 for ref, resolved_row in line_rows.items():
-                    resolved_row["table"] = _table_of(conn, ref)
+                    resolved_row["table"] = _label(conn, ref, resolved_row)
                 # A read-back line names the rows of an earlier reply by
                 # their ids here, so the seat can rule a row his words
                 # correct. The page he reads shows no id (the review of pass
@@ -2438,7 +2439,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 else:
                     fits = False
                     landing["lines"] = {
-                        str(i + 1): f"{ref} ({_table_of(conn, ref) or 'row'})"
+                        str(i + 1): f"{ref} ({' and '.join(tables_of(conn, ref)) or 'row'})"
                         for i, ref in enumerate(order)}
                     dropped = len(set(order) | set(out.get("resolved_refs") or {}))
                     # Not `cut_note` yet. This string is inside a recorded
@@ -3697,6 +3698,12 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
             f"by saying nothing is owed.")
 
 
+def _label(conn: sqlite3.Connection, ref: str, row: dict) -> str | None:
+    """The table a resolved line names. `_resolve_refs` read the row from one
+    table, and that table is the label. Else `db.table_of` finds it (F22)."""
+    return row.get("table") or table_of(conn, ref)
+
+
 def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
     """Whether the item is a description. False on a run database that
     predates the column."""
@@ -3706,18 +3713,6 @@ def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
     row = conn.execute("SELECT is_description FROM items WHERE id = ?",
                        (item_id,)).fetchone()
     return bool(row and row["is_description"])
-
-
-_REF_TABLES = ("statements", "items", "criteria", "tests", "tickets",
-               "constraints", "glossary_terms", "ledger", "entries")
-
-
-def _table_of(conn: sqlite3.Connection, ref: str) -> str | None:
-    """The table a ref resolves in, or None. Same tables as `_resolve_refs`."""
-    for table in _REF_TABLES:
-        if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
-            return table
-    return None
 
 
 def _group_by_shared_refs(reports: list[dict]) -> list[list[str]]:

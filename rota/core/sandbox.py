@@ -26,6 +26,7 @@ from pathlib import PurePath
 from types import SimpleNamespace
 from typing import Any, Callable, NamedTuple
 
+from .db import guess_item, table_of, tables_of
 from ..roles import api
 from ..design import graph as graph_mod
 from .db import author_refusal, journal_author
@@ -850,9 +851,9 @@ def _names_no_source(conn, refs) -> bool:
     for ref in refs or ():
         if not isinstance(ref, str) or ref == ZERO:
             continue
-        if conn.execute("SELECT 1 FROM messages WHERE id = ?", (ref,)).fetchone():
-            continue
-        if conn.execute("SELECT 1 FROM entries WHERE id = ?", (ref,)).fetchone():
+        # `db.tables_of` finds the row. A `reading:` ref names a reply, so it
+        # is the conversation too (F22).
+        if tables_of(conn, ref, among=("messages", "entries")):
             continue
         return False
     return True
@@ -913,20 +914,26 @@ RULED_TABLES = {
 def _owner_of_ref(conn, ref: str) -> str | None:
     """The role that writes the table holding `ref`, or None if no table does."""
     # A code line's key names the Architect's guess (frame 298's design, 3.4).
-    if isinstance(ref, str) and ref.startswith("guess:"):
-        return "architect"
-    for table, owner in RULED_TABLES.items():
-        if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
-            return owner
+    # The key must name an item that exists (F22 review, finding 6).
+    if guess_item(ref) is not None:
+        return "architect" if table_of(conn, ref) else None
+    # `db.table_of` finds the row, and this map names its writer (F22). The
+    # scope's order picks one owner when an id lives in two tables, as the
+    # order of the map did before F22.
+    table = table_of(conn, ref, among=(*RULED_TABLES, "batches", "ledger"))
+    if table in RULED_TABLES:
+        return RULED_TABLES[table]
     # A batch line is the Architect's prediction of what the change touches.
     # The relay split looks a ref up by table, and a batch is no ruled table,
     # so the rule stands here (frame 190's design, 2.2).
-    if conn.execute("SELECT 1 FROM batches WHERE id = ?", (ref,)).fetchone():
+    if table == "batches":
         return "architect"
     # A ledger row is a journal entry -- one author per entry (law 1) -- and
     # the author is who acts on a ruling about it: an overruled assumption
     # goes back to the desk that assumed it.
-    return journal_author(conn, "ledger", ref)
+    if table == "ledger":
+        return journal_author(conn, "ledger", ref)
+    return None
 
 
 # The rows a challenge can quote, and the column that holds their words.
@@ -1099,13 +1106,14 @@ def _quoted_rows(ctx: api.Ctx, refs) -> dict[str, tuple[str, str]]:
     for r in refs or []:
         if not isinstance(r, str):
             continue
-        for table, col in _QUOTABLE:
-            hit = ctx.conn.execute(
-                f"SELECT {col} AS words FROM {table} WHERE id = ?",
-                (r,)).fetchone()
-            if hit:
-                rows[r] = (table, hit["words"] or "")
-                break
+        # `db.table_of` finds the row, and `_QUOTABLE` names its words (F22).
+        table = table_of(ctx.conn, r, among=tuple(dict(_QUOTABLE)))
+        hit = table and ctx.conn.execute(
+            f"SELECT {dict(_QUOTABLE)[table]} AS words FROM {table} "
+            f"WHERE id = ?", (r,)).fetchone()
+        # A `guess:` ref names its item, and its own id holds no row.
+        if hit:
+            rows[r] = (table, hit["words"] or "")
     return rows
 
 
@@ -1209,11 +1217,11 @@ def _challenge_sides(ctx: api.Ctx, refs) -> list:
     for r in refs or []:
         if not isinstance(r, str):
             continue
-        if crit is None and ctx.conn.execute(
-                "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone():
+        # `db.tables_of` finds the row, and the side is the table (F22).
+        held = tables_of(ctx.conn, r, among=("criteria", "tests"))
+        if crit is None and "criteria" in held:
             crit = r
-        elif test is None and ctx.conn.execute(
-                "SELECT 1 FROM tests WHERE id = ?", (r,)).fetchone():
+        elif test is None and "tests" in held:
             test = r
     if test and not crit:
         row = ctx.conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
@@ -4430,9 +4438,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # A criterion counts as well: the criterion_repair mode answers with
         # the criterion it rewrote, and that row is the Terminologist's own.
         if verb == "answer" and ctx.role == "terminologist":
-            cited = [r for r in (refs or []) if ctx.conn.execute(
-                "SELECT 1 FROM glossary_terms WHERE id = ? UNION ALL "
-                "SELECT 1 FROM criteria WHERE id = ?", (r, r)).fetchone()
+            cited = [r for r in (refs or []) if tables_of(
+                ctx.conn, r, among=("glossary_terms", "criteria"))
                 or any(w[0] == "criteria" and w[1] == r for w in ctx.writes)]
             # A criterion that this session specified counts too. The
             # criteria mode sends a note about a check to the Tester after
@@ -4689,15 +4696,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     split.setdefault("terminologist" + CRITERIA_RELAY, []).append(
                         test["criterion_id"])
                     continue
+                # `db.tables_of` finds the row (F22).
+                held = tables_of(ctx.conn, ref)
                 if ref in lines:
                     owner = "terminologist" + CRITERIA_RELAY
-                elif ctx.conn.execute("SELECT 1 FROM criteria WHERE id = ?",
-                                      (ref,)).fetchone():
+                elif "criteria" in held:
                     owner = "terminologist"
-                elif ref.startswith("guess:"):
+                elif guess_item(ref) is not None:
                     owner = "architect" + GUESS_RELAY
-                elif ctx.conn.execute("SELECT 1 FROM batches WHERE id = ?",
-                                      (ref,)).fetchone():
+                elif "batches" in held:
                     owner = _owner_of_ref(ctx.conn, ref) + BATCH_RELAY
                 else:
                     owner = _owner_of_ref(ctx.conn, ref) or recipient
