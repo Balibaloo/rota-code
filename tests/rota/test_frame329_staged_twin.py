@@ -19,6 +19,7 @@ import pytest
 from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.roles import prompts
+from rota.testkit.fixtures import seed_verdict
 
 TICKET = "tk_1_format_filename_example"
 C1, C2, C3 = (f"c_{n}_format_filename_example" for n in (1, 2, 3))
@@ -164,8 +165,6 @@ def _night166_relay(conn) -> None:
                      "from_role, to_role, verb, body_refs, body_text, seq) "
                      "VALUES (?, ?, 'm76', ?, ?, ?, ?, ?, ?)",
                      (mid, cause, sender, to, verb, json.dumps(refs), text, seq))
-    conn.execute("INSERT INTO config (key, value) VALUES ('verdict:m78', ?)",
-                 (json.dumps({C1: "contest", C2: "contest"}),))
     conn.execute("INSERT INTO config (key, value) VALUES ('order:m77', ?)",
                  (json.dumps(ORDER),))
     per_item = {C1: "contest", C2: "contest", C3: "approve",
@@ -173,6 +172,9 @@ def _night166_relay(conn) -> None:
     conn.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
                  "status, verdict_id) VALUES ('r_a5e4b30470', 'm76', 'm77', ?, "
                  "?, 'landed', 'm78')", (json.dumps(per_item), WORDS))
+    # The verdict m78 on the landed ruling, the old `verdict:m78` map (fact F1).
+    seed_verdict(conn, "m78", json.dumps({C1: "contest", C2: "contest"}),
+                 ruling="r_a5e4b30470")
     conn.execute("INSERT INTO batches (id, item_id, head_commit, status) "
                  "VALUES ('bg_3', 'format_filename_example', "
                  "'a0295dffd730b5d6d14813fded003472c8e5ed21', 'running')")

@@ -23,6 +23,8 @@ from rota.roles.principal import (
     request_rows,
 )
 from rota.testkit.fixtures import seed_provenance, seed_ref
+from rota.roles.principal import verdict_for
+from rota.testkit.fixtures import seed_verdict
 
 PINS = Pins(model="stub", temperature=0.0)
 
@@ -90,9 +92,7 @@ def _landing(db, reply: str, ruling: dict, words: str):
 def _verdict(db, mid: str):
     row = db.execute("SELECT id, status, body_refs FROM messages WHERE cause_id = ? "
                      "AND verb = 'verdict'", (mid,)).fetchone()
-    ruled = db.execute("SELECT value FROM config WHERE key = ?",
-                       (f"verdict:{row['id']}",)).fetchone()
-    return row, (json.loads(ruled["value"]) if ruled else {})
+    return row, verdict_for(db, row["id"])
 
 
 # ---------------------------------------------------------------------------
@@ -687,8 +687,7 @@ def test_the_vision_keepers_relay_cannot_undo_a_revise(m399):
     _message(m399, "m73", "liaison", "principal", "present", [ITEM_136, "echo_json"])
     _message(m399, "m75", "principal", "liaison", "verdict", [ITEM_136, "echo_json"],
              cause="m73")
-    m399.execute("INSERT INTO config (key, value) VALUES ('verdict:m75', ?)",
-                 (json.dumps({ITEM_136: "revise", "echo_json": "contest"}),))
+    seed_verdict(m399, "m75", json.dumps({ITEM_136: "revise", "echo_json": "contest"}))
     _message(m399, "m76", "liaison", "vision_keeper", "relay", [ITEM_136, "echo_json"],
              cause="m75", status="open")
     m399.commit()
@@ -829,8 +828,7 @@ def test_a_relay_of_a_report_cannot_approve_a_contested_item(db):
 
     _message(db, "m380", "liaison", "principal", "present", [ITEM_133])
     _message(db, "m381", "principal", "liaison", "verdict", [ITEM_133], cause="m380")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m381', ?)",
-               (json.dumps({ITEM_133: "approve"}),))
+    seed_verdict(db, "m381", json.dumps({ITEM_133: "approve"}))
     _message(db, "m382", "liaison", "vision_keeper", "relay", [ITEM_133], cause="m381",
              status="open")
     db.commit()
@@ -851,8 +849,6 @@ def _night147_relay(db, relay_verdict: dict, relay_refs) -> None:
              [ITEM_133, "challenge_constraints_click_context"])
     _message(db, "m132", "principal", "liaison", "reply", [], cause="m131")
     _message(db, "m133", "principal", "liaison", "verdict", relay_refs, cause="m131")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m133', ?)",
-               (json.dumps(relay_verdict),))
     db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, status, "
                "verdict_id) VALUES ('r_6b1268aa4d', 'm131', 'm132', ?, 'landed', "
                "'m133')", (json.dumps({
@@ -860,6 +856,9 @@ def _night147_relay(db, relay_verdict: dict, relay_refs) -> None:
                    "challenge_constraints_click_context": "contest",
                    "challenge_constraints_click_log": "contest"}),))
     backfill_ruled_refs(db)
+    # The verdict m133 on the landed ruling, the old `verdict:m133` map
+    # (fact F1).
+    seed_verdict(db, "m133", json.dumps(relay_verdict), ruling="r_6b1268aa4d")
     _message(db, "m136", "liaison", "vision_keeper", "relay", relay_refs,
              cause="m133", status="open")
     db.commit()
@@ -1012,9 +1011,8 @@ def test_a_relay_of_a_ruling_logs_no_row_about_the_ruled_row(m399, word):
     _message(m399, "m419", "liaison", "principal", "present", ["l_d24f6997d1"])
     _message(m399, "m421", "principal", "liaison", "verdict",
              ["parametersource_commandline"], cause="m419")
-    m399.execute("INSERT INTO config (key, value) VALUES ('verdict:m421', ?)",
-                 (json.dumps({"l_d24f6997d1": "revise",
-                              "parametersource_commandline": "contest"}),))
+    seed_verdict(m399, "m421", json.dumps({"l_d24f6997d1": "revise",
+                              "parametersource_commandline": "contest"}))
     m399.execute("INSERT INTO config (key, value) VALUES ('entry:m421', ?)",
                  (json.dumps(M421_WORDS),))
     m399.execute("INSERT INTO rulings (id, ask_id, per_item, words, status, verdict_id) "
@@ -1446,8 +1444,7 @@ def test_a_repaired_criterion_reaches_the_tester_only_after_a_commit(m399):
              [ITEM_VO, "c1_version_option_show_python"])
     _message(m399, "m501", "principal", "liaison", "verdict",
              ["c1_version_option_show_python"], cause="m500")
-    m399.execute("INSERT INTO config (key, value) VALUES ('verdict:m501', ?)",
-                 (json.dumps({"c1_version_option_show_python": "contest"}),))
+    seed_verdict(m399, "m501", json.dumps({"c1_version_option_show_python": "contest"}))
     _message(m399, "m502", "liaison", "terminologist", "relay",
              ["c1_version_option_show_python"], cause="m501", status="open")
     m399.commit()
@@ -1495,8 +1492,7 @@ def _criterion_relay(db, words: str) -> None:
     with the principal's words, and the Liaison's relay m144."""
     _message(db, "m141", "liaison", "principal", "present", [ITEM_VO, C1_VO])
     _message(db, "m143", "principal", "liaison", "verdict", [C1_VO], cause="m141")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m143', ?)",
-               (json.dumps({C1_VO: "contest"}),))
+    seed_verdict(db, "m143", json.dumps({C1_VO: "contest"}))
     n = db.execute("SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM entries").fetchone()["n"]
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                "('e_m143', 'principal', ?, ?)", (words, n))
@@ -1775,9 +1771,8 @@ def bg4(db, monkeypatch):
     _message(db, "m427", "liaison", "principal", "present", ["parametersource_commandline"])
     _message(db, "m429", "principal", "liaison", "verdict",
              ["parametersource_commandline"], cause="m427")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m429', ?)",
-               (json.dumps({"l_a599c55837": "contest",
-                            "parametersource_commandline": "contest"}),))
+    seed_verdict(db, "m429", json.dumps({"l_a599c55837": "contest",
+                            "parametersource_commandline": "contest"}))
     _message(db, "m430", "liaison", "architect", "relay",
              ["parametersource_commandline"], cause="m429")
     _session(db, "s567", "architect", "m430", "message")

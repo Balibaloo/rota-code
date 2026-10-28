@@ -907,8 +907,12 @@ def granted(conn: sqlite3.Connection, ref: str, act: str,
 def ruled(conn: sqlite3.Connection, refs=None, *, reply: str | None = None,
           ruling: str | None = None, ask: str | None = None,
           landed: bool = True, newest: bool = False,
-          item: str | None = None) -> list[sqlite3.Row]:
+          item: str | None = None, every: bool = False) -> list[sqlite3.Row]:
     """The rows of `ruled_refs_live` that a reader asks for, oldest first.
+
+    A ruling gives one row per ref, the newest, at the place of its first
+    row: a landed row, else a keypress row, else the reading's row (fact
+    F1). `every` keeps each row, for `verdict_for`, which picks the source.
 
     `refs` keeps the rows on those refs. `item` adds a page key that names
     the item after a colon, as `guess:<item>`. `reply` keeps the rows of
@@ -944,10 +948,28 @@ def ruled(conn: sqlite3.Connection, refs=None, *, reply: str | None = None,
         args.append(ask)
     rows = conn.execute(" AND ".join(sql) + " ORDER BY ruling_seq, row_seq",
                         tuple(args)).fetchall()
+    if not every:
+        rows = one_row_per_ref(rows)
     if newest:
         last = {r["ref"]: r for r in rows}
         rows = [r for r in rows if last[r["ref"]] is r]
     return rows
+
+
+def one_row_per_ref(rows: list) -> list:
+    """One row per ruling and ref: the newest, at the place of the first.
+
+    `land` writes the keypress rows and the `landed` rows beside the
+    reading's rows of the same ruling (fact F1). A reader of a ruling's
+    rows reads one row for each ref it rules, so it counts no ref twice."""
+    last = {(r["ruling_id"], r["ref"]): r for r in rows}
+    out, seen = [], set()
+    for r in rows:
+        key = (r["ruling_id"], r["ref"])
+        if key not in seen:
+            seen.add(key)
+            out.append(last[key])
+    return out
 
 
 def ruled_words(conn: sqlite3.Connection, refs, *, item: str | None = None,
@@ -1032,11 +1054,14 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
     a ref that no table holds, a verdict that is not stored, and an act that
     is not one of the acts (frame 300's red test). `unheld="skip"` builds no
     row for a ref that no table holds, and refuses nothing for it.
+    `unheld="keep"` builds the row. Only `land` asks it, for the verdict it
+    computed: a contest of a note's `about_ref` carries to the desk that
+    assumed it, as the config map carried it before fact F1.
     """
     from ..core.db import ruled_ref_id
     from .api import guess_item
 
-    if source not in ("reading", "keypress", "backfill"):
+    if source not in ("reading", "keypress", "backfill", "landed"):
         raise ValueError(f"{source!r} is not a source of a ruled row")
     order = list(page or [])
     rows: list[dict] = []
@@ -1050,7 +1075,7 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
         table = ruled_ref_home(conn, ref)
         if table is None and unheld == "skip":
             continue
-        if table is None:
+        if table is None and unheld != "keep":
             raise ValueError(
                 f"{ref!r} is a row that no table holds, so a ruling on it rules "
                 f"nothing. Rule the rows of the page")
@@ -1067,7 +1092,7 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
         # A code line and a read-back line are no row with a version: the
         # home is the item or the reply, and their versions are not his.
         version = None
-        if table != "messages" and guess_item(ref) is None and any(
+        if table not in (None, "messages") and guess_item(ref) is None and any(
                 c[1] == "version"
                 for c in conn.execute(f"PRAGMA table_info({table})")):
             got = conn.execute(f"SELECT version FROM {table} WHERE id = ?",
@@ -1139,6 +1164,16 @@ def readings_owed(conn: sqlite3.Connection) -> list[str]:
     return out
 
 
+def read_back_rows(conn: sqlite3.Connection, reply: str) -> list:
+    """The rows that the read-back line of reply `reply` reads back, one
+    per ref. The line says how the team read his words, so a `landed` row
+    of the verdict is no row of it (fact F1). A `reading:` ref is the line
+    itself. The line and the landing wake read this one function."""
+    return one_row_per_ref([
+        r for r in ruled(conn, reply=reply, every=True)
+        if r["source"] != "landed" and not _is_reading(r["ref"])])
+
+
 def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     """The read-back line of `reading:<reply id>`, written from the columns,
     or None when the reply has no row.
@@ -1146,7 +1181,7 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     No model writes the line. A row on a `reading:` ref is never read back,
     so the chain ends at his approve (the seam design, 2.3)."""
     reply = ref[len(READING_REF):]
-    rows = [r for r in ruled(conn, reply=reply) if not _is_reading(r["ref"])]
+    rows = read_back_rows(conn, reply)
     if not rows:
         return None
     said = conn.execute("SELECT body_text FROM messages WHERE id = ?",
@@ -2628,6 +2663,9 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
     from .api import code_stamp, guess_item
 
     guess_targets: dict[str, list] = {}
+    # A code key whose ruling moves to its batch. The landed row of the
+    # batch names the row of the key it derives from (fact F1).
+    moved: dict[str, str] = {}
     if answer.verb == "verdict" and any(guess_item(k) for k in per_item):
         stamp = code_stamp(conn, ask.message_id)
         for key in [k for k in per_item if guess_item(k)]:
@@ -2648,6 +2686,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                     if not code_line_faulted(answer.text or "", order, key):
                         continue
                 per_item[batch_id] = ruling
+                moved[batch_id] = key
                 continue
             per_item[key] = ruling
             shown = target.get("guess")
@@ -2850,16 +2889,8 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
          "answered" if settled else "open"),
     )
 
-    # Per-item verdicts travel as refs; the ruling itself is recorded so
-    # Liaison can relay it without re-asking. An approved row closed here is
-    # not in it: a taken default needs no relay. A contested one stays: its
-    # author has to hear the words.
-    remaining = {r: v for r, v in per_item.items() if r not in approved_here}
-    if remaining:
-        conn.execute(
-            "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-            (f"verdict:{msg_id}", json.dumps(remaining)),
-        )
+    # The per-row verdict is the `landed` rows of `ruled_refs` below, and
+    # `verdict_for` reads them (fact F1, law 11).
     # The set the principal read, for the Architect who rewrites it (frame
     # 298's design, 3.2, point 3).
     if guess_targets:
@@ -2884,6 +2915,9 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                           "ORDER BY rowid"):
         prior.update(json.loads(r["per_item"] or "{}"))
     if ruling_id is None:
+        opened = [r["id"] for r in conn.execute(
+            "SELECT id FROM rulings WHERE ask_id = ? AND status = 'open' "
+            "ORDER BY rowid", (ask.message_id,))]
         conn.execute(
             "UPDATE rulings SET status = 'landed', verdict_id = ? "
             "WHERE ask_id = ? AND status = 'open'", (msg_id, ask.message_id))
@@ -2892,6 +2926,26 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         if on_file is None:
             _insert_keypress_ruling(conn, ask, msg_id, {**per_item, **readings},
                                     (answer.text or "").strip())
+        # His keypress is his verdict, and the Liaison's reading is a
+        # reading. So the keypress gets its own rows under the landed
+        # ruling, beside the reading's rows (law 11; fact F1).
+        for rid in opened:
+            _insert_keypress_rows(conn, rid, ask, msg_id,
+                                  {**per_item, **readings},
+                                  (answer.text or "").strip(), shared=True)
+    # The verdict that the relays read is the one this door computed: a
+    # stamped approve is gone, a code key is on its batch, and an approve
+    # that closed a ledger row needs no relay. It lands as `landed` rows on
+    # every path, also where no key was pressed (fact F1, law 11).
+    remaining = {r: v for r, v in per_item.items()
+                 if r not in approved_here and not _is_reading(r)}
+    rulings_here = [ruling_id] if ruling_id else [
+        r["id"] for r in conn.execute(
+            "SELECT id FROM rulings WHERE verdict_id = ? ORDER BY rowid",
+            (msg_id,))]
+    for rid in rulings_here:
+        _insert_landed_rows(conn, rid, ask, msg_id, remaining, moved,
+                            (answer.text or "").strip())
     # A landed ruling on a row of a running batch moves what its seats read.
     # Night 170's m92, m98 and m103 ruled on b_3 and its criterion, and
     # `tester|tick:tests_missing|b_3` stayed (review of F20 pass 1, finding 1).
@@ -2920,19 +2974,72 @@ def _insert_keypress_ruling(conn: sqlite3.Connection, ask: Ask, msg_id: str,
     refusal at this door would lose his answer. A ledger note can name a
     ruling that is gone, and `land` adds that ref (frame 316's m191)."""
     rid = f"r_{msg_id}"
-    rows = ruling_rows(conn, rid, getattr(ask, "order", None), per_item,
-                       words=said, source="keypress",
-                       words_from=msg_id if said else None, unheld="skip")
-    # A skipped ref is a fault on file, so his verdict on it stays visible
-    # (the review of pass 1, finding 2; composition.md, no work stays
-    # invisible).
-    record_unheld(conn, rid, [r for r in per_item if r not in
-                              {row["ref"] for row in rows}], "principal.land")
     conn.execute(
         "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
         "status, verdict_id, texts) VALUES (?, ?, ?, ?, 'landed', ?, ?)",
         (rid, ask.message_id, json.dumps(per_item), said, msg_id,
          json.dumps(contested_texts(conn, per_item))))
+    _insert_keypress_rows(conn, rid, ask, msg_id, per_item, said)
+
+
+def _insert_keypress_rows(conn: sqlite3.Connection, rid: str, ask: Ask,
+                          msg_id: str, per_item: dict, said: str, *,
+                          shared: bool = False) -> None:
+    """The `ruled_refs` rows of a verdict from the seat, under ruling `rid`.
+
+    `shared` says that the Liaison's reading has rows under `rid` too. A
+    keypress row then hashes its own key, so the reading's row on the same
+    ref does not hide it."""
+    from ..core.db import ruled_ref_id
+
+    rows = ruling_rows(conn, rid, getattr(ask, "order", None), per_item,
+                       words=said, source="keypress",
+                       words_from=msg_id if said else None, unheld="skip")
+    if shared:
+        for row in rows:
+            row["id"] = ruled_ref_id(rid, f"keypress:{row['ref']}")
+    # A skipped ref is a fault on file, so his verdict on it stays visible
+    # (the review of pass 1, finding 2; composition.md, no work stays
+    # invisible).
+    record_unheld(conn, rid, [r for r in per_item if r not in
+                              {row["ref"] for row in rows}], "principal.land")
+    insert_ruling_rows(conn, rows)
+
+
+def _insert_landed_rows(conn: sqlite3.Connection, rid: str, ask: Ask,
+                        msg_id: str, verdict: dict, moved: dict, said: str
+                        ) -> None:
+    """The `landed` rows of ruling `rid`: the per-row verdict that `land`
+    computed, one row per ref, which `verdict_for` reads (fact F1).
+
+    Each row names the row it derives from: the keypress row on the ref,
+    else the reading's row. A ref that `land` moved to its batch derives
+    from the row of the moved key. When the reading's row on the same ref
+    has the same verdict, the landed row carries its act, target and words.
+    So `grant` reads the newest row and takes back no act of the reading
+    (law 11). A ref that no table holds keeps its row, as the config map
+    kept it, because the relay carries it to its desk."""
+    from ..core.db import ruled_ref_id
+
+    rows = ruling_rows(conn, rid, getattr(ask, "order", None), verdict,
+                       words=said, source="landed",
+                       words_from=msg_id if said else None, unheld="keep")
+    for row in rows:
+        row["id"] = ruled_ref_id(rid, f"landed:{row['ref']}")
+        origin = moved.get(row["ref"], row["ref"])
+        found = conn.execute(
+            "SELECT * FROM ruled_refs WHERE ruling_id = ? AND ref = ? "
+            "AND source != 'landed' ORDER BY source = 'keypress' DESC, "
+            "rowid DESC", (rid, origin)).fetchall()
+        row["derived_from"] = found[0]["id"] if found else None
+        read = next((r for r in found if r["source"] != "keypress"
+                     and origin == row["ref"]
+                     and r["verdict"] == row["verdict"]), None)
+        if read is not None:
+            for col in ("act", "target_kind", "target", "words", "words_from",
+                        "line"):
+                if read[col] is not None and read[col] != "":
+                    row[col] = read[col]
     insert_ruling_rows(conn, rows)
 
 
@@ -3111,9 +3218,39 @@ def record_entry(conn: sqlite3.Connection, message_id: str, text: str) -> str:
 
 
 def verdict_for(conn: sqlite3.Connection, message_id: str) -> dict[str, str]:
-    row = conn.execute(
-        "SELECT value FROM config WHERE key = ?", (f"verdict:{message_id}",)).fetchone()
-    return json.loads(row["value"]) if row else {}
+    """His per-row verdict in the message `message_id`, ref to verdict word.
+
+    The record is the newest landed ruling of the message in `ruled_refs`.
+    Its `landed` rows are the verdict that `land` computed, and they come
+    first. A ruling that `land` did not write, as a seeded one, gives its
+    keypress rows, else its reading's rows on the refs that the verdict
+    message carries. This is the one reader of a verdict (fact F1, law 11).
+
+    `land` writes no `landed` row when nothing is left to relay. Then the
+    verdict message carries no ref, so the reading's rows give nothing.
+
+    An approve that closed a ledger row at the keypress is a taken default,
+    and no owner has to hear it. A `reading:` ref is the read-back line,
+    and no owner acts on it.
+    """
+    rows = ruled(conn, reply=message_id, every=True)
+    chosen = ([r for r in rows if r["source"] == "landed"]
+              or [r for r in rows if r["source"] == "keypress"])
+    if not chosen and rows:
+        msg = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                           (message_id,)).fetchone()
+        carried = set(json.loads(msg["body_refs"] or "[]")) if msg else set()
+        chosen = [r for r in rows if r["ref"] in carried]
+    out: dict[str, str] = {}
+    for r in chosen:
+        if _is_reading(r["ref"]):
+            continue
+        if r["verdict"] == "approve" and conn.execute(
+                "SELECT 1 FROM ledger WHERE id = ? AND status = 'resolved'",
+                (r["ref"],)).fetchone():
+            continue
+        out[r["ref"]] = r["verdict"]
+    return out
 
 
 def chain_verdict(
@@ -3129,12 +3266,12 @@ def chain_verdict(
     from it, and `api._verdict_of` decides what a session may adopt. Both read
     the same chain, so both see the same ruling.
 
-    Two records, because a ruling lands in two shapes. A verdict from the seat
-    writes the `config` key `verdict:<id>`. A reply the Liaison reads in the
-    same session it relays lands only the `rulings` row, because `land` finds
-    the ask already answered. Night 84 (2026-09-17): the relay climbed one
-    cause hop, found neither, and the Terminologist was told the ruling was in
-    a field the message never had.
+    Two hops, because a ruling lands in two shapes. A verdict that `land`
+    lands has its `landed` rows, and `verdict_for` reads them. A reply the
+    Liaison reads in the same session it relays lands only the `rulings`
+    row, because `land` finds the ask already answered. Night 84
+    (2026-09-17): the relay climbed one cause hop, found neither, and the
+    Terminologist was told the ruling was in a field the message never had.
 
     A `rulings` row with an empty `per_item` is not a ruling. The onboard-only
     walk of clickI landed `r_m8` with `per_item='{}'` for a words-only reply,

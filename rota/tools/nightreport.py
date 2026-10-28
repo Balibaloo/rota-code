@@ -189,6 +189,20 @@ def _is_runner(turn: dict) -> bool:
     return str(turn["completion"] or "").startswith(RUNNER_PREFIXES)
 
 
+def _ruled_rows(n: Night, ruling_id: str) -> dict:
+    """The verdict per ref of one ruling: its `landed` rows, else its
+    keypress rows, else all its rows, the order of `verdict_for`. Empty
+    when the night has no `ruled_refs` table."""
+    if not n.has("ruled_refs", "source"):
+        return {}
+    rows = n.conn.execute(
+        "SELECT ref, verdict, source FROM ruled_refs WHERE ruling_id = ? "
+        "ORDER BY rowid", (ruling_id,)).fetchall()
+    chosen = ([x for x in rows if x["source"] == "landed"]
+              or [x for x in rows if x["source"] == "keypress"] or rows)
+    return {x["ref"]: x["verdict"] for x in chosen}
+
+
 def _config(n: Night, key: str):
     """A `config` value, JSON-decoded when it can be, or None."""
     if not n.has("config", "value"):
@@ -456,8 +470,10 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
                                     "verdict_id")):
             if r["status"] != "landed":
                 continue
-            landed = _config(n, f"verdict:{r['verdict_id']}")
-            if not isinstance(landed, dict):
+            # His keypress rows are his verdict, else the reading's rows
+            # (fact F1). A night from before `ruled_refs` has `per_item` only.
+            landed = _ruled_rows(n, r["id"])
+            if not landed:
                 try:
                     landed = json.loads(r["per_item"] or "{}")
                 except (TypeError, ValueError):

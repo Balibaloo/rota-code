@@ -174,7 +174,10 @@ SCHEMA_KEY = "schema"
 # Frame 316, pass 2, widened the status CHECK of `ledger` with `parked`.
 # Frame 306, pass 1b, added `criteria.retired_by`.
 # Frame 306, W-A, added `tests.retired_by`.
-SCHEMA_MARK = "tests-retired"
+# Fact F1 widened the source CHECK of `ruled_refs` with `landed` and added
+# `ruled_refs.derived_from`. An older run keeps its verdicts in the config
+# map, and no reader reads that map now.
+SCHEMA_MARK = "ruled-refs-landed"
 SCHEMA_STALE = ("the run database is behind the current schema, so it needs "
                 "a fresh onboarding: wipe it, or onboard under a new name")
 

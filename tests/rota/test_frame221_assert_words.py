@@ -64,8 +64,6 @@ def _contest(conn, item, said, mid, acts=None):
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                  "body_refs, seq) VALUES (?, 'th', 'principal', 'liaison', "
                  "'verdict', ?, 5)", (mid, json.dumps([item])))
-    conn.execute("INSERT INTO config (key, value) VALUES (?, ?)",
-                 (f"verdict:{mid}", json.dumps({item: "contest"})))
     conn.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                  "(?, 'principal', ?, 1)", (f"e_{mid}", said))
     # The verdict lands as a ruling, as `principal.land` writes it, so the

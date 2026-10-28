@@ -2541,13 +2541,9 @@ def _principal_relay(ctx: Ctx) -> tuple[list[str], dict[str, str]] | None:
         refs = [r for r in json.loads(row["refs"] or "[]") if isinstance(r, str)]
     except (TypeError, ValueError):
         refs = []
-    ruled = ctx.conn.execute("SELECT value FROM config WHERE key = ?",
-                             (f"verdict:{row['cid']}",)).fetchone()
-    try:
-        verdict = json.loads(ruled["value"]) if ruled else {}
-    except (TypeError, ValueError):
-        verdict = {}
-    return refs, verdict if isinstance(verdict, dict) else {}
+    from .principal import verdict_for
+
+    return refs, verdict_for(ctx.conn, row["cid"])
 
 
 def _wake_refs(ctx: Ctx) -> set[str]:
@@ -13475,13 +13471,16 @@ def rulings_load(ctx: Ctx, ask_id: str | None = None) -> list[dict]:
             "SELECT * FROM rulings WHERE ask_id = ? ORDER BY rowid", (ask_id,)))
     else:
         out = _rows(ctx.conn.execute("SELECT * FROM rulings ORDER BY rowid"))
+    from .principal import one_row_per_ref
+
     for reading in out:
         rows = _rows(ctx.conn.execute(
-            "SELECT ref, line, verdict, act, target_kind, target, words, "
-            "words_from, old_text, ref_version, source, status, confirmed_by, "
-            "provenance FROM ruled_refs_live WHERE ruling_id = ? "
+            "SELECT ruling_id, ref, line, verdict, act, target_kind, target, "
+            "words, words_from, old_text, ref_version, source, status, "
+            "confirmed_by, provenance FROM ruled_refs_live WHERE ruling_id = ? "
             "ORDER BY row_seq", (reading["id"],)))
-        reading["refs"] = rows
+        reading["refs"] = [{k: v for k, v in r.items() if k != "ruling_id"}
+                           for r in one_row_per_ref(rows)]
     return out
 
 

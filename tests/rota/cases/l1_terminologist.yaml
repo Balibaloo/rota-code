@@ -214,8 +214,9 @@
   inbound: {id: <m_relay>, from: liaison, to: terminologist, verb: relay,
             body_refs: [<c2>], cause: <m_rule>}
   fixture:
+    keypress_verdicts:
+      - {id: "<m_rule>", per_item: '{"<i1>": "approve", "<c1>": "approve", "<c2>": "contest"}'}
     config:
-      - {key: "verdict:<m_rule>", value: '{"<i1>": "approve", "<c1>": "approve", "<c2>": "contest"}'}
       - {key: "entry:<m_rule>", value: '"line 3 is wrong: when stdin is at EOF and the flag is on, confirm returns the default it was given at once, and it never reads stdin again"'}
     items:
       - {id: <i1>, text: "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting.",

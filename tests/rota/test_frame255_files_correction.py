@@ -19,6 +19,7 @@ from rota.core.scheduler import open_tips
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.roles.principal import land, parse_reply, pending_asks, render_page
 from rota.testkit.fixtures import seed_provenance
+from rota.roles.principal import verdict_for
 
 PINS = Pins(model="stub", temperature=0.0)
 
@@ -158,8 +159,7 @@ def test_land_keeps_bg_2_and_the_relay_reaches_the_architect(m91):
     verdict = m91.execute("SELECT id FROM messages WHERE cause_id = 'm91' "
                           "AND verb = 'verdict'").fetchone()
     assert verdict is not None
-    ruled = json.loads(m91.execute("SELECT value FROM config WHERE key = ?",
-                                   (f"verdict:{verdict['id']}",)).fetchone()["value"])
+    ruled = verdict_for(m91, verdict['id'])
     assert ruled.get("bg_2") == "contest", ruled
 
     (wake,) = [w for w in open_tips(m91) if w.message_id == verdict["id"]]

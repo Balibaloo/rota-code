@@ -2011,11 +2011,11 @@ def verdict_rows(conn: sqlite3.Connection, message_id: str | None) -> list[str] 
                        (message_id,)).fetchone() if message_id else None
     if row is None or row["verb"] != "verdict":
         return None
-    ruled = conn.execute("SELECT value FROM config WHERE key = ?",
-                         (f"verdict:{message_id}",)).fetchone()
+    from ..roles.principal import verdict_for
+
+    per_item = verdict_for(conn, message_id)
     try:
         refs = json.loads(row["body_refs"] or "[]")
-        per_item = json.loads(ruled["value"]) if ruled else {}
     except (TypeError, ValueError):
         return []
     return [r for r in refs if isinstance(r, str)

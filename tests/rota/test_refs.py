@@ -14,6 +14,7 @@ import pytest
 
 from rota.core.db import (ARTEFACT_OF_TABLE, SessionResult, Write, init_db,
                           session_commit, version_of)
+from rota.testkit.fixtures import seed_verdict
 
 
 @pytest.fixture
@@ -447,8 +448,8 @@ def test_an_answer_with_no_words_and_no_ruling_lands_nothing(db):
                       ).fetchone()["status"] == "open"
     assert db.execute("SELECT COUNT(*) n FROM messages").fetchone()["n"] == before
     assert db.execute("SELECT COUNT(*) n FROM rulings").fetchone()["n"] == 0
-    assert db.execute("SELECT COUNT(*) n FROM config WHERE key LIKE 'verdict:%' "
-                      "OR key LIKE 'entry:%'").fetchone()["n"] == 0
+    assert db.execute("SELECT (SELECT COUNT(*) FROM config WHERE key LIKE 'entry:%') + "
+                      "(SELECT COUNT(*) FROM ruled_refs WHERE source = 'keypress') n").fetchone()["n"] == 0
 
     # Words land, as before.
     mid = land(db, ask, Answer(verb="converse", text="one sense, said twice"))
@@ -739,8 +740,9 @@ def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
     conn = init_db(fresh)
     # Frame 316, pass 2, moved the mark: the status CHECK of `ledger`
     # gained `parked`. Frame 306, pass 1b, moved it for `criteria.retired_by`.
+    # Fact F1 moved it for the `landed` source of `ruled_refs`.
     assert conn.execute("SELECT value FROM config WHERE key = 'schema'"
-                        ).fetchone()["value"] == "tests-retired"
+                        ).fetchone()["value"] == "ruled-refs-landed"
     conn.close()
     init_db(fresh).close()          # the same run, opened again
 
@@ -962,8 +964,6 @@ def _relayed_ruling(db):
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                "verb, body_refs, seq, status) VALUES ('v1', 'm_present', 't1', "
                "'principal', 'liaison', 'verdict', '[\"g1\"]', 2, 'answered')")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:v1', ?)",
-               (json.dumps({"g1": "approve"}),))
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                "verb, body_refs, seq, status) VALUES ('m_relay', 'v1', 't1', "
                "'liaison', 'terminologist', 'relay', '[\"g1\"]', 3, 'open')")
@@ -985,6 +985,8 @@ def test_adopt_rests_the_row_on_the_landed_ruling_or_refuses(db):
 
     db.execute("INSERT INTO rulings (id, ask_id, status, verdict_id) "
                "VALUES ('r1', 'm_present', 'landed', 'v1')")
+    # His keypress rows under the landed ruling (fact F1).
+    seed_verdict(db, "v1", {"g1": "approve"}, ruling="r1")
     sb = _woken_by("terminologist", db, "relay", "m_relay")
     assert sb.call("glossary.adopt", ids=["g1"]) == {"adopted": ["g1"]}
     _commit_sandbox(db, sb, "s_adopt")
@@ -995,13 +997,13 @@ def test_adopt_rests_the_row_on_the_landed_ruling_or_refuses(db):
 
 
 def test_the_loader_seeds_a_landed_ruling_for_a_seeded_verdict(db):
-    """The adopt cases seed a `verdict:` key and the verdict message. The
-    loader lands a `rulings` row for it, so the premise of the cases holds
-    now that adopt needs one."""
+    """The adopt cases seed a `keypress_verdicts` row and the verdict
+    message. The loader lands a `rulings` row for it, so the premise of the
+    cases holds now that adopt needs one."""
     from rota.testkit.fixtures import seed
 
     seed(db, {
-        "config": [{"key": "verdict:m_rule", "value": '{"g1": "approve"}'}],
+        "keypress_verdicts": [{"id": "m_rule", "per_item": '{"g1": "approve"}'}],
         "glossary_terms": [{"id": "g1", "term": "recipe", "sense_short": "x",
                             "provenance": "observed"}],
         "messages": [

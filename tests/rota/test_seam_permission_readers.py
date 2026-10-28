@@ -321,15 +321,14 @@ def test_p5_his_span_on_another_line_is_about_the_page(db):
 
 def test_the_contest_reader_reads_the_rows_and_not_the_verdict_map(db):
     """The review of pass 2: `_resolve_contest` read the `verdict:` maps of
-    config. It reads the landed rows of `ruled_refs_live` now. A map with no
-    ruling behind it is no contest, and a landed contest row is one."""
+    config. It reads the landed rows of `ruled_refs_live` now. A verdict
+    message with no ruling behind it is no contest, and a landed contest row
+    is one. Fact F1 removed the map."""
     from rota.core.runner import _resolve_contest
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m5', 'th', 'principal', 'liaison', "
                "'verdict', '[]', 5)")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m5', ?)",
-               (json.dumps({ITEM: "contest"}),))
     db.commit()
     assert _resolve_contest(db, ITEM) == {}
     _rule(db, "r1", {ITEM: "contest"})

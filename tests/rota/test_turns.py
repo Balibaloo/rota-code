@@ -28,6 +28,7 @@ import pytest
 
 from rota.core.db import SessionResult, Turn, Write, init_db, session_commit
 from rota.testkit.fixtures import seed_provenance
+from rota.testkit.fixtures import seed_verdict
 
 
 @pytest.fixture
@@ -402,11 +403,10 @@ def test_a_relay_carries_the_principal_ruling_from_its_cause(tmp_path):
                "approval_ver, version) VALUES ('t1',"
                "'Calculate tips based on bill amount and service quality',"
                "'in_scope','draft',0,1)")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m10', ?)",
-               (json.dumps({"t1": "contest", "s1": "approve"}),))
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m10','th','principal','liaison',"
                "'verdict',?,1)", (json.dumps(["t1", "s1"]),))
+    seed_verdict(db, "m10", json.dumps({"t1": "contest", "s1": "approve"}))
     # The owner's relay: cause is the verdict, refs are only the rows it holds.
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, cause_id) VALUES ('m11','th','liaison',"
@@ -482,10 +482,6 @@ def test_a_contested_tick_carries_the_reason_it_was_contested_for(tmp_path):
                "('e_m10','principal','old reason',1)")
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                "('e_m20','principal','no service quality. just bill + tip %',2)")
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m10', ?)",
-               (json.dumps({"t1": "contest"}),))
-    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m20', ?)",
-               (json.dumps({"t1": "contest", "s1": "approve"}),))
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m10','th','principal','liaison',"
                "'verdict',?,1)", (json.dumps(["t1"]),))
@@ -495,6 +491,10 @@ def test_a_contested_tick_carries_the_reason_it_was_contested_for(tmp_path):
     # Each verdict lands as a ruling with its rows, and the contest reader
     # reads the rows, not the `verdict:` map (the seam design, 3.4).
     _land_verdicts(db, {"m10": {"t1": "contest"}, "m20": {"t1": "contest"}})
+    # His keypress rows under each landed ruling (fact F1).
+    seed_verdict(db, "m10", json.dumps({"t1": "contest"}), ruling="r_m10")
+    seed_verdict(db, "m20", json.dumps({"t1": "contest", "s1": "approve"}),
+                 ruling="r_m20")
 
     out = resolve_inbound(db, Wake("vision_keeper", "tick:contested",
                                    refs=("t1",)))
