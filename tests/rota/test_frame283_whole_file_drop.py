@@ -51,8 +51,9 @@ def test_a_whole_file_write_that_drops_a_nested_statement_opens_a_note(db, tmp_p
     out = _call(sb, "code.commit", message=MESSAGE)
     assert out["committed"] is True, out
     assert _git(root, "rev-parse", "HEAD") != head
+    # F7: the stray numbers the line in the base, not in the written file.
     assert _strays(sb) == [(f"{PATH}::version_option.callback", "open",
-                            "removal: `ctx.exit()` at line 550")]
+                            "removal: `ctx.exit()` at line 547")]
 
 
 def test_the_whole_file_drop_lands_when_a_criterion_asks_for_it(db, tmp_path):

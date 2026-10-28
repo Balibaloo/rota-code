@@ -1137,7 +1137,7 @@ def test_a_fault_or_a_block_writes_faults_and_no_ledger_row(db, word):
                   assumption="the adopt door refused a row that the relay names", kind=word)
     assert out["call"] == "model.adopt"
     for w in _logs(sb, "faults"):
-        _apply_write(db, _as_write(w))
+        _apply_write(db, _as_write(w), sb.ctx.role)
     rows = db.execute("SELECT call, status, closed_by, seq FROM faults ORDER BY seq").fetchall()
     assert [tuple(r) for r in rows] == [("glossary.adopt", "open", None, 1),
                                         ("model.adopt", "open", None, 2)]

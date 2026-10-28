@@ -71,7 +71,7 @@ def _seat(db, ask, words=WORDS):
 
 def _commit(db, sb):
     for w in sb.ctx.writes:
-        _apply_write(db, _as_write(w))
+        _apply_write(db, _as_write(w), sb.ctx.role)
     db.commit()
 
 
@@ -260,7 +260,8 @@ def test_the_view_supersedes_outdates_and_confirms(db):
     for row in ruling_rows(db, "r_new", ["calculate_tip"],
                            {"calculate_tip": "approve",
                             f"reading:{reply}": "approve"}, words="ok"):
-        _apply_write(db, _as_write(("ruled_refs", row["id"], row)))
+        _apply_write(db, _as_write(("ruled_refs", row["id"], row)),
+                     "liaison")
     # An amended item moves its version past the version he ruled on.
     db.execute("UPDATE items SET version = 2 WHERE id = 'calculate_tip'")
     db.commit()

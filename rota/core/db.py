@@ -144,6 +144,8 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 5000")
     conn.execute("PRAGMA journal_mode = WAL")
+    # A file that no `init_db` of fact F4 opened has no `latest_runs` view.
+    latest_runs_view(conn)
     return conn
 
 
@@ -153,8 +155,28 @@ def connect_readonly(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # `query_only` refuses a temp view too, so the view comes first.
+    latest_runs_view(conn)
     conn.execute("PRAGMA query_only = ON")
     return conn
+
+
+def latest_runs_view(conn: sqlite3.Connection) -> None:
+    """Give a connection the `latest_runs` view when its file has none.
+
+    A night's file from before fact F4 holds no such view, and every reader
+    of the newest run reads the view. A temp view writes nothing to the
+    file. The body is the schema's own, so the order rule stays one. Every
+    opener of a rota file calls this helper: `connect`, `connect_readonly`,
+    `invariants.open_readonly` and `nightreport.open_ro`. A read script
+    opens a night through one of them (the F4 review, low 5)."""
+    have = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE name IN ('latest_runs', 'test_runs')")}
+    if have != {"test_runs"}:
+        return
+    body = re.search(r"CREATE VIEW IF NOT EXISTS latest_runs AS(.*?);",
+                     SCHEMA_PATH.read_text(encoding="utf-8"), re.S).group(1)
+    conn.execute(f"CREATE TEMP VIEW IF NOT EXISTS latest_runs AS{body}")
 
 
 # The schema marker (frame 21). `init_db` writes it when it creates the
@@ -276,6 +298,9 @@ def init_db(path: str | Path) -> sqlite3.Connection:
             conn.close()
             raise RuntimeError(stale)
         conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        # The file holds the view now. The temp view of `connect` is no
+        # longer needed, and only this connection sees it.
+        conn.execute("DROP VIEW IF EXISTS temp.latest_runs")
         # `executescript` adds a table, never a column, and a run database under
         # `.rota/` outlives the schema. The symbol spans are added in place rather
         # than behind `SCHEMA_MARK`, because the mark refuses a database outright
@@ -506,8 +531,89 @@ def _apply_ref(conn: sqlite3.Connection, w: Write) -> bool:
     return True
 
 
-def _apply_write(conn: sqlite3.Connection, w: Write) -> bool:
-    """Apply one write. Returns False when the write changes no row."""
+class JournalAuthorError(ValueError):
+    """A write of one role over a journal row that another role authored."""
+
+
+# A status move is no new authorship. A decision of one role resolves the
+# ledger row of another, and `test_laws` pins that resolve. The review of
+# pass 1 found the exception wider than that reason. Pass 1b keeps it, and
+# the report records the finding.
+_STATUS_MOVE = frozenset({"status"})
+
+# The author column of a journal table whose column is not `author`. The
+# author of a message is its sender.
+_AUTHOR_COLUMN = {"messages": "from_role"}
+
+# `config_history` has an author column and no `id` column. Two rows of one
+# key are two events, so no row key exists to read an author by.
+_NO_ROW_KEY = frozenset({"config_history"})
+
+# The author column of `entries` holds the speaker, not the writing role.
+# The Liaison writes the principal's words with author "principal", so the
+# staged value there is no claim of authorship by the writing role.
+_SPEAKER_TABLES = frozenset({"entries"})
+
+
+def author_column(conn: sqlite3.Connection, table: str) -> str | None:
+    """The column that names the author of a row of `table`, or None when
+    the rule does not cover the table. `identity.py` declares the journal
+    tables."""
+    from .identity import NATURAL_KEYS
+
+    if NATURAL_KEYS.get(table, ("",))[0] != "journal" or table in _NO_ROW_KEY:
+        return None
+    column = _AUTHOR_COLUMN.get(table, "author")
+    return column if _has_column(conn, table, column) else None
+
+
+def journal_author(conn: sqlite3.Connection, table: str,
+                   row_id: str) -> str | None:
+    """
+    The author on file of one journal row, or None.
+
+    This function is the one reader of the fact. None means that the rule
+    does not cover the table, or that the row or its author is absent.
+    """
+    column = author_column(conn, table)
+    if column is None:
+        return None
+    row = conn.execute(f"SELECT {column} FROM {table} WHERE id = ?",
+                       (row_id,)).fetchone()
+    return (row[0] or None) if row is not None else None
+
+
+def author_refusal(conn: sqlite3.Connection, table: str, row_id: str,
+                   role: str, values: dict) -> str | None:
+    """
+    The refusal of a write of `values` by `role` on one journal row, or None.
+
+    Law 1: a journal has "one author per entry". Roman ruled on 2026-10-27
+    14:47 that the author is the role, so any session of that role may
+    change the entry. A write also may not name another role as the author
+    (law 6: nothing is written on the principal's behalf). The commit and
+    the doors read this one rule.
+    """
+    column = author_column(conn, table)
+    if column is None:
+        return None
+    author = journal_author(conn, table, row_id)
+    if (author is not None and author != role
+            and not set(values) <= _STATUS_MOVE):
+        return (f"{row_id} is a {table} row by {author}, and you write as "
+                f"{role}. A journal row is its author's record.")
+    named = values.get(column)
+    if table not in _SPEAKER_TABLES and named and named != role:
+        return (f"the write names {named} as the author of {table} row "
+                f"{row_id}, and you write as {role}. A journal row is its "
+                f"author's record.")
+    return None
+
+
+def _apply_write(conn: sqlite3.Connection, w: Write, role: str) -> bool:
+    """Apply one write by `role`. Returns False when the write changes no
+    row. Raise JournalAuthorError when the write is over another role's
+    journal row."""
     if w.table == REFS_TABLE:
         return _apply_ref(conn, w)
     # A junction row set that a session replaces whole. The Architect's touch
@@ -535,6 +641,9 @@ def _apply_write(conn: sqlite3.Connection, w: Write) -> bool:
     exists = conn.execute(
         f"SELECT 1 FROM {w.table} WHERE id = ?", (w.row_id,)
     ).fetchone() is not None
+    refused = author_refusal(conn, w.table, w.row_id, role, w.values)
+    if refused:
+        raise JournalAuthorError(refused)
 
     # Existing row -> UPDATE, not upsert. SQLite checks NOT NULL against the
     # *proposed* row before it detects the conflict, so an upsert carrying only
@@ -901,12 +1010,13 @@ def _running(conn: sqlite3.Connection, batch_id: str) -> bool:
 
 
 def _first_error(output: str) -> str:
-    """The first `E ` line of a run, with object addresses blanked."""
+    """The error line of a run, with object addresses blanked."""
+    # Fact F5: `harness.error_line` is the one reader of the line. harness
+    # imports this module, so the import waits for the call.
+    from .harness import error_line
+
     # Night 160: the same red printed a new `0x...` address on each run.
-    for line in (output or "").splitlines():
-        if line.startswith("E "):
-            return re.sub(r"0x[0-9a-fA-F]+", "0x", line[1:].strip())
-    return ""
+    return re.sub(r"0x[0-9a-fA-F]+", "0x", error_line(output))
 
 
 def _red_of(rows) -> dict[str, str]:
@@ -936,6 +1046,8 @@ def red_before(conn: sqlite3.Connection, batch_id: str,
     from .scheduler import live_tests
 
     alive = live_tests(conn, "test_id") if live else ""
+    # Fact F4 leaves this read on the table. It needs the newest run that ran
+    # code, and `latest_runs` can hold a no-worktree row that ran none.
     return _red_of(conn.execute(
         "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
         f"(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ?{_real_run()}"
@@ -961,9 +1073,8 @@ def lift_on_red_move(conn: sqlite3.Connection, batch_id: str,
     from .scheduler import live_tests
 
     now = _red_of(conn.execute(
-        "SELECT test_id, result, output FROM test_runs WHERE rowid IN "
-        "(SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
-        f"AND commit_sha = ?{live_tests(conn, 'test_id')} GROUP BY test_id)",
+        "SELECT test_id, result, output FROM latest_runs WHERE batch_id = ? "
+        f"AND commit_sha = ?{live_tests(conn, 'test_id')}",
         (batch_id, head)))
     if now.keys() - before.keys():
         # Night 164: s229's commit 63c65435 cured one red and broke four, and
@@ -1334,7 +1445,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         reads_before = batch_reads(conn, result.writes)
         for w in result.writes:
             before = _subject_state(conn, w)
-            changed = _apply_write(conn, w)
+            changed = _apply_write(conn, w, result.role)
             table, row_id = receipt_of(w)
             if table not in ARTEFACT_TABLES or not changed:
                 continue

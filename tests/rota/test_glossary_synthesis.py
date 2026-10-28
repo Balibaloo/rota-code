@@ -44,7 +44,7 @@ class Ctx:
         from rota.core.runner import _as_write
 
         for w in self.writes:
-            _apply_write(self.conn, _as_write(w))
+            _apply_write(self.conn, _as_write(w), self.role)
         self.writes.clear()
 
 

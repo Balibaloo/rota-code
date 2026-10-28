@@ -863,11 +863,12 @@ def harness(conn) -> list[Wake]:
     # one failing test with the input fed in, and it never ran -- the batch
     # already had runs at this commit, so the gate was satisfied while every
     # later session read the stale result. A test with no run at the head
-    # commit is owed one, whichever side moved.
+    # commit is owed one, whichever side moved. The newest run says it: a
+    # run at the head that a later run superseded is no run of the head now.
     rows = conn.execute(
         "SELECT DISTINCT b.id AS bid FROM batches b JOIN tests t ON t.batch_id = b.id "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
-        "  AND NOT EXISTS (SELECT 1 FROM test_runs r "
+        "  AND NOT EXISTS (SELECT 1 FROM latest_runs r "
         "                  WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit "
         "                    AND r.test_id = t.id)"
         # The harness run skips a test of a retired criterion, so that test
@@ -964,10 +965,9 @@ def tests_failing(conn) -> list[Wake]:
     # batch then loops without a bound (observed: the design review of frame
     # 83, 2026-09-24).
     rows = conn.execute(
-        "SELECT DISTINCT r.batch_id AS bid, MAX(r.attempt) AS att FROM test_runs r "
+        "SELECT DISTINCT r.batch_id AS bid, MAX(r.attempt) AS att FROM latest_runs r "
         "JOIN batches b ON b.id = r.batch_id AND b.status = 'running' "
         "WHERE r.result IN ('fail','error') "
-        "  AND r.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id) "
         # A red test of a retired criterion wakes no fix. Night 163 looped
         # on the stop page that such a red led to (frame 306, pass 2b).
         + live_tests(conn, "r.test_id") +
@@ -1040,11 +1040,10 @@ def exhausted(conn) -> list[Wake]:
 
     cap = config.get(conn, "loop_cap")
     rows = conn.execute(
-        "SELECT batch_id AS bid, MAX(attempt) AS att FROM test_runs "
-        "WHERE result IN ('fail','error') "
         # Each test's latest run only, like tests_failing: a fail that a later
         # pass superseded is not an attempt still failing (2026-09-16 review).
-        "AND rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id) "
+        "SELECT batch_id AS bid, MAX(attempt) AS att FROM latest_runs "
+        "WHERE result IN ('fail','error') "
         # A retired criterion's red climbs no ladder (frame 306, pass 2b).
         + live_tests(conn, "test_id") +
         " GROUP BY batch_id"
@@ -1310,9 +1309,8 @@ def _tests_green(conn, body_refs: str | None) -> bool:
     seen = False
     for ref in _refs_of(body_refs):
         row = conn.execute(
-            "SELECT tr.result FROM test_runs tr JOIN tests t ON t.id = tr.test_id "
-            "WHERE tr.test_id = ? AND tr.batch_id = t.batch_id "
-            "ORDER BY tr.rowid DESC LIMIT 1", (ref,)).fetchone()
+            "SELECT tr.result FROM latest_runs tr JOIN tests t ON t.id = tr.test_id "
+            "WHERE tr.test_id = ? AND tr.batch_id = t.batch_id", (ref,)).fetchone()
         if row is None:
             continue
         if row["result"] != "pass":
@@ -1384,10 +1382,10 @@ def review(conn) -> list[Wake]:
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
         "  AND NOT EXISTS (SELECT 1 FROM verdicts v "
         "                  WHERE v.batch_id = b.id AND v.commit_sha = b.head_commit) "
-        "  AND NOT EXISTS (SELECT 1 FROM test_runs r "
+        "  AND NOT EXISTS (SELECT 1 FROM latest_runs r "
         "                  WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit "
         "                    AND r.result != 'pass') "
-        "  AND EXISTS (SELECT 1 FROM test_runs r "
+        "  AND EXISTS (SELECT 1 FROM latest_runs r "
         "              WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit) "
         # law 8: the merge gate runs harness, then Critic, then Architect
         # And every criterion has its test. Since the repository's own tests
@@ -2190,11 +2188,17 @@ def check_predicates_can_fire() -> list[str]:
     # A view is a source too. The provenance views stand over `refs`, and a
     # predicate that reads one reads the schema.
     views = set(re.findall(r"CREATE VIEW IF NOT EXISTS (\w+)", schema))
+    # A predicate that reads a view queries the tables under the view. A drain
+    # on `test_runs` is then met by a read of `latest_runs` (fact F4).
+    under = {v: set(re.findall(r"(?:FROM|JOIN) (\w+)", body))
+             for v, body in re.findall(
+                 r"CREATE VIEW IF NOT EXISTS (\w+) AS(.*?);", schema, re.S)}
     problems = []
 
     for name, p in REGISTRY.items():
         src = inspect.getsource(p.fn)
         queried = set(re.findall(r"FROM (\w+)", src)) | set(re.findall(r"JOIN (\w+)", src))
+        queried |= {t for v in queried & views for t in under.get(v, ())}
         # A predicate may build its table name at runtime (`FROM {table}`), which
         # no static read can follow. Those are exempt rather than falsely flagged.
         dynamic = "FROM {" in src or "from {" in src

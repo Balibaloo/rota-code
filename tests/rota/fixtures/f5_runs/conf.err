@@ -1,0 +1,4 @@
+ImportError while loading conftest 'C:\Users\roman\AppData\Local\Temp\claude\d--repos-rota\b3bc8a66-bd69-4749-a050-07bdd1893c24\scratchpad\f5rev\conf\conftest.py'.
+conftest.py:1: in <module>
+    import nosuch_conf_mod
+E   ModuleNotFoundError: No module named 'nosuch_conf_mod'

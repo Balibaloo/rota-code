@@ -12,11 +12,13 @@ model would introduce a paraphrase risk over a boolean.
 """
 from __future__ import annotations
 
+import re
 import shlex
 import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from .. import paths
 from . import lifecycle
@@ -166,7 +168,9 @@ def run(conn: sqlite3.Connection, batch_id: str,
     before = red_before(conn, batch_id)
     # A run at this head already exists, so a new red is a new test, not a
     # new commit (frame 318, pass 3b). A no-worktree error row ran no code,
-    # so it is no run at this head (review 3, low).
+    # so it is no run at this head (review 3, low). Fact F4 leaves this read
+    # on `test_runs`: it asks whether any run at this head exists, not which
+    # run is the newest.
     from .db import NO_WORKTREE
 
     same_head = conn.execute(
@@ -186,19 +190,143 @@ def run(conn: sqlite3.Connection, batch_id: str,
     return results
 
 
+_E_LINE = re.compile(r"E\s+\S")
+_E_FRAME = re.compile(r'E\s+File ".*", line \d+')
+_NATIVE_FRAME = re.compile(r'\s+File ".*", line \d+')
+# pytest's `-q` progress line. A one-test file that errors in a fixture
+# prints `E` and `[100%]` (review 1 of F5, finding 1).
+_PROGRESS = re.compile(r"[.EFsxXp]+\s+\[\s*\d+%\]\s*")
+# The header above one test's traceback, or above a collection error.
+_SECTION_HEAD = re.compile(r"_{3,} \S.*? _{3,}$")
+# pytest puts this mark before each line of a crash of its own.
+_INTERNAL = "INTERNALERROR> "
+# The texts that join two tracebacks of one chained raise.
+_CHAIN_MARKS = (
+    "During handling of the above exception, another exception occurred:",
+    "The above exception was the direct cause of the following exception:")
+
+
+class ErrorAt(NamedTuple):
+    """Where a red run says what raised: `line` is the last raise, and
+    `cause` is the first raise of a chain, else None."""
+    line: int | None
+    cause: int | None
+
+
+def _marked_error(lines: list[str], lo: int, hi: int, block: bool) -> int | None:
+    """The `E` line in lines[lo:hi] that says what raised, or None."""
+    first = next((i for i in range(lo, hi) if _E_LINE.match(lines[i])
+                  and not _PROGRESS.fullmatch(lines[i])), None)
+    # Frame 336: a collection error puts the frame first and the error
+    # last. Night 168's m53 showed only the file and the line.
+    if first is not None and (block or _E_FRAME.match(lines[first])):
+        while first + 1 < hi and _E_LINE.match(lines[first + 1]):
+            first += 1
+    return first
+
+
+def _native_error(lines: list[str], lo: int, hi: int, block: bool) -> int | None:
+    """The exception line after the first native frame in lines[lo:hi]."""
+    frame = next((i for i in range(lo, hi) if _NATIVE_FRAME.match(lines[i])), None)
+    if frame is None:
+        return None
+    return next((i for i in range(frame + 1, hi)
+                 if lines[i].strip() and not lines[i][0].isspace()), None)
+
+
+def _chain_error(lines: list[str], lo: int, hi: int, find, block: bool) -> ErrorAt:
+    """The last raise and the cause of the one block lines[lo:hi]."""
+    cuts = [i for i in range(lo, hi) if any(m in lines[i] for m in _CHAIN_MARKS)]
+    found = [at for a, b in zip([lo] + [c + 1 for c in cuts], cuts + [hi])
+             if (at := find(lines, a, b, block)) is not None]
+    if not found:
+        return ErrorAt(None, None)
+    return ErrorAt(found[-1], found[0] if len(found) > 1 else None)
+
+
+def error_at(lines: list[str]) -> ErrorAt:
+    """Where a red run says what raised, as indexes into `lines`.
+
+    1. The block. The first test section that holds an error, between two
+       `___ name ___` headers. The whole run when it has no header.
+    2. The raise. The last section of a chained raise in that block gives
+       `line`, and the first section gives `cause`.
+    3. pytest's form, in one section. The first `E` line that is not the
+       progress line. The last line of that `E` block when the block starts
+       with a frame or the run has an `ERROR collecting` line.
+    4. The native form, when the run has no `E` line. The first line that
+       is not indented after the first `File "...", line N` frame. An
+       `INTERNALERROR> ` mark does not count.
+    """
+    # Fact F5: this is the one reader of the error line. Rule C76 puts
+    # every reader at one rule. Fourteen readers used four rules before.
+    # The last raise names the seat's own mistake in 175 of 179 recorded
+    # chained runs, and frame 328, item 4, rules the same. Frame 317's
+    # Tester still needs the cause, so the cause comes too.
+    view = [ln[len(_INTERNAL):] if ln.startswith(_INTERNAL) else ln for ln in lines]
+    block = any("ERROR collecting" in ln for ln in view)
+    heads = [i for i, ln in enumerate(view) if _SECTION_HEAD.match(ln)]
+    bounds = list(zip([0] + heads, heads + [len(view)]))
+    for find in (_marked_error, _native_error):
+        for lo, hi in bounds:
+            got = _chain_error(view, lo, hi, find, block)
+            if got.line is not None:
+                return got
+    return ErrorAt(None, None)
+
+
+def _text(line: str) -> str:
+    """One error line without pytest's `E` or the INTERNALERROR mark."""
+    line = line[len(_INTERNAL):] if line.startswith(_INTERNAL) else line
+    return (line[1:] if _E_LINE.match(line) else line).strip()
+
+
+def error_line(output: str | None) -> str:
+    """The line of a red run that says what raised, the last raise of a
+    chain, without its marker. "" when no line says it."""
+    lines = (output or "").splitlines()
+    at = error_at(lines).line
+    return "" if at is None else _text(lines[at])
+
+
+def error_cause(output: str | None) -> str:
+    """The first raise of a chained red run, without its marker. "" when
+    the run holds no chain."""
+    lines = (output or "").splitlines()
+    at = error_at(lines).cause
+    return "" if at is None else _text(lines[at])
+
+
 def _tail(text: str, size: int = 2000) -> str:
     """
-    The last `size` characters from a line start, led by the run's first
-    `E ` line when the cut drops it.
+    The last `size` characters from a line start, led by the run's error
+    line and its cause when the cut changes what `error_at` reads.
     """
-    # Frame 318, review 1 finding 2: the red's identity is the first `E `
-    # line. A cut mid-output gave a later line or half a line instead.
+    # Frame 318, review 1 finding 2: the red's identity is the error line.
+    # A cut mid-output gave a later line or half a line instead.
     if len(text) <= size:
         return text.strip()
     cut = text.rfind("\n", 0, len(text) - size) + 1
-    tail = text[cut:]
-    first = next((ln for ln in text[:cut].splitlines() if ln.startswith("E ")), None)
-    return (f"{first}\n{tail}" if first else tail).strip()
+    tail = text[cut:].strip()
+    lines = text.splitlines()
+    at = error_at(lines)
+    if at.line is None or ((error_line(tail), error_cause(tail))
+                           == (error_line(text), error_cause(text))):
+        return tail
+    keep = []
+    if at.cause is not None:
+        keep += _raise_lines(lines, at.cause) + [_CHAIN_MARKS[0]]
+    # A strip of the whole would take a native frame's indent.
+    return "\n".join(keep + _raise_lines(lines, at.line) + [tail])
+
+
+def _raise_lines(lines: list[str], at: int) -> list[str]:
+    """The error line at `at`, led by its frame in the native form."""
+    if _E_LINE.match(lines[at]):
+        return [lines[at]]
+    view = [ln[len(_INTERNAL):] if ln.startswith(_INTERNAL) else ln for ln in lines]
+    start = next((i for i in range(at, -1, -1) if _NATIVE_FRAME.match(view[i])), at)
+    return view[start:at + 1]
 
 
 def _run_one(root: Path, path: str, timeout: int,
