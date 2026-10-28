@@ -12124,6 +12124,11 @@ class LineReading:
     # lists sit in the parser's helpers below, and no door reads them.
 
     @property
+    def faults(self) -> bool:
+        """True when the words hold a fault word, a line number or none."""
+        return bool(_LINE_FAULT.search(self.words))
+
+    @property
     def names(self) -> set[str]:
         """The quoted spans, flags and identifiers that the words name, in
         lower case. A grant on a name has the name as its target."""
@@ -12755,7 +12760,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
                   request_texts: tuple[str, ...] = (),
                   faulted_texts: tuple[str, ...] = (),
                   earlier_lines: frozenset[int] | None = None,
-                  earlier_matched: frozenset[int] = frozenset()
+                  earlier_matched: frozenset[int] = frozenset(),
+                  item_texts: dict[int, str] | None = None
                   ) -> str | None:
     """The refusal of a ruling the words do not support, or None.
 
@@ -12773,6 +12779,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     `faulted`. `earlier_lines` are the lines that his earlier answers to the
     page name, or None when the reply is his only answer. `earlier_matched`
     are the lines that his latest earlier answer about each says match.
+    `item_texts` maps each criterion line to its text.
     """
     # law 6: the latest answer about a line wins, and the reply is the latest
     reversed_ = sorted(((matched - faulted)
@@ -12794,7 +12801,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
               else frozenset())
     unnamed = _unnamed_contest(sentences, contested - spared,
                                faulted | matched, size, item_lines,
-                               request_lines, earlier_lines)
+                               request_lines, earlier_lines, item_texts)
     if unnamed:
         return unnamed
     approve = _faulted_approve(approved, cues or {}, size, request_first,
@@ -13107,7 +13114,8 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
                      read: set[int], size: int,
                      item_lines: frozenset[int] = frozenset(),
                      request_lines: frozenset[int] = frozenset(),
-                     earlier_lines: frozenset[int] | None = None) -> str | None:
+                     earlier_lines: frozenset[int] | None = None,
+                     item_texts: dict[int, str] | None = None) -> str | None:
     """The refusal of a contest on a line the words never name, or None.
 
     Night 147 (frame 234, pass 2): s281's words named lines 3, 4 and 7, and
@@ -13123,7 +13131,8 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     items and the criteria. `request_lines` are the request items alone.
     `earlier_lines` are the lines whose rows take their words from his
     earlier answer to the same page, by `words_from`. It is None when the
-    reply is his only answer to the page.
+    reply is his only answer to the page. `item_texts` maps each criterion
+    line to its text.
 
     law 6: nothing is ruled on the principal's behalf
     """
@@ -13147,8 +13156,21 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     # m140 contested the description row against "Ok, I approve the page"
     # (frame 258). One added sentence let s281's contest of the notes land
     # (review 3, finding 1).
-    if _unnumbered(sentences):
-        unnamed = [n for n in unnamed if n not in item_lines]
+    # Words that number a line spare a criterion line only when a sentence
+    # with no number shares a name with the line's text. Night 172's m121
+    # numbered line 12, and "The other lines are fine." let a contest of
+    # criterion line 4 land (F2 pass 2, W5). A name can still point at a
+    # criterion that no number reaches (pass 2b).
+    loose = _unnumbered(sentences)
+    if loose:
+        # A sentence that agrees spares nothing. "The `format_filename`
+        # docstring is fine as it is." spared line 4 (the F2 review, pass 2,
+        # finding 1). So the sentence must hold a fault word.
+        said = set().union(*(_line_reading(s).names for s in loose
+                             if _line_reading(s).faults))
+        unnamed = [n for n in unnamed if n not in request_lines and not (
+            n in item_lines and said
+            & _line_reading((item_texts or {}).get(n, "")).names)]
         if not unnamed:
             return None
     read_earlier = ("" if earlier_lines is None else
@@ -13551,6 +13573,16 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
 
         if not park_ask_batch(ask["id"]):
             keys = answer_about(ctx.conn, ask["id"]) or refs
+    said = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                            (ctx.trigger,)).fetchone()
+    his = (said["body_text"] if said else "") or ""
+    # A call with no `words` rests on his reply, whole, from the record. The
+    # landing brief's own examples carry `words` inside a line's object, and
+    # on nights 170 to 172, 19 of 20 "words is empty" refusals held his words
+    # there (F2 pass 2, `plans/f2-night172-read.md`, W6). A row keeps the
+    # span of its own object or act. Law 6 holds: the verdicts stay the seat's.
+    if not (words or "").strip():
+        words = his
     if (isinstance(rulings, dict) and not rulings and not is_clarify
             and not acts and (not row_order or batches_only)):
         rid = _ruling_id(ctx, ask["id"])
@@ -13680,9 +13712,6 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # The guard reads his message, never the `words` argument: one
     # paraphrase confirmed a reading that his reply skipped (the review of
     # pass 5b, finding 5).
-    said = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
-                            (ctx.trigger,)).fetchone()
-    his = (said["body_text"] if said else "") or ""
     his_reading = _line_reading(his, len(order or []))
     named = set(his_reading.named)
     his_matched = his_reading.matched
@@ -13744,8 +13773,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     for ref, shape in shape_of.items():
         if not shape.get("act"):
             continue
-        span = shape.get("words") or words or ""
-        if _words_from(ctx, span) is None:
+        # An act rests on its own span only. With no span it rested on the
+        # whole reply, and night 172's r_m121 put `remove` on line 12 where
+        # his words said "put back" (F2 pass 2, W5).
+        span = shape.get("words") or ""
+        if not span.strip() or _words_from(ctx, span) is None:
             line = (f"line {order.index(ref) + 1}" if order and ref in order
                     else ref)
             raise ValueError(
@@ -13902,7 +13934,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # the words fault, and `land` keeps it on the same predicate. A line the
     # words do not fault is refused: 9 of 9 such contests on nights 136 to
     # 149 were the seat's error (`built_line_faulted`).
-    words_reading = _line_reading(words, len(order) if order else None)
+    # law 6: nothing is ruled on the principal's behalf
+    # The doors read his reply, never the seat's `words`. A seat that added
+    # "Line 4 is wrong too." to m121 landed a contest of line 4 (the F2
+    # review of pass 2, finding 8).
+    words_reading = _line_reading(his, len(order) if order else None)
     read_cues, read_matched = words_reading.cues, words_reading.matched
     read_faulted = set(read_cues)
     for ref, ruling in per_item.items():
@@ -14033,8 +14069,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         earlier_read, earlier_fine = _earlier_reading(
             ctx.conn, ask["id"], ctx.trigger, len(order))
         refusal = _line_refusal(
-            words, contested, faulted, matched, len(order), request_first,
-            request_first and _quotes_line(words, page_text, 1), batch_lines,
+            his, contested, faulted, matched, len(order), request_first,
+            request_first and _quotes_line(his, page_text, 1), batch_lines,
             # A request line whose files fault the code line carries is no
             # faulted approve (frame 298's design, 3.3).
             item_lines, frozenset(i + 1 for i, r in enumerate(order)
@@ -14050,7 +14086,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 (order[n - 1], order[n - 1])).fetchone() or [""])[0] or ""
                 for n in sorted(faulted) if 1 <= n <= len(order)),
             # None says that the reply is his only answer to the page.
-            None if earlier_read is None else from_earlier, earlier_fine)
+            None if earlier_read is None else from_earlier, earlier_fine,
+            {n: (ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
+                                  (order[n - 1],)).fetchone() or [""])[0] or ""
+             for n in item_lines - request_lines})
         if refusal:
             raise ValueError(refusal)
     if is_clarify and not (words or "").strip():
@@ -14061,23 +14100,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "a reading carries the principal's words, and words is empty. "
             "Pass the reply, whole")
     if any(v != "approve" for v in per_item.values()) and not (words or "").strip():
-        # On the shift page, a verdict that means what his shift words mean
-        # gets the call with his reply whole. The land gate of 2bbace14,
-        # runs 1, 2 and 4: the seat put his words in acts, and this bare
-        # text moved it off "later" (law 6: the verdict stays the seat's).
-        his_all = _his_reply(ctx)
-        found = _his_shift_words(his_all) if shift else []
-        if found and _shift_agrees(found, {str(k).strip(): v for k, v
-                                           in rulings.items()}):
-            call, args = _rule_call(dict(rulings), his_all.strip())
-            if acts:
-                call = (call[:-1] + ", acts="
-                        + json.dumps(acts, ensure_ascii=False) + ")")
-                args["acts"] = acts
-            raise ValueError(_offer(ctx, (
-                f"a contest carries the principal's words to the row's owner, "
-                f"and words is empty. Pass the reply, whole: {call}"),
-                "rulings.rule", args))
+        # Only a reply with no text reaches here, because the door reads his
+        # reply when the call passes no words. The shift-page offer of
+        # 6a5d0850 went with F2 pass 2d: his empty reply holds no shift word.
         raise ValueError(
             "a contest carries the principal's words to the row's owner, and "
             "words is empty. Pass the reply, whole")

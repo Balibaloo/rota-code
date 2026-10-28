@@ -478,9 +478,10 @@ def test_s281s_call_is_refused_through_the_door(db, extra):
                                    "name lines 5, 6 and 8 to 11.")
 
 
-def test_an_unnumbered_sentence_spares_a_criterion_line(db):
+def test_an_unnumbered_sentence_spares_a_line_of_the_request(db):
     # m263's shape: a numbered fault and an unnumbered correction. The
-    # contest of the unnamed criterion line 4 lands.
+    # fixture's criteria are items of the request, so line 4 is a request
+    # line, and its contest lands (the F2 review of pass 2, finding 3).
     words = ("Line 3 is wrong because the tip is rounded. Also, take the tip "
              "in cents.")
     rulings = {str(n): "approve" for n in range(1, 12)}

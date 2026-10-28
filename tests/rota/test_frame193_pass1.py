@@ -462,6 +462,53 @@ def test_s263s_contest_of_the_change_line_names_line_5(db):
     # M142 faults lines 2 and 3, not line 5, so the door holds (frame 255).
     assert str(e.value) == (
         "line 5: the words do not fault bg_3's files. Approve line 5.")
-    out = sb.call("rulings.rule", rulings={**rulings, "5": "approve"}, words=M142)
+    # "Please don't drop this change; I want the team to fix it." names the
+    # change and no criterion, so it reaches the request line alone. The
+    # contest of c3 on line 4 is r_m121's shape (F2 pass 2c).
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings={**rulings, "5": "approve"}, words=M142)
+    assert str(e.value) == (
+        "The words name lines 2 and 3 and do not name line 4. A contest rests "
+        "on the principal's words. Approve the lines the words do not name, or "
+        "rule them as the words say.")
+    # The line-1 door, not the naming door, rules the request line. It reads
+    # the faults of lines 2 and 3 as no fault of the request.
+    with pytest.raises(ValueError) as e:
+        sb.call("rulings.rule", rulings={**rulings, "1": "contest",
+                                         "4": "approve", "5": "approve"},
+                words=M142)
+    assert str(e.value) == (
+        "line 1: the words do not fault the request. They fault lines 2 and "
+        "3. Rule lines 2 and 3 as the words say, and approve line 1.")
+    out = sb.call("rulings.rule", rulings={**rulings, "4": "approve",
+                                           "5": "approve"}, words=M142)
+    assert out["per_item"]["c3_version_option_show_python"] == "approve"
     assert out["per_item"]["bg_3"] == "approve"
     assert out["per_item"]["c1_version_option_show_python"] == "contest"
+
+
+# The F2 review of pass 2, findings 1 and 2: a sentence with no number
+# spares a criterion line only when it names the line and faults it. No
+# recorded reply of nights 170 to 172 has this shape, so the reply below is
+# M142 with one sentence added. Line 4 is c3, whose text names `show_python`.
+def _s263_with(db, added):
+    sb = _m141(db)
+    reply = M142 + " " + added
+    sb.ctx.conn.execute("UPDATE messages SET body_text = ? WHERE id = 'm142'",
+                        (reply,))
+    rulings = {"1": "approve", "2": "contest", "3": "revise", "4": "contest",
+               "5": "approve"}
+    return sb.call("rulings.rule", rulings=rulings, words=reply)
+
+
+def test_a_sentence_that_names_and_faults_a_criterion_spares_its_contest(db):
+    out = _s263_with(db, "The `show_python` default must also hold when the "
+                         "flag is passed as None.")
+    assert out["per_item"]["c3_version_option_show_python"] == "contest"
+
+
+def test_a_sentence_that_names_and_agrees_spares_no_contest(db):
+    with pytest.raises(ValueError) as e:
+        _s263_with(db, "The `show_python` default is fine as it is.")
+    assert str(e.value).startswith(
+        "The words name lines 2 and 3 and do not name line 4.")
