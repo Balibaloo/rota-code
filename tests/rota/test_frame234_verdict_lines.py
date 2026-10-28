@@ -151,8 +151,10 @@ def test_a_negated_match_lands_the_contest(db):
     assert out["per_item"]["how_it_works"] == "contest"
 
 
-def test_a_clarify_is_not_read_for_lines(db):
-    words = "Lines 1 to 4 match what I asked for."
+def test_a_clarify_contest_on_words_that_fault_lands_unread_for_lines(db):
+    # A contest needs words that back it, so the words fault (review p7 p1,
+    # finding 1). Words that agree back no contest.
+    words = "Lines 1 to 4 are wrong."
     out = _rule_request(db, words, {"calculate_tip": "contest",
                                     "how_it_works": "contest"}, verb="clarify")
     assert out["per_item"]["calculate_tip"] == "contest"

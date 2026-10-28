@@ -11752,17 +11752,15 @@ def _shift_agrees(found: list[str], lines: dict) -> bool:
 
 def _his_reply(ctx) -> str:
     """The words of the message that woke the session."""
-    row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
-                           (ctx.trigger,)).fetchone() if ctx.trigger else None
-    return (row["body_text"] if row else "") or ""
+    from .principal import said as his_words
+
+    return his_words(ctx.conn, ctx.trigger)
 
 
 def _faulted_by_his_words(ctx, said: str, size: int) -> set[int]:
     """The page lines that his reply or the seat's words fault, by the fault
     reader of the faulted-approve door (`_line_reading`)."""
-    row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
-                           (ctx.trigger,)).fetchone() if ctx.trigger else None
-    his = (row["body_text"] if row else "") or ""
+    his = _his_reply(ctx)
     out: set[int] = set()
     for text in (his, said):
         if text:
@@ -11864,24 +11862,277 @@ def _holds_span(text: str, span: str) -> bool:
     return bool(folded) and folded in " ".join((text or "").split()).casefold()
 
 
+_CLAUSE_MARK = frozenset(".!?,;:")
+# A clause can start at a joining word. "did not call line 4 wrong" is his
+# clause after "and" on night 172's m129, and the cut keeps his "not".
+_CLAUSE_JOIN = frozenset({"and", "but", "or", "so", "because"})
+# A clause also starts after a lead word at a clause start, or after a lead
+# adverb that ends in -ly. The seat quotes "Drop line 2" from his "Please
+# drop line 2." (night 171's m70, P7 pass 1d).
+_CLAUSE_LEAD = frozenset({"please", "also", "then", "now", "and", "so"})
+# An adverb that hedges or negates its clause is no lead word. "Hardly any
+# of line 3 is right." keeps its hedge (review p7 p2, finding p2-3).
+_HEDGES = frozenset({"hardly", "barely", "scarcely", "rarely", "seldom", "only"})
+
+
+def _clause_tokens(text: str) -> tuple[list[str], set[int]]:
+    """The words of `text`, lower case, and the token positions where a
+    clause can start or end. Quote marks, apostrophes and other marks are
+    white space, so a seat's added quotes or a curly apostrophe match."""
+    tokens: list[str] = []
+    cuts = {0}
+    for m in re.finditer(r"\w+|[.!?,;:]", (text or "").casefold()):
+        s = m.group()
+        if s in _CLAUSE_MARK:
+            cuts.add(len(tokens))
+            continue
+        if s in _CLAUSE_JOIN:
+            cuts.update((len(tokens), len(tokens) + 1))
+        if len(tokens) in cuts and (s in _CLAUSE_LEAD or (
+                s.endswith("ly") and s not in _HEDGES)):
+            cuts.add(len(tokens) + 1)
+        tokens.append(s)
+    cuts.add(len(tokens))
+    return tokens, cuts
+
+
+def _holds_clauses(text: str, sentence: str) -> bool:
+    """True when the words of `sentence` are a run of whole clauses of
+    `text`: the run starts and ends where a clause of `text` starts or ends.
+    "No." or "call line 4 wrong." cut his clause, so they do not match."""
+    want = _clause_tokens(sentence)[0]
+    if not want:
+        return True
+    tokens, cuts = _clause_tokens(text)
+    n = len(want)
+    return any(tokens[i:i + n] == want and i + n in cuts
+               for i in sorted(cuts) if i + n <= len(tokens))
+
+
+def _nearest_sentence(his: str, sentence: str) -> str:
+    """The sentence of his reply that shares the most words with `sentence`."""
+    want = set(_clause_tokens(sentence)[0])
+
+    def share(s: str) -> float:
+        have = set(_clause_tokens(s)[0])
+        return len(want & have) / (len(want | have) or 1)
+
+    return max(_sentences(his), key=share, default="")
+
+
+def _words_outside(words: str, his: str, field: str = "words",
+                   earlier: tuple[str, ...] = ()) -> str | None:
+    """The refusal for `words` that are not a part of his reply, or None.
+
+    Each sentence of `words` must be a run of whole clauses of his reply,
+    or of one of his `earlier` answers, by `_holds_clauses`. The refusal
+    names `field`, the sentence that failed and his nearest sentence."""
+    for sentence in _sentences(words):
+        if any(_holds_clauses(t, sentence) for t in (his, *earlier)):
+            continue
+        if not (his or "").strip():
+            return f"{field} must be his own words, and his reply holds no words"
+        return (f"{field} must be his own words, and his reply does not hold "
+                f"{sentence!r}, and his nearest sentence is "
+                f"{_nearest_sentence(his, sentence)!r}")
+    return None
+
+
+def _shown_text(conn, ref: str, line: int | None, page_text: str) -> str:
+    """The text that the page showed him for the row `ref`: its numbered
+    line of `page_text`, else its line of `render_refs`. A column that the
+    page does not show is not his to name (review p7 p1, finding 2)."""
+    from .principal import render_refs
+
+    if line is not None and _line_body(page_text, line):
+        return _line_body(page_text, line)
+    shown = render_refs(conn, [ref]).strip()
+    return shown[len(ref) + 1:].strip() if shown.startswith(f"{ref}:") else ""
+
+
+# The words that tell no option from another.
+_PLAIN_WORDS = frozenset(
+    "the a an one this that these those it is are was be of to in on for "
+    "and or but not no yes with as by at from use mean means meant want "
+    "what which who how when why do does i you we they".split())
+
+
+# A sentence that asks: it ends with "?" or opens with a question word.
+_QUESTION_OPEN = re.compile(
+    r"\W*(?:what|which|how|why|is|are|do|does|can)\b", re.I)
+# The words that negate what follows them in a clause. The module's older
+# `_NEGATION` reads fewer words, and its readers keep it.
+_CLAUSE_NEGATION = re.compile(
+    r"\b(?:not|no|never|nor|rather\s+than|instead\s+of)\b|n't\b", re.I)
+
+
+def _shown_words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z][a-z'-]+", (text or "").casefold())
+            if w not in _PLAIN_WORDS}
+
+
+def _shown_mention(said: str, shown: str, others: frozenset = frozenset()) -> str:
+    """How `said` mentions a content word of `shown`, the text the page
+    showed him for a row: "named", "negated" or "".
+
+    "the options one" names the sense "group: a set of related options". A
+    question names nothing: "what is a group anyway" chose no sense. A word
+    after a negation in its clause is "negated": "not the command one"
+    refuses the command sense (review p7 p2, finding p2-1). A row named
+    outside a negation too is "named": M400's "the normal version flag"
+    names the row that "not a new flag" describes. Only a word that no row in `others`
+    shows can be negated, because a long criterion shares its words with
+    its test, and "the test should not check the version" refuses neither."""
+    want = _shown_words(shown)
+    found = ""
+    for sentence in _sentences(said):
+        if sentence.rstrip().endswith("?") or _QUESTION_OPEN.match(sentence):
+            continue
+        for clause in re.split(
+                r"[,;:]|\b(?:and|but|or|so|because)\b", sentence, flags=re.I):
+            for m in re.finditer(r"[a-z][a-z'-]+", clause.casefold()):
+                if m.group() in want:
+                    # The negation governs the word when only plain words
+                    # stand between: "not the command one". Night 172's
+                    # m55 "do not touch commands" negates the verb, and
+                    # approves the sense (P7 pass 1e, the replay).
+                    neg = list(_CLAUSE_NEGATION.finditer(clause[:m.start()]))
+                    if not neg or _shown_words(
+                            clause[neg[-1].end():m.start()]):
+                        found = "named"
+                    elif m.group() not in others and not found:
+                        found = "negated?"
+    return "negated" if found == "negated?" else found
+
+
+def _backed(conn, ref: str, verdict: str, said: str, order: list,
+            page_text: str) -> bool:
+    """True when the words `said`, which the span rule has proven his, back
+    the verdict on `ref`: they name the row, or they approve it, or they
+    fault its line for a contest or a revise."""
+    if not (said or "").strip():
+        return False
+    reading = _line_reading(said, len(order) if order else None)
+    line = order.index(ref) + 1 if ref in (order or []) else None
+    if verdict == "approve" and (
+            _APPROVES.search(said) or _AGREES.match(said)
+            or _AGREEMENT_ALONE.fullmatch(said) or line in reading.matched
+            or (reading.matched and not reading.faulted)):
+        return True
+    # A contest or a revise is backed by words that fault, by the parser's
+    # fault words: "Criteria 2 and 6 are wrong." on night 164's m94.
+    if verdict != "approve" and (reading.faults or line in reading.faulted):
+        return True
+    ident = re.search(r"[\d_#]", str(ref)) and re.search(
+        rf"(?<![\w#]){re.escape(str(ref))}(?![\w#])", said, re.I)
+    shown = _shown_text(conn, ref, line, page_text)
+    return bool(line in reading.named or ident
+                or reading.names & _line_reading(shown).names
+                or _shown_mention(said, shown) == "named")
+
+
+def _unbacked_approve(conn, words: str, per_item: dict, key_of: dict,
+                      shape_of: dict, order: list,
+                      page_text: str) -> str | None:
+    """The refusal of a call that no words of his back, or None.
+
+    law 6: silence is not consent, and a question is not consent. The
+    review of 6895000 landed two approves for the reply "what time is the
+    meeting". The words of a row are its own words, else the call's
+    `words`, which the span rule has proven his, else his reply. A verdict
+    is backed when its words name its row, approve it, or fault its line
+    (`_backed`). An approve of a row the words do not name lands only beside
+    a backed verdict, because the principal never rules on a test, and the
+    test row's approve is the seat's reading beside his ruling. On a
+    numbered page a contest or an agreement backs the other lines. A call
+    with no backed verdict is refused whole, on its first row (review p7
+    p1, finding 1)."""
+    rows = list(per_item.items())
+
+    def words_of(ref: str) -> list[str]:
+        # A row's span can be the clause after his "replace it with this:",
+        # and the call's words name the line. Night 171's s193 contested
+        # line 1 of m80 so, and the span alone named no line (P7 pass 1d).
+        return [w for w in dict.fromkeys(
+            [(shape_of.get(ref) or {}).get("words") or "", words or ""]) if w]
+
+    def backed(ref: str, verdict: str) -> bool:
+        return any(_backed(conn, ref, verdict, w, order, page_text)
+                   for w in words_of(ref))
+
+    def refusal(ref: str, verdict: str) -> str:
+        said = words_of(ref)[0] if words_of(ref) else ""
+        key = key_of.get(ref, ref)
+        row = f"line {key}" if str(key).isdigit() else str(key)
+        first = (_sentences(said) or [""])[0]
+        back = "approve" if verdict == "approve" else "fault"
+        return (f"His words neither {back} nor name {row}, so {row} takes "
+                f"no {verdict}: the words start {first!r}.")
+
+    # A contest, a revise or a fault needs its own backing. Only an approve
+    # rides beside a backed verdict: "fine" carried a contest of g1 beside
+    # its approve of g2 (review p7 p2, finding p2-2).
+    # A choice of one option backs the contest of the others: "the options
+    # one" contests the command sense. A numbered page keeps its own line
+    # doors for a contest (`_unnamed_contest`), so this reads a clarify.
+    def shown_of(ref: str) -> str:
+        line = order.index(ref) + 1 if ref in (order or []) else None
+        return _shown_text(conn, ref, line, page_text)
+
+    def chose_other(ref: str) -> bool:
+        return any(_shown_mention(w, shown_of(other)) == "named"
+                   and _shown_mention(w, shown_of(ref)) != "named"
+                   for other in per_item if other != ref
+                   for w in words_of(ref))
+
+    for ref, verdict in rows:
+        if (verdict != "approve" and not order and not backed(ref, verdict)
+                and not chose_other(ref)):
+            return refusal(ref, verdict)
+    # A negated mention of a row refuses its approve: "the options one, not
+    # the command one" (review p7 p2, finding p2-1).
+    for ref, verdict in rows:
+        line = order.index(ref) + 1 if ref in (order or []) else None
+        # A numbered page reads a negation by its line doors. Night 150's
+        # m37 approved its batch line beside words that negate a test word.
+        shown = (_shown_text(conn, ref, line, page_text)
+                 if verdict == "approve" and not order else "")
+        others = frozenset().union(*[_shown_words(shown_of(o))
+                                     for o in per_item if o != ref])
+        if shown and any(_shown_mention(w, shown, others) == "negated"
+                         for w in words_of(ref)):
+            return (f"His words refuse {key_of.get(ref, ref)}: they say "
+                    f"no to {shown!r}, so it takes no approve.")
+    if not rows or any(backed(ref, verdict) for ref, verdict in rows):
+        return None
+    ref, verdict = next(((r, v) for r, v in rows if v == "approve"), rows[0])
+    return refusal(ref, verdict)
+
+
 def _words_from(ctx: Ctx, span: str) -> str | None:
     """The message that holds `span`: the reply first, then the principal's
     earlier messages of the thread, newest first. None when no message holds
     it. The writer records the fact and refuses nothing here, because the
-    span check is pass 3 of the seam design."""
+    span check is pass 3 of the seam design. His words come from `said`,
+    because a clarify's answer keeps them in the transcript only (W7).
+
+    A span is a run of whole clauses of one message, by `_holds_clauses`,
+    the rule of the words fields. On m129 the act span "giving up" cut his
+    clause and landed as his words (review p7 p1, finding 3)."""
     reply = ctx.conn.execute(
-        "SELECT body_text, thread_id FROM messages WHERE id = ?",
+        "SELECT thread_id FROM messages WHERE id = ?",
         (ctx.trigger,)).fetchone() if ctx.trigger else None
     if reply is None:
         return None
-    folded = " ".join(span.split()).casefold()
-    if not folded or folded in " ".join((reply["body_text"] or "").split()).casefold():
+    if not span.split() or _holds_clauses(_his_reply(ctx), span):
         return ctx.trigger
+    from .principal import said as his_words
+
     for m in ctx.conn.execute(
-            "SELECT id, body_text FROM messages WHERE thread_id = ? AND "
+            "SELECT id FROM messages WHERE thread_id = ? AND "
             "from_role = 'principal' AND id != ? ORDER BY seq DESC",
             (reply["thread_id"], ctx.trigger)):
-        if folded in " ".join((m["body_text"] or "").split()).casefold():
+        if _holds_clauses(his_words(ctx.conn, m["id"]), span):
             return m["id"]
     return None
 
@@ -13077,7 +13328,7 @@ _BACK_REF = re.compile(r"\W*(?:they|it|its|these|those|both|each|their)\b", re.I
 # matches what I asked for." (frame 258).
 _AGREES = re.compile(
     r"\W*(?:ok(?:ay)?|yes|that's right|"
-    r"(?:this|that|it)(?: all)? (?:matches|is right|looks (?:right|good|fine))|"
+    r"(?:this|that|it)(?: all)? (?:matches|is (?:right|fine|good)|looks (?:right|good|fine))|"
     r"looks (?:right|good|fine))\b", re.I)
 # A reply that is agreement alone: night 151's m23 "ok", night 147's m182
 # "Ok, go ahead." and night 121's m119 "yes that all looks right, go ahead"
@@ -13191,10 +13442,7 @@ def _earlier_reading(conn, ask_id: str, reply_id: str, size: int
     `earlier_exchange` in `runner.py`, so the door reads the answers that
     the seat's prompt shows. None says that the reply is his only answer.
     """
-    texts = [r[0] for r in conn.execute(
-        "SELECT body_text FROM messages WHERE cause_id = ? AND verb = 'converse' "
-        "AND id != ? AND from_role = 'principal' AND body_text IS NOT NULL "
-        "ORDER BY seq", (ask_id, reply_id))]
+    texts = [t for t, _ in _earlier_answers(conn, ask_id, reply_id)]
     if not texts:
         return None, frozenset()
     # The latest answer about a line wins. An earlier "Line 5 is fine" let a
@@ -13223,14 +13471,32 @@ def _earlier_sources(conn, ask_id: str, reply_id: str, size: int
     (frame 337; the seam design, 1.1, `words_from`).
     """
     out: dict[int, tuple[str, str]] = {}
-    for m in conn.execute(
-            "SELECT id, body_text FROM messages WHERE cause_id = ? AND "
-            "verb = 'converse' AND id != ? AND from_role = 'principal' AND "
-            "body_text IS NOT NULL ORDER BY seq", (ask_id, reply_id)):
-        for sentence in _RULING_SENTENCE.split(m["body_text"]):
+    for text, message_id in _earlier_answers(conn, ask_id, reply_id):
+        for sentence in _RULING_SENTENCE.split(text):
             for n in sorted(_line_reading(sentence, size).named):
                 if 1 <= n <= size:
-                    out[n] = (m["id"], sentence.strip())
+                    out[n] = (message_id, sentence.strip())
+    return out
+
+
+def _earlier_answers(conn, ask_id: str, reply_id: str
+                     ) -> list[tuple[str, str]]:
+    """His words and the message id of each earlier answer to the page
+    `ask_id`, in order, without the reply `reply_id`.
+
+    A clarify answer lands on the verdict path of `land`, which writes no
+    `body_text`. So the words come from `said`, and an answer is kept when
+    its words are not empty (night 172, wall W7)."""
+    from .principal import said as his_words
+
+    out = []
+    for m in conn.execute(
+            "SELECT id FROM messages WHERE cause_id = ? AND verb = 'converse' "
+            "AND id != ? AND from_role = 'principal' ORDER BY seq",
+            (ask_id, reply_id)):
+        text = his_words(conn, m["id"])
+        if text:
+            out.append((text, m["id"]))
     return out
 
 
@@ -13573,16 +13839,56 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
 
         if not park_ask_batch(ask["id"]):
             keys = answer_about(ctx.conn, ask["id"]) or refs
-    said = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
-                            (ctx.trigger,)).fetchone()
-    his = (said["body_text"] if said else "") or ""
+    his = _his_reply(ctx)
     # A call with no `words` rests on his reply, whole, from the record. The
     # landing brief's own examples carry `words` inside a line's object, and
     # on nights 170 to 172, 19 of 20 "words is empty" refusals held his words
     # there (F2 pass 2, `plans/f2-night172-read.md`, W6). A row keeps the
     # span of its own object or act. Law 6 holds: the verdicts stay the seat's.
-    if not (words or "").strip():
+    rests_on_reply = not (words or "").strip()
+    if rests_on_reply:
         words = his
+    # law 6: the tool never rules for the Principal. The landed row carries
+    # `words` to the row's owner, so `words` must be a part of his reply.
+    # A seat that added "Line 4 is wrong too." to m121 sent words he never
+    # said (the F2 review of pass 2, finding 8). `his` comes from `said`,
+    # which reads the transcript of a clarify's answer (wall W7).
+    outside = _words_outside(words, his)
+    if outside:
+        raise ValueError(outside)
+    # A line object and an `acts` entry carry `words` to the row too, with
+    # or without an act. On m129, a line object with "Line 4 is wrong too."
+    # landed on the row (the F2 review of pass 2f, finding 1). A span there
+    # can come from his earlier answer of the thread, as `_words_from` reads.
+    # The words of a line with an act are the act's span. The span check
+    # below reads that span verbatim, and a span can be part of a clause
+    # (the seam design, pass 3; frame 305's s357).
+    objects = [(k, v) for k, v in (rulings or {}).items() if isinstance(v, dict)
+               ] if isinstance(rulings, dict) else []
+    entries = ([(k, v) for k, v in acts.items() if isinstance(v, dict)]
+               if isinstance(acts, dict) else [])
+    with_act = {str(k).strip() for k, v in [*objects, *entries]
+                if str(v.get("act") or "").strip()}
+    nested = [*[(f"line {k} words", v.get("words")) for k, v in objects
+                if str(k).strip() not in with_act],
+              *[(f"acts[{str(k)!r}] words", v.get("words")) for k, v in entries
+                if str(k).strip() not in with_act]]
+    nested = [(f, str(w)) for f, w in nested if str(w or "").strip()]
+    if nested:
+        # His earlier answers read through `said`, the one reader (W7).
+        from .principal import said as his_words
+
+        thread = ctx.conn.execute(
+            "SELECT thread_id FROM messages WHERE id = ?", (ctx.trigger,)).fetchone()
+        earlier = tuple(
+            his_words(ctx.conn, m["id"]) for m in ctx.conn.execute(
+                "SELECT id FROM messages WHERE thread_id = ? AND "
+                "from_role = 'principal' AND id != ? ORDER BY seq DESC",
+                (thread["thread_id"] if thread else None, ctx.trigger)))
+        for field, said_words in nested:
+            outside = _words_outside(said_words, his, field, earlier)
+            if outside:
+                raise ValueError(outside)
     if (isinstance(rulings, dict) and not rulings and not is_clarify
             and not acts and (not row_order or batches_only)):
         rid = _ruling_id(ctx, ask["id"])
@@ -13813,10 +14119,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             # that holds it. s357's "use click directly in the test" names
             # no line, and its clause starts "On line 11" (the review of pass
             # 4b, P4b-3). The span check above found the message.
-            held = ctx.conn.execute(
-                "SELECT body_text FROM messages WHERE id = ?",
-                (_words_from(ctx, span or ""),)).fetchone()
-            within, span = span or None, (held["body_text"] if held else "") or ""
+            from .principal import said as his_words
+
+            within, span = span or None, his_words(ctx.conn,
+                                                   _words_from(ctx, span or ""))
         said = (_line_reading(span).note_act(order.index(ref) + 1, page_text,
                                              within=within)
                 if order and ref in order else None)
@@ -14092,6 +14398,10 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
              for n in item_lines - request_lines})
         if refusal:
             raise ValueError(refusal)
+    unbacked = _unbacked_approve(ctx.conn, words, per_item, key_of, shape_of,
+                                 order, page_text)
+    if unbacked:
+        raise ValueError(unbacked)
     if is_clarify and not (words or "").strip():
         # A reading rests on the principal's words. The door cannot read them,
         # so it holds the one fact it can check: a ruling with no words on

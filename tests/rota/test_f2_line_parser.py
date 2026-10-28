@@ -71,6 +71,9 @@ def _messages(*bodies: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE messages (id TEXT, cause_id TEXT, verb TEXT, "
                  "from_role TEXT, body_text TEXT, seq INTEGER)")
+    # `said` reads the entry of a message first (wall W7), so the tables exist.
+    conn.execute("CREATE TABLE entries (id TEXT, text TEXT)")
+    conn.execute("CREATE TABLE config (key TEXT, value TEXT)")
     for i, body in enumerate(bodies):
         conn.execute("INSERT INTO messages VALUES (?, 'ask', 'converse', "
                      "'principal', ?, ?)", (f"m{i}", body, i))

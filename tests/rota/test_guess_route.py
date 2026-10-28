@@ -347,8 +347,9 @@ def test_the_guess_relay_passes_the_send_door_and_keys_the_guess_mode(db):
 
 @pytest.mark.parametrize("key_ruling, disputed", [
     ({"verdict": "contest", "act": "remove", "target": "tests/test_options.py",
-      "words": "the options and defaults test files, which have nothing to do "
-               "with this change"},
+      # A span is a run of whole clauses of his reply (review p7 p1, 3).
+      "words": "Line 1 also names the options and defaults test files, which "
+               "have nothing to do with this change"},
      ["tests/test_options.py"]),
     ("contest", []),
 ])

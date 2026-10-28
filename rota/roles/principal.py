@@ -1201,9 +1201,7 @@ def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
     rows = read_back_rows(conn, reply)
     if not rows:
         return None
-    said = conn.execute("SELECT body_text FROM messages WHERE id = ?",
-                        (reply,)).fetchone()
-    words = ((said["body_text"] if said else "") or "").split()
+    words = said(conn, reply).split()
     quote = " ".join(words[:READ_BACK_WORDS]) + (
         " ..." if len(words) > READ_BACK_WORDS else "")
     clauses: list[str] = []
@@ -2177,12 +2175,12 @@ def returned_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
     # `session_commit` writes the note as "<reply id>: <refusal>".
     reply_id = re.match(r"(\w+): ", row["unresolved_note"])
     reply = conn.execute(
-        "SELECT body_text FROM messages WHERE id = ? AND cause_id = ? "
+        "SELECT id FROM messages WHERE id = ? AND cause_id = ? "
         "AND from_role = 'principal'",
         (reply_id.group(1) if reply_id else None, ask_id)).fetchone()
     # The line parser reads by sentence: a bare "3 is wrong" counts at a
     # sentence start (frame 305, review 1, finding 1).
-    lines = _line_reading((reply and reply["body_text"]) or "").named
+    lines = _line_reading(said(conn, reply["id"]) if reply else "").named
     about = f" about line {min(lines)}" if len(lines) == 1 else ""
     return ("Your last answer to this page did not reach the team. The team "
             f"could not turn your words{about} into a ruling. Answer the page "
@@ -3522,6 +3520,24 @@ def record_entry(conn: sqlite3.Connection, message_id: str, text: str) -> str:
         "INSERT INTO artefact_versions(table_name, version) VALUES ('entries', 1) "
         "ON CONFLICT(table_name) DO UPDATE SET version = version + 1")
     return uid
+
+
+def said(conn: sqlite3.Connection, message_id: str | None) -> str:
+    """His words of the message `message_id`, or "" when none are kept.
+
+    This is the one reader of his words of a message. The entry
+    `e_<message>` comes first, because `record_entry` writes it on every
+    path of `land`. The verdict path of `land` writes no `body_text`. On
+    night 172 five pages quoted his clarify answers as "" (wall W7). A
+    message with no entry, as a seeded one, falls back to `body_text`."""
+    if not message_id:
+        return ""
+    text = entry_for(conn, message_id)
+    if text:
+        return text
+    row = conn.execute("SELECT body_text FROM messages WHERE id = ?",
+                       (message_id,)).fetchone()
+    return (row["body_text"] if row else "") or ""
 
 
 def verdict_for(conn: sqlite3.Connection, message_id: str) -> dict[str, str]:
