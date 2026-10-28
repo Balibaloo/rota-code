@@ -213,3 +213,34 @@ All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac2
 ### (d) Usage
 
 Input about 12k tokens, output about 4k tokens, about 16k in total. These are estimates. The cap was 25k.
+
+## p6
+
+**Verdict: READY**, provided that the gate on 90c5d390 shows no new red. I did not run the gate. Pass 3f at eed16a28 closes p5-1, p5-2 and p5-3, and the merge 90c5d390 reads clean. Findings: 0 high, 2 low. Both lows sit outside the seam's own code.
+
+### (a) Verdicts on the points
+
+1. p5-1: closed. On m35, "Line 4 is fine, though some say line 4 has to say ..." is refused. "it is wrong to say ..." and "I never said ..." stay refused. "Line 4 should say the local variable matters." lands with his whole clause. "I have no doubt line 4 should say ..." is refused, and that refusal is safe.
+2. p5-3: closed. `_REPORT_DENIALS` is gone. The cut reads `_NEGATED`, which now holds "never". The older lists `_NEGATION`, `_CLAUSE_NEGATION` and `_NEGATION_WORDS` stay and serve other readers. No new list is left.
+3. p5-2: closed. `_names_path` gives False for "not the termui tests" on `src/click/termui.py`, for "the termui source must change" on `tests/test_termui.py`, for "the core of the change is the flag" on `src/click/core.py`, and for "put the new tests with the other utils tests" on `src/click/utils.py`. It gives True for the M85 and P10 spans.
+4. Merge: the hunk at about 11902 keeps both sides. `_HEDGES` serves the `-ly` lead check, and the report-verb cut follows it in the one loop of `_clause_tokens`. No branch is dead: `_NEGATED` fires on "ought not to say". The 48 reader files give 1 failed, 1389 passed, 13 xfailed. The red is `test_pins`, a known red.
+5. Replay: 55 moves against 3b31077a, and 28 against the p5 run. I judged ten of the 28. 172 and 173 s97 4 on m14: the refusal is right, because his words ask a question and contest no line. The 5 new lands are right on his words. These are 171 s113 2 and 171 s121 2 to 4 and s122 2. They come from foundation's removal of the "earlier request" refusal. 170 and 171 s6 1 on m3 are doubtful (finding p6-1). 171 s146 2 is an error of the replay (finding p6-2). The other 18 change only refusal text.
+
+### (b) Findings
+
+- p6-1. **Outside the seam: rota/roles/api.py `ACCOUNT_NO_LINE`, from eeb0db69, low. PLAUSIBLE.** "Ok, that matches click as it is today, so I approve it." with all four lines `approve` landed at 22f98cf2. It is now refused with "The words name no line of this page". He approves the whole account. Foundation's rule refuses words that name no line, and carries them to his next request page. Fix: check with foundation's frame that a whole-page approve of an account is meant to be refused.
+- p6-2. **Replay, 171 s146 2 on m47, low. PLAUSIBLE.** The call raises `OperationalError: no such table: latest_runs`. The register of night 171 predates foundation's table, and the replay does not run `init_db`. Fix: none in the code. Run `init_db` on the register copy before the next replay.
+
+### (c) Probes
+
+All probes are in `C:/Users/roman/AppData/Local/Temp/claude/d--repos-rota/2ebac251-aff2-4075-a2e8-ad7f47182931/scratchpad/p3rev/`.
+
+- `probe6.py` and `probe9.py`: the four m35 "say" replies at 90c5d390.
+- `probe10.py`: 6 spans through `_names_path` and 3 spans through `_holds_clauses`.
+- `new7.json`, `diff7.py` and `moves7.txt`: the replay of the 290 calls against `par3.json` and `new6.json`.
+- `git grep` at eeb0db69: the origin of `ACCOUNT_NO_LINE`.
+- Tests: `pytest` on the 48 files that name the readers.
+
+### (d) Usage
+
+Input about 10k tokens, output about 3k tokens, about 13k in total. These are estimates. The cap was 15k.
