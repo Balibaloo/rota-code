@@ -14,7 +14,7 @@ moments "a frame's push and placement" and "a status line" (moved
 2026-10-18, frame 287 build step 3; the ten rules that stood here from
 2026-09-14 to 2026-10-18 are in `plans/archive/stack-head-rules-2026-10-18.md`).
 
-## Sprint 34, recommended on night 174's read, 2026-10-28 14:4x
+## Sprint 34, recommended on night 174's read, 2026-10-28 14:18
 
 Night 174 merged 3 of 3 on 3ac83acc, the second in a row (observed:
 `plans/night174-read.md`, section 0). No walk stopped. The page walls of
