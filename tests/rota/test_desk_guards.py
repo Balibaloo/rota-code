@@ -515,6 +515,30 @@ def test_the_developer_writes_no_test_file_and_keeps_the_main_guard(db, tmp_path
     assert out["bytes"]
 
 
+def test_the_conftest_is_the_testers_and_not_the_developers(db, tmp_path):
+    """
+    F9, review pass 1, finding 2: pytest defines `conftest.py` as test
+    infrastructure, so its basename has the test shape (ruled: Roman,
+    2026-10-26 20:37, the basename gives the shape). Night 145 recorded
+    three Developer writes to `tests/conftest.py`, and pass 1 let them in.
+    """
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    dev = build("developer", db, batch_id="b1", mode="batch_start",
+                allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="test file, and the tests are the Tester's"):
+        dev.call("code.write", path="tests/conftest.py",
+                 text="import pytest\n")
+    # The Tester's working set holds no `code.write`, so the test asks the
+    # door itself. The refusal reads the role, not only the path.
+    from rota.roles import api
+    tester = api.Ctx(conn=db, role="tester", batch_id="b1")
+    assert api.code_write(tester, path="tests/conftest.py",
+                          text="import pytest\n")["bytes"]
+
+
 def test_two_answers_on_the_same_rows_end_the_questions(db):
     """
     tipsAB, 2026-09-09: the Tester asked the Terminologist about one

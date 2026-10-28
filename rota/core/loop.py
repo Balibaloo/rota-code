@@ -477,21 +477,21 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         # author is the principal because the deferral is their election.
         import hashlib
 
+        from .db import table_of
+
+        words_of = {"glossary_terms": "sense_short", "constraints": "headline",
+                    "model_areas": "account", "items": "text"}
         n = 0
         for ref in wake.refs or ():
-            words, table = None, None
-            for t, col in (("glossary_terms", "sense_short"),
-                           ("constraints", "headline"),
-                           ("model_areas", "account"),
-                           ("items", "text")):
-                row = conn.execute(
-                    f"SELECT {col} AS words FROM {t} WHERE id = ?",
-                    (ref,)).fetchone()
-                if row:
-                    words, table = row["words"], t
-                    break
-            if table is None:
+            # `db.table_of` finds the row, and this map names its words (F22).
+            table = table_of(conn, ref, among=tuple(words_of))
+            row = table and conn.execute(
+                f"SELECT {words_of[table]} AS words FROM {table} WHERE id = ?",
+                (ref,)).fetchone()
+            # A `guess:` ref names its item, and its own id holds no row.
+            if not row:
                 continue
+            words = row["words"]
             assumption = (f"observed and unconfirmed under the lazy election: "
                           f"{words}")
             lid = "l_" + hashlib.sha256(

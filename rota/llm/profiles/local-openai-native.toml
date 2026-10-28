@@ -1,12 +1,13 @@
 # local-openai with native tool calling on: the transport the tool check
 # passed on both models through litellm (plans/model-setup.md, step 10).
 # A walk measures whether the desks judge as well with native calls.
+# The loader fills `{model_host}` from `llm.OLLAMA_HOST` (F29).
 name = "local-openai-native"
 native_tools = true
 
 [provider]
 kind = "litellm"
-endpoint = "http://localhost:11434/v1"
+endpoint = "{model_host}/v1"
 timeout = 300
 
 # The 3080 sets this number: qwen3:8b needs 6.89 to 7.40 GB at 16384

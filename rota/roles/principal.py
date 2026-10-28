@@ -23,7 +23,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from ..core.db import mark_answered
+from ..core.db import READING_REF, guess_item, mark_answered, table_of
 from ..core.runner import new_id
 from ..core.db import journal_author
 
@@ -1005,37 +1005,25 @@ RULED_VERDICTS = ("approve", "contest", "revise", "resume", "park", "now",
 RULED_ACTS = ("drop", "keep", "rewrite", "add", "remove")
 TARGET_KINDS = ("row", "check", "sentence", "identifier", "source_line",
                 "path", "request")
-# The ref of the read-back line of one reply (the seam design, 2.3).
-READING_REF = "reading:"
-
-
 def ruled_ref_home(conn: sqlite3.Connection, ref: str) -> str | None:
     """The table that holds `ref`, or None.
 
-    `_table_of_ref` knows the ledger's homes. A page also numbers a batch, a
-    ledger row and a code line, and the read-back line names a reply."""
-    from .api import _table_of_ref, guess_item
+    `db.table_of` finds the row (F22). A page numbers the ledger's homes, a
+    batch, a ledger row and a code line, and the read-back line names a
+    reply. A row of any other table is no line of a page."""
+    from .api import LEDGER_HOMES
 
-    if not isinstance(ref, str) or not ref:
+    if not isinstance(ref, str):
         return None
-    if ref.startswith(READING_REF):
-        return "messages" if conn.execute(
-            "SELECT 1 FROM messages WHERE id = ?",
-            (ref[len(READING_REF):],)).fetchone() else None
-    item = guess_item(ref)
-    if item is not None:
-        return "items" if conn.execute(
-            "SELECT 1 FROM items WHERE id = ?", (item,)).fetchone() else None
-    table = _table_of_ref(conn, ref)
-    if table is not None:
-        return table
-    return next((t for t in RULED_HOMES if conn.execute(
-        f"SELECT 1 FROM {t} WHERE id = ?", (ref,)).fetchone()), None)
+    if ref.startswith(READING_REF) or guess_item(ref) is not None:
+        return table_of(conn, ref)
+    return table_of(conn, ref, among=LEDGER_HOMES + RULED_HOMES)
 
 
 # The tables beside `LEDGER_HOMES` that a page or a question names. A ledger
 # note can be about a ruling, and a question can be about a decision (frame
-# 316's m191, frame 306's clarify about).
+# 316's m191, frame 306's clarify about). This is a scope rule, and the order
+# picks one table when an id lives in two (F22).
 RULED_HOMES = ("batches", "ledger", "entries", "decisions", "rulings",
                "findings", "verdicts", "references_")
 
@@ -1102,7 +1090,7 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
             got = conn.execute(f"SELECT version FROM {table} WHERE id = ?",
                                (ref,)).fetchone()
             version = got["version"] if got else None
-        rows.append({
+        own = {
             "id": ruled_ref_id(ruling_id, ref), "ruling_id": ruling_id,
             "ref": ref, "line": order.index(ref) + 1 if ref in order else None,
             "verdict": verdict, "act": act, "target_kind": kind,
@@ -1113,8 +1101,31 @@ def ruling_rows(conn: sqlite3.Connection, ruling_id: str, page: list | None,
             "words_from": (value["words_from"] if "words_from" in value
                            else words_from),
             "old_text": contested_texts(conn, {ref: verdict}).get(ref),
-            "ref_version": version, "source": source})
+            "ref_version": version, "source": source}
+        rows += _identifier_grants(table, own)
+        rows.append(own)
     return rows
+
+
+def _identifier_grants(table: str | None, own: dict) -> list[dict]:
+    """The grant rows of the names that his words on a contested criterion
+    ask for, from the line parser's reading (fact F3).
+
+    `criteria.respecify` lets a contested name come back only on a grant
+    row with the name as its target. The Liaison's brief asks for no such
+    target, so the record writes one for each name of the contested text
+    that his words name (the F2 review, finding 2). The rows come before
+    the Liaison's own row, so its act still decides every untargeted read.
+    """
+    from .api import _line_reading, _named_tokens
+
+    if table != "criteria" or own["verdict"] not in ("contest", "revise"):
+        return []
+    names = (_line_reading(own["words"]).names
+             & _named_tokens(own["old_text"] or "")) - {own["target"]}
+    return [{**own, "id": f"{own['id']}~{name}", "act": "rewrite",
+             "target_kind": "identifier", "target": name}
+            for name in sorted(names)]
 
 
 def insert_ruling_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
@@ -1271,9 +1282,57 @@ def uncovered_statements(conn: sqlite3.Connection) -> list[dict]:
         if _root_statement(conn, r["id"]) not in cited]
 
 
-def request_of(conn: sqlite3.Connection, item: str) -> str | None:
+def row_items(conn: sqlite3.Connection, ref: str | None) -> list[str] | None:
+    """The items one row is about: an item, a criterion, a ticket, a batch,
+    a test, a ledger row or a page ref. None when the row is an inherited
+    test, which reaches no item and no writer's batch."""
+    if not ref:
+        return []
+    # `_items_reached` has no `tests` lookup. Night 162's l_71e52c9d0a on
+    # `tst_c2_version_on` reached no item (frame 316, pass 2).
+    row = conn.execute("SELECT about_ref FROM ledger WHERE id = ?", (ref,)).fetchone()
+    target = row["about_ref"] if row is not None and row["about_ref"] else ref
+    test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
+                        (target,)).fetchone()
+    if test is not None:
+        # An inherited test has no criterion, so its row reaches no request
+        # (frame 209; frame 316's review 2, finding 4).
+        if not test["criterion_id"]:
+            return None
+        return _items_reached(conn, test["criterion_id"])
+    return _items_reached(conn, ref)
+
+
+def requests_of(conn: sqlite3.Connection, ref: str | None) -> set[str | None]:
+    """The request of each item one row reaches. None in the set stands for
+    an item of no request: the account, a description or an observed
+    behaviour."""
+    return {_item_request(conn, i) for i in row_items(conn, ref) or []}
+
+
+def request_of(conn: sqlite3.Connection, ref: str | None) -> str | None:
+    """The entry of the one request that owns a row, or None.
+
+    This is the one reader of the fact (F15). An item of no request shares
+    any row, so a row of one request and the account is that request's.
+    Night 161's s1 reaches `echo_json` and `how_it_works` (F15 review 1,
+    finding 2). A row of no request or of two requests has no owner."""
+    owners = requests_of(conn, ref) - {None}
+    return next(iter(owners)) if len(owners) == 1 else None
+
+
+def _item_request(conn: sqlite3.Connection, item: str) -> str | None:
     """The entry of the request an item belongs to, or None when the item
-    cites no statement, such as the account or an observed behaviour."""
+    cites no statement or is a description."""
+    from ..core.runner import _is_description
+
+    # The account belongs to no request, whatever statement it cites. Night
+    # 133's m283 dropped `defines_commands_and_options` off later pages, and
+    # each sign-off submitted it again (the review of 61a0f41d, finding 2).
+    # A description that cites a new statement ended the park before the
+    # work existed (the review of a1bd448f, finding 1).
+    if _is_description(conn, item):
+        return None
     best = None
     for r in conn.execute(
             "SELECT r.target FROM refs r WHERE r.src_table = 'items' "
@@ -1313,7 +1372,7 @@ def open_earlier_items(conn: sqlite3.Connection, cur: dict | None = None,
     answered for the current request (2.F.1). The oldest request first.
     `asked` False also leaves out an item whose question is already sent.
     """
-    from ..core.scheduler import aside_items, not_described
+    from ..core.scheduler import aside_items
 
     cur = cur if cur is not None else current_request(conn)
     if not cur:
@@ -1322,10 +1381,11 @@ def open_earlier_items(conn: sqlite3.Connection, cur: dict | None = None,
     at = min(_entry_order(conn, e) for e in cur["entries"])
     aside = aside_items(conn)
     out: list[tuple[int, str]] = []
+    # `request_of` gives a description no request, so no description is
+    # an earlier request's item (F15).
     for r in conn.execute(
             "SELECT i.id FROM items i WHERE i.kind = 'in_scope' "
-            "AND i.approval IN ('approved', 'contested', 'draft')"
-            + not_described(conn, "i.id") + " ORDER BY i.id"):
+            "AND i.approval IN ('approved', 'contested', 'draft') ORDER BY i.id"):
         item = r["id"]
         if item in aside or _delivered(conn, item):
             continue
@@ -1377,16 +1437,19 @@ def held_asks(conn: sqlite3.Connection) -> set[str]:
 def page_request(conn: sqlite3.Connection, refs: list) -> str | None:
     """The newest request that a page's refs reach, set-aside items and
     descriptions apart."""
-    from ..core.runner import _is_description
     from ..core.scheduler import aside_items
 
     aside = aside_items(conn)
     best = None
-    for item in _reached(conn, refs):
-        # The account belongs to no request, as in `off_page`. A description
-        # citing s3 put the confirm item off its own page (the review of
-        # e406e976, finding 1).
-        if item in aside or _is_description(conn, item):
+    # The page reads the row walk of `request_of`, so a test reaches its
+    # criterion's item here as in `land` (F15 review 1, finding 1).
+    reached = {i for ref in refs or [] if isinstance(ref, str)
+               for i in row_items(conn, ref) or []}
+    for item in reached:
+        # `request_of` gives a description no request. A description citing
+        # s3 put the confirm item off its own page (the review of e406e976,
+        # finding 1).
+        if item in aside:
             continue
         entry = request_of(conn, item)
         if entry is None:
@@ -1405,7 +1468,6 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
     stays, so a ruling closes it. The send door drops the same rows, so a
     page's refs and its numbered rows are one set.
     """
-    from ..core.runner import _is_description
     from ..core.scheduler import aside_items
 
     aside = aside_items(conn)
@@ -1417,7 +1479,10 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
     for ref in refs or []:
         if not isinstance(ref, str):
             continue
-        items = _items_reached(conn, ref)
+        # One row walk with `land`: a note about a test of another
+        # request's item leaves the page, and his answer on it contests
+        # nothing (F15 review 1, finding 1).
+        items = row_items(conn, ref) or []
         if not items:
             continue
         if all(i in aside for i in items):
@@ -1425,13 +1490,9 @@ def off_page(conn: sqlite3.Connection, refs: list) -> set[str]:
             continue
         if req is None:
             continue
-        # The account belongs to no request, whatever statement it cites.
-        # Night 133's m283 dropped `defines_commands_and_options`, which
-        # cites s1, and each sign-off submitted it again (the review of
-        # 61a0f41d, finding 2).
-        if all(_is_description(conn, i) for i in items):
-            continue
-        others = [request_of(conn, i) for i in items]
+        # A row that reaches an item of no request, the account included,
+        # stays. `request_of` gives a description no request (F15).
+        others = requests_of(conn, ref)
         if not all(e is not None and e != req for e in others):
             continue
         is_note = conn.execute("SELECT 1 FROM ledger WHERE id = ?", (ref,)).fetchone()
@@ -1464,7 +1525,7 @@ def request_rows(conn: sqlite3.Connection, refs: list[str]) -> list[str]:
     for ref in refs or []:
         if not isinstance(ref, str) or ref in off:
             continue
-        for item in _items_reached(conn, ref):
+        for item in row_items(conn, ref) or []:
             if item not in items and item not in held and _is_request_item(conn, item):
                 items.append(item)
     if not items:
@@ -2022,7 +2083,7 @@ def returned_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
     exactly one line. The refusal speaks to the seat, so its line is not his.
     Night 158's m122 named line 1, and his words named no line (frame 305).
     """
-    from .api import _LINE_REF, _SENTENCE, _ref_lines
+    from .api import _line_reading
 
     if not ask_id:
         return ""
@@ -2038,12 +2099,9 @@ def returned_line(conn: sqlite3.Connection, ask_id: str | None) -> str:
         "SELECT body_text FROM messages WHERE id = ? AND cause_id = ? "
         "AND from_role = 'principal'",
         (reply_id.group(1) if reply_id else None, ask_id)).fetchone()
-    lines: set[int] = set()
-    # By sentence, as the line reader reads: a bare "3 is wrong" counts at
-    # a sentence start (frame 305, review 1, finding 1).
-    for sentence in _SENTENCE.split((reply and reply["body_text"]) or ""):
-        for ref in _LINE_REF.finditer(sentence):
-            lines |= _ref_lines(ref)
+    # The line parser reads by sentence: a bare "3 is wrong" counts at a
+    # sentence start (frame 305, review 1, finding 1).
+    lines = _line_reading((reply and reply["body_text"]) or "").named
     about = f" about line {min(lines)}" if len(lines) == 1 else ""
     return ("Your last answer to this page did not reach the team. The team "
             f"could not turn your words{about} into a ruling. Answer the page "
@@ -2279,8 +2337,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
                     and (r in crits or _is_request_item(conn, r))}
         # A code line renders under its item, in the block (frame 298's
         # design, 2.1, point 4).
-        in_block |= {r for r in refs if isinstance(r, str) and r.startswith("guess:")
-                     and r[len("guess:"):] in in_block}
+        in_block |= {r for r in refs if guess_item(r) in in_block}
     said: list[tuple[str, str]] = []
     account: list[tuple[str, str]] = []
     does: list[tuple[str, str]] = []
@@ -2449,7 +2506,7 @@ def _page_body(conn: sqlite3.Connection, verb: str, refs: list[str],
 
         asked = request_block(conn, refs, order, out, said=said,
                               code=code_stamp(conn, ask_id), stalled=keys)
-        guessed = [n for n, r in enumerate(order, 1) if r.startswith("guess:")]
+        guessed = [n for n, r in enumerate(order, 1) if guess_item(r) is not None]
         account_lines(plan="What we are building:")
         if described:
             out.append("How it is described:")
@@ -2633,20 +2690,43 @@ def door_rows(conn: sqlite3.Connection, message_id: str | None, kind: str) -> li
     return [r for r in rows if isinstance(r, str)]
 
 
-def _page_order(conn: sqlite3.Connection, ask: Ask) -> list[str]:
-    """The rows the page numbers, as `rulings_rule` reads them. A ruling
-    from `apply_rulings` carries no order, and the line numbers of the
-    words need one."""
-    # This order can differ from the order the Liaison ruled on. The window
+def seen_order(conn: sqlite3.Connection, reply_id: str | None,
+               ask: Ask | None) -> list[str]:
+    """The rows of page `ask` in the order he saw them at reply `reply_id`.
+    This is the one reader of that order (fact F28).
+
+    `land` records the order at his reply, and the record comes first. His
+    line numbers belong to the page as he saw it, and a render reads today's
+    rows. Frame 272 counted 73 of 693 named rows on nights 158 and 159 that
+    were not the row he saw. A reply with no record, from before frame 272,
+    takes today's render of `ask`. With no `ask`, the reader takes the
+    record only, for a reader that keeps his words when no record exists."""
+    order = door_rows(conn, reply_id, "order")
+    if order or ask is None:
+        return order
+    # The render can differ from the order the Liaison ruled on. The window
     # is an earlier open ruling that lands first in the same `apply_rulings`
     # loop and moves a row. The batch's line then shifts, and `land` drops
-    # the contest with no error (frame 255, review 1, finding 2). Night 150
-    # counts it before a frame stages the refs on the `rulings` row.
+    # the contest with no error (frame 255, review 1, finding 2).
     row = conn.execute("SELECT body_text FROM messages WHERE id = ?",
                        (ask.message_id,)).fetchone()
     return render_page(conn, ask.verb, list(ask.refs),
                        row["body_text"] if row else None,
                        ask_id=ask.message_id)[1]
+
+
+def page_ask(row) -> Ask:
+    """The `Ask` of a `messages` row of a page, for `seen_order`."""
+    return Ask(message_id=row["id"], verb=row["verb"],
+               refs=json.loads(row["body_refs"] or "[]"))
+
+
+def _reply_of(conn: sqlite3.Connection, ruling_id: str | None) -> str | None:
+    """The reply that ruling `ruling_id` reads, or None for a verdict
+    straight from the seat."""
+    row = conn.execute("SELECT reply_id FROM rulings WHERE id = ?",
+                       (ruling_id,)).fetchone() if ruling_id else None
+    return row["reply_id"] if row else None
 
 
 def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
@@ -2779,7 +2859,8 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             from .api import _line_reading, built_line_faulted
 
             faulted = _line_reading(answer.text)[0]
-            order = ask.order or (_page_order(conn, ask) if faulted else [])
+            order = ask.order or (seen_order(conn, _reply_of(conn, ruling_id), ask)
+                                  if faulted else [])
             for ref in built:
                 batches[ref] = built_line_faulted(answer.text, order, ref, faulted)
         if set(batches) & set(ask.refs):
@@ -2830,7 +2911,8 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                 if batch["head_commit"]:
                     from .api import code_line_faulted
 
-                    order = ask.order or _page_order(conn, ask)
+                    order = ask.order or seen_order(
+                        conn, _reply_of(conn, ruling_id), ask)
                     if not code_line_faulted(answer.text or "", order, key):
                         continue
                 per_item[batch_id] = ruling
@@ -2946,21 +3028,14 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
                     row["about_ref"] not in stamped:
                 if page_req is unread:
                     page_req = page_request(conn, ask.refs)
-                from ..core.runner import _is_description
-
-                # The account belongs to no request, as in `off_page`. A
-                # description cites the earliest request, so the skip lost
-                # the contest of a note about `how_it_works` (frame 274's
-                # review 1, finding 1).
-                # The owner comes from the items the note reaches, not from
-                # its `about_ref` alone. `request_of` reads an item id only,
-                # so a note about `cr_1` had no owner, and night 161's m234
+                # The owner comes from the items the note reaches. A note
+                # about `cr_1` once had no owner, and night 161's m234
                 # contested the merged confirm item's `cr_1` (frame 316,
-                # `plans/frame316-provenance.md`, repair 1). A note that
+                # `plans/frame316-provenance.md`, repair 1). A description
+                # has no request, so a note about `how_it_works` keeps its
+                # contest (frame 274's review 1, finding 1). A note that
                 # reaches no item keeps the carrier.
-                reached = _items_reached(conn, row["about_ref"])
-                owners = {None if _is_description(conn, item)
-                          else request_of(conn, item) for item in reached}
+                owners = requests_of(conn, row["about_ref"])
                 elsewhere = bool(owners) and all(
                     o is not None and o != page_req for o in owners)
                 if page_req is None or not elsewhere:

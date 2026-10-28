@@ -32,8 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from night_cassette import REASON_SCHEMA  # noqa: E402
-from rota.llm.cassettes import key_for, open_dev_db  # noqa: E402
+from rota.llm.cassettes import key_for, mark_reason, open_dev_db  # noqa: E402
 from rota.llm.llm import Pins  # noqa: E402
 
 PIN_FIELDS = ("model", "temperature", "num_ctx", "prompt_hash", "max_tokens",
@@ -72,7 +71,6 @@ def seed(night_path, cassette_path) -> dict:
     night.row_factory = sqlite3.Row
     Path(cassette_path).parent.mkdir(parents=True, exist_ok=True)
     out = open_dev_db(cassette_path)
-    out.execute(REASON_SCHEMA)
     counts = {"sessions": 0, "turns": 0, "present": 0, "notes": 0,
               "native": 0, "walk": 0, "cut": 0}
     native_run = _native_run(night)
@@ -119,16 +117,12 @@ def seed(night_path, cassette_path) -> dict:
                     # Night 147's wrap ran before pass 4, so its live cut rows
                     # hold no reason. A present key gains one only when it
                     # stores this reply and no reason (frame 233, pass 4b).
-                    if out.execute("SELECT 1 FROM done_reasons WHERE key = ?",
-                                   (key,)).fetchone():
-                        continue
+                    # `mark_reason` leaves a row with a reason as it is.
                     row = out.execute("SELECT completion FROM cassettes WHERE key = ?",
                                       (key,)).fetchone()
                     if row[0] != t["completion"]:
                         continue
-                cur = out.execute("INSERT OR IGNORE INTO done_reasons (key, done_reason) "
-                                  "VALUES (?, 'length')", (key,))
-                counts["cut"] += cur.rowcount
+                counts["cut"] += mark_reason(out, key, "length")
             counts["turns"] += added
             counts["sessions"] += 1 if added else 0
     finally:

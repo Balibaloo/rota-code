@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS cassettes (
     completion   TEXT NOT NULL,
     tool_calls   TEXT NOT NULL DEFAULT '[]',   -- native calls, as JSON
     backend      TEXT NOT NULL,
-    hits         INTEGER NOT NULL DEFAULT 0
+    hits         INTEGER NOT NULL DEFAULT 0,
+    done_reason  TEXT NOT NULL DEFAULT ''      -- why the stream stopped
 );
 
 -- Pass-rate history per (case, model, prompt version). A case that passed 5/5
@@ -192,7 +193,81 @@ def open_dev_db(path: str | Path) -> sqlite3.Connection:
     for column, spec in LIVE_COLUMNS:
         if column not in have:
             conn.execute(f"ALTER TABLE case_runs ADD COLUMN {column} {spec}")
+    _reason_column(conn)
     return conn
+
+
+def _reason_column(conn: sqlite3.Connection) -> None:
+    """Give an older `cassettes` table its `done_reason` column, and move a
+    night file's `done_reasons` side table onto the column.
+
+    One store holds the stop reason, so a replay through any backend fires
+    the rules the live call fired (frame 233). The ALTER adds the column
+    with no rewrite. `pytest.ini` runs `-n auto`, so a second worker can add
+    the column first, and its duplicate is no fault."""
+    held = {r["name"] for r in conn.execute("PRAGMA table_info(cassettes)")}
+    if "done_reason" not in held:
+        try:
+            conn.execute("ALTER TABLE cassettes ADD COLUMN done_reason TEXT "
+                         "NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError as e:
+            if "duplicate column" not in str(e):
+                raise
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                        "AND name = 'done_reasons'").fetchone():
+        return
+    # The copy and the drop go in one transaction, so a crash between them
+    # leaves the side table whole for the next open.
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute(
+            "UPDATE cassettes SET done_reason = (SELECT d.done_reason FROM "
+            "done_reasons d WHERE d.key = cassettes.key) "
+            "WHERE key IN (SELECT key FROM done_reasons)")
+        conn.execute("DROP TABLE done_reasons")
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+
+
+#: The stop reasons a cassette row stores. The runner reads `length` at the
+#: cut note of `run_session` and `invented_result` at its stream line.
+#: `llm.py` sets `repeating`, and no reader reads it yet. Any other reason,
+#: Ollama's `stop` included, is the plain end, and the row stores "".
+STORED_REASONS = ("length", "invented_result", "repeating")
+
+#: The one read of a cassette row. Both replay backends read the row here.
+_ROW = ("SELECT completion, backend, tool_calls, done_reason FROM cassettes "
+        "WHERE key = ?")
+
+
+def _replayed(row: sqlite3.Row, pins: Pins) -> Completion:
+    """The completion of one cassette row. The stop reason goes back into
+    `raw`, where the live backend puts it, so `Completion.done_reason` reads
+    a replay as it reads a live call (frame 233)."""
+    reason = row["done_reason"] or ""
+    return Completion(text=row["completion"], pins=pins,
+                      backend=f"cassette:{row['backend']}",
+                      tool_calls=_calls_from(row["tool_calls"]),
+                      raw={"done_reason": reason} if reason else {})
+
+
+def stored_reason(result: Completion) -> str:
+    """The `done_reason` value of a recording of `result`."""
+    reason = result.done_reason
+    return reason if reason in STORED_REASONS else ""
+
+
+def mark_reason(conn: sqlite3.Connection, key: str, reason: str) -> int:
+    """Set the stop reason of the row `key` when the row holds none, and
+    return the count of rows changed. The night seed infers a cut from the
+    next prompt, so the seed writes the reason here (frame 233, pass 4b)."""
+    if reason not in STORED_REASONS:
+        raise ValueError(f"{reason!r} is not a stored stop reason")
+    return conn.execute(
+        "UPDATE cassettes SET done_reason = ? WHERE key = ? AND done_reason = ''",
+        (reason, key)).rowcount
 
 
 def key_for(system: str, user: str, pins: Pins, protocol: str = "text",
@@ -352,19 +427,14 @@ class RecordingBackend:
 
         started = time.perf_counter()
         if self.replay and not self.refresh:
-            row = self.conn.execute(
-                "SELECT completion, backend, tool_calls FROM cassettes "
-                "WHERE key = ?", (key,)).fetchone()
+            row = self.conn.execute(_ROW, (key,)).fetchone()
             if row:
                 self.hits += 1
                 TALLY.replays += 1
                 TALLY.replay_seconds += time.perf_counter() - started
                 self.conn.execute(
                     "UPDATE cassettes SET hits = hits + 1 WHERE key = ?", (key,))
-                return Completion(
-                    text=row["completion"], pins=pins,
-                    backend=f"cassette:{row['backend']}",
-                    tool_calls=_calls_from(row["tool_calls"]))
+                return _replayed(row, pins)
 
         self.misses += 1
         started = time.perf_counter()
@@ -374,10 +444,11 @@ class RecordingBackend:
         self.conn.execute(
             "INSERT OR REPLACE INTO cassettes "
             "(key, model, temperature, num_ctx, prompt_hash, system, user, "
-            " completion, tool_calls, backend, hits) VALUES (?,?,?,?,?,?,?,?,?,?,0)",
+            " completion, tool_calls, backend, hits, done_reason) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,0,?)",
             (key, pins.model, pins.temperature, pins.num_ctx, pins.prompt_hash,
              system, user, result.text, _calls_to(result.tool_calls),
-             result.backend),
+             result.backend, stored_reason(result)),
         )
         return result
 
@@ -401,10 +472,7 @@ class ReplayOnlyBackend:
                  tools: list | None = None) -> Completion:
         started = time.perf_counter()
         key = key_for(system, user, pins, "native" if tools else "text", tools)
-        row = self.conn.execute(
-            "SELECT completion, backend, tool_calls FROM cassettes WHERE key = ?",
-            (key,)
-        ).fetchone()
+        row = self.conn.execute(_ROW, (key,)).fetchone()
         if row:
             TALLY.replays += 1
             TALLY.replay_seconds += time.perf_counter() - started
@@ -413,9 +481,7 @@ class ReplayOnlyBackend:
                 f"no cassette for {pins.model} key={key[:12]}… — record one with "
                 f"RecordingBackend, or the prompt changed since it was made"
             )
-        return Completion(text=row["completion"], pins=pins,
-                          backend=f"cassette:{row['backend']}",
-                          tool_calls=_calls_from(row["tool_calls"]))
+        return _replayed(row, pins)
 
 
 #: The two markers of a look that measured nothing, and the kind each one

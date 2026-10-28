@@ -286,9 +286,8 @@ def discard_uncommitted(conn: sqlite3.Connection, batch_id: str,
                        (batch_id,)).fetchone()
     if not (row and row["worktree"]) or not Path(row["worktree"]).is_dir():
         return []
-    keep = {r[0].replace(chr(92), "/") for r in conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (batch_id,))}
-    gone = worktrees.discard(row["worktree"], keep, failed_out)
+    gone = worktrees.discard(row["worktree"],
+                             worktrees.batch_furniture(conn, batch_id), failed_out)
     if close_notes and gone:
         norm = {p.replace(chr(92), "/") for p in gone}
         for r in conn.execute("SELECT path FROM drop_notes WHERE batch_id = ? "
@@ -440,6 +439,87 @@ def next_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
 # The merge gate
 # ---------------------------------------------------------------------------
 
+def predicted_rows(conn: sqlite3.Connection, batch_id: str,
+                   staged=()) -> list[dict]:
+    """
+    The batch's predicted touch rows, less the grains his words decline.
+
+    F35: the doors and the seat's working view read the prediction here.
+    No other function reads `batch_touch` for them. A grain is declined when
+    his newest landed ruling on the batch grants `remove` on the grain. A
+    grain is declined also when its file is declined. The drop covers one
+    window: his ruling has landed, and the Architect has not re-annotated
+    the batch yet. On night 170 that window is s215 to s217. A grain his
+    words name and his act does not stays here, because the reader reads
+    acts. Fact F3 lands those acts (the review of pass 1, finding 1).
+
+    `staged` is the session's own writes. A door reads them so that it sees
+    the rows the session is about to land. The rows come in grain order,
+    the landed rows first.
+
+    P4 (ruled R16/R17, 2026-09-03): the page puts the Architect's own rows
+    to the principal as a sense check. So `touch_set` does not read this.
+    """
+    from .runner import disputed_paths
+
+    rows = [dict(r) for r in conn.execute(
+        "SELECT grain, grain_kind, confidence FROM batch_touch "
+        "WHERE batch_id = ? ORDER BY grain", (batch_id,))]
+    rows += [{"grain": w[2].get("grain"), "grain_kind": w[2].get("grain_kind"),
+              "confidence": w[2].get("confidence")}
+             for w in staged or ()
+             if w[0] == "batch_touch" and isinstance(w[2], dict)
+             and w[2].get("batch_id") == batch_id and w[2].get("grain")]
+
+    asked = list(dict.fromkeys(
+        [r["grain"] for r in rows] + [f for f in map(grain_file, rows) if f]))
+    gone = set(disputed_paths(conn, batch_id, asked)) if asked else set()
+    return [r for r in rows
+            if r["grain"] not in gone and grain_file(r) not in gone]
+
+
+def grain_file(row: dict) -> str | None:
+    """
+    The file of a touch row, or None for a bare symbol.
+
+    A grain that holds `::` gives its file half, whatever its kind. The
+    night 170 Architect sent `tests/test_formatting.py::test_x` in `paths=`,
+    and the row landed with the kind `path` (the review of pass 1,
+    finding 2).
+    """
+    from . import worktrees
+
+    grain = row["grain"]
+    if "::" in grain:
+        return worktrees.grain_path(grain)
+    return grain if row["grain_kind"] == "path" else None
+
+
+def grain_name(row: dict) -> str | None:
+    """
+    The symbol name of a touch row, or None for a path with no `::`.
+
+    A grain that holds `::` gives its name half, whatever its kind.
+    """
+    grain = row["grain"]
+    if "::" in grain:
+        return grain.rsplit("::", 1)[-1]
+    return grain if row["grain_kind"] == "symbol" else None
+
+
+def predicted_files(conn: sqlite3.Connection, batch_id: str,
+                    staged=()) -> list[str]:
+    """
+    The files the batch is predicted to touch, less the files his words
+    decline: the file of each path grain and of each file-qualified symbol.
+
+    A bare symbol names no file, so it gives none. The doors compare a
+    diff with this list (F35).
+    """
+    return list(dict.fromkeys(
+        f for f in map(grain_file, predicted_rows(conn, batch_id, staged)) if f))
+
+
 def needs_structural_review(conn: sqlite3.Connection, batch_id: str) -> bool:
     """
     Whether there is anything for Architect to check this batch against.
@@ -484,17 +564,14 @@ def needs_structural_review(conn: sqlite3.Connection, batch_id: str) -> bool:
     if globals_:
         return True
 
-    touched = conn.execute(
-        "SELECT COUNT(*) AS n FROM batch_touch WHERE batch_id = ?",
-        (batch_id,)).fetchone()["n"]
+    # A path his words decline is not predicted ground, so a binding on it
+    # asks for no review (F35).
+    touched = {(t["grain"], t["grain_kind"]) for t in predicted_rows(conn, batch_id)}
     if not touched:
         return True                 # nothing predicted; do not assume nothing hit
 
-    return bool(conn.execute(
-        "SELECT COUNT(*) AS n FROM batch_touch t "
-        "JOIN constraint_bindings b ON b.grain = t.grain "
-        "                          AND b.grain_kind = t.grain_kind "
-        "WHERE t.batch_id = ? AND b.resolves = 1", (batch_id,)).fetchone()["n"])
+    return any((b["grain"], b["grain_kind"]) in touched for b in conn.execute(
+        "SELECT grain, grain_kind FROM constraint_bindings WHERE resolves = 1"))
 
 
 def touch_set(conn: sqlite3.Connection, batch_id: str) -> dict:
@@ -640,26 +717,19 @@ def ledger_items(conn: sqlite3.Connection, ledger_id: str) -> set[str]:
     them through its criterion. A row of no item belongs to its writer's
     batch (frame 198's scope, section 4). An empty set means no item and no
     batch, or the account alone."""
-    from ..roles.principal import _items_reached
+    from ..roles.principal import row_items
     from .runner import _is_description
 
     row = conn.execute("SELECT about_ref FROM ledger WHERE id = ?",
                        (ledger_id,)).fetchone()
     if row is None:
         return set()
-    ref = row["about_ref"]
-    # `_items_reached` has no `tests` lookup. Night 162's l_71e52c9d0a on
-    # `tst_c2_version_on` reached no item (frame 316, pass 2).
-    test = conn.execute("SELECT criterion_id FROM tests WHERE id = ?",
-                        (ref,)).fetchone()
-    if test is not None and not test["criterion_id"]:
-        # An inherited test has no criterion, so its row reaches no request,
-        # not even through its writer's batch (frame 209; frame 316's
-        # review 2, finding 4).
+    # The one row walk of `request_of` reads the test's criterion (F15). An
+    # inherited test reaches no item and no writer's batch (frame 209).
+    found = row_items(conn, row["about_ref"])
+    if found is None:
         return set()
-    if test is not None:
-        ref = test["criterion_id"]
-    reached = set(_items_reached(conn, ref))
+    reached = set(found)
     # The account belongs to no request, so its rows ride on every page, as
     # in `off_page`. The park and the agenda drop it alike (the review of
     # 61a0f41d, finding 2; frame 316's review 2, finding 5).
@@ -710,17 +780,20 @@ def _batch_notes(conn: sqlite3.Connection, batch_id: str,
     an area or any row that reaches no item is the batch of the session that
     wrote it. Night 138's two rows under `tests/test_utils/` reach their
     batch only this way (frame 204's design review, finding 4)."""
+    from .db import guess_item, tables_of
+
     out = []
     marks = ",".join("?" * len(HOLDING_KINDS))
     for r in conn.execute(
             f"SELECT id, about_ref FROM ledger WHERE status = 'open' "
             f"AND kind IN ({marks}) ORDER BY id", HOLDING_KINDS):
-        if r["about_ref"] in rows:
+        # A note about the code line of the batch's item is the batch's.
+        # `tables_of` reads a `guess:` ref as its item (F22).
+        if r["about_ref"] in rows or guess_item(r["about_ref"]) in rows:
             out.append(r)
             continue
-        if any(conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
-                            (r["about_ref"],)).fetchone()
-               for t in _BATCH_TABLES):
+        # `db.tables_of` finds the row, and the scope is the batch's tables (F22).
+        if tables_of(conn, r["about_ref"], among=_BATCH_TABLES):
             continue                     # a row of another batch's item
         if batch_id in _writer_batches(conn, r["id"]):
             out.append(r)

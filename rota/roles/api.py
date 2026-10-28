@@ -19,11 +19,16 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 """
 from __future__ import annotations
 
+from ..core.db import (GUESS_REF, READING_REF, elsewhere, guess_item,
+                       id_tables, table_of, tables_of)
 from ..core.worktrees import GIT
+# The grain fold lives in core, beside the batch furniture it folds (F27).
+from ..core.worktrees import grain_path as _grain_path
 from ..core.db import author_refusal, journal_author
 
 import ast as _ast
 import difflib
+import functools
 import json as _json
 
 import re
@@ -32,7 +37,7 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 REGISTRY: dict[tuple[str, str], Callable] = {}
 _log = logging.getLogger(__name__)
@@ -539,6 +544,9 @@ def _must_exist(ctx: "Ctx", table: str, id: str) -> None:
                      f"them are {hits}" if hits else
                      f"; the relay names {relayed}, and they are not {table} "
                      f"rows. Answer what the relay names, or end the session")
+        # Name the table that holds the id. Night 170's s200 sent a batch's
+        # id to `tests.encode` and was told only what the id was not (W13).
+        known = elsewhere(ctx.conn, id, table) + known
         raise ValueError(
             f"no {table} row with id={id!r}; this changes an existing row, so "
             f"the id has to be one you were given{known}")
@@ -754,14 +762,13 @@ def refuse_signoff_without_draft(ctx: Ctx, recipient: str, verb: str,
             or getattr(ctx, "wake_kind", "") != "tick:signoff"
             or recipient != "liaison" or verb != "submit"):
         return
-    # The tick drops a parked draft, so the door drops one parked after the
-    # tick (frame 261, review 1, finding 2).
-    from ..core.scheduler import not_parked
+    # The door reads the tick's own set, so a draft parked after the tick
+    # drops out here too (frame 261, review 1, finding 2, and F32).
+    from ..core.scheduler import signoff_drafts
     sent = list(refs or [])
+    drafts = set(signoff_drafts(ctx.conn))
     left = [r for r in (getattr(ctx, "wake_refs", ()) or ())
-            if isinstance(r, str) and r not in sent and ctx.conn.execute(
-                "SELECT 1 FROM items WHERE id = ? AND approval = 'draft'"
-                + not_parked(ctx.conn, "id"), (r,)).fetchone()]
+            if isinstance(r, str) and r not in sent and r in drafts]
     if not left:
         return
     full = sent + left
@@ -954,9 +961,11 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     # and the whole session died at commit. Night 135's s247, s248 and s249
     # sent span_entry="s1", a statement id (frame 142, night 135's read,
     # fix 6).
-    if not ctx.conn.execute("SELECT 1 FROM entries WHERE id = ?", (target,)).fetchone():
+    # `db.tables_of` finds the row, and a statement gets its own refusal (F22).
+    held = tables_of(ctx.conn, target, among=("entries", "statements"))
+    if "entries" not in held:
         own = getattr(ctx, "entry_id", None)
-        if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?", (target,)).fetchone():
+        if "statements" in held:
             where = (f"The entry this session can segment is {own}" if own else
                      "This session has no entry to segment against")
             raise ValueError(f"{target} is a statement, and a statement is not an "
@@ -1336,11 +1345,15 @@ _CITE_TABLES = {
 def _cite_op(artefact: str, tables: tuple[str, ...]) -> Callable:
     def cite(ctx: Ctx, id: str, kind: str, target: str) -> dict:
         """One refs row for a row of this artefact: what the row rests on."""
-        table = next(
-            (t for t in tables
-             if any(w[0] == t and w[1] == id for w in ctx.writes)
-             or ctx.conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
-                                 (id,)).fetchone()), None)
+        # A refs row needs the raw id, and `tables_of` reads a prefixed ref as
+        # the row of its key. So the door refuses a prefix first (F22).
+        if guess_item(id) is not None or str(id).startswith(READING_REF):
+            raise ValueError(f"{id!r} is a key, not a row of {artefact}")
+        # A row that this session staged is not on file yet. The artefact's
+        # order picks the table, as before F22.
+        held = tables_of(ctx.conn, id, among=tables)
+        table = next((t for t in tables if t in held or any(
+            w[0] == t and w[1] == id for w in ctx.writes)), None)
         if table is None:
             raise ValueError(f"{id!r} is not a row of {artefact}")
         # The target names a row of its kind, as the owner ops check
@@ -1375,12 +1388,6 @@ def _his_rows(conn: sqlite3.Connection, id: str) -> list:
     return ruled(conn, ruling=own[-1]["ruling_id"]) if own else []
 
 
-# A sentence about the page names the page or a numbered line of it. "On
-# one line" names no line of the page, so a line takes a digit.
-_PAGE_CUE = re.compile(
-    r"\bpage\b|\blines?\s+\d+(?:\s*(?:to|through|and|-)\s*\d+)?", re.I)
-
-
 def _sentences(said: str) -> list[str]:
     return [s for s in re.split(r"(?<=[.!?])\s+", (said or "").strip()) if s]
 
@@ -1408,9 +1415,10 @@ def _page_reply_fault(conn: sqlite3.Connection, id: str, text: str,
     sents = _sentences(said)
     if len(sents) > 1 and _same_words(text, said):
         return "the new text is his reply word for word"
-    cue = _PAGE_CUE.search(text or "")
+    # A sentence about the page names the page or a numbered line of it.
+    cue = _line_reading(text).page_cue
     if cue:
-        return (f"the new text names {cue.group(0)!r}, a part of the page, "
+        return (f"the new text names {cue!r}, a part of the page, "
                 f"so it is about the page")
     # His words about another line of the page are the span of his row on
     # that line. A row with no span of its own carries the whole reply and
@@ -1441,7 +1449,7 @@ def _item_sentences(said: str) -> tuple[list, list]:
     """
     rest, page_sents, prev_page = [], [], False
     for s in _sentences(said):
-        page = bool(_PAGE_CUE.search(s)) or (
+        page = bool(_line_reading(s).page_cue) or (
             prev_page and bool(re.match(
                 r"(?i)(?:it|its|they|their|that|this)\b", s)))
         prev_page = page
@@ -2644,7 +2652,8 @@ def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
         row = ctx.conn.execute(
             f"SELECT provenance FROM {view} WHERE id = ?", (rid,)).fetchone()
         if row is None:
-            raise ValueError(f"{rid!r} is not a row of {table}; adopt what "
+            raise ValueError(f"{rid!r} is not a row of {table}"
+                             f"{elsewhere(ctx.conn, rid, table)}; adopt what "
                              f"the ruling names, from the refs you were given")
         if ruled is not None and rid not in ruled:
             # The ruling is on file and does not approve this row. Skipped
@@ -2684,9 +2693,7 @@ def model_adopt(ctx: Ctx, ids: list[str]) -> dict:
         ids = [ids]
     both = {"constraints": [], "model_areas": []}
     for rid in ids:
-        table = ("constraints" if ctx.conn.execute(
-            "SELECT 1 FROM constraints WHERE id = ?", (rid,)).fetchone()
-            else "model_areas")
+        table = table_of(ctx.conn, rid, among=both) or "model_areas"
         both[table].append(rid)
     merged: dict = {"adopted": [], "skipped": []}
     for table, tids in both.items():
@@ -4074,7 +4081,7 @@ def _reaching_constraints(conn: sqlite3.Connection, files: list[str]) -> set[str
             "SELECT constraint_id, grain, grain_kind, resolves FROM constraint_bindings"):
         grain = (r["grain"] or "").replace(chr(92), "/")
         if (r["grain_kind"] not in ("path", "symbol") or not r["resolves"]
-                or grain.split("::", 1)[0] in grains):
+                or _grain_path(grain) in grains):
             hits.add(r["constraint_id"])
     return hits
 
@@ -4238,7 +4245,7 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     # A grain is a path, a path::symbol, or a bare symbol; only a path
     # can be checked against the diff (L1-AR-find-against-a-constraint
     # names bare symbols and passed before this door).
-    grain_file = grain.split("::", 1)[0]
+    grain_file = _grain_path(grain)
     path_shaped = "/" in grain_file or grain_file.endswith(".py")
     # One finding per constraint and grain in a session. `findings.load`
     # does not show staged writes, so the seat cannot see its own row.
@@ -4277,13 +4284,15 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     # The check sits here and not in `_must_exist`, because only this door
     # knows the batch. Night 95 (2026-09-28): the Architect sent a criterion
     # id as the constraint, and the refusal named 6 of 12 rows and no exit.
-    if constraint_id != ZERO and ctx.conn.execute(
-            "SELECT 1 FROM constraints WHERE id = ?", (constraint_id,)).fetchone() is None:
-        held = [t for t in ("criteria", "tests") if ctx.conn.execute(
-            f"SELECT 1 FROM {t} WHERE id = ?", (constraint_id,)).fetchone()]
-        what = (f"{constraint_id!r} is a row of {held[0]}, not a constraint"
-                if held else f"no constraints row has id={constraint_id!r}")
-        route = _escalated_test_route(ctx) if held else None
+    held = tables_of(ctx.conn, constraint_id) if constraint_id != ZERO else []
+    if constraint_id != ZERO and "constraints" not in held:
+        # `db.tables_of` names every table, a batch's id included (F22).
+        what = (f"{constraint_id!r} is a row of {' and '.join(held)}, not a "
+                f"constraint" if held
+                else f"no constraints row has id={constraint_id!r}")
+        # The escalated route is the exit for a criterion or a test only.
+        route = (_escalated_test_route(ctx)
+                 if {"criteria", "tests"} & set(held) else None)
         if route:
             raise ValueError(f"{what}. A finding names a constraint from "
                              f"model.consult. {route}")
@@ -5125,26 +5134,6 @@ def tickets_consult(ctx: Ctx) -> list[dict]:
     return tickets_scan(ctx)
 
 
-_REFFABLE_CACHE: dict[int, list] = {}
-# The journal keeps the id of a run that `test_runs` deleted. A ref to that
-# id names no live row, and no gate or guard reads the journal (frame 309,
-# review 1, finding 2).
-_NOT_REFFABLE = frozenset({"test_run_journal"})
-
-
-def _id_tables(conn) -> list[str]:
-    """Every table with an id column, computed once per connection."""
-    key = id(conn)
-    if key not in _REFFABLE_CACHE:
-        out = []
-        for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'"):
-            if r["name"] in _NOT_REFFABLE:
-                continue
-            cols = {c["name"] for c in conn.execute(f"PRAGMA table_info({r['name']})")}
-            if "id" in cols:
-                out.append(r["name"])
-        _REFFABLE_CACHE[key] = out
-    return _REFFABLE_CACHE[key]
 
 
 def _area_resolves(ctx: Ctx, ref: str) -> bool:
@@ -5200,10 +5189,9 @@ def ref_resolves(ctx: Ctx, ref: str) -> bool:
     for m in getattr(ctx, "outbound", None) or []:
         if isinstance(m, dict) and m.get("id") == ref:
             return True
-    for table in _id_tables(ctx.conn):
-        if ctx.conn.execute(f"SELECT 1 FROM {table} WHERE id = ?",
-                            (ref,)).fetchone():
-            return True
+    # A read-back line is no row a message can carry, as before F22.
+    if not ref.startswith(READING_REF) and table_of(ctx.conn, ref):
+        return True
     if ctx.conn.execute("SELECT 1 FROM glossary_terms WHERE term = ?",
                         (ref,)).fetchone():
         return True
@@ -5273,7 +5261,10 @@ def _named_callables(ctx: Ctx, text: str) -> list[str]:
         if not sep or name.rsplit(".", 1)[-1].lower() not in words:
             continue
         kind = kind_of(ctx.conn, path)
-        # A test is not a surface.
+        # A test is not a surface. `is_test` reads another fact than
+        # `_is_test_file`: test code, a test folder's helpers and fixtures
+        # included. A test helper is no program surface either (F9, review
+        # pass 1, finding 5).
         if kind in ("attached", "ignore") and is_test(path):
             continue
         rows.append((row["grain"], name, kind))
@@ -5416,7 +5407,7 @@ def _program_rank(conn, name: str, grains: list[str],
 
     if len(grains) == 1:
         return grains[0], ""
-    own = [g for g in grains if g.partition("::")[0] in set(prefer)]
+    own = [g for g in grains if _grain_path(g) in set(prefer)]
     if len(own) == 1:
         return own[0], ""
     program = sorted(g for g in grains if kind_of(conn, g) == "program")
@@ -5491,6 +5482,8 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
             from ..onboarding.areas import is_test, kind_of
 
             kind = kind_of(ctx.conn, gpath)
+            # `is_test` reads test code, not a test file of the Tester, as
+            # in `_named_callables` (F9, review pass 1, finding 5).
             if gname.startswith("test_") or (
                     kind in ("attached", "ignore") and is_test(gpath)):
                 raise ValueError(
@@ -5586,11 +5579,13 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     ticket = ctx.conn.execute(
         "SELECT text FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
     words_from = [ticket["text"] if ticket else ""]
+    from ..core.lifecycle import grain_name, predicted_rows
+
     for b in batches:
-        # The same query as `batches_expect`, so the door and the read agree.
-        touch += [dict(r) for r in ctx.conn.execute(
-            "SELECT grain, grain_kind, confidence FROM batch_touch WHERE batch_id = ? "
-            "ORDER BY confidence, grain_kind, grain", (b["id"],))]
+        # The same reader and order as `batches_expect`, so the door and the
+        # read agree. A file his words decline holds no surface (F35).
+        touch += sorted(predicted_rows(ctx.conn, b["id"]), key=lambda t: (
+            t["confidence"] or "", t["grain_kind"] or "", t["grain"]))
         words_from.append(b["item_text"] or "")
         words_from += [r["text"] for r in ctx.conn.execute(
             "SELECT s.text AS text FROM refs x "
@@ -5600,7 +5595,8 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     paths = [_grain_path(t["grain"]) for t in touch if t["grain_kind"] == "path"]
     if not paths:
         return                    # no file predicted: no file to hold it to
-    symbols = {t["grain"].split("::")[-1] for t in touch if t["grain_kind"] == "symbol"}
+    # A path row that holds `::` names a symbol too (F35, review 1, finding 2).
+    symbols = {n for n in map(grain_name, touch) if n}
     expected = list(dict.fromkeys(
         _grain_path(t["grain"]) for t in touch
         if t["grain_kind"] == "path" and t["confidence"] == "expected"))
@@ -5656,16 +5652,10 @@ def _opens_with_the_tests(text: str) -> bool:
 # Tester encoded the note (frame 306). Roman's ruling of 2026-10-08, point 2:
 # the Tester rewrites the test from the ruled words. "Line 3 of the output"
 # names the program's output, so it stays a behaviour.
+# A numbered page line as the subject is the line parser's `opens` (F2).
 _CHECK_SUBJECT = re.compile(
-    r"^(?:lines? \d+(?:(?:,| and| to| through) \d+)*\b(?! of\b)"
-    r"|(?:the |this |that |each |every |its |their |a |one |another "
-    r"|the second |a second )?(?:checks?|tests?|assertions?)\b)",
-    re.IGNORECASE)
-# A page line's check named inside a sentence: "line 3's check", "the check
-# on line 2". The verb in "then check the printed output" is not a subject.
-_LINE_CHECK = re.compile(
-    r"\bline \d+'s (?:checks?|tests?|assertions?)\b"
-    r"|\b(?:checks?|tests?|assertions?) (?:on|in|of|at|for) lines? \d+\b",
+    r"^(?:the |this |that |each |every |its |their |a |one |another "
+    r"|the second |a second )?(?:checks?|tests?|assertions?)\b",
     re.IGNORECASE)
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
@@ -5675,9 +5665,12 @@ def _about_a_check(text: str) -> bool:
     an assertion as its subject. `_about_the_tests` reads the whole text's
     opening only, so a note in the second sentence passed it."""
     flat = " ".join((text or "").split())
-    if _LINE_CHECK.search(flat):
+    # A page line's check inside a sentence: "line 3's check", "the check
+    # on line 2". The verb in "then check the printed output" is no subject.
+    if _line_reading(flat).check:
         return True
-    return any(_CHECK_SUBJECT.match(s) for s in _SENTENCE_END.split(flat))
+    return any(_CHECK_SUBJECT.match(s) or _line_reading(s).opens
+               for s in _SENTENCE_END.split(flat))
 
 
 def _about_the_tests_refusal(ctx: Ctx, text: str, rewrite: str) -> str:
@@ -6462,9 +6455,10 @@ def _tester_answer_open(ctx: Ctx) -> bool:
 def _closed_answer_note(ctx: Ctx, id: str) -> str:
     """What a refusal says in place of the answer route, once the session
     has sent its one answer to the Tester (frame 308)."""
+    from ..core.sandbox import _sent_this_session
+
     carried = any(id in (m.get("body_refs") or ())
-                  for m in ctx.outbound or ()
-                  if m["to_role"] == "tester" and m["verb"] == "answer")
+                  for m in _sent_this_session(ctx, "tester", "answer"))
     if carried:
         return "Your answer to the Tester carries this criterion."
     return ("Your one answer to the Tester is sent, and the answer is closed "
@@ -6765,7 +6759,7 @@ def _ruling_rows(conn: sqlite3.Connection, ruled: dict,
 def _ruling_order(conn: sqlite3.Connection, ruled: dict) -> list | None:
     """The row ids of the page the ruling `ruled` is on, in page order, or
     None when the page is not known."""
-    from .principal import Ask, _page_order, door_rows
+    from .principal import page_ask, seen_order
 
     row = conn.execute(
         "SELECT r.reply_id, m.id, m.verb, m.body_refs FROM rulings r "
@@ -6773,20 +6767,12 @@ def _ruling_order(conn: sqlite3.Connection, ruled: dict) -> list | None:
         (ruled.get("id"),)).fetchone()
     if row is None:
         return None
-    # His line numbers belong to the page as he saw it, and `principal.land`
-    # records that order at his reply (frame 272). A render reads today's
-    # rows: night 158's render put cr_2 on line 3, and m98 named it line 4.
-    order = door_rows(conn, row["reply_id"], "order")
-    if not order:
-        # A database from before frame 272 holds no record. Today's render
-        # is the only order there is, so the reader takes it.
-        try:
-            order = _page_order(conn, Ask(
-                message_id=row["id"], verb=row["verb"],
-                refs=json.loads(row["body_refs"] or "[]")))
-        except Exception:  # noqa: BLE001 - an unreadable page gives no line
-            return None
-    return order
+    # His line numbers belong to the page as he saw it (fact F28). Night
+    # 158's render put cr_2 on line 3, and m98 named it line 4.
+    try:
+        return seen_order(conn, row["reply_id"], page_ask(row))
+    except Exception:  # noqa: BLE001 - an unreadable page gives no line
+        return None
 
 
 def _near_twin(ctx: Ctx, ticket_id: str | None, text: str,
@@ -6976,27 +6962,26 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # `--show-python`, which he had contested, and the batch never merged
     # (frame 226).
     if contested and cur:
-        # A name that the principal's own words use is one he asked for. The
-        # review of 33cd99b2, finding 1: `version_option` was refused, and
-        # his words ask for a parameter of `version_option`.
-        # A name matches his words on word bounds. A substring test let a
-        # contested `--show` back when he named `--show-python` (the review
-        # of frame 226, finding 1).
-        # The words of the contest row on this criterion, the span that
-        # rules it, and not the whole reply (the seam design, 3.3, P9).
-        span = ctx.conn.execute(
-            "SELECT words FROM ruled_refs WHERE ruling_id = ? AND ref = ?",
-            (contested["id"], id)).fetchone()
-        his = ((span["words"] if span else "") or contested["words"]).lower()
+        # A name comes back only when his ruling grants an act on that name
+        # as its target (fact F3). The review of 33cd99b2, finding 1: his
+        # words asked for a parameter of `version_option`. The Liaison's row
+        # records that target, and the door reads the row, never a phrase of
+        # his words (the seam design, pass 4). A target matches exactly, so
+        # a grant on `--show-python` never lets `--show` back (frame 226).
+        from .principal import grant
+
         back = sorted(t for t in (_named_tokens(contested["text"])
                                   - _named_tokens(cur["text"]))
                       & _named_tokens(text)
-                      if not re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", his))
+                      if not any(grant(ctx.conn, id, act, t)
+                                 for act in ("add", "keep", "rewrite")))
         if back:
             raise ValueError(
                 f"the principal contested {', '.join(back)} in this criterion. "
-                f"His words: {contested['words']!r}. Write what he asked for, "
-                f"without {', '.join(back)}")
+                f"His words: {contested['words']!r}. No row of ruling "
+                f"{contested['id']} grants {', '.join(back)} as its target. "
+                f"`rulings.rule` writes that row when his words name it. "
+                f"Write what he asked for, without {', '.join(back)}")
     # law 9: a ratified amendment drops the item to pending, stops batches
     # A contested sentence sent back is not a repair. Night 144's s583 and
     # s591 sent it back, and the note below did not say that the principal
@@ -7408,9 +7393,24 @@ def _with_new_files(paths: list[str] | None,
 
 
 def _test_shaped(f: str) -> bool:
-    """The basename is pytest's default test file form."""
-    return bool(re.fullmatch(r"test_\w+\.py|\w+_test\.py",
+    """The basename is pytest's default test file form, or pytest's own
+    `conftest.py`."""
+    # F9, review pass 1, finding 2: pytest defines `conftest.py` as test
+    # infrastructure, and the basename gives the shape (ruled: Roman,
+    # 2026-10-26 20:37). So the conftest is the Tester's.
+    return bool(re.fullmatch(r"test_\w+\.py|\w+_test\.py|conftest\.py",
                              f.rpartition("/")[2]))
+
+
+def _is_test_file(conn, path: str) -> bool:
+    """A test file: a test-shaped basename that the frame marks attached."""
+    # Frame 324 (ruled: Roman, 2026-10-26 20:37): the basename gives the
+    # shape of a test file, and the frame's kind says whether the file is
+    # part of the program. F9: every door asks this one question.
+    from ..onboarding.areas import kind_of
+
+    p = _grain_path(path or "")
+    return _test_shaped(p) and kind_of(conn, p) == "attached"
 
 
 def _test_dirs(indexed: set[str], conn=None) -> set[str]:
@@ -7514,7 +7514,7 @@ def _refuse_unindexed_files(conn: sqlite3.Connection, paths: list[str],
     named = {p.replace("\\", "/") for p in new_files or [] if "::" not in p}
 
     def file_half(p: str) -> str:
-        p = p.replace("\\", "/").split("::", 1)[0]
+        p = _grain_path(p)
         # Night 154's s169 typed path:symbol with one colon. The call landed,
         # and the shape is path::symbol mistyped (frame 302, pass 1c).
         left, colon, right = p.partition(":")
@@ -7617,7 +7617,7 @@ def batches_guess(ctx: Ctx, item_id: str, paths: list[str],
     # A symbol's path meets the same check as a path (frame 298, review 1,
     # finding 5).
     _refuse_stray_dirs(ctx.conn, list(paths) + [
-        s.split("::", 1)[0] for s in symbols or [] if "::" in s])
+        _grain_path(s) for s in symbols or [] if "::" in s])
     # A symbol's file half meets the file door as a path (frame 302,
     # review 1, finding 4).
     item = ctx.conn.execute("SELECT text FROM items WHERE id = ?",
@@ -9100,7 +9100,7 @@ def _definition_of(tree, test_path: str, name: str, refs: list[str],
                 found[1], (type(None), _ast.Import, _ast.ImportFrom)):
             return (orig, *found)
     for ref in refs:
-        where, _, tail = ref.rpartition("::")
+        where, tail = _grain_path(ref), ref.partition("::")[2]
         if tail != name or not where.endswith(".py"):
             continue
         src = read(where)
@@ -9971,7 +9971,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             # Night 142 (frame 215): this door added an import line the
             # sandbox cannot load, four times. The line is offered only
             # when the module loads.
-            broken = _module_load_error(ctx, module, named[0].split("::", 1)[0])
+            broken = _module_load_error(ctx, module, _grain_path(named[0]))
             if broken:
                 raise Wall(_unloadable_surface(ctx, criterion_id, named[0],
                                                module, broken))
@@ -10349,8 +10349,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # sessions, quarantine. The path half of a surface ref says where
         # the name lives.
         import re as _re2
-        surface_mods = {s.split("::", 1)[0].replace("\\", "/").rsplit("/", 1)[-1][:-3]
-                        for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
+        surface_mods = {_grain_path(s).rsplit("/", 1)[-1][:-3]
+                        for s in surface if "::" in s and _grain_path(s).endswith(".py")}
 
         def _dotted(path: str) -> str:
             return (module_of(ctx.conn, path + "::") or ("", ""))[0]
@@ -10392,8 +10392,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         _missing_mods = sorted(m.split(".")[0] for m in imported_from
                                if m.split(".")[0] not in _known)
         if _missing_mods:
-            dotted_surfaces = sorted({_dotted(s.split("::", 1)[0]) for s in surface
-                                      if "::" in s and s.split("::", 1)[0].endswith(".py")})
+            dotted_surfaces = sorted({_dotted(_grain_path(s)) for s in surface
+                                      if "::" in s and _grain_path(s).endswith(".py")})
             # A bare surface names no file; the tree does. Night 25: the
             # hint listed .devcontainer, .github and .venv as "the modules
             # there" and never said `from click.echo_json import echo_json`.
@@ -10414,8 +10414,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             if dotted_surfaces and _root is not None:
                 hinted = dotted_surfaces[0]
                 hinted_path = next(
-                    (s.split("::", 1)[0] for s in surface if "::" in s
-                     and _dotted(s.split("::", 1)[0]) == hinted), None)
+                    (_grain_path(s) for s in surface if "::" in s
+                     and _dotted(_grain_path(s)) == hinted), None)
                 if hinted_path is None:
                     hinted_path = _bare_found.get(hinted, "")
                 broken = _module_load_error(ctx, hinted, hinted_path) if hinted_path else None
@@ -10543,8 +10543,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # `core` with the first segment of `click.core`, refused a correct
         # import twelve turns running, and told the Tester `from core
         # import`, which cannot import.
-        surface_dotted = {_dotted(s.split("::", 1)[0])
-                          for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
+        surface_dotted = {_dotted(_grain_path(s))
+                          for s in surface if "::" in s and _grain_path(s).endswith(".py")}
         # A root module imports by its stem; a package module by its dotted
         # name, and the bare stem of a package module does not import.
         imports_ok = any(m == d or ("." not in d and m.rsplit(".", 1)[-1] == d)
@@ -10553,8 +10553,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             want = sorted(surface_dotted)[0]
             # Night 142 (frame 215): this door made the Tester put back an
             # import the sandbox cannot load, 13 times.
-            want_path = next(s.split("::", 1)[0] for s in surface
-                             if "::" in s and _dotted(s.split("::", 1)[0]) == want)
+            want_path = next(_grain_path(s) for s in surface
+                             if "::" in s and _dotted(_grain_path(s)) == want)
             broken = _module_load_error(ctx, want, want_path)
             if broken:
                 raise Wall(_unloadable_surface(
@@ -11319,8 +11319,9 @@ def _ask_of(ctx: Ctx):
 def _is_team_note(conn, ref: str) -> bool:
     """Whether a page line is a team's note: a ledger row, a constraint, a
     glossary term or a model area."""
-    return any(conn.execute(f"SELECT 1 FROM {t} WHERE id = ?", (ref,)).fetchone()
-               for t in ("ledger", "constraints", "glossary_terms", "model_areas"))
+    # `db.table_of` finds the row, and the scope is the team's tables (F22).
+    return table_of(conn, ref, among=("ledger", "constraints", "glossary_terms",
+                                      "model_areas")) is not None
 
 
 # law 6: nothing is ruled on the principal's behalf
@@ -11586,14 +11587,14 @@ def _his_reply(ctx) -> str:
 
 def _faulted_by_his_words(ctx, said: str, size: int) -> set[int]:
     """The page lines that his reply or the seat's words fault, by the fault
-    reader of the faulted-approve door (`_line_cues`)."""
+    reader of the faulted-approve door (`_line_reading`)."""
     row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
                            (ctx.trigger,)).fetchone() if ctx.trigger else None
     his = (row["body_text"] if row else "") or ""
     out: set[int] = set()
     for text in (his, said):
         if text:
-            out |= set(_line_cues(text, size or None)[0])
+            out |= _line_reading(text, size or None).faulted
     return out
 
 
@@ -11792,8 +11793,7 @@ def _ref_lines(ref: re.Match, size: int | None = None) -> set[int]:
     return lines
 
 
-def _line_reading(words: str, size: int | None = None
-                  ) -> tuple[set[int], set[int]]:
+def _line_reading(words: str, size: int | None = None) -> LineReading:
     """The lines the principal's words fault, and the lines they say match.
 
     Each line reference reads the clause after it, up to the next reference.
@@ -11805,8 +11805,196 @@ def _line_reading(words: str, size: int | None = None
     faulted, and s427 contested four lines the words said match. Measured on
     the recorded replies of nights 143 to 146, `f234/pass1-report.md`.
     """
-    cues, matched = _line_cues(words, size)
-    return set(cues), matched
+    return LineReading(words, size)
+
+
+# The page parser of fact F2 (rule C76). `_line_reading` is the one reader of
+# his words into page lines and acts. Every other reader asks it, so one
+# line rule holds at every door. The parser reads his words and never
+# rewrites them, because his words stay verbatim (composition line 106).
+#
+# The word "page" names the page. "On one line" names no line of the page,
+# so a page cue is "page" or a numbered line reference (frame 263).
+_PAGE_WORD = re.compile(r"\bpage\b", re.I)
+# A page line's check: "line 3's check", "the check on line 2".
+_CHECK_NOUN = r"(?:checks?|tests?|assertions?)"
+_CHECK_AFTER = re.compile(rf"'s {_CHECK_NOUN}\b", re.I)
+_CHECK_BEFORE = re.compile(rf"\b{_CHECK_NOUN} (?:on|in|of|at|for) $", re.I)
+# A word that names a line with no number: "the line", "both lines".
+_LINE_WORD = re.compile(r"\b(?:lines?|notes?)\b", re.I)
+# The rest of a clause that only says its lines are wrong: "Line 2 is
+# wrong", "lines 2 through 4 are still wrong again".
+_BARE_FAULT_TAIL = re.compile(
+    r"\W*(?:is|are)\s+(?:still\s+|also\s+)?wrong(?:\s+again)?\W*", re.I)
+
+
+class LineRef(NamedTuple):
+    """One line reference of his words, at its place in the words.
+
+    `word` is "line", "note", or "" for a bare "3 is wrong" at a sentence
+    start. `lines` holds the line numbers, capped at the page's size.
+    """
+    start: int
+    end: int
+    lines: frozenset
+    word: str
+    text: str
+
+
+def _line_refs(words: str, size: int | None = None) -> list[LineRef]:
+    """The line references of `words`, sentence by sentence.
+
+    A bare "3 is wrong" counts at a sentence start only (frame 305, review
+    1, finding 1). So the parser cuts the sentences before it reads.
+    """
+    text = words or ""
+    out: list[LineRef] = []
+    start = 0
+    for cut in [*_SENTENCE.finditer(text), None]:
+        end = cut.start() if cut else len(text)
+        for m in _LINE_REF.finditer(text[start:end]):
+            word = ("" if m.group(1) is None else
+                    "note" if m.group(0).lower().startswith("note") else "line")
+            out.append(LineRef(start + m.start(), start + m.end(),
+                               frozenset(_ref_lines(m, size)), word,
+                               m.group(0)))
+        if cut:
+            start = cut.end()
+    return out
+
+
+class LineReading:
+    """The reading of his words as page lines and the act on each.
+
+    It unpacks and compares as the pair (faulted lines, matched lines), as
+    `_line_reading` returned before. The attributes give the references and
+    the page cues, so no door keeps a line rule of its own.
+    """
+
+    def __init__(self, words: str, size: int | None = None):
+        self.words = words or ""
+        self.size = size
+
+    @functools.cached_property
+    def refs(self) -> list[LineRef]:
+        return _line_refs(self.words, self.size)
+
+    @functools.cached_property
+    def _cued(self) -> tuple[dict[int, tuple[str, str]], set[int]]:
+        return _line_cues(self.words, self.size)
+
+    @property
+    def cues(self) -> dict[int, tuple[str, str]]:
+        """Each faulted line with its fault cue and its clause."""
+        return dict(self._cued[0])
+
+    @property
+    def faulted(self) -> set[int]:
+        return set(self._cued[0])
+
+    @property
+    def matched(self) -> set[int]:
+        return set(self._cued[1])
+
+    @property
+    def named(self) -> frozenset:
+        """Every line that a reference of the words names."""
+        return frozenset(n for r in self.refs for n in r.lines)
+
+    @property
+    def page_cue(self) -> str | None:
+        """The first words that name the page or a numbered page line.
+
+        A bare number names no page here. An item's text can open "0 is
+        falsy", and that sentence is not about the page.
+        """
+        hits = [(r.start, r.text) for r in self.refs if r.word]
+        page = _PAGE_WORD.search(self.words)
+        if page:
+            hits.append((page.start(), page.group(0)))
+        return min(hits)[1] if hits else None
+
+    @property
+    def check(self) -> bool:
+        """True when the words name the check of a numbered page line."""
+        return any(r.word and (
+            _CHECK_AFTER.match(self.words, r.end)
+            or _CHECK_BEFORE.search(self.words[:r.start]))
+            for r in self.refs)
+
+    @property
+    def opens(self) -> bool:
+        """True when the words open with a numbered line as the subject.
+
+        "Line 3 of the summary" names a line of another text, not the page.
+        """
+        first = self.refs[0] if self.refs else None
+        return bool(first and first.word
+                    and not self.words[:first.start].strip()
+                    and not re.match(r" of\b", self.words[first.end:]))
+
+    @property
+    def bare_fault(self) -> bool:
+        """True when the words only say that their lines are wrong."""
+        lead = re.match(r"\W*(?:on\s+)?", self.words, re.I)
+        first = self.refs[0] if self.refs else None
+        return bool(first and first.word and first.start == lead.end()
+                    and len(self.refs) == 1
+                    and _BARE_FAULT_TAIL.fullmatch(self.words, first.end))
+
+    @property
+    def line_word(self) -> bool:
+        """True when the words say "line" or "note", with or without a
+        number."""
+        return bool(_LINE_WORD.search(self.words))
+
+    # What his words permit or ask of a named target (fact F3). The phrase
+    # lists sit in the parser's helpers below, and no door reads them.
+
+    @property
+    def names(self) -> set[str]:
+        """The quoted spans, flags and identifiers that the words name, in
+        lower case. A grant on a name has the name as its target."""
+        return _named_tokens(self.words)
+
+    @property
+    def touches_files(self) -> bool:
+        """True when the words name files or tests, the words of a batch's
+        prediction."""
+        return bool(_TOUCH_WORDS.search(self.words))
+
+    def names_request(self, request_texts: tuple[str, ...],
+                      faulted_texts: tuple[str, ...] = ()) -> bool:
+        """True when the words, with no line number, name the request."""
+        return _names_request(self.words, request_texts, faulted_texts)
+
+    def note_act(self, n: int, page_text: str,
+                 within: str | None = None) -> str | None:
+        """What the words ask of note line `n`: "drop", "change", "own"
+        or None."""
+        return _note_words(self.words, n, page_text, within=within)
+
+    def _pair(self) -> tuple[set[int], set[int]]:
+        return self.faulted, self.matched
+
+    def __iter__(self):
+        return iter(self._pair())
+
+    def __getitem__(self, i):
+        return self._pair()[i]
+
+    def __len__(self) -> int:
+        return 2
+
+    def __eq__(self, other):
+        if isinstance(other, (tuple, LineReading)):
+            return tuple(self) == tuple(other)
+        return NotImplemented
+
+    __hash__ = None
+
+    def __repr__(self) -> str:
+        return f"LineReading{self._pair()!r}"
 
 
 # Cues that only add to another cue. The refusal names a stronger cue of
@@ -12430,7 +12618,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     # to 5, and the contest of batch_1 on line 6, which no sentence names,
     # cost an Architect relay. m52 and m58 did the same to batch_2 (frame
     # 258).
-    spared = batch_lines if _TOUCH_WORDS.search(words or "") else frozenset()
+    spared = (batch_lines if _line_reading(words).touches_files
+              else frozenset())
     unnamed = _unnamed_contest(sentences, contested - spared,
                                faulted | matched, size, item_lines,
                                request_lines, earlier_lines)
@@ -12455,7 +12644,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
         return approve
     # Any reference to line 1 can carry a fault the cues miss. Night 144's
     # m193 said "Line 1 isn't a request" (frame 234, review 1, finding 1).
-    if any(1 in _ref_lines(r) for s in sentences for r in _LINE_REF.finditer(s)):
+    if any(1 in _line_reading(s).named for s in sentences):
         return approve
     # A sentence with no line number can correct the request itself. Night
     # 143's m263: "Also, take the version from the running interpreter's
@@ -12471,10 +12660,10 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     # its line-1 contest abandoned bg_6 (`plans/frame258-review-2.md`).
     batch_faulted = bool(batch_lines & faulted)
     if not _KEEP_CHANGE.search(words or "") and any(
-            s.strip() and not _LINE_REF.search(s)
+            s.strip() and not _line_reading(s).refs
             and not _BARE_AGREEMENT.fullmatch(s)
             and not (batch_faulted and _FILES_TALK.search(s))
-            and _names_request(s, request_texts, faulted_texts)
+            and _line_reading(s).names_request(request_texts, faulted_texts)
             for s in sentences):
         return approve
     # The shape of the batch door's refusal, which names the line first.
@@ -12522,9 +12711,6 @@ _CUE_AGREE = re.compile(r"\b(?:right|fine|reasonable|good|correct|match(?:es)?|"
                         r"as written)\b", re.I)
 _CUE_FAULT = re.compile(r"\b(?:wrong|not|never|only|drop|instead|should|remove|"
                         r"take|but)\b|n't\b", re.I)
-_CUE_BARE_FAULT = re.compile(r"^\W*(?:on\s+)?(?:lines?|notes?)\s+[\d ,toand-]+\W*"
-                             r"(?:is|are)\s+(?:still\s+|also\s+)?wrong(?:\s+again)?\W*$",
-                             re.I)
 _CUE_KEEP = re.compile(_KEEP_CHANGE.pattern + r"|\btry again\b|\bfix (?:the )?failing\b"
                        r"|\brather than drop\b", re.I)
 _CUE_CLAUSE = re.compile(r",\s+(?:and|but)\s+|\s+but\s+|:\s+|;\s+|,\s+so\s+")
@@ -12536,9 +12722,7 @@ def _cue_clauses(words: str) -> list[tuple[str, set[int] | None, bool]]:
     out, last = [], None
     for sent in re.split(r"(?<=[.!?])\s+", (words or "").strip()):
         for cl in _CUE_CLAUSE.split(sent):
-            refs: set[int] = set()
-            for r in _LINE_REF.finditer(cl):
-                refs |= _ref_lines(r, 60)
+            refs = set(_line_reading(cl, 60).named)
             if refs:
                 last = refs
             out.append((cl, set(last) if last else None, sent.rstrip().endswith("?")))
@@ -12555,7 +12739,7 @@ def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
             continue            # about another line
         if question or _CUE_KEEP.search(cl) or _BARE_AGREEMENT.fullmatch(cl):
             continue
-        if _CUE_BARE_FAULT.match(cl):
+        if _line_reading(cl).bare_fault:
             continue
         has_files = bool(_CUE_FILES.search(cl))
         if _CUE_AGREE.search(cl) and not _CUE_FAULT.search(cl):
@@ -12569,18 +12753,6 @@ def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
         else:
             content = True
     return files and not content
-
-
-# The key of a request item's code line (frame 298's design, 2.1). It
-# derives from the item id, so law 14 holds.
-GUESS_REF = "guess:"
-
-
-def guess_item(ref) -> str | None:
-    """The item id a `guess:<item>` key names, or None."""
-    if isinstance(ref, str) and ref.startswith(GUESS_REF) and len(ref) > len(GUESS_REF):
-        return ref[len(GUESS_REF):]
-    return None
 
 
 def _request_item(conn: sqlite3.Connection, item_id: str) -> bool:
@@ -12704,7 +12876,7 @@ def _faulted_approve(approved: frozenset[int],
         n for n in approved if n in cues and 1 <= n <= size
         and n not in closed_lines and not (request_first and n == 1)
         and not (n not in batch_lines and batch_lines
-                 and _TOUCH_WORDS.search(cues[n][1])))
+                 and _line_reading(cues[n][1]).touches_files))
     if not wrong:
         return None
     one = len(wrong) == 1
@@ -12728,8 +12900,6 @@ _AGREES = re.compile(
     r"\W*(?:ok(?:ay)?|yes|that's right|"
     r"(?:this|that|it)(?: all)? (?:matches|is right|looks (?:right|good|fine))|"
     r"looks (?:right|good|fine))\b", re.I)
-# A word that names a line with no number: "the line", "both lines".
-_LINE_WORD = re.compile(r"\b(?:lines?|notes?)\b", re.I)
 # A reply that is agreement alone: night 151's m23 "ok", night 147's m182
 # "Ok, go ahead." and night 121's m119 "yes that all looks right, go ahead"
 # (frame 258, pass 2).
@@ -12750,7 +12920,7 @@ def _unnumbered(sentences: list[str]) -> list[str]:
     out: list[str] = []
     numbered = False
     for s in sentences:
-        if _LINE_REF.search(s):
+        if _line_reading(s).refs:
             numbered = True
             continue
         if numbered and _BACK_REF.match(s):
@@ -12787,8 +12957,7 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     """
     named = {n for n in read if 1 <= n <= size}
     for s in sentences:
-        for ref in _LINE_REF.finditer(s):
-            named |= {n for n in _ref_lines(ref, size) if 1 <= n <= size}
+        named |= {n for n in _line_reading(s, size).named if 1 <= n <= size}
     if not named:
         return _agreed_contest(sentences, contested, size, request_lines)
     # ruling: DECISIONS 1473, every word of the principal is a ruling on a row
@@ -12838,12 +13007,14 @@ def _earlier_reading(conn, ask_id: str, reply_id: str, size: int
     # contest of line 5 land against his word (frame 337, review 1, finding
     # 1), and a later "Line 5 is wrong" overrides it.
     said: dict[int, bool] = {}
+    named: set[int] = set()
     for t in texts:
-        faulted, matched = _line_reading(t, size)
+        reading = _line_reading(t, size)
+        faulted, matched = reading
         said.update({n: True for n in matched - faulted})
         said.update({n: False for n in faulted})
-    return (frozenset(n for t in texts for ref in _LINE_REF.finditer(t)
-                      for n in _ref_lines(ref, size) if 1 <= n <= size),
+        named |= reading.named
+    return (frozenset(n for n in named if 1 <= n <= size),
             frozenset(n for n, fine in said.items() if fine and 1 <= n <= size))
 
 
@@ -12863,10 +13034,9 @@ def _earlier_sources(conn, ask_id: str, reply_id: str, size: int
             "verb = 'converse' AND id != ? AND from_role = 'principal' AND "
             "body_text IS NOT NULL ORDER BY seq", (ask_id, reply_id)):
         for sentence in _RULING_SENTENCE.split(m["body_text"]):
-            for ref in _LINE_REF.finditer(sentence):
-                for n in _ref_lines(ref, size):
-                    if 1 <= n <= size:
-                        out[n] = (m["id"], sentence.strip())
+            for n in sorted(_line_reading(sentence, size).named):
+                if 1 <= n <= size:
+                    out[n] = (m["id"], sentence.strip())
     return out
 
 
@@ -12900,7 +13070,7 @@ def _agreed_contest(sentences: list[str], contested: set[int], size: int,
                 f"{_lines(list(range(1, size + 1)))}.")
     if not request_lines or not sentences or not _AGREES.match(sentences[0]):
         return None
-    if _LINE_WORD.search(" ".join(sentences)):
+    if _line_reading(" ".join(sentences)).line_word:
         return None
     # The instruction is a sentence after the agreement. A reply of one
     # sentence that agrees and adds words is left alone, because the door
@@ -13008,7 +13178,9 @@ def _note_words(words: str, n: int, page_text: str,
             continue
         if question or _CUE_KEEP.search(cl) or _NOTE_NO_CHANGE.search(cl):
             continue
-        rest = _LINE_REF.sub(" ", cl)
+        rest = cl
+        for r in reversed(_line_reading(cl).refs):
+            rest = rest[:r.start] + " " + rest[r.end:]
         # "Line 11 is about the echo json change" describes the line. Its
         # "change" is a noun, and only a modal makes it a request.
         if (re.match(r"\W*(?:on\s+)?(?:is|are|was|were)\b", rest, re.I)
@@ -13165,15 +13337,16 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # A park page is a present with rows, so this door applies to it as to
     # every page (ruled: Roman, 2026-10-08, the park ask is a page with rows).
     ask = page
-    from .principal import READING_REF
+    from .principal import READING_REF, page_ask, seen_order
 
     # A read-back line is no row of the page's request. An empty ruling
     # acknowledges the rows and confirms no reading (the seam design's
     # review, finding 1).
     refs = json.loads(ask["body_refs"] or "[]")
-    page_text, order = render_page(ctx.conn, ask["verb"], refs, ask["body_text"],
-                                   ask_id=ask["id"])
-    order = order or []
+    page_text = render_page(ctx.conn, ask["verb"], refs, ask["body_text"],
+                            ask_id=ask["id"])[0]
+    # His line numbers name the rows he saw at this reply (fact F28).
+    order = seen_order(ctx.conn, ctx.trigger, page_ask(ask))
     row_refs = [r for r in refs if not str(r).startswith(READING_REF)]
     row_order = [r for r in order if not str(r).startswith(READING_REF)]
     # A page with no numbered line, the touch note, takes an empty ruling:
@@ -13232,6 +13405,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "\"2\": \"contest\"}")
     if not is_clarify:
         order = order or refs
+    from .principal import ruled_ref_home
+
+    # The rows of the page that no table holds now. His verdict on one stays
+    # in `per_item`, and a fault names it, because a ruled_refs row needs a
+    # home (the F26 review, finding 1).
+    gone = {r for r in [*order, *keys] if not str(r).startswith(READING_REF)
+            and ruled_ref_home(ctx.conn, r) is None}
     from .principal import SHIFT_ASK, _items_reached, off_page
     from ..core.scheduler import aside_items
 
@@ -13331,9 +13511,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     said = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
                             (ctx.trigger,)).fetchone()
     his = (said["body_text"] if said else "") or ""
-    named = {n for m in _LINE_REF.finditer(his)
-             for n in _ref_lines(m, len(order or []))}
-    his_matched = _line_reading(his, len(order or []))[1]
+    his_reading = _line_reading(his, len(order or []))
+    named = set(his_reading.named)
+    his_matched = his_reading.matched
     for i, r in enumerate(order or []):
         if not str(r).startswith(READING_REF) or per_item.get(r) != "approve":
             continue
@@ -13424,7 +13604,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         act = shape.get("act")
         span = shape.get("words") or words
         within = None
-        if act and not _LINE_REF.search(span or ""):
+        if act and not _line_reading(span).refs:
             # A span that names no line is read in the clause of his message
             # that holds it. s357's "use click directly in the test" names
             # no line, and its clause starts "On line 11" (the review of pass
@@ -13433,8 +13613,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 "SELECT body_text FROM messages WHERE id = ?",
                 (_words_from(ctx, span or ""),)).fetchone()
             within, span = span or None, (held["body_text"] if held else "") or ""
-        said = (_note_words(span, order.index(ref) + 1, page_text,
-                            within=within)
+        said = (_line_reading(span).note_act(order.index(ref) + 1, page_text,
+                                             within=within)
                 if order and ref in order else None)
         if act == "drop":
             said = "drop"
@@ -13448,8 +13628,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # text fired 19 times, and 7 next calls moved the revise to line 1
         # on words that never named line 1 (frame 296). `_names_request`
         # stays out: it reads 5 of those 7 replies as naming the request.
-        refs_named = {n for m in _LINE_REF.finditer(words or "")
-                      for n in _ref_lines(m, len(order))}
+        refs_named = _line_reading(words, len(order)).named
         named = ", or ".join(
             f"line {n}, {r}" for n, r in asked
             if n in refs_named or _quotes_line(words, page_text, n))
@@ -13539,7 +13718,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"nothing. Approve {key}.")
         if batch["head_commit"] and not code_line_faulted(
                 words, order, ref,
-                set(_line_cues(words, len(order) if order else None)[0])):
+                _line_reading(words, len(order) if order else None).faulted):
             raise ValueError(
                 f"the words do not fault the code of {item}. Approve {key}.")
     # A batch line is a prediction of what the change touches. Before the
@@ -13551,7 +13730,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # the words fault, and `land` keeps it on the same predicate. A line the
     # words do not fault is refused: 9 of 9 such contests on nights 136 to
     # 149 were the seat's error (`built_line_faulted`).
-    read_cues, read_matched = _line_cues(words, len(order) if order else None)
+    words_reading = _line_reading(words, len(order) if order else None)
+    read_cues, read_matched = words_reading.cues, words_reading.matched
     read_faulted = set(read_cues)
     for ref, ruling in per_item.items():
         if ruling == "approve":
@@ -13596,9 +13776,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # A read-back line the reply leaves out stays unconfirmed. The rule's
         # "a line the reply does not contest is approve" would read his
         # silence as consent there (the seam design's review, finding 1).
+        # A line whose row left the tables after his reply takes no ruling.
+        # The F28 fixture, night 159's shape, refused every ruling here, and
+        # only an ask to him landed (the F26 review, finding 1).
         unnamed = [str(i + 1) for i, r in enumerate(order)
                    if r not in per_item and not is_test_row(ctx.conn, r)
-                   and not str(r).startswith(READING_REF)]
+                   and not str(r).startswith(READING_REF) and r not in gone]
         if unnamed:
             raise ValueError(
                 f"lines {', '.join(unnamed)} have no ruling. Every line of the "
@@ -13612,8 +13795,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     earlier = ({} if is_clarify or not order else
                _earlier_sources(ctx.conn, ask["id"], ctx.trigger, len(order)))
     if earlier:
-        here = {n for ref in _LINE_REF.finditer(words or "")
-                for n in _ref_lines(ref, len(order))}
+        here = words_reading.named
         for i, r in enumerate(order):
             if (per_item.get(r) in ("contest", "revise") and i + 1 in earlier
                     and i + 1 not in here
@@ -13659,9 +13841,12 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         request_first = not shift and _is_request_item(ctx.conn, order[0])
         # A code line holds only files, as a batch line does (frame 298's
         # design, 3.1, point 4).
+        # `db.tables_of` finds the table of each page line (F22).
+        line_tables = [tables_of(ctx.conn, r, among=("batches", "criteria"))
+                       for r in order]
         batch_lines = frozenset(
-            i + 1 for i, r in enumerate(order) if guess_item(r) or ctx.conn.execute(
-                "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone())
+            i + 1 for i, r in enumerate(order)
+            if guess_item(r) or "batches" in line_tables[i])
         closed_lines = frozenset(
             i + 1 for i, r in enumerate(order) if ctx.conn.execute(
                 "SELECT 1 FROM batches WHERE id = ? AND status IN "
@@ -13672,8 +13857,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # `how_it_works` on a sentence with no line number (frame 258).
         request_lines = frozenset(n for n, _ in asked)
         item_lines = request_lines | frozenset(
-            i + 1 for i, r in enumerate(order) if ctx.conn.execute(
-                "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone())
+            i + 1 for i in range(len(order)) if "criteria" in line_tables[i])
         earlier_read, earlier_fine = _earlier_reading(
             ctx.conn, ask["id"], ctx.trigger, len(order))
         refusal = _line_refusal(
@@ -13731,8 +13915,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # The rows are built before any write is staged: the builder refuses a
     # ref that no table holds, and a refusal stages nothing.
     rid = _ruling_id(ctx, ask["id"])
-    rows = _ruled_rows(ctx, rid, [] if is_clarify else order, per_item, words,
-                       shape_of)
+    rows = _ruled_rows(ctx, rid, [] if is_clarify else order,
+                       {r: v for r, v in per_item.items() if r not in gone},
+                       words, shape_of)
+    from .principal import unheld_text
+
+    for ref in [r for r in per_item if r in gone]:
+        _stage_fault(ctx, "rulings.rule", unheld_text(rid, ref), "fault")
     parked = []
     if is_clarify:
         from ..core.predicates import UNADDRESSED_ANSWER
@@ -13780,8 +13969,8 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
     `line` takes no default, so the wake never pushes this read. A row arrives
     when the seat asks for it, which is the whole point of the change.
     """
-    from ..core.runner import _resolve_refs, _table_of
-    from .principal import render_page
+    from ..core.runner import _resolve_refs
+    from .principal import page_ask, render_page, seen_order
 
     page = _ask_of(ctx)
     if page is None:
@@ -13790,8 +13979,8 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
             "confirm, a present or a clarify, so there is no line to read. "
             "Stop")
     refs = json.loads(page["body_refs"] or "[]")
-    order = render_page(ctx.conn, page["verb"], refs,
-                        page["body_text"], ask_id=page["id"])[1] or refs
+    # A line is the row he saw on that line at this reply (fact F28).
+    order = seen_order(ctx.conn, ctx.trigger, page_ask(page)) or refs
     # A long page numbers its lines `"3": "l_1 (ledger)"`, so a seat that
     # copies the value back is passing the id with its kind on it.
     key = str(line).strip().split(" (")[0].strip()
@@ -13807,7 +13996,8 @@ def rulings_line(ctx: Ctx, line: str) -> dict:
     if not row:
         return {"line": key, "ref": ref, "row": None,
                 "note": "the line names a row that no table holds"}
-    row["table"] = _table_of(ctx.conn, ref) or row.get("table")
+    from ..core.runner import _label
+    row["table"] = _label(ctx.conn, ref, row)
     return {"line": key, "ref": ref, "row": row}
 
 
@@ -13995,11 +14185,10 @@ def _owner_call(ctx, about_ref: str, assumption: str) -> tuple[str, dict, str] |
                 f"copied from {refs[0]} and from {refs[1]}")
     # A criterion is the Terminologist's and a ticket the Vision Keeper's
     # (design, section 3.1). `_owner_of_ref` reads the ruled tables only.
-    owner = next((o for t, o in (("criteria", "terminologist"),
-                                 ("tickets", "vision_keeper"))
-                  if ctx.conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
-                                      (about_ref,)).fetchone()),
-                 None) or _sandbox._owner_of_ref(ctx.conn, about_ref)
+    # `db.table_of` finds the row, and this map names its owner (F22).
+    owner = {"criteria": "terminologist", "tickets": "vision_keeper"}.get(
+        table_of(ctx.conn, about_ref, among=("criteria", "tickets"))
+    ) or _sandbox._owner_of_ref(ctx.conn, about_ref)
     call = f"msg.question_{owner}"
     if owner is None or owner == ctx.role or call not in working:
         return None
@@ -14096,8 +14285,10 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # A message is no row of the project. 7 reply rows of nights 133 and 136
     # named a message and passed every other door (frame 190's design, 2.F,
     # amendment 7).
-    if ctx.conn.execute("SELECT 1 FROM messages WHERE id = ?",
-                        (about_ref,)).fetchone():
+    # `db.tables_of` finds the row. A message and a ledger row each get their
+    # own refusal (F22).
+    held = tables_of(ctx.conn, about_ref, among=("messages", "ledger"))
+    if "messages" in held:
         raise ValueError(
             f"{about_ref} is a message. An assumption is about a row of the "
             f"project, never about a message.")
@@ -14129,7 +14320,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
               or _is_prose_ref(about_ref)):
             whole = ("the account declares no area, so a row about a README or "
                      "docs claim takes about_ref='@prose'")
-        elif about_table in _id_tables(ctx.conn):
+        elif about_table in id_tables(ctx.conn):
             whole = (f"the account declares no area, so send the id of a row "
                      f"of {about_table} that the assumption is about")
         else:
@@ -14149,8 +14340,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # a tool refusal as the assumption, the agenda put it to the principal,
     # the approval woke the Terminologist, which logged the next one: 36
     # rounds of a ledger about the ledger.
-    if about_table == "ledger" or ctx.conn.execute(
-            "SELECT 1 FROM ledger WHERE id = ?", (about_ref,)).fetchone():
+    if about_table == "ledger" or "ledger" in held:
         raise ValueError(
             f"{about_ref!r} is a ledger row. An assumption is about an "
             f"artefact, never about another assumption. If a ruling on it "
@@ -14158,11 +14348,15 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # A rota row under another table's name. A path or an entry as the
     # subject stays legal: reconcile logs "README says X" about README.md
     # under items, and that is the shape the design asks for.
-    home = _table_of_ref(ctx.conn, about_ref)
-    if home and about_table != home:
+    # An id can live in two homes: `sentinel` is a constraint and a glossary
+    # term on nights 161 to 170. Any home that holds it is right (F22).
+    homes = _homes_of_ref(ctx.conn, about_ref)
+    home = homes[0] if homes else None
+    if home and about_table not in homes:
         raise ValueError(_offer(
             ctx,
-            f"{about_ref!r} is a row of {home}, not of {about_table}. "
+            f"{about_ref!r} is a row of {' and '.join(homes)}, not of "
+            f"{about_table}. "
             f"about_ref and about_table name one row together; send "
             f"about_table={home!r}",
             "ledger.log", {"about_ref": about_ref, "about_table": home,
@@ -14281,20 +14475,24 @@ def _misplaced_conflict(ctx, about_ref: str, assumption: str) -> str | None:
     """
     echo = ("goes back on the principal's page as your reading of their "
             "words")
-    if ctx.conn.execute("SELECT 1 FROM decisions WHERE id = ?",
-                        (about_ref,)).fetchone():
+    # `db.table_of` finds the row. A decision comes first, as before F22, and
+    # `_ROW_WORDS` names the words of the other rows.
+    home = table_of(ctx.conn, about_ref,
+                    among=("decisions", *(t for t, _ in _ROW_WORDS)))
+    if home == "decisions":
         return (f"{about_ref} is a decision, and the principal's words are on "
                 f"file in it. A note about a ruling {echo}. A conflict names a "
                 f"row that disagrees with another row. If a row disagrees with "
                 f"the ruling, send about_ref=<that row's id>. Otherwise adopt "
                 f"what they ruled, and stop.")
-    home = next((t for t, col in _ROW_WORDS if ctx.conn.execute(
-        f"SELECT 1 FROM {t} WHERE id = ?", (about_ref,)).fetchone()), None)
     if home is None:
         return None
     col = dict(_ROW_WORDS)[home]
     texts = [r[0] for r in ctx.conn.execute(
         f"SELECT {col} FROM {home} WHERE id = ?", (about_ref,))]
+    # A `guess:` ref names its item, and its own id holds no row.
+    if not texts:
+        return None
     if home == "items":
         # The account is every item, and a side can quote the item beside.
         texts += [r[0] for r in ctx.conn.execute("SELECT text FROM items")]
@@ -14346,7 +14544,9 @@ def _refuse_an_echo(ctx, about_ref: str) -> None:
             f"words. Adopt what they approved, and stop.")
 
 
-# The tables a ledger row can be about, in the order `ledger.log` checks them.
+# The tables a ledger row can be about, in the order that picks one when an
+# id lives in two of them. This is a scope rule. `db.tables_of` reads it as
+# `among` (F22).
 LEDGER_HOMES = ("items", "statements", "criteria", "tickets", "tests",
                 "constraints", "glossary_terms", "model_areas", "frame_rulings")
 # The class of a parking row: the principal answered, and the answer said
@@ -14354,20 +14554,23 @@ LEDGER_HOMES = ("items", "statements", "criteria", "tickets", "tests",
 UNADDRESSED_KIND = "unaddressed_answer"
 
 
-def _table_of_ref(conn, ref: str) -> str | None:
-    """The table the row lives in, or None.
+def _homes_of_ref(conn, ref: str) -> list[str]:
+    """Every ledger home that holds the row, in the order of `LEDGER_HOMES`.
 
     A read-back line's ref, `reading:<reply id>`, lives in `messages`: it
-    names his reply (the seam design, 2.3)."""
-    from .principal import READING_REF
-
+    names his reply (the seam design, 2.3). A code line's key is no ledger
+    home, so a `guess:` ref gives none."""
+    if guess_item(ref) is not None:
+        return []
     if isinstance(ref, str) and ref.startswith(READING_REF):
-        return "messages" if conn.execute(
-            "SELECT 1 FROM messages WHERE id = ?",
-            (ref[len(READING_REF):],)).fetchone() else None
-    return next((t for t in LEDGER_HOMES
-                 if conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
-                                 (ref,)).fetchone()), None)
+        return tables_of(conn, ref)
+    return tables_of(conn, ref, among=LEDGER_HOMES)
+
+
+def _table_of_ref(conn, ref: str) -> str | None:
+    """The first ledger home that holds the row, or None."""
+    homes = _homes_of_ref(conn, ref)
+    return homes[0] if homes else None
 
 
 def _stage_ledger(ctx: Ctx, about_ref: str, about_table: str, assumption: str,
@@ -14691,9 +14894,9 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     # verdict five of five (CR-fail-names-its-criterion, re-earned
     # 2026-09-02). The recipient is the mechanical distinction; anything
     # finer is a judgement in disguise.
-    staged = [m for m in getattr(ctx, "outbound", [])
-              if m.get("verb") == "challenge" and m.get("to_role") == "tester"]
-    if staged:
+    from ..core.sandbox import _sent_this_session
+
+    if _sent_this_session(ctx, "tester", "challenge"):
         raise ValueError(
             "you have already challenged the tester this session, and that "
             "is your judgement of this commit until the challenge lands. "
@@ -15891,7 +16094,7 @@ def _frame_ranked(conn, rows: list[dict]) -> list[dict]:
     seen: dict[str, str] = {}
     out = []
     for r in rows:
-        path = str(r.get("grain", "")).partition("::")[0]
+        path = _grain_path(str(r.get("grain", "")))
         if path not in seen:
             seen[path] = kind_of(conn, path)
         out.append({"grain": r["grain"], "kind": seen[path],
@@ -16364,7 +16567,7 @@ def code_prose(ctx: Ctx, limit: int = 6000, path: str | None = None) -> dict:
         # Asked by path: the file the session wants beside its own. clickI
         # night 38 (2026-09-13): `code.prose(path=...)` refused as an
         # unexpected argument in a wake that is about one file.
-        readme = path.replace("\\", "/").lstrip("./")
+        readme = _indexed_like(ctx, path) or _grain_path(path)
     elif ctx.area and ctx.area.startswith(_PROSE + ":"):
         # A prose file under docs/, the wake's own subject (one file a
         # session, `prose_areas`). The README is the bare `@prose`.
@@ -16670,7 +16873,7 @@ def code_vocabulary(ctx: Ctx, area: str | None = None) -> list[dict]:
     area = area or ctx.area
     if not area:
         return []
-    paths = sorted({r["grain"].split("::")[0] for r in ctx.conn.execute(
+    paths = sorted({_grain_path(r["grain"]) for r in ctx.conn.execute(
         "SELECT grain FROM code_index WHERE area = ?", (area,))})
     if not paths:
         return []
@@ -16799,12 +17002,12 @@ def code_concordance(ctx: Ctx, term: str = "", limit: int = 3) -> dict:
             return set(need) <= {_sing(w) for w in _parts(line)}
         return bool(want & set(_words_in(line)))
 
-    paths = sorted({r["grain"].split("::")[0] for r in ctx.conn.execute(
+    paths = sorted({_grain_path(r["grain"]) for r in ctx.conn.execute(
         "SELECT grain FROM code_index")})
     if not paths:
         return {"term": term, "files": 0, "areas": 0,
                 "where": "nothing onboarded: there is no index to read."}
-    area_of = {r["grain"].split("::")[0]: r["area"] for r in ctx.conn.execute(
+    area_of = {_grain_path(r["grain"]): r["area"] for r in ctx.conn.execute(
         "SELECT grain, area FROM code_index")}
     fan_in = {r["grain"]: r["fan_in"] for r in ctx.conn.execute(
         "SELECT grain, fan_in FROM code_index WHERE grain_kind = 'path'")}
@@ -17591,7 +17794,10 @@ def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
         raise ValueError(f"kind must be one of program/attached/ignore/"
                          f"boundary, not {kind!r}")
     path = (path or "").strip().strip("`").rstrip("/")
-    path = path.lstrip("./")
+    # F11, review pass 1, finding 1: a character-set strip made `.github`
+    # into `github`, and the door refused a path the index holds. The night
+    # databases record `/github`. The one matcher resolves the typed form.
+    path = _indexed_like(ctx, path, folder=True) or _grain_path(path)
     covered = [r["grain"] for r in ctx.conn.execute(
         "SELECT grain FROM code_index WHERE grain_kind = 'path' AND "
         "(grain = ? OR grain LIKE ?)", (path, path + "/%"))]
@@ -18166,8 +18372,7 @@ def _uncommitted(ctx, root, batch_id=None) -> list[str]:
     and the Developer's commits leave them out, so they are furniture."""
     from ..core import worktrees as _wt
     bid = batch_id or ctx.batch_id
-    furniture = {_grain_path(r[0]) for r in ctx.conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (bid,))} if bid else set()
+    furniture = _wt.batch_furniture(ctx.conn, bid) if bid else set()
     return [f for f in _wt.changed_since(root, _wt.head(root))
             if _grain_path(f) not in furniture]
 
@@ -18248,23 +18453,6 @@ def _worktree_of(ctx, batch_id=None) -> "Path":
         if row and row["worktree"]:
             return _P(row["worktree"])
     return project_root(ctx.conn)
-
-
-def _grain_path(grain: str) -> str:
-    """
-    The file a grain lives in, normalised for comparison.
-
-    Grains come in two shapes — `oauth1/rfc5849/signature.py` and
-    `oauth1/rfc5849/signature.py::sign_hmac` — and a session that read the file
-    has read the symbol. Backslashes fold to forward, because the index is built
-    on one platform and read on another.
-    """
-    g = grain.split("::", 1)[0].replace("\\", "/").strip()
-    # Prefixes, not a character set: `lstrip("./")` made `.github/ci.py`
-    # into `github/ci.py`, which no index row holds (frame 91's diff review).
-    while g.startswith(("./", "/")):
-        g = g[2:] if g.startswith("./") else g[1:]
-    return g
 
 
 def _dotted_module(path: str, keep_root: bool = False) -> str:
@@ -18423,10 +18611,11 @@ def module_of(conn, name: str, keep_root: bool = False,
     define the name, the shortest dotted name wins. With `keep_root`, `src/`
     and `lib/` stay in the dotted name, as `_dotted_module` says.
     """
-    text = (name or "").replace("\\", "/")
-    path, sep, _ = text.partition("::")
-    if sep or path.endswith(".py"):
-        dotted = _dotted_module(_grain_path(path), keep_root=keep_root)
+    text = name or ""
+    # F11: `_grain_path` is the one reader of a grain's path half.
+    path = _grain_path(text)
+    if "::" in text or path.endswith(".py"):
+        dotted = _dotted_module(path, keep_root=keep_root)
         return (dotted, path) if dotted else None
     found = [(d, p) for p in definers_of(conn, text, staged)
              if (d := _dotted_module(p, keep_root=keep_root))]
@@ -18749,9 +18938,11 @@ def _surface_pick(ctx, batch_id, criterion_id, refs: list) -> list:
     if len(refs) <= 1:
         return refs
     bid = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
-    touched = {str(g).rsplit("::", 1)[-1] for (g,) in ctx.conn.execute(
-        "SELECT grain FROM batch_touch WHERE batch_id = ? "
-        "AND grain_kind = 'symbol'", (bid,))}
+    from ..core.lifecycle import grain_name, predicted_rows
+
+    # A symbol his ruling removes is not touched. A path row that holds
+    # `::` names its symbol too (F35, review 1, finding 2).
+    touched = {n for n in map(grain_name, predicted_rows(ctx.conn, bid)) if n}
     hit = [r for r in refs if r.rsplit("::", 1)[-1] in touched]
     return hit if len(hit) == 1 else []
 
@@ -19146,13 +19337,16 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
         refs = []
     surface = {str(s).rsplit("::", 1)[-1] for s in refs}
     # Review 2, finding 1: the names the batch adds are in its item, its
-    # criteria and its touch rows.
+    # criteria and its touch rows. A grain his words decline adds no name
+    # (F35).
+    from ..core.lifecycle import predicted_rows
+
     adds = [r[0] or "" for r in ctx.conn.execute(
         "SELECT i.text FROM batches b JOIN items i ON i.id = b.item_id "
         "WHERE b.id = ? UNION ALL SELECT c.text FROM criteria c "
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE bt.batch_id = ? UNION ALL SELECT grain FROM batch_touch "
-        "WHERE batch_id = ?", (batch_id, batch_id, batch_id))]
+        "WHERE bt.batch_id = ?", (batch_id, batch_id))]
+    adds += [t["grain"] for t in predicted_rows(ctx.conn, batch_id)]
     fault = arrange_fault(body, path, said, surface,
                           (crit["text"] if crit else "") or "", str(root),
                           "\n".join(adds))
@@ -19643,7 +19837,7 @@ def _unbound_name_hint(name: str, surface: str, module: str,
                   f"{name}, import it from that library.{where}")
 
 
-def _indexed_like(ctx, path: str) -> str | None:
+def _indexed_like(ctx, path: str, folder: bool = False) -> str | None:
     """
     The grain a mistyped path was reaching for, when exactly one fits.
 
@@ -19675,13 +19869,27 @@ def _indexed_like(ctx, path: str) -> str | None:
         return None
 
     hits = []
+    prefixes: set[str] = set()
     for r in ctx.conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'path'"):
         g = r["grain"]
+        # The seat may type the dot-stripped spelling that old hints printed,
+        # `editorconfig` for `.editorconfig`. The strip is a match rule here,
+        # not a fold (F11, review pass 1, finding 1, and
+        # test_a_dotted_path_is_cited_by_its_stripped_spelling).
         bare = g.lstrip("./")
         if want in (g, bare) or g.endswith("/" + want) or bare.endswith("/" + want):
             hits.append(g)
-    return hits[0] if len(hits) == 1 else None
+        elif folder:
+            # A door that rules a folder asks for the folder's spelling in the
+            # index. The seat typed `/github` for `.github` (review pass 1,
+            # finding 1), and the one matcher answers for every door.
+            for s in (g, bare):
+                if s.startswith(want + "/"):
+                    prefixes.add(g[:len(g) - len(s)] + want)
+    if len(hits) == 1:
+        return hits[0]
+    return prefixes.pop() if not hits and len(prefixes) == 1 else None
 
 
 def _within(base, path: str):
@@ -19783,9 +19991,7 @@ def _refuse_after_challenge(ctx: Ctx) -> None:
     """
     from ..core import sandbox as _sandbox
 
-    sent = [m for m in (getattr(ctx, "outbound", None) or [])
-            if m["to_role"] == "tester" and m["verb"] == "challenge"
-            and m.get("route") != "triage"]
+    sent = _sandbox._sent_this_session(ctx, "tester", "challenge")
     if not sent:
         return
     refs = sent[-1].get("body_refs") or []
@@ -20572,7 +20778,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         return not project_installable(root)
     if (_sp.suffix == ".py" and len(_sp.parts) == 1 and _pkgs
             and not _sp.stem.startswith("test") and not _root_importable(_root)):
-        named_roots = {r.split("::")[0] for c in ctx.conn.execute(
+        named_roots = {_grain_path(r) for c in ctx.conn.execute(
             "SELECT c.surface_refs FROM criteria c JOIN batch_tickets bt "
             "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (ctx.batch_id,))
             for r in json.loads(c["surface_refs"] or "[]") if "::" in r}
@@ -20787,8 +20993,11 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # holds in exactly one other module is a unique surface, and a
         # second definition of it is a copy. A name defined in several
         # modules already (`main`, `setup`) is a convention and passes;
-        # tests and private names pass.
-        if not _is_test_path(path):
+        # tests and private names pass. F9: the frame's kind decides what is
+        # the program (ruled: Roman, 2026-10-26 20:37).
+        from ..onboarding.areas import kind_of
+
+        if kind_of(ctx.conn, path) == "program":
             # A name the file defined before this write is the tree's own
             # duplicate, not this change's. tipsBF (2026-09-13): tipsI keeps
             # `calculate_tip` in main.py and tip_calculator.py both, and a
@@ -20866,11 +21075,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
         # the merge carried the Developer's file, and the merged tree's own
         # test suite was broken. A test file is not the Developer's to
         # write: the harness holds the tests from the database.
-        from pathlib import Path as _TP
-        _tp = _TP(path)
-        if ctx.role == "developer" and (
-                "tests" in _tp.parts[:-1] or _tp.name.startswith("test_")
-                or _tp.name.endswith("_test.py")):
+        if ctx.role == "developer" and _is_test_file(ctx.conn, path):
             raise ValueError(
                 f"{path} is a test file, and the tests are the Tester's. The "
                 f"harness runs the tests on record; a test you cannot pass "
@@ -21131,7 +21336,7 @@ def _code_write(ctx: Ctx, path: str, text: str, start: int, end: int, *,
                 except (json.JSONDecodeError, TypeError):
                     continue
                 imported |= {r.rsplit("::", 1)[-1] for r in refs
-                             if "::" in r and _Path(r.split("::", 1)[0]).stem == stem}
+                             if "::" in r and _Path(_grain_path(r)).stem == stem}
             for other in root.rglob("*.py"):
                 # The worktree lives under `.rota/`, so the exclusion reads
                 # the relative parts; on the full path it skipped every
@@ -21760,9 +21965,9 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                                    lenient_root=tree):
                     undefined.append(f"{ref} (the surface criterion {crit['id']} names)")
                 continue
-            if not ref.split("::", 1)[0].endswith(".py"):
+            if not _grain_path(ref).endswith(".py"):
                 continue
-            rel, name = ref.split("::", 1)
+            rel, name = _grain_path(ref), ref.split("::", 1)[1]
             f = tree / rel
             if not f.is_file():
                 continue
@@ -21811,8 +22016,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     # reached only the database, and walk 2 inherited a test that could
     # never pass. The merge delivers the current bodies in a commit of
     # their own (lifecycle.merge).
-    test_paths = tuple(r["path"] for r in ctx.conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (ctx.batch_id,)) if r["path"])
+    test_paths = tuple(sorted(worktrees.batch_furniture(ctx.conn, ctx.batch_id)))
     sha = worktrees.commit(tree, message, exclude=test_paths)
     if sha is None and drift:
         raise ValueError(
@@ -23438,23 +23642,11 @@ def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | Non
     return None
 
 
-def _predicted_touch(ctx: Ctx, batch_id: str) -> list[str]:
-    """The batch's predicted touch as ground: path grains, and the file a
-    file-qualified symbol lives in. Landed rows and the session's own
-    staged ones alike."""
-    rows = [(r["grain"], r["grain_kind"]) for r in ctx.conn.execute(
-        "SELECT grain, grain_kind FROM batch_touch WHERE batch_id = ? "
-        "ORDER BY grain", (batch_id,))]
-    rows += [(w[2].get("grain"), w[2].get("grain_kind")) for w in ctx.writes
-             if w[0] == "batch_touch" and w[2].get("batch_id") == batch_id]
-    return [g for g, kind in rows
-            if g and (kind == "path" or (kind == "symbol" and "::" in g))]
-
-
 def _outside_prediction(ctx: Ctx, batch_id: str, touched: list[str]) -> list[str]:
     """Detector two: the touched paths the prediction never named, less the
     paths already judged for this batch. Empty when nothing was predicted."""
     from ..core.divergence import stray_paths
+    from ..core.lifecycle import predicted_files
 
     judged = {r["path"] for r in ctx.conn.execute(
         "SELECT path FROM touch_strays WHERE batch_id = ? AND status != 'open'",
@@ -23463,8 +23655,9 @@ def _outside_prediction(ctx: Ctx, batch_id: str, touched: list[str]) -> list[str
     # The tests are the Tester's, and the harness commits them into the
     # batch: clickI night 41 (2026-09-13) raised six test files as the
     # Developer's strays. A test path is never a stray.
-    return [p for p in stray_paths(touched, _predicted_touch(ctx, batch_id))
-            if p not in judged and not _is_test_path(p)]
+    # A file his words decline is outside the prediction (F35).
+    return [p for p in stray_paths(touched, predicted_files(ctx.conn, batch_id, ctx.writes))
+            if p not in judged and not _is_test_file(ctx.conn, p)]
 
 
 def _unnamed_def_strays(ctx: Ctx, tree, touched: list[str],
@@ -23473,7 +23666,9 @@ def _unnamed_def_strays(ctx: Ctx, tree, touched: list[str],
     that no criterion names, less the grains already judged. A path that is
     a stray whole is judged once, so its definitions are not listed."""
     from pathlib import Path as _P
-    if tree is None or not _predicted_touch(ctx, ctx.batch_id):
+
+    from ..core.lifecycle import predicted_files
+    if tree is None or not predicted_files(ctx.conn, ctx.batch_id, ctx.writes):
         return []        # detector two's rule: no prediction, no stray
     judged = {r["path"] for r in ctx.conn.execute(
         "SELECT path FROM touch_strays WHERE batch_id = ? AND status != 'open'",
@@ -23482,7 +23677,7 @@ def _unnamed_def_strays(ctx: Ctx, tree, touched: list[str],
     for path in touched:
         rel = path.replace("\\", "/")
         if (not rel.endswith(".py") or rel in path_strays or rel in judged
-                or _is_test_path(rel)):
+                or _is_test_file(ctx.conn, rel)):
             continue
         try:
             new = (_P(tree) / rel).read_text(encoding="utf-8", errors="replace")
@@ -23935,9 +24130,11 @@ def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
         "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
         "AND s.status != 'superseded' ORDER BY s.id",
         (row["item_id"] or "",))]
-    touch = [dict(r) for r in ctx.conn.execute(
-        "SELECT grain, grain_kind, confidence FROM batch_touch WHERE batch_id = ? "
-        "ORDER BY confidence, grain_kind, grain", (bid,))]
+    # The seat's working view drops the grains his words decline (F35).
+    from ..core.lifecycle import predicted_rows
+
+    touch = sorted(predicted_rows(ctx.conn, bid), key=lambda t: (
+        t["confidence"] or "", t["grain_kind"] or "", t["grain"]))
     tests = [dict(r) for r in ctx.conn.execute(
         "SELECT id, criterion_id, path FROM tests WHERE batch_id = ? ORDER BY id", (bid,))]
     # The runner pushes this read first, so the seat reads the discard here.
@@ -25269,9 +25466,3 @@ def _kind_shortfall(old_lines: list[str], text: str):
     return olds, kinds, keys
 
 
-def _is_test_path(path: str) -> bool:
-    """A test file by pytest's own rule, or anything under a tests directory."""
-    p = (path or "").replace("\\", "/")
-    name = p.rsplit("/", 1)[-1]
-    return ("/tests/" in f"/{p}" or p.startswith("tests/")
-            or name.startswith("test_") or name.endswith("_test.py") or name == "conftest.py")

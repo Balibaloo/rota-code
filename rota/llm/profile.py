@@ -33,6 +33,16 @@ SHIPPED = paths.PROFILES
 PROVIDERS = ("ollama", "litellm")
 PIN_KEYS = ("temperature", "num_ctx", "max_tokens", "top_p", "seed", "repeat_penalty")
 
+#: The mark an endpoint uses for the model host. The loader fills it from
+#: `llm.OLLAMA_HOST`, the one reader of the host (F29), so a profile holds
+#: no second copy of the host.
+MODEL_HOST = "{model_host}"
+
+
+def _filled(endpoint: str) -> str:
+    """The endpoint with the model host in place of its mark."""
+    return endpoint.replace(MODEL_HOST, llm.OLLAMA_HOST.rstrip("/"))
+
 
 def user_dir() -> Path:
     return Path(os.environ.get("ROTA_HOME", str(Path.home() / ".rota"))) / "profiles"
@@ -85,7 +95,7 @@ class Profile:
         p = cls(
             name=name or d.get("name") or "unnamed",
             provider=kind,
-            endpoint=str(prov.get("endpoint") or ""),
+            endpoint=_filled(str(prov.get("endpoint") or "")),
             api_key_env=str(prov.get("api_key_env") or prov.get("key_env") or ""),
             timeout=float(prov.get("timeout", 300.0)),
             keep_alive=str(prov.get("keep_alive") or ""),
@@ -113,7 +123,7 @@ class Profile:
             model = str(e.get("model") or "")
             if not model or not e.get("endpoint"):
                 raise ValueError("an endpoints entry needs `model` and `endpoint`")
-            out[model] = {"endpoint": str(e["endpoint"]),
+            out[model] = {"endpoint": _filled(str(e["endpoint"])),
                           "timeout": float(e["timeout"]) if e.get("timeout") is not None else None,
                           "extra_body": dict(e.get("extra_body") or {})}
         return out

@@ -576,6 +576,20 @@ def _resume_detail(conn: sqlite3.Connection, batch_id: str) -> str:
             f"tests failing: {shown}")
 
 
+def signoff_drafts(conn: sqlite3.Connection) -> list[str]:
+    """
+    The draft items a signoff submits, in id order. A parked draft is not
+    one of them (frame 193's design, 2.F.4).
+
+    This is the one reader of the set (F32). `tick_signoff` wakes on it, and
+    the submit door refuses a submit that leaves out one of its woken items.
+    law 8: signoff is per-item approval, presented as one document.
+    """
+    return [r["id"] for r in conn.execute(
+        "SELECT id FROM items WHERE approval = 'draft'"
+        + not_parked(conn, "id") + " ORDER BY id")]
+
+
 def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     """
     Draft items with no gate open on them: Vision Keeper submits them for approval.
@@ -590,9 +604,7 @@ def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     # question is not an open gate (frame 193's design, 2.F.4).
     from ..roles.principal import held_asks
 
-    drafts = [r["id"] for r in conn.execute(
-        "SELECT id FROM items WHERE approval = 'draft'"
-        + not_parked(conn, "id") + " ORDER BY id")]
+    drafts = signoff_drafts(conn)
     if not drafts:
         return []
     # A touch note is set aside (P4, 2026-09-03): this guard exists so an
@@ -2084,8 +2096,9 @@ def guess_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
         refs = json.loads(row["refs"] or "[]")
     except (TypeError, ValueError):
         return False
-    return bool(refs) and all(isinstance(r, str) and r.startswith("guess:")
-                              for r in refs)
+    from .db import guess_item
+
+    return bool(refs) and all(guess_item(r) is not None for r in refs)
 
 
 def batch_relay(conn: sqlite3.Connection, message_id: str | None) -> bool:
@@ -2274,13 +2287,10 @@ def resume_behind(conn: sqlite3.Connection) -> int:
         # review of 61a0f41d, finding 1).
         # A description is no item of the request: one that cites the new
         # statement ended the park before the work items existed (the
-        # review of a1bd448f, finding 1).
-        cited = [r for r in conn.execute(
-                     "SELECT id, kind, is_description FROM items "
-                     "WHERE is_description = 0")
+        # review of a1bd448f, finding 1). `request_of` gives it no request.
+        cited = [r for r in conn.execute("SELECT id, kind FROM items")
                  if request_of(conn, r["id"]) in entries]
-        mine = [r["id"] for r in cited
-                if r["kind"] == "in_scope" and not r["is_description"]]
+        mine = [r["id"] for r in cited if r["kind"] == "in_scope"]
         # A request with items and no work item asks nothing to deliver, so
         # the park ends. A request with no item yet still waits. B with
         # only out-of-scope items held A for ever (the review of e406e976,

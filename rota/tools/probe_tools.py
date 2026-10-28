@@ -15,17 +15,16 @@ things and a cassette of one is not evidence about the other.
 from __future__ import annotations
 
 import json
-import os
 import statistics
 import sys
 import time
 import urllib.error
 import urllib.request
 
-# The environment's host, never a literal. The recorder runs on 11435 and
-# both servers answer on this box, so a fixed host measures the wrong card
-# and the reading looks plausible instead of failing.
-OLLAMA = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+# The host comes from `llm.OLLAMA_HOST`, the one reader of the model host
+# (F29). The recorder runs on 11435 and both servers answer on this box. A
+# fixed host measures the wrong card, and the reading looks plausible.
+from ..llm import llm
 
 # The window a run uses, read from the shipped profile. 8192 was below every
 # real window, so this probe measured tool calling through a window no desk
@@ -88,7 +87,7 @@ def chat(model: str, system: str, user: str, *, tools=None, num_ctx=NUM_CTX,
     if tools:
         body["tools"] = tools
     req = urllib.request.Request(
-        f"{OLLAMA}/api/chat", data=json.dumps(body).encode(),
+        f"{llm.OLLAMA_HOST}/api/chat", data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"})
     t0 = time.time()
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -168,7 +167,7 @@ def main() -> None:
     if "--runs" in sys.argv:
         runs = int(sys.argv[sys.argv.index("--runs") + 1])
 
-    with urllib.request.urlopen(f"{OLLAMA}/api/tags", timeout=10) as r:
+    with urllib.request.urlopen(f"{llm.OLLAMA_HOST}/api/tags", timeout=10) as r:
         tags = json.loads(r.read())
     models = [m["name"] for m in sorted(tags["models"], key=lambda m: m["size"])
               if "embed" not in m["name"]]

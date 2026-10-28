@@ -209,6 +209,9 @@ CODE_READS = {"code.source", "code.probe", "code.read"}
 #: got `repo.index_batch: true` in pass 1c. `onboard: true` is not that fix:
 #: it indexes the main checkout before the batch worktree exists, and it
 #: writes constraint zero. Remove an id when its case is fixed. Add none.
+#: `OWED_FRAME` names the frame that owes the set. The F33 test reads it
+#: against the open frames of the stack.
+OWED_FRAME = "frame 326"
 OWED = {
     "L1-AR-rewrite-the-guess-from-the-ruling",
     "L1-AR-re-annotate-from-the-principals-correction",
@@ -284,7 +287,7 @@ def test_a_case_whose_mode_reads_code_holds_the_code(case):
     problems = list(_code_problems(case))
     if case["id"] in OWED:
         assert problems, (f"{case['id']} is fixed. Remove it from OWED")
-        pytest.skip(f"owed since frame 326: {problems[0]}")
+        pytest.skip(f"owed since {OWED_FRAME}: {problems[0]}")
     assert not problems, f"{case['id']}: " + "; ".join(problems)
 
 

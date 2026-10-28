@@ -32,6 +32,43 @@ class WorktreeError(RuntimeError):
     """Git refused, or the path was not ours to touch."""
 
 
+def grain_path(grain: str) -> str:
+    """
+    The file a grain lives in, normalised for comparison.
+
+    Grains come in two shapes — `oauth1/rfc5849/signature.py` and
+    `oauth1/rfc5849/signature.py::sign_hmac` — and a session that read the file
+    has read the symbol. Backslashes fold to forward, because the index is built
+    on one platform and read on another.
+
+    The fold lives in core because `batch_furniture` folds the test paths
+    by it, and the roles layer reads it as `api._grain_path` (F27).
+    """
+    g = grain.split("::", 1)[0].replace("\\", "/").strip()
+    # Prefixes, not a character set: `lstrip("./")` made `.github/ci.py`
+    # into `github/ci.py`, which no index row holds (frame 91's diff review).
+    while g.startswith(("./", "/")):
+        g = g[2:] if g.startswith("./") else g[1:]
+    return g
+
+
+def batch_furniture(conn: sqlite3.Connection, batch_id: str) -> set[str]:
+    """
+    The batch's materialised test files, folded by `grain_path`.
+
+    The harness writes these files at run time, and the Developer's commits
+    leave them out. So no commit owns them, and no discard removes them.
+    This is the one reader of that set (F27). `code.diff`, `code.write`,
+    `code.commit`, the batch's file list and the discard at a session's end
+    all read it, so they keep the same files.
+
+    law 4: an uncommitted change never existed. The furniture is no change
+    of the session, so it stays.
+    """
+    return {grain_path(r[0]) for r in conn.execute(
+        "SELECT path FROM tests WHERE batch_id = ?", (batch_id,)) if r[0]}
+
+
 def _git(root: Path, *args: str, check: bool = True) -> str:
     out = subprocess.run([*GIT, "-C", str(root), *args],
                          capture_output=True, text=True)
@@ -273,7 +310,9 @@ def discard(path: str | Path, keep: set[str] = frozenset(),
         for s, side in sides:
             if s.startswith((".venv/", ".rota/")) or s in (".venv", ".rota"):
                 continue
-            if s.replace(chr(92), "/") in keep:
+            # `keep` holds `batch_furniture`'s folded paths, so the path
+            # folds by the same rule (F27).
+            if grain_path(s) in keep:
                 continue
             if code == "??":
                 new.append(s)
@@ -320,9 +359,8 @@ def batch_files(conn: sqlite3.Connection, batch_id: str) -> list[str] | None:
     # The batch's materialised test files are the harness's furniture, not
     # the diff (night 66, 2026-09-14: the review moved its findings onto
     # them once the project's own tests were refused).
-    furniture = {r[0].replace(chr(92), "/") for r in conn.execute(
-        "SELECT path FROM tests WHERE batch_id = ?", (batch_id,))}
-    return sorted(f for f in files if f.replace(chr(92), "/") not in furniture)
+    furniture = batch_furniture(conn, batch_id)
+    return sorted(f for f in files if grain_path(f) not in furniture)
 
 
 def base(path: str | Path, root: str | Path | None) -> str:

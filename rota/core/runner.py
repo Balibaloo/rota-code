@@ -35,7 +35,8 @@ from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
 from .db import (COPIES_END, OutboundMessage, REPEAT_END, SessionResult, Turn,
-                 Write, session_commit, session_fail, session_note)
+                 Write, session_commit, session_fail, session_note, table_of,
+                 tables_of)
 from .identity import NATURAL_KEYS
 from .scheduler import Wake, claim, not_retired, release
 
@@ -211,8 +212,8 @@ def answer_about(conn: sqlite3.Connection, clarify_id: str) -> list[str] | None:
     # night 144 the door admitted m385, a message id, and landed it in
     # `per_item` (frame 306, review 1, finding 2).
     about = [r for r in json.loads(asker["body_refs"] or "[]")
-             if isinstance(r, str) and (_table_of_ref(conn, r) or conn.execute(
-                 "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone())]
+             if isinstance(r, str) and (_table_of_ref(conn, r) or table_of(
+                 conn, r, among=("batches",)))]
     return about + [r for r in own if r not in about]
 
 
@@ -602,14 +603,14 @@ def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
     """The sentences of ruling `rid`'s words that bear on any of `cids`, in
     his order. The whole words when no sentence is kept, when no page
     order is recorded at his reply, or when a row's line is not known."""
-    from ..roles.principal import door_rows
+    from ..roles.principal import seen_order
 
     # Without the order of frame 272, `_ruling_line` reads today's render.
     # That render can put the row on another line and drop the sentence
     # that rules it, as a probe of night 144's r_c4bf70291d shows.
     row = conn.execute("SELECT reply_id FROM rulings WHERE id = ?",
                        (rid,)).fetchone()
-    if not (row and door_rows(conn, row["reply_id"], "order")):
+    if not (row and seen_order(conn, row["reply_id"], None)):
         return words
     ruled = {"id": rid, "words": words}
     rows: set[int] = set()
@@ -626,9 +627,9 @@ def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
     out: list[str] = []
     bound: set[int] | None = None
     for sentence in api._RULING_SENTENCE.split(words):
-        refs = list(api._LINE_REF.finditer(sentence))
+        refs = api._line_reading(sentence).named
         if refs:
-            bound = set().union(*(api._ref_lines(r) for r in refs))
+            bound = set(refs)
         if bound is None or bound & rows:
             out.append(sentence)
     return " ".join(out) if out else words
@@ -645,22 +646,20 @@ def _line_legend(conn, rid: str, words: str,
     Night 165's s359 read "remove both lines" as docstring lines and cut 17
     of them (frame 306, W-A).
     """
-    from ..roles.principal import door_rows
-
-    from ..roles.principal import ruled
+    from ..roles.principal import ruled, seen_order
 
     row = conn.execute("SELECT reply_id FROM rulings WHERE id = ?",
                        (rid,)).fetchone()
     # Only the order `principal.land` recorded at his reply (frame 272).
     # Today's render can put another row on his line, as night 158's did.
-    order = door_rows(conn, row["reply_id"], "order") if row else []
+    order = seen_order(conn, row["reply_id"], None) if row else []
     if not order:
         return []
     named: set[int] = set()
-    for ref in api._LINE_REF.finditer(words):
-        if ref.group(0).lower().startswith("note"):
+    for ref in api._line_reading(words, len(order)).refs:
+        if ref.word == "note":
             continue
-        named |= api._ref_lines(ref, len(order))
+        named |= ref.lines
     # The text he read first is `old_text` of the ruling's rows.
     texts = {r["ref"]: r["old_text"] for r in ruled(conn, ruling=rid, landed=False)}
     out: list[str] = []
@@ -2355,7 +2354,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # their table, and the brief keys the owner on it.
                 about_rows = _resolve_refs(conn, answering["about"])
                 for ref, resolved_row in about_rows.items():
-                    resolved_row["table"] = _table_of(conn, ref)
+                    resolved_row["table"] = _label(conn, ref, resolved_row)
                 answering["about_rows"] = about_rows
                 out["answering"] = answering
             # A reply to a page. The Liaison reads the words against the
@@ -2363,7 +2362,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             # saw it, the numbered lines in order, the words, and what was
             # said back and forth on this page before.
             if clarify and (clarify["verb"] in ("confirm", "present") or park):
-                from ..roles.principal import render_page
+                from ..roles.principal import page_ask, render_page, seen_order
 
                 page_refs = json.loads(clarify["body_refs"] or "[]")
                 # A park page numbers the item and its criteria, so the
@@ -2371,10 +2370,12 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # 2026-10-08, the park ask is a page with rows). The returned
                 # line is the principal's, not the seat's (frame 267, ruled
                 # by the holding session at review 1).
-                page, order = render_page(conn, clarify["verb"], page_refs,
-                                          clarify["body_text"],
-                                          ask_id=clarify["id"],
-                                          returned=False)
+                page = render_page(conn, clarify["verb"], page_refs,
+                                   clarify["body_text"], ask_id=clarify["id"],
+                                   returned=False)[0]
+                # Each line names the row he saw on it at this reply (fact
+                # F28).
+                order = seen_order(conn, trigger, page_ask(clarify))
                 # No page id here. `_recent_chat` already names another
                 # page in words, "row <ref> of page <id>", and a reply to
                 # this page keeps its line numbers, so the seat tells the two
@@ -2408,7 +2409,21 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # 5,593 tokens this way, against 17,220.
                 line_rows = _resolve_refs(conn, order)
                 for ref, resolved_row in line_rows.items():
-                    resolved_row["table"] = _table_of(conn, ref)
+                    resolved_row["table"] = _label(conn, ref, resolved_row)
+                # A row he saw can leave the tables after his reply. The
+                # line names it, so the Liaison rules the other lines (the
+                # F26 review, finding 1). Only a page with such a line gets
+                # the key, so no recorded prompt changes.
+                from ..roles.principal import READING_REF, ruled_ref_home
+
+                gone = {str(i + 1): (
+                    f"no table holds {ref} now. The line takes no ruling, and "
+                    f"a ruling on it lands as a fault")
+                    for i, ref in enumerate(order)
+                    if not str(ref).startswith(READING_REF)
+                    and ruled_ref_home(conn, ref) is None}
+                if gone:
+                    landing["gone_lines"] = gone
                 # A read-back line names the rows of an earlier reply by
                 # their ids here, so the seat can rule a row his words
                 # correct. The page he reads shows no id (the review of pass
@@ -2438,7 +2453,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 else:
                     fits = False
                     landing["lines"] = {
-                        str(i + 1): f"{ref} ({_table_of(conn, ref) or 'row'})"
+                        str(i + 1): f"{ref} ({' and '.join(tables_of(conn, ref)) or 'row'})"
                         for i, ref in enumerate(order)}
                     dropped = len(set(order) | set(out.get("resolved_refs") or {}))
                     # Not `cut_note` yet. This string is inside a recorded
@@ -2547,26 +2562,23 @@ def _page_named_lines(text: str, page_id: str, order: list[str]) -> str:
     "Line 2" becomes "row <ref> of page <page_id>". A number past the page
     stays a line, as "line 9 of page <page_id>".
     """
-    from ..roles.api import _LINE_REF, _SENTENCE, _ref_lines
+    from ..roles.api import _line_reading
 
-    def named(ref: re.Match) -> str:
+    def named(ref) -> str:
         parts = [f"row {order[n - 1]}" if 1 <= n <= len(order) else f"line {n}"
-                 for n in sorted(_ref_lines(ref, len(order)))]
+                 for n in sorted(ref.lines)]
         said = (", ".join(parts[:-1]) + " and " + parts[-1]
                 if len(parts) > 1 else parts[0])
         said += f" of page {page_id}"
-        return said[0].upper() + said[1:] if ref.group(0)[0].isupper() else said
+        return said[0].upper() + said[1:] if ref.text[0].isupper() else said
 
-    # By sentence, as the line reader reads: a bare "3 is wrong" counts at a
+    # The line parser reads by sentence: a bare "3 is wrong" counts at a
     # sentence start only (frame 305, review 1, finding 1).
-    out, start = [], 0
-    for cut in [*_SENTENCE.finditer(text), None]:
-        end = cut.start() if cut else len(text)
-        out.append(_LINE_REF.sub(named, text[start:end]))
-        if cut:
-            out.append(cut.group(0))
-            start = cut.end()
-    return "".join(out)
+    out, at = [], 0
+    for ref in _line_reading(text, len(order)).refs:
+        out += [text[at:ref.start], named(ref)]
+        at = ref.end
+    return "".join(out) + text[at:]
 
 
 def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
@@ -2594,6 +2606,7 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
     # guess line of m50, and m89 shows that guess as line 2 too (frame 272;
     # `plans/frame305-interview.md`, section 6).
     from ..roles.api import message_entry
+    from ..roles.principal import seen_order
     from .db import PAGE_VERBS
 
     out: list[dict[str, Any]] = []
@@ -2618,18 +2631,12 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
         if answered:
             turn["page"] = answered["id"]
             if answered["id"] != page:
-                # The order he saw at this reply, as `principal.land`
-                # recorded it. A render reads today's rows, and 73 of 693 rows
-                # named on nights 158 and 159 were not the row he saw (frame
-                # 272, review 1, finding 1). A reply with no record keeps his
-                # numbers.
-                rec = conn.execute("SELECT value FROM config WHERE key = ?",
-                                   (f"order:{r['id']}",)).fetchone()
-                try:
-                    order = [x for x in json.loads(rec["value"])
-                             if isinstance(x, str)] if rec else []
-                except (TypeError, ValueError):
-                    order = []
+                # The order he saw at this reply, by the one reader (fact
+                # F28). A render reads today's rows, and 73 of 693 rows named
+                # on nights 158 and 159 were not the row he saw (frame 272,
+                # review 1, finding 1). A reply with no record keeps his
+                # numbers, so the reader takes the record only.
+                order = seen_order(conn, r["id"], None)
                 if order:
                     text = _page_named_lines(text, answered["id"], order)
         turn["text"] = text
@@ -3434,7 +3441,9 @@ def _criterion_surface_pushes(sb: sandbox_mod.Sandbox, wake: Wake,
         for ref in refs if isinstance(refs, list) else []:
             if not isinstance(ref, str) or "::" not in ref:
                 continue
-            path, name = ref.replace("\\", "/").split("::", 1)
+            from ..roles.api import _grain_path
+
+            path, name = _grain_path(ref), ref.split("::", 1)[1]
             key = f"surface {path}::{name}"
             if key in out:
                 continue
@@ -3700,6 +3709,12 @@ def _encode_nudge(conn: sqlite3.Connection, refs: list[str], text: str,
             f"by saying nothing is owed.")
 
 
+def _label(conn: sqlite3.Connection, ref: str, row: dict) -> str | None:
+    """The table a resolved line names. `_resolve_refs` read the row from one
+    table, and that table is the label. Else `db.table_of` finds it (F22)."""
+    return row.get("table") or table_of(conn, ref)
+
+
 def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
     """Whether the item is a description. False on a run database that
     predates the column."""
@@ -3709,18 +3724,6 @@ def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
     row = conn.execute("SELECT is_description FROM items WHERE id = ?",
                        (item_id,)).fetchone()
     return bool(row and row["is_description"])
-
-
-_REF_TABLES = ("statements", "items", "criteria", "tests", "tickets",
-               "constraints", "glossary_terms", "ledger", "entries")
-
-
-def _table_of(conn: sqlite3.Connection, ref: str) -> str | None:
-    """The table a ref resolves in, or None. Same tables as `_resolve_refs`."""
-    for table in _REF_TABLES:
-        if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
-            return table
-    return None
 
 
 def _group_by_shared_refs(reports: list[dict]) -> list[list[str]]:
@@ -4151,6 +4154,18 @@ def _criteria_raise_lines(sb: sandbox_mod.Sandbox, hint: str) -> dict[str, str]:
     return out
 
 
+def _index_test_files(conn, limit: int = 80) -> list[str]:
+    """The index's test files, in grain order, at most `limit` of them."""
+    # F9 (ruled: Roman, 2026-10-26 20:37): the basename gives the shape and
+    # the frame's kind gives the partition. A `tests/` prefix decides neither.
+    from ..roles.api import _is_test_file
+
+    rows = conn.execute("SELECT grain FROM code_index WHERE grain_kind = 'path' "
+                        "ORDER BY grain")
+    return [g for g in (r["grain"] for r in rows)
+            if _is_test_file(conn, g)][:limit]
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -4311,13 +4326,14 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             # Frame 319, review 1, finding 1: the lookup reads the whole
             # index. The pushed list held 20 of clickI's 897 symbols, and
             # s157 never got `confirm`'s source.
-            from ..roles.api import RAISE_LINES_SHOWN, _named_callables
+            from ..roles.api import (RAISE_LINES_SHOWN, _grain_path,
+                                     _named_callables)
 
             spans: dict[str, list[tuple[int, int]]] = {}
             for grain in _named_callables(sb.ctx, hint)[:RAISE_LINES_SHOWN]:
                 row = conn.execute("SELECT line_start, line_end FROM code_index "
                                    "WHERE grain = ?", (grain,)).fetchone()
-                spans.setdefault(grain.split("::", 1)[0], []).append(
+                spans.setdefault(_grain_path(grain), []).append(
                     (row["line_start"], row["line_end"]) if row else (0, 0))
             if spans and "code.source" in have:
                 pushed["code.source"] = {}
@@ -4519,11 +4535,19 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # the tests of bg_2 and bg_3 went to `tests/test_utils/`, and the touch
     # set and the principal named other files (frame 190's design, question
     # 5.2, ruled on the records by the holding session, 2026-10-09).
+    # A test path his ruling removes is not shown while the Architect has not
+    # re-annotated yet (F35). A path row that holds `::` shows its file:
+    # the door refused one such path on night 170 (the review of pass 1,
+    # finding 2).
     if wake is not None and wake.kind == "tick:tests_missing" and wake.refs:
-        paths = [r["grain"] for r in sb.ctx.conn.execute(
-            "SELECT grain FROM batch_touch WHERE batch_id = ? AND grain_kind = 'path' "
-            "AND confidence = 'expected' ORDER BY grain", (wake.refs[0],))
-            if r["grain"].replace("\\", "/").startswith("tests/")]
+        from .lifecycle import grain_file, predicted_rows
+        # F9: a test file by the one reader (ruled: Roman, 2026-10-26 20:37).
+        from ..roles.api import _is_test_file
+
+        paths = list(dict.fromkeys(
+            grain_file(r) for r in predicted_rows(sb.ctx.conn, wake.refs[0])
+            if r["grain_kind"] == "path" and r["confidence"] == "expected"
+            and _is_test_file(sb.ctx.conn, grain_file(r))))
         if paths:
             pushed["touch"] = paths
     # The Architect that corrects a prediction sees the test files that
@@ -4537,9 +4561,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         from .scheduler import batch_relay
 
         if batch_relay(sb.ctx.conn, wake.message_id):
-            tests = [r["grain"] for r in sb.ctx.conn.execute(
-                "SELECT grain FROM code_index WHERE grain_kind = 'path' "
-                "AND REPLACE(grain, '\\', '/') LIKE 'tests/%' ORDER BY grain LIMIT 80")]
+            tests = _index_test_files(sb.ctx.conn)
             if tests:
                 pushed["the index's test files"] = tests
     # The guess names one request item, and its brief says a test path is one
@@ -4553,9 +4575,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                                   (wake.refs[0],)).fetchone() if guess_tick else None
         if row:
             pushed["item"] = {"id": row["id"], "text": row["text"]}
-        tests = [r["grain"] for r in sb.ctx.conn.execute(
-            "SELECT grain FROM code_index WHERE grain_kind = 'path' "
-            "AND REPLACE(grain, '\\', '/') LIKE 'tests/%' ORDER BY grain LIMIT 80")]
+        tests = _index_test_files(sb.ctx.conn)
         if tests:
             pushed["the index's test files"] = tests
     probe = pushed.get("code.probe")
@@ -5177,7 +5197,7 @@ def run_session(
                     f"NOTE You wrote `{name}` as a heading over a list. A list "
                     f"runs nothing, so no `{name}` ran. Write each call on its "
                     f"own line: `{toolproto.MARKER} {name}(...)`.")
-            if (completion.raw or {}).get("done_reason") == "length":
+            if completion.done_reason == "length":
                 # clickI night 16 (2026-09-12): a 688-line whole-file write
                 # stopped at the output cap mid-string, the parser called it
                 # an unbalanced quote, and the Developer then read the file
@@ -5452,7 +5472,7 @@ def run_session(
                 # The line above stays word for word, because nightcount
                 # compares the sign across nights. The stream stop gets its
                 # own line (frame 232).
-                if (completion.raw or {}).get("done_reason") == "invented_result":
+                if completion.done_reason == "invented_result":
                     found = fabricated.group(0)
                     at = fabricated.start() + len(found) - len(found.lstrip())
                     outcome.errors.append(

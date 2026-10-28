@@ -68,9 +68,6 @@ PHRASES = (
     "Your work for this session is complete",
 )
 COMPLETE = "Your work for this session is complete"
-# `code.code_commit` writes the sha to `batches.head_commit` only, and a
-# later commit overwrites it. The runner's feedback line keeps each sha.
-COMMIT_RE = re.compile(r'OK code\.commit -> \{"committed": true, "head_commit": "([0-9a-f]{7,40})"')
 # `db.session_fail` and `db.session_note` add a turn that the model never ran.
 RUNNER_PREFIXES = ("SESSION FAILED", "SESSION ENDED")
 SHA = 10
@@ -233,6 +230,15 @@ def _config(n: Night, key: str):
         return row["value"]
 
 
+def _stamp(n: Night, message_id) -> dict:
+    """The send door's code stamp of a page. `api.code_stamp` is the one
+    reader of the stamp (fact F26). A night with no `config` table has no
+    stamp."""
+    from ..roles.api import code_stamp
+
+    return code_stamp(n.conn, message_id) if n.has("config", "value") else {}
+
+
 def _git_truth(repo: Path | None, batch_id: str, head: str | None = None) -> list[str] | None:
     """The paths of the merge commit "rota: deliver <batch id>", or None.
 
@@ -381,12 +387,12 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
             shown |= refs & requests
         elif (m["to_role"] == "principal" and refs & shown and not refs & batch_ids
               and not str(m["id"]).startswith((SHIFT_ASK, PARK_ASK))
-              and _showed_guess(_config(n, f"code:{m['id']}"))):
+              and _showed_guess(_stamp(n, m['id']))):
             signoff.append(m)
     with_line = 0
     for m in signoff:
-        stamp = _config(n, f"code:{m['id']}")
-        if isinstance(stamp, dict) and any(str(k).startswith("guess:") for k in stamp):
+        stamp = _stamp(n, m['id'])
+        if any(str(k).startswith("guess:") for k in stamp):
             with_line += 1
     w(f"M0: {with_line} of {len(signoff)} sign-off pages carry a code line")
 
@@ -398,7 +404,7 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
     # frame 298, finding 4).
     has_guesses = n.has("touch_guesses")
     seq_of = {m["id"]: i for i, m in enumerate(messages)}
-    stamps = [(m["id"], _config(n, f"code:{m['id']}")) for m in messages
+    stamps = [(m["id"], _stamp(n, m["id"])) for m in messages
               if m["verb"] == "present"] if has_guesses else []
 
     def _seen(item: str) -> tuple | None:
@@ -495,7 +501,7 @@ def _guess_section(n: Night, messages: list[dict], batches: list[dict],
                     landed = json.loads(r["per_item"] or "{}")
                 except (TypeError, ValueError):
                     landed = {}
-            stamp = _config(n, f"code:{r['ask_id']}")
+            stamp = _stamp(n, r["ask_id"])
             planned = ({v.get("batch") for v in stamp.values() if isinstance(v, dict)}
                        if isinstance(stamp, dict) else set())
             for key, ruling in landed.items():
@@ -622,6 +628,8 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
         w(line)
     seq_of = {s["id"]: s["seq"] for s in sessions}
     committed_of = {s["id"]: s["committed"] for s in sessions}
+    from .nightcount import landed_heads
+
     for b in batches:
         sids = set(receipt_sessions.get(b["id"], []))
         sids |= {sid for sid, bb in batch_of.items() if bb == b["id"]}
@@ -631,8 +639,12 @@ def build(conn: sqlite3.Connection, since: str | None = None, full: bool = False
                                                else 0, x)):
             shas = []
             for t in turns_by.get(sid, []):
+                # `code.code_commit` writes the sha to `batches.head_commit`
+                # only, and a later commit overwrites it. The runner's
+                # feedback line keeps each sha. `nightcount.landed_heads` is
+                # the one reader of that line (fact F26).
                 for text in (str(t["user"] or ""), str(t["completion"] or "")):
-                    for sha in COMMIT_RE.findall(text):
+                    for sha in landed_heads(text):
                         if sha not in seen:
                             seen.add(sha)
                             shas.append(sha)
