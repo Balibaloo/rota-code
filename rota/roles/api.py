@@ -24,6 +24,7 @@ from ..core.db import author_refusal, journal_author
 
 import ast as _ast
 import difflib
+import functools
 import json as _json
 
 import re
@@ -32,7 +33,7 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 REGISTRY: dict[tuple[str, str], Callable] = {}
 _log = logging.getLogger(__name__)
@@ -1371,12 +1372,6 @@ def _his_rows(conn: sqlite3.Connection, id: str) -> list:
     return ruled(conn, ruling=own[-1]["ruling_id"]) if own else []
 
 
-# A sentence about the page names the page or a numbered line of it. "On
-# one line" names no line of the page, so a line takes a digit.
-_PAGE_CUE = re.compile(
-    r"\bpage\b|\blines?\s+\d+(?:\s*(?:to|through|and|-)\s*\d+)?", re.I)
-
-
 def _sentences(said: str) -> list[str]:
     return [s for s in re.split(r"(?<=[.!?])\s+", (said or "").strip()) if s]
 
@@ -1404,9 +1399,10 @@ def _page_reply_fault(conn: sqlite3.Connection, id: str, text: str,
     sents = _sentences(said)
     if len(sents) > 1 and _same_words(text, said):
         return "the new text is his reply word for word"
-    cue = _PAGE_CUE.search(text or "")
+    # A sentence about the page names the page or a numbered line of it.
+    cue = _line_reading(text).page_cue
     if cue:
-        return (f"the new text names {cue.group(0)!r}, a part of the page, "
+        return (f"the new text names {cue!r}, a part of the page, "
                 f"so it is about the page")
     # His words about another line of the page are the span of his row on
     # that line. A row with no span of its own carries the whole reply and
@@ -1437,7 +1433,7 @@ def _item_sentences(said: str) -> tuple[list, list]:
     """
     rest, page_sents, prev_page = [], [], False
     for s in _sentences(said):
-        page = bool(_PAGE_CUE.search(s)) or (
+        page = bool(_line_reading(s).page_cue) or (
             prev_page and bool(re.match(
                 r"(?i)(?:it|its|they|their|that|this)\b", s)))
         prev_page = page
@@ -5653,16 +5649,10 @@ def _opens_with_the_tests(text: str) -> bool:
 # Tester encoded the note (frame 306). Roman's ruling of 2026-10-08, point 2:
 # the Tester rewrites the test from the ruled words. "Line 3 of the output"
 # names the program's output, so it stays a behaviour.
+# A numbered page line as the subject is the line parser's `opens` (F2).
 _CHECK_SUBJECT = re.compile(
-    r"^(?:lines? \d+(?:(?:,| and| to| through) \d+)*\b(?! of\b)"
-    r"|(?:the |this |that |each |every |its |their |a |one |another "
-    r"|the second |a second )?(?:checks?|tests?|assertions?)\b)",
-    re.IGNORECASE)
-# A page line's check named inside a sentence: "line 3's check", "the check
-# on line 2". The verb in "then check the printed output" is not a subject.
-_LINE_CHECK = re.compile(
-    r"\bline \d+'s (?:checks?|tests?|assertions?)\b"
-    r"|\b(?:checks?|tests?|assertions?) (?:on|in|of|at|for) lines? \d+\b",
+    r"^(?:the |this |that |each |every |its |their |a |one |another "
+    r"|the second |a second )?(?:checks?|tests?|assertions?)\b",
     re.IGNORECASE)
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
@@ -5672,9 +5662,12 @@ def _about_a_check(text: str) -> bool:
     an assertion as its subject. `_about_the_tests` reads the whole text's
     opening only, so a note in the second sentence passed it."""
     flat = " ".join((text or "").split())
-    if _LINE_CHECK.search(flat):
+    # A page line's check inside a sentence: "line 3's check", "the check
+    # on line 2". The verb in "then check the printed output" is no subject.
+    if _line_reading(flat).check:
         return True
-    return any(_CHECK_SUBJECT.match(s) for s in _SENTENCE_END.split(flat))
+    return any(_CHECK_SUBJECT.match(s) or _line_reading(s).opens
+               for s in _SENTENCE_END.split(flat))
 
 
 def _about_the_tests_refusal(ctx: Ctx, text: str, rewrite: str) -> str:
@@ -6973,27 +6966,26 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # `--show-python`, which he had contested, and the batch never merged
     # (frame 226).
     if contested and cur:
-        # A name that the principal's own words use is one he asked for. The
-        # review of 33cd99b2, finding 1: `version_option` was refused, and
-        # his words ask for a parameter of `version_option`.
-        # A name matches his words on word bounds. A substring test let a
-        # contested `--show` back when he named `--show-python` (the review
-        # of frame 226, finding 1).
-        # The words of the contest row on this criterion, the span that
-        # rules it, and not the whole reply (the seam design, 3.3, P9).
-        span = ctx.conn.execute(
-            "SELECT words FROM ruled_refs WHERE ruling_id = ? AND ref = ?",
-            (contested["id"], id)).fetchone()
-        his = ((span["words"] if span else "") or contested["words"]).lower()
+        # A name comes back only when his ruling grants an act on that name
+        # as its target (fact F3). The review of 33cd99b2, finding 1: his
+        # words asked for a parameter of `version_option`. The Liaison's row
+        # records that target, and the door reads the row, never a phrase of
+        # his words (the seam design, pass 4). A target matches exactly, so
+        # a grant on `--show-python` never lets `--show` back (frame 226).
+        from .principal import grant
+
         back = sorted(t for t in (_named_tokens(contested["text"])
                                   - _named_tokens(cur["text"]))
                       & _named_tokens(text)
-                      if not re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", his))
+                      if not any(grant(ctx.conn, id, act, t)
+                                 for act in ("add", "keep", "rewrite")))
         if back:
             raise ValueError(
                 f"the principal contested {', '.join(back)} in this criterion. "
-                f"His words: {contested['words']!r}. Write what he asked for, "
-                f"without {', '.join(back)}")
+                f"His words: {contested['words']!r}. No row of ruling "
+                f"{contested['id']} grants {', '.join(back)} as its target. "
+                f"`rulings.rule` writes that row when his words name it. "
+                f"Write what he asked for, without {', '.join(back)}")
     # law 9: a ratified amendment drops the item to pending, stops batches
     # A contested sentence sent back is not a repair. Night 144's s583 and
     # s591 sent it back, and the note below did not say that the principal
@@ -11553,14 +11545,14 @@ def _his_reply(ctx) -> str:
 
 def _faulted_by_his_words(ctx, said: str, size: int) -> set[int]:
     """The page lines that his reply or the seat's words fault, by the fault
-    reader of the faulted-approve door (`_line_cues`)."""
+    reader of the faulted-approve door (`_line_reading`)."""
     row = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
                            (ctx.trigger,)).fetchone() if ctx.trigger else None
     his = (row["body_text"] if row else "") or ""
     out: set[int] = set()
     for text in (his, said):
         if text:
-            out |= set(_line_cues(text, size or None)[0])
+            out |= _line_reading(text, size or None).faulted
     return out
 
 
@@ -11759,8 +11751,7 @@ def _ref_lines(ref: re.Match, size: int | None = None) -> set[int]:
     return lines
 
 
-def _line_reading(words: str, size: int | None = None
-                  ) -> tuple[set[int], set[int]]:
+def _line_reading(words: str, size: int | None = None) -> LineReading:
     """The lines the principal's words fault, and the lines they say match.
 
     Each line reference reads the clause after it, up to the next reference.
@@ -11772,8 +11763,196 @@ def _line_reading(words: str, size: int | None = None
     faulted, and s427 contested four lines the words said match. Measured on
     the recorded replies of nights 143 to 146, `f234/pass1-report.md`.
     """
-    cues, matched = _line_cues(words, size)
-    return set(cues), matched
+    return LineReading(words, size)
+
+
+# The page parser of fact F2 (rule C76). `_line_reading` is the one reader of
+# his words into page lines and acts. Every other reader asks it, so one
+# line rule holds at every door. The parser reads his words and never
+# rewrites them, because his words stay verbatim (composition line 106).
+#
+# The word "page" names the page. "On one line" names no line of the page,
+# so a page cue is "page" or a numbered line reference (frame 263).
+_PAGE_WORD = re.compile(r"\bpage\b", re.I)
+# A page line's check: "line 3's check", "the check on line 2".
+_CHECK_NOUN = r"(?:checks?|tests?|assertions?)"
+_CHECK_AFTER = re.compile(rf"'s {_CHECK_NOUN}\b", re.I)
+_CHECK_BEFORE = re.compile(rf"\b{_CHECK_NOUN} (?:on|in|of|at|for) $", re.I)
+# A word that names a line with no number: "the line", "both lines".
+_LINE_WORD = re.compile(r"\b(?:lines?|notes?)\b", re.I)
+# The rest of a clause that only says its lines are wrong: "Line 2 is
+# wrong", "lines 2 through 4 are still wrong again".
+_BARE_FAULT_TAIL = re.compile(
+    r"\W*(?:is|are)\s+(?:still\s+|also\s+)?wrong(?:\s+again)?\W*", re.I)
+
+
+class LineRef(NamedTuple):
+    """One line reference of his words, at its place in the words.
+
+    `word` is "line", "note", or "" for a bare "3 is wrong" at a sentence
+    start. `lines` holds the line numbers, capped at the page's size.
+    """
+    start: int
+    end: int
+    lines: frozenset
+    word: str
+    text: str
+
+
+def _line_refs(words: str, size: int | None = None) -> list[LineRef]:
+    """The line references of `words`, sentence by sentence.
+
+    A bare "3 is wrong" counts at a sentence start only (frame 305, review
+    1, finding 1). So the parser cuts the sentences before it reads.
+    """
+    text = words or ""
+    out: list[LineRef] = []
+    start = 0
+    for cut in [*_SENTENCE.finditer(text), None]:
+        end = cut.start() if cut else len(text)
+        for m in _LINE_REF.finditer(text[start:end]):
+            word = ("" if m.group(1) is None else
+                    "note" if m.group(0).lower().startswith("note") else "line")
+            out.append(LineRef(start + m.start(), start + m.end(),
+                               frozenset(_ref_lines(m, size)), word,
+                               m.group(0)))
+        if cut:
+            start = cut.end()
+    return out
+
+
+class LineReading:
+    """The reading of his words as page lines and the act on each.
+
+    It unpacks and compares as the pair (faulted lines, matched lines), as
+    `_line_reading` returned before. The attributes give the references and
+    the page cues, so no door keeps a line rule of its own.
+    """
+
+    def __init__(self, words: str, size: int | None = None):
+        self.words = words or ""
+        self.size = size
+
+    @functools.cached_property
+    def refs(self) -> list[LineRef]:
+        return _line_refs(self.words, self.size)
+
+    @functools.cached_property
+    def _cued(self) -> tuple[dict[int, tuple[str, str]], set[int]]:
+        return _line_cues(self.words, self.size)
+
+    @property
+    def cues(self) -> dict[int, tuple[str, str]]:
+        """Each faulted line with its fault cue and its clause."""
+        return dict(self._cued[0])
+
+    @property
+    def faulted(self) -> set[int]:
+        return set(self._cued[0])
+
+    @property
+    def matched(self) -> set[int]:
+        return set(self._cued[1])
+
+    @property
+    def named(self) -> frozenset:
+        """Every line that a reference of the words names."""
+        return frozenset(n for r in self.refs for n in r.lines)
+
+    @property
+    def page_cue(self) -> str | None:
+        """The first words that name the page or a numbered page line.
+
+        A bare number names no page here. An item's text can open "0 is
+        falsy", and that sentence is not about the page.
+        """
+        hits = [(r.start, r.text) for r in self.refs if r.word]
+        page = _PAGE_WORD.search(self.words)
+        if page:
+            hits.append((page.start(), page.group(0)))
+        return min(hits)[1] if hits else None
+
+    @property
+    def check(self) -> bool:
+        """True when the words name the check of a numbered page line."""
+        return any(r.word and (
+            _CHECK_AFTER.match(self.words, r.end)
+            or _CHECK_BEFORE.search(self.words[:r.start]))
+            for r in self.refs)
+
+    @property
+    def opens(self) -> bool:
+        """True when the words open with a numbered line as the subject.
+
+        "Line 3 of the summary" names a line of another text, not the page.
+        """
+        first = self.refs[0] if self.refs else None
+        return bool(first and first.word
+                    and not self.words[:first.start].strip()
+                    and not re.match(r" of\b", self.words[first.end:]))
+
+    @property
+    def bare_fault(self) -> bool:
+        """True when the words only say that their lines are wrong."""
+        lead = re.match(r"\W*(?:on\s+)?", self.words, re.I)
+        first = self.refs[0] if self.refs else None
+        return bool(first and first.word and first.start == lead.end()
+                    and len(self.refs) == 1
+                    and _BARE_FAULT_TAIL.fullmatch(self.words, first.end))
+
+    @property
+    def line_word(self) -> bool:
+        """True when the words say "line" or "note", with or without a
+        number."""
+        return bool(_LINE_WORD.search(self.words))
+
+    # What his words permit or ask of a named target (fact F3). The phrase
+    # lists sit in the parser's helpers below, and no door reads them.
+
+    @property
+    def names(self) -> set[str]:
+        """The quoted spans, flags and identifiers that the words name, in
+        lower case. A grant on a name has the name as its target."""
+        return _named_tokens(self.words)
+
+    @property
+    def touches_files(self) -> bool:
+        """True when the words name files or tests, the words of a batch's
+        prediction."""
+        return bool(_TOUCH_WORDS.search(self.words))
+
+    def names_request(self, request_texts: tuple[str, ...],
+                      faulted_texts: tuple[str, ...] = ()) -> bool:
+        """True when the words, with no line number, name the request."""
+        return _names_request(self.words, request_texts, faulted_texts)
+
+    def note_act(self, n: int, page_text: str,
+                 within: str | None = None) -> str | None:
+        """What the words ask of note line `n`: "drop", "change", "own"
+        or None."""
+        return _note_words(self.words, n, page_text, within=within)
+
+    def _pair(self) -> tuple[set[int], set[int]]:
+        return self.faulted, self.matched
+
+    def __iter__(self):
+        return iter(self._pair())
+
+    def __getitem__(self, i):
+        return self._pair()[i]
+
+    def __len__(self) -> int:
+        return 2
+
+    def __eq__(self, other):
+        if isinstance(other, (tuple, LineReading)):
+            return tuple(self) == tuple(other)
+        return NotImplemented
+
+    __hash__ = None
+
+    def __repr__(self) -> str:
+        return f"LineReading{self._pair()!r}"
 
 
 # Cues that only add to another cue. The refusal names a stronger cue of
@@ -12397,7 +12576,8 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     # to 5, and the contest of batch_1 on line 6, which no sentence names,
     # cost an Architect relay. m52 and m58 did the same to batch_2 (frame
     # 258).
-    spared = batch_lines if _TOUCH_WORDS.search(words or "") else frozenset()
+    spared = (batch_lines if _line_reading(words).touches_files
+              else frozenset())
     unnamed = _unnamed_contest(sentences, contested - spared,
                                faulted | matched, size, item_lines,
                                request_lines, earlier_lines)
@@ -12422,7 +12602,7 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
         return approve
     # Any reference to line 1 can carry a fault the cues miss. Night 144's
     # m193 said "Line 1 isn't a request" (frame 234, review 1, finding 1).
-    if any(1 in _ref_lines(r) for s in sentences for r in _LINE_REF.finditer(s)):
+    if any(1 in _line_reading(s).named for s in sentences):
         return approve
     # A sentence with no line number can correct the request itself. Night
     # 143's m263: "Also, take the version from the running interpreter's
@@ -12438,10 +12618,10 @@ def _line_refusal(words: str, contested: set[int], faulted: set[int],
     # its line-1 contest abandoned bg_6 (`plans/frame258-review-2.md`).
     batch_faulted = bool(batch_lines & faulted)
     if not _KEEP_CHANGE.search(words or "") and any(
-            s.strip() and not _LINE_REF.search(s)
+            s.strip() and not _line_reading(s).refs
             and not _BARE_AGREEMENT.fullmatch(s)
             and not (batch_faulted and _FILES_TALK.search(s))
-            and _names_request(s, request_texts, faulted_texts)
+            and _line_reading(s).names_request(request_texts, faulted_texts)
             for s in sentences):
         return approve
     # The shape of the batch door's refusal, which names the line first.
@@ -12489,9 +12669,6 @@ _CUE_AGREE = re.compile(r"\b(?:right|fine|reasonable|good|correct|match(?:es)?|"
                         r"as written)\b", re.I)
 _CUE_FAULT = re.compile(r"\b(?:wrong|not|never|only|drop|instead|should|remove|"
                         r"take|but)\b|n't\b", re.I)
-_CUE_BARE_FAULT = re.compile(r"^\W*(?:on\s+)?(?:lines?|notes?)\s+[\d ,toand-]+\W*"
-                             r"(?:is|are)\s+(?:still\s+|also\s+)?wrong(?:\s+again)?\W*$",
-                             re.I)
 _CUE_KEEP = re.compile(_KEEP_CHANGE.pattern + r"|\btry again\b|\bfix (?:the )?failing\b"
                        r"|\brather than drop\b", re.I)
 _CUE_CLAUSE = re.compile(r",\s+(?:and|but)\s+|\s+but\s+|:\s+|;\s+|,\s+so\s+")
@@ -12503,9 +12680,7 @@ def _cue_clauses(words: str) -> list[tuple[str, set[int] | None, bool]]:
     out, last = [], None
     for sent in re.split(r"(?<=[.!?])\s+", (words or "").strip()):
         for cl in _CUE_CLAUSE.split(sent):
-            refs: set[int] = set()
-            for r in _LINE_REF.finditer(cl):
-                refs |= _ref_lines(r, 60)
+            refs = set(_line_reading(cl, 60).named)
             if refs:
                 last = refs
             out.append((cl, set(last) if last else None, sent.rstrip().endswith("?")))
@@ -12522,7 +12697,7 @@ def pointer_fault(words: str, line: int, batch_lines=frozenset()) -> bool:
             continue            # about another line
         if question or _CUE_KEEP.search(cl) or _BARE_AGREEMENT.fullmatch(cl):
             continue
-        if _CUE_BARE_FAULT.match(cl):
+        if _line_reading(cl).bare_fault:
             continue
         has_files = bool(_CUE_FILES.search(cl))
         if _CUE_AGREE.search(cl) and not _CUE_FAULT.search(cl):
@@ -12671,7 +12846,7 @@ def _faulted_approve(approved: frozenset[int],
         n for n in approved if n in cues and 1 <= n <= size
         and n not in closed_lines and not (request_first and n == 1)
         and not (n not in batch_lines and batch_lines
-                 and _TOUCH_WORDS.search(cues[n][1])))
+                 and _line_reading(cues[n][1]).touches_files))
     if not wrong:
         return None
     one = len(wrong) == 1
@@ -12695,8 +12870,6 @@ _AGREES = re.compile(
     r"\W*(?:ok(?:ay)?|yes|that's right|"
     r"(?:this|that|it)(?: all)? (?:matches|is right|looks (?:right|good|fine))|"
     r"looks (?:right|good|fine))\b", re.I)
-# A word that names a line with no number: "the line", "both lines".
-_LINE_WORD = re.compile(r"\b(?:lines?|notes?)\b", re.I)
 # A reply that is agreement alone: night 151's m23 "ok", night 147's m182
 # "Ok, go ahead." and night 121's m119 "yes that all looks right, go ahead"
 # (frame 258, pass 2).
@@ -12717,7 +12890,7 @@ def _unnumbered(sentences: list[str]) -> list[str]:
     out: list[str] = []
     numbered = False
     for s in sentences:
-        if _LINE_REF.search(s):
+        if _line_reading(s).refs:
             numbered = True
             continue
         if numbered and _BACK_REF.match(s):
@@ -12754,8 +12927,7 @@ def _unnamed_contest(sentences: list[str], contested: set[int],
     """
     named = {n for n in read if 1 <= n <= size}
     for s in sentences:
-        for ref in _LINE_REF.finditer(s):
-            named |= {n for n in _ref_lines(ref, size) if 1 <= n <= size}
+        named |= {n for n in _line_reading(s, size).named if 1 <= n <= size}
     if not named:
         return _agreed_contest(sentences, contested, size, request_lines)
     # ruling: DECISIONS 1473, every word of the principal is a ruling on a row
@@ -12805,12 +12977,14 @@ def _earlier_reading(conn, ask_id: str, reply_id: str, size: int
     # contest of line 5 land against his word (frame 337, review 1, finding
     # 1), and a later "Line 5 is wrong" overrides it.
     said: dict[int, bool] = {}
+    named: set[int] = set()
     for t in texts:
-        faulted, matched = _line_reading(t, size)
+        reading = _line_reading(t, size)
+        faulted, matched = reading
         said.update({n: True for n in matched - faulted})
         said.update({n: False for n in faulted})
-    return (frozenset(n for t in texts for ref in _LINE_REF.finditer(t)
-                      for n in _ref_lines(ref, size) if 1 <= n <= size),
+        named |= reading.named
+    return (frozenset(n for n in named if 1 <= n <= size),
             frozenset(n for n, fine in said.items() if fine and 1 <= n <= size))
 
 
@@ -12830,10 +13004,9 @@ def _earlier_sources(conn, ask_id: str, reply_id: str, size: int
             "verb = 'converse' AND id != ? AND from_role = 'principal' AND "
             "body_text IS NOT NULL ORDER BY seq", (ask_id, reply_id)):
         for sentence in _RULING_SENTENCE.split(m["body_text"]):
-            for ref in _LINE_REF.finditer(sentence):
-                for n in _ref_lines(ref, size):
-                    if 1 <= n <= size:
-                        out[n] = (m["id"], sentence.strip())
+            for n in sorted(_line_reading(sentence, size).named):
+                if 1 <= n <= size:
+                    out[n] = (m["id"], sentence.strip())
     return out
 
 
@@ -12867,7 +13040,7 @@ def _agreed_contest(sentences: list[str], contested: set[int], size: int,
                 f"{_lines(list(range(1, size + 1)))}.")
     if not request_lines or not sentences or not _AGREES.match(sentences[0]):
         return None
-    if _LINE_WORD.search(" ".join(sentences)):
+    if _line_reading(" ".join(sentences)).line_word:
         return None
     # The instruction is a sentence after the agreement. A reply of one
     # sentence that agrees and adds words is left alone, because the door
@@ -12975,7 +13148,9 @@ def _note_words(words: str, n: int, page_text: str,
             continue
         if question or _CUE_KEEP.search(cl) or _NOTE_NO_CHANGE.search(cl):
             continue
-        rest = _LINE_REF.sub(" ", cl)
+        rest = cl
+        for r in reversed(_line_reading(cl).refs):
+            rest = rest[:r.start] + " " + rest[r.end:]
         # "Line 11 is about the echo json change" describes the line. Its
         # "change" is a noun, and only a modal makes it a request.
         if (re.match(r"\W*(?:on\s+)?(?:is|are|was|were)\b", rest, re.I)
@@ -13298,9 +13473,9 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     said = ctx.conn.execute("SELECT body_text FROM messages WHERE id = ?",
                             (ctx.trigger,)).fetchone()
     his = (said["body_text"] if said else "") or ""
-    named = {n for m in _LINE_REF.finditer(his)
-             for n in _ref_lines(m, len(order or []))}
-    his_matched = _line_reading(his, len(order or []))[1]
+    his_reading = _line_reading(his, len(order or []))
+    named = set(his_reading.named)
+    his_matched = his_reading.matched
     for i, r in enumerate(order or []):
         if not str(r).startswith(READING_REF) or per_item.get(r) != "approve":
             continue
@@ -13391,7 +13566,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         act = shape.get("act")
         span = shape.get("words") or words
         within = None
-        if act and not _LINE_REF.search(span or ""):
+        if act and not _line_reading(span).refs:
             # A span that names no line is read in the clause of his message
             # that holds it. s357's "use click directly in the test" names
             # no line, and its clause starts "On line 11" (the review of pass
@@ -13400,8 +13575,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 "SELECT body_text FROM messages WHERE id = ?",
                 (_words_from(ctx, span or ""),)).fetchone()
             within, span = span or None, (held["body_text"] if held else "") or ""
-        said = (_note_words(span, order.index(ref) + 1, page_text,
-                            within=within)
+        said = (_line_reading(span).note_act(order.index(ref) + 1, page_text,
+                                             within=within)
                 if order and ref in order else None)
         if act == "drop":
             said = "drop"
@@ -13415,8 +13590,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         # text fired 19 times, and 7 next calls moved the revise to line 1
         # on words that never named line 1 (frame 296). `_names_request`
         # stays out: it reads 5 of those 7 replies as naming the request.
-        refs_named = {n for m in _LINE_REF.finditer(words or "")
-                      for n in _ref_lines(m, len(order))}
+        refs_named = _line_reading(words, len(order)).named
         named = ", or ".join(
             f"line {n}, {r}" for n, r in asked
             if n in refs_named or _quotes_line(words, page_text, n))
@@ -13506,7 +13680,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
                 f"nothing. Approve {key}.")
         if batch["head_commit"] and not code_line_faulted(
                 words, order, ref,
-                set(_line_cues(words, len(order) if order else None)[0])):
+                _line_reading(words, len(order) if order else None).faulted):
             raise ValueError(
                 f"the words do not fault the code of {item}. Approve {key}.")
     # A batch line is a prediction of what the change touches. Before the
@@ -13518,7 +13692,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # the words fault, and `land` keeps it on the same predicate. A line the
     # words do not fault is refused: 9 of 9 such contests on nights 136 to
     # 149 were the seat's error (`built_line_faulted`).
-    read_cues, read_matched = _line_cues(words, len(order) if order else None)
+    words_reading = _line_reading(words, len(order) if order else None)
+    read_cues, read_matched = words_reading.cues, words_reading.matched
     read_faulted = set(read_cues)
     for ref, ruling in per_item.items():
         if ruling == "approve":
@@ -13579,8 +13754,7 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     earlier = ({} if is_clarify or not order else
                _earlier_sources(ctx.conn, ask["id"], ctx.trigger, len(order)))
     if earlier:
-        here = {n for ref in _LINE_REF.finditer(words or "")
-                for n in _ref_lines(ref, len(order))}
+        here = words_reading.named
         for i, r in enumerate(order):
             if (per_item.get(r) in ("contest", "revise") and i + 1 in earlier
                     and i + 1 not in here
