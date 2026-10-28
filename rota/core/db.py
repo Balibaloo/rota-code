@@ -506,8 +506,55 @@ def _apply_ref(conn: sqlite3.Connection, w: Write) -> bool:
     return True
 
 
-def _apply_write(conn: sqlite3.Connection, w: Write) -> bool:
-    """Apply one write. Returns False when the write changes no row."""
+class JournalAuthorError(ValueError):
+    """A write of one role over a journal row that another role authored."""
+
+
+# A status move is no new authorship. A decision of one role resolves the
+# ledger row of another, and `test_laws` pins that resolve.
+_STATUS_MOVE = frozenset({"status"})
+
+
+def journal_author(conn: sqlite3.Connection, table: str,
+                   row_id: str) -> str | None:
+    """
+    The author on file of one journal row, or None.
+
+    This function is the one reader of the fact. `identity.py` declares the
+    journal tables, and a journal table with an `author` column names the
+    author there. None means no such table, no such row, or no author.
+    """
+    from .identity import NATURAL_KEYS
+
+    if NATURAL_KEYS.get(table, ("",))[0] != "journal":
+        return None
+    if not _has_column(conn, table, "author"):
+        return None
+    row = conn.execute(f"SELECT author FROM {table} WHERE id = ?",
+                       (row_id,)).fetchone()
+    return (row[0] or None) if row is not None else None
+
+
+def author_refusal(conn: sqlite3.Connection, table: str, row_id: str,
+                   role: str, columns) -> str | None:
+    """
+    The refusal of a write by `role` on one journal row, or None.
+
+    Law 1: a journal has "one author per entry". Roman ruled on 2026-10-27
+    14:47 that the author is the role, so any session of that role may
+    change the entry. The commit and the doors read this one rule.
+    """
+    author = journal_author(conn, table, row_id)
+    if author is None or author == role or set(columns) <= _STATUS_MOVE:
+        return None
+    return (f"{row_id} is a {table} row by {author}, and you write as "
+            f"{role}. A journal row is its author's record.")
+
+
+def _apply_write(conn: sqlite3.Connection, w: Write, role: str) -> bool:
+    """Apply one write by `role`. Returns False when the write changes no
+    row. Raise JournalAuthorError when the write is over another role's
+    journal row."""
     if w.table == REFS_TABLE:
         return _apply_ref(conn, w)
     # A junction row set that a session replaces whole. The Architect's touch
@@ -535,6 +582,10 @@ def _apply_write(conn: sqlite3.Connection, w: Write) -> bool:
     exists = conn.execute(
         f"SELECT 1 FROM {w.table} WHERE id = ?", (w.row_id,)
     ).fetchone() is not None
+    refused = exists and author_refusal(conn, w.table, w.row_id, role,
+                                        w.values.keys())
+    if refused:
+        raise JournalAuthorError(refused)
 
     # Existing row -> UPDATE, not upsert. SQLite checks NOT NULL against the
     # *proposed* row before it detects the conflict, so an upsert carrying only
@@ -1334,7 +1385,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         reads_before = batch_reads(conn, result.writes)
         for w in result.writes:
             before = _subject_state(conn, w)
-            changed = _apply_write(conn, w)
+            changed = _apply_write(conn, w, result.role)
             table, row_id = receipt_of(w)
             if table not in ARTEFACT_TABLES or not changed:
                 continue

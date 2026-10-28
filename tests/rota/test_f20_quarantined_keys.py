@@ -117,7 +117,7 @@ def _touch(db) -> None:
               {"batch_id": "b_3", "grain": "src/click/utils.py",
                "grain_kind": "path", "confidence": "expected"})
     before = batch_reads(db, [w])
-    _apply_write(db, w)
+    _apply_write(db, w, "architect")
     lift_moved_reads(db, before)
 
 

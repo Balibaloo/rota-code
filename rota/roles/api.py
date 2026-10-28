@@ -20,6 +20,7 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 from __future__ import annotations
 
 from ..core.worktrees import GIT
+from ..core.db import author_refusal, journal_author
 
 import ast as _ast
 import difflib
@@ -14185,18 +14186,17 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
         tools = _wake_mode_tools(ctx)
         close = (", and close with `msg.report_liaison`"
                  if not tools or "msg.report_liaison" in tools else "")
-        # s288 sent the principal's d_26efd6365c as the id. The author check
-        # below refuses that id, so the text asks for an id of its own.
-        owner = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                                 (id,)).fetchone()
-        taken = bool(owner is not None and owner["author"]
-                     and owner["author"] != ctx.role)
+        # s288 sent the principal's d_26efd6365c as the id. The author rule
+        # refuses that id, so the text asks for an id of its own.
+        taken = author_refusal(ctx.conn, "decisions", id, ctx.role,
+                               ("author", "text")) is not None
         args = {"id": INVENT if taken else id, "text": text,
                 "refs": refs or []}
         if resolves_ledger:
             args["resolves_ledger"] = resolves_ledger
-        again = (f"{id} is a decision by {owner['author']}, so send the call "
-                 f"again without supersedes, under an id of its own"
+        again = (f"{id} is a decision by "
+                 f"{journal_author(ctx.conn, 'decisions', id)}, so send the "
+                 f"call again without supersedes, under an id of its own"
                  if taken else "Send the same call without supersedes")
         raise ValueError(_offer(
             ctx,
@@ -14210,9 +14210,7 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
     # Night 148's s189 superseded his signoff decision d_565d2845d4.
     if (supersedes and isinstance(supersedes, str) and ctx.role != "principal"
             and supersedes not in staged):
-        over = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                                (supersedes,)).fetchone()
-        if over is not None and over["author"] == "principal":
+        if journal_author(ctx.conn, "decisions", supersedes) == "principal":
             args = {"id": id, "text": text, "refs": refs or []}
             if resolves_ledger:
                 args["resolves_ledger"] = resolves_ledger
@@ -14223,19 +14221,16 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
                 f"without supersedes.",
                 "decisions.author", args))
     # law 1: one writing role per row; a journal entry has one author
-    # Frame 200, pass 5, fix 7, which frame 219 inherits: a write under an
-    # existing id overwrites the row and its author. Night 143's s443 wrote
-    # over the principal's own decision that way.
-    owner = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                             (id,)).fetchone()
-    if owner is not None and owner["author"] and owner["author"] != ctx.role:
-        raise ValueError(
-            f"{id} is a decision by {owner['author']}. A decision is its "
-            f"author's record, so write yours under a new id.")
+    # Frame 200, pass 5, fix 7, which frame 219 inherits: night 143's s443
+    # wrote over the principal's own decision. The commit refuses that write
+    # too (fact F23). The door refuses first, so the session keeps its turn.
+    row = {"author": ctx.role, "text": text, "refs": json.dumps(refs or []),
+           "supersedes": supersedes, "resolves_ledger": resolves_ledger}
+    refused = author_refusal(ctx.conn, "decisions", id, ctx.role, row)
+    if refused:
+        raise ValueError(f"{refused} Write yours under a new id.")
 
-    ctx.writes.append(("decisions", id, {
-        "author": ctx.role, "text": text, "refs": json.dumps(refs or []),
-        "supersedes": supersedes, "resolves_ledger": resolves_ledger}))
+    ctx.writes.append(("decisions", id, row))
     if resolves_ledger:
         ctx.writes.append(("ledger", resolves_ledger, {"status": "resolved"}, False))
     return {"id": id, "resolves_ledger": resolves_ledger}

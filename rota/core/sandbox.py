@@ -28,6 +28,7 @@ from typing import Any, Callable, NamedTuple
 
 from ..roles import api
 from ..design import graph as graph_mod
+from .db import author_refusal, journal_author
 
 # How many open assumptions one page to the principal may carry. The
 # interview is iterative by ruling (2026-09-12); the count is a fact the
@@ -925,10 +926,7 @@ def _owner_of_ref(conn, ref: str) -> str | None:
     # A ledger row is a journal entry -- one author per entry (law 1) -- and
     # the author is who acts on a ruling about it: an overruled assumption
     # goes back to the desk that assumed it.
-    row = conn.execute("SELECT author FROM ledger WHERE id = ?", (ref,)).fetchone()
-    if row and row["author"]:
-        return row["author"]
-    return None
+    return journal_author(conn, "ledger", ref)
 
 
 # The rows a challenge can quote, and the column that holds their words.
@@ -2752,18 +2750,15 @@ def _stage_reason(ctx: api.Ctx, table: str, refs, quotes: str,
     rid = "d_" + hashlib.sha256(
         f"{text}|{'|'.join(sides)}".encode()).hexdigest()[:10]
     # Frame 219's shape: a seat that writes under another author's id
-    # overwrites that author's record.
-    row = ctx.conn.execute("SELECT author FROM decisions WHERE id = ?",
-                           (rid,)).fetchone()
-    if row is not None and row["author"] != ctx.role:
-        raise ValueError(
-            f"the reason's id {rid} is a decision by {row['author']}. A "
-            f"decision is its author's record, so write the reason in your "
-            f"own words.")
+    # overwrites that author's record. The door reads the commit's rule
+    # (fact F23), so the seat hears the refusal before the commit.
+    row = {"author": ctx.role, "text": text, "refs": json.dumps(sides),
+           "supersedes": None, "resolves_ledger": None}
+    refused = author_refusal(ctx.conn, table, rid, ctx.role, row)
+    if refused:
+        raise ValueError(f"{refused} Write the reason in your own words.")
     if not any(w[0] == table and w[1] == rid for w in ctx.writes):
-        ctx.writes.append((table, rid, {
-            "author": ctx.role, "text": text, "refs": json.dumps(sides),
-            "supersedes": None, "resolves_ledger": None}))
+        ctx.writes.append((table, rid, row))
     return rid, note
 
 

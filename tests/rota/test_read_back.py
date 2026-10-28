@@ -73,7 +73,7 @@ def _answer(db, ask, words, rulings):
     sb.ctx.trigger = reply
     out = sb.call("rulings.rule", rulings=rulings, words=words)
     for w in sb.ctx.writes:
-        _apply_write(db, _as_write(w))
+        _apply_write(db, _as_write(w), sb.ctx.role)
     db.commit()
     apply_rulings(db)
     db.commit()
