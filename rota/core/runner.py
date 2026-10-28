@@ -603,14 +603,14 @@ def _words_on_rows(conn, rid: str, words: str, cids: list[str]) -> str:
     """The sentences of ruling `rid`'s words that bear on any of `cids`, in
     his order. The whole words when no sentence is kept, when no page
     order is recorded at his reply, or when a row's line is not known."""
-    from ..roles.principal import door_rows
+    from ..roles.principal import seen_order
 
     # Without the order of frame 272, `_ruling_line` reads today's render.
     # That render can put the row on another line and drop the sentence
     # that rules it, as a probe of night 144's r_c4bf70291d shows.
     row = conn.execute("SELECT reply_id FROM rulings WHERE id = ?",
                        (rid,)).fetchone()
-    if not (row and door_rows(conn, row["reply_id"], "order")):
+    if not (row and seen_order(conn, row["reply_id"], None)):
         return words
     ruled = {"id": rid, "words": words}
     rows: set[int] = set()
@@ -646,15 +646,13 @@ def _line_legend(conn, rid: str, words: str,
     Night 165's s359 read "remove both lines" as docstring lines and cut 17
     of them (frame 306, W-A).
     """
-    from ..roles.principal import door_rows
-
-    from ..roles.principal import ruled
+    from ..roles.principal import ruled, seen_order
 
     row = conn.execute("SELECT reply_id FROM rulings WHERE id = ?",
                        (rid,)).fetchone()
     # Only the order `principal.land` recorded at his reply (frame 272).
     # Today's render can put another row on his line, as night 158's did.
-    order = door_rows(conn, row["reply_id"], "order") if row else []
+    order = seen_order(conn, row["reply_id"], None) if row else []
     if not order:
         return []
     named: set[int] = set()
@@ -2364,7 +2362,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             # saw it, the numbered lines in order, the words, and what was
             # said back and forth on this page before.
             if clarify and (clarify["verb"] in ("confirm", "present") or park):
-                from ..roles.principal import render_page
+                from ..roles.principal import page_ask, render_page, seen_order
 
                 page_refs = json.loads(clarify["body_refs"] or "[]")
                 # A park page numbers the item and its criteria, so the
@@ -2372,10 +2370,12 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # 2026-10-08, the park ask is a page with rows). The returned
                 # line is the principal's, not the seat's (frame 267, ruled
                 # by the holding session at review 1).
-                page, order = render_page(conn, clarify["verb"], page_refs,
-                                          clarify["body_text"],
-                                          ask_id=clarify["id"],
-                                          returned=False)
+                page = render_page(conn, clarify["verb"], page_refs,
+                                   clarify["body_text"], ask_id=clarify["id"],
+                                   returned=False)[0]
+                # Each line names the row he saw on it at this reply (fact
+                # F28).
+                order = seen_order(conn, trigger, page_ask(clarify))
                 # No page id here. `_recent_chat` already names another
                 # page in words, "row <ref> of page <id>", and a reply to
                 # this page keeps its line numbers, so the seat tells the two
@@ -2410,6 +2410,20 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 line_rows = _resolve_refs(conn, order)
                 for ref, resolved_row in line_rows.items():
                     resolved_row["table"] = _label(conn, ref, resolved_row)
+                # A row he saw can leave the tables after his reply. The
+                # line names it, so the Liaison rules the other lines (the
+                # F26 review, finding 1). Only a page with such a line gets
+                # the key, so no recorded prompt changes.
+                from ..roles.principal import READING_REF, ruled_ref_home
+
+                gone = {str(i + 1): (
+                    f"no table holds {ref} now. The line takes no ruling, and "
+                    f"a ruling on it lands as a fault")
+                    for i, ref in enumerate(order)
+                    if not str(ref).startswith(READING_REF)
+                    and ruled_ref_home(conn, ref) is None}
+                if gone:
+                    landing["gone_lines"] = gone
                 # A read-back line names the rows of an earlier reply by
                 # their ids here, so the seat can rule a row his words
                 # correct. The page he reads shows no id (the review of pass
@@ -2592,6 +2606,7 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
     # guess line of m50, and m89 shows that guess as line 2 too (frame 272;
     # `plans/frame305-interview.md`, section 6).
     from ..roles.api import message_entry
+    from ..roles.principal import seen_order
     from .db import PAGE_VERBS
 
     out: list[dict[str, Any]] = []
@@ -2616,18 +2631,12 @@ def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
         if answered:
             turn["page"] = answered["id"]
             if answered["id"] != page:
-                # The order he saw at this reply, as `principal.land`
-                # recorded it. A render reads today's rows, and 73 of 693 rows
-                # named on nights 158 and 159 were not the row he saw (frame
-                # 272, review 1, finding 1). A reply with no record keeps his
-                # numbers.
-                rec = conn.execute("SELECT value FROM config WHERE key = ?",
-                                   (f"order:{r['id']}",)).fetchone()
-                try:
-                    order = [x for x in json.loads(rec["value"])
-                             if isinstance(x, str)] if rec else []
-                except (TypeError, ValueError):
-                    order = []
+                # The order he saw at this reply, by the one reader (fact
+                # F28). A render reads today's rows, and 73 of 693 rows named
+                # on nights 158 and 159 were not the row he saw (frame 272,
+                # review 1, finding 1). A reply with no record keeps his
+                # numbers, so the reader takes the record only.
+                order = seen_order(conn, r["id"], None)
                 if order:
                     text = _page_named_lines(text, answered["id"], order)
         turn["text"] = text
@@ -5188,7 +5197,7 @@ def run_session(
                     f"NOTE You wrote `{name}` as a heading over a list. A list "
                     f"runs nothing, so no `{name}` ran. Write each call on its "
                     f"own line: `{toolproto.MARKER} {name}(...)`.")
-            if (completion.raw or {}).get("done_reason") == "length":
+            if completion.done_reason == "length":
                 # clickI night 16 (2026-09-12): a 688-line whole-file write
                 # stopped at the output cap mid-string, the parser called it
                 # an unbalanced quote, and the Developer then read the file
@@ -5463,7 +5472,7 @@ def run_session(
                 # The line above stays word for word, because nightcount
                 # compares the sign across nights. The stream stop gets its
                 # own line (frame 232).
-                if (completion.raw or {}).get("done_reason") == "invented_result":
+                if completion.done_reason == "invented_result":
                     found = fabricated.group(0)
                     at = fabricated.start() + len(found) - len(found.lstrip())
                     outcome.errors.append(

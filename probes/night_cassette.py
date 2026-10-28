@@ -12,29 +12,15 @@ here, and the walk calls `wrap` once where it builds its backend.
 """
 from __future__ import annotations
 
-import dataclasses
 import os
 from pathlib import Path
 
 from rota import paths
 from rota.llm import llm
-from rota.llm.cassettes import RecordingBackend, key_for, open_dev_db
+from rota.llm.cassettes import RecordingBackend, open_dev_db
 
 #: The phase the gauntlet gives the onboarding walk (`gauntlet_click.sh`).
 ONBOARDING = "onboarding"
-
-#: The stop reasons the runner reads from `Completion.raw`. The runner reads
-#: `length` at `run_session`'s cut note and `invented_result` at its stream
-#: line. `llm.py` sets `repeating` and no reader reads it yet.
-REASONS = ("length", "invented_result", "repeating")
-
-# The suite's `cassettes` table stores the text alone, and the gate reads that
-# table. So the stop reason lives in a side table of the night file. Night
-# 147 replayed five cut replies as whole, and the runner ran the blocked call
-# (frame 233, pass 4).
-REASON_SCHEMA = ("CREATE TABLE IF NOT EXISTS done_reasons "
-                 "(key TEXT PRIMARY KEY, done_reason TEXT NOT NULL)")
-
 
 def cassette_path() -> Path:
     """The night's own file. Never the register's `tests/rota/cassettes.db`:
@@ -62,8 +48,6 @@ class NightBackend(RecordingBackend):
 
     def __init__(self, inner: llm.Backend, dev_conn, *, replay: bool):
         super().__init__(inner, dev_conn, replay=replay)
-        # A connection from `open_dev_db` alone holds no reason table.
-        dev_conn.execute(REASON_SCHEMA)
         self._calls = 0
         self._hits = 0
 
@@ -89,28 +73,13 @@ class NightBackend(RecordingBackend):
         return getattr(self.inner, "default", None)
 
     def complete(self, system, user, pins, tools=None):
-        # The key of `RecordingBackend.complete`. A different key misses every
-        # seeded row.
-        key = key_for(system, user, pins, "native" if tools else "text")
+        # The stop reason travels in the `cassettes` row, so the replay
+        # returns it as the suite's replay does. Night 147 replayed five cut
+        # replies as whole, and the runner ran the blocked call (frame 233).
         before = self.hits
         result = super().complete(system, user, pins, tools=tools)
         self._calls += 1
-        hit = self.hits - before
-        self._hits += hit
-        if hit:
-            row = self.conn.execute(
-                "SELECT done_reason FROM done_reasons WHERE key = ?", (key,)).fetchone()
-            if row:
-                # The runner takes the branch it took live only when `raw` says so.
-                return dataclasses.replace(result, raw={"done_reason": row[0]})
-            return result
-        reason = (result.raw or {}).get("done_reason")
-        if reason in REASONS:
-            self.conn.execute("INSERT OR REPLACE INTO done_reasons (key, done_reason) "
-                              "VALUES (?, ?)", (key, reason))
-        else:
-            # The live record replaced the reply, so an old reason is false now.
-            self.conn.execute("DELETE FROM done_reasons WHERE key = ?", (key,))
+        self._hits += self.hits - before
         return result
 
 

@@ -143,25 +143,31 @@ _TWICE, _INVALID = "m.py defines f twice", "m.py is not valid Python"
 # as 200000 nested minus signs, raises MemoryError from `_future_door`, and
 # the session crashes. The cut door's "To add after it" offer meets it.
 _CRASH = "MemoryError"
-KNOWN_REFUSED_OFFERS: set[tuple[str, str]] = {
-    (_OF + "test_a_text_that_breaks_the_parser_gets_the_cut_refusal", _CRASH),
-    (_OF + "test_a_crash_of_one_offer_keeps_the_records_of_the_others", _CRASH),
-    (_OF + "test_a_session_records_no_offer_and_a_test_records_frames", _INVALID),
+# Each line names the frame that owes its door fix, and the F33 test reads
+# the frame against the open frames of the stack. Findings 2 and 6 are frame
+# 144's, by the strict xfails of `test_offers_followed.py`. The s317 lines
+# are frame 313's, by the docstring of `test_span_holding.py`.
+_F144, _F313 = "frame 144", "frame 313"
+KNOWN_REFUSED_OFFERS: dict[tuple[str, str], str] = {
+    (_OF + "test_a_text_that_breaks_the_parser_gets_the_cut_refusal", _CRASH): _F144,
+    (_OF + "test_a_crash_of_one_offer_keeps_the_records_of_the_others", _CRASH): _F144,
+    (_OF + "test_a_session_records_no_offer_and_a_test_records_frames", _INVALID): _F144,
     (_DG + "test_a_span_from_the_top_into_the_first_statement_gets_no_moved_boundary",
-     _INVALID),
-    (_DG + "test_a_start_on_a_decorated_def_line_names_the_decorators", _TWICE),
-    (_DG + "test_a_span_from_a_blank_line_before_else_is_refused_with_an_offer", _INVALID),
-    (_OF + "test_the_add_after_offer_of_a_cut_span_is_admitted", _TWICE),
-    *((_OF + f"test_a_cut_at_deep_decorators_gets_the_refusal_of_b2ed55b[{k}]",
-       "m.py defines a twice") for k in ("minus400", "attr2000", "spaced")),
+     _INVALID): _F144,
+    (_DG + "test_a_start_on_a_decorated_def_line_names_the_decorators", _TWICE): _F144,
+    (_DG + "test_a_span_from_a_blank_line_before_else_is_refused_with_an_offer",
+     _INVALID): _F144,
+    (_OF + "test_the_add_after_offer_of_a_cut_span_is_admitted", _TWICE): _F144,
+    **{(_OF + f"test_a_cut_at_deep_decorators_gets_the_refusal_of_b2ed55b[{k}]",
+        "m.py defines a twice"): _F144 for k in ("minus400", "attr2000", "spaced")},
     (_OF + "test_a_decorator_line_off_by_one_reads_false_on_a_twin_decorator",
-     "m.py defines a twice"),
-    (_OF + "test_a_cut_refusal_quotes_lines_that_are_true", _INVALID),
+     "m.py defines a twice"): _F144,
+    (_OF + "test_a_cut_refusal_quotes_lines_that_are_true", _INVALID): _F144,
     # Finding 2 on s317's own text, which starts with `) from None` (frame 313).
     ("tests/rota/test_span_holding.py::"
-     "test_s317_takes_the_offered_span_and_its_text_lands[540]", _INVALID),
+     "test_s317_takes_the_offered_span_and_its_text_lands[540]", _INVALID): _F313,
     ("tests/rota/test_span_holding.py::"
-     "test_a_cut_at_the_end_of_a_def_is_offered_the_statement_once", _INVALID),
+     "test_a_cut_at_the_end_of_a_def_is_offered_the_statement_once", _INVALID): _F313,
 }
 
 # The facts that a refusal quotes and the state contradicts today: the test,

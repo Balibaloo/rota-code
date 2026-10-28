@@ -206,6 +206,19 @@ def parse(lines: list[str], bounded: bool = True) -> list[Frame]:
     return frames
 
 
+def open_frames(stack: Path | None = None) -> set[int]:
+    """The numbers of the frames that the stack holds, held or parked.
+
+    A frame closes when it moves to `plans/archive`, so every frame left in
+    the stack file is open. A parked frame is open too, because it still owes
+    its work. A debt in the suite names the frame that owes it, and this is
+    the one reader that says the frame is still open (fact F33 of
+    `plans/rootfix-audit-2026-10-27-b.md`).
+    """
+    path = stack if stack is not None else default_stack()
+    return {int(f.number) for f in parse(read_lines(path), bounded=False)}
+
+
 REACH = "- Reach:"
 
 

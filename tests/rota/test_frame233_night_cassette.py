@@ -233,26 +233,74 @@ def test_a_cut_reply_replays_cut_and_a_whole_reply_replays_whole(tmp_path, monke
     assert replayed.hits == 2 and not plain.raw, plain.raw
 
 
-def test_a_cassette_without_the_reason_table_replays_and_gains_it(tmp_path, monkeypatch):
-    """A night cassette written before pass 4 holds no reason table."""
-    from rota.llm.cassettes import RecordingBackend, open_dev_db
+#: The `cassettes` table before frame 233 moved the stop reason onto it.
+OLD_CASSETTES = (
+    "CREATE TABLE cassettes (key TEXT PRIMARY KEY, model TEXT NOT NULL, "
+    "temperature REAL NOT NULL, num_ctx INTEGER NOT NULL, prompt_hash TEXT NOT NULL, "
+    "system TEXT NOT NULL, user TEXT NOT NULL, completion TEXT NOT NULL, "
+    "tool_calls TEXT NOT NULL DEFAULT '[]', backend TEXT NOT NULL, "
+    "hits INTEGER NOT NULL DEFAULT 0)")
 
+
+def _old_cassette(path, pins, rows, side=None):
+    """A cassette file of the old schema, with the night's side table when
+    `side` maps keys to reasons."""
+    from rota.llm.cassettes import key_for
+
+    conn = sqlite3.connect(path)
+    conn.execute(OLD_CASSETTES)
+    keys = {}
+    for user, completion in rows:
+        keys[user] = key_for("sys", user, pins, "text")
+        conn.execute("INSERT INTO cassettes VALUES (?,?,?,?,?,?,?,?,'[]','old',0)",
+                     (keys[user], pins.model, pins.temperature, pins.num_ctx,
+                      pins.prompt_hash, "sys", user, completion))
+    if side is not None:
+        conn.execute("CREATE TABLE done_reasons (key TEXT PRIMARY KEY, "
+                     "done_reason TEXT NOT NULL)")
+        for user, reason in side.items():
+            conn.execute("INSERT INTO done_reasons VALUES (?, ?)", (keys[user], reason))
+    conn.commit()
+    conn.close()
+
+
+def test_a_cassette_without_the_reason_column_replays_and_gains_it(tmp_path, monkeypatch):
+    """A cassette written before frame 233 holds no `done_reason` column. It
+    replays, and its rows read no stop reason."""
+    pins = Pins(model="scripted")
     path = tmp_path / "old.db"
-    RecordingBackend(Counting(), open_dev_db(path)).complete(
-        "sys", "old", Pins(model="scripted"))
-    tables = {r[0] for r in sqlite3.connect(path).execute(
-        "SELECT name FROM sqlite_master WHERE type = 'table'")}
-    assert "done_reasons" not in tables
+    _old_cassette(path, pins, [("old", "nothing to do")])
 
     night = _module()
     monkeypatch.setenv("ROTA_NIGHT_CASSETTES", str(path))
     monkeypatch.setenv("WALK_REPLAY", "1")
     fake = Counting()
-    replayed = night.wrap(fake, "onboarding").complete("sys", "old", Pins(model="scripted"))
+    replayed = night.wrap(fake, "onboarding").complete("sys", "old", pins)
     assert fake.calls == 0 and replayed.text == "nothing to do" and not replayed.raw
-    tables = {r[0] for r in sqlite3.connect(path).execute(
+    cols = {r[1] for r in sqlite3.connect(path).execute("PRAGMA table_info(cassettes)")}
+    assert "done_reason" in cols
+
+
+def test_the_side_table_of_a_night_moves_onto_the_column(tmp_path, monkeypatch):
+    """A night file of pass 4 holds the `done_reasons` side table. The first
+    open copies each reason onto its row and drops the table, so one store
+    holds the reason (frame 233)."""
+    pins = Pins(model="scripted")
+    path = tmp_path / "night.db"
+    _old_cassette(path, pins, [("cut", "TOOL: code.write("), ("whole", "Done.")],
+                  side={"cut": "length"})
+
+    monkeypatch.setenv("ROTA_NIGHT_CASSETTES", str(path))
+    monkeypatch.setenv("WALK_REPLAY", "1")
+    wrapped = _module().wrap(Counting(), "onboarding")
+    assert wrapped.complete("sys", "cut", pins).raw == {"done_reason": "length"}
+    assert not wrapped.complete("sys", "whole", pins).raw
+    conn = sqlite3.connect(path)
+    tables = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table'")}
-    assert "done_reasons" in tables
+    assert "done_reasons" not in tables
+    assert dict(conn.execute("SELECT user, done_reason FROM cassettes")) == {
+        "cut": "length", "whole": ""}
 
 
 def test_the_seed_marks_a_turn_whose_next_prompt_gains_the_cut_line(tmp_path, monkeypatch):
@@ -288,20 +336,20 @@ def test_the_seed_marks_a_turn_whose_next_prompt_gains_the_cut_line(tmp_path, mo
     # A second seed gives a present key its reason when the reply is the same
     # (frame 233, pass 4b).
     out = sqlite3.connect(cassette)
-    out.execute("DELETE FROM done_reasons")
+    out.execute("UPDATE cassettes SET done_reason = ''")
     out.execute("UPDATE cassettes SET completion = 'other' WHERE user = 'user b'")
     out.commit()
     out.close()
     again = _module(SEED).seed(tmp_path / "night.db", cassette)
     assert again["cut"] == 1 and again["turns"] == 0, again
     rows = sqlite3.connect(cassette).execute(
-        "SELECT COUNT(*) FROM done_reasons").fetchone()[0]
+        "SELECT COUNT(*) FROM cassettes WHERE done_reason != ''").fetchone()[0]
     assert rows == 1
     assert _module(SEED).seed(tmp_path / "night.db", cassette)["cut"] == 0
 
     # A present key whose stored reply differs keeps no reason.
     out = sqlite3.connect(cassette)
-    out.execute("DELETE FROM done_reasons")
+    out.execute("UPDATE cassettes SET done_reason = ''")
     out.execute("UPDATE cassettes SET completion = 'other' WHERE user = 'user a1'")
     out.commit()
     out.close()

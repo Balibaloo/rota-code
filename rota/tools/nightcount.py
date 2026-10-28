@@ -76,10 +76,15 @@ from ..core.runner import FABRICATED_RESULT
 EVICTION = "re-read anything you still need"
 REPEAT_TAILS = ("unchanged since you asked", "was run for you before you")
 WRITE_RESULT = "OK code.write ->"
-LANDED = re.compile(r'"committed":\s*true')
-HEAD_COMMIT = re.compile(r'"head_commit":\s*"([0-9a-f]+)"')
 # A landed commit's head. A read can name `head_commit` with no commit.
 COMMIT_HEAD = re.compile(r'"committed":\s*true,\s*"head_commit":\s*"([0-9a-f]+)"')
+
+
+def landed_heads(text: str) -> list[str]:
+    """The head of each landed commit in a prompt, in text order. This is
+    the one reader of the landed commit (fact F26). A read result that
+    names `head_commit` with no commit is not a landed commit."""
+    return COMMIT_HEAD.findall(text or "")
 # The write call as the seat sends it, marked and at the start of its line.
 WRITE_CALL = re.compile(r"^[ \t]*TOOL:[ \t]*code\.write\b", re.MULTILINE)
 
@@ -164,9 +169,10 @@ def count(conn: sqlite3.Connection) -> dict:
         comp = r["completion"] or ""
         at = after.rfind(comp) if comp else -1
         tail = after[at + len(comp):] if at >= 0 else after
-        if LANDED.search(tail):
+        heads = landed_heads(tail)
+        if heads:
             commits += 1
-            for sha in HEAD_COMMIT.findall(tail):
+            for sha in heads:
                 if sha[:8] not in shas:
                     shas.append(sha[:8])
 
@@ -234,11 +240,11 @@ def _repeats(conn: sqlite3.Connection, turns: list) -> list[list[str]]:
     seen: dict[str, set[str]] = {}
     for r in turns:
         known = seen.setdefault(r["sid"], set())
-        for m in COMMIT_HEAD.finditer(r["user"] or ""):
+        for sha in landed_heads(r["user"]):
             # A head that an earlier turn showed is older than a new one.
-            if m.group(1) not in known:
-                known.add(m.group(1))
-                landed[r["sid"]] = m.group(1)
+            if sha not in known:
+                known.add(sha)
+                landed[r["sid"]] = sha
     parent = {s["id"]: s["id"] for s in sessions}
 
     def root(sid: str) -> str:

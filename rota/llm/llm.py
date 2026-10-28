@@ -212,6 +212,17 @@ class Completion:
     def used_native_tools(self) -> bool:
         return bool(self.tool_calls)
 
+    @property
+    def done_reason(self) -> str:
+        """Why the stream stopped: "length", "invented_result", "repeating",
+        or "" when nobody recorded the reason.
+
+        This is the one reader of the stop. A cassette replay carries the
+        reason in `raw` as the live call does, so a replayed night fires the
+        same rules as the live night (frame 233).
+        """
+        return str((self.raw or {}).get("done_reason") or "")
+
 
 class Backend(Protocol):
     name: str
