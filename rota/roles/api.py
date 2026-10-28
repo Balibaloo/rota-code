@@ -1733,8 +1733,9 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # finding 2). The contested brief says "One call, on the item's own id".
     wake_refs = [r for r in (getattr(ctx, "wake_refs", ()) or ())
                  if isinstance(r, str)]
-    if wake == "tick:contested" and wake_refs and id not in wake_refs:
-        return _contested_elsewhere(ctx, id, cur is not None, wake_refs)
+    contested = _contested_rows(ctx)
+    if contested and id not in contested:
+        return _contested_elsewhere(ctx, id, cur is not None, contested)
     reply = _reply_sentence_fault(ctx, id, text, row, wake_refs)
     if reply:
         return reply
@@ -1942,6 +1943,42 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
             f"{_amend_step(ctx, id, cur['text'], ' '.join(words))}")
 
 
+def _contested_rows(ctx: Ctx) -> list[str]:
+    """The rows a `tick:contested` wake contests, or an empty list on any
+    other wake. The one reader of which row a contest may amend."""
+    if (getattr(ctx, "wake_kind", "") or "") != "tick:contested":
+        return []
+    return [r for r in (getattr(ctx, "wake_refs", ()) or ())
+            if isinstance(r, str)]
+
+
+# The deliver brief's route for a request, `deliver.md` lines 37 and 38.
+DESCRIPTION_ROUTE = ("Assert it as its own item, with an id that names the "
+                     "behaviour, one `problem.assert` per distinct thing. Do "
+                     "not put the statement into the account.")
+
+
+def _description_kept(ctx: Ctx, id: str) -> str:
+    """
+    The refusal for a text on an observed description row.
+
+    The route goes only to a seat whose mode brief holds it. A seat on
+    another mode does not read the deliver brief, and a new item does not
+    end its wake, so the refusal names no call there (the review of hiwroot
+    pass 1, finding 2).
+    """
+    from . import prompts as _prompts
+
+    fact = (f"{id} is a description read from the code, and only an "
+            f"onboarding wake changes its words. The row keeps its words")
+    brief = " ".join(_prompts.piece(ctx.role, _wake_mode_key(ctx) or "").split())
+    if (DESCRIPTION_ROUTE in brief
+            and "problem.assert" in _wake_mode_tools(ctx)):
+        return (f"{fact}. What the principal asked for is its own item. Your "
+                f"brief says: \"{DESCRIPTION_ROUTE}\"")
+    return f"{fact}."
+
+
 def _contested_elsewhere(ctx: Ctx, id: str, exists: bool,
                          wake_refs: list[str]) -> str:
     """
@@ -2040,6 +2077,17 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             "SELECT i.text FROM items i JOIN item_provenance p ON p.id = i.id "
             "WHERE i.id = ? AND p.provenance = 'observed'",
             (id,)).fetchone()
+        # An observed description says what the code does today. Only a
+        # wake that reads the code changes its words. Night 171: s152, woken
+        # by a deliver that named a ledger row, rewrote the approved account,
+        # and the word doors below let it pass. A contest carries his words,
+        # and "an observed item stays observed until their words change it",
+        # so a contested wake amends the row it contests and no other (the
+        # review of hiwroot pass 1, finding 1).
+        from ..core.runner import _is_description
+        if (observed and _is_description(ctx.conn, id)
+                and id not in _contested_rows(ctx)):
+            raise ValueError(_description_kept(ctx, id))
         if observed and observed["text"]:
             old_words = set(_prose_words(observed["text"]))
             new_words = set(_prose_words(text))
@@ -2121,8 +2169,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
                 f"how_it_works is the account of the whole program, and this "
                 f"text keeps almost none of its words ({cur_acc['text']!r}). A "
                 f"behaviour the principal asked for is its own item: assert it "
-                f"under its own name, kind in_scope. Amend the account only to "
-                f"add the new behaviour to what it already says")
+                f"under its own name, kind in_scope")
 
     if ctx.conn.execute(
             "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
