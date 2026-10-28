@@ -166,6 +166,127 @@ def test_a_ruling_from_his_words_lands_rows_with_no_keypress(db):
     assert verdict_for(db, mid) == {"i1": "approve", "i2": "contest"}
 
 
+# --- review 1 of fact F1, findings 1 to 6 -----------------------------------
+
+def _night171(tmp_path, key: str):
+    """Night 171's shape: page m65, his words m80, the Liaison's open
+    reading r_m80 "contest, rewrite format_filename:42", then his key."""
+    c = init_db(tmp_path / "n171.db")
+    c.execute("INSERT INTO items (id, text, kind) VALUES ('how_it_works', "
+              "'Click is a CLI kit', 'in_scope')")
+    c.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+              "body_refs, seq, status) VALUES ('m65', 't', 'liaison', "
+              "'principal', 'present', '[\"how_it_works\"]', 68, 'open')")
+    c.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+              "to_role, verb, body_refs, body_text, seq, status) VALUES "
+              "('m80', 'm65', 't', 'principal', 'liaison', 'converse', "
+              "'[\"how_it_works\"]', 'Line 1 describes Click, so replace it', "
+              "84, 'answered')")
+    c.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+              "status) VALUES ('r_m80', 'm65', 'm80', ?, 'replace it', 'open')",
+              (json.dumps({"how_it_works": "contest"}),))
+    c.execute("INSERT INTO ruled_refs (id, ruling_id, ref, verdict, act, "
+              "target_kind, target, words, source) VALUES ('rr_how', 'r_m80', "
+              "'how_it_works', 'contest', 'rewrite', 'source_line', "
+              "'format_filename:42', 'replace it', 'reading')")
+    ask = Ask(message_id="m65", verb="present", refs=["how_it_works"],
+              order=["how_it_works"])
+    mid = land(c, ask, Answer(verb="verdict", per_item={"how_it_works": key}))
+    return c, mid
+
+
+def test_his_key_after_a_landed_ruling_on_the_ask_is_the_verdict(db):
+    """Finding 1: his words landed r2 with a contest, then his key approved.
+    The key lands a ruling of its own, so the relay carries the approve."""
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, body_text, seq, status) VALUES "
+               "('m6', 'm1', 'th', 'principal', 'liaison', 'converse', '[]', "
+               "'two changes', 2, 'answered')")
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words, "
+               "status) VALUES ('r2', 'm1', 'm6', ?, 'two changes', 'landed')",
+               (json.dumps({"i1": "contest"}),))
+    _reading(db, "r2", "i1", "contest")
+    ask = Ask(message_id="m1", verb="present", refs=["i1"], order=["i1"])
+    mid = land(db, ask, Answer(verb="verdict", per_item={"i1": "approve"}))
+    assert verdict_for(db, mid) == {"i1": "approve"}
+    assert chain_verdict(db, mid)[1] == {"i1": "approve"}
+
+
+@pytest.mark.parametrize("key", ["contest", "approve"])
+def test_the_read_back_line_reads_the_reading_and_not_his_key(tmp_path, key):
+    """Finding 2: the line says how the team read his words, so his key and
+    the landed row are no row of it, whether the key agrees or not."""
+    from rota.roles.principal import read_back_rows, reading_line
+
+    c, _ = _night171(tmp_path, key)
+    rows = read_back_rows(c, "m80")
+    assert [(r["source"], r["verdict"], r["act"]) for r in rows] == [
+        ("reading", "contest", "rewrite")]
+    assert "rewrite format_filename:42" in reading_line(c, "reading:m80")
+
+
+def test_the_last_ruling_reads_his_key_over_the_reading(tmp_path):
+    """Finding 3: his key approves over the reading's contest. The respecify
+    door and the ratify door read the approve."""
+    from rota.roles.principal import contested_statement, last_ruling_on
+
+    c, _ = _night171(tmp_path, "approve")
+    assert last_ruling_on(c, "how_it_works")["verdict"] == "approve"
+    assert contested_statement(c, "how_it_works") is None
+    agree = tmp_path / "agree"
+    agree.mkdir()
+    c, _ = _night171(agree, "contest")
+    assert last_ruling_on(c, "how_it_works")["verdict"] == "contest"
+    assert contested_statement(c, "how_it_works") == "r_m80"
+
+
+def test_the_seed_of_a_verdict_on_a_ruling_from_his_words_keeps_that_ruling():
+    """Finding 4: the case's verdict lands its rows under the ruling r2 that
+    his words landed, as `land` does on the `apply_rulings` path, and writes
+    no keypress row and no ruling `r_<verdict>`."""
+    from rota.testkit import fixtures
+
+    path = Path(__file__).parent / "cases" / "l1_liaison2.yaml"
+    (case,) = [c for c in fixtures.load_case(path)
+               if c["id"] == "L1-LI-a-contested-statement-is-not-delivered"]
+    conn = init_db(":memory:")
+    fixtures.seed(conn, case["fixture"])
+    mid = fixtures.seed_inbound(conn, case)
+    (ruling,) = conn.execute("SELECT id, verdict_id FROM rulings").fetchall()
+    assert ruling["verdict_id"] == mid
+    assert {r["source"] for r in conn.execute(
+        "SELECT source FROM ruled_refs")} == {"backfill", "landed"}
+
+
+def test_the_owner_view_and_the_rows_agree_on_his_key(tmp_path):
+    """Finding 5: on the open-row path his key decides the ruling, in the
+    owner `provenance` view as in `ruled_refs_live` (law 11)."""
+    c, _ = _night171(tmp_path, "contest")
+    c.execute("INSERT INTO items (id, text, kind) VALUES ('i9', 'x', 'in_scope')")
+    c.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
+              "('items', 'i9', 'ruling', 'r_m80')")
+    assert c.execute("SELECT provenance FROM item_provenance WHERE id = 'i9'"
+                     ).fetchone()[0] == "decided"
+    assert {r[0] for r in c.execute("SELECT provenance FROM ruled_refs_live "
+                                    "WHERE source = 'landed'")} == {"decided"}
+
+
+def test_the_night_report_reads_a_ruling_as_verdict_for_does(db):
+    """Finding 6: an old night with no landed row. A `reading:` ref and an
+    approve of a resolved ledger row are no verdict, as in `verdict_for`."""
+    from rota.tools.nightreport import Night, _ruled_rows
+
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "status, author) VALUES ('L1', 'i1', 'items', 'x', 'resolved', "
+               "'architect')")
+    db.execute("INSERT INTO rulings (id, ask_id, status) VALUES "
+               "('r_old', 'm1', 'landed')")
+    for ref, verdict in (("i2", "contest"), ("L1", "approve"),
+                         ("reading:m9", "approve")):
+        _reading(db, "r_old", ref, verdict)
+    assert _ruled_rows(Night(db), "r_old") == {"i2": "contest"}
+
+
 def test_no_function_reads_a_verdict_key_of_config():
     """The one-reader pin of fact F1. A string that starts a `config` key
     `verdict:`, or names it in SQL, turns this red (rule C76)."""

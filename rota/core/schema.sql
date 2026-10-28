@@ -137,7 +137,11 @@ basis AS (
               AND (u.reply_id IS NULL OR EXISTS (
                   SELECT 1 FROM ruled_refs c JOIN rulings cr ON cr.id = c.ruling_id
                   WHERE c.ref = 'reading:' || u.reply_id AND c.verdict = 'approve'
-                    AND cr.status = 'landed'))))
+                    AND cr.status = 'landed')
+                -- His keypress under the ruling decides it, as in
+                -- `ruled_refs_live` (fact F1, review 1, finding 5).
+                OR EXISTS (SELECT 1 FROM ruled_refs k WHERE k.ruling_id = u.id
+                           AND k.source = 'keypress'))))
           AS ruled,
         MAX(kind = 'statement' AND EXISTS (
             SELECT 1 FROM statements s WHERE s.id = reach.target AND s.status = 'ratified'))

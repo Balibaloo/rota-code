@@ -2005,7 +2005,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # what they objected to. Liaison asked the principal what they had
     # already said; the principal said it again; the tick fired again; the
     # same question came back verbatim. The ruling that contested the item
-    # is the config verdict naming it, the latest wins, and its entry is the
+    # is the landed verdict naming it, the latest wins, and its entry is the
     # reason. Surfaced the way a relay surfaces it, so the brief's two cases
     # -- "they said what they meant instead" and "they said no" -- can be
     # told apart by reading `principal_said`.

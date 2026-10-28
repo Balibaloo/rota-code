@@ -738,8 +738,10 @@ def contested_statement(conn: sqlite3.Connection, sid: str, *,
     if before_seq is not None:
         sql += " AND COALESCE(p.seq, a.seq) < ?"
         args.append(before_seq)
-    r = conn.execute(sql + " ORDER BY r.ruling_seq DESC LIMIT 1",
-                     tuple(args)).fetchone()
+    # Inside one ruling the newest row wins: a landed or keypress row over
+    # the reading, as in `ruled` (fact F1, review 1, finding 3).
+    r = conn.execute(sql + " ORDER BY r.ruling_seq DESC, r.row_seq DESC "
+                     "LIMIT 1", tuple(args)).fetchone()
     return r["ruling_id"] if r is not None and r["verdict"] == "contest" else None
 
 
@@ -771,16 +773,16 @@ def last_ruling_on(conn: sqlite3.Connection, ref: str) -> dict | None:
     ruling. A stale ruling does not count, as in `contested_statement`. The
     repair wake and the respecify door read this one function (frame 226).
 
-    The rows come from `ruled_refs_live`, one row per ruling and ref (the
-    seam design, pass 1). `words` stays the whole reply in this pass, so
-    each reader gets the answer it got from `per_item`.
+    The rows come from `ruled`, the newest row on `ref`, so his keypress
+    or the landed verdict wins over the reading of the same ruling (the
+    seam design, pass 1; fact F1, review 1, finding 3). `words` stays the
+    whole reply in this pass, so each reader gets the answer it got from
+    `per_item`.
     """
-    r = conn.execute(
-        "SELECT ruling_id, verdict, reply_words, old_text FROM ruled_refs_live "
-        "WHERE ref = ? AND ruling_status != 'stale' "
-        "ORDER BY ruling_seq DESC LIMIT 1", (ref,)).fetchone()
-    if r is None:
+    rows = ruled(conn, [ref], landed=False, newest=True)
+    if not rows:
         return None
+    r = rows[-1]
     return {"id": r["ruling_id"], "verdict": r["verdict"],
             "words": r["reply_words"] or "", "text": r["old_text"]}
 
@@ -1166,12 +1168,14 @@ def readings_owed(conn: sqlite3.Connection) -> list[str]:
 
 def read_back_rows(conn: sqlite3.Connection, reply: str) -> list:
     """The rows that the read-back line of reply `reply` reads back, one
-    per ref. The line says how the team read his words, so a `landed` row
-    of the verdict is no row of it (fact F1). A `reading:` ref is the line
-    itself. The line and the landing wake read this one function."""
+    per ref. The line says how the team read his words, so only the
+    reading's rows count, never a keypress row or a `landed` row (fact F1,
+    review 1, finding 2). A `reading:` ref is the line itself. The line and
+    the landing wake read this one function."""
     return one_row_per_ref([
         r for r in ruled(conn, reply=reply, every=True)
-        if r["source"] != "landed" and not _is_reading(r["ref"])])
+        if r["source"] in ("reading", "backfill")
+        and not _is_reading(r["ref"])])
 
 
 def reading_line(conn: sqlite3.Connection, ref: str) -> str | None:
@@ -2921,9 +2925,10 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         conn.execute(
             "UPDATE rulings SET status = 'landed', verdict_id = ? "
             "WHERE ask_id = ? AND status = 'open'", (msg_id, ask.message_id))
-        on_file = conn.execute(
-            "SELECT 1 FROM rulings WHERE ask_id = ?", (ask.message_id,)).fetchone()
-        if on_file is None:
+        # No open ruling on the ask: his key is a ruling of its own. An
+        # earlier landed ruling on the ask does not stop it, or his approve
+        # over his own earlier contest is lost (fact F1, review 1, finding 1).
+        if not opened:
             _insert_keypress_ruling(conn, ask, msg_id, {**per_item, **readings},
                                     (answer.text or "").strip())
         # His keypress is his verdict, and the Liaison's reading is a

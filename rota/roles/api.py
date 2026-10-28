@@ -1807,7 +1807,7 @@ def _assert_words_fault(ctx: Ctx, id: str, text: str, kind: str) -> str | None:
     # A contest on the item is a verdict on the item's own id. Night 146's
     # m250 approved the item and contested a criterion, and s399 rewrote the
     # item anyway (the review of 81f27127, finding 2). A ruling row is the
-    # record. A database with no ruling row keeps the verdict in config.
+    # record. Fact F1 removed the verdict map of config.
     keep = (f"Keep the item. Send msg.report_liaison with what the contest "
             f"needs, or answer with decisions.author")
     # The wake names the contested item. An assert on another item reads a
@@ -2295,7 +2295,7 @@ def _landed_approval(ctx: Ctx, id: str) -> tuple[str, str] | None:
     """(ruling id, ask id) when the newest landed ruling on `id` approves it.
 
     The door reads the newest landed row on `id` in `ruled_refs_live`. The
-    view orders by `rulings.rowid`. The `config` verdict
+    view orders by `rulings.rowid`. The verdict that `verdict_for` reads
     holds only the rows the relay carries (frame 238). The newest landed row
     in rowid order is the principal's latest word. The relay's chain ruling
     is one of these rows, so a newer ruling wins over it (the review of

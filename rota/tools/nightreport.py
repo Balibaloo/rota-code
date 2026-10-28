@@ -192,15 +192,28 @@ def _is_runner(turn: dict) -> bool:
 def _ruled_rows(n: Night, ruling_id: str) -> dict:
     """The verdict per ref of one ruling: its `landed` rows, else its
     keypress rows, else all its rows, the order of `verdict_for`. Empty
-    when the night has no `ruled_refs` table."""
+    when the night has no `ruled_refs` table.
+
+    The last two tiers take the filters of `verdict_for`: no `reading:`
+    ref, and no approve of a resolved ledger row (fact F1, review 1,
+    finding 6). A night opens without the schema mark, so this reader keeps
+    its own query and does not call `verdict_for`."""
     if not n.has("ruled_refs", "source"):
         return {}
     rows = n.conn.execute(
         "SELECT ref, verdict, source FROM ruled_refs WHERE ruling_id = ? "
         "ORDER BY rowid", (ruling_id,)).fetchall()
-    chosen = ([x for x in rows if x["source"] == "landed"]
-              or [x for x in rows if x["source"] == "keypress"] or rows)
-    return {x["ref"]: x["verdict"] for x in chosen}
+    landed = [x for x in rows if x["source"] == "landed"]
+    if landed:
+        return {x["ref"]: x["verdict"] for x in landed}
+    resolved = set()
+    if n.has("ledger", "status"):
+        resolved = {r["id"] for r in n.conn.execute(
+            "SELECT id FROM ledger WHERE status = 'resolved'")}
+    chosen = [x for x in rows if x["source"] == "keypress"] or rows
+    return {x["ref"]: x["verdict"] for x in chosen
+            if not str(x["ref"]).startswith("reading:")
+            and not (x["verdict"] == "approve" and x["ref"] in resolved)}
 
 
 def _config(n: Night, key: str):
