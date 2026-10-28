@@ -440,6 +440,69 @@ def next_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
 # The merge gate
 # ---------------------------------------------------------------------------
 
+def predicted_rows(conn: sqlite3.Connection, batch_id: str,
+                   staged=()) -> list[dict]:
+    """
+    The batch's predicted touch rows, less the grains his words decline.
+
+    F35: the doors and the seat's working view read the prediction here.
+    No other function reads `batch_touch` for them. A grain is declined when
+    his newest landed ruling on the batch grants `remove` on the grain. A
+    file-qualified symbol is declined also when its file is declined. On
+    night 170 the Tester was shown the test paths his words declined, and
+    the test-file door refused 12 sends (plans/night170-read.md, W1).
+
+    `staged` is the session's own writes. A door reads them so that it sees
+    the rows the session is about to land. The rows come in grain order,
+    the landed rows first.
+
+    P4 (ruled R16/R17, 2026-09-03): the page puts the Architect's own rows
+    to the principal as a sense check. So `touch_set` does not read this.
+    """
+    from .runner import disputed_paths
+
+    rows = [dict(r) for r in conn.execute(
+        "SELECT grain, grain_kind, confidence FROM batch_touch "
+        "WHERE batch_id = ? ORDER BY grain", (batch_id,))]
+    rows += [{"grain": w[2].get("grain"), "grain_kind": w[2].get("grain_kind"),
+              "confidence": w[2].get("confidence")}
+             for w in staged or ()
+             if w[0] == "batch_touch" and isinstance(w[2], dict)
+             and w[2].get("batch_id") == batch_id and w[2].get("grain")]
+
+    def file_of(row: dict) -> str | None:
+        grain = row["grain"]
+        if row["grain_kind"] == "path":
+            return grain
+        if row["grain_kind"] == "symbol" and "::" in grain:
+            return grain.split("::", 1)[0]
+        return None
+
+    asked = list(dict.fromkeys(
+        [r["grain"] for r in rows] + [f for f in map(file_of, rows) if f]))
+    gone = set(disputed_paths(conn, batch_id, asked)) if asked else set()
+    return [r for r in rows
+            if r["grain"] not in gone and file_of(r) not in gone]
+
+
+def predicted_files(conn: sqlite3.Connection, batch_id: str,
+                    staged=()) -> list[str]:
+    """
+    The files the batch is predicted to touch, less the files his words
+    decline: the path grains and the file of each file-qualified symbol.
+
+    A bare symbol names no file, so it gives none. The doors compare a
+    diff with this list (F35).
+    """
+    files = []
+    for r in predicted_rows(conn, batch_id, staged):
+        if r["grain_kind"] == "path":
+            files.append(r["grain"])
+        elif r["grain_kind"] == "symbol" and "::" in r["grain"]:
+            files.append(r["grain"].split("::", 1)[0])
+    return list(dict.fromkeys(files))
+
+
 def needs_structural_review(conn: sqlite3.Connection, batch_id: str) -> bool:
     """
     Whether there is anything for Architect to check this batch against.
@@ -484,17 +547,14 @@ def needs_structural_review(conn: sqlite3.Connection, batch_id: str) -> bool:
     if globals_:
         return True
 
-    touched = conn.execute(
-        "SELECT COUNT(*) AS n FROM batch_touch WHERE batch_id = ?",
-        (batch_id,)).fetchone()["n"]
+    # A path his words decline is not predicted ground, so a binding on it
+    # asks for no review (F35).
+    touched = {(t["grain"], t["grain_kind"]) for t in predicted_rows(conn, batch_id)}
     if not touched:
         return True                 # nothing predicted; do not assume nothing hit
 
-    return bool(conn.execute(
-        "SELECT COUNT(*) AS n FROM batch_touch t "
-        "JOIN constraint_bindings b ON b.grain = t.grain "
-        "                          AND b.grain_kind = t.grain_kind "
-        "WHERE t.batch_id = ? AND b.resolves = 1", (batch_id,)).fetchone()["n"])
+    return any((b["grain"], b["grain_kind"]) in touched for b in conn.execute(
+        "SELECT grain, grain_kind FROM constraint_bindings WHERE resolves = 1"))
 
 
 def touch_set(conn: sqlite3.Connection, batch_id: str) -> dict:

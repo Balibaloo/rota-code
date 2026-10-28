@@ -5583,11 +5583,13 @@ def _surface_outside_batch(ctx: Ctx, ticket_id: str | None, surface: list[str]) 
     ticket = ctx.conn.execute(
         "SELECT text FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
     words_from = [ticket["text"] if ticket else ""]
+    from ..core.lifecycle import predicted_rows
+
     for b in batches:
-        # The same query as `batches_expect`, so the door and the read agree.
-        touch += [dict(r) for r in ctx.conn.execute(
-            "SELECT grain, grain_kind, confidence FROM batch_touch WHERE batch_id = ? "
-            "ORDER BY confidence, grain_kind, grain", (b["id"],))]
+        # The same reader and order as `batches_expect`, so the door and the
+        # read agree. A file his words decline holds no surface (F35).
+        touch += sorted(predicted_rows(ctx.conn, b["id"]), key=lambda t: (
+            t["confidence"] or "", t["grain_kind"] or "", t["grain"]))
         words_from.append(b["item_text"] or "")
         words_from += [r["text"] for r in ctx.conn.execute(
             "SELECT s.text AS text FROM refs x "
@@ -18571,9 +18573,11 @@ def _surface_pick(ctx, batch_id, criterion_id, refs: list) -> list:
     if len(refs) <= 1:
         return refs
     bid = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
-    touched = {str(g).rsplit("::", 1)[-1] for (g,) in ctx.conn.execute(
-        "SELECT grain FROM batch_touch WHERE batch_id = ? "
-        "AND grain_kind = 'symbol'", (bid,))}
+    from ..core.lifecycle import predicted_rows
+
+    # A symbol his words decline is not touched (F35).
+    touched = {str(t["grain"]).rsplit("::", 1)[-1]
+               for t in predicted_rows(ctx.conn, bid) if t["grain_kind"] == "symbol"}
     hit = [r for r in refs if r.rsplit("::", 1)[-1] in touched]
     return hit if len(hit) == 1 else []
 
@@ -18968,13 +18972,16 @@ def _arrange_run_refusal(ctx, batch_id, criterion_id, path: str,
         refs = []
     surface = {str(s).rsplit("::", 1)[-1] for s in refs}
     # Review 2, finding 1: the names the batch adds are in its item, its
-    # criteria and its touch rows.
+    # criteria and its touch rows. A grain his words decline adds no name
+    # (F35).
+    from ..core.lifecycle import predicted_rows
+
     adds = [r[0] or "" for r in ctx.conn.execute(
         "SELECT i.text FROM batches b JOIN items i ON i.id = b.item_id "
         "WHERE b.id = ? UNION ALL SELECT c.text FROM criteria c "
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE bt.batch_id = ? UNION ALL SELECT grain FROM batch_touch "
-        "WHERE batch_id = ?", (batch_id, batch_id, batch_id))]
+        "WHERE bt.batch_id = ?", (batch_id, batch_id))]
+    adds += [t["grain"] for t in predicted_rows(ctx.conn, batch_id)]
     fault = arrange_fault(body, path, said, surface,
                           (crit["text"] if crit else "") or "", str(root),
                           "\n".join(adds))
@@ -23327,23 +23334,11 @@ def _silent_note_refusal(ctx: Ctx, about_ref: str, assumption: str) -> str | Non
     return None
 
 
-def _predicted_touch(ctx: Ctx, batch_id: str) -> list[str]:
-    """The batch's predicted touch as ground: path grains, and the file a
-    file-qualified symbol lives in. Landed rows and the session's own
-    staged ones alike."""
-    rows = [(r["grain"], r["grain_kind"]) for r in ctx.conn.execute(
-        "SELECT grain, grain_kind FROM batch_touch WHERE batch_id = ? "
-        "ORDER BY grain", (batch_id,))]
-    rows += [(w[2].get("grain"), w[2].get("grain_kind")) for w in ctx.writes
-             if w[0] == "batch_touch" and w[2].get("batch_id") == batch_id]
-    return [g for g, kind in rows
-            if g and (kind == "path" or (kind == "symbol" and "::" in g))]
-
-
 def _outside_prediction(ctx: Ctx, batch_id: str, touched: list[str]) -> list[str]:
     """Detector two: the touched paths the prediction never named, less the
     paths already judged for this batch. Empty when nothing was predicted."""
     from ..core.divergence import stray_paths
+    from ..core.lifecycle import predicted_files
 
     judged = {r["path"] for r in ctx.conn.execute(
         "SELECT path FROM touch_strays WHERE batch_id = ? AND status != 'open'",
@@ -23352,7 +23347,8 @@ def _outside_prediction(ctx: Ctx, batch_id: str, touched: list[str]) -> list[str
     # The tests are the Tester's, and the harness commits them into the
     # batch: clickI night 41 (2026-09-13) raised six test files as the
     # Developer's strays. A test path is never a stray.
-    return [p for p in stray_paths(touched, _predicted_touch(ctx, batch_id))
+    # A file his words decline is outside the prediction (F35).
+    return [p for p in stray_paths(touched, predicted_files(ctx.conn, batch_id, ctx.writes))
             if p not in judged and not _is_test_path(p)]
 
 
@@ -23362,7 +23358,9 @@ def _unnamed_def_strays(ctx: Ctx, tree, touched: list[str],
     that no criterion names, less the grains already judged. A path that is
     a stray whole is judged once, so its definitions are not listed."""
     from pathlib import Path as _P
-    if tree is None or not _predicted_touch(ctx, ctx.batch_id):
+
+    from ..core.lifecycle import predicted_files
+    if tree is None or not predicted_files(ctx.conn, ctx.batch_id, ctx.writes):
         return []        # detector two's rule: no prediction, no stray
     judged = {r["path"] for r in ctx.conn.execute(
         "SELECT path FROM touch_strays WHERE batch_id = ? AND status != 'open'",
@@ -23824,9 +23822,11 @@ def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
         "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
         "AND s.status != 'superseded' ORDER BY s.id",
         (row["item_id"] or "",))]
-    touch = [dict(r) for r in ctx.conn.execute(
-        "SELECT grain, grain_kind, confidence FROM batch_touch WHERE batch_id = ? "
-        "ORDER BY confidence, grain_kind, grain", (bid,))]
+    # The seat's working view drops the grains his words decline (F35).
+    from ..core.lifecycle import predicted_rows
+
+    touch = sorted(predicted_rows(ctx.conn, bid), key=lambda t: (
+        t["confidence"] or "", t["grain_kind"] or "", t["grain"]))
     tests = [dict(r) for r in ctx.conn.execute(
         "SELECT id, criterion_id, path FROM tests WHERE batch_id = ? ORDER BY id", (bid,))]
     # The runner pushes this read first, so the seat reads the discard here.
