@@ -1017,7 +1017,9 @@ def test_s324_docstring_block_names_the_code_lines(bg2):
         f"the value for {cid} holds 3 lines, and they are docstring lines. "
         f"A docstring or comment line counts only for a criterion that asks "
         f"for documentation, and {cid} asks for behaviour. A pass "
-        f"names one added line per criterion. Copy the one added line of "
+        f"names one added line or one unit per criterion. A unit is one "
+        f"branching statement, or a run of docstring lines for a "
+        f"criterion that asks for documentation. Copy the one added line of "
         f"code that does what {cid} says, without the +, and send the pass "
         f"again. " + BG2_LISTED + _bg2_fail_route(cid))
     assert "'show_python: bool = False,'" in said
@@ -1145,7 +1147,9 @@ def test_s324_on_the_real_diff_gets_the_docstring_text(real_bg2):
         f"the value for {cid} holds 3 lines, and they are docstring lines. "
         f"A docstring or comment line counts only for a criterion that asks "
         f"for documentation, and {cid} asks for behaviour. A pass "
-        f"names one added line per criterion. Copy the one added line of "
+        f"names one added line or one unit per criterion. A unit is one "
+        f"branching statement, or a run of docstring lines for a "
+        f"criterion that asks for documentation. Copy the one added line of "
         f"code that does what {cid} says, without the +, and send the pass "
         f"again. " + BG2_LISTED + _bg2_fail_route(cid))
     assert ":param show_python" not in said
